@@ -24,13 +24,8 @@ function Icon({ name }: { name: string }) {
   return <svg data-icon={name} />;
 }
 
-vi.mock('lucide-react', () => ({
-  Loader2: ({ className }: { className?: string }) => (
-    <svg data-icon="loader" className={className} />
-  ),
-}));
-
-vi.mock('@bitfun/ui', () => ({
+vi.mock('@bitfun/ui', async importOriginal => ({
+  IconButton: (await importOriginal<typeof import('@bitfun/ui')>()).IconButton,
   Button: ({
     children,
     leadingIcon,
@@ -166,6 +161,33 @@ describe('CodeReviewReportExportActions', () => {
     }
   });
 
+  it('keeps pending export controls visible and enables them when a report arrives', async () => {
+    (window as Window & { __TAURI__?: unknown }).__TAURI__ = {};
+    vi.mocked(save).mockResolvedValue('/review.md');
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    try {
+      await act(async () => {
+        root.render(<CodeReviewReportExportActions reviewData={null} actions={['copy', 'save']} />);
+      });
+      const buttons = [...container.querySelectorAll<HTMLButtonElement>('button')];
+      expect(buttons).toHaveLength(2);
+      expect(buttons.every(button => button.disabled)).toBe(true);
+      expect(formatCodeReviewReportMarkdownMock).not.toHaveBeenCalled();
+      await act(async () => {
+        root.render(<CodeReviewReportExportActions
+          reviewData={{ summary: { recommended_action: 'approve' } }}
+          actions={['copy', 'save']}
+        />);
+      });
+      expect(buttons.every(button => !button.disabled)).toBe(true);
+      await act(async () => { buttons[1].click(); });
+      expect(writeFile).toHaveBeenCalledWith('/review.md', new TextEncoder().encode('# Review'));
+    } finally {
+      act(() => root.unmount());
+    }
+  });
+
   it('uses the same copy icon as other copy buttons', () => {
     const html = renderToStaticMarkup(
       <CodeReviewReportExportActions reviewData={{ summary: { recommended_action: 'approve' } }} />,
@@ -196,6 +218,41 @@ describe('CodeReviewReportExportActions', () => {
     expect(html).toContain('aria-label="Copy Markdown"');
     expect(html).toContain('aria-label="Save Markdown"');
     expect(html).not.toContain('aria-label="Open as Markdown"');
+  });
+
+  it('keeps saving disabled while the file picker is open and does not write when cancelled', async () => {
+    Object.defineProperty(window, '__TAURI__', { value: {}, configurable: true });
+    let cancelPicker!: () => void;
+    vi.mocked(save).mockImplementationOnce(
+      () => new Promise(resolve => { cancelPicker = () => resolve(null); }),
+    );
+    const parentClick = vi.fn();
+    const container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    act(() => {
+      root!.render(
+        <div onClick={parentClick}>
+          <CodeReviewReportExportActions reviewData={{ summary: { recommended_action: 'approve' } }} actions={['save']} />
+        </div>,
+      );
+    });
+
+    const button = container.querySelector<HTMLButtonElement>('button[aria-label="Save Markdown"]')!;
+    await act(async () => button.click());
+
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(button.disabled).toBe(true);
+    expect(button.getAttribute('data-loading')).toBe('false');
+    expect(button.querySelector('[data-icon="progress-25"]')).not.toBeNull();
+    act(() => button.click());
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(parentClick).not.toHaveBeenCalled();
+
+    await act(async () => cancelPicker());
+    expect(writeFile).not.toHaveBeenCalled();
+    expect(button.disabled).toBe(false);
+    expect(button.querySelector('[data-icon="arrow-down"]')).not.toBeNull();
   });
 
   it('passes the review run manifest into Markdown formatting', () => {

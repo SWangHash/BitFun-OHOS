@@ -461,6 +461,7 @@ fn builtin_skill_catalog_and_mode_policy_are_runtime_owned() {
         builtin_skill_group_key("create-bitfun-skin"),
         Some("meta")
     );
+    assert_eq!(builtin_skill_group_key("commit-push-pr"), Some("meta"));
     assert_eq!(builtin_skill_group_key("find-skills"), Some("meta"));
     assert_eq!(builtin_skill_group_key("miniapp-dev"), Some("miniapp"));
     assert_eq!(
@@ -492,6 +493,18 @@ fn builtin_skill_catalog_and_mode_policy_are_runtime_owned() {
         resolve_builtin_default_enabled("create-bitfun-skin", "DeepResearch"),
         Some(true)
     );
+    for mode in ["Standard", "Claw", "Creative", "Cowork", "DeepResearch"] {
+        assert_eq!(
+            resolve_builtin_default_enabled("commit-push-pr", mode),
+            Some(true)
+        );
+    }
+    for mode in ["Ultimate", "SwarmWorker"] {
+        assert_eq!(
+            resolve_builtin_default_enabled("commit-push-pr", mode),
+            Some(false)
+        );
+    }
     assert_eq!(
         resolve_builtin_default_enabled("find-skills", "DeepResearch"),
         Some(true)

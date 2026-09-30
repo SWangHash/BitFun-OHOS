@@ -11,13 +11,14 @@
  * and the text field already accepts it.
  */
 
-import { Button, Icon, IconButton } from '@bitfun/ui';
+import { subscribeOverlayInteraction, Button, Icon, IconButton } from '@bitfun/ui';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { useI18n } from '@/infrastructure/i18n';
 import { computeFixedPopoverPosition } from '@/shared/utils/fixedPopoverViewport';
+import { subscribeOverlayInteraction, Button, Icon, IconButton } from '@bitfun/ui';
 
 const POPOVER_WIDTH = 268;
 const POPOVER_HEIGHT = 300;
@@ -106,8 +107,8 @@ const DateTimePickerPopover: React.FC<DateTimePickerPopoverProps> = ({
       if (event.key === 'Escape') onClose();
     };
 
-    document.addEventListener('mousedown', handlePointerDown);
-    document.addEventListener('keydown', handleKeyDown);
+    const removeOverlayMousedown0 = subscribeOverlayInteraction(popoverRef, 'mousedown', handlePointerDown);
+    const removeOverlayKeydown1 = subscribeOverlayInteraction(popoverRef, 'keydown', handleKeyDown);
     return () => {
       document.removeEventListener('mousedown', handlePointerDown);
       document.removeEventListener('keydown', handleKeyDown);

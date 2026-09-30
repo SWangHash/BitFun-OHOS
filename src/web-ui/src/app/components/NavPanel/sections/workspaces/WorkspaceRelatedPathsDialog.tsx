@@ -319,7 +319,7 @@ export const WorkspaceRelatedPathsDialog: React.FC<WorkspaceRelatedPathsDialogPr
                       className="workspace-related-paths-dialog__select"
                       variant="outline"
                       size="sm"
-                      leadingIcon={<FolderOpen />}
+                      leadingIcon={<Icon glyph={FolderOpen} size="sm" />}
                       onClick={() =>
                         remoteWorkspace
                           ? setBrowsingIndex(index)

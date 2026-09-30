@@ -14,83 +14,83 @@
     "pages": {
       "general": {
         "label": "General",
-        "description": "Startup, updates, window behavior, sleep, and notifications."
+        "description": "Set startup, update, sleep, window, and notification behavior"
       },
       "appearance": {
         "label": "Appearance",
-        "description": "Language, themes, effects, appearance packages, and interface typography."
+        "description": "Choose the interface language, theme, and text size"
       },
       "pet": {
         "label": "Pet",
-        "description": "Display surface, character packages, import, and preview."
+        "description": "Choose a pet and whether to show it"
       },
       "voice": {
         "label": "Voice",
-        "description": "Voice input, local speech models, and realtime voice calls."
+        "description": "Set up local dictation and live voice calls in the cloud"
       },
       "shortcuts": {
         "label": "Keyboard Shortcuts",
-        "description": "Browse, customize, and reset keyboard shortcuts."
+        "description": "View and customize keyboard shortcuts"
       },
       "terminal": {
         "label": "Terminal",
-        "description": "Default shell."
+        "description": "Choose the shell for new terminals and commands in local workspaces"
       },
       "editor": {
         "label": "Editor",
-        "description": "Code editor appearance, indentation, display, and formatting."
+        "description": "Adjust code display, indentation, and automatic formatting"
       },
       "models": {
         "label": "Models",
-        "description": "Default models, providers, subscriptions, catalog, and network proxy."
+        "description": "Connect model providers and choose models for each type of task"
       },
       "memory": {
         "label": "Memory",
-        "description": "Memory generation, use, extraction, and consolidation."
+        "description": "Control how agents create and use memories from sessions"
       },
       "sessionWorkspace": {
         "label": "Session & Workspace",
-        "description": "Default Harness, session titles, and current workspace search."
+        "description": "Set the runtime for new sessions, title generation, and workspace search"
       },
       "worktrees": {
         "label": "Worktrees",
-        "description": "Git worktree isolation and parallel-session defaults."
+        "description": "Set session isolation defaults and manage workspace worktrees"
       },
       "execution": {
         "label": "Execution & Permissions",
-        "description": "Tool permissions, execution, review, and recovery settings."
+        "description": "Set tool approval rules, timeouts, and task concurrency"
       },
       "browserDesktopControl": {
         "label": "Browser & Desktop Control",
-        "description": "Browser connections, desktop interaction, and required system permissions."
+        "description": "Connect a browser and allow screen access and desktop control"
       },
       "automation": {
         "label": "Automation",
-        "description": "Quick actions and Agent lifecycle hooks."
+        "description": "Set up reusable AI prompts and commands triggered by events"
       },
       "webSearch": {
         "label": "Web Search",
-        "description": "Choose the WebSearch provider, endpoint, and device-local credential."
+        "description": "Choose the service agents use to search the web"
       },
       "mcp": {
         "label": "MCP",
-        "description": "Manage MCP servers, connections, and exposed tools."
+        "description": "Connect MCP servers to give agents access to external tools and data"
       },
       "acp": {
         "label": "ACP Agents",
-        "description": "Configure external agents that connect through Agent Client Protocol."
+        "description": "Connect external agents through ACP to run tasks in BitFun"
       },
       "usage": {
         "label": "Call Statistics",
-        "description": "Model requests, token usage, and cache hit rates."
+        "description": "View model request counts, token usage, and cache hit rates"
       },
       "archivedSessions": {
         "label": "Archived Sessions",
-        "description": "View, restore, or permanently delete archived sessions."
+        "description": "View, restore, or permanently delete archived sessions"
       },
       "diagnostics": {
         "label": "Logs & Diagnostics",
-        "description": "Log levels, runtime information, and troubleshooting."
+        "description": "Configure logging and export diagnostic information"
       }
     },
     "views": {
@@ -230,7 +230,7 @@
   },
   "keyboard": {
     "title": "Keyboard Shortcuts",
-    "description": "View and edit bindings below.",
+    "description": "View and customize keyboard shortcuts",
     "search": "Search shortcuts or key bindings…",
     "apply": "Apply",
     "saving": "Saving…",
@@ -323,6 +323,15 @@
         "push": "Push",
         "pull": "Pull"
       }
+    },
+    "scopeDescriptions": {
+      "app": "Available within the BitFun window; some actions do not trigger while typing",
+      "chat": "Active when the chat area has focus",
+      "editor": "Active when code text has focus; editor canvas shortcuts also apply",
+      "terminal": "Active when the terminal area has focus",
+      "canvas": "Active when the editor canvas or a code editor inside it has focus",
+      "filetree": "Active when the file tree has focus",
+      "git": "Active when the Git panel has focus"
     }
   },
   "advanced": {
@@ -595,5 +604,8 @@
       "import": "Import Appearance",
       "export": "Export Current Appearance"
     }
+  },
+  "archivedSessions": {
+    "sectionDescription": "Grouped by workspace; restore a session to continue it, or delete it permanently with no undo"
   }
 }

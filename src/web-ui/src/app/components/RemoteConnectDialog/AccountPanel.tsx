@@ -6,8 +6,10 @@ import { useI18n } from '@/infrastructure/i18n';
 import {
   confirmDanger,
 } from '@/infrastructure/confirm-dialog';
-import { LogIn, Monitor } from 'lucide-react';
-import { remoteConnectAPI } from '@/infrastructure/api/service-api/RemoteConnectAPI';
+import { LogIn } from 'lucide-react';
+import { DeviceSystemGlyph } from '../NavPanel/components/DeviceSystemGlyph';
+import { reportedHostKind } from '../NavPanel/deviceInterconnectionOverview';
+import { remoteConnectAPI, deviceDisplayName, deviceMetadataLabel } from '@/infrastructure/api/service-api/RemoteConnectAPI';
 import type {
   AccountDeviceInfo,
   OnlineDeviceInfo,
@@ -25,6 +27,36 @@ import { ensureAccountSession } from './ensureAccountSession';
 import './AccountPanel.scss';
 
 const log = createLogger('AccountPanel');
+
+/** Banner sentence for each classified relay/account failure. HTTP status and
+ * exception text never reach the surface; the raw detail stays in the log. */
+const RELAY_FAILURE_MESSAGE_KEY: Record<RelayFailureKind, string> = {
+  network: 'accountLogin.relayFailureNetwork',
+  'relay-unavailable': 'accountLogin.relayFailureUnavailable',
+  'relay-version-retired': 'accountLogin.relayFailureVersionRetired',
+  'client-outdated': 'accountLogin.relayFailureClientOutdated',
+  auth: 'accountLogin.sessionExpired',
+  unknown: 'accountLogin.relayFailureUnknown',
+};
+
+/** A failure reduced to the banner sentence and the next step the user can take. */
+interface PanelFailure {
+  message: string;
+  action: RelayFailureAction | null;
+}
+
+/**
+ * Relay device-alias capability. `unknown` means the relay has not answered yet
+ * and must never be rendered as an unsupported relay: doing so flashed the
+ * unsupported notice on every panel entry until the capability read resolved.
+ */
+type DeviceAliasCapability = 'unknown' | 'supported' | 'unsupported';
+
+/** Reduce an account/relay failure to user-facing copy via the shared classifier. */
+function describeAccountFailure(error: unknown, t: (key: string) => string): PanelFailure {
+  const kind = classifyRelayFailure(error);
+  return { message: t(RELAY_FAILURE_MESSAGE_KEY[kind]), action: relayFailureAction(kind) };
+}
 
 const DEVICE_POLL_FALLBACK_MS = 30_000;
 const DEVICE_CONNECT_MAX_ATTEMPTS = 5;
@@ -80,6 +112,12 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
   const [view, setView] = useState<View>('login');
 
   const [devices, setDevices] = useState<AccountDeviceInfo[]>([]);
+  const [editingDeviceId, setEditingDeviceId] = useState<string | null>(null);
+  const [aliasDraft, setAliasDraft] = useState('');
+  const [savingAliasId, setSavingAliasId] = useState<string | null>(null);
+  const [aliasCapability, setAliasCapability] = useState<DeviceAliasCapability>('unknown');
+  const aliasSupported = aliasCapability === 'supported';
+  const refreshDirtyRef = useRef(false);
   const [localDeviceId, setLocalDeviceId] = useState<string | null>(null);
   // Device discovery updates presentation, not the account lifecycle. Keep
   // refresh callbacks stable so adopting an ID cannot restart initialization.
@@ -137,6 +175,11 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
   const resetState = useCallback(() => {
     setActiveAccountEpoch(null);
     setDevices([]);
+    setAliasCapability('unknown');
+    refreshDirtyRef.current = false;
+    setEditingDeviceId(null);
+    setAliasDraft('');
+    setSavingAliasId(null);
     setLocalDeviceId(null);
     setDevicesReady(false);
     setRelayError(null);
@@ -180,6 +223,16 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
       isAccountEpochCurrent(epoch) && refreshRequestRef.current === requestId
     );
     try {
+      void remoteConnectAPI.accountRelayCapabilities().then(capabilities => {
+        if (isCurrent()) {
+          setAliasCapability(capabilities.includes('device_alias_v1') ? 'supported' : 'unsupported');
+        }
+      }).catch(error => {
+        // A failed capability read is not evidence that the relay lacks the
+        // capability, so it keeps the previous answer. Relay reachability has its
+        // own banner; reporting this one here only flashed it on every poll.
+        if (isCurrent()) log.debug('relay capabilities unavailable', error);
+      });
       let list = await remoteConnectAPI.accountListDevices();
       if (!isCurrent()) return;
       const currentLocalDeviceId = localDeviceIdRef.current;
@@ -623,13 +676,9 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
               </Button>
             </div>
             <div className="account-panel__devices-card">
-              {relayError && (
-                <div className="account-panel__error-banner" data-bitfun-component="remote-account-panel" data-bitfun-part="error">
-                  <Alert
-                    tone="error"
-                    message={relayError}
-                  />
-                </div>
+              {aliasCapability === 'unsupported' && <Alert tone="info" message={t('accountLogin.deviceAliasUnsupported')} />}
+              {relayFailure && (
+                <FailureBanner failure={relayFailure} t={t} busy={loading} onAction={runFailureAction} />
               )}
               <div className="account-panel__device-list" data-bitfun-component="remote-account-panel" data-bitfun-part="deviceList">
                 {!relayError && devicesReady && devices.length === 0 && (
@@ -651,8 +700,21 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
                   const removeLabel = isLocal
                     ? t('accountLogin.removeCurrentDevice')
                     : t('accountLogin.removeDevice');
-                  const displayName = d.device_name || t('accountLogin.unknownDevice');
-                  const DeviceEntry = isSelectable ? 'button' : 'div';
+                  const displayName = deviceDisplayName(d);
+                  const metadata = deviceMetadataLabel(d);
+                  const reportedKind = (d.device_kind ?? '').trim().toLowerCase();
+                  // A controller reports `mobile` or `watch` and has no host
+                  // system to draw; when the kind is missing, the system the
+                  // device reported is the only fact this row has, so it decides
+                  // the mark. `hostKind` separates a CLI host, which has no
+                  // system silhouette to draw either.
+                  const systemFacts = {
+                    kind: reportedKind === 'mobile' || reportedKind === 'watch' ? 'mobile' as const : 'desktop' as const,
+                    name: displayName,
+                    os: d.device_os,
+                    hostKind: reportedHostKind(d.device_kind),
+                  };
+                  const DeviceEntry = isSelectable && editingDeviceId !== d.device_id ? 'button' : 'div';
                   return (
                   <div data-bitfun-component="remote-account-panel" data-bitfun-part="deviceCard" key={d.device_id}
                     data-bitfun-state={[
@@ -669,7 +731,7 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
                         'aria-label': t('accountLogin.openDevice', { name: displayName }),
                       } : {})}
                     >
-                      <Monitor size={16} />
+                      <DeviceSystemGlyph device={systemFacts} />
                       <span className="account-panel__device-info">
                         <span className="account-panel__device-name">
                           <OverflowText title={displayName}>{displayName}</OverflowText>

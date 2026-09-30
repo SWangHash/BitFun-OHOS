@@ -12,7 +12,8 @@ import {
   Square as LucideSquare,
   X as LucideX,
 } from 'lucide-react';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import ChatToolDetails from './ChatToolDetails';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { MobileButton, MobileCard, MobileDisclosure, MobileMessage } from '@bitfun/ui/mobile';
 import { useI18n } from '../i18n';
 import type { ActiveTurnSnapshot, ChatMessage, ChatMessageItem, RemoteToolStatus } from '../services/RemoteSessionManager';
@@ -135,6 +136,7 @@ const TOOL_TYPE_MAP: Record<string, string> = {
 const TodoCard: React.FC<{ tool: RemoteToolStatus }> = ({ tool }) => {
   const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
+  const listId = useId();
 
   const todos: { id?: string; content: string; status: string }[] = useMemo(() => {
     const src = tool.tool_input;
@@ -164,7 +166,7 @@ const TodoCard: React.FC<{ tool: RemoteToolStatus }> = ({ tool }) => {
 
   return (
     <MobileCard padding="none" className="chat-todo-card">
-      <MobileButton appearance="plain" block className="chat-todo-card__header" onClick={() => setExpanded(!expanded)}>
+      <MobileButton appearance="plain" block className="chat-todo-card__header" aria-expanded={expanded} aria-controls={expanded ? listId : undefined} onClick={() => setExpanded(!expanded)}>
         <span className="chat-todo-card__icon">
           <LucideListTodo width="14" height="14" stroke="currentColor" aria-hidden="true" />
         </span>
@@ -172,9 +174,11 @@ const TodoCard: React.FC<{ tool: RemoteToolStatus }> = ({ tool }) => {
           <span className="chat-todo-card__current chat-todo-card__current--done">{t('chat.allTasksCompleted')}</span>
         ) : inProgress && !expanded ? (
           <span className="chat-todo-card__current">{inProgress.content}</span>
-        ) : null}
+        ) : (
+          <span className="chat-todo-card__current">{t('shared.tools.todo')}</span>
+        )}
         <span className="chat-todo-card__right">
-          <span className="chat-todo-card__dots">
+          <span className="chat-todo-card__dots" aria-hidden="true">
             {todos.map((t, i) => (
               <span key={t.id || i} className={`chat-todo-card__dot chat-todo-card__dot--${t.status}`} />
             ))}
@@ -186,7 +190,7 @@ const TodoCard: React.FC<{ tool: RemoteToolStatus }> = ({ tool }) => {
         </span>
       </MobileButton>
       {expanded && (
-        <div className="chat-todo-card__list">
+        <div id={listId} className="chat-todo-card__list">
           {todos.map((t, i) => (
             <div key={t.id || i} className={`chat-todo-card__item chat-todo-card__item--${t.status}`}>
               {statusIcon(t.status)}

@@ -1,4 +1,5 @@
-import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
+import { lazyWithRecovery, type RecoverableLazyComponent } from '@/shared/utils/lazyWithRecovery';
+import type { ComponentType } from 'react';
 import { i18nService } from '@/infrastructure/i18n/core/I18nService';
 import type { I18nNamespace } from '@/infrastructure/i18n/types';
 import type {
@@ -32,15 +33,17 @@ export interface SettingsPageManifest {
   searchPhrases: readonly SettingsSearchPhrase[];
   views?: readonly SettingsViewManifest[];
   load: () => Promise<SettingsPageModule>;
-  component: LazyExoticComponent<ComponentType<SettingsPageProps>>;
+  component: RecoverableLazyComponent<ComponentType<SettingsPageProps>>;
 }
 
 type SettingsPageDefinition = Omit<SettingsPageManifest, 'component'>;
 
 function definePage(definition: SettingsPageDefinition): SettingsPageManifest {
+  const component = lazyWithRecovery(definition.load);
   return {
     ...definition,
-    component: lazy(definition.load),
+    load: component.preload,
+    component,
   };
 }
 
@@ -56,11 +59,10 @@ export const SETTINGS_PAGE_MANIFESTS: readonly SettingsPageManifest[] = [
     namespaces: ['settings', 'settings/application'],
     searchPhrases: [
       phrase('settings/application', 'applicationGroups.startupAndUpdates.title'),
-      phrase('settings/application', 'applicationGroups.startupAndUpdates.description'),
       phrase('settings/application', 'applicationGroups.windowAndNotifications.title'),
-      phrase('settings/application', 'applicationGroups.windowAndNotifications.description'),
-      phrase('settings/application', 'launchAtLogin.title'),
-      phrase('settings/application', 'autoUpdate.title'),
+      phrase('settings/application', 'launchAtLogin.toggleLabel'),
+      phrase('settings/application', 'preventSleep.toggleLabel'),
+      phrase('settings/application', 'autoUpdate.toggleLabel'),
       phrase('settings/application', 'notifications.title'),
     ],
     load: () => import('../../../infrastructure/config/components/ApplicationSettingsPages').then((module) => ({
@@ -136,7 +138,7 @@ export const SETTINGS_PAGE_MANIFESTS: readonly SettingsPageManifest[] = [
     namespaces: ['settings', 'settings/application'],
     searchPhrases: [
       phrase('settings/application', 'terminal.sections.terminal'),
-      phrase('settings/application', 'terminal.sections.terminalHint'),
+      phrase('settings/application', 'terminal.controls.description'),
     ],
     load: () => import('../../../infrastructure/config/components/ApplicationSettingsPages').then((module) => ({
       default: module.TerminalSettingsPage,
@@ -171,6 +173,8 @@ export const SETTINGS_PAGE_MANIFESTS: readonly SettingsPageManifest[] = [
       phrase('settings/default-model', 'sections.defaults'),
       phrase('settings/default-model', 'sections.providers'),
       phrase('settings/default-model', 'sections.proxy'),
+      phrase('settings/models', 'subscriptionAuth.sectionTitle'),
+      phrase('settings/models', 'modelsDevCatalog.title'),
       phrase('settings/models', 'streamIdleTimeout.title'),
     ],
     load: () => import('../../../infrastructure/config/components/ModelSettingsPage'),
@@ -186,7 +190,6 @@ export const SETTINGS_PAGE_MANIFESTS: readonly SettingsPageManifest[] = [
       phrase('settings/memory', 'title'),
       phrase('settings/memory', 'subtitle'),
       phrase('settings/memory', 'sections.basic.title'),
-      phrase('settings/memory', 'sections.basic.description'),
       phrase('settings/memory', 'sections.models.title'),
       phrase('settings/memory', 'sections.advanced.title'),
       phrase('settings/memory', 'fields.memoryEnabled.label'),
@@ -386,7 +389,8 @@ export const SETTINGS_PAGE_MANIFESTS: readonly SettingsPageManifest[] = [
     namespaces: ['settings', 'settings/application'],
     searchPhrases: [
       phrase('settings/application', 'logging.sections.logging'),
-      phrase('settings/application', 'logging.sections.loggingHint'),
+      phrase('settings/application', 'logging.sections.level'),
+      phrase('settings/application', 'logging.diagnostics.label'),
     ],
     load: () => import('../../../infrastructure/config/components/ApplicationSettingsPages').then((module) => ({
       default: module.DiagnosticsSettingsPage,

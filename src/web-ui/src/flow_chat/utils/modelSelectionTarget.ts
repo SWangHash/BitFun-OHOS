@@ -1,4 +1,5 @@
 export type SessionModelSelectionTarget = {
+  draft?: import('./sessionDraft').SessionDraft;
   isTransient?: boolean;
   agentBackedTransient?: boolean;
   sessionKind?: string;
@@ -17,7 +18,7 @@ export function isBtwSessionDraft(session: SessionModelSelectionTarget | undefin
 export function shouldSyncSessionModelSelection<T extends SessionModelSelectionTarget>(
   session: T | undefined,
 ): session is T {
-  return Boolean(session && !isBtwSessionDraft(session) && (!session.isTransient || session.agentBackedTransient));
+  return Boolean(session && !session.draft && !isBtwSessionDraft(session) && (!session.isTransient || session.agentBackedTransient));
 }
 
 /** Whether restoring the target requires access to internal runtime sessions. */

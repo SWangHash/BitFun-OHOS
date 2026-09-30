@@ -6,11 +6,6 @@
   cursor: pointer;
 }
 
-.generative-widget-card [data-bitfun-component='flow-chat-tool-card'][data-bitfun-part='expanded'],
-.generative-widget-card [data-bitfun-component='flow-chat-tool-card'][data-bitfun-part='error'] {
-  padding: 0;
-}
-
 .generative-widget-card__icon {
   color: var(--bitfun-domain-generative-ui);
 }
@@ -39,7 +34,7 @@
 }
 
 .generative-widget-card__preview {
-  padding: var(--bitfun-control-flow-chat-card-expanded-padding-block) var(--bitfun-control-flow-chat-card-expanded-padding-inline);
+  padding: 0;
 }
 
 .generative-widget-card__preview--export {
@@ -57,36 +52,15 @@
 }
 
 .generative-widget-card__placeholder--error {
-  color: color-mix(in srgb, var(--bitfun-color-status-danger-content) 64%, var(--bitfun-color-content-on-dark));
+  min-height: 0;
+  justify-content: flex-start;
+  padding: 0;
+  overflow-wrap: anywhere;
+  color: var(--bitfun-color-status-danger-content);
 }
 
 .generative-widget-card__capture-root {
   position: relative;
-}
-
-.generative-widget-card__export-image-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border: 1px solid var(--bitfun-color-border-subtle);
-  background: color-mix(in srgb, var(--bitfun-color-surface-panel) 84%, transparent);
-  color: var(--bitfun-color-content-secondary);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-
-  &:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--bitfun-color-surface-panel) 92%, transparent);
-    color: var(--bitfun-color-content-primary);
-    border-color: var(--bitfun-color-border-default);
-  }
-
-  &:disabled {
-    opacity: 0.65;
-    cursor: default;
-  }
 }
 
 .generative-widget-card__export-stage {

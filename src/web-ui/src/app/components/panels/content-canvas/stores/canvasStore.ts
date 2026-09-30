@@ -30,8 +30,8 @@ import { normalizePath } from '@/shared/utils/pathUtils';
 // ==================== Store State Types ====================
 
 interface CanvasStoreState {
-  /** Live content scope, committed with workspace swaps and excluded from snapshots. */
-  workspaceKey?: string;
+  /** Live content scope, committed with scope swaps and excluded from snapshots. */
+  scopeKey?: string;
   primaryGroup: EditorGroupState;
   secondaryGroup: EditorGroupState;
   tertiaryGroup: EditorGroupState;
@@ -162,7 +162,7 @@ type CanvasStore = CanvasStoreState & CanvasStoreActions;
 // ==================== Initial State ====================
 
 const initialState: CanvasStoreState = {
-  workspaceKey: undefined,
+  scopeKey: undefined,
   primaryGroup: createEditorGroupState(),
   secondaryGroup: createEditorGroupState(),
   tertiaryGroup: createEditorGroupState(),
@@ -1210,15 +1210,15 @@ export const useProjectCanvasStore = createCanvasStoreHook();
 export const useGitCanvasStore = createCanvasStoreHook();
 export const useBottomTerminalCanvasStore = createCanvasStoreHook();
 
-// ==================== Agent canvas: per-workspace snapshots (AuxPane / Session scene) ====================
-// Switching active workspace saves the current agent canvas under the previous workspace id and restores
-// the snapshot for the next id, so remote/local tabs coexist across workspace switches.
+// ==================== Agent canvas: per-scope snapshots (AuxPane / Session scene) ====================
+// The agent canvas is scoped to the active session. Leaving a session saves its canvas under that
+// session id and entering another one restores its own tabs, so two sessions never share content.
 
-const AGENT_CANVAS_SNAPSHOT_MAX = 12;
-const agentWorkspaceSnapshots = new Map<string, CanvasStoreState>();
+const AGENT_CANVAS_SNAPSHOT_MAX = 24;
+const agentScopeSnapshots = new Map<string, CanvasStoreState>();
 const agentSnapshotLruOrder: string[] = [];
 
-function normalizeAgentWorkspaceKey(id: string | null | undefined): string {
+function normalizeAgentScopeKey(id: string | null | undefined): string {
   return id ?? '__none__';
 }
 
@@ -1241,20 +1241,20 @@ function rememberAgentSnapshot(key: string, snapshot: CanvasStoreState): void {
   const clone = structuredClone(snapshot);
   clone.draggingTabId = null;
   clone.draggingFromGroupId = null;
-  agentWorkspaceSnapshots.set(key, clone);
+  agentScopeSnapshots.set(key, clone);
   const idx = agentSnapshotLruOrder.indexOf(key);
   if (idx >= 0) agentSnapshotLruOrder.splice(idx, 1);
   agentSnapshotLruOrder.push(key);
-  while (agentWorkspaceSnapshots.size > AGENT_CANVAS_SNAPSHOT_MAX) {
+  while (agentScopeSnapshots.size > AGENT_CANVAS_SNAPSHOT_MAX) {
     const evict = agentSnapshotLruOrder.shift();
     if (!evict) break;
-    agentWorkspaceSnapshots.delete(evict);
+    agentScopeSnapshots.delete(evict);
   }
 }
 
-function applyEmptyAgentCanvas(workspaceKey?: string): void {
+function applyEmptyAgentCanvas(scopeKey?: string): void {
   useAgentCanvasStore.setState({
-    workspaceKey,
+    scopeKey,
     primaryGroup: createEditorGroupState(),
     secondaryGroup: createEditorGroupState(),
     tertiaryGroup: createEditorGroupState(),
@@ -1268,9 +1268,9 @@ function applyEmptyAgentCanvas(workspaceKey?: string): void {
   });
 }
 
-/** Clear agent canvas workspace snapshots when entering/exiting Peer Device Mode. */
+/** Clear agent canvas snapshots when entering/exiting Peer Device Mode. */
 export function clearAgentCanvasForPeerSwitch(): void {
-  agentWorkspaceSnapshots.clear();
+  agentScopeSnapshots.clear();
   agentSnapshotLruOrder.length = 0;
   applyEmptyAgentCanvas();
   useGitCanvasStore.getState().reset();
@@ -1278,19 +1278,16 @@ export function clearAgentCanvasForPeerSwitch(): void {
 }
 
 /**
- * The store owns its live workspace. A later host mount or stale caller cannot
- * overwrite content already committed for the target workspace.
+ * The store owns its live scope. A later host mount or stale caller cannot
+ * overwrite content already committed for the target scope.
  */
-export function switchAgentCanvasWorkspace(
-  _prevWorkspaceId: string | null | undefined,
-  nextWorkspaceId: string | null | undefined
-): void {
-  const from = useAgentCanvasStore.getState().workspaceKey;
-  const to = normalizeAgentWorkspaceKey(nextWorkspaceId);
+export function switchAgentCanvasScope(nextScopeId: string | null | undefined): void {
+  const from = useAgentCanvasStore.getState().scopeKey;
+  const to = normalizeAgentScopeKey(nextScopeId);
 
   if (from === to) return;
 
-  const rawNext = agentWorkspaceSnapshots.get(to);
+  const rawNext = agentScopeSnapshots.get(to);
   const nextSnapshotClone = rawNext ? structuredClone(rawNext) : null;
 
   if (from !== undefined) {
@@ -1300,7 +1297,7 @@ export function switchAgentCanvasWorkspace(
 
   if (nextSnapshotClone) {
     useAgentCanvasStore.setState({
-      workspaceKey: to,
+      scopeKey: to,
       primaryGroup: nextSnapshotClone.primaryGroup,
       secondaryGroup: nextSnapshotClone.secondaryGroup,
       tertiaryGroup: nextSnapshotClone.tertiaryGroup,
@@ -1444,8 +1441,8 @@ export const useDragging = () => {
   }));
 };
 
-/** Includes suspended workspace snapshots so unmounting a view does not discard its document. */
+/** Includes suspended scope snapshots so unmounting a view does not discard its document. */
 export function hasRetainedCanvasTab(tabId: string): boolean {
-  const states = [useAgentCanvasStore.getState(), useGitCanvasStore.getState(), useBottomTerminalCanvasStore.getState(), ...agentWorkspaceSnapshots.values()];
+  const states = [useAgentCanvasStore.getState(), useGitCanvasStore.getState(), useBottomTerminalCanvasStore.getState(), ...agentScopeSnapshots.values()];
   return states.some(state => [state.primaryGroup, state.secondaryGroup, state.tertiaryGroup].some(group => group.tabs.some(tab => tab.id === tabId)));
 }

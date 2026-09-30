@@ -775,12 +775,13 @@ describe('AcpAgentsConfig', () => {
     });
 
     expect(container.querySelector('header')?.textContent).toContain('actions.learnMore');
+    expect(container.querySelector('header')?.textContent).not.toContain('registry.description');
     const registryHeading = Array.from(container.querySelectorAll('h3'))
       .find(heading => heading.textContent === 'registry.title');
     const registrySection = registryHeading?.closest('section');
     expect(registrySection?.textContent).toContain('actions.refresh');
     expect(registrySection?.textContent).toContain('presets.opencode.description');
-    expect(registrySection?.textContent).not.toContain('registry.description');
+    expect(registrySection?.textContent).toContain('registry.description');
     expect(registrySection?.textContent).not.toContain('Native ACP coding agent');
   });
 

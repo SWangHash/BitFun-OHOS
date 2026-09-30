@@ -156,7 +156,7 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
 .assistant-card {
   display: flex;
   min-width: 0;
-  min-height: 148px;
+  align-self: start;
   animation: nursery-card-in var(--bitfun-motion-duration-normal) var(--bitfun-motion-easing-decelerate) both;
   @include surface-stagger.animation-delay(40ms);
 
@@ -927,7 +927,7 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
   display: flex;
   align-items: center;
   gap: var(--bitfun-space-4);
-  padding: var(--bitfun-space-2) var(--bitfun-space-1) var(--bitfun-space-4);
+  padding: var(--bitfun-space-2) var(--bitfun-space-1) var(--bitfun-space-3);
   flex: 0 0 auto;
 
   &__info {
@@ -935,7 +935,7 @@ $nursery-gallery-gutter: clamp(16px, 2.5vw, 28px);
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: var(--bitfun-space-2);
+    gap: 0;
   }
 
   &__name,

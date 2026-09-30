@@ -28,12 +28,13 @@ describe('MiniAppEntry navigation presentation', () => {
       'utf8',
     );
 
-    expect(source).toContain('<Icon name="mini-app" size="md" />');
-    expect(source.indexOf('bitfun-nav-panel__miniapp-entry-icon'))
-      .toBeLessThan(source.indexOf('bitfun-nav-panel__miniapp-entry-title'));
+    expect(source).toContain('<Icon name="mini-app" size="sm" />');
+    expect(source).toContain('<NavigationPanelItem');
+    expect(source).not.toContain('role="button"');
+    expect(source).toContain('leading={(');
     expect(stylesheet).toContain('&__miniapp-entry-icon');
     expect(stylesheet).toContain('padding: 8px 10px 8px var(--bitfun-space-2);');
     expect(stylesheet).toContain('gap: var(--bitfun-space-2);');
-    expect(stylesheet).toContain('flex: 0 0 22px;');
+    expect(stylesheet).toContain('flex: 0 0 var(--_nav-icon-slot-size);');
   });
 });

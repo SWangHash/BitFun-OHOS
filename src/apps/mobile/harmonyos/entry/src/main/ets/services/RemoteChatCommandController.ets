@@ -1,3 +1,4 @@
+import { ComposerSubmission } from '../model/ComposerSubmission';
 import {
   ChatMessage,
   RemoteImageContext,
@@ -38,7 +39,8 @@ export interface RemoteChatCommandCallbacks {
   // before any request has been sent. Without it the loading skeleton would
   // outlive the messages it is standing in for.
   onTimelineReady: () => void;
-  onComposerSubmitted?: (sessionId: string, text: string, images: SelectedImageAttachment[]) => void;
+  // Draft ownership is captured before the RPC; the owner guards commits and rollback.
+  onComposerPrepared?: (sessionId: string, text: string, images: SelectedImageAttachment[]) => ComposerSubmission;
   onSendSucceeded: (turnId: string, pendingActiveId: string, localMessageId: string) => void;
   onSteerSucceeded?: (
     steeringId: string,
@@ -123,17 +125,23 @@ export class RemoteChatCommandController {
     if ((text.length === 0 && images.length === 0) || sessionId.length === 0 || isBusy || !remoteAvailable) {
       return;
     }
+    let submission: ComposerSubmission | undefined;
     try {
       this.callbacks.onBusy(true);
       this.callbacks.onStatusText(images.length > 0 ? RemoteI18n.t('status.sendImage') : RemoteI18n.t('status.sendCommand'));
+      // The optimistic user bubble is already published. Consume its draft in
+      // the same synchronous submission, not after the remote acknowledgment.
+      submission = this.callbacks.onComposerPrepared?.(sessionId, rawText, images);
+      submission?.commit();
       const requestedTurnId = clientTurnId.trim().length > 0 ? clientTurnId : localMessageId;
       const turnId = images.length > 0 ?
         await this.client.sendMessageWithImages(sessionId, text, agentType, imageContexts, requestedTurnId) :
         await this.client.sendMessage(sessionId, text, agentType, requestedTurnId);
-      this.callbacks.onComposerSubmitted?.(sessionId, rawText, images);
+      submission = undefined;
       this.callbacks.onSendSucceeded(turnId, pendingActiveId, localMessageId);
       this.callbacks.onStatusText(RemoteI18n.t('status.sentWaiting'));
     } catch (err) {
+      submission?.rollback();
       this.callbacks.onSendFailed(rawText, images, localMessageId, pendingActiveId);
       this.callbacks.onStatusText(ConnectionErrorPolicy.errorText(err));
     } finally {
@@ -155,8 +163,10 @@ export class RemoteChatCommandController {
       isBusy || !remoteAvailable) {
       return;
     }
+    let submission: ComposerSubmission | undefined;
     try {
       this.callbacks.onBusy(true);
+      submission = this.callbacks.onComposerPrepared?.(sessionId, displayText, images);
       const result = await this.client.steerTurn(
         sessionId,
         turnId,
@@ -164,13 +174,17 @@ export class RemoteChatCommandController {
         displayText,
         imageContexts
       );
-      this.callbacks.onComposerSubmitted?.(sessionId, displayText, images);
+      // Steering has no optimistic bubble: consume its captured draft only
+      // when the host accepts it, alongside the accepted steering item.
+      submission?.commit();
+      submission = undefined;
       if (this.callbacks.onSteerSucceeded) {
         this.callbacks.onSteerSucceeded(result.steeringId, result.turnId, displayText, images);
       }
       this.callbacks.onStatusText(RemoteI18n.t('status.sentWaiting'));
       this.callbacks.onPollRequested();
     } catch (err) {
+      submission?.rollback();
       this.callbacks.onSendFailed(displayText, images, '', '');
       const errorText = ConnectionErrorPolicy.errorText(err);
       this.callbacks.onStatusText(errorText);

@@ -95,6 +95,22 @@ mod ocr_match_tests {
     }
 
     #[test]
+    fn tsv_read_all_preserves_unrelated_lines_and_projects_bounds() {
+        let tsv = "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext\n\
+5\t1\t1\t1\t1\t1\t300\t240\t40\t40\t90\tSave\n\
+5\t1\t1\t1\t1\t2\t350\t240\t50\t40\t80\treport\n\
+5\t1\t1\t1\t2\t1\t300\t340\t100\t40\t95\tCancel\n\
+5\t1\t1\t1\t3\t1\tNaN\t340\t100\t40\t95\tinvalid\n";
+        let lines = tesseract_lines_from_tsv(&shot(), tsv);
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines[0].text, "Save report");
+        assert_eq!(lines[1].text, "Cancel");
+        assert_eq!((lines[0].center_x, lines[0].center_y), (-375.0, 190.0));
+        assert!((lines[0].confidence - 0.85).abs() < 0.001);
+        assert!(tesseract_lines_from_tsv(&shot(), "").is_empty());
+    }
+
+    #[test]
     fn cropped_retina_ocr_uses_global_bounds_and_content_padding() {
         let m = image_box_to_global_match(&shot(), "Save".into(), 0.9, 300.0, 240.0, 100.0, 40.0)
             .unwrap();
@@ -291,4 +307,85 @@ pub(super) fn image_box_to_global_match(
         bounds_width: global_width,
         bounds_height: global_height,
     })
+}
+
+/// Tesseract TSV word rows include page/block/paragraph/line identity. Group
+/// those words into complete lines without re-running OCR for each rectangle.
+#[cfg(any(target_os = "linux", test))]
+pub(super) fn tesseract_lines_from_tsv(shot: &ComputerScreenshot, tsv: &str) -> Vec<OcrTextMatch> {
+    use std::collections::BTreeMap;
+    struct Line {
+        text: Vec<String>,
+        left: f64,
+        top: f64,
+        right: f64,
+        bottom: f64,
+        confidence: f64,
+    }
+    let mut lines: BTreeMap<[u32; 4], Line> = BTreeMap::new();
+    for row in tsv.lines() {
+        let fields: Vec<&str> = row.splitn(12, '\t').collect();
+        if fields.len() != 12 || fields[0] != "5" || fields[11].trim().is_empty() {
+            continue;
+        }
+        let parsed: Option<Vec<f64>> = fields[6..11]
+            .iter()
+            .map(|field| field.parse::<f64>().ok())
+            .collect();
+        let Some(values) = parsed else {
+            continue;
+        };
+        let (left, top, width, height, confidence) =
+            (values[0], values[1], values[2], values[3], values[4]);
+        if !values.iter().all(|value| value.is_finite())
+            || width <= 0.0
+            || height <= 0.0
+            || !(0.0..=100.0).contains(&confidence)
+        {
+            continue;
+        }
+        let identity: Option<Vec<u32>> = fields[1..5]
+            .iter()
+            .map(|field| field.parse().ok())
+            .collect();
+        let Some(identity) = identity else {
+            continue;
+        };
+        let line = lines
+            .entry([identity[0], identity[1], identity[2], identity[3]])
+            .or_insert_with(|| Line {
+                text: Vec::new(),
+                left,
+                top,
+                right: left + width,
+                bottom: top + height,
+                confidence: 0.0,
+            });
+        line.left = line.left.min(left);
+        line.top = line.top.min(top);
+        line.right = line.right.max(left + width);
+        line.bottom = line.bottom.max(top + height);
+        line.confidence += confidence;
+        line.text.push(fields[11].trim().to_owned());
+    }
+    let mut output: Vec<_> = lines
+        .into_values()
+        .filter_map(|line| {
+            image_box_to_global_match(
+                shot,
+                line.text.join(" "),
+                (line.confidence / line.text.len() as f64 / 100.0) as f32,
+                line.left,
+                line.top,
+                line.right - line.left,
+                line.bottom - line.top,
+            )
+        })
+        .collect();
+    output.sort_by(|a, b| {
+        a.bounds_top
+            .total_cmp(&b.bounds_top)
+            .then_with(|| a.bounds_left.total_cmp(&b.bounds_left))
+    });
+    output
 }

@@ -1,12 +1,12 @@
 {
   "title": "模型",
-  "subtitle": "管理預設模型、模型服務、訂閱帳戶、模型目錄與網路連線",
+  "subtitle": "連線模型服務，並選擇各類任務使用的模型",
   "editProvider": "編輯服務商設定",
   "newProvider": "新增服務商設定",
   "editModel": "編輯模型設定",
   "newModel": "新增模型設定",
-  "editProviderSubtitle": "基礎服務商參數設定",
-  "editSubtitle": "基礎模型參數設定",
+  "editProviderSubtitle": "設定此服務的 API 位址、驗證方式與模型",
+  "editSubtitle": "設定模型識別碼、上下文容量與請求參數",
   "confirmDelete": "確定刪除此設定？",
   "sessionTitle": {
     "title": "會話標題自動生成",
@@ -99,7 +99,7 @@
     "modelRoutingPending": "重新整理模型清單後顯示協定和端點；目錄外模型可手動設定。",
     "modelRoutingUnavailable": "主機未傳回此模型的有效介面資訊，請更新主機後重新整理模型清單。",
     "title": "選擇模型提供商",
-    "subtitle": "選擇一個預設提供商快速設定，或選擇自定義完全手動設定",
+    "subtitle": "預設會填入常用連線參數；私有部署或未列出的服務可選擇自訂",
     "or": "或者",
     "orSelectProvider": "或選擇預設提供商",
     "customTitle": "自定義設定",
@@ -123,7 +123,7 @@
     "noPresetModels": "暫無可用模型，請獲取模型列表或手動輸入模型名",
     "backToSelection": "返回選擇提供商",
     "selectModel": "選擇模型",
-    "multiSelectHint": "支持多選；選中後可分別設置每個模型的上下文視窗、最大輸出 Tokens 和推理設定",
+    "multiSelectHint": "可複選，新增後可分別調整各模型的上下文、輸出上限與推理設定",
     "searchOrInputModel": "搜尋或輸入模型名稱...",
     "inputModelName": "輸入自定義模型名稱...",
     "useCustomModel": "按 Enter 使用",
@@ -135,7 +135,7 @@
     "expandModelSettings": "展開「{{name}}」的詳細設置",
     "collapseModelSettings": "收起「{{name}}」的詳細設置",
     "unsavedModel": "待儲存",
-    "unsavedModelHint": "此模型包含尚未儲存的修改，請點擊模型編輯視窗底部的「儲存」完成持久化",
+    "unsavedModelHint": "模型修改尚未儲存，請在編輯視窗中儲存",
     "urlHint": "已預填官方 API 地址，如使用代理或私有部署可修改",
     "formatHint": "已根據提供商自動選擇，通常無需修改"
   },
@@ -168,6 +168,17 @@
         "openai": "國內-OpenAI兼容格式",
         "intl": "海外-Anthropic格式",
         "intlOpenai": "海外-OpenAI兼容格式"
+      }
+    },
+    "xiaomi": {
+      "name": "Xiaomi MiMo",
+      "description": "小米 MiMo 系列模型，API 與 Token Plan 金鑰不可混用。",
+      "urlOptions": {
+        "default": "API - OpenAI Chat Completions（預設）",
+        "responses": "API - OpenAI Responses",
+        "anthropic": "API - Anthropic Messages",
+        "tokenPlan": "中國 - Token Plan - OpenAI",
+        "tokenPlanAnthropic": "中國 - Token Plan - Anthropic"
       }
     },
     "moonshot": {
@@ -291,10 +302,10 @@
     "provider": "請求格式",
     "providerPlaceholder": "選擇請求格式",
     "contextWindow": "上下文視窗大小",
-    "contextWindowHint": "此值主要用於判斷何時觸發上下文壓縮，可以小於供應商標稱的模型最大上下文視窗",
+    "contextWindowHint": "用於判斷何時壓縮上下文，可小於模型實際支援的上限",
     "contextWindowLongWarning": "目前模型設定的上下文視窗超過 400K。超長上下文可能降低模型效果，建議將其調整到 300K 左右。",
     "maxTokens": "最大輸出Tokens",
-    "maxTokensHint": "單次請求時限制模型輸出的最大token數量（影響響應長度）",
+    "maxTokensHint": "限制單次回應的最大 Token 數，影響輸出長度",
     "description": "描述",
     "descriptionPlaceholder": "設定說明（可選）"
   },
@@ -316,7 +327,7 @@
   },
   "reasoningEffort": {
     "label": "推理深度",
-    "hint": "控制 provider 支持的推理強度，適用於 DeepSeek、Responses API 與支持自適應推理的 Claude 模型",
+    "hint": "調整模型推理強度；適用於 DeepSeek、Responses API 與支援自適應推理的 Claude 模型",
     "placeholder": "使用 API 默認值"
   },
   "reasoningPresets": {
@@ -409,29 +420,29 @@
     "saveSuccess": "代理設定已儲存，重新啟動 BitFun 後生效"
   },
   "streamIdleTimeout": {
-    "title": "流式超時",
+    "title": "模型回應逾時",
     "effectiveNextRound": "修改後下一次對話生效",
-    "label": "Chunk 空閒超時（秒）",
-    "hint": "流式響應開始後，兩次 chunk 之間的最大等待時間。留空表示無限等待",
+    "label": "回應間隔逾時（秒）",
+    "hint": "回應開始後，等待下一段資料的最長時間；留空表示不限時",
     "placeholder": "留空表示不設超時",
     "invalid": "請輸入正整數秒數，或留空。",
-    "save": "儲存流式超時",
+    "save": "儲存回應逾時",
     "saveSuccess": "流式超時已儲存"
   },
   "streamTtftTimeout": {
-    "title": "首 Token 超時",
-    "label": "TTFT 超時（秒）",
-    "hint": "請求發出後，等待首個有效流式輸出的最長時間。留空表示無限等待",
+    "title": "首次回應逾時",
+    "label": "首次回應逾時（秒）",
+    "hint": "送出請求後，等待首段有效回應的最長時間；留空表示不限時",
     "placeholder": "留空表示不設超時",
     "invalid": "請輸入正整數秒數，或留空。",
-    "save": "儲存首 Token 超時",
+    "save": "儲存首次回應逾時",
     "saveSuccess": "首 Token 超時已儲存"
   },
   "toolArgumentJsonRepair": {
     "title": "工具參數 JSON 修復",
     "description": "修改將在下一輪模型呼叫生效",
     "label": "修復非法 JSON 工具參數",
-    "hint": "僅在供應商確認工具呼叫正常完成後嘗試。修復可能在常規工具驗證前改寫非法 JSON",
+    "hint": "僅在服務提供方確認工具呼叫正常完成後嘗試修復參數 JSON；修復發生在一般工具驗證之前",
     "saveSuccess": "工具參數 JSON 修復設定已儲存"
   },
   "capabilities": {
@@ -537,7 +548,7 @@
     "title": "models.dev 模型目錄",
     "detailsTitle": "models.dev 目錄詳情",
     "viewDetails": "查看 models.dev 目錄詳情",
-    "description": "用於推理預設供應商和模型綁定的目錄狀態。開啟模型設定時會自動檢查更新",
+    "description": "為推理預設提供供應商與模型選項；開啟此頁時自動檢查更新",
     "activeSource": "目前來源",
     "source": {
       "cache": "快取",
@@ -568,7 +579,7 @@
     "title": "高級設置",
     "inlineThinkInText": {
       "label": "解析文字中的 <think> 標籤",
-      "hint": "將文字流中的 <think>...</think> 實時拆分為思考內容"
+      "hint": "將回應中的 <think>...</think> 內容顯示為思考過程"
     },
     "skipSslVerify": {
       "label": "跳過SSL證書驗證",
@@ -580,8 +591,8 @@
       "modeLabel": "應用模式",
       "modeReplace": "替換",
       "modeMerge": "合併",
-      "modeReplaceHint": "自定義請求頭將完全替換默認請求頭（需要自行新增Content-Type、Authorization等）",
-      "modeMergeHint": "先應用默認請求頭，再應用自定義請求頭（可覆蓋已有值，新增新值）",
+      "modeReplaceHint": "完全取代預設請求標頭；需自行提供 Content-Type、Authorization 等必要欄位",
+      "modeMergeHint": "保留預設請求標頭，自訂值會覆寫同名欄位",
       "addHeader": "新增字段",
       "keyPlaceholder": "key",
       "valuePlaceholder": "value"
@@ -600,6 +611,10 @@
       "invalidJson": "JSON格式錯誤，請檢查語法",
       "validJson": "JSON格式有效",
       "mergeHint": "自定義字段將覆蓋默認請求體中的對應字段"
-    }
-  }
+    },
+    "description": "用於配合服務的特殊請求與回應要求；不確定時保留預設值"
+  },
+  "providersDescription": "同一服務可新增多個模型，預設模型在上方依任務單獨選擇",
+  "editSettingsTitle": "模型參數",
+  "editProviderSettingsTitle": "服務連線"
 }

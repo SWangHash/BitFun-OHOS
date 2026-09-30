@@ -1,4 +1,9 @@
+import { HistoryScrollPreview } from './HistoryScrollPreview';
+import { ColdStartHomePreview } from './ColdStartHomePreview';
+import { ComposerSubmissionPreview } from './ComposerSubmissionPreview';
+import { DurableTimelinePreview } from './DurableTimelinePreview';
 import { DeviceSelectorPreview } from './DeviceSelectorPreview';
+import { CatalogRefreshPreview } from './CatalogRefreshPreview';
 import { WelcomeHome } from '../components/WelcomeHome';
 import { InteractionMailboxPreview } from './InteractionMailboxPreview';
 import { MobileDesignGeometry, MobileDesignTypography } from '../../generated/MobileDesignTokens';
@@ -33,7 +38,17 @@ struct MobileDesignGallery {
   }
 
   build() {
-    if ((AppStorage.get<string>('scenarioId') || '').startsWith('device-selector')) {
+    if ((AppStorage.get<string>('scenarioId') || '').startsWith('cold-start-home')) {
+      ColdStartHomePreview()
+    } else if (AppStorage.get<string>('scenarioId') === 'history-scroll') {
+      HistoryScrollPreview()
+    } else if (AppStorage.get<string>('scenarioId') === 'durable-timeline') {
+      DurableTimelinePreview()
+    } else if (AppStorage.get<string>('scenarioId') === 'composer-submit') {
+      ComposerSubmissionPreview()
+    } else if ((AppStorage.get<string>('scenarioId') || '').startsWith('catalog-refresh')) {
+      CatalogRefreshPreview()
+    } else if ((AppStorage.get<string>('scenarioId') || '').startsWith('device-selector')) {
       DeviceSelectorPreview()
     } else if (AppStorage.get<string>('scenarioId') === 'welcome-home') {
       WelcomeHome()

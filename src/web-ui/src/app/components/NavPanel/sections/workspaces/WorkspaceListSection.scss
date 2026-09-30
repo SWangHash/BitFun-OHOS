@@ -377,8 +377,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 16px;
-    height: 16px;
+    width: var(--_nav-icon-size-prominent);
+    height: var(--_nav-icon-size-prominent);
     flex-shrink: 0;
     color: inherit;
     /* The row color already communicates inactive, hover, and active states.
@@ -1137,8 +1137,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 16px;
-    height: 16px;
+    width: var(--_nav-icon-size-prominent);
+    height: var(--_nav-icon-size-prominent);
     flex-shrink: 0;
     border-radius: 0;
     background: transparent;

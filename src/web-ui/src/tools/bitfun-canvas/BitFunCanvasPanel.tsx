@@ -23,7 +23,7 @@ import './BitFunCanvasPanel.scss';
 
 const log = createLogger('BitFunCanvasPanel');
 
-const CanvasSourceCodeEditor = React.lazy(() =>
+const CanvasSourceCodeEditor = lazyWithRecovery(() =>
   import('@/tools/editor/components/CodeEditor').then(module => ({
     default: module.default,
   })),

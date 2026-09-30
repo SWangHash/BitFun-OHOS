@@ -297,7 +297,10 @@ internal fun RemoteSessionListContent(
                                 settings = viewSettings,
                                 projectChild = section is SessionListSection.Project,
                                 selected = session.id == state.selectedSessionId,
-                                enabled = !state.busy,
+                                // Opening a session is cancellable/supersedable
+                                // in the store; keep rows tappable while the
+                                // previous transcript hydrates.
+                                enabled = true,
                                 onOpen = {
                                     onIntent(RemoteSessionIntent.Open(session.id))
                                     onOpen(session.id)
@@ -433,6 +436,9 @@ private fun RemoteSessionListHeader(
             diameter = 38,
             onClick = onToggleViewSettings,
             modifier = Modifier.testTag(VIEW_SETTINGS_TOGGLE_TEST_TAG),
+            background = MaterialTheme.colorScheme.surface,
+            border = MaterialTheme.colorScheme.outlineVariant,
+            tint = MaterialTheme.colorScheme.onSurface,
         )
         SidebarCircleButton(
             icon = R.drawable.ic_symbol_magnifyingglass,
@@ -440,6 +446,9 @@ private fun RemoteSessionListHeader(
             diameter = 38,
             onClick = onToggleSearch,
             modifier = Modifier.testTag(SESSION_SEARCH_TOGGLE_TEST_TAG),
+            background = MaterialTheme.colorScheme.surface,
+            border = MaterialTheme.colorScheme.outlineVariant,
+            tint = MaterialTheme.colorScheme.onSurface,
         )
     }
 }

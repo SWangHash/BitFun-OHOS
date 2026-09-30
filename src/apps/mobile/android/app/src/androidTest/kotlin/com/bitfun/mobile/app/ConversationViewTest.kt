@@ -22,6 +22,9 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
+import androidx.compose.ui.test.performScrollToIndex
+import com.bitfun.mobile.core.feature.session.HistoryLoadState
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import com.bitfun.mobile.app.ui.chat.CONVERSATION_LIST_TEST_TAG
@@ -155,6 +158,38 @@ class ConversationViewTest {
     }
 
     @Test
+    fun historyPrependKeepsVisibleMessagesAndRepeatedDragsDoNotQueueRequests() {
+        val rows = mutableStateOf((0..5).map { assistantRow("history-$it", "history-$it") })
+        val loading = mutableStateOf(HistoryLoadState.IDLE)
+        var requests = 0
+        composeRule.setContent {
+            BitFunTheme(dark = false) {
+                TimelineForTest(rows.value, hasMoreMessages = true, historyLoadState = loading.value,
+                    onLoadOlder = { requests++; loading.value = HistoryLoadState.LOADING })
+            }
+        }
+        val list = composeRule.onNodeWithTag(CONVERSATION_LIST_TEST_TAG)
+        repeat(3) { list.performTouchInput { swipeDown() }; composeRule.waitForIdle() }
+        composeRule.runOnIdle { assertEquals(1, requests) }
+        val before = composeRule.onNodeWithText("history-0").getUnclippedBoundsInRoot().top
+        composeRule.runOnIdle {
+            rows.value = (-12..-1).map { assistantRow("history-$it", "history-$it") } + rows.value
+            loading.value = HistoryLoadState.IDLE
+        }
+        composeRule.waitForIdle()
+        val after = composeRule.onNodeWithText("history-0").getUnclippedBoundsInRoot().top
+        assertTrue("Prepending moved the visible row from $before to $after", kotlin.math.abs((after - before).value) < 4)
+        composeRule.runOnIdle { assertEquals(1, requests) }
+        // Moving the list without a gesture must not fetch another page.
+        list.performScrollToIndex(0)
+        composeRule.waitForIdle()
+        composeRule.runOnIdle { assertEquals(1, requests) }
+        list.performTouchInput { swipeDown() }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle { assertEquals(2, requests) }
+    }
+
+    @Test
     fun withLoadOlderHeaderStreamingGrowthStaysOnTheRealTail() {
         val rows = mutableStateOf(
             (1..40).map { index -> assistantRow("message-$index", id = "message-$index") },
@@ -226,6 +261,17 @@ class ConversationViewTest {
     }
 
     @Test
+    fun composerRemainsEditableWhileNewSessionHydrates() {
+        val intents = mutableListOf<RemoteSessionIntent>()
+        val state = mutableStateOf(readyState(sessionId = "pending", draft = "").copy(busy = true, timeline = null))
+
+        setConversationContent(state = { state.value }, onIntent = { intents += it })
+
+        composeRule.onNodeWithTag(COMPOSER_INPUT_TEST_TAG).performTextReplacement("draft during load")
+        assertEquals(listOf(RemoteSessionIntent.UpdateDraft("draft during load")), intents)
+    }
+
+    @Test
     fun composerFollowsStoreDraftUpdatesWithinTheSameSession() {
         val state = mutableStateOf(readyState(sessionId = "s-code", draft = "first"))
 
@@ -272,6 +318,37 @@ class ConversationViewTest {
         )
         composeRule.runOnIdle { state.value = state.value.copy(busy = false) }
         composeRule.onNodeWithTag(COMPOSER_INPUT_TEST_TAG).assertTextEquals("send me")
+    }
+
+    @Test
+    fun submittedDraftStaysClearedAcrossRecreationWhileAwaitingAck() {
+        val restoration = androidx.compose.ui.test.junit4.StateRestorationTester(composeRule)
+        val state = mutableStateOf(readyState(sessionId = "s-code", draft = "send me"))
+        restoration.setContent {
+            BitFunTheme(dark = false) {
+                ConversationView(
+                    state = state.value, phase = ConnectionPhase.CONNECTED,
+                    settingsPlacement = SettingsPlacement(SettingsPlacementMode.BOTTOM, 0, 0, 0),
+                    onBack = {}, onIntent = { intent ->
+                        state.value = when (intent) {
+                            is RemoteSessionIntent.UpdateDraft -> state.value.copy(draft = intent.text)
+                            else -> state.value.copy(busy = true)
+                        }
+                    }, contextTitle = "Test desktop", onOpenFile = { _, _ -> },
+                    previewingRemotePath = "", previewLoading = false,
+                    download = RemoteFileDownloadUiState.None, onDownloadFile = { _, _ -> },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+        composeRule.onNodeWithTag(COMPOSER_SEND_TEST_TAG).performClick()
+        restoration.emulateSavedInstanceStateRestore()
+        composeRule.onNodeWithTag(COMPOSER_INPUT_TEST_TAG).assert(
+            SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")),
+        )
+        composeRule.onNodeWithTag(COMPOSER_INPUT_TEST_TAG).performTextReplacement("next draft")
+        composeRule.runOnIdle { state.value = state.value.copy(busy = false) }
+        composeRule.onNodeWithTag(COMPOSER_INPUT_TEST_TAG).assertTextEquals("next draft")
     }
 
     @Test
@@ -366,11 +443,21 @@ class ConversationViewTest {
     )
 
     @Composable
-    private fun TimelineForTest(rows: List<ConversationRow>, hasMoreMessages: Boolean = false) {
+    private fun TimelineForTest(
+        rows: List<ConversationRow>,
+        hasMoreMessages: Boolean = false,
+        topInset: Dp = 0.dp,
+        bottomInset: Dp = 0.dp,
+        historyLoadState: HistoryLoadState = HistoryLoadState.IDLE,
+        onLoadOlder: () -> Unit = {},
+    ) {
         ConversationTimelineView(
             rows = rows,
             hasMoreMessages = hasMoreMessages,
-            onLoadOlder = {},
+            topInset = topInset,
+            bottomInset = bottomInset,
+            historyLoadState = historyLoadState,
+            onLoadOlder = onLoadOlder,
             enabled = true,
             onApproveTool = {},
             onRejectTool = { _, _ -> },
@@ -402,7 +489,6 @@ class ConversationViewTest {
         blocks = emptyList(),
         streaming = streaming,
         typing = false,
-        pending = false,
         showRetry = false,
         error = null,
         live = false,

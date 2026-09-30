@@ -73,7 +73,10 @@ async fn build_transient_client(
 }
 
 pub(crate) async fn get_ai_model_catalog() -> Result<Value, String> {
-    serde_json::to_value(bitfun_core::get_ai_model_catalog().await?)
+    // A controller receives configured models, defaults and the session
+    // selection. The models.dev bodies stay on the host: they describe the
+    // public models.dev catalog, and a controller reads its own snapshot.
+    serde_json::to_value(bitfun_core::get_remote_model_catalog().await?)
         .map_err(|error| error.to_string())
 }
 

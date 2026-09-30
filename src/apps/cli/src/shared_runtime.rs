@@ -1900,6 +1900,7 @@ mod tests {
             agent_type: None,
             model_id: None,
             focused_review_display_label: None,
+            continuation_policy: None,
         };
         assert_eq!(
             route_agent_event(&linked, "child-session", &routes),
@@ -1915,6 +1916,7 @@ mod tests {
             agent_type: None,
             model_id: None,
             focused_review_display_label: None,
+            continuation_policy: None,
         };
         let nested_route = route_agent_event(&nested, "grandchild-session", &routes);
         assert_eq!(nested_route, root_route);
@@ -1994,6 +1996,7 @@ mod tests {
                 agent_type: None,
                 model_id: None,
                 focused_review_display_label: None,
+                continuation_policy: None,
             };
             route_agent_event(&linked, "child-session", &routes);
         }

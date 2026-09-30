@@ -117,7 +117,7 @@
     flex: 1 1 240px;
     align-items: center;
     min-inline-size: 0;
-    gap: var(--bitfun-space-4);
+    gap: var(--bitfun-space-3);
 
     > div {
       flex: 1;
@@ -125,12 +125,15 @@
     }
   }
 
+  /*
+   * The logo box hugs its product icon. A fixed 56px box left 9px of dead space
+   * on each side of a 38px icon, which added itself to the identity gap and put
+   * the disc 25px away from the product name.
+   */
   &__product-logo {
     display: inline-grid;
     place-items: center;
     flex: none;
-    inline-size: 56px;
-    block-size: 56px;
   }
 
   &__product-title-row {

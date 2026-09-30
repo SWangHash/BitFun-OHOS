@@ -45,8 +45,8 @@ pub struct ExecutionContext {
     pub terminal_port: Option<Arc<dyn TerminalPort>>,
     /// Remote execution provider injected by product assembly.
     pub remote_exec_port: Option<Arc<dyn RemoteExecPort>>,
-    /// When set, engine drains pending round injections at each round boundary
-    /// and injects them into the dialog history without ending the turn.
+    /// At round boundaries, yield to a queued user turn when requested; other
+    /// pending runtime injections remain within this execution.
     pub round_injection: Option<Arc<dyn DialogRoundInjectionSource>>,
     /// When false, the execution loop suppresses user-facing turn lifecycle events.
     pub emit_lifecycle_events: bool,

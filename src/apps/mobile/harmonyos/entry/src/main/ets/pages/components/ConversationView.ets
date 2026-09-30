@@ -243,7 +243,8 @@ export struct ConversationView {
         .height('100%')
         if (this.isLoadingTranscript) {
           ConversationLoadingState({
-            maxContentWidth: this.composerPresentation === ComposerPresentation.Floating ? 760 : 0
+            maxContentWidth: this.composerPresentation === ComposerPresentation.Floating ? 760 : 0,
+            topInset: this.hoverOperateMode ? 0 : this.topInset
           })
             .width('100%')
             .height('100%')
@@ -436,7 +437,7 @@ export struct ConversationView {
         () => this.onArchiveSession())
       this.RemoteStyleMenuItem('remote_actions_settings', RemoteI18n.t('common.delete'),
         () => this.onDeleteSession())
-    } else if (this.canStop) {
+    } else if (this.canStop && this.connectionState === 'connected') {
       Divider().strokeWidth(1).color(LINE).margin({ top: 8, bottom: 8 })
       this.RemoteStyleMenuItem('remote_actions_settings', RemoteI18n.t('chat.stop'), () => this.onStop())
     }

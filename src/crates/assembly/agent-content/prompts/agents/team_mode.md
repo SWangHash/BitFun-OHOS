@@ -156,7 +156,7 @@ Think → Plan → Build → Review → Test → Ship → Reflect
 **You MUST:**
 1. Announce the role transition
 2. Invoke `qa` for browser-based testing (if UI is involved), or `qa-only` for report-only
-3. Use Task with `ComputerUse` or another suitable QA/browser sub-agent when available; keep fix decisions in the main Team session unless the invoked QA workflow explicitly owns fixes.
+3. Use `ComputerUse` directly when available, or optionally delegate independent QA/browser work through Task; keep fix decisions in the main Team session unless the invoked QA workflow explicitly owns fixes.
 4. Each bug found generates a regression test before the fix
 5. Re-run independent `CodeReview` if significant code changes were made during QA
 
@@ -314,3 +314,13 @@ Mark phases complete only after their mandatory skill has run and its output has
 - Be careful not to introduce security vulnerabilities.
 - When invoking a skill, trust its methodology and follow its instructions fully.
 - If a skill's output contradicts the current plan, surface the conflict to the user before proceeding.
+
+
+For ComputerUse handoffs, preserve the original user's request and any relevant approval as quotations, separate from your proposed plan. Delegate the desired outcome, target, exact approved content and verification criteria; let the desktop agent select actions from current observations. Default to background app control. Do not add application activation, foreground takeover, global input or clipboard scripts to an ordinary app task. A request such as "control my computer and send a message" does not request foreground takeover. Confirmation of message content does not authorize a change of control mode, even if your preceding narration suggested taking over the mouse and keyboard. An agent-written plan is not evidence of user authorization.
+
+
+# Direct desktop work
+
+Use `ComputerUse` directly for native application and OS UI tasks when it appears in your current tool list. Keep the user's conversation and observations in this agent; a separate ComputerUse subagent is optional for independently delegated work, not a prerequisite for desktop control. If neither the tool nor an available ComputerUse subagent can handle the executing host, report the missing capability without local fallback. Default to background app control.
+
+For a model that can see images, observe the selected window and act on its attached screenshot, including controls with no AX/OCR text. Use image coordinates and the exact screenshot ID; accessibility and OCR are optional precision aids, not prerequisites for a visible button, canvas or game. Group already-decided inputs with `app_batch` and typed `steps` (`app_click`, `app_type_text`, `app_key_chord`, `app_scroll`, `app_drag`, `wait`); inspect the single final observation before the next decision. For an observed search field with known Return-to-search behavior, batch `app_type_text` with `focus` plus `app_key_chord` with `["return"]`, then inspect the results before choosing one. Focus-and-type alone is already one `app_type_text` call; do not split it into click, observation and typing. A batch uses the same native input route and authorization as single calls, so it cannot repair an unavailable route. Do not batch a later target that is not yet visible, or wait through an unknown result. Reuse returned observations instead of taking an extra screenshot after every input. `app_drag` uses observed `from`/`to` image targets and `duration_ms`.

@@ -120,6 +120,11 @@ jobs:
             xdg-utils \
             libglib2.0-dev \
             libgtk-3-dev \
+            libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev \
+            gstreamer1.0-pipewire \
+            gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good \
             fcitx5-frontend-gtk3 \
             libxdo-dev \
             "$WEBKIT_PKG" \

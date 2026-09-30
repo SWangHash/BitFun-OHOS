@@ -44,6 +44,15 @@ export class MobileDesignColors {
   static readonly floatingBorder: MobileColorPair = new MobileColorPair("#18000000", "#18000000");
   static readonly soft: MobileColorPair = new MobileColorPair("#F4F3F0", "#2D2C28");
   static readonly floatingPanelBg: MobileColorPair = new MobileColorPair("#F7F7F5", "#1E1E1C");
+  static readonly sidebarBg: MobileColorPair = new MobileColorPair("#F8F8F9", "#0E0E10");
+  static readonly sidebarBgFade: MobileColorPair = new MobileColorPair("#00F8F8F9", "#000E0E10");
+  static readonly sidebarRaised: MobileColorPair = new MobileColorPair("#FFFFFF", "#1C1C1F");
+  static readonly sidebarLine: MobileColorPair = new MobileColorPair("#14101A27", "#1FFFFFFF");
+  static readonly sidebarHover: MobileColorPair = new MobileColorPair("#F3F3F5", "#0FFFFFFF");
+  static readonly sidebarSelection: MobileColorPair = new MobileColorPair("#14000000", "#1FFFFFFF");
+  static readonly sidebarInk: MobileColorPair = new MobileColorPair("#CC000000", "#E8E8E8");
+  static readonly sidebarMuted: MobileColorPair = new MobileColorPair("#99000000", "#B0B0B0");
+  static readonly sidebarSubtle: MobileColorPair = new MobileColorPair("#66000000", "#858585");
   static readonly statusSuccess: MobileColorPair = new MobileColorPair("#27C46A", "#3BD47B");
   static readonly statusDanger: MobileColorPair = new MobileColorPair("#E04F4F", "#FF6B6B");
   static readonly codeLineNumber: MobileColorPair = new MobileColorPair("#AAA69D", "#77756E");
@@ -64,15 +73,65 @@ export class MobileDesignColors {
   static readonly statusWarning: MobileColorPair = new MobileColorPair("#FF8C00", "#FF8C00");
 }
 
+export class MobileTextScale {
+  static readonly referenceLogicalDpi: number = 153.3;
+  static readonly minFactor: number = 0.85;
+  static readonly maxFactor: number = 1;
+  private static current: number = 1;
+
+  static get factor(): number {
+    return MobileTextScale.current;
+  }
+
+  // xdpi is physical pixels per inch along the horizontal axis; densityPixels is
+  // physical pixels per logical unit. Their ratio is logical units per inch,
+  // compared against the reference the type ramp was tuned on. Displays that
+  // report an implausible xdpi against their nominal 160-per-unit density fall
+  // back to the unscaled ramp rather than trusting bad metrics.
+  static resolve(xdpi: number, densityPixels: number): number {
+    if (!(xdpi > 0) || !(densityPixels > 0)) {
+      return 1;
+    }
+    const nominalDpi = densityPixels * 160;
+    if (xdpi < nominalDpi * 0.5 || xdpi > nominalDpi * 2) {
+      return 1;
+    }
+    const factor = xdpi / densityPixels / MobileTextScale.referenceLogicalDpi;
+    const clamped = Math.min(MobileTextScale.maxFactor, Math.max(MobileTextScale.minFactor, factor));
+    return Math.round(clamped * 1000) / 1000;
+  }
+
+  static apply(xdpi: number, densityPixels: number): number {
+    MobileTextScale.current = MobileTextScale.resolve(xdpi, densityPixels);
+    return MobileTextScale.current;
+  }
+
+  static reset(): void {
+    MobileTextScale.current = 1;
+  }
+
+  static scaled(value: number): number {
+    return Math.round(value * MobileTextScale.current * 2) / 2;
+  }
+}
+
 export class MobileTypographyToken {
-  readonly size: number;
-  readonly lineHeight: number;
+  readonly baseSize: number;
+  readonly baseLineHeight: number;
   readonly weight: number;
 
   constructor(size: number, lineHeight: number, weight: number) {
-    this.size = size;
-    this.lineHeight = lineHeight;
+    this.baseSize = size;
+    this.baseLineHeight = lineHeight;
     this.weight = weight;
+  }
+
+  get size(): number {
+    return MobileTextScale.scaled(this.baseSize);
+  }
+
+  get lineHeight(): number {
+    return MobileTextScale.scaled(this.baseLineHeight);
   }
 }
 
@@ -191,4 +250,5 @@ export class MobileDesignMotion {
   static readonly quick: number = 180;
   static readonly structure: number = 220;
   static readonly startupBrand: number = 6800;
+  static readonly coldStartHome: number = 2400;
 }

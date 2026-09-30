@@ -1,110 +1,114 @@
-//! Enumerate currently running GUI applications on macOS.
-//!
-//! We use AppleScript via `osascript` to read `System Events` —
-//! pragmatically the same data NSWorkspace.runningApplications exposes,
-//! without requiring a full objc/cocoa binding stack here. This is "good
-//! enough" for the AX-first plan: the list is used to resolve
-//! `AppSelector::ByName` / `ByBundleId` to a pid, after which all real work
-//! happens through AX + bg-input.
-//!
-//! Last-used / launch-count signals from LaunchServices are not available
-//! through AppleScript; we expose `last_used_at_ms = 0` and
-//! `launch_count = 0` so the trait shape is preserved. A future enhancement
-//! can swap this out for a real NSWorkspace + LSSharedFileList implementation
-//! without changing callers.
+//! Fresh native GUI application discovery, without AppleScript or process scans.
+//! Regular applications are discoverable even before they open a window;
+//! accessory applications are included when WindowServer reports a real window.
 
-#![allow(dead_code)]
-
+use core_foundation::array::CFArray;
+use core_foundation::base::{CFGetTypeID, CFTypeRef, TCFType};
+use core_foundation::dictionary::CFDictionary;
+use core_foundation::number::CFNumber;
+use core_foundation::string::CFString;
+use objc2_app_kit::{NSApplicationActivationPolicy, NSWorkspace};
 use bitfun_core::agentic::tools::computer_use_host::AppInfo;
 use bitfun_core::util::errors::{BitFunError, BitFunResult};
-use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::collections::HashSet;
+use std::ffi::c_void;
 
-/// Short-lived cache for `list_running_apps` results.
-///
-/// `osascript` cold-start costs ~150–250ms on a quiet machine. The AX-first
-/// dispatch path resolves an `AppSelector → pid` *before every* `app_*`
-/// action, so without caching every click would pay this latency twice
-/// (once for the action, once for the post-action re-snapshot). A 5-second
-/// TTL is short enough that newly-launched apps appear quickly while
-/// eliminating the back-to-back duplicate calls inside one agent step.
-static CACHE: Mutex<Option<(Instant, bool, Vec<AppInfo>)>> = Mutex::new(None);
-const CACHE_TTL: Duration = Duration::from_secs(5);
+type Dictionary = CFDictionary<*const c_void, *const c_void>;
 
-const ASCRIPT: &str = r#"
-set out to ""
-tell application "System Events"
-    set procs to (every application process whose background only is false)
-    repeat with p in procs
-        try
-            set bid to bundle identifier of p
-        on error
-            set bid to ""
-        end try
-        try
-            set pname to name of p
-        on error
-            set pname to ""
-        end try
-        try
-            set ppid to unix id of p
-        on error
-            set ppid to 0
-        end try
-        try
-            set ph to (visible of p as string)
-        on error
-            set ph to "true"
-        end try
-        set out to out & pname & "\t" & bid & "\t" & ppid & "\t" & ph & "\n"
-    end repeat
-end tell
-return out
-"#;
+fn value(dictionary: &Dictionary, key: &str) -> Option<CFTypeRef> {
+    let key = CFString::new(key);
+    dictionary
+        .find(key.as_concrete_TypeRef().cast())
+        .map(|value| *value)
+}
+fn number(dictionary: &Dictionary, key: &str) -> Option<f64> {
+    let value = value(dictionary, key)?;
+    if unsafe { CFGetTypeID(value) } != CFNumber::type_id() {
+        return None;
+    }
+    unsafe { CFNumber::wrap_under_get_rule(value.cast()) }.to_f64()
+}
+
+fn window_owners() -> BitFunResult<HashSet<i32>> {
+    #[link(name = "CoreGraphics", kind = "framework")]
+    unsafe extern "C" {
+        fn CGWindowListCopyWindowInfo(
+            options: u32,
+            relative_to: u32,
+        ) -> core_foundation::array::CFArrayRef;
+    }
+    // Include off-screen/minimized windows so include_hidden refers to an
+    // application's hidden state rather than whichever Space is visible.
+    let raw = unsafe { CGWindowListCopyWindowInfo(16, 0) };
+    if raw.is_null() {
+        return Err(BitFunError::tool(
+            "APP_DISCOVERY_UNAVAILABLE: WindowServer application inventory is unavailable",
+        ));
+    }
+    let windows: CFArray<CFTypeRef> = unsafe { CFArray::wrap_under_create_rule(raw) };
+    let mut owners = HashSet::new();
+    for window in windows.iter() {
+        if unsafe { CFGetTypeID(*window) } != Dictionary::type_id() {
+            continue;
+        }
+        let window = unsafe { Dictionary::wrap_under_get_rule((*window).cast()) };
+        if number(&window, "kCGWindowLayer") != Some(0.0) {
+            continue;
+        }
+        let Some(bounds) = value(&window, "kCGWindowBounds") else {
+            continue;
+        };
+        if unsafe { CFGetTypeID(bounds) } != Dictionary::type_id() {
+            continue;
+        }
+        let bounds = unsafe { Dictionary::wrap_under_get_rule(bounds.cast()) };
+        if number(&bounds, "Width").is_none_or(|width| width <= 0.0)
+            || number(&bounds, "Height").is_none_or(|height| height <= 0.0)
+        {
+            continue;
+        }
+        if let Some(pid) = number(&window, "kCGWindowOwnerPID").filter(|pid| *pid > 0.0) {
+            owners.insert(pid as i32);
+        }
+    }
+    Ok(owners)
+}
+
+fn include_application(
+    policy: NSApplicationActivationPolicy,
+    owns_window: bool,
+    hidden: bool,
+    include_hidden: bool,
+) -> bool {
+    (policy == NSApplicationActivationPolicy::Regular
+        || (policy == NSApplicationActivationPolicy::Accessory && owns_window))
+        && (include_hidden || !hidden)
+}
 
 pub(super) fn list_running_apps(include_hidden: bool) -> BitFunResult<Vec<AppInfo>> {
-    if let Ok(guard) = CACHE.lock() {
-        if let Some((ts, cached_hidden, ref apps)) = *guard {
-            if cached_hidden == include_hidden && ts.elapsed() < CACHE_TTL {
-                return Ok(apps.clone());
-            }
-        }
-    }
-    let out = std::process::Command::new("/usr/bin/osascript")
-        .arg("-e")
-        .arg(ASCRIPT)
-        .output()
-        .map_err(|e| BitFunError::tool(format!("osascript spawn: {}", e)))?;
-    if !out.status.success() {
-        return Err(BitFunError::tool(format!(
-            "osascript list_apps failed: {}",
-            String::from_utf8_lossy(&out.stderr)
-        )));
-    }
-    let body = String::from_utf8_lossy(&out.stdout);
+    let owners = window_owners()?;
+    let applications = NSWorkspace::sharedWorkspace().runningApplications();
     let mut apps = Vec::new();
-    for line in body.lines() {
-        let parts: Vec<&str> = line.split('\t').collect();
-        if parts.len() < 4 {
+    for app in applications.iter() {
+        let pid = app.processIdentifier();
+        if pid <= 0
+            || app.isTerminated()
+            || !include_application(
+                app.activationPolicy(),
+                owners.contains(&pid),
+                app.isHidden(),
+                include_hidden,
+            )
+        {
             continue;
         }
-        let name = parts[0].trim().to_string();
-        let bundle_id = {
-            let s = parts[1].trim();
-            if s.is_empty() {
-                None
-            } else {
-                Some(s.to_string())
-            }
-        };
-        let pid: i32 = parts[2].trim().parse().unwrap_or(0);
-        let visible = parts[3].trim().eq_ignore_ascii_case("true");
-        if name.is_empty() || pid <= 0 {
-            continue;
-        }
-        if !include_hidden && !visible {
-            continue;
-        }
+        let bundle_id = app.bundleIdentifier().map(|value| value.to_string());
+        let name = app
+            .localizedName()
+            .map(|value| value.to_string())
+            .filter(|value| !value.trim().is_empty())
+            .or_else(|| bundle_id.clone())
+            .unwrap_or_else(|| format!("Application {pid}"));
         apps.push(AppInfo {
             name,
             bundle_id,
@@ -114,21 +118,56 @@ pub(super) fn list_running_apps(include_hidden: bool) -> BitFunResult<Vec<AppInf
             launch_count: 0,
         });
     }
-    // Best-effort stable order: alphabetical by name. The richer
-    // "recently used / most launched" sort is left to a future
-    // LaunchServices-backed implementation.
-    apps.sort_by_key(|a| a.name.to_lowercase());
-    if let Ok(mut guard) = CACHE.lock() {
-        *guard = Some((Instant::now(), include_hidden, apps.clone()));
-    }
+    apps.sort_by(|a, b| {
+        a.name
+            .to_lowercase()
+            .cmp(&b.name.to_lowercase())
+            .then(a.pid.cmp(&b.pid))
+    });
     Ok(apps)
 }
 
-/// Drop the cached `list_running_apps` result so the next call re-probes
-/// `osascript`. Used when the agent has just launched / quit an app and
-/// needs the freshest pid set.
-pub(super) fn invalidate_cache() {
-    if let Ok(mut guard) = CACHE.lock() {
-        *guard = None;
+/// Compatibility for launch/quit call sites. Discovery is always fresh now.
+pub(super) fn invalidate_cache() {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn native_discovery_includes_windowed_accessories_but_not_daemons() {
+        assert!(include_application(
+            NSApplicationActivationPolicy::Regular,
+            false,
+            false,
+            false
+        ));
+        assert!(include_application(
+            NSApplicationActivationPolicy::Accessory,
+            true,
+            false,
+            false
+        ));
+        assert!(!include_application(
+            NSApplicationActivationPolicy::Accessory,
+            false,
+            false,
+            true
+        ));
+        assert!(!include_application(
+            NSApplicationActivationPolicy::Prohibited,
+            true,
+            false,
+            true
+        ));
+    }
+    #[test]
+    fn hidden_filter_is_independent_of_activation_policy() {
+        for policy in [
+            NSApplicationActivationPolicy::Regular,
+            NSApplicationActivationPolicy::Accessory,
+        ] {
+            assert!(!include_application(policy, true, true, false));
+            assert!(include_application(policy, true, true, true));
+        }
     }
 }

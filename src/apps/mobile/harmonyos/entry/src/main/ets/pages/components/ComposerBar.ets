@@ -456,6 +456,8 @@ export struct ComposerBar {
     .stateEffect(false)
     .accessibilityText(RemoteI18n.t(ChatComposerPolicy.primaryActionAccessibilityKey(
       this.primaryAction(), this.isVoiceListening)))
+    .enabled(this.primaryAction() !== ComposerPrimaryAction.Stop || this.isVoiceListening ||
+      ChatComposerPolicy.canStop(this.canStop, this.capabilities.requiresRemoteConnection, this.connectionState))
     .onTouch((event: TouchEvent) => {
       if (!this.shouldShowActiveActionSurface()) {
         return;
@@ -473,7 +475,7 @@ export struct ComposerBar {
       if (action === ComposerPrimaryAction.Stop) {
         if (this.isVoiceListening) {
           this.onVoiceInput();
-        } else if (this.canStop) {
+        } else if (ChatComposerPolicy.canStop(this.canStop, this.capabilities.requiresRemoteConnection, this.connectionState)) {
           this.onStop();
         }
         return;

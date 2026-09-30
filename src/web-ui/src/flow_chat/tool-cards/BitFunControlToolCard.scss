@@ -16,18 +16,21 @@
 }
 
 .bitfun-control-card__fields {
+  container: control-fields / inline-size;
   display: grid;
   gap: var(--bitfun-space-2);
   margin: 0;
 }
 
 .bitfun-control-card__field {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: var(--bitfun-control-tool-card-field-label-width) minmax(0, 1fr);
   align-items: baseline;
-  gap: var(--bitfun-space-1) var(--bitfun-space-3);
+  gap: var(--bitfun-space-2);
 
   dt {
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
     color: var(--bitfun-color-content-muted);
     font-weight: var(--bitfun-type-label-sm-font-weight);
   }
@@ -50,8 +53,6 @@
 .bitfun-control-card__list {
   display: grid;
   gap: var(--bitfun-space-3);
-  max-block-size: 20rem;
-  overflow-y: auto;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -72,4 +73,17 @@
   color: var(--bitfun-color-status-danger-content);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.bitfun-control-card__viewport {
+  max-block-size: 20rem;
+}
+
+.bitfun-control-card__result + .bitfun-control-card__result {
+  padding-block-start: var(--bitfun-space-2);
+  border-block-start: 1px solid var(--bitfun-color-border-subtle);
+}
+
+@container control-fields (max-width: 22rem) {
+  .bitfun-control-card__field { grid-template-columns: minmax(0, 1fr); gap: var(--bitfun-space-1); }
 }

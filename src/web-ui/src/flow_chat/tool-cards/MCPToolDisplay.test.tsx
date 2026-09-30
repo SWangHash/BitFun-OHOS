@@ -37,8 +37,14 @@ vi.mock('@/infrastructure/api/service-api/MCPAPI', () => ({
   },
 }));
 
+vi.mock('@/infrastructure/i18n', () => ({
+  i18nService: { t: (key: string) => key },
+}));
+
 vi.mock('@/shared/utils/logger', () => ({
   createLogger: () => ({
+    trace: vi.fn(),
+    debug: vi.fn(),
     error: vi.fn(),
     warn: vi.fn(),
     info: vi.fn(),
@@ -112,7 +118,7 @@ describe('MCPToolDisplay', () => {
     });
     Object.defineProperty(dom.window, 'matchMedia', {
       configurable: true,
-      value: () => ({ matches: true }),
+      value: () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }),
     });
     vi.stubGlobal('window', dom.window);
     vi.stubGlobal('document', dom.window.document);
@@ -152,7 +158,7 @@ describe('MCPToolDisplay', () => {
     expect(input?.textContent).toContain('Input Parameters');
     expect(container.querySelector('.mcp-input-code')).toBeNull();
     expect(result?.textContent).toContain('Search result');
-    expect(input?.compareDocumentPosition(result as Node) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(result?.compareDocumentPosition(input as Node) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     act(() => {
       container.querySelector<HTMLButtonElement>('.mcp-input-disclosure button[aria-expanded]')?.dispatchEvent(
@@ -258,7 +264,7 @@ describe('MCPToolDisplay', () => {
     });
 
     expect(container.querySelector('.mcp-input-code')).toBeNull();
-    expect(container.textContent).toContain('MCP server rejected the request');
+    expect(container.textContent).not.toContain('MCP server rejected the request');
     expect(container.querySelector('[data-bitfun-component="mcp-tool-display"]')?.getAttribute('data-bitfun-state')).toBe('error');
 
     act(() => {
@@ -268,6 +274,7 @@ describe('MCPToolDisplay', () => {
     });
 
     expect(container.querySelector('[data-bitfun-component="mcp-tool-display"]')?.getAttribute('data-bitfun-state')).toContain('expanded');
+    expect(container.textContent).toContain('MCP server rejected the request');
     expect(container.querySelector('.mcp-input-code')).toBeNull();
 
     act(() => {
@@ -294,7 +301,7 @@ describe('MCPToolDisplay', () => {
     expect(container.querySelector('.mcp-input-code')).toBeNull();
   });
 
-  it('auto-expands an MCP App with input collapsed and resets input when the parent closes', async () => {
+  it('keeps a ready MCP App collapsed until requested and resets input when the parent closes', async () => {
     const resourceUri = 'ui://example/search';
     mcpMocks.getCachedToolInfo.mockReset().mockResolvedValue({
       dynamic_info: {
@@ -329,6 +336,9 @@ describe('MCPToolDisplay', () => {
     });
 
     const cardRoot = container.querySelector('[data-bitfun-component="mcp-tool-display"]');
+    expect(container.querySelector('.mcp-app-iframe')).toBeNull();
+    expect(cardRoot?.getAttribute('data-bitfun-state') ?? '').not.toContain('expanded');
+    act(() => container.querySelector<HTMLButtonElement>('[data-testid="mcp-tool-card-toggle"]')!.click());
     expect(container.querySelector('.mcp-app-iframe')).not.toBeNull();
     expect(cardRoot?.getAttribute('data-bitfun-state')).toContain('expanded');
     expect(container.querySelector<HTMLButtonElement>('.mcp-input-disclosure button[aria-expanded]')?.getAttribute('aria-expanded')).toBe('false');
@@ -361,5 +371,48 @@ describe('MCPToolDisplay', () => {
     expect(cardRoot?.getAttribute('data-bitfun-state')).toContain('expanded');
     expect(container.querySelector<HTMLButtonElement>('.mcp-input-disclosure button[aria-expanded]')?.getAttribute('aria-expanded')).toBe('false');
     expect(container.querySelector('.mcp-input-code')).toBeNull();
+  });
+
+  it('previews a result image on click without collapsing the card', () => {
+    const item = toolItem({
+      toolResult: {
+        success: true,
+        result: {
+          content: [{ type: 'image', data: 'aW1n', mime_type: 'image/png' }],
+        },
+      },
+    });
+
+    act(() => {
+      root.render(<MCPToolDisplay toolItem={item} config={config} />);
+    });
+
+    act(() => {
+      container.querySelector('[data-testid="mcp-tool-card-toggle"]')?.dispatchEvent(
+        new dom.window.MouseEvent('click', { bubbles: true })
+      );
+    });
+
+    const trigger = container.querySelector<HTMLButtonElement>('.image-content-preview');
+    expect(trigger).not.toBeNull();
+    expect(container.querySelector('.image-content')?.getAttribute('data-bitfun-part')).toBe('image');
+
+    act(() => {
+      trigger?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    });
+
+    const overlay = dom.window.document.querySelector<HTMLElement>('.image-lightbox');
+    expect(overlay).not.toBeNull();
+    expect(overlay?.getAttribute('data-bitfun-native-webview-occlusion')).toBe('true');
+    expect(overlay?.querySelector('img')?.getAttribute('src')).toBe('data:image/png;base64,aW1n');
+    expect(container.querySelector('[data-bitfun-component="mcp-tool-display"]')?.getAttribute('data-bitfun-state')).toContain('expanded');
+
+    act(() => {
+      dom.window.document.querySelector<HTMLButtonElement>('.image-lightbox-close')?.dispatchEvent(
+        new dom.window.MouseEvent('click', { bubbles: true })
+      );
+    });
+
+    expect(dom.window.document.querySelector('.image-lightbox')).toBeNull();
   });
 });

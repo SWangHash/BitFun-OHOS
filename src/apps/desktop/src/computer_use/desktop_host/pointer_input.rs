@@ -23,11 +23,10 @@ use bitfun_core::agentic::tools::computer_use_host::{
 use bitfun_core::util::errors::{BitFunError, BitFunResult};
 use std::time::Duration;
 
-/// Relative nudges (`pointer_move_rel`) right after a model-driven screenshot are almost always wrong when deltas are guessed from the image; block until a trusted absolute move.
-const VISION_PIXEL_NUDGE_AFTER_SCREENSHOT_MSG: &str = "Computer use refused: do not use `pointer_move_rel` immediately after a `screenshot` — nudging from the JPEG is inaccurate. First reposition with `move_to_text`, `click_element`, `locate` + `mouse_move` (`use_screen_coordinates`: true), or `mouse_move` using globals from tool JSON; then relative nudges are allowed if still needed.";
-
 impl DesktopComputerUseHost {
     pub(super) fn ensure_input_automation_allowed() -> BitFunResult<()> {
+        crate::computer_use::control_session::foreground_allowed()
+            .map_err(BitFunError::tool)?;
         #[cfg(target_os = "macos")]
         {
             if macos::ax_trusted() {
@@ -52,6 +51,8 @@ impl DesktopComputerUseHost {
         F: FnOnce(&mut Enigo) -> BitFunResult<T>,
     {
         Self::ensure_input_automation_allowed()?;
+        #[cfg(target_os = "linux")]
+        crate::computer_use::linux_control::require_legacy_x11().map_err(BitFunError::tool)?;
         let settings = Settings::default();
         let mut enigo = Enigo::new(&settings)
             .map_err(|e| BitFunError::tool(format!("enigo init: {}", e)))?;
@@ -85,6 +86,9 @@ impl DesktopComputerUseHost {
     /// Absolute pointer move in Quartz global **points** with full float precision (avoids enigo integer truncation).
     #[cfg(target_os = "macos")]
     fn post_mouse_moved_cg_global(x: f64, y: f64) -> BitFunResult<()> {
+        crate::computer_use::control_session::foreground_allowed()
+            .map_err(BitFunError::tool)?;
+        crate::computer_use::control_session::record_pointer(x, y, false);
         use core_graphics::event::{CGEvent, CGEventTapLocation, CGEventType, CGMouseButton};
         use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
         use core_graphics::geometry::CGPoint;
@@ -165,6 +169,8 @@ impl DesktopComputerUseHost {
             let step_delay = Duration::from_millis((duration_ms / steps as u64).max(1));
 
             for i in 1..=steps {
+                crate::computer_use::control_session::foreground_allowed()
+                    .map_err(BitFunError::tool)?;
                 let t = i as f64 / steps as f64;
                 let te = Self::smoothstep01(t);
                 let x = x0 + dx * te;
@@ -245,8 +251,25 @@ impl DesktopComputerUseHost {
     /// Perform a physical click at the current pointer without running [`ComputerUseHost::computer_use_guard_click_allowed`].
     /// Used after `mouse_move_global_f64` when coordinates came from AX or OCR (not from vision model image coords).
     async fn mouse_click_at_current_pointer(&self, button: &str) -> BitFunResult<()> {
+        #[cfg(target_os = "linux")]
+        if let Some(session) =
+            crate::computer_use::linux_control::session().map_err(BitFunError::tool)?
+        {
+            let code = crate::computer_use::linux_control::button_code(button)
+                .map_err(BitFunError::tool)?;
+            session
+                .button(code, true)
+                .await
+                .map_err(BitFunError::tool)?;
+            session
+                .button(code, false)
+                .await
+                .map_err(BitFunError::tool)?;
+            ComputerUseHost::computer_use_after_click(self);
+            return Ok(());
+        }
         let button = button.to_string();
-        tokio::task::spawn_blocking(move || {
+        crate::computer_use::control_session::spawn_blocking(move || {
             Self::run_enigo_job(|e| {
                 let b = Self::map_button(&button)?;
                 e.button(b, Direction::Click)
@@ -283,16 +306,67 @@ impl DesktopComputerUseHost {
                 .state
                 .lock()
                 .map_err(|e| BitFunError::tool(format!("lock: {}", e)))?;
-            screenshot_id
-                .and_then(|id| s.screenshot_pointer_maps.get(id).copied())
-                .or_else(|| s.app_pointer_maps.get(&pid).copied())
-                .or(s.pointer_map)
+            let control = crate::computer_use::control_session::snapshot();
+            if s.app_pointer_targets.get(&pid) != control.target.as_ref()
+                || control.target.is_none()
+            {
+                return Err(BitFunError::tool(
+                    "[STALE_CAPTURE] Target window changed; observe it again",
+                ));
+            }
+            let current = s.app_pointer_maps.get(&pid).copied();
+            match screenshot_id {
+                Some(id) => {
+                    if s.screenshot_targets.get(id) != control.target.as_ref() {
+                        return Err(BitFunError::tool(
+                            "[STALE_CAPTURE] Screenshot belongs to another target or expired",
+                        ));
+                    }
+                    let selected = s.screenshot_pointer_maps.get(id).copied().ok_or_else(|| {
+                        BitFunError::tool(
+                            "[STALE_CAPTURE] Unknown screenshot_id; observe the target again",
+                        )
+                    })?;
+                    if !current.is_some_and(|current| current.same_window_projection(&selected)) {
+                        return Err(BitFunError::tool("[STALE_CAPTURE] Screenshot does not match the target's current geometry"));
+                    }
+                    Some(selected)
+                }
+                None => current,
+            }
         };
-        let Some(map) = map else {
+        let Some(mut map) = map else {
             return Err(BitFunError::tool(
                 "No screenshot coordinate map is available for this app. Call desktop.get_app_state for the target app first, then use app_click image_xy/image_grid against that returned screenshot_id.".to_string(),
             ));
         };
+        if x < 0 || y < 0 || x as u32 >= map.image_w || y as u32 >= map.image_h {
+            return Err(BitFunError::tool(
+                "[INVALID_COORDINATES] Point is outside the target image",
+            ));
+        }
+        #[cfg(target_os = "macos")]
+        {
+            let window = crate::computer_use::macos_capture::bound_window_id(pid)
+                .map_err(BitFunError::tool)?;
+            let bounds = crate::computer_use::macos_capture::window_bounds(pid, window)
+                .map_err(BitFunError::tool)?;
+            map = map.at_window_bounds(bounds)?;
+        }
+        #[cfg(target_os = "windows")]
+        {
+            let control = crate::computer_use::control_session::snapshot();
+            if let Ok(Some(preview)) =
+                crate::computer_use::control_session::preview(control.generation)
+            {
+                map = map.at_window_bounds([
+                    preview.origin_x,
+                    preview.origin_y,
+                    preview.span_width,
+                    preview.span_height,
+                ])?;
+            }
+        }
         map.map_image_to_global_f64(x, y)
     }
 
@@ -351,43 +425,39 @@ impl DesktopComputerUseHost {
 /// Runs synchronously on its own thread; caller should `std::thread::spawn`.
 #[cfg(target_os = "macos")]
 fn flash_click_highlight_cg(gx: f64, gy: f64) {
-    use core_graphics::context::CGContext;
-    use core_graphics::geometry::{CGPoint, CGRect, CGSize};
-
-    const RADIUS: f64 = 18.0;
-    const BORDER_WIDTH: f64 = 3.0;
-    const DURATION_MS: u64 = 600;
-
-    let _ = std::panic::catch_unwind(|| {
-        let size = (RADIUS * 2.0 + BORDER_WIDTH * 2.0).ceil() as usize;
-        let ctx = CGContext::create_bitmap_context(
-            None,
-            size,
-            size,
-            8,
-            size * 4,
-            &core_graphics::color_space::CGColorSpace::create_device_rgb(),
-            core_graphics::base::kCGImageAlphaPremultipliedLast,
-        );
-
-        ctx.set_rgb_stroke_color(1.0, 0.0, 0.0, 0.85);
-        ctx.set_line_width(BORDER_WIDTH);
-        let inset = BORDER_WIDTH / 2.0;
-        let rect = CGRect::new(
-            &CGPoint::new(inset, inset),
-            &CGSize::new(size as f64 - BORDER_WIDTH, size as f64 - BORDER_WIDTH),
-        );
-        ctx.stroke_ellipse_in_rect(rect);
-
-        // The bitmap is drawn; sleep then discard (the visual feedback is best-effort).
-        // On macOS the actual overlay window requires AppKit; as a lightweight alternative
-        // we just log the click location for debugging.
-        debug!("computer_use: click highlight at ({:.0}, {:.0})", gx, gy);
-        std::thread::sleep(Duration::from_millis(DURATION_MS));
-    });
+    crate::computer_use::control_session::record_pointer(gx, gy, true);
 }
 
 impl DesktopComputerUseHost {
+    #[cfg(target_os = "windows")]
+    pub(super) async fn windows_target(&self, app: &AppSelector) -> BitFunResult<(i32, isize)> {
+        let pid = super::resolve_pid(self, app).await?;
+        // A sharing indicator or newly opened utility window must not replace
+        // the window already owned by the control session.
+        let prefix = format!("pid:{pid}/window:");
+        if let Some(window) = crate::computer_use::control_session::snapshot()
+            .target
+            .as_deref()
+            .and_then(|target| target.strip_prefix(&prefix))
+            .and_then(|window| window.parse::<isize>().ok())
+        {
+            use windows::Win32::Foundation::HWND;
+            use windows::Win32::UI::WindowsAndMessaging::{GetWindowThreadProcessId, IsWindow};
+            let hwnd = HWND(window as *mut std::ffi::c_void);
+            let mut actual_pid = 0;
+            unsafe {
+                GetWindowThreadProcessId(hwnd, Some(&mut actual_pid));
+            }
+            if !unsafe { IsWindow(Some(hwnd)) }.as_bool() || actual_pid != pid as u32 {
+                return Err(BitFunError::tool("[TARGET_WINDOW_UNAVAILABLE] The bound window closed; select a new target explicitly"));
+            }
+            return Ok((pid, window));
+        }
+        let hwnd = crate::computer_use::windows_list_apps::find_top_window_for_pid(pid as u32)
+            .ok_or_else(|| BitFunError::tool("[TARGET_UNAVAILABLE] Target has no window"))?;
+        Ok((pid, hwnd.0 as isize))
+    }
+
     /// Owning pid of the current foreground window (Windows), `0` when unknown.
     /// Used to key pointer maps / element caches for the foreground-targeted
     /// `app_*` actions.
@@ -426,8 +496,9 @@ impl DesktopComputerUseHost {
     pub(super) async fn resolve_click_target_windows(
         &self,
         target: &ClickTarget,
+        app: &AppSelector,
     ) -> BitFunResult<(f64, f64)> {
-        let pid = Self::windows_foreground_pid();
+        let (pid, hwnd_raw) = self.windows_target(app).await?;
         match target {
             ClickTarget::ScreenXy { x, y } => Ok((*x, *y)),
             ClickTarget::ImageXy {
@@ -449,7 +520,6 @@ impl DesktopComputerUseHost {
                 intersections,
                 wait_ms_after_detection,
             } => {
-                let hwnd_raw = crate::computer_use::windows_ax_ui::foreground_window_handle();
                 let shot = self.screenshot_for_foreground_window(pid, hwnd_raw).await?;
                 let (x0, y0, width, height) =
                     super::ax_orchestration::detect_regular_grid_rect_from_screenshot(
@@ -478,28 +548,13 @@ impl DesktopComputerUseHost {
                 self.map_app_image_coords_to_pointer_f64(pid, ix, iy, shot.screenshot_id.as_deref())
             }
             ClickTarget::NodeIdx { idx } => {
-                let snap = self
-                    .get_app_state_inner(AppSelector::default(), 32, false, false)
-                    .await?;
-                let node = snap.nodes.iter().find(|n| n.idx == *idx).ok_or_else(|| {
-                    BitFunError::tool(format!(
-                        "AX_NODE_STALE: idx={} no longer present in app state",
-                        idx
-                    ))
-                })?;
-                let (fx, fy, fw, fh) = node.frame_global.ok_or_else(|| {
-                    BitFunError::tool(format!(
-                        "AX_NODE_STALE: idx={} has no frame (off-screen or window minimised)",
-                        idx
-                    ))
-                })?;
-                if fw <= 0.0 || fh <= 0.0 {
-                    return Err(BitFunError::tool(format!(
-                        "AX_NODE_STALE: idx={} has zero-size frame ({}x{})",
-                        idx, fw, fh
-                    )));
-                }
-                Ok((fx + fw / 2.0, fy + fh / 2.0))
+                let (_, hwnd) = self.windows_target(app).await?;
+                let idx = *idx;
+                crate::computer_use::control_session::spawn_blocking(move || {
+                    crate::computer_use::windows_ax_ui::cached_node_center(hwnd, idx)
+                })
+                .await
+                .map_err(|e| BitFunError::tool(e.to_string()))?
             }
             ClickTarget::OcrText { needle } => {
                 let matches = self.ocr_find_text_matches(needle, None).await?;
@@ -563,11 +618,22 @@ impl DesktopComputerUseHost {
         gx: f64,
         gy: f64,
     ) -> BitFunResult<()> {
+        #[cfg(target_os = "linux")]
+        if let Some(session) =
+            crate::computer_use::linux_control::session().map_err(BitFunError::tool)?
+        {
+            session
+                .move_pointer(gx, gy)
+                .await
+                .map_err(BitFunError::tool)?;
+            ComputerUseHost::computer_use_after_pointer_mutation(self);
+            return Ok(());
+        }
         debug!(
             "computer_use: mouse_move_global_f64 smooth target ({:.2}, {:.2})",
             gx, gy
         );
-        tokio::task::spawn_blocking(move || {
+        crate::computer_use::control_session::spawn_blocking(move || {
             #[cfg(target_os = "macos")]
             {
                 Self::run_enigo_job(|_| Self::smooth_mouse_move_cg_global(gx, gy))
@@ -579,7 +645,6 @@ impl DesktopComputerUseHost {
         })
         .await
         .map_err(|e| BitFunError::tool(e.to_string()))??;
-        self.clear_vision_pixel_nudge_block();
         ComputerUseHost::computer_use_after_pointer_mutation(self);
         Ok(())
     }
@@ -593,16 +658,16 @@ impl DesktopComputerUseHost {
             return Ok(());
         }
 
+        #[cfg(target_os = "linux")]
+        if let Some(session) =
+            crate::computer_use::linux_control::session().map_err(BitFunError::tool)?
         {
-            let s = self
-                .state
-                .lock()
-                .map_err(|e| BitFunError::tool(format!("lock: {}", e)))?;
-            if s.block_vision_pixel_nudge_after_screenshot {
-                return Err(BitFunError::tool(
-                    VISION_PIXEL_NUDGE_AFTER_SCREENSHOT_MSG.to_string(),
-                ));
-            }
+            session
+                .move_relative(dx, dy)
+                .await
+                .map_err(BitFunError::tool)?;
+            ComputerUseHost::computer_use_after_pointer_mutation(self);
+            return Ok(());
         }
 
         #[cfg(target_os = "macos")]
@@ -610,34 +675,20 @@ impl DesktopComputerUseHost {
             // enigo `Coordinate::Rel` uses `location()` on macOS, which mixes NSEvent + main-display
             // pixel height — not the same space as `CGEvent` / our screenshot mapping. Use Quartz
             // position + scale from the last capture (display points per screenshot pixel).
-            let geo = {
-                let s = self
+            let (dpt_x, dpt_y) = {
+                let state = self
                     .state
                     .lock()
-                    .map_err(|e| BitFunError::tool(format!("lock: {}", e)))?;
-                let Some(map) = s.pointer_map else {
-                    return Err(BitFunError::tool(
-                        "Run action screenshot first: on macOS, `pointer_move_rel` converts pixel deltas using the last capture scale."
-                            .to_string(),
-                    ));
-                };
-                map.macos_geo.ok_or_else(|| {
-                    BitFunError::tool(
-                        "Pointer map missing display geometry; take a screenshot then retry."
-                            .to_string(),
-                    )
-                })?
+                    .map_err(|e| BitFunError::tool(format!("lock: {e}")))?;
+                let map = state.pointer_map.ok_or_else(|| BitFunError::tool("CAPTURE_REQUIRED: Observe the authorized target before converting image-pixel deltas"))?;
+                map.image_delta_to_global(dx, dy)?
             };
 
-            tokio::task::spawn_blocking(move || {
+            crate::computer_use::control_session::spawn_blocking(move || {
                 Self::run_enigo_job(|e| {
                     let (cx, cy) = macos::quartz_mouse_location().map_err(|err| {
                         BitFunError::tool(format!("quartz pointer (relative move): {}", err))
                     })?;
-                    let px_w = geo.full_px_w.max(1) as f64;
-                    let px_h = geo.full_px_h.max(1) as f64;
-                    let dpt_x = dx as f64 * geo.disp_w / px_w;
-                    let dpt_y = dy as f64 * geo.disp_h / px_h;
                     let nx = (cx + dpt_x).round() as i32;
                     let ny = (cy + dpt_y).round() as i32;
                     e.move_mouse(nx, ny, Coordinate::Abs).map_err(|err| {
@@ -653,7 +704,7 @@ impl DesktopComputerUseHost {
 
         #[cfg(not(target_os = "macos"))]
         {
-            tokio::task::spawn_blocking(move || {
+            crate::computer_use::control_session::spawn_blocking(move || {
                 Self::run_enigo_job(|e| {
                     e.move_mouse(dx, dy, Coordinate::Rel).map_err(|err| {
                         BitFunError::tool(format!("pointer_move_relative: {}", err))
@@ -682,9 +733,22 @@ impl DesktopComputerUseHost {
     }
 
     pub(super) async fn mouse_down_impl(&self, button: &str) -> BitFunResult<()> {
+        #[cfg(target_os = "linux")]
+        if let Some(session) =
+            crate::computer_use::linux_control::session().map_err(BitFunError::tool)?
+        {
+            let code = crate::computer_use::linux_control::button_code(button)
+                .map_err(BitFunError::tool)?;
+            session
+                .button(code, true)
+                .await
+                .map_err(BitFunError::tool)?;
+            ComputerUseHost::computer_use_after_pointer_mutation(self);
+            return Ok(());
+        }
         debug!("computer_use: mouse_down button={}", button);
         let button = button.to_string();
-        tokio::task::spawn_blocking(move || {
+        crate::computer_use::control_session::spawn_blocking(move || {
             Self::run_enigo_job(|e| {
                 let b = Self::map_button(&button)?;
                 e.button(b, Direction::Press)
@@ -698,9 +762,22 @@ impl DesktopComputerUseHost {
     }
 
     pub(super) async fn mouse_up_impl(&self, button: &str) -> BitFunResult<()> {
+        #[cfg(target_os = "linux")]
+        if let Some(session) =
+            crate::computer_use::linux_control::session().map_err(BitFunError::tool)?
+        {
+            let code = crate::computer_use::linux_control::button_code(button)
+                .map_err(BitFunError::tool)?;
+            session
+                .button(code, false)
+                .await
+                .map_err(BitFunError::tool)?;
+            ComputerUseHost::computer_use_after_pointer_mutation(self);
+            return Ok(());
+        }
         debug!("computer_use: mouse_up button={}", button);
         let button = button.to_string();
-        tokio::task::spawn_blocking(move || {
+        crate::computer_use::control_session::spawn_blocking(move || {
             Self::run_enigo_job(|e| {
                 let b = Self::map_button(&button)?;
                 e.button(b, Direction::Release)
@@ -729,12 +806,51 @@ impl DesktopComputerUseHost {
             "computer_use: drag from=({:.1},{:.1}) to=({:.1},{:.1}) button={} dur={}ms",
             from.0, from.1, to.0, to.1, button, duration_ms
         );
+        #[cfg(target_os = "linux")]
+        if let Some(session) =
+            crate::computer_use::linux_control::session().map_err(BitFunError::tool)?
+        {
+            let code = crate::computer_use::linux_control::button_code(button)
+                .map_err(BitFunError::tool)?;
+            session
+                .move_pointer(from.0, from.1)
+                .await
+                .map_err(BitFunError::tool)?;
+            session
+                .button(code, true)
+                .await
+                .map_err(BitFunError::tool)?;
+            let mut result = Ok(());
+            for step in 1..=24 {
+                let fraction = Self::smoothstep01(step as f64 / 24.0);
+                if let Err(error) = session
+                    .move_pointer(
+                        from.0 + (to.0 - from.0) * fraction,
+                        from.1 + (to.1 - from.1) * fraction,
+                    )
+                    .await
+                {
+                    result = Err(error);
+                    break;
+                }
+                if step < 24 {
+                    tokio::time::sleep(Duration::from_millis(duration_ms.min(10_000) / 24)).await;
+                }
+            }
+            let release = session.button(code, false).await;
+            result.and(release).map_err(BitFunError::tool)?;
+            ComputerUseHost::computer_use_after_pointer_mutation(self);
+            ComputerUseHost::computer_use_after_committed_ui_action(self);
+            return Ok(());
+        }
         // Number of intermediate move samples for a smooth drag path.
         #[cfg(any(target_os = "macos", target_os = "windows"))]
         const DRAG_STEPS: usize = 24;
 
         #[cfg(target_os = "macos")]
         {
+            crate::computer_use::control_session::foreground_allowed()
+                .map_err(BitFunError::tool)?;
             if crate::computer_use::macos_bg_input::supports_background_input() {
                 if let Some(pid) = crate::computer_use::macos_bg_input::frontmost_pid_macos() {
                     let bg_button = match button {
@@ -744,12 +860,10 @@ impl DesktopComputerUseHost {
                     };
                     let (fx, fy) = from;
                     let (tx, ty) = to;
-                    tokio::task::spawn_blocking(move || {
+                    crate::computer_use::control_session::spawn_blocking(move || {
                         macos::catch_objc(|| {
-                            let wid =
-                                crate::computer_use::macos_bg_input::frontmost_window_id_for_pid(
-                                    pid,
-                                );
+                            let wid = crate::computer_use::macos_capture::bound_window_id(pid)
+                                .map_err(BitFunError::tool)?;
                             crate::computer_use::macos_bg_input::bg_drag(
                                 pid,
                                 fx,
@@ -758,7 +872,7 @@ impl DesktopComputerUseHost {
                                 ty,
                                 None,
                                 None,
-                                wid,
+                                Some(wid),
                                 duration_ms,
                                 DRAG_STEPS,
                                 &[],
@@ -780,7 +894,7 @@ impl DesktopComputerUseHost {
                 let bstr = button.to_string();
                 let (fx, fy) = (from.0.round() as i32, from.1.round() as i32);
                 let (tx, ty) = (to.0.round() as i32, to.1.round() as i32);
-                tokio::task::spawn_blocking(move || {
+                crate::computer_use::control_session::spawn_blocking(move || {
                     let hwnd = windows::Win32::Foundation::HWND(hwnd_raw as *mut std::ffi::c_void);
                     crate::computer_use::windows_bg_input::post_drag_screen(
                         hwnd,
@@ -817,7 +931,23 @@ impl DesktopComputerUseHost {
         if delta_x == 0 && delta_y == 0 {
             return Ok(());
         }
-        tokio::task::spawn_blocking(move || {
+        #[cfg(target_os = "linux")]
+        if let Some(session) =
+            crate::computer_use::linux_control::session().map_err(BitFunError::tool)?
+        {
+            session
+                .scroll(f64::from(delta_x), f64::from(delta_y))
+                .await
+                .map_err(BitFunError::tool)?;
+            ComputerUseHost::computer_use_after_pointer_mutation(self);
+            ComputerUseHost::computer_use_after_committed_ui_action(self);
+            ComputerUseHost::computer_use_record_mutation(
+                self,
+                ComputerUseLastMutationKind::Scroll,
+            );
+            return Ok(());
+        }
+        crate::computer_use::control_session::spawn_blocking(move || {
             Self::run_enigo_job(|e| {
                 if delta_x != 0 {
                     e.scroll(delta_x, Axis::Horizontal).map_err(|err| {
@@ -858,8 +988,24 @@ impl DesktopComputerUseHost {
             // through an Enter key.
             Self::computer_use_guard_click_allowed(self)?;
         }
+        #[cfg(target_os = "linux")]
+        if let Some(session) =
+            crate::computer_use::linux_control::session().map_err(BitFunError::tool)?
+        {
+            session
+                .key_chord(&keys)
+                .await
+                .map_err(BitFunError::tool)?;
+            ComputerUseHost::computer_use_after_pointer_mutation(self);
+            ComputerUseHost::computer_use_after_committed_ui_action(self);
+            ComputerUseHost::computer_use_record_mutation(
+                self,
+                ComputerUseLastMutationKind::KeyChord,
+            );
+            return Ok(());
+        }
         let keys_for_job = keys;
-        tokio::task::spawn_blocking(move || {
+        crate::computer_use::control_session::spawn_blocking(move || {
             Self::run_enigo_job(|e| {
                 let mapped: Vec<Key> = keys_for_job
                     .iter()
@@ -897,6 +1043,8 @@ impl DesktopComputerUseHost {
                         #[cfg(not(target_os = "macos"))]
                         std::thread::sleep(std::time::Duration::from_millis(55));
                     }
+                    crate::computer_use::control_session::foreground_allowed()
+                        .map_err(BitFunError::tool)?;
                     e.key(last, Direction::Click)
                         .map_err(|err| BitFunError::tool(format!("key click: {}", err)))?;
                     for k in mods.iter().rev() {
@@ -923,6 +1071,22 @@ impl DesktopComputerUseHost {
         if text.is_empty() {
             return Ok(());
         }
+        #[cfg(target_os = "linux")]
+        if let Some(session) =
+            crate::computer_use::linux_control::session().map_err(BitFunError::tool)?
+        {
+            session
+                .type_text(text)
+                .await
+                .map_err(BitFunError::tool)?;
+            ComputerUseHost::computer_use_after_committed_ui_action(self);
+            ComputerUseHost::computer_use_trust_pointer_after_text_input(self);
+            ComputerUseHost::computer_use_record_mutation(
+                self,
+                ComputerUseLastMutationKind::TypeText,
+            );
+            return Ok(());
+        }
         // On macOS, route through background input when the frontmost app
         // is a terminal emulator — enigo.text() uses Unicode string
         // injection which terminal emulators (Ghostty, iTerm2, Terminal.app)
@@ -930,12 +1094,14 @@ impl DesktopComputerUseHost {
         // per-keystroke key-event synthesis.
         #[cfg(target_os = "macos")]
         {
+            crate::computer_use::control_session::foreground_allowed()
+                .map_err(BitFunError::tool)?;
             if crate::computer_use::macos_bg_input::supports_background_input() {
                 let frontmost = crate::computer_use::macos_bg_input::frontmost_pid_macos();
                 if let Some(pid) = frontmost {
                     if crate::computer_use::macos_bg_input::is_terminal_emulator(pid) {
                         let txt = text.to_string();
-                        tokio::task::spawn_blocking(move || {
+                        crate::computer_use::control_session::spawn_blocking(move || {
                             macos::catch_objc(|| {
                                 crate::computer_use::macos_bg_input::bg_type_text_auto(pid, &txt)
                             })
@@ -954,7 +1120,7 @@ impl DesktopComputerUseHost {
             }
         }
         let owned = text.to_string();
-        tokio::task::spawn_blocking(move || {
+        crate::computer_use::control_session::spawn_blocking(move || {
             Self::run_enigo_job(|e| {
                 e.text(&owned)
                     .map_err(|err| BitFunError::tool(format!("type_text: {}", err)))

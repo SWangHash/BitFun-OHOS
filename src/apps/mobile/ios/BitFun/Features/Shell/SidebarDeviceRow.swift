@@ -30,11 +30,11 @@ struct SidebarDeviceRow: View {
             }
             // Explicit styling prevents disabled/default button tint from implying
             // that a collapsed or unselected device has disconnected.
-            .foregroundStyle(BitFunTheme.ink)
+            .foregroundStyle(BitFunTheme.sidebarInk)
             .padding(.leading, 8)
             .padding(.trailing, 4)
             .frame(height: 52)
-            .background(current ? BitFunTheme.soft : BitFunTheme.transparent, in: RoundedRectangle(cornerRadius: 10))
+            .background(current ? BitFunTheme.sidebarSelection : BitFunTheme.transparent, in: RoundedRectangle(cornerRadius: 10))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

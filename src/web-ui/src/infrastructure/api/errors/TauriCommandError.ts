@@ -199,10 +199,10 @@ export function gitRepositoryUntrustedPath(error: unknown): string | undefined {
 
 /** Identifies missing Git in the environment executing the workspace. */
 export function isGitUnavailableError(error: unknown): boolean {
-  return hasStableErrorPrefix(error, GIT_UNAVAILABLE_PREFIX);
+  return hasStableErrorPrefix(error, 'git_unavailable:');
 }
 
 /** Stable Review-platform failure kind, preserved through transport wrappers. */
 export function reviewPlatformErrorCode(error: unknown): string | undefined {
-  return stableErrorPayload(error, REVIEW_PLATFORM_ERROR_PREFIX)?.split(':', 1)[0].trim();
+  return stableErrorPayload(error, 'review_platform_error:')?.split(':', 1)[0].trim();
 }

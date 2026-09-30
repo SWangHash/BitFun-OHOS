@@ -1,6 +1,15 @@
 @use '../styles/nav-panel-font-scope.scss' as nav-font;
 @use '../styles/workspace-shell-surfaces' as shell-surfaces;
 
+/*
+ * A lucide chevron inks only the middle of its square box -- the path spans
+ * x 9..15 in a 24 viewBox, so roughly 34% of the box stays empty on each side
+ * (about 5px at the 14-15px chevrons this surface renders). A pill whose
+ * chevron meets its inline padding has to cancel that slack, otherwise the
+ * chevron end reads wider than the text end even though the padding is even.
+ */
+$chevron-box-slack: 5px;
+
 .global-search-dialog {
   // The results viewport absorbs short windows and longer result sets.
   inline-size: var(--bitfun-layout-search-dialog-width);
@@ -131,11 +140,19 @@
   &__detail-back {
     min-height: 28px;
     gap: 3px;
-    margin-left: -5px;
-    padding: 3px 6px 3px 4px;
+    /*
+     * No optical negative offset here: the modal host gives the results
+     * viewport no inline-start padding above 980px, so a leading negative
+     * margin crosses the clip line and chops the pill's leading radius.
+     */
+    padding: 3px 6px;
     border-radius: 7px;
     font-size: var(--bitfun-type-label-sm-font-size);
     font-weight: var(--bitfun-type-label-sm-font-weight);
+
+    > [data-bitfun-component='icon'] {
+      margin-inline-start: -$chevron-box-slack;
+    }
   }
 
   &__detail-heading {
@@ -529,11 +546,30 @@
     font-size: var(--bitfun-type-body-md-font-size);
   }
 
-  .global-search__group,
+  .global-search__group {
+    min-width: 0;
+  }
+
+  /*
+   * Groups only stack in flow while the overview grid is inactive -- a query or
+   * a drilldown. Those states still need the shared flow gap: the old blanket
+   * `margin-top: 0` left the next group's title sitting on the previous group.
+   * Above 700px the overview grid keeps owning its own separation through its
+   * row gap, which uses the same token.
+   */
   .global-search__group + .global-search__group,
   .global-search__group--assistants {
-    min-width: 0;
-    margin-top: 0 !important;
+    margin-top: var(--bitfun-space-4) !important;
+  }
+
+  @media (min-width: 701px) {
+    .global-search__results[data-search-state='default'][data-search-view='overview'] {
+      .global-search__group,
+      .global-search__group + .global-search__group,
+      .global-search__group--assistants {
+        margin-top: 0 !important;
+      }
+    }
   }
 
   .global-search__group--actions,
@@ -569,14 +605,23 @@
     font-weight: var(--bitfun-type-body-sm-font-weight);
   }
 
+  /*
+   * The hover pill paints its own background, and the results viewport has no
+   * inline-start padding to bleed a negative optical offset into, so the pill
+   * keeps real inline padding and its count sits inside the group title.
+   */
   .global-search__group-drilldown {
     min-height: 0;
     margin: 0;
-    padding: 0;
+    padding: 0 var(--bitfun-space-1);
     gap: var(--bitfun-space-1);
     color: inherit;
     font-size: inherit;
     font-weight: inherit;
+
+    > [data-bitfun-component='icon'] {
+      margin-inline-end: -$chevron-box-slack;
+    }
   }
 
   .global-search__group-items {

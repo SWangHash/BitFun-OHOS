@@ -95,7 +95,7 @@ export const GetFileDiffDisplay: React.FC<ToolCardProps> = React.memo(({
   }, [applyExpandedState, isExpanded]);
 
   const handleCardClick = useCallback(() => {
-    if (hasDiffContent && status === 'completed') {
+    if (status === 'error' || (hasDiffContent && status === 'completed')) {
       toggleExpanded();
     }
   }, [hasDiffContent, status, toggleExpanded]);
@@ -123,8 +123,8 @@ export const GetFileDiffDisplay: React.FC<ToolCardProps> = React.memo(({
           filePath={filePath}
           maxHeight={400}
           showLineNumbers={true}
-          lineNumberMode="dual"
-          showPrefix={true}
+          lineNumberMode="single"
+          showPrefix={false}
           contextLines={-1}
         />
       )
@@ -145,7 +145,7 @@ export const GetFileDiffDisplay: React.FC<ToolCardProps> = React.memo(({
         data-diff-type={resultData?.diff_type}
         status={status}
         isExpanded={isExpanded}
-        onToggle={hasDiffContent && status === 'completed' ? handleCardClick : undefined}
+        onToggle={isFailed || (hasDiffContent && status === 'completed') ? handleCardClick : undefined}
         action={`${getActionText()}:`}
         path={filePath}
         pathLabel={fileName}
@@ -161,7 +161,7 @@ export const GetFileDiffDisplay: React.FC<ToolCardProps> = React.memo(({
         message={resultData?.message}
         preview={inlinePreview}
         textPreview={textPreview}
-        error={isFailed ? t('toolCards.getFileDiff.failed') : undefined}
+        error={isFailed ? toolResult?.error || t('toolCards.getFileDiff.failed') : undefined}
       />
     </div>
   );

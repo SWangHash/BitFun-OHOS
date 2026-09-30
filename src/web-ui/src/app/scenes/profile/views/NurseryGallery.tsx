@@ -8,7 +8,7 @@ import {
   GalleryZone,
   GalleryGrid,
   GallerySkeleton,
-} from '@/app/components';
+} from '@/app/components/GalleryLayout';
 import { confirmDanger } from '@/infrastructure/confirm-dialog';
 import { useWorkspaceContext } from '@/infrastructure/contexts/WorkspaceContext';
 import { openMainSession } from '@/flow_chat/services/sessionActivation';
@@ -245,7 +245,7 @@ const NurseryGallery: React.FC = () => {
                       {t('nursery.template.stats.tools', { count: templateStats.enabledToolCount })}
                     </span>
                     <span className="nursery-defaults__stat">
-                      <Icon name="extension" size="xs" aria-hidden="true" />
+                      <Icon name="book-open" size="xs" aria-hidden="true" />
                       {t('nursery.template.stats.skills', { count: templateStats.enabledSkillCount })}
                     </span>
                   </>
@@ -254,7 +254,7 @@ const NurseryGallery: React.FC = () => {
             </div>
 
             <Button
-              variant="secondary"
+              variant="outline"
               size="sm"
               className="nursery-defaults__action"
               leadingIcon={<Icon name="settings" size="sm" />}

@@ -1,6 +1,6 @@
 {
   "title": "Default Model Configuration",
-  "subtitle": "Configure AI models for different scenarios",
+  "subtitle": "These defaults apply when a task does not specify a model",
   "loading": "Loading...",
   "sections": {
     "defaults": "Default Models",
@@ -13,12 +13,12 @@
     "optional": "Optional",
     "primary": {
       "label": "Primary Model",
-      "description": "For complex reasoning, code generation, multi-step tasks",
+      "description": "Used for complex reasoning, code generation, and multi-step tasks",
       "placeholder": "Select primary model"
     },
     "fast": {
       "label": "Fast Model",
-      "description": "For simple Q&A, quick responses, cost-saving scenarios",
+      "description": "Used for lightweight tasks; falls back to the primary model when unset",
       "hint": "When not configured, all tasks use the primary model",
       "placeholder": "Select fast model",
       "notSet": "Not set (use primary model)"

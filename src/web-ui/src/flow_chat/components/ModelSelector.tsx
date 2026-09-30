@@ -1887,7 +1887,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
              {modelLabel}
           </OverflowText>
           {isAcpSelection && acpFastMode?.enabled && (
-            <Zap size={9} className="bitfun-model-selector__fast-icon" />
+            <Icon glyph={Zap} size="xs" className="bitfun-model-selector__fast-icon" />
           )}
           {hasReasoningSettings && (
             <span
@@ -1909,7 +1909,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
               )}
             </span>
           )}
-          <Icon name="chevron-down" size="lg" style={{ width: 10, height: 10 }} className="bitfun-model-selector__chevron" data-testid="chat-model-selector-dropdown-indicator" />
+          <Icon name="chevron-down" size="xs" className="bitfun-model-selector__chevron" data-testid="chat-model-selector-dropdown-indicator" />
         </button>
       </Tooltip>
       )}
@@ -2243,7 +2243,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                               <OverflowText className="bitfun-model-selector__option-desc-label">
                                 {selectedModel.modelName}
                               </OverflowText>
-                              <Icon name="check-line" size="lg" style={{ width: 11, height: 11 }} aria-hidden="true" className="bitfun-model-selector__option-selected-check" data-testid="chat-model-selector-provider-selected-check" />
+                              <Icon name="check-line" size="xs" aria-hidden="true" className="bitfun-model-selector__option-selected-check" data-testid="chat-model-selector-provider-selected-check" />
                             </span>
                           )}
                         </div>

@@ -5,7 +5,7 @@ import {
   DialogClose,
   DialogHeader,
   DialogHeading,
-  DialogTitle,
+  DialogTitle, Icon,
 } from '@bitfun/ui';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -149,7 +149,7 @@ export const ThreadGoalDialogs: React.FC<ThreadGoalDialogsProps> = ({
           >
             <div data-bitfun-component="thread-goal-dialogs" data-bitfun-part="header" className="bitfun-thread-goal-menu__header">
               <span className={statusBadgeClass(goal.status)}>
-                <Target size={14} aria-hidden />
+                <Icon glyph={Target} size="sm" aria-hidden />
                 {statusLabel}
               </span>
               {usageLine ? (

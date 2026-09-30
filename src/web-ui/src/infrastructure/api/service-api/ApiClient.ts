@@ -394,9 +394,14 @@ export class ApiClient implements IApiClient {
       });
 
       
-      const timeoutId = setTimeout(() => {
-        controller.abort();
-      }, request.config.timeout || this.config.timeout);
+      // A non-positive timeout opts out of the deadline. `??` is deliberate: a
+      // caller that disables the deadline must not fall back to the default.
+      const timeoutMs = request.config.timeout ?? this.config.timeout;
+      const timeoutId = timeoutMs > 0
+        ? setTimeout(() => {
+            controller.abort();
+          }, timeoutMs)
+        : undefined;
 
       try {
         
@@ -418,7 +423,9 @@ export class ApiClient implements IApiClient {
         });
         this.assertRequestSurface(request, traceCommand);
 
-        clearTimeout(timeoutId);
+        if (timeoutId !== undefined) {
+          clearTimeout(timeoutId);
+        }
         maxConcurrentRequests = this.activeRequestPressure.get(request.id)?.maxConcurrentRequests ?? this.activeRequests.size;
         this.activeRequests.delete(request.id);
         this.activeRequestPressure.delete(request.id);
@@ -478,7 +485,9 @@ export class ApiClient implements IApiClient {
         maxConcurrentRequests = maxConcurrentRequests ||
           this.activeRequestPressure.get(request.id)?.maxConcurrentRequests ||
           this.activeRequests.size;
-        clearTimeout(timeoutId);
+        if (timeoutId !== undefined) {
+          clearTimeout(timeoutId);
+        }
         this.activeRequests.delete(request.id);
         this.activeRequestPressure.delete(request.id);
         activeRequestsAtEnd = this.activeRequests.size;

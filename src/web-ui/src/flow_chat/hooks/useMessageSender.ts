@@ -168,7 +168,7 @@ export function useMessageSender(props: UseMessageSenderProps): UseMessageSender
         const agentType = currentAgentType || 'Standard';
         const sessionConfig = flowChatSessionConfigForCurrentWorkspace();
 
-        sessionId = await flowChatManager.createChatSession(sessionConfig, agentType);
+        sessionId = await flowChatManager.createChatDraft(sessionConfig, agentType);
         agentTypeForSend =
           FlowChatManager.getInstance().getFlowChatState().sessions.get(sessionId)?.mode ||
           agentType;

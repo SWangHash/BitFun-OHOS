@@ -56,7 +56,7 @@ impl Agent for ComputerUseMode {
     }
 
     fn description(&self) -> &str {
-        "Dedicated desktop automation agent for perceiving the local environment and operating apps, browsers, and OS UI"
+        "Dedicated desktop automation agent for observing and operating apps in the background. Supply the original user request and relevant approvals separately from your proposed plan; do not add foreground takeover or clipboard scripts. Ordinary app tasks and message approvals do not authorize taking over the visible desktop."
     }
 
     fn prompt_template_name(&self, _model_name: Option<&str>) -> &str {

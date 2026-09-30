@@ -24,6 +24,7 @@ const CONTENT_IDLE_TIMEOUT = 500;
 interface FlowTextBlockProps {
   textItem: FlowTextItem;
   className?: string;
+  hidden?: boolean;
   /**
    * Replay the whole text through the typewriter on mount. Off by default: the
    * message list is virtualized, so a streaming block that scrolls out and back
@@ -43,6 +44,7 @@ interface FlowTextBlockProps {
 export const FlowTextBlock = React.memo<FlowTextBlockProps>(({
   textItem,
   className = '',
+  hidden,
   replayStreamingOnMount = false,
   traceContext,
   testId,
@@ -209,11 +211,15 @@ export const FlowTextBlock = React.memo<FlowTextBlockProps>(({
     </div>
   );
 
+  if (!content.trim()) return null;
+
   return (
     <div data-bitfun-component="flow-text-block" data-bitfun-part="root" data-bitfun-mode={textItem.isMarkdown ? 'markdown' : 'text'} data-bitfun-state={isActivelyStreaming ? 'streaming' : ''}
       className={`flow-text-block ${className} ${isActivelyStreaming ? 'streaming flow-text-block--streaming' : ''}`}
       data-testid={testId}
       data-flow-item-id={textItem.id}
+      data-thinking-continuation=""
+      hidden={hidden}
       data-status={textItem.status}
       data-streaming={isVisuallyStreaming ? 'true' : 'false'}
       {...testAttributes}
@@ -241,6 +247,7 @@ export const FlowTextBlock = React.memo<FlowTextBlockProps>(({
     prevProps.replayStreamingOnMount === nextProps.replayStreamingOnMount &&
     prevProps.traceContext === nextProps.traceContext &&
     prevProps.testId === nextProps.testId &&
+    prevProps.hidden === nextProps.hidden &&
     prevProps.testAttributes === nextProps.testAttributes
   );
 });

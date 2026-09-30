@@ -260,8 +260,6 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
   }, []);
 
   useEffect(() => {
-    let removeOverlayMousedown0: (() => void) | undefined;
-    let removeOverlayKeydown1: (() => void) | undefined;
     if (!isSessionOverviewOpen) return;
 
     const handlePointerDown = (event: MouseEvent) => {
@@ -284,8 +282,8 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
       }
     };
 
-    removeOverlayMousedown0 = subscribeOverlayInteraction(sessionOverviewPanelRef, 'mousedown', handlePointerDown);
-    removeOverlayKeydown1 = subscribeOverlayInteraction(sessionOverviewPanelRef, 'keydown', handleKeyDown);
+    const removeOverlayMousedown0 = subscribeOverlayInteraction(sessionOverviewPanelRef, 'mousedown', handlePointerDown);
+    const removeOverlayKeydown1 = subscribeOverlayInteraction(sessionOverviewPanelRef, 'keydown', handleKeyDown);
 
     return () => {
       removeOverlayMousedown0?.();
@@ -493,7 +491,7 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
             aria-label={t('flowChatHeader.backgroundCommandActions')}
             aria-haspopup="menu"
             aria-expanded={openBackgroundCommandMenuId === command.execSessionKey}
-            icon={<Icon name="more" size="lg" style={{ width: 13, height: 13 }} aria-hidden="true" />}
+            icon={<Icon name="more" size="sm" aria-hidden="true" />}
           />
         </Tooltip>
         {openBackgroundCommandMenuId === command.execSessionKey && backgroundCommandMenuPosition ? createOverlayPortal(
@@ -595,7 +593,7 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
   );
   const rightActions = (
     <div
-      className={`flowchat-header__actions${isSearchOpen ? ' flowchat-header__actions--searching' : ''}`}
+      className={`flowchat-header__actions${isSearchMode ? ' flowchat-header__actions--searching' : ''}`}
       data-bitfun-component="flow-chat-header"
       data-bitfun-part="actions"
     >
@@ -835,7 +833,7 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
                             disabled={displayBackgroundCommands.every(command => (
                               command.status !== 'running' || command.isStopping === true
                             ))}
-                            icon={<Icon name="more" size="lg" style={{ width: 13, height: 13 }} aria-hidden="true" />}
+                            icon={<Icon name="more" size="sm" aria-hidden="true" />}
                           />
                         </Tooltip>
                       ) : null}
@@ -989,7 +987,7 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
                           data-testid="flowchat-header-pull-request-item"
                         >
                           <OverflowText>#{pullRequest.number} {pullRequest.title}</OverflowText>
-                          <Icon name="chevron-right" size="lg" style={{ width: 13, height: 13 }} aria-hidden="true" />
+                          <Icon name="chevron-right" size="sm" aria-hidden="true" />
                         </button>
                       ))}
                     </div>

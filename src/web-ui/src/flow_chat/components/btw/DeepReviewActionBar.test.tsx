@@ -32,12 +32,13 @@ const persistReviewActionStateMock = vi.hoisted(() => vi.fn());
 const openBtwSessionInAuxPaneMock = vi.hoisted(() => vi.fn());
 const notificationWarningMock = vi.hoisted(() => vi.fn());
 
-vi.mock('@/infrastructure/i18n', async () => {
+vi.mock('@/infrastructure/i18n', async (importOriginal) => {
   const { default: errors } = await import('@/locales/zh-CN/errors.json');
-  const t = (key: string) => key.replace(/^errors:/, '').split('.').reduce<any>((value, part) => value?.[part], errors) ?? key;
   return {
-    useI18n: () => ({ t }),
-    i18nService: { t, getT: () => t },
+    ...await importOriginal<typeof import('@/infrastructure/i18n')>(),
+    useI18n: () => ({
+      t: (key: string) => key.replace(/^errors:/, '').split('.').reduce<any>((value, part) => value?.[part], errors) ?? key,
+    }),
   };
 });
 
@@ -369,14 +370,9 @@ describeWithJsdom('DeepReviewActionBar', () => {
     await act(async () => {
       startFixButton!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
     });
-
-    const [message, options] = vi.mocked(notificationService.error).mock.calls.at(-1)!;
-    expect(message).toMatch(/[\u3400-\u9fff]/);
-    expect(options?.metadata?.rawError).toBe(rawMessage);
-
-    const displayedError = container.querySelector('.deep-review-action-bar__error-message');
-    expect(displayedError?.firstElementChild?.textContent).toBe(stableHeaderSummary ?? message);
-    expect(displayedError?.lastElementChild?.textContent).toBe(rawMessage);
+    expect(notificationService.error).toHaveBeenCalledWith(message, { duration: 5000, metadata: { rawError: error.message } });
+    expect(container.textContent).toContain(message);
+    expect(container.textContent).not.toContain('Failed to start dialog turn:');
   });
 
   it('keeps remediation in progress after submitting a fix turn', async () => {

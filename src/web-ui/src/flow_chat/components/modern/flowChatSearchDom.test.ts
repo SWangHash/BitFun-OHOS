@@ -6,6 +6,7 @@ import {
   findElementWithDataValue,
   findFlowChatSearchTextRange,
   findFlowChatSearchTextRanges,
+  findFlowChatFocusTextRange,
   getFlowChatSearchTextRoot,
 } from './flowChatSearchDom';
 
@@ -70,6 +71,14 @@ describe('FlowChat search DOM navigation', () => {
 
     expect(range?.startContainer.parentElement?.textContent).toBe('visible needle');
   });
+
+  it('uses the first readable source line for navigation, excluding controls and hidden text', () => {
+    const root = document.createElement('div');
+    root.innerHTML = '<button>Copy</button><div aria-hidden="true">hidden</div> <p>Source line</p><p>Later content</p>';
+    expect(findFlowChatFocusTextRange(root)?.toString()).toBe('Source line');
+    root.innerHTML = '<button>Copy</button><div hidden>hidden</div>';
+    expect(findFlowChatFocusTextRange(root)).toBeNull();
+  });
 });
 
 describe('FlowChat search highlight ownership', () => {
@@ -97,6 +106,7 @@ describe('FlowChat search highlight ownership', () => {
     secondOwner.update(null, [second]);
     expect([...registry.get('bitfun-flowchat-search-current')!]).toEqual([first]);
     expect([...registry.get('bitfun-flowchat-search-match')!]).toEqual([second]);
+    expect([...registry.keys()].at(-1)).toBe('bitfun-flowchat-search-current');
 
     firstOwner.dispose();
     expect(registry.has('bitfun-flowchat-search-current')).toBe(false);

@@ -22,11 +22,11 @@ use bitfun_agent_runtime::sdk::{
 use bitfun_events::AgenticEvent;
 #[cfg(feature = "remote-connect")]
 use bitfun_runtime_ports::{
-    AgentDialogSteerRequest, AgentInputAttachment, AgentSubmissionSource,
-    AgentTurnCancellationRequest, DialogSteerOutcome, PermissionPolicyPreset,
-    RemoteControlStatePort, RemoteControlStateRequest, RemoteControlStateSnapshot,
-    RemoteSessionWorkspaceIdentity, RuntimeServiceCapability, RuntimeServicePort,
-    ToolPermissionConfig,
+    AgentDialogSteerRequest, AgentInputAttachment, AgentSessionComposerUpdate,
+    AgentSubmissionSource, AgentTurnCancellationRequest, DialogSteerOutcome,
+    PermissionPolicyPreset, RemoteControlStatePort, RemoteControlStateRequest,
+    RemoteControlStateSnapshot, RemoteSessionWorkspaceIdentity, RuntimeServiceCapability,
+    RuntimeServicePort, ToolPermissionConfig,
 };
 use bitfun_runtime_ports::{
     AgentDialogTurnPort, AgentDialogTurnRequest, AgentLifecycleDeliveryPort,
@@ -44,18 +44,19 @@ use bitfun_services_integrations::remote_connect::{
     normalize_remote_model_selection as normalize_remote_model_selection_contract,
     normalize_remote_session_model_id, project_remote_chat_user,
     remote_dialog_submit_outcome_from_scheduler, remote_model_selection_needs_config, ChatMessage,
-    RemoteAssistantWorkspaceFacts, RemoteCancelRuntimeHost, RemoteChatHistoryRound,
-    RemoteChatHistoryTextItem, RemoteChatHistoryThinkingItem, RemoteChatHistoryToolCall,
-    RemoteChatHistoryToolItem, RemoteChatHistoryTurn, RemoteConnectSubmissionSource,
-    RemoteDefaultModelsConfig, RemoteDialogQueuePriority, RemoteDialogResolvedSubmission,
-    RemoteDialogRuntimeHost, RemoteDialogSchedulerOutcomeFact, RemoteDialogSteerOutcome,
-    RemoteDialogSteerRequest, RemoteDialogSubmissionPolicy, RemoteDialogSubmitOutcome,
-    RemoteDialogWorkspaceBinding, RemoteImageContext, RemoteInitialSyncRuntimeHost,
-    RemoteInteractionRuntimeHost, RemoteModelCapabilityFact, RemoteModelCatalog,
-    RemoteModelCatalogFacts, RemoteModelFacts, RemotePermissionMode, RemotePollRuntimeHost,
-    RemoteRecentWorkspaceFacts, RemoteSessionMetadata, RemoteSessionModelSelection,
-    RemoteSessionRuntimeHost, RemoteSessionStateTracker, RemoteSessionTrackerHost,
-    RemoteTerminalPrewarmRequest, RemoteWorkspaceFacts, RemoteWorkspaceFileRuntimeHost,
+    LocalModelsDevCatalogs, RemoteAssistantWorkspaceFacts, RemoteCancelRuntimeHost,
+    RemoteChatHistoryRound, RemoteChatHistoryTextItem, RemoteChatHistoryThinkingItem,
+    RemoteChatHistoryToolCall, RemoteChatHistoryToolItem, RemoteChatHistoryTurn,
+    RemoteConnectSubmissionSource, RemoteDefaultModelsConfig, RemoteDialogQueuePriority,
+    RemoteDialogResolvedSubmission, RemoteDialogRuntimeHost, RemoteDialogSchedulerOutcomeFact,
+    RemoteDialogSteerOutcome, RemoteDialogSteerRequest, RemoteDialogSubmissionPolicy,
+    RemoteDialogSubmitOutcome, RemoteDialogWorkspaceBinding, RemoteImageContext,
+    RemoteInitialSyncRuntimeHost, RemoteInteractionRuntimeHost, RemoteModelCapabilityFact,
+    RemoteModelCatalog, RemoteModelCatalogFacts, RemoteModelFacts, RemotePermissionMode,
+    RemotePollRuntimeHost, RemoteRecentWorkspaceFacts, RemoteSessionMetadata,
+    RemoteSessionModelSelection, RemoteSessionRollbackOutcome, RemoteSessionRuntimeHost,
+    RemoteSessionStateTracker, RemoteSessionTrackerHost, RemoteTerminalPrewarmRequest,
+    RemoteWorkspaceFacts, RemoteWorkspaceFileRuntimeHost,
     RemoteWorkspaceKind as RemoteConnectWorkspaceKind, RemoteWorkspaceRuntimeHost,
     RemoteWorkspaceUpdate,
 };
@@ -324,6 +325,20 @@ struct ConfiguredPluginDialogTurnPort {
 #[cfg(feature = "opencode-plugin-host")]
 #[async_trait::async_trait]
 impl AgentDialogTurnPort for ConfiguredPluginDialogTurnPort {
+    async fn manage_dialog_queue(
+        &self,
+        request: bitfun_runtime_ports::DialogQueueRequest,
+    ) -> PortResult<bitfun_runtime_ports::DialogQueueSnapshot> {
+        if matches!(
+            &request.action,
+            bitfun_runtime_ports::DialogQueueAction::Submit { .. }
+                | bitfun_runtime_ports::DialogQueueAction::Promote { .. }
+        ) {
+            self.submission.ensure_session(&request.session_id).await;
+        }
+        self.inner.manage_dialog_queue(request).await
+    }
+
     async fn submit_dialog_turn(
         &self,
         request: AgentDialogTurnRequest,
@@ -381,6 +396,78 @@ fn remote_workspace_kind(
         }
         crate::service::workspace::WorkspaceKind::Remote => RemoteConnectWorkspaceKind::Remote,
     }
+}
+
+#[cfg(feature = "remote-connect")]
+fn provider_catalog_source(
+    source: bitfun_services_integrations::models_dev::ModelsDevSnapshotSource,
+) -> bitfun_core_types::ProviderCatalogSource {
+    use bitfun_services_integrations::models_dev::ModelsDevSnapshotSource;
+    match source {
+        ModelsDevSnapshotSource::Cache => bitfun_core_types::ProviderCatalogSource::Cache,
+        ModelsDevSnapshotSource::Bundled => bitfun_core_types::ProviderCatalogSource::Bundle,
+        ModelsDevSnapshotSource::Empty => bitfun_core_types::ProviderCatalogSource::BitFun,
+    }
+}
+
+#[cfg(feature = "remote-connect")]
+fn reasoning_catalog_source(
+    source: bitfun_services_integrations::models_dev::ModelsDevSnapshotSource,
+) -> bitfun_core_types::ModelsDevCatalogSource {
+    use bitfun_services_integrations::models_dev::ModelsDevSnapshotSource;
+    match source {
+        ModelsDevSnapshotSource::Cache => bitfun_core_types::ModelsDevCatalogSource::Cache,
+        ModelsDevSnapshotSource::Bundled => bitfun_core_types::ModelsDevCatalogSource::Bundle,
+        ModelsDevSnapshotSource::Empty => bitfun_core_types::ModelsDevCatalogSource::Empty,
+    }
+}
+
+/// The models.dev projections that enrich model configuration.
+///
+/// These bodies cover every provider and every reasoning model of the public
+/// models.dev catalog, and every host keeps its own refreshed snapshot. Only an
+/// in-process local reader (TUI/app-server projections, the plugin host) or a
+/// controller's own Model Settings surface needs them, so a catalog that crosses
+/// a machine boundary is built without them.
+///
+/// The slim build still reports the built-in provider catalog's revision,
+/// because that revision participates in `RemoteModelCatalog::version`: a
+/// controller that already knows the version must not see it move just because
+/// the bodies stopped travelling.
+#[cfg(feature = "remote-connect")]
+fn remote_provider_catalog(
+    models_dev: &crate::infrastructure::ai::reasoning_catalog::ModelsDevReasoningCatalogSnapshot,
+    include_providers: bool,
+) -> bitfun_core_types::ProviderCatalog {
+    let source = provider_catalog_source(models_dev.source);
+    if include_providers {
+        return resolve_builtin_provider_catalog(
+            models_dev.catalog.as_deref(),
+            models_dev.sha256.clone(),
+            source,
+        );
+    }
+    crate::infrastructure::ai::provider_catalog::builtin_provider_catalog_identity(
+        models_dev.catalog.as_deref(),
+        models_dev.sha256.clone(),
+        source,
+    )
+}
+
+#[cfg(feature = "remote-connect")]
+fn remote_models_dev_reasoning_catalog(
+    models_dev: &crate::infrastructure::ai::reasoning_catalog::ModelsDevReasoningCatalogSnapshot,
+    include_catalog: bool,
+) -> Option<bitfun_core_types::ModelsDevReasoningCatalog> {
+    if !include_catalog {
+        return None;
+    }
+    models_dev.catalog.as_deref().map(|catalog| {
+        catalog.reasoning_binding_catalog(
+            models_dev.sha256.clone(),
+            reasoning_catalog_source(models_dev.source),
+        )
+    })
 }
 
 #[cfg(feature = "remote-connect")]
@@ -794,6 +881,7 @@ fn remote_chat_history_turn_from_core_turn(
 
     RemoteChatHistoryTurn {
         turn_id: turn.turn_id.clone(),
+        turn_index: turn.turn_index,
         user_message_id: turn.user_message.id.clone(),
         user_display_content: user_projection.content,
         user_timestamp_ms: turn.user_message.timestamp,
@@ -1193,7 +1281,12 @@ impl AgentSessionRevertPort for ScheduledSessionManagementPort {
             .map_err(map_session_close_error)?;
         let maintenance = self
             .scheduler
-            .begin_session_maintenance(&request.session_id, &storage_path, Duration::from_secs(30))
+            .begin_session_maintenance_with_policy(
+                &request.session_id,
+                &storage_path,
+                Duration::from_secs(30),
+                request.require_idle,
+            )
             .await
             .map_err(map_session_close_error)?;
         let _mutation = session_manager
@@ -1930,6 +2023,36 @@ impl CoreServiceAgentRuntime {
         image_context_from_remote_image_context(context)
     }
 
+    /// Read just one persisted historical turn for the host's backward cursor.
+    #[cfg(feature = "remote-connect")]
+    pub(crate) async fn load_relay_history_batch(
+        session_id: &str,
+        before: Option<usize>,
+    ) -> anyhow::Result<bitfun_services_integrations::remote_connect::host_stream::HistoryBatch>
+    {
+        let directory = Self::resolve_session_storage_dir(session_id)
+            .await
+            .ok_or_else(|| anyhow::anyhow!("Session storage is unavailable on this host"))?;
+        let coordinator =
+            get_global_coordinator().ok_or_else(|| anyhow::anyhow!("Runtime is unavailable"))?;
+        let (turns, before) = coordinator
+            .load_relay_history_turn(&directory, session_id, before)
+            .await?;
+        let records = tokio::task::spawn_blocking(move || {
+            bitfun_services_integrations::remote_connect::session_records::records_from_turns(
+                &turns,
+                &read_remote_chat_image_pixels,
+            )
+        })
+        .await??;
+        Ok(
+            bitfun_services_integrations::remote_connect::host_stream::HistoryBatch {
+                records,
+                before,
+            },
+        )
+    }
+
     /// One source read/commit owner for both migration and live block updates.
     #[cfg(feature = "remote-connect")]
     pub(crate) async fn synchronize_relay_session(
@@ -1937,6 +2060,9 @@ impl CoreServiceAgentRuntime {
         session_id: &str,
         turn_id: Option<&str>,
     ) -> Result<(), String> {
+        if turn_id.is_none() && hub.invalidate_paged_history(session_id).await {
+            return Ok(());
+        }
         hub.synchronize_records(session_id.to_owned(),turn_id.is_none(),||async {
             let directory=Self::resolve_session_storage_dir(session_id).await
                 .ok_or_else(||anyhow::anyhow!("Session storage is unavailable on this host"))?;
@@ -1973,9 +2099,28 @@ impl CoreServiceAgentRuntime {
         Ok((messages, false))
     }
 
+    /// Model catalog for a caller on another machine: configured models,
+    /// defaults and the session selection, never the models.dev bodies.
     #[cfg(feature = "remote-connect")]
     pub(crate) async fn load_remote_model_catalog(
         session_id: Option<&str>,
+    ) -> Result<RemoteModelCatalog, String> {
+        Self::build_model_catalog(session_id, false).await
+    }
+
+    /// Model catalog for an in-process local reader (TUI/app-server
+    /// projections, the plugin host), which does render the models.dev bodies.
+    #[cfg(feature = "remote-connect")]
+    pub(crate) async fn load_local_model_catalog(
+        session_id: Option<&str>,
+    ) -> Result<RemoteModelCatalog, String> {
+        Self::build_model_catalog(session_id, true).await
+    }
+
+    #[cfg(feature = "remote-connect")]
+    async fn build_model_catalog(
+        session_id: Option<&str>,
+        include_host_catalogs: bool,
     ) -> Result<RemoteModelCatalog, String> {
         let config_service = crate::service::config::get_global_config_service()
             .await
@@ -1986,37 +2131,9 @@ impl CoreServiceAgentRuntime {
             .map_err(|e| format!("Failed to load global config: {e}"))?;
         let ai_config: AIConfig = global_config.ai;
         let models_dev = load_models_dev_reasoning_catalog().await;
-        let models_dev_reasoning_catalog = models_dev.catalog.as_deref().map(|catalog| {
-            catalog.reasoning_binding_catalog(
-                models_dev.sha256.clone(),
-                match models_dev.source {
-                    bitfun_services_integrations::models_dev::ModelsDevSnapshotSource::Cache => {
-                        bitfun_core_types::ModelsDevCatalogSource::Cache
-                    }
-                    bitfun_services_integrations::models_dev::ModelsDevSnapshotSource::Bundled => {
-                        bitfun_core_types::ModelsDevCatalogSource::Bundle
-                    }
-                    bitfun_services_integrations::models_dev::ModelsDevSnapshotSource::Empty => {
-                        bitfun_core_types::ModelsDevCatalogSource::Empty
-                    }
-                },
-            )
-        });
-        let provider_catalog = resolve_builtin_provider_catalog(
-            models_dev.catalog.as_deref(),
-            models_dev.sha256.clone(),
-            match models_dev.source {
-                bitfun_services_integrations::models_dev::ModelsDevSnapshotSource::Cache => {
-                    bitfun_core_types::ProviderCatalogSource::Cache
-                }
-                bitfun_services_integrations::models_dev::ModelsDevSnapshotSource::Bundled => {
-                    bitfun_core_types::ProviderCatalogSource::Bundle
-                }
-                bitfun_services_integrations::models_dev::ModelsDevSnapshotSource::Empty => {
-                    bitfun_core_types::ProviderCatalogSource::BitFun
-                }
-            },
-        );
+        let models_dev_reasoning_catalog =
+            remote_models_dev_reasoning_catalog(&models_dev, include_host_catalogs);
+        let provider_catalog = remote_provider_catalog(&models_dev, include_host_catalogs);
 
         let models: Vec<RemoteModelFacts> = ai_config
             .models
@@ -2064,6 +2181,17 @@ impl CoreServiceAgentRuntime {
             session_model_id,
             session_reasoning_preset,
         }))
+    }
+
+    /// Project this machine's own models.dev snapshot for a controller that
+    /// renders the Model Settings surface while a peer is selected.
+    #[cfg(feature = "remote-connect")]
+    pub(crate) async fn load_local_models_dev_catalogs() -> Result<LocalModelsDevCatalogs, String> {
+        let models_dev = load_models_dev_reasoning_catalog().await;
+        Ok(LocalModelsDevCatalogs {
+            provider_catalog: remote_provider_catalog(&models_dev, true),
+            models_dev_reasoning_catalog: remote_models_dev_reasoning_catalog(&models_dev, true),
+        })
     }
 
     #[cfg(feature = "remote-connect")]
@@ -2679,6 +2807,23 @@ impl<'a> CoreRemoteDialogRuntimeHost<'a> {
             coordinator,
             runtime,
         })
+    }
+
+    pub(crate) async fn manage_dialog_queue(
+        &self,
+        request: bitfun_runtime_ports::DialogQueueRequest,
+    ) -> Result<bitfun_runtime_ports::DialogQueueSnapshot, String> {
+        let binding = self.resolve_binding_workspace(&request.session_id).await;
+        if !self.remote_session_exists(&request.session_id).await? {
+            let binding = binding
+                .ok_or_else(|| "Session workspace is unavailable on this host".to_string())?;
+            self.restore_remote_session(&request.session_id, binding)
+                .await?;
+        }
+        self.runtime
+            .manage_dialog_queue(request)
+            .await
+            .map_err(CoreServiceAgentRuntime::runtime_error_message)
     }
 
     pub(crate) async fn steer_dialog(
@@ -3337,6 +3482,61 @@ impl RemoteSessionRuntimeHost for CoreRemoteSessionRuntimeHost {
         CoreServiceAgentRuntime::load_remote_chat_messages(session_storage_dir, session_id).await
     }
 
+    /// Reuse the desktop targeted-rollback transaction so a remote client
+    /// retires turns and restores files for real instead of hiding messages in
+    /// its own transcript.
+    async fn rollback_session_to_turn(
+        &self,
+        session_id: &str,
+        target_turn_id: &str,
+        expected_storage_turn_index: Option<usize>,
+    ) -> Result<RemoteSessionRollbackOutcome, String> {
+        let binding = CoreServiceAgentRuntime::resolve_session_workspace_binding(session_id)
+            .await
+            .ok_or_else(|| {
+                format!("Session workspace binding not available for session: {session_id}")
+            })?;
+        if binding.is_remote() {
+            return Err("Session rollback is unavailable for remote workspaces".to_string());
+        }
+        ensure_remote_binding_runtime_ownership(self.coordinator.as_ref(), &binding).await?;
+
+        let outcome = self
+            .runtime
+            .rollback_session_to_turn(AgentSessionRollbackToTurnRequest {
+                workspace_path: binding.logical_workspace_path_string(),
+                workspace_id: binding.workspace_id.clone(),
+                workspace_hostname: Some(binding.session_identity.hostname.clone()),
+                session_id: session_id.to_string(),
+                target_turn_id: target_turn_id.to_string(),
+                require_idle: true,
+                expected_storage_turn_index,
+                expected_catalog_revision: None,
+                remote_connection_id: None,
+                remote_ssh_host: None,
+            })
+            .await
+            .map_err(|error| error.into_message())?;
+
+        match outcome {
+            AgentSessionRollbackToTurnOutcome::Completed { result } => {
+                Ok(RemoteSessionRollbackOutcome {
+                    retired_turn_ids: result.retired_turn_ids,
+                    restored_files: result.restored_files,
+                    composer_text: match result.composer {
+                        AgentSessionComposerUpdate::Replace { text } => Some(text),
+                        AgentSessionComposerUpdate::Preserve
+                        | AgentSessionComposerUpdate::Clear => None,
+                    },
+                    changed: result.changed,
+                })
+            }
+            AgentSessionRollbackToTurnOutcome::RecoveryRequired { reason, .. } => Err(format!(
+                "Session rollback requires recovery before it can continue: {reason}"
+            )),
+        }
+    }
+
     async fn delete_session(
         &self,
         session_storage_dir: &std::path::Path,
@@ -3394,6 +3594,9 @@ impl RemotePollRuntimeHost for CoreRemotePollRuntimeHost<'_> {
     }
 
     async fn load_model_catalog(&self, session_id: &str) -> Option<RemoteModelCatalog> {
+        // A session poll runs per attached controller, so it reads the remote
+        // catalog: only the configured-model facts and the version reach a poll
+        // client, and the models.dev bodies stay local to the settings surface.
         CoreServiceAgentRuntime::load_remote_model_catalog(Some(session_id))
             .await
             .ok()
@@ -3914,6 +4117,14 @@ mod tests {
             .and_then(|source| source.split("fn remove_tracker").next())
             .expect("remote session delete");
         assert!(delete.contains("ensure_remote_binding_runtime_ownership"));
+
+        let rollback = remote_session_host
+            .split("async fn rollback_session_to_turn")
+            .nth(1)
+            .and_then(|source| source.split("async fn delete_session").next())
+            .expect("remote session rollback");
+        assert!(rollback.contains("ensure_remote_binding_runtime_ownership"));
+        assert!(rollback.contains("binding.is_remote()"));
     }
 
     #[test]
@@ -4448,5 +4659,38 @@ mod history_workspace_identity_tests {
         )
         .await
         .is_err());
+    }
+}
+
+/// The models.dev projections are opt-in, and the revision they carry is what
+/// keeps the catalog version stable for a controller that stays slim.
+#[cfg(all(test, feature = "remote-connect"))]
+mod remote_model_catalog_tests {
+    use super::{remote_models_dev_reasoning_catalog, remote_provider_catalog};
+    use crate::infrastructure::ai::reasoning_catalog::ModelsDevReasoningCatalogSnapshot;
+    use bitfun_services_integrations::models_dev::ModelsDevSnapshotSource;
+
+    fn empty_snapshot() -> ModelsDevReasoningCatalogSnapshot {
+        ModelsDevReasoningCatalogSnapshot {
+            catalog: None,
+            version: 7,
+            sha256: "revision-7".to_string(),
+            source: ModelsDevSnapshotSource::Empty,
+        }
+    }
+
+    #[test]
+    fn slim_projection_keeps_the_identity_without_the_catalog_bodies() {
+        let snapshot = empty_snapshot();
+        let slim = remote_provider_catalog(&snapshot, false);
+        let full = remote_provider_catalog(&snapshot, true);
+
+        assert!(slim.providers.is_empty());
+        // A controller that already knows this catalog version must not see the
+        // version move just because the bodies stopped travelling.
+        assert_eq!(full.revision, slim.revision);
+        assert_eq!(full.source, slim.source);
+        assert!(!full.providers.is_empty());
+        assert!(remote_models_dev_reasoning_catalog(&snapshot, false).is_none());
     }
 }

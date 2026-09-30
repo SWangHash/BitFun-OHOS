@@ -4,12 +4,14 @@ import com.bitfun.mobile.core.domain.ChatMessage
 import com.bitfun.mobile.core.domain.ChatSessionCursor
 import com.bitfun.mobile.core.domain.ChatSyncPhase
 import com.bitfun.mobile.core.domain.ChatTimelineState
+import com.bitfun.mobile.core.domain.ChatTranscriptOrigin
 import com.bitfun.mobile.core.protocol.ChatMessageItemResponse
 import com.bitfun.mobile.core.protocol.RemoteModelCatalog
 import com.bitfun.mobile.core.protocol.RemoteToolStatusResponse
 import com.bitfun.mobile.core.protocol.RelayJson
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ConversationPresentationTest {
@@ -18,6 +20,15 @@ class ConversationPresentationTest {
         val rows = timeline().conversationRows()
 
         assertEquals(listOf(ConversationRowKind.EMPTY), rows.map { it.kind })
+    }
+
+    @Test
+    fun aTimelineThatIsStillThisDevicesCopyIsUnconfirmed() {
+        val stored = timeline().copy(origin = ChatTranscriptOrigin.CACHE)
+        val fromHost = timeline().copy(origin = ChatTranscriptOrigin.HOST)
+
+        assertTrue(stored.transcriptUnconfirmed())
+        assertFalse(fromHost.transcriptUnconfirmed())
     }
 
     @Test
@@ -39,11 +50,14 @@ class ConversationPresentationTest {
     }
 
     @Test
-    fun aMessageStillInFlightIsShownAsPendingUntilItsTwinArrives() {
+    fun aMessageStillInFlightIsShownOnceUntilItsTwinArrives() {
         val optimistic = timeline(optimistic = listOf(message("local-1", "user", "ship it")))
-        assertEquals(listOf(true), optimistic.conversationRows().map { it.pending })
+        assertEquals(
+            listOf("pending-local-1"),
+            optimistic.conversationRows().map { it.id },
+        )
 
-        // The same message identity persisted: one row, no longer pending. Reading
+        // The same message identity persisted: one row, not two. Reading
         // persistedMessages directly would have shown it twice.
         val persisted = timeline(
             persisted = listOf(message("local-1", "user", "ship it")),
@@ -51,7 +65,7 @@ class ConversationPresentationTest {
         )
         val rows = persisted.conversationRows()
         assertEquals(1, rows.size)
-        assertEquals(false, rows.single().pending)
+        assertEquals("message-local-1", rows.single().id)
     }
 
     @Test
@@ -228,6 +242,7 @@ private fun timeline(
     cursor = ChatSessionCursor(0, 0, 0),
     modelCatalog = RemoteModelCatalog(version = 0),
     selectedModelId = "",
+    origin = ChatTranscriptOrigin.HOST,
 )
 
 private fun message(

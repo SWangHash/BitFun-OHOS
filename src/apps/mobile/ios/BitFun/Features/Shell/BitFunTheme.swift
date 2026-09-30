@@ -23,6 +23,23 @@ enum BitFunTheme {
     static let floatingBorder = MobileDesignColors.floatingBorder
     static let statusSuccess = MobileDesignColors.statusSuccess
     static let statusDanger = MobileDesignColors.statusDanger
+
+    // The navigation rail, held apart from the page palette above.
+    //
+    // The desktop client paints its sidebar from `surface.chrome` rather than
+    // from the scene, and carries hairlines, quiet fills and selection as alpha
+    // over it. These are those roles one for one; they are the sidebar's, and a
+    // page that borrows them stops matching the desktop instead of matching it
+    // more closely. `sidebarLine`, `sidebarHover` and `sidebarSelection` are
+    // translucent on purpose — they composite over `sidebarBg`.
+    static let sidebarBg = MobileDesignColors.sidebarBg
+    static let sidebarRaised = MobileDesignColors.sidebarRaised
+    static let sidebarLine = MobileDesignColors.sidebarLine
+    static let sidebarHover = MobileDesignColors.sidebarHover
+    static let sidebarSelection = MobileDesignColors.sidebarSelection
+    static let sidebarInk = MobileDesignColors.sidebarInk
+    static let sidebarMuted = MobileDesignColors.sidebarMuted
+    static let sidebarSubtle = MobileDesignColors.sidebarSubtle
 }
 
 struct CircleControl: View {

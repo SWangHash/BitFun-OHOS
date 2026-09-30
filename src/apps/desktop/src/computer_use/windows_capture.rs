@@ -1,39 +1,6 @@
-//! Windows multi-tier screen capture: `PrintWindow` + GDI `BitBlt`, with DWM
-//! extended-frame crop and occlusion detection.
-//!
-//! Ported from cua-driver-rs v0.6.8 (`platform-windows/src/capture.rs`).
-//!
-//! ## Tiered capture fallback chain
-//!
-//!   1. **`PrintWindow(PW_RENDERFULLCONTENT)`** — renders a window's contents
-//!      even when occluded or off-screen, for GDI-backed surfaces. Sized to the
-//!      whole window (`GetWindowRect`), not just the client area, so non-client
-//!      chrome (title bar, VCL button strips) is captured.
-//!   2. **WGC (Windows.Graphics.Capture)** — occlusion-immune UWP /
-//!      DirectComposition capture through the dedicated WGC module.
-//!   3. **Screen-region `BitBlt` fallback** — when WGC is unavailable or fails,
-//!      `BitBlt` the matching pixels off the desktop DC. Works when the target is
-//!      on-screen and not occluded.
-//!
-//! ## DWM extended-frame crop
-//!
-//! `DwmGetWindowAttribute(DWMWA_EXTENDED_FRAME_BOUNDS)` reports the rect
-//! *without* the invisible drop-shadow margin Win10+ draws around every
-//! top-level window. The bitmap is cropped to it (with a 1-px inset) so the
-//! result has no black trim or Win11 rounded-corner hairline.
-//!
-//! ## Occlusion flag
-//!
-//! [`screenshot_window_capture`] reports an `occluded` flag — the flag
-//! is `true` when the capture fell through to the screen-region `BitBlt` path
-//! AND another window was visibly covering the target at sample time (see
-//! [`target_is_obscured`]). In that case the bitmap reflects the *covering*
-//! window's pixels, not the target's; callers that surface the image should
-//! attach an explicit warning.
-//!
-//! Per-Monitor V2 DPI awareness note: `GetWindowRect`, `GetSystemMetrics`, and
-//! `BitBlt` all operate in PHYSICAL pixels under PMv2, so no DPI/96 scaling is
-//! applied (scaling would shift and oversize the captured region).
+//! Window-only Windows.Graphics.Capture observations. Persistent streams retain
+//! the OS sharing border. Failure never falls back to another window's pixels.
+//! Legacy GDI helpers remain private for existing geometry unit tests only.
 
 #![allow(dead_code)]
 
@@ -298,23 +265,73 @@ pub(super) struct WindowCapture {
     pub height: u32,
 }
 
-/// Capture a window by HWND, returning the encoded PNG plus the screen-space
-/// rectangle the bitmap covers (see [`WindowCapture`]).
-///
-/// Tiered fallback chain:
-/// - **Primary**: `PrintWindow(PW_RENDERFULLCONTENT)` — captures occluded /
-///   off-screen GDI windows.
-/// - **WGC**: [`screenshot_window_via_wgc`] when PrintWindow is mostly black.
-/// - **Fallback**: screen-region `BitBlt` when WGC fails. The `occluded` flag
-///   is `true` when this path is taken AND [`target_is_obscured`] reports another
-///   window covering the target — in that case the bitmap shows the *covering*
-///   window's pixels.
-///
-/// Minimized windows are rejected up front via [`is_iconic`]. The DWM
-/// extended-frame bounds are used to crop the invisible drop-shadow margin; the
-/// returned `origin_*` account for that crop so coordinate mapping stays exact.
+/// Capture the target's own surface; never substitute screen-region pixels.
 pub(super) fn screenshot_window_capture(hwnd: HWND) -> BitFunResult<WindowCapture> {
-    unsafe { screenshot_window_bytes_unsafe(hwnd) }
+    if is_iconic(hwnd) {
+        return Err(BitFunError::service(
+            "capture_unavailable: minimized window has no rendered content",
+        ));
+    }
+    let (pixels, width, height) = screenshot_window_via_wgc(hwnd)?;
+    window_capture_from_bgra(hwnd, &pixels, width, height)
+}
+
+/// Encode a frame obtained from the control session's persistent WGC stream.
+/// WGC includes the visible DWM frame, not GetWindowRect's invisible margins.
+pub(super) fn window_capture_from_bgra(
+    hwnd: HWND,
+    pixels: &[u8],
+    width: u32,
+    height: u32,
+) -> BitFunResult<WindowCapture> {
+    let mut bounds = RECT::default();
+    unsafe {
+        DwmGetWindowAttribute(
+            hwnd,
+            DWMWA_EXTENDED_FRAME_BOUNDS,
+            &mut bounds as *mut _ as *mut _,
+            std::mem::size_of::<RECT>() as u32,
+        )
+    }
+    .map_err(|e| BitFunError::service(format!("capture_geometry_unavailable: {e}")))?;
+    if bounds.right - bounds.left != width as i32 || bounds.bottom - bounds.top != height as i32 {
+        return Err(BitFunError::service(
+            "capture_geometry_changed: refresh the window observation before input",
+        ));
+    }
+    let mut rgba = pixels.to_vec();
+    for pixel in rgba.chunks_exact_mut(4) {
+        pixel.swap(0, 2);
+    }
+    let generation = crate::computer_use::control_session::capture_token()
+        .map_err(BitFunError::service)?
+        .generation();
+    let mut pid = 0;
+    unsafe {
+        windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(hwnd, Some(&mut pid));
+    }
+    let target = format!("pid:{pid}/window:{}", hwnd.0 as isize);
+    crate::computer_use::control_session::publish_rgba_generation(
+        generation,
+        &target,
+        &rgba,
+        width,
+        height,
+        [
+            bounds.left as f64,
+            bounds.top as f64,
+            width as f64,
+            height as f64,
+        ],
+    );
+    Ok(WindowCapture {
+        png: encode_bgra_to_png(pixels, width, height)?,
+        occluded: false,
+        origin_x: bounds.left,
+        origin_y: bounds.top,
+        width,
+        height,
+    })
 }
 
 unsafe fn screenshot_window_bytes_unsafe(hwnd: HWND) -> BitFunResult<WindowCapture> {

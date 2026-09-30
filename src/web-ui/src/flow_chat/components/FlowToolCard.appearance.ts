@@ -15,7 +15,7 @@ export const flowToolCardAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     {
       id: 'presentation',
       attribute: 'data-bitfun-presentation',
-      values: ['standard', 'dedicated'],
+      values: ['standard', 'dedicated', 'relation'],
     },
   ],
   states: [

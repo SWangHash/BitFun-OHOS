@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Button, Icon, OverflowText } from '@bitfun/ui';
+import { Button, Icon, OverflowText, ScrollArea } from '@bitfun/ui';
 import {
   AmbientToolCard, AmbientToolCardHeader, ProminentToolCard, ProminentToolCardSummary, ToolCardStatusSlot,
 } from '@bitfun/ui/flow-chat';
 import { useI18n } from '@/infrastructure/i18n';
 import type { ToolCardProps } from '../types/flow-chat';
 import { useToolCardHeightContract } from './useToolCardHeightContract';
+import { getToolCardStatusDescription } from './toolCardStatus';
 import { useBitFunControlDiscovery } from './useBitFunControlDiscovery';
 import {
   buildBitFunControlCardModel, controlDescription, controlTitle, isBitFunControlDiscovery,
@@ -57,11 +58,23 @@ export const BitFunControlToolCard: React.FC<ToolCardProps> = ({ toolItem, onExp
     toolItem.requiresConfirmation && !toolItem.userConfirmed
     && !['completed', 'error', 'cancelled', 'rejected'].includes(model.status),
   );
-  const summary = [actionLabel, model.query ?? model.target].filter(Boolean).join(' · ');
-  const icon = <Icon name="settings" size="sm" />;
+  const configuredValue = model.action === 'configure'
+    ? model.confirmed && model.effectiveValue !== undefined ? model.effectiveValue : model.requestedValue
+    : undefined;
+  const targetLabel = model.query ?? model.target;
+  const configurationLabel = configuredValue !== undefined
+    ? `${model.confirmed ? t('toolCards.bitFunControl.effectiveValue') : t('toolCards.bitFunControl.requestedValue')}: ${valueText(configuredValue)}`
+    : undefined;
+  const summary = [targetLabel, configurationLabel].filter(Boolean).join(' · ');
+  const isDiscovery = isBitFunControlDiscovery(model.input);
+  const icon = <Icon name="mouse-pointer" size="sm" />;
   const statusIcon = (model.status === 'completed' && !model.confirmed) || waitingForApproval
     ? icon
-    : <ToolCardStatusSlot status={model.status === 'confirmed' ? 'preparing' : model.status} toolIcon={icon} />;
+    : <ToolCardStatusSlot
+      defaultIcon={isDiscovery ? undefined : ['completed', 'error', 'cancelled', 'rejected'].includes(model.status) ? 'tool' : 'status'}
+      status={model.status === 'confirmed' ? 'preparing' : model.status}
+      toolIcon={icon}
+    />;
   const fields = [
     model.target && { label: t('toolCards.bitFunControl.target'), value: model.target },
     model.query && { label: t('toolCards.bitFunControl.query'), value: model.query },
@@ -99,12 +112,14 @@ export const BitFunControlToolCard: React.FC<ToolCardProps> = ({ toolItem, onExp
       {hasDiscoveryResults && (
         <div className="bitfun-control-card__results" data-bitfun-component="bitfun-control-tool-card" data-bitfun-part="results">
           {discovery.items.length === 0 ? (!discovery.loading && !discovery.error && <p data-bitfun-component="bitfun-control-tool-card" data-bitfun-part="description">{t('toolCards.bitFunControl.noResults')}</p>) : (
+            <ScrollArea className="bitfun-control-card__viewport" edgeFade="vertical" overscrollBehaviorY="auto">
             <ul className="bitfun-control-card__list" data-bitfun-component="bitfun-control-tool-card" data-bitfun-part="list">
               {discovery.items.map((item, index) => <li className="bitfun-control-card__result" data-bitfun-component="bitfun-control-tool-card" data-bitfun-part="result" key={index} data-overflow-trigger>
                 <OverflowText>{controlTitle(item, currentLanguage) ?? String(item.capabilityId ?? item.id ?? '')}</OverflowText>
                 {controlDescription(item, currentLanguage) && <p data-bitfun-component="bitfun-control-tool-card" data-bitfun-part="description">{controlDescription(item, currentLanguage)}</p>}
               </li>)}
             </ul>
+            </ScrollArea>
           )}
           {discovery.loading && <p role="status" className="bitfun-control-card__description" data-bitfun-component="bitfun-control-tool-card" data-bitfun-part="description">
             {t('toolCards.bitFunControl.loadingAll')}
@@ -131,13 +146,14 @@ export const BitFunControlToolCard: React.FC<ToolCardProps> = ({ toolItem, onExp
   };
 
   return <div ref={cardRootRef} data-bitfun-adapter="bitfun-control" data-tool-card-id={toolItem.id}>
-    {isBitFunControlDiscovery(model.input) ? (
+    {isDiscovery ? (
       <AmbientToolCard {...common} onClick={hasDetails ? toggle : undefined}
-        header={<AmbientToolCardHeader action={t('toolCards.bitFunControl.title')} content={summary}
+        header={<AmbientToolCardHeader action={actionLabel} content={summary || t('toolCards.bitFunControl.allFeatures')}
+          statusDescription={getToolCardStatusDescription(model.status, t, model.error)}
           icon={statusIcon} />} />
     ) : (
       <ProminentToolCard {...common} allowExpandedWhenFailed onToggle={hasDetails ? toggle : undefined} requiresConfirmation={waitingForApproval}
-        summary={<ProminentToolCardSummary action={t('toolCards.bitFunControl.title')} content={summary}
+        summary={<ProminentToolCardSummary action={actionLabel} content={summary}
           icon={statusIcon} />} />
     )}
   </div>;

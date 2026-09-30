@@ -538,6 +538,9 @@
       "parentSession": "父會話",
       "childSourceWithoutTurn": "來自 {{parentTitle}}",
       "childSourceWithTurn": "來自 {{parentTitle}} · 第 {{turnIndex}} 輪",
+      "worktreeTooltip": "正在隔離的 worktree 中執行：{{path}}",
+      "openWorktreeWorkspace": "開啟 worktree 工作區",
+      "openWorktreeWorkspaceFailed": "無法將 worktree 目錄作為工作區開啟。",
       "reviewRunning": "審核中",
       "deepReviewRunning": "審核中",
       "unreadCompleted": "已完成 — 未讀",
@@ -614,6 +617,7 @@
       "title": "定時任務",
       "open": "定時任務",
       "shortLabel": "定時任務",
+      "badgeTooltip": "{{count}} 個定時任務",
       "listTitle": "任務列表",
       "assistantFallback": "目前助理",
       "loading": "正在載入定時任務...",
@@ -662,8 +666,7 @@
         }
       },
       "targets": {
-        "session": "會話",
-        "newSession": "新會話"
+        "session": "會話"
       },
       "status": {
         "idle": "待命",
@@ -922,6 +925,7 @@
     "footerDistributedExecution": "{{count}} 台裝置正在執行",
     "current": "目前",
     "currentUse": "目前使用",
+    "currentLocalDevice": "目前本機裝置",
     "controlling": "正在控制",
     "executingTasks": "{{count}} 個任務",
     "connectedDevices": "協同裝置",
@@ -2166,5 +2170,19 @@
     "nextMonth": "下個月",
     "now": "此刻",
     "close": "關閉"
+  },
+  "computerControl": {
+    "title": "應用程式控制",
+    "observe": "正在觀察",
+    "background": "正在背景控制",
+    "foreground": "正在使用桌面輸入控制",
+    "stopped": "控制已停止",
+    "unavailable": "暫時無法取得控制狀態，仍可嘗試停止。",
+    "previewAlt": "含有 Agent 指標的應用程式視窗畫面",
+    "previewUnavailable": "暫時無法顯示視窗預覽。",
+    "showPreview": "顯示預覽",
+    "hidePreview": "收合預覽",
+    "stop": "停止控制",
+    "stopping": "正在停止…"
   }
 }

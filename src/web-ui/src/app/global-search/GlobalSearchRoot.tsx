@@ -77,21 +77,21 @@ const EMPTY_SNAPSHOT: GlobalSearchSnapshot = {
   truncated: false,
 };
 
-const ACTION_ICONS: Record<ProductActionIcon, LucideIcon> = {
-  'message-circle': catalogLucide('side-chat'),
-  folder: catalogLucide('folder'),
-  plus: catalogLucide('plus'),
-  globe: catalogLucide('browser'),
-  terminal: catalogLucide('terminal'),
-  files: FileText,
-  users: Users,
-  puzzle: catalogLucide('extension'),
-  blocks: Blocks,
-  'check-square': CheckSquare2,
-  chart: BarChart3,
-  gear: catalogLucide('gear'),
-  keyboard: Keyboard,
-  network: Network,
+const ACTION_ICONS: Record<ProductActionIcon, IconSource> = {
+  'message-circle': { name: 'side-chat' },
+  folder: { name: 'folder' },
+  plus: { name: 'plus' },
+  globe: { name: 'browser' },
+  terminal: { name: 'terminal' },
+  files: { glyph: FileText },
+  users: { glyph: Users },
+  'book-open': { name: 'book-open' },
+  blocks: { glyph: Blocks },
+  'check-square': { glyph: CheckSquare2 },
+  chart: { glyph: BarChart3 },
+  gear: { name: 'gear' },
+  keyboard: { glyph: Keyboard },
+  network: { glyph: Network },
 };
 
 type GlobalSearchActionIconRole =

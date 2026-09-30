@@ -24,6 +24,7 @@ describe('SkillCard Appearance contract', () => {
     );
 
     expect(html).toContain('data-bitfun-variant="market"');
+    expect(html).toContain('data-bitfun-name="book-open"');
     expect(html).toContain('data-bitfun-part="meta"');
     expect(html).toContain('data-bitfun-part="action"');
     expect(html).toContain('data-bitfun-tone="primary"');

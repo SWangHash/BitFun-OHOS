@@ -6,6 +6,7 @@
 import type {
   DialogTurnKind,
   SessionKind,
+  SessionContinuationPolicy,
   SessionContextUsageSource,
   SessionTitleSource,
   SessionTurnCatalog,
@@ -490,6 +491,9 @@ export interface Session {
    */
   lastSubmittedMode?: string;
 
+  /** Frontend-only new-conversation preparation; never serialized as session metadata. */
+  draft?: import('../utils/sessionDraft').SessionDraft;
+
   // Workspace this session belongs to. Used for sidebar display filtering.
   // Sessions are always kept in store for event processing; only display is filtered.
   workspacePath?: string;
@@ -527,6 +531,9 @@ export interface Session {
 
   /** Logical subagent id / type used to launch this hidden subagent session. */
   subagentType?: string;
+
+  /** Runtime-owned continuation policy. Undefined until child metadata is known. */
+  continuationPolicy?: SessionContinuationPolicy;
 
   /** Whether `/goal` mode is active for this session. */
   goalModeActive?: boolean;
@@ -730,7 +737,7 @@ export interface ParsedChunk {
 
 export interface ToolCardConfig {
   attention: 'ambient' | 'prominent';
-  presentation: 'standard' | 'dedicated';
+  presentation: 'standard' | 'dedicated' | 'relation';
   toolName: string;
   displayName: string;
   icon: string;

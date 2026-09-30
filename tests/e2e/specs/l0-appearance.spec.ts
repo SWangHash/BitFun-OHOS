@@ -843,36 +843,23 @@ describe('L0 Appearance', () => {
     expect(await picker.isDisplayed()).toBe(true);
   });
 
-  it('should preserve design-system inline spacing on Appearance action buttons', async () => {
+  it('should keep the Skin market and appearance package import entry points hidden', async () => {
     await openAppearanceSettings();
-    await waitForDisplayed('[data-bitfun-part="packageActions"] [data-bitfun-component="button"]');
+    await waitForDisplayed('[data-bitfun-part="packageSection"]');
 
-    const buttonSpacing = await browser.execute(() => {
-      return Array.from(document.querySelectorAll<HTMLElement>(
+    const packageEntryPoints = await browser.execute(() => ({
+      actionButtons: Array.from(document.querySelectorAll<HTMLElement>(
         '[data-bitfun-part="packageActions"] [data-bitfun-component="button"]',
-      )).map((button) => {
-        const styles = window.getComputedStyle(button);
+      )).map(button => button.textContent?.trim() ?? ''),
+      fileInputs: document.querySelectorAll('.appearance-package-config__file-input').length,
+    }));
 
-        return {
-          text: button.textContent?.trim() ?? '',
-          paddingLeft: styles.paddingLeft,
-          paddingRight: styles.paddingRight,
-          paddingToken: styles.getPropertyValue('--_button-padding-inline').trim(),
-          width: button.getBoundingClientRect().width,
-        };
-      });
-    });
+    expect(packageEntryPoints.actionButtons).toEqual([]);
+    expect(packageEntryPoints.fileInputs).toBe(0);
 
-    console.log('[L0] Appearance action button spacing:', JSON.stringify(buttonSpacing, null, 2));
-    expect(buttonSpacing).toHaveLength(2);
-    for (const button of buttonSpacing) {
-      expect(button.paddingLeft).toBe('20px');
-      expect(button.paddingRight).toBe('20px');
-      expect(button.paddingToken).toBe('20px');
-    }
     await saveElementScreenshot(
-      '[data-bitfun-part="packageActions"]',
-      'l0-appearance-button-inline-spacing',
+      '[data-bitfun-part="packageSection"]',
+      'l0-appearance-package-entry-points-hidden',
     );
   });
 

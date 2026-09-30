@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  copyFileSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -1488,7 +1489,7 @@ test('Linux Rust workflows do not install an unused native OpenSSL toolchain', (
 });
 
 
-test('public beta launch uses Latest while legacy updater bytes stay on 0.2.19', () => {
+test('public beta launch uses Latest while legacy updater feeds stay on the pinned notice manifest', () => {
   const workflow = yaml.parse(readFileSync(path.join(repoRoot, '.github/workflows/desktop-package.yml'), 'utf8'));
   const steps = workflow.jobs['upload-release-assets'].steps;
   const upload = steps.find((step) => step.name === 'Upload to release');
@@ -1498,33 +1499,43 @@ test('public beta launch uses Latest while legacy updater bytes stay on 0.2.19',
   assert.equal(preserve.if, "needs.prepare.outputs.release_channel == 'stable'");
   assert.ok(steps.indexOf(preserve) < steps.indexOf(upload));
   assert.match(steps.find((step) => step.name === 'Generate updater manifest').run, /--out release-updater-assets\/latest-v1\.json/);
-  for (const version of ['0.2.19', '1.0.0-beta']) {
-    const cwd = mkdtempSync(path.join(tmpdir(), 'bitfun-legacy-feed-'));
-    try {
-      mkdirSync(path.join(cwd, 'release-upload-assets'));
-      const candidate = '{"version":"1.0.0-beta"}';
-      writeFileSync(path.join(cwd, 'release-upload-assets/latest-v1.json'), candidate);
-      const legacy = JSON.stringify({ version, platforms: { 'windows-x86_64': { url: 'https://example.test/legacy.exe', signature: 'unchanged' } } });
-      writeFileSync(path.join(cwd, 'legacy.json'), legacy);
-      const result = spawnSync('bash', ['-c', `
-        curl() {
-          while [[ "$1" != "-o" ]]; do shift; done
-          cp legacy.json "$2"
-        }
-        ${preserve.run}
-      `], { cwd, encoding: 'utf8', windowsHide: true });
-      if (version === '0.2.19') {
-        assert.equal(result.status, 0, result.stderr);
-        for (const name of ['latest.json', 'linux-binaries.json']) {
-          assert.equal(readFileSync(path.join(cwd, 'release-upload-assets', name), 'utf8'), legacy);
-        }
-      } else {
-        assert.notEqual(result.status, 0, '1.x must never enter a legacy feed');
-      }
-      assert.equal(readFileSync(path.join(cwd, 'release-upload-assets/latest-v1.json'), 'utf8'), candidate);
-    } finally {
-      rmSync(cwd, { recursive: true, force: true });
+  // The pinned legacy manifests must come from the repository, so the notice
+  // manifest survives every future release without manual re-upload.
+  assert.match(preserve.run, /scripts\/fixtures\/legacy-update-feeds/);
+  assert.doesNotMatch(preserve.run, /curl/);
+  assert.match(preserve.run, /0\.2\.20/);
+  assert.match(preserve.run, /0\.2\.19/);
+  assert.match(preserve.run, /notes/);
+  // The pinned step downloads nothing, so the released version can never leak
+  // into a legacy feed; the sandbox only proves the copy + guard behavior.
+  const cwd = mkdtempSync(path.join(tmpdir(), 'bitfun-legacy-feed-'));
+  try {
+    // The step reads its pinned manifests via a repo-root-relative path and
+    // writes into release-upload-assets/, so mirror the CI working tree
+    // inside the sandbox instead of running against the real checkout.
+    mkdirSync(path.join(cwd, 'scripts/fixtures/legacy-update-feeds'), { recursive: true });
+    mkdirSync(path.join(cwd, 'release-upload-assets'));
+    for (const name of ['latest.json', 'linux-binaries.json']) {
+      copyFileSync(
+        path.join(repoRoot, 'scripts/fixtures/legacy-update-feeds', name),
+        path.join(cwd, 'scripts/fixtures/legacy-update-feeds', name),
+      );
     }
+    const candidate = '{"version":"1.0.0-beta"}';
+    writeFileSync(path.join(cwd, 'release-upload-assets/latest-v1.json'), candidate);
+    const result = spawnSync('bash', ['-c', preserve.run], {
+      cwd, encoding: 'utf8', windowsHide: true,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    for (const name of ['latest.json', 'linux-binaries.json']) {
+      assert.equal(
+        readFileSync(path.join(cwd, 'release-upload-assets', name), 'utf8'),
+        readFileSync(path.join(repoRoot, 'scripts/fixtures/legacy-update-feeds', name), 'utf8'),
+      );
+    }
+    assert.equal(readFileSync(path.join(cwd, 'release-upload-assets/latest-v1.json'), 'utf8'), candidate);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
   }
 });
 

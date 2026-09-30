@@ -41,7 +41,7 @@ import {
   GalleryPageHeader,
   GallerySkeleton,
   GalleryZone,
-} from '@/app/components';
+} from '@/app/components/GalleryLayout';
 import { loadInstalledMarketOrigins } from '../utils/loadInstalledMarketOrigins';
 import { pickLocalizedString, pickLocalizedTags } from '../utils/pickLocalizedString';
 import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext';
@@ -105,8 +105,6 @@ const MiniAppGalleryView: React.FC<MiniAppGalleryViewProps> = ({ tabs }) => {
   const closeImportMenu = useCallback(() => setImportMenuOpen(false), []);
 
   useEffect(() => {
-    let removeOverlayMousedown0: (() => void) | undefined;
-    let removeOverlayKeydown1: (() => void) | undefined;
     if (!importMenuOpen) return;
 
     const handlePointerDown = (event: MouseEvent) => {
@@ -125,8 +123,8 @@ const MiniAppGalleryView: React.FC<MiniAppGalleryViewProps> = ({ tabs }) => {
       requestAnimationFrame(() => importTriggerRef.current?.focus());
     };
 
-    removeOverlayMousedown0 = subscribeOverlayInteraction(importMenuRef, 'mousedown', handlePointerDown);
-    removeOverlayKeydown1 = subscribeOverlayInteraction(importMenuRef, 'keydown', handleEscape);
+    const removeOverlayMousedown0 = subscribeOverlayInteraction(importMenuRef, 'mousedown', handlePointerDown);
+    const removeOverlayKeydown1 = subscribeOverlayInteraction(importMenuRef, 'keydown', handleEscape);
     return () => {
       removeOverlayMousedown0?.();
       removeOverlayKeydown1?.();

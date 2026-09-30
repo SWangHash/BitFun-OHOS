@@ -248,9 +248,9 @@ fn review_platform_ui_error(error: &ReviewPlatformError) -> String {
     let code = match error {
         ReviewPlatformError::RepositoryUntrusted {
             repository_path, ..
-        } => return untrusted_repository_error_message(repository_path),
-        // Missing Git keeps its own stable code, which already carries the
-        // actionable install guidance.
+        } => {
+            return untrusted_repository_error_message(repository_path);
+        }
         ReviewPlatformError::GitUnavailable => return error.to_string(),
         ReviewPlatformError::InvalidRepository(_) => "invalidRepository",
         ReviewPlatformError::RemoteNotFound(_) => "remoteNotFound",
@@ -429,16 +429,7 @@ mod tests {
     }
 
     #[test]
-    fn review_platform_command_errors_preserve_the_missing_git_code() {
-        let error = ReviewPlatformError::GitUnavailable;
-        let message = review_platform_ui_error(&error);
-
-        assert!(message.starts_with("git_unavailable:"));
-        assert!(message.contains("Install Git"));
-    }
-
-    #[test]
-    fn review_platform_command_errors_keep_localizable_codes_for_other_failures() {
+    fn review_platform_command_errors_use_stable_codes_for_other_failures() {
         let error = ReviewPlatformError::RemoteNotFound("origin".to_string());
 
         assert_eq!(

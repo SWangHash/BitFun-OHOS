@@ -1,4 +1,5 @@
 import { buttonAppearanceDescriptor } from '@/component-library/components/Button/appearance';
+import { imageLightboxAppearanceDescriptor } from '@/shared/ui/ImageLightbox.appearance';
 import { cardAppearanceDescriptor } from '@/component-library/components/Card/appearance';
 import { inputAppearanceDescriptor } from '@/component-library/components/Input/appearance';
 import { modalAppearanceDescriptor } from '@/component-library/components/Modal/appearance';
@@ -205,7 +206,7 @@ import { canvasTabAppearanceDescriptor } from '@/app/components/panels/content-c
 import { canvasTabBarAppearanceDescriptor } from '@/app/components/panels/content-canvas/tab-bar/TabBar.appearance';
 import { chatInputWorkspaceStripAppearanceDescriptor } from '@/flow_chat/components/ChatInputWorkspaceStrip.appearance';
 import { codePreviewAppearanceDescriptor } from '@/flow_chat/components/CodePreview.appearance';
-import { exploreGroupAppearanceDescriptor } from '@/flow_chat/components/modern/ExploreGroupRenderer.appearance';
+import { contextLoadGroupAppearanceDescriptor, exploreGroupAppearanceDescriptor, fileEditGroupAppearanceDescriptor, interfaceObservationGroupAppearanceDescriptor, shellGroupAppearanceDescriptor } from '@/flow_chat/components/modern/ExploreGroupRenderer.appearance';
 import { pendingQueuePanelAppearanceDescriptor } from '@/flow_chat/components/PendingQueuePanel.appearance';
 import { subagentProjectionAppearanceDescriptor } from '@/flow_chat/components/subagent/SubagentProjectionView.appearance';
 import { threadGoalDialogsAppearanceDescriptor } from '@/flow_chat/components/thread-goal/ThreadGoalDialogs.appearance';
@@ -299,6 +300,7 @@ import { turnCompletionNoticeAppearanceDescriptor } from '@/flow_chat/components
 import { turnFailureNoticeAppearanceDescriptor } from '@/flow_chat/components/modern/TurnFailureNoticeItem.appearance';
 import { virtualItemAppearanceDescriptor } from '@/flow_chat/components/modern/VirtualItemRenderer.appearance';
 import { AppearanceRegistry } from './AppearanceRegistry';
+import { computerUseControlAppearanceDescriptor } from '@/app/components/ComputerUseControlCard.appearance';
 
 export function createDefaultAppearanceRegistry(): AppearanceRegistry {
   return new AppearanceRegistry()
@@ -382,6 +384,7 @@ export function createDefaultAppearanceRegistry(): AppearanceRegistry {
     .registerComponent(mcpToolDisplayAppearanceDescriptor)
     .registerComponent(skillsConfigAppearanceDescriptor)
     .registerComponent(diffEditorAppearanceDescriptor)
+    .registerComponent(computerUseControlAppearanceDescriptor)
     .registerComponent(agentCompanionDesktopPetAppearanceDescriptor)
     .registerComponent(toolGroupPickerAppearanceDescriptor)
     .registerComponent(inlineDiffPreviewAppearanceDescriptor)
@@ -406,6 +409,7 @@ export function createDefaultAppearanceRegistry(): AppearanceRegistry {
     .registerComponent(contextMenuAppearanceDescriptor)
     .registerComponent(contextListAppearanceDescriptor)
     .registerComponent(notificationAppearanceDescriptor)
+    .registerComponent(imageLightboxAppearanceDescriptor)
     .registerComponent(canvasToolAppearanceDescriptor)
     .registerComponent(generativeWidgetAppearanceDescriptor)
     .registerComponent(editorToolAppearanceDescriptor)
@@ -513,6 +517,10 @@ export function createDefaultAppearanceRegistry(): AppearanceRegistry {
     .registerComponent(chatInputWorkspaceStripAppearanceDescriptor)
     .registerComponent(codePreviewAppearanceDescriptor)
     .registerComponent(exploreGroupAppearanceDescriptor)
+    .registerComponent(contextLoadGroupAppearanceDescriptor)
+    .registerComponent(fileEditGroupAppearanceDescriptor)
+    .registerComponent(shellGroupAppearanceDescriptor)
+    .registerComponent(interfaceObservationGroupAppearanceDescriptor)
     .registerComponent(pendingQueuePanelAppearanceDescriptor)
     .registerComponent(subagentProjectionAppearanceDescriptor)
     .registerComponent(threadGoalDialogsAppearanceDescriptor)

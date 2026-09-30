@@ -117,6 +117,12 @@ vi.mock('@bitfun/ui', () => ({
     </button>
   ),
   Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+  StatusPill: ({ children, tone, ...props }: {
+    children: React.ReactNode;
+    tone?: string;
+  } & React.HTMLAttributes<HTMLSpanElement>) => (
+    <span data-tone={tone} {...props}>{children}</span>
+  ),
   NumberInput: ({ disabled, label, onValueChange, value }: {
     disabled?: boolean;
     label?: string;

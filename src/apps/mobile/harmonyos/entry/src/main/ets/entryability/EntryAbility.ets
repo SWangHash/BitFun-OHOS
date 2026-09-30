@@ -1,7 +1,7 @@
 import { AbilityConstant, Configuration, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import { window } from '@kit.ArkUI';
-import { MobileDesignColors } from '../generated/MobileDesignTokens';
+import { display, window } from '@kit.ArkUI';
+import { MobileDesignColors, MobileTextScale } from '../generated/MobileDesignTokens';
 
 const DOMAIN = 0x0000;
 const TAG = 'BitFunRemote';
@@ -13,26 +13,44 @@ export default class EntryAbility extends UIAbility {
 
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     const scenarioId = want.parameters?.['bitfunDesignPreview'];
-    if (scenarioId === 'welcome-home' || scenarioId === 'connected-conversation' ||
+    if (scenarioId === 'history-scroll' || scenarioId === 'durable-timeline' || scenarioId === 'composer-submit' || scenarioId === 'catalog-refresh' || scenarioId === 'catalog-refresh-dark' || scenarioId === 'device-selector' || scenarioId === 'device-selector-dark' || scenarioId === 'welcome-home' || scenarioId === 'connected-conversation' ||
       scenarioId === 'streaming-dark' ||
       scenarioId === 'reconnecting-wide' || scenarioId === 'narrow-multiline' ||
-      scenarioId === 'fold-context' || scenarioId === 'long-reading') {
+      scenarioId === 'fold-context' || scenarioId === 'long-reading' ||
+      scenarioId === 'cold-start-home' || scenarioId === 'cold-start-home-dark' ||
+      scenarioId === 'interaction-mailbox' || scenarioId === 'interaction-mailbox-dark') {
       this.initialPage = 'pages/preview/MobileDesignGallery';
       this.previewStorage = new LocalStorage();
       this.previewStorage.setOrCreate('scenarioId', scenarioId);
       AppStorage.setOrCreate('scenarioId', scenarioId);
     }
     try {
-      const colorMode = scenarioId === 'streaming-dark'
+      const colorMode = scenarioId === 'cold-start-home-dark' || scenarioId === 'catalog-refresh-dark' || scenarioId === 'device-selector-dark' || scenarioId === 'streaming-dark' || scenarioId === 'interaction-mailbox-dark'
         ? ConfigurationConstant.ColorMode.COLOR_MODE_DARK
-        : scenarioId === 'connected-conversation' || scenarioId === 'reconnecting-wide'
+        : scenarioId === 'cold-start-home' || scenarioId === 'catalog-refresh' || scenarioId === 'device-selector' || scenarioId === 'connected-conversation' || scenarioId === 'reconnecting-wide'
           ? ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT
           : ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET;
       this.context.getApplicationContext().setColorMode(colorMode);
     } catch (err) {
       hilog.error(DOMAIN, TAG, 'Failed to set colorMode. Cause: %{public}s', JSON.stringify(err));
     }
+    this.applyTextScale();
     hilog.info(DOMAIN, TAG, '%{public}s', 'Ability onCreate');
+  }
+
+  // The type ramp is read through getters, so this has to land before the first
+  // page module loads; onCreate runs ahead of loadContent. A fold changing
+  // screens keeps the same pixel pitch on the devices we ship to, so one read at
+  // startup is enough.
+  private applyTextScale(): void {
+    try {
+      const metrics = display.getDefaultDisplaySync();
+      const factor = MobileTextScale.apply(metrics.xDPI, metrics.densityPixels);
+      hilog.info(DOMAIN, TAG, 'Text scale %{public}s (xDPI %{public}s, density %{public}s)',
+        String(factor), String(metrics.xDPI), String(metrics.densityPixels));
+    } catch (err) {
+      hilog.error(DOMAIN, TAG, 'Failed to read display metrics for text scale. Cause: %{public}s', JSON.stringify(err));
+    }
   }
 
   onDestroy(): void {

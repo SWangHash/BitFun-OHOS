@@ -77,7 +77,8 @@ pub use canvas::{CanvasMemoryStore, CanvasService};
 pub use config::{ConfigManager, ConfigProvider, ConfigService};
 #[cfg(all(feature = "agent-runtime", feature = "scheduled-jobs"))]
 pub use cron::{
-    get_global_cron_service, set_global_cron_service, CronEventSubscriber, CronService,
+    get_global_cron_service, set_global_cron_service, CronEventSubscriber, CronJobsChangedEvent,
+    CronJobsChangedReason, CronService, CRON_JOBS_CHANGED_EVENT,
 };
 #[cfg(feature = "diff")]
 pub use diff::{

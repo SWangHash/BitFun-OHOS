@@ -1,3 +1,6 @@
+import { getReviewActionErrorMessage } from '@/flow_chat/deep-review/action-bar/actionBarFormatting';
+import type { DeepReviewLaunchError } from '@/flow_chat/deep-review/launch/launchErrors';
+import { describeGitTrustFailure } from '@/shared/services/gitTrustService';
 import { isGitUnavailableError, isGitRepositoryUntrustedError, reviewPlatformErrorCode } from '@/infrastructure/api/errors/TauriCommandError';
 import type { ReviewPlatformAuthChallenge } from '@/infrastructure/api';
 
@@ -6,8 +9,11 @@ type ReviewTranslate = (key: string, options?: Record<string, unknown>) => strin
 export type ReviewErrorFallback = 'loadFailed' | 'detailsFailed' | 'ciLogFailed' | 'reviewFailed' | 'saveTokenFailed' | 'clearTokenFailed' | 'openAuthFailed' | 'copyAuthFailed';
 
 export function reviewPlatformErrorMessage(error: unknown, t: ReviewTranslate, fallback: ReviewErrorFallback = 'loadFailed'): string {
+  if ((error as DeepReviewLaunchError | null)?.launchErrorMessageKey) {
+    return getReviewActionErrorMessage(error, (key, options) => t(key, { ...options, ns: 'flow-chat' }), t('common:reviewPlatform.messages.reviewFailed'));
+  }
   if (isGitUnavailableError(error)) return t('common:reviewPlatform.errors.gitUnavailable');
-  if (isGitRepositoryUntrustedError(error)) return t('common:reviewPlatform.errors.repositoryUntrusted');
+  if (isGitRepositoryUntrustedError(error)) return describeGitTrustFailure(error) ?? t('common:reviewPlatform.errors.repositoryUntrusted');
   switch (reviewPlatformErrorCode(error)) {
     case 'invalidRepository': return t('common:reviewPlatform.errors.invalidRepository');
     case 'repositoryUntrusted': return t('common:reviewPlatform.errors.repositoryUntrusted');
@@ -73,4 +79,3 @@ export function reviewAuthErrorMessage(challenge: ReviewPlatformAuthChallenge, t
     default: return t('common:reviewPlatform.auth.invalid', options);
   }
 }
-

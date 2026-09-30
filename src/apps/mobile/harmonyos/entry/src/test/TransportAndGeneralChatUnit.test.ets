@@ -1053,7 +1053,7 @@ export default function transportAndGeneralChatUnitTest() {
     it('still gates Remote chat when the desktop connection is unavailable', 0, () => {
       expect(ChatComposerPolicy.canSend('运行任务', 0, false, true, 'failed')).assertEqual(false);
       expect(ChatComposerPolicy.canSend('运行任务', 0, false, true, 'connected')).assertEqual(true);
-      expect(ChatComposerPolicy.canSend('运行任务', 0, false, true, 'reconnecting')).assertEqual(true);
+      expect(ChatComposerPolicy.canSend('运行任务', 0, false, true, 'reconnecting')).assertEqual(false);
     });
 
     it('lets a draft outrank a running turn where the message can be handed over', 0, () => {

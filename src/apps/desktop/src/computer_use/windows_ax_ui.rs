@@ -7,7 +7,7 @@
 //!     >4s to a few hundred ms).
 //!   * `ControlViewCondition()` filter skips decorative / raw-view nodes.
 //!   * Full indexed tree (`Vec<UiaNode>`) with COM element-pointer retention
-//!     (`element_ptr`) for later pattern dispatch.
+//!     (owned COM references) for later pattern dispatch.
 //!   * `detect_cached_actions` probes cached patterns (Invoke / Toggle /
 //!     SelectionItem / ExpandCollapse / Value / RangeValue / Text / Scroll).
 //!   * Transient `E_FAIL` provider errors retried (3 attempts, 40ms backoff).
@@ -33,7 +33,7 @@ use bitfun_core::agentic::tools::computer_use_host::{
 };
 use bitfun_core::util::errors::{BitFunError, BitFunResult};
 use windows::core::Interface;
-use windows::Win32::Foundation::POINT;
+use windows::Win32::Foundation::HWND;
 use windows::Win32::System::Com::{
     CoCreateInstance, CoInitializeEx, CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED,
 };
@@ -45,7 +45,9 @@ use windows::Win32::UI::Accessibility::{
     UIA_IsOffscreenPropertyId, UIA_NamePropertyId, UIA_RangeValuePatternId, UIA_ScrollPatternId,
     UIA_SelectionItemPatternId, UIA_TextPatternId, UIA_TogglePatternId, UIA_ValuePatternId,
 };
-use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+use windows::Win32::UI::WindowsAndMessaging::{
+    GetForegroundWindow, GetWindowThreadProcessId, IsWindow,
+};
 
 /// Transient-provider retry count for `BuildUpdatedCache`.
 const BUILD_CACHE_MAX_ATTEMPTS: u32 = 3;
@@ -54,12 +56,8 @@ const BUILD_CACHE_BACKOFF_MS: u64 = 40;
 
 /// A single node in the UIA accessibility tree.
 ///
-/// Mirrors cua-driver-rs `UiaNode`. The `element_ptr` field retains the raw
-/// `IUIAutomationElement` COM pointer (AddRef'd via clone + `mem::forget`) so a
-/// follow-up click / pattern-dispatch step can reuse it without re-walking.
-/// Lifetime release of those retained pointers is wired by a future
-/// `ElementCache` (cua parity); until then the pointers simply outlive the
-/// snapshot, which is acceptable for a not-yet-wired code path.
+/// Owns retained COM references. Observation and semantic action cache entries
+/// are created and released on the dedicated UIA worker apartment.
 #[derive(Clone)]
 pub(super) struct UiaNode {
     /// Dense index assigned only to actionable elements (`[N]` in the tree
@@ -71,8 +69,8 @@ pub(super) struct UiaNode {
     pub automation_id: Option<String>,
     pub help_text: Option<String>,
     pub actions: Vec<String>,
-    /// Raw `IUIAutomationElement` COM pointer as `usize`.
-    pub element_ptr: usize,
+    /// UIA or legacy MSAA interface retained without leaking a raw pointer.
+    pub element: Option<windows::core::IUnknown>,
     /// Screen-coordinate center, captured at walk time to avoid later COM calls.
     pub center_x: i32,
     pub center_y: i32,
@@ -86,6 +84,9 @@ pub(super) struct UiaNode {
     pub parent_element_index: Option<usize>,
     /// Cached `UIA_IsEnabled`. Feeds [`AxNode::enabled`] on conversion.
     pub enabled: bool,
+    pub focused: bool,
+    pub selected: Option<bool>,
+    pub expanded: Option<bool>,
 }
 
 impl UiaNode {
@@ -109,15 +110,15 @@ impl UiaNode {
             description: None,
             identifier: self.automation_id.clone(),
             enabled: self.enabled,
-            focused: false,
-            selected: None,
+            focused: self.focused,
+            selected: self.selected,
             frame_global,
             actions: self.actions.clone(),
             role_description: None,
             subrole: None,
             help: self.help_text.clone(),
             url: None,
-            expanded: None,
+            expanded: self.expanded,
         }
     }
 }
@@ -155,6 +156,11 @@ unsafe fn build_cache_request(
         UIA_IsEnabledPropertyId,
         UIA_IsOffscreenPropertyId,
         UIA_BoundingRectanglePropertyId,
+        windows::Win32::UI::Accessibility::UIA_HasKeyboardFocusPropertyId,
+        windows::Win32::UI::Accessibility::UIA_ValueValuePropertyId,
+        windows::Win32::UI::Accessibility::UIA_ToggleToggleStatePropertyId,
+        windows::Win32::UI::Accessibility::UIA_SelectionItemIsSelectedPropertyId,
+        windows::Win32::UI::Accessibility::UIA_ExpandCollapseExpandCollapseStatePropertyId,
     ] {
         let _ = unsafe { cache_req.AddProperty(prop) };
     }
@@ -489,7 +495,46 @@ unsafe fn walk_cached_bounded(
 
     let control_type = read_cached_control_type(element);
     let name = read_cached_name(element);
-    let value = read_cached_value(element);
+    let value = read_cached_value(element).or_else(|| unsafe {
+        use windows::Win32::UI::Accessibility::*;
+        let state = element
+            .GetCachedPatternAs::<IUIAutomationTogglePattern>(UIA_TogglePatternId)
+            .ok()?
+            .CachedToggleState()
+            .ok()?;
+        Some(
+            if state == ToggleState_On {
+                "on"
+            } else if state == ToggleState_Off {
+                "off"
+            } else {
+                "mixed"
+            }
+            .into(),
+        )
+    });
+    let focused = unsafe {
+        element
+            .CachedHasKeyboardFocus()
+            .map(|v| v.as_bool())
+            .unwrap_or(false)
+    };
+    let selected = unsafe {
+        use windows::Win32::UI::Accessibility::*;
+        element
+            .GetCachedPatternAs::<IUIAutomationSelectionItemPattern>(UIA_SelectionItemPatternId)
+            .ok()
+            .and_then(|p| p.CachedIsSelected().ok())
+            .map(|v| v.as_bool())
+    };
+    let expanded = unsafe {
+        use windows::Win32::UI::Accessibility::*;
+        element
+            .GetCachedPatternAs::<IUIAutomationExpandCollapsePattern>(UIA_ExpandCollapsePatternId)
+            .ok()
+            .and_then(|p| p.CachedExpandCollapseState().ok())
+            .map(|v| v == ExpandCollapseState_Expanded)
+    };
     let automation_id = read_cached_automation_id(element);
     let help_text = read_cached_help_text(element);
     let enabled = read_cached_is_enabled(element);
@@ -508,12 +553,6 @@ unsafe fn walk_cached_bounded(
 
     let mut emitted_parent = parent_index;
     if is_actionable || has_content {
-        // Retain the COM element pointer for later pattern dispatch. The clone
-        // AddRef's; `mem::forget` prevents the local Drop from releasing it.
-        let retained: IUIAutomationElement = element.clone();
-        let ptr = retained.as_raw() as usize;
-        std::mem::forget(retained);
-
         // Read the bounding rect for content-only nodes too, so text/role
         // locate-by-filter can still resolve a click center (cua only reads it
         // for actionable nodes; BitFun's `locate_ui_element_center` needs it).
@@ -531,7 +570,7 @@ unsafe fn walk_cached_bounded(
                 automation_id: automation_id.clone(),
                 help_text: help_text.clone(),
                 actions: actions.clone(),
-                element_ptr: ptr,
+                element: element.cast().ok(),
                 center_x,
                 center_y,
                 rect,
@@ -539,6 +578,9 @@ unsafe fn walk_cached_bounded(
                 depth,
                 parent_element_index: parent_index,
                 enabled,
+                focused,
+                selected,
+                expanded,
             }
         } else {
             UiaNode {
@@ -549,7 +591,7 @@ unsafe fn walk_cached_bounded(
                 automation_id: automation_id.clone(),
                 help_text: help_text.clone(),
                 actions: vec![],
-                element_ptr: ptr,
+                element: element.cast().ok(),
                 center_x,
                 center_y,
                 rect,
@@ -557,6 +599,9 @@ unsafe fn walk_cached_bounded(
                 depth,
                 parent_element_index: parent_index,
                 enabled,
+                focused,
+                selected,
+                expanded,
             }
         };
 
@@ -700,19 +745,51 @@ fn center_result_from_node(
 pub(super) fn locate_ui_element_center(
     query: &UiElementLocateQuery,
 ) -> BitFunResult<UiElementLocateResult> {
+    let hwnd = unsafe { GetForegroundWindow() };
+    let mut pid = 0;
+    unsafe {
+        GetWindowThreadProcessId(hwnd, Some(&mut pid));
+    }
+    locate_ui_element_center_for_window(hwnd.0 as isize, pid, query)
+}
+
+fn target_window_matches(hwnd: HWND, expected_pid: u32) -> bool {
+    if expected_pid == 0 || hwnd.is_invalid() || !unsafe { IsWindow(Some(hwnd)) }.as_bool() {
+        return false;
+    }
+    let mut actual_pid = 0;
+    unsafe {
+        GetWindowThreadProcessId(hwnd, Some(&mut actual_pid));
+    }
+    actual_pid == expected_pid
+}
+
+/// Locate only inside the explicitly authorized window, regardless of which
+/// application the human has brought to the foreground.
+pub(super) fn locate_ui_element_center_for_window(
+    hwnd_raw: isize,
+    expected_pid: u32,
+    query: &UiElementLocateQuery,
+) -> BitFunResult<UiElementLocateResult> {
     ui_locate_common::validate_query(query)?;
 
     let max_depth = query.max_depth.unwrap_or(48).clamp(1, 200) as usize;
     let max_elements = 12_000usize;
 
-    let hwnd = unsafe { GetForegroundWindow() };
-    if hwnd.is_invalid() {
+    let hwnd = HWND(hwnd_raw as *mut _);
+    if !target_window_matches(hwnd, expected_pid) {
         return Err(BitFunError::tool(
-            "No foreground window (GetForegroundWindow returned null).".to_string(),
+            "[TARGET_WINDOW_UNAVAILABLE] Authorized window identity is no longer valid."
+                .to_string(),
         ));
     }
 
     let (_tree_text, nodes) = unsafe { walk_tree_full(hwnd, max_elements, max_depth) }?;
+    if !target_window_matches(hwnd, expected_pid) {
+        return Err(BitFunError::tool(
+            "[TARGET_WINDOW_UNAVAILABLE] Target changed during UIA observation",
+        ));
+    }
 
     // node_idx fast-path: address an actionable element by its `[N]` index.
     if let Some(idx) = query.node_idx {
@@ -720,7 +797,7 @@ pub(super) fn locate_ui_element_center(
             return center_result_from_node(node, Some(idx), "node_idx");
         }
         return Err(BitFunError::tool(format!(
-            "[AX_IDX_NOT_FOUND] No UI element with node_idx={} in the foreground window tree \
+            "[AX_IDX_NOT_FOUND] No UI element with node_idx={} in the target window tree \
              ({} nodes walked).",
             idx,
             nodes.len()
@@ -757,7 +834,7 @@ pub(super) fn locate_ui_element_center(
 
     if total_matches == 0 {
         Err(BitFunError::tool(
-            "No UI element matched in the foreground window for this query. Refine filters or \
+            "No UI element matched in the target window for this query. Refine filters or \
              use ComputerUse screenshot. Locate uses the same UI Automation permission as \
              mouse/keyboard automation."
                 .to_string(),
@@ -771,79 +848,99 @@ pub(super) fn locate_ui_element_center(
     }
 }
 
-// ── Hit-test (single element, unchanged signature) ──────────────────────────
+// ── Window-scoped hit-test ────────────────────────────────────────────────
 
-/// Hit-test UIA at global screen coordinates (OCR `move_to_text` disambiguation).
-///
-/// Single-element hit-test: only a handful of COM calls, so it stays on the
-/// `CurrentXxx` accessors (caching does not help one element). Signature is
-/// intentionally unchanged.
 pub(super) fn accessibility_hit_at_global_point(
     gx: f64,
     gy: f64,
 ) -> BitFunResult<Option<OcrAccessibilityHit>> {
+    let hwnd = unsafe { GetForegroundWindow() };
+    let mut pid = 0;
     unsafe {
-        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        GetWindowThreadProcessId(hwnd, Some(&mut pid));
     }
-    let automation: IUIAutomation = unsafe {
-        CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER).map_err(|e| {
-            BitFunError::tool(format!("UI Automation (CoCreateInstance): {}.", e))
-        })?
-    };
-    let pt = POINT {
-        x: gx.round() as i32,
-        y: gy.round() as i32,
-    };
-    let elem = unsafe { automation.ElementFromPoint(pt) };
-    let elem = match elem {
-        Ok(e) => e,
-        Err(_) => return Ok(None),
-    };
-    let name = unsafe {
-        elem.CurrentName()
-            .ok()
-            .map(bstr_to_string)
-            .unwrap_or_default()
-    };
-    let ident = unsafe {
-        elem.CurrentAutomationId()
-            .ok()
-            .map(bstr_to_string)
-            .unwrap_or_default()
-    };
-    let role = localized_control_type_string(&elem);
-    let parent_context = if let Ok(walker) = unsafe { automation.ControlViewWalker() } {
-        unsafe { walker.GetParentElement(&elem) }
-            .ok()
-            .and_then(|parent| {
-                let pn = unsafe {
-                    parent
-                        .CurrentName()
-                        .ok()
-                        .map(bstr_to_string)
-                        .unwrap_or_default()
-                };
-                let pr = localized_control_type_string(&parent);
-                let s = format!("{}: {}", pr, pn);
-                if s == ": " || s.trim().is_empty() {
-                    None
-                } else {
-                    Some(s)
-                }
+    accessibility_hit_at_global_point_for_window(hwnd.0 as isize, pid, gx, gy)
+}
+
+/// Search the authorized window's subtree by geometry. ElementFromPoint would
+/// resolve the covering application's element and disclose unrelated content.
+pub(super) fn accessibility_hit_at_global_point_for_window(
+    hwnd_raw: isize,
+    expected_pid: u32,
+    gx: f64,
+    gy: f64,
+) -> BitFunResult<Option<OcrAccessibilityHit>> {
+    let hwnd = HWND(hwnd_raw as *mut _);
+    if !gx.is_finite() || !gy.is_finite() || !target_window_matches(hwnd, expected_pid) {
+        return Ok(None);
+    }
+    let (_, nodes) = unsafe { walk_tree_full(hwnd, 12_000, 64) }?;
+    let Some(node) = nodes
+        .iter()
+        .filter(|node| {
+            node.rect.is_some_and(|(left, top, right, bottom)| {
+                gx >= left as f64 && gx < right as f64 && gy >= top as f64 && gy < bottom as f64
             })
-    } else {
-        None
+        })
+        .max_by_key(|node| node.depth)
+    else {
+        return Ok(None);
     };
-    let desc = format!(
-        "role={} name={:?} id={:?} parent={:?}",
-        role, name, ident, parent_context
-    );
+    let Some(element) = node
+        .element
+        .as_ref()
+        .and_then(|element| element.cast::<IUIAutomationElement>().ok())
+    else {
+        return Ok(None);
+    };
+    if unsafe { element.CurrentProcessId() }.ok() != Some(expected_pid as i32) {
+        return Ok(None);
+    }
+    let automation: IUIAutomation =
+        unsafe { CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER) }
+            .map_err(|error| BitFunError::tool(format!("UI Automation: {error}")))?;
+    let root = unsafe { automation.ElementFromHandle(hwnd) }
+        .map_err(|error| BitFunError::tool(format!("UI Automation target root: {error}")))?;
+    let walker = unsafe { automation.RawViewWalker() }
+        .map_err(|error| BitFunError::tool(format!("UI Automation target walker: {error}")))?;
+    let mut current = element;
+    let mut belongs_to_window = false;
+    for _ in 0..200 {
+        if unsafe { automation.CompareElements(&current, &root) }.is_ok_and(|same| same.as_bool()) {
+            belongs_to_window = true;
+            break;
+        }
+        match unsafe { walker.GetParentElement(&current) } {
+            Ok(parent) => current = parent,
+            Err(_) => break,
+        }
+    }
+    if !belongs_to_window || !target_window_matches(hwnd, expected_pid) {
+        return Ok(None);
+    }
+    // Parent context, when present, comes from this same bounded observation;
+    // never follow a top-level window's parent into the desktop tree.
+    let parent_context = node.parent_element_index.and_then(|idx| {
+        nodes
+            .iter()
+            .find(|parent| parent.element_index == Some(idx))
+            .map(|parent| {
+                format!(
+                    "{}: {}",
+                    parent.control_type,
+                    parent.name.as_deref().unwrap_or("")
+                )
+            })
+    });
     Ok(Some(OcrAccessibilityHit {
-        role: if role.is_empty() { None } else { Some(role) },
-        title: if name.is_empty() { None } else { Some(name) },
-        identifier: if ident.is_empty() { None } else { Some(ident) },
+        role: Some(node.control_type.clone()),
+        title: node.name.clone(),
+        identifier: node.automation_id.clone(),
+        description: format!(
+            "role={} name={:?} id={:?} parent={:?}",
+            node.control_type, node.name, node.automation_id, parent_context
+        ),
         parent_context,
-        description: desc,
     }))
 }
 
@@ -851,11 +948,11 @@ pub(super) fn accessibility_hit_at_global_point(
 
 /// Build a full [`AppStateSnapshot`] for an explicit top-level HWND selected by
 /// the caller.
-pub(super) fn get_app_state_snapshot_for_window(
+fn snapshot_and_nodes(
     hwnd: windows::Win32::Foundation::HWND,
     max_depth: u32,
     focus_window_only: bool,
-) -> BitFunResult<AppStateSnapshot> {
+) -> BitFunResult<(AppStateSnapshot, Vec<UiaNode>)> {
     if hwnd.is_invalid() {
         return Err(BitFunError::tool(
             "No target window (invalid HWND).".to_string(),
@@ -869,7 +966,8 @@ pub(super) fn get_app_state_snapshot_for_window(
     // (LibreOffice / OpenOffice) whose UIA provider hangs on
     // `BuildUpdatedCache(Subtree)` or returns an empty tree, OR whenever the
     // UIA walk errors / yields nothing on a SAL/VCL class.
-    let (tree_text, uia_nodes) = match unsafe { walk_tree_full(hwnd, 500, max_depth as usize) } {
+    let (_tree_text, mut uia_nodes) = match unsafe { walk_tree_full(hwnd, 500, max_depth as usize) }
+    {
         Ok((text, nodes)) if !nodes.is_empty() => (text, nodes),
         primary => {
             if crate::computer_use::windows_msaa::is_sal_vcl_window(hwnd_raw) {
@@ -903,6 +1001,14 @@ pub(super) fn get_app_state_snapshot_for_window(
         nodes.push(n.to_ax_node(dense_idx as u32, parent_dense));
     }
 
+    // Keep text indices and DTO indices identical, including content nodes.
+    // Actions address this retained observation; they never rewalk a new tree.
+    for (idx, node) in uia_nodes.iter_mut().enumerate() {
+        node.parent_element_index = nodes[idx].parent_idx.map(|i| i as usize);
+        node.element_index = Some(idx);
+    }
+    let tree_text = render_nodes_text(&uia_nodes);
+
     // Compute digest — same algorithm as macOS `compute_digest`.
     let digest = compute_digest(&nodes);
 
@@ -919,19 +1025,22 @@ pub(super) fn get_app_state_snapshot_for_window(
         launch_count: 0,
     };
 
-    Ok(AppStateSnapshot {
-        app,
-        window_title,
-        tree_text,
-        nodes,
-        digest,
-        captured_at_ms: std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis() as u64,
-        screenshot: None,
-        loop_warning: None,
-    })
+    Ok((
+        AppStateSnapshot {
+            app,
+            window_title,
+            tree_text,
+            nodes,
+            digest,
+            captured_at_ms: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as u64,
+            screenshot: None,
+            loop_warning: None,
+        },
+        uia_nodes,
+    ))
 }
 
 fn foreground_app_name() -> Option<String> {
@@ -982,4 +1091,778 @@ pub(super) fn foreground_window_handle() -> isize {
 pub(super) fn foreground_window_pid() -> Option<u32> {
     let hwnd = unsafe { GetForegroundWindow() };
     window_pid_for(hwnd)
+}
+
+// Snapshot COM references never cross threads. A request carries the originating
+// action token so cancellation cannot borrow a later action's input lease.
+enum SemanticAction {
+    Invoke(u32),
+    Insert(u32, String),
+    Scroll(u32, i32, i32),
+    Center(u32),
+}
+enum UiaRequest {
+    InsertNative(
+        isize,
+        Option<(f64, f64)>,
+        String,
+        super::control_session::ControlToken,
+        std::sync::mpsc::SyncSender<BitFunResult<()>>,
+    ),
+    Observe(
+        isize,
+        u32,
+        bool,
+        super::control_session::ControlToken,
+        std::sync::mpsc::SyncSender<BitFunResult<AppStateSnapshot>>,
+    ),
+    Act(
+        isize,
+        SemanticAction,
+        super::control_session::ControlToken,
+        std::sync::mpsc::SyncSender<BitFunResult<(f64, f64)>>,
+    ),
+}
+struct ObservedWindow {
+    hwnd: isize,
+    generation: u64,
+    pid: u32,
+    nodes: Vec<UiaNode>,
+}
+fn uia_worker() -> &'static std::sync::mpsc::Sender<UiaRequest> {
+    static WORKER: std::sync::OnceLock<std::sync::mpsc::Sender<UiaRequest>> =
+        std::sync::OnceLock::new();
+    WORKER.get_or_init(|| {
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            // UIA client work belongs on an MTA thread separate from the UI.
+            let initialized = unsafe { CoInitializeEx(None, windows::Win32::System::Com::COINIT_MULTITHREADED) }.is_ok();
+            let mut observed: Option<ObservedWindow> = None;
+            while let Ok(request) = rx.recv() {
+                match request {
+                    UiaRequest::InsertNative(hwnd, point, text, token, reply) => {
+                        let result = super::control_session::with_token(token, || insert_native_target(hwnd, point, &text));
+                        let _ = reply.send(result);
+                    }
+                    UiaRequest::Observe(hwnd, depth, focus, token, reply) => {
+                        let result = super::control_session::with_token(token, || {
+                            super::control_session::capture_allowed().map_err(BitFunError::tool)?;
+                            let handle = windows::Win32::Foundation::HWND(hwnd as *mut _);
+                            let (snapshot, nodes) = snapshot_and_nodes(handle, depth, focus)?;
+                            super::control_session::capture_allowed().map_err(BitFunError::tool)?;
+                            observed = Some(ObservedWindow { hwnd, generation: token.generation(),
+                                pid: window_pid_for(handle).unwrap_or(0), nodes });
+                            Ok(snapshot)
+                        });
+                        if result.is_err() { observed = None; }
+                        let _ = reply.send(result);
+                    }
+                    UiaRequest::Act(hwnd, action, token, reply) => {
+                        let result = super::control_session::with_token(token, || {
+                            let cache = observed.as_ref().ok_or_else(|| BitFunError::tool(
+                                "[AX_OBSERVATION_REQUIRED] Read the target window before using a node index"))?;
+                            apply_semantic(cache, hwnd, token.generation(), action)
+                        });
+                        let _ = reply.send(result);
+                    }
+                }
+            }
+            drop(observed);
+            if initialized { unsafe { windows::Win32::System::Com::CoUninitialize() }; }
+        });
+        tx
+    })
+}
+pub(super) fn get_app_state_snapshot_for_window(
+    hwnd: windows::Win32::Foundation::HWND,
+    max_depth: u32,
+    focus_window_only: bool,
+) -> BitFunResult<AppStateSnapshot> {
+    let token = super::control_session::capture_token().map_err(BitFunError::tool)?;
+    let (tx, rx) = std::sync::mpsc::sync_channel(1);
+    uia_worker()
+        .send(UiaRequest::Observe(
+            hwnd.0 as isize,
+            max_depth,
+            focus_window_only,
+            token,
+            tx,
+        ))
+        .map_err(|_| BitFunError::tool("UIA worker unavailable"))?;
+    rx.recv()
+        .map_err(|_| BitFunError::tool("UIA worker stopped"))?
+}
+/// Resolve an image-derived point inside the bound native window, or that
+/// window thread's existing focus. This never asks the desktop which app is
+/// under the real pointer, and never moves keyboard focus.
+pub(super) fn insert_text_at_bound_target(
+    hwnd: isize,
+    point: Option<(f64, f64)>,
+    text: &str,
+) -> BitFunResult<()> {
+    let token = super::control_session::capture_token().map_err(BitFunError::tool)?;
+    let (tx, rx) = std::sync::mpsc::sync_channel(1);
+    uia_worker()
+        .send(UiaRequest::InsertNative(
+            hwnd,
+            point,
+            text.into(),
+            token,
+            tx,
+        ))
+        .map_err(|_| BitFunError::tool("UIA worker unavailable"))?;
+    rx.recv()
+        .map_err(|_| BitFunError::tool("UIA worker stopped"))?
+}
+
+fn point_in_window(point: (f64, f64), rect: (i32, i32, i32, i32)) -> bool {
+    point.0.is_finite()
+        && point.1.is_finite()
+        && rect.0 < rect.2
+        && rect.1 < rect.3
+        && point.0 >= rect.0 as f64
+        && point.0 < rect.2 as f64
+        && point.1 >= rect.1 as f64
+        && point.1 < rect.3 as f64
+}
+
+fn insert_native_target(
+    hwnd: isize,
+    point: Option<(f64, f64)>,
+    text: &str,
+) -> BitFunResult<()> {
+    use windows::Win32::Foundation::{POINT, RECT};
+    use windows::Win32::Graphics::Gdi::ScreenToClient;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        ChildWindowFromPointEx, GetGUIThreadInfo, GetWindowRect, CWP_SKIPDISABLED,
+        CWP_SKIPINVISIBLE, CWP_SKIPTRANSPARENT, GUITHREADINFO,
+    };
+    let top = HWND(hwnd as *mut _);
+    super::control_session::input_allowed().map_err(BitFunError::tool)?;
+    let pid = window_pid_for(top)
+        .ok_or_else(|| BitFunError::tool("[AX_STALE_TARGET] Bound window has no process"))?;
+    super::control_session::target_allowed(&format!("pid:{pid}/window:{hwnd}"))
+        .map_err(BitFunError::tool)?;
+    let native_error = |e| BitFunError::tool(format!("[AX_TARGET_UNAVAILABLE] {e}"));
+    unsafe {
+        let child = if let Some(point) = point {
+            let mut rect = RECT::default();
+            GetWindowRect(top, &mut rect).map_err(native_error)?;
+            if !point_in_window(point, (rect.left, rect.top, rect.right, rect.bottom)) {
+                return Err(BitFunError::tool(
+                    "[TARGET_COORDINATES_OUTSIDE_WINDOW] Text target is outside the bound window",
+                ));
+            }
+            let mut current = top;
+            loop {
+                let mut local = POINT {
+                    x: point.0.floor() as i32,
+                    y: point.1.floor() as i32,
+                };
+                if !ScreenToClient(current, &mut local).as_bool() {
+                    return Err(BitFunError::tool(
+                        "[AX_TARGET_UNAVAILABLE] Cannot map text target to bound window",
+                    ));
+                }
+                let next = ChildWindowFromPointEx(
+                    current,
+                    local,
+                    CWP_SKIPINVISIBLE | CWP_SKIPDISABLED | CWP_SKIPTRANSPARENT,
+                );
+                if next.0.is_null() || next == current {
+                    break current;
+                }
+                current = next;
+            }
+        } else {
+            let thread = GetWindowThreadProcessId(top, None);
+            if thread == 0 {
+                return Err(BitFunError::tool(
+                    "[AX_STALE_TARGET] Bound window thread is unavailable",
+                ));
+            }
+            let mut info = GUITHREADINFO {
+                cbSize: std::mem::size_of::<GUITHREADINFO>() as u32,
+                ..Default::default()
+            };
+            GetGUIThreadInfo(thread, &mut info).map_err(native_error)?;
+            if info.hwndFocus.0.is_null() {
+                return Err(BitFunError::tool("[BACKGROUND_TEXT_UNAVAILABLE] Bound window thread has no focused native text control"));
+            }
+            info.hwndFocus
+        };
+        let automation: IUIAutomation =
+            CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER).map_err(native_error)?;
+        let element = automation.ElementFromHandle(child).map_err(native_error)?;
+        // The retained UIA element must still identify the precise child that
+        // was hit or focused; providers must not redirect us to another HWND.
+        if element.CurrentNativeWindowHandle().map_err(native_error)? != child {
+            return Err(BitFunError::tool(
+                "[AX_STALE_ELEMENT] UIA native identity differs from the resolved text control",
+            ));
+        }
+        if let Some(point) = point {
+            let rect = element.CurrentBoundingRectangle().map_err(native_error)?;
+            if !point_in_window(point, (rect.left, rect.top, rect.right, rect.bottom)) {
+                return Err(BitFunError::tool(
+                    "[AX_GEOMETRY_CHANGED] Text control moved after point resolution",
+                ));
+            }
+        }
+        replace_native_edit_selection(&element, top, pid, text)?;
+        if let Some((x, y)) = point {
+            super::control_session::record_pointer(x, y, false);
+        }
+    }
+    Ok(())
+}
+
+// EM_REPLACESEL is defined only for standard edit classes. Provider/window
+// labels and arbitrary class-name substrings must not authorize this message.
+fn is_native_edit_class(class: &str) -> bool {
+    matches!(
+        class.to_ascii_lowercase().as_str(),
+        "edit" | "richedit" | "richedit20w" | "richedit50w" | "richeditd2d" | "richeditd2dpt"
+    )
+}
+
+fn edit_replacement_utf16(text: &str) -> Result<Vec<u16>, &'static str> {
+    if text.contains('\0') {
+        return Err(
+            "[INVALID_TEXT] Native edit insertion cannot represent embedded NUL characters",
+        );
+    }
+    Ok(text.encode_utf16().chain(std::iter::once(0)).collect())
+}
+
+/// A single selection-aware edit message. It preserves the control's caret,
+/// selection semantics and undo stack without touching seat focus or clipboard.
+/// https://learn.microsoft.com/en-us/windows/win32/controls/em-replacesel
+fn replace_native_edit_selection(
+    element: &IUIAutomationElement,
+    top: HWND,
+    pid: u32,
+    text: &str,
+) -> BitFunResult<()> {
+    use windows::Win32::Foundation::{LPARAM, WPARAM};
+    use windows::Win32::UI::Input::KeyboardAndMouse::IsWindowEnabled;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetAncestor, GetClassNameW, GetWindowLongW, IsWindowUnicode, SendMessageTimeoutW,
+        ES_READONLY, GA_ROOT, GWL_STYLE, SMTO_ABORTIFHUNG, SMTO_BLOCK,
+    };
+    let buffer = edit_replacement_utf16(text).map_err(BitFunError::tool)?;
+    unsafe {
+        let child = element.CurrentNativeWindowHandle().map_err(|_| {
+            BitFunError::tool(
+                "[BACKGROUND_TEXT_UNAVAILABLE] Observed UIA element has no native edit window",
+            )
+        })?;
+        if element
+            .CurrentProcessId()
+            .map_err(|e| BitFunError::tool(format!("[AX_ACTION_FAILED] {e}")))?
+            as u32
+            != pid
+            || child.0.is_null()
+            || !IsWindow(Some(child)).as_bool()
+            || window_pid_for(child) != Some(pid)
+            || GetAncestor(child, GA_ROOT) != top
+        {
+            return Err(BitFunError::tool("[AX_STALE_ELEMENT] Native edit HWND does not belong to the observed process and bound top-level window"));
+        }
+        let mut class = [0u16; 256];
+        let length = GetClassNameW(child, &mut class);
+        if length <= 0
+            || !is_native_edit_class(&String::from_utf16_lossy(&class[..length as usize]))
+            || !IsWindowUnicode(child).as_bool()
+        {
+            return Err(BitFunError::tool("[BACKGROUND_TEXT_UNAVAILABLE] Selection-aware insertion requires a standard Unicode Win32 Edit or RichEdit control"));
+        }
+        if !IsWindowEnabled(child).as_bool() || GetWindowLongW(child, GWL_STYLE) & ES_READONLY != 0
+        {
+            return Err(BitFunError::tool(
+                "[BACKGROUND_TEXT_UNAVAILABLE] Native edit control is disabled or read-only",
+            ));
+        }
+        if let Ok(pattern) =
+            element.GetCurrentPatternAs::<IUIAutomationValuePattern>(UIA_ValuePatternId)
+        {
+            if pattern
+                .CurrentIsReadOnly()
+                .map_err(|e| BitFunError::tool(format!("[AX_ACTION_FAILED] {e}")))?
+                .as_bool()
+            {
+                return Err(BitFunError::tool(
+                    "[BACKGROUND_TEXT_UNAVAILABLE] UIA provider marks this control read-only",
+                ));
+            }
+        }
+        if text.is_empty() {
+            return Ok(());
+        }
+        super::control_session::input_allowed().map_err(BitFunError::tool)?;
+        super::control_session::target_allowed(&format!("pid:{pid}/window:{}", top.0 as isize))
+            .map_err(BitFunError::tool)?;
+        // This system message is marshalled by Windows across processes. Its
+        // result has no success value; only the transport completion is known.
+        let completed = SendMessageTimeoutW(
+            child,
+            0x00C2,
+            WPARAM(1),
+            LPARAM(buffer.as_ptr() as isize),
+            SMTO_ABORTIFHUNG | SMTO_BLOCK,
+            2000,
+            None,
+        );
+        if completed.0 == 0 {
+            // Same-process messages use the original pointer. A timed-out
+            // receiver may still be reading it, so keep its allocation alive.
+            if pid == std::process::id() {
+                std::mem::forget(buffer);
+            }
+            return Err(BitFunError::tool("[INPUT_OUTCOME_UNKNOWN] Native edit message did not complete; some text may already have been inserted. Observe before further input; no retry was sent"));
+        }
+    }
+    Ok(())
+}
+
+fn dispatch_semantic(hwnd: isize, action: SemanticAction) -> BitFunResult<(f64, f64)> {
+    let token = super::control_session::capture_token().map_err(BitFunError::tool)?;
+    let (tx, rx) = std::sync::mpsc::sync_channel(1);
+    uia_worker()
+        .send(UiaRequest::Act(hwnd, action, token, tx))
+        .map_err(|_| BitFunError::tool("UIA worker unavailable"))?;
+    rx.recv()
+        .map_err(|_| BitFunError::tool("UIA worker stopped"))?
+}
+pub(super) fn invoke_cached_node(hwnd: isize, idx: u32) -> BitFunResult<()> {
+    dispatch_semantic(hwnd, SemanticAction::Invoke(idx)).map(|_| ())
+}
+pub(super) fn insert_cached_text(hwnd: isize, idx: u32, text: &str) -> BitFunResult<()> {
+    dispatch_semantic(hwnd, SemanticAction::Insert(idx, text.into())).map(|_| ())
+}
+pub(super) fn scroll_cached_node(hwnd: isize, idx: u32, dx: i32, dy: i32) -> BitFunResult<()> {
+    dispatch_semantic(hwnd, SemanticAction::Scroll(idx, dx, dy)).map(|_| ())
+}
+pub(super) fn cached_node_center(hwnd: isize, idx: u32) -> BitFunResult<(f64, f64)> {
+    dispatch_semantic(hwnd, SemanticAction::Center(idx))
+}
+fn apply_semantic(
+    cache: &ObservedWindow,
+    hwnd: isize,
+    generation: u64,
+    action: SemanticAction,
+) -> BitFunResult<(f64, f64)> {
+    use windows::Win32::UI::Accessibility::{
+        IUIAutomationInvokePattern, IUIAutomationScrollPattern, IUIAutomationSelectionItemPattern,
+        IUIAutomationTogglePattern, ScrollAmount_NoAmount, ScrollAmount_SmallDecrement,
+        ScrollAmount_SmallIncrement,
+    };
+    super::control_session::capture_allowed().map_err(BitFunError::tool)?;
+    if cache.hwnd != hwnd
+        || cache.generation != generation
+        || window_pid_for(windows::Win32::Foundation::HWND(hwnd as *mut _)) != Some(cache.pid)
+    {
+        return Err(BitFunError::tool(
+            "[AX_STALE_TARGET] Read the target window again",
+        ));
+    }
+    super::control_session::target_allowed(&format!("pid:{}/window:{hwnd}", cache.pid))
+        .map_err(BitFunError::tool)?;
+    let idx = match &action {
+        SemanticAction::Invoke(i)
+        | SemanticAction::Insert(i, _)
+        | SemanticAction::Scroll(i, _, _)
+        | SemanticAction::Center(i) => *i,
+    };
+    let node = cache
+        .nodes
+        .get(idx as usize)
+        .ok_or_else(|| BitFunError::tool("[AX_STALE_INDEX] Read the target window again"))?;
+    let element: IUIAutomationElement = node
+        .element
+        .as_ref()
+        .and_then(|e| e.cast().ok())
+        .ok_or_else(|| {
+            BitFunError::tool(
+                "[AX_ACTION_UNSUPPORTED] This legacy element has no UIA semantic provider",
+            )
+        })?;
+    let native = |e: windows::core::Error| BitFunError::tool(format!("[AX_ACTION_FAILED] {e}"));
+    unsafe {
+        if element.CurrentProcessId().map_err(native)? as u32 != cache.pid
+            || !element.CurrentIsEnabled().map_err(native)?.as_bool()
+        {
+            return Err(BitFunError::tool(
+                "[AX_STALE_ELEMENT] The observed control is no longer available",
+            ));
+        }
+        let rect = element.CurrentBoundingRectangle().map_err(native)?;
+        if node.rect != Some((rect.left, rect.top, rect.right, rect.bottom)) {
+            return Err(BitFunError::tool(
+                "[AX_GEOMETRY_CHANGED] Observe the target again before input",
+            ));
+        }
+        let center = (
+            (rect.left as f64 + rect.right as f64) / 2.0,
+            (rect.top as f64 + rect.bottom as f64) / 2.0,
+        );
+        if matches!(action, SemanticAction::Center(_)) {
+            return Ok(center);
+        }
+        super::control_session::input_allowed().map_err(BitFunError::tool)?;
+        let clicked = matches!(action, SemanticAction::Invoke(_));
+        match action {
+            SemanticAction::Invoke(_) => {
+                if let Ok(pattern) =
+                    element.GetCurrentPatternAs::<IUIAutomationInvokePattern>(UIA_InvokePatternId)
+                {
+                    super::control_session::input_allowed().map_err(BitFunError::tool)?;
+                    pattern.Invoke().map_err(native)?;
+                } else if let Ok(pattern) =
+                    element.GetCurrentPatternAs::<IUIAutomationTogglePattern>(UIA_TogglePatternId)
+                {
+                    super::control_session::input_allowed().map_err(BitFunError::tool)?;
+                    pattern.Toggle().map_err(native)?;
+                } else if let Ok(pattern) = element
+                    .GetCurrentPatternAs::<IUIAutomationSelectionItemPattern>(
+                        UIA_SelectionItemPatternId,
+                    )
+                {
+                    super::control_session::input_allowed().map_err(BitFunError::tool)?;
+                    pattern.Select().map_err(native)?;
+                } else {
+                    return Err(BitFunError::tool("[AX_ACTION_UNSUPPORTED] Control exposes no invoke, toggle or selection pattern"));
+                }
+            }
+            SemanticAction::Insert(_, text) => {
+                replace_native_edit_selection(&element, HWND(hwnd as *mut _), cache.pid, &text)?;
+            }
+            SemanticAction::Scroll(_, dx, dy) => {
+                let pattern = element
+                    .GetCurrentPatternAs::<IUIAutomationScrollPattern>(UIA_ScrollPatternId)
+                    .map_err(|_| {
+                        BitFunError::tool(
+                            "[AX_ACTION_UNSUPPORTED] Control has no background Scroll pattern",
+                        )
+                    })?;
+                let amount = |delta: i32| {
+                    if delta > 0 {
+                        ScrollAmount_SmallIncrement
+                    } else if delta < 0 {
+                        ScrollAmount_SmallDecrement
+                    } else {
+                        ScrollAmount_NoAmount
+                    }
+                };
+                super::control_session::input_allowed().map_err(BitFunError::tool)?;
+                pattern.Scroll(amount(dx), amount(dy)).map_err(native)?;
+            }
+            SemanticAction::Center(_) => unreachable!(),
+        }
+        super::control_session::record_pointer(center.0, center.1, clicked);
+        Ok(center)
+    }
+}
+
+#[cfg(test)]
+mod control_native_tests {
+    use super::*;
+    use windows::core::w;
+    use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
+    use windows::Win32::UI::WindowsAndMessaging::*;
+
+    #[test]
+    fn native_edit_payload_preserves_unicode_and_rejects_ambiguous_classes() {
+        for class in ["Edit", "RICHEDIT20W", "RICHEDIT50W", "RichEditD2DPT"] {
+            assert!(is_native_edit_class(class));
+        }
+        for class in [
+            "Chrome_RenderWidgetHostHWND",
+            "CustomEdit",
+            "RICHEDIT20A",
+            "Static",
+        ] {
+            assert!(!is_native_edit_class(class));
+        }
+        assert_eq!(
+            edit_replacement_utf16("\u{4e2d}\u{1f642}").unwrap(),
+            vec![0x4e2d, 0xd83d, 0xde42, 0]
+        );
+        assert!(edit_replacement_utf16("bad\0text").is_err());
+        assert!(point_in_window((15.5, 20.0), (10, 10, 30, 40)));
+        for point in [
+            (9.9, 20.0),
+            (30.0, 20.0),
+            (15.0, 40.0),
+            (f64::NAN, 20.0),
+            (15.0, f64::INFINITY),
+        ] {
+            assert!(!point_in_window(point, (10, 10, 30, 40)));
+        }
+    }
+
+    /// Exercises real Win32 controls and the production COM cache. Run only on
+    /// an interactive Windows test host; it does not touch another application.
+    #[test]
+    #[ignore = "requires an interactive Windows desktop"]
+    fn semantic_actions_use_observed_controls_without_focus_or_text_loss() {
+        #[link(name = "kernel32")]
+        unsafe extern "system" {
+            fn GetCurrentThreadId() -> u32;
+        }
+        struct Fixture {
+            thread: Option<std::thread::JoinHandle<()>>,
+            tid: u32,
+        }
+        impl Drop for Fixture {
+            fn drop(&mut self) {
+                unsafe {
+                    let _ = PostThreadMessageW(self.tid, WM_QUIT, WPARAM(0), LPARAM(0));
+                }
+                if let Some(thread) = self.thread.take() {
+                    let _ = thread.join();
+                }
+            }
+        }
+        let (tx, rx) = std::sync::mpsc::sync_channel(1);
+        let thread = std::thread::spawn(move || unsafe {
+            let window = CreateWindowExW(
+                WINDOW_EX_STYLE::default(),
+                w!("STATIC"),
+                w!("BitFun UIA isolated fixture"),
+                WS_OVERLAPPEDWINDOW,
+                50,
+                50,
+                400,
+                180,
+                None,
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+            let toggle = CreateWindowExW(
+                WINDOW_EX_STYLE::default(),
+                w!("BUTTON"),
+                w!("Fixture toggle"),
+                WS_CHILD | WS_VISIBLE | WINDOW_STYLE(3),
+                10,
+                10,
+                180,
+                30,
+                Some(window),
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+            let edit = CreateWindowExW(
+                WINDOW_EX_STYLE::default(),
+                w!("EDIT"),
+                w!(""),
+                WS_CHILD | WS_VISIBLE | WS_BORDER,
+                10,
+                50,
+                250,
+                30,
+                Some(window),
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+            windows::Win32::System::LibraryLoader::LoadLibraryW(w!("Msftedit.dll")).unwrap();
+            let rich = CreateWindowExW(
+                WINDOW_EX_STYLE::default(),
+                w!("RICHEDIT50W"),
+                w!(""),
+                WS_CHILD | WS_VISIBLE | WS_BORDER,
+                10,
+                90,
+                250,
+                30,
+                Some(window),
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+            let _ = ShowWindow(window, SW_SHOWNOACTIVATE);
+            // Establish the fixture's own existing keyboard focus before the
+            // baseline. Production insertion must not move it afterward.
+            let _ = windows::Win32::UI::Input::KeyboardAndMouse::SetFocus(Some(edit));
+            tx.send((
+                window.0 as isize,
+                toggle.0 as isize,
+                edit.0 as isize,
+                rich.0 as isize,
+                GetCurrentThreadId(),
+            ))
+            .unwrap();
+            let mut message = MSG::default();
+            while GetMessageW(&mut message, None, 0, 0).as_bool() {
+                let _ = TranslateMessage(&message);
+                DispatchMessageW(&message);
+            }
+            let _ = DestroyWindow(window);
+        });
+        let (hwnd, toggle, edit, rich, tid) = rx.recv().unwrap();
+        let _fixture = Fixture {
+            thread: Some(thread),
+            tid,
+        };
+        let owner = "windows-native-uia-test";
+        super::super::control_session::start(
+            owner,
+            bitfun_agent_tools::computer_use_control::ControlMode::Background,
+        )
+        .unwrap();
+        super::super::control_session::bind_target(format!(
+            "pid:{}/window:{hwnd}",
+            std::process::id()
+        ))
+        .unwrap();
+        let mut lease = super::super::control_session::acquire(owner, "app_click").unwrap();
+        let observation =
+            get_app_state_snapshot_for_window(HWND(hwnd as *mut _), 16, false).unwrap();
+        let toggle_idx = observation
+            .nodes
+            .iter()
+            .find(|n| n.title.as_deref() == Some("Fixture toggle"))
+            .unwrap()
+            .idx;
+        let edit_idx = observation
+            .nodes
+            .iter()
+            .find(|n| n.role.eq_ignore_ascii_case("edit"))
+            .unwrap()
+            .idx;
+        let foreground = unsafe { GetForegroundWindow() };
+        invoke_cached_node(hwnd, toggle_idx).unwrap();
+        assert_eq!(
+            unsafe {
+                SendMessageW(
+                    HWND(toggle as *mut _),
+                    0x00F0,
+                    Some(WPARAM(0)),
+                    Some(LPARAM(0)),
+                )
+                .0
+            },
+            1
+        );
+        let mut edit_rect = windows::Win32::Foundation::RECT::default();
+        unsafe {
+            GetWindowRect(HWND(edit as *mut _), &mut edit_rect).unwrap();
+        }
+        let point = (
+            (edit_rect.left + edit_rect.right) as f64 / 2.0,
+            (edit_rect.top + edit_rect.bottom) as f64 / 2.0,
+        );
+        insert_text_at_bound_target(hwnd, Some(point), "preserved").unwrap();
+        insert_text_at_bound_target(hwnd, None, " text").unwrap();
+        assert!(
+            insert_text_at_bound_target(hwnd, Some((f64::NAN, point.1)), "must not insert")
+                .is_err()
+        );
+        assert!(
+            insert_text_at_bound_target(hwnd, Some((-100000.0, -100000.0)), "must not insert")
+                .is_err()
+        );
+        insert_cached_text(hwnd, edit_idx, " \u{4e2d}\u{6587}\u{1f642}").unwrap();
+        unsafe {
+            SendMessageW(
+                HWND(edit as *mut _),
+                0x00B1,
+                Some(WPARAM(0)),
+                Some(LPARAM(9)),
+            );
+        }
+        insert_cached_text(hwnd, edit_idx, "selected").unwrap();
+        insert_cached_text(hwnd, edit_idx, "!").unwrap();
+        let mut text = [0u16; 64];
+        let len = unsafe { GetWindowTextW(HWND(edit as *mut _), &mut text) };
+        assert_eq!(
+            String::from_utf16_lossy(&text[..len as usize]),
+            "selected! text \u{4e2d}\u{6587}\u{1f642}"
+        );
+        assert!(insert_cached_text(hwnd, edit_idx, "bad\0text").is_err());
+        unsafe {
+            SendMessageW(
+                HWND(edit as *mut _),
+                0x00CF,
+                Some(WPARAM(1)),
+                Some(LPARAM(0)),
+            );
+        }
+        assert!(insert_cached_text(hwnd, edit_idx, "read-only rejection").is_err());
+        // RichEdit may expose a Text provider without a Value pattern. The
+        // same native edit message still preserves its exact selection.
+        unsafe {
+            use windows::Win32::System::Com::{CoUninitialize, COINIT_MULTITHREADED};
+            CoInitializeEx(None, COINIT_MULTITHREADED).ok().unwrap();
+            let automation: IUIAutomation =
+                CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER).unwrap();
+            let rich_element = automation.ElementFromHandle(HWND(rich as *mut _)).unwrap();
+            replace_native_edit_selection(
+                &rich_element,
+                HWND(hwnd as *mut _),
+                std::process::id(),
+                "prefix \u{4e2d}\u{6587}",
+            )
+            .unwrap();
+            replace_native_edit_selection(
+                &rich_element,
+                HWND(hwnd as *mut _),
+                std::process::id(),
+                "\u{1f642}",
+            )
+            .unwrap();
+            SendMessageW(
+                HWND(rich as *mut _),
+                0x00B1,
+                Some(WPARAM(0)),
+                Some(LPARAM(7)),
+            );
+            replace_native_edit_selection(
+                &rich_element,
+                HWND(hwnd as *mut _),
+                std::process::id(),
+                "selected ",
+            )
+            .unwrap();
+            let mut buffer = [0u16; 64];
+            let count = GetWindowTextW(HWND(rich as *mut _), &mut buffer);
+            assert_eq!(
+                String::from_utf16_lossy(&buffer[..count as usize]),
+                "selected \u{4e2d}\u{6587}\u{1f642}"
+            );
+            assert!(replace_native_edit_selection(
+                &rich_element,
+                HWND(toggle as *mut _),
+                std::process::id(),
+                "wrong bound window"
+            )
+            .is_err());
+            drop(rich_element);
+            drop(automation);
+            CoUninitialize();
+        }
+        let mut thread_state = GUITHREADINFO {
+            cbSize: std::mem::size_of::<GUITHREADINFO>() as u32,
+            ..Default::default()
+        };
+        unsafe {
+            GetGUIThreadInfo(tid, &mut thread_state).unwrap();
+        }
+        assert_eq!(
+            thread_state.hwndFocus,
+            HWND(edit as *mut _),
+            "point insertion must not change the window thread's focus"
+        );
+        assert_eq!(unsafe { GetForegroundWindow() }, foreground);
+        lease.complete();
+        drop(lease);
+        super::super::control_session::stop(Some(owner), "test_complete").unwrap();
+    }
 }

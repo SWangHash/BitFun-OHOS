@@ -30,6 +30,18 @@ export struct SidebarWorkspacePicker {
   @Event onSelectWorkspace: (path: string, connectionId?: string, sshHost?: string, workspaceId?: string) => void =
     (_path: string, _connectionId?: string) => {};
 
+  // Keyed rows keep their identity; resolve their content from the latest snapshot.
+  @Computed
+  get workspaceIndex(): Map<string, RecentWorkspaceEntry> {
+    const index = new Map<string, RecentWorkspaceEntry>();
+    this.workspaces.forEach((item: RecentWorkspaceEntry) => { index.set(remoteWorkspaceKey(item), item); });
+    return index;
+  }
+
+  private currentWorkspace(item: RecentWorkspaceEntry): RecentWorkspaceEntry {
+    return this.workspaceIndex.get(remoteWorkspaceKey(item)) || item;
+  }
+
   private isSelected(workspace: RecentWorkspaceEntry): boolean {
     if (this.selectedWorkspacePath.length === 0 && this.selectedWorkspaceId.length === 0) {
       return false;
@@ -72,8 +84,8 @@ export struct SidebarWorkspacePicker {
       } else {
         Scroll() {
           Column({ space: 4 }) {
-            ForEach(this.workspaces, (workspace: RecentWorkspaceEntry) => {
-              this.WorkspaceRow(workspace)
+            ForEach(this.workspaces, (row: RecentWorkspaceEntry) => {
+              this.WorkspaceRow(row)
             }, (workspace: RecentWorkspaceEntry): string => remoteWorkspaceKey(workspace))
           }
           .width('100%')
@@ -149,7 +161,7 @@ export struct SidebarWorkspacePicker {
   }
 
   @Builder
-  private WorkspaceRow(workspace: RecentWorkspaceEntry) {
+  private WorkspaceRow(row: RecentWorkspaceEntry) {
     Row({ space: 12 }) {
       Stack({ alignContent: Alignment.Center }) {
         SymbolGlyph($r('sys.symbol.folder'))
@@ -161,14 +173,14 @@ export struct SidebarWorkspacePicker {
       .borderRadius(10)
       .backgroundColor(CARD)
       Column({ space: 3 }) {
-        Text((workspace.name || this.basename(workspace.path)) + (workspace.remoteSshHost?.trim() ? ` · ${workspace.remoteSshHost.trim()}` : ''))
+        Text((this.currentWorkspace(row).name || this.basename(this.currentWorkspace(row).path)) + (this.currentWorkspace(row).remoteSshHost?.trim() ? ` · ${(this.currentWorkspace(row).remoteSshHost || '').trim()}` : ''))
           .width('100%')
           .fontSize(MobileDesignTypography.bodyLarge.size)
-          .fontWeight(this.isSelected(workspace) ? FontWeight.Medium : FontWeight.Regular)
+          .fontWeight(this.isSelected(this.currentWorkspace(row)) ? FontWeight.Medium : FontWeight.Regular)
           .fontColor(INK)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
-        Text(workspace.path)
+        Text(this.currentWorkspace(row).path)
           .width('100%')
           .fontSize(MobileDesignTypography.labelSmall.size)
           .fontColor(MUTED)
@@ -178,10 +190,10 @@ export struct SidebarWorkspacePicker {
       .layoutWeight(1)
       .alignItems(HorizontalAlign.Start)
       Stack({ alignContent: Alignment.Center }) {
-        SymbolGlyph(this.isSelected(workspace) ?
+        SymbolGlyph(this.isSelected(this.currentWorkspace(row)) ?
           $r('sys.symbol.checkmark') : $r('sys.symbol.chevron_right'))
-          .fontSize(this.isSelected(workspace) ? 17 : 15)
-          .fontColor([this.isSelected(workspace) ? INK : MUTED])
+          .fontSize(this.isSelected(this.currentWorkspace(row)) ? 17 : 15)
+          .fontColor([this.isSelected(this.currentWorkspace(row)) ? INK : MUTED])
       }
       .width(40)
       .height(40)
@@ -190,8 +202,8 @@ export struct SidebarWorkspacePicker {
     .height(68)
     .padding({ left: 10, right: 8 })
     .borderRadius(14)
-    .backgroundColor(this.isSelected(workspace) ? SOFT : PAGE_BG)
-    .onClick(() => this.onSelectWorkspace(workspace.path, workspace.remoteConnectionId, workspace.remoteSshHost, workspace.workspaceId))
+    .backgroundColor(this.isSelected(this.currentWorkspace(row)) ? SOFT : PAGE_BG)
+    .onClick(() => this.onSelectWorkspace(this.currentWorkspace(row).path, this.currentWorkspace(row).remoteConnectionId, this.currentWorkspace(row).remoteSshHost, this.currentWorkspace(row).workspaceId))
   }
 
   @Builder

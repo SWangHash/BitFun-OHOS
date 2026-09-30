@@ -28,7 +28,7 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-vi.mock('@bitfun/ui', async importOriginal => ({
+vi.mock('@bitfun/ui', async () => ({
   Icon: ({ name }: { name: string }) => <span data-bitfun-component="icon" data-bitfun-name={name} />,
   Button: ({
     children,
@@ -37,8 +37,8 @@ vi.mock('@bitfun/ui', async importOriginal => ({
     children: React.ReactNode;
     disabled?: boolean;
   }) => <button type="button" disabled={disabled}>{children}</button>,
-  Checkbox: (await importOriginal<typeof import('@bitfun/ui')>()).Checkbox,
-  Tooltip: (await importOriginal<typeof import('@bitfun/ui')>()).Tooltip,
+  Checkbox: (await vi.importActual<typeof import("@bitfun/ui")>("@bitfun/ui")).Checkbox,
+  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 vi.mock('@/infrastructure/event-bus', () => ({

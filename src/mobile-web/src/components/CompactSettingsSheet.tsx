@@ -34,7 +34,7 @@ interface CompactSettingsSheetProps {
   onSelectDevice: (device: SettingsDevice) => void;
   onToggleTheme: () => void;
   open: boolean;
-  renderDeviceIcon: (name: string) => React.ReactNode;
+  renderDeviceIcon: (device: SettingsDevice) => React.ReactNode;
   selectedDeviceId: string | null;
 }
 
@@ -140,7 +140,7 @@ export default function CompactSettingsSheet({
                 disabled={!device.online || !controllable}
                 key={device.device_id}
                 label={deviceDisplayName(device)}
-                leading={<span className="harmony-sidebar__settings-device-icon">{renderDeviceIcon(deviceDisplayName(device))}</span>}
+                leading={<span className="harmony-sidebar__settings-device-icon">{renderDeviceIcon(device)}</span>}
                 onClick={() => onSelectDevice(device)}
                 selected={current}
                 supportingText={!controllable

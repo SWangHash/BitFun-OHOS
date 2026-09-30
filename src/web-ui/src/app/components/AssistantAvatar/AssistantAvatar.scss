@@ -15,6 +15,18 @@
   box-shadow: 0 2px 8px color-mix(in srgb, var(--bitfun-color-content-on-light) 8%, transparent);
   isolation: isolate;
 
+  &[data-size='sm'] {
+    --assistant-avatar-size: var(--bitfun-control-height-sm);
+  }
+
+  &[data-size='md'] {
+    --assistant-avatar-size: var(--bitfun-control-height-md);
+  }
+
+  &[data-size='lg'] {
+    --assistant-avatar-size: var(--bitfun-control-height-lg);
+  }
+
   &__art {
     display: grid;
     width: 100%;

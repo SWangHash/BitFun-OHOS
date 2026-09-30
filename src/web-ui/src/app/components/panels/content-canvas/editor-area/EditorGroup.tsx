@@ -28,6 +28,7 @@ import type {
   PanelContent,
   SplitMode,
 } from '../types';
+import { isCanvasTabVisibleForSession } from '../types';
 import './EditorGroup.scss';
 
 function CanvasContentView({ documentId, ...props }: React.ComponentProps<typeof FlexiblePanel> & { documentId: string }) {
@@ -59,6 +60,7 @@ function CanvasContentView({ documentId, ...props }: React.ComponentProps<typeof
 }
 
 export interface EditorGroupProps {
+  activeSessionId?: string | null;
   groupId: EditorGroupId;
   group: EditorGroupState;
   isActive: boolean;
@@ -87,6 +89,7 @@ export interface EditorGroupProps {
 }
 
 export const EditorGroup: React.FC<EditorGroupProps> = ({
+  activeSessionId,
   groupId,
   group,
   isActive,
@@ -115,7 +118,12 @@ export const EditorGroup: React.FC<EditorGroupProps> = ({
 }) => {
   const { t } = useTranslation('components');
   const mode = useContext(CanvasStoreModeContext);
-  const visibleTabs = useMemo(() => group.tabs.filter(t => !t.isHidden), [group.tabs]);
+  const visibleTabs = useMemo(() => group.tabs.filter(t =>
+    !t.isHidden && isCanvasTabVisibleForSession(t, activeSessionId),
+  ), [group.tabs, activeSessionId]);
+  const effectiveActiveTabId = visibleTabs.some(t => t.id === group.activeTabId)
+    ? group.activeTabId
+    : visibleTabs[0]?.id ?? null;
   const activeTabContentRef = useRef<HTMLDivElement | null>(null);
   const activeTabAnimationRef = useRef<Animation | null>(null);
   const previousActiveTabIdRef = useRef(group.activeTabId);
@@ -166,12 +174,12 @@ export const EditorGroup: React.FC<EditorGroupProps> = ({
   // Child-session tabs retain only their lightweight wrapper; that wrapper
   // unmounts its transcript while inactive and owns reading state until close.
   const tabsToRender = useMemo(() => {
-    const result = group.tabs.filter(t =>
-      isKeepAliveTab(t) ||
-      (!t.isHidden && (t.content.type === 'btw-session' || t.id === group.activeTabId || cachedTabsRef.current.has(t.id)))
+    const result = group.tabs.filter(t => 
+        (!t.isHidden && isCanvasTabVisibleForSession(t, activeSessionId) && (t.content.type === 'btw-session' || t.id === effectiveActiveTabId || cachedTabsRef.current.has(t.id))) ||
+      (t.isHidden && isKeepAliveTerminalTab(t))
     );
     return result;
-  }, [group.tabs, group.activeTabId, isKeepAliveTab]);
+  }, [group.tabs, effectiveActiveTabId, activeSessionId, isKeepAliveTerminalTab]);
 
   const handleContentChange = useCallback((content: PanelContent | null) => {
     if (content && group.activeTabId) {
@@ -241,9 +249,9 @@ export const EditorGroup: React.FC<EditorGroupProps> = ({
     >
       {/* Tab bar */}
       <TabBar
-        tabs={group.tabs}
+        tabs={visibleTabs}
         groupId={groupId}
-        activeTabId={group.activeTabId}
+        activeTabId={effectiveActiveTabId}
         isActiveGroup={isActive}
         onTabClick={handleVisibleTabClick}
         onTabDoubleClick={onTabDoubleClick}
@@ -271,18 +279,18 @@ export const EditorGroup: React.FC<EditorGroupProps> = ({
             tabsToRender.map((tab) => (
               <div
                 key={tab.id}
-                ref={group.activeTabId === tab.id ? activeTabContentRef : undefined}
+                ref={effectiveActiveTabId === tab.id ? activeTabContentRef : undefined}
                 data-bitfun-component="canvas-editor-group"
                 data-bitfun-part="tabContent"
                 className="canvas-editor-group__tab-content"
-                style={{ display: group.activeTabId === tab.id ? 'flex' : 'none' }}
+                style={{ display: effectiveActiveTabId === tab.id ? 'flex' : 'none' }}
               >
                 <CanvasContentView
                   documentId={`canvas:${tab.id}`}
                   content={tab.content as any}
-                  isActive={isSceneActive && group.activeTabId === tab.id}
-                  onContentChange={group.activeTabId === tab.id ? handleContentChange : undefined}
-                  onDirtyStateChange={group.activeTabId === tab.id ? handleDirtyStateChange : undefined}
+                  isActive={isSceneActive && effectiveActiveTabId === tab.id}
+                  onContentChange={effectiveActiveTabId === tab.id ? handleContentChange : undefined}
+                  onDirtyStateChange={effectiveActiveTabId === tab.id ? handleDirtyStateChange : undefined}
                   onFileMissingFromDiskChange={
                     onTabFileDeletedFromDiskChange
                       ? (missing) => onTabFileDeletedFromDiskChange(tab.id, missing)

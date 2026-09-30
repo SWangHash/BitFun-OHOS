@@ -3,12 +3,13 @@ import { Alert, Button, Checkbox, DialogBody, DialogClose, DialogFooter, DialogH
 import { EcosystemDialog as Dialog } from './EcosystemDialog';
 import { EcosystemBatchLayout } from './EcosystemBatchLayout';
 import EcosystemPets from './EcosystemPets';
-import EcosystemAccounts, { ecosystemAccountProvider } from './EcosystemAccounts';
+import EcosystemAccounts from './EcosystemAccounts';
+import { ecosystemAccountProvider } from './ecosystemCompatibilityModel';
 import { presentEcosystemContent } from './ecosystemContentPresentation';
 import { ecosystemDiscoveryCache, rememberEcosystemHooks, rememberEcosystemSkills } from './ecosystemDiscoveryCache';
 import { importErrorMessage } from './ecosystemSkillImport';
 import { applyEcosystemBatchUndo, type BatchUndoEntry, type BatchUndoResult } from './ecosystemBatchUndo';
-import { CircleUserRound, FileText, Package, PawPrint, Server, Webhook, Wrench } from 'lucide-react';
+import { CircleUserRound, FileText, PawPrint, Server, Webhook, Wrench } from 'lucide-react';
 import { useSceneStore } from '@/app/stores/sceneStore';
 import { useSettingsStore } from '@/app/scenes/settings/settingsStore';
 import { useI18n } from '@/infrastructure/i18n';
@@ -42,7 +43,7 @@ const CONTENT_ICONS: Record<EcosystemImportItemKind, IconSource> = {
   command: { name: 'command-mac' },
   tool: { glyph: Wrench },
   subagent: { name: 'user' },
-  skill: { glyph: Package },
+  skill: { name: 'book-open' },
   mcp: { glyph: Server },
   hook: { glyph: Webhook },
   instruction: { glyph: FileText },
@@ -712,7 +713,7 @@ export default function ExternalAgentContent({ scopeKey, refreshControlRef, onRe
                 : <p>{kind === 'instruction' && emptyState === 'discoveryUnavailable' && categoryItems[0]
                   ? stateDescription(categoryItems[0], emptyState)
                   : t(emptyState ? `import.states.${emptyState}` : 'content.noMatches')}</p>}
-              {canScanEmptyCategory ? <Button size="sm" variant="outline" disabled={busy || emptyState === 'checking'} onClick={() => void refreshContent()}>{t('content.scan')}</Button> : null}
+              {canScanEmptyCategory ? <Button size="sm" variant="primary" disabled={busy || emptyState === 'checking'} onClick={() => void refreshContent()}>{t('content.scan')}</Button> : null}
             </div>}
             {kind === 'instruction' && instructions?.failedEcosystems.some((id) => id === 'shared' || id === runtime.spec.ecosystemId) ? <p role="status">{t('content.instructions.partial')}</p> : null}
             </ScrollArea>

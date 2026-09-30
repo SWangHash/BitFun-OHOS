@@ -238,6 +238,7 @@ const AppearanceQuickSwitchMenuItem: React.FC<AppearanceQuickSwitchMenuItemProps
         <Menu
           ref={submenuRef}
           className="bitfun-nav-panel__appearance-submenu"
+          inlineSize="content"
           aria-label={t('nav.settingsMenu.theme')}
           data-placement={submenuLayout?.placement}
           data-testid="nav-settings-appearance-menu"

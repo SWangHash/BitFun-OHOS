@@ -338,7 +338,10 @@ const MemorySettingsPage: React.FC = () => {
       <ConfigPageHeader title={t('title')} subtitle={t('subtitle')} />
       <ConfigPageContent>
         <ConfigMessage message={{ type: 'info', text: t('scopeNotice') }} />
-        <ConfigPageSection title={t('sections.basic.title')} description={t('sections.basic.description')}>
+        <ConfigPageSection
+          title={t('sections.basic.title')}
+          description={t('sections.basic.description')}
+        >
           <ConfigPageRow
             label={t('fields.memoryEnabled.label')}
             description={t('fields.memoryEnabled.description')}
@@ -415,7 +418,10 @@ const MemorySettingsPage: React.FC = () => {
           </ConfigPageRow>
         </ConfigPageSection>
 
-        <ConfigPageSection title={t('sections.models.title')} description={t('sections.models.description')}>
+        <ConfigPageSection
+          title={t('sections.models.title')}
+          description={t('sections.models.description')}
+        >
           <ConfigPageRow
             label={t('fields.extractModel.label')}
             description={t('fields.extractModel.description')}

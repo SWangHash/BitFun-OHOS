@@ -14,83 +14,83 @@
     "pages": {
       "general": {
         "label": "通用",
-        "description": "启动、更新、窗口、休眠与通知。"
+        "description": "调整启动、更新、休眠、窗口与通知行为"
       },
       "appearance": {
         "label": "外观",
-        "description": "语言、主题、动效、外观包与界面字体。"
+        "description": "调整界面语言、主题与字体大小"
       },
       "pet": {
         "label": "宠物",
-        "description": "显示位置、角色包、导入与预览。"
+        "description": "选择宠物形象，控制是否显示"
       },
       "voice": {
         "label": "语音",
-        "description": "语音输入、本地识别模型与实时语音通话。"
+        "description": "设置本地语音输入与云端实时通话"
       },
       "shortcuts": {
         "label": "快捷键",
-        "description": "查看、自定义与重置键盘快捷键。"
+        "description": "查看和自定义各操作的键盘快捷键"
       },
       "terminal": {
         "label": "终端",
-        "description": "默认 Shell。"
+        "description": "选择新建终端和本地工作区命令使用的 Shell"
       },
       "editor": {
         "label": "编辑器",
-        "description": "代码编辑器的外观、缩进、显示与格式化。"
+        "description": "调整代码的显示、缩进与自动格式化"
       },
       "models": {
         "label": "模型",
-        "description": "默认模型、模型服务、订阅账户、模型目录与网络代理。"
+        "description": "连接模型服务，并选择各类任务使用的模型"
       },
       "memory": {
         "label": "记忆",
-        "description": "记忆生成、使用、提取与整理。"
+        "description": "控制智能体如何从会话中生成和使用记忆"
       },
       "sessionWorkspace": {
         "label": "会话与工作区",
-        "description": "默认执行框架、会话标题与当前工作区搜索。"
+        "description": "设置新会话的执行框架、标题生成与工作区搜索"
       },
       "worktrees": {
         "label": "Worktrees",
-        "description": "Git Worktree 隔离与并行会话默认值。"
+        "description": "设置会话隔离的默认行为，管理工作区 Worktree"
       },
       "execution": {
         "label": "执行与权限",
-        "description": "工具权限、执行参数、Review 与容错设置。"
+        "description": "设置工具确认规则、运行时限与任务并行方式"
       },
       "browserDesktopControl": {
         "label": "浏览器与桌面控制",
-        "description": "配置浏览器连接、桌面操作及所需的系统权限。"
+        "description": "连接浏览器，授权屏幕查看和桌面操作"
       },
       "automation": {
         "label": "自动化",
-        "description": "快捷动作与智能体生命周期 Hooks。"
+        "description": "设置常用 AI 指令与事件触发的自动命令"
       },
       "webSearch": {
         "label": "网页搜索",
-        "description": "选择 WebSearch 服务、端点与设备本地凭据。"
+        "description": "选择智能体联网查找资料时使用的搜索服务"
       },
       "mcp": {
         "label": "MCP",
-        "description": "管理 MCP 服务器、连接与对外提供的工具。"
+        "description": "连接 MCP 服务，为智能体提供外部工具与数据源"
       },
       "acp": {
         "label": "ACP 智能体",
-        "description": "配置通过 Agent Client Protocol 接入的外部智能体。"
+        "description": "通过 ACP 接入外部智能体，在 BitFun 中运行任务"
       },
       "usage": {
         "label": "调用统计",
-        "description": "模型请求数、Token 用量与缓存命中率。"
+        "description": "查看模型请求数、Token 用量与缓存命中率"
       },
       "archivedSessions": {
         "label": "已归档会话",
-        "description": "查看、恢复或永久删除已归档的会话。"
+        "description": "查看、恢复或永久删除已归档的会话"
       },
       "diagnostics": {
         "label": "日志与诊断",
-        "description": "日志级别、运行信息与故障排查。"
+        "description": "调整日志记录，导出故障排查信息"
       }
     },
     "views": {
@@ -230,7 +230,7 @@
   },
   "keyboard": {
     "title": "快捷键",
-    "description": "在此查看并修改快捷键。",
+    "description": "查看和自定义各操作的键盘快捷键",
     "search": "搜索快捷键或键位…",
     "apply": "应用",
     "saving": "保存中…",
@@ -323,6 +323,15 @@
         "push": "推送",
         "pull": "拉取"
       }
+    },
+    "scopeDescriptions": {
+      "app": "在 BitFun 窗口内使用；部分操作在输入文字时不触发",
+      "chat": "会话区域获得焦点时生效",
+      "editor": "代码文本获得焦点时生效，也可使用编辑器画布的快捷键",
+      "terminal": "终端区域获得焦点时生效",
+      "canvas": "编辑器画布及其中的代码编辑器获得焦点时生效",
+      "filetree": "文件树获得焦点时生效",
+      "git": "Git 面板获得焦点时生效"
     }
   },
   "advanced": {
@@ -595,5 +604,8 @@
       "import": "导入外观",
       "export": "导出当前外观"
     }
+  },
+  "archivedSessions": {
+    "sectionDescription": "按工作区分组；恢复后可继续原会话，永久删除无法撤销"
   }
 }

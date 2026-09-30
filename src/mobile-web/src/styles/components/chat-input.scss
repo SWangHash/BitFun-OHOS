@@ -9,6 +9,8 @@
   max-width: 520px;
   z-index: 20;
   display: flex;
+  flex-direction: column;
+  gap: 8px;
   justify-content: center;
   padding: 0 16px;
   transition: max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
@@ -313,8 +315,8 @@
 
 .chat-page__action-btn {
   flex-shrink: 0;
-  width: var(--bitfun-space-12);
-  height: var(--bitfun-space-12);
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   border: none;
   background: transparent;
@@ -337,8 +339,8 @@
 
 .chat-page__send-btn {
   position: relative;
-  width: var(--bitfun-space-12);
-  height: var(--bitfun-space-12);
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   border: 1px solid var(--bitfun-color-border-subtle);
   background: var(--bitfun-color-action-neutral-surface);
@@ -551,7 +553,7 @@
 
 // Conversation composer layout and skin. Shared geometry belongs to MobileComposer.
 .chat-page__composer {
-  padding: 0 8px;
+  padding: 5px;
   border-color: var(--bitfun-color-border-subtle);
   border-radius: 28px;
   background: var(--bitfun-color-surface-panel);
@@ -561,7 +563,7 @@
 .chat-page__composer[data-expanded='true'] {
   height: auto;
   max-height: none;
-  padding: 8px;
+  padding: 5px;
   border-radius: 18px;
 }
 
@@ -572,9 +574,9 @@
 .chat-page__composer-leading {
   display: grid;
   place-items: center;
-  flex: 0 0 48px;
-  width: 48px;
-  height: 48px;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border: 0;
   border-radius: 20px;
@@ -605,8 +607,8 @@
 }
 
 .chat-page__input-wrap.is-expanded .chat-page__action-btn {
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
   color: var(--bitfun-color-content-primary);
 }
 
@@ -616,7 +618,7 @@
   opacity: 1;
 }
 
-.chat-page__send-btn { border-radius: 20px; }
+.chat-page__send-btn { border-radius: 50%; }
 
 .chat-page__send-btn.is-stop:focus-visible {
   outline: 2px solid var(--bitfun-color-focus-ring);
@@ -641,4 +643,9 @@
   border-radius: 50%;
   aspect-ratio: 1;
   &:hover, &:active, &:focus { border-radius: 50%; }
+}
+
+// Keep the action row and collapsed pill on the same inset in both modes.
+.chat-page__composer [data-bitfun-part='toolbar'] {
+  min-block-size: 44px;
 }

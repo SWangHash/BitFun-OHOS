@@ -13,8 +13,8 @@ import React, { useCallback, useMemo } from 'react';
 
 import { useNavSceneStore } from '../../stores/navSceneStore';
 import { useI18n } from '../../../infrastructure/i18n';
-import { isMacOSDesktopRuntime, supportsNativeWindowDragging } from '@/infrastructure/runtime';
-import { useWindowChromeDrag } from '@/app/hooks/useWindowChromeDrag';
+import { createLogger } from '@/shared/utils/logger';
+import { isMacOSDesktopRuntime, startNativeWindowDragging, supportsNativeWindowDragging } from '@/infrastructure/runtime';
 import './NavBar.scss';
 import { Icon, Tooltip } from '@bitfun/ui';
 
@@ -59,8 +59,12 @@ const NavBar: React.FC<NavBarProps> = ({
     const target = e.target as HTMLElement | null;
     if (!target) return;
     if (target.closest(INTERACTIVE_SELECTOR)) return;
-    handleChromeMouseDown(e);
-  }, [canDragWindow, handleChromeMouseDown]);
+    if (timeSinceLastMouseDown < 500 && timeSinceLastMouseDown > 50) return;
+
+    void startNativeWindowDragging().catch(error => {
+      log.debug('startDragging failed', error);
+    });
+  }, [canDragWindow]);
 
   const handleBarDoubleClick = useCallback((e: React.MouseEvent) => {
     const target = e.target as HTMLElement | null;
@@ -83,7 +87,7 @@ const NavBar: React.FC<NavBarProps> = ({
             onClick={onExpandNav}
             aria-label={t('header.expandLeftPanel')}
           >
-            <Icon name="sidebar-left" size="sm" style={{ width: 13, height: 13 }} />
+            <Icon name="sidebar-left" size="sm" />
           </button>
         </Tooltip>
       </div>
@@ -101,7 +105,7 @@ const NavBar: React.FC<NavBarProps> = ({
           onClick={onExpandNav}
           aria-label={t('header.collapseLeftPanel')}
         >
-          <Icon name="sidebar-left" size="sm" style={{ width: 13, height: 13 }} />
+          <Icon name="sidebar-left" size="sm" />
         </button>
       </Tooltip>
 

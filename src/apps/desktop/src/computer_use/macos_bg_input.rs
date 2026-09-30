@@ -1,29 +1,8 @@
-//! Codex-style background input injection for macOS.
-//!
-//! Wraps `CGEventCreate*` + `CGEventSourceStateID::Private` +
-//! `CGEventPostToPid` so we can drive a *specific* application without
-//!   * moving the user's mouse cursor,
-//!   * stealing the user's keyboard focus,
-//!   * or polluting the global HID event stream with our synthesized
-//!     modifier presses (the `Private` source is decoupled from the user's
-//!     real keyboard latch state).
-//!
-//! ## SkyLight SPI dual-post (ported from cua-driver-rs v0.6.8)
-//!
-//! When the SkyLight private framework is available, mouse/keyboard events
-//! are **dual-posted**: first via `SLEventPostToPid` (which triggers
-//! `CGSTickleActivityMonitor` — required for Chromium/Catalyst/Electron
-//! background delivery), then via the public `CGEvent::post_to_pid` (which
-//! lands on native AppKit targets where SkyLight mouse delivery drops).
-//!
-//! For keyboard events, the SkyLight path attaches an
-//! `SLSEventAuthenticationMessage` envelope so Chromium-class targets accept
-//! synthetic keystrokes as trusted live input (macOS 14+).
-//!
-//! Used by the AX-first dispatch path in ControlHub: when an `app_*` action
-//! cannot be satisfied by `AXUIElementPerformAction` alone (e.g. scroll,
-//! free-form typing, complex chords) we fall back to PID-targeted events
-//! from this module instead of the global foreground click path.
+//! Directed macOS input. Private event sources keep modifier state separate
+//! from the human keyboard. Delivery acceptance depends on the target app;
+//! posting an event is not proof that the intended action took effect.
+//! Background dispatch uses target-local AppKit focus, never WindowServer
+//! foreground activation or the system cursor.
 
 #![allow(dead_code)]
 
@@ -113,61 +92,20 @@ impl BgModifier {
     }
 }
 
-/// Whether this host can deliver background input to arbitrary pids.
-///
-/// Both `CGEventSourceStateID::Private` and `CGEventPostToPid` require the
-/// macOS Accessibility privilege to be granted to the *host* process; if it
-/// is not, the calls are silently dropped by the kernel. Callers should
-/// surface `BACKGROUND_INPUT_UNAVAILABLE` upstream when this returns
-/// `false`.
-///
-/// Result is cached after the first successful probe so we don't pay the
-/// `CGEventSource` create + `CGEventPostToPid` round-trip on every call.
-/// A `false` result is NOT cached so callers can re-probe after the user
-/// grants Accessibility permission without restarting the host.
+/// Whether directed input can be attempted. This checks current permission
+/// and event-source availability, never claims target delivery or caches TCC.
 pub(super) fn supports_background_input() -> bool {
-    use std::sync::atomic::{AtomicBool, Ordering};
-    static CACHED_OK: AtomicBool = AtomicBool::new(false);
-    if CACHED_OK.load(Ordering::Relaxed) {
-        return true;
-    }
-    if !accessibility_is_trusted() {
-        return false;
-    }
-    // Real Codex-style probe: build a private source and post a no-op scroll
-    // to *our own* pid. Posting to self never disturbs the user's foreground
-    // app or real cursor, but it round-trips through the same kernel path
-    // that would deliver to a third-party pid.
-    let probe_ok = (|| -> bool {
-        let src = match CGEventSource::new(CGEventSourceStateID::Private) {
-            Ok(s) => s,
-            Err(_) => return false,
-        };
-        let ev = match CGEvent::new_scroll_event(src, ScrollEventUnit::PIXEL, 2, 0, 0, 0) {
-            Ok(e) => e,
-            Err(_) => return false,
-        };
-        let me = std::process::id() as i32;
-        // Dual-post probe: if SkyLight is available, it takes the SkyLight
-        // path; the public path always fires as belt+suspenders.
-        post_both_mouse(me, &ev);
-        true
-    })();
-    if probe_ok {
-        CACHED_OK.store(true, Ordering::Relaxed);
-    }
-    probe_ok
+    accessibility_is_trusted() && CGEventSource::new(CGEventSourceStateID::Private).is_ok()
 }
 
-/// Whether the SkyLight SPI bridge is available for dual-post delivery.
-/// When `true`, Chromium/Catalyst/Electron background targets are reachable.
+/// Whether the optional SkyLight keyboard backend is available.
+/// Availability does not prove delivery to any particular target.
 pub(super) fn supports_skylight_post() -> bool {
     super::macos_skylight::is_available()
 }
 
 /// Whether the focus-without-raise SPI is available.
-/// When `true`, we can activate a window without raising it or stealing
-/// focus/Space.
+/// This private API can change focus and is never used in background mode.
 pub(super) fn supports_focus_without_raise() -> bool {
     super::macos_skylight::is_focus_without_raise_available()
 }
@@ -192,65 +130,221 @@ fn private_source(label: &str) -> BitFunResult<CGEventSource> {
         .map_err(|_| BitFunError::tool(format!("CGEventSource::Private failed ({})", label)))
 }
 
+// AppKit's window ordering depends on the event source state. A private mouse
+// source raises ordinary windows even with window-addressed routing. Session
+// mouse events remain PID-scoped; always set explicit flags to avoid inheriting
+// the user's held modifiers. Keyboard events retain their private source.
+pub(super) fn mouse_source(label: &str) -> BitFunResult<CGEventSource> {
+    CGEventSource::new(CGEventSourceStateID::CombinedSessionState).map_err(|_| {
+        BitFunError::tool(format!(
+            "CGEventSource::CombinedSessionState failed ({label})"
+        ))
+    })
+}
+
 /// Compose modifier flags for a chord.
 fn flags_from(mods: &[BgModifier]) -> CGEventFlags {
     mods.iter()
         .fold(CGEventFlags::CGEventFlagNull, |acc, m| acc | m.flag())
 }
 
-// ── SkyLight dual-post helpers ─────────────────────────────────────────────
-//
-// When the SkyLight private framework is available, events are posted via
-// BOTH `SLEventPostToPid` (SkyLight path) AND `CGEvent::post_to_pid` (public
-// path). The SkyLight path triggers `CGSTickleActivityMonitor` which is
-// required for Chromium/Catalyst/Electron background delivery. The public
-// path lands on native AppKit targets where SkyLight mouse delivery drops.
-//
-// For keyboard events, the SkyLight path attaches an
-// `SLSEventAuthenticationMessage` envelope (auth=true) so Chromium-class
-// targets accept synthetic keystrokes as trusted live input (macOS 14+).
-// For NSMenu key equivalents, auth must be false because the envelope routes
-// events through a direct-Mach path that bypasses `IOHIDPostEvent`, so
-// `NSApplication.sendEvent:` never dispatches NSMenu key equivalents.
+#[derive(Clone, Copy, PartialEq)]
+enum HeldInput {
+    Key(u16, bool),
+    Mouse(u8, f64, f64, u32, f64, f64),
+}
+static HELD_INPUTS: std::sync::Mutex<Vec<(i32, HeldInput)>> = std::sync::Mutex::new(Vec::new());
 
-/// Dual-post a mouse event to `pid`: SkyLight (no auth) + public API.
-fn post_both_mouse(pid: i32, event: &CGEvent) {
-    let event_ptr = event.as_ptr() as *mut c_void;
-    // Mouse events skip the auth-message envelope (Chromium's window handler
-    // subscribes to cgAnnotatedSessionEventTap which the envelope bypasses).
-    if !super::macos_skylight::post_to_pid(pid, event_ptr, false) {
-        // SkyLight unavailable — fall back to public API only.
-        event.post_to_pid(pid);
-    } else {
-        // Belt+suspenders: also fire public API for AppKit targets where
-        // SkyLight mouse delivery drops.
-        event.post_to_pid(pid);
+/// Every gesture releases its own unfinished presses on error or cancellation.
+/// Actions hold an exclusive control lease, so no other action can own entries.
+struct InputReleaseGuard;
+impl Drop for InputReleaseGuard {
+    fn drop(&mut self) {
+        release_held_inputs();
     }
 }
 
-/// Dual-post a keyboard event to `pid` with auth-message envelope (Chromium).
-fn post_both_keyboard(pid: i32, event: &CGEvent) {
-    let event_ptr = event.as_ptr() as *mut c_void;
-    if !super::macos_skylight::post_to_pid(pid, event_ptr, true) {
-        event.post_to_pid(pid);
+/// Cleanup is allowed after revocation: it only releases events actually posted
+/// by this host, using the same directed delivery backend.
+pub(super) fn release_held_inputs() {
+    let Ok(mut held) = HELD_INPUTS.lock() else {
+        return;
+    };
+    if held.is_empty() {
+        return;
     }
-    // When SkyLight succeeds, we do NOT also fire the public API for keyboard
-    // events — the auth envelope routes through a different Mach path, and
-    // double-posting causes duplicate keystrokes in some apps.
+    let Ok(source) = private_source("cancel_release") else {
+        return;
+    };
+    for (pid, input) in held.drain(..) {
+        let event = match input {
+            HeldInput::Key(code, _) => CGEvent::new_keyboard_event(source.clone(), code, false),
+            HeldInput::Mouse(button, x, y, _, _, _) => {
+                let (kind, button) = match button {
+                    0 => (CGEventType::LeftMouseUp, CGMouseButton::Left),
+                    1 => (CGEventType::RightMouseUp, CGMouseButton::Right),
+                    _ => (CGEventType::OtherMouseUp, CGMouseButton::Center),
+                };
+                mouse_source("cancel_mouse_release")
+                    .map_err(|_| ())
+                    .and_then(|source| {
+                        CGEvent::new_mouse_event(source, kind, CGPoint::new(x, y), button)
+                    })
+            }
+        };
+        if let Ok(event) = event {
+            if let HeldInput::Mouse(_, _, _, window, wx, wy) = input {
+                let _ = route_mouse_to_window(&event, window, wx, wy);
+            }
+            event.set_flags(CGEventFlags::CGEventFlagNull);
+            let auth = matches!(input, HeldInput::Key(_, true));
+            if !auth || !super::macos_skylight::post_to_pid(pid, event.as_ptr().cast(), true) {
+                event.post_to_pid(pid);
+            }
+        }
+    }
 }
 
-/// Dual-post a keyboard event to `pid` WITHOUT the auth-message envelope.
-///
-/// Required for NSMenu key equivalents: with the envelope, SLEventPostToPid
-/// forks onto a direct-Mach path that bypasses IOHIDPostEvent — NSMenu never
-/// sees those events. Without the envelope the path goes through
-/// IOHIDPostEvent so `NSApplication.sendEvent:` dispatches NSMenu key
-/// equivalents.
-fn post_both_keyboard_no_auth(pid: i32, event: &CGEvent) {
-    let event_ptr = event.as_ptr() as *mut c_void;
-    if !super::macos_skylight::post_to_pid(pid, event_ptr, false) {
+fn route_mouse_to_window(event: &CGEvent, window: u32, wx: f64, wy: f64) -> BitFunResult<()> {
+    // CGEventPostToPid selects a process, not a window. AppKit drops mouse
+    // events without a window number/local point when the app is inactive.
+    for field in [51, 91, 92] {
+        event.set_integer_value_field(field, window as i64);
+    }
+    // Window-addressed delivery must suppress AppKit's normal click ordering.
+    // PID + window ID alone delivers the click but still raises its window.
+    // This routing flag is not a keyboard modifier; preserve the caller's flags.
+    event.set_integer_value_field(58, 1);
+    let point = event.location();
+    if !super::macos_skylight::set_window_location(
+        event.as_ptr().cast(),
+        point.x - wx,
+        point.y - wy,
+    ) {
+        return Err(BitFunError::tool("[BACKGROUND_INPUT_UNAVAILABLE] Window-local event routing is unavailable on this macOS host"));
+    }
+    Ok(())
+}
+
+fn post_directed(pid: i32, event: &CGEvent, authenticated: bool) -> BitFunResult<()> {
+    let mut held = HELD_INPUTS
+        .lock()
+        .map_err(|_| BitFunError::tool("Input state lock poisoned"))?;
+    super::control_session::input_allowed().map_err(BitFunError::tool)?;
+    let window_id = super::macos_capture::bound_window_id(pid).map_err(|_| {
+        BitFunError::tool(
+            "[CONTROL_TARGET_CHANGED] The captured application window is unavailable",
+        )
+    })?;
+    super::control_session::target_allowed(&format!("pid:{pid}/window:{window_id}"))
+        .map_err(BitFunError::tool)?;
+    let [wx, wy, width, height] =
+        super::macos_capture::window_bounds(pid, window_id).map_err(BitFunError::tool)?;
+    if matches!(event.get_type(), CGEventType::ScrollWheel) {
+        let point = super::control_session::snapshot()
+            .pointer
+            .filter(|p| p.x >= wx && p.x < wx + width && p.y >= wy && p.y < wy + height)
+            .map(|p| CGPoint::new(p.x, p.y))
+            .unwrap_or_else(|| CGPoint::new(wx + width / 2.0, wy + height / 2.0));
+        unsafe extern "C" {
+            fn CGEventSetLocation(event: *mut c_void, point: CGPoint);
+        }
+        unsafe {
+            CGEventSetLocation(event.as_ptr().cast(), point);
+        }
+    }
+    if !matches!(
+        event.get_type(),
+        CGEventType::KeyDown | CGEventType::KeyUp | CGEventType::FlagsChanged
+    ) {
+        route_mouse_to_window(event, window_id, wx, wy)?;
+    }
+    if !authenticated || !super::macos_skylight::post_to_pid(pid, event.as_ptr().cast(), true) {
         event.post_to_pid(pid);
     }
+    super::macos_capture::note_input(pid);
+    let point = event.location();
+    match event.get_type() {
+        CGEventType::KeyDown => {
+            let code = event
+                .get_integer_value_field(core_graphics::event::EventField::KEYBOARD_EVENT_KEYCODE)
+                as u16;
+            if !held
+                .iter()
+                .any(|(p, i)| *p == pid && matches!(i, HeldInput::Key(c, _) if *c == code))
+            {
+                held.push((pid, HeldInput::Key(code, authenticated)));
+            }
+        }
+        CGEventType::KeyUp => {
+            let code = event
+                .get_integer_value_field(core_graphics::event::EventField::KEYBOARD_EVENT_KEYCODE)
+                as u16;
+            held.retain(|(p, i)| !(*p == pid && matches!(i, HeldInput::Key(c, _) if *c == code)));
+        }
+        CGEventType::LeftMouseDown | CGEventType::RightMouseDown | CGEventType::OtherMouseDown => {
+            let button = match event.get_type() {
+                CGEventType::LeftMouseDown => 0,
+                CGEventType::RightMouseDown => 1,
+                _ => 2,
+            };
+            held.push((
+                pid,
+                HeldInput::Mouse(button, point.x, point.y, window_id, wx, wy),
+            ));
+        }
+        CGEventType::LeftMouseDragged
+        | CGEventType::RightMouseDragged
+        | CGEventType::OtherMouseDragged => {
+            let button = match event.get_type() {
+                CGEventType::LeftMouseDragged => 0,
+                CGEventType::RightMouseDragged => 1,
+                _ => 2,
+            };
+            for (owner, input) in held.iter_mut() {
+                if *owner == pid {
+                    if let HeldInput::Mouse(held_button, x, y, _, _, _) = input {
+                        if *held_button == button {
+                            *x = point.x;
+                            *y = point.y;
+                        }
+                    }
+                }
+            }
+        }
+        CGEventType::LeftMouseUp | CGEventType::RightMouseUp | CGEventType::OtherMouseUp => {
+            let button = match event.get_type() {
+                CGEventType::LeftMouseUp => 0,
+                CGEventType::RightMouseUp => 1,
+                _ => 2,
+            };
+            held.retain(|(p, i)| {
+                !(*p == pid && matches!(i, HeldInput::Mouse(b, _, _, _, _, _) if *b == button))
+            });
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+// One selected delivery path per event. Never post mouse events twice.
+fn post_mouse(pid: i32, event: &CGEvent) -> BitFunResult<()> {
+    post_directed(pid, event, false)?;
+    let point = event.location();
+    let click = matches!(
+        event.get_type(),
+        CGEventType::LeftMouseDown | CGEventType::RightMouseDown | CGEventType::OtherMouseDown
+    );
+    if !matches!(event.get_type(), CGEventType::ScrollWheel) {
+        super::control_session::record_pointer(point.x, point.y, click);
+    }
+    Ok(())
+}
+fn post_keyboard(pid: i32, event: &CGEvent) -> BitFunResult<()> {
+    post_directed(pid, event, true)
+}
+fn post_keyboard_no_auth(pid: i32, event: &CGEvent) -> BitFunResult<()> {
+    post_directed(pid, event, false)
 }
 
 /// Stamp Chromium routing fields onto a mouse event for better backgrounded-
@@ -259,7 +353,6 @@ fn stamp_chromium_fields(
     event: &CGEvent,
     pid: i32,
     window_id: Option<u32>,
-    click_group_id: Option<i64>,
     click_state: i64,
     window_local: Option<(f64, f64)>,
 ) {
@@ -271,13 +364,11 @@ fn stamp_chromium_fields(
     // f40 = target pid (Chromium synthetic-event filter) — always stamped.
     set(40, pid as i64);
 
-    if let (Some(wid), Some(cgid)) = (window_id, click_group_id) {
+    if let Some(wid) = window_id {
         let wid_i = wid as i64;
         set(1, click_state); // kCGMouseEventClickState
-        set(3, 0); // kCGMouseEventButtonNumber (left)
-        set(7, 3); // kCGMouseEventSubtype (NSEventSubtypeTouch)
         set(51, wid_i); // windowNumber
-        set(58, cgid); // click-group ID (gesture coalescing)
+        set(58, 1); // window-addressed routing; not a click-group ID
         set(91, wid_i); // kCGMouseEventWindowUnderMousePointer
         set(92, wid_i); // kCGMouseEventWindowUnderMousePointerThatCanHandleThisEvent
     }
@@ -285,6 +376,12 @@ fn stamp_chromium_fields(
     if let Some((wx, wy)) = window_local {
         super::macos_skylight::set_window_location(event_ptr, wx, wy);
     }
+}
+
+/// Establish a private input context inside the bound application. Foreground
+/// ownership and the physical pointer remain with the human's application.
+fn require_pointer_down_mode(pid: i32) -> BitFunResult<()> {
+    super::macos_input_focus::prepare(pid)
 }
 
 /// Send a click (down + up, possibly multi-click) at the given **global**
@@ -301,9 +398,11 @@ pub(super) fn bg_click(
     click_count: u32,
     modifiers: &[BgModifier],
 ) -> BitFunResult<()> {
+    let _release = InputReleaseGuard;
     if click_count == 0 {
         return Ok(());
     }
+    require_pointer_down_mode(pid)?;
     let pt = CGPoint {
         x: point.0,
         y: point.1,
@@ -326,16 +425,11 @@ pub(super) fn bg_click(
         click_count,
         modifiers
     );
-    // Codex parity: a *single* `CGEventSource` is shared across the whole
-    // gesture so the kernel-side modifier latch state stays consistent
-    // between MouseMoved / Down / Up. Allocating a fresh source per event
-    // (the previous shape) caused some Cocoa apps (notably Chromium-based
-    // webviews and SwiftUI text fields) to drop modifier flags between the
-    // down and up events and either select text or miss the chord entirely.
-    let src = match private_source("click") {
+    // One session-state source per gesture; routing remains process/window local.
+    let src = match mouse_source("click") {
         Ok(s) => s,
         Err(e) => {
-            warn!(target: "computer_use::bg_input", "bg_click.private_source_failed pid={} error={}", pid, e);
+            warn!(target: "computer_use::bg_input", "bg_click.mouse_source_failed pid={} error={}", pid, e);
             return Err(e);
         }
     };
@@ -345,10 +439,8 @@ pub(super) fn bg_click(
     // move the user's real cursor because we post pid-scoped, not global.
     let mv = CGEvent::new_mouse_event(src.clone(), CGEventType::MouseMoved, pt, button.cg())
         .map_err(|_| BitFunError::tool("CGEvent MouseMoved failed".to_string()))?;
-    if !flags.is_empty() {
-        mv.set_flags(flags);
-    }
-    post_both_mouse(pid, &mv);
+    mv.set_flags(flags);
+    post_mouse(pid, &mv)?;
 
     for i in 1..=click_count {
         let down = CGEvent::new_mouse_event(src.clone(), button.down(), pt, button.cg())
@@ -359,10 +451,8 @@ pub(super) fn bg_click(
             core_graphics::event::EventField::MOUSE_EVENT_CLICK_STATE,
             i as i64,
         );
-        if !flags.is_empty() {
-            down.set_flags(flags);
-        }
-        post_both_mouse(pid, &down);
+        down.set_flags(flags);
+        post_mouse(pid, &down)?;
 
         let up = CGEvent::new_mouse_event(src.clone(), button.up(), pt, button.cg())
             .map_err(|_| BitFunError::tool("CGEvent MouseUp failed".to_string()))?;
@@ -370,10 +460,8 @@ pub(super) fn bg_click(
             core_graphics::event::EventField::MOUSE_EVENT_CLICK_STATE,
             i as i64,
         );
-        if !flags.is_empty() {
-            up.set_flags(flags);
-        }
-        post_both_mouse(pid, &up);
+        up.set_flags(flags);
+        post_mouse(pid, &up)?;
     }
     info!(
         target: "computer_use::bg_input",
@@ -555,12 +643,13 @@ pub(super) fn activate_pid_macos(pid: i32) -> BitFunResult<bool> {
     activate_pid_macos_with_window(pid, None)
 }
 
-/// Like `activate_pid_macos` but uses the focus-without-raise SPI when a
+/// Explicit foreground-only activation. Uses the focus-without-raise SPI when a
 /// `window_id` is provided and the SkyLight SPI is available.
 pub(super) fn activate_pid_macos_with_window(
     pid: i32,
     window_id: Option<u32>,
 ) -> BitFunResult<bool> {
+    super::control_session::foreground_allowed().map_err(BitFunError::tool)?;
     // Try focus-without-raise first when we have a window id.
     if let Some(wid) = window_id {
         if super::macos_skylight::is_focus_without_raise_available() {
@@ -622,13 +711,14 @@ pub(super) fn bg_scroll(pid: i32, dx: i32, dy: i32) -> BitFunResult<()> {
         "bg_scroll.enter pid={} dx={} dy={}",
         pid, dx, dy
     );
-    let src = private_source("scroll")?;
+    let src = mouse_source("scroll")?;
     // Two-axis pixel scroll (`wheelCount = 2`): wheel1 = dy, wheel2 = dx.
     // Sign convention matches the system trackpad (positive dy = content
     // moves down on screen, i.e. user is looking further into the document).
     let ev = CGEvent::new_scroll_event(src, ScrollEventUnit::PIXEL, 2, dy, dx, 0)
         .map_err(|_| BitFunError::tool("CGEventCreateScrollWheelEvent2 failed".to_string()))?;
-    post_both_mouse(pid, &ev);
+    ev.set_flags(CGEventFlags::CGEventFlagNull);
+    post_mouse(pid, &ev)?;
     Ok(())
 }
 
@@ -637,6 +727,8 @@ pub(super) fn bg_scroll(pid: i32, dx: i32, dy: i32) -> BitFunResult<()> {
 /// translation entirely, so it correctly handles emoji, CJK and other
 /// non-Latin input without touching the system IME.
 pub(super) fn bg_type_text(pid: i32, text: &str) -> BitFunResult<()> {
+    let _release = InputReleaseGuard;
+    super::macos_input_focus::prepare(pid)?;
     if text.is_empty() {
         return Ok(());
     }
@@ -660,13 +752,13 @@ pub(super) fn bg_type_text(pid: i32, text: &str) -> BitFunResult<()> {
             .map_err(|_| BitFunError::tool("CGEventCreateKeyboardEvent failed".to_string()))?;
         let buf: Vec<u16> = ch.encode_utf16(&mut [0u16; 2]).to_vec();
         ev.set_string_from_utf16_unchecked(&buf);
-        post_both_keyboard(pid, &ev);
+        post_keyboard(pid, &ev)?;
         // Match keyup so the target app sees a complete keystroke.
         let ev2 = CGEvent::new_keyboard_event(src.clone(), 0, false).map_err(|_| {
             BitFunError::tool("CGEventCreateKeyboardEvent (up) failed".to_string())
         })?;
         ev2.set_string_from_utf16_unchecked(&buf);
-        post_both_keyboard(pid, &ev2);
+        post_keyboard(pid, &ev2)?;
         // 8ms inter-key gap matches Codex / native typing rates and avoids
         // dropped chars in Chromium webviews and SwiftUI multi-line fields
         // that throttle their keystroke handler. 1ms (the previous value)
@@ -680,6 +772,8 @@ pub(super) fn bg_type_text(pid: i32, text: &str) -> BitFunResult<()> {
 /// private event source. `key` is the AX / Carbon virtual keycode; callers
 /// can use `keycode_for_char` for ASCII letters or pass a literal keycode.
 pub(super) fn bg_key_chord(pid: i32, modifiers: &[BgModifier], key: u16) -> BitFunResult<()> {
+    let _release = InputReleaseGuard;
+    super::macos_input_focus::prepare(pid)?;
     info!(
         target: "computer_use::bg_input",
         "bg_key_chord.enter pid={} keycode={} modifiers={:?}",
@@ -695,20 +789,20 @@ pub(super) fn bg_key_chord(pid: i32, modifiers: &[BgModifier], key: u16) -> BitF
         let ev = CGEvent::new_keyboard_event(src.clone(), m.keycode(), true)
             .map_err(|_| BitFunError::tool("CGEvent ModDown failed".to_string()))?;
         ev.set_flags(flags);
-        post_both_keyboard(pid, &ev);
+        post_keyboard(pid, &ev)?;
     }
     // Press main key.
     {
         let ev = CGEvent::new_keyboard_event(src.clone(), key, true)
             .map_err(|_| BitFunError::tool("CGEvent KeyDown failed".to_string()))?;
         ev.set_flags(flags);
-        post_both_keyboard(pid, &ev);
+        post_keyboard(pid, &ev)?;
     }
     {
         let ev = CGEvent::new_keyboard_event(src.clone(), key, false)
             .map_err(|_| BitFunError::tool("CGEvent KeyUp failed".to_string()))?;
         ev.set_flags(flags);
-        post_both_keyboard(pid, &ev);
+        post_keyboard(pid, &ev)?;
     }
     // Release modifiers in reverse press order.
     for m in modifiers.iter().rev() {
@@ -721,26 +815,13 @@ pub(super) fn bg_key_chord(pid: i32, modifiers: &[BgModifier], key: u16) -> BitF
             .filter(|x| x != m)
             .collect::<Vec<_>>();
         ev.set_flags(flags_from(&remaining));
-        post_both_keyboard(pid, &ev);
+        post_keyboard(pid, &ev)?;
     }
     Ok(())
 }
 
-/// Full Chromium-compatible left-click recipe matching cua-driver-rs's
-/// `click_at_xy_chromium`.
-///
-/// Sequence:
-///  1. Stamped `mouseMoved` at target coords (phase=2, cursor-state primer).
-///  2. Off-screen primer down/up at (-1, -1) (phase=1/2) — satisfies
-///     Chromium's user-activation gate without hitting any DOM element.
-///  3. Target down/up pair(s) at real coordinates (phase=3), clickState 1→N.
-///
-/// All events carry Chromium routing fields (f0 phase, f1 clickState, f3
-/// button, f7 NSEventSubtypeTouch, f40 pid, f51/f91/f92 windowID, f58
-/// click-group) and `CGEventSetWindowLocation` for window-local point.
-///
-/// Uses both SkyLight `SLEventPostToPid` AND `CGEvent::post_to_pid`
-/// (belt+suspenders) for AppKit/Catalyst target coverage.
+/// Directed Chromium routing for explicitly authorized foreground control.
+/// Target acceptance is application-dependent; callers re-observe the result.
 pub(super) fn bg_click_chromium(
     pid: i32,
     screen_x: f64,
@@ -751,28 +832,20 @@ pub(super) fn bg_click_chromium(
     click_count: u32,
     modifiers: &[BgModifier],
 ) -> BitFunResult<()> {
-    use std::time::{SystemTime, UNIX_EPOCH};
+    let _release = InputReleaseGuard;
     if click_count == 0 {
         return Ok(());
     }
-    let src = private_source("click_chromium")?;
+    require_pointer_down_mode(pid)?;
+    let src = mouse_source("click_chromium")?;
     let target = CGPoint {
         x: screen_x,
         y: screen_y,
     };
-    let off_screen = CGPoint { x: -1.0, y: -1.0 };
     let win_local = (win_local_x, win_local_y);
-    let off_local = (-1.0_f64, -1.0_f64);
     let flags = flags_from(modifiers);
-    let click_pairs = click_count.min(2) as usize;
+    let click_pairs = click_count as usize;
     let window_id = wid as i64;
-
-    // All events share the same click-group ID so WindowServer/Chromium
-    // treat the sequence as one gesture.
-    let click_group_id = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .subsec_nanos() as i64;
 
     let stamp = |event: &CGEvent, local: (f64, f64), click_state: i64, phase: i64| {
         let ptr = event.as_ptr() as *mut c_void;
@@ -782,23 +855,18 @@ pub(super) fn bg_click_chromium(
         set(0, phase); // gesture phase
         set(1, click_state); // kCGMouseEventClickState
         set(3, 0); // button (left)
-        set(7, 3); // NSEventSubtypeTouch
         set(40, pid as i64); // Chromium synthetic-event filter
         if window_id != 0 {
             set(51, window_id); // windowNumber
             set(91, window_id); // WindowUnderMousePointer
             set(92, window_id); // WindowUnderMousePointerThatCanHandleThisEvent
         }
-        set(58, click_group_id); // click-group ID
+        set(58, 1); // window-addressed routing
         super::macos_skylight::set_window_location(ptr, local.0, local.1);
-        if flags != CGEventFlags::CGEventFlagNull {
-            event.set_flags(flags);
-        }
+        event.set_flags(flags);
     };
 
-    let post = |event: &CGEvent| {
-        post_both_mouse(pid, event);
-    };
+    let post = |event: &CGEvent| post_mouse(pid, event);
 
     // Step 1: mouseMoved at target (phase=2, clickState=0).
     let move_ev = CGEvent::new_mouse_event(
@@ -809,32 +877,8 @@ pub(super) fn bg_click_chromium(
     )
     .map_err(|_| BitFunError::tool("Chromium click: mouseMoved creation failed".to_string()))?;
     stamp(&move_ev, win_local, 0, 2);
-    post(&move_ev);
+    post(&move_ev)?;
     thread::sleep(Duration::from_millis(15));
-
-    // Step 2: off-screen primer click — opens Chromium user-activation gate.
-    let primer_down = CGEvent::new_mouse_event(
-        src.clone(),
-        CGEventType::LeftMouseDown,
-        off_screen,
-        CGMouseButton::Left,
-    )
-    .map_err(|_| BitFunError::tool("Chromium click: primer down failed".to_string()))?;
-    stamp(&primer_down, off_local, 1, 1);
-    post(&primer_down);
-    thread::sleep(Duration::from_millis(1));
-
-    let primer_up = CGEvent::new_mouse_event(
-        src.clone(),
-        CGEventType::LeftMouseUp,
-        off_screen,
-        CGMouseButton::Left,
-    )
-    .map_err(|_| BitFunError::tool("Chromium click: primer up failed".to_string()))?;
-    stamp(&primer_up, off_local, 1, 2);
-    post(&primer_up);
-    // ≥1 frame so Chromium sees primer + target as separate gestures.
-    thread::sleep(Duration::from_millis(100));
 
     // Step 3: target click pair(s) with clickState stepped 1→N.
     for pair_index in 1..=click_pairs {
@@ -847,7 +891,7 @@ pub(super) fn bg_click_chromium(
         )
         .map_err(|_| BitFunError::tool("Chromium click: target down failed".to_string()))?;
         stamp(&down, win_local, click_state, 3);
-        post(&down);
+        post(&down)?;
         thread::sleep(Duration::from_millis(1));
 
         let up = CGEvent::new_mouse_event(
@@ -858,7 +902,7 @@ pub(super) fn bg_click_chromium(
         )
         .map_err(|_| BitFunError::tool("Chromium click: target up failed".to_string()))?;
         stamp(&up, win_local, click_state, 3);
-        post(&up);
+        post(&up)?;
 
         if pair_index < click_pairs {
             thread::sleep(Duration::from_millis(80));
@@ -932,17 +976,11 @@ pub(super) fn bg_drag(
     modifiers: &[BgModifier],
     button: BgDragButton,
 ) -> BitFunResult<()> {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let src = private_source("drag")?;
+    let _release = InputReleaseGuard;
+    require_pointer_down_mode(pid)?;
+    let src = mouse_source("drag")?;
     let flags = flags_from(modifiers);
     let cg_button = button.cg();
-
-    let click_group_id: Option<i64> = wid.map(|_| {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .subsec_nanos() as i64
-    });
 
     let steps = steps.max(1);
     let step_delay_ms = if steps > 1 {
@@ -958,11 +996,9 @@ pub(super) fn bg_drag(
     };
     let down = CGEvent::new_mouse_event(src.clone(), button.down(), from_pt, cg_button)
         .map_err(|_| BitFunError::tool("drag: mouseDown failed".to_string()))?;
-    if flags != CGEventFlags::CGEventFlagNull {
-        down.set_flags(flags);
-    }
-    stamp_chromium_fields(&down, pid, wid, click_group_id, 1, from_local);
-    post_both_mouse(pid, &down);
+    down.set_flags(flags);
+    stamp_chromium_fields(&down, pid, wid, 1, from_local);
+    post_mouse(pid, &down)?;
     thread::sleep(Duration::from_millis(16));
 
     // Interpolated drag steps.
@@ -976,11 +1012,9 @@ pub(super) fn bg_drag(
         let drag_pt = CGPoint { x: ix, y: iy };
         let drag = CGEvent::new_mouse_event(src.clone(), button.dragged(), drag_pt, cg_button)
             .map_err(|_| BitFunError::tool("drag: mouseDragged failed".to_string()))?;
-        if flags != CGEventFlags::CGEventFlagNull {
-            drag.set_flags(flags);
-        }
-        stamp_chromium_fields(&drag, pid, wid, click_group_id, 1, il);
-        post_both_mouse(pid, &drag);
+        drag.set_flags(flags);
+        stamp_chromium_fields(&drag, pid, wid, 1, il);
+        post_mouse(pid, &drag)?;
         if step_delay_ms > 0 {
             thread::sleep(Duration::from_millis(step_delay_ms));
         }
@@ -990,11 +1024,9 @@ pub(super) fn bg_drag(
     let to_pt = CGPoint { x: to_x, y: to_y };
     let up = CGEvent::new_mouse_event(src.clone(), button.up(), to_pt, cg_button)
         .map_err(|_| BitFunError::tool("drag: mouseUp failed".to_string()))?;
-    if flags != CGEventFlags::CGEventFlagNull {
-        up.set_flags(flags);
-    }
-    stamp_chromium_fields(&up, pid, wid, click_group_id, 1, to_local);
-    post_both_mouse(pid, &up);
+    up.set_flags(flags);
+    stamp_chromium_fields(&up, pid, wid, 1, to_local);
+    post_mouse(pid, &up)?;
 
     info!(
         target: "computer_use::bg_input",
@@ -1016,6 +1048,8 @@ pub(super) fn bg_key_chord_no_auth(
     modifiers: &[BgModifier],
     key: u16,
 ) -> BitFunResult<()> {
+    let _release = InputReleaseGuard;
+    super::macos_input_focus::prepare(pid)?;
     info!(
         target: "computer_use::bg_input",
         "bg_key_chord_no_auth.enter pid={} keycode={} modifiers={:?}",
@@ -1028,19 +1062,19 @@ pub(super) fn bg_key_chord_no_auth(
         let ev = CGEvent::new_keyboard_event(src.clone(), m.keycode(), true)
             .map_err(|_| BitFunError::tool("CGEvent ModDown (no_auth) failed".to_string()))?;
         ev.set_flags(flags);
-        post_both_keyboard_no_auth(pid, &ev);
+        post_keyboard_no_auth(pid, &ev)?;
     }
     {
         let ev = CGEvent::new_keyboard_event(src.clone(), key, true)
             .map_err(|_| BitFunError::tool("CGEvent KeyDown (no_auth) failed".to_string()))?;
         ev.set_flags(flags);
-        post_both_keyboard_no_auth(pid, &ev);
+        post_keyboard_no_auth(pid, &ev)?;
     }
     {
         let ev = CGEvent::new_keyboard_event(src.clone(), key, false)
             .map_err(|_| BitFunError::tool("CGEvent KeyUp (no_auth) failed".to_string()))?;
         ev.set_flags(flags);
-        post_both_keyboard_no_auth(pid, &ev);
+        post_keyboard_no_auth(pid, &ev)?;
     }
     for m in modifiers.iter().rev() {
         let ev = CGEvent::new_keyboard_event(src.clone(), m.keycode(), false)
@@ -1051,18 +1085,20 @@ pub(super) fn bg_key_chord_no_auth(
             .filter(|x| x != m)
             .collect::<Vec<_>>();
         ev.set_flags(flags_from(&remaining));
-        post_both_keyboard_no_auth(pid, &ev);
+        post_keyboard_no_auth(pid, &ev)?;
     }
     Ok(())
 }
 
-/// Right-click at `(x, y)` screen coordinates, posted to `pid` via dual-post.
+/// Right-click at `(x, y)` screen coordinates, posted to `pid` via directed input.
 pub(super) fn bg_right_click(
     pid: i32,
     point: (f64, f64),
     modifiers: &[BgModifier],
 ) -> BitFunResult<()> {
-    let src = private_source("right_click")?;
+    let _release = InputReleaseGuard;
+    super::macos_input_focus::prepare(pid)?;
+    let src = mouse_source("right_click")?;
     let pt = CGPoint {
         x: point.0,
         y: point.1,
@@ -1076,11 +1112,9 @@ pub(super) fn bg_right_click(
         CGMouseButton::Right,
     )
     .map_err(|_| BitFunError::tool("CGEvent RightMouseDown failed".to_string()))?;
-    if flags != CGEventFlags::CGEventFlagNull {
-        down.set_flags(flags);
-    }
-    stamp_chromium_fields(&down, pid, None, None, 1, None);
-    post_both_mouse(pid, &down);
+    down.set_flags(flags);
+    stamp_chromium_fields(&down, pid, None, 1, None);
+    post_mouse(pid, &down)?;
     thread::sleep(Duration::from_millis(16));
 
     let up = CGEvent::new_mouse_event(
@@ -1090,21 +1124,21 @@ pub(super) fn bg_right_click(
         CGMouseButton::Right,
     )
     .map_err(|_| BitFunError::tool("CGEvent RightMouseUp failed".to_string()))?;
-    if flags != CGEventFlags::CGEventFlagNull {
-        up.set_flags(flags);
-    }
-    stamp_chromium_fields(&up, pid, None, None, 1, None);
-    post_both_mouse(pid, &up);
+    up.set_flags(flags);
+    stamp_chromium_fields(&up, pid, None, 1, None);
+    post_mouse(pid, &up)?;
     Ok(())
 }
 
-/// Middle-click at `(x, y)` screen coordinates, posted to `pid` via dual-post.
+/// Middle-click at `(x, y)` screen coordinates, posted to `pid` via directed input.
 pub(super) fn bg_middle_click(
     pid: i32,
     point: (f64, f64),
     modifiers: &[BgModifier],
 ) -> BitFunResult<()> {
-    let src = private_source("middle_click")?;
+    let _release = InputReleaseGuard;
+    super::macos_input_focus::prepare(pid)?;
+    let src = mouse_source("middle_click")?;
     let pt = CGPoint {
         x: point.0,
         y: point.1,
@@ -1118,11 +1152,9 @@ pub(super) fn bg_middle_click(
         CGMouseButton::Center,
     )
     .map_err(|_| BitFunError::tool("CGEvent OtherMouseDown failed".to_string()))?;
-    if flags != CGEventFlags::CGEventFlagNull {
-        down.set_flags(flags);
-    }
-    stamp_chromium_fields(&down, pid, None, None, 1, None);
-    post_both_mouse(pid, &down);
+    down.set_flags(flags);
+    stamp_chromium_fields(&down, pid, None, 1, None);
+    post_mouse(pid, &down)?;
     thread::sleep(Duration::from_millis(16));
 
     let up = CGEvent::new_mouse_event(
@@ -1132,11 +1164,9 @@ pub(super) fn bg_middle_click(
         CGMouseButton::Center,
     )
     .map_err(|_| BitFunError::tool("CGEvent OtherMouseUp failed".to_string()))?;
-    if flags != CGEventFlags::CGEventFlagNull {
-        up.set_flags(flags);
-    }
-    stamp_chromium_fields(&up, pid, None, None, 1, None);
-    post_both_mouse(pid, &up);
+    up.set_flags(flags);
+    stamp_chromium_fields(&up, pid, None, 1, None);
+    post_mouse(pid, &up)?;
     Ok(())
 }
 
@@ -1379,6 +1409,8 @@ pub(super) fn is_terminal_emulator(pid: i32) -> bool {
 /// Only works for ASCII characters that have direct keycodes. Non-ASCII text
 /// (CJK, emoji) should use `bg_type_text` (Unicode string) or `paste` instead.
 pub(super) fn bg_type_text_terminal_safe(pid: i32, text: &str) -> BitFunResult<()> {
+    let _release = InputReleaseGuard;
+    super::macos_input_focus::prepare(pid)?;
     if text.is_empty() {
         return Ok(());
     }
@@ -1402,18 +1434,14 @@ pub(super) fn bg_type_text_terminal_safe(pid: i32, text: &str) -> BitFunResult<(
             // Use key events for mappable ASCII characters.
             let down = CGEvent::new_keyboard_event(src.clone(), kc, true)
                 .map_err(|_| BitFunError::tool("terminal type: keydown failed".to_string()))?;
-            if flags != CGEventFlags::CGEventFlagNull {
-                down.set_flags(flags);
-            }
-            post_both_keyboard(pid, &down);
+            down.set_flags(flags);
+            post_keyboard(pid, &down)?;
             thread::sleep(Duration::from_millis(8));
 
             let up = CGEvent::new_keyboard_event(src.clone(), kc, false)
                 .map_err(|_| BitFunError::tool("terminal type: keyup failed".to_string()))?;
-            if flags != CGEventFlags::CGEventFlagNull {
-                up.set_flags(flags);
-            }
-            post_both_keyboard(pid, &up);
+            up.set_flags(flags);
+            post_keyboard(pid, &up)?;
             thread::sleep(Duration::from_millis(8));
         } else {
             // Fallback to Unicode string for non-ASCII characters.
@@ -1422,14 +1450,14 @@ pub(super) fn bg_type_text_terminal_safe(pid: i32, text: &str) -> BitFunResult<(
                 BitFunError::tool("terminal type: unicode down failed".to_string())
             })?;
             down.set_string_from_utf16_unchecked(&buf);
-            post_both_keyboard(pid, &down);
+            post_keyboard(pid, &down)?;
             thread::sleep(Duration::from_millis(8));
 
             let up = CGEvent::new_keyboard_event(src.clone(), 0, false).map_err(|_| {
                 BitFunError::tool("terminal type: unicode up failed".to_string())
             })?;
             up.set_string_from_utf16_unchecked(&buf);
-            post_both_keyboard(pid, &up);
+            post_keyboard(pid, &up)?;
             thread::sleep(Duration::from_millis(8));
         }
     }
@@ -1585,6 +1613,365 @@ pub(super) fn bundle_id_for_pid(pid: i32) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Runs against scripts/fixtures/computer-use-directed-input.m only.
+    #[test]
+    fn addressed_mouse_source_preserves_button_and_requested_modifiers() {
+        use core_graphics::event::EventField;
+        let event = CGEvent::new_mouse_event(
+            mouse_source("routing_test").unwrap(),
+            CGEventType::RightMouseDown,
+            CGPoint::new(120.0, 140.0),
+            CGMouseButton::Right,
+        )
+        .unwrap();
+        let flags = flags_from(&[BgModifier::Shift, BgModifier::Option]);
+        event.set_flags(flags);
+        stamp_chromium_fields(&event, 42, Some(17), 1, Some((20.0, 40.0)));
+        route_mouse_to_window(&event, 17, 100.0, 100.0).unwrap();
+        assert_eq!(
+            event.get_integer_value_field(EventField::EVENT_SOURCE_STATE_ID),
+            0
+        );
+        assert_eq!(event.get_integer_value_field(58), 1);
+        assert_eq!(
+            event.get_integer_value_field(EventField::MOUSE_EVENT_BUTTON_NUMBER),
+            1
+        );
+        assert_eq!(event.get_flags(), flags);
+        for field in [51, 91, 92] {
+            assert_eq!(event.get_integer_value_field(field), 17);
+        }
+        // No event is posted: this protects the observed native transport recipe.
+    }
+
+    #[test]
+    #[ignore = "requires a dedicated native fixture and Accessibility permission"]
+    fn native_directed_input_fixture_counts_and_stop_release() {
+        let pid: i32 = std::env::var("BITFUN_INPUT_FIXTURE_PID")
+            .expect("fixture PID")
+            .parse()
+            .unwrap();
+        let x: f64 = std::env::var("BITFUN_INPUT_FIXTURE_X")
+            .unwrap()
+            .parse()
+            .unwrap();
+        let y: f64 = std::env::var("BITFUN_INPUT_FIXTURE_Y")
+            .unwrap()
+            .parse()
+            .unwrap();
+        let path = std::env::var("BITFUN_INPUT_FIXTURE_RESULT").unwrap();
+        assert!(
+            supports_background_input(),
+            "Accessibility permission required"
+        );
+        unsafe extern "C" {
+            fn CGEventSourceCounterForEventType(state: i32, event_type: u32) -> u32;
+        }
+        let human_moves = unsafe { CGEventSourceCounterForEventType(1, 5) };
+        let pointer = CGEvent::new(private_source("fixture").unwrap())
+            .unwrap()
+            .location();
+        let frontmost = frontmost_pid_macos();
+        use bitfun_agent_tools::computer_use_control::ControlMode;
+        crate::computer_use::control_session::start(
+            "native-input-fixture",
+            ControlMode::Background,
+        )
+        .unwrap();
+        let lease =
+            crate::computer_use::control_session::acquire("native-input-fixture", "app_click")
+                .unwrap();
+        crate::computer_use::macos_capture::capture_frame(pid, frontmost_window_id_for_pid(pid))
+            .unwrap();
+        bg_click(pid, (x, y), BgMouseButton::Left, 1, &[]).unwrap();
+        thread::sleep(Duration::from_millis(150));
+        let down = CGEvent::new_mouse_event(
+            private_source("fixture-held").unwrap(),
+            CGEventType::LeftMouseDown,
+            CGPoint::new(x, y),
+            CGMouseButton::Left,
+        )
+        .unwrap();
+        post_mouse(pid, &down).unwrap();
+        crate::computer_use::control_session::stop(Some("native-input-fixture"), "fixture stop")
+            .unwrap();
+        assert!(bg_click(pid, (x, y), BgMouseButton::Left, 1, &[]).is_err());
+        drop(lease);
+        thread::sleep(Duration::from_millis(200));
+        let counts: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        assert_eq!(
+            counts["downs"], 2,
+            "one click and one held press must reach the fixture exactly once"
+        );
+        assert_eq!(
+            counts["ups"], 2,
+            "normal release and cancellation release must both arrive"
+        );
+        assert_eq!(
+            frontmost_pid_macos(),
+            frontmost,
+            "background input stole foreground focus"
+        );
+        let after = CGEvent::new(private_source("fixture-after").unwrap())
+            .unwrap()
+            .location();
+        if unsafe { CGEventSourceCounterForEventType(1, 5) } == human_moves {
+            assert_eq!(
+                (after.x, after.y),
+                (pointer.x, pointer.y),
+                "background input moved the real cursor"
+            );
+        } else {
+            eprintln!(
+                "Concurrent human pointer movement; cursor immobility assertion not evaluated"
+            );
+        }
+    }
+
+    #[test]
+    #[ignore = "requires the dedicated standard AppKit controls fixture"]
+    fn native_inactive_controls_fixture() {
+        run_inactive_controls_fixture(false);
+    }
+
+    #[test]
+    #[ignore = "requires the dedicated occluded standard AppKit controls fixture"]
+    fn native_semantic_controls_fixture() {
+        run_inactive_controls_fixture(true);
+    }
+
+    fn run_inactive_controls_fixture(semantic: bool) {
+        let pid: i32 = std::env::var("BITFUN_INPUT_FIXTURE_PID")
+            .unwrap()
+            .parse()
+            .unwrap();
+        let path = std::env::var("BITFUN_INPUT_FIXTURE_RESULT").unwrap();
+        let read = || -> serde_json::Value {
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap()
+        };
+        let initial = read();
+        assert_eq!(initial["active"], false, "fixture must begin inactive");
+        let foreground = frontmost_pid_macos();
+        let observer_pid: i32 = std::env::var("BITFUN_INPUT_OBSERVER_PID")
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert_eq!(
+            foreground,
+            Some(observer_pid),
+            "test observer must be the actual foreground app"
+        );
+        let observer_path = std::env::var("BITFUN_INPUT_OBSERVER_RESULT").unwrap();
+        let observer = || -> serde_json::Value {
+            serde_json::from_str(&std::fs::read_to_string(&observer_path).unwrap()).unwrap()
+        };
+        let initial_observer = observer();
+        eprintln!("before capture observer: {initial_observer}");
+        assert_eq!(
+            initial_observer["target_ahead"], false,
+            "fixture must start behind observer"
+        );
+        let mut raised = false;
+        use bitfun_agent_tools::computer_use_control::ControlMode;
+        super::super::control_session::start("native-controls-fixture", ControlMode::Background)
+            .unwrap();
+        let lease =
+            super::super::control_session::acquire("native-controls-fixture", "app_click").unwrap();
+        super::super::macos_capture::capture_frame(pid, None).unwrap();
+        thread::sleep(Duration::from_millis(50));
+        let after_capture = observer();
+        eprintln!("after capture observer: {after_capture}");
+        raised |= after_capture["target_ahead"] == true;
+        if semantic {
+            let whole_app =
+                super::super::macos_ax_dump::dump_app_ax(pid, Default::default()).unwrap();
+            let foreign = whole_app
+                .nodes
+                .iter()
+                .find(|node| node.title.as_deref() == Some("Unbound semantic action"))
+                .expect("second-window button missing");
+            let foreign_ref =
+                super::super::macos_ax_dump::cached_ref_loose(pid, foreign.idx).unwrap();
+            assert!(
+                matches!(
+                    super::super::macos_ax_write::try_ax_press(foreign_ref),
+                    super::super::macos_ax_write::AxWriteOutcome::Unavailable(_)
+                ),
+                "same-pid foreign-window write must be rejected"
+            );
+            let retained_foreign =
+                super::super::macos_ax_dump::retained_cached_target(pid, foreign.idx).unwrap();
+            assert!(
+                super::super::macos_ax_dump::validate_bound_target(
+                    pid,
+                    retained_foreign.reference()
+                )
+                .is_err(),
+                "foreign coordinates cannot become a pointer fallback"
+            );
+            assert_eq!(read()["foreign_actions"], 0);
+            let snapshot = super::super::macos_ax_dump::dump_app_ax(
+                pid,
+                super::super::macos_ax_dump::DumpOpts {
+                    focus_window_only: true,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            assert_eq!(
+                snapshot.window_title.as_deref(),
+                Some("BitFun Inactive Controls Fixture")
+            );
+            for name in ["button", "field"] {
+                let p = &initial["targets"][name];
+                let hit = super::super::macos_ax_dump::retained_target_at_point(
+                    pid,
+                    p[0].as_f64().unwrap(),
+                    p[1].as_f64().unwrap(),
+                )
+                .unwrap()
+                .expect("application-scoped hit must resolve the exact occluded control");
+                let result = if name == "field" {
+                    assert!(hit.is_text_input());
+                    super::super::macos_ax_write::try_ax_focus(hit.reference())
+                } else {
+                    assert_eq!(hit.role().as_deref(), Some("AXButton"));
+                    super::super::macos_ax_write::try_ax_press(hit.reference())
+                };
+                assert!(matches!(
+                    result,
+                    super::super::macos_ax_write::AxWriteOutcome::Ok
+                ));
+                if name == "field" {
+                    bg_type_text(pid, "native-control").unwrap();
+                }
+                super::super::macos_capture::capture_frame(pid, None).unwrap();
+                thread::sleep(Duration::from_millis(60));
+                let state = observer();
+                eprintln!("semantic {name} target={} observer={state}", read());
+                assert_eq!(state["active"], true);
+                assert_eq!(state["key_window"], true);
+                assert_eq!(state["target_ahead"], false);
+                assert_eq!(frontmost_pid_macos(), foreground);
+            }
+            let observed = read();
+            assert_eq!(observed["button_actions"], 1);
+            assert_eq!(observed["field_text"], "native-control");
+            assert!(observed["events"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|e| e["outside_frame"] == true && e["hit"] == "none"));
+            // Ordinary canvas now receives its first requested click. It must
+            // not leave the previous text field as the effective input target.
+            let canvas = &initial["targets"]["canvas"];
+            let (cx, cy) = (canvas[0].as_f64().unwrap(), canvas[1].as_f64().unwrap());
+            bg_click(pid, (cx, cy), BgMouseButton::Left, 1, &[]).unwrap();
+            thread::sleep(Duration::from_millis(120));
+            assert_eq!(
+                read()["canvas_downs"],
+                1,
+                "the first canvas click must be delivered exactly once"
+            );
+            assert!(
+                !super::super::macos_ax_dump::focused_text_target_mismatch(pid, cx, cy).unwrap(),
+                "the canvas click must not retain the previous text field focus"
+            );
+            assert_eq!(read()["field_text"], "native-control");
+            super::super::control_session::stop(
+                Some("native-controls-fixture"),
+                "fixture complete",
+            )
+            .unwrap();
+            drop(lease);
+            return;
+        }
+        for (name, text) in [
+            ("canvas", "canvas"),
+            ("button", ""),
+            ("field", "native-control"),
+            ("table", ""),
+        ] {
+            let p = &initial["targets"][name];
+            bg_click(
+                pid,
+                (p[0].as_f64().unwrap(), p[1].as_f64().unwrap()),
+                BgMouseButton::Left,
+                1,
+                &[],
+            )
+            .unwrap();
+            thread::sleep(Duration::from_millis(150));
+            if !text.is_empty() {
+                bg_type_text(pid, text).unwrap();
+            }
+            thread::sleep(Duration::from_millis(150));
+            eprintln!("controls stage {name}: {}", read());
+            assert_eq!(
+                frontmost_pid_macos(),
+                foreground,
+                "{name} stole foreground focus"
+            );
+            if let Ok(path) = std::env::var("BITFUN_INPUT_OBSERVER_RESULT") {
+                let state: serde_json::Value =
+                    serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+                assert_eq!(
+                    state["active"], true,
+                    "{name} deactivated the foreground application"
+                );
+                assert_eq!(
+                    state["key_window"], true,
+                    "{name} removed the foreground key window"
+                );
+                eprintln!("after {name} observer: {state}");
+                raised |= state["target_ahead"] == true;
+            }
+        }
+        bg_key_chord(pid, &[BgModifier::Command, BgModifier::Shift], 40).unwrap();
+        thread::sleep(Duration::from_millis(100));
+        let observed = read();
+        assert_eq!(
+            observed["shortcut_actions"], 1,
+            "background menu shortcut must execute exactly once: {observed}"
+        );
+        super::super::control_session::stop(Some("native-controls-fixture"), "fixture complete")
+            .unwrap();
+        drop(lease);
+        assert_eq!(
+            observed["canvas_command_downs"], 0,
+            "ordinary canvas click must preserve its modifier flags"
+        );
+        assert_eq!(
+            observed["selected_count"], 1,
+            "ordinary click must not become Command multi-select: {observed}"
+        );
+        assert_eq!(
+            observed["selected_row"], 1,
+            "ordinary click must select the requested row: {observed}"
+        );
+        assert_eq!(
+            observed["button_actions"], 1,
+            "standard button must activate exactly once: {observed}"
+        );
+        assert_eq!(
+            observed["field_text"], "native-control",
+            "standard text field focus and typing: {observed}"
+        );
+        assert_eq!(
+            observed["canvas_downs"], 1,
+            "plain canvas must receive one click: {observed}"
+        );
+        assert_eq!(
+            observed["canvas_text"], "canvas",
+            "plain canvas must receive its own input: {observed}"
+        );
+        assert!(
+            !raised,
+            "capture/input raised the target above the foreground observer"
+        );
+    }
 
     #[test]
     fn parse_key_spec_command_shift_p() {

@@ -286,6 +286,7 @@ export const TabBar: React.FC<TabBarProps> = ({
         data-bitfun-product-part="action"
         className="canvas-tab__action-btn"
         data-motion="none"
+        shape="circle"
         size="xs"
         aria-label={`${t(tab.state === 'pinned' ? 'tabs.unpin' : 'tabs.close')} ${tab.title}`}
         title={t(tab.state === 'pinned' ? 'tabs.unpin' : 'tabs.close')}

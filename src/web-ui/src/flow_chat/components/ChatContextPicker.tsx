@@ -728,19 +728,17 @@ export const ChatContextPicker: React.FC<ChatContextPickerProps> = ({
   }, [canNavigateBack, displayItems, enterDirectory, goBack, handleItemClick, handleSelect, isOpen, isSearchMode, onClose, openSource, selectedIndex]);
 
   useEffect(() => {
-    let removeOverlayKeydown0: (() => void) | undefined;
     if (!isOpen) return;
-    removeOverlayKeydown0 = subscribeOverlayInteraction(containerRef, 'keydown', handleKeyDown);
+    const removeOverlayKeydown0 = subscribeOverlayInteraction(containerRef, 'keydown', handleKeyDown);
     return () => removeOverlayKeydown0?.();
   }, [handleKeyDown, isOpen]);
 
   useEffect(() => {
-    let removeOverlayMousedown1: (() => void) | undefined;
     if (!isOpen) return;
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) onClose();
     };
-    removeOverlayMousedown1 = subscribeOverlayInteraction(containerRef, 'mousedown', handleClickOutside);
+    const removeOverlayMousedown1 = subscribeOverlayInteraction(containerRef, 'mousedown', handleClickOutside);
     return () => removeOverlayMousedown1?.();
   }, [isOpen, onClose]);
 
@@ -804,7 +802,7 @@ export const ChatContextPicker: React.FC<ChatContextPickerProps> = ({
             />
           </Tooltip>
         )}
-        {isSearchMode ? <><Icon name="search" size="lg" style={{ width: 11, height: 11 }} /><span>{t('contextPicker.searchResults')}</span></> : (
+        {isSearchMode ? <><Icon name="search" size="xs" /><span>{t('contextPicker.searchResults')}</span></> : (
           <div className="chat-context-picker__directory-label" title={currentViewLabel}>
             {view === 'files' ? (
               <span
@@ -859,7 +857,7 @@ export const ChatContextPicker: React.FC<ChatContextPickerProps> = ({
               : 'contextPicker.browseUnavailable')}</span>
           </ListboxEmpty>
         ) : displayItems.length === 0 && isLoading ? (
-          <ListboxEmpty className="chat-context-picker__loading"><Loader2 size={14} className="chat-context-picker__spinner" /><span>{t('contextPicker.loading')}</span></ListboxEmpty>
+          <ListboxEmpty className="chat-context-picker__loading"><Icon glyph={Loader2} size="sm" className="chat-context-picker__spinner" /><span>{t('contextPicker.loading')}</span></ListboxEmpty>
         ) : displayItems.length === 0 ? (
           <ListboxEmpty className="chat-context-picker__empty"><span>{emptyLabel}</span></ListboxEmpty>
         ) : (
@@ -909,13 +907,13 @@ export const ChatContextPicker: React.FC<ChatContextPickerProps> = ({
                   leading={selection.kind === 'source'
                     ? selection.id === 'mcp'
                       ? <Plug aria-hidden="true" />
-                      : <Icon name={selection.id === 'files' ? 'files' : 'spark'} size="lg" aria-hidden="true" />
+                      : <Icon name={selection.id === 'files' ? 'files' : 'book-open'} size="lg" aria-hidden="true" />
                     : selection.kind === 'action'
                       ? selection.id === 'add-image'
                         ? <Icon name="image" size="lg" aria-hidden="true" />
                         : <RotateCcw aria-hidden="true" />
                       : skill
-                        ? <Icon name="spark" size="lg" aria-hidden="true" />
+                        ? <Icon name="book-open" size="lg" aria-hidden="true" />
                         : mcp
                           ? <Plug aria-hidden="true" />
                         : isSession
@@ -957,7 +955,7 @@ export const ChatContextPicker: React.FC<ChatContextPickerProps> = ({
             })}
             {isLoading && (
               <ListboxEmpty className="chat-context-picker__loading">
-                <Loader2 size={14} className="chat-context-picker__spinner" />
+                <Icon glyph={Loader2} size="sm" className="chat-context-picker__spinner" />
                 <span>{t('contextPicker.loading')}</span>
               </ListboxEmpty>
             )}

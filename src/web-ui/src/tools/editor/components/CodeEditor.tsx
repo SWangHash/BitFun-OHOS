@@ -54,6 +54,7 @@ import largeFileExpansionLabels from './largeFileExpansionLabels.json';
 import {
   DEFAULT_EDITOR_CONFIG,
   DEFAULT_EDITOR_FONT_FAMILY,
+  resolveEditorFontFamily,
   DEFAULT_EDITOR_FONT_SIZE,
   DEFAULT_EDITOR_FONT_WEIGHT,
   DEFAULT_EDITOR_INLAY_FONT_SIZE,
@@ -275,6 +276,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   const modelRef = useRef<monaco.editor.ITextModel | null>(null);
   const isUnmountedRef = useRef(false);
   const isCheckingFileRef = useRef(false);
+  const encodingReloadIdRef = useRef(0);
   /** Last disk state known to match loaded/saved editor content (mtime + size; local + remote). */
   const diskVersionRef = useRef<DiskFileVersion | null>(null);
   const lastReportedMissingRef = useRef<boolean | undefined>(undefined);
@@ -374,7 +376,14 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 
     const previousLoadingState = isLoadingContentRef.current;
     isLoadingContentRef.current = true;
-    model.setValue(nextContent);
+    // Programmatic disk sync: bracket the write so the model manager does not
+    // flag the model dirty for content nobody typed (issue #3165).
+    monacoModelManager.beginExternalSync(model);
+    try {
+      model.setValue(nextContent);
+    } finally {
+      monacoModelManager.endExternalSync(model);
+    }
     setIndentation(applyModelIndentation(model, latestEditorConfigRef.current ?? {}, true));
 
     queueMicrotask(() => {
@@ -407,17 +416,21 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       if (pos && editorRef.current) {
         editorRef.current.setPosition(pos);
       }
+      // Settle the saved state synchronously: deferring it to a microtask let
+      // an unmount race skip markAsSaved and strand stale saved metadata after
+      // the disk sync (issue #3165).
+      if (modelRef.current && filePath) {
+        savedVersionIdRef.current = modelRef.current.getAlternativeVersionId();
+        monacoModelManager.markAsSaved(modelKey);
+      }
+      documentSession?.capture(fileContent, false);
       onContentChange?.(fileContent, false);
       reportFileMissingFromDisk(false);
       queueMicrotask(() => {
         isLoadingContentRef.current = false;
-        if (modelRef.current && !isUnmountedRef.current && filePath) {
-          savedVersionIdRef.current = modelRef.current.getAlternativeVersionId();
-          monacoModelManager.markAsSaved(modelKey);
-        }
       });
     },
-    [applyExternalContentToModel, filePath, modelKey, onContentChange, reportFileMissingFromDisk, updateLargeFileMode]
+    [applyExternalContentToModel, documentSession, filePath, modelKey, onContentChange, reportFileMissingFromDisk, updateLargeFileMode]
   );
 
   const shouldBlockLargeFileExpansionClick = useCallback((target: EventTarget | null): boolean => {
@@ -520,7 +533,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     const fs = editorConfig.font_size ?? DEFAULT_EDITOR_FONT_SIZE;
     editorRef.current.updateOptions({
       fontSize: fs,
-      fontFamily: editorConfig.font_family || DEFAULT_EDITOR_FONT_FAMILY,
+      fontFamily: resolveEditorFontFamily(editorConfig.font_family),
       fontWeight: editorConfig.font_weight || DEFAULT_EDITOR_FONT_WEIGHT,
       lineHeight: editorConfig.line_height ? Math.round(fs * editorConfig.line_height) : 0,
     });
@@ -547,7 +560,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       if (editorRef.current) {
         editorRef.current.updateOptions({
           fontSize: appliedFontSize,
-          fontFamily: config.font_family || DEFAULT_EDITOR_FONT_FAMILY,
+          fontFamily: resolveEditorFontFamily(config.font_family),
           fontWeight: config.font_weight || DEFAULT_EDITOR_FONT_WEIGHT,
           lineHeight: config.line_height 
             ? Math.round(appliedFontSize * config.line_height)
@@ -667,12 +680,12 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         }
         
         let createFontSize = DEFAULT_EDITOR_FONT_SIZE;
-        let createFontFamily = editorConfigRuntimeRef.current.font_family || DEFAULT_EDITOR_FONT_FAMILY;
+        let createFontFamily = resolveEditorFontFamily(editorConfigRuntimeRef.current.font_family);
         let createFontWeight = editorConfigRuntimeRef.current.font_weight || DEFAULT_EDITOR_FONT_WEIGHT;
         let createLineHeight = 0;
         const applyFontConfig = (c: Partial<EditorConfigType>) => {
           createFontSize = c.font_size ?? DEFAULT_EDITOR_FONT_SIZE;
-          createFontFamily = c.font_family || createFontFamily;
+          createFontFamily = resolveEditorFontFamily(c.font_family);
           createFontWeight = c.font_weight || createFontWeight;
           createLineHeight = c.line_height ? Math.round(createFontSize * c.line_height) : 0;
         };
@@ -764,7 +777,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           inlayHints: {
             enabled: initialLargeFileMode ? 'off' : 'on',
             fontSize: DEFAULT_EDITOR_INLAY_FONT_SIZE,
-            fontFamily: DEFAULT_EDITOR_FONT_FAMILY,
+            fontFamily: resolveEditorFontFamily(),
             padding: false
           },
 
@@ -848,7 +861,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           const fs = c.font_size ?? DEFAULT_EDITOR_FONT_SIZE;
           editor!.updateOptions({
             fontSize: fs,
-            fontFamily: c.font_family || DEFAULT_EDITOR_FONT_FAMILY,
+            fontFamily: resolveEditorFontFamily(c.font_family),
             fontWeight: c.font_weight || DEFAULT_EDITOR_FONT_WEIGHT,
             lineHeight: c.line_height ? Math.round(fs * c.line_height) : 0,
           });
@@ -1031,6 +1044,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     return () => {
       cancelled = true;
       isUnmountedRef.current = true;
+      encodingReloadIdRef.current += 1;
       indentationListener?.dispose();
       if (modelRef.current === model) modelRef.current = null;
       clearScheduledNavigationSettlement();
@@ -1398,20 +1412,28 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   }, [documentFiles, filePath, isMemoryContent]);
 
   const handleEncodingConfirm = useCallback(async (newEncoding: string) => {
-    if (isMemoryContent) return;
-    setEncoding(newEncoding);
-    if (!filePath) return;
+    const model = modelRef.current;
+    if (isMemoryContent || !filePath || !model || isUnmountedRef.current) return;
+    if (documentSession && !documentSession.isCurrent()) return;
+    const requestId = ++encodingReloadIdRef.current;
+    const versionBeforeRead = model.getAlternativeVersionId();
+    const isCurrentRequest = () =>
+      !isUnmountedRef.current && modelRef.current === model && filePathRef.current === filePath
+      && encodingReloadIdRef.current === requestId
+      && (!documentSession || documentSession.isCurrent());
+
     try {
-      const workspaceAPI = documentFiles;
-      const content = await workspaceAPI.readFileContent(filePath, newEncoding);
-      updateLargeFileMode(content);
-      setContent(content);
-      originalContentRef.current = content;
-      setHasChanges(false);
-      hasChangesRef.current = false;
-      applyExternalContentToModel(content);
+      const content = await documentFiles.readFileContent(filePath, newEncoding);
+      // A slow read must not overwrite a new view, a newer encoding selection,
+      // or edits made since the user requested the reload.
+      if (!isCurrentRequest() || model.getAlternativeVersionId() !== versionBeforeRead) return;
+      setEncoding(newEncoding);
+      // Commit the buffer and saved baseline together, before awaiting metadata.
+      applyDiskSnapshotToEditor(content, null);
+      if (!isCurrentRequest()) return;
       try {
         const fileInfo = await fetchFileMetadata();
+        if (!isCurrentRequest()) return;
         if (isFileMissingFromMetadata(fileInfo)) {
           reportFileMissingFromDisk(true);
         } else {
@@ -1422,24 +1444,20 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           }
         }
       } catch (err) {
+        if (!isCurrentRequest()) return;
         if (isLikelyFileNotFoundError(err)) {
           reportFileMissingFromDisk(true);
         }
         log.warn('Failed to sync disk version after encoding change', err);
       }
-      queueMicrotask(() => {
-        if (modelRef.current && !isUnmountedRef.current) {
-          savedVersionIdRef.current = modelRef.current.getAlternativeVersionId();
-          monacoModelManager.markAsSaved(modelKey);
-        }
-      });
     } catch (err) {
+      if (!isCurrentRequest()) return;
       if (isLikelyFileNotFoundError(err)) {
         reportFileMissingFromDisk(true);
       }
       log.warn('Failed to reload file with new encoding', err);
     }
-  }, [applyExternalContentToModel, documentFiles, fetchFileMetadata, filePath, isMemoryContent, modelKey, reportFileMissingFromDisk, updateLargeFileMode]);
+  }, [applyDiskSnapshotToEditor, documentFiles, documentSession, fetchFileMetadata, filePath, isMemoryContent, reportFileMissingFromDisk]);
 
   const handleLanguageConfirm = useCallback((languageId: string) => {
     userLanguageOverrideRef.current = true;

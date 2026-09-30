@@ -28,10 +28,10 @@ import {
 import { SidebarToggleButton } from './SidebarToggleButton';
 import { SidebarWorkspaceSection } from './SidebarWorkspaceSection';
 import {
-  CARD,
   LINE,
   PAGE_BG,
   SHADOW_SUBTLE,
+  SIDEBAR_BG,
 } from './Theme';
 
 const WIDE_DETAIL_CONTENT_MAX_WIDTH: number = 920;
@@ -145,7 +145,6 @@ export struct WideConversationHost {
           onNewChat: this.actions.onSidebar.newChat,
           onEnterCode: this.actions.onSidebar.enterCode,
           onOpenMiniApps: this.actions.onRemoteHome.openMiniApps,
-          onScanDesktop: this.actions.onSidebar.scanDesktop,
           onCollapse: this.onCollapseMasterPane,
           onOpenViewSettings: this.onOpenRemoteViewSettings,
           onSearchQueryChange: (query: string) => {
@@ -155,7 +154,7 @@ export struct WideConversationHost {
           onOpenAccount: this.actions.onSidebar.openAccount,
         })
       }
-      .width('100%').height('100%').backgroundColor(CARD)
+      .width('100%').height('100%').backgroundColor(SIDEBAR_BG)
       .borderRadius(18).clip(true)
       .shadow({ radius: 24, color: SHADOW_SUBTLE, offsetX: 4, offsetY: 8 })
     }
@@ -210,7 +209,7 @@ export struct WideConversationHost {
       onReconnect: this.actions.onRemoteHome.reconnect,
       onAddWorkspace: this.actions.onRemoteHome.addDirectoryWorkspace,
       onRefreshDevices: this.actions.onSidebar.refreshDevices,
-      onAddDevice: this.actions.onSidebar.addDesktop
+      onAddDevice: this.actions.onSidebar.openAccountDevices
     })
   }
 

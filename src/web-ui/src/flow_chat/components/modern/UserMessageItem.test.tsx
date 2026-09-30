@@ -25,6 +25,14 @@ const rollbackServiceMock = vi.hoisted(() => ({
     composerText: 'restored prompt',
   })),
 }));
+const imagePayloadMock = vi.hoisted(() => ({
+  buildImagePayload: vi.fn(async (_contexts: unknown) => undefined as
+    | { imageContexts: unknown[]; imageDisplayData: unknown[] }
+    | undefined),
+}));
+const flowChatManagerMock = vi.hoisted(() => ({
+  sendMessage: vi.fn(async () => undefined),
+}));
 const componentLibraryMock = vi.hoisted(() => ({
   confirmDanger: vi.fn(async () => true),
 }));
@@ -151,6 +159,16 @@ vi.mock('../../store/FlowChatStore', () => ({
 
 vi.mock('../../services/SessionRollbackService', () => rollbackServiceMock);
 
+vi.mock('../../utils/imagePayload', async importOriginal => ({
+  ...await importOriginal<typeof import('../../utils/imagePayload')>(),
+  buildImagePayload: imagePayloadMock.buildImagePayload,
+}));
+
+vi.mock('../../services/FlowChatManager', async importOriginal => ({
+  ...await importOriginal<typeof import('../../services/FlowChatManager')>(),
+  flowChatManager: flowChatManagerMock,
+}));
+
 vi.mock('@/shared/notification-system', () => ({
   notificationService: {
     success: vi.fn(),
@@ -211,6 +229,8 @@ describe('UserMessageItem steering tag', () => {
       composerText: 'restored prompt',
     });
     editServiceMock.editAndRerunUserMessage.mockResolvedValue(undefined);
+    imagePayloadMock.buildImagePayload.mockResolvedValue(undefined);
+    flowChatManagerMock.sendMessage.mockResolvedValue(undefined);
     stateMachineManager.clear();
     useMessageEditStore.getState().cancelEdit();
     dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
@@ -548,6 +568,50 @@ describe('UserMessageItem steering tag', () => {
     expect(content?.textContent).toContain('pdf');
     expect(content?.textContent).not.toContain('[session:');
     expect(content?.querySelectorAll('.user-message-item__reference')).toHaveLength(2);
+  });
+
+  it('copies a message with the readable text and a restorable token payload', async () => {
+    const writeText = vi.fn(async () => {});
+    const write = vi.fn(async (_items: unknown[]) => {});
+    vi.stubGlobal('navigator', { clipboard: { writeText, write } });
+    vi.stubGlobal('ClipboardItem', class {
+      constructor(readonly items: Record<string, Blob>) {}
+    });
+
+    act(() => {
+      root.render(
+        <FlowChatContext.Provider value={{ allowUserMessageRollback: false }}>
+          <UserMessageItem
+            message={{
+              id: 'user-copy-1',
+              content: '[$pdf] summarize it',
+              timestamp: 1000,
+              metadata: {
+                composerPresentation: {
+                  version: 1,
+                  segments: [
+                    { kind: 'inline-token', token: '[$pdf]', tokenType: 'skill', label: 'pdf' },
+                    { kind: 'text', text: ' summarize it' },
+                  ],
+                },
+              },
+            }}
+            turnId="turn-copy-1"
+          />
+        </FlowChatContext.Provider>,
+      );
+    });
+
+    const copyButton = container.querySelector<HTMLButtonElement>('.user-message-item__copy-btn')!;
+    await act(async () => {
+      copyButton.click();
+    });
+
+    expect(write).toHaveBeenCalledTimes(1);
+    const item = write.mock.calls[0][0][0] as { items: Record<string, Blob> };
+    expect(await item.items['text/plain'].text()).toBe('[Skill: pdf] summarize it');
+    const html = await item.items['text/html'].text();
+    expect(html).toContain('data-bitfun-composer-clipboard-tokens="[$pdf] summarize it"');
   });
 
   it('restores persisted references and images from a failed message to the input', () => {
@@ -1058,5 +1122,140 @@ describe('UserMessageItem steering tag', () => {
       editedContent: 'edited older window prompt',
     }));
     expect(flowChatStoreMock.loadSessionHistory).not.toHaveBeenCalled();
+  });
+
+  it('resubmits the original image attachments when editing a message', async () => {
+    activeSessionRef.current = {
+      sessionId: 'main-session',
+      sessionKind: 'normal',
+      workspaceId: workspaceRecords.local.id,
+      dialogTurns: [{ id: 'turn-1', status: 'completed' }],
+    };
+    imagePayloadMock.buildImagePayload.mockResolvedValueOnce({
+      imageContexts: [{ id: 'image-1', image_path: 'E:/uploads/preview.png', mime_type: 'image/png' }],
+      imageDisplayData: [{ id: 'image-1', name: 'preview.png', imagePath: 'E:/uploads/preview.png' }],
+    });
+    editServiceMock.editAndRerunUserMessage.mockImplementationOnce(async (request: any) => {
+      await request.rerun(request.editedContent, request.agentType, 'lease-1');
+      return undefined;
+    });
+
+    act(() => {
+      root.render(
+        <FlowChatContext.Provider
+          value={{
+            sessionId: 'main-session',
+            allowUserMessageEdit: true,
+            allowUserMessageRollback: true,
+          }}
+        >
+          <UserMessageItem
+            message={{
+              id: 'user-image-1',
+              content: 'Describe this image',
+              timestamp: 1000,
+              images: [{
+                id: 'image-1',
+                name: 'preview.png',
+                imagePath: 'E:/uploads/preview.png',
+                mimeType: 'image/png',
+              }],
+            }}
+            turnId="turn-1"
+          />
+        </FlowChatContext.Provider>,
+      );
+    });
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('.user-message-item__edit-btn')?.click();
+    });
+    await act(async () => {
+      useMessageEditStore.getState().setDraft('Describe this image in detail');
+    });
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('.user-message-edit-composer__icon-button--confirm')
+        ?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(imagePayloadMock.buildImagePayload).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: 'image-1',
+        type: 'image',
+        imageName: 'preview.png',
+        imagePath: 'E:/uploads/preview.png',
+        mimeType: 'image/png',
+        isLocal: true,
+      }),
+    ]);
+    expect(flowChatManagerMock.sendMessage).toHaveBeenCalledWith(
+      'Describe this image in detail',
+      'main-session',
+      undefined,
+      undefined,
+      undefined,
+      expect.objectContaining({
+        imageContexts: [{ id: 'image-1', image_path: 'E:/uploads/preview.png', mime_type: 'image/png' }],
+        imageDisplayData: [{ id: 'image-1', name: 'preview.png', imagePath: 'E:/uploads/preview.png' }],
+        sessionMutationLeaseId: 'lease-1',
+      }),
+    );
+  });
+
+  it('reruns an edit without attachments when the message has no images', async () => {
+    activeSessionRef.current = {
+      sessionId: 'main-session',
+      sessionKind: 'normal',
+      workspaceId: workspaceRecords.local.id,
+      dialogTurns: [{ id: 'turn-1', status: 'completed' }],
+    };
+    editServiceMock.editAndRerunUserMessage.mockImplementationOnce(async (request: any) => {
+      await request.rerun(request.editedContent, request.agentType, 'lease-2');
+      return undefined;
+    });
+
+    act(() => {
+      root.render(
+        <FlowChatContext.Provider
+          value={{
+            sessionId: 'main-session',
+            allowUserMessageEdit: true,
+            allowUserMessageRollback: true,
+          }}
+        >
+          <UserMessageItem
+            message={{ id: 'user-text-1', content: 'Describe this', timestamp: 1000 }}
+            turnId="turn-1"
+          />
+        </FlowChatContext.Provider>,
+      );
+    });
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('.user-message-item__edit-btn')?.click();
+    });
+    await act(async () => {
+      useMessageEditStore.getState().setDraft('Describe this more precisely');
+    });
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('.user-message-edit-composer__icon-button--confirm')
+        ?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(imagePayloadMock.buildImagePayload).toHaveBeenCalledWith([]);
+    expect(flowChatManagerMock.sendMessage).toHaveBeenCalledWith(
+      'Describe this more precisely',
+      'main-session',
+      undefined,
+      undefined,
+      undefined,
+      { sessionMutationLeaseId: 'lease-2' },
+    );
   });
 });

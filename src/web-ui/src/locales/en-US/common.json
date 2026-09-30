@@ -538,6 +538,9 @@
       "parentSession": "Parent session",
       "childSourceWithoutTurn": "From {{parentTitle}}",
       "childSourceWithTurn": "From {{parentTitle}} · Turn {{turnIndex}}",
+      "worktreeTooltip": "Runs in an isolated worktree at {{path}}",
+      "openWorktreeWorkspace": "Open worktree workspace",
+      "openWorktreeWorkspaceFailed": "Could not open the worktree folder as a workspace.",
       "reviewRunning": "Reviewing",
       "deepReviewRunning": "Reviewing",
       "unreadCompleted": "Completed — unread",
@@ -614,6 +617,7 @@
       "title": "Scheduled Jobs",
       "open": "Scheduled jobs",
       "shortLabel": "Schedule",
+      "badgeTooltip": "{{count}} scheduled job(s)",
       "listTitle": "Jobs",
       "assistantFallback": "Current assistant",
       "loading": "Loading scheduled jobs...",
@@ -662,8 +666,7 @@
         }
       },
       "targets": {
-        "session": "Session",
-        "newSession": "New session"
+        "session": "Session"
       },
       "status": {
         "idle": "Idle",
@@ -922,6 +925,7 @@
     "footerDistributedExecution": "{{count}} devices executing",
     "current": "Current",
     "currentUse": "In use",
+    "currentLocalDevice": "Current local device",
     "controlling": "Controlling",
     "executingTasks": "{{count}} tasks",
     "connectedDevices": "Connected devices",
@@ -2166,5 +2170,19 @@
     "nextMonth": "Next month",
     "now": "Now",
     "close": "Close"
+  },
+  "computerControl": {
+    "title": "Computer control",
+    "observe": "Observing",
+    "background": "Controlling in the background",
+    "foreground": "Controlling with desktop input",
+    "stopped": "Control stopped",
+    "unavailable": "Control status unavailable. You can still try to stop.",
+    "previewAlt": "Captured application window with agent pointer",
+    "previewUnavailable": "Window preview is unavailable.",
+    "showPreview": "Show preview",
+    "hidePreview": "Hide preview",
+    "stop": "Stop control",
+    "stopping": "Stopping…"
   }
 }

@@ -458,7 +458,7 @@ const WorkspaceSessionBatchModal: React.FC<WorkspaceSessionBatchModalProps> = ({
           onClick={() => { void handleDeleteSelected(); }}
           disabled={!canSelectSessions || selectedCount === 0}
           loading={actionKind === 'delete'}
-          leadingIcon={<Icon name="delete" />}
+          leadingIcon={<Icon name="delete" size="sm" />}
         >
           {t('nav.sessions.deleteSelected')}
         </Button>
@@ -472,7 +472,7 @@ const WorkspaceSessionBatchModal: React.FC<WorkspaceSessionBatchModalProps> = ({
             onClick={() => { void handleArchiveSelected(); }}
             disabled={!canSelectSessions || selectedCount === 0}
             loading={actionKind === 'archive'}
-            leadingIcon={<Icon glyph={Archive} />}
+            leadingIcon={<Icon glyph={Archive} size="sm" />}
           >
             {t('nav.sessions.archiveSelected')}
           </Button>

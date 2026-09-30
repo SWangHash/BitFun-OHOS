@@ -248,9 +248,9 @@ impl Tool for UpdateGoalTool {
     async fn description(&self) -> BitFunResult<String> {
         Ok(
             "Update the existing goal. Use only to mark the goal achieved or genuinely blocked. \
-Set status to complete only when the objective has actually been achieved and no required work remains. \
+Set status to complete only when current evidence verifies the full objective, subsequent user requirements, and requested delivery; no required work may remain. \
 Set status to blocked only when the same blocking condition has repeated for at least three consecutive goal turns and the agent cannot make meaningful progress without user input or an external-state change. \
-You cannot use this tool to pause, resume, budget-limit, or usage-limit a goal."
+After an explicit resume, begin a fresh blocked audit. Do not repeat failed side effects merely to count turns. You cannot use this tool to pause, resume, budget-limit, or usage-limit a goal."
                 .to_string(),
         )
     }

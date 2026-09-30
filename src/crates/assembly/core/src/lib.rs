@@ -70,7 +70,9 @@ pub(crate) mod service_agent_runtime;
 pub mod util; // General types, errors, helper functions
 
 #[cfg(feature = "remote-connect")]
-pub use bitfun_services_integrations::remote_connect::RemoteModelCatalog as AIModelCatalog;
+pub use bitfun_services_integrations::remote_connect::{
+    LocalModelsDevCatalogs, RemoteModelCatalog as AIModelCatalog,
+};
 
 #[cfg(feature = "agent-runtime")]
 pub fn get_builtin_ai_provider_catalog() -> bitfun_core_types::ProviderCatalog {
@@ -81,9 +83,33 @@ pub fn get_builtin_ai_provider_catalog() -> bitfun_core_types::ProviderCatalog {
     )
 }
 
+/// Model catalog for an in-process local reader.
+///
+/// This machine's own models.dev projections are included: TUI/app-server
+/// projections and the plugin host render them from the same process. A catalog
+/// that crosses a machine boundary must use [`get_remote_model_catalog`]
+/// instead, or a peer would ship a multi-MiB copy of the public catalog.
 #[cfg(feature = "remote-connect")]
 pub async fn get_ai_model_catalog() -> Result<AIModelCatalog, String> {
+    service_agent_runtime::CoreServiceAgentRuntime::load_local_model_catalog(None).await
+}
+
+/// Model catalog for a caller on another machine: configured models, defaults
+/// and the session selection, with the models.dev bodies left out.
+///
+/// Every host keeps its own refreshed models.dev snapshot, so a controller
+/// enriches its own Model Settings surface locally through
+/// [`get_local_models_dev_catalogs`] instead of pulling the peer's copy.
+#[cfg(feature = "remote-connect")]
+pub async fn get_remote_model_catalog() -> Result<AIModelCatalog, String> {
     service_agent_runtime::CoreServiceAgentRuntime::load_remote_model_catalog(None).await
+}
+
+/// This machine's own models.dev projections, for a controller that renders
+/// Model Settings while a peer is selected.
+#[cfg(feature = "remote-connect")]
+pub async fn get_local_models_dev_catalogs() -> Result<LocalModelsDevCatalogs, String> {
+    service_agent_runtime::CoreServiceAgentRuntime::load_local_models_dev_catalogs().await
 }
 
 #[cfg(feature = "model-catalog")]

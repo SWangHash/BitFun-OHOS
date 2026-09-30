@@ -3,7 +3,7 @@
  * Shared content surface. The containing scene or panel owns its layout.
  */
 
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { EditorArea } from './editor-area';
 import { AnchorZone } from './anchor-zone';
 import { MissionControl } from './mission-control';
@@ -17,6 +17,7 @@ import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext'
 import { openMainSession } from '@/flow_chat/services/sessionActivation';
 import { isSamePath } from '@/shared/utils/pathUtils';
 import './ContentCanvas.scss';
+import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
 export interface ContentCanvasProps {
   /** Workspace path */
   workspacePath?: string;
@@ -70,9 +71,16 @@ export const ContentCanvas: React.FC<ContentCanvasProps> = ({
   const openMissionControl = useCanvasStore(state => state.openMissionControl);
   const activeBtwSessionTab = useCanvasStore(state => selectActiveBtwSessionTab(state as any));
   const activeBtwSessionData = activeBtwSessionTab?.content.data as BtwSessionPanelData | undefined;
+  const canvasScopeKey = useCanvasStore(state => state.scopeKey);
   const { workspace: currentWorkspace } = useCurrentWorkspace();
+  const activeSessionId = useSyncExternalStore(
+    flowChatStore.subscribe.bind(flowChatStore),
+    () => flowChatStore.getState().activeSessionId,
+    () => flowChatStore.getState().activeSessionId,
+  );
   const currentWorkspaceId = currentWorkspace?.id;
   const lastSyncedBtwTabIdRef = useRef<string | null>(null);
+  const lastCanvasScopeKeyRef = useRef(canvasScopeKey);
   // Initialize hooks
   const { handleCloseWithDirtyCheck, handleCloseAllWithDirtyCheck } = useTabLifecycle({
     mode,
@@ -87,12 +95,23 @@ export const ContentCanvas: React.FC<ContentCanvasProps> = ({
   });
 
   useEffect(() => {
+    const canvasScopeChanged = lastCanvasScopeKeyRef.current !== canvasScopeKey;
+    lastCanvasScopeKeyRef.current = canvasScopeKey;
+
     if (mode !== 'agent' || !activeBtwSessionTab?.id || !activeBtwSessionData?.parentSessionId) {
       lastSyncedBtwTabIdRef.current = null;
       return;
     }
 
     if (lastSyncedBtwTabIdRef.current === activeBtwSessionTab.id) {
+      return;
+    }
+
+    // Restoring another session's canvas is not a request to reopen the tabs it
+    // had. Navigating there would pull the user away from the session they just
+    // switched to, so the restored tab only loses its "unsynced" state.
+    if (canvasScopeChanged) {
+      lastSyncedBtwTabIdRef.current = activeBtwSessionTab.id;
       return;
     }
 
@@ -121,6 +140,7 @@ export const ContentCanvas: React.FC<ContentCanvasProps> = ({
     activeBtwSessionData?.workspaceId,
     activeBtwSessionData?.workspacePath,
     activeBtwSessionTab?.id,
+    canvasScopeKey,
     currentWorkspaceId,
     mode,
     workspacePath,
@@ -131,11 +151,10 @@ export const ContentCanvas: React.FC<ContentCanvasProps> = ({
   const hasRenderableTabs = useMemo(() => {
     const groups = [primaryGroup, secondaryGroup, tertiaryGroup];
     return groups.some(group =>
-      group.tabs.some(tab =>
-        !tab.isHidden || tab.content.type === 'terminal' || tab.content.type === 'browser'
-      )
+      group.tabs.some(tab => !tab.isHidden && (tab.content.type !== 'btw-session' || tab.content.data?.parentSessionId === activeSessionId)
+        || tab.content.type === 'terminal')
     );
-  }, [primaryGroup, secondaryGroup, tertiaryGroup]);
+  }, [primaryGroup, secondaryGroup, tertiaryGroup, activeSessionId]);
 
   // Handle anchor close
   const handleAnchorClose = useCallback(() => {
@@ -179,6 +198,7 @@ export const ContentCanvas: React.FC<ContentCanvasProps> = ({
         <div className="canvas-content-canvas__editor" data-bitfun-component="content-canvas" data-bitfun-part="editor">
           <EditorArea
             workspacePath={workspacePath}
+            activeSessionId={activeSessionId}
             isSceneActive={isSceneActive}
             onOpenMissionControl={missionControlEnabled ? handleOpenMissionControl : undefined}
             onInteraction={onInteraction}

@@ -1977,6 +1977,13 @@ impl CliAgentRuntimeClient {
         }
     }
 
+    /// Keep cancellation bound to the runtime-owned continuation accepted by a job observer.
+    pub(crate) async fn observe_active_turn(&self, session_id: &str, turn_id: &str) {
+        if self.session_id.lock().await.as_deref() == Some(session_id) {
+            *self.current_turn_id.lock().await = Some(turn_id.to_string());
+        }
+    }
+
     pub(crate) async fn cancel_current_turn(&self) -> Result<()> {
         let session_id = self.session_id.lock().await.clone();
         let turn_id = self.current_turn_id.lock().await.clone();

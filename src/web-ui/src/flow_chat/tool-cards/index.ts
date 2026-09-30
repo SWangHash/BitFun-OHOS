@@ -5,7 +5,9 @@
 
 import { createLogger } from '@/shared/utils/logger';
 import { isMcpToolName } from '@/infrastructure/mcp/toolName';
-import { DEFERRED_TOOL_GATEWAY_NAME } from '../utils/toolInvocationIdentity';
+import type { ToolNameForOwner } from '@bitfun/flow-chat-presentation/registry';
+import type { JSXElementConstructor } from 'react';
+import type { ToolCardProps } from '../types/flow-chat';
 export {
   TOOL_CARD_CONFIGS,
   getToolCardConfig,
@@ -32,6 +34,8 @@ import { LSDisplay } from './LSDisplay';
 import { TodoWriteDisplay } from './TodoWriteDisplay';
 import { TaskToolDisplay } from './TaskToolDisplay';
 import { AgentControlToolCard } from './AgentControlToolCard';
+import { AgentInteractionToolCard } from './AgentInteractionToolCard';
+import { AgentDeleteToolCard } from './AgentDeleteToolCard';
 import { AgentWaitToolCard } from './AgentWaitToolCard';
 import { CodeReviewToolCard } from './CodeReviewToolCard';
 import { FileOperationToolCard } from './FileOperationToolCard';
@@ -58,8 +62,12 @@ import { ReviewSessionSummaryCard } from './ReviewSessionSummaryCard';
 import { SessionControlToolCard } from './SessionControlToolCard';
 import { SessionMessageToolCard } from './SessionMessageToolCard';
 import { ComputerUseToolCard } from './ComputerUseToolCard';
+import { CronToolCard } from './CronToolCard';
 import { ViewImageToolCard } from './ViewImageToolCard';
 import { BitFunControlToolCard } from './BitFunControlToolCard';
+import { ListModelsToolCard } from './ListModelsToolCard';
+import { ControlHubToolCard } from './ControlHubToolCard';
+import { BuiltinToolCard } from './BuiltinToolCard';
 
 /**
  * Standard tool adapters backed by concrete `@bitfun/ui/flow-chat` views.
@@ -82,10 +90,13 @@ export const STANDARD_TOOL_CARD_ADAPTERS = {
   // Web tools
   'WebSearch': WebSearchCard,
   'WebFetch': WebFetchCard,
+  'ListModels': ListModelsToolCard,
+  'ControlHub': ControlHubToolCard,
   
   // Agent activity
   'AgentSpawn': AgentControlToolCard,
   'AgentSendInput': AgentControlToolCard,
+  'AgentInterrupt': AgentInteractionToolCard,
   'AgentWait': AgentWaitToolCard,
   'TodoWrite': TodoWriteDisplay,
 
@@ -105,6 +116,9 @@ export const STANDARD_TOOL_CARD_ADAPTERS = {
   'SessionControl': SessionControlToolCard,
   'SessionMessage': SessionMessageToolCard,
 
+  // Scheduled jobs
+  'Cron': CronToolCard,
+
   // Code-mode agents: one program per step instead of one card per action
   'RunCode': RunCodeToolCard,
 
@@ -119,7 +133,27 @@ export const STANDARD_TOOL_CARD_ADAPTERS = {
 
   // Model vision image preview
   'view_image': ViewImageToolCard,
-} as const;
+  'get_goal': BuiltinToolCard,
+  'create_goal': BuiltinToolCard,
+  'update_goal': BuiltinToolCard,
+  'AgentList': BuiltinToolCard,
+  'AgentDelete': AgentDeleteToolCard,
+  'SessionHistory': BuiltinToolCard,
+  'analyze_image': BuiltinToolCard,
+  'GetTime': BuiltinToolCard,
+  'ListMCPResources': BuiltinToolCard,
+  'ReadMCPResource': BuiltinToolCard,
+  'ListMCPPrompts': BuiltinToolCard,
+  'GetMCPPrompt': BuiltinToolCard,
+  'Worktree': BuiltinToolCard,
+  'PortForward': BuiltinToolCard,
+  'ReviewPlatform': BuiltinToolCard,
+  'FrontendWorkbench': BuiltinToolCard,
+  'FinalizeMiniApp': BuiltinToolCard,
+  'PublishMiniApp': BuiltinToolCard,
+  'PublishAppearance': BuiltinToolCard,
+  'Playbook': BuiltinToolCard,
+} as const satisfies Record<ToolNameForOwner<'standard'>, JSXElementConstructor<ToolCardProps>>;
 
 /**
  * Bespoke product cards intentionally kept in Web UI.
@@ -145,7 +179,7 @@ export const PRODUCT_OWNED_TOOL_CARD_COMPONENTS = {
   'ReadCanvas': CanvasToolCard,
   'UpdateCanvas': CanvasToolCard,
   'PatchCanvas': CanvasToolCard,
-} as const;
+} as const satisfies Record<ToolNameForOwner<'product'>, JSXElementConstructor<ToolCardProps>>;
 
 // Runtime map keyed by backend tool names.
 export const TOOL_CARD_COMPONENTS = {

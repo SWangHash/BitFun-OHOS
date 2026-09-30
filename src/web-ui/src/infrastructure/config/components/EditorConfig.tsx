@@ -12,6 +12,7 @@ import {
 import { configManager } from '../services/ConfigManager';
 import { globalEventBus } from '@/infrastructure/event-bus';
 import { DEFAULT_EDITOR_CONFIG, type EditorConfig as EditorConfigType, type EditorConfigPartial } from '@/tools/editor/config';
+import { resolveEditorFontFamily } from '@/tools/editor/config/defaults';
 import {
   ConfigPageLayout,
   ConfigPageHeader,
@@ -107,16 +108,14 @@ function getPrimaryFont(fontFamily: string): string {
   
   const fonts = fontFamily.split(',').map(f => f.trim().replace(/^['"]|['"]$/g, ''));
   
-  const primary = fonts[0] || 'Fira Code';
+  const primary = fonts[0] || '__design-system__';
   return primary;
 }
 
  
 function buildFontFamily(primaryFont: string): string {
-  
-  const fallbackFonts = ['Consolas', 'Monaco', 'Menlo', "'Courier New'", 'monospace'];
-  const fonts = [primaryFont, ...fallbackFonts.filter(f => f !== primaryFont && f !== `'${primaryFont}'`)];
-  return fonts.map(f => f.includes(' ') && !f.startsWith("'") ? `'${f}'` : f).join(', ');
+  if (primaryFont === '__design-system__') return '';
+  return `${JSON.stringify(primaryFont)}, ${resolveEditorFontFamily()}`;
 }
 
  
@@ -454,7 +453,7 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
         >
           <ConfigPageRow label={t('appearance.font')} align="center">
             <Select
-              options={fontFamilyOptions}
+              options={[{ label: t('appearance.fontDefault'), value: '__design-system__' }, ...fontFamilyOptions]}
               value={getPrimaryFont(config.fontFamily)}
               onValueChange={(v) => updateConfig('fontFamily', buildFontFamily(v as string))}
               placeholder={t('appearance.font')}
@@ -567,7 +566,7 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
               size="sm"
             />
           </ConfigPageRow>
-          <ConfigPageRow label={t('behavior.smoothScrolling')} description={t('behavior.smoothScrollingDesc')} align="center">
+          <ConfigPageRow label={t('behavior.smoothScrolling')} align="center">
             <Switch
               checked={config.smoothScrolling}
               onChange={(e) => updateConfig('smoothScrolling', e.target.checked)}
@@ -645,13 +644,13 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
               onChange={(e) => updateConfig('bracketPairColorization', e.target.checked)}
             />
           </ConfigPageRow>
-          <ConfigPageRow label={t('advanced.formatOnSave')} description={t('advanced.formatOnSaveDesc')} align="center">
+          <ConfigPageRow label={t('advanced.formatOnSave')} align="center">
             <Switch
               checked={config.formatOnSave}
               onChange={(e) => updateConfig('formatOnSave', e.target.checked)}
             />
           </ConfigPageRow>
-          <ConfigPageRow label={t('advanced.formatOnPaste')} description={t('advanced.formatOnPasteDesc')} align="center">
+          <ConfigPageRow label={t('advanced.formatOnPaste')} align="center">
             <Switch
               checked={config.formatOnPaste}
               onChange={(e) => updateConfig('formatOnPaste', e.target.checked)}

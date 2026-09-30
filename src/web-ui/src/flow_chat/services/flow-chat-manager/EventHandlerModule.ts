@@ -29,6 +29,7 @@ import { resolveThreadGoalUserMessageDisplay } from '../../utils/threadGoalDispl
 import { cleanRemoteUserInput } from '../../utils/userInputText';
 import { getEffectiveToolName } from '../../utils/toolInvocationIdentity';
 import { absoluteSessionTurnIndexForId } from '../../utils/flowChatTurnOrdinal';
+import { normalizeSessionContinuationPolicy } from '../../utils/sessionMetadata';
 import type {
   DeepReviewQueueStateChangedEvent,
   ImageAnalysisEvent,
@@ -532,6 +533,11 @@ function ensureSubagentSession(
         parentSession?.projectWorkspacePath
         || parentSession?.config.projectWorkspacePath
         || parentSession?.workspacePath,
+      // The child owns the parent's project, so navigation and persistence
+      // resolve both to the same group.
+      projectWorkspaceId:
+        parentSession?.projectWorkspaceId
+        || parentSession?.config.projectWorkspaceId,
       executionTarget: parentSession?.config.executionTarget,
       workspaceId: subagentWorkspace.workspaceId,
     },
@@ -609,6 +615,12 @@ function handleSubagentSessionLinked(
     agentType,
     focusedReviewDisplayLabel,
   );
+  const continuationPolicy = normalizeSessionContinuationPolicy(
+    event.continuationPolicy ?? (event as any).continuation_policy,
+  );
+  if (continuationPolicy) {
+    FlowChatStore.getInstance().updateSessionRelationship(childSessionId, { continuationPolicy });
+  }
   if (typeof modelId === 'string' && modelId.trim()) {
     FlowChatStore.getInstance().updateSessionModelName(childSessionId, modelId.trim());
   }

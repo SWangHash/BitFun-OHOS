@@ -55,6 +55,15 @@ enum MobileDesignColors {
     static let floatingBorder = dynamic(light: 0x18000000, dark: 0x18000000)
     static let soft = dynamic(light: 0xFFF4F3F0, dark: 0xFF2D2C28)
     static let floatingPanelBg = dynamic(light: 0xFFF7F7F5, dark: 0xFF1E1E1C)
+    static let sidebarBg = dynamic(light: 0xFFF8F8F9, dark: 0xFF0E0E10)
+    static let sidebarBgFade = dynamic(light: 0x00F8F8F9, dark: 0x000E0E10)
+    static let sidebarRaised = dynamic(light: 0xFFFFFFFF, dark: 0xFF1C1C1F)
+    static let sidebarLine = dynamic(light: 0x14101A27, dark: 0x1FFFFFFF)
+    static let sidebarHover = dynamic(light: 0xFFF3F3F5, dark: 0x0FFFFFFF)
+    static let sidebarSelection = dynamic(light: 0x14000000, dark: 0x1FFFFFFF)
+    static let sidebarInk = dynamic(light: 0xCC000000, dark: 0xFFE8E8E8)
+    static let sidebarMuted = dynamic(light: 0x99000000, dark: 0xFFB0B0B0)
+    static let sidebarSubtle = dynamic(light: 0x66000000, dark: 0xFF858585)
     static let statusSuccess = dynamic(light: 0xFF27C46A, dark: 0xFF3BD47B)
     static let statusDanger = dynamic(light: 0xFFE04F4F, dark: 0xFFFF6B6B)
     static let codeLineNumber = dynamic(light: 0xFFAAA69D, dark: 0xFF77756E)
@@ -205,4 +214,5 @@ enum MobileDesignMotion {
     static let quick: CGFloat = 180
     static let structure: CGFloat = 220
     static let startupBrand: CGFloat = 6800
+    static let coldStartHome: CGFloat = 2400
 }

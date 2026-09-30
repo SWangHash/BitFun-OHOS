@@ -203,7 +203,7 @@ struct ConversationActionsPopover: View {
                 .frame(height: 28)
                 .padding(.leading, 8)
             action("已上传文件", icon: "cloud", perform: model.showUploadedFiles)
-            if model.isSending {
+            if model.isSending && model.remoteConnected && model.connectionPhase == .connected {
                 Divider().overlay(BitFunTheme.line).padding(.vertical, 8)
                 action("停止", icon: "gearshape", perform: model.stopSending)
             }

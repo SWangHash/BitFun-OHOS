@@ -2,7 +2,7 @@ import {
   Button,
   Dialog,
   DialogBody,
-  DialogClose,
+  DialogClose, Icon,
 } from '@bitfun/ui';
 import React, { useCallback, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
@@ -166,7 +166,7 @@ export function useDeepReviewConsent(): DeepReviewConsentControls {
         {skippedReviewers.length > 0 && (
           <div data-bitfun-component="deep-review-consent-dialog" data-bitfun-part="reviewerGroup" className="deep-review-consent__reviewer-group">
             <div className="deep-review-consent__reviewer-group-title deep-review-consent__reviewer-group-title--warning">
-              <AlertTriangle size={13} />
+              <Icon glyph={AlertTriangle} size="sm" />
               {t('deepReviewConsent.skippedGroupTitle')}
             </div>
             <p className="deep-review-consent__skipped-summary">
@@ -212,7 +212,7 @@ export function useDeepReviewConsent(): DeepReviewConsentControls {
         {pendingConsent.launchContext?.sessionConcurrencyGuard?.highActivity && (
           <div data-bitfun-component="deep-review-consent-dialog" data-bitfun-part="capacityNote" className="deep-review-consent__capacity-note">
             <div className="deep-review-consent__fact-icon deep-review-consent__fact-icon--warning">
-              <AlertTriangle size={16} />
+              <Icon glyph={AlertTriangle} size="md" />
             </div>
             <div>
               <span className="deep-review-consent__fact-title">

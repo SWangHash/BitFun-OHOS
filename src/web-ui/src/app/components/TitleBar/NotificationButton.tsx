@@ -69,9 +69,9 @@ const NotificationButton: React.FC<NotificationButtonProps> = ({
       <MenuItem
         className={className || undefined}
         leading={activeNotification?.variant === 'loading' ? (
-          <LucideLoaderCircle width="14" height="14" stroke="currentColor" className="bitfun-notification-btn__spinner" aria-hidden="true" />
+          <Icon glyph={LucideLoaderCircle} size="sm" className="bitfun-notification-btn__spinner" aria-hidden="true" />
         ) : unreadCount > 0 ? (
-          <BellDot size={14} className="bitfun-notification-btn__icon--has-message" aria-hidden="true" />
+          <Icon glyph={BellDot} size="sm" className="bitfun-notification-btn__icon--has-message" aria-hidden="true" />
         ) : (
           <Icon name="bell" size="sm" aria-hidden="true" />
         )}
@@ -161,21 +161,22 @@ const NotificationButton: React.FC<NotificationButtonProps> = ({
       ) : navFooterHoverIconSwap ? (
         unreadCount > 0 ? (
           <span className="bitfun-nav-panel__footer-btn-icon-swap" aria-hidden="true">
-            <BellDot
-              size={15}
+            <Icon
+              glyph={BellDot}
+              size="sm"
               className="bitfun-notification-btn__icon--has-message bitfun-nav-panel__footer-btn-icon-swap-default"
             />
-            <BellRing size={15} className="bitfun-nav-panel__footer-btn-icon-swap-hover" />
+            <Icon glyph={BellRing} size="sm" className="bitfun-nav-panel__footer-btn-icon-swap-hover" />
           </span>
         ) : (
           <span className="bitfun-nav-panel__footer-btn-icon-swap" aria-hidden="true">
             <Icon name="bell" size="sm" className="bitfun-nav-panel__footer-btn-icon-swap-default" />
-            <BellRing size={15} className="bitfun-nav-panel__footer-btn-icon-swap-hover" />
+            <Icon glyph={BellRing} size="sm" className="bitfun-nav-panel__footer-btn-icon-swap-hover" />
           </span>
         )
       ) : (
         unreadCount > 0
-          ? <BellDot size={14} className="bitfun-notification-btn__icon--has-message" />
+          ? <Icon glyph={BellDot} size="sm" className="bitfun-notification-btn__icon--has-message" />
           : <Icon name="bell" size="sm" />
       )}
     </button>

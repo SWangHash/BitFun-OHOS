@@ -9,6 +9,7 @@ use bitfun_agent_runtime::sdk::{
     AgentSessionRestoreRequest, AgentTurnCancellationRequest, AgentTurnSettlementRequest,
     PermissionReply, PermissionReplySource, PermissionRequest, PermissionRequestEvent,
 };
+use bitfun_agent_runtime::thread_goal::{ThreadGoalRunDisposition, ThreadGoalRunTracker};
 use bitfun_events::{project_agentic_frontend_event, AgenticEvent};
 use bitfun_runtime_ports::{
     AgentSubmissionSource, DialogSubmissionPolicy, SessionExecutionTarget,
@@ -226,7 +227,18 @@ async fn run_inner(store: &DispatchStore, job_id: &str) -> Result<()> {
             .context("apply dispatch turn model and reasoning preset")?;
     }
 
-    let turn_id = uuid::Uuid::new_v4().to_string();
+    let mut goal_run = ThreadGoalRunTracker::new(
+        agent_runtime
+            .get_thread_goal(bitfun_agent_runtime::sdk::AgentThreadGoalGetRequest {
+                session_id: job.request.session_id.clone(),
+                workspace_path: workspace_path.clone(),
+                remote_connection_id: None,
+                remote_ssh_host: None,
+            })
+            .await
+            .map_err(|error| anyhow!(error.into_message()))?,
+    );
+    let mut turn_id = uuid::Uuid::new_v4().to_string();
     // Claim the queued follow-up and persist the turn id in one step. A crash
     // after the Runtime accepts the turn must never make a replacement worker
     // submit the prompt a second time.
@@ -328,6 +340,19 @@ async fn run_inner(store: &DispatchStore, job_id: &str) -> Result<()> {
                         );
                     }
                 };
+                let mut goal_disposition = None;
+                if let AgenticEvent::ThreadGoalUpdated { session_id: owner, goal } = &envelope.event {
+                    if owner == &job.request.session_id {
+                        goal_disposition = goal_run.observe_goal(goal.clone().map(serde_json::from_value).transpose()?);
+                    }
+                }
+                if let AgenticEvent::DialogTurnStarted { session_id: owner, turn_id: next_turn, user_message_metadata, .. } = &envelope.event {
+                    if owner == &job.request.session_id && goal_run.accept_continuation(user_message_metadata.as_ref()) {
+                        store.advance_goal_turn(job_id, &turn_id, next_turn)?;
+                        turn_id = next_turn.clone();
+                        event_scope.turn_id = turn_id.clone();
+                    }
+                }
                 if !event_scope.admit(&envelope.event) {
                     continue;
                 }
@@ -339,7 +364,21 @@ async fn run_inner(store: &DispatchStore, job_id: &str) -> Result<()> {
                     job_id,
                     &DispatchEvent::agent_event(raw, projection),
                 )?;
+                if let Some(disposition) = goal_disposition {
+                    match disposition {
+                        ThreadGoalRunDisposition::Complete => break (DispatchJobState::Succeeded, None),
+                        ThreadGoalRunDisposition::Stopped(status) => break (DispatchJobState::Failed, Some(format!("Thread goal stopped with status {status:?}; the objective is not complete"))),
+                        ThreadGoalRunDisposition::Continue => {}
+                    }
+                }
                 if let Some(outcome) = terminal_outcome(&envelope.event, &turn_id) {
+                    if outcome.0 == DispatchJobState::Succeeded && turn_kind == DispatchTurnKind::Prompt {
+                        match goal_run.after_successful_turn() {
+                            ThreadGoalRunDisposition::Continue => continue,
+                            ThreadGoalRunDisposition::Complete => {}
+                            ThreadGoalRunDisposition::Stopped(status) => break (DispatchJobState::Failed, Some(format!("Thread goal stopped with status {status:?}; the objective is not complete"))),
+                        }
+                    }
                     break outcome;
                 }
             }
@@ -764,6 +803,7 @@ mod tests {
             agent_type: Some("GeneralPurpose".to_string()),
             model_id: None,
             focused_review_display_label: None,
+            continuation_policy: None,
         };
         assert!(scope.admit(&linked));
         assert!(scope.admit(&child_chunk));
@@ -778,6 +818,7 @@ mod tests {
             agent_type: None,
             model_id: None,
             focused_review_display_label: None,
+            continuation_policy: None,
         };
         assert!(scope.admit(&grandchild_link));
 
@@ -791,6 +832,7 @@ mod tests {
             agent_type: None,
             model_id: None,
             focused_review_display_label: None,
+            continuation_policy: None,
         };
         assert!(!scope.admit(&foreign_link));
 

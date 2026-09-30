@@ -422,7 +422,29 @@ export const WorkspaceProjectPermissionsDialog: React.FC<WorkspaceProjectPermiss
         </section>
       </div>
             </div>
-            </DialogBody>
+      </DialogBody>
+      {rulesDirty ? (
+        <DialogFooter
+          separator
+          data-bitfun-component="workspace-project-permissions-dialog"
+          data-bitfun-part="footer"
+          className="workspace-project-permissions-dialog__footer"
+        >
+          <Button type="button" variant="fill" onClick={handleDiscardRules} disabled={isBusy}>
+            {t('projectPermissions.cancel')}
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            loading={rulesSaving}
+            disabled={!rulesValid || rulesRevision === null || isBusy}
+            onClick={() => void handleSaveRules()}
+            leadingIcon={<Icon glyph={Save} size="sm" />}
+          >
+            {t('projectPermissions.saveRules')}
+          </Button>
+        </DialogFooter>
+      ) : null}
     </Dialog>
   );
 };

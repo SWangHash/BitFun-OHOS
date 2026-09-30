@@ -10,7 +10,7 @@ import {
   type MutableRefObject,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { Bot, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Icon, Menu, MenuItem } from '@bitfun/ui';
 
 import type { AcpClientInfo } from '@/infrastructure/api/service-api/ACPClientAPI';
@@ -172,7 +172,7 @@ const WorkspaceAcpSessionSubmenu = forwardRef<HTMLDivElement, WorkspaceAcpSessio
         <MenuItem
           ref={triggerRef}
           className={`bitfun-nav-panel__workspace-acp-menu-trigger${open ? ' is-open' : ''}`}
-          leading={<Bot size={13} aria-hidden="true" />}
+          leading={<Icon name="user" size="sm" />}
           shortcut={<Icon name="chevron-right" size="sm" aria-hidden="true" />}
           aria-haspopup="menu"
           aria-expanded={open}
@@ -187,6 +187,7 @@ const WorkspaceAcpSessionSubmenu = forwardRef<HTMLDivElement, WorkspaceAcpSessio
           <Menu
             ref={setSubmenuRef}
             className="bitfun-nav-panel__workspace-item-menu-popover bitfun-nav-panel__workspace-acp-submenu"
+            inlineSize="content"
             aria-label={label}
             data-placement={layout?.placement}
             data-testid="nav-workspace-menu-acp-submenu"
@@ -198,7 +199,7 @@ const WorkspaceAcpSessionSubmenu = forwardRef<HTMLDivElement, WorkspaceAcpSessio
             }}
           >
             {loading ? (
-              <MenuItem leading={<Loader2 size={13} aria-hidden="true" />} disabled>
+              <MenuItem leading={<Loader2 className="bitfun-nav-panel__menu-loading-icon" aria-hidden="true" />} disabled>
                 {t('app.loading')}
               </MenuItem>
             ) : clients.map(client => {
@@ -206,7 +207,7 @@ const WorkspaceAcpSessionSubmenu = forwardRef<HTMLDivElement, WorkspaceAcpSessio
               return (
                 <MenuItem
                   key={client.id}
-                  leading={<Bot size={13} aria-hidden="true" />}
+                  leading={<Icon name="user" size="sm" />}
                   onClick={() => onSelect(client)}
                   data-testid="nav-workspace-menu-create-acp-session"
                   data-acp-client-id={client.id}

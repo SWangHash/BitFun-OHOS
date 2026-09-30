@@ -580,12 +580,25 @@ impl SessionRoundInjectionBuffer {
     /// injections that target a different turn are retained until the targeted
     /// turn consumes them or the session is cleared.
     pub fn drain_for_turn(&self, session_id: &str, turn_id: &str) -> Vec<RoundInjection> {
+        self.drain_matching_for_turn(session_id, turn_id, |_| true)
+    }
+
+    pub fn drain_matching_for_turn(
+        &self,
+        session_id: &str,
+        turn_id: &str,
+        matches: impl Fn(&RoundInjection) -> bool,
+    ) -> Vec<RoundInjection> {
         let Some(mut entry) = self.inner.get_mut(session_id) else {
             return Vec::new();
         };
         let mut taken = Vec::new();
         let mut keep = Vec::new();
         for msg in entry.drain(..) {
+            if !matches(&msg) {
+                keep.push(msg);
+                continue;
+            }
             match &msg.target {
                 RoundInjectionTarget::ExactTurn(target_turn_id) if target_turn_id == turn_id => {
                     taken.push(msg);

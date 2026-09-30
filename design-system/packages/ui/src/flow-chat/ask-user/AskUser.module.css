@@ -1,81 +1,222 @@
 @layer bitfun.components {
+  .answerMessage {
+    box-sizing: border-box;
+    inline-size: fit-content;
+    max-inline-size: var(--bitfun-control-flow-chat-user-message-max-width);
+    min-inline-size: 0;
+    margin-inline: auto 0;
+    padding-block: var(--bitfun-control-flow-chat-user-message-padding-block);
+    padding-inline: var(--bitfun-control-flow-chat-user-message-radius);
+    border-radius: var(--bitfun-control-flow-chat-user-message-radius);
+    background: var(--bitfun-color-action-quiet-hover);
+    color: var(--bitfun-color-content-primary);
+    font-family: var(--bitfun-type-flow-control-font-family);
+    font-size: var(--bitfun-type-flow-control-font-size);
+    font-weight: var(--bitfun-type-flow-control-font-weight);
+    line-height: var(--bitfun-type-flow-body-line-height);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .answerList,
+  .answerPair {
+    display: flex;
+    min-inline-size: 0;
+    flex-direction: column;
+    margin: 0;
+  }
+
+  .answerList {
+    gap: var(--bitfun-space-3);
+  }
+
+  .answerPair {
+    gap: var(--bitfun-space-1);
+  }
+
+  .answeredQuestion {
+    color: var(--bitfun-color-content-primary);
+  }
+
+  .answer {
+    margin: 0;
+    color: var(--bitfun-color-content-secondary);
+    font-family: var(--bitfun-type-flow-meta-font-family);
+    font-size: var(--bitfun-type-flow-meta-font-size);
+    font-weight: var(--bitfun-type-flow-meta-font-weight);
+    line-height: var(--bitfun-type-flow-meta-line-height);
+  }
+
   .root {
-    position: relative;
+    box-sizing: border-box;
+    container: ask-user / inline-size;
     inline-size: 100%;
     min-inline-size: 0;
     margin-block: var(--bitfun-space-1);
     overflow: hidden;
-    border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-default);
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
     border-radius: var(--bitfun-radius-lg);
-    background: var(--bitfun-color-surface-scene);
-    backdrop-filter: blur(10px);
+    background: var(--bitfun-color-surface-panel);
     box-shadow: none;
     color: var(--bitfun-color-content-primary);
-    font-family:var(--bitfun-type-body-md-font-family);
-    line-height: var(--bitfun-type-heading-page-line-height);
-    transition:
-      border-color var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard),
-      box-shadow var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard);
-  }
-
-  /* Glass hairline: keeps the card edge legible when the scene behind it is
-     nearly the same surface colour. */
-  .root::before {
-    content: '';
-    position: absolute;
-    inset-block-start: 0;
-    inset-inline: 0;
-    block-size: var(--bitfun-border-width-default);
-    background: linear-gradient(
-      90deg,
-      transparent 0%,
-      var(--bitfun-color-border-subtle) 50%,
-      transparent 100%
-    );
-    pointer-events: none;
-  }
-
-  .root:hover {
-    border-color: var(--bitfun-color-border-strong);
-    box-shadow: var(--bitfun-shadow-lg);
+    font-family: var(--bitfun-type-body-sm-font-family);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    font-weight: var(--bitfun-type-body-sm-font-weight);
+    line-height: var(--bitfun-type-body-sm-line-height);
   }
 
   .header,
   .summaryButton {
-    min-block-size: var(--bitfun-control-ask-user-header-height);
+    box-sizing: border-box;
+    min-block-size: calc(var(--bitfun-control-activity-item-surface-height) - 2 * var(--bitfun-border-width-default));
     border: 0;
-    color: var(--bitfun-color-action-neutral-content);
+    color: var(--bitfun-color-content-primary);
     background: transparent;
     font: inherit;
   }
 
   .header {
+    position: relative;
     display: flex;
     align-items: center;
-    padding-block: var(--bitfun-control-ask-user-summary-padding-block);
-    padding-inline: var(--bitfun-control-ask-user-summary-padding-inline-start);
-    border-block-end: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
-    color: var(--bitfun-color-content-secondary);
+    gap: var(--bitfun-space-2);
+    padding-block: 0;
+    padding-inline: var(--bitfun-control-flow-chat-card-padding-inline);
+    box-shadow: inset 0 calc(-1 * var(--bitfun-border-width-default)) var(--bitfun-color-border-subtle);
     font-size: var(--bitfun-type-body-sm-font-size);
     font-weight: var(--bitfun-type-label-selected-font-weight);
     letter-spacing: var(--bitfun-type-flow-title-letter-spacing);
   }
 
-  .headerTrailing {
-    margin-inline-start: auto;
-    flex-shrink: 0;
+  .headerLeading {
+    display: flex;
+    min-inline-size: 0;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: var(--bitfun-space-2);
+  }
+
+  .headerToggle {
+    position: absolute;
+    inset: 0;
+    inline-size: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .header[data-disclosure="true"] .headerLeading,
+  .header[data-disclosure="true"] .headerTrailing,
+  .header[data-disclosure="true"] .summaryAction {
+    position: relative;
+    pointer-events: none;
+  }
+
+  .header[data-disclosure="true"] .headerTrailing :global(button) {
+    pointer-events: auto;
+  }
+
+  .headerToggle:focus-visible {
+    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+    outline-offset: calc(-1 * var(--bitfun-focus-width));
+  }
+
+  .headerIcon,
+  .questionCount {
+    flex: 0 0 auto;
+  }
+
+  .headerIcon {
+    color: inherit;
+  }
+
+  .skippedIcon {
+    color: var(--bitfun-color-content-secondary);
+  }
+
+  .questionCount {
+    white-space: nowrap;
     font-variant-numeric: tabular-nums;
   }
 
+  .headerSubject {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+    padding-inline-start: var(--bitfun-space-2);
+    border-inline-start: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+    color: var(--bitfun-color-content-secondary);
+    font-weight: var(--bitfun-type-body-sm-font-weight);
+  }
+
+  .headerTrailing {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--bitfun-space-2);
+    margin-inline-start: auto;
+    min-inline-size: 0;
+    max-inline-size: 50%;
+    flex: 0 1 auto;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .headerTrailing:empty {
+    display: none;
+  }
+
+  .navigation {
+    position: relative;
+  }
+
+  .counter {
+    color: var(--bitfun-color-content-muted);
+    font-family: var(--bitfun-type-code-sm-font-family);
+    font-size: var(--bitfun-type-body-xs-font-size);
+    font-weight: var(--bitfun-type-body-md-font-weight);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .progress {
+    position: absolute;
+    inset-inline: 0;
+    inset-block-end: 0;
+    display: block;
+    appearance: none;
+    inline-size: 100%;
+    block-size: var(--bitfun-border-width-default);
+    margin: 0;
+    overflow: hidden;
+    border: 0;
+    border-radius: 0;
+    background: var(--bitfun-color-surface-subtle);
+    color: var(--bitfun-color-content-secondary);
+  }
+
+  .progress::-webkit-progress-bar {
+    border-radius: inherit;
+    background: var(--bitfun-color-surface-subtle);
+  }
+
+  .progress::-webkit-progress-value {
+    background: var(--bitfun-color-content-secondary);
+  }
+
+  .progress::-moz-progress-bar {
+    background: var(--bitfun-color-content-secondary);
+  }
+
   .summaryButton {
+    box-sizing: border-box;
     display: flex;
     inline-size: 100%;
+    min-block-size: calc(var(--bitfun-control-activity-item-surface-height) - 2 * var(--bitfun-border-width-default));
     align-items: center;
     justify-content: space-between;
-    gap: var(--bitfun-control-ask-user-option-content-gap);
-    padding-block: var(--bitfun-control-ask-user-summary-padding-block);
-    padding-inline-start: var(--bitfun-control-ask-user-summary-padding-inline-start);
-    padding-inline-end: var(--bitfun-control-ask-user-summary-padding-inline-end);
+    gap: var(--bitfun-space-2);
+    padding-block: var(--bitfun-control-activity-item-surface-padding-block);
+    padding-inline: var(--bitfun-control-flow-chat-card-padding-inline);
+    line-height: var(--bitfun-type-body-sm-line-height);
     text-align: start;
     cursor: pointer;
   }
@@ -98,24 +239,23 @@
 
   .summaryLeading {
     flex: 1 1 auto;
-    gap: var(--bitfun-control-ask-user-option-content-gap);
+    gap: var(--bitfun-space-2);
   }
 
   .summaryCopy {
     flex: 1 1 auto;
     gap: var(--bitfun-space-1);
     font-size: var(--bitfun-type-body-sm-font-size);
-    font-weight: var(--bitfun-type-label-lg-font-weight);
-    line-height: var(--bitfun-type-heading-page-line-height);
+    font-weight: var(--bitfun-type-body-sm-font-weight);
+    line-height: var(--bitfun-type-body-sm-line-height);
   }
 
   .summaryIcon,
-  .controlIcon,
   .statusIcon {
     display: inline-flex;
     flex: 0 0 auto;
-    inline-size: var(--bitfun-control-ask-user-icon-size);
-    block-size: var(--bitfun-control-ask-user-icon-size);
+    inline-size: var(--bitfun-control-icon-size-md);
+    block-size: var(--bitfun-control-icon-size-md);
     align-items: center;
     justify-content: center;
   }
@@ -124,13 +264,10 @@
     color: var(--bitfun-color-status-success-content);
   }
 
-  .summaryIcon > svg {
-    fill: currentColor;
-    stroke: var(--bitfun-color-content-inverse);
-  }
-
+  .summaryIcon > [data-bitfun-component="icon"],
+  .statusIcon > [data-bitfun-component="icon"],
+  .summaryAction > [data-bitfun-component="icon"],
   .summaryIcon > svg,
-  .controlIcon > svg,
   .statusIcon > svg,
   .summaryAction > svg,
   .browseButton > svg {
@@ -139,13 +276,13 @@
     block-size: 100%;
   }
 
-  .selectedSingleControl > circle:nth-of-type(2) {
-    fill: currentColor;
-  }
-
   .summaryLabel,
   .summaryArrow {
     flex: 0 0 auto;
+  }
+
+  .summaryLabel {
+    font-weight: var(--bitfun-type-label-lg-font-weight);
   }
 
   .summaryDetail {
@@ -156,21 +293,35 @@
   }
 
   .summaryAction {
+    box-sizing: border-box;
     display: inline-flex;
     flex: 0 0 auto;
-    inline-size: var(--bitfun-control-ask-user-summary-action-size);
-    block-size: var(--bitfun-control-ask-user-summary-action-size);
+    inline-size: var(--bitfun-space-5);
+    block-size: var(--bitfun-space-5);
     align-items: center;
     justify-content: center;
     padding: var(--bitfun-space-1);
     border-radius: var(--bitfun-radius-xs);
     color: var(--bitfun-color-content-muted);
+    opacity: 0;
+  }
+
+  .summaryButton:hover .summaryAction,
+  .summaryButton:focus-visible .summaryAction,
+  .header:hover .summaryAction,
+  .headerToggle:focus-visible ~ .summaryAction,
+  .headerToggle:focus-visible ~ .headerTrailing .summaryAction {
+    opacity: 1;
   }
 
   .details {
     display: grid;
     grid-template-rows: 1fr;
     transition: grid-template-rows var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard);
+  }
+
+  .details[hidden] {
+    display: none;
   }
 
   .root[data-bitfun-has-summary="true"][data-bitfun-expanded="false"] .details {
@@ -186,8 +337,8 @@
     display: flex;
     flex-direction: column;
     gap: var(--bitfun-control-ask-user-body-gap);
-    padding-block: var(--bitfun-space-3);
-    padding-inline: var(--bitfun-space-3);
+    padding-block: var(--bitfun-control-ask-user-body-padding);
+    padding-inline: var(--bitfun-control-flow-chat-card-padding-inline);
   }
 
   .question {
@@ -206,15 +357,30 @@
   }
 
   .prompt {
-    display: flex;
+    box-sizing: border-box;
+    display: block;
     inline-size: 100%;
-    align-items: center;
-    gap: var(--bitfun-space-2);
-    padding-inline: var(--bitfun-control-ask-user-question-padding-inline);
-    color: var(--bitfun-color-action-neutral-content);
+    padding-block: 0;
+    padding-inline: 0;
+    color: var(--bitfun-color-content-primary);
     font-size: var(--bitfun-type-body-sm-font-size);
-    font-weight: var(--bitfun-type-label-selected-font-weight);
-    line-height: var(--bitfun-type-heading-page-line-height);
+    font-weight: var(--bitfun-type-label-lg-font-weight);
+    line-height: var(--bitfun-type-body-sm-line-height);
+  }
+
+  .prompt:focus-visible {
+    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+    outline-offset: var(--bitfun-focus-offset);
+    border-radius: var(--bitfun-radius-xs);
+  }
+
+  .questionDescription {
+    margin-block-start: var(--bitfun-space-1);
+    margin-inline: 0;
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    line-height: var(--bitfun-type-body-sm-line-height);
+    overflow-wrap: anywhere;
   }
 
   /* Owner-supplied field label: a quiet badge ahead of the prompt text. */
@@ -253,67 +419,47 @@
   .option {
     display: flex;
     min-inline-size: 0;
-    align-items: center;
-    gap: var(--bitfun-control-ask-user-option-content-gap);
-    padding-block: var(--bitfun-control-ask-user-option-padding-block);
-    padding-inline: var(--bitfun-control-ask-user-option-padding-inline);
-    border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-default);
-    border-radius: var(--bitfun-radius-lg);
-    background: transparent;
-    transition:
-      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
-      border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
-  }
-
-  .option:hover:not(:has(.nativeControl:disabled)),
-  .option:has(.nativeControl[data-bitfun-preview-state="hover"]),
-  .option[data-selected="true"] {
-    border-color: var(--bitfun-color-border-strong);
-    background: var(--bitfun-color-surface-subtle);
-  }
-
-  .option:has(.nativeControl:focus-visible) {
-    box-shadow: 0 0 0 var(--bitfun-focus-width) var(--bitfun-color-focus-ring);
-  }
-
-  .nativeControl {
-    position: absolute;
-    inline-size: 1px;
-    block-size: 1px;
-    overflow: hidden;
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  .optionSelector {
-    display: flex;
-    flex: 1 1 auto;
-    min-inline-size: 0;
-    /* The control tracks the label line, not the two-line block center. */
-    align-items: flex-start;
-    gap: var(--bitfun-control-ask-user-option-content-gap);
-    cursor: pointer;
-  }
-
-  .nativeControl:disabled + .optionSelector {
-    cursor: default;
-  }
-
-  .controlIcon {
-    color: var(--bitfun-color-border-default);
-  }
-
-  .option[data-selected="true"] .controlIcon {
-    color: var(--bitfun-color-action-neutral-content);
-  }
-
-  .optionContent {
-    display: flex;
-    flex: 1 1 auto;
-    min-inline-size: 0;
     flex-direction: column;
     align-items: stretch;
-    gap: var(--bitfun-space-1);
+    gap: 0;
+    border-radius: var(--bitfun-radius-lg);
+    background: var(--bitfun-color-surface-subtle);
+    transition: background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  .option:hover:has(.optionSelector[data-disabled="false"][data-readonly="false"]),
+  .option:has([data-bitfun-preview-state="hover"]) {
+    background: var(--bitfun-color-action-neutral-surface-hover);
+  }
+
+  .option .optionSelector {
+    box-sizing: border-box;
+    display: flex;
+    flex: 1 1 auto;
+    min-inline-size: 0;
+    min-block-size: var(--bitfun-control-height-lg);
+    align-items: flex-start;
+    gap: var(--bitfun-space-2);
+    padding-block: max(var(--bitfun-control-ask-user-option-padding-block), calc((var(--bitfun-control-height-lg) - 1lh) / 2));
+    padding-inline: var(--bitfun-control-ask-user-option-padding-inline);
+    font: inherit;
+  }
+
+  .optionSelector > :global([data-bitfun-part="control"]) {
+    margin-block-start: max(0px, calc((1lh - var(--bitfun-control-icon-size-md)) / 2));
+  }
+
+  .optionSelector > :global([data-bitfun-part="content"]) {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+  }
+
+  .optionCopy {
+    display: flex;
+    min-inline-size: 0;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--bitfun-space-3);
   }
 
   .optionLabel,
@@ -322,33 +468,34 @@
   }
 
   .optionLabel {
+    display: block;
     flex: 0 1 auto;
     min-inline-size: 0;
-    color: var(--bitfun-color-action-neutral-content);
-    font-weight: var(--bitfun-type-label-lg-font-weight);
-    line-height: var(--bitfun-type-heading-page-line-height);
+    color: var(--bitfun-color-content-primary);
+    font-weight: var(--bitfun-type-body-sm-font-weight);
+    line-height: var(--bitfun-type-body-sm-line-height);
+    overflow-wrap: anywhere;
   }
 
   .optionDescription {
+    display: block;
     overflow: hidden;
     flex: 1 1 auto;
-    max-inline-size: var(--bitfun-control-ask-user-description-max-width);
     min-inline-size: 0;
+    max-inline-size: var(--bitfun-control-ask-user-description-max-width);
     color: var(--bitfun-color-content-muted);
-    font-weight: var(--bitfun-type-body-md-font-weight);
+    font-weight: var(--bitfun-type-body-sm-font-weight);
     line-height: var(--bitfun-type-body-sm-line-height);
-    text-align: start;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    text-align: end;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   .customInput {
-    display: flex;
-    flex: 1 1 var(--bitfun-control-ask-user-description-max-width);
-    max-inline-size: var(--bitfun-control-ask-user-description-max-width);
-    min-inline-size: 180px;
-    align-items: stretch;
-    gap: var(--bitfun-space-1);
+    min-inline-size: 0;
+    padding-block-end: var(--bitfun-control-ask-user-option-padding-block);
+    margin-inline-start: calc(var(--bitfun-control-ask-user-option-padding-inline) + var(--bitfun-control-icon-size-md) + var(--bitfun-space-2));
+    margin-inline-end: var(--bitfun-control-ask-user-option-padding-inline);
   }
 
   /* A question that declares its own input owns a full-width row below the
@@ -426,24 +573,23 @@
     block-size: var(--bitfun-control-ask-user-icon-size);
   }
 
-  .root[data-disabled="true"] .option {
-    color: var(--bitfun-color-content-disabled);
-  }
-
-  .root[data-disabled="true"] .optionLabel,
-  .root[data-disabled="true"] .optionDescription,
-  .root[data-disabled="true"] .controlIcon {
+  .option[data-selected="false"]:has(.optionSelector[data-disabled="true"]) .optionLabel,
+  .option[data-selected="false"]:has(.optionSelector[data-disabled="true"]) .optionDescription {
     color: var(--bitfun-color-content-disabled);
   }
 
   .footer {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
-    gap: var(--bitfun-space-2);
-    padding-block: var(--bitfun-space-2);
-    padding-inline: var(--bitfun-space-3);
-    border-block-start: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+    flex-wrap: wrap;
+    gap: var(--bitfun-space-3);
+    padding-block: 0 var(--bitfun-control-ask-user-body-padding);
+    padding-inline: var(--bitfun-control-flow-chat-card-padding-inline);
+  }
+
+  .submit {
+    flex-shrink: 0;
+    margin-inline-start: auto;
   }
 
   .submit,
@@ -455,20 +601,19 @@
   }
 
   .status {
-    gap: var(--bitfun-space-1);
-    padding-inline-start: var(--bitfun-space-2);
-    border-inline-start: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+    min-inline-size: 0;
+    flex: 1 1 auto;
+    gap: var(--bitfun-space-2);
     color: var(--bitfun-color-content-muted);
   }
 
   .statusText {
-    font-size: var(--bitfun-type-body-xs-font-size);
-    font-weight: var(--bitfun-type-label-lg-font-weight);
-    line-height: var(--bitfun-type-body-md-line-height);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    font-weight: var(--bitfun-type-body-sm-font-weight);
+    line-height: var(--bitfun-type-body-sm-line-height);
   }
 
-  .root[data-bitfun-state="asking"] .statusIcon,
-  .root[data-bitfun-state="timeout"] .statusIcon {
+  .root[data-bitfun-state="asking"] .statusIcon {
     color: var(--bitfun-color-status-warning-content);
   }
 
@@ -482,26 +627,27 @@
   }
 
   .root[data-bitfun-state="loading"] .statusIcon,
+  .root[data-bitfun-state="timeout"] .statusIcon,
   .root[data-bitfun-state="submitting"] .statusIcon {
     color: var(--bitfun-color-content-secondary);
   }
 
-  .root[data-bitfun-state="loading"] .statusIcon > svg,
-  .root[data-bitfun-state="submitting"] .statusIcon > svg {
+  .root[data-bitfun-state="loading"] .statusIcon > :is(svg, [data-bitfun-component="icon"]),
+  .root[data-bitfun-state="submitting"] .statusIcon > :is(svg, [data-bitfun-component="icon"]) {
     animation: bitfun-ask-user-spin var(--bitfun-motion-duration-loop) linear infinite;
   }
 
   .statusOnly {
-    min-block-size: var(--bitfun-control-ask-user-header-height);
+    min-block-size: var(--bitfun-control-activity-item-surface-height);
     gap: var(--bitfun-space-2);
-    padding-block: var(--bitfun-space-3);
-    padding-inline: var(--bitfun-space-4);
+    padding-block: var(--bitfun-control-activity-item-surface-padding-block);
+    padding-inline: calc(var(--bitfun-control-flow-chat-card-padding-inline) + var(--bitfun-control-ask-user-option-padding-inline)) calc(var(--bitfun-control-flow-chat-card-padding-inline) + var(--bitfun-control-ask-user-option-padding-inline));
   }
 
   .feedback {
     gap: var(--bitfun-space-2);
     margin-block-end: var(--bitfun-control-ask-user-body-padding);
-    margin-inline: var(--bitfun-control-ask-user-body-padding);
+    margin-inline: var(--bitfun-control-flow-chat-card-padding-inline);
     padding-block: var(--bitfun-space-2);
     padding-inline: var(--bitfun-space-3);
     border: var(--bitfun-border-width-default) solid var(--bitfun-color-status-warning-border);
@@ -516,31 +662,27 @@
     background: var(--bitfun-color-status-danger-surface);
   }
 
-  :global([data-density="touch"]) .summaryButton,
-  :global([data-density="touch"]) .option,
-  :global([data-density="touch"]) .customInputField,
-  :global([data-density="touch"]) .browseButton {
+  :global([data-density="touch"]) .optionSelector {
     min-block-size: var(--bitfun-control-hit-target);
   }
 
-  @media (max-width: 640px) {
-    .option {
-      align-items: flex-start;
-    }
-
-    .option[data-custom="true"][data-selected="true"] {
-      flex-wrap: wrap;
+  @container ask-user (max-width: 36rem) {
+    .optionCopy {
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--bitfun-space-1);
     }
 
     .optionDescription {
       max-inline-size: none;
-      white-space: normal;
+      text-align: start;
     }
+  }
 
-    .customInput {
+  @container ask-user (max-width: 24rem) {
+    .footer .status {
       flex-basis: 100%;
-      max-inline-size: none;
-      margin-inline-start: calc(var(--bitfun-control-ask-user-icon-size) + var(--bitfun-control-ask-user-option-content-gap));
+      order: 1;
     }
 
     .customInputRow {
@@ -555,8 +697,8 @@
       transition: none;
     }
 
-    .root[data-bitfun-state="loading"] .statusIcon > svg,
-    .root[data-bitfun-state="submitting"] .statusIcon > svg {
+    .root[data-bitfun-state="loading"] .statusIcon > :is(svg, [data-bitfun-component="icon"]),
+    .root[data-bitfun-state="submitting"] .statusIcon > :is(svg, [data-bitfun-component="icon"]) {
       animation: none;
     }
   }
@@ -578,14 +720,18 @@
       background: Canvas;
     }
 
-    .option:has(.nativeControl:focus-visible),
+    .headerToggle:focus-visible,
+    .prompt:focus-visible,
     .summaryButton:focus-visible {
       outline-color: Highlight;
     }
 
-    .summaryIcon,
-    .option[data-selected="true"] .controlIcon {
+    .summaryIcon {
       color: Highlight;
+    }
+
+    .progress {
+      appearance: auto;
     }
   }
 }

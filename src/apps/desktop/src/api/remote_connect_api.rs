@@ -19,7 +19,7 @@ use bitfun_core::service::remote_connect::{
 };
 use bitfun_events::AI_MODEL_CATALOG_UPDATED_EVENT;
 use bitfun_services_integrations::remote_connect::account::{
-    error_indicates_expired_token, validate_relay_base_url,
+    error_indicates_expired_token, validate_relay_base_url, DEVICE_KIND_DESKTOP,
 };
 use bitfun_services_integrations::remote_connect::{
     deploy_page_version_on_relay, join_relay_url, list_pages_from_relay,
@@ -486,6 +486,7 @@ fn should_fanout_peer_ui_event(event: &str) -> bool {
             | "permission://event"
             | AI_MODEL_CATALOG_UPDATED_EVENT
             | bitfun_core::service::workspace::WORKSPACE_CATALOG_CHANGED_EVENT
+            | bitfun_core::service::cron::CRON_JOBS_CHANGED_EVENT
     )
 }
 
@@ -2190,7 +2191,7 @@ async fn login_account_on_relay_for_generation(
     let device = current_device_identity()?;
     let client = AccountClient::new();
     let (session, profile) = client
-        .login_with_identity(&relay_url, &device)
+        .login_with_identity(&relay_url, &device, DEVICE_KIND_DESKTOP)
         .await
         .map_err(|e| format!("{e}"))?;
 
@@ -2938,6 +2939,7 @@ pub async fn account_execute_on_device(
 pub struct AccountDeviceInfo {
     pub device_id: String,
     pub device_name: String,
+    pub device_kind: Option<String>,
     pub device_alias: Option<String>,
     pub device_model: Option<String>,
     pub device_os: Option<String>,
@@ -2972,6 +2974,7 @@ pub async fn account_list_devices() -> Result<Vec<AccountDeviceInfo>, String> {
         .map(|d| AccountDeviceInfo {
             device_id: d.device_id,
             device_name: d.device_name,
+            device_kind: d.device_kind,
             device_alias: d.device_alias,
             device_model: d.device_model,
             device_os: d.device_os,
@@ -3601,6 +3604,12 @@ mod peer_event_tests {
     fn workspace_catalog_hints_are_fanned_out_to_peer_controllers() {
         assert!(should_fanout_peer_ui_event("workspace-catalog-changed"));
         assert!(!should_fanout_peer_ui_event("workspace-identity-changed"));
+    }
+
+    #[test]
+    fn cron_job_change_hints_are_fanned_out_to_peer_controllers() {
+        assert!(should_fanout_peer_ui_event("cron://jobs-changed"));
+        assert!(!should_fanout_peer_ui_event("cron://internal"));
     }
 }
 

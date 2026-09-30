@@ -173,7 +173,9 @@ const TodosScene: React.FC = () => {
   useEffect(() => { void loadJobs(); }, [loadJobs]);
 
   // Another view (a workspace editor, or the agent's own scheduling tool)
-  // changed a job — reload so the panel is never stale.
+  // changed a job — reload so the panel is never stale. Backend-originated
+  // changes arrive through the cron://jobs-changed subscription owned by
+  // cronJobCountsStore, which mirrors them onto this same browser event.
   useEffect(() => {
     const handleChanged = (event: Event) => {
       const sourceId = (event as CustomEvent<{ sourceId?: string }>).detail?.sourceId;

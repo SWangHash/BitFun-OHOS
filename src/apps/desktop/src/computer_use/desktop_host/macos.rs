@@ -42,7 +42,8 @@ where
     F: FnOnce() -> BitFunResult<T> + Send,
     T: Send,
 {
-    let work = move || catch_only(f);
+    let token = crate::computer_use::control_session::dispatch_token();
+    let work = move || crate::computer_use::control_session::with_token(token, || catch_only(f));
     unsafe {
         if pthread_main_np() != 0 {
             work()
@@ -76,12 +77,13 @@ where
     F: FnOnce() -> BitFunResult<T> + Send,
     T: Send,
 {
+    let token = crate::computer_use::control_session::dispatch_token();
+    let work = move || crate::computer_use::control_session::with_token(token, || catch_only(f));
     unsafe {
-        let on_main = pthread_main_np() != 0;
-        if on_main {
-            catch_only(f)
+        if pthread_main_np() != 0 {
+            work()
         } else {
-            Queue::main().exec_sync(move || catch_only(f))
+            Queue::main().exec_sync(work)
         }
     }
 }

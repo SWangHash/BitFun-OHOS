@@ -72,6 +72,8 @@ test("Icon geometry exposes every catalog size without product semantics", () =>
   assert.equal(tokens["control.icon.sizeSm"], "14px");
   assert.equal(tokens["control.icon.sizeMd"], "16px");
   assert.equal(tokens["control.icon.sizeLg"], "24px");
+  assert.equal(tokens["control.icon.strokeWidth"], 1.6);
+  assert.equal(tokens["control.icon.strokeWidthStrong"], 2);
 });
 
 test("TabGroup geometry preserves the capsule selected and outline contract", async () => {
@@ -86,7 +88,7 @@ test("TabGroup geometry preserves the capsule selected and outline contract", as
   assert.equal(tokens["control.tabGroup.itemPaddingBlockSm"], "7px");
   assert.equal(tokens["control.tabGroup.itemPaddingInlineSm"], "12px");
   assert.equal(tokens["control.tabGroup.itemActionSize"], "20px");
-  assert.equal(tokens["control.tabGroup.itemActionInset"], "8px");
+  assert.equal(tokens["control.tabGroup.itemActionInset"], "4px");
   assert.equal(systemDocument.control.tabGroup.itemRadius.$value, "{radius.pill}");
   assert.equal(tokens["control.tabGroup.itemRadius"], "9999px");
 });
@@ -212,9 +214,26 @@ test("ChatComposer geometry preserves the scaled compact capsule contract", () =
 test("FlowChat rhythm keeps compact rows line-like and Turn boundaries distinct", async () => {
   const systemDocument = await readSource("system.tokens.json");
 
-  assert.equal(tokens["control.toolCard.ambientRowMinBlockSize"], "22px");
+  assert.equal(
+    tokens["control.toolCard.ambientRowMinBlockSize"],
+    `calc(${tokens["type.flow.body.fontSize"]} * ${tokens["type.flow.body.lineHeight"]})`,
+  );
+  assert.equal(tokens["control.flowChat.paragraphGap"], "12px");
   assert.equal(systemDocument.control.flowChat.turnGap.$value, "{space.4}");
   assert.equal(tokens["control.flowChat.turnGap"], "16px");
+});
+
+test("shared conversation geometry preserves the application's existing dimensions", () => {
+  assert.equal(tokens['control.flowChat.transcriptMaxWidth'], '900px');
+  assert.equal(tokens['control.flowChat.turnRailOffset'], '4px');
+  assert.equal(tokens['control.flowChat.turnRailWidth'], '30px');
+  assert.equal(tokens['control.flowChat.metadataActionSize'], '28px');
+  assert.equal(tokens['control.flowChat.userMessageMaxWidth'], 'min(72%, 48rem)');
+  assert.equal(tokens['control.flowChat.userMessageRadius'], `calc(${tokens['control.flowChat.cardRadius']} + 2px)`);
+  assert.equal(tokens['control.flowChat.userMessagePaddingBlock'], '0.46rem');
+  assert.equal(tokens['control.flowChat.userMessageMarginBlockStart'], '0.06rem');
+  assert.equal(tokens['control.flowChat.modelNameMaxWidth'], '100px');
+  assert.equal(tokens['control.flowChat.modelIdleOpacity'], 0.72);
 });
 
 test("split-view content panels preserve the elevated shell curvature contract", async () => {
@@ -240,6 +259,11 @@ test("Menu tokens preserve the compact grouped surface contract", async () => {
   const systemDocument = await readSource("system.tokens.json");
 
   assert.equal(tokens["overlay.menu.inlineSize"], "220px");
+  assert.equal(tokens["overlay.menu.minInlineSize"], "160px");
+  assert.ok(
+    Number.parseFloat(tokens["overlay.menu.minInlineSize"]) < Number.parseFloat(tokens["overlay.menu.inlineSize"]),
+    "content-sized menus need a minimum strictly below the fixed width",
+  );
   assert.equal(tokens["overlay.menu.maxBlockSize"], "480px");
   assert.equal(tokens["overlay.menu.headingHeight"], "24px");
   assert.equal(tokens["overlay.menu.itemHeight"], "30px");
@@ -446,8 +470,8 @@ test("shared system scales preserve the migrated Web UI foundation contract", ()
   assert.equal(controlFontFamily.includes("'Segoe UI Variable Text'"), true);
   assert.equal(controlFontFamily.includes("'Noto Sans SC'"), false);
   assert.equal(tokens["font.family.sans"].startsWith("system-ui"), true);
-  assert.equal(tokens["font.family.mono"].startsWith("'JetBrains Mono'"), true);
-  assert.equal(tokens["font.family.mono"].includes("'Fira Code'"), true);
+  assert.equal(tokens["font.family.mono"].startsWith("'Fira Code'"), true);
+  assert.equal(tokens["font.family.mono"].includes(tokens["font.family.sans"]), true);
   assert.equal(tokens["font.size.micro"], "10px");
   assert.equal(tokens["font.size.meta"], "11px");
   assert.equal(tokens["font.size.xs"], "12px");
@@ -534,6 +558,10 @@ test("generated CSS preserves semantic typography references", async () => {
   const css = await readFile(path.join(packageDirectory, "dist", "tokens.css"), "utf8");
 
   assert.match(css, /--bitfun-type-body-md-font-size: var\(--bitfun-font-size-base\);/);
+  for (const role of ["code-sm", "code-md", "code-meta", "code-output", "flow-code"]) {
+    assert.ok(css.includes(`--bitfun-type-${role}-font-family: var(--bitfun-font-family-mono);`));
+  }
+  assert.match(css, /--bitfun-font-family-mono: 'Fira Code'.*var\(--bitfun-font-family-sans\), monospace;/);
   assert.match(css, /--bitfun-type-flow-body-line-height: var\(--bitfun-line-height-reading\);/);
   assert.match(css, /--bitfun-type-label-selected-font-weight: var\(--bitfun-font-weight-semibold\);/);
   assert.match(css, /--bitfun-type-heading-compact-page-font-size: var\(--bitfun-font-size-2xl-plus\);/);

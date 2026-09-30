@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { createTauriCommandError } from '@/infrastructure/api/errors/TauriCommandError';
 import en from '@/locales/en-US/common.json';
 import zh from '@/locales/zh-CN/common.json';
+import zhReview from '@/locales/zh-CN/flow-chat.json';
 import tw from '@/locales/zh-TW/common.json';
 import { reviewPlatformErrorMessage } from './reviewErrors';
 import { reviewErrorText, reviewAuthErrorMessage } from './reviewErrors';
@@ -59,6 +60,18 @@ describe('Pull Requests missing Git message', () => {
 });
 
 describe('Review-platform user-visible failures', () => {
+  it('preserves the specific launch failure and its diagnostic reason', async () => {
+    const i18n = createInstance();
+    await i18n.init({ lng: 'zh-CN', resources: { 'zh-CN': { common: zh, 'flow-chat': zhReview } } });
+    const reason = 'The pull request contains no reviewable changed files.';
+    const error = Object.assign(new Error(reason), {
+      launchErrorMessageKey: 'deepReviewActionBar.launchError.target',
+      originalMessage: reason,
+    });
+    expect(reviewPlatformErrorMessage(error, (key, options) => i18n.t(key, options), 'reviewFailed'))
+      .toBe(`${zhReview.deepReviewActionBar.launchError.target}\n${reason}`);
+  });
+
   it('localizes each backend failure code through wrapped transports', async () => {
     const i18n = createInstance();
     await i18n.init({ lng: 'zh-CN', resources: { 'zh-CN': { common: zh } } });

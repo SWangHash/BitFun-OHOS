@@ -84,6 +84,8 @@ interface UseFlowChatFollowOutputOptions {
   revealNewTurnTail: (turnId: string) => boolean;
   /** True while the transcript is still hidden for the opening reveal. */
   isOpeningViewport: () => boolean;
+  /** Immediate position readback after an opening follow correction. */
+  onOpeningOffset?: (actualOffsetPx: number) => void;
   /**
    * Who is moving the viewport. Every write below goes through it, so that
    * nothing else has to carry a private opinion about when this hook is busy.
@@ -210,6 +212,7 @@ export function useFlowChatFollowOutput({
   scrollToContentEnd,
   revealNewTurnTail,
   isOpeningViewport,
+  onOpeningOffset,
   viewportOwner,
   viewportId = 0,
 }: UseFlowChatFollowOutputOptions): UseFlowChatFollowOutputResult {
@@ -220,6 +223,8 @@ export function useFlowChatFollowOutput({
   const latestTurnIdRef = useRef(latestTurnId);
   const isViewportSuspendedRef = useRef(isViewportSuspended);
   isViewportSuspendedRef.current = isViewportSuspended;
+  const onOpeningOffsetRef = useRef(onOpeningOffset);
+  onOpeningOffsetRef.current = onOpeningOffset;
   const followFrameRef = useRef<number | null>(null);
   const previousSessionIdRef = useRef(activeSessionId);
   const previousLatestTurnIdRef = useRef<string | null>(latestTurnId);
@@ -248,6 +253,8 @@ export function useFlowChatFollowOutput({
   const smoothScrollLastMoveAtMsRef = useRef(0);
   /** Where the animation started, so the trace can say how far it got. */
   const smoothScrollFromPxRef = useRef(0);
+  /** Last content-end geometry read, reused by continuous follow frames. */
+  const lastScrollHeightPxRef = useRef(0);
 
   /*
    * Deliberately *not* mirrored from `isFollowingOutput` here.
@@ -297,13 +304,15 @@ export function useFlowChatFollowOutput({
     isFollowingOutputRef.current && followFrameRef.current !== null
   ), []);
 
-  const readContentEndScrollTop = useCallback((scroller: HTMLElement) => (
-    contentEndScrollTop({
-      scrollHeight: scroller.scrollHeight,
+  const readContentEndScrollTop = useCallback((scroller: HTMLElement) => {
+    const scrollHeightPx = scroller.scrollHeight;
+    lastScrollHeightPxRef.current = scrollHeightPx;
+    return contentEndScrollTop({
+      scrollHeight: scrollHeightPx,
       clientHeight: scroller.clientHeight,
       tailSpacerPx: getTailSpacerPx(),
-    })
-  ), [getTailSpacerPx]);
+    });
+  }, [getTailSpacerPx]);
 
   /**
    * The state the follow rule would hold for the current geometry, ignoring any
@@ -558,14 +567,23 @@ export function useFlowChatFollowOutput({
   }, [viewportId]);
 
   /** Move the viewport to whatever the follow state currently owns. */
-  const applyFollowTarget = useCallback(() => {
+  const applyFollowTarget = useCallback((options: {
+    refreshContentEnd?: boolean;
+  } = {}) => {
     const scroller = scrollerRef.current;
     if (!scroller || isViewportSuspendedRef.current()) {
       return;
     }
 
     const remembered = followStateRef.current;
-    const desired = readContentEndScrollTop(scroller);
+    const opening = isOpeningViewport();
+    // Streaming frames reuse geometry refreshed by ResizeObserver and explicit
+    // follow scheduling. This keeps the RAF loop from forcing a synchronous
+    // scrollHeight/style recalculation on every frame.
+    const refreshContentEnd = options.refreshContentEnd !== false || opening;
+    const desired = refreshContentEnd
+      ? readContentEndScrollTop(scroller)
+      : remembered.target;
     /*
      * While the transcript is opening it is still hidden, so nothing is gained
      * by remembering an earlier offset: drop the memory and track the content
@@ -576,7 +594,7 @@ export function useFlowChatFollowOutput({
      * allowance: blank below the live output is acceptable only because more
      * output is about to fill it.
      */
-    const previous: TailFollowState = isOpeningViewport()
+    const previous: TailFollowState = opening
       ? { target: desired }
       : remembered;
     const next = nextTailFollowState(previous, {
@@ -589,7 +607,9 @@ export function useFlowChatFollowOutput({
       settleFramesRef.current = SETTLE_FRAMES;
     }
 
-    const onTarget = Math.abs(next.target - scroller.scrollTop) <= BOTTOM_EPSILON_PX;
+    let actualOffsetPx = scroller.scrollTop;
+    let writeGranted = true;
+    const onTarget = Math.abs(next.target - actualOffsetPx) <= BOTTOM_EPSILON_PX;
     /*
      * What the loop decided this frame, coalesced by the decision.
      *
@@ -617,11 +637,11 @@ export function useFlowChatFollowOutput({
             viewportId,
             onTarget,
             phase: followPhaseRef.current,
-            isOpening: isOpeningViewport(),
+            isOpening: opening,
             desiredPx: roundViewportPx(desired),
             targetPx: roundViewportPx(next.target),
             scrollTopPx: roundViewportPx(scroller.scrollTop),
-            scrollRangePx: roundViewportPx(scroller.scrollHeight),
+            scrollRangePx: roundViewportPx(lastScrollHeightPxRef.current),
             settleFrames: settleFramesRef.current,
             smoothYieldActive: smoothScrollUntilMsRef.current !== 0,
           }),
@@ -684,13 +704,13 @@ export function useFlowChatFollowOutput({
        * wait for travel nobody can see — and the reveal is watching for the
        * viewport to reach the content end.
        */
-      const step = !isOpeningViewport() && shouldEaseTailFollow({
-        scrollHeightPx: scroller.scrollHeight,
+      const step = !opening && shouldEaseTailFollow({
+        scrollHeightPx: lastScrollHeightPxRef.current,
         clientHeightPx: scroller.clientHeight,
       })
         ? nextEasedScrollTopPx(fromPx, next.target)
         : { offsetPx: next.target, outcome: 'snapped' as const };
-      viewportOwner.write({ owner: 'follow-output', topPx: step.offsetPx });
+      writeGranted = viewportOwner.write({ owner: 'follow-output', topPx: step.offsetPx });
       /*
        * Read back rather than taken from the step. The register can refuse
        * this write outright, and a refused follow moves nothing — believing
@@ -698,7 +718,8 @@ export function useFlowChatFollowOutput({
        * smoothest one in the session, and would book the frame below forever
        * over travel that never happens.
        */
-      const movedPx = scroller.scrollTop - fromPx;
+      actualOffsetPx = scroller.scrollTop;
+      const movedPx = actualOffsetPx - fromPx;
       /*
        * An ease in flight is a reason to run again, and the only one it has
        * once the target stops moving: the budget is refreshed by the *target*
@@ -718,6 +739,14 @@ export function useFlowChatFollowOutput({
           snapped: step.outcome === 'snapped',
         });
       }
+    }
+    // Native scroll delivery can lag a frame behind this write. Publish the
+    // DOM readback through the existing virtualizer observer channel so range
+    // selection catches up in the same task without a synchronous flush.
+    if (writeGranted && opening && isFollowingOutputRef.current
+      && followPhaseRef.current === 'following-tail' && isViewportActiveRef.current
+      && !document.hidden && viewportOwner.currentOwner() === 'follow-output') {
+      onOpeningOffsetRef.current?.(actualOffsetPx);
     }
   }, [
     endSmoothScrollYield,
@@ -772,11 +801,12 @@ export function useFlowChatFollowOutput({
       });
       return;
     }
-    if (!isStreamingRef.current) {
+    const streaming = isStreamingRef.current;
+    if (!streaming) {
       settleFramesRef.current -= 1;
     }
 
-    applyFollowTarget();
+    applyFollowTarget({ refreshContentEnd: !streaming });
     followFrameRef.current = requestAnimationFrame(runFollowFrame);
   }, [applyFollowTarget, isOpeningViewport, scrollerRef, viewportId]);
 
@@ -1121,7 +1151,9 @@ export function useFlowChatFollowOutput({
       return;
     }
     settleFramesRef.current = SETTLE_FRAMES;
-    applyFollowTarget();
+    applyFollowTarget({
+      refreshContentEnd: true,
+    });
     startFollowFrame();
   }, [applyFollowTarget, sampleTailWatch, startFollowFrame]);
 

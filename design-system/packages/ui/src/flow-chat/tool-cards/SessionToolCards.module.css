@@ -6,30 +6,11 @@
     gap: var(--bitfun-space-3);
   }
 
-  .field {
-    display: grid;
-    min-inline-size: 0;
-    grid-template-columns: minmax(7rem, auto) minmax(0, 1fr);
-    gap: var(--bitfun-space-2);
-    color: var(--bitfun-color-content-secondary);
-    font-size: var(--bitfun-type-body-sm-font-size);
-  }
-
-  .fieldLabel,
-  .sectionLabel {
-    color: var(--bitfun-color-content-muted);
-    font-weight: var(--bitfun-type-label-selected-font-weight);
-  }
-
-  .fieldValue {
-    min-inline-size: 0;
-    overflow-wrap: anywhere;
-  }
-
   .sessionList {
     display: flex;
     flex-direction: column;
-    gap: var(--bitfun-space-2);
+    gap: 0;
+    max-block-size: 20rem;
   }
 
   .session {
@@ -37,19 +18,30 @@
     min-inline-size: 0;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: var(--bitfun-space-1) var(--bitfun-space-3);
-    padding: var(--bitfun-space-3);
-    border-radius: var(--bitfun-radius-sm);
-    background: var(--bitfun-color-surface-raised);
+    padding-block: var(--bitfun-space-2);
     color: var(--bitfun-color-content-secondary);
     font-size: var(--bitfun-type-body-sm-font-size);
   }
 
-  .sessionId {
-    overflow-wrap: anywhere;
+  .record { padding-block: var(--bitfun-space-2); }
+
+  .record [data-bitfun-part="sectionLabel"] {
     color: var(--bitfun-color-content-primary);
   }
 
+  .record + .record,
+  .session + .session {
+    border-block-start: 1px solid var(--bitfun-color-border-subtle);
+  }
+
+  .sessionId {
+    grid-column: 1;
+    overflow-wrap: anywhere;
+    color: var(--bitfun-color-content-muted);
+  }
+
   .sessionName {
+    color: var(--bitfun-color-content-primary);
     min-inline-size: 0;
     overflow: hidden;
     white-space: nowrap;
@@ -63,31 +55,15 @@
     white-space: nowrap;
   }
 
-  .messageSection {
-    display: flex;
-    min-inline-size: 0;
-    flex-direction: column;
-    gap: var(--bitfun-space-2);
-  }
-
-  .message {
-    max-block-size: 20rem;
-    margin: 0;
-    padding: var(--bitfun-space-3);
-    overflow: auto;
-    border-radius: var(--bitfun-radius-sm);
-    background: var(--bitfun-color-surface-raised);
-    color: var(--bitfun-color-content-secondary);
-    font-family: inherit;
-    font-size: var(--bitfun-type-body-sm-font-size);
-    line-height: var(--bitfun-type-body-md-line-height);
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-  }
-
   .empty {
     color: var(--bitfun-color-content-muted);
     font-size: var(--bitfun-type-body-sm-font-size);
+  }
+
+  .status {
+    min-inline-size: 0;
+    color: inherit;
+    font-size: var(--bitfun-type-meta-font-size);
   }
 
   .error {

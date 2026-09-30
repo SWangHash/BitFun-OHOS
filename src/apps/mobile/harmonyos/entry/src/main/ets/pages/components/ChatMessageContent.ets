@@ -10,6 +10,7 @@ import { FileReferenceCard } from './FileReferenceCard';
 import { MarkdownContent } from './MarkdownContent';
 import { StreamingMarkdownContent } from './StreamingMarkdownContent';
 import { LINE, MEDIA_BACKGROUND, MUTED } from './Theme';
+import { MobileDesignTypography } from '../../generated/MobileDesignTokens';
 
 @ComponentV2
 export struct MessageImageGallery {
@@ -30,13 +31,13 @@ export struct MessageImageGallery {
             // the attachment instead and say why it is not here.
             Column() {
               Text(image.name || RemoteI18n.t('chat.image'))
-                .fontSize(11)
+                .fontSize(MobileDesignTypography.labelSmall.size)
                 .fontColor(MUTED)
                 .maxLines(2)
                 .textOverflow({ overflow: TextOverflow.Ellipsis })
                 .textAlign(TextAlign.Center)
               Text(RemoteI18n.t('chat.imageUnavailable'))
-                .fontSize(10)
+                .fontSize(MobileDesignTypography.labelSmall.size)
                 .fontColor(MUTED)
                 .maxLines(2)
                 .textOverflow({ overflow: TextOverflow.Ellipsis })

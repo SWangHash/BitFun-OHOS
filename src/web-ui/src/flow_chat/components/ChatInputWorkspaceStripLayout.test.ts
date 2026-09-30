@@ -147,7 +147,7 @@ describe('composer context track layout', () => {
     expect(mixin).toContain('height: 18px;');
     expect(mixin).toContain('border-radius: 999px;');
     expect(mixin).toContain('background: transparent;');
-    expect(mixin).toMatch(/> svg \{[\s\S]*?width: 12px;/);
+    expect(mixin).toMatch(/> :is\(svg, \[data-bitfun-component='icon'\]\) \{[\s\S]*?width: var\(--bitfun-control-icon-size-xs\);/);
 
     for (const control of [
       '    .dispatch-target-picker__trigger {\n      @include strip-control;',
@@ -218,8 +218,10 @@ describe('composer context track layout', () => {
 
     expect(component).toContain('contextBar={workspaceStrip}');
     expect(component).toContain('<ChatInputWorkspaceStrip');
+    // The composer is a panel of the transcript, so it takes the transcript
+    // content inset and not a second, narrower one of its own.
     expect(chatInput).toMatch(
-      /\.bitfun-context-drop-zone\.bitfun-chat-input-drop-zone \{[\s\S]*?padding: 0 var\(--bitfun-space-2\);/,
+      /\.bitfun-context-drop-zone\.bitfun-chat-input-drop-zone \{[\s\S]*?padding: 0 var\(--bitfun-control-flow-chat-content-padding-inline\);/,
     );
     expect(chatInput).toMatch(
       /\.bitfun-context-drop-zone\.bitfun-chat-input-drop-zone \{[\s\S]*?bottom: var\(--bitfun-space-6\);/,
@@ -261,7 +263,7 @@ describe('composer context track layout', () => {
     // their real path, while assistants expose their product role instead of
     // leaking the internal assistant workspace directory.
     expect(component).toContain('workspace.rootPath?.trim()');
-    expect(component).toContain('workspaceContext.primaryAssistantWorkspaceId');
+    expect(component).toContain('workspace.assistantId');
     expect(component).toContain("'workspaceStrip.primaryAssistant'");
     expect(component).toContain("'workspaceStrip.personalAssistant'");
     expect(component).toContain('__workspace-option-detail');
@@ -423,10 +425,7 @@ describe('composer context track layout', () => {
     const component = readLocalFile('ChatInput.tsx');
 
     expect(component).toContain(
-      'const effectiveTargetSessionStarted = effectiveTargetSessionHasTurns',
-    );
-    expect(component).toContain(
-      "|| Boolean(effectiveTargetSession?.lastSubmittedMode?.trim());",
+      'const effectiveTargetSessionStarted = effectiveTargetSession ? hasSessionStarted(effectiveTargetSession) : false;',
     );
     expect(component).toContain(
       'const isNewSessionComposer = !effectiveTargetSessionStarted;',
@@ -438,7 +437,7 @@ describe('composer context track layout', () => {
       /const measureIsMultiLine = useCallback[\s\S]*?if \(isNewSessionComposer\) \{\s*setIsMultiLine\(true\);\s*return;/,
     );
     expect(component).toContain(
-      'const harnessProfileLocked = effectiveTargetSessionStarted;',
+      'isSessionBindingLocked(effectiveTargetSession, isWorkspaceSubmitting)',
     );
   });
 

@@ -35,7 +35,7 @@ import { useUpdateInstallStore } from '@/infrastructure/update/updateInstallStor
 import { formatUpdateInstallError } from '@/infrastructure/update/updateErrorMessage';
 import { PrivacyStatementDialog } from '@/app/components/Privacy/PrivacyStatementDialog';
 import { usePrivacy } from '@/app/components/Privacy/PrivacyContext';
-import { AboutBrandMark } from './AboutBrandMark';
+import { BitFunBrandMotion } from '@bitfun/ui/brand';
 import './AboutDialog.scss';
 
 const log = createLogger('AboutDialog');
@@ -255,7 +255,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
                 aria-hidden="true"
               >
                 <div className="bitfun-about-dialog__artwork">
-                  <AboutBrandMark active={isOpen} />
+                  <BitFunBrandMotion className="bitfun-about-dialog__brand-mark" active={isOpen} />
                 </div>
                 <p className="bitfun-about-dialog__brand-statement">
                   {t('about.brandStatement')}

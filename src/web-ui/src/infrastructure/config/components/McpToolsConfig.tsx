@@ -1500,6 +1500,7 @@ const McpToolsConfig: React.FC = () => {
       <ConfigPageContent data-bitfun-component="mcp-tools-config" data-bitfun-part="content">
         <ConfigPageSection
           title={showJsonEditor ? tMcp('jsonEditor.title') : tMcp('section.serverList.title')}
+          description={showJsonEditor ? tMcp('jsonEditor.description') : tMcp('section.serverList.description')}
           extra={desktopConfigAvailable ? mcpSectionExtra : undefined}
         >
           {!desktopConfigAvailable && (

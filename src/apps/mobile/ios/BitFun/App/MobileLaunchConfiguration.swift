@@ -10,8 +10,6 @@ enum MobileLaunchConfiguration {
         #endif
     }
 
-    static var pairingAccountPreview: Bool { ProcessInfo.processInfo.arguments.contains("--pairing-account") }
-    static var pairingManualPreview: Bool { ProcessInfo.processInfo.arguments.contains("--pairing-manual") }
     static func makeModel() -> MobileAppModel {
         let first = ChatSession(id: UUID().uuidString, title: "你好", updatedLabel: "刚刚")
         let model = MobileAppModel(
@@ -88,7 +86,7 @@ enum MobileLaunchConfiguration {
             model.timelineRows = [MobileConversationRow(
                 id: "preview-plan-row", kind: "ASSISTANT", text: "", thinking: nil, images: [], tools: [plan],
                 blocks: [.tools(id: "preview-plan-tools", tools: [plan])], streaming: false, typing: false,
-                pending: false, showRetry: false, error: nil
+                showRetry: false, error: nil
             )]
         }
         if arguments.contains("--file-preview") {
@@ -126,8 +124,9 @@ enum MobileLaunchConfiguration {
             model.settingsOpen = true
         }
         if arguments.contains("--remote-settings") {
+            // Remote permission lives on the single settings page.
             model.surface = .remote
-            model.remoteControlSettingsOpen = true
+            model.settingsOpen = true
         }
         if arguments.contains("--composer-model-picker") ||
             ProcessInfo.processInfo.environment["BITFUN_COMPOSER_MODEL_PICKER"] == "1" {
@@ -151,9 +150,11 @@ enum MobileLaunchConfiguration {
                 ),
             ]
         }
-        if arguments.contains("--pairing") || arguments.contains("--pairing-manual") ||
-            arguments.contains("--pairing-account") {
-            model.pairingSheetOpen = true
+        // Legacy capture flags: QR and manual-link pairing were removed, so
+        // every pairing flag now opens the account device picker.
+        if arguments.contains("--pairing") || arguments.contains("--pairing-account") ||
+            arguments.contains("--device-picker") {
+            model.devicePickerOpen = true
         }
         if arguments.contains("--remote-create") || arguments.contains("--remote-create-workspace-picker") ||
             arguments.contains("--remote-create-session-loading") {
@@ -214,8 +215,9 @@ enum MobileLaunchConfiguration {
             model.accountSelectedDeviceID = "desktop-preview"
             model.accountDeviceCount = model.accountDevices.count
             model.coreErrorMessage = nil
-            model.settingsOpen = false
-            model.accountSheetOpen = true
+            // The signed-in account lives inline in Settings.
+            model.accountSheetOpen = false
+            model.settingsOpen = true
         }
         return model
     }
@@ -244,6 +246,7 @@ private extension MobileAppModel {
         accountSelectedDeviceID = "preview-desktop"
         surface = .remote
         remoteConnected = true
+        remotePermissionModeLoaded = true
         remoteExpectedDeviceKey = "account:preview-desktop"
         remoteInitialSessionReady = true
         remoteInitialWorkspaceReady = true
@@ -338,7 +341,7 @@ private extension MobileAppModel {
         timelineRows = [
             MobileConversationRow(
                 id: userID, kind: "USER", text: "介绍本项目", thinking: nil,
-                images: [], tools: [], blocks: [], streaming: false, typing: false, pending: false,
+                images: [], tools: [], blocks: [], streaming: false, typing: false,
                 showRetry: false, error: nil
             ),
             MobileConversationRow(
@@ -352,7 +355,7 @@ private extension MobileAppModel {
                     ),
                     .tools(id: "preview-tools", tools: [readOne, readTwo, approval, question]),
                 ],
-                streaming: false, typing: false, pending: false, showRetry: true,
+                streaming: false, typing: false, showRetry: true,
                 error: "桌面端进程意外退出。"
             ),
         ]

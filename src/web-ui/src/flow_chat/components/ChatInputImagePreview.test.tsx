@@ -8,7 +8,10 @@ vi.mock('@/infrastructure/peer-device/deviceSurface', () => ({ getActiveSurfaceS
 
 const { readFileContent } = vi.hoisted(() => ({ readFileContent: vi.fn() }));
 vi.mock('@/infrastructure/api/service-api/WorkspaceAPI', () => ({ workspaceAPI: { readFileContent } }));
-vi.mock('@/infrastructure/i18n', () => ({ useI18n: () => ({ t: (_key: string, values: { message: string }) => `Load failed: ${values.message}` }) }));
+vi.mock('@/infrastructure/i18n', () => ({
+  useI18n: () => ({ t: (_key: string, values: { message: string }) => `Load failed: ${values.message}` }),
+  i18nService: { t: (key: string) => key },
+}));
 vi.mock('@/shared/utils/logger', () => ({ createLogger: () => ({ warn: vi.fn(), debug: vi.fn(), info: vi.fn(), error: vi.fn() }) }));
 
 const image = { id: 'image', imageName: 'Photo.png', imagePath: '/Lark images/Photo.png', mimeType: 'image/png' } as ImageContext;
@@ -58,5 +61,22 @@ describe('ChatInputImagePreview', () => {
     expect(container.querySelector('img')!.getAttribute('src')).toBe('data:image/png;base64,NEW');
     await act(async () => { finishOld('OLD'); });
     expect(container.querySelector('img')!.getAttribute('src')).toBe('data:image/png;base64,NEW');
+  });
+
+  it('previews the resolved thumbnail and closes the overlay on demand', async () => {
+    await render(<ChatInputImagePreview image={{ ...image, dataUrl: 'data:image/png;base64,AA==' }} surfaceEpoch={1} />);
+    const trigger = container.querySelector<HTMLButtonElement>('.bitfun-chat-input__image-chip-preview')!;
+    expect(trigger.getAttribute('aria-label')).toBe('components:imageLightbox.label');
+    expect(document.querySelector('.image-lightbox')).toBeNull();
+
+    act(() => { trigger.click(); });
+
+    const overlay = document.querySelector<HTMLElement>('.image-lightbox');
+    expect(overlay).not.toBeNull();
+    expect(overlay!.querySelector('img')!.getAttribute('src')).toBe('data:image/png;base64,AA==');
+
+    act(() => { document.querySelector<HTMLButtonElement>('.image-lightbox-close')!.click(); });
+
+    expect(document.querySelector('.image-lightbox')).toBeNull();
   });
 });

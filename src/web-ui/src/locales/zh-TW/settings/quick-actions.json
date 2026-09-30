@@ -18,11 +18,13 @@
   },
   "sections": {
     "builtin": {
-      "title": "內建動作"
+      "title": "內建動作",
+      "description": "可修改預設動作的名稱與指令，不需要的動作可以關閉"
     },
     "custom": {
       "title": "自訂動作",
-      "empty": "還沒有自訂動作"
+      "empty": "還沒有自訂動作",
+      "description": "為重複任務儲存自己的指令，觸發時傳送到目前會話"
     }
   },
   "edit": {
@@ -44,7 +46,7 @@
     "labelPlaceholder": "例：產生單元測試",
     "promptField": "觸發指令",
     "promptPlaceholder": "例：請為目前程式碼變更產生單元測試",
-    "promptHint": "觸發動作時，此指令會傳送給 AI 執行。",
+    "promptHint": "觸發動作後，將此指令傳送給 AI",
     "cancel": "取消",
     "saveEdit": "儲存",
     "confirmAdd": "新增",

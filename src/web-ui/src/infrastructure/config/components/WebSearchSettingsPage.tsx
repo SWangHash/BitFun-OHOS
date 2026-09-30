@@ -433,6 +433,7 @@ const WebSearchSettingsPage: React.FC = () => {
         />
         <ConfigPageSection
           title={t('sections.provider.title')}
+          description={t('sections.provider.description')}
         >
           <ConfigPageRow
             label={t('fields.provider.label')}
@@ -489,7 +490,7 @@ const WebSearchSettingsPage: React.FC = () => {
                 }))}
               />
             </ConfigPageRow>
-            <ConfigPageRow label={t('fields.authMode.label')} description={t('fields.authMode.description')} align="center">
+            <ConfigPageRow label={t('fields.authMode.label')} align="center">
               <Select
                 value={httpConfig.auth.mode || 'none'}
                 options={authOptions}
@@ -538,7 +539,7 @@ const WebSearchSettingsPage: React.FC = () => {
 
         {credentialRequired ? (
           <ConfigPageSection title={t('sections.credential.title')} description={t('sections.credential.description')}>
-            <ConfigPageRow label={t('fields.credentialStatus.label')} description={t('fields.credentialStatus.description')} balanced>
+            <ConfigPageRow label={t('fields.credentialStatus.label')} balanced>
               <div className="web-search-settings__credential-status">
                 <span>{credentialConfigured ? t('status.configured') : t('status.missing')}</span>
                 <Button size="sm" variant="outline" disabled={!credentialConfigured || mutationBusy} onClick={() => void handleClearCredential()}>

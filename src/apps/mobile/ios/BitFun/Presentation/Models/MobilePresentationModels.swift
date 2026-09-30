@@ -184,14 +184,13 @@ final class MobileConversationRow: Identifiable, Equatable {
     let blocks: [MobileTimelineBlock]
     let streaming: Bool
     let typing: Bool
-    let pending: Bool
     let showRetry: Bool
     let error: String?
     let live: Bool
 
     init(id: String, kind: String, text: String, thinking: String?, images: [MobileTimelineImage],
          tools: [MobileTimelineTool], blocks: [MobileTimelineBlock], streaming: Bool, typing: Bool,
-         pending: Bool, showRetry: Bool, error: String?, live: Bool = false) {
+         showRetry: Bool, error: String?, live: Bool = false) {
         self.id = nativeTimelineString(id)
         self.kind = nativeTimelineString(kind)
         self.text = nativeTimelineString(text)
@@ -201,7 +200,6 @@ final class MobileConversationRow: Identifiable, Equatable {
         self.blocks = blocks.map(nativeTimelineBlock)
         self.streaming = streaming
         self.typing = typing
-        self.pending = pending
         self.showRetry = showRetry
         self.error = error.map(nativeTimelineString)
         self.live = live
@@ -213,7 +211,7 @@ final class MobileConversationRow: Identifiable, Equatable {
         if self === other { return true }
         return id == other.id && kind == other.kind && text == other.text && thinking == other.thinking &&
         images == other.images && tools == other.tools && blocks == other.blocks &&
-        streaming == other.streaming && typing == other.typing && pending == other.pending &&
+        streaming == other.streaming && typing == other.typing &&
         showRetry == other.showRetry && error == other.error && live == other.live
     }
 
@@ -547,4 +545,5 @@ struct PendingComposerSend {
     let text: String
     let images: [ComposerAttachment]
     let previousAckID: String?
+    let clearedDraftRevision: UInt64
 }

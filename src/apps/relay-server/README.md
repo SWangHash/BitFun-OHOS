@@ -110,24 +110,46 @@ They are implemented in the shared Relay service, not in the agent loop.
 | Authentication request body | 16 KiB; oversized bodies return 413 |
 | Buffered HTTP request bodies | 512 MiB total reserved before buffering; overload returns 503 |
 | Concurrent HTTP API requests | 2,048; overload returns 503 |
-| Body read / device RPC handler | 15 seconds / 130 seconds |
-| HTTP request rate | 6,000/minute per source IP; device APIs also per account; overload returns 429 |
+| Body read / API handler | 15 seconds / 130 seconds |
+| HTTP request rate | 6,000/minute per source IP, and per account on the device API; overload returns 429 |
 | GitHub authorization start / poll | 10 / 120 per minute per IP |
-| Identity exchanges | 10/minute per IP; 64 concurrent outbound identity requests |
-| WebSocket upgrades | 120/minute per IP; 4,096 active sockets globally |
-| WebSocket authentication | Must complete within 10 seconds |
-| WebSocket ingress | 16 KiB per message/frame; 4 KiB read buffer per connection |
-| WebSocket messages | 12,000/minute per connection |
-| WebSocket outgoing queue | 128 messages per socket, 256 MiB total queued/writing bytes |
-| Slow WebSocket writes | Close after a 15-second write timeout |
-| RPC response memory | 256 MiB covering queued payloads and serialized replies, retained until read or disconnect |
-| Pending device RPCs | 2,048 globally; 64 per account; cancellation releases capacity |
+| Identity verification | 10 attempts/minute per IP; 3-second connect and 5-second response timeout; 64 concurrent outbound requests |
+| WebSocket connections | 4,096 active sockets per Relay process; a further handshake is rejected with `connection capacity exceeded` |
+| WebSocket connect / heartbeat | Namespace connect must finish within 15 seconds; ping every 15 seconds with a 45-second pong timeout; 30-second acknowledgement lifetime |
+| WebSocket frames | 256 KiB per message; larger encrypted bodies use the short-lived HTTP payload lane |
+| WebSocket outgoing queue | 128 queued messages per socket, plus 256 MiB of outbound message memory server-wide; a frame that cannot be queued within 2 seconds is dropped |
+| RPC memory budgets | 64 MiB server-wide and 16 MiB per account, reserved against the estimated serialized size of in-flight calls; an exhausted budget answers `server RPC memory budget busy` or `account RPC memory budget busy` instead of queueing |
+| Pending device RPCs | 2,048 globally, 64 per account, with a 256 MiB response budget: legacy HTTP-to-WebSocket bridge limits, kept in the shared crate but not driven by any current server route |
 | Registered devices / active credentials | 64 / 256 per account; database-atomic admission |
 | Device RPC ciphertext | 48 MiB, with JSON envelope allowance |
+| Published Pages | 100 MiB per page, 10 MiB per file, 4,096 files per page; 1 GiB content-addressed asset store and 256 MiB in-memory asset volume by default |
+| Page data | 4 MiB per blob, 2,048 blobs and 64 MiB mutable bytes per page, 10,000 blobs and 256 MiB mutable bytes per account; 20 MiB per page database, 1,000 rows and 2 MiB per query |
+| Page functions | 64 concurrent workers globally, 16 per user, 8 per page; 3,000 requests/minute per user and 600 per page; 1 MiB request body |
 
 Existing devices can reconnect at the registration limit. Idempotent token
 replays remain valid at the credential limit. Limits never delete a user's
 session, device, workspace, or other product data.
+
+Every value in this table is a compile-time constant of the shared service.
+Only deployment-level knobs are configurable: the `RELAY_*` settings below, the
+container's CPU, memory, PID and file-descriptor limits, and the reverse proxy's
+`limit_req`, `limit_conn`, body size and timeouts. A deployment that quotes a
+larger limit than its container or proxy allows will fail at the smaller one.
+
+### Scaling
+
+One Relay process owns its sockets, rooms, presence, payload store, asset store
+and SQLite database in-process, and the Socket.IO build has no external adapter.
+A second instance cannot route to the first instance's sockets, so horizontal
+scaling needs per-account stickiness at the proxy; the 4,096-socket ceiling is
+per process, not per deployment.
+
+Two paths cost work per connection rather than per message. Connect and
+disconnect pass one global gate that is held across the device row's SQLite
+round trips, and every open socket re-validates its credential every five
+seconds. Both are linear in concurrent sockets, and they matter when a whole
+fleet reconnects at once — a Relay restart is the event that produces that
+load, so size and test against a mass reconnect, not only steady traffic.
 
 Bearer authentication precedes body buffering on device APIs. Device discovery,
 public-key lookup, message routing, and RPC correlation all enforce account
@@ -210,6 +232,128 @@ Small encrypted messages travel over the live connection; larger RPC bodies use
 short-lived HTTP references. Session history uses durable records, independent
 of those temporary references. Continuous session sequences apply directly;
 missing sequences and reconnects use the same encrypted history API.
+short-lived HTTP references that expire on their own.
+
+### Device-directory compatibility
+
+`GET /api/devices` retains its existing scope: only same-account desktop/session-host
+control targets are listed, including offline devices. Registered mobile and watch
+devices remain hidden; legacy rows without a device kind remain desktop targets.
+The additive nullable fields are:
+
+| Field | Meaning |
+|---|---|
+| `device_alias` | Account-owned user alias, persisted independently of the technical name |
+| `device_model` | Host-reported device model |
+| `device_os` | Host-reported operating-system name |
+| `device_os_version` | Host-reported operating-system version |
+| `client_version` | Client build string reported at login/handshake, null when unreported |
+| `client_protocol` | Client protocol number reported at login/handshake, null when unreported |
+| `compatible` | Relay-computed; whether the requesting token's device may remote-control this device |
+
+`device_name` remains the technical/self-reported name; the Relay never replaces it
+with the alias. New clients display alias, then technical name, then device id as
+fallback. Older clients continue displaying the technical name and can ignore the
+additive response fields. Clients must tolerate absent fields from older Relays.
+
+`PATCH /api/devices/{id}` requires an authenticated full device bearer token and
+returns `204 No Content` on success. A device may change the alias of any device
+in its own account, but may update model/OS metadata only for its own authenticated
+device id. Delegated controller tokens cannot patch devices (`403`); missing or
+other-account targets return `404` without revealing ownership.
+
+- `{"device_alias":"Build host"}` sets the alias; `{"device_alias":null}` clears it.
+- Missing fields mean no change, including a missing alias. An empty object is a
+  no-op, not a request to clear fields.
+- `device_model`, `device_os`, and `device_os_version` accept strings only when
+  present in a PATCH; explicit `null` is rejected rather than clearing metadata.
+- Each alias or metadata string is limited to **256 UTF-8 bytes**, not characters,
+  and must be nonblank and contain no control characters. Use alias `null`, not an
+  empty string, to clear an alias.
+- PATCH uses strict `deny_unknown_fields`: unknown mutation fields, including an
+  arbitrary metadata extension object, are rejected rather than silently ignored
+  and reported as successful. This differs deliberately from extensible response
+  objects, whose unknown fields clients may ignore.
+
+Before sending mutations, clients negotiate capabilities through `GET /api/info`:
+`device_alias_v1` enables alias updates and `device_metadata_v1` enables metadata
+reporting/updates. These are strings in the `capabilities` array;
+`protocol_version` remains `3`. Missing capabilities mean unsupported, regardless
+of package version. Future PATCH fields or behaviors require their own capability
+negotiation before use; clients must not probe old servers with unknown mutations.
+An older Relay returning `404`/`405` must produce an explicit unsupported state,
+not a successful local-only rename.
+
+### Client-build compatibility
+
+Newer clients also report their build so the Relay can refuse a remote-control
+pair it cannot prove compatible. `device_client_build_v1` advertises this: an
+optional `clientVersion` string and `clientProtocol` number travel with the
+realtime handshake and with `POST /api/auth/login`.
+
+- The device row stores the build from the **current** connection. Every login
+  and handshake refreshes both values, including writing `NULL` when the client
+  reports nothing, so a stale build is never left behind. `clientVersion` is
+  limited to 64 UTF-8 bytes with no control characters; a malformed or absent
+  value is treated as unreported rather than rejected, so an older client still
+  connects.
+- Compatibility is decided only from `clientProtocol`, and a report is required
+  rather than merely tolerated: control is allowed only when both sides reported
+  a protocol number and the numbers match. Two legacy clients that report
+  nothing, and any pair where either side never reported, are incompatible.
+- `GET /api/devices` reports the relay-computed `compatible` flag per target,
+  based on the requesting token's device row. Incompatible devices are still
+  listed, never hidden or deleted.
+- A `rpc-call` between incompatible devices is answered with a `failure`
+  acknowledgement — `incompatible client build: remote control requires matching
+  client versions` — and is not dispatched.
+
+Presence `device-presence` entries carry the raw `client_version` and
+`client_protocol` values only; the relay-computed `compatible` flag appears
+exclusively in `GET /api/devices`.
+
+Login and provisioning accept optional model/OS metadata. Omission by an older
+client preserves stored metadata, and neither registration nor reconnect changes
+the alias. Login (and the realtime handshake) additionally report the client
+build described above, which is refreshed rather than preserved. Additive SQLite
+migrations preserve existing device rows; aliases and metadata survive Relay
+restart when the same persistent database is used. Startup resets stale online
+presence, not the alias or technical metadata.
+
+Successful patches notify online same-account clients through the existing
+`device-presence` channel, whose device entries also carry the new fields.
+Notifications are refresh hints, not durable directory state: re-fetch
+`GET /api/devices` after a patch or notification and on reconnect/normal refresh.
+
+### Forwarding only
+
+The relay stores no session content. Session transcripts, terminal output and
+the workspace/session catalog are host-owned streams
+(`services-integrations::remote_connect::host_stream`): a controller reads
+pages on demand with the pairwise-encrypted `read_stream` device RPC, and the
+host pushes an encrypted `host-stream-changed` device event naming only the
+stream id, epoch and newest sequence. Both travel through the same RPC and
+`ephemeral` device-event forwarding as every other command, so the relay never
+sees plaintext and keeps nothing after delivery. When the controlled device is
+offline there is no history to show, by design.
+
+Compatibility on the same connection:
+
+- An older client that still calls the session history routes or requests the
+  Socket.IO `session` scope receives `410 Gone` / an explicit auth failure with
+  the same `relay_session_history_retired` reason, never an empty page.
+- A newer client against an older relay ignores the `update` frames that relay
+  still emits; stream pages and hints do not depend on relay-side state.
+- Hosts advertise `host_stream_v1` in their handshake `capabilities`;
+  controllers check it before opening a stream and report an older host as
+  unsupported instead of probing it with unknown commands.
+- On start-up the service drops the retired `realtime_sessions`,
+  `realtime_messages` and `realtime_account_sequence` tables from an existing
+  database and runs `VACUUM`, so previously stored ciphertext is removed from
+  disk without an operator step. A version that is still serving clients cannot
+  be patched after the fact: bound its growing log by hand until it reaches the
+  retirement switch, as described in the
+  [v1 deployment guide](../../../deploy/relay-v1/README.md#keeping-a-legacy-10x-deployment-alive).
 
 The old `/ws`, HTTP device `rpc` and `messages` routes are retired. Deploy the
 new client and server together under a separate versioned relay prefix.

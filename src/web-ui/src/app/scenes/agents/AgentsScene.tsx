@@ -10,6 +10,7 @@ import { RotateCcw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { confirmDanger } from '@/infrastructure/confirm-dialog';
+import { AssistantAvatar } from '@/app/components/AssistantAvatar';
 import {
   GalleryEmpty,
   GalleryGrid,
@@ -17,7 +18,7 @@ import {
   GalleryPageHeader,
   GallerySkeleton,
   GalleryZone,
-} from '@/app/components';
+} from '@/app/components/GalleryLayout';
 import AgentCard from './components/AgentCard';
 import AgentHarnessOverview from './components/AgentHarnessOverview';
 import CoreAgentCard from './components/CoreAgentCard';
@@ -794,6 +795,13 @@ const AgentsHomeView: React.FC = () => {
       <GalleryPageHeader
         title={t('page.title')}
         subtitle={t('page.subtitle')}
+        leading={(
+          <AssistantAvatar
+            presetId="claw"
+            name="BitFun"
+            size="lg"
+          />
+        )}
         actions={(
           <Button
             variant="primary"

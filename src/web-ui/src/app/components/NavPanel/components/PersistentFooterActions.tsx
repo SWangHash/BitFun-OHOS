@@ -1,3 +1,4 @@
+import { lazyWithRecovery } from '@/shared/utils/lazyWithRecovery';
 import React, { lazy, Suspense, useState, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -40,6 +41,11 @@ import { useSettingsStore } from '@/app/scenes/settings/settingsStore';
 import { PeerConnectionStatus } from '@/infrastructure/peer-device/PeerConnectionStatus';
 import DeviceStatusControl from './DeviceStatusControl';
 import AppearanceQuickSwitchMenuItem from './AppearanceQuickSwitchMenuItem';
+import { UpdateIndicator } from '@/infrastructure/update/UpdateIndicator';
+import { useHasAppUpdate } from '@/infrastructure/update/useHasAppUpdate';
+import { UpdateDownloadIndicator } from '@/infrastructure/update/UpdateDownloadIndicator';
+import { UpdateMenuItems } from '@/infrastructure/update/UpdateMenuItems';
+import { useUpdateInstallStore } from '@/infrastructure/update/updateInstallStore';
 
 const RemoteConnectDialog = lazy(() => import('../../RemoteConnectDialog'));
 const AboutDialog = lazy(() =>
@@ -295,6 +301,7 @@ const PersistentFooterActions: React.FC = () => {
                 <Menu
                   ref={menuPopoverRef}
                   className={`bitfun-nav-panel__footer-menu${menuClosing ? ' is-closing' : ''}`}
+                  inlineSize="content"
                   aria-label={t('shared:features.settings')}
                   data-testid="nav-settings-menu"
                   onKeyDown={(event) => {

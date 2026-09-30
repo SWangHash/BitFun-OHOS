@@ -7,7 +7,6 @@ import {
   Ellipsis as LucideEllipsis,
   Folder as LucideFolder,
   FolderOpen as LucideFolderOpen,
-  Laptop as LucideLaptop,
   LoaderCircle as LucideLoaderCircle,
   LogOut as LucideLogOut,
   MessageSquare as LucideMessageSquare,
@@ -17,7 +16,6 @@ import {
   Plus as LucidePlus,
   RefreshCw as LucideRefreshCw,
   Search as LucideSearch,
-  Server as LucideServer,
   Settings as LucideSettings,
   Sun as LucideSun,
   Terminal as LucideTerminal,
@@ -28,6 +26,7 @@ import {
 } from 'lucide-react';
 import { useGitHubAccountProfile } from '../hooks/useGitHubAccountProfile';
 import AccountAvatar from '../components/AccountAvatar';
+import { DeviceSystemMark } from '../components/DeviceSystemMark';
 import React, { useEffect, useLayoutEffect, useRef, useCallback, useMemo, useState } from 'react';
 import {
   MobileButton,
@@ -249,23 +248,6 @@ function SessionTypeIcon({ agentType }: { agentType: string }) {
 
   return (
     <LucideMessageSquare width="18" height="18" stroke="currentColor" aria-hidden="true" />
-  );
-}
-
-function CompactDeviceIcon({ name }: { name: string }) {
-  const normalized = name.toLocaleLowerCase();
-  if (/(macbook|laptop|notebook)/.test(normalized)) {
-    return (
-      <LucideLaptop width="22" height="22" stroke="currentColor" aria-hidden="true" />
-    );
-  }
-  if (/(server|ecs|cloud|host)/.test(normalized)) {
-    return (
-      <LucideServer width="22" height="22" stroke="currentColor" aria-hidden="true" />
-    );
-  }
-  return (
-    <LucideMonitor width="22" height="22" stroke="currentColor" aria-hidden="true" />
   );
 }
 
@@ -1620,7 +1602,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
                     onClick={() => void handleSelectCompactDevice(device)}
                   >
                     <span className="harmony-sidebar__device-icon" aria-hidden="true">
-                      <CompactDeviceIcon name={deviceDisplayName(device)}/>
+                      <DeviceSystemMark deviceKind={device.device_kind} os={device.device_os} size={22} />
                     </span>
                     <span className="harmony-sidebar__row-label">{deviceDisplayName(device)}</span>
                     {isSwitching
@@ -1766,7 +1748,7 @@ const SessionListPage: React.FC<SessionListPageProps> = ({
           onSelectDevice={(device) => void handleSelectCompactDevice(device)}
           onToggleTheme={toggleTheme}
           open={compactSettingsOpen}
-          renderDeviceIcon={(name) => <CompactDeviceIcon name={name} />}
+          renderDeviceIcon={(device) => <DeviceSystemMark deviceKind={device.device_kind} os={device.device_os} size={22} />}
           selectedDeviceId={compactSelectedDeviceId}
         />
 

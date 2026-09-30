@@ -133,6 +133,42 @@
       "value": "#F7F7F5"
     },
     {
+      "name": "sidebar_bg",
+      "value": "#F8F8F9"
+    },
+    {
+      "name": "sidebar_bg_fade",
+      "value": "#00F8F8F9"
+    },
+    {
+      "name": "sidebar_raised",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "sidebar_line",
+      "value": "#14101A27"
+    },
+    {
+      "name": "sidebar_hover",
+      "value": "#F3F3F5"
+    },
+    {
+      "name": "sidebar_selection",
+      "value": "#14000000"
+    },
+    {
+      "name": "sidebar_ink",
+      "value": "#CC000000"
+    },
+    {
+      "name": "sidebar_muted",
+      "value": "#99000000"
+    },
+    {
+      "name": "sidebar_subtle",
+      "value": "#66000000"
+    },
+    {
       "name": "status_success",
       "value": "#27C46A"
     },

@@ -56,12 +56,16 @@ internal class AccountViewModel(application: Application) : AndroidViewModel(app
     private var connectionJob: Job? = null
     private var workspaceJob: Job? = null
     private var activeTarget: String? = null
+    // The selected device the user disconnected from. The selection stays so the
+    // card can offer it again, but account churn must not bind it back.
+    private var releasedTarget: String? = null
 
     init {
         viewModelScope.launch {
             store.state.collect { current ->
                 val target = (current as? AccountUiState.Ready)?.selectedDeviceId
-                if (target != activeTarget) bindTarget(target)
+                if (target != releasedTarget) releasedTarget = null
+                if (target != activeTarget && target != releasedTarget) bindTarget(target)
             }
         }
         store.dispatch(AccountIntent.Restore)
@@ -69,6 +73,10 @@ internal class AccountViewModel(application: Application) : AndroidViewModel(app
 
     fun dispatch(intent: AccountIntent) {
         store.dispatch(intent)
+    }
+
+    fun notifyAuthorizationCallback() {
+        store.notifyAuthorizationCallback()
     }
 
     /** The handle General Chat reads the account's synced models through. */
@@ -94,10 +102,28 @@ internal class AccountViewModel(application: Application) : AndroidViewModel(app
      * a way back.
      */
     fun selectDevice(deviceId: String) {
-        if (deviceId == activeTarget) bindTarget(deviceId) else store.dispatch(AccountIntent.SelectDevice(deviceId))
+        if (deviceId == activeTarget || deviceId == releasedTarget) {
+            releasedTarget = null
+            bindTarget(deviceId)
+        } else {
+            // Clear the outgoing projection before publishing the new selection.
+            // The account collector binds the new target's shared stores.
+            val ready = state.value as? AccountUiState.Ready ?: return
+            if (ready.devices.none { it.id == deviceId && it.online }) return
+            remoteJob?.cancel()
+            workspaceJob?.cancel()
+            connectionJob?.cancel()
+            directoryJob?.cancel()
+            _workspaceDirectory.value = WorkspaceSessionDirectoryUiState(emptyList())
+            _remoteState.value = RemoteSessionUiState.Loading
+            _workspaceState.value = RemoteWorkspaceUiState.Loading
+            _connectionPhase.value = ConnectionPhase.IDLE
+            store.dispatch(AccountIntent.SelectDevice(deviceId))
+        }
     }
 
     fun disconnectDevice() {
+        releasedTarget = activeTarget
         bindTarget(null)
     }
 

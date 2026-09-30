@@ -44,8 +44,6 @@ extension MobileAppModel {
         remoteExpectedDeviceKey = targetKey
         remoteTargetEpoch = epoch
         guard transition.scopeChanged else { return }
-
-        pairingRetainedAccountAuthority = nil
         clearTargetScopedRemoteProjection(boundTargetKey: targetKey, epoch: epoch)
     }
 
@@ -55,7 +53,6 @@ extension MobileAppModel {
         remoteBoundTargetKey = nil
         remoteBoundTargetEpoch = nil
         remoteTargetEpoch = adapterEpoch
-        pairingRetainedAccountAuthority = nil
     }
 
     private func clearTargetScopedRemoteProjection(boundTargetKey targetKey: String, epoch: UInt64) {
@@ -67,6 +64,7 @@ extension MobileAppModel {
         remoteInitialWorkspaceReady = false
         remoteLastAppliedAuthority = nil
         remoteSessions = []
+        pendingRemoteSessionDeletions.removeAll()
         remoteWorkspaces = []
         remoteAssistants = []
         workspaceCatalog = []
@@ -118,9 +116,23 @@ extension MobileAppModel {
 
     }
 
+    /// Directory generations only ever advance, so a *newer* one is the sync we
+    /// just asked for and never a stale observation.
+    ///
+    /// `syncDeviceDirectory` bumps the generation, hands the store its devices
+    /// and rebinds — replaying the store's current value straight back here —
+    /// all before it returns the generation its caller assigns. Under an
+    /// equality guard that replay is therefore always measured against the
+    /// previous generation and always dropped, and the device list only ever
+    /// reached the sidebar because the follow-up `loadDeviceDirectory` happened
+    /// to publish again. With no device online there is no selected device and
+    /// so no follow-up, which left a signed-in account showing "尚未连接桌面设备"
+    /// with its offline desktops hidden. Adopting the newer generation keeps
+    /// that first emission while still rejecting one from a cancelled bind.
     func apply(directoryState state: DeviceDirectoryUiState, generation: UInt64) {
         guard !accountLoginPreview, !localActionPreview, !remoteCreatePreview, !directoryFixturePreview,
-              generation == accountDirectoryGeneration else { return }
+              generation >= accountDirectoryGeneration else { return }
+        accountDirectoryGeneration = generation
         deviceDirectory = state.devices.map { entry in
             let deviceKey = entry.deviceId
             let sessions = entry.sessions.map { session in
@@ -389,6 +401,7 @@ extension MobileAppModel {
         remoteConversationOpenStartedAt = ProcessInfo.processInfo.systemUptime
         mobilePerformanceLog.info("Remote session open started generation=\(generation, privacy: .public)")
         remoteConversationLoading = false
+        remoteTranscriptUnconfirmed = false
         selectedSessionID = sessionID
         timelineRows = []
         messages = []
@@ -407,6 +420,10 @@ extension MobileAppModel {
             guard let self,
                   self.remoteConversationLoadGeneration == generation,
                   self.remoteConversationOpeningSessionID == sessionID else { return }
+            // A pane that already shows this device's stored copy is not empty: it
+            // carries a "syncing" row while the host has not answered, and a
+            // skeleton over it would hide the only content there is.
+            guard self.timelineRows.isEmpty else { return }
             self.remoteConversationLoading = true
             // What ends this wait is the transcript arriving. One that never
             // arrives would otherwise leave the skeleton standing for the rest
@@ -442,6 +459,7 @@ extension MobileAppModel {
         remoteConversationOpeningSessionID = nil
         remoteConversationOpenStartedAt = nil
         remoteConversationLoading = false
+        remoteTranscriptUnconfirmed = false
     }
 
     private func advancePendingDirectoryRemoteDraftIfReady() {
@@ -724,16 +742,27 @@ extension MobileAppModel {
             remoteSessions.removeAll { $0.id == session.id }
             remoteSessions.insert(session, at: 0)
             rebuildRemoteWorkspaceGroups()
+            // Creation only acknowledges the new row. Start the same
+            // conversation hydration path used when opening an existing row;
+            // without this dispatch the iOS surface selects the id but keeps
+            // the transcript unbound to the newly created session.
+            beginRemoteConversationOpen(sessionID: session.id)
+            coreAdapter?.openRemoteSession(sessionID: session.id)
         case let failed as CreateSessionOperationStateFailed:
             remoteCreateSubmitting = false
             remoteCreateError = failed.unsupported
                 ? localized("桌面端不支持创建此类会话")
                 : localized("创建远程会话失败，请重试")
             remoteCreateRequestID = nil
+            // Creation never committed a session. Close the create route so
+            // the previously selected conversation (or remote home) is
+            // restored, matching the Android/Harmony failure transition.
+            remoteCreateOpen = false
         case is CreateSessionOperationStateCancelled:
             remoteCreateSubmitting = false
             remoteCreateError = localized("创建远程会话已取消")
             remoteCreateRequestID = nil
+            remoteCreateOpen = false
         case is CreateSessionOperationStateIdle:
             if remoteCreateSubmitting {
                 remoteCreateSubmitting = false
@@ -750,11 +779,43 @@ extension MobileAppModel {
 
     func deleteRemoteSession(_ session: ChatSession) {
         guard !busy else { return }
+        pendingRemoteSessionDeletions.insert(session.id)
         coreAdapter?.deleteRemoteSession(sessionID: session.id)
-        if selectedSessionID == session.id {
-            remoteSessionSelected = false
-            timelineRows = []
-            messages = []
+    }
+
+    private func reconcileDirectoryAfterRemoteDeletion(_ sessions: [ChatSession], busy: Bool) {
+        guard !pendingRemoteSessionDeletions.isEmpty, !busy else { return }
+        let currentIDs = Set(sessions.map(\.id))
+        let succeeded = pendingRemoteSessionDeletions.filter { !currentIDs.contains($0) }
+        let failed = pendingRemoteSessionDeletions.filter { currentIDs.contains($0) }
+        pendingRemoteSessionDeletions.subtract(succeeded)
+        pendingRemoteSessionDeletions.subtract(failed)
+        guard !succeeded.isEmpty else { return }
+        deviceDirectory = deviceDirectory.map { device in
+            MobileDeviceDirectoryEntry(
+                id: device.id,
+                name: device.name,
+                online: device.online,
+                status: device.status,
+                error: device.error,
+                workspaces: device.workspaces.map { workspace in
+                    MobileWorkspaceGroup(
+                        workspaceId: workspace.workspaceId,
+                        path: workspace.path,
+                        name: workspace.name,
+                        selected: workspace.selected,
+                        sessions: workspace.sessions.filter { !succeeded.contains($0.id) },
+                        deviceKey: workspace.deviceKey,
+                        directoryExpanded: workspace.directoryExpanded,
+                        directoryStatus: workspace.directoryStatus,
+                        remoteConnectionId: workspace.remoteConnectionId,
+                        remoteSshHost: workspace.remoteSshHost
+                    )
+                },
+                sessions: device.sessions.filter { !succeeded.contains($0.id) },
+                catalogSource: device.catalogSource,
+                recentWorkspaces: device.recentWorkspaces
+            )
         }
     }
 
@@ -770,6 +831,11 @@ extension MobileAppModel {
     }
 
     func loadOlderRemoteMessages() {
+        // A rejected tap used to be invisible: the store's own gates decide
+        // whether a load starts, so state the inputs next to the request.
+        #if DEBUG
+        mobilePerformanceLog.info("Load older requested surface=\(String(describing: self.surface), privacy: .public) connected=\(self.remoteConnected) has_more=\(self.remoteHasMoreMessages) busy=\(self.busy) loading=\(self.remoteHistoryLoading)")
+        #endif
         guard surface == .remote, remoteConnected, remoteHasMoreMessages, !busy else { return }
         coreAdapter?.loadOlderRemoteMessages()
     }
@@ -842,12 +908,14 @@ extension MobileAppModel {
               let coreAdapter else { return false }
         mobilePerformanceLog.info("Composer send accepted characters=\(value.count) rows=\(self.timelineRows.count) user_rows=\(self.timelineRows.filter { $0.kind == "USER" }.count) generation=\(self.composerSendGeneration)")
         let images = composerImages
-        pendingComposerSend = PendingComposerSend(
-            sessionID: sessionID, text: draft, images: images,
-            previousAckID: lastAppliedRemoteSendID
-        )
+        let submittedText = draft
         draft = ""
         composerImages = []
+        pendingComposerSend = PendingComposerSend(
+            sessionID: sessionID, text: submittedText, images: images,
+            previousAckID: lastAppliedRemoteSendID,
+            clearedDraftRevision: composerDraftRevision
+        )
         composerSendGeneration &+= 1
         isSending = true
         busy = true
@@ -865,7 +933,8 @@ extension MobileAppModel {
         if ComposerSendSettlementPolicy.shouldRestore(
             sentSession: pending.sessionID, currentSession: selectedSessionID,
             acknowledged: succeeded, draftIsEmpty: draft.isEmpty,
-            attachmentsAreEmpty: composerImages.isEmpty
+            attachmentsAreEmpty: composerImages.isEmpty,
+            draftUnchanged: composerDraftRevision == pending.clearedDraftRevision
         ) {
             draft = pending.text
             composerImages = pending.images
@@ -936,6 +1005,16 @@ extension MobileAppModel {
             expectedEpoch: remoteTargetEpoch
         ) else { return }
         guard let ready = state as? RemoteSessionUiStateReady else {
+            if let failed = state as? RemoteSessionUiStateFailed,
+               RemoteSessionFailureProjectionPolicy.keepsVisibleConversation(reasonName: failed.reason.name) {
+                // A dropped transport is not a lost conversation. The store keeps
+                // polling and republishes the transcript on its next successful
+                // response, so the projection stays exactly where it is and only
+                // the connection phase reports the interruption. Clearing here
+                // would discard a conversation the store never considered lost.
+                setPublishedIfChanged(\.busy, to: false)
+                return
+            }
             permissionMailbox = nil
             remoteOpenedSessionID = nil
             remoteInitialSessionReady = false
@@ -1022,6 +1101,7 @@ extension MobileAppModel {
             projectedSessions.insert(committed.session, at: 0)
         }
         setPublishedIfChanged(\.remoteSessions, to: projectedSessions)
+        reconcileDirectoryAfterRemoteDeletion(projectedSessions, busy: ready.busy)
         rebuildRemoteWorkspaceGroups()
         if let protected = committedRemoteCreate,
            protected.targetKey == targetKey,
@@ -1034,6 +1114,12 @@ extension MobileAppModel {
             } ?? false
             if !openingSessionIsNotReady, let selected = ready.selectedSessionId {
                 setPublishedIfChanged(\.selectedSessionID, to: selected)
+            } else if !openingSessionIsNotReady {
+                // A successful delete of the open session publishes a Ready
+                // state with no selection. Clear the route identity as well as
+                // the visible transcript so a later sidebar/create action
+                // cannot inherit the deleted session id.
+                setPublishedIfChanged(\.selectedSessionID, to: "")
             }
             setPublishedIfChanged(
                 \.remoteSessionSelected,
@@ -1055,6 +1141,7 @@ extension MobileAppModel {
         setPublishedIfChanged(\.remoteHistoryFailed, to: ready.historyLoadState == .failed)
         setPublishedIfChanged(\.remotePermissionMode, to: ready.permissionMode?.name ?? remotePermissionMode)
         setPublishedIfChanged(\.remotePermissionFailure, to: ready.permissionModeFailure?.name)
+        setPublishedIfChanged(\.remotePermissionModeLoaded, to: ready.permissionMode != nil)
         let acceptsTimeline = remoteConversationOpeningSessionID.map {
             ready.timeline?.sessionId == $0
         } ?? true
@@ -1071,13 +1158,33 @@ extension MobileAppModel {
         }
         setPublishedIfChanged(\.modelOptions, to: projectedModelOptions)
         if acceptsTimeline, let timeline = ready.timeline {
+            #if DEBUG
+            let applyStartedAt = ProcessInfo.processInfo.systemUptime
+            #endif
+            let wasUnconfirmed = remoteTranscriptUnconfirmed
+            setPublishedIfChanged(\.remoteTranscriptUnconfirmed, to: timeline.origin != .host)
             let projectedRows = MobileConversationRow.reconcile(
                 timeline.conversationRows().map(Self.mapConversationRow), with: timelineRows)
+            #if DEBUG
+            if wasUnconfirmed != (timeline.origin != .host) {
+                let openMS = remoteConversationOpenStartedAt.map { Int((ProcessInfo.processInfo.systemUptime - $0) * 1_000) } ?? -1
+                mobilePerformanceLog.info(
+                    "Timeline origin changed origin=\(timeline.origin == .host ? "host" : "cache", privacy: .public) rows=\(projectedRows.count, privacy: .public) persisted=\(timeline.persistedMessages.count, privacy: .public) since_open_ms=\(openMS, privacy: .public)"
+                )
+            }
+            #endif
             if timelineRows != projectedRows {
                 let users = projectedRows.filter { $0.kind == "USER" }
                 let previousUsers = timelineRows.filter { $0.kind == "USER" }
                 let removedUsers = Set(previousUsers.map(\.id)).subtracting(users.map(\.id)).count
-                mobilePerformanceLog.info("Timeline projection rows=\(projectedRows.count) user_rows=\(users.count) previous_user_rows=\(previousUsers.count) removed_user_ids=\(removedUsers) pending_users=\(users.filter(\.pending).count) live_rows=\(projectedRows.filter(\.live).count) blocks=\(projectedRows.reduce(0) { $0 + $1.blocks.count }) busy=\(ready.busy)")
+                #if DEBUG
+                let applyMS = Int((ProcessInfo.processInfo.systemUptime - applyStartedAt) * 1_000)
+                let openMS = remoteConversationOpenStartedAt.map { Int((ProcessInfo.processInfo.systemUptime - $0) * 1_000) } ?? -1
+                mobilePerformanceLog.info(
+                    "Timeline apply origin=\(timeline.origin == .host ? "host" : "cache", privacy: .public) rows=\(projectedRows.count, privacy: .public) blocks=\(projectedRows.reduce(0) { $0 + $1.blocks.count }, privacy: .public) persisted=\(timeline.persistedMessages.count, privacy: .public) ui_ms=\(applyMS, privacy: .public) since_open_ms=\(openMS, privacy: .public)"
+                )
+                #endif
+                mobilePerformanceLog.info("Timeline projection rows=\(projectedRows.count) user_rows=\(users.count) previous_user_rows=\(previousUsers.count) removed_user_ids=\(removedUsers) live_rows=\(projectedRows.filter(\.live).count) blocks=\(projectedRows.reduce(0) { $0 + $1.blocks.count }) busy=\(ready.busy)")
                 #if DEBUG
                 if users.map(\.id) != previousUsers.map(\.id) {
                     let identities = timeline.persistedMessages.filter { $0.role == "user" }.map {
@@ -1096,8 +1203,16 @@ extension MobileAppModel {
                     )
                 }
             }
-            finishRemoteConversationOpenIfReady(timelineSessionID: timeline.sessionId)
+            // Only the host's own transcript settles the open. Rows restored from
+            // this device's copy can be shown (that is what makes a reopen
+            // instant) but they end inside the turn that ran when the app went
+            // away, so treating their arrival as the answer leaves that turn
+            // standing as the whole conversation until the host's rows land.
+            if timeline.origin == .host {
+                finishRemoteConversationOpenIfReady(timelineSessionID: timeline.sessionId)
+            }
         } else {
+            setPublishedIfChanged(\.remoteTranscriptUnconfirmed, to: false)
             setPublishedIfChanged(\.timelineRows, to: [])
             setPublishedIfChanged(\.messages, to: [])
         }

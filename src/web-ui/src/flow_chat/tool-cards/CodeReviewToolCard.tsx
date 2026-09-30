@@ -5,14 +5,16 @@
  */
 
 import { OverflowText, Icon } from '@bitfun/ui';
-import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Loader2, AlertTriangle, AlertCircle } from 'lucide-react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { Loader2, AlertTriangle, AlertCircle, SearchCheck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { getToolCardStatus } from './toolCardStatus';
 import type { ToolCardProps } from '../types/flow-chat';
 import { flowChatStore } from '../store/FlowChatStore';
 import {
   ProminentToolCard,
   ProminentToolCardSummary,
+  ToolCardDisclosure,
   ToolProcessingDots,
 } from '@bitfun/ui/flow-chat';
 import { createLogger } from '@/shared/utils/logger';
@@ -66,7 +68,7 @@ interface ReviewReportSectionProps {
   title: string;
   summary?: string;
   expanded: boolean;
-  onToggle: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  onToggle: () => void;
   children: React.ReactNode;
 }
 
@@ -83,21 +85,16 @@ const ReviewReportSection: React.FC<ReviewReportSectionProps> = ({
     data-bitfun-part="group"
     data-bitfun-state={expanded ? 'expanded' : undefined}
   >
-    <button data-overflow-trigger
-      type="button"
-      className="review-report-section__header"
-      onClick={onToggle}
-      aria-expanded={expanded}
+    <ToolCardDisclosure
+      summary={title}
+      description={summary}
+      open={expanded}
+      onOpenChange={onToggle}
+      onClick={(event) => event.stopPropagation()}
+      unmountOnClose
     >
-      <OverflowText className="review-report-section__title">{title}</OverflowText>
-      {summary && <span className="review-report-section__summary">{summary}</span>}
-      {expanded ? <Icon name="chevron-up" size="lg" style={{ width: 13, height: 13 }} /> : <Icon name="chevron-down" size="lg" style={{ width: 13, height: 13 }} />}
-    </button>
-    {expanded && (
-      <div className="review-report-section__body">
-        {children}
-      </div>
-    )}
+      {children}
+    </ToolCardDisclosure>
   </section>
 );
 
@@ -198,7 +195,7 @@ function getReliabilityNoticeIcon(notice: ReviewReliabilityNotice): React.ReactN
     notice.kind === 'partial_reviewer' ||
     notice.kind === 'retry_guidance'
   ) {
-    return <Icon name="clock" size="lg" style={{ width: 13, height: 13 }} />;
+    return <Icon name="clock" size="sm" />;
   }
   if (
     notice.kind === 'user_decision' ||
@@ -206,9 +203,9 @@ function getReliabilityNoticeIcon(notice: ReviewReliabilityNotice): React.ReactN
     notice.kind === 'token_budget_limited' ||
     notice.kind === 'target_evidence_limited'
   ) {
-    return <AlertTriangle size={13} />;
+    return <Icon glyph={AlertTriangle} size="sm" />;
   }
-  return <Icon name="info" size="lg" style={{ width: 13, height: 13 }} />;
+  return <Icon name="info" size="sm" />;
 }
 
 function getDeepReviewRunManifestForSession(sessionId?: string): ReviewTeamRunManifest | undefined {
@@ -240,13 +237,13 @@ export const CodeReviewToolCard: React.FC<ToolCardProps> = React.memo(({
   sessionId,
 }) => {
   const { t } = useTranslation('flow-chat');
-  const { toolResult, status } = toolItem;
+  const { toolResult } = toolItem;
+  const status = getToolCardStatus(toolItem);
   const [isExpanded, setIsExpanded] = useState(false);
   const [expandedRemediationIds, setExpandedRemediationIds] = useState<Set<string>>(new Set());
-  const [expandedReportSectionIds, setExpandedReportSectionIds] = useState<Set<ReviewSectionId>>(new Set());
-  const autoExpandedResultRef = useRef<string | null>(null);
+  const [reportSectionChoices, setReportSectionChoices] = useState<Partial<Record<ReviewSectionId, boolean>>>({});
   const toolId = toolItem.id ?? toolItem.toolCall?.id;
-  const { cardRootRef, applyExpandedState } = useToolCardHeightContract({
+  const { cardRootRef, applyExpandedState, dispatchToolCardToggle } = useToolCardHeightContract({
     toolId,
     toolName: toolItem.toolName,
   });
@@ -270,7 +267,7 @@ export const CodeReviewToolCard: React.FC<ToolCardProps> = React.memo(({
     switch (status) {
       case 'running':
       case 'streaming':
-        return <Loader2 className="animate-spin" size={12} />;
+        return <Icon glyph={Loader2} size="xs" className="animate-spin" />;
       case 'completed':
         return null;
       case 'pending':
@@ -297,10 +294,14 @@ export const CodeReviewToolCard: React.FC<ToolCardProps> = React.memo(({
     }
   }, [toolResult?.result]);
 
-  useEffect(() => {
-    setExpandedRemediationIds(new Set());
-    setExpandedReportSectionIds(new Set(reviewData ? getDefaultExpandedCodeReviewSectionIds(reviewData) : []));
-  }, [reviewData, toolResult?.result]);
+  const expandedReportSectionIds = useMemo(() => {
+    const expanded = new Set(reviewData ? getDefaultExpandedCodeReviewSectionIds(reviewData) : []);
+    for (const [id, open] of Object.entries(reportSectionChoices)) {
+      if (open) expanded.add(id as ReviewSectionId);
+      else expanded.delete(id as ReviewSectionId);
+    }
+    return expanded;
+  }, [reportSectionChoices, reviewData]);
 
   const issueStats = useMemo(() => {
     if (!reviewData) return null;
@@ -325,11 +326,11 @@ export const CodeReviewToolCard: React.FC<ToolCardProps> = React.memo(({
   const getSeverityIcon = (severity: string) => {
     switch (severity) {
       case 'critical':
-        return <AlertCircle size={14} style={{ color: riskLevelColors.critical }} />;
+        return <Icon glyph={AlertCircle} size="sm" style={{ color: riskLevelColors.critical }} />;
       case 'high':
-        return <AlertTriangle size={14} style={{ color: riskLevelColors.high }} />;
+        return <Icon glyph={AlertTriangle} size="sm" style={{ color: riskLevelColors.high }} />;
       case 'medium':
-        return <AlertTriangle size={14} style={{ color: riskLevelColors.medium }} />;
+        return <Icon glyph={AlertTriangle} size="sm" style={{ color: riskLevelColors.medium }} />;
       case 'low':
         return <Icon name="info" size="sm" style={{ color: riskLevelColors.low }} />;
       case 'info':
@@ -362,22 +363,6 @@ export const CodeReviewToolCard: React.FC<ToolCardProps> = React.memo(({
     [reviewData],
   );
 
-  useEffect(() => {
-    const resultKey = typeof toolResult?.result === 'string'
-      ? toolResult.result
-      : JSON.stringify(toolResult?.result ?? null);
-    const shouldAutoExpand =
-      status === 'completed' &&
-      reviewData?.review_mode === 'deep' &&
-      buildReviewRemediationItems(reviewData).length > 0 &&
-      autoExpandedResultRef.current !== resultKey;
-
-    if (shouldAutoExpand) {
-      autoExpandedResultRef.current = resultKey;
-      setIsExpanded(true);
-    }
-  }, [reviewData, status, toolResult?.result]);
-
   const toggleExpanded = useCallback(() => {
     applyExpandedState(isExpanded, !isExpanded, setIsExpanded);
   }, [applyExpandedState, isExpanded]);
@@ -405,20 +390,10 @@ export const CodeReviewToolCard: React.FC<ToolCardProps> = React.memo(({
     });
   }, []);
 
-  const handleToggleReportSection = useCallback((sectionId: ReviewSectionId) => (
-    event: React.MouseEvent<HTMLButtonElement>
-  ) => {
-    event.stopPropagation();
-    setExpandedReportSectionIds((current) => {
-      const next = new Set(current);
-      if (next.has(sectionId)) {
-        next.delete(sectionId);
-      } else {
-        next.add(sectionId);
-      }
-      return next;
-    });
-  }, []);
+  const handleToggleReportSection = useCallback((sectionId: ReviewSectionId) => () => {
+    dispatchToolCardToggle();
+    setReportSectionChoices(current => ({ ...current, [sectionId]: !expandedReportSectionIds.has(sectionId) }));
+  }, [dispatchToolCardToggle, expandedReportSectionIds]);
 
   // Listen for scroll-to events from the review action bar
   useEffect(() => {
@@ -429,12 +404,7 @@ export const CodeReviewToolCard: React.FC<ToolCardProps> = React.memo(({
       }
 
       // Ensure both issues and remediation sections are expanded
-      setExpandedReportSectionIds((current) => {
-        const next = new Set(current);
-        next.add('remediation');
-        next.add('issues');
-        return next;
-      });
+      setReportSectionChoices(current => ({ ...current, remediation: true, issues: true }));
 
       // Double rAF: wait for React state update + DOM render before scrolling
       requestAnimationFrame(() => {
@@ -467,6 +437,8 @@ export const CodeReviewToolCard: React.FC<ToolCardProps> = React.memo(({
   }, [isExpanded]);
 
   const renderContent = () => {
+    if (status === 'cancelled') return t('toolCards.default.cancelled');
+    if (status === 'rejected') return t('toolCards.default.rejected');
     if (status === 'completed' && reviewData) {
       const riskLevel = reviewData.summary?.risk_level;
       const reviewLabel = reviewData.review_mode === 'deep'
@@ -539,7 +511,7 @@ export const CodeReviewToolCard: React.FC<ToolCardProps> = React.memo(({
   const renderSummary = () => {
     return (
       <ProminentToolCardSummary
-        icon={null}
+        icon={<Icon glyph={SearchCheck} size="md" aria-hidden="true" />}
         content={renderContent()}
         actions={hasData && reviewData ? (
           <CodeReviewReportExportActions
@@ -833,7 +805,7 @@ export const CodeReviewToolCard: React.FC<ToolCardProps> = React.memo(({
                         }}
                         aria-expanded={expanded}
                       >
-                        {expanded ? <Icon name="chevron-up" size="lg" style={{ width: 13, height: 13 }} /> : <Icon name="chevron-down" size="lg" style={{ width: 13, height: 13 }} />}
+                        {expanded ? <Icon name="chevron-up" size="sm" /> : <Icon name="chevron-down" size="sm" />}
                         <span>
                           {expanded
                             ? t('toolCards.codeReview.remediationActions.collapsePlan')
@@ -957,6 +929,7 @@ export const CodeReviewToolCard: React.FC<ToolCardProps> = React.memo(({
         onToggle={handleCardClick}
         className="code-review-card"
         summary={renderSummary()}
+        allowExpandedWhenFailed
         expandedContent={expandedContent ?? undefined}
       />
     </div>

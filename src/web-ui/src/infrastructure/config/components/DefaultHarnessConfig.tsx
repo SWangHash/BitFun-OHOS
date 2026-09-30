@@ -190,7 +190,6 @@ export function DefaultHarnessConfig(): React.ReactElement {
         {preference.strategy === 'fixed' ? (
           <ConfigPageRow
             label={t('defaultHarness.fixedMode')}
-            description={t('defaultHarness.fixedModeDescription')}
             align="center"
           >
             <div

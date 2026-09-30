@@ -7,13 +7,14 @@ import { firstAvatarGrapheme } from './assistantAvatarValue';
 import './AssistantAvatar.scss';
 
 export type AssistantAvatarStatus = 'idle' | 'running' | 'attention' | 'unread' | 'error';
+export type AssistantAvatarSize = number | 'sm' | 'md' | 'lg';
 
 export interface AssistantAvatarProps {
   presetId?: string | null;
   emoji?: string | null;
   stableKey?: string | null;
   name?: string | null;
-  size?: number;
+  size?: AssistantAvatarSize;
   status?: AssistantAvatarStatus;
   active?: boolean;
   decorative?: boolean;
@@ -43,6 +44,8 @@ const AssistantAvatar: React.FC<AssistantAvatarProps> = ({
     className,
   ].filter(Boolean).join(' ');
   const accessibleName = name?.trim() ? `${name.trim()} avatar` : 'Assistant avatar';
+  const semanticSize = typeof size === 'number' ? undefined : size;
+  const customSize = typeof size === 'number' ? `${size}px` : undefined;
 
   return (
     <span
@@ -52,7 +55,10 @@ const AssistantAvatar: React.FC<AssistantAvatarProps> = ({
       data-bitfun-family={usesPreset ? preset.family : 'emoji'}
       data-bitfun-preset={usesPreset ? preset.id : undefined}
       data-bitfun-state={[active && 'active', status !== 'idle' && status].filter(Boolean).join(' ') || undefined}
-      style={{ '--assistant-avatar-size': `${size}px` } as React.CSSProperties}
+      data-size={semanticSize}
+      style={customSize
+        ? { '--assistant-avatar-size': customSize } as React.CSSProperties
+        : undefined}
       role={decorative ? undefined : 'img'}
       aria-hidden={decorative ? 'true' : undefined}
       aria-label={decorative ? undefined : accessibleName}

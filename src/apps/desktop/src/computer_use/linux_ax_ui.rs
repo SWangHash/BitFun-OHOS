@@ -2,7 +2,7 @@
 //!
 //! Requires session D-Bus, `at-spi2` registry, and apps exposing AT-SPI (typical on GNOME/KDE with a11y).
 
-use crate::computer_use::ui_locate_common;
+use super::ui_locate_common;
 use atspi::connection::P2P;
 use atspi::proxy::accessible::AccessibleProxy;
 use atspi::proxy::proxy_ext::ProxyExt;
@@ -30,15 +30,17 @@ async fn role_match_string(acc: &AccessibleProxy<'_>) -> String {
     }
 }
 
-/// Registry application roots → BFS until first match with non-empty screen extents.
+/// Search only the bound AT-SPI application, independently of the human foreground.
 pub(super) async fn locate_ui_element_center(
     query: UiElementLocateQuery,
 ) -> BitFunResult<UiElementLocateResult> {
     ui_locate_common::validate_query(&query)?;
+    // Check scope before connecting so headless/unbound callers get a precise error.
+    let _ = super::linux_control_ax::bound_app_selector()?;
 
     if query.node_idx.is_some() {
         return Err(BitFunError::tool(
-            "[AX_IDX_NOT_SUPPORTED] node_idx lookup is only implemented on macOS. \
+            "[AX_IDX_NOT_SUPPORTED] node_idx locate is unavailable on this Linux backend; cached indices remain supported by app_click. \
              Fall back to `text_contains` / `title_contains` + `role_substring` on this host."
                 .to_string(),
         ));
@@ -51,20 +53,8 @@ pub(super) async fn locate_ui_element_center(
         .await
         .map_err(|e| BitFunError::tool(format!("AT-SPI connection: {}.", e)))?;
 
-    let registry_root = conn
-        .root_accessible_on_registry()
-        .await
-        .map_err(|e| BitFunError::tool(format!("AT-SPI registry root: {}.", e)))?;
-
-    let children = registry_root
-        .get_children()
-        .await
-        .map_err(|e| BitFunError::tool(format!("AT-SPI get_children (registry): {}.", e)))?;
-
-    let mut queue = VecDeque::new();
-    for c in children {
-        queue.push_back((c, 0u32));
-    }
+    let root = super::linux_control_ax::bound_application_root(&conn).await?;
+    let mut queue = VecDeque::from([(root, 0u32)]);
 
     let mut visited = 0usize;
 

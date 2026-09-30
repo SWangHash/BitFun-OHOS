@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import girlManifest from '../../../../public/agent-companion-pets/bitfun-girl/pet.json';
+import bitblobManifest from '../../../../public/agent-companion-pets/bitblob/pet.json';
 
 const invoke = vi.fn();
 
@@ -20,14 +21,23 @@ describe('AgentCompanionPetService built-in presets', () => {
     invoke.mockReset();
   });
 
-  it('defaults to the blue-golden cat while retaining the previous BitFun preset', async () => {
-    const { DEFAULT_AGENT_COMPANION_PET, listAgentCompanionPets } = await import('./AgentCompanionPetService');
+  it('defaults to BitBlob v2 while retaining previous presets', async () => {
+    const { DEFAULT_AGENT_COMPANION_PET, listAgentCompanionPets, resolveAgentCompanionPet } = await import('./AgentCompanionPetService');
 
     const pets = await listAgentCompanionPets();
     const blueGolden = pets.find(pet => pet.id === 'blue-golden');
     const bitfun = pets.find(pet => pet.id === 'bitfun');
 
     expect(DEFAULT_AGENT_COMPANION_PET).toMatchObject({
+      id: 'bitblob',
+      displayName: 'BitBlob',
+      source: 'preset',
+      packagePath: '/agent-companion-pets/bitblob',
+      spritesheetPath: '/agent-companion-pets/bitblob/spritesheet.webp',
+      spritesheetMimeType: 'image/webp',
+      spriteVersionNumber: 2,
+    });
+    expect(blueGolden).toMatchObject({
       id: 'blue-golden',
       displayName: '困困',
       source: 'preset',
@@ -35,11 +45,14 @@ describe('AgentCompanionPetService built-in presets', () => {
       spritesheetPath: '/agent-companion-pets/blue-golden/spritesheet.png',
       spritesheetMimeType: 'image/png',
     });
-    expect(blueGolden).toMatchObject({
-      ...DEFAULT_AGENT_COMPANION_PET,
-      previewSrc: '/agent-companion-pets/blue-golden/spritesheet.png',
-    });
     expect(pets[0]).toMatchObject(DEFAULT_AGENT_COMPANION_PET);
+    expect(pets[0]).toMatchObject({
+      ...bitblobManifest,
+      spritesheetPath: `/agent-companion-pets/${bitblobManifest.id}/${bitblobManifest.spritesheetPath}`,
+    });
+    expect((await resolveAgentCompanionPet(pets[0])).layout).toMatchObject({
+      version: 2, columns: 8, rows: 11, supportsLook: true,
+    });
     expect(bitfun).toMatchObject({
       displayName: 'BitFun',
       packagePath: '/agent-companion-pets/bitfun',
@@ -48,13 +61,13 @@ describe('AgentCompanionPetService built-in presets', () => {
     expect(invoke).not.toHaveBeenCalled();
   });
 
-  it('lists Fangling second and resolves its packaged v2 layout without host access', async () => {
+  it('retains Fangling and resolves its packaged v2 layout without host access', async () => {
     const { listAgentCompanionPets, resolveAgentCompanionPet } = await import('./AgentCompanionPetService');
     const pets = await listAgentCompanionPets();
-    const girl = pets[1];
+    const girl = pets[2];
 
-    expect(pets.slice(0, 3).map(pet => pet.id)).toEqual([
-      'blue-golden', 'bitfun-girl', 'deepseek-goldwhale',
+    expect(pets.slice(0, 4).map(pet => pet.id)).toEqual([
+      'bitblob', 'blue-golden', 'bitfun-girl', 'deepseek-goldwhale',
     ]);
     expect(girl).toMatchObject({
       ...girlManifest,

@@ -57,6 +57,7 @@ function createTurns(count: number): FlowChatTurnRailItem[] {
 }
 
 const railCss = compile(resolve(__dirname, 'FlowChatTurnRail.scss')).css;
+const fullBarWidth = 'var(--bitfun-control-flow-chat-turn-rail-width)';
 
 describe('FlowChatTurnRail', () => {
   let container: HTMLDivElement;
@@ -66,7 +67,8 @@ describe('FlowChatTurnRail', () => {
   const emphasizedBars = () => {
     const selectors = Array.from(style.sheet!.cssRules)
       .filter((rule): rule is CSSStyleRule => rule instanceof CSSStyleRule)
-      .filter(rule => rule.style.getPropertyValue('background') === 'var(--bitfun-color-content-primary)')
+      .filter(rule => rule.style.getPropertyValue('background') === 'var(--bitfun-color-content-primary)'
+        && rule.style.getPropertyValue('opacity') === '0.8')
       .map(rule => rule.selectorText);
     expect(selectors.length).toBeGreaterThan(0);
     // Both current and hover may use primary ink, but their compiled selectors
@@ -125,18 +127,20 @@ describe('FlowChatTurnRail', () => {
     expect(onNavigate).not.toHaveBeenCalled();
     for (const item of items) {
       const distance = Math.abs(Number(item.dataset.turnOrdinal) - 6);
-      expect(barWidth(item)).toBe(`${[19, 16, 13, 11][distance] ?? 10}px`);
+      expect(barWidth(item)).toBe(distance === 0 ? fullBarWidth : `${[20, 15, 10, 8][distance] ?? 5}px`);
       expect(getComputedStyle(item.querySelector('.flowchat-turn-rail__bar')!).opacity)
-        .toBe(distance === 0 ? '1' : '0.4');
+        .toBe(distance === 0 ? '0.8' : '0.2');
     }
     expect(Array.from(items, item => item.style.top)).toEqual(restingPositions);
     // Even the longest bar fits inside its stable hit area and clipped list.
-    expect(parseFloat(barWidth(target)) + 2).toBeLessThanOrEqual(parseFloat(getComputedStyle(target).width));
+    expect(barWidth(target)).toBe(getComputedStyle(target).width);
 
     leave(target);
     expect(emphasizedBars()).toHaveLength(1);
     expect(emphasizedBars()[0].parentElement).toBe(current);
-    expect(Array.from(items, barWidth)).toEqual(Array(items.length).fill('10px'));
+    expect(Array.from(items, barWidth)).toEqual(
+      Array(items.length).fill('5px'),
+    );
   });
 
   it('moves the hover fan at both ends and restores the latest selection on leave', () => {
@@ -147,10 +151,10 @@ describe('FlowChatTurnRail', () => {
     render('turn-2');
     const items = container.querySelectorAll<HTMLButtonElement>('.flowchat-turn-rail__item');
     hover(items[0]);
-    expect(Array.from(items, barWidth)).toEqual(['19px', '16px', '13px', '11px']);
+    expect(Array.from(items, barWidth)).toEqual([fullBarWidth, '15px', '10px', '8px']);
     leave(items[0]);
     hover(items[3]);
-    expect(Array.from(items, barWidth)).toEqual(['11px', '13px', '16px', '19px']);
+    expect(Array.from(items, barWidth)).toEqual(['8px', '10px', '15px', fullBarWidth]);
     act(() => items[3].click());
     expect(onNavigate).toHaveBeenCalledWith(turns[3]);
     render('turn-4');
@@ -167,12 +171,12 @@ describe('FlowChatTurnRail', () => {
     ));
     const target = container.querySelector<HTMLButtonElement>('[data-turn-id="turn-4"]')!;
     hover(target, 'touch');
-    expect(barWidth(target)).toBe('10px');
+    expect(barWidth(target)).toBe('5px');
     hover(target);
-    expect(barWidth(target)).toBe('19px');
+    expect(barWidth(target)).toBe(fullBarWidth);
     act(() => container.querySelector('.flowchat-turn-rail__list')!
       .dispatchEvent(new Event('scroll', { bubbles: true })));
-    expect(barWidth(target)).toBe('10px');
+    expect(barWidth(target)).toBe('5px');
     expect(emphasizedBars()).toHaveLength(1);
     expect(emphasizedBars()[0].parentElement?.getAttribute('data-turn-id')).toBe('turn-2');
     expect(onNavigate).not.toHaveBeenCalled();
@@ -204,6 +208,8 @@ describe('FlowChatTurnRail', () => {
     const items = container.querySelectorAll<HTMLButtonElement>('.flowchat-turn-rail__item');
     expect(items).toHaveLength(4);
     expect(items[1].getAttribute('aria-current')).toBe('step');
+    expect(barWidth(items[1])).toBe('5px');
+    expect(barWidth(items[0])).toBe('5px');
     expect(items[1].className).toContain('flowchat-turn-rail__item--visible');
     expect(items[2].className).toContain('flowchat-turn-rail__item--visible');
     expect(container.querySelectorAll('[aria-current="step"]')).toHaveLength(1);
@@ -285,8 +291,8 @@ describe('FlowChatTurnRail', () => {
     expect(tooltip?.textContent).not.toContain('[$pdf]');
     expect(tooltip?.textContent).not.toContain('#file:');
     expect(tooltip?.querySelectorAll('.user-message-item__reference')).toHaveLength(2);
-    expect(tooltip?.querySelector('[data-testid="icon-extension"]')).not.toBeNull();
-    expect(tooltip?.querySelector('[data-testid="icon-extension"]')?.closest('.message-reference-capsule')
+    expect(tooltip?.querySelector('[data-testid="icon-book-open"]')).not.toBeNull();
+    expect(tooltip?.querySelector('[data-testid="icon-book-open"]')?.closest('.message-reference-capsule')
       ?.textContent).toContain('pdf');
   });
 
@@ -395,7 +401,7 @@ describe('FlowChatTurnRail', () => {
     expect(list).not.toBeNull();
     if (!list) return;
 
-    Object.defineProperty(list, 'clientHeight', { configurable: true, value: 40 });
+    Object.defineProperty(list, 'clientHeight', { configurable: true, value: 30 });
     list.scrollTop = 0;
 
     act(() => {
@@ -409,7 +415,7 @@ describe('FlowChatTurnRail', () => {
       );
     });
 
-    expect(list.scrollTop).toBe(11);
+    expect(list.scrollTop).toBe(9);
   });
 
   it('moves keyboard focus through the vertical turn list', () => {
@@ -443,6 +449,7 @@ describe('FlowChatTurnRail', () => {
     expect(current.tabIndex).toBe(-1);
     expect(emphasizedBars()).toHaveLength(1);
     expect(emphasizedBars()[0].parentElement).toBe(current);
+    expect(barWidth(current)).toBe('5px');
   });
 
   it('bounds rendered markers to the viewport plus overscan', () => {
@@ -464,7 +471,10 @@ describe('FlowChatTurnRail', () => {
     expect(list).not.toBeNull();
     if (!list) return;
 
-    Object.defineProperty(list, 'clientHeight', { configurable: true, value: 56 });
+    Object.defineProperty(list, 'clientHeight', {
+      configurable: true,
+      value: 4 * FLOWCHAT_TURN_RAIL_ROW_HEIGHT_PX,
+    });
     list.scrollTop = 50 * FLOWCHAT_TURN_RAIL_ROW_HEIGHT_PX;
     act(() => {
       list.dispatchEvent(new Event('scroll', { bubbles: true }));

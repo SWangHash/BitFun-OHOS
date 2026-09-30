@@ -1,0 +1,15 @@
+// Renderer defaults for sparse/legacy Appearance packages. The adapter adds
+// concrete paint colors after this stylesheet when the accent is available.
+[data-flowchat-highlight-excerpt]::highlight(bitfun-flowchat-excerpt),
+[data-flowchat-highlight-annotations]::highlight(bitfun-flowchat-annotations) {
+  background-color: var(--bitfun-color-selection-surface);
+  color: var(--bitfun-component-conversation-excerpt-accent);
+}
+
+@media (forced-colors: active) {
+  [data-flowchat-highlight-excerpt]::highlight(bitfun-flowchat-excerpt),
+  [data-flowchat-highlight-annotations]::highlight(bitfun-flowchat-annotations) {
+    background-color: Highlight;
+    color: HighlightText;
+  }
+}

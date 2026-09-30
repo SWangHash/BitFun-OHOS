@@ -2,14 +2,13 @@ import { RemoteI18n } from '../../i18n/RemoteI18n';
 import { MobileDesignTypography, MobileDesignGeometry as G } from '../../generated/MobileDesignTokens';
 import { MotionPreference } from '../../services/MotionPreference';
 import { WelcomeBrandFlow } from './WelcomeBrandFlow';
-import { INK, PAGE_BG, SOFT, MUTED, TRANSPARENT } from './Theme';
+import { INK, PAGE_BG, MUTED, TRANSPARENT } from './Theme';
 
 /** A welcome composition with the C staggered-slide phrase timeline. */
 @ComponentV2
 export struct WelcomeHome {
   @Param signedIn: boolean = false;
   @Event onLogin: () => void = () => {};
-  @Event onScan: () => void = () => {};
   @Event onMiniApps: () => void = () => {};
   @Local elapsed: number = 0;
   @Local pageHeight: number = 700;
@@ -114,8 +113,7 @@ export struct WelcomeHome {
   @Builder
   private Actions() {
     Column({ space: G.welcomeButtonGap }) {
-      this.Action(false)
-      this.Action(true)
+      this.Action()
       Button({ type: ButtonType.Normal }) {
         Row({ space: 5 }) {
           Text(RemoteI18n.t('home.exploreMiniApps')).fontSize(MobileDesignTypography.labelSmall.size)
@@ -143,14 +141,13 @@ export struct WelcomeHome {
   }
 
   @Builder
-  private Action(scan: boolean) {
+  private Action() {
     Button({ type: ButtonType.Normal }) {
       Row({ space: 10 }) {
-        if (scan) { Image($r('app.media.welcome_scan')).width(20).height(20) }
-        Text(RemoteI18n.t(scan ? 'home.welcome_scan' :
-          (this.signedIn ? 'home.connectComputer' : 'home.welcome_login'))).fontSize(MobileDesignTypography.labelMedium.size).fontWeight(FontWeight.Medium).fontColor(this.wide() ? (scan ? INK : PAGE_BG) : $r('app.color.welcome_button_label'))
+        Text(RemoteI18n.t(this.signedIn ? 'home.connectComputer' : 'home.welcome_login'))
+          .fontSize(MobileDesignTypography.labelMedium.size).fontWeight(FontWeight.Medium).fontColor(this.wide() ? PAGE_BG : $r('app.color.welcome_button_label'))
       }.justifyContent(FlexAlign.Center)
     }.width('100%').height(G.welcomeButtonHeight).borderRadius(28)
-    .backgroundColor(this.wide() ? (scan ? SOFT : INK) : $r('app.color.welcome_button')).onClick(() => { if(scan) this.onScan(); else this.onLogin(); })
+    .backgroundColor(this.wide() ? INK : $r('app.color.welcome_button')).onClick(this.onLogin)
   }
 }

@@ -5,6 +5,7 @@ import { getActiveSurfaceId, isSurfaceChangedError } from '@/infrastructure/peer
 import { createLogger } from '@/shared/utils/logger';
 import { registerSessionSceneNavigation, useSceneStore } from '../stores/sceneStore';
 import { isSessionSceneId, type SessionSceneTarget } from '../components/SceneBar/types';
+import { startSessionAuxPaneMemory } from '../scenes/session/sessionAuxPaneMemory';
 import { resolveSessionSceneTarget, resolveSessionSceneWorkspace } from './sessionSceneTarget';
 
 const log = createLogger('SessionSceneLifecycle');
@@ -15,6 +16,7 @@ const log = createLogger('SessionSceneLifecycle');
  */
 export function startSessionSceneLifecycle(): () => void {
   const stopProjectionSync = startAutoSync();
+  const stopAuxPaneMemory = startSessionAuxPaneMemory();
   const current = () => {
     const session = flowChatStore.getActiveSession();
     return session ? resolveSessionSceneTarget(
@@ -27,6 +29,11 @@ export function startSessionSceneLifecycle(): () => void {
       if (target.surfaceId !== getActiveSurfaceId() || current()?.sessionId !== target.sessionId) return false;
       const session = flowChatStore.getActiveSession()!;
       const state = workspaceManager.getState();
+      // A session is active when the workspace it is listed under is active, and
+      // that is the same owning row its tab key and the navigation list use. A
+      // worktree session therefore counts as active in its project; comparing its
+      // execution worktree instead would leave the scene permanently inactive and
+      // re-activate it on every change, which cancels the selection the user made.
       const workspace = resolveSessionSceneWorkspace(session, state.openedWorkspaces.values());
       return workspace ? workspace.id === state.activeWorkspaceId : !state.currentWorkspace;
     },
@@ -112,6 +119,7 @@ export function startSessionSceneLifecycle(): () => void {
     unsubscribeScenes();
     unsubscribeWorkspaces();
     stopNavigation();
+    stopAuxPaneMemory();
     stopProjectionSync();
   };
 }

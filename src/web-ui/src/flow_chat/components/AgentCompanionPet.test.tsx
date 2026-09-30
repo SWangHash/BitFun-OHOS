@@ -51,6 +51,25 @@ function sprite() {
 }
 
 describe('pet sprite renderer', () => {
+  it('keeps built-in BitBlob motion in the atlas across session states', async () => {
+    const bitblob = { ...pet, id: 'bitblob' };
+    for (const mood of ['rest', 'hover', 'working', 'waiting', 'analyzing', 'dragging'] as const) {
+      await act(async () => root.render(<AgentCompanionPet pet={bitblob} mood={mood} />));
+      expect(sprite().style.animationName).toBe('bitfun-petdex-walk');
+      expect(sprite().style.imageRendering).toBe('auto');
+    }
+    await act(async () => root.render(<AgentCompanionPet pet={bitblob} mood="rest" action="jumping" />));
+    expect(sprite().dataset.petAction).toBe('jumping');
+    expect(sprite().style.animationDuration).toBe('1.2s');
+    await act(async () => root.render(<AgentCompanionPet pet={bitblob} mood="rest" lookDirection={4} />));
+    expect(sprite().style.animation).toBe('none');
+    // A user pet with the same id must retain its own/default presentation.
+    await act(async () => root.render(<AgentCompanionPet pet={{ ...bitblob, source: 'user' }} mood="working" />));
+    expect(sprite().style.animationName).toBe('');
+    await act(async () => root.render(<AgentCompanionPet pet={pet} mood="working" />));
+    expect(sprite().style.animationName).toBe('');
+  });
+
   it.each([1, 2])('plays all three standard actions with v%s frame geometry and keeps drag priority', async version => {
     vi.useFakeTimers();
     vi.stubGlobal('Image', class {

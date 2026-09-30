@@ -4,8 +4,8 @@
   "title": "BitFun Playbook",
   "origin": "https://playbook.bitfun.com",
   "source": "src/shared/interactive-capabilities/catalog.json",
-  "digest": "5473331e06ecd4bfafbf9b547d48b4fe1561ccf69d86fdfde51ea10dc919531c",
-  "ownerDigest": "c0e5c187cf62bc6ed06196ce8520b3eb427bf268cf24659b72d2552fb1d99c54",
+  "digest": "b929de7db5afa1a4c563d1b02d43b964483178cdcbc3af4c5a0af7a3f9ec3a20",
+  "ownerDigest": "06b53ee018597602a7aed535713d77d4beab10ec670d42b066d9f318fb5f301b",
   "searchAcceptance": [
     {
       "id": "companion-pet-mixed",
@@ -135,13 +135,13 @@
     }
   ],
   "counts": {
-    "features": 22,
+    "features": 23,
     "settings": 21,
-    "userFacing": 43,
-    "documentedItems": 320,
+    "userFacing": 44,
+    "documentedItems": 325,
     "controlCoverage": {
       "direct": 48,
-      "delegated": 61,
+      "delegated": 66,
       "interactive": 211,
       "unsupported": 0
     }
@@ -4773,7 +4773,9 @@
         "browser-discovery",
         "launch-connect",
         "default-cdp",
-        "agent-actions"
+        "agent-actions",
+        "control-session-preview",
+        "stop-control-session"
       ],
       "kind": "query",
       "risk": "read",
@@ -5095,6 +5097,97 @@
       "capabilityId": "feature.computer-use",
       "itemIds": [
         "agent-actions"
+      ],
+      "kind": "delegate",
+      "risk": "execute",
+      "executionHost": "workspaceHost",
+      "availability": {
+        "desktop": {
+          "available": true
+        },
+        "cli": {
+          "available": true
+        },
+        "peer": {
+          "available": true,
+          "requiredCapabilities": [
+            "product_control_v1"
+          ]
+        },
+        "remoteControl": {
+          "available": true
+        },
+        "detachedDispatch": {
+          "available": true
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "delegateTools": [
+        "ComputerUse"
+      ],
+      "presentationTarget": {
+        "kind": "settings",
+        "pageId": "tools.execution"
+      }
+    },
+    {
+      "id": "feature.computer-use:open:control-session-preview",
+      "capabilityId": "feature.computer-use",
+      "itemIds": [
+        "control-session-preview"
+      ],
+      "kind": "open",
+      "risk": "ui",
+      "executionHost": "presentationSurface",
+      "availability": {
+        "desktop": {
+          "available": true
+        },
+        "cli": {
+          "available": false,
+          "reason": "This delivery profile has no live presentation surface"
+        },
+        "peer": {
+          "available": true,
+          "requiredCapabilities": [
+            "product_control_v1",
+            "product_control_presentation_v1"
+          ]
+        },
+        "remoteControl": {
+          "available": true
+        },
+        "detachedDispatch": {
+          "available": false,
+          "reason": "This delivery profile has no live presentation surface"
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "openReason": "unstructuredInteraction",
+      "presentationTarget": {
+        "kind": "settings",
+        "pageId": "tools.execution"
+      }
+    },
+    {
+      "id": "feature.computer-use:delegate:stop-control-session",
+      "capabilityId": "feature.computer-use",
+      "itemIds": [
+        "stop-control-session"
       ],
       "kind": "delegate",
       "risk": "execute",
@@ -8186,13 +8279,246 @@
       }
     },
     {
+      "id": "feature.openharmony-devtooling:query",
+      "capabilityId": "feature.openharmony-devtooling",
+      "itemIds": [
+        "build-and-checks",
+        "run-and-logs",
+        "ui-verification",
+        "knowledge-and-cwd"
+      ],
+      "kind": "query",
+      "risk": "read",
+      "executionHost": "productHost",
+      "availability": {
+        "desktop": {
+          "available": true
+        },
+        "cli": {
+          "available": true
+        },
+        "peer": {
+          "available": true,
+          "requiredCapabilities": [
+            "product_control_v1"
+          ]
+        },
+        "remoteControl": {
+          "available": true
+        },
+        "detachedDispatch": {
+          "available": true
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "valueSource": {
+        "kind": "static"
+      },
+      "presentationTarget": {
+        "kind": "scene",
+        "sceneId": "terminal"
+      }
+    },
+    {
+      "id": "feature.openharmony-devtooling:delegate:build-and-checks",
+      "capabilityId": "feature.openharmony-devtooling",
+      "itemIds": [
+        "build-and-checks"
+      ],
+      "kind": "delegate",
+      "risk": "execute",
+      "executionHost": "workspaceHost",
+      "availability": {
+        "desktop": {
+          "available": true
+        },
+        "cli": {
+          "available": true
+        },
+        "peer": {
+          "available": true,
+          "requiredCapabilities": [
+            "product_control_v1"
+          ]
+        },
+        "remoteControl": {
+          "available": true
+        },
+        "detachedDispatch": {
+          "available": true
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "delegateTools": [
+        "build_project",
+        "check_arkts_files",
+        "check_cpp_files"
+      ],
+      "presentationTarget": {
+        "kind": "scene",
+        "sceneId": "terminal"
+      }
+    },
+    {
+      "id": "feature.openharmony-devtooling:delegate:run-and-logs",
+      "capabilityId": "feature.openharmony-devtooling",
+      "itemIds": [
+        "run-and-logs"
+      ],
+      "kind": "delegate",
+      "risk": "execute",
+      "executionHost": "workspaceHost",
+      "availability": {
+        "desktop": {
+          "available": true
+        },
+        "cli": {
+          "available": true
+        },
+        "peer": {
+          "available": true,
+          "requiredCapabilities": [
+            "product_control_v1"
+          ]
+        },
+        "remoteControl": {
+          "available": true
+        },
+        "detachedDispatch": {
+          "available": true
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "delegateTools": [
+        "start_app",
+        "hdc_log"
+      ],
+      "presentationTarget": {
+        "kind": "scene",
+        "sceneId": "terminal"
+      }
+    },
+    {
+      "id": "feature.openharmony-devtooling:delegate:ui-verification",
+      "capabilityId": "feature.openharmony-devtooling",
+      "itemIds": [
+        "ui-verification"
+      ],
+      "kind": "delegate",
+      "risk": "execute",
+      "executionHost": "workspaceHost",
+      "availability": {
+        "desktop": {
+          "available": true
+        },
+        "cli": {
+          "available": true
+        },
+        "peer": {
+          "available": true,
+          "requiredCapabilities": [
+            "product_control_v1"
+          ]
+        },
+        "remoteControl": {
+          "available": true
+        },
+        "detachedDispatch": {
+          "available": true
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "delegateTools": [
+        "verify_ui",
+        "get_ui_verification_log",
+        "save_ui_screenshot"
+      ],
+      "presentationTarget": {
+        "kind": "scene",
+        "sceneId": "terminal"
+      }
+    },
+    {
+      "id": "feature.openharmony-devtooling:delegate:knowledge-and-cwd",
+      "capabilityId": "feature.openharmony-devtooling",
+      "itemIds": [
+        "knowledge-and-cwd"
+      ],
+      "kind": "delegate",
+      "risk": "execute",
+      "executionHost": "workspaceHost",
+      "availability": {
+        "desktop": {
+          "available": true
+        },
+        "cli": {
+          "available": true
+        },
+        "peer": {
+          "available": true,
+          "requiredCapabilities": [
+            "product_control_v1"
+          ]
+        },
+        "remoteControl": {
+          "available": true
+        },
+        "detachedDispatch": {
+          "available": true
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "delegateTools": [
+        "arkts_knowledge_search",
+        "switch_cwd"
+      ],
+      "presentationTarget": {
+        "kind": "scene",
+        "sceneId": "terminal"
+      }
+    },
+    {
       "id": "feature.remote-workspaces:query",
       "capabilityId": "feature.remote-workspaces",
       "itemIds": [
         "ssh-profiles",
         "ssh-auth",
         "docker",
-        "wsl",
         "remote-open",
         "remote-files",
         "transfer",
@@ -8336,52 +8662,6 @@
       "capabilityId": "feature.remote-workspaces",
       "itemIds": [
         "docker"
-      ],
-      "kind": "open",
-      "risk": "ui",
-      "executionHost": "presentationSurface",
-      "availability": {
-        "desktop": {
-          "available": true
-        },
-        "cli": {
-          "available": false,
-          "reason": "This delivery profile has no live presentation surface"
-        },
-        "peer": {
-          "available": true,
-          "requiredCapabilities": [
-            "product_control_v1",
-            "product_control_presentation_v1"
-          ]
-        },
-        "remoteControl": {
-          "available": true
-        },
-        "detachedDispatch": {
-          "available": false,
-          "reason": "This delivery profile has no live presentation surface"
-        }
-      },
-      "inputSchema": {
-        "type": "object",
-        "additionalProperties": false
-      },
-      "outputSchema": {
-        "type": "object",
-        "additionalProperties": true
-      },
-      "openReason": "unstructuredInteraction",
-      "presentationTarget": {
-        "kind": "action",
-        "actionId": "project.new"
-      }
-    },
-    {
-      "id": "feature.remote-workspaces:open:wsl",
-      "capabilityId": "feature.remote-workspaces",
-      "itemIds": [
-        "wsl"
       ],
       "kind": "open",
       "risk": "ui",
@@ -21728,12 +22008,14 @@
       "highlightsZh": [
         "启用或停用 Computer Use",
         "连接或断开受支持的浏览器",
-        "检查并打开系统权限设置"
+        "检查并打开系统权限设置",
+        "查看当前控制目标与预览，并随时停止控制"
       ],
       "highlightsEn": [
         "Enable or disable Computer Use",
         "Connect or disconnect a supported browser",
-        "Inspect and open OS permission settings"
+        "Inspect and open OS permission settings",
+        "Inspect the current control target and preview, and stop control at any time"
       ],
       "items": [
         {
@@ -21820,6 +22102,36 @@
               "After authorization, use the latest screenshot or element-location result to click, type, scroll, and inspect the visible interface"
             ]
           }
+        },
+        {
+          "id": "control-session-preview",
+          "titleZh": "在控制状态卡片查看当前目标、模式与授权画面预览",
+          "titleEn": "Inspect the current target, mode, and authorized capture preview in the control card",
+          "control": {
+            "kind": "open",
+            "reasonCode": "unstructuredInteraction",
+            "reasonZh": "“在控制状态卡片查看当前目标、模式与授权画面预览”需要活动会话及用户展开卡片；预览仅包含当前授权目标和虚拟指针。设置入口仅用于配置，不会启动控制。远程设备需要对应 Desktop 宿主支持，不可回退到本机画面。",
+            "reasonEn": "“Inspect the current target, mode, and authorized capture preview in the control card” requires an active session and expanding its card; the preview contains only the authorized target and virtual pointer. The settings entry only configures the feature and does not start control. Remote devices require a supporting Desktop host, without falling back to local capture."
+          }
+        },
+        {
+          "id": "stop-control-session",
+          "titleZh": "停止当前桌面控制会话并释放捕获与输入资源",
+          "titleEn": "Stop the current desktop-control session and release capture and input resources",
+          "control": {
+            "kind": "delegate",
+            "tools": [
+              "ComputerUse"
+            ],
+            "workflowZh": [
+              "通过 ComputerUse control_status 确认当前会话的目标、所有者与模式；没有活动会话时不要启动新会话",
+              "使用 ComputerUse stop_control 释放该工具拥有的会话；用户也可在执行端控制卡片点击停止，按钮只针对显示的会话代次，不停止后来创建的会话"
+            ],
+            "workflowEn": [
+              "Use ComputerUse control_status to inspect the current target, owner, and mode; do not start a session when none is active",
+              "Use ComputerUse stop_control to release the tool-owned session. Users can also stop from the executing Desktop control card; its button addresses the displayed generation rather than a subsequently created session."
+            ]
+          }
         }
       ],
       "stepsZh": [
@@ -21866,9 +22178,11 @@
         "启用或停用 Computer Use",
         "连接或断开受支持的浏览器",
         "检查并打开系统权限设置",
+        "查看当前控制目标与预览，并随时停止控制",
         "Enable or disable Computer Use",
         "Connect or disconnect a supported browser",
         "Inspect and open OS permission settings",
+        "Inspect the current control target and preview, and stop control at any time",
         "检查 Computer Use 可用性、辅助功能和屏幕录制授权状态",
         "Check Computer Use availability plus accessibility and screen-recording permission status",
         "请求桌面控制所需的系统权限",
@@ -21883,6 +22197,10 @@
         "Enable the default CDP setup and restart the browser when required",
         "授权后让智能体截图、点击、输入、滚动并读取可见界面",
         "After authorization, let agents capture, click, type, scroll, and inspect the visible interface",
+        "在控制状态卡片查看当前目标、模式与授权画面预览",
+        "Inspect the current target, mode, and authorized capture preview in the control card",
+        "停止当前桌面控制会话并释放捕获与输入资源",
+        "Stop the current desktop-control session and release capture and input resources",
         "打开桌面控制设置",
         "带我配置浏览器控制",
         "Open desktop-control settings",
@@ -21891,7 +22209,11 @@
         "先让 ComputerUse 检查当前可用动作和授权；缺少系统权限时明确引导用户授权",
         "授权后使用最新截图或元素定位结果执行点击、输入、滚动和可见界面读取",
         "Ask ComputerUse to inspect available actions and permissions first; surface missing operating-system permissions explicitly",
-        "After authorization, use the latest screenshot or element-location result to click, type, scroll, and inspect the visible interface"
+        "After authorization, use the latest screenshot or element-location result to click, type, scroll, and inspect the visible interface",
+        "通过 ComputerUse control_status 确认当前会话的目标、所有者与模式；没有活动会话时不要启动新会话",
+        "使用 ComputerUse stop_control 释放该工具拥有的会话；用户也可在执行端控制卡片点击停止，按钮只针对显示的会话代次，不停止后来创建的会话",
+        "Use ComputerUse control_status to inspect the current target, owner, and mode; do not start a session when none is active",
+        "Use ComputerUse stop_control to release the tool-owned session. Users can also stop from the executing Desktop control card; its button addresses the displayed generation rather than a subsequently created session."
       ],
       "docsUrl": "https://playbook.bitfun.com/capabilities/feature.computer-use/"
     },
@@ -23503,6 +23825,215 @@
       "docsUrl": "https://playbook.bitfun.com/capabilities/feature.ecosystem-compatibility/"
     },
     {
+      "id": "feature.openharmony-devtooling",
+      "kind": "feature",
+      "categoryId": "workspace",
+      "titleZh": "鸿蒙开发工具链",
+      "titleEn": "HarmonyOS dev tooling",
+      "summaryZh": "让智能体构建鸿蒙工程、检查 ArkTS 与 C++ 源码、安装启动应用到真机、抓取 hdc 日志并验证 UI，覆盖真机调试闭环。",
+      "summaryEn": "Let agents build HarmonyOS projects, check ArkTS and C++ sources, install and launch on a device, capture hdc logs, and verify UI through the on-device loop.",
+      "keywordsZh": [
+        "鸿蒙",
+        "HarmonyOS",
+        "OpenHarmony",
+        "ArkTS",
+        "hdc",
+        "真机调试",
+        "设备日志",
+        "UI 验证"
+      ],
+      "keywordsEn": [
+        "HarmonyOS",
+        "OpenHarmony",
+        "ArkTS",
+        "hdc",
+        "on-device debugging",
+        "device log",
+        "UI verification"
+      ],
+      "highlightsZh": [
+        "构建与静态检查一站式完成",
+        "hdc 安装、启动与设备日志抓取",
+        "UI 验证留痕：截图与验证日志"
+      ],
+      "highlightsEn": [
+        "One-pass build and static checks",
+        "hdc install, launch, and log capture",
+        "Traceable UI verification with screenshots and logs"
+      ],
+      "items": [
+        {
+          "id": "build-and-checks",
+          "titleZh": "构建鸿蒙工程并检查 ArkTS 与 C++ 源码",
+          "titleEn": "Build HarmonyOS projects and check ArkTS and C++ sources",
+          "control": {
+            "kind": "delegate",
+            "tools": [
+              "build_project",
+              "check_arkts_files",
+              "check_cpp_files"
+            ],
+            "workflowZh": [
+              "先用 build_project 触发构建，阅读失败输出，修复后重试，直到构建通过",
+              "提交前用 check_arkts_files 与 check_cpp_files 做静态检查，把问题按文件与行号汇报"
+            ],
+            "workflowEn": [
+              "Trigger the build with build_project, read failures, fix, and rerun until it passes",
+              "Run check_arkts_files and check_cpp_files before commits and report findings by file and line"
+            ]
+          }
+        },
+        {
+          "id": "run-and-logs",
+          "titleZh": "安装启动应用到真机并抓取 hdc 设备日志",
+          "titleEn": "Install and launch on a device and capture hdc logs",
+          "control": {
+            "kind": "delegate",
+            "tools": [
+              "start_app",
+              "hdc_log"
+            ],
+            "workflowZh": [
+              "用 start_app 把应用安装并启动到目标设备，失败时报告设备与包状态",
+              "用 hdc_log 过滤并跟踪设备日志，把与本次改动相关的错误摘出来"
+            ],
+            "workflowEn": [
+              "Use start_app to install and launch on the target device and report device or package failures",
+              "Use hdc_log to filter and follow device logs, extracting errors relevant to the change"
+            ]
+          }
+        },
+        {
+          "id": "ui-verification",
+          "titleZh": "验证界面表现并保存截图与验证日志",
+          "titleEn": "Verify UI behavior and keep screenshots and verification logs",
+          "control": {
+            "kind": "delegate",
+            "tools": [
+              "verify_ui",
+              "get_ui_verification_log",
+              "save_ui_screenshot"
+            ],
+            "workflowZh": [
+              "用 verify_ui 对目标页面执行验证，读取判定结果而不是凭截图猜测",
+              "用 get_ui_verification_log 与 save_ui_screenshot 留存证据，便于用户复核"
+            ],
+            "workflowEn": [
+              "Run verify_ui against the target page and read the verdict instead of guessing from screenshots",
+              "Keep evidence with get_ui_verification_log and save_ui_screenshot so users can review it"
+            ]
+          }
+        },
+        {
+          "id": "knowledge-and-cwd",
+          "titleZh": "检索 ArkTS 知识并切换会话工作目录",
+          "titleEn": "Search ArkTS knowledge and switch the session working directory",
+          "control": {
+            "kind": "delegate",
+            "tools": [
+              "arkts_knowledge_search",
+              "switch_cwd"
+            ],
+            "workflowZh": [
+              "用 arkts_knowledge_search 查询 ArkTS/API 资料，引用来源再写代码",
+              "需要在不同模块间连续操作时用 switch_cwd 切换工作目录，并说明当前目录"
+            ],
+            "workflowEn": [
+              "Use arkts_knowledge_search for ArkTS and API questions and cite the source before coding",
+              "Use switch_cwd when work spans modules and always state the current directory"
+            ]
+          }
+        }
+      ],
+      "stepsZh": [
+        "在鸿蒙工作区打开智能体会话",
+        "让智能体构建、检查并安装应用到设备",
+        "查看设备日志与 UI 验证结果"
+      ],
+      "stepsEn": [
+        "Open an agent session on a HarmonyOS workspace",
+        "Ask the agent to build, check, and install to the device",
+        "Review device logs and UI verification results"
+      ],
+      "agentExamplesZh": [
+        "构建这个鸿蒙工程并修复报错",
+        "把应用装到真机上，看看崩溃日志"
+      ],
+      "agentExamplesEn": [
+        "Build this HarmonyOS project and fix the errors",
+        "Install the app on the device and check the crash logs"
+      ],
+      "destination": {
+        "kind": "scene",
+        "sceneId": "terminal"
+      },
+      "operations": [],
+      "options": [],
+      "searchTerms": [
+        "feature.openharmony-devtooling",
+        "鸿蒙开发工具链",
+        "HarmonyOS dev tooling",
+        "项目与开发",
+        "Projects & development",
+        "鸿蒙",
+        "HarmonyOS",
+        "OpenHarmony",
+        "ArkTS",
+        "hdc",
+        "真机调试",
+        "设备日志",
+        "UI 验证",
+        "on-device debugging",
+        "device log",
+        "UI verification",
+        "构建与静态检查一站式完成",
+        "hdc 安装、启动与设备日志抓取",
+        "UI 验证留痕：截图与验证日志",
+        "One-pass build and static checks",
+        "hdc install, launch, and log capture",
+        "Traceable UI verification with screenshots and logs",
+        "构建鸿蒙工程并检查 ArkTS 与 C++ 源码",
+        "Build HarmonyOS projects and check ArkTS and C++ sources",
+        "安装启动应用到真机并抓取 hdc 设备日志",
+        "Install and launch on a device and capture hdc logs",
+        "验证界面表现并保存截图与验证日志",
+        "Verify UI behavior and keep screenshots and verification logs",
+        "检索 ArkTS 知识并切换会话工作目录",
+        "Search ArkTS knowledge and switch the session working directory",
+        "构建这个鸿蒙工程并修复报错",
+        "把应用装到真机上，看看崩溃日志",
+        "Build this HarmonyOS project and fix the errors",
+        "Install the app on the device and check the crash logs",
+        "build_project",
+        "check_arkts_files",
+        "check_cpp_files",
+        "先用 build_project 触发构建，阅读失败输出，修复后重试，直到构建通过",
+        "提交前用 check_arkts_files 与 check_cpp_files 做静态检查，把问题按文件与行号汇报",
+        "Trigger the build with build_project, read failures, fix, and rerun until it passes",
+        "Run check_arkts_files and check_cpp_files before commits and report findings by file and line",
+        "start_app",
+        "hdc_log",
+        "用 start_app 把应用安装并启动到目标设备，失败时报告设备与包状态",
+        "用 hdc_log 过滤并跟踪设备日志，把与本次改动相关的错误摘出来",
+        "Use start_app to install and launch on the target device and report device or package failures",
+        "Use hdc_log to filter and follow device logs, extracting errors relevant to the change",
+        "verify_ui",
+        "get_ui_verification_log",
+        "save_ui_screenshot",
+        "用 verify_ui 对目标页面执行验证，读取判定结果而不是凭截图猜测",
+        "用 get_ui_verification_log 与 save_ui_screenshot 留存证据，便于用户复核",
+        "Run verify_ui against the target page and read the verdict instead of guessing from screenshots",
+        "Keep evidence with get_ui_verification_log and save_ui_screenshot so users can review it",
+        "arkts_knowledge_search",
+        "switch_cwd",
+        "用 arkts_knowledge_search 查询 ArkTS/API 资料，引用来源再写代码",
+        "需要在不同模块间连续操作时用 switch_cwd 切换工作目录，并说明当前目录",
+        "Use arkts_knowledge_search for ArkTS and API questions and cite the source before coding",
+        "Use switch_cwd when work spans modules and always state the current directory"
+      ],
+      "docsUrl": "https://playbook.bitfun.com/capabilities/feature.openharmony-devtooling/"
+    },
+    {
       "id": "feature.remote-workspaces",
       "kind": "feature",
       "categoryId": "connect",
@@ -23568,17 +24099,6 @@
             "reasonCode": "unstructuredInteraction",
             "reasonZh": "“发现远程 Docker 容器并把容器作为工作环境”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；智能体会打开精确入口，并把后续交互保留在用户可见界面。",
             "reasonEn": "“Discover remote Docker containers and use a container as the work environment” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
-          }
-        },
-        {
-          "id": "wsl",
-          "titleZh": "选择 Windows 主机上的 WSL 发行版作为工作区",
-          "titleEn": "Choose a WSL distribution on the Windows host as a workspace",
-          "control": {
-            "kind": "open",
-            "reasonCode": "unstructuredInteraction",
-            "reasonZh": "“选择 Windows 主机上的 WSL 发行版作为工作区”需要读取执行主机的发行版列表，并由用户选择 Linux 用户和工作区目录；智能体可打开连接入口，但当前没有覆盖完整配置流程的结构化 Command。",
-            "reasonEn": "“Choose a WSL distribution on the Windows host as a workspace” requires live distribution discovery on the executing host and user selection of a Linux user and workspace directory; the Agent can open the connection dialog, but no structured Command covers the complete setup workflow."
           }
         },
         {
@@ -23733,8 +24253,6 @@
         "Connect with passwords, private keys, certificates, SSH config hosts, and jump hosts",
         "发现远程 Docker 容器并把容器作为工作环境",
         "Discover remote Docker containers and use a container as the work environment",
-        "选择 Windows 主机上的 WSL 发行版作为工作区",
-        "Choose a WSL distribution on the Windows host as a workspace",
         "打开、关闭和移除远程工作区，并读取服务器信息",
         "Open, close, and remove remote workspaces, and inspect server information",
         "浏览、读取、写入、创建、重命名和删除远程文件与目录",
@@ -23875,13 +24393,13 @@
         },
         {
           "id": "devices",
-          "titleZh": "列出、连接、查看在线状态和删除同账户设备",
-          "titleEn": "List, connect, inspect online status, and remove same-account devices",
+          "titleZh": "列出、连接、查看设备型号与系统、设置别名和删除同账户设备",
+          "titleEn": "List, connect, inspect model and OS, set aliases, and remove same-account devices",
           "control": {
             "kind": "open",
             "reasonCode": "unstructuredInteraction",
-            "reasonZh": "“列出、连接、查看在线状态和删除同账户设备”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；智能体会打开精确入口，并把后续交互保留在用户可见界面。",
-            "reasonEn": "“List, connect, inspect online status, and remove same-account devices” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
+            "reasonZh": "“列出、连接、查看设备型号与系统、设置别名和删除同账户设备”需要选择设备并确认操作。设备目录使用控制端的账户身份，不随 Peer Device 切换到目标主机。别名优先于技术名称显示，但不修改技术名称；型号与系统信息由设备自身上报。仅支持对应能力的 Relay 可更新或清除别名，旧 Relay 明确显示不支持。智能体打开设备管理入口，由用户确认后续交互。",
+            "reasonEn": "“List, connect, inspect model and OS, set aliases, and remove same-account devices” requires device selection and confirmation. The device directory uses the controller's account identity, not the selected Peer host. Aliases take display priority without changing technical names; model and OS metadata come from the device itself. Alias updates and clearing require Relay capability support; older Relays explicitly remain unsupported. The Agent opens device management and leaves subsequent interaction to the user."
           }
         },
         {
@@ -23960,8 +24478,8 @@
         "Configure Feishu, Telegram, WeChat, and other bots, and stop a bot independently",
         "使用 GitHub 登录、退出并查看身份状态",
         "Sign in with GitHub, sign out, and inspect identity status",
-        "列出、连接、查看在线状态和删除同账户设备",
-        "List, connect, inspect online status, and remove same-account devices",
+        "列出、连接、查看设备型号与系统、设置别名和删除同账户设备",
+        "List, connect, inspect model and OS, set aliases, and remove same-account devices",
         "进入 Peer Device Mode，把另一台 BitFun 设备作为命令与事件数据面",
         "Enter Peer Device Mode and use another BitFun device as the command and event data plane",
         "打开 Remote Connect",

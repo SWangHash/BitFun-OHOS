@@ -1,5 +1,6 @@
+import { lazyWithRecovery } from '@/shared/utils/lazyWithRecovery';
+import { useDeviceDirectory, resolveDeviceName } from '@/infrastructure/account/deviceDirectory';
 import React, {
-  lazy,
   Suspense,
   useEffect,
   useMemo,
@@ -40,7 +41,7 @@ interface DispatchTargetPickerProps {
   onSelectTarget: (selection: DispatchSelection) => void;
 }
 
-const RemoteConnectDialog = lazy(
+const RemoteConnectDialog = lazyWithRecovery(
   () => import('@/app/components/RemoteConnectDialog'),
 );
 
@@ -97,8 +98,8 @@ export const DispatchTargetPicker: React.FC<DispatchTargetPickerProps> = ({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
     };
-    document.addEventListener('pointerdown', handlePointerDown);
-    document.addEventListener('keydown', handleKeyDown);
+    const removeOverlayPointerdown0 = subscribeOverlayInteraction(menuRef, 'pointerdown', handlePointerDown);
+    const removeOverlayKeydown1 = subscribeOverlayInteraction(menuRef, 'keydown', handleKeyDown);
     return () => {
       document.removeEventListener('pointerdown', handlePointerDown);
       document.removeEventListener('keydown', handleKeyDown);

@@ -1055,6 +1055,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                 const isSelected = pet.packagePath === selectedCompanionPetValue;
                 const isDisabled = isDeleting;
                 const previewStyle = {
+                  imageRendering: pet.source === 'preset' && pet.id === 'bitblob' ? 'auto' : undefined,
                   '--bitfun-pet-preview-src': `url("${pet.previewSrc}")`,
                   backgroundSize: `800% ${getPetSpriteLayout(pet.spriteVersionNumber).rows * 100}%`,
                 } as React.CSSProperties;
@@ -1250,7 +1251,6 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
           </ConfigPageRow>
           <ConfigPageRow
             label={tTools('config.subagentBatchPolicy.label')}
-            description={tTools('config.subagentBatchPolicy.desc')}
             align="center"
           >
             <div className="bitfun-runtime-settings__row-control" data-bitfun-component="runtime-settings" data-bitfun-part="control">

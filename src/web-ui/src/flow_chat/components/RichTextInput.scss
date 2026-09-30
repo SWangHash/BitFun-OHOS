@@ -201,27 +201,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  line-height: var(--bitfun-type-flow-support-line-height);
-  font-family: var(--bitfun-type-code-md-font-family);
-  font-size: var(--bitfun-type-label-sm-font-size);
-}
-
-.rich-text-tag-pill--widget-ref {
-  background: color-mix(in srgb, var(--bitfun-color-status-success-content) 14%, transparent);
-  color: color-mix(in srgb, var(--bitfun-color-status-success-content) 96%, var(--bitfun-color-content-primary));
-
-  &:hover {
-    background: color-mix(in srgb, var(--bitfun-color-status-success-content) 22%, transparent);
-  }
-}
-
-.rich-text-tag-pill--skill-ref {
-  background: color-mix(in srgb, var(--bitfun-color-status-warning-content) 16%, transparent);
-  color: color-mix(in srgb, var(--bitfun-color-status-warning-content) 96%, var(--bitfun-color-content-primary));
-
-  &:hover {
-    background: color-mix(in srgb, var(--bitfun-color-status-warning-content) 24%, transparent);
-  }
+  // Centering the label line box leaves the lowercase text body about 1px below
+  // the optically centered badge icon and dismiss glyph. Lift the label so all
+  // three read as one row.
+  transform: translateY(-1px);
 }
 
 .rich-text-tag-pill__badge {

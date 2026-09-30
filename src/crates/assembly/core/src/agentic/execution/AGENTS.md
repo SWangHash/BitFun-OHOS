@@ -75,3 +75,10 @@ it does not add Windows/PowerShell support. The setting belongs to the host runn
 the Agent (including peer and detached hosts), not a remote controller. Older hosts
 without this setting retain their old behavior; changing a controller setting is
 not evidence that an older target disabled enforcement.
+
+For image observation delivery, exercise real pixel bytes, screenshot identity,
+and coordinate metadata through the provider wire converters:
+
+```bash
+cargo test -p bitfun-core --no-default-features --features agent-runtime,git,tools-computer-use --lib computer_use_pixels_and_geometry_reach_real_provider_wire
+```

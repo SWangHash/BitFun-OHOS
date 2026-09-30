@@ -1,6 +1,6 @@
 .aqi {
   // Keep composer and session rows on the same content edge.
-  padding: var(--bitfun-space-2) var(--bitfun-space-1) var(--bitfun-space-4);
+  padding: 0 var(--bitfun-space-1) var(--bitfun-space-4);
 
   &__composer {
     width: 100%;

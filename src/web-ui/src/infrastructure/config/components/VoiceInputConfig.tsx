@@ -395,7 +395,6 @@ const VoiceInputConfig: React.FC = () => {
         >
           <ConfigPageRow
             label={t('composer.enabled.label')}
-            description={t('composer.enabled.description')}
             align="center"
           >
             <Switch

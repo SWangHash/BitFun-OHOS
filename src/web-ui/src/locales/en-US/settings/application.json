@@ -18,7 +18,6 @@
     "title": "Appearance",
     "hint": "Interface language and appearance",
     "interfaceTitle": "Interface",
-    "interfaceHint": "Choose the language used across BitFun.",
     "language": "Language",
     "appearances": "Appearances",
     "builtIn": "Built-in",
@@ -72,7 +71,6 @@
       "title": "Font Size",
       "hint": "Adjust text size across the interface and conversations. Editor text size is configured separately in Editor settings.",
       "uiSizeLabel": "Interface and chat",
-      "uiSizeHint": "Choose a comfortable scale for navigation, panels, settings, and conversation content.",
       "levels": {
         "compact": "Compact",
         "small": "Small",
@@ -83,8 +81,10 @@
       },
       "customPxLabel": "Custom size (12–20 px)",
       "previewLabel": "Font size preview",
-      "previewPlaceholder": "Type to preview the selected size"
-    }
+      "previewPlaceholder": "Type to preview the selected size",
+      "uiSizeHint": "Choose a comfortable scale for navigation, panels, settings, and conversation content."
+    },
+    "interfaceHint": "Choose the language used across BitFun."
   },
   "autoUpdate": {
     "sections": {
@@ -130,9 +130,9 @@
   "logging": {
     "sections": {
       "logging": "Logging",
-      "loggingHint": "Log level and directory for this session",
       "level": "Log Level",
-      "path": "Startup Log Path"
+      "path": "Startup Log Path",
+      "loggingHint": "Log level and directory for this session"
     },
     "level": {
       "description": "Controls log verbosity in real time. Changes apply immediately."
@@ -200,8 +200,8 @@
   "terminal": {
     "sections": {
       "terminal": "Terminal",
-      "terminalHint": "Default shell and new terminal behavior",
-      "defaultTerminal": "Default Terminal"
+      "defaultTerminal": "Default Terminal",
+      "terminalHint": "Default shell and new terminal behavior"
     },
     "controls": {
       "refreshTooltip": "Refresh available terminals",

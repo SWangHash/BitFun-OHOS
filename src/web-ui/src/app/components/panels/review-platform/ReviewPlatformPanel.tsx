@@ -63,7 +63,6 @@ import { parsePullRequestUrl, remoteMatchesPullRequestLink } from '@/shared/util
 import { useContextStore } from '@/shared/stores/contextStore';
 import { quickActions } from '@/shared/services/ide-control';
 import {
-  describeGitTrustFailure,
   withGitRepositoryTrustRecovery,
 } from '@/shared/services/gitTrustService';
 import type { PullRequestContext } from '@/shared/types/context';
@@ -169,16 +168,6 @@ const detailCache = new Map<string, DetailCacheEntry>();
 const detailPageCache = new Map<string, DetailPageCacheEntry>();
 const reviewLaunchesInFlight = new Set<string>();
 const EMPTY_REVIEW_THREADS: ReviewPlatformThread[] = [];
-
-// Ownership-trust failures name the repository path, which the shared mapping
-// cannot: keep the specific copy and fall back to the localized failure codes.
-function reviewPanelErrorMessage(
-  error: unknown,
-  t: (key: string, options?: Record<string, unknown>) => string,
-  fallback: ReviewErrorFallback = 'loadFailed',
-): string {
-  return describeGitTrustFailure(error) ?? reviewPlatformErrorMessage(error, t, fallback);
-}
 
 function detailPageInfo(pagination: ReviewPlatformPagination, itemCount: number): PageInfo {
   const pageIndex = Math.max(0, (pagination.page || 1) - 1);
@@ -718,6 +707,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
   detailOnly = false,
 }) => {
   const { t } = useI18n('panels/git');
+  const { t: tReview } = useI18n('flow-chat');
   const authFormId = useId();
   const backButtonRef = useRef<HTMLButtonElement>(null);
   const selectedRowRef = useRef<HTMLButtonElement>(null);
@@ -740,12 +730,12 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailFailure, setDetailFailure] = useState<{ cause: unknown; fallback: ReviewErrorFallback } | null>(null);
-  const detailError = detailFailure ? reviewPanelErrorMessage(detailFailure.cause, t, detailFailure.fallback) : null;
+  const detailError = detailFailure ? reviewPlatformErrorMessage(detailFailure.cause, t, detailFailure.fallback) : null;
   const setDetailError = useCallback((cause: unknown, fallback: ReviewErrorFallback = 'detailsFailed') => {
     setDetailFailure(cause === null ? null : { cause, fallback });
   }, []);
   const [snapshotError, setSnapshotError] = useState<{ cause: unknown } | null>(null);
-  const error = snapshotError ? reviewPanelErrorMessage(snapshotError.cause, t) : null;
+  const error = snapshotError ? reviewPlatformErrorMessage(snapshotError.cause, t) : null;
   const [query, setQuery] = useState('');
   const [stateFilter, setStateFilter] = useState<ListStateFilter>('all');
   const serverStateFilter = useRef<ListStateFilter>('all');
@@ -767,7 +757,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
   const [authToken, setAuthToken] = useState('');
   const [authSaving, setAuthSaving] = useState(false);
   const [authFailure, setAuthFailure] = useState<{ cause: unknown; fallback: ReviewErrorFallback } | null>(null);
-  const authError = authFailure ? reviewPanelErrorMessage(authFailure.cause, t, authFailure.fallback) : null;
+  const authError = authFailure ? reviewPlatformErrorMessage(authFailure.cause, t, authFailure.fallback) : null;
   const setAuthError = useCallback((cause: unknown, fallback: ReviewErrorFallback = 'saveTokenFailed') => {
     setAuthFailure(cause === null ? null : { cause, fallback });
   }, []);
@@ -934,7 +924,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
         setLoading(false);
       }
     }
-  }, [detailOnly, workspacePath, workspaceId]);
+  }, [setDetailError, detailOnly, workspacePath, workspaceId]);
 
   const loadDetail = useCallback(async (repo: ReviewPlatformRepositoryRef | null, remoteId: string, pullRequestId: string, options?: { force?: boolean }) => {
     const requestSeq = ++detailRequestSeq.current;
@@ -987,7 +977,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
         setDetailLoading(false);
       }
     }
-  }, [workspacePath, workspaceId]);
+  }, [setDetailError, workspacePath, workspaceId]);
 
   const applySectionPagination = useCallback((section: Exclude<ReviewPlatformDetailSection, 'overview'>, pagination: ReviewPlatformPagination) => {
     if (section === 'ci') {
@@ -1063,7 +1053,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
         setDetailLoading(false);
       }
     }
-  }, [applySectionPagination, loadDetail, workspacePath, workspaceId]);
+  }, [setDetailError, applySectionPagination, loadDetail, workspacePath, workspaceId]);
 
   useEffect(() => {
     serverStateFilter.current = 'all';
@@ -1097,7 +1087,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
       return;
     }
     void loadDetail(repository, selectedRemoteId, selectedPrId);
-  }, [loadDetail, repository, selectedPrId, selectedRemoteId, workspacePath]);
+  }, [setDetailError, loadDetail, repository, selectedPrId, selectedRemoteId, workspacePath]);
 
   useEffect(() => {
     if (!snapshot.remotes.length) return;
@@ -1136,6 +1126,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
       setSelectedPrId(targetPullRequestId);
     }
   }, [
+    setDetailError,
     detailOnly,
     initialPullRequestId,
     initialPullRequestTarget,
@@ -1362,7 +1353,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
     rememberRemote(workspaceId, remoteId || null);
     setSnapshot(emptySnapshot());
     void loadSnapshot(remoteId || null, { page: 1, state: 'all' });
-  }, [loadSnapshot, workspaceId]);
+  }, [setDetailError, loadSnapshot, workspaceId]);
 
   const handleStateChange = useCallback((state: ListStateFilter) => {
     setPanelView('list');
@@ -1382,7 +1373,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
     setDetailError(null);
     setPageIndex(nextPage - 1);
     void loadSnapshot(listRemoteId, { page: nextPage });
-  }, [listRemoteId, loadSnapshot]);
+  }, [setDetailError, listRemoteId, loadSnapshot]);
 
   const toggleFileExpanded = useCallback((key: string) => {
     setExpandedFileKeys(prev => {
@@ -1675,7 +1666,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
         error: reviewError,
       });
       notificationService.error(
-        reviewPanelErrorMessage(reviewError, i18nService.t.bind(i18nService), 'reviewFailed'),
+        reviewPlatformErrorMessage(reviewError, tReview, 'reviewFailed'),
         { duration: 6000 },
       );
     } finally {
@@ -1687,6 +1678,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
     }
   }, [
     confirmDeepReviewLaunch,
+    tReview,
     latestCurrentReview?.lifecycle,
     parentSession,
     repository,
@@ -1761,7 +1753,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
     setAuthToken('');
     setAuthError(null);
     setAuthModalOpen(true);
-  }, []);
+  }, [setAuthError]);
 
   const handleSaveAuthToken = useCallback(async () => {
     if (!selectedRemote || selectedRemote.platform === 'unknown' || selectedRemote.platform === 'github') return;
@@ -1788,7 +1780,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
     } finally {
       setAuthSaving(false);
     }
-  }, [authToken, refreshAuthSnapshot, selectedRemote]);
+  }, [setAuthError, authToken, refreshAuthSnapshot, selectedRemote]);
 
   const handleOpenGithubAuthTerminal = useCallback(async () => {
     if (!selectedRemote || selectedRemote.platform !== 'github') return;
@@ -1808,7 +1800,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
     } finally {
       setAuthSaving(false);
     }
-  }, [selectedRemote, workspacePath]);
+  }, [setAuthError, selectedRemote, workspacePath]);
 
   const handleCopyGithubAuthCommand = useCallback(async () => {
     if (!selectedRemote || selectedRemote.platform !== 'github') return;
@@ -1820,7 +1812,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
       setAuthError(err, 'copyAuthFailed');
       log.error('Failed to copy GitHub CLI authentication command', { error: err, host: selectedRemote.host });
     }
-  }, [selectedRemote]);
+  }, [setAuthError, selectedRemote]);
 
   const handleClearAuthToken = useCallback(async () => {
     if (!selectedRemote || selectedRemote.platform === 'unknown') return;
@@ -1839,7 +1831,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
     } finally {
       setAuthSaving(false);
     }
-  }, [refreshAuthSnapshot, selectedRemote]);
+  }, [setAuthError, refreshAuthSnapshot, selectedRemote]);
 
   const renderAuthGate = useCallback((mode: 'inline' | 'detail' = 'inline') => {
     if (!authChallenge || !selectedRemote || selectedRemote.platform === 'unknown') return null;
@@ -2309,8 +2301,8 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                           const isCiExpanded = expandedCiItemIds.has(item.id);
                           const ciLog = ciLogById[item.id];
                           const ciLogLoading = ciLogLoadingIds.has(item.id);
-                          const ciLogFailure = ciLogErrorById[item.id];
-                          const ciLogError = ciLogFailure ? reviewPanelErrorMessage(ciLogFailure.cause, t, 'ciLogFailed') : null;
+                          const ciLogError = ciLogErrorById[item.id]
+                            ? reviewPlatformErrorMessage(ciLogErrorById[item.id].cause, t, 'ciLogFailed') : null;
                           const logAvailable = canLoadCiLog(selectedRemote, item);
                           const expandable = canExpandCiItem(selectedRemote, item);
                           return (

@@ -59,6 +59,10 @@ interface HarnessProps {
   scrollToContentEnd?: (behavior: ScrollBehavior) => void;
   revealNewTurnTail?: (turnId: string) => boolean;
   isOpeningViewport?: boolean;
+  onOpeningOffset?: (actualOffsetPx: number) => void;
+  isViewportActive?: boolean;
+  isViewportSuspended?: boolean;
+  startAtTailOnMount?: boolean;
   onController: (controller: Controller) => void;
   /** The register the hook writes through, for a test that has to hold it. */
   onViewportOwner?: (owner: FlowChatViewportOwnerApi) => void;
@@ -72,6 +76,10 @@ function Harness({
   scrollToContentEnd = () => {},
   revealNewTurnTail = () => false,
   isOpeningViewport = false,
+  onOpeningOffset,
+  isViewportActive = true,
+  isViewportSuspended = false,
+  startAtTailOnMount = true,
   onController,
   onViewportOwner,
 }: HarnessProps) {
@@ -86,13 +94,16 @@ function Harness({
     dialogTurnCount,
     virtualItemCount: 2,
     isStreaming,
-    isViewportActive: true,
+    isViewportActive,
+    isViewportSuspended: () => isViewportSuspended,
+    startAtTailOnMount,
     scrollerRef,
     // Sized from live layout, exactly as the component's state does.
     getTailSpacerPx: () => tailSpacerPxForViewport(scroller.clientHeight, BOTTOM_INSET),
     scrollToContentEnd,
     revealNewTurnTail,
     isOpeningViewport: () => isOpeningViewport,
+    onOpeningOffset,
     viewportOwner,
   });
   onController(controller);
@@ -279,6 +290,54 @@ describe('useFlowChatFollowOutput', () => {
     expect(controller?.isFollowingOutput).toBe(true);
   });
 
+  it('reuses cached geometry in continuous streaming frames', () => {
+    let scrollHeightPx = 1500 + TAIL_SPACER;
+    let scrollHeightReads = 0;
+    Object.defineProperties(scroller, {
+      scrollHeight: {
+        configurable: true,
+        get: () => {
+          scrollHeightReads += 1;
+          return scrollHeightPx;
+        },
+      },
+      clientHeight: { configurable: true, value: VIEWPORT },
+      scrollTop: { configurable: true, writable: true, value: 0 },
+    });
+    const scrollToContentEnd = vi.fn(() => {
+      scroller.scrollTop = 1000;
+    });
+
+    act(() => {
+      root.render(
+        <Harness
+          latestTurnId="turn-1"
+          scroller={scroller}
+          scrollToContentEnd={scrollToContentEnd}
+          onController={next => { controller = next; }}
+        />,
+      );
+    });
+    const readsAfterInitialPlacement = scrollHeightReads;
+
+    // Production streaming frames reuse the target cached by the last
+    // content-change refresh.
+    scrollHeightPx = 1800 + TAIL_SPACER;
+    runNextFrame();
+    expect(scrollHeightReads).toBe(readsAfterInitialPlacement);
+    expect(scroller.scrollTop).toBe(1000);
+
+    // The resize/content-change signal is the intentionally retained low-rate
+    // geometry refresh and updates the cached target once.
+    const beforeRefresh = scrollHeightReads;
+    act(() => controller?.scheduleFollowToLatest());
+    expect(scrollHeightReads).toBeGreaterThan(beforeRefresh);
+    expect(scroller.scrollTop).toBe(1300);
+    const afterRefresh = scrollHeightReads;
+    runNextFrame();
+    expect(scrollHeightReads).toBe(afterRefresh);
+  });
+
   it('tracks the content end exactly while the transcript is still opening', () => {
     // The virtualizer compensates a history prepend by writing scrollTop before the
     // prepended heights reach the DOM. While opening, the transcript is hidden
@@ -305,6 +364,92 @@ describe('useFlowChatFollowOutput', () => {
     scroller.scrollTop = 1000 + 380;
     runNextFrame();
     expect(scroller.scrollTop).toBe(1000);
+  });
+
+  describe('opening offset publication', () => {
+    const mountOpening = (props: Partial<HarnessProps> = {}) => {
+      act(() => root.render(<Harness
+        latestTurnId="turn-1"
+        scroller={scroller}
+        isOpeningViewport
+        onController={next => { controller = next; }}
+        {...props}
+      />));
+    };
+
+    beforeEach(() => {
+      setScrollerMetrics(scroller, {
+        scrollHeight: 1500 + TAIL_SPACER, clientHeight: VIEWPORT, scrollTop: 0,
+      });
+    });
+
+    it('publishes the clamped readback in the follow frame without a scroll event', () => {
+      let actualTop = 0;
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => actualTop,
+        set: (value: number) => { actualTop = Math.min(value, 900); },
+      });
+      const onOpeningOffset = vi.fn();
+      mountOpening({ onOpeningOffset });
+      expect(onOpeningOffset).toHaveBeenCalledWith(900);
+      onOpeningOffset.mockClear();
+      actualTop = 0;
+      runNextFrame();
+      expect(onOpeningOffset).toHaveBeenCalledExactlyOnceWith(900);
+      expect(scroller.scrollTop).toBe(900);
+    });
+
+    it('publishes an already-reached target and uses the latest callback', () => {
+      scroller.scrollTop = 1000;
+      const previous = vi.fn();
+      const current = vi.fn();
+      mountOpening({ onOpeningOffset: previous });
+      previous.mockClear();
+      mountOpening({ onOpeningOffset: current });
+      current.mockClear();
+      runNextFrame();
+      expect(previous).not.toHaveBeenCalled();
+      expect(current).toHaveBeenCalledExactlyOnceWith(1000);
+    });
+
+    it.each([0, 1000])('does not publish under a higher-priority owner at offset %s', offset => {
+      scroller.scrollTop = offset;
+      const onOpeningOffset = vi.fn();
+      let owner: FlowChatViewportOwnerApi;
+      mountOpening({ onOpeningOffset, onViewportOwner: next => { owner = next; } });
+      act(() => owner.claim('one-shot-navigation', { holdForMs: 1000 }));
+      expect(owner!.currentOwner()).toBe('one-shot-navigation');
+      scroller.scrollTop = offset;
+      onOpeningOffset.mockClear();
+      act(() => controller?.scheduleFollowToLatest());
+      expect(scroller.scrollTop).toBe(offset);
+      expect(onOpeningOffset).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      { isOpeningViewport: false },
+      { isViewportActive: false },
+      { isViewportSuspended: true },
+      { startAtTailOnMount: false },
+    ])('does not publish outside active opening follow: %j', boundary => {
+      const onOpeningOffset = vi.fn();
+      mountOpening({ onOpeningOffset, ...boundary });
+      act(() => controller?.scheduleFollowToLatest());
+      expect(onOpeningOffset).not.toHaveBeenCalled();
+    });
+
+    it('stops publishing when the reader takes over', () => {
+      const onOpeningOffset = vi.fn();
+      mountOpening({ onOpeningOffset });
+      runNextFrame();
+      onOpeningOffset.mockClear();
+      act(() => controller?.handleUserScrollIntent());
+      scroller.scrollTop = 100;
+      act(() => controller?.scheduleFollowToLatest());
+      expect(scroller.scrollTop).toBe(100);
+      expect(onOpeningOffset).not.toHaveBeenCalled();
+    });
   });
 
   it('does not strand the viewport inside the tail spacer after opening', () => {
@@ -454,6 +599,7 @@ describe('useFlowChatFollowOutput', () => {
       clientHeight: VIEWPORT,
       scrollTop: 1000,
     });
+    act(() => controller?.scheduleFollowToLatest());
     runNextFrame();
 
     expect(scroller.scrollTop).toBe(1300);
@@ -484,6 +630,7 @@ describe('useFlowChatFollowOutput', () => {
       clientHeight: VIEWPORT,
       scrollTop: 1000,
     });
+    act(() => controller?.scheduleFollowToLatest());
     runNextFrame();
 
     expect(scroller.scrollTop).toBe(1000 - (300 - MAX_GAP));
@@ -511,6 +658,7 @@ describe('useFlowChatFollowOutput', () => {
       clientHeight: VIEWPORT,
       scrollTop: 1000,
     });
+    act(() => controller?.scheduleFollowToLatest());
     runNextFrame();
 
     expect(scroller.scrollTop).toBe(200 + MAX_GAP);
@@ -569,6 +717,7 @@ describe('useFlowChatFollowOutput', () => {
       clientHeight: VIEWPORT,
       scrollTop: 1000,
     });
+    act(() => controller?.scheduleFollowToLatest());
     runNextFrame();
     scrollToContentEnd.mockClear();
 
@@ -827,6 +976,7 @@ describe('useFlowChatFollowOutput', () => {
         clientHeight: VIEWPORT,
         scrollTop: scroller.scrollTop,
       });
+      act(() => controller?.scheduleFollowToLatest());
     }
 
     it('spends a line of growth over the frames that were empty', () => {
@@ -834,8 +984,6 @@ describe('useFlowChatFollowOutput', () => {
       // on one frame out of seven and none on the rest.
       followFromContentEnd();
       growContentBy(TAIL_EASE_LINE_PX);
-
-      runNextFrame();
 
       expect(scroller.scrollTop).toBeCloseTo(1000 + TAIL_EASE_LINE_PX * TAIL_EASE_ALPHA, 5);
       expect(scroller.scrollTop - 1000).toBeLessThan(TAIL_EASE_LINE_PX);
@@ -845,7 +993,7 @@ describe('useFlowChatFollowOutput', () => {
       followFromContentEnd();
       growContentBy(TAIL_EASE_LINE_PX);
 
-      let previousPx = 1000;
+      let previousPx = scroller.scrollTop;
       for (let frame = 0; frame < 20; frame += 1) {
         runNextFrame();
         // Every step is under a line: that is the bar the ease has to clear to
@@ -866,8 +1014,6 @@ describe('useFlowChatFollowOutput', () => {
       // already worse than having simply gone the whole way.
       followFromContentEnd();
       growContentBy(TAIL_EASE_SNAP_ABOVE_PX + 100);
-
-      runNextFrame();
 
       expect(scroller.scrollTop).toBe(1000 + TAIL_EASE_SNAP_ABOVE_PX + 100);
     });
@@ -893,8 +1039,6 @@ describe('useFlowChatFollowOutput', () => {
       });
       growContentBy(TAIL_EASE_LINE_PX);
 
-      runNextFrame();
-
       expect(scroller.scrollTop).toBe(1000 + TAIL_EASE_LINE_PX);
     });
 
@@ -907,8 +1051,7 @@ describe('useFlowChatFollowOutput', () => {
         clientHeight: VIEWPORT,
         scrollTop: 1000,
       });
-
-      runNextFrame();
+      act(() => controller?.scheduleFollowToLatest());
 
       // Past the tolerated gap, so the hold rule gives ground — in one step.
       expect(scroller.scrollTop).toBe(200 + MAX_GAP);

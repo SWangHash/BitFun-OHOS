@@ -26,7 +26,7 @@ import { notificationService } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
 import { flowChatManager } from '@/flow_chat/services/FlowChatManager';
 import type { SessionMetadata } from '@/shared/types/session-history';
-import { i18nService } from '@/infrastructure/i18n';
+import { i18nService, useI18n } from '@/infrastructure/i18n';
 import './ArchivedSessionsConfig.scss';
 
 const log = createLogger('ArchivedSessionsConfig');
@@ -156,6 +156,7 @@ const ArchivedRow: React.FC<ArchivedRowProps> = ({
 
 const ArchivedSessionsConfig: React.FC = () => {
   const { t } = useTranslation('common');
+  const { t: tSettings } = useI18n('settings');
   const { openedWorkspacesList } = useWorkspaceContext();
 
   const [loading, setLoading] = useState(true);
@@ -483,6 +484,7 @@ const ArchivedSessionsConfig: React.FC = () => {
       <ConfigPageContent>
         <ConfigPageSection
           title={t('nav.sessions.archivedSessions')}
+          description={tSettings('archivedSessions.sectionDescription')}
           extra={headerExtra}
         >
           {loadFailures.map(failure => (

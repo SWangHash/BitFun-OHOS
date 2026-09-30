@@ -2470,6 +2470,18 @@ pub async fn ensure_coordinator_session(
 }
 
 #[tauri::command]
+pub async fn manage_dialog_queue(
+    runtime: State<'_, DesktopRuntimeContext>,
+    request: bitfun_runtime_ports::DialogQueueRequest,
+) -> Result<bitfun_runtime_ports::DialogQueueSnapshot, String> {
+    runtime
+        .agent_runtime()
+        .manage_dialog_queue(request)
+        .await
+        .map_err(|e| e.into_message())
+}
+
+#[tauri::command]
 pub async fn start_dialog_turn(
     _app: AppHandle,
     runtime: State<'_, DesktopRuntimeContext>,

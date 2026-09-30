@@ -10,26 +10,12 @@
 //!    raises the target — no `SetForegroundWindow`, no cursor movement. Works
 //!    for classic Win32 edit controls and standard message-loop apps.
 //!
-//! 2. **Cloaked `SendInput` path** (`inject_text_cloaked` / `inject_key_cloaked`):
-//!    for targets that silently drop posted messages (WPF / XAML / WinUI3 / UWP
-//!    whose CoreInput dispatcher only consumes *system-input-queue* events),
-//!    DWM-cloak the target, briefly claim foreground via the
-//!    `AttachThreadInput` trick, deliver genuine `SendInput` Unicode keystrokes
-//!    / key combos, then restore the user's foreground and uncloak. The brief
-//!    focus flicker is hidden by the cloak. Falls back to `PostMessage` if
-//!    foreground can't be obtained.
+//! Targets requiring system keyboard input return `foreground_required` from
+//! the former cloaked entry points. A hidden focus switch still interrupts the
+//! user's keyboard and is never a background operation.
 //!
-//! Integrity: [`post_message_blocked_by_uipi`] surfaces when `PostMessage`
-//! would be silently dropped by User Interface Privilege Isolation (Medium-IL
-//! sender → High-IL target — `PostMessage` still returns success but the
-//! target's pump filters the message). [`is_probably_uwp_or_directcomposition`]
-//! is a heuristic for when `PostMessage` won't work at all and touch / cloaked
-//! injection is required.
-//!
-//! Scope: left / right / middle clicks (single / double / triple), key up/down
-//! with modifiers, and Unicode text. Touch injection (`InjectSyntheticPointer
-//! Input`) is intentionally not ported in this phase — see cua-driver-rs
-//! `inject.rs` for the full coordinate-routed engine.
+//! Posted-message success means dispatch only, not observed application effect.
+//! The host must observe the target before reporting a verified outcome.
 
 // This whole module is only compiled on Windows (gated at the `mod` declaration
 // in `mod.rs`). The inner `cfg` keeps the file self-documenting and robust if
@@ -41,21 +27,18 @@
 #![allow(dead_code)]
 
 use std::ffi::c_void;
-use std::sync::{Mutex, MutexGuard, TryLockError};
 use std::thread::sleep;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bitfun_core::util::errors::{BitFunError, BitFunResult};
-use windows::core::BOOL;
-use windows::Win32::Foundation::{FALSE, HWND, LPARAM, POINT, TRUE, WPARAM};
-use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_CLOAK};
+use windows::Win32::Foundation::{HWND, LPARAM, POINT, WPARAM};
 use windows::Win32::Graphics::Gdi::{ClientToScreen, ScreenToClient};
 use windows::Win32::UI::WindowsAndMessaging::{
-    ChildWindowFromPointEx, GetClassNameW, GetForegroundWindow, GetWindowThreadProcessId, IsChild,
-    PostMessageW, SetForegroundWindow, WindowFromPoint, CWP_SKIPDISABLED, CWP_SKIPINVISIBLE,
-    CWP_SKIPTRANSPARENT, SB_LINEDOWN, SB_LINELEFT, SB_LINERIGHT, SB_LINEUP, WM_CHAR, WM_HSCROLL,
-    WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEMOVE,
-    WM_RBUTTONDOWN, WM_RBUTTONUP, WM_VSCROLL,
+    ChildWindowFromPointEx, GetClassNameW, GetWindowThreadProcessId, IsChild, PostMessageW,
+    WindowFromPoint, CWP_SKIPDISABLED, CWP_SKIPINVISIBLE, CWP_SKIPTRANSPARENT, SB_LINEDOWN,
+    SB_LINELEFT, SB_LINERIGHT, SB_LINEUP, WM_CHAR, WM_HSCROLL, WM_KEYDOWN, WM_KEYUP,
+    WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEMOVE, WM_RBUTTONDOWN,
+    WM_RBUTTONUP, WM_VSCROLL,
 };
 
 // ── raw Win32 FFI ───────────────────────────────────────────────────────────
@@ -191,7 +174,6 @@ struct TOKEN_MANDATORY_LABEL {
 #[link(name = "user32")]
 extern "system" {
     fn SendInput(c_inputs: u32, p_inputs: *const Input, cb_size: i32) -> u32;
-    fn AttachThreadInput(id_attach: u32, id_attach_to: u32, f_attach: i32) -> i32;
     fn MapVirtualKeyW(code: u32, map_type: u32) -> u32;
     /// `VkKeyScanW` — translate a Unicode char to a virtual-key code + shift
     /// state. Declared here (rather than via the `windows` crate) to avoid
@@ -207,7 +189,6 @@ extern "system" {
 
 #[link(name = "kernel32")]
 extern "system" {
-    fn GetCurrentThreadId() -> u32;
     fn GetCurrentProcess() -> Handle;
     fn OpenProcess(access: u32, inherit: i32, pid: u32) -> Handle;
     fn QueryFullProcessImageNameW(handle: Handle, flags: u32, buf: *mut u16, len: *mut u32) -> i32;
@@ -226,33 +207,6 @@ extern "system" {
     ) -> i32;
     fn GetSidSubAuthorityCount(sid: *const c_void) -> *mut u8;
     fn GetSidSubAuthority(sid: *const c_void, index: u32) -> *mut u32;
-}
-
-// ── foreground-serialization ───────────────────────────────────────────────
-//
-// Cloaked-foreground `SendInput` operations share the single system input
-// queue; concurrent sessions must not interleave foreground swaps + `SendInput`
-// or keystrokes get garbled and foreground restores race. `FG_SERIAL` is
-// acquired with a hard 1s ceiling so a stuck holder can never deadlock the
-// others — after 1s callers proceed unserialized (degraded, but never hung).
-
-static FG_SERIAL: Mutex<()> = Mutex::new(());
-
-fn fg_serialize() -> Option<MutexGuard<'static, ()>> {
-    let deadline = Instant::now() + Duration::from_secs(1);
-    loop {
-        match FG_SERIAL.try_lock() {
-            Ok(g) => return Some(g),
-            // A poisoned lock still means the data is intact; proceed.
-            Err(TryLockError::Poisoned(p)) => return Some(p.into_inner()),
-            Err(TryLockError::WouldBlock) => {
-                if Instant::now() >= deadline {
-                    return None; // auto-expire: proceed without the lock
-                }
-                sleep(Duration::from_millis(20));
-            }
-        }
-    }
 }
 
 /// Mouse-button key-state flags packed into WPARAM for WM_*BUTTON messages.
@@ -438,150 +392,19 @@ fn post_char(hwnd: HWND, ch: char) -> BitFunResult<()> {
     post_msg(hwnd, WM_CHAR, WPARAM(code), LPARAM(1))
 }
 
-// ── cloaked SendInput path ──────────────────────────────────────────────────
-
-/// DWM-cloak / uncloak a window. A cloaked window is excluded from hit-testing
-/// and is visually hidden (not rendered) while still receiving messages, so the
-/// brief foreground swap in the cloaked-injection path is invisible to the
-/// user. Best-effort; returns whether the attribute was set.
-unsafe fn set_cloak(h: HWND, on: bool) -> bool {
-    let v: BOOL = if on { TRUE } else { FALSE };
-    // SAFETY: `v` is a live `BOOL` whose pointer and byte length match the
-    // `DWMWA_CLOAK` contract; an invalid HWND is reported as an API error.
-    unsafe {
-        DwmSetWindowAttribute(
-            h,
-            DWMWA_CLOAK,
-            &v as *const _ as *const c_void,
-            std::mem::size_of::<BOOL>() as u32,
-        )
-    }
-    .is_ok()
+/// Compatibility entry point: cloaking never made foreground input safe.
+/// Unsupported system-input targets require an explicitly authorized foreground
+/// operation at the host boundary, not an invisible focus switch here.
+pub(super) fn inject_text_cloaked(_hwnd: HWND, _text: &str) -> BitFunResult<()> {
+    Err(BitFunError::service("foreground_required: this target requires system keyboard input; background text injection cannot steal focus"))
 }
 
-/// Bring `target` to the foreground using the `AttachThreadInput` trick, which
-/// inherits the current foreground thread's FG-lock token so the swap is
-/// honored even on a foreground-locked session without UIAccess. Single attach,
-/// no retry loop — bounded. Returns whether `target` actually became foreground.
-unsafe fn force_foreground_attached(target: HWND) -> bool {
-    // SAFETY: all values are opaque Win32 handles/thread ids obtained from the
-    // same APIs; every successful attach is paired with a detach below.
-    let cur = unsafe { GetForegroundWindow() };
-    if cur == target {
-        return true;
-    }
-    let my_tid = unsafe { GetCurrentThreadId() };
-    let mut pid = 0u32;
-    let cur_tid = unsafe { GetWindowThreadProcessId(cur, Some(&mut pid)) };
-    let attached = cur_tid != 0 && cur_tid != my_tid;
-    if attached {
-        let _ = unsafe { AttachThreadInput(my_tid, cur_tid, 1) };
-    }
-    // `SetForegroundWindow` may return BOOL (older bindings) or `Result`
-    // (windows 0.61); `let _ =` discards either without a must_use warning.
-    let _ = unsafe { SetForegroundWindow(target) };
-    if attached {
-        let _ = unsafe { AttachThreadInput(my_tid, cur_tid, 0) };
-    }
-    (unsafe { GetForegroundWindow() }) == target
-}
-
-/// Type `text` into a **background** target via real `SendInput` Unicode
-/// keystrokes, cloaked so the brief focus is hidden, then restore foreground.
-///
-/// For targets that ignore a posted `WM_CHAR` (WPF, whose TextBox only consumes
-/// real keyboard input routed through its own input manager), `post_char`
-/// silently does nothing. This delivers genuine `KEYEVENTF_UNICODE` keystrokes
-/// to the focused control while the target briefly (and invisibly) holds focus.
-/// If foreground can't be obtained even with the attach trick, it falls back to
-/// per-character `PostMessage(WM_CHAR)` so the text still reaches the window
-/// (best-effort; may miss GetKeyState-gated handlers, but never drops the
-/// action). The caller should focus the field first (a prior background click)
-/// so the keystrokes land in the right control.
-pub(super) fn inject_text_cloaked(hwnd: HWND, text: &str) -> BitFunResult<()> {
-    if hwnd.is_invalid() {
-        return Err(BitFunError::service(
-            "inject_text_cloaked: invalid HWND",
-        ));
-    }
-    if let Some(uipi) = post_message_blocked_by_uipi(hwnd, WM_CHAR) {
-        return Err(BitFunError::service(uipi));
-    }
-
-    let _serial = fg_serialize(); // one cloaked-foreground op at a time (1s ceiling)
-    let prev_fg = unsafe { GetForegroundWindow() };
-    let cloaked = unsafe { hwnd != prev_fg && set_cloak(hwnd, true) };
-    let got_fg = unsafe { force_foreground_attached(hwnd) };
-
-    let result = if got_fg {
-        // SAFETY: `SendInput` reads from a fully-initialized `INPUT` array of
-        // keyboard events; `cbSize` is the true struct size.
-        unsafe { send_unicode(text) }
-    } else {
-        // Couldn't focus the target — deliver best-effort via PostMessage.
-        let mut last: BitFunResult<()> = Ok(());
-        for ch in text.chars() {
-            if let Err(e) = post_char(hwnd, ch) {
-                last = Err(e);
-                break;
-            }
-        }
-        last
-    };
-
-    // SAFETY: restore foreground + uncloak; best-effort, no error path.
-    unsafe {
-        if !prev_fg.is_invalid() && prev_fg != hwnd {
-            force_foreground_attached(prev_fg);
-        }
-        if cloaked {
-            let _ = set_cloak(hwnd, false);
-        }
-    }
-    result
-}
-
-/// Send a key (with modifiers) to a **background** target via real `SendInput`,
-/// cloaked so the brief focus is hidden, then restore foreground.
-///
-/// `keycode` is a Win32 virtual-key code (`u16`); `modifiers` is a slice of
-/// virtual-key codes held during the press (e.g. `[VK_CONTROL]` for Ctrl+Key).
-/// Modifiers are pressed before the key and released (in reverse order) after.
-/// Falls back to `PostMessage(WM_KEYDOWN/WM_KEYUP)` if foreground can't be
-/// obtained. See [`inject_text_cloaked`] for the cloaking rationale.
 pub(super) fn inject_key_cloaked(
-    hwnd: HWND,
-    keycode: u16,
-    modifiers: &[u16],
+    _hwnd: HWND,
+    _keycode: u16,
+    _modifiers: &[u16],
 ) -> BitFunResult<()> {
-    if hwnd.is_invalid() {
-        return Err(BitFunError::service("inject_key_cloaked: invalid HWND"));
-    }
-    if let Some(uipi) = post_message_blocked_by_uipi(hwnd, WM_KEYDOWN) {
-        return Err(BitFunError::service(uipi));
-    }
-
-    let _serial = fg_serialize();
-    let prev_fg = unsafe { GetForegroundWindow() };
-    let cloaked = unsafe { hwnd != prev_fg && set_cloak(hwnd, true) };
-    let got_fg = unsafe { force_foreground_attached(hwnd) };
-
-    let result = if got_fg {
-        // SAFETY: `SendInput` reads a fully-initialized `INPUT` array.
-        unsafe { send_key_combo(keycode, modifiers) }
-    } else {
-        send_key_combo_posted(hwnd, keycode, modifiers)
-    };
-
-    unsafe {
-        if !prev_fg.is_invalid() && prev_fg != hwnd {
-            force_foreground_attached(prev_fg);
-        }
-        if cloaked {
-            let _ = set_cloak(hwnd, false);
-        }
-    }
-    result
+    Err(BitFunError::service("foreground_required: this target requires system keyboard input; background key injection cannot steal focus"))
 }
 
 // ── UIPI integrity check ────────────────────────────────────────────────────
@@ -832,6 +655,26 @@ fn owning_exe_basename(hwnd: HWND) -> Option<String> {
 /// Post a window message, converting the `windows` crate's `Error` into a
 /// `BitFunError`. Logged at `error` on failure.
 fn post_msg(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> BitFunResult<()> {
+    // Releases remain deliverable after cancellation so an interrupted gesture
+    // does not leave the target with a held synthetic key/button.
+    if !matches!(msg, WM_KEYUP | WM_LBUTTONUP | WM_RBUTTONUP | WM_MBUTTONUP) {
+        crate::computer_use::control_session::input_allowed().map_err(BitFunError::service)?;
+        let root = unsafe {
+            windows::Win32::UI::WindowsAndMessaging::GetAncestor(
+                hwnd,
+                windows::Win32::UI::WindowsAndMessaging::GA_ROOT,
+            )
+        };
+        let mut pid = 0;
+        unsafe {
+            GetWindowThreadProcessId(root, Some(&mut pid));
+        }
+        crate::computer_use::control_session::target_allowed(&format!(
+            "pid:{pid}/window:{}",
+            root.0 as isize
+        ))
+        .map_err(BitFunError::service)?;
+    }
     unsafe {
         match PostMessageW(Some(hwnd), msg, wparam, lparam) {
             Ok(()) => Ok(()),
@@ -1186,19 +1029,40 @@ pub(super) fn post_drag_screen(
         make_lparam(c_from.x, c_from.y),
     )?;
     post_msg(target, down_msg, wdown, make_lparam(c_from.x, c_from.y))?;
+    struct ReleaseOnDrop {
+        target: HWND,
+        msg: u32,
+        point: LPARAM,
+        armed: bool,
+    }
+    impl Drop for ReleaseOnDrop {
+        fn drop(&mut self) {
+            if self.armed {
+                let _ = post_msg(self.target, self.msg, WPARAM(0), self.point);
+            }
+        }
+    }
+    let mut release = ReleaseOnDrop {
+        target,
+        msg: up_msg,
+        point: make_lparam(c_from.x, c_from.y),
+        armed: true,
+    };
     sleep(Duration::from_millis(DRAG_ENDPOINT_DELAY_MS));
 
     for i in 1..=steps {
         let t = i as f64 / steps as f64;
         let ix = c_from.x + ((c_to.x - c_from.x) as f64 * t).round() as i32;
         let iy = c_from.y + ((c_to.y - c_from.y) as f64 * t).round() as i32;
-        post_msg(target, WM_MOUSEMOVE, wdown, make_lparam(ix, iy))?;
+        release.point = make_lparam(ix, iy);
+        post_msg(target, WM_MOUSEMOVE, wdown, release.point)?;
         if step_delay_ms > 0 {
             sleep(Duration::from_millis(step_delay_ms));
         }
     }
 
     post_msg(target, up_msg, WPARAM(0), make_lparam(c_to.x, c_to.y))?;
+    release.armed = false;
     Ok(())
 }
 

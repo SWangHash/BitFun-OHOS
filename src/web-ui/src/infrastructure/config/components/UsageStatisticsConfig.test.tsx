@@ -17,9 +17,7 @@ const TokenUsageStatisticsUnavailableErrorMock = vi.hoisted(() => class extends 
 
 vi.mock('@/infrastructure/api', () => ({
   TokenUsageStatisticsUnavailableError: TokenUsageStatisticsUnavailableErrorMock,
-  tokenUsageStatisticsApi: {
-    getStatistics: getStatisticsMock,
-  },
+  tokenUsageStatisticsApi: { getStatistics: getStatisticsMock },
 }));
 
 vi.mock('@/infrastructure/i18n', () => ({
@@ -37,22 +35,24 @@ vi.mock('@bitfun/ui', async importOriginal => ({
   ...await importOriginal<typeof import('@bitfun/ui')>(),
   ScrollArea: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
   FormSection: ({
-    children,
-    title,
-    ...props
-  }: React.HTMLAttributes<HTMLElement> & { title?: React.ReactNode }) => (
-    <section {...props}>{title}{children}</section>
-  ),
-  FieldGroup: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+    children, title, actions, description, headingAs: _headingAs, ...props
+  }: Omit<React.HTMLAttributes<HTMLElement>, 'title'> & {
+    title?: React.ReactNode;
+    actions?: React.ReactNode;
+    description?: React.ReactNode;
+    headingAs?: string;
+  }) => <section {...props}>{title}{description}{actions}{children}</section>,
+  FieldGroup: ({
+    children, appearance: _appearance, dividers: _dividers, fieldSurface: _fieldSurface, ...props
+  }: React.HTMLAttributes<HTMLDivElement> & {
+    appearance?: string;
+    dividers?: boolean;
+    fieldSurface?: string;
+  }) => <div {...props}>{children}</div>,
   Icon: ({ name, ...props }: { name: string } & React.HTMLAttributes<HTMLSpanElement>) => <span data-icon={name} {...props} />,
   Tooltip: ({ children }: React.PropsWithChildren) => <>{children}</>,
   IconButton: ({
-    children,
-    icon,
-    tooltip: _tooltip,
-    size: _size,
-    variant: _variant,
-    ...props
+    children, icon, tooltip: _tooltip, size: _size, variant: _variant, ...props
   }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
     icon?: React.ReactNode;
     tooltip?: React.ReactNode;
@@ -60,38 +60,19 @@ vi.mock('@bitfun/ui', async importOriginal => ({
     variant?: string;
   }) => <button {...props}>{icon ?? children}</button>,
   Input: ({
-    leading,
-    trailing,
-    ...props
+    leading, trailing, size: _size, ...props
   }: React.InputHTMLAttributes<HTMLInputElement> & {
     leading?: React.ReactNode;
     trailing?: React.ReactNode;
-  }) => (
-    <div>
-      {leading}
-      <input {...props} />
-      {trailing}
-    </div>
-  ),
-  Select: ({
-    value,
-    options,
-    onValueChange,
-  }: {
+  }) => <div>{leading}<input {...props} />{trailing}</div>,
+  Select: ({ value, options, onValueChange, 'aria-label': ariaLabel }: {
     value: string | number;
     options: { value: string | number; label: string }[];
     onValueChange?: (value: string) => void;
+    'aria-label'?: string;
   }) => (
-    <select
-      data-testid="usage-select"
-      value={String(value)}
-      onChange={(event) => onValueChange?.(event.target.value)}
-    >
-      {options.map((option) => (
-        <option key={String(option.value)} value={String(option.value)}>
-          {option.label}
-        </option>
-      ))}
+    <select aria-label={ariaLabel} value={String(value)} onChange={event => onValueChange?.(event.target.value)}>
+      {options.map(option => <option key={String(option.value)} value={String(option.value)}>{option.label}</option>)}
     </select>
   ),
 }));
@@ -99,14 +80,12 @@ vi.mock('@bitfun/ui', async importOriginal => ({
 vi.mock('./common', async importOriginal => ({
   ...await importOriginal<typeof import('./common')>(),
   ConfigLoadingState: ({ label }: { label?: string }) => <div data-testid="usage-loading">{label}</div>,
-  ConfigMessage: ({
-    message,
-  }: {
-    message: { type: string; text: string } | null;
-  }) => message ? (
+  ConfigMessage: ({ message }: { message: { type: string; text: string } | null }) => message ? (
     <div data-testid="usage-message" data-message-type={message.type}>{message.text}</div>
   ) : null,
-  ConfigRefreshButton: () => <button type="button" data-testid="usage-refresh" />,
+  ConfigRefreshButton: ({ onClick }: { onClick?: () => void }) => (
+    <button type="button" data-testid="usage-refresh" onClick={onClick} />
+  ),
 }));
 
 const SAMPLE_STATS: UsageStatistics = {
@@ -117,58 +96,27 @@ const SAMPLE_STATS: UsageStatistics = {
   totalCachedTokens: 4_200_000,
   totalCacheWriteTokens: 0,
   totalCacheReportedInputTokens: 4_400_000,
-  byModel: [
-    {
-      key: 'model-config:deepseek',
-      name: 'deepseek-v4-flash',
-      providerName: 'DeepSeek',
-      attributionStatus: 'resolved',
-      requests: 47,
-      tokens: 4_800_000,
-      cacheHitRate: 0.95679,
-    },
-  ],
-  byGroup: [
-    {
-      key: 'provider:deepseek',
-      name: 'DeepSeek',
-      providerName: null,
-      attributionStatus: 'resolved',
-      requests: 47,
-      tokens: 4_800_000,
-      cacheHitRate: 0.95,
-    },
-  ],
-  byEndpoint: [
-    {
-      key: 'endpoint:api.bitfun.com/v1/chat/completions',
-      name: 'api.bitfun.com/v1/chat/completions',
-      providerName: null,
-      attributionStatus: 'resolved',
-      requests: 47,
-      tokens: 4_800_000,
-      cacheHitRate: 0.95,
-    },
-  ],
-  trend: [
-    {
-      bucket: '2026-08-16T11:00:00.000Z',
-      inputTokens: 1_000_000,
-      outputTokens: 100_000,
-      cacheReadTokens: 900_000,
-      cacheWriteTokens: 50_000,
-      cacheHitRate: 0.9,
-    },
-    {
-      bucket: '2026-08-16T12:00:00.000Z',
-      inputTokens: 2_000_000,
-      outputTokens: 200_000,
-      cacheReadTokens: 1_900_000,
-      cacheWriteTokens: 0,
-      cacheHitRate: 0.95,
-    },
-  ],
-  granularity: 'hour',
+  byModel: [{
+    key: 'model-config:deepseek', name: 'deepseek-v4-flash', providerName: 'DeepSeek',
+    attributionStatus: 'resolved', requests: 47, tokens: 4_800_000, cacheHitRate: 0.95679,
+  }],
+  byGroup: [{
+    key: 'provider:deepseek', name: 'DeepSeek', providerName: null,
+    attributionStatus: 'resolved', requests: 47, tokens: 4_800_000, cacheHitRate: 0.95,
+  }],
+  byEndpoint: [{
+    key: 'endpoint:api.bitfun.com/v1/chat/completions',
+    name: 'api.bitfun.com/v1/chat/completions', providerName: null,
+    attributionStatus: 'resolved', requests: 47, tokens: 4_800_000, cacheHitRate: 0.95,
+  }],
+  trend: [{
+    bucket: '2026-08-16T11:00:00.000Z', inputTokens: 1_000_000, outputTokens: 100_000,
+    cacheReadTokens: 900_000, cacheWriteTokens: 50_000, cacheHitRate: 0.9,
+  }, {
+    bucket: '2026-08-16T12:00:00.000Z', inputTokens: 2_000_000, outputTokens: 200_000,
+    cacheReadTokens: 1_900_000, cacheWriteTokens: 0, cacheHitRate: 0.95,
+  }],
+  granularity: 'day',
 };
 
 describe('UsageStatisticsConfig', () => {
@@ -184,302 +132,97 @@ describe('UsageStatisticsConfig', () => {
   });
 
   afterEach(() => {
-    act(() => {
-      root.unmount();
-    });
+    act(() => root.unmount());
     container.remove();
   });
 
   async function render() {
-    await act(async () => {
-      root.render(<UsageStatisticsConfig />);
-    });
-    // Flush the async load that fires from useEffect.
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await act(async () => { root.render(<UsageStatisticsConfig />); });
+    await act(async () => { await Promise.resolve(); });
   }
 
-  it('requests statistics on mount and renders summary, distributions, and trend', async () => {
+  it('places the fixed six-month heatmap first and includes subagent calls in both queries', async () => {
     await render();
 
-    expect(getStatisticsMock).toHaveBeenCalledTimes(1);
     expect(getStatisticsMock).toHaveBeenCalledWith({
-      timeRange: 'last24Hours',
-      granularity: 'hour',
-      timeZone: 'UTC',
+      timeRange: 'thisMonth', granularity: 'day', timeZone: 'UTC', includeSubagent: true,
     });
-
-    const pageHeader = container.querySelector('[data-bitfun-component="page-header"]');
-    expect(pageHeader?.querySelector('h2')?.textContent).toBe('title');
-    expect(pageHeader?.textContent).toContain('subtitle');
-    expect(container.querySelector('[data-bitfun-part="summary"]')).not.toBeNull();
-    expect(container.querySelector('[data-bitfun-part="distributions"]')).not.toBeNull();
-    expect(container.querySelector('[data-bitfun-part="modelHitRate"]')).not.toBeNull();
-    expect(container.querySelector('[data-bitfun-part="trendPanel"]')).not.toBeNull();
-    expect(container.querySelectorAll('.bitfun-usage-stats__donut').length).toBe(3);
-    expect(container.querySelectorAll('[data-bitfun-part="trendPanel"] svg').length).toBe(1);
-    expect(container.textContent).not.toContain('trend.legend.cacheCreation');
-    expect(container.querySelectorAll('.bitfun-config-page-section')).toHaveLength(4);
-    expect(container.querySelectorAll('[data-bitfun-part="distributions"] table')).toHaveLength(3);
-    expect(container.querySelectorAll('[data-bitfun-part="distributions"] th[scope="row"]')).toHaveLength(3);
-    expect(container.querySelector('[data-bitfun-part="trendPanel"] svg[role="img"]')).not.toBeNull();
-    expect(container.querySelector('[data-bitfun-part="trendPanel"] table.bitfun-sr-only')).not.toBeNull();
-    expect(container.textContent).toContain('4.8M');
-    // Hit rate rounds down and always keeps two decimal places.
-    expect(container.textContent).toContain('95.67%');
-    expect(container.textContent).toContain('95.00%');
+    expect(getStatisticsMock).toHaveBeenCalledWith(expect.objectContaining({
+      timeRange: 'custom', granularity: 'day', timeZone: 'UTC', includeSubagent: true,
+    }));
+    const sections = container.querySelectorAll('.bitfun-config-page-section');
+    expect(sections[0]?.getAttribute('data-bitfun-part')).toBe('activityPanel');
+    expect(sections[1]?.getAttribute('data-bitfun-part')).toBe('overview');
+    expect(container.querySelector('[data-bitfun-part="summary"]')?.textContent).toContain('4.8M');
+    expect(sections[1]?.querySelectorAll('.bitfun-config-page-row')).toHaveLength(5);
+    expect(sections[1]?.querySelector('[data-bitfun-part="summary"]')?.closest('.bitfun-config-page-row__control')).not.toBeNull();
+    expect(container.querySelectorAll('button.bitfun-usage-stats__activity-day').length).toBeGreaterThanOrEqual(181);
   });
 
-  it('keeps idle hit-rate points continuous but splits active telemetry gaps', async () => {
-    const idlePoint = {
-      ...SAMPLE_STATS.trend[0],
-      bucket: '2026-08-16T12:00:00.000Z',
-      inputTokens: 0,
-      outputTokens: 0,
-      cacheReadTokens: 0,
-      cacheWriteTokens: 0,
-      cacheHitRate: null,
-    };
-    const activeGapPoint = {
-      ...SAMPLE_STATS.trend[0],
-      bucket: '2026-08-16T14:00:00.000Z',
-      cacheHitRate: null,
-    };
-    getStatisticsMock.mockResolvedValue({
-      ...SAMPLE_STATS,
-      trend: [
-        SAMPLE_STATS.trend[0],
-        idlePoint,
-        { ...SAMPLE_STATS.trend[1], bucket: '2026-08-16T13:00:00.000Z' },
-        activeGapPoint,
-        { ...SAMPLE_STATS.trend[1], bucket: '2026-08-16T15:00:00.000Z' },
-      ],
-    });
-
+  it('changes only the selected-period query when the time range changes', async () => {
     await render();
-
-    expect(container.querySelectorAll('[data-cache-hit-rate-segment="line"]')).toHaveLength(1);
-    expect(container.querySelectorAll('[data-cache-hit-rate-segment="point"]')).toHaveLength(1);
-
-    const hoverCapture = container.querySelector(
-      '.bitfun-usage-stats__trend-svg > rect[fill="transparent"]',
-    ) as SVGRectElement;
-    vi.spyOn(hoverCapture, 'getBoundingClientRect').mockReturnValue({
-      left: 0,
-      width: 400,
-    } as DOMRect);
-
+    const select = container.querySelector('select[aria-label="timeRange.label"]') as HTMLSelectElement;
     await act(async () => {
-      hoverCapture.dispatchEvent(new MouseEvent('pointermove', {
-        bubbles: true,
-        clientX: 300,
-      }));
+      const nativeSet = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+      nativeSet?.call(select, 'last24Hours');
+      select.dispatchEvent(new Event('change', { bubbles: true }));
     });
-    let tooltipRows = container.querySelectorAll('.bitfun-usage-stats__trend-tooltip-row');
-    expect(tooltipRows[tooltipRows.length - 1]?.textContent).toContain('–');
-
-    await act(async () => {
-      hoverCapture.dispatchEvent(new MouseEvent('pointermove', {
-        bubbles: true,
-        clientX: 100,
-      }));
+    await act(async () => { await Promise.resolve(); });
+    expect(getStatisticsMock).toHaveBeenCalledTimes(3);
+    expect(getStatisticsMock).toHaveBeenLastCalledWith({
+      timeRange: 'last24Hours', granularity: 'hour', timeZone: 'UTC', includeSubagent: true,
     });
-    tooltipRows = container.querySelectorAll('.bitfun-usage-stats__trend-tooltip-row');
-    expect(tooltipRows[tooltipRows.length - 1]?.textContent).toContain('0.00%');
   });
 
-  it('keeps same-named models distinct and labels deleted configurations', async () => {
+  it('searches only the visible breakdown and preserves same-named model identities', async () => {
     getStatisticsMock.mockResolvedValue({
       ...SAMPLE_STATS,
       byModel: [
-        {
-          ...SAMPLE_STATS.byModel[0],
-          key: 'model-config:bitfun',
-          name: 'MiniMax-M3',
-          providerName: 'BitFun',
-        },
-        {
-          ...SAMPLE_STATS.byModel[0],
-          key: 'model-config:minimax',
-          name: 'MiniMax-M3',
-          providerName: 'MiniMax',
-        },
-        {
-          ...SAMPLE_STATS.byModel[0],
-          key: 'missing-config:deleted',
-          name: 'legacy-model',
-          providerName: null,
-          attributionStatus: 'config_missing',
-        },
+        { ...SAMPLE_STATS.byModel[0], key: 'model-config:a', name: 'Same', providerName: 'Provider A' },
+        { ...SAMPLE_STATS.byModel[0], key: 'model-config:b', name: 'Same', providerName: 'Provider B' },
+        { ...SAMPLE_STATS.byModel[0], key: 'missing-config:c', name: 'Legacy', providerName: null, attributionStatus: 'config_missing' },
       ],
     });
-
     await render();
+    const rows = container.querySelectorAll('[data-bitfun-part="distributions"] [role="tabpanel"] .bitfun-config-page-row');
+    expect(rows).toHaveLength(3);
+    expect(rows[0]?.textContent).toContain('Provider A');
+    expect(rows[1]?.textContent).toContain('Provider B');
+    expect(rows[2]?.textContent).toContain('attribution.deletedConfig');
 
-    expect(container.textContent).toContain('BitFun');
-    expect(container.textContent).toContain('MiniMax');
-    expect(container.textContent).toContain('attribution.deletedConfig');
-    expect(container.querySelectorAll('.bitfun-usage-stats__hit-rate-row')).toHaveLength(3);
-  });
-
-  it('shows the empty state when there are no records', async () => {
-    getStatisticsMock.mockResolvedValue({
-      ...SAMPLE_STATS,
-      totalRequests: 0,
-      byModel: [],
-      byGroup: [],
-      byEndpoint: [],
-      trend: [],
+    const input = container.querySelector('[data-testid="usage-filter-input"]') as HTMLInputElement;
+    await act(async () => {
+      const nativeSet = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+      nativeSet?.call(input, 'Provider B');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
     });
-
-    await render();
-
-    expect(container.querySelector('[data-bitfun-part="empty"]')).not.toBeNull();
-    expect(container.querySelector('[data-bitfun-part="summary"]')).toBeNull();
+    expect(container.querySelectorAll('[data-bitfun-part="distributions"] [role="tabpanel"] .bitfun-config-page-row')).toHaveLength(1);
+    expect(container.querySelector('[data-bitfun-part="summary"]')?.textContent).toContain('4.8M');
+    expect(getStatisticsMock).toHaveBeenCalledTimes(2);
   });
 
-  it('shows a distinct informational state for an older Peer host', async () => {
+  it('shows trend, cache, and endpoint data without a disclosure control', async () => {
+    await render();
+    const details = container.querySelector('[data-bitfun-part="details"]')!;
+    expect(details.querySelector('button[aria-expanded]')).toBeNull();
+    expect(details.querySelector('.bitfun-usage-stats__trend-svg')).not.toBeNull();
+    expect(details.querySelectorAll('.bitfun-config-page-row').length).toBeGreaterThanOrEqual(4);
+    expect(details.textContent).toContain('trend.partial');
+  });
+
+  it('distinguishes an empty selected period from all-time empty data', async () => {
+    getStatisticsMock.mockResolvedValue({ ...SAMPLE_STATS, totalRequests: 0, byModel: [], byGroup: [], byEndpoint: [], trend: [] });
+    await render();
+    expect(container.querySelector('[data-bitfun-part="empty"]')?.textContent).toContain('empty.periodTitle');
+    expect(container.querySelector('[data-bitfun-part="details"]')).toBeNull();
+  });
+
+  it('surfaces unsupported hosts without leaving duplicate sections', async () => {
     getStatisticsMock.mockRejectedValue(new TokenUsageStatisticsUnavailableErrorMock());
-
     await render();
-
-    const message = container.querySelector('[data-testid="usage-message"]');
-    expect(message?.getAttribute('data-message-type')).toBe('info');
-    expect(message?.textContent).toBe('unsupported');
-  });
-
-  it('refetches when the time range selection changes', async () => {
-    await render();
-    expect(getStatisticsMock).toHaveBeenCalledTimes(1);
-
-    const select = container.querySelector('[data-testid="usage-select"]') as HTMLSelectElement;
-    expect(select).not.toBeNull();
-
-    await act(async () => {
-      select.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-    // Simulate the second (time range) select value change via React state by
-    // re-rendering the component with a new selection using the select element.
-    // The first select is time range; the second is granularity.
-    const selects = container.querySelectorAll('[data-testid="usage-select"]');
-    expect(selects.length).toBe(3);
-
-    await act(async () => {
-      const nativeSet = Object.getOwnPropertyDescriptor(
-        HTMLSelectElement.prototype,
-        'value',
-      )?.set;
-      nativeSet?.call(selects[0], 'thisMonth');
-      selects[0].dispatchEvent(new Event('change', { bubbles: true }));
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    expect(getStatisticsMock).toHaveBeenCalledTimes(2);
-    expect(getStatisticsMock).toHaveBeenLastCalledWith({
-      timeRange: 'thisMonth',
-      granularity: 'hour',
-      timeZone: 'UTC',
-    });
-  });
-
-  it('debounces text filtering and refetches when the filter kind changes', async () => {
-    await render();
-    const input = container.querySelector(
-      '[data-testid="usage-filter-input"]',
-    ) as HTMLInputElement;
-    expect(input).not.toBeNull();
-
-    await act(async () => {
-      const nativeSet = Object.getOwnPropertyDescriptor(
-        HTMLInputElement.prototype,
-        'value',
-      )?.set;
-      nativeSet?.call(input, 'DeepSeek');
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      await new Promise(resolve => window.setTimeout(resolve, 350));
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    expect(getStatisticsMock).toHaveBeenCalledTimes(2);
-    expect(getStatisticsMock).toHaveBeenLastCalledWith({
-      timeRange: 'last24Hours',
-      granularity: 'hour',
-      timeZone: 'UTC',
-      filterKind: 'all',
-      filterQuery: 'DeepSeek',
-    });
-
-    const selects = container.querySelectorAll('[data-testid="usage-select"]');
-    await act(async () => {
-      const nativeSet = Object.getOwnPropertyDescriptor(
-        HTMLSelectElement.prototype,
-        'value',
-      )?.set;
-      nativeSet?.call(selects[2], 'provider');
-      selects[2].dispatchEvent(new Event('change', { bubbles: true }));
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    expect(getStatisticsMock).toHaveBeenCalledTimes(3);
-    expect(getStatisticsMock).toHaveBeenLastCalledWith({
-      timeRange: 'last24Hours',
-      granularity: 'hour',
-      timeZone: 'UTC',
-      filterKind: 'provider',
-      filterQuery: 'DeepSeek',
-    });
-  });
-
-  it('shows a distinct empty state when a filter has no matches', async () => {
-    getStatisticsMock
-      .mockResolvedValueOnce(SAMPLE_STATS)
-      .mockResolvedValueOnce({
-        ...SAMPLE_STATS,
-        totalRequests: 0,
-        byModel: [],
-        byGroup: [],
-        byEndpoint: [],
-        trend: [],
-      });
-
-    await render();
-    const input = container.querySelector(
-      '[data-testid="usage-filter-input"]',
-    ) as HTMLInputElement;
-    await act(async () => {
-      const nativeSet = Object.getOwnPropertyDescriptor(
-        HTMLInputElement.prototype,
-        'value',
-      )?.set;
-      nativeSet?.call(input, 'missing-model');
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      await new Promise(resolve => window.setTimeout(resolve, 350));
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    expect(container.textContent).toContain('filter.empty.title');
-    expect(container.textContent).toContain('filter.empty.description');
-    expect(
-      container.querySelector(
-        '[data-bitfun-component="usage-statistics-config"][data-bitfun-part="empty"] [data-bitfun-component="empty"]',
-      ),
-    ).not.toBeNull();
-  });
-
-  it('surfaces load failures without crashing', async () => {
-    getStatisticsMock.mockRejectedValue(new Error('boom'));
-
-    await render();
-
-    expect(container.querySelector('[data-testid="usage-loading"]')).toBeNull();
+    const messages = container.querySelectorAll('[data-testid="usage-message"]');
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.getAttribute('data-message-type')).toBe('info');
+    expect(container.querySelector('[data-bitfun-part="activityPanel"]')).toBeNull();
   });
 });

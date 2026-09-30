@@ -91,6 +91,7 @@ struct StreamingRegressionView: View {
     @State private var finished = false
     @State private var olderCount = 0
     @State private var historyCount = 40
+    @State private var historyRequests = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -135,15 +136,33 @@ struct StreamingRegressionView: View {
                     }.accessibilityIdentifier("fixture.finishLoading")
                 }
             }
+            if ProcessInfo.processInfo.arguments.contains("--history-pagination-regression") {
+                Text("History requests: \(historyRequests)").accessibilityIdentifier("fixture.historyRequests")
+                Button("Deliver history") {
+                    Task { @MainActor in
+                        for _ in 0..<3 {
+                            olderCount += 4
+                            model.timelineRows = history
+                            try? await Task.sleep(nanoseconds: 150_000_000)
+                        }
+                        model.remoteHistoryLoading = false
+                    }
+                }.accessibilityIdentifier("fixture.deliverHistory")
+            }
             Text(finished ? "Stream finished" : "Stream fixture")
                 .accessibilityIdentifier("fixture.status")
             if ProcessInfo.processInfo.arguments.contains("--fixture-shell") {
                 MobileShellView(model: model)
             } else {
             ChatTimelineView(model: model, onLoadOlderMessages: {
-                olderCount += 10
-                model.timelineRows = history
-                model.remoteHasMoreMessages = false
+                if ProcessInfo.processInfo.arguments.contains("--history-pagination-regression") {
+                    historyRequests += 1
+                    model.remoteHistoryLoading = true
+                } else {
+                    olderCount += 10
+                    model.timelineRows = history
+                    model.remoteHasMoreMessages = false
+                }
             })
             ComposerBar(model: model)
             }
@@ -171,9 +190,9 @@ struct StreamingRegressionView: View {
                 func user(_ id: String) -> MobileConversationRow {
                     MobileConversationRow(id: id, kind: "USER", text: "SENT-USER-BUBBLE",
                         thinking: nil, images: [], tools: [], blocks: [], streaming: false,
-                        typing: false, pending: id == "pending-user", showRetry: false, error: nil)
+                        typing: false, showRetry: false, error: nil)
                 }
-                model.timelineRows = history + [user("pending-user"), row(id: "live", text: "", live: true)]
+                model.timelineRows = history + [user("optimistic-user"), row(id: "live", text: "", live: true)]
                 do { try await Task.sleep(nanoseconds: 2_000_000_000) } catch { return }
                 model.timelineRows = history + [user("confirmed-user"), row(id: "live", text: "", live: true)]
                 do { try await Task.sleep(nanoseconds: 5_000_000_000) } catch { return }
@@ -233,7 +252,7 @@ struct StreamingRegressionView: View {
                             .thinking(id: "child-live", text: "LIVE-CHILD-THOUGHT", streaming: true)
                         ], status: generation == 0 ? "running" : "failed"),
                     .subagent(id: "empty", title: "EMPTY-TASK", running: false, text: "", children: [], status: "timeout")
-                ], streaming: false, typing: false, pending: false, showRetry: false, error: nil)
+                ], streaming: false, typing: false, showRetry: false, error: nil)
         }
         return MobileConversationRow(id: "cards", kind: "ASSISTANT", text: "", thinking: nil,
             images: [], tools: [], blocks: [
@@ -246,7 +265,7 @@ struct StreamingRegressionView: View {
                 .tools(id: "running", tools: [tool("running", phase: "RUNNING")]),
                 .tools(id: "failed", tools: [tool("failed", phase: "FAILED")]),
                 .text(id: "answer", text: "ANSWER-AFTER-ACTIVITY", streaming: false)
-            ], streaming: false, typing: false, pending: false, showRetry: false, error: nil)
+            ], streaming: false, typing: false, showRetry: false, error: nil)
     }
 
     private func thinkingRow(thought: String, answer: String, live: Bool) -> MobileConversationRow {
@@ -254,7 +273,7 @@ struct StreamingRegressionView: View {
         if !answer.isEmpty { blocks.append(.text(id: "answer", text: answer, streaming: live)) }
         return MobileConversationRow(id: live ? "thinking-live" : "thinking-final", kind: "ASSISTANT", text: answer,
             thinking: thought, images: [], tools: [], blocks: blocks, streaming: live, typing: false,
-            pending: false, showRetry: false, error: nil, live: live)
+            showRetry: false, error: nil, live: live)
     }
 
     private var history: [MobileConversationRow] {
@@ -265,7 +284,7 @@ struct StreamingRegressionView: View {
     private func row(id: String, text: String, live: Bool) -> MobileConversationRow {
         MobileConversationRow(id: id, kind: "ASSISTANT", text: text, thinking: nil,
             images: [], tools: [], blocks: [], streaming: live, typing: false,
-            pending: false, showRetry: false, error: nil, live: live)
+            showRetry: false, error: nil, live: live)
     }
 }
 #endif

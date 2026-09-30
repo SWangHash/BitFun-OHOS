@@ -128,6 +128,8 @@ const SkillsScene: React.FC = () => {
     toggleAddForm,
   } = useSkillsSceneStore();
 
+  const [marketSettingsOpen, setMarketSettingsOpen] = useState(false);
+  useEffect(() => { if (!desktopConfigAvailable) setMarketSettingsOpen(false); }, [desktopConfigAvailable]);
   const [activeTab, setActiveTab] = useState<SkillTab>('installed');
   const [deleteTarget, setDeleteTarget] = useState<SkillInfo | null>(null);
   const [installedSearch, setInstalledSearch] = useState('');

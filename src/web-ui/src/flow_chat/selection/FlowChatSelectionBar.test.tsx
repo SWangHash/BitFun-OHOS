@@ -7,6 +7,7 @@ import { contextMenuRegistry } from '@/shared/context-menu-system/core/ContextMe
 import { ContextType, type SelectionContext } from '@/shared/context-menu-system/types/context.types';
 import { FlowChatSelectionBar } from './FlowChatSelectionBar';
 import { FLOWCHAT_EXCERPT_ACTION, type ExcerptActionRequest } from './excerptActions';
+import { highlightExcerptRange } from './locateConversationExcerpt';
 
 const state = vi.hoisted(() => ({
   sessions: new Map([['main', { sessionId: 'main', title: 'Source session', workspacePath: '/workspace' }]]),
@@ -97,13 +98,30 @@ describe('selection annotation dialog lifecycle', () => {
     return textarea;
   }
 
+  it('releases temporary paint without allowing an old locate timer to clear the next excerpt', () => {
+    const highlights = new Map<string, Set<Range>>();
+    vi.stubGlobal('CSS', { highlights });
+    vi.stubGlobal('Highlight', class extends Set<Range> { constructor(...ranges: Range[]) { super(ranges); } });
+    const text = container.querySelector('[data-flow-item-id]')!;
+    const first = document.createRange(); first.selectNodeContents(text);
+    const releaseFirst = highlightExcerptRange(first);
+    const second = first.cloneRange(); second.setStart(text.firstChild!, 1);
+    const releaseSecond = highlightExcerptRange(second);
+    releaseFirst();
+    expect([...highlights.get('bitfun-flowchat-excerpt')!]).toEqual([second]);
+    expect(text.hasAttribute('data-flowchat-highlight-excerpt')).toBe(true);
+    releaseSecond();
+    expect(highlights.size).toBe(0);
+    expect(text.hasAttribute('data-flowchat-highlight-excerpt')).toBe(false);
+  });
+
   it('keeps the comment while the editor scrolls, resizes, or the source unmounts', async () => {
     const surface = await openAnnotation();
     const textarea = enterComment('Keep this note');
     expect(document.activeElement).toBe(textarea);
     expect(surface.querySelector('[data-bitfun-product-part="quote"]')?.textContent).toBe('Selected source text');
     expect(surface.querySelector('label')).toBeNull();
-    expect(textarea.getAttribute('placeholder')).toBeNull();
+    expect(textarea.getAttribute('placeholder')).toBe('selection.annotationPlaceholder');
     act(() => {
       window.getSelection()?.removeAllRanges();
       document.dispatchEvent(new Event('selectionchange'));

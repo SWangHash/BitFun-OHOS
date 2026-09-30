@@ -620,6 +620,16 @@ const KeyboardShortcutsTab: React.FC = () => {
     filteredByScope('filetree').length > 0 ||
     filteredByScope('git').length > 0;
 
+  const scopeDescriptions: Record<ShortcutScope, string> = {
+    app: t('keyboard.scopeDescriptions.app'),
+    chat: t('keyboard.scopeDescriptions.chat'),
+    editor: t('keyboard.scopeDescriptions.editor'),
+    terminal: t('keyboard.scopeDescriptions.terminal'),
+    canvas: t('keyboard.scopeDescriptions.canvas'),
+    filetree: t('keyboard.scopeDescriptions.filetree'),
+    git: t('keyboard.scopeDescriptions.git'),
+  };
+
   const hasPendingChanges = Object.keys(pendingChanges).length > 0;
   const discardPendingChanges = useCallback(() => {
     setPendingChanges({});
@@ -713,6 +723,7 @@ const KeyboardShortcutsTab: React.FC = () => {
             <ConfigPageSection
               key={scope}
               title={t(SCOPE_LABEL_KEYS[scope])}
+              description={scopeDescriptions[scope]}
             >
               <div className="kb-shortcuts__list" data-bitfun-component="keyboard-shortcuts" data-bitfun-part="list">
                 {showMergedTab && (

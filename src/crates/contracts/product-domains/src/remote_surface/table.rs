@@ -168,6 +168,9 @@ pub(super) const OPERATIONS: &[OperationDefinition] = &[
     op("compact_session",                                            Routed,      Proxied,          CLI_NOT_IMPLEMENTED),
     op("compress_path",                                              Routed,      Proxied,          CLI_NOT_IMPLEMENTED),
     op("compute_diff",                                               Agnostic,    Proxied,          CLI_NOT_IMPLEMENTED),
+    op("computer_use_control_preview",                               LocalOnly,   Proxied,          CLI_NO_BROWSER_OR_OS_AUTOMATION),
+    op("computer_use_control_status",                                LocalOnly,   Proxied,          CLI_NO_BROWSER_OR_OS_AUTOMATION),
+    op("computer_use_control_stop",                                  LocalOnly,   Proxied,          CLI_NO_BROWSER_OR_OS_AUTOMATION),
     op("computer_use_get_status",                                    LocalOnly,   Proxied,          CLI_NO_BROWSER_OR_OS_AUTOMATION),
     op("computer_use_open_system_settings",                          LocalOnly,   Proxied,          CLI_NO_BROWSER_OR_OS_AUTOMATION),
     op("computer_use_request_permissions",                           LocalOnly,   Proxied,          CLI_NO_BROWSER_OR_OS_AUTOMATION),
@@ -275,6 +278,7 @@ pub(super) const OPERATIONS: &[OperationDefinition] = &[
     op("get_baseline_snapshot_diff",                                 Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
     op("get_chat_mcp_catalog",                                       Unsupported, Proxied,          HANDLED),
     op("get_clipboard_files",                                        LocalOnly,   Proxied,          CLI_NOT_IMPLEMENTED),
+    op("get_clipboard_image",                                        LocalOnly,   Proxied,          CLI_NOT_IMPLEMENTED),
     op("get_config",                                                 Unaudited,   Proxied,          HANDLED),
     op("get_configs",                                                Unaudited,   Proxied,          HANDLED),
     op("get_current_workspace",                                      Agnostic,    Proxied,          HANDLED),
@@ -300,6 +304,11 @@ pub(super) const OPERATIONS: &[OperationDefinition] = &[
     op("get_health_status",                                          Agnostic,    Proxied,          CLI_NOT_IMPLEMENTED),
     op("get_instruction_source_catalog",                             Unsupported, Proxied,          CLI_NOT_IMPLEMENTED),
     op("get_latest_insights",                                        LocalOnly,   ControllerLocal,  REFUSED),
+    // This machine's own models.dev projections for the Model Settings surface a
+    // controller renders while a peer is selected. The data belongs to the
+    // public models.dev catalog, which every host refreshes for itself, so the
+    // controller keeps this read local instead of pulling the peer's copy.
+    op("get_local_models_dev_catalogs",                              LocalOnly,   ControllerLocal,  REFUSED),
     op("get_mcp_prompt",                                             Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
     op("get_mcp_remote_oauth_session",                               Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
     op("get_mcp_server_status",                                      Unaudited,   Proxied,          CLI_NOT_IMPLEMENTED),
@@ -444,6 +453,7 @@ pub(super) const OPERATIONS: &[OperationDefinition] = &[
     op("load_session_turns",                                         Unaudited,   Proxied,          HANDLED),
     op("local_file_download",                                       Agnostic,    ControllerLocal,  REFUSED),
     op("logout_subscription_account",                                LocalOnly,   Proxied,          CLI_NOT_IMPLEMENTED),
+    op("manage_dialog_queue",                                      Routed,      Proxied,          HANDLED),
     op("mark_announcement_seen",                                     Agnostic,    ControllerLocal,  REFUSED),
     op("mark_bitfun_control_surface_ready",                          Agnostic,    ControllerLocal,  REFUSED),
     op("mark_bitfun_control_surface_unready",                        Agnostic,    ControllerLocal,  REFUSED),

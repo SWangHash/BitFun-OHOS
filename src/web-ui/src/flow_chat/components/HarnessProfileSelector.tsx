@@ -209,8 +209,8 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
       if (event.key === 'Escape') close();
     };
 
-    document.addEventListener('pointerdown', handlePointerDown);
-    document.addEventListener('keydown', handleKeyDown);
+    const removeOverlayPointerdown0 = subscribeOverlayInteraction(menuRef, 'pointerdown', handlePointerDown);
+    const removeOverlayKeydown1 = subscribeOverlayInteraction(menuRef, 'keydown', handleKeyDown);
     return () => {
       document.removeEventListener('pointerdown', handlePointerDown);
       document.removeEventListener('keydown', handleKeyDown);
@@ -493,8 +493,8 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
                         leading={<HarnessProfileMark profile={id} />}
                         metadata={(
                           <span className="bitfun-harness-selector__profile-status">
-                            {connected ? <Icon name="check-line" size="sm" style={{ width: 13, height: 13 }} aria-hidden /> : null}
-                            {isNavigationProfile(id) ? (
+                            {connected ? <Icon name="check-line" size="sm" aria-hidden /> : null}
+                            {id === 'other' ? (
                               <>
                                 <span className="bitfun-harness-selector__agent-count">
                                   {id === 'industry' ? industryAgents.length : remainingAgents.length}
@@ -529,9 +529,46 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
                   <div className="bitfun-harness-selector__empty">
                     {t('chatInput.harness.otherAgentsEmpty')}
                   </div>
-                ) : (
-                  pageAgents.map(renderAgentRow)
-                )}
+                ) : otherAgents.map(agent => {
+                  const connected = !creatingNewSession
+                    && selectedProfile === 'other'
+                    && sameAgent(agent.id, selectedAgentId);
+                  const state = connected
+                    ? 'current'
+                    : agent.available === false
+                      ? 'unavailable'
+                      : 'available';
+                  return (
+                    <span
+                      key={agent.id}
+                      className="bitfun-harness-selector__row-contract"
+                      data-bitfun-component="harness-selector"
+                      data-bitfun-part="agent"
+                      data-bitfun-agent-id={agent.id}
+                      data-bitfun-state={state}
+                    >
+                      <MenuItem
+                        role={creatingNewSession ? 'menuitem' : 'menuitemradio'}
+                        checked={!creatingNewSession && connected}
+                        data-bitfun-agent-id={agent.id}
+                        data-bitfun-state={state}
+                        leading={<Icon name="user" size="md" aria-hidden />}
+                        metadata={(
+                          <span className="bitfun-harness-selector__profile-status">
+                            {connected ? <Icon name="check-line" size="sm" aria-hidden /> : null}
+                            {agent.available === false
+                              ? t('chatInput.harness.unavailable')
+                              : null}
+                          </span>
+                        )}
+                        onClick={() => handleSelectAgent(agent)}
+                        data-testid={`harness-agent-${agent.id}`}
+                      >
+                        {agent.name}
+                      </MenuItem>
+                    </span>
+                  );
+                })}
               </>
             )}
           </MenuSection>

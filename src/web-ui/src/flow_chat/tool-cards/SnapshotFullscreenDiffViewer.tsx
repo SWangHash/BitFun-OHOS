@@ -7,7 +7,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { OverflowText, Button, IconButton } from '@bitfun/ui';
 import { createPortal } from 'react-dom';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
-import { XCircle, FileText } from 'lucide-react';
+import { XCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Tooltip, Icon } from '@bitfun/ui';
 import { DiffEditor } from '../../tools/editor';
@@ -154,7 +154,7 @@ export const SnapshotFullscreenDiffViewer: React.FC<SnapshotFullscreenDiffViewer
         <div data-bitfun-component="snapshot-fullscreen-diff-viewer" data-bitfun-part="header" className="snapshot-fullscreen-header">
           <div data-bitfun-component="snapshot-fullscreen-diff-viewer" data-bitfun-part="sessionInfo" className="session-info">
             <div className="session-icon">
-              <FileText size={20} />
+              <Icon name="file-text" size="md" />
             </div>
             <div className="session-details">
               <div className="session-title">{t('toolCards.snapshot.fileDiff')}</div>
@@ -185,7 +185,7 @@ export const SnapshotFullscreenDiffViewer: React.FC<SnapshotFullscreenDiffViewer
                 type="button"
                 variant="fill"
                 size="sm"
-                leadingIcon={<XCircle size={16} />}
+                leadingIcon={<Icon glyph={XCircle} size="md" />}
                 onClick={() => handleBatchAction('reject')}
                 disabled={loading}
               >
@@ -257,7 +257,7 @@ export const SnapshotFullscreenDiffViewer: React.FC<SnapshotFullscreenDiffViewer
         <div data-bitfun-component="snapshot-fullscreen-diff-viewer" data-bitfun-part="currentFile" className="current-file-header">
           <div data-bitfun-component="snapshot-fullscreen-diff-viewer" data-bitfun-part="fileInfo" className="file-info">
             <div className="file-icon">
-              <LucideFile width="16" height="16" stroke="currentColor" aria-hidden="true" />
+              <Icon glyph={LucideFile} size="md" aria-hidden="true" />
             </div>
             <div className="file-details">
               <div className="file-name"><OverflowText>{fileName}</OverflowText></div>
@@ -284,7 +284,7 @@ export const SnapshotFullscreenDiffViewer: React.FC<SnapshotFullscreenDiffViewer
                 type="button"
                 variant="fill"
                 size="sm"
-                leadingIcon={<XCircle size={16} />}
+                leadingIcon={<Icon glyph={XCircle} size="md" />}
                 onClick={() => handleFileAction('reject')}
                 disabled={loading}
               >

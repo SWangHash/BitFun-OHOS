@@ -13,7 +13,7 @@
   "dependencies": {
     "@bitfun/theme-bitfun": "workspace:^",
     "@phosphor-icons/react": "^2.1.10",
-    "lucide-react": "^0.541.0",
+    "lucide-react": "^0.560.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "@bitfun/ui": "workspace:^"

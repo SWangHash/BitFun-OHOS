@@ -3,7 +3,7 @@
  * Used to browse and select remote directory as workspace
  */
 
-import { Button, Dialog, ConfirmDialog, Icon, IconButton, Input, Menu, MenuItem, MenuSeparator, ScrollArea } from '@bitfun/ui';
+import { subscribeOverlayInteraction, Button, Dialog, ConfirmDialog, Icon, IconButton, Input, Menu, MenuItem, MenuSeparator, ScrollArea } from '@bitfun/ui';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
@@ -36,6 +36,11 @@ interface ContextMenuState {
 interface DeleteConfirmState {
   show: boolean;
   entry: RemoteFileEntry | null;
+}
+
+interface ActiveBrowserTransfer {
+  id: string;
+  cancelled: boolean;
 }
 
 function joinRemotePath(dir: string, fileName: string): string {
@@ -104,7 +109,43 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
     entry: null,
   });
   const [transferBusy, setTransferBusy] = useState(false);
+  const [transferCancelling, setTransferCancelling] = useState(false);
+  const activeTransferRef = useRef<ActiveBrowserTransfer | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+
+  const beginTransfer = (): ActiveBrowserTransfer | null => {
+    if (activeTransferRef.current) return null;
+    const transfer = { id: crypto.randomUUID(), cancelled: false };
+    activeTransferRef.current = transfer;
+    setTransferBusy(true);
+    setTransferCancelling(false);
+    setError(null);
+    return transfer;
+  };
+
+  const endTransfer = (transfer: ActiveBrowserTransfer): void => {
+    if (activeTransferRef.current !== transfer) return;
+    activeTransferRef.current = null;
+    setTransferBusy(false);
+    setTransferCancelling(false);
+  };
+
+  const stopTransfer = (): void => {
+    const transfer = activeTransferRef.current;
+    if (!transfer || transfer.cancelled) return;
+    transfer.cancelled = true;
+    setTransferCancelling(true);
+    void sshApi.cancelTransfer(transfer.id).catch((error: unknown) => {
+      setError(error instanceof Error ? error.message : t('ssh.remote.transferFailed'));
+    });
+  };
+
+  useEffect(() => () => {
+    const transfer = activeTransferRef.current;
+    if (!transfer) return;
+    transfer.cancelled = true;
+    void sshApi.cancelTransfer(transfer.id).catch(() => undefined);
+  }, []);
 
   // One-shot retry: when the SSH session was torn down by a transient network
   // blip, the backend transparently reconnects on the next call but the
@@ -152,8 +193,8 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
         setContextMenu({ show: false, x: 0, y: 0, entry: null });
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    const removeOverlayMousedown0 = subscribeOverlayInteraction(contextMenuRef, 'mousedown', handleClickOutside);
+    return () => removeOverlayMousedown0?.();
   }, []);
 
   const navigateTo = (path: string) => {
@@ -230,14 +271,19 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
     });
     if (localPath === null) return;
 
-    setTransferBusy(true);
-    setError(null);
+    const transfer = beginTransfer();
+    if (!transfer) return;
     try {
-      await sshApi.downloadToLocalPath(connectionId, entry.path, localPath);
+      await sshApi.downloadToLocalPath(
+        connectionId, entry.path, localPath, undefined, transfer.id,
+        () => transfer.cancelled,
+      );
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('ssh.remote.transferFailed'));
+      if (!transfer.cancelled) {
+        setError(e instanceof Error ? e.message : t('ssh.remote.transferFailed'));
+      }
     } finally {
-      setTransferBusy(false);
+      endTransfer(transfer);
     }
   };
 
@@ -322,21 +368,29 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
     const paths = Array.isArray(selected) ? selected : [selected];
     if (paths.length === 0) return;
 
-    setTransferBusy(true);
-    setError(null);
+    const transfer = beginTransfer();
+    if (!transfer) return;
     try {
       for (const localPath of paths) {
+        if (transfer.cancelled) break;
         const segments = localPath.split(/[/\\]/);
         const base = segments.pop();
         if (!base) continue;
         const remotePath = joinRemotePath(currentPath, base);
-        await sshApi.uploadFromLocalPath(connectionId, localPath, remotePath);
+        await sshApi.uploadFromLocalPath(
+          connectionId, localPath, remotePath, undefined, transfer.id,
+          () => transfer.cancelled,
+        );
       }
       await loadDirectory(currentPath);
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('ssh.remote.transferFailed'));
+      if (!transfer.cancelled) {
+        setError(e instanceof Error ? e.message : t('ssh.remote.transferFailed'));
+      } else {
+        void loadDirectory(currentPath);
+      }
     } finally {
-      setTransferBusy(false);
+      endTransfer(transfer);
     }
   };
 
@@ -505,6 +559,15 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
           <div className="remote-file-browser__transfer-status">
             <Loader2 size={16} className="remote-file-browser__spinner-inline" />
             <span>{t('ssh.remote.transferring')}</span>
+            <Button
+              variant="fill"
+              size="sm"
+              onClick={stopTransfer}
+              disabled={transferCancelling}
+              style={{ marginLeft: 'auto' }}
+            >
+              {t('actions.cancel')}
+            </Button>
           </div>
         )}
 

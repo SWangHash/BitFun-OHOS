@@ -1,6 +1,6 @@
 import { workspaceManager } from '@/infrastructure/services/business/workspaceManager';
 import { resolveLegacySessionWorkspace } from '@/infrastructure/api/service-api/legacyWorkspaceCompatibility';
-import { OverflowText, Button, ConfirmDialog, Icon, IconButton, Input, NumberInput, Switch, Tooltip } from '@bitfun/ui';
+import { OverflowText, Button, ConfirmDialog, Icon, IconButton, Input, NumberInput, StatusPill, Switch, Tooltip } from '@bitfun/ui';
 import React, {
   useCallback,
   useEffect,
@@ -608,13 +608,21 @@ const WorktreeSettingsPage: React.FC = () => {
             <div className="bitfun-worktree-settings__worktree-heading">
               <h5 className="bitfun-worktree-settings__worktree-title"><OverflowText>{branchLabel}</OverflowText></h5>
               <div className="bitfun-worktree-settings__metadata">
-                {worktree.lifecycle !== 'managed' && <span>{lifecycleLabel}</span>}
-                {worktree.dirty && <span>{t('management.state.dirty')}</span>}
-                {worktree.hasUnpublishedCommits && (
-                  <span>{t('management.state.unpublishedCommits')}</span>
+                {worktree.lifecycle !== 'managed' && (
+                  <StatusPill tone="neutral">{lifecycleLabel}</StatusPill>
                 )}
-                {worktree.locked && <span>{t('management.state.locked')}</span>}
-                {worktree.missing && <span>{t('management.state.missing')}</span>}
+                {worktree.dirty && (
+                  <StatusPill tone="warning">{t('management.state.dirty')}</StatusPill>
+                )}
+                {worktree.hasUnpublishedCommits && (
+                  <StatusPill tone="warning">{t('management.state.unpublishedCommits')}</StatusPill>
+                )}
+                {worktree.locked && (
+                  <StatusPill tone="danger">{t('management.state.locked')}</StatusPill>
+                )}
+                {worktree.missing && (
+                  <StatusPill tone="danger">{t('management.state.missing')}</StatusPill>
+                )}
               </div>
             </div>
             <code className="bitfun-worktree-settings__path" title={worktree.path}><OverflowText>
@@ -626,7 +634,7 @@ const WorktreeSettingsPage: React.FC = () => {
                 title={sessionNames}
               >
                 <MessageSquareText size={13} aria-hidden />
-                <span>
+                <span className="bitfun-worktree-settings__sessions-count">
                   {t('management.sessions.summary', {
                     count: worktree.associatedSessionCount,
                   })}

@@ -111,17 +111,13 @@ function formatJobMetaSummary(
   formatDate: (date: Date | number, options?: Intl.DateTimeFormatOptions) => string,
   t: (key: string, params?: Record<string, unknown>) => string,
   options?: {
-    showTarget: boolean;
     resolveSessionLabel: (sessionId: string) => string | undefined;
   },
 ): string {
   const scheduleSummary = formatScheduleSummary(job.schedule, formatDate, t);
-  if (options?.showTarget) {
-    if (job.target.kind === 'session') {
-      const sessionLabel = options.resolveSessionLabel(job.target.sessionId) || job.target.sessionId;
-      return `${sessionLabel} · ${scheduleSummary}`;
-    }
-    return `${t('nav.scheduledJobs.targets.newSession')} · ${scheduleSummary}`;
+  if (job.target.kind === 'session') {
+    const sessionLabel = options?.resolveSessionLabel(job.target.sessionId) || job.target.sessionId;
+    return `${sessionLabel} · ${scheduleSummary}`;
   }
   if (job.target.kind === 'workspace') {
     return `${job.target.launch.agentType} · ${scheduleSummary}`;
@@ -282,10 +278,15 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
   const loadJobs = useCallback(async () => {
     if (!workspaceRef) { setJobs([]); return; }
     setLoading(true);
+    // Deliberately no `targetKind` filter: the agent's Cron tool creates
+    // session-targeted jobs, so a workspace-scoped list that asked for
+    // workspace-targeted jobs only would hide exactly the jobs the user just
+    // asked the agent to create.
     const request = {
       workspaceId: workspaceRef?.workspaceId ?? undefined,
-      sessionId: targetKind === 'session' && lockSessionId && !assistantWorkspaceMode ? sessionId || undefined : undefined,
-      targetKind: assistantWorkspaceMode ? undefined : targetKind,
+      sessionId: targetKind === 'session' && lockSessionId && !assistantWorkspaceMode
+        ? sessionId || undefined
+        : undefined,
     };
     try {
       const result = await cronAPI.listJobs(request);
@@ -663,7 +664,6 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
                     <div className="asv__item-meta-row" data-bitfun-component="scheduled-jobs-view" data-bitfun-part="jobMeta">
                       <div className="asv__item-meta"><OverflowText>
                         {formatJobMetaSummary(job, formatDate, t, {
-                          showTarget: assistantWorkspaceMode,
                           resolveSessionLabel: sessionId => sessionLabelById.get(sessionId),
                         })}
                       </OverflowText></div>

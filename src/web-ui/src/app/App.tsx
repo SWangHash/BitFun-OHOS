@@ -1,9 +1,12 @@
+import { lazyWithRecovery } from '@/shared/utils/lazyWithRecovery';
+import { importWithRetry } from '@/shared/utils/moduleLoader';
 import { lazy, Suspense, useEffect, useCallback, useLayoutEffect, useState, useRef } from 'react';
 import { ChatProvider } from '../infrastructure/contexts/ChatProvider';
 import { ViewModeProvider } from '../infrastructure/contexts/ViewModeProvider';
 import { SSHRemoteProvider } from '../features/ssh-remote';
 import { ContextMenuRenderer } from '../shared/context-menu-system/components/ContextMenuRenderer';
 import { NotificationContainer, notificationService } from '../shared/notification-system';
+import { ComputerUseControlCard } from './components/ComputerUseControlCard';
 import { UpdateNotificationCard } from '@/infrastructure/update/UpdateNotificationCard';
 import { NotificationCenter } from '../shared/notification-system/components/NotificationCenter';
 import { AnnouncementProvider } from '../shared/announcement-system';
@@ -53,7 +56,7 @@ interface AppLayoutStartupGateProps {
 const LazyAppLayout = lazy(async () => {
   startupTrace.markPhase('app_layout_import_start');
   try {
-    const module = await import('./layout/AppLayout');
+    const module = await importWithRetry(() => import('./layout/AppLayout'));
     clearStartupModuleReloadAttempt();
     startupTrace.markPhase('app_layout_import_end');
     return {
@@ -79,7 +82,7 @@ const LazyAppLayout = lazy(async () => {
   }
 });
 
-const LazyGlobalSearchRoot = lazy(() => import('./global-search/GlobalSearchRoot'));
+const LazyGlobalSearchRoot = lazyWithRecovery(() => import('./global-search/GlobalSearchRoot'));
 
 /**
  * BitFun main application component.
@@ -967,7 +970,7 @@ function App() {
               <ContextMenuRenderer />
 
               {/* Notification system */}
-              <NotificationContainer><UpdateNotificationCard /></NotificationContainer>
+              <NotificationContainer><ComputerUseControlCard /><UpdateNotificationCard /></NotificationContainer>
               <NotificationCenter />
 
               {/* Confirm dialog */}

@@ -1,5 +1,18 @@
 fn main() {
-    println!("cargo:rerun-if-env-changed=BITFUN_RELEASE_CHANNEL");
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
+        println!("cargo:rerun-if-changed=src/computer_use/macos_capture.m");
+        cc::Build::new()
+            .file("src/computer_use/macos_capture.m")
+            .flag("-fobjc-arc")
+            .flag("-fblocks")
+            .compile("computer_use_capture");
+        // Older macOS installs must reach the runtime unsupported-version guard.
+        println!("cargo:rustc-link-arg=-Wl,-weak_framework,ScreenCaptureKit");
+        for framework in ["CoreMedia", "CoreVideo", "CoreImage", "AppKit"] {
+            println!("cargo:rustc-link-lib=framework={framework}");
+        }
+    }
+        println!("cargo:rerun-if-env-changed=BITFUN_RELEASE_CHANNEL");
     println!("cargo:rerun-if-env-changed=BITFUN_DESKTOP_BINARY_NAME");
     println!("cargo:rerun-if-env-changed=BITFUN_DATA_MIGRATOR_BINARY_NAME");
     println!("cargo:rerun-if-env-changed=BITFUN_UPDATER_PRIMARY_ENDPOINT");

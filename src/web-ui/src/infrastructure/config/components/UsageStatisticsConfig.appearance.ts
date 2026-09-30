@@ -5,10 +5,10 @@ export const usageStatisticsConfigAppearanceDescriptor: AppearanceSurfaceDescrip
   parts: [
     { id: 'root' },
     { id: 'overview' },
-    { id: 'filters' },
     { id: 'summary' },
+    { id: 'activityPanel' },
     { id: 'distributions' },
-    { id: 'modelHitRate' },
+    { id: 'details' },
     { id: 'trendPanel' },
     { id: 'empty' },
   ],

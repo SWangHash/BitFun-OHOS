@@ -1,4 +1,4 @@
-import { INK, MUTED } from './Theme';
+import { SIDEBAR_INK, SIDEBAR_MUTED } from './Theme';
 import { TemplateIcon } from './TemplateIcon';
 
 /** Desktop-provided device artwork normalized as a theme-tinted template icon. */
@@ -6,7 +6,7 @@ import { TemplateIcon } from './TemplateIcon';
 export struct SidebarDeviceIcon {
   @Param deviceName: string = '';
   @Param iconSize: number = 24;
-  @Param tint: ResourceColor = INK;
+  @Param tint: ResourceColor = SIDEBAR_INK;
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
@@ -74,7 +74,7 @@ export struct SidebarDeviceIcon {
 export struct SidebarChevronIcon {
   @Param expanded: boolean = false;
   @Param iconSize: number = 14;
-  @Param tint: ResourceColor = MUTED;
+  @Param tint: ResourceColor = SIDEBAR_MUTED;
 
   build() {
     SymbolGlyph(this.expanded ?
