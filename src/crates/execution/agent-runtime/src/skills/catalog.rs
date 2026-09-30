@@ -155,10 +155,6 @@ pub(super) const BUILTIN_SKILL_SPECS: &[BuiltinSkillSpec] = &[
         group: BuiltinSkillGroup::HarmonyOS,
     },
     BuiltinSkillSpec {
-        dir_name: "deveco-create-project",
-        group: BuiltinSkillGroup::HarmonyOS,
-    },
-    BuiltinSkillSpec {
         dir_name: "ohos-qt-skills",
         group: BuiltinSkillGroup::HarmonyOS,
     },
