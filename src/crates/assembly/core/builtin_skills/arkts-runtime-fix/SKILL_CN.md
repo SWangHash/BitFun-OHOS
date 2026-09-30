@@ -32,7 +32,7 @@ description: ArkTS Runtime Fix 的中文参考版本，仅用于保留中文说�
 
 ## 私有脚本执行约定
 
-所有脚本通过 Shell 执行，形式与 `deveco-create-project` 一致：
+所有脚本通过 Shell 执行：
 
 ```bash
 node "{SKILL_DIR}/scripts/<script>.mjs" ...

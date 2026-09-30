@@ -37,7 +37,7 @@ impl Tool for SwitchCwdTool {
     async fn description(&self) -> BitFunResult<String> {
         Ok(r#"Switch the session project directory for HarmonyOS tools (devecocli CLI builds, start_app, hdc_log, arkts_check).
 
-Only use this tool when the HarmonyOS project directory is DIFFERENT from the current workspace root. For example, when the `deveco-create-project` skill creates a project in a subdirectory like `./MyApp`, call this tool with `project_path` pointing to that subdirectory.
+Only use this tool when the HarmonyOS project directory is DIFFERENT from the current workspace root. For example, when a project is created in a subdirectory like `./MyApp` (for instance via `devecocli create --project-path ./MyApp --app-name MyApp`), call this tool with `project_path` pointing to that subdirectory.
 
 Do NOT call this tool if:
 - The workspace root already contains `build-profile.json5` / `AppScope/app.json5` — the tools already use the workspace root as the project directory by default.
