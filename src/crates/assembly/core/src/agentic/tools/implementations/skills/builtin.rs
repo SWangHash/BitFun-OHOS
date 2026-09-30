@@ -46,6 +46,9 @@ const LEGACY_BUILTIN_SKILL_DIR_NAMES: &[&str] = &[
     "writing-plans",
     // Earlier built-in skill bundled before the Superpowers set.
     "skill-creator",
+    // HarmonyOS project-scaffolding skill removed in 2026-09: ArkTS project
+    // creation now goes through `devecocli create` (see the `deveco-cli` skill).
+    "deveco-create-project",
 ];
 const LEGACY_BUILTIN_ROOT_FILES: &[&str] = &["SUPERPOWERS_LICENSE.txt"];
 

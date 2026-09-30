@@ -23,7 +23,7 @@ Do not load this skill for:
 - Plain ArkTS syntax restrictions with no UI component concern; use `arkts-grammar-standards`.
 - Build or type errors after compilation fails; use `arkts-error-fixes`.
 - Runtime crashes, white screens, jscrash logs, or uncaught exceptions; use `arkts-runtime-fix`.
-- New project creation or empty project initialization; use `deveco-create-project`.
+- New project creation or empty project initialization; use `devecocli create` (see the `deveco-cli` skill).
 
 ## Responsibilities
 
@@ -86,5 +86,5 @@ Use `references/ui-quality-checklist.md` before finalizing UI work. At minimum:
 - Use `arkts-grammar-standards` for ArkTS language rules, TypeScript-to-ArkTS differences, template literals, dynamic property access, object literal typing, and syntax compliance.
 - Use `arkts-error-fixes` only after compilation reports errors or when directly fixing build/type failures.
 - Use `arkts-runtime-fix` for runtime stack traces, white screens, uncaught exceptions, and jscrash logs.
-- Use `deveco-create-project` for project initialization.
+- Use `devecocli create` (documented in the `deveco-cli` skill) for project initialization.
 - Do not perform state-management migration unless the user explicitly asks for that migration.
