@@ -130,6 +130,7 @@ impl StaticToolProviderFactory<dyn Tool> for ProductConcreteToolFactory {
             "WriteStdin" => Some(Arc::new(WriteStdinTool::new())),
             "ExecControl" => Some(Arc::new(ExecControlTool::new())),
             "GetTime" => Some(Arc::new(GetTimeTool::new())),
+            "OpenUrl" => Some(Arc::new(OpenUrlTool::new())),
             "ListModels" => Some(Arc::new(ListModelsTool::new())),
             "build_project" => Some(Arc::new(BuildProjectTool::new())),
             "start_app" => Some(Arc::new(StartAppTool::new())),

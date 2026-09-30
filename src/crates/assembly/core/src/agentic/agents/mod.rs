@@ -136,6 +136,7 @@ pub fn standard_harness_tools() -> Vec<String> {
         "ReviewPlatform".to_string(),
         "BitFunControl".to_string(),
         "ControlHub".to_string(),
+        "OpenUrl".to_string(),
         // Pairs with ControlHub: its `wait` sends anything repeating, or
         // further out than an hour, to Cron rather than holding the turn open
         // for the interval.

@@ -92,7 +92,7 @@ pub fn enabled_feature_groups() -> Vec<ToolPackFeatureGroup> {
 pub fn tool_feature_group(tool_name: &str) -> Option<ToolPackFeatureGroup> {
     match tool_name {
         "LS" | "Read" | "Glob" | "Grep" | "Write" | "Edit" | "Delete" | "ExecCommand"
-        | "WriteStdin" | "ExecControl" | "GetTime" | "ListModels" | "build_project"
+        | "WriteStdin" | "ExecControl" | "GetTime" | "OpenUrl" | "ListModels" | "build_project"
         | "start_app" | "hdc_log" | "arkts_knowledge_search" | "arkts_check"
         | "check_cpp_files" | "switch_cwd" | "verify_ui" | "get_ui_verification_log"
         | "save_ui_screenshot" | "QtMigrationIntake" => Some(ToolPackFeatureGroup::Basic),
@@ -190,6 +190,7 @@ const PRODUCT_TOOL_PROVIDER_GROUP_PLAN: &[ToolProviderGroupPlan] = &[
             "WriteStdin",
             "ExecControl",
             "GetTime",
+            "OpenUrl",
             "ListModels",
         ],
     },
@@ -557,6 +558,7 @@ mod tests {
                 "WriteStdin",
                 "ExecControl",
                 "GetTime",
+                "OpenUrl",
                 "ListModels",
                 "Task",
                 "AgentSpawn",

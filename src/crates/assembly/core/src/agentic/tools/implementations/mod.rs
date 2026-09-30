@@ -72,7 +72,7 @@ pub mod miniapp_publish_tool;
 pub mod bitfun_control_tool;
 #[cfg(feature = "tools-pages")]
 pub mod page_deploy_tool;
-#[cfg(feature = "tools-pages")]
+pub mod open_url_tool;
 pub mod page_publish_tool;
 mod plan_artifact_diagnostics;
 #[cfg(feature = "tools-miniapp")]
@@ -148,6 +148,7 @@ pub use glob_tool::GlobTool;
 pub use grep_tool::GrepTool;
 pub use list_models_tool::ListModelsTool;
 pub use ls_tool::LSTool;
+pub use open_url_tool::OpenUrlTool;
 #[cfg(feature = "tools-mcp")]
 pub use mcp_tools::{
     GetMCPPromptTool, ListMCPPromptsTool, ListMCPResourcesTool, ReadMCPResourceTool,

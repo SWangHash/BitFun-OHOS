@@ -568,6 +568,7 @@ mod tests {
             "WriteStdin",
             "ExecControl",
             "GetTime",
+            "OpenUrl",
             "ListModels",
             "Task",
             "AgentSpawn",
@@ -622,6 +623,7 @@ mod tests {
             "verify_ui",
             "get_ui_verification_log",
             "save_ui_screenshot",
+            "QtMigrationIntake",
         ];
 
         assert_eq!(
@@ -868,6 +870,7 @@ mod tests {
                 "Glob",
                 "Grep",
                 "GetTime",
+                "OpenUrl",
                 "ListModels",
                 "AgentList",
                 "Skill",
@@ -891,6 +894,7 @@ mod tests {
                 "arkts_check",
                 "check_cpp_files",
                 "get_ui_verification_log",
+                "QtMigrationIntake",
             ],
             "readonly tool manifest must stay stable before moving registry ownership"
         );

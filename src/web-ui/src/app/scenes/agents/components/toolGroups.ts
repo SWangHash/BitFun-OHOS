@@ -49,6 +49,7 @@ const BUILTIN_TOOL_GROUPS: BuiltinToolGroupDefinition[] = [
     id: 'builtin:harmonyos',
     labelKey: 'agentsOverview.toolGroups.harmonyos',
     toolNames: [
+      'OpenUrl',
       'start_app',
       'hdc_log',
       'arkts_check',

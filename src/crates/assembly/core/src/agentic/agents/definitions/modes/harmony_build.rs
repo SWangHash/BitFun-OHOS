@@ -48,6 +48,7 @@ impl HarmonyBuildMode {
                 "Git".to_string(),
                 "ReviewPlatform".to_string(),
                 "CreatePlan".to_string(),
+                "OpenUrl".to_string(),
                 "start_app".to_string(),
                 "hdc_log".to_string(),
                 "arkts_check".to_string(),
