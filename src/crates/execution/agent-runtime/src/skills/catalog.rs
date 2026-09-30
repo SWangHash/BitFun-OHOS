@@ -135,19 +135,11 @@ pub(super) const BUILTIN_SKILL_SPECS: &[BuiltinSkillSpec] = &[
         group: BuiltinSkillGroup::Office,
     },
     BuiltinSkillSpec {
-        dir_name: "arkts-error-fixes",
+        dir_name: "hmos-arkui-develop-skill",
         group: BuiltinSkillGroup::HarmonyOS,
     },
     BuiltinSkillSpec {
-        dir_name: "arkts-grammar-standards",
-        group: BuiltinSkillGroup::HarmonyOS,
-    },
-    BuiltinSkillSpec {
-        dir_name: "arkts-runtime-fix",
-        group: BuiltinSkillGroup::HarmonyOS,
-    },
-    BuiltinSkillSpec {
-        dir_name: "arkui-knowledge",
+        dir_name: "hmos-runtime-fix-skill",
         group: BuiltinSkillGroup::HarmonyOS,
     },
     BuiltinSkillSpec {
