@@ -487,7 +487,10 @@
     },
     "searchPlaceholder": "搜索通知...",
     "filters": {
-      "all": "全部 ({{count}})"
+      "all": "全部 ({{count}})",
+      "error": "错误 ({{count}})",
+      "warning": "警告 ({{count}})",
+      "info": "信息 ({{count}})"
     },
     "activeTasks": {
       "title": "正在进行的任务 ({{count}})"

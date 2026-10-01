@@ -487,7 +487,10 @@
     },
     "searchPlaceholder": "Search notifications...",
     "filters": {
-      "all": "All ({{count}})"
+      "all": "All ({{count}})",
+      "error": "Error ({{count}})",
+      "warning": "Warning ({{count}})",
+      "info": "Info ({{count}})"
     },
     "activeTasks": {
       "title": "Active tasks ({{count}})"

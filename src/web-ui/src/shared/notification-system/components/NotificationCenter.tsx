@@ -83,6 +83,29 @@ export const NotificationCenter: React.FC = () => {
     return filtered;
   }, [history, searchQuery]);
 
+  const categoryCounts = useMemo(() => {
+    let errorCount = 0;
+    let warningCount = 0;
+    let infoCount = 0;
+
+    searchFilteredHistory.forEach(n => {
+      if (n.type === 'error') {
+        errorCount += 1;
+      } else if (n.type === 'warning') {
+        warningCount += 1;
+      } else if (n.type === 'info' || n.type === 'success') {
+        infoCount += 1;
+      }
+    });
+
+    return {
+      all: searchFilteredHistory.length,
+      error: errorCount,
+      warning: warningCount,
+      info: infoCount,
+    };
+  }, [searchFilteredHistory]);
+
 
   const filteredHistory = useMemo(() => {
     if (filter === 'all') {
@@ -415,28 +438,28 @@ export const NotificationCenter: React.FC = () => {
             data-testid="notification-filter-all"
             onClick={() => setFilter('all')}
           >
-            {t('components:notificationCenter.filters.all', { count: filteredHistory.length })}
+            {t('components:notificationCenter.filters.all', { count: categoryCounts.all })}
           </button>
           <button
             className={`notification-center__filter ${filter === 'error' ? 'is-active' : ''}`}
             data-testid="notification-filter-error"
             onClick={() => setFilter('error')}
           >
-            {t('common:status.error')}
+            {t('components:notificationCenter.filters.error', { count: categoryCounts.error })}
           </button>
           <button
             className={`notification-center__filter ${filter === 'warning' ? 'is-active' : ''}`}
             data-testid="notification-filter-warning"
             onClick={() => setFilter('warning')}
           >
-            {t('common:status.warning')}
+            {t('components:notificationCenter.filters.warning', { count: categoryCounts.warning })}
           </button>
           <button
             className={`notification-center__filter ${filter === 'info' ? 'is-active' : ''}`}
             data-testid="notification-filter-info"
             onClick={() => setFilter('info')}
           >
-            {t('common:status.info')}
+            {t('components:notificationCenter.filters.info', { count: categoryCounts.info })}
           </button>
         </div>
 
