@@ -6,7 +6,6 @@ import {
   IconButton,
   Input,
   NavigationPanelItem,
-  OverflowText,
   ScrollArea,
   SearchField,
   Select,
@@ -499,32 +498,20 @@ const SkillsScene: React.FC = () => {
                           {installedFiltered.length}
                         </span>
                       </div>
-                      <span className="skills-main__column-label skills-main__column-label--source">
-                        {t('list.columns.source')}
-                      </span>
-                      <span className="skills-main__column-label skills-main__column-label--level">
-                        {t('list.columns.level')}
-                      </span>
-                      <span className="skills-main__column-label skills-main__column-label--status">
-                        {t('list.columns.status')}
-                      </span>
-                      <span className="skills-main__column-label skills-main__column-label--actions">
-                        {t('list.columns.actions')}
-                      </span>
                     </div>
 
                     {installed.loading && (
-                      <ScrollArea className="skills-main__loading" aria-busy="true" aria-label={t('list.loading')}>
+                      <div className="skills-discover__grid" aria-busy="true" aria-label={t('list.loading')} data-bitfun-scene="skills" data-bitfun-part="loading">
                         {Array.from({ length: 8 }).map((_, i) => (
                           <div
                             key={`ins-sk-${i}`}
-                            className="skills-card-skeleton"
+                            className="skills-discover__skeleton-card"
                             style={{ '--surface-stagger-index': i } as React.CSSProperties}
                             data-bitfun-scene="skills"
                             data-bitfun-part="skeleton"
                           />
                         ))}
-                      </ScrollArea>
+                      </div>
                     )}
 
                     {!installed.loading && installed.error && (
@@ -561,32 +548,14 @@ const SkillsScene: React.FC = () => {
 
                     {!installed.loading && !installed.error && installedFiltered.length > 0 && (
                       <ScrollArea
-                        className="skills-main__grid"
+                        className="skills-discover__grid skills-discover__grid--installed"
                         data-testid="skill-list"
                         data-bitfun-scene="skills"
                         data-bitfun-part="list"
                       >
                         {installedFiltered.map((skill, index) => (
-                          <div
+                          <SkillCard
                             key={skill.key}
-                            className={[
-                              'skills-card',
-                              skill.isShadowed && 'is-shadowed',
-                              skill.level === 'user'
-                                && installed.globallyDisabledSkillKeys.has(skill.key)
-                                && 'is-globally-disabled',
-                            ].filter(Boolean).join(' ')}
-                            style={{ '--surface-stagger-index': index } as React.CSSProperties}
-                            onClick={() => setSelectedDetail({ type: 'installed', skillKey: skill.key })}
-                            role="button"
-                            tabIndex={0}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                setSelectedDetail({ type: 'installed', skillKey: skill.key });
-                              }
-                            }}
-                            aria-label={installedSkillAriaLabel(skill)}
                             data-testid="skill-list-item"
                             data-skill-key={skill.key}
                             data-skill-id={skill.key}
@@ -600,69 +569,43 @@ const SkillsScene: React.FC = () => {
                               skill.isShadowed && 'shadowed',
                               skill.isBuiltin && 'builtin',
                             ].filter(Boolean).join(' ') || undefined}
-                          >
-                            <div className="skills-card__top" data-bitfun-scene="skills" data-bitfun-part="installedCardTop">
-                              <div className="skills-card__icon" data-bitfun-scene="skills" data-bitfun-part="installedCardIcon">
-                                <Icon name="extension" size="md" />
-                              </div>
-                              <div className="skills-card__info" data-bitfun-scene="skills" data-bitfun-part="installedCardInfo">
-                                <span className="skills-card__name" data-testid="skill-list-item-title" data-bitfun-scene="skills" data-bitfun-part="installedCardName">
-                                  <OverflowText behavior="marquee" title="">{skill.name}</OverflowText>
-                                </span>
-                                {skill.description?.trim() && (
-                                  <OverflowText lines={2} title="" className="skills-card__desc" data-testid="skill-list-item-description" data-bitfun-scene="skills" data-bitfun-part="installedCardDescription">{skill.description}</OverflowText>
+                            aria-label={installedSkillAriaLabel(skill)}
+                            name={skill.name}
+                            description={skill.description}
+                            source={getSkillSourceLabel(skill, t('list.item.unknownSource'))}
+                            iconKind="skill"
+                            index={index}
+                            accentSeed={skill.key}
+                            badges={(
+                              <>
+                                {skill.isBuiltin && (
+                                  <StatusPill tone="accent" leading={<ShieldCheck size={10} />}>
+                                    {t('list.item.builtin')}
+                                  </StatusPill>
                                 )}
-                                <div className="skills-card__status-badges">
-                                  {skill.isBuiltin && (
-                                    <StatusPill tone="accent" leading={<ShieldCheck size={10} />}>
-                                      {t('list.item.builtin')}
+                                {skill.level === 'user'
+                                  && installed.globallyDisabledSkillKeys.has(skill.key) && (
+                                  <StatusPill tone="neutral">
+                                    {t('list.item.globalDisabled')}
+                                  </StatusPill>
+                                )}
+                                {skill.isShadowed && (
+                                  <span title={t('list.item.shadowedTooltip', {
+                                    source: coverageSourceBySkillKey.get(skill.key)
+                                      ?? t('list.item.unknownSource'),
+                                  })}>
+                                    <StatusPill tone="warning" leading={<ShieldAlert size={10} />}>
+                                      {t('list.item.shadowed')}
                                     </StatusPill>
-                                  )}
-                                  {skill.level === 'user'
-                                    && installed.globallyDisabledSkillKeys.has(skill.key) && (
-                                    <StatusPill tone="neutral">
-                                      {t('list.item.globalDisabled')}
-                                    </StatusPill>
-                                  )}
-                                  {skill.isShadowed && (
-                                    <span title={t('list.item.shadowedTooltip', {
-                                      source: coverageSourceBySkillKey.get(skill.key)
-                                        ?? t('list.item.unknownSource'),
-                                    })}>
-                                      <StatusPill tone="warning" leading={<ShieldAlert size={10} />}>
-                                        {t('list.item.shadowed')}
-                                      </StatusPill>
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div
-                              className="skills-card__meta"
-                              data-bitfun-scene="skills"
-                              data-bitfun-part="installedCardMeta"
-                            >
-                              <span
-                                className="skills-card__source"
-                                data-bitfun-scene="skills"
-                                data-bitfun-part="installedCardSource"
-                              >
-                                <StatusPill className="skills-card__source-pill" tone="neutral">
-                                  {getSkillSourceLabel(skill, t('list.item.unknownSource'))}
-                                </StatusPill>
-                              </span>
-                            </div>
-
-                            <div
-                              className="skills-card__level"
-                              data-bitfun-scene="skills"
-                              data-bitfun-part="installedCardLevel"
-                            >
-                              {skill.level === 'user'
-                                ? <Icon name="user" size="xs" />
-                                : <Icon glyph={FolderOpen} size="xs" />}
-                              <OverflowText title="">
+                                  </span>
+                                )}
+                              </>
+                            )}
+                            meta={(
+                              <span className="bitfun-skills-scene__installed-level">
+                                {skill.level === 'user'
+                                  ? <Icon name="user" size="xs" />
+                                  : <Icon glyph={FolderOpen} size="xs" />}
                                 {market.isRemoteWorkspace
                                   ? skill.level === 'user'
                                     ? t('list.item.localUser')
@@ -670,61 +613,39 @@ const SkillsScene: React.FC = () => {
                                   : skill.level === 'user'
                                     ? t('list.item.user')
                                     : t('list.item.project')}
-                              </OverflowText>
-                            </div>
-
-                            <div
-                              className="skills-card__global-toggle"
-                              onClick={(e) => e.stopPropagation()}
-                              onKeyDown={(e) => e.stopPropagation()}
-                              data-bitfun-scene="skills"
-                              data-bitfun-part="installedCardStatus"
-                            >
-                              {skill.level === 'user' ? (
-                                <Switch
-                                  checked={!installed.globallyDisabledSkillKeys.has(skill.key)}
-                                  disabled={installed.savingGlobalSkillKey !== null}
-                                  aria-busy={installed.savingGlobalSkillKey === skill.key}
-                                  aria-label={t('list.item.globalToggleLabel', { name: skill.name })}
-                                  onChange={(event) => {
-                                    void installed.handleGlobalSkillToggle(skill, event.target.checked);
-                                  }}
-                                />
-                              ) : (
-                                <span className="skills-card__status-unavailable" aria-hidden="true">—</span>
-                              )}
-                            </div>
-
-                            <div
-                              className="skills-card__actions"
-                              onClick={(e) => e.stopPropagation()}
-                              onKeyDown={(e) => e.stopPropagation()}
-                              data-bitfun-scene="skills"
-                              data-bitfun-part="installedCardActions"
-                            >
-                              <IconButton
-                                size="sm"
-                                onClick={() => setSelectedDetail({ type: 'installed', skillKey: skill.key })}
-                                aria-label={t('list.item.detail')}
-                                title={t('list.item.detail')}
-                                data-bitfun-scene="skills"
-                                data-bitfun-part="installedCardDetails"
-                                icon={<Icon name="arrow-right" size="sm" />}
+                              </span>
+                            )}
+                            toggleSlot={skill.level === 'user' ? (
+                              <Switch
+                                checked={!installed.globallyDisabledSkillKeys.has(skill.key)}
+                                disabled={installed.savingGlobalSkillKey !== null}
+                                aria-busy={installed.savingGlobalSkillKey === skill.key}
+                                aria-label={t('list.item.globalToggleLabel', { name: skill.name })}
+                                onChange={(event) => {
+                                  void installed.handleGlobalSkillToggle(skill, event.target.checked);
+                                }}
                               />
-                              {canDeleteSkill(skill) && (
-                                <IconButton
-                                  size="sm"
-                                  tone="danger"
-                                  onClick={() => setDeleteTarget(skill)}
-                                  aria-label={t('list.item.deleteTooltip')}
-                                  title={t('list.item.deleteTooltip')}
-                                  data-bitfun-scene="skills"
-                                  data-bitfun-part="installedCardDelete"
-                                  icon={<Icon name="delete" size="lg" style={{ width: 13, height: 13 }} />}
-                                />
-                              )}
-                            </div>
-                          </div>
+                            ) : null}
+                            actions={[
+                              {
+                                id: 'detail',
+                                icon: <Icon name="arrow-right" size="xs" />,
+                                ariaLabel: t('list.item.detail'),
+                                title: t('list.item.detail'),
+                                tone: 'muted',
+                                onClick: () => setSelectedDetail({ type: 'installed', skillKey: skill.key }),
+                              },
+                              ...(canDeleteSkill(skill) ? [{
+                                id: 'delete',
+                                icon: <Icon name="delete" size="xs" />,
+                                ariaLabel: t('list.item.deleteTooltip'),
+                                title: t('list.item.deleteTooltip'),
+                                tone: 'danger' as const,
+                                onClick: () => setDeleteTarget(skill),
+                              }] : []),
+                            ]}
+                            onOpenDetails={() => setSelectedDetail({ type: 'installed', skillKey: skill.key })}
+                          />
                         ))}
                       </ScrollArea>
                     )}
@@ -902,14 +823,14 @@ const SkillsScene: React.FC = () => {
         )}
 
         {desktopConfigAvailable && activeTab === 'matrix' && (
-          <div className="skills-discover" data-bitfun-scene="skills" data-bitfun-part="discover">
-            <div className="skills-discover__hero" data-bitfun-scene="skills" data-bitfun-part="discoverHero">
-              <div className="skills-discover__hero-content" data-bitfun-scene="skills" data-bitfun-part="discoverHeroContent">
-                <h1 className="skills-discover__title" data-bitfun-scene="skills" data-bitfun-part="discoverTitle">{t('matrix.title')}</h1>
-                <p className="skills-discover__subtitle" data-bitfun-scene="skills" data-bitfun-part="discoverSubtitle">
+          <div className="skills-matrix-page" data-bitfun-scene="skills" data-bitfun-part="matrix">
+            <div className="skills-discover__hero" data-bitfun-scene="skills" data-bitfun-part="matrixHero">
+              <div className="skills-discover__hero-content" data-bitfun-scene="skills" data-bitfun-part="matrixHeroContent">
+                <h1 className="skills-discover__title" data-bitfun-scene="skills" data-bitfun-part="matrixTitle">{t('matrix.title')}</h1>
+                <p className="skills-discover__subtitle" data-bitfun-scene="skills" data-bitfun-part="matrixSubtitle">
                   {t('matrix.subtitle')}
                 </p>
-                <div className="skills-discover__search-wrapper" data-bitfun-scene="skills" data-bitfun-part="discoverSearch">
+                <div className="skills-discover__search-wrapper" data-bitfun-scene="skills" data-bitfun-part="matrixSearch">
                   <SearchField
                     className="skills-discover__search"
                     value={matrix.keyword}

@@ -27,6 +27,7 @@ interface SkillCardProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'chi
   badges?: React.ReactNode;
   meta?: React.ReactNode;
   actions?: SkillCardAction[];
+  toggleSlot?: React.ReactNode;
   onOpenDetails?: () => void;
 }
 
@@ -40,6 +41,7 @@ const SkillCard: React.FC<SkillCardProps> = ({
   badges,
   meta,
   actions = [],
+  toggleSlot,
   onOpenDetails,
   className,
   style,
@@ -102,11 +104,16 @@ const SkillCard: React.FC<SkillCardProps> = ({
           )}
         </CardBody>
 
-        {(meta || actions.length > 0) && (
+        {(meta || toggleSlot || actions.length > 0) && (
           <CardFooter align="between" className="skill-card__footer" data-bitfun-component="skill-card" data-bitfun-part="footer">
             {meta && (
               <div className="skill-card__meta" data-bitfun-component="skill-card" data-bitfun-part="meta">
                 {meta}
+              </div>
+            )}
+            {toggleSlot && (
+              <div className="skill-card__toggle-slot" data-bitfun-component="skill-card" data-bitfun-part="toggleSlot">
+                {toggleSlot}
               </div>
             )}
             <div className="skill-card__actions" data-bitfun-component="skill-card" data-bitfun-part="actions">

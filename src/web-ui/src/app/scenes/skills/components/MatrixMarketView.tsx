@@ -334,7 +334,7 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
   };
 
   return (
-    <div className="skills-discover skills-matrix" data-testid="matrix-market" data-bitfun-scene="skills" data-bitfun-part="matrix">
+    <div className="skills-matrix" data-testid="matrix-market" data-bitfun-scene="skills" data-bitfun-part="matrixBody">
       <div className="skills-matrix__section-bar" role="tablist" data-testid="matrix-section-bar" data-bitfun-scene="skills" data-bitfun-part="matrixSectionBar">
         {SECTIONS.map((section) => (
           <button
