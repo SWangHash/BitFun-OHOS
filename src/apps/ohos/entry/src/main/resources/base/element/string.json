@@ -58,6 +58,18 @@
         {
             "name": "permission_screen_capture_reason",
             "value": "Used to capture the application window screenshot for MiniApp market submissions"
+        },
+        {
+            "name": "status_bar_title",
+            "value": "BitFun"
+        },
+        {
+            "name": "status_bar_show_app",
+            "value": "Show BitFun"
+        },
+        {
+            "name": "status_bar_show_desktop_pet",
+            "value": "Show desktop pet"
         }
     ]
 }

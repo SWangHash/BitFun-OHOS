@@ -5,6 +5,10 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use crate::api::app_state::AppState;
 use crate::startup_trace::DesktopStartupTrace;
+#[cfg(target_env = "ohos")]
+use bitfun_core::infrastructure::events::{emit_global_event, BackendEvent};
+#[cfg(target_env = "ohos")]
+use bitfun_core::service::config::types::AIExperienceConfig;
 use bitfun_core::service::system;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, Position, Size, State};
@@ -982,6 +986,86 @@ pub fn get_app_config_bool(path: String) -> bool {
             .get_config::<bool>(Some(&path))
             .await
             .unwrap_or(false)
+    })
+}
+
+/// Native-side config runtime for the tray bridge. A `#[napi]` callback runs on
+/// a HarmonyOS thread with no tokio runtime in context, so a dedicated
+/// current-thread runtime is built once and reused (same rationale as
+/// `get_app_config_bool`).
+#[cfg(target_env = "ohos")]
+fn config_napi_runtime() -> &'static tokio::runtime::Runtime {
+    static RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
+    RUNTIME.get_or_init(|| {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("failed to build napi config runtime")
+    })
+}
+
+/// Event emitted after the HarmonyOS status-bar tray changes a persisted
+/// setting on the web UI's behalf, so the frontend reloads its config cache and
+/// re-renders config-driven UI. Mirrored by the `tray://desktop-pet-changed`
+/// listener in the web UI (`AIExperienceConfigService`).
+#[cfg(target_env = "ohos")]
+pub const TRAY_DESKTOP_PET_CHANGED_EVENT: &str = "tray://desktop-pet-changed";
+
+/// Whether the Agent companion pet is enabled, read from `app.ai_experience`.
+/// The HarmonyOS status-bar (system tray) icon's right-click menu uses this to
+/// render the checked state. Missing config resolves to the contract default
+/// (`enable_agent_companion: true`).
+#[cfg(target_env = "ohos")]
+#[napi]
+pub fn get_desktop_pet_enabled() -> bool {
+    config_napi_runtime().block_on(async {
+        let Ok(service) = bitfun_core::service::config::get_global_config_service().await else {
+            return false;
+        };
+        service
+            .get_config::<AIExperienceConfig>(Some("app.ai_experience"))
+            .await
+            .map(|config| config.enable_agent_companion)
+            .unwrap_or(false)
+    })
+}
+
+/// Persist the Agent companion pet enabled state from the HarmonyOS tray menu
+/// and notify the web UI so the in-app pet overlay shows or hides. Returns the
+/// persisted value.
+#[cfg(target_env = "ohos")]
+#[napi]
+pub fn set_desktop_pet_enabled(enabled: bool) -> bool {
+    config_napi_runtime().block_on(async move {
+        let Ok(service) = bitfun_core::service::config::get_global_config_service().await else {
+            return false;
+        };
+        let persisted = service
+            .update_config::<AIExperienceConfig, bool>("app.ai_experience", |config| {
+                config.enable_agent_companion = enabled;
+                Ok(config.enable_agent_companion)
+            })
+            .await;
+        match persisted {
+            Ok(value) => {
+                if let Err(error) = emit_global_event(BackendEvent::Custom {
+                    event_name: TRAY_DESKTOP_PET_CHANGED_EVENT.to_string(),
+                    payload: serde_json::json!({
+                        "path": "app.ai_experience.enable_agent_companion",
+                        "enabled": value,
+                    }),
+                })
+                .await
+                {
+                    log::warn!("Failed to emit desktop pet change: {error}");
+                }
+                value
+            }
+            Err(error) => {
+                log::warn!("Failed to persist desktop pet enabled state: {error}");
+                false
+            }
+        }
     })
 }
 

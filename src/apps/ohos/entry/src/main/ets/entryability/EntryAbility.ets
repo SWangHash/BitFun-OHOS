@@ -34,9 +34,13 @@ import {
   LabelRequest,
 } from '../services/BrowserWebviewService';
 import { FileShareRequest, FileShareService } from '../services/FileShareService';
+import { StatusBarTrayHost, StatusBarTrayService } from '../services/StatusBarTrayService';
 
 
 const DOMAIN = 0x0000;
+// Shared log tag of the HarmonyOS status bar (system tray) host, so the tray
+// service logs and the window actions it triggers filter as one component.
+const STATUS_BAR_TAG = 'BitFunStatusBar';
 
 // Native decor button geometry. The web-ui SceneTopBar reserves this width for
 // the host chrome corner (`bitfun-scene-top-bar__window-controls--host`); keep
@@ -111,7 +115,7 @@ interface HaitaiBrowserLaunchRequest {
   initialUrl?: string | null;
 }
 
-export default class EntryAbility extends RustAbility {
+export default class EntryAbility extends RustAbility implements StatusBarTrayHost {
   public moduleName: string = "bitfun_desktop_lib";
   public defaultPage: boolean = true;
   public commonEventListener: CommonEventListener | undefined = undefined;
@@ -121,6 +125,8 @@ export default class EntryAbility extends RustAbility {
   private systemColorMode: 'light' | 'dark' = 'dark';
   private nativeThemeMode: 'light' | 'dark' | 'system' = 'system';
   public shareStatus: boolean = false;
+  private mainWindowStage: window.WindowStage | undefined = undefined;
+  private statusBarTray: StatusBarTrayService | undefined = undefined;
 
   async onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Promise<void> {
     super.onCreate(want, launchParam);
@@ -133,8 +139,81 @@ export default class EntryAbility extends RustAbility {
   }
 
   onDestroy(): void {
+    this.statusBarTray?.remove();
     RustModule.ohosMarkCleanShutdown();
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
+  }
+
+  /** Bring the main window to the front and focus it (status bar "show"). */
+  async showMainWindow(): Promise<void> {
+    const windowStage = this.mainWindowStage;
+    if (windowStage === undefined) {
+      hilog.warn(DOMAIN, STATUS_BAR_TAG, 'status bar show ignored: the window stage is not ready');
+      return;
+    }
+    const mainWindow = windowStage.getMainWindowSync();
+    // Close-to-tray calls minimize(), and showWindow() only raises an
+    // already-visible main window; it cannot bring a minimized one back.
+    // restore() un-minimizes the main window on PC/2in1 and also lifts an
+    // occluded one, so it covers both the minimized and the behind case.
+    try {
+      await mainWindow.restore();
+      return;
+    } catch (error) {
+      const businessError = error as BusinessError;
+      hilog.warn(
+        DOMAIN,
+        STATUS_BAR_TAG,
+        'status bar restore failed, falling back to showWindow: ' + businessError.message
+      );
+    }
+    try {
+      await mainWindow.showWindow();
+    } catch (error) {
+      const businessError = error as BusinessError;
+      hilog.error(
+        DOMAIN,
+        STATUS_BAR_TAG,
+        'status bar showWindow failed: ' + businessError.message
+      );
+    }
+  }
+
+  /**
+   * Whether the Agent companion pet is enabled, read from the persisted
+   * `app.ai_experience` config. Drives the status bar tray menu check mark; the
+   * native side applies the contract default (enabled) when unset.
+   */
+  isDesktopPetEnabled(): boolean {
+    try {
+      return RustModule.getDesktopPetEnabled();
+    } catch (error) {
+      const businessError = error as BusinessError;
+      hilog.warn(
+        DOMAIN,
+        STATUS_BAR_TAG,
+        'failed to read desktop pet state: ' + businessError.message
+      );
+      return false;
+    }
+  }
+
+  /**
+   * Persist the Agent companion pet enabled state from the status bar tray. The
+   * native side writes the config and notifies the web-ui so the in-app pet
+   * overlay shows or hides live.
+   */
+  async setDesktopPetEnabled(enabled: boolean): Promise<void> {
+    try {
+      RustModule.setDesktopPetEnabled(enabled);
+    } catch (error) {
+      const businessError = error as BusinessError;
+      hilog.warn(
+        DOMAIN,
+        STATUS_BAR_TAG,
+        'failed to persist desktop pet state: ' + businessError.message
+      );
+    }
   }
 
   /**
@@ -206,6 +285,16 @@ export default class EntryAbility extends RustAbility {
         hilog.info(DOMAIN_NUMBER, TAG, 'WebDriver requested Ability termination');
       });
     });
+
+    this.mainWindowStage = windowStage;
+    // HarmonyOS has no desktop tray. On 2in1 devices the equivalent surface is
+    // the system status bar, and the system only lists a third-party entry that
+    // the running application registers itself. Install the icon as soon as the
+    // window exists so the icon, the dock entry, and every *_to_tray bridge
+    // share one lifetime.
+    this.statusBarTray = new StatusBarTrayService(this.context, this);
+    this.statusBarTray.install();
+
     RustModule.registerArktsFunction('webdriver_window_ohos', async (
       _err: Error,
       arg: string,

@@ -283,6 +283,10 @@ async function initializeAfterRender(): Promise<void> {
         './infrastructure/account/settingsAppliedListener'
       );
       ensureSettingsAppliedListener();
+      const { ensureExternalConfigChangeListener } = await import(
+        './infrastructure/config/services/externalConfigChangeListener'
+      );
+      ensureExternalConfigChangeListener();
     })(),
     (async () => {
       const { registerDefaultContextTypes } = await import('./shared/context-system/core/registerDefaultTypes');
