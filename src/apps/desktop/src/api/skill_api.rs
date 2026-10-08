@@ -107,6 +107,8 @@ pub struct SkillValidationResult {
 pub struct SkillMarketListRequest {
     pub query: Option<String>,
     pub limit: Option<u32>,
+    #[serde(default)]
+    pub offset: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -114,6 +116,8 @@ pub struct SkillMarketListRequest {
 pub struct SkillMarketSearchRequest {
     pub query: String,
     pub limit: Option<u32>,
+    #[serde(default)]
+    pub offset: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1497,7 +1501,8 @@ pub async fn list_skill_market(
         .filter(|v| !v.is_empty())
         .unwrap_or(DEFAULT_MARKET_QUERY);
     let limit = normalize_market_limit(request.limit);
-    fetch_skill_market(query, limit).await
+    let offset = normalize_market_offset(request.offset);
+    fetch_skill_market(query, limit, offset).await
 }
 
 #[tauri::command]
@@ -1510,7 +1515,8 @@ pub async fn search_skill_market(
         return Ok(Vec::new());
     }
     let limit = normalize_market_limit(request.limit);
-    fetch_skill_market(query, limit).await
+    let offset = normalize_market_offset(request.offset);
+    fetch_skill_market(query, limit, offset).await
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1679,17 +1685,30 @@ fn normalize_market_limit(value: Option<u32>) -> u32 {
         .clamp(1, MAX_MARKET_LIMIT)
 }
 
-async fn fetch_skill_market(query: &str, limit: u32) -> Result<Vec<SkillMarketItem>, String> {
+fn normalize_market_offset(value: Option<u32>) -> u32 {
+    value.unwrap_or(0)
+}
+
+async fn fetch_skill_market(query: &str, limit: u32, offset: u32) -> Result<Vec<SkillMarketItem>, String> {
     let api_base =
         std::env::var("SKILLS_API_URL").unwrap_or_else(|_| SKILLS_SEARCH_API_BASE.into());
     let base_url = api_base.trim_end_matches('/');
     let endpoint = format!("{}/api/search", base_url);
 
+    // Over-fetch by `offset` so we can slice the requested page out of the
+    // prefix without depending on whether skills.sh's legacy /api/search
+    // honors an `offset`/`page` parameter. The legacy endpoint does not
+    // document one, so requesting `limit + offset` and slicing locally is the
+    // safe, correct fallback.
+    let fetch_limit = offset
+        .saturating_add(limit)
+        .min(MAX_MARKET_LIMIT);
+
     crate::ensure_rustls_crypto_provider();
     let client = Client::new();
     let response = client
         .get(&endpoint)
-        .query(&[("q", query), ("limit", &limit.to_string())])
+        .query(&[("q", query), ("limit", &fetch_limit.to_string())])
         .send()
         .await
         .map_err(|e| format!("Failed to query skill market: {}", e))?;
@@ -1736,9 +1755,14 @@ async fn fetch_skill_market(query: &str, limit: u32) -> Result<Vec<SkillMarketIt
         });
     }
 
-    fill_market_descriptions(&client, base_url, &mut items).await;
+    // Slice the requested page.
+    let start = (offset as usize).min(items.len());
+    let end = (start.saturating_add(limit as usize)).min(items.len());
+    let mut page: Vec<SkillMarketItem> = items.into_iter().skip(start).take(end - start).collect();
 
-    Ok(items)
+    fill_market_descriptions(&client, base_url, &mut page).await;
+
+    Ok(page)
 }
 
 fn summarize_command_output(stdout: &str, stderr: &str) -> String {

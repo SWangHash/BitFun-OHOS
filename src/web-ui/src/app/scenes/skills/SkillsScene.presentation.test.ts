@@ -109,19 +109,65 @@ describe('Skills scene presentation', () => {
     expect(stylesheet).not.toContain('.skills-matrix > .skills-discover__content {');
   });
 
-  it('navigates between the library and both markets through the sidebar', () => {
+  it('navigates between the library, sources, and both markets through the sidebar', () => {
     const source = readSibling('./SkillsScene.tsx');
     const stylesheet = readSibling('./SkillsScene.scss');
 
     expect(source).toContain('className="skills-sidebar"');
     expect(source).toContain("title={t('nav.categories.installed')}");
+    expect(source).toContain("title={t('list.columns.source')}");
     expect(source).toContain("title={t('nav.categories.discover')}");
+    expect(source).toContain('sourceCategories.map(renderSidebarItem)');
     expect(source).toContain("onClick={() => setInstalledView('market')}");
     expect(source).toContain("onClick={() => setInstalledView('matrix')}");
     expect(source).not.toContain('skills-tabs-bar');
     expect(source).not.toContain('<GalleryPageHeader');
+    expect(source).not.toContain('marketSettingsAction');
+    expect(source).not.toContain('market.settings.action');
     expect(stylesheet).toContain('.bitfun-skills-scene {');
     expect(stylesheet).not.toContain('.skills-tabs-bar {');
+  });
+
+  it('filters duplicates through a checkbox in the installed toolbar', () => {
+    const source = readSibling('./SkillsScene.tsx');
+    const stylesheet = readSibling('./SkillsScene.scss');
+
+    const toolbarStart = source.indexOf('data-bitfun-part="toolbar"');
+    const toolbarEnd = source.indexOf('</div>', source.indexOf('<Checkbox', toolbarStart));
+    const toolbar = source.slice(toolbarStart, toolbarEnd);
+
+    expect(toolbar).toContain('<Checkbox');
+    expect(toolbar).toContain('checked={hideDuplicates}');
+    expect(toolbar).toContain('onCheckedChange={setHideDuplicates}');
+    expect(toolbar).toContain("{t('toolbar.hideDuplicates')}");
+    expect(toolbar).toContain('skills-main__filter');
+    expect(source).not.toContain('skills-main__chip-btn');
+    expect(stylesheet).toContain('.skills-main__filter {');
+    expect(stylesheet).not.toContain('.skills-main__chip-btn');
+  });
+
+  it('opens skill details in a 2.0.0-style dialog with copy and reveal path actions', () => {
+    const source = readSibling('./SkillsScene.tsx');
+    const stylesheet = readSibling('./SkillsScene.scss');
+
+    const detailStart = source.indexOf('data-testid="skill-detail-panel"');
+    const detailEnd = source.indexOf('data-testid="skill-detail-panel"', source.indexOf('</Dialog>', detailStart));
+    const detail = source.slice(source.lastIndexOf('<Dialog', detailStart), detailEnd);
+
+    expect(source).not.toContain('<GalleryDetailModal');
+    expect(detail).toContain('skills-detail__fields');
+    expect(detail).toContain('skills-detail__badges');
+    expect(detail).toContain('skills-detail__location');
+    expect(detail).toContain('data-testid="skills-detail-copy-path-btn"');
+    expect(detail).toContain('data-testid="skills-detail-path-btn"');
+    expect(detail).toContain('handleCopySkillPath');
+    expect(detail).toContain('handleRevealSkillPath');
+    expect(detail).toContain('DialogFooter');
+    expect(source).toContain('systemAPI.setClipboard');
+    expect(source).toContain('formatSkillDetailPath');
+    expect(stylesheet).toContain('.skills-detail {');
+    expect(stylesheet).toContain('&__fields {');
+    expect(stylesheet).toContain('&__location {');
   });
 
   it('binds the sidebar search to the active view', () => {

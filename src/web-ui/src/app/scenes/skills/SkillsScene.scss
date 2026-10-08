@@ -149,6 +149,11 @@ $skills-sidebar-width: 264px;
   padding: var(--bitfun-space-5) var(--bitfun-space-6) var(--bitfun-space-3);
 }
 
+.skills-main__filter {
+  flex-shrink: 0;
+  margin-inline-start: auto;
+}
+
 // ── Installed skills collection ──
 
 .skills-main__list-shell {
