@@ -238,4 +238,50 @@ describe('ShortcutManager platform primary modifier', () => {
     expect(canvasCallback).not.toHaveBeenCalled();
     expect(terminalCallback).toHaveBeenCalledTimes(1);
   });
+
+  it('lets a declining callback release the key to the focused element', () => {
+    setPlatform('Win32');
+    const decline = vi.fn(() => false as const);
+    shortcutManager.register('nav.back', { key: 'ArrowLeft', alt: true, scope: 'app' }, decline);
+
+    const target = document.createElement('div');
+    document.body.appendChild(target);
+    const downstream = vi.fn();
+    target.addEventListener('keydown', downstream);
+
+    const event = new KeyboardEvent('keydown', {
+      key: 'ArrowLeft',
+      altKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    target.dispatchEvent(event);
+    target.remove();
+
+    expect(decline).toHaveBeenCalledTimes(1);
+    expect(event.defaultPrevented).toBe(false);
+    expect(downstream).toHaveBeenCalledTimes(1);
+  });
+
+  it('still consumes the key when a callback returns nothing', () => {
+    setPlatform('Win32');
+    shortcutManager.register('nav.back', { key: 'ArrowLeft', alt: true, scope: 'app' }, vi.fn());
+
+    const target = document.createElement('div');
+    document.body.appendChild(target);
+    const downstream = vi.fn();
+    target.addEventListener('keydown', downstream);
+
+    const event = new KeyboardEvent('keydown', {
+      key: 'ArrowLeft',
+      altKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    target.dispatchEvent(event);
+    target.remove();
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(downstream).not.toHaveBeenCalled();
+  });
 });

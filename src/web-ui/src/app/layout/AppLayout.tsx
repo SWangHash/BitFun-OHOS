@@ -16,6 +16,7 @@ import { isWindowFullscreenShortcut } from '../hooks/windowFullscreenShortcut';
 import { usePermissionRequestNotify } from '../hooks/usePermissionRequestNotify';
 import { useApp } from '../hooks/useApp';
 import { useShortcut } from '@/infrastructure/hooks/useShortcut';
+import { useNavHistoryShortcuts } from '../hooks/useNavHistoryShortcuts';
 import { configManager } from '@/infrastructure/config/services/ConfigManager';
 import { FlowChatManager } from '../../flow_chat/services/FlowChatManager';
 import { isSurfaceChangedError } from '@/infrastructure/peer-device/deviceSurface';
@@ -584,6 +585,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
     },
     { priority: 5, description: 'keyboard.shortcuts.panel.toggleBoth' }
   );
+
+  // Alt+Arrow back / forward, mirroring the NavBar buttons
+  useNavHistoryShortcuts();
 
   // Toolbar cancel task
   React.useEffect(() => {

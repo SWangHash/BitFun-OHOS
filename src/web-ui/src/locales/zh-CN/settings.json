@@ -273,7 +273,9 @@
         "toggleBoth": "折叠所有面板"
       },
       "nav": {
-        "toggleSearch": "打开导航搜索"
+        "toggleSearch": "打开导航搜索",
+        "back": "后退",
+        "forward": "前进"
       },
       "scene": {
         "focusMerged": "切换场景",
