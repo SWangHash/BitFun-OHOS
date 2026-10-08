@@ -49,6 +49,15 @@ const LEGACY_BUILTIN_SKILL_DIR_NAMES: &[&str] = &[
     // HarmonyOS project-scaffolding skill removed in 2026-09: ArkTS project
     // creation now goes through `devecocli create` (see the `deveco-cli` skill).
     "deveco-create-project",
+    // HarmonyOS ArkTS/ArkUI skills replaced in 2026-09 to match the upstream
+    // deveco-code bundle: `arkts-error-fixes` was removed, and
+    // `arkts-grammar-standards` + `arkui-knowledge` collapsed into
+    // `hmos-arkui-develop-skill`.
+    "arkts-error-fixes",
+    "arkts-grammar-standards",
+    "arkui-knowledge",
+    // `arkts-runtime-fix` was renamed to `hmos-runtime-fix-skill`.
+    "arkts-runtime-fix",
 ];
 const LEGACY_BUILTIN_ROOT_FILES: &[&str] = &["SUPERPOWERS_LICENSE.txt"];
 
