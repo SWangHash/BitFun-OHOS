@@ -155,6 +155,8 @@ Inspect UI on a connected device. All subcommands accept `--device <name|serial>
 
 ## 2. Setup
 
+> If `devecocli`, `node`, `npm`, or `hdc` is missing, or `COMMAND_LINE_TOOL_PATH` is unset, load the `hmos-dev-env-setup` skill first to prepare the prerequisite environment per the official devecocli README (command-line-tools-for-hmos → set `COMMAND_LINE_TOOL_PATH` + add `node/bin` to PATH → `npm install -g @deveco-test/hmos-deveco-cli`).
+
 ### `devecocli init`
 MUTUALLY EXCLUSIVE modes for setup:
 1. `--skill` (Default): Install `deveco-cli` skill to AI agents.
