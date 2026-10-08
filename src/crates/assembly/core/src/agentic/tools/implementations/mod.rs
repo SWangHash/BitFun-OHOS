@@ -34,10 +34,6 @@ pub mod delete_file_tool;
     pub mod file_write_tool;
     pub(crate) mod harmony_device;
     pub(crate) mod hdc_fallback;
-    pub mod arkts_knowledge_search_tool;
-    pub mod build_project_tool;
-    #[cfg(feature = "mcp-runtime")]
-    pub mod check_cpp_files_tool;
     #[cfg(feature = "mcp-runtime")]
     pub mod get_ui_verification_log_tool;
     pub mod hdc_log_tool;
@@ -124,10 +120,6 @@ pub use exec_command::{ExecCommandTool, ExecControlTool, WriteStdinTool};
 pub use file_edit_tool::FileEditTool;
 pub use file_read_tool::FileReadTool;
 pub use file_write_tool::FileWriteTool;
-pub use arkts_knowledge_search_tool::ArktsKnowledgeSearchTool;
-pub use build_project_tool::BuildProjectTool;
-    #[cfg(feature = "mcp-runtime")]
-    pub use check_cpp_files_tool::CheckCppFilesTool;
     #[cfg(feature = "mcp-runtime")]
     pub use get_ui_verification_log_tool::GetUiVerificationLogTool;
     pub use hdc_log_tool::HdcLogTool;
