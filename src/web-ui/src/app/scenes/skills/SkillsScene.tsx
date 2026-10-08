@@ -821,11 +821,16 @@ const SkillsScene: React.FC = () => {
                               ariaLabel: isInstalled ? t('market.item.installed') : t('market.item.downloadProject'),
                               title: isDownloading
                                 ? t('market.item.downloading')
-                                : (isInstalled ? t('market.item.installedTooltip') : t('market.item.downloadProject')),
+                                : isInstalled
+                                  ? t('market.item.installedTooltip')
+                                  : (!market.hasWorkspace || market.isAssistantWorkspace)
+                                    ? t('messages.noWorkspace')
+                                    : t('market.item.downloadProject'),
                               disabled:
                                 isDownloading
                                 || !market.hasWorkspace
                                 || market.isRemoteWorkspace
+                                || market.isAssistantWorkspace
                                 || isInstalled,
                               tone: isInstalled ? 'success' : 'primary',
                               onClick: () => void market.handleDownload(skill, 'project'),
@@ -1080,6 +1085,16 @@ const SkillsScene: React.FC = () => {
                       rel="noreferrer"
                       className="skills-detail__link"
                       data-testid="skills-detail-external-link"
+                      onClick={(event) => {
+                        // Tauri/ArkWeb WebView does not reliably open external
+                        // URLs via a plain anchor click; route through the host
+                        // shell so the link opens in the system default browser,
+                        // mirroring the About dialog's "Light up Star" behavior.
+                        event.preventDefault();
+                        systemAPI.openExternal(selectedMarketSkill.url).catch(error => {
+                          log.error('Failed to open skill market URL', { url: selectedMarketSkill.url, error });
+                        });
+                      }}
                     >
                       {selectedMarketSkill.url}
                     </a>
@@ -1095,6 +1110,17 @@ const SkillsScene: React.FC = () => {
                       target="_blank"
                       rel="noreferrer"
                       className="skills-detail__link"
+                      data-testid="skills-detail-external-link"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        const repoUrl = selectedMatrixSkill.repository;
+                        if (!repoUrl) {
+                          return;
+                        }
+                        systemAPI.openExternal(repoUrl).catch(error => {
+                          log.error('Failed to open Matrix skill repository', { url: repoUrl, error });
+                        });
+                      }}
                     >
                       {selectedMatrixSkill.repository}
                     </a>

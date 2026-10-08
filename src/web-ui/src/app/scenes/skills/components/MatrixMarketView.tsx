@@ -457,7 +457,14 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
                     actions={[{
                       id: 'install',
                       icon: isInstalled ? <CheckCircle2 size={13} /> : <Download size={13} />,
-                      ariaLabel: isInstalled ? t('matrix.item.installed') : t('installSkill'),
+                      ariaLabel: isInstalled ? t('matrix.item.installed') : t('market.item.downloadProject'),
+                      title: isInstalling
+                        ? t('matrix.item.installing')
+                        : isInstalled
+                          ? t('market.item.installedTooltip')
+                          : (!hasWorkspace || isAssistantWorkspace)
+                            ? t('messages.noWorkspace')
+                            : t('market.item.downloadProject'),
                       disabled:
                         isInstalling
                         || isInstalled

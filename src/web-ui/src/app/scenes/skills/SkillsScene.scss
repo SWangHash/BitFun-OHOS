@@ -161,6 +161,11 @@ $skills-sidebar-width: 264px;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  // Gap between the header row and the card grid below. Matches the
+  // card-to-card spacing so the header does not visually collide with the
+  // first row. The groups view owns its own spacing via
+  // .skill-groups__sections and is not affected.
+  gap: var(--bitfun-space-4);
   overflow: hidden;
   padding: var(--bitfun-space-2) var(--bitfun-space-6) var(--bitfun-space-6);
 }
