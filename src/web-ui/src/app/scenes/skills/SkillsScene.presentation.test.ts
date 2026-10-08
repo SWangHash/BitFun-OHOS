@@ -180,4 +180,54 @@ describe('Skills scene presentation', () => {
     expect(source).toContain("placeholder: t('matrix.searchPlaceholder')");
     expect(source).toContain("placeholder: t('toolbar.searchPlaceholder')");
   });
+
+  it('anchors the market load-more sentinel to the real ScrollArea root', () => {
+    const source = readSibling('./SkillsScene.tsx');
+    const sentinelSource = readSibling('./components/SkillsLoadMoreSentinel.tsx');
+
+    // ScrollArea owns the scroll viewport; its ref feeds the sentinel so
+    // IntersectionObserver judges intersection against the real scroll bounds
+    // instead of the browser viewport (which is unreliable in nested
+    // ScrollArea setups and caused the "can't load more / one page then
+    // empty" regression on ArkWeb).
+    expect(source).toContain('setMarketScrollRoot');
+    expect(source).toContain('ref={setMarketScrollRoot}');
+    expect(source).toContain('root={marketScrollRoot}');
+    expect(sentinelSource).toContain('root?: Element | null');
+    expect(sentinelSource).toContain('root: root ?? null');
+    expect(sentinelSource).toContain("rootMargin: '200px'");
+  });
+
+  it('does not refresh the skill market list on scene re-entry', () => {
+    const source = readSibling('./SkillsScene.tsx');
+
+    // useGallerySceneAutoRefresh calls refetchSkillsScene on tab re-entry and
+    // window visibility regain. Previously it invoked market.refresh(), which
+    // flipped marketLoading and replaced the existing list with a skeleton
+    // grid (the "whole page refreshes" regression). The market is now
+    // intentionally excluded from re-entry refresh; only installed skills and
+    // skill groups are reloaded.
+    const refetchStart = source.indexOf('const refetchSkillsScene');
+    const refetchEnd = source.indexOf('}, [', refetchStart);
+    const refetchBody = source.slice(refetchStart, refetchEnd);
+
+    expect(refetchBody).toContain('installed.loadSkills(true)');
+    expect(refetchBody).toContain('skillGroups.reload()');
+    expect(refetchBody).not.toContain('market.refresh()');
+  });
+
+  it('keeps the existing market grid visible during load-more and refresh', () => {
+    const source = readSibling('./SkillsScene.tsx');
+
+    // The skeleton grid must only replace the list on a true first load
+    // (empty list). When data already exists, the grid stays mounted and a
+    // non-blocking refresh row surfaces progress, avoiding the flash.
+    expect(source).toContain('market.marketLoading && market.marketSkills.length === 0');
+    // The list render condition no longer hides the grid while loadingMore.
+    const listBlockStart = source.indexOf('!market.marketLoading && !market.marketError && market.marketSkills.length > 0');
+    expect(listBlockStart).toBeGreaterThan(-1);
+    const listBlockEnd = source.indexOf('<SkillsLoadMoreSentinel', listBlockStart);
+    const listBlock = source.slice(listBlockStart, listBlockEnd);
+    expect(listBlock).not.toContain('!market.loadingMore && market.marketSkills.length > 0');
+  });
 });

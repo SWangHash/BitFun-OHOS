@@ -131,6 +131,10 @@ const SkillsScene: React.FC = () => {
 
   const [deleteTarget, setDeleteTarget] = useState<SkillInfo | null>(null);
   const [installedSearch, setInstalledSearch] = useState('');
+  // Real scroll element for the market viewport. The IntersectionObserver
+  // sentinel judges intersection against this node instead of the browser
+  // viewport, which is unreliable inside the nested ScrollArea on ArkWeb.
+  const [marketScrollRoot, setMarketScrollRoot] = useState<Element | null>(null);
   const [selectedDetail, setSelectedDetail] = useState<
     | { type: 'installed'; skillKey: string }
     | { type: 'market'; skill: SkillMarketItem }
@@ -271,8 +275,14 @@ const SkillsScene: React.FC = () => {
   }, [coverageSourceBySkillKey, installed.globallyDisabledSkillKeys, market.isRemoteWorkspace, t]);
 
   const refetchSkillsScene = useCallback(async () => {
-    await Promise.all([installed.loadSkills(true), market.refresh(), skillGroups.reload()]);
-  }, [installed, market, skillGroups]);
+    // The skill market list is intentionally NOT refreshed here. Re-entry
+    // refresh previously flipped marketLoading, which replaced the existing
+    // list with a skeleton grid and produced the "whole page refreshes"
+    // regression. Installed skills and skill groups remain cheap to reload
+    // and continue to refresh on focus/visibility. The market keeps its own
+    // capability/search effect for first load and explicit search.
+    await Promise.all([installed.loadSkills(true), skillGroups.reload()]);
+  }, [installed, skillGroups]);
 
   useGallerySceneAutoRefresh({
     sceneId: 'skills',
@@ -733,8 +743,12 @@ const SkillsScene: React.FC = () => {
               </div>
             </header>
 
-            <ScrollArea className="skills-discover__content">
-              {market.marketLoading && (
+            <ScrollArea ref={setMarketScrollRoot} className="skills-discover__content">
+              {/* Initial-load skeleton: only when there is no existing list to
+                  keep visible. On refresh/search with existing data we keep
+                  the grid mounted and surface a non-blocking refresh row
+                  below to avoid the whole-page skeleton flash. */}
+              {market.marketLoading && market.marketSkills.length === 0 && (
                 <div className="skills-discover__grid" aria-busy="true" aria-label={t('list.loading')} data-bitfun-scene="skills" data-bitfun-part="loading">
                   {Array.from({ length: 12 }).map((_, i) => (
                     <div
@@ -755,28 +769,14 @@ const SkillsScene: React.FC = () => {
                 </div>
               )}
 
-              {!market.marketLoading && !market.marketError && market.loadingMore && (
-                <div className="skills-discover__grid" aria-busy="true" aria-label={t('list.loading')} data-bitfun-scene="skills" data-bitfun-part="loading">
-                  {Array.from({ length: 12 }).map((_, i) => (
-                    <div
-                      key={`mkt-page-sk-${i}`}
-                      className="skills-discover__skeleton-card"
-                      style={{ '--surface-stagger-index': i } as React.CSSProperties}
-                      data-bitfun-scene="skills"
-                      data-bitfun-part="skeleton"
-                    />
-                  ))}
-                </div>
-              )}
-
-              {!market.marketLoading && !market.marketError && !market.loadingMore && market.marketSkills.length === 0 && (
+              {!market.marketLoading && !market.marketError && market.marketSkills.length === 0 && (
                 <div className="skills-discover__empty" data-testid="skill-list-empty" data-bitfun-scene="skills" data-bitfun-part="empty">
                   <Icon name="extension" size="lg" />
                   <span>{marketQuery ? t('market.empty.noMatch') : t('market.empty.noSkills')}</span>
                 </div>
               )}
 
-              {!market.marketLoading && !market.marketError && !market.loadingMore && market.marketSkills.length > 0 && (
+              {!market.marketLoading && !market.marketError && market.marketSkills.length > 0 && (
                 <>
                   {marketQuery && (
                     <div className="skills-discover__results-info" data-bitfun-scene="skills" data-bitfun-part="resultsInfo">
@@ -840,7 +840,17 @@ const SkillsScene: React.FC = () => {
                   <SkillsLoadMoreSentinel
                     active={market.hasMore && !market.loadingMore && !market.loadMoreError}
                     onLoad={() => void market.goToNextPage()}
+                    root={marketScrollRoot}
                   />
+                  {/* Non-blocking refresh indicator: keeps the existing grid
+                      visible while a fresh search/refresh is in flight, instead
+                      of swapping it for a skeleton grid. */}
+                  {market.marketLoading && market.marketSkills.length > 0 && (
+                    <div className="skills-load-more-row">
+                      <Loader2 className="skills-load-more-spinner" size={14} />
+                      <span>{t('list.loading')}</span>
+                    </div>
+                  )}
                   {market.loadingMore && (
                     <div className="skills-load-more-row">
                       <Loader2 className="skills-load-more-spinner" size={14} />

@@ -102,13 +102,16 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
   const chipsRef = React.useRef<HTMLDivElement | null>(null);
   const measureRef = React.useRef<HTMLDivElement | null>(null);
   const listRef = React.useRef<HTMLDivElement | null>(null);
-  const contentRef = React.useRef<HTMLDivElement | null>(null);
+  // ScrollArea root for the matrix list viewport. Held in state (not a ref)
+  // so the IntersectionObserver sentinel re-runs when the node mounts and the
+  // `root` prop becomes available; ref writes do not trigger re-renders.
+  const [contentScrollRoot, setContentScrollRoot] = React.useState<HTMLDivElement | null>(null);
   const chipsExpandedRef = React.useRef(false);
   chipsExpandedRef.current = chipsExpanded;
 
   React.useEffect(() => {
-    contentRef.current?.scrollTo({ top: 0 });
-  }, [activeSection, selectedTagIds, selectedCategoryId, selectedOrgId]);
+    contentScrollRoot?.scrollTo({ top: 0 });
+  }, [activeSection, selectedTagIds, selectedCategoryId, selectedOrgId, contentScrollRoot]);
 
   const updateLayout = React.useCallback(() => {
     const measureEl = measureRef.current;
@@ -402,7 +405,7 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
         </div>
       </div>
 
-      <ScrollArea ref={contentRef} className="skills-discover__content">
+      <ScrollArea ref={setContentScrollRoot} className="skills-discover__content">
         {skillsLoading && (
           <div className="skills-discover__grid" aria-busy="true" aria-label={t('list.loading')}>
             {Array.from({ length: 12 }).map((_, i) => (
@@ -473,6 +476,7 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
              <SkillsLoadMoreSentinel
                active={hasMore && !loadingMore && !skillsLoading && !loadMoreError}
                onLoad={onLoadMore}
+               root={contentScrollRoot}
              />
              {loadingMore && (
                <div className="skills-load-more-row">
