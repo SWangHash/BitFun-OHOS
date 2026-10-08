@@ -593,10 +593,19 @@ export const AgentCompanionInAppPet: React.FC = () => {
   } as React.CSSProperties;
   // The root is a full-viewport fixed overlay (see .scss); dragging moves the
   // dock within it so the viewport-relative menu-anchor math stays valid.
+  // Dragged position is converted to right/bottom anchoring so the pet's
+  // right edge stays fixed when bubbles appear or grow — otherwise the
+  // expanding dock (flex row: bubbles left, pet right) would push the pet
+  // past the screen edge.
   const stackStyle: React.CSSProperties = {
     ...dockVars,
     ...(dragPosition
-      ? { left: `${dragPosition.x}px`, top: `${dragPosition.y}px`, right: 'auto', bottom: 'auto' }
+      ? {
+          right: `${Math.max(PET_EDGE_GAP, window.innerWidth - dragPosition.x - activePetSize.width)}px`,
+          bottom: `${Math.max(PET_EDGE_GAP, window.innerHeight - dragPosition.y - activePetSize.height)}px`,
+          left: 'auto',
+          top: 'auto',
+        }
       : { right: `${PET_EDGE_GAP}px`, bottom: `${PET_EDGE_GAP}px` }),
   };
   const isSingleTask = visibleTasks.length === 1;
