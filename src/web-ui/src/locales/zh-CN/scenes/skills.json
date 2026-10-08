@@ -11,7 +11,7 @@
       "market": "从 skills.sh 检索并下载更多技能。"
     },
     "categories": {
-      "discover": "探索",
+      "discover": "搜索",
       "installed": "技能库"
     },
     "items": {
@@ -95,6 +95,10 @@
       "info": "第 {{current}} / {{total}} 页",
       "infoMore": "第 {{current}} 页",
       "loading": "加载中..."
+    },
+    "settings": {
+      "action": "市场源设置",
+      "comingSoon": "多市场源功能即将支持"
     },
     "sourceNote": {
       "prefix": "数据来源",

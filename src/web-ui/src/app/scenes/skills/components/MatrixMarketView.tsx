@@ -1,4 +1,5 @@
 import React from 'react';
+import { ScrollArea } from '@bitfun/ui';
 import { CheckCircle2, ChevronDown, ChevronUp, Download, Loader2, Package, TrendingUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type {
@@ -401,7 +402,7 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
         </div>
       </div>
 
-      <div ref={contentRef} className="skills-discover__content">
+      <ScrollArea ref={contentRef} className="skills-discover__content">
         {skillsLoading && (
           <div className="skills-discover__grid" aria-busy="true" aria-label={t('list.loading')}>
             {Array.from({ length: 12 }).map((_, i) => (
@@ -496,11 +497,11 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
                  <span>{t('list.noMore')}</span>
                </div>
              )}
-           </>
-         )}
-       </div>
-     </div>
-   );
- };
+            </>
+          )}
+        </ScrollArea>
+      </div>
+    );
+  };
 
 export default MatrixMarketView;

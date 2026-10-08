@@ -5,8 +5,9 @@ export const skillCardAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   parts: [
     { id: 'root' }, { id: 'header' }, { id: 'iconArea' }, { id: 'icon' },
     { id: 'badges' }, { id: 'body' }, { id: 'titleRow' }, { id: 'name' }, { id: 'source' },
-    { id: 'meta' }, { id: 'description' }, { id: 'footer' }, { id: 'actions' },
-    { id: 'action' },
+    { id: 'meta' }, { id: 'description' }, { id: 'footer' },
+    { id: 'toggleSlot' },
+    { id: 'actions' }, { id: 'action' },
   ],
   facets: [
     { id: 'variant', attribute: 'data-bitfun-variant', values: ['skill', 'market'] },

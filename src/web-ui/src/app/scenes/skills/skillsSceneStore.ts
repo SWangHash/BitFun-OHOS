@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
 export type InstalledFilter = 'all' | 'builtin' | 'user' | 'project' | `source:${string}`;
-export type SkillsView = InstalledFilter | 'groups';
+export type SkillsView = InstalledFilter | 'groups' | 'market' | 'matrix';
 
 interface SkillsSceneState {
   nativeNavigationRequest: number;

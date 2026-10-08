@@ -39,17 +39,18 @@ describe('Skills scene presentation', () => {
     expect(stylesheet).toContain('font-size: var(--bitfun-type-heading-dialog-font-size);');
   });
 
-  it('presents add skill as a compact primary action in the gallery page header', () => {
+  it('presents add skill as a compact primary action in the installed content header', () => {
     const source = readSibling('./SkillsScene.tsx');
-    const actionStart = source.indexOf('<GalleryPageHeader');
-    const actionEnd = source.indexOf('</GalleryPageHeader>', actionStart);
-    const action = source.slice(actionStart, actionEnd);
+    const headerStart = source.indexOf('<header className="skills-content-header"');
+    const headerEnd = source.indexOf('</header>', headerStart);
+    const header = source.slice(headerStart, headerEnd);
 
-    expect(actionStart).toBeGreaterThan(-1);
-    expect(action).toContain('variant="primary"');
-    expect(action).toContain('size="sm"');
-    expect(action).toContain('leadingIcon={<Icon name="plus" size="sm" />}');
-    expect(action).toContain("{t('toolbar.addTooltip')}");
+    expect(headerStart).toBeGreaterThan(-1);
+    expect(header).toContain('variant="primary"');
+    expect(header).toContain('size="sm"');
+    expect(header).toContain('leadingIcon={<Icon name="plus" size="sm" />}');
+    expect(header).toContain('data-testid="skills-add-skill-btn"');
+    expect(header).toContain("{t('toolbar.addTooltip')}");
   });
 
   it('lets the skills page inherit the surrounding scene surface', () => {
@@ -89,21 +90,48 @@ describe('Skills scene presentation', () => {
     expect(stylesheet).not.toContain('.skills-card__actions {');
   });
 
-  it('uses the matrix-page container instead of nesting inside skills-discover', () => {
+  it('uses the matrix-view container instead of nesting inside skills-discover', () => {
     const source = readSibling('./SkillsScene.tsx');
     const matrixViewSource = readSibling('./components/MatrixMarketView.tsx');
     const stylesheet = readSibling('./SkillsScene.scss');
 
-    const matrixSectionStart = source.indexOf("activeTab === 'matrix' && (");
+    const matrixSectionStart = source.indexOf('{desktopConfigAvailable && isMatrixView && (');
     const matrixSectionEnd = source.indexOf('</div>', source.indexOf('<MatrixMarketView', matrixSectionStart));
     const matrixSection = source.slice(matrixSectionStart, matrixSectionEnd);
 
     expect(matrixSectionStart).toBeGreaterThan(-1);
-    expect(source).toContain('className="skills-matrix-page"');
-    expect(matrixSection).toContain('data-bitfun-part="matrix"');
+    expect(source).toContain('className="skills-matrix-view"');
+    expect(matrixSection).toContain('data-bitfun-part="matrixView"');
     expect(matrixSection).not.toContain('data-bitfun-part="discover"');
     expect(matrixViewSource).not.toContain('className="skills-discover skills-matrix"');
-    expect(stylesheet).toContain('.skills-matrix-page {');
+    expect(stylesheet).toContain('.skills-matrix-view {');
+    expect(stylesheet).not.toContain('.skills-matrix-page {');
     expect(stylesheet).not.toContain('.skills-matrix > .skills-discover__content {');
+  });
+
+  it('navigates between the library and both markets through the sidebar', () => {
+    const source = readSibling('./SkillsScene.tsx');
+    const stylesheet = readSibling('./SkillsScene.scss');
+
+    expect(source).toContain('className="skills-sidebar"');
+    expect(source).toContain("title={t('nav.categories.installed')}");
+    expect(source).toContain("title={t('nav.categories.discover')}");
+    expect(source).toContain("onClick={() => setInstalledView('market')}");
+    expect(source).toContain("onClick={() => setInstalledView('matrix')}");
+    expect(source).not.toContain('skills-tabs-bar');
+    expect(source).not.toContain('<GalleryPageHeader');
+    expect(stylesheet).toContain('.bitfun-skills-scene {');
+    expect(stylesheet).not.toContain('.skills-tabs-bar {');
+  });
+
+  it('binds the sidebar search to the active view', () => {
+    const source = readSibling('./SkillsScene.tsx');
+
+    expect(source).toContain('const sidebarSearch = isMarketView');
+    expect(source).toContain('onSearch: () => submitMarketQuery()');
+    expect(source).toContain('onSearch: () => matrix.submitKeyword()');
+    expect(source).toContain("placeholder: t('market.searchPlaceholder')");
+    expect(source).toContain("placeholder: t('matrix.searchPlaceholder')");
+    expect(source).toContain("placeholder: t('toolbar.searchPlaceholder')");
   });
 });

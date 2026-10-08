@@ -6,6 +6,7 @@ import {
   IconButton,
   Input,
   NavigationPanelItem,
+  NavigationPanelSection,
   ScrollArea,
   SearchField,
   Select,
@@ -19,11 +20,11 @@ import {
   DialogTitle,
 } from '@bitfun/ui';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { FolderOpen, Layers, Loader2, ShieldAlert, ShieldCheck, TrendingUp } from 'lucide-react';
+import { Compass, FolderOpen, Layers, Loader2, Package, ShieldAlert, ShieldCheck, TrendingUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 
-import { GalleryDetailModal, GalleryPageHeader } from '@/app/components';
+import { GalleryDetailModal } from '@/app/components';
 import type { SkillInfo, SkillLevel, SkillMarketItem } from '@/infrastructure/config/types';
 import { installedSkillMarketIds, isSkillMarketItemInstalled } from '@/infrastructure/config/skillMarketInstallation';
 import {
@@ -51,15 +52,13 @@ import SkillsLoadMoreSentinel from './components/SkillsLoadMoreSentinel';
 import MatrixMarketView from './components/MatrixMarketView';
 import type { MatrixSkillSummary } from '@/infrastructure/api/service-api/MatrixSkillAPI';
 import './SkillsScene.scss';
-import { useSkillsSceneStore, type SkillsView } from './skillsSceneStore';
+import { useSkillsSceneStore, type InstalledFilter } from './skillsSceneStore';
 import { useGallerySceneAutoRefresh } from '@/app/hooks/useGallerySceneAutoRefresh';
 
 const log = createLogger('SkillsScene');
 
-type SkillTab = 'installed' | 'discover' | 'matrix';
-
 interface CategoryInfo {
-  id: SkillsView;
+  id: InstalledFilter | 'groups';
   icon: React.ReactNode;
   labelKey: string;
   titleKey: string;
@@ -127,7 +126,6 @@ const SkillsScene: React.FC = () => {
     toggleAddForm,
   } = useSkillsSceneStore();
 
-  const [activeTab, setActiveTab] = useState<SkillTab>('installed');
   const [deleteTarget, setDeleteTarget] = useState<SkillInfo | null>(null);
   const [installedSearch, setInstalledSearch] = useState('');
   const [selectedDetail, setSelectedDetail] = useState<
@@ -137,16 +135,19 @@ const SkillsScene: React.FC = () => {
     | null
   >(null);
 
+  const isMarketView = installedView === 'market';
+  const isMatrixView = installedView === 'matrix';
+
   useEffect(() => {
     if (!nativeNavigationRequest) return;
-    setActiveTab('installed');
+    setInstalledView('all');
     setInstalledSearch('');
     setSelectedDetail(null);
-  }, [nativeNavigationRequest]);
+  }, [nativeNavigationRequest, setInstalledView]);
 
   const installed = useInstalledSkills({
     searchQuery: installedSearch,
-    activeFilter: installedView === 'groups' ? 'all' : installedView,
+    activeFilter: installedView === 'groups' || isMarketView || isMatrixView ? 'all' : installedView,
     enabled: desktopConfigAvailable,
   });
 
@@ -209,11 +210,11 @@ const SkillsScene: React.FC = () => {
     if (desktopConfigAvailable) {
       return;
     }
-    setActiveTab('installed');
+    setInstalledView('all');
     setAddFormOpen(false);
     setDeleteTarget(null);
     setSelectedDetail(null);
-  }, [desktopConfigAvailable, setAddFormOpen]);
+  }, [desktopConfigAvailable, setAddFormOpen, setInstalledView]);
 
   const market = useSkillMarket({
     searchQuery: marketQuery,
@@ -320,167 +321,205 @@ const SkillsScene: React.FC = () => {
     }
   }, [installed.loading, installed.error, installed.sourceGroups, installedView, setInstalledView]);
 
+  const sidebarSearch = isMarketView
+    ? {
+        value: searchDraft,
+        onValueChange: setSearchDraft,
+        onSearch: () => submitMarketQuery(),
+        placeholder: t('market.searchPlaceholder'),
+        clearLabel: searchDraft ? tComponents('search.clear') : undefined,
+        onClear: searchDraft ? () => {
+          setSearchDraft('');
+          submitMarketQuery();
+        } : undefined,
+      }
+    : isMatrixView
+      ? {
+          value: matrix.keyword,
+          onValueChange: matrix.setKeyword,
+          onSearch: () => matrix.submitKeyword(),
+          placeholder: t('matrix.searchPlaceholder'),
+          clearLabel: matrix.keyword ? tComponents('search.clear') : undefined,
+          onClear: matrix.keyword ? () => {
+            matrix.setKeyword('');
+            matrix.submitKeyword();
+          } : undefined,
+        }
+      : installedView === 'groups'
+        ? {
+            value: searchDraft,
+            onValueChange: setSearchDraft,
+            onSearch: undefined,
+            placeholder: t('toolbar.searchPlaceholder'),
+            clearLabel: searchDraft ? tComponents('search.clear') : undefined,
+            onClear: searchDraft ? () => setSearchDraft('') : undefined,
+          }
+        : {
+            value: installedSearch,
+            onValueChange: setInstalledSearch,
+            onSearch: undefined,
+            placeholder: t('toolbar.searchPlaceholder'),
+            clearLabel: installedSearch ? tComponents('search.clear') : undefined,
+            onClear: installedSearch ? () => setInstalledSearch('') : undefined,
+          };
+
   return (
-    <div className="bitfun-skills-scene" data-testid="agent-skill-panel" data-bitfun-scene="skills" data-bitfun-part="root" data-bitfun-tab={activeTab}>
-<GalleryPageHeader
-        title={t('nav.title')}
-        subtitle={t('page.subtitle')}
-        actions={desktopConfigAvailable && activeTab === 'installed' ? (
-          <Button
-            variant="primary"
-            size="sm"
-            leadingIcon={<Icon name="plus" size="sm" />}
-            onClick={toggleAddForm}
-            data-testid="skills-add-skill-btn"
-          >
-            {t('toolbar.addTooltip')}
-          </Button>
-        ) : undefined}
-      />
-      <div className="skills-tabs-bar" data-testid="skills-tabs" data-bitfun-scene="skills" data-bitfun-part="header" data-bitfun-tab={activeTab}>
-        <div className="skills-tabs-bar__tabs" data-bitfun-scene="skills" data-bitfun-part="tabs">
-          <Button
-            size="sm"
-            variant={activeTab === 'installed' ? 'fill' : 'text'}
-            className="skills-tabs-bar__tab"
-            aria-pressed={activeTab === 'installed'}
-            onClick={() => setActiveTab('installed')}
-            data-bitfun-scene="skills"
-            data-bitfun-part="tab"
-            data-bitfun-tab="installed"
-            data-bitfun-state={activeTab === 'installed' ? 'active' : undefined}
-          ><span>{t('installed.titleAll')}</span></Button>
-          <span className="skills-tabs-bar__divider" data-bitfun-scene="skills" data-bitfun-part="tabDivider" />
-          <Button
-            size="sm"
-            variant={activeTab === 'discover' ? 'fill' : 'text'}
-            className="skills-tabs-bar__tab"
-            aria-pressed={activeTab === 'discover'}
-            disabled={!desktopConfigAvailable}
-            onClick={() => setActiveTab('discover')}
-            data-bitfun-scene="skills"
-            data-bitfun-part="tab"
-            data-bitfun-tab="discover"
-            data-bitfun-state={activeTab === 'discover' ? 'active' : undefined}
-          ><span>{t('market.title')}</span></Button>
-          <span className="skills-tabs-bar__divider" data-bitfun-scene="skills" data-bitfun-part="tabDivider" />
-          <Button
-            size="sm"
-            variant={activeTab === 'matrix' ? 'fill' : 'text'}
-            className="skills-tabs-bar__tab"
-            aria-pressed={activeTab === 'matrix'}
-            disabled={!desktopConfigAvailable}
-            onClick={() => setActiveTab('matrix')}
-            data-bitfun-scene="skills"
-            data-bitfun-part="tab"
-            data-bitfun-tab="matrix"
-            data-bitfun-state={activeTab === 'matrix' ? 'active' : undefined}
-          ><span>{t('matrix.tabLabel')}</span></Button>
-        </div>
-      </div>
-
-      <div className="skills-page" data-bitfun-scene="skills" data-bitfun-part="content" data-bitfun-tab={activeTab}>
-
-        {activeTab === 'installed' && (
-          <div className="skills-installed" data-bitfun-scene="skills" data-bitfun-part="installed">
-            {desktopConfigAvailable && <ScrollArea className="skills-sidebar" data-bitfun-scene="skills" data-bitfun-part="sidebar">
-              <div className="skills-sidebar__header" data-bitfun-scene="skills" data-bitfun-part="sidebarHeader">
-                <h2 className="skills-sidebar__title" data-bitfun-scene="skills" data-bitfun-part="sidebarTitle">{t('installed.titleAll')}</h2>
-              </div>
-<nav className="skills-sidebar__nav" aria-label={t('installed.titleAll')} data-bitfun-scene="skills" data-bitfun-part="sidebarNav">
-                {installedCategories.map((cat) => {
-                  const count = cat.id === 'groups' ? skillGroupCount : installed.counts[cat.id] ?? 0;
-                  const isEmpty = count === 0;
-                  return (
-                    <div
-                      key={cat.id}
-                      className="skills-sidebar__item"
-                      data-bitfun-scene="skills"
-                      data-bitfun-part="sidebarItem"
-                      data-bitfun-category={cat.id}
-                      data-bitfun-state={[
-                        installedView === cat.id && 'active',
-                        isEmpty && 'empty',
-                      ].filter(Boolean).join(' ') || undefined}
+    <div className="bitfun-skills-scene" data-testid="agent-skill-panel" data-bitfun-scene="skills" data-bitfun-part="root" data-bitfun-tab={installedView}>
+      {desktopConfigAvailable && (
+        <ScrollArea className="skills-sidebar" data-bitfun-scene="skills" data-bitfun-part="sidebar">
+          <div className="skills-sidebar__header" data-bitfun-scene="skills" data-bitfun-part="sidebarHeader">
+            <h2 className="skills-sidebar__title" data-bitfun-scene="skills" data-bitfun-part="sidebarTitle">{t('nav.title')}</h2>
+            <SearchField
+              className="skills-sidebar__search"
+              data-bitfun-scene="skills"
+              data-bitfun-part="sidebarSearch"
+              value={sidebarSearch.value}
+              onValueChange={sidebarSearch.onValueChange}
+              onSearch={sidebarSearch.onSearch}
+              leadingIcon={<Icon name="search" size="sm" aria-hidden />}
+              placeholder={sidebarSearch.placeholder}
+              aria-label={sidebarSearch.placeholder}
+              size="sm"
+              clearLabel={sidebarSearch.clearLabel}
+              onClear={sidebarSearch.onClear}
+            />
+          </div>
+          <nav className="skills-sidebar__nav" aria-label={t('nav.title')} data-bitfun-scene="skills" data-bitfun-part="sidebarNav">
+            <NavigationPanelSection title={t('nav.categories.installed')} data-bitfun-scene="skills" data-bitfun-part="navSection">
+              {installedCategories.map((cat) => {
+                const count = cat.id === 'groups' ? skillGroupCount : installed.counts[cat.id] ?? 0;
+                const isEmpty = count === 0;
+                return (
+                  <div
+                    key={cat.id}
+                    className="skills-sidebar__item"
+                    data-bitfun-scene="skills"
+                    data-bitfun-part="sidebarItem"
+                    data-bitfun-category={cat.id}
+                    data-bitfun-state={[
+                      installedView === cat.id && 'active',
+                      isEmpty && 'empty',
+                    ].filter(Boolean).join(' ') || undefined}
+                  >
+                    <NavigationPanelItem
+                      selected={installedView === cat.id}
+                      onClick={() => setInstalledView(cat.id)}
+                      title={t(cat.descKey, { source: cat.sourceLabel })}
+                      leading={<span data-bitfun-scene="skills" data-bitfun-part="sidebarItemIcon">{cat.icon}</span>}
+                      metadata={(
+                        <span className="skills-sidebar__item-count" data-bitfun-scene="skills" data-bitfun-part="sidebarItemCount">
+                          {formatNumber(count)}
+                        </span>
+                      )}
                     >
-<NavigationPanelItem
-                        selected={installedView === cat.id}
-                        onClick={() => setInstalledView(cat.id)}
-                        title={t(cat.descKey, { source: cat.sourceLabel })}
-                        leading={<span data-bitfun-scene="skills" data-bitfun-part="sidebarItemIcon">{cat.icon}</span>}
-                        metadata={(
-                          <span className="skills-sidebar__item-count" data-bitfun-scene="skills" data-bitfun-part="sidebarItemCount">
-                            {formatNumber(count)}
-                          </span>
-                        )}
-                      >
-                        <span data-bitfun-scene="skills" data-bitfun-part="sidebarItemLabel">{t(cat.labelKey, { source: cat.sourceLabel })}</span>
-                      </NavigationPanelItem>
-                    </div>
-                  );
-                })}
-              </nav>
-              <div className="skills-sidebar__footer" data-bitfun-scene="skills" data-bitfun-part="sidebarFooter">
-                <p className="skills-sidebar__hint" data-bitfun-scene="skills" data-bitfun-part="sidebarHint">
-                  {t(activeInstalledCategory.descKey, { source: activeInstalledCategory.sourceLabel })}
-                </p>
+                      <span data-bitfun-scene="skills" data-bitfun-part="sidebarItemLabel">{t(cat.labelKey, { source: cat.sourceLabel })}</span>
+                    </NavigationPanelItem>
+                  </div>
+                );
+              })}
+            </NavigationPanelSection>
+            <NavigationPanelSection title={t('nav.categories.discover')} data-bitfun-scene="skills" data-bitfun-part="navSection">
+              <div
+                className="skills-sidebar__item"
+                data-bitfun-scene="skills"
+                data-bitfun-part="sidebarItem"
+                data-bitfun-category="market"
+                data-bitfun-state={isMarketView ? 'active' : undefined}
+              >
+                <NavigationPanelItem
+                  selected={isMarketView}
+                  onClick={() => setInstalledView('market')}
+                  title={t('market.subtitle')}
+                  leading={<span data-bitfun-scene="skills" data-bitfun-part="sidebarItemIcon"><Icon glyph={Compass} size="sm" /></span>}
+                >
+                  <span data-bitfun-scene="skills" data-bitfun-part="sidebarItemLabel">{t('market.title')}</span>
+                </NavigationPanelItem>
               </div>
-            </ScrollArea>}
+              <div
+                className="skills-sidebar__item"
+                data-bitfun-scene="skills"
+                data-bitfun-part="sidebarItem"
+                data-bitfun-category="matrix"
+                data-bitfun-state={isMatrixView ? 'active' : undefined}
+              >
+                <NavigationPanelItem
+                  selected={isMatrixView}
+                  onClick={() => setInstalledView('matrix')}
+                  title={t('matrix.subtitle')}
+                  leading={<span data-bitfun-scene="skills" data-bitfun-part="sidebarItemIcon"><Icon glyph={Package} size="sm" /></span>}
+                >
+                  <span data-bitfun-scene="skills" data-bitfun-part="sidebarItemLabel">{t('matrix.tabLabel')}</span>
+                </NavigationPanelItem>
+              </div>
+            </NavigationPanelSection>
+          </nav>
+        </ScrollArea>
+      )}
+
+      <div className="skills-page" data-bitfun-scene="skills" data-bitfun-part="content" data-bitfun-tab={installedView}>
+
+        {!desktopConfigAvailable && (
+          <div className="skills-main" data-bitfun-scene="skills" data-bitfun-part="main">
+            <div className="skills-main__empty" data-testid="skills-management-unavailable" data-bitfun-scene="skills" data-bitfun-part="empty">
+              <Icon name="extension" size="lg" />
+              <span>{t(remoteConnectionActive ? 'list.remoteUnavailable' : 'list.desktopUnavailable')}</span>
+            </div>
+          </div>
+        )}
+
+        {desktopConfigAvailable && installedView === 'groups' && (
+          <SkillGroupsView
+            key={installed.catalogContextKey}
+            searchQuery={searchDraft}
+            skills={groupSkills}
+            collection={skillGroups}
+            catalogReady={installed.catalogReady}
+            catalogLoading={installed.loading}
+            catalogIncomplete={installed.diagnostics.length > 0 || !installed.diagnosticsAvailable}
+            onRefresh={() => { void installed.loadSkills(true); void skillGroups.reload(); }}
+          />
+        )}
+
+        {desktopConfigAvailable && installedView !== 'groups' && !isMarketView && !isMatrixView && (
+          <div className="skills-installed" data-bitfun-scene="skills" data-bitfun-part="installed">
+            <header className="skills-content-header" data-bitfun-scene="skills" data-bitfun-part="contentHeader">
+              <div className="skills-content-header__identity">
+                <div className="skills-content-header__copy">
+                  <h1 className="skills-content-header__title" data-bitfun-scene="skills" data-bitfun-part="contentTitle">
+                    {t(activeInstalledCategory.titleKey, { source: activeInstalledCategory.sourceLabel })}
+                  </h1>
+                  <p className="skills-content-header__description" data-bitfun-scene="skills" data-bitfun-part="contentSubtitle">
+                    {t(activeInstalledCategory.descKey, { source: activeInstalledCategory.sourceLabel })}
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="primary"
+                size="sm"
+                leadingIcon={<Icon name="plus" size="sm" />}
+                onClick={toggleAddForm}
+                data-testid="skills-add-skill-btn"
+              >
+                {t('toolbar.addTooltip')}
+              </Button>
+            </header>
 
             <div className="skills-main" data-bitfun-scene="skills" data-bitfun-part="main">
-              {!desktopConfigAvailable ? (
-                <div className="skills-main__empty" data-testid="skills-management-unavailable" data-bitfun-scene="skills" data-bitfun-part="empty">
-                  <Icon name="extension" size="lg" />
-                  <span>{t(remoteConnectionActive ? 'list.remoteUnavailable' : 'list.desktopUnavailable')}</span>
-                </div>
-              ) : installedView === 'groups' ? (
-                <SkillGroupsView
-                  key={installed.catalogContextKey}
-                  searchQuery={searchDraft}
-                  skills={groupSkills}
-                  collection={skillGroups}
-                  catalogReady={installed.catalogReady}
-                  catalogLoading={installed.loading}
-                  catalogIncomplete={installed.diagnostics.length > 0 || !installed.diagnosticsAvailable}
-                  onRefresh={() => { void installed.loadSkills(true); void skillGroups.reload(); }}
-                />
-              ) : (
-                <>
-                  <div className="skills-main__toolbar" data-bitfun-scene="skills" data-bitfun-part="toolbar">
-                    <SearchField
-                      className="skills-main__toolbar-search"
-                      value={installedSearch}
-                      onValueChange={setInstalledSearch}
-                      leadingIcon={<Icon name="search" size="sm" aria-hidden />}
-                      placeholder={t('toolbar.searchPlaceholder')}
-                      aria-label={t('toolbar.searchPlaceholder')}
-                      size="sm"
-                      clearLabel={installedSearch ? tComponents('search.clear') : undefined}
-                      onClear={installedSearch ? () => setInstalledSearch('') : undefined}
-                    />
-                    <button
-                      type="button"
-                      className={`skills-main__chip-btn${hideDuplicates ? ' is-active' : ''}`}
-                      onClick={() => setHideDuplicates(!hideDuplicates)}
-                      data-bitfun-scene="skills"
-                      data-bitfun-part="filterAction"
-                      data-bitfun-state={hideDuplicates ? 'active' : undefined}
-                    >
-                      <Icon name="filter" size="xs" />
-                      <span>{t('toolbar.hideDuplicates')}</span>
-                    </button>
-                    <Button
-                      variant="fill"
-                      size="sm"
-                      leadingIcon={<Icon name="plus" size="xs" />}
-                      onClick={toggleAddForm}
-                      data-testid="skills-add-skill-btn"
-                    >
-                      {t('toolbar.addTooltip')}
-                    </Button>
-                  </div>
+              <div className="skills-main__toolbar" data-bitfun-scene="skills" data-bitfun-part="toolbar">
+                <button
+                  type="button"
+                  className={`skills-main__chip-btn${hideDuplicates ? ' is-active' : ''}`}
+                  onClick={() => setHideDuplicates(!hideDuplicates)}
+                  data-bitfun-scene="skills"
+                  data-bitfun-part="filterAction"
+                  data-bitfun-state={hideDuplicates ? 'active' : undefined}
+                >
+                  <Icon name="filter" size="xs" />
+                  <span>{t('toolbar.hideDuplicates')}</span>
+                </button>
+              </div>
 
-                  <div className="skills-main__list-shell">
+              <div className="skills-main__list-shell">
                     <div
                       className="skills-main__list-header"
                       data-bitfun-scene="skills"
@@ -650,40 +689,30 @@ const SkillsScene: React.FC = () => {
                       </ScrollArea>
                     )}
                   </div>
-
-                </>
-              )}
             </div>
           </div>
         )}
 
-        {desktopConfigAvailable && activeTab === 'discover' && (
+        {desktopConfigAvailable && isMarketView && (
           <div className="skills-discover" data-bitfun-scene="skills" data-bitfun-part="discover">
-            <div className="skills-discover__hero" data-bitfun-scene="skills" data-bitfun-part="discoverHero">
-              <div className="skills-discover__hero-content" data-bitfun-scene="skills" data-bitfun-part="discoverHeroContent">
-                <h1 className="skills-discover__title" data-bitfun-scene="skills" data-bitfun-part="discoverTitle">{t('market.title')}</h1>
-                <p className="skills-discover__subtitle" data-bitfun-scene="skills" data-bitfun-part="discoverSubtitle">
-                  {t('market.subtitle')}
-                </p>
-                <div className="skills-discover__search-wrapper" data-bitfun-scene="skills" data-bitfun-part="discoverSearch">
-                  <SearchField
-                    className="skills-discover__search"
-                    value={searchDraft}
-                    onValueChange={setSearchDraft}
-                    onSearch={submitMarketQuery}
-                    leadingIcon={<Icon name="search" size="sm" aria-hidden />}
-                    placeholder={t('market.searchPlaceholder')}
-                    aria-label={t('market.searchPlaceholder')}
-                    size="md"
-                    clearLabel={searchDraft ? tComponents('search.clear') : undefined}
-                    onClear={searchDraft ? () => {
-                      setSearchDraft('');
-                      submitMarketQuery();
-                    } : undefined}
-                  />
+            <header className="skills-content-header" data-bitfun-scene="skills" data-bitfun-part="contentHeader">
+              <div className="skills-content-header__identity">
+                <div className="skills-content-header__copy">
+                  <h1 className="skills-content-header__title" data-bitfun-scene="skills" data-bitfun-part="contentTitle">{t('market.title')}</h1>
+                  <p className="skills-content-header__description" data-bitfun-scene="skills" data-bitfun-part="contentSubtitle">{t('market.subtitle')}</p>
                 </div>
               </div>
-            </div>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled
+                title={t('market.settings.comingSoon')}
+                data-bitfun-scene="skills"
+                data-bitfun-part="marketSettingsAction"
+              >
+                {t('market.settings.action')}
+              </Button>
+            </header>
 
             <ScrollArea className="skills-discover__content">
               {market.marketLoading && (
@@ -822,33 +851,16 @@ const SkillsScene: React.FC = () => {
           </div>
         )}
 
-        {desktopConfigAvailable && activeTab === 'matrix' && (
-          <div className="skills-matrix-page" data-bitfun-scene="skills" data-bitfun-part="matrix">
-            <div className="skills-discover__hero" data-bitfun-scene="skills" data-bitfun-part="matrixHero">
-              <div className="skills-discover__hero-content" data-bitfun-scene="skills" data-bitfun-part="matrixHeroContent">
-                <h1 className="skills-discover__title" data-bitfun-scene="skills" data-bitfun-part="matrixTitle">{t('matrix.title')}</h1>
-                <p className="skills-discover__subtitle" data-bitfun-scene="skills" data-bitfun-part="matrixSubtitle">
-                  {t('matrix.subtitle')}
-                </p>
-                <div className="skills-discover__search-wrapper" data-bitfun-scene="skills" data-bitfun-part="matrixSearch">
-                  <SearchField
-                    className="skills-discover__search"
-                    value={matrix.keyword}
-                    onValueChange={matrix.setKeyword}
-                    onSearch={matrix.submitKeyword}
-                    leadingIcon={<Icon name="search" size="sm" aria-hidden />}
-                    placeholder={t('matrix.searchPlaceholder')}
-                    aria-label={t('matrix.searchPlaceholder')}
-                    size="md"
-                    clearLabel={matrix.keyword ? tComponents('search.clear') : undefined}
-                    onClear={matrix.keyword ? () => {
-                      matrix.setKeyword('');
-                      matrix.submitKeyword();
-                    } : undefined}
-                  />
+        {desktopConfigAvailable && isMatrixView && (
+          <div className="skills-matrix-view" data-bitfun-scene="skills" data-bitfun-part="matrixView">
+            <header className="skills-content-header" data-bitfun-scene="skills" data-bitfun-part="contentHeader">
+              <div className="skills-content-header__identity">
+                <div className="skills-content-header__copy">
+                  <h1 className="skills-content-header__title" data-bitfun-scene="skills" data-bitfun-part="contentTitle">{t('matrix.title')}</h1>
+                  <p className="skills-content-header__description" data-bitfun-scene="skills" data-bitfun-part="contentSubtitle">{t('matrix.subtitle')}</p>
                 </div>
               </div>
-            </div>
+            </header>
 
             <MatrixMarketView
               tags={matrix.tags}

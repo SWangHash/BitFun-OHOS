@@ -4,13 +4,11 @@
 $skills-sidebar-width: 264px;
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Root wrapper
+// Root wrapper: fixed sidebar + fluid content column
 // ══════════════════════════════════════════════════════════════════════════════
 
 .bitfun-skills-scene {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto auto minmax(0, 1fr);
+  display: flex;
   width: 100%;
   height: 100%;
   min-width: 0;
@@ -18,51 +16,14 @@ $skills-sidebar-width: 264px;
   overflow: hidden;
   container: skills-scene / inline-size;
   color: var(--bitfun-color-content-primary);
-
-  > .gallery-page-header {
-    grid-area: 1 / 1 / 2 / 2;
-    min-inline-size: 0;
-  }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Tab bar
-// ══════════════════════════════════════════════════════════════════════════════
-
-.skills-tabs-bar {
-  grid-area: 2 / 1 / 3 / 2;
-  display: flex;
-  align-items: center;
-  min-inline-size: 0;
-  padding: var(--bitfun-space-3) var(--bitfun-space-6);
-  border-block-end: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
-}
-
-.skills-tabs-bar__tabs {
-  display: flex;
-  align-items: center;
-  gap: var(--bitfun-space-1);
-  min-inline-size: 0;
-}
-
-.skills-tabs-bar__tab {
-  flex: none;
-}
-
-.skills-tabs-bar__divider {
-  flex: none;
-  inline-size: 1px;
-  block-size: 16px;
-  margin-inline: var(--bitfun-space-2);
-  background: var(--bitfun-color-border-subtle);
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// Page container
+// Page container (right content column)
 // ══════════════════════════════════════════════════════════════════════════════
 
 .skills-page {
-  grid-area: 3 / 1 / 4 / 2;
+  flex: 1;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -75,12 +36,14 @@ $skills-sidebar-width: 264px;
 
 .skills-installed {
   display: flex;
-  height: 100%;
+  flex-direction: column;
+  flex: 1;
   min-height: 0;
   overflow: hidden;
 }
 
 .skills-sidebar {
+  flex: none;
   inline-size: $skills-sidebar-width;
   min-inline-size: 0;
   border-inline-end: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
@@ -101,17 +64,12 @@ $skills-sidebar-width: 264px;
   line-height: var(--bitfun-type-label-md-line-height);
 }
 
-.skills-sidebar__search,
-.skills-sidebar__compact-picker {
+.skills-sidebar__search {
   min-inline-size: 0;
 }
 
 .skills-sidebar__search > [data-bitfun-component='search-field'] {
   inline-size: 100%;
-}
-
-.skills-sidebar__compact-picker {
-  display: none;
 }
 
 .skills-sidebar__item {
@@ -260,51 +218,6 @@ $skills-sidebar-width: 264px;
   overflow: hidden;
 }
 
-// Market hero: shares the scene gutters so title, search, and the card grid
-// align on the same symmetric left/right edges.
-
-.skills-discover__hero {
-  flex: none;
-  display: flex;
-  min-inline-size: 0;
-  padding: var(--bitfun-space-5) var(--bitfun-space-6) var(--bitfun-space-4);
-  border-block-end: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
-}
-
-.skills-discover__hero-content {
-  display: flex;
-  flex-direction: column;
-  gap: var(--bitfun-space-2);
-  min-inline-size: 0;
-  inline-size: 100%;
-}
-
-.skills-discover__title {
-  margin: 0;
-  font-family: var(--bitfun-type-heading-dialog-font-family);
-  font-size: var(--bitfun-type-heading-dialog-font-size);
-  font-weight: var(--bitfun-type-heading-dialog-font-weight);
-  line-height: var(--bitfun-type-heading-dialog-line-height);
-  letter-spacing: var(--bitfun-type-heading-dialog-letter-spacing);
-}
-
-.skills-discover__subtitle {
-  margin: 0;
-  color: var(--bitfun-color-content-muted);
-  font-size: var(--bitfun-type-body-sm-font-size);
-  line-height: var(--bitfun-type-body-sm-line-height);
-}
-
-.skills-discover__search-wrapper {
-  margin-block-start: var(--bitfun-space-2);
-  max-inline-size: 520px;
-  min-inline-size: 0;
-}
-
-.skills-discover__search {
-  inline-size: 100%;
-}
-
 .skills-discover__content {
   flex: 1;
   min-height: 0;
@@ -382,14 +295,13 @@ $skills-sidebar-width: 264px;
 }
 
 // ── Matrix (格物) market ──
-// ── Matrix (格物) market ──
-// The matrix-page wraps the hero (title/subtitle/search) and the MatrixMarketView
-// body. The view owns its section bar, filter chips, and scrollable content region.
+// The matrix view pairs a content header with the MatrixMarketView body. The
+// view owns its section bar, filter chips, and scrollable content region.
 
-.skills-matrix-page {
+.skills-matrix-view {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
   min-height: 0;
   overflow: hidden;
 }
@@ -398,7 +310,6 @@ $skills-sidebar-width: 264px;
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  height: auto;
   min-height: 0;
   overflow: hidden;
 }
@@ -846,8 +757,6 @@ $skills-sidebar-width: 264px;
   .skills-main__toolbar,
   .skills-main__list-shell,
   .skills-discover__content,
-  .skills-tabs-bar,
-  .skills-discover__hero,
   .skills-matrix__section-bar,
   .skills-matrix__chip-row {
     padding-inline: var(--bitfun-space-4);
@@ -855,31 +764,16 @@ $skills-sidebar-width: 264px;
 }
 
 @container skills-scene (max-width: 760px) {
+  .bitfun-skills-scene {
+    flex-direction: column;
+  }
+
   .skills-sidebar {
     inline-size: 100%;
     block-size: auto;
+    max-block-size: 45%;
     border-inline-end: 0;
     border-block-end: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
-
-    > [data-bitfun-part='body'] {
-      display: none;
-    }
-  }
-
-  .skills-sidebar__header {
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: center;
-    gap: var(--bitfun-space-2) var(--bitfun-space-4);
-    padding: var(--bitfun-space-3) var(--bitfun-space-4);
-  }
-
-  .skills-sidebar__search {
-    grid-column: 1 / -1;
-  }
-
-  .skills-sidebar__compact-picker {
-    display: block;
-    grid-area: 1 / 2;
   }
 }
 
