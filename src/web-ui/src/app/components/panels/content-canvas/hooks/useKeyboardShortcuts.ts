@@ -80,10 +80,10 @@ export const useKeyboardShortcuts = (options: UseKeyboardShortcutsOptions = {}) 
     { enabled, description: 'keyboard.shortcuts.canvas.splitHorizontal' }
   );
 
-  // Vertical split: mod+Shift+\
+  // Vertical split: mod+Shift+| (pressing Shift on the backslash key yields "|")
   useShortcut(
     'canvas.splitVertical',
-    { key: '\\', ctrl: true, shift: true, scope: 'canvas' },
+    { key: '|', ctrl: true, shift: true, scope: 'canvas' },
     () => setSplitMode(layout.splitMode === 'vertical' ? 'none' : 'vertical'),
     { enabled, description: 'keyboard.shortcuts.canvas.splitVertical' }
   );
@@ -96,10 +96,10 @@ export const useKeyboardShortcuts = (options: UseKeyboardShortcutsOptions = {}) 
     { enabled, description: 'keyboard.shortcuts.canvas.anchorZone' }
   );
 
-  // Maximize: mod+Shift+M
+  // Maximize: mod+Shift+E (mod+Shift+M conflicts with IME shortcuts)
   useShortcut(
     'canvas.maximize',
-    { key: 'M', ctrl: true, shift: true, scope: 'canvas' },
+    { key: 'E', ctrl: true, shift: true, scope: 'canvas' },
     () => toggleMaximize(),
     { enabled, description: 'keyboard.shortcuts.canvas.maximize' }
   );

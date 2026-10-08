@@ -149,6 +149,39 @@ $skills-sidebar-width: 264px;
   padding: var(--bitfun-space-5) var(--bitfun-space-6) var(--bitfun-space-3);
 }
 
+.skills-main__chip-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--bitfun-space-2);
+  padding: 5px 12px;
+  border: 1px solid var(--bitfun-color-border-default);
+  border-radius: 999px;
+  background: var(--bitfun-color-surface-panel);
+  color: var(--bitfun-color-content-secondary);
+  font: inherit;
+  font-size: var(--bitfun-type-label-sm-font-size);
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
+
+  &:hover {
+    border-color: var(--bitfun-color-border-strong);
+    color: var(--bitfun-color-content-primary);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--bitfun-color-focus-ring);
+    outline-offset: 1px;
+  }
+
+  &.is-active,
+  &[data-bitfun-state~='active'] {
+    border-color: var(--bitfun-color-accent-default);
+    background: color-mix(in srgb, var(--bitfun-color-accent-default) 12%, transparent);
+    color: var(--bitfun-color-accent-default);
+  }
+}
+
 .skills-main__filter {
   flex-shrink: 0;
   margin-inline-start: auto;

@@ -1,5 +1,4 @@
-import gt from 'semver/functions/gt';
-import valid from 'semver/functions/valid';
+import { gt, valid } from 'semver';
 import type { CheckForUpdatesResponse } from '@/infrastructure/api/service-api/SystemAPI';
 
 export function isAppVersion(value: unknown): value is string {

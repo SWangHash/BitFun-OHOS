@@ -997,6 +997,20 @@ pub async fn _run() {
         .setup(move |app| {
             let setup_started = Instant::now();
             startup_trace.record_phase("tauri_setup_start", "native_setup");
+
+            // HNP-installed tools (git, node, ...) live in /data/service/hnp/bin,
+            // which the HAP sandbox PATH does not include by default. Prepend it
+            // so process_manager lookups for `git` and friends resolve on OHOS.
+            #[cfg(target_env = "ohos")]
+            {
+                const HNP_BIN: &str = "/data/service/hnp/bin";
+                let current_path = std::env::var("PATH").unwrap_or_default();
+                if !current_path.split(':').any(|entry| entry == HNP_BIN) {
+                    std::env::set_var("PATH", format!("{HNP_BIN}:{current_path}"));
+                    log::info!("Prepended HNP bin directory to PATH: {}", HNP_BIN);
+                }
+            }
+
             #[cfg(target_os = "macos")]
             {
                 app.on_menu_event(|app, event| {
@@ -1510,6 +1524,8 @@ pub async fn _run() {
             frontend_workbench::confirm_frontend_update,
             frontend_workbench::rollback_frontend_update,
             hide_main_window_after_close_request,
+            api::html_preview_api::html_preview_create,
+            api::html_preview_api::html_preview_release,
             api::privacy_api::privacy_initialize,
             api::privacy_api::privacy_get_status,
             api::privacy_api::privacy_accept,
@@ -2117,6 +2133,9 @@ pub async fn _run() {
             api::browser_api::browser_webview_close,
             api::browser_api::browser_webview_set_focus,
             api::browser_api::browser_get_url,
+            // HTML preview API
+            api::html_preview_api::html_preview_create,
+            api::html_preview_api::html_preview_release,
             // Browser Control API (CDP-based user browser control)
             api::browser_control_api::browser_control_list_browsers,
             api::browser_control_api::browser_control_get_status,

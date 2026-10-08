@@ -15,6 +15,7 @@ export const welcomePanelAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'gitAction', propertyProfile: 'control', visualRole: 'control' },
     { id: 'workspaceMenu', propertyProfile: 'overlay', visualRole: 'popup' },
     { id: 'workspaceItem', propertyProfile: 'control', visualRole: 'control' },
+    { id: 'summary', propertyProfile: 'container', visualRole: 'content' },
     { id: 'cowork', visualRole: 'content' },
   ],
   states: [

@@ -4524,7 +4524,16 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   );
 
   const requestHarnessProfileChange = useCallback(async (profileId: SelectableHarnessProfileId) => {
-    if (!executionLevelPolicy.userConfigurable) return;
+    if (!executionLevelPolicy.userConfigurable) {
+      log.warn('Harness profile change ignored: execution level is not user-configurable', {
+        profileId,
+        isAssistantWorkspace,
+        isAcpTargetSession,
+        isSubagentInputTarget,
+        isBtwDraftTarget,
+      });
+      return;
+    }
     const selection = resolveComposerExecutionLevelSelection(profileId);
     if (!canSwitchSessionMainAgent({
       sessionStarted: harnessProfileLocked,
@@ -4634,10 +4643,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         error,
         modeId,
       });
+      notificationService.error(t('chatInput.modeChangeFailed'));
     } finally {
       setIsHarnessSessionCreating(false);
     }
-  }, [isHarnessSessionCreating, rememberCommittedHarnessMode, replaceContexts, workspace]);
+  }, [isHarnessSessionCreating, rememberCommittedHarnessMode, replaceContexts, t, workspace]);
   
   const interruptedTurnRecovery = useMemo(
     () => selectInterruptedTurnRecovery(effectiveTargetSession, {

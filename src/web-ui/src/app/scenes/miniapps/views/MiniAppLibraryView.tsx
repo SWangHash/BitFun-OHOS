@@ -11,7 +11,6 @@ import { subscribeOverlayInteraction, createOverlayPortal,
   StatusPill,
   type SelectOption,
 } from '@bitfun/ui';
-import { open } from '@tauri-apps/plugin-dialog';
 import {
   AlertTriangle,
   FolderPlus,
@@ -45,6 +44,7 @@ import type {
   MiniAppPermissions,
 } from '@/infrastructure/api/service-api/MiniAppAPI';
 import { miniAppAPI } from '@/infrastructure/api/service-api/MiniAppAPI';
+import { workspaceAPI } from '@/infrastructure/api';
 import {
   miniAppMarketAPI,
   type MarketInstalledStatus,
@@ -333,7 +333,7 @@ const MiniAppLibraryContent: React.FC<MiniAppLibraryViewProps> = ({ tabs }) => {
 
   const handleAddFromFolder = async () => {
     try {
-      const selected = await open({
+      const selected = await workspaceAPI.openFileOrDirectoryDialog({
         directory: true,
         multiple: false,
         title: t('selectFolderTitle'),
@@ -365,7 +365,7 @@ const MiniAppLibraryContent: React.FC<MiniAppLibraryViewProps> = ({ tabs }) => {
   }, [notification, t]);
 
   const handleAddPackage = async () => {
-    const selected = await open({
+    const selected = await workspaceAPI.openFileOrDirectoryDialog({
       directory: false,
       multiple: false,
       title: t('market.import.choose'),
