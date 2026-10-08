@@ -7,6 +7,15 @@ import { isImeOwnedKeyboardEvent } from '@/shared/utils/ime';
 
 const log = createLogger('ShortcutManager');
 
+/**
+ * Shortcut handler.
+ *
+ * Returning `false` declines the key for the current context: the event is left
+ * untouched so it keeps propagating to the focused element, which is how a
+ * binding yields to a focused editor's own keymap. The return stays typed as
+ * `void` so existing handlers that return a value (for example a fire-and-forget
+ * promise) remain assignable.
+ */
 export type ShortcutCallback = (event: KeyboardEvent) => void;
 
 export interface ShortcutRegistration {
@@ -279,9 +288,11 @@ export class ShortcutManager {
     // Candidates are already sorted: panel-scope first, then app-scope, then by priority
     const winner = candidates[0];
     try {
+      // A declining callback leaves the event alone so the focused element still
+      // receives the key; every other match consumes it.
+      if ((winner.callback(event) as unknown) === false) return;
       event.preventDefault();
       event.stopPropagation();
-      winner.callback(event);
     } catch (error) {
       log.error('Shortcut callback execution failed', { id: winner.id, error });
     }

@@ -273,7 +273,9 @@
         "toggleBoth": "摺疊所有面板"
       },
       "nav": {
-        "toggleSearch": "開啟導航搜尋"
+        "toggleSearch": "開啟導航搜尋",
+        "back": "後退",
+        "forward": "前進"
       },
       "scene": {
         "focusMerged": "切換場景",

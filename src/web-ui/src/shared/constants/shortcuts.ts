@@ -65,6 +65,19 @@ export const APP_SHORTCUTS: ShortcutDef[] = [
     config: mod('k', { scope: 'app', allowInInput: true }),
     descriptionKey: 'keyboard.shortcuts.nav.toggleSearch',
   },
+  // Nav history back / forward — mirrors the NavBar buttons. Alt+Arrow is the
+  // Windows/Linux chord; on macOS it belongs to the editor's word-wise cursor
+  // movement and the handler declines the key there.
+  {
+    id: 'nav.back',
+    config: { key: 'ArrowLeft', alt: true, scope: 'app' },
+    descriptionKey: 'keyboard.shortcuts.nav.back',
+  },
+  {
+    id: 'nav.forward',
+    config: { key: 'ArrowRight', alt: true, scope: 'app' },
+    descriptionKey: 'keyboard.shortcuts.nav.forward',
+  },
   {
     id: 'scene.openTerminal',
     config: mod('`', { shift: true, scope: 'app', allowInInput: true }),

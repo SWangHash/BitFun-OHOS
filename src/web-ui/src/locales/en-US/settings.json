@@ -273,7 +273,9 @@
         "toggleBoth": "Collapse All Panels"
       },
       "nav": {
-        "toggleSearch": "Open navigation search"
+        "toggleSearch": "Open navigation search",
+        "back": "Back",
+        "forward": "Forward"
       },
       "scene": {
         "focusMerged": "Switch scene",
