@@ -84,6 +84,12 @@ pub fn builtin_agent_definition_specs() -> Vec<BuiltinAgentDefinitionSpec> {
             SubagentVisibilityPolicy::default(),
         ),
         builtin_agent_spec("Plan", Mode, "auto", SubagentVisibilityPolicy::default()),
+        builtin_agent_spec(
+            "HarmonyBuild",
+            Mode,
+            "auto",
+            SubagentVisibilityPolicy::default(),
+        ),
         builtin_agent_spec("Claw", Mode, "auto", SubagentVisibilityPolicy::default()),
         builtin_agent_spec(
             "DeepResearch",
@@ -103,6 +109,30 @@ pub fn builtin_agent_definition_specs() -> Vec<BuiltinAgentDefinitionSpec> {
             SubAgent,
             "primary",
             SubagentVisibilityPolicy::public(),
+        ),
+        builtin_agent_spec(
+            "HarmonyPlan",
+            SubAgent,
+            "primary",
+            SubagentVisibilityPolicy::restricted(["HarmonyBuild", "agentic", "Team"]),
+        ),
+        builtin_agent_spec(
+            "HarmonyGoal",
+            SubAgent,
+            "primary",
+            SubagentVisibilityPolicy::restricted(["HarmonyBuild", "agentic", "Team"]),
+        ),
+        builtin_agent_spec(
+            "HarmonySpecImplementation",
+            Hidden,
+            "primary",
+            SubagentVisibilityPolicy::hidden(["HarmonyGoal", "HarmonyBuild"]),
+        ),
+        builtin_agent_spec(
+            "HarmonySpecVerify",
+            Hidden,
+            "primary",
+            SubagentVisibilityPolicy::hidden(["HarmonyGoal", "HarmonyBuild"]),
         ),
         builtin_agent_spec(
             "GeneralPurpose",
@@ -182,9 +212,17 @@ pub fn builtin_agent_definition_specs() -> Vec<BuiltinAgentDefinitionSpec> {
 
 pub fn default_model_id_for_builtin_agent(agent_type: &str) -> &'static str {
     match agent_type {
-        "agentic" | "Cowork" | "ComputerUse" | "Plan" | "debug" | "Claw" | "DeepResearch"
-        | "Team" | "Multitask" | "QtMigration" => "auto",
-        "Explore" | "FileFinder" | "CodeReview" | "GeneralPurpose" | "MemoryPhase2" => "primary",
+        "agentic" | "Cowork" | "ComputerUse" | "Plan" | "HarmonyBuild" | "debug" | "Claw"
+        | "DeepResearch" | "Team" | "Multitask" | "QtMigration" => "auto",
+        "Explore"
+        | "FileFinder"
+        | "CodeReview"
+        | "GeneralPurpose"
+        | "MemoryPhase2"
+        | "HarmonyPlan"
+        | "HarmonyGoal"
+        | "HarmonySpecImplementation"
+        | "HarmonySpecVerify" => "primary",
         "GenerateDoc"
         | "ResearchSpecialist"
         | "DeepReview"

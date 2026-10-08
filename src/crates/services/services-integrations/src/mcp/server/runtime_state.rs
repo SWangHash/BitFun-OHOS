@@ -281,7 +281,12 @@ impl MCPServerRuntimeState {
                 );
                 process.start_remote(data_dir, config).await?;
             }
-            _ => unreachable!("MCP start context was validated before process registration"),
+            _ => {
+                return Err(MCPRuntimeError::configuration(format!(
+                    "MCP server type and start context do not match for server '{}'",
+                    config.id
+                )));
+            }
         }
 
         let connection = process.connection().ok_or_else(|| {

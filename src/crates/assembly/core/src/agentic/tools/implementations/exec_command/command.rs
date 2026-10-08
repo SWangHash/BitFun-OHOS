@@ -671,6 +671,19 @@ Output:
             };
         }
         if let (Some(context), Some(parsed)) = (context, exec_command_run_input_from_input(input)) {
+            if let Some(message) =
+                crate::agentic::tools::implementations::devecocli_bash_guard::check_devecocli_only_command(
+                    context.agent_type.as_deref(),
+                    parsed.cmd,
+                )
+            {
+                return ValidationResult {
+                    result: false,
+                    message: Some(message),
+                    error_code: Some(403),
+                    meta: None,
+                };
+            }
             if let Some(rejection) =
                 crate::agentic::execution::edit_constraint_guard::check_bash_command(
                     context, parsed.cmd,

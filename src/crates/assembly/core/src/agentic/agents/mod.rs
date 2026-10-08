@@ -27,13 +27,15 @@ pub use definitions::custom::{CustomMode, CustomSubagent, CustomSubagentKind};
 pub(crate) use definitions::external::ExternalProvidedAgent;
 pub use definitions::hidden::{CodeReviewAgent, DeepReviewAgent, GenerateDocAgent};
 pub use definitions::modes::{
-    AgenticMode, ClawMode, CoworkMode, DebugMode, DeepResearchMode, MultitaskMode, PlanMode,
-    QtMigrationMode, TeamMode,
+    AgenticMode, ClawMode, CoworkMode, DebugMode, DeepResearchMode, HarmonyBuildMode,
+    MultitaskMode, PlanMode, QtMigrationMode, TeamMode,
 };
 pub use definitions::review::{ReviewFixerAgent, ReviewJudgeAgent, ReviewWorkerAgent};
 pub use definitions::shared::ReadonlySubagent;
 pub use definitions::subagents::{
-    ComputerUseMode, ExploreAgent, FileFinderAgent, GeneralPurposeAgent, ResearchSpecialistAgent,
+    harmony_goal_agent, harmony_spec_implementation_agent, harmony_spec_verify_agent,
+    ComputerUseMode, ExploreAgent, FileFinderAgent, GeneralPurposeAgent, HarmonyAgent,
+    HarmonyPlanAgent, ResearchSpecialistAgent,
 };
 use indexmap::IndexMap;
 pub use prompt_builder::{
@@ -145,6 +147,7 @@ pub fn shared_coding_mode_tools() -> Vec<String> {
         "Git".to_string(),
         "ReviewPlatform".to_string(),
         "ControlHub".to_string(),
+        "OpenUrl".to_string(),
         // Pairs with ControlHub: its `wait` sends anything repeating, or
         // further out than an hour, to Cron rather than holding the turn open
         // for the interval.
@@ -347,10 +350,11 @@ mod tests {
     fn shared_coding_mode_tools_include_openharmony_provider_tools() {
         let tools = shared_coding_mode_tools();
 
-        assert!(tools.contains(&"build_project".to_string()));
+        assert!(tools.contains(&"OpenUrl".to_string()));
         assert!(tools.contains(&"start_app".to_string()));
         assert!(tools.contains(&"hdc_log".to_string()));
-        assert!(tools.contains(&"arkts_knowledge_search".to_string()));
+        assert!(tools.contains(&"arkts_check".to_string()));
+        assert!(tools.contains(&"switch_cwd".to_string()));
     }
 
     #[test]

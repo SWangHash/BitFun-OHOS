@@ -94,13 +94,11 @@ pub fn tool_feature_group(tool_name: &str) -> Option<ToolPackFeatureGroup> {
         | "WriteStdin"
         | "ExecControl"
         | "GetTime"
+        | "OpenUrl"
         | "ListModels"
-        | "build_project"
         | "start_app"
         | "hdc_log"
-        | "arkts_knowledge_search"
-        | "check_arkts_files"
-        | "check_cpp_files"
+        | "arkts_check"
         | "switch_cwd"
         | "verify_ui"
         | "get_ui_verification_log"
@@ -121,9 +119,9 @@ pub fn tool_feature_group(tool_name: &str) -> Option<ToolPackFeatureGroup> {
             Some(ToolPackFeatureGroup::Canvas)
         }
         "Task" | "AgentWait" | "LaunchReviewAgent" | "Skill" | "AskUserQuestion" | "TodoWrite"
-        | "get_goal" | "create_goal" | "update_goal" | "CreatePlan" | "submit_code_review"
-        | "GetToolSpec" | "CallDeferredTool" | "SessionControl" | "SessionMessage"
-        | "SessionHistory" | "Cron" => Some(ToolPackFeatureGroup::AgentControl),
+        | "get_goal" | "create_goal" | "update_goal" | "CreatePlan" | "plan_write"
+        | "submit_code_review" | "GetToolSpec" | "CallDeferredTool" | "SessionControl"
+        | "SessionMessage" | "SessionHistory" | "Cron" => Some(ToolPackFeatureGroup::AgentControl),
         _ => None,
     }
 }
@@ -200,6 +198,7 @@ const PRODUCT_TOOL_PROVIDER_GROUP_PLAN: &[ToolProviderGroupPlan] = &[
             "WriteStdin",
             "ExecControl",
             "GetTime",
+            "OpenUrl",
             "ListModels",
         ],
     },
@@ -217,6 +216,7 @@ const PRODUCT_TOOL_PROVIDER_GROUP_PLAN: &[ToolProviderGroupPlan] = &[
             "create_goal",
             "update_goal",
             "CreatePlan",
+            "plan_write",
             "submit_code_review",
             "GetToolSpec",
             "CallDeferredTool",
@@ -262,12 +262,9 @@ const PRODUCT_TOOL_PROVIDER_GROUP_PLAN: &[ToolProviderGroupPlan] = &[
         provider_id: "core.openharmony",
         feature_groups: CORE_OPENHARMONY_FEATURE_GROUPS,
         tool_names: &[
-            "build_project",
             "start_app",
             "hdc_log",
-            "arkts_knowledge_search",
-            "check_arkts_files",
-            "check_cpp_files",
+            "arkts_check",
             "switch_cwd",
             "verify_ui",
             "get_ui_verification_log",
@@ -518,6 +515,7 @@ mod tests {
                 "WriteStdin",
                 "ExecControl",
                 "GetTime",
+                "OpenUrl",
                 "ListModels",
                 "Task",
                 "AgentWait",
@@ -529,6 +527,7 @@ mod tests {
                 "create_goal",
                 "update_goal",
                 "CreatePlan",
+                "plan_write",
                 "submit_code_review",
                 "GetToolSpec",
                 "CallDeferredTool",
@@ -560,12 +559,9 @@ mod tests {
                 "ControlHub",
                 "ComputerUse",
                 "Playbook",
-                "build_project",
                 "start_app",
                 "hdc_log",
-                "arkts_knowledge_search",
-                "check_arkts_files",
-                "check_cpp_files",
+                "arkts_check",
                 "switch_cwd",
                 "verify_ui",
                 "get_ui_verification_log",

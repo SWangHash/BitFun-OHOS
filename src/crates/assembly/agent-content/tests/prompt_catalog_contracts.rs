@@ -66,6 +66,26 @@ const CATALOG_PROMPT_SOURCES: &[(&str, &[u8])] = &[
         include_bytes!("../prompts/agents/generate_doc_agent.md"),
     ),
     (
+        "harmony_build_agent",
+        include_bytes!("../prompts/agents/harmony_build_agent.md"),
+    ),
+    (
+        "harmony_goal_agent",
+        include_bytes!("../prompts/agents/harmony_goal_agent.md"),
+    ),
+    (
+        "harmony_plan_agent",
+        include_bytes!("../prompts/agents/harmony_plan_agent.md"),
+    ),
+    (
+        "harmony_spec_implementation_agent",
+        include_bytes!("../prompts/agents/harmony_spec_implementation_agent.md"),
+    ),
+    (
+        "harmony_spec_verify_agent",
+        include_bytes!("../prompts/agents/harmony_spec_verify_agent.md"),
+    ),
+    (
         "init_agents_md",
         include_bytes!("../prompts/shared/init_agents_md.md"),
     ),
