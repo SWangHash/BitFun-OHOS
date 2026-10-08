@@ -11,7 +11,7 @@
       "market": "Search and download more skills from skills.sh."
     },
     "categories": {
-      "discover": "Discover",
+      "discover": "Search",
       "installed": "Library"
     },
     "items": {
@@ -95,6 +95,10 @@
       "info": "{{current}} / {{total}}",
       "infoMore": "Page {{current}}",
       "loading": "Loading..."
+    },
+    "settings": {
+      "action": "Market Sources",
+      "comingSoon": "Multiple market sources will be supported in an upcoming release"
     },
     "sourceNote": {
       "prefix": "Source:",

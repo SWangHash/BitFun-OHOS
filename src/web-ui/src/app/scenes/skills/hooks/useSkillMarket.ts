@@ -67,11 +67,11 @@ export function useSkillMarket({
     capabilityRef.current.enabled && capabilityRef.current.epoch === epoch
   ), []);
 
-  const fetchSkills = useCallback(async (query: string | undefined, limit: number, _offset: number) => {
+  const fetchSkills = useCallback(async (query: string | undefined, limit: number, offset: number) => {
     const normalized = query?.trim();
     return normalized
-      ? await configAPI.searchSkillMarket(normalized, limit)
-      : await configAPI.listSkillMarket(undefined, limit);
+      ? await configAPI.searchSkillMarket(normalized, limit, offset)
+      : await configAPI.listSkillMarket(undefined, limit, offset);
   }, []);
 
   const loadFirstPage = useCallback(async (query?: string) => {

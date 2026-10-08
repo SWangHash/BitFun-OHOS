@@ -14,7 +14,7 @@ describe('Skills scene presentation', () => {
     const source = readSibling('./SkillsScene.tsx');
 
     expect(source).toContain('{installedFiltered.map((skill, index) => (');
-    expect(source).toMatch(/<ScrollArea\s+className="skills-main__grid"/);
+    expect(source).toMatch(/className="skills-discover__grid skills-discover__grid--installed"/);
     expect(source).not.toContain('INSTALLED_PAGE_SIZE');
     expect(source).not.toContain('skills-installed__pagination');
   });
@@ -23,14 +23,11 @@ describe('Skills scene presentation', () => {
     const stylesheet = readSibling('./SkillsScene.scss');
     const listStylesheet = readSibling('./components/_SkillsList.scss');
     const shellStart = stylesheet.indexOf('.skills-main__list-shell {');
-    const shellEnd = stylesheet.indexOf('.skills-main__list-header,', shellStart);
-    const scrollStart = stylesheet.indexOf('.skills-main__grid,');
-    const scrollEnd = stylesheet.indexOf('.skills-main__grid {', scrollStart);
+    const shellEnd = stylesheet.indexOf('.skills-main__list-header {', shellStart);
 
     expect(stylesheet.slice(shellStart, shellEnd)).toContain('overflow: hidden;');
     expect(stylesheet.slice(shellStart, shellEnd)).toContain('padding: var(--bitfun-space-2) var(--bitfun-space-6) var(--bitfun-space-6);');
-    expect(stylesheet.slice(scrollStart, scrollEnd)).toContain('flex: 0 1 auto;');
-    expect(stylesheet).toContain('@include skills-list.row;');
+    expect(stylesheet).toContain('.skills-discover__grid--installed {');
     expect(listStylesheet).toContain('min-block-size: 88px;');
   });
 
@@ -42,31 +39,29 @@ describe('Skills scene presentation', () => {
     expect(stylesheet).toContain('font-size: var(--bitfun-type-heading-dialog-font-size);');
   });
 
-  it('presents add skill as the same compact primary action used to create an agent', () => {
+  it('presents add skill as a compact primary action in the installed content header', () => {
     const source = readSibling('./SkillsScene.tsx');
-    const actionStart = source.indexOf('className="skills-content-header__action"');
-    const actionEnd = source.indexOf('</Button>', actionStart);
-    const action = source.slice(actionStart, actionEnd);
+    const headerStart = source.indexOf('<header className="skills-content-header"');
+    const headerEnd = source.indexOf('</header>', headerStart);
+    const header = source.slice(headerStart, headerEnd);
 
-    expect(actionStart).toBeGreaterThan(-1);
-    expect(action).toContain('variant="primary"');
-    expect(action).toContain('size="sm"');
-    expect(action).toContain('leadingIcon={<Icon name="plus" size="sm" />}');
-    expect(action).toContain("{t('toolbar.addTooltip')}");
+    expect(headerStart).toBeGreaterThan(-1);
+    expect(header).toContain('variant="primary"');
+    expect(header).toContain('size="sm"');
+    expect(header).toContain('leadingIcon={<Icon name="plus" size="sm" />}');
+    expect(header).toContain('data-testid="skills-add-skill-btn"');
+    expect(header).toContain("{t('toolbar.addTooltip')}");
   });
 
   it('lets the skills page inherit the surrounding scene surface', () => {
     const stylesheet = readSibling('./SkillsScene.scss');
     const listStylesheet = readSibling('./components/_SkillsList.scss');
-    const listSurfaceStart = stylesheet.indexOf('.skills-main__table {');
-    const listSurfaceEnd = stylesheet.indexOf('\n}', listSurfaceStart);
     const surfaceStart = listStylesheet.indexOf('@mixin surface {');
     const surfaceEnd = listStylesheet.indexOf('\n}', surfaceStart);
     const headerStart = stylesheet.indexOf('.skills-content-header {');
     const headerEnd = stylesheet.indexOf('\n}', headerStart);
 
     expect(stylesheet).not.toContain('background: var(--bitfun-color-surface-canvas);');
-    expect(stylesheet.slice(listSurfaceStart, listSurfaceEnd)).toContain('@include skills-list.surface;');
     expect(listStylesheet.slice(surfaceStart, surfaceEnd)).toContain('background: transparent;');
     expect(stylesheet.slice(headerStart, headerEnd)).not.toContain('background:');
   });
@@ -79,14 +74,160 @@ describe('Skills scene presentation', () => {
     );
   });
 
-  it('keeps row navigation and destructive actions as separate compact targets', () => {
+  it('renders installed skills through the shared SkillCard component with detail and delete actions', () => {
     const source = readSibling('./SkillsScene.tsx');
     const stylesheet = readSibling('./SkillsScene.scss');
 
-    expect(source).toContain('className="skills-card__actions"');
-    expect(source).toContain('data-bitfun-part="installedCardDetails"');
-    expect(source).toContain('data-bitfun-part="installedCardDelete"');
-    expect(stylesheet).toContain('minmax(120px, 0.85fr) 64px;');
-    expect(stylesheet).toContain('.skills-card__actions {');
+    expect(source).toContain('<SkillCard');
+    expect(source).toMatch(/data-bitfun-part="installedCard"/);
+    expect(source).toContain("id: 'detail'");
+    expect(source).toContain("id: 'delete'");
+    expect(source).toContain('toggleSlot=');
+    expect(source).not.toContain('className="skills-card__actions"');
+    expect(source).not.toContain('data-bitfun-part="installedCardDetails"');
+    expect(source).not.toContain('data-bitfun-part="installedCardDelete"');
+    expect(stylesheet).not.toContain('$skills-installed-columns');
+    expect(stylesheet).not.toContain('.skills-card__actions {');
+  });
+
+  it('uses the matrix-view container instead of nesting inside skills-discover', () => {
+    const source = readSibling('./SkillsScene.tsx');
+    const matrixViewSource = readSibling('./components/MatrixMarketView.tsx');
+    const stylesheet = readSibling('./SkillsScene.scss');
+
+    const matrixSectionStart = source.indexOf('{desktopConfigAvailable && isMatrixView && (');
+    const matrixSectionEnd = source.indexOf('</div>', source.indexOf('<MatrixMarketView', matrixSectionStart));
+    const matrixSection = source.slice(matrixSectionStart, matrixSectionEnd);
+
+    expect(matrixSectionStart).toBeGreaterThan(-1);
+    expect(source).toContain('className="skills-matrix-view"');
+    expect(matrixSection).toContain('data-bitfun-part="matrixView"');
+    expect(matrixSection).not.toContain('data-bitfun-part="discover"');
+    expect(matrixViewSource).not.toContain('className="skills-discover skills-matrix"');
+    expect(stylesheet).toContain('.skills-matrix-view {');
+    expect(stylesheet).not.toContain('.skills-matrix-page {');
+    expect(stylesheet).not.toContain('.skills-matrix > .skills-discover__content {');
+  });
+
+  it('navigates between the library, sources, and both markets through the sidebar', () => {
+    const source = readSibling('./SkillsScene.tsx');
+    const stylesheet = readSibling('./SkillsScene.scss');
+
+    expect(source).toContain('className="skills-sidebar"');
+    expect(source).toContain("title={t('nav.categories.installed')}");
+    expect(source).toContain("title={t('list.columns.source')}");
+    expect(source).toContain("title={t('nav.categories.discover')}");
+    expect(source).toContain('sourceCategories.map(renderSidebarItem)');
+    expect(source).toContain("onClick={() => setInstalledView('market')}");
+    expect(source).toContain("onClick={() => setInstalledView('matrix')}");
+    expect(source).not.toContain('skills-tabs-bar');
+    expect(source).not.toContain('<GalleryPageHeader');
+    expect(source).not.toContain('marketSettingsAction');
+    expect(source).not.toContain('market.settings.action');
+    expect(stylesheet).toContain('.bitfun-skills-scene {');
+    expect(stylesheet).not.toContain('.skills-tabs-bar {');
+  });
+
+  it('filters duplicates through a checkbox in the installed toolbar', () => {
+    const source = readSibling('./SkillsScene.tsx');
+    const stylesheet = readSibling('./SkillsScene.scss');
+
+    const toolbarStart = source.indexOf('data-bitfun-part="toolbar"');
+    const toolbarEnd = source.indexOf('</div>', source.indexOf('<Checkbox', toolbarStart));
+    const toolbar = source.slice(toolbarStart, toolbarEnd);
+
+    expect(toolbar).toContain('<Checkbox');
+    expect(toolbar).toContain('checked={hideDuplicates}');
+    expect(toolbar).toContain('onCheckedChange={setHideDuplicates}');
+    expect(toolbar).toContain("{t('toolbar.hideDuplicates')}");
+    expect(toolbar).toContain('skills-main__filter');
+    expect(source).not.toContain('skills-main__chip-btn');
+    expect(stylesheet).toContain('.skills-main__filter {');
+    expect(stylesheet).not.toContain('.skills-main__chip-btn');
+  });
+
+  it('opens skill details in a 2.0.0-style dialog with copy and reveal path actions', () => {
+    const source = readSibling('./SkillsScene.tsx');
+    const stylesheet = readSibling('./SkillsScene.scss');
+
+    const detailStart = source.indexOf('data-testid="skill-detail-panel"');
+    const detailEnd = source.indexOf('data-testid="skill-detail-panel"', source.indexOf('</Dialog>', detailStart));
+    const detail = source.slice(source.lastIndexOf('<Dialog', detailStart), detailEnd);
+
+    expect(source).not.toContain('<GalleryDetailModal');
+    expect(detail).toContain('skills-detail__fields');
+    expect(detail).toContain('skills-detail__badges');
+    expect(detail).toContain('skills-detail__location');
+    expect(detail).toContain('data-testid="skills-detail-copy-path-btn"');
+    expect(detail).toContain('data-testid="skills-detail-path-btn"');
+    expect(detail).toContain('handleCopySkillPath');
+    expect(detail).toContain('handleRevealSkillPath');
+    expect(detail).toContain('DialogFooter');
+    expect(source).toContain('systemAPI.setClipboard');
+    expect(source).toContain('formatSkillDetailPath');
+    expect(stylesheet).toContain('.skills-detail {');
+    expect(stylesheet).toContain('&__fields {');
+    expect(stylesheet).toContain('&__location {');
+  });
+
+  it('binds the sidebar search to the active view', () => {
+    const source = readSibling('./SkillsScene.tsx');
+
+    expect(source).toContain('const sidebarSearch = isMarketView');
+    expect(source).toContain('onSearch: () => submitMarketQuery()');
+    expect(source).toContain('onSearch: () => matrix.submitKeyword()');
+    expect(source).toContain("placeholder: t('market.searchPlaceholder')");
+    expect(source).toContain("placeholder: t('matrix.searchPlaceholder')");
+    expect(source).toContain("placeholder: t('toolbar.searchPlaceholder')");
+  });
+
+  it('anchors the market load-more sentinel to the real ScrollArea root', () => {
+    const source = readSibling('./SkillsScene.tsx');
+    const sentinelSource = readSibling('./components/SkillsLoadMoreSentinel.tsx');
+
+    // ScrollArea owns the scroll viewport; its ref feeds the sentinel so
+    // IntersectionObserver judges intersection against the real scroll bounds
+    // instead of the browser viewport (which is unreliable in nested
+    // ScrollArea setups and caused the "can't load more / one page then
+    // empty" regression on ArkWeb).
+    expect(source).toContain('setMarketScrollRoot');
+    expect(source).toContain('ref={setMarketScrollRoot}');
+    expect(source).toContain('root={marketScrollRoot}');
+    expect(sentinelSource).toContain('root?: Element | null');
+    expect(sentinelSource).toContain('root: root ?? null');
+    expect(sentinelSource).toContain("rootMargin: '200px'");
+  });
+
+  it('does not refresh the skill market list on scene re-entry', () => {
+    const source = readSibling('./SkillsScene.tsx');
+
+    // useGallerySceneAutoRefresh calls refetchSkillsScene on tab re-entry and
+    // window visibility regain. Previously it invoked market.refresh(), which
+    // flipped marketLoading and replaced the existing list with a skeleton
+    // grid (the "whole page refreshes" regression). The market is now
+    // intentionally excluded from re-entry refresh; only installed skills and
+    // skill groups are reloaded.
+    const refetchStart = source.indexOf('const refetchSkillsScene');
+    const refetchEnd = source.indexOf('}, [', refetchStart);
+    const refetchBody = source.slice(refetchStart, refetchEnd);
+
+    expect(refetchBody).toContain('installed.loadSkills(true)');
+    expect(refetchBody).toContain('skillGroups.reload()');
+    expect(refetchBody).not.toContain('market.refresh()');
+  });
+
+  it('keeps the existing market grid visible during load-more and refresh', () => {
+    const source = readSibling('./SkillsScene.tsx');
+
+    // The skeleton grid must only replace the list on a true first load
+    // (empty list). When data already exists, the grid stays mounted and a
+    // non-blocking refresh row surfaces progress, avoiding the flash.
+    expect(source).toContain('market.marketLoading && market.marketSkills.length === 0');
+    // The list render condition no longer hides the grid while loadingMore.
+    const listBlockStart = source.indexOf('!market.marketLoading && !market.marketError && market.marketSkills.length > 0');
+    expect(listBlockStart).toBeGreaterThan(-1);
+    const listBlockEnd = source.indexOf('<SkillsLoadMoreSentinel', listBlockStart);
+    const listBlock = source.slice(listBlockStart, listBlockEnd);
+    expect(listBlock).not.toContain('!market.loadingMore && market.marketSkills.length > 0');
   });
 });

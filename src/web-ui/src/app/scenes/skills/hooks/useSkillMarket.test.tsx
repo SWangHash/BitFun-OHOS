@@ -249,4 +249,37 @@ describe('useSkillMarket', () => {
     expect(notificationMocks.error).not.toHaveBeenCalled();
     expect(downloadSkillMarketMock).toHaveBeenCalledTimes(1);
   });
+
+  it('loads subsequent pages via offset pagination and appends only new skills', async () => {
+    const all = Array.from({ length: 11 }, (_, i) => ({
+      id: `skill-${i}`,
+      name: `skill-${i}`,
+      description: '',
+      source: 'test',
+      installs: i,
+      url: `https://example.com/skill-${i}`,
+      installId: `test@skill-${i}`,
+    }));
+    listSkillMarketMock.mockImplementation((_query: unknown, limit?: number, offset?: number) => {
+      const start = offset ?? 0;
+      return Promise.resolve(all.slice(start, start + (limit ?? 10)));
+    });
+
+    await act(async () => {
+      root.render(<Harness enabled />);
+      await Promise.resolve();
+    });
+    expect(currentMarket?.marketSkills).toHaveLength(10);
+    expect(currentMarket?.hasMore).toBe(true);
+    expect(listSkillMarketMock).toHaveBeenLastCalledWith(undefined, 11, 0);
+
+    await act(async () => {
+      await currentMarket?.goToNextPage();
+    });
+
+    expect(listSkillMarketMock).toHaveBeenLastCalledWith(undefined, 11, 10);
+    expect(currentMarket?.marketSkills).toHaveLength(11);
+    expect(currentMarket?.marketSkills.map((skill) => skill.id)).toContain('skill-10');
+    expect(currentMarket?.hasMore).toBe(false);
+  });
 });

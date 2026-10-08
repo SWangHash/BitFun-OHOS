@@ -537,23 +537,23 @@ export class ConfigAPI {
     }
   }
 
-  async listSkillMarket(query?: string, limit?: number): Promise<SkillMarketItem[]> {
+  async listSkillMarket(query?: string, limit?: number, offset?: number): Promise<SkillMarketItem[]> {
     try {
       return await api.invoke('list_skill_market', {
-        request: { query, limit }
+        request: { query, limit, offset }
       });
     } catch (error) {
-      throw createTauriCommandError('list_skill_market', error, { query, limit });
+      throw createTauriCommandError('list_skill_market', error, { query, limit, offset });
     }
   }
 
-  async searchSkillMarket(query: string, limit?: number): Promise<SkillMarketItem[]> {
+  async searchSkillMarket(query: string, limit?: number, offset?: number): Promise<SkillMarketItem[]> {
     try {
       return await api.invoke('search_skill_market', {
-        request: { query, limit }
+        request: { query, limit, offset }
       });
     } catch (error) {
-      throw createTauriCommandError('search_skill_market', error, { query, limit });
+      throw createTauriCommandError('search_skill_market', error, { query, limit, offset });
     }
   }
 
