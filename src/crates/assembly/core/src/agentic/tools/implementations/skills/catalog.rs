@@ -38,6 +38,10 @@ mod tests {
             Some("harmonyos")
         );
         assert_eq!(
+            builtin_skill_group_key("hmos-dev-env-setup"),
+            Some("harmonyos")
+        );
+        assert_eq!(
             builtin_skill_group_key("hmos-runtime-fix-skill"),
             Some("harmonyos")
         );

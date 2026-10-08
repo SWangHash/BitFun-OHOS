@@ -171,6 +171,10 @@ pub(super) const BUILTIN_SKILL_SPECS: &[BuiltinSkillSpec] = &[
         group: BuiltinSkillGroup::HarmonyOS,
     },
     BuiltinSkillSpec {
+        dir_name: "hmos-dev-env-setup",
+        group: BuiltinSkillGroup::HarmonyOS,
+    },
+    BuiltinSkillSpec {
         dir_name: "hmos-runtime-fix-skill",
         group: BuiltinSkillGroup::HarmonyOS,
     },
