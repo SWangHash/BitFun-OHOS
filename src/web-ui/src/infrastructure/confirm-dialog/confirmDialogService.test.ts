@@ -42,6 +42,23 @@ describe('confirmDialogService', () => {
     await expect(second).resolves.toBe('cancel');
   });
 
+  it('keeps an implicit dismissal distinct from the explicit cancel action', async () => {
+    const choice = confirmDialogChoice({ title: 'Quit?' });
+
+    useConfirmDialogStore.getState().dismiss();
+
+    await expect(choice).resolves.toBe('dismissed');
+    expect(useConfirmDialogStore.getState().options).toBeNull();
+  });
+
+  it('reports a dismissed boolean confirmation as unconfirmed', async () => {
+    const result = confirmDialog({ title: 'Quit?' });
+
+    useConfirmDialogStore.getState().dismiss();
+
+    await expect(result).resolves.toBe(false);
+  });
+
   it('applies destructive defaults without overriding explicit options', async () => {
     const result = confirmDanger('Delete?', 'Cannot undo', { confirmDanger: false });
 

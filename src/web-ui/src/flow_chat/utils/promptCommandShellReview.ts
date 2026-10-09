@@ -29,7 +29,7 @@ export async function reviewPromptCommandShell(
     preview: plan.commands.map(command => `$ ${command}`).join('\n\n'),
   });
 
-  if (choice === 'cancel' || (choice === 'secondary' && !plan.canRemember)) {
+  if (choice === 'cancel' || choice === 'dismissed' || (choice === 'secondary' && !plan.canRemember)) {
     return null;
   }
   return {
