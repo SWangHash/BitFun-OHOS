@@ -415,6 +415,20 @@ async function generateBrandAssets() {
     await resizePng(lightMark, 144),
   );
 
+  const ohosTrayMediaDir = outputPath('src', 'apps', 'ohos', 'entry', 'src', 'main', 'resources', 'base', 'media');
+  // HarmonyOS status bar (system tray) marks for 2in1 devices. The status bar
+  // paints the `white` icon on dark backgrounds and the `black` icon on light
+  // ones, and rejects pixel maps above its size limit, so both stay at a small
+  // optical size that keeps the mark readable at 48 px.
+  await writePng(
+    path.join(ohosTrayMediaDir, 'bitfun_status_bar_icon_white.png'),
+    await renderMark(svg, 48, '#ffffff', 24),
+  );
+  await writePng(
+    path.join(ohosTrayMediaDir, 'bitfun_status_bar_icon_black.png'),
+    await renderMark(svg, 48, '#202020', 24),
+  );
+
   await removeLegacyApplicationAssets();
 
   console.log('Generated BitFun application brand assets.');
