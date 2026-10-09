@@ -29,6 +29,7 @@ import { resolveThreadGoalUserMessageDisplay } from '../../utils/threadGoalDispl
 import { cleanRemoteUserInput } from '../../utils/userInputText';
 import { getEffectiveToolName } from '../../utils/toolInvocationIdentity';
 import { absoluteSessionTurnIndexForId } from '../../utils/flowChatTurnOrdinal';
+import { settleStreamingRoundItems } from '../../utils/turnCancellation';
 import type {
   DeepReviewQueueStateChangedEvent,
   ImageAnalysisEvent,
@@ -2956,13 +2957,13 @@ function handleDialogTurnCancelled(
   context.flowChatStore.updateDialogTurn(sessionId, turnId, turn => {
     const updatedModelRounds = turn.modelRounds.map((round) => {
       if (round.isStreaming) {
-        return {
+        return settleStreamingRoundItems({
           ...round,
           isStreaming: false,
           isComplete: true,
           status: 'cancelled' as const,
           endTime: Date.now()
-        };
+        });
       }
       return round;
     });
@@ -3067,13 +3068,16 @@ function handleDialogTurnInterrupted(context: FlowChatContext, event: any): void
   }
   context.flowChatStore.updateDialogTurn(sessionId, turnId, turn => ({
     ...turn,
-    modelRounds: turn.modelRounds.map(round => ({
-      ...round,
-      isStreaming: false,
-      isComplete: true,
-      status: round.isStreaming ? 'cancelled' as const : round.status,
-      endTime: round.isStreaming ? Date.now() : round.endTime,
-    })),
+    modelRounds: turn.modelRounds.map(round => {
+      const closed = {
+        ...round,
+        isStreaming: false,
+        isComplete: true,
+        status: round.isStreaming ? 'cancelled' as const : round.status,
+        endTime: round.isStreaming ? Date.now() : round.endTime,
+      };
+      return round.isStreaming ? settleStreamingRoundItems(closed) : closed;
+    }),
     status: 'cancelled' as const,
     finishReason: 'interrupted',
     endTime: Date.now(),
