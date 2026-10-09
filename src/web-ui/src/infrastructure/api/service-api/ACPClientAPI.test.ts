@@ -130,4 +130,63 @@ describe('ACPClientAPI client list startup cache', () => {
     });
     expect(saved.acpClients.opencode.command).toBe('opencode');
   });
+
+  it.each([null, undefined])('accepts legacy successful install response %s and invalidates cached results', async (legacyResponse) => {
+    const ACPClientAPI = await importApi();
+    const request = { clientId: 'dsh', remoteConnectionId: 'remote-host' };
+    invokeMock
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(legacyResponse)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+
+    await ACPClientAPI.getClients();
+    await ACPClientAPI.probeClientRequirements({ remoteConnectionId: request.remoteConnectionId });
+    vi.mocked(window.dispatchEvent).mockClear();
+
+    await expect(ACPClientAPI.installClientCli(request)).resolves.toEqual({
+      clientId: 'dsh',
+      status: 'cli_installed',
+    });
+    // Host setup runs for minutes; the default 30 s request timeout must not apply.
+    expect(invokeMock).toHaveBeenNthCalledWith(
+      3,
+      'install_acp_client_cli',
+      { request },
+      { timeout: 30 * 60 * 1000 },
+    );
+    expect(vi.mocked(window.dispatchEvent).mock.calls.map(([event]) => event.type))
+      .toEqual(['bitfun:acp-requirements-changed']);
+
+    await ACPClientAPI.getClients();
+    await ACPClientAPI.probeClientRequirements({ remoteConnectionId: request.remoteConnectionId });
+    expect(invokeMock).toHaveBeenCalledTimes(5);
+    expect(invokeMock).toHaveBeenNthCalledWith(4, 'get_acp_clients');
+    expect(invokeMock).toHaveBeenNthCalledWith(5, 'probe_acp_client_requirements', {
+      request: { remoteConnectionId: 'remote-host', forceRefresh: false },
+    });
+  });
+
+  it('preserves a managed install outcome and notifies config consumers', async () => {
+    const ACPClientAPI = await importApi();
+    const outcome = {
+      clientId: 'dsh', status: 'managed_ready', installRoot: '/managed/dsh',
+      probe: { id: 'dsh', tool: { name: 'dsh', installed: true }, runnable: true, notes: [] },
+    };
+    invokeMock.mockResolvedValueOnce(outcome);
+
+    await expect(ACPClientAPI.installClientCli({ clientId: 'dsh' })).resolves.toBe(outcome);
+    expect(vi.mocked(window.dispatchEvent).mock.calls.map(([event]) => event.type))
+      .toEqual(['bitfun:acp-requirements-changed', 'bitfun:acp-clients-changed']);
+  });
+
+  it('propagates an install failure without reporting success', async () => {
+    const ACPClientAPI = await importApi();
+    const error = new Error('Install failed');
+    invokeMock.mockRejectedValueOnce(error);
+
+    await expect(ACPClientAPI.installClientCli({ clientId: 'dsh' })).rejects.toBe(error);
+    expect(window.dispatchEvent).not.toHaveBeenCalled();
+  });
 });

@@ -51,11 +51,13 @@
     "omp": { "description": "原生支持 ACP" },
     "claudeCode": {
       "name": "Claude Code",
-      "description": "使用 HarmonyBrew Node/npm 安装，并通过 ACP 适配器接入的编码 Agent。"
+      "description": "通过官方 ACP 适配器连接",
+      "ohosDescription": "使用 HarmonyBrew Node/npm 安装，并通过 ACP 适配器接入的编码 Agent。"
     },
     "codex": {
       "name": "Codex",
-      "description": "通过 HarmonyBrew 安装，并由 ACP 适配器接入的编码 Agent。"
+      "description": "通过官方 ACP 适配器连接",
+      "ohosDescription": "通过 HarmonyBrew 安装，并由 ACP 适配器接入的编码 Agent。"
     }
   },
   "json": {
@@ -73,7 +75,11 @@
     "message": "目标主机：{{host}}。BitFun 将执行“{{command}}”，把 npm 包全局安装到该主机；这会修改该主机的全局命令环境，并可能需要网络与写入权限。",
     "localHost": "当前执行主机",
     "packageUnknown": "无法确认此智能体的安装包，已取消安装",
-    "confirm": "在目标主机安装"
+    "confirm": "在目标主机安装",
+    "managedTitle": "添加 {{name}}？",
+    "managedMessage": "目标设备：{{host}}。BitFun 将通过 HarmonyBrew 准备所需组件，并配置、验证 ACP 接入。缺少的组件将安装到当前用户的 HarmonyBrew 环境，可能需要网络与写入权限。",
+    "managedConfirm": "确认添加",
+    "localDevice": "当前设备"
   },
   "registry": {
     "title": "智能体列表",
@@ -117,6 +123,7 @@
     "loading": "正在加载 ACP 智能体…"
   },
   "remote": {
+    "probeResultMissing": "主机未返回此智能体的检测结果，请刷新检测重试。",
     "title": "SSH 服务器",
     "description": "检测已保存 SSH 服务器上的 ACP 智能体",
     "empty": "没有已保存的 SSH 服务器",
@@ -156,6 +163,7 @@
     "installing": "安装中"
   },
   "notifications": {
+    "draftConflict": "ACP 配置已更新，已保留你的未保存修改。请在保存前检查冲突字段。",
     "loadFailed": "加载 ACP 配置失败",
     "loadFailedLocked": "无法读取 ACP 配置。为避免把现有智能体配置覆盖为空，当前页面已锁定。",
     "saveSuccess": "ACP 配置已保存",

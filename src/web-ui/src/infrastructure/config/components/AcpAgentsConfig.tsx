@@ -53,12 +53,14 @@ import {
   availableRemotePresetIds,
   canInstallPresetCli,
   getManualInstallGuide,
+  isOhosOnlyAcpPreset,
   presetsForRuntime,
   type AcpClientPreset,
   type AgentRowStatus,
   type RequirementIssueKind,
 } from './acpAgentPresetPolicy';
 import { useSettingsDraft } from '@/infrastructure/config/settingsDraftRegistry';
+import { mergeAcpConfigDraft } from './acpConfigDraftMerge';
 import './AcpAgentsConfig.scss';
 
 const log = createLogger('AcpAgentsConfig');
@@ -111,15 +113,18 @@ interface AcpClientConfigFile {
 
 const CLI_INSTALL_PACKAGES: Record<string, string> = {
   opencode: 'opencode-ai',
+  'kimi-code': '@moonshot-ai/kimi-code',
+  'qwen-code': '@qwen-code/qwen-code',
+  'codebuddy-code': '@tencent-ai/codebuddy-code',
   dsh: '@deepseek-ai/dsh',
   'claude-code': '@anthropic-ai/claude-code',
   codex: '@openai/codex',
 };
 
 const LOCAL_PRESETS = presetsForRuntime(IS_OHOS);
+const LOCAL_PRESET_IDS = new Set(LOCAL_PRESETS.map(preset => preset.id));
 
-// Remote hosts keep the full portable preset catalog. HarmonyOS-only hiding is
-// a property of the local execution host and must not leak into remote rows.
+// SSH hosts use the portable catalog. HarmonyOS-only presets stay on the local list.
 const PRESET_BY_ID = new Map(ALL_ACP_CLIENT_PRESETS.map(preset => [preset.id, preset]));
 
 interface SelfManagedInstallInfo extends Record<string, string> {
@@ -132,6 +137,7 @@ interface InstallConfirmation {
   remoteConnectionId?: string;
   hostLabel: string;
   packageName: string;
+  managed: boolean;
 }
 
 export type AcpConfigView = 'local' | 'ssh' | 'json';
@@ -331,11 +337,22 @@ function classifyRequirementError(error?: string): Exclude<RequirementIssueKind,
   ) {
     return 'version_mismatch';
   }
+  // "not available on PATH" and "could not be resolved" mean the CLI was
+  // not found. Matching the substring "path" turned those misses into
+  // "path invalid", including remote probes of portable commands.
   if (
-    lower.includes('not found') ||
+    lower.includes('command not found') ||
+    lower.includes('not available') ||
+    lower.includes('could not be resolved')
+  ) {
+    return 'config_invalid';
+  }
+  if (
     lower.includes('no such file or directory') ||
-    lower.includes('command -v') ||
-    lower.includes('path')
+    lower.includes('not a directory') ||
+    lower.includes('invalid path') ||
+    lower.includes('path invalid') ||
+    lower.includes('not found')
   ) {
     return 'path_invalid';
   }
@@ -360,7 +377,14 @@ function getAgentRowStatus({
   probe?: AcpClientRequirementProbe;
 }): AgentRowStatus {
   if (probePending) return 'checking';
-  if (configured && probe?.runnable === false && !hasTransientProbeFailure(probe)) return 'invalid';
+  // A missing CLI stays "not installed" so remote rows can offer installation.
+  // An installed command that still cannot run is a real configuration failure.
+  if (
+    configured
+    && toolInstalled !== false
+    && probe?.runnable === false
+    && !hasTransientProbeFailure(probe)
+  ) return 'invalid';
   if (toolInstalled === false) {
     if (configured && enabled && hasTransientProbeFailure(probe)) {
       return 'enabled';
@@ -389,6 +413,7 @@ function agentStatusTone(status: AgentRowStatus): StatusPillTone {
     case 'partial':
       return 'warning';
     case 'invalid':
+    case 'probe_failed':
       return 'danger';
     case 'checking':
       return 'info';
@@ -486,6 +511,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
   const [envDrafts, setEnvDrafts] = useState<Record<string, string>>({});
   const [requirementProbes, setRequirementProbes] = useState<AcpClientRequirementProbe[]>([]);
   const [remoteRequirementProbes, setRemoteRequirementProbes] = useState<Record<string, AcpClientRequirementProbe[]>>({});
+  const [remoteProbeErrors, setRemoteProbeErrors] = useState<Record<string, string>>({});
   const [probingRemoteRequirements, setProbingRemoteRequirements] = useState<Set<string>>(() => new Set());
   const [probingRequirements, setProbingRequirements] = useState(false);
   const [registrySearch, setRegistrySearch] = useState('');
@@ -498,10 +524,17 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
   const [installConfirmation, setInstallConfirmation] = useState<InstallConfirmation | null>(null);
   const requirementProbeRequestIdRef = useRef(0);
   const savingConfigRef = useRef(false);
+  const managedSetupIdsRef = useRef(new Set<string>());
+  const managedConfigRefreshPendingRef = useRef(false);
+  const configLoadRequestRef = useRef(0);
+  const persistedConfigRef = useRef<AcpClientConfigFile>({ acpClients: {} });
+  const draftStateRef = useRef({ config, envDrafts, dirty, jsonDirty });
+  draftStateRef.current = { config, envDrafts, dirty, jsonDirty };
   const lastNavigationRequestIdRef = useRef(navigationRequestId);
   const activeViewRef = useRef(activeView);
   const localRequirementProbeStartedRef = useRef(false);
-  const loadedRemoteProbeIdsRef = useRef<Set<string>>(new Set());
+  const completedRemoteProbeIdsRef = useRef<Set<string>>(new Set());
+  const remoteProbeRequestsRef = useRef(new Map<string, symbol>());
   const [remoteProbeRefreshNonce, setRemoteProbeRefreshNonce] = useState(0);
 
   useImperativeHandle(ref, () => ({
@@ -543,7 +576,8 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
     ]);
 
     return Array.from(ids)
-      .filter(id => !PRESET_BY_ID.has(id) && (!clientIds || clientIds.includes(id)))
+      // A configured agent whose preset this platform hides must still be listed, as a custom row.
+      .filter(id => !LOCAL_PRESET_IDS.has(id) && (!clientIds || clientIds.includes(id)))
       .sort((a, b) => a.localeCompare(b));
   }, [clientIds, clients, config.acpClients]);
 
@@ -671,14 +705,30 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
     }
   }, [notifyError, t]);
 
+  const invalidateRemoteRequirementProbes = useCallback(() => {
+    completedRemoteProbeIdsRef.current.clear();
+    remoteProbeRequestsRef.current.clear();
+    setRemoteRequirementProbes({});
+    setRemoteProbeErrors({});
+    setProbingRemoteRequirements(new Set());
+    setRemoteProbeRefreshNonce(prev => prev + 1);
+  }, []);
+
   const refreshRemoteRequirementProbes = useCallback(async (
     connectionId: string,
     options: { force?: boolean; notifyOnError?: boolean } = {}
   ) => {
     const normalizedConnectionId = connectionId.trim();
-    if (!normalizedConnectionId) return;
-    if (!options.force && loadedRemoteProbeIdsRef.current.has(normalizedConnectionId)) return;
+    if (!normalizedConnectionId || remoteProbeRequestsRef.current.has(normalizedConnectionId)) return;
+    if (!options.force && completedRemoteProbeIdsRef.current.has(normalizedConnectionId)) return;
 
+    const requestId = Symbol();
+    remoteProbeRequestsRef.current.set(normalizedConnectionId, requestId);
+    setRemoteProbeErrors(prev => {
+      const next = { ...prev };
+      delete next[normalizedConnectionId];
+      return next;
+    });
     setProbingRemoteRequirements(prev => {
       const next = new Set(prev);
       next.add(normalizedConnectionId);
@@ -687,14 +737,22 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
     try {
       const nextRequirementProbes = await ACPClientAPI.probeClientRequirements({
         remoteConnectionId: normalizedConnectionId,
-        force: options.force,
+        // The backend only reads a snapshot unless a real probe is requested.
+        force: true,
       });
-      loadedRemoteProbeIdsRef.current.add(normalizedConnectionId);
+      if (remoteProbeRequestsRef.current.get(normalizedConnectionId) !== requestId) return;
+      completedRemoteProbeIdsRef.current.add(normalizedConnectionId);
       setRemoteRequirementProbes(prev => ({
         ...prev,
         [normalizedConnectionId]: nextRequirementProbes,
       }));
     } catch (error) {
+      if (remoteProbeRequestsRef.current.get(normalizedConnectionId) !== requestId) return;
+      completedRemoteProbeIdsRef.current.add(normalizedConnectionId);
+      setRemoteProbeErrors(prev => ({
+        ...prev,
+        [normalizedConnectionId]: error instanceof Error ? error.message : String(error),
+      }));
       log.error('Failed to probe remote ACP agent requirements', error);
       if (options.notifyOnError ?? true) {
         notifyError(error instanceof Error ? error.message : String(error), {
@@ -702,17 +760,21 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
         });
       }
     } finally {
-      setProbingRemoteRequirements(prev => {
-        const next = new Set(prev);
-        next.delete(normalizedConnectionId);
-        return next;
-      });
+      if (remoteProbeRequestsRef.current.get(normalizedConnectionId) === requestId) {
+        remoteProbeRequestsRef.current.delete(normalizedConnectionId);
+        setProbingRemoteRequirements(prev => {
+          const next = new Set(prev);
+          next.delete(normalizedConnectionId);
+          return next;
+        });
+      }
     }
   }, [notifyError, t]);
 
   const loadConfig = useCallback(async (
-    options: { showLoading?: boolean; refreshRequirements?: boolean } = {}
+    options: { showLoading?: boolean; refreshRequirements?: boolean; preserveDrafts?: boolean } = {}
   ) => {
+    const requestId = ++configLoadRequestRef.current;
     const showLoading = options.showLoading ?? true;
     const refreshRequirements = options.refreshRequirements ?? true;
     try {
@@ -728,28 +790,47 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
         log.warn('Failed to load saved SSH connections for ACP remote overrides', error);
         return [] as SavedConnection[];
       });
+      if (configLoadRequestRef.current !== requestId) return false;
       const { config: parsed, hasLegacyPermissionModes } = normalizeConfigValue(JSON.parse(rawConfig || '{}'));
-      setConfig(parsed);
-      setPendingPermissionMigration(hasLegacyPermissionModes);
-      const formattedConfig = formatConfig(parsed);
-      setJsonConfig(formattedConfig);
-      setJsonBaseline(formattedConfig);
-      setEnvDrafts(
-        Object.fromEntries(
-          Object.entries(parsed.acpClients).map(([clientId, clientConfig]) => [
-            clientId,
-            formatEnv(clientConfig.env),
-          ])
-        )
+      // Read the draft after all awaits: the user can keep editing during setup.
+      const draft = draftStateRef.current;
+      const keepDraft = options.preserveDrafts && draft.dirty;
+      const merged = keepDraft
+        ? mergeAcpConfigDraft(persistedConfigRef.current, draft.config, parsed)
+        : { config: parsed, conflicted: false };
+      const nextEnvDrafts = Object.fromEntries(
+        Object.entries(merged.config.acpClients).map(([clientId, clientConfig]) => {
+          const previousEnv = draft.config.acpClients[clientId]?.env ?? {};
+          const text = draft.envDrafts[clientId];
+          return [clientId, keepDraft && text !== undefined && text !== formatEnv(previousEnv)
+            ? text : formatEnv(clientConfig.env)];
+        })
       );
+      const keepJsonDraft = Boolean(options.preserveDrafts && draft.jsonDirty);
+      persistedConfigRef.current = parsed;
+      draftStateRef.current = {
+        config: merged.config, envDrafts: nextEnvDrafts,
+        dirty: Boolean(keepDraft), jsonDirty: keepJsonDraft,
+      };
+      setConfig(merged.config);
+      setEnvDrafts(nextEnvDrafts);
+      setPendingPermissionMigration(hasLegacyPermissionModes);
+      if (!keepJsonDraft) {
+        const formattedConfig = formatConfig(merged.config);
+        setJsonConfig(formattedConfig);
+        setJsonBaseline(formattedConfig);
+      }
       setClients(nextClients);
       setSavedConnections(nextSavedConnections);
-      setDirty(false);
-      setJsonDirty(false);
+      setDirty(Boolean(keepDraft));
+      setJsonDirty(keepJsonDraft);
+      if (merged.conflicted) notifyInfo(t('notifications.draftConflict'));
       if (refreshRequirements && activeViewRef.current === 'local') {
         void refreshRequirementProbes({ notifyOnError: false });
       }
+      return true;
     } catch (error) {
+      if (configLoadRequestRef.current !== requestId) return false;
       log.error('Failed to load ACP agent config', error);
       if (showLoading) setLoadFailed(true);
       else {
@@ -757,12 +838,13 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
           title: t('notifications.loadFailed'),
         });
       }
+      return false;
     } finally {
       if (showLoading) {
         setLoading(false);
       }
     }
-  }, [notifyError, refreshRequirementProbes, t]);
+  }, [notifyError, notifyInfo, refreshRequirementProbes, t]);
 
   const hideRemoteConnection = useCallback((connection: SavedConnection) => {
     const connectionName = connection.name || connection.id;
@@ -825,16 +907,17 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
 
   useEffect(() => {
     const handleAcpClientsChanged = () => {
+      invalidateRemoteRequirementProbes();
       if (savingConfigRef.current || dirty || jsonDirty) {
         return;
       }
-      void loadConfig({ showLoading: false });
+      void loadConfig({ showLoading: false, preserveDrafts: true });
     };
     window.addEventListener('bitfun:acp-clients-changed', handleAcpClientsChanged);
     return () => {
       window.removeEventListener('bitfun:acp-clients-changed', handleAcpClientsChanged);
     };
-  }, [dirty, jsonDirty, loadConfig]);
+  }, [dirty, invalidateRemoteRequirementProbes, jsonDirty, loadConfig]);
 
   useEffect(() => {
     if (loading || activeView !== 'ssh') return;
@@ -883,11 +966,13 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
       notifyError(t('installConfirm.packageUnknown'));
       return;
     }
+    const managed = IS_OHOS && !options.remoteConnectionId;
     setInstallConfirmation({
       preset,
       remoteConnectionId: options.remoteConnectionId,
-      hostLabel: options.hostLabel || t('installConfirm.localHost'),
+      hostLabel: options.hostLabel || t(managed ? 'installConfirm.localDevice' : 'installConfirm.localHost'),
       packageName,
+      managed,
     });
   };
 
@@ -896,7 +981,13 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
     options: { remoteConnectionId?: string } = {}
   ) => {
     const remoteConnectionId = options.remoteConnectionId?.trim();
+    const managed = IS_OHOS && !remoteConnectionId;
+    if (managed && savingConfigRef.current) return;
     const installKey = remoteConnectionId ? `${remoteConnectionId}:${preset.id}` : preset.id;
+    if (managed) {
+      managedSetupIdsRef.current.add(installKey);
+      managedConfigRefreshPendingRef.current = true;
+    }
     const setInstalling = remoteConnectionId ? setInstallingRemoteClientIds : setInstallingClientIds;
     setInstalling(prev => new Set(prev).add(installKey));
     if (!remoteConnectionId) {
@@ -912,11 +1003,13 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
         remoteConnectionId,
       });
       if (remoteConnectionId) {
-        loadedRemoteProbeIdsRef.current.delete(remoteConnectionId);
+        completedRemoteProbeIdsRef.current.delete(remoteConnectionId);
         await refreshRemoteRequirementProbes(remoteConnectionId, { force: true, notifyOnError: false });
       } else {
         if (outcome.status === 'managed_ready') {
-          await loadConfig({ showLoading: false });
+          managedConfigRefreshPendingRef.current = true;
+          const loaded = await loadConfig({ showLoading: false, preserveDrafts: true });
+          if (loaded) managedConfigRefreshPendingRef.current = false;
         }
         await refreshRequirementProbes({ force: true, notifyOnError: false });
       }
@@ -926,6 +1019,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
           : 'notifications.installSuccess'
       ));
     } catch (error) {
+      if (managed) managedConfigRefreshPendingRef.current = true;
       const message = error instanceof Error ? error.message : String(error);
       if (message.includes('ACP_PROVISIONING_CANCELLED')) {
         notifyInfo(t('notifications.installCancelled'));
@@ -936,6 +1030,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
         title: t('notifications.installFailed'),
       });
     } finally {
+      if (managed) managedSetupIdsRef.current.delete(installKey);
       setInstalling(prev => {
         const next = new Set(prev);
         next.delete(installKey);
@@ -1013,17 +1108,29 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
     nextConfig = config,
     options: { mergeEnvDrafts?: boolean; successMessage?: string } = {}
   ): Promise<boolean> => {
-    if (savingConfigRef.current) return false;
+    if (savingConfigRef.current || managedSetupIdsRef.current.size > 0) return false;
+    const refreshManagedConfig = managedConfigRefreshPendingRef.current;
+    configLoadRequestRef.current += 1;
     savingConfigRef.current = true;
     try {
       setSaving(true);
-      const configToSave = options.mergeEnvDrafts === false
+      let configToSave = options.mergeEnvDrafts === false
         ? nextConfig
         : mergeEnvDrafts(nextConfig);
+      if (refreshManagedConfig) {
+        const baseline = persistedConfigRef.current;
+        const loaded = await loadConfig({
+          showLoading: false, refreshRequirements: false, preserveDrafts: true,
+        });
+        if (!loaded) return false;
+        configToSave = mergeAcpConfigDraft(baseline, configToSave, persistedConfigRef.current).config;
+      }
       const formattedConfig = formatConfig(configToSave);
       await ACPClientAPI.saveJsonConfig(formattedConfig);
       const nextClients = await ACPClientAPI.getClients();
       setClients(nextClients);
+      persistedConfigRef.current = configToSave;
+      managedConfigRefreshPendingRef.current = false;
       setConfig(configToSave);
       setJsonConfig(formattedConfig);
       setJsonBaseline(formattedConfig);
@@ -1031,11 +1138,10 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
       setJsonDirty(false);
       setPendingPermissionMigration(false);
       await refreshRequirementProbes({ force: true, notifyOnError: false });
-      loadedRemoteProbeIdsRef.current.clear();
-      setRemoteProbeRefreshNonce(prev => prev + 1);
       notifySuccess(options.successMessage ?? t('notifications.saveSuccess'));
       return true;
     } catch (error) {
+      if (refreshManagedConfig) managedConfigRefreshPendingRef.current = true;
       log.error('Failed to save ACP agent config', error);
       notifyError(error instanceof Error ? error.message : String(error), {
         title: t('notifications.saveFailed'),
@@ -1080,14 +1186,17 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
   };
 
   const saveJsonConfig = async (): Promise<boolean> => {
+    if (savingConfigRef.current || managedSetupIdsRef.current.size > 0) return false;
     try {
       const { config: parsed } = normalizeConfigValue(JSON.parse(jsonConfig));
-      const saved = await saveConfig(parsed, { mergeEnvDrafts: false });
+      const { config: baseline } = normalizeConfigValue(JSON.parse(jsonBaseline));
+      const merged = mergeAcpConfigDraft(baseline, parsed, config);
+      if (merged.conflicted) notifyInfo(t('notifications.draftConflict'));
+      const saved = await saveConfig(merged.config, { mergeEnvDrafts: false });
       if (!saved) return false;
-      setConfig(parsed);
       setEnvDrafts(
         Object.fromEntries(
-          Object.entries(parsed.acpClients).map(([clientId, clientConfig]) => [
+          Object.entries(persistedConfigRef.current.acpClients).map(([clientId, clientConfig]) => [
             clientId,
             formatEnv(clientConfig.env),
           ])
@@ -1105,12 +1214,14 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
 
   const discardAcpDraft = useCallback(async () => {
     if (activeView === 'json' && jsonDirty) {
-      setJsonConfig(jsonBaseline);
+      const formattedConfig = formatConfig(config);
+      setJsonConfig(formattedConfig);
+      setJsonBaseline(formattedConfig);
       setJsonDirty(false);
       return;
     }
     await loadConfig({ showLoading: false, refreshRequirements: false });
-  }, [activeView, jsonBaseline, jsonDirty, loadConfig]);
+  }, [activeView, config, jsonDirty, loadConfig]);
 
   useSettingsDraft({
     id: 'acp-agent-config',
@@ -1118,7 +1229,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
     viewId: activeView === 'json' && jsonDirty ? 'json' : undefined,
     label: activeView === 'json' && jsonDirty ? t('json.title') : t('title'),
     dirty: dirty || jsonDirty,
-    saving,
+    saving: saving || (IS_OHOS && installingClientIds.size > 0),
     save: () => activeView === 'json' ? saveJsonConfig() : saveConfig(),
     discard: discardAcpDraft,
     enabled: settingsDraftEnabled,
@@ -1179,6 +1290,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
     if (status === 'ready') return t('registry.ready');
     if (status === 'partial') return t('registry.partial');
     if (status === 'checking') return t('registry.checking');
+    if (status === 'probe_failed') return t('notifications.probeFailed');
 
     if (issueKind === 'connection_failed') return t('registry.connectionFailed');
     if (issueKind === 'permission_denied') return t('registry.permissionDenied');
@@ -1304,11 +1416,11 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
         },
         'claude-code': {
           name: t('presets.claudeCode.name'),
-          description: t('presets.claudeCode.description'),
+          description: t('presets.claudeCode.ohosDescription'),
         },
         codex: {
           name: t('presets.codex.name'),
-          description: t('presets.codex.description'),
+          description: t('presets.codex.ohosDescription'),
         },
       }
     : {};
@@ -1316,7 +1428,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
   const remoteAgentIds = useMemo(() => {
     const ids = new Set<string>([
       ...availableRemotePresetIds(),
-      ...Object.keys(config.acpClients),
+      ...Object.keys(config.acpClients).filter(id => !isOhosOnlyAcpPreset(id)),
     ]);
     return Array.from(ids).filter(id => !clientIds || clientIds.includes(id)).sort((left, right) => {
       const leftPresetIndex = ALL_ACP_CLIENT_PRESETS.findIndex(preset => preset.id === left);
@@ -1377,14 +1489,16 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
 
   const discardJsonChanges = useCallback(() => {
     const nextView = pendingView;
-    setJsonConfig(jsonBaseline);
+    const formattedConfig = formatConfig(config);
+    setJsonConfig(formattedConfig);
+    setJsonBaseline(formattedConfig);
     setJsonDirty(false);
     setPendingView(null);
     if (nextView) {
       activateView(nextView);
       onViewChange?.(nextView);
     }
-  }, [activateView, jsonBaseline, onViewChange, pendingView]);
+  }, [activateView, config, onViewChange, pendingView]);
 
   const keepEditingJson = useCallback(() => {
     setPendingView(null);
@@ -1482,6 +1596,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                 leadingIcon={<Save />}
                 onClick={() => { void saveConfig(); }}
                 loading={saving}
+                disabled={IS_OHOS && installingClientIds.size > 0}
               >
                 {t('actions.save')}
               </Button>
@@ -1496,7 +1611,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
               <Button
                 variant="primary"
                 size="sm"
-                disabled={saving}
+                disabled={saving || (IS_OHOS && installingClientIds.size > 0)}
                 loading={saving}
                 onClick={() => { void (activeView === 'json' ? saveJsonConfig() : saveConfig()); }}
               >
@@ -1563,7 +1678,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                   size="sm"
                   onClick={() => { void saveJsonConfig(); }}
                   loading={saving}
-                  disabled={!jsonDirty && !dirty}
+                  disabled={(!jsonDirty && !dirty) || (IS_OHOS && installingClientIds.size > 0)}
                 >
                   {t('actions.saveJson')}
                 </Button>
@@ -1752,13 +1867,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                           variant="outline"
                           size="sm"
                           leadingIcon={<Icon name="arrow-down" size="sm" />}
-                          onClick={() => {
-                            if (IS_OHOS) {
-                              void installPresetClient(preset);
-                              return;
-                            }
-                            requestInstallPresetClient(preset);
-                          }}
+                          onClick={() => requestInstallPresetClient(preset)}
                           loading={installing}
                         >
                           {IS_OHOS ? t('actions.add') : t('actions.installCli')}
@@ -1971,11 +2080,15 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                     connection.id
                   );
                   const probingRemote = probingRemoteRequirements.has(connection.id);
+                  const remoteProbeError = remoteProbeErrors[connection.id];
                   const remoteRows = remoteAgentIds.map(clientId => {
                     const preset = PRESET_BY_ID.get(clientId);
                     const clientConfig = config.acpClients[clientId];
-                    const requirementProbe = remoteProbesById.get(clientId);
-                    const probePending = probingRemote || !remoteProbeLoaded || !requirementProbe;
+                    const requirementProbe = remoteProbeError !== undefined ? undefined : remoteProbesById.get(clientId);
+                    const probePending = probingRemote || (!remoteProbeLoaded && remoteProbeError === undefined);
+                    const probeError = !probePending
+                      ? remoteProbeError ?? (!requirementProbe ? t('remote.probeResultMissing') : undefined)
+                      : undefined;
                     const hasConfigEntry = Boolean(clientConfig);
                     const effectiveConfig = clientConfig ?? (preset ? defaultConfigForPreset(preset) : undefined);
                     const enabled = effectiveConfig?.enabled ?? true;
@@ -1984,7 +2097,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                     );
                     const issueKind = getIssueKind({ probe: requirementProbe, requiresAdapter });
                     const selfManagedInstallInfo = selfManagedInstallInfoForPreset(preset);
-                    const status = getAgentRowStatus({
+                    const status = probeError !== undefined ? 'probe_failed' as const : getAgentRowStatus({
                       configured: hasConfigEntry,
                       enabled,
                       toolInstalled: requirementProbe?.tool.installed,
@@ -2007,6 +2120,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                       clientConfig,
                       requirementProbe,
                       probePending,
+                      probeError,
                       hasConfigEntry,
                       enabled,
                       requiresAdapter,
@@ -2022,7 +2136,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                   const issueCount = remoteRows.filter(row => (
                     row.status === 'partial' ||
                     row.status === 'not_installed' ||
-                    row.status === 'invalid'
+                    row.status === 'invalid' || row.status === 'probe_failed'
                   )).length;
                   const remoteChecking = remoteRows.some(row => row.status === 'checking');
 
@@ -2074,7 +2188,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                             size="sm"
                             leadingIcon={<Icon name="refresh" size="sm" />}
                             onClick={() => {
-                              loadedRemoteProbeIdsRef.current.delete(connection.id);
+                              completedRemoteProbeIdsRef.current.delete(connection.id);
                               void refreshRemoteRequirementProbes(connection.id, {
                                 force: true,
                               });
@@ -2097,6 +2211,9 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                           </Tooltip>
                         </div>
                       </div>
+                      {remoteProbeError !== undefined && (
+                        <Alert tone="error" message={t('notifications.probeFailed')} description={remoteProbeError} />
+                      )}
                       <div
                         className="bitfun-acp-agents__remote-agent-list"
                         data-bitfun-component="acp-agents-config"
@@ -2109,7 +2226,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                             probe: row.requirementProbe,
                             requiresAdapter: row.requiresAdapter,
                           });
-                          const statusTitle = getStatusTitle({
+                          const statusTitle = row.probeError ?? getStatusTitle({
                             status: row.status,
                             issueKind: row.issueKind,
                             probe: row.requirementProbe,
@@ -2121,7 +2238,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                           const selfManagedCliMissing = Boolean(row.selfManagedInstallInfo)
                             && row.status === 'not_installed'
                             && (row.issueKind === 'cli_missing' || row.requirementProbe?.tool.installed === false);
-                          const canViewError = row.status === 'invalid' || row.status === 'partial'
+                          const canViewError = row.status === 'probe_failed' || row.status === 'invalid' || row.status === 'partial'
                             || row.issueKind === 'connection_failed'
                             || row.issueKind === 'permission_denied'
                             || row.issueKind === 'path_invalid'
@@ -2342,14 +2459,18 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
         open={!!installConfirmation}
         onOpenChange={(open) => { if (!open) setInstallConfirmation(null); }}
         onConfirm={confirmInstallPresetClient}
-        title={t('installConfirm.title', { name: installConfirmation?.preset.name || '' })}
-        message={t('installConfirm.message', {
-          host: installConfirmation?.hostLabel || '',
-          command: installConfirmation
-            ? `npm install -g ${installConfirmation.packageName}`
-            : '',
+        title={t(installConfirmation?.managed ? 'installConfirm.managedTitle' : 'installConfirm.title', {
+          name: installConfirmation?.preset.name || '',
         })}
-        confirmText={t('installConfirm.confirm')}
+        message={installConfirmation?.managed
+          ? t('installConfirm.managedMessage', { host: installConfirmation.hostLabel })
+          : t('installConfirm.message', {
+            host: installConfirmation?.hostLabel || '',
+            command: installConfirmation
+              ? `npm install -g ${installConfirmation.packageName}`
+              : '',
+          })}
+        confirmText={t(installConfirmation?.managed ? 'installConfirm.managedConfirm' : 'installConfirm.confirm')}
         type="warning"
       />
     </Layout>

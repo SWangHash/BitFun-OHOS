@@ -51,11 +51,13 @@
     "omp": { "description": "Native ACP support." },
     "claudeCode": {
       "name": "Claude Code",
-      "description": "Claude Code installed with HarmonyBrew Node/npm and connected through the ACP adapter."
+      "description": "Connects through the official ACP adapter.",
+      "ohosDescription": "Claude Code installed with HarmonyBrew Node/npm and connected through the ACP adapter."
     },
     "codex": {
       "name": "Codex",
-      "description": "Codex installed through HarmonyBrew and connected through the ACP adapter."
+      "description": "Connects through the official ACP adapter.",
+      "ohosDescription": "Codex installed through HarmonyBrew and connected through the ACP adapter."
     }
   },
   "json": {
@@ -73,7 +75,11 @@
     "message": "Target host: {{host}}. BitFun will run “{{command}}” to install the npm package globally on that host. This changes the host's global command environment and may require network and write access.",
     "localHost": "Current execution host",
     "packageUnknown": "BitFun could not verify the install package for this Agent, so installation was cancelled",
-    "confirm": "Install on target host"
+    "confirm": "Install on target host",
+    "managedTitle": "Add {{name}}?",
+    "managedMessage": "Target device: {{host}}. BitFun will prepare the required components through HarmonyBrew, then configure and verify ACP access. Missing components will be installed into the current user's HarmonyBrew environment and may require network and write access.",
+    "managedConfirm": "Confirm add",
+    "localDevice": "Current device"
   },
   "registry": {
     "title": "Agents",
@@ -117,6 +123,7 @@
     "loading": "Loading ACP agents…"
   },
   "remote": {
+    "probeResultMissing": "The host did not return a detection result for this agent. Refresh detection to retry.",
     "title": "SSH servers",
     "description": "Check ACP agents on saved SSH servers.",
     "empty": "No saved SSH servers.",
@@ -156,6 +163,7 @@
     "installing": "Installing"
   },
   "notifications": {
+    "draftConflict": "ACP configuration changed. Your unsaved edits were kept; review conflicting fields before saving.",
     "loadFailed": "Failed to load ACP config",
     "loadFailedLocked": "ACP configuration could not be read. This page is locked to avoid replacing the existing Agent configuration with an empty one.",
     "saveSuccess": "ACP config saved",

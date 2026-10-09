@@ -30,7 +30,7 @@ impl Default for AcpClientSubagentConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AcpClientConfig {
     #[serde(default)]

@@ -8,6 +8,7 @@ export interface AcpClientPreset {
 }
 
 export type AgentRowStatus =
+  | 'probe_failed'
   | 'enabled'
   | 'disabled'
   | 'ready'
@@ -59,6 +60,17 @@ const OHOS_SUPPORTED_PRESET_IDS = new Set([
   'opencode',
   ...OHOS_MANAGED_INSTALL_PRESET_IDS,
 ]);
+
+// These presets are available only on the local HarmonyOS host.
+const OHOS_ONLY_PRESET_IDS = new Set([
+  'kimi-code',
+  'qwen-code',
+  'codebuddy-code',
+]);
+
+export function isOhosOnlyAcpPreset(presetId: string): boolean {
+  return OHOS_ONLY_PRESET_IDS.has(presetId);
+}
 
 export interface AcpManualInstallGuide {
   repositoryUrl: string;
@@ -133,8 +145,11 @@ export const ALL_ACP_CLIENT_PRESETS: AcpClientPreset[] = [
 ];
 
 export function presetsForRuntime(isOhos: boolean): AcpClientPreset[] {
-  return ALL_ACP_CLIENT_PRESETS
-    .filter(preset => !isOhos || OHOS_SUPPORTED_PRESET_IDS.has(preset.id));
+  return ALL_ACP_CLIENT_PRESETS.filter(preset => (
+    isOhos
+      ? OHOS_SUPPORTED_PRESET_IDS.has(preset.id)
+      : !OHOS_ONLY_PRESET_IDS.has(preset.id)
+  ));
 }
 
 export function visiblePresetIdsForRuntime(isOhos: boolean): string[] {
@@ -142,7 +157,9 @@ export function visiblePresetIdsForRuntime(isOhos: boolean): string[] {
 }
 
 export function availableRemotePresetIds(): string[] {
-  return Array.from(new Set(ALL_ACP_CLIENT_PRESETS.map(preset => preset.id)));
+  return ALL_ACP_CLIENT_PRESETS
+    .filter(preset => !OHOS_ONLY_PRESET_IDS.has(preset.id))
+    .map(preset => preset.id);
 }
 
 export function getManualInstallGuide({
