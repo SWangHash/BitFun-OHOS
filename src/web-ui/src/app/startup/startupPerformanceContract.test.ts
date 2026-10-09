@@ -231,8 +231,8 @@ describe('startup performance contract', () => {
     expect(toolbarModeProviderSource).toContain(
       "await import('@/infrastructure/api/service-api/SystemAPI')"
     );
-    expect(toolbarModeProviderSource).toContain('win.innerSize()');
-    expect(toolbarModeProviderSource).not.toContain('win.outerSize(),');
+    expect(toolbarModeProviderSource).toContain('ops.innerSize()');
+    expect(toolbarModeProviderSource).not.toContain('ops.outerSize(),');
     expect(windowEventStart).toBeGreaterThan(-1);
     expect(invokeHandlerStart).toBeGreaterThan(windowEventStart);
     expect(windowEventSource).toContain('matches!(event, tauri::WindowEvent::CloseRequested { .. })');
@@ -248,7 +248,7 @@ describe('startup performance contract', () => {
     expect(
       toolbarModeProviderSource.indexOf('setMainWindowTransientGeometry(true)')
     ).toBeLessThan(
-      toolbarModeProviderSource.indexOf('win.setSize(new PhysicalSize(geometry.width')
+      toolbarModeProviderSource.indexOf('ops.setSize({ width: geometry.width')
     );
   });
 
@@ -391,7 +391,9 @@ describe('startup performance contract', () => {
     expect(appLayoutSource).not.toContain('useUpdateInstallStore');
     const aboutSource = readSource('../components/AboutDialog/AboutDialog.tsx');
     expect(aboutSource).not.toContain('AppUpdatePanel');
-    expect(aboutSource).not.toContain('useUpdateInstallStore');
+    // About is lazy and initializes updates only when opened; its own update
+    // controls do not pull the store into the startup shell.
+    expect(aboutSource).toContain('if (!isOpen || !nativeRuntime) return;');
     expect(chatPaneSource).not.toContain("from '../../../flow_chat'");
     expect(chatPaneSource).toContain(
       "from '../../../flow_chat/components/modern/ModernFlowChatContainer'"

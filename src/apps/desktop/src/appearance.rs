@@ -516,6 +516,8 @@ pub fn create_main_window(
     frontend_workbench: Arc<crate::frontend_workbench::FrontendWorkbenchManager>,
 ) {
     let total_started_at = Instant::now();
+    #[cfg(not(target_env = "ohos"))]
+    let (startup_page_ready, mut startup_page_ready_rx) = tokio::sync::watch::channel(false);
     let bootstrap_config = AppearanceConfig::load_startup_bootstrap_config();
     let appearance = bootstrap_config.appearance.clone();
     let bg_color = appearance.to_tauri_color();
@@ -554,6 +556,10 @@ let main_url = if use_development_frontend() || cfg!(target_env = "ohos") {
         .on_page_load({
             let startup_trace_id = startup_trace_id.to_string();
             move |_window, payload| {
+                #[cfg(not(target_env = "ohos"))]
+                if matches!(payload.event(), PageLoadEvent::Finished) {
+                    let _ = startup_page_ready.send(true);
+                }
                 let event = match payload.event() {
                     PageLoadEvent::Started => "started",
                     PageLoadEvent::Finished => "finished",
@@ -567,6 +573,18 @@ let main_url = if use_development_frontend() || cfg!(target_env = "ohos") {
                 );
             }
         });
+
+    // HarmonyOS owns its window geometry and reveal through the ArkTS host.
+    #[cfg(not(target_env = "ohos"))]
+    {
+        builder = builder
+            .inner_size(
+                crate::MAIN_WINDOW_DEFAULT_WIDTH,
+                crate::MAIN_WINDOW_DEFAULT_HEIGHT,
+            )
+            .center()
+            .visible(false);
+    }
 
     // The webview must be transparent for the OS material to reach the sidebar.
     // Opaque scene and startup surfaces remain owned by the frontend.
@@ -640,12 +658,33 @@ let main_url = if use_development_frontend() || cfg!(target_env = "ohos") {
                     }
                 }
 
-                show_main_window_for_startup(
-                    &window,
-                    total_started_at,
-                    startup_trace,
-                    reapply_maximized,
-                );
+                // Wait for the document's startup tint before revealing the
+                // transparent window. Failed navigation must remain observable.
+                let startup_trace = startup_trace.clone();
+                tauri::async_runtime::spawn(async move {
+                    let ready = matches!(
+                        tokio::time::timeout(
+                            std::time::Duration::from_secs(10),
+                            startup_page_ready_rx.wait_for(|ready| *ready),
+                        )
+                        .await,
+                        Ok(Ok(_))
+                    );
+                    if !ready {
+                        warn!("Startup page did not finish loading before the window reveal watchdog");
+                    }
+                    let visible_window = window.clone();
+                    if let Err(error) = window.run_on_main_thread(move || {
+                        show_main_window_for_startup(
+                            &visible_window,
+                            total_started_at,
+                            &startup_trace,
+                            reapply_maximized,
+                        );
+                    }) {
+                        warn!("Failed to schedule main window startup reveal: {}", error);
+                    }
+                });
             }
         }
         Err(e) => {

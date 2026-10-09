@@ -42,9 +42,6 @@ import DeviceStatusControl from './DeviceStatusControl';
 import AppearanceQuickSwitchMenuItem from './AppearanceQuickSwitchMenuItem';
 
 const RemoteConnectDialog = lazy(() => import('../../RemoteConnectDialog'));
-const AboutDialog = lazy(() =>
-  import('../../AboutDialog').then(module => ({ default: module.AboutDialog }))
-);
 const FeedbackDialog = lazy(() => import('../../FeedbackDialog'));
 const CHANGELOG_URL = 'https://www.bitfun.work/Changelog.html';
 
@@ -75,7 +72,6 @@ const PersistentFooterActions: React.FC = () => {
     alignment: 'end',
     gap: 6,
   });
-  const [showAbout, setShowAbout] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [showRemoteConnect, setShowRemoteConnect] = useState(false);
   const [remoteInitialGroup, setRemoteInitialGroup] = useState<'network' | 'bot' | 'account' | undefined>(undefined);
@@ -156,7 +152,7 @@ const PersistentFooterActions: React.FC = () => {
 
   const handleShowAbout = () => {
     closeMenu();
-    setShowAbout(true);
+    window.dispatchEvent(new Event('nav:show-about'));
   };
 
   const handleFeedback = useCallback(async () => {
@@ -373,11 +369,6 @@ const PersistentFooterActions: React.FC = () => {
           </div>
         </div>
       </div>
-      <RetainedMountBoundary present={showAbout}>
-        <Suspense fallback={null}>
-          <AboutDialog isOpen={showAbout} onClose={() => setShowAbout(false)} />
-        </Suspense>
-      </RetainedMountBoundary>
       <RetainedMountBoundary present={showFeedback}>
         <Suspense fallback={null}>
           <FeedbackDialog isOpen={showFeedback} onClose={() => setShowFeedback(false)} />
