@@ -8051,6 +8051,7 @@ mod tests {
         ))
     }
 
+    #[test]
     fn git_execution_errors_distinguish_missing_git_from_workspace_and_permission_failures() {
         let current_dir = std::env::temp_dir();
         let missing_dir = temp_token_store_path("missing-workspace");
@@ -8869,13 +8870,11 @@ mod tests {
             token_key(ReviewPlatformKind::Gitcode, "gitcode.com").unwrap(),
             "fixture-token".to_string(),
         );
-        let mut context = provider_context_for_identity(
-            ReviewPlatformKind::Gitcode,
-            "gitcode.com",
-            "example/repo",
-            &tokens,
-        )
-        .unwrap();
+        // GitCode has no identity-only provider context (that path is GitHub, GitLab
+        // and Gitee); production builds it from the detected Git remote.
+        let remote = parse_remote("origin", "https://gitcode.com/example/repo.git", &tokens)
+            .expect("GitCode remote should parse");
+        let mut context = provider_context(remote, &tokens).unwrap();
         context.api_base_url = format!("http://{address}");
         let (_, files) = gitcode_review_file_parts(&context, "166", "src/new.rs", Some(2))
             .await
