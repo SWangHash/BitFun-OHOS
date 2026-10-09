@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { prepareDshProfile } from './prepare-dsh-profile.mjs';
 /** Runs `tauri build` from src/apps/desktop with CI=true. */
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
@@ -49,6 +50,7 @@ async function main() {
   console.log(`[release] channel=${releaseChannel.channel}`);
 
   const desktopDir = join(ROOT, 'src', 'apps', 'desktop');
+  prepareDshProfile({ required: true });
   if (!bundleOnly) preparePluginHost();
   const flashgrepBinary = prepareMacOSFlashgrepForSigning(
     ensureFlashgrepBinary({ target: optionValue(forward, '--target') || rustHostTargetTriple() }),
@@ -326,8 +328,7 @@ export function prepareTauriConfig(
   injectTargetFlashgrepResource(config, desktopDir, flashgrepBinary);
   // The DeepSeek bridge is not a compile-time resource: cargo check and
   // desktop:dev must not require packages/dsh-acp/dist-profile. Official
-  // packaging injects it here; frontend:build-all (beforeBuildCommand)
-  // compiles the profile before Tauri copies resources.
+  // packaging prepares it explicitly before injecting the resource mapping.
   injectDshProfileResource(config);
   injectExternalFrontendResource(config);
 

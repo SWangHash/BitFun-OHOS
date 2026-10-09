@@ -21,10 +21,6 @@ use agent_client_protocol::schema::{
 use agent_client_protocol::{
     ActiveSession, Agent, ByteStreams, Client, ConnectionTo, Error, SessionMessage,
 };
-use dashmap::mapref::entry::Entry;
-use dashmap::DashMap;
-use futures::io::{AsyncRead as FuturesAsyncRead, AsyncWrite as FuturesAsyncWrite};
-use log::{debug, info, warn};
 use bitfun_agent_tools::ACP_TOOL_PREFIX;
 use bitfun_core::agentic::tools::registry::get_global_tool_registry;
 use bitfun_core::infrastructure::events::{emit_global_event, BackendEvent};
@@ -32,6 +28,10 @@ use bitfun_core::infrastructure::PathManager;
 use bitfun_core::service::config::ConfigService;
 use bitfun_core::service::remote_ssh::workspace_state::get_remote_workspace_manager;
 use bitfun_core::util::errors::{BitFunError, BitFunResult};
+use dashmap::mapref::entry::Entry;
+use dashmap::DashMap;
+use futures::io::{AsyncRead as FuturesAsyncRead, AsyncWrite as FuturesAsyncWrite};
+use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::process::{Child, Command};
@@ -177,7 +177,7 @@ pub struct AcpClientService {
     pending_permissions: DashMap<String, PendingPermission>,
     session_permission_modes: DashMap<String, AcpClientPermissionMode>,
     managed_provisioning_cancellations: DashMap<String, Arc<AtomicBool>>,
-    managed_provisioning_gate: Mutex<()>,
+    managed_provisioning_gate: RwLock<()>,
 }
 
 struct PendingPermission {
@@ -256,7 +256,7 @@ impl AcpClientService {
             pending_permissions: DashMap::new(),
             session_permission_modes: DashMap::new(),
             managed_provisioning_cancellations: DashMap::new(),
-            managed_provisioning_gate: Mutex::new(()),
+            managed_provisioning_gate: RwLock::new(()),
         }))
     }
 
@@ -376,6 +376,27 @@ impl AcpClientService {
 
         let mut probes = Vec::with_capacity(ids.len());
         for id in ids {
+            #[cfg(target_env = "ohos")]
+            if builtin_acp_client_preset(&id)
+                .map(|preset| preset.supports_ohos())
+                .unwrap_or(false)
+            {
+                if let Some(config) = configs
+                    .get(&id)
+                    .filter(|config| !uses_default_builtin_launch(&id, config))
+                {
+                    let config = apply_local_runtime_override(config.clone(), true);
+                    probes.push(configured_client_probe(
+                        &id,
+                        probe_configured_executable(&config),
+                    ));
+                } else {
+                    let (_, probe) = probe_existing_managed_client(&id, &self.path_manager).await?;
+                    probes.push(probe);
+                }
+                continue;
+            }
+
             if let Some(config) = configs.get(&id) {
                 let config =
                     apply_local_runtime_override(config.clone(), cfg!(target_env = "ohos"));
@@ -383,16 +404,6 @@ impl AcpClientService {
                     &id,
                     probe_configured_executable(&config),
                 ));
-                continue;
-            }
-
-            #[cfg(target_env = "ohos")]
-            if builtin_acp_client_preset(&id)
-                .map(|preset| preset.supports_ohos())
-                .unwrap_or(false)
-            {
-                let (_, probe) = probe_existing_managed_client(&id, &self.path_manager).await?;
-                probes.push(probe);
                 continue;
             }
 
@@ -482,14 +493,23 @@ impl AcpClientService {
 
         let mut probes = Vec::with_capacity(ids.len());
         for id in ids {
-            if let Some(config) = config_file.acp_clients.get(&id) {
+            // Remote hosts do not have HarmonyOS launch paths. A saved config
+            // may point `command` or `local_override` at a local HarmonyBrew
+            // binary; probing that path reports it as invalid even when the
+            // portable CLI (`kimi`, `qwen`, `codebuddy`, `dsh`, …) is on the
+            // remote login PATH. Resolve the portable command and environment
+            // the same way a remote session is launched.
+            let config = resolve_config_for_client(&config_file, &id, Some(remote_connection_id));
+            if let Some(config) = config
+                .as_ref()
+                .filter(|_| config_file.acp_clients.contains_key(&id))
+            {
                 let tool =
                     probe_remote_configured_executable(&ssh_manager, remote_connection_id, config)
                         .await;
                 probes.push(configured_client_probe(&id, tool));
                 continue;
             }
-            let config = resolve_config_for_client(&config_file, &id, Some(remote_connection_id));
             let spec = acp_requirement_spec(&id, config.as_ref());
             let tool = probe_remote_executable(
                 &ssh_manager,
@@ -551,10 +571,7 @@ impl AcpClientService {
         Ok(probes)
     }
 
-    pub async fn predownload_client_adapter(
-        self: &Arc<Self>,
-        client_id: &str,
-    ) -> BitFunResult<()> {
+    pub async fn predownload_client_adapter(self: &Arc<Self>, client_id: &str) -> BitFunResult<()> {
         let configs = self.load_configs().await?;
         let spec = acp_requirement_spec(client_id, configs.get(client_id));
         let adapter = spec.adapter.ok_or_else(|| {
@@ -649,7 +666,7 @@ impl AcpClientService {
         // Serialize all managed setup flows so two different Agent installs
         // cannot race while updating the same package-manager-owned tree.
         let provisioning_guard = tokio::select! {
-            guard = self.managed_provisioning_gate.lock() => guard,
+            guard = self.managed_provisioning_gate.write() => guard,
             _ = wait_for_managed_provisioning_cancellation(&cancelled) => {
                 self.managed_provisioning_cancellations.remove(client_id);
                 on_progress(AcpManagedProvisioningProgress::new(
@@ -705,45 +722,40 @@ impl AcpClientService {
             return Err(error);
         }
 
-        let original_config = match self.load_config_file().await {
-            Ok(config) => config,
-            Err(error) => {
-                cleanup_managed_installation(installation.cleanup_path.as_deref()).await;
-                return Err(error);
-            }
-        };
-        let mut candidate_config = original_config.clone();
-        let client_config = candidate_config
-            .acp_clients
-            .get(client_id)
-            .cloned()
-            .or_else(|| default_config_for_builtin_client(client_id));
-        let Some(mut client_config) = client_config else {
-            cleanup_managed_installation(installation.cleanup_path.as_deref()).await;
-            return Err(BitFunError::config(format!(
-                "ACP client not found: {}",
-                client_id
-            )));
-        };
-        client_config.enabled = true;
-        client_config.local_override = Some(installation.runtime_override.clone());
-        candidate_config
-            .acp_clients
-            .insert(client_id.to_string(), client_config);
-
         on_progress(AcpManagedProvisioningProgress::new(
             client_id,
             AcpManagedProvisioningStage::Configuring,
             70,
         ));
-        if let Err(error) = self.persist_config_file(&candidate_config).await {
-            cleanup_managed_installation(installation.cleanup_path.as_deref()).await;
-            return Err(error);
-        }
+        let config_update = match self
+            .config_service
+            .update_config_or_insert(
+                CONFIG_PATH,
+                json!({ "acpClients": {} }),
+                |value: &mut serde_json::Value| {
+                    let mut config = parse_config_value(value.clone())?;
+                    let update = apply_managed_client_config(
+                        &mut config,
+                        client_id,
+                        &installation.runtime_override,
+                    )?;
+                    *value = serde_json::to_value(config)?;
+                    Ok(update)
+                },
+            )
+            .await
+        {
+            Ok(update) => update,
+            Err(error) => {
+                cleanup_managed_installation(installation.cleanup_path.as_deref()).await;
+                return Err(error);
+            }
+        };
         if let Err(error) = self.remote_capability_store.clear().await {
             let rollback_errors = self
                 .rollback_managed_provisioning(
-                    &original_config,
+                    client_id,
+                    &config_update,
                     installation.cleanup_path.as_deref(),
                     None,
                 )
@@ -753,7 +765,8 @@ impl AcpClientService {
         if let Err(error) = self.initialize_all().await {
             let rollback_errors = self
                 .rollback_managed_provisioning(
-                    &original_config,
+                    client_id,
+                    &config_update,
                     installation.cleanup_path.as_deref(),
                     None,
                 )
@@ -763,7 +776,8 @@ impl AcpClientService {
         if let Err(error) = ensure_managed_provisioning_active(cancelled) {
             let rollback_errors = self
                 .rollback_managed_provisioning(
-                    &original_config,
+                    client_id,
+                    &config_update,
                     installation.cleanup_path.as_deref(),
                     None,
                 )
@@ -796,7 +810,8 @@ impl AcpClientService {
         if let Err(error) = verification.and(stop_verification) {
             let rollback_errors = self
                 .rollback_managed_provisioning(
-                    &original_config,
+                    client_id,
+                    &config_update,
                     installation.cleanup_path.as_deref(),
                     Some(&verification_connection_id),
                 )
@@ -822,7 +837,8 @@ impl AcpClientService {
 
     async fn rollback_managed_provisioning(
         self: &Arc<Self>,
-        original_config: &AcpClientConfigFile,
+        client_id: &str,
+        config_update: &ManagedClientConfigUpdate,
         cleanup_path: Option<&Path>,
         verification_connection_id: Option<&str>,
     ) -> Vec<String> {
@@ -832,8 +848,24 @@ impl AcpClientService {
                 rollback_errors.push(error.to_string());
             }
         }
-        if let Err(error) = self.persist_config_file(original_config).await {
-            rollback_errors.push(error.to_string());
+        let rollback = self
+            .config_service
+            .update_config(CONFIG_PATH, |value: &mut serde_json::Value| {
+                let mut config = parse_config_value(value.clone())?;
+                let conflict =
+                    rollback_managed_client_config(&mut config, client_id, config_update);
+                *value = serde_json::to_value(config)?;
+                Ok(conflict)
+            })
+            .await;
+        let cleanup_safe = matches!(&rollback, Ok(false));
+        match rollback {
+            Ok(true) => rollback_errors.push(format!(
+                "Newer ACP runtime changes for '{}' were preserved during rollback",
+                client_id
+            )),
+            Ok(false) => {}
+            Err(error) => rollback_errors.push(error.to_string()),
         }
         if let Err(error) = self.remote_capability_store.clear().await {
             rollback_errors.push(error.to_string());
@@ -841,7 +873,11 @@ impl AcpClientService {
         if let Err(error) = self.initialize_all().await {
             rollback_errors.push(error.to_string());
         }
-        cleanup_managed_installation(cleanup_path).await;
+        // A newer runtime may still reference the installation. Keep its files
+        // when rollback could not safely restore the setup-owned configuration.
+        if cleanup_safe {
+            cleanup_managed_installation(cleanup_path).await;
+        }
         rollback_errors
     }
 
@@ -1197,12 +1233,20 @@ impl AcpClientService {
 
     pub async fn load_json_config(&self) -> BitFunResult<String> {
         let config = parse_config_value(self.load_config_value().await?)?;
-        serde_json::to_string_pretty(&config).map_err(|error| {
-            BitFunError::config(format!("Failed to render ACP config: {}", error))
-        })
+        serde_json::to_string_pretty(&config)
+            .map_err(|error| BitFunError::config(format!("Failed to render ACP config: {}", error)))
     }
 
     pub async fn save_json_config(self: &Arc<Self>, json_config: &str) -> BitFunResult<()> {
+        // A settings snapshot cannot replace the runtime being written and
+        // verified by managed setup. Keep saves ahead of setup, or reject them
+        // while setup owns the gate rather than queueing a stale snapshot.
+        let _config_guard = self.managed_provisioning_gate.try_read().map_err(|_| {
+            BitFunError::service(
+                "[ACP_PROVISIONING_ALREADY_RUNNING] Wait for managed ACP setup to finish before saving configuration"
+                    .to_string(),
+            )
+        })?;
         let value: serde_json::Value = serde_json::from_str(json_config).map_err(|error| {
             BitFunError::config(format!("Invalid ACP client JSON config: {}", error))
         })?;
@@ -1559,9 +1603,10 @@ impl AcpClientService {
 
             loop {
                 let message = {
-                    let active = session.active.as_mut().ok_or_else(|| {
-                        BitFunError::service("ACP session was not initialized")
-                    })?;
+                    let active = session
+                        .active
+                        .as_mut()
+                        .ok_or_else(|| BitFunError::service("ACP session was not initialized"))?;
                     prompt.read_update(active).await.map_err(protocol_error)?
                 };
 
@@ -2281,12 +2326,89 @@ fn resolve_config_for_client(
             remote_connection_id.and_then(|_| default_config_for_builtin_client(client_id))
         })?;
 
-    let config = apply_local_runtime_override(
+    let mut config = apply_local_runtime_override(
         config,
         cfg!(target_env = "ohos") && remote_connection_id.is_none(),
     );
+    if remote_connection_id.is_some() {
+        restore_portable_remote_launch(&mut config, client_id);
+        config.env = remote_probe_environment(&config);
+    }
 
     Some(config)
+}
+
+/// Restore known managed launch entries without changing user-supplied options.
+fn restore_portable_remote_launch(config: &mut AcpClientConfig, client_id: &str) {
+    if !is_harmonyos_local_path(&config.command) {
+        return;
+    }
+    let Some(preset) = builtin_acp_client_preset(client_id) else {
+        return;
+    };
+    if config.command.rsplit('/').next() == Some("node") {
+        let managed_entry = preset
+            .ohos_adapter
+            .map(|adapter| adapter.npm.entry_relative_path)
+            .or_else(|| preset.ohos.npm().map(|npm| npm.entry_relative_path));
+        let Some(entry) = managed_entry else {
+            return;
+        };
+        if !config
+            .args
+            .first()
+            .is_some_and(|arg| is_harmonyos_local_path(arg) && arg.ends_with(&format!("/{entry}")))
+        {
+            return;
+        }
+        config.args.remove(0);
+        if preset.ohos_adapter.is_some() {
+            config
+                .args
+                .splice(0..0, preset.args.iter().map(|arg| (*arg).to_string()));
+        }
+    } else if config.command.rsplit('/').next() != Some(preset.command) {
+        return;
+    }
+    config.command = preset.command.to_string();
+}
+
+/// Keep the SSH login environment instead of forwarding local HarmonyOS locations.
+fn remote_probe_environment(config: &AcpClientConfig) -> HashMap<String, String> {
+    config
+        .env
+        .iter()
+        .filter(|(key, value)| !is_harmonyos_local_environment_binding(key, value))
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect()
+}
+
+fn is_harmonyos_local_environment_binding(key: &str, value: &str) -> bool {
+    let binds_process_location = key.eq_ignore_ascii_case("PATH")
+        || key.eq_ignore_ascii_case("HOME")
+        || key.eq_ignore_ascii_case("HOMEBREW_PREFIX")
+        || key.eq_ignore_ascii_case("HOMEBREW_CELLAR");
+    binds_process_location && value.split(':').any(is_harmonyos_local_path)
+}
+
+fn is_harmonyos_local_path(entry: &str) -> bool {
+    let entry = entry.trim();
+    entry.contains("/.harmonybrew")
+        || entry.starts_with("/storage/Users/")
+        || entry.starts_with("/data/storage/")
+}
+
+// Presentation and permission settings do not change how a preset is launched.
+#[cfg(any(target_env = "ohos", test))]
+fn uses_default_builtin_launch(client_id: &str, config: &AcpClientConfig) -> bool {
+    config.local_override.is_none()
+        && default_config_for_builtin_client(client_id)
+            .map(|default| {
+                config.command == default.command
+                    && config.args == default.args
+                    && config.env == default.env
+            })
+            .unwrap_or(false)
 }
 
 fn apply_local_runtime_override(
@@ -2301,6 +2423,62 @@ fn apply_local_runtime_override(
         }
     }
     config
+}
+
+struct ManagedClientConfigUpdate {
+    previous: Option<AcpClientConfig>,
+    installed: AcpClientConfig,
+}
+
+fn apply_managed_client_config(
+    config: &mut AcpClientConfigFile,
+    client_id: &str,
+    runtime: &super::config::AcpClientRuntimeOverride,
+) -> BitFunResult<ManagedClientConfigUpdate> {
+    let previous = config.acp_clients.get(client_id).cloned();
+    let mut installed = previous
+        .clone()
+        .or_else(|| default_config_for_builtin_client(client_id))
+        .ok_or_else(|| BitFunError::config(format!("ACP client not found: {}", client_id)))?;
+    installed.enabled = true;
+    installed.local_override = Some(runtime.clone());
+    config
+        .acp_clients
+        .insert(client_id.to_string(), installed.clone());
+    Ok(ManagedClientConfigUpdate {
+        previous,
+        installed,
+    })
+}
+
+/// Undo only setup-owned fields that still contain this setup's values.
+fn rollback_managed_client_config(
+    config: &mut AcpClientConfigFile,
+    client_id: &str,
+    update: &ManagedClientConfigUpdate,
+) -> bool {
+    let Some(current) = config.acp_clients.get_mut(client_id) else {
+        return false;
+    };
+    if update.previous.is_none() && *current == update.installed {
+        config.acp_clients.remove(client_id);
+        return false;
+    }
+    let previous_runtime = update
+        .previous
+        .as_ref()
+        .and_then(|client| client.local_override.clone());
+    let conflict = current.local_override != update.installed.local_override
+        && current.local_override != previous_runtime;
+    if current.local_override == update.installed.local_override {
+        current.local_override = previous_runtime;
+    }
+    if let Some(previous) = &update.previous {
+        if current.enabled == update.installed.enabled {
+            current.enabled = previous.enabled;
+        }
+    }
+    conflict
 }
 
 fn ensure_managed_provisioning_active(cancelled: &Arc<AtomicBool>) -> BitFunResult<()> {
@@ -2482,9 +2660,8 @@ async fn wait_for_client_connection(
 
 fn parse_config_value(value: serde_json::Value) -> BitFunResult<AcpClientConfigFile> {
     let mut config = if value.get("acpClients").is_some() {
-        serde_json::from_value(value).map_err(|error| {
-            BitFunError::config(format!("Invalid ACP client config: {}", error))
-        })
+        serde_json::from_value(value)
+            .map_err(|error| BitFunError::config(format!("Invalid ACP client config: {}", error)))
     } else if value.is_object() {
         serde_json::from_value(json!({ "acpClients": value })).map_err(|error| {
             BitFunError::config(format!("Invalid ACP client config map: {}", error))
@@ -3199,6 +3376,163 @@ mod tests {
         ))
     }
 
+    fn managed_runtime_fixture(command: &str) -> AcpClientRuntimeOverride {
+        AcpClientRuntimeOverride {
+            command: command.to_string(),
+            args: vec!["adapter.js".to_string()],
+            env: HashMap::new(),
+        }
+    }
+
+    #[test]
+    fn default_builtin_launch_ignores_non_launch_settings() {
+        for id in ["claude-code", "codex"] {
+            let mut config = default_config_for_builtin_client(id).unwrap();
+            assert!(uses_default_builtin_launch(id, &config));
+            config.name = Some("Renamed client".to_string());
+            config.enabled = false;
+            config.readonly = true;
+            assert!(uses_default_builtin_launch(id, &config));
+        }
+    }
+
+    #[test]
+    fn custom_builtin_launch_and_runtime_override_use_configured_probe() {
+        for id in ["claude-code", "codex"] {
+            let default = default_config_for_builtin_client(id).unwrap();
+            let mut command = default.clone();
+            command.command = "/custom/client".to_string();
+            let mut empty_command = default.clone();
+            empty_command.command.clear();
+            let mut args = default.clone();
+            args.args.push("--custom".to_string());
+            let mut env = default.clone();
+            env.env
+                .insert("PATH".to_string(), "/custom/bin".to_string());
+            let mut runtime = default.clone();
+            runtime.local_override = Some(managed_runtime_fixture("managed-node"));
+            for config in [command, empty_command, args, env, runtime] {
+                assert!(
+                    !uses_default_builtin_launch(id, &config),
+                    "{id}: {config:?}"
+                );
+            }
+        }
+        let config = default_config_for_builtin_client("codex").unwrap();
+        assert!(!uses_default_builtin_launch("custom-client", &config));
+    }
+
+    #[test]
+    fn migrated_legacy_builtin_launch_still_uses_managed_probe() {
+        for (id, package) in [
+            ("claude-code", "@zed-industries/claude-code-acp@latest"),
+            ("codex", "@zed-industries/codex-acp@latest"),
+        ] {
+            let mut config = default_config_for_builtin_client(id).unwrap();
+            config.args = vec!["--yes".to_string(), package.to_string()];
+            let mut file = AcpClientConfigFile::default();
+            file.acp_clients.insert(id.to_string(), config);
+            let loaded = parse_config_value(serde_json::to_value(file).unwrap()).unwrap();
+            assert!(uses_default_builtin_launch(id, &loaded.acp_clients[id]));
+        }
+    }
+
+    #[test]
+    fn managed_rollback_preserves_other_clients_and_newer_edits() {
+        let mut config = AcpClientConfigFile::default();
+        let mut previous = default_config_for_builtin_client("codex").unwrap();
+        previous.enabled = false;
+        previous.local_override = Some(managed_runtime_fixture("previous-node"));
+        config
+            .acp_clients
+            .insert("codex".to_string(), previous.clone());
+        let update = apply_managed_client_config(
+            &mut config,
+            "codex",
+            &managed_runtime_fixture("setup-node"),
+        )
+        .unwrap();
+        let other = default_config_for_builtin_client("opencode").unwrap();
+        config
+            .acp_clients
+            .insert("opencode".to_string(), other.clone());
+        let current = config.acp_clients.get_mut("codex").unwrap();
+        current.name = Some("Edited during verification".to_string());
+        current.env.insert("CUSTOM".to_string(), "kept".to_string());
+        assert!(!rollback_managed_client_config(
+            &mut config,
+            "codex",
+            &update
+        ));
+        let restored = &config.acp_clients["codex"];
+        assert_eq!(restored.local_override, previous.local_override);
+        assert!(!restored.enabled);
+        assert_eq!(restored.name.as_deref(), Some("Edited during verification"));
+        assert_eq!(restored.env.get("CUSTOM").map(String::as_str), Some("kept"));
+        assert_eq!(config.acp_clients["opencode"], other);
+    }
+
+    #[test]
+    fn managed_rollback_preserves_newer_runtime_and_explicit_deletion() {
+        let mut config = AcpClientConfigFile::default();
+        let update = apply_managed_client_config(
+            &mut config,
+            "codex",
+            &managed_runtime_fixture("setup-node"),
+        )
+        .unwrap();
+        let newer = managed_runtime_fixture("user-node");
+        config.acp_clients.get_mut("codex").unwrap().local_override = Some(newer.clone());
+        assert!(rollback_managed_client_config(
+            &mut config,
+            "codex",
+            &update
+        ));
+        assert_eq!(config.acp_clients["codex"].local_override, Some(newer));
+        config.acp_clients.remove("codex");
+        assert!(!rollback_managed_client_config(
+            &mut config,
+            "codex",
+            &update
+        ));
+        assert!(!config.acp_clients.contains_key("codex"));
+    }
+
+    #[test]
+    fn managed_rollback_removes_only_an_unchanged_new_client() {
+        let mut config = AcpClientConfigFile::default();
+        let update = apply_managed_client_config(
+            &mut config,
+            "codex",
+            &managed_runtime_fixture("setup-node"),
+        )
+        .unwrap();
+        assert!(!rollback_managed_client_config(
+            &mut config,
+            "codex",
+            &update
+        ));
+        assert!(!config.acp_clients.contains_key("codex"));
+        let update = apply_managed_client_config(
+            &mut config,
+            "codex",
+            &managed_runtime_fixture("setup-node"),
+        )
+        .unwrap();
+        config.acp_clients.get_mut("codex").unwrap().permission_mode =
+            AcpClientPermissionMode::AllowOnce;
+        assert!(!rollback_managed_client_config(
+            &mut config,
+            "codex",
+            &update
+        ));
+        assert!(config.acp_clients["codex"].local_override.is_none());
+        assert_eq!(
+            config.acp_clients["codex"].permission_mode,
+            AcpClientPermissionMode::AllowOnce
+        );
+    }
+
     #[test]
     fn claims_only_one_client_start_for_a_connection() {
         let clients = DashMap::new();
@@ -3376,6 +3710,7 @@ mod tests {
             env: HashMap::from([("PORTABLE".to_string(), "1".to_string())]),
             enabled: true,
             readonly: true,
+            subagent: Default::default(),
             permission_mode: AcpClientPermissionMode::RejectOnce,
             local_override: Some(AcpClientRuntimeOverride {
                 command: "/storage/Users/currentUser/.harmonybrew/bin/node".to_string(),
@@ -3418,6 +3753,7 @@ mod tests {
             env: HashMap::from([("PORTABLE".to_string(), "1".to_string())]),
             enabled: true,
             readonly: false,
+            subagent: Default::default(),
             permission_mode: AcpClientPermissionMode::Ask,
             local_override: Some(AcpClientRuntimeOverride {
                 command: "/storage/Users/currentUser/.harmonybrew/bin/kimi".to_string(),
@@ -3435,6 +3771,147 @@ mod tests {
         assert_eq!(resolved.args, vec!["acp"]);
         assert_eq!(resolved.env.get("PORTABLE").map(String::as_str), Some("1"));
         assert!(resolved.env.get("HOME").is_none());
+    }
+
+    #[test]
+    fn remote_builtin_launches_restore_managed_entries_and_preserve_options() {
+        let cases = [
+            (
+                "kimi-code",
+                "kimi",
+                "/storage/Users/currentUser/.harmonybrew/bin/kimi",
+            ),
+            (
+                "qwen-code",
+                "qwen",
+                "/storage/Users/currentUser/.harmonybrew/bin/qwen",
+            ),
+            (
+                "codebuddy-code",
+                "codebuddy",
+                "/storage/Users/currentUser/.harmonybrew/lib/node_modules/@tencent-ai/codebuddy-code/bin/codebuddy",
+            ),
+            (
+                "dsh",
+                "dsh",
+                "/storage/Users/currentUser/.harmonybrew/bin/dsh",
+            ),
+        ];
+
+        for (client_id, portable_command, harmonybrew_path) in cases {
+            let preset = builtin_acp_client_preset(client_id).expect("builtin preset");
+            let mut expected_args = preset
+                .args
+                .iter()
+                .map(|arg| (*arg).to_string())
+                .collect::<Vec<_>>();
+            expected_args.extend(["--model".to_string(), "custom-model".to_string()]);
+            let config = AcpClientConfig {
+                name: None,
+                command: harmonybrew_path.to_string(),
+                args: expected_args.clone(),
+                env: HashMap::from([(
+                    "PATH".to_string(),
+                    "/storage/Users/currentUser/.harmonybrew/bin:/system/bin".to_string(),
+                )]),
+                enabled: true,
+                readonly: false,
+                subagent: Default::default(),
+                permission_mode: AcpClientPermissionMode::Ask,
+                local_override: Some(AcpClientRuntimeOverride {
+                    command: harmonybrew_path.to_string(),
+                    args: expected_args.clone(),
+                    env: HashMap::from([(
+                        "PATH".to_string(),
+                        "/storage/Users/currentUser/.harmonybrew/bin:/system/bin".to_string(),
+                    )]),
+                }),
+            };
+            let config_file = AcpClientConfigFile {
+                acp_clients: HashMap::from([(client_id.to_string(), config)]),
+            };
+            let resolved = resolve_config_for_client(&config_file, client_id, Some("remote-host"))
+                .expect("remote config");
+
+            assert_eq!(resolved.command, portable_command);
+            assert_eq!(resolved.args, expected_args);
+            assert!(
+                resolved.env.get("PATH").is_none(),
+                "{client_id} remote launch must keep the SSH login PATH"
+            );
+        }
+    }
+
+    #[test]
+    fn remote_launch_preserves_custom_commands_and_path_arguments() {
+        for (command, args) in [
+            (
+                "/opt/tools/opencode",
+                vec!["acp", "--model", "custom-model"],
+            ),
+            (
+                "opencode",
+                vec!["acp", "--config", "/storage/Users/currentUser/custom.json"],
+            ),
+            (
+                "/storage/Users/currentUser/.harmonybrew/bin/custom-wrapper",
+                vec!["acp"],
+            ),
+            (
+                "/storage/Users/currentUser/.harmonybrew/bin/node",
+                vec!["/storage/Users/currentUser/custom.js", "--stdio"],
+            ),
+        ] {
+            let config: AcpClientConfig = serde_json::from_value(json!({
+                "command": command, "args": args, "env": { "PATH": "/opt/tools:/usr/bin" }
+            }))
+            .expect("custom config");
+            let config_file = AcpClientConfigFile {
+                acp_clients: HashMap::from([("opencode".to_string(), config)]),
+            };
+            let resolved = resolve_config_for_client(&config_file, "opencode", Some("remote-host"))
+                .expect("remote config");
+            assert_eq!(resolved.command, command);
+            assert_eq!(resolved.args, args);
+            assert_eq!(
+                resolved.env.get("PATH").map(String::as_str),
+                Some("/opt/tools:/usr/bin")
+            );
+        }
+    }
+
+    #[test]
+    fn remote_managed_node_entries_preserve_agent_options() {
+        for client_id in ["codebuddy-code", "claude-code", "codex"] {
+            let preset = builtin_acp_client_preset(client_id).expect("preset");
+            let entry = preset
+                .ohos_adapter
+                .map(|adapter| adapter.npm.entry_relative_path)
+                .or_else(|| preset.ohos.npm().map(|npm| npm.entry_relative_path))
+                .expect("managed entry");
+            let mut args = vec![format!("/storage/Users/currentUser/.harmonybrew/{entry}")];
+            if preset.ohos_adapter.is_none() {
+                args.extend(preset.args.iter().map(|arg| (*arg).to_string()));
+            }
+            args.extend(["--model".to_string(), "custom-model".to_string()]);
+            let config: AcpClientConfig = serde_json::from_value(json!({
+                "command": "/storage/Users/currentUser/.harmonybrew/bin/node", "args": args
+            }))
+            .expect("managed config");
+            let config_file = AcpClientConfigFile {
+                acp_clients: HashMap::from([(client_id.to_string(), config)]),
+            };
+            let resolved = resolve_config_for_client(&config_file, client_id, Some("remote-host"))
+                .expect("remote config");
+            let mut expected_args = preset
+                .args
+                .iter()
+                .map(|arg| (*arg).to_string())
+                .collect::<Vec<_>>();
+            expected_args.extend(["--model".to_string(), "custom-model".to_string()]);
+            assert_eq!(resolved.command, preset.command);
+            assert_eq!(resolved.args, expected_args);
+        }
     }
 
     #[test]

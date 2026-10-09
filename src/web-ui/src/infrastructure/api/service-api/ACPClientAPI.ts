@@ -1,6 +1,9 @@
 import { api } from './ApiClient';
 import type { ImageContextData as ImageInputContextData } from './ImageContextTypes';
 
+/** Upper bound for one managed install (two host steps of up to 10 minutes, plus verification). */
+const ACP_INSTALL_REQUEST_TIMEOUT_MS = 30 * 60 * 1000;
+
 export type AcpClientPermissionMode = 'ask' | 'allow_once' | 'reject_once';
 export type AcpClientStatus = 'configured' | 'starting' | 'running' | 'stopped' | 'failed';
 
@@ -347,7 +350,18 @@ export class ACPClientAPI {
   }
 
   static async installClientCli(request: AcpClientIdRequest): Promise<AcpClientInstallOutcome> {
-    const outcome = await api.invoke<AcpClientInstallOutcome>('install_acp_client_cli', { request });
+    // Setup downloads packages and verifies the launch; the host bounds each step at
+    // 10 minutes. The default 30 s request timeout would abandon a healthy install.
+    const response = await api.invoke<AcpClientInstallOutcome | null | undefined>(
+      'install_acp_client_cli',
+      { request },
+      { timeout: ACP_INSTALL_REQUEST_TIMEOUT_MS },
+    );
+    // Older hosts return no payload after successfully installing the CLI.
+    const outcome: AcpClientInstallOutcome = response ?? {
+      clientId: request.clientId,
+      status: 'cli_installed',
+    };
     ACPClientAPI.invalidateClientListCache();
     ACPClientAPI.invalidateRequirementProbeCache();
     window.dispatchEvent(new Event('bitfun:acp-requirements-changed'));

@@ -2083,7 +2083,7 @@
       "reviewError": "审查错误"
     },
     "auth": {
-      "github": "请在工作区运行环境中完成 GitHub 认证后重试：{{command}}",
+      "github": "请在本机使用 GitHub CLI 完成认证后重试：{{command}}",
       "missing": "请为 {{host}} 添加访问令牌以访问此仓库。",
       "invalid": "{{host}} 的访问令牌被拒绝，请更新后重试。",
       "insufficientScope": "{{host}} 的访问令牌权限不足，请更新后重试。"

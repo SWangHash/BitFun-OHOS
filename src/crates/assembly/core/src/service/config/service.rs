@@ -204,13 +204,47 @@ impl ConfigService {
     where
         T: serde::Serialize + serde::de::DeserializeOwned,
     {
+        self.update_config_section(path, None, update).await
+    }
+
+    /// Atomically initializes a missing section and applies a partial update.
+    /// Existing sections must deserialize successfully; unreadable data is preserved.
+    pub async fn update_config_or_insert<T, R>(
+        &self,
+        path: &str,
+        initial: T,
+        update: impl FnOnce(&mut T) -> BitFunResult<R>,
+    ) -> BitFunResult<R>
+    where
+        T: serde::Serialize + serde::de::DeserializeOwned,
+    {
+        self.update_config_section(path, Some(initial), update)
+            .await
+    }
+
+    async fn update_config_section<T, R>(
+        &self,
+        path: &str,
+        initial: Option<T>,
+        update: impl FnOnce(&mut T) -> BitFunResult<R>,
+    ) -> BitFunResult<R>
+    where
+        T: serde::Serialize + serde::de::DeserializeOwned,
+    {
         let (result, changed) = {
             let mut manager = self.manager.write().await;
-            let before: serde_json::Value = manager.get(path)?;
-            let mut value: T = serde_json::from_value(before.clone())?;
+            let before = match manager.get::<serde_json::Value>(path) {
+                Ok(value) => Some(value),
+                Err(BitFunError::NotFound(_)) if initial.is_some() => None,
+                Err(error) => return Err(error),
+            };
+            let mut value: T = match &before {
+                Some(value) => serde_json::from_value(value.clone())?,
+                None => initial.expect("a missing section requires an initial value"),
+            };
             let result = update(&mut value)?;
             let after = serde_json::to_value(value)?;
-            let changed = before != after;
+            let changed = before.as_ref() != Some(&after);
             if changed {
                 manager.set(path, after).await?;
             }
@@ -958,6 +992,49 @@ mod tests {
             assert_eq!(saved.ai.models[0].api_key, "fixture-model-key");
             assert_eq!(saved.editor.font_size, 18);
         }
+    }
+
+    #[tokio::test]
+    async fn atomic_section_updates_initialize_once_and_preserve_concurrent_entries() {
+        let (service, dir) = test_service("atomic-section-updates").await;
+        let add_client = |id: &'static str| {
+            service.update_config_or_insert(
+                "acp_clients",
+                serde_json::json!({ "acpClients": {} }),
+                move |value: &mut serde_json::Value| {
+                    value["acpClients"][id] = serde_json::json!({ "command": id });
+                    Ok(())
+                },
+            )
+        };
+        let (first, second) = tokio::join!(add_client("first"), add_client("second"));
+        first.unwrap();
+        second.unwrap();
+        let restarted = restart_test_service(&dir, "atomic-section-updates").await;
+        let saved: serde_json::Value = restarted.get_config(Some("acp_clients")).await.unwrap();
+        assert_eq!(saved["acpClients"].as_object().unwrap().len(), 2);
+        assert_eq!(saved["acpClients"]["first"]["command"], "first");
+        assert_eq!(saved["acpClients"]["second"]["command"], "second");
+    }
+
+    #[tokio::test]
+    async fn atomic_section_initialization_does_not_replace_unreadable_existing_data() {
+        let (service, _dir) = test_service("atomic-section-unreadable").await;
+        let original = serde_json::json!({ "unexpected": "keep" });
+        service.set_config("acp_clients", &original).await.unwrap();
+        let result = service
+            .update_config_or_insert(
+                "acp_clients",
+                Vec::<String>::new(),
+                |value: &mut Vec<String>| {
+                    value.push("replacement".to_string());
+                    Ok(())
+                },
+            )
+            .await;
+        assert!(result.is_err());
+        let saved: serde_json::Value = service.get_config(Some("acp_clients")).await.unwrap();
+        assert_eq!(saved, original);
     }
 
     #[tokio::test]

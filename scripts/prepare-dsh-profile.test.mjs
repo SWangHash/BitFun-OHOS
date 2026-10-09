@@ -14,9 +14,12 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import {
+  dshProfileInputDigest,
   getDshProfileRebuildPlan,
   syncOhosDshProfile,
 } from './prepare-dsh-profile.mjs';
+
+import { profileDigest, profileFiles } from './dsh-profile-artifact.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -44,7 +47,18 @@ function createPackageTree() {
   return { root, packageDir, outDir, prepareScriptPath };
 }
 
-function writeStamp(outDir, stamp = { profile: 'bitfun-acp', content: 'abc' }) {
+function writeStamp(outDir, override = {}) {
+  for (const name of ['package.json', 'cordis.patch.yml', 'lib/app.js', 'node_modules/@agentclientprotocol/sdk/package.json', 'node_modules/@deepseek-ai/dsh-agent-spine-demo/package.json']) {
+    mkdirSync(path.dirname(path.join(outDir, name)), { recursive: true });
+    writeFileSync(path.join(outDir, name), '{}\n');
+  }
+  const packageDir = path.dirname(outDir);
+  const prepareScriptPath = path.join(packageDir, '../../scripts/prepare-dsh-profile.mjs');
+  const stamp = {
+    profile: 'bitfun-acp', bridge: '1.0.0', minDshVersion: '0.1.0-rc.6',
+    content: profileDigest(profileFiles(outDir)),
+    buildInputs: dshProfileInputDigest({ packageDir, prepareScriptPath }), ...override,
+  };
   const stampPath = path.join(outDir, '.bitfun-bridge.json');
   writeFileSync(stampPath, `${JSON.stringify(stamp)}\n`);
   return stampPath;
@@ -88,7 +102,7 @@ test('rebuilds when force is requested', () => {
 test('rebuilds when the stamp is incomplete', () => {
   const { root, packageDir, outDir, prepareScriptPath } = createPackageTree();
   try {
-    writeStamp(outDir, { profile: 'bitfun-acp' });
+    writeStamp(outDir, { content: undefined });
     const plan = getDshProfileRebuildPlan({ packageDir, outDir, prepareScriptPath });
     assert.equal(plan.shouldBuild, true);
     assert.match(plan.reason, /incomplete/);
@@ -97,7 +111,7 @@ test('rebuilds when the stamp is incomplete', () => {
   }
 });
 
-test('rebuilds when an input is newer than the stamp', () => {
+test('rebuilds when input content changes even if timestamps are unchanged', () => {
   const { root, packageDir, outDir, prepareScriptPath } = createPackageTree();
   try {
     const stampPath = writeStamp(outDir);
@@ -116,17 +130,17 @@ test('rebuilds when an input is newer than the stamp', () => {
     ]) {
       setMtime(filePath, older);
     }
-    setMtime(path.join(packageDir, 'src', 'app.ts'), newer);
+    writeFileSync(path.join(packageDir, 'src', 'app.ts'), 'export const changed = true;\n');
+    setMtime(path.join(packageDir, 'src', 'app.ts'), older);
     const plan = getDshProfileRebuildPlan({ packageDir, outDir, prepareScriptPath });
     assert.equal(plan.shouldBuild, true);
     assert.match(plan.reason, /inputs changed/);
-    assert.match(plan.reason, /app\.ts/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });
 
-test('skips when a complete stamp is newer than every input', () => {
+test('reuses an intact profile when input content matches', () => {
   const { root, packageDir, outDir, prepareScriptPath } = createPackageTree();
   try {
     const older = Date.now() - 60_000;
@@ -158,9 +172,8 @@ test('stages a clean HarmonyOS profile with resfile-compatible names', () => {
   const sourceDir = path.join(root, 'dist-profile');
   const destinationDir = path.join(root, 'resfile', 'dsh-profile');
   try {
-    mkdirSync(path.join(sourceDir, 'node_modules', '@example', 'bridge'), { recursive: true });
-    writeFileSync(path.join(sourceDir, '.bitfun-bridge.json'), '{"profile":"bitfun-acp"}\n');
-    writeFileSync(path.join(sourceDir, 'node_modules', '@example', 'bridge', 'index.js'), '');
+    mkdirSync(sourceDir, { recursive: true });
+    writeStamp(sourceDir);
     mkdirSync(destinationDir, { recursive: true });
     writeFileSync(path.join(destinationDir, 'stale.js'), 'stale');
 
@@ -172,7 +185,7 @@ test('stages a clean HarmonyOS profile with resfile-compatible names', () => {
     assert.equal(existsSync(path.join(destinationDir, 'bitfun-bridge.json')), true);
     assert.equal(
       existsSync(
-        path.join(destinationDir, 'vendor-node-modules', '@example', 'bridge', 'index.js'),
+        path.join(destinationDir, 'vendor-node-modules', '@agentclientprotocol', 'sdk', 'package.json'),
       ),
       true,
     );
@@ -196,10 +209,19 @@ test('desktop clippy does not compile the DeepSeek profile', () => {
   assert.doesNotMatch(packageJson.scripts['lint:rs:desktop'], /prepare:dsh-profile/);
 });
 
-test('official frontend packaging still compiles the DeepSeek profile', () => {
-  const frontendBuildAll = readFileSync(
-    path.join(repoRoot, 'scripts', 'frontend-build-all.mjs'),
-    'utf8',
-  );
-  assert.match(frontendBuildAll, /prepare:dsh-profile/);
+test('official desktop packaging owns profile preparation independently of frontend hooks', () => {
+  const script = readFileSync(path.join(repoRoot, 'scripts', 'desktop-tauri-build.mjs'), 'utf8');
+  assert.match(script, /prepareDshProfile\(\{ required: true \}\)/);
+});
+
+test('an incomplete or corrupted cached profile is rebuilt', () => {
+  const tree = createPackageTree();
+  try {
+    writeStamp(tree.outDir);
+    rmSync(path.join(tree.outDir, 'node_modules/@agentclientprotocol/sdk/package.json'));
+    assert.equal(getDshProfileRebuildPlan(tree).shouldBuild, true);
+    writeStamp(tree.outDir);
+    writeFileSync(path.join(tree.outDir, 'lib/app.js'), 'corrupted');
+    assert.equal(getDshProfileRebuildPlan(tree).shouldBuild, true);
+  } finally { rmSync(tree.root, { recursive: true, force: true }); }
 });

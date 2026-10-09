@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { agentAPI } from '@/infrastructure/api';
+import { agentAPI } from '@/infrastructure/api/service-api/AgentAPI';
 import type { AgenticEvent } from '@/infrastructure/api/service-api/AgentAPI';
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
 import { configManager } from '@/infrastructure/config/services/ConfigManager';
@@ -7,7 +7,7 @@ import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
 import { useI18n } from '@/infrastructure/i18n';
 import { createLogger } from '@/shared/utils/logger';
 import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
-import { workspaceAPI } from '@/infrastructure';
+import { workspaceAPI } from '@/infrastructure/api/service-api/WorkspaceAPI';
 import {
   buildDialogCompletionNotificationCopy,
   shouldSendDialogCompletionNotification,

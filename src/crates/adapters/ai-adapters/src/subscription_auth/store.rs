@@ -363,12 +363,6 @@ fn failing_backup_cleanup() -> &'static Mutex<HashSet<PathBuf>> {
     PATHS.get_or_init(|| Mutex::new(HashSet::new()))
 }
 
-#[cfg(all(not(target_os = "macos"), not(target_env = "ohos")))]
-fn native_keyring_lock() -> &'static Mutex<()> {
-    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(|| Mutex::new(()))
-}
-
 fn store_operation_lock() -> &'static tokio::sync::Mutex<()> {
     static LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
     &LOCK
@@ -376,9 +370,9 @@ fn store_operation_lock() -> &'static tokio::sync::Mutex<()> {
 
 /// Process-wide injection seam for a custom credential vault. The desktop
 /// host sets this at startup (e.g. to wire the OHOS AssetStoreKit-backed
-/// vault). When unset, [`current_vault`] falls back to the system keyring
-/// vault on platforms where it links, or returns an explicit
-/// unavailable-vault otherwise.
+/// vault). When unset, [`current_vault`] selects the platform default:
+/// the subscription encrypted-file vault on macOS, the system keyring where
+/// enabled, or an explicit unavailable-vault otherwise.
 fn vault_override() -> &'static RwLock<Option<Arc<dyn SecureCredentialVault>>> {
     static OVERRIDE: OnceLock<RwLock<Option<Arc<dyn SecureCredentialVault>>>> = OnceLock::new();
     OVERRIDE.get_or_init(|| RwLock::new(None))
@@ -387,8 +381,8 @@ fn vault_override() -> &'static RwLock<Option<Arc<dyn SecureCredentialVault>>> {
 /// Inject a custom credential vault for subscription auth.
 ///
 /// Called by the desktop host at startup. On HarmonyOS the host injects
-/// the ArkTS-backed vault; on macOS, Windows, and Linux the system keyring
-/// vault is used by default and this is not called.
+/// the ArkTS-backed vault; other hosts use their platform default without
+/// calling this injection seam.
 pub fn set_subscription_credential_vault(vault: Arc<dyn SecureCredentialVault>) {
     if let Ok(mut guard) = vault_override().write() {
         *guard = Some(vault);
@@ -419,7 +413,8 @@ pub(crate) fn clear_subscription_credential_vault_for_test() {
 ///    helpers `set_test_vault_unavailable`, etc.).
 /// 2. If a vault was injected via [`set_subscription_credential_vault`],
 ///    return it.
-/// 3. Otherwise return `SystemSecureCredentialVault` (when the
+/// 3. On macOS, retain the subscription encrypted-file vault.
+/// 4. Otherwise return `SystemSecureCredentialVault` (when the
 ///    `system-vault` feature is enabled) or `UnavailableVault` (otherwise).
 fn current_vault() -> Arc<dyn SecureCredentialVault> {
     #[cfg(test)]
@@ -431,12 +426,16 @@ fn current_vault() -> Arc<dyn SecureCredentialVault> {
     if let Some(vault) = vault_override().read().ok().and_then(|guard| guard.clone()) {
         return vault;
     }
-    #[cfg(feature = "system-vault")]
+    #[cfg(target_os = "macos")]
+    {
+        return Arc::new(MacosSubscriptionVault);
+    }
+    #[cfg(all(feature = "system-vault", not(target_os = "macos")))]
     {
         use bitfun_services_core::secure_credentials::SystemSecureCredentialVault;
         return Arc::new(SystemSecureCredentialVault::new(KEYRING_SERVICE));
     }
-    #[cfg(not(feature = "system-vault"))]
+    #[cfg(all(not(feature = "system-vault"), not(target_os = "macos")))]
     {
         return Arc::new(UnavailableVault);
     }
@@ -914,11 +913,6 @@ fn test_vault_is_unavailable(path: &Path) -> bool {
         .unwrap_or(true)
 }
 
-#[cfg(not(test))]
-fn test_vault_is_unavailable(_path: &Path) -> bool {
-    false
-}
-
 #[cfg(test)]
 fn metadata_write_should_fail(path: &Path) -> bool {
     failing_metadata_writes()
@@ -945,22 +939,12 @@ fn vault_write_should_fail(path: &Path) -> bool {
         .unwrap_or(true)
 }
 
-#[cfg(not(test))]
-fn vault_write_should_fail(_path: &Path) -> bool {
-    false
-}
-
 #[cfg(test)]
 fn vault_delete_should_fail(path: &Path) -> bool {
     failing_vault_deletes()
         .lock()
         .map(|paths| paths.contains(path))
         .unwrap_or(true)
-}
-
-#[cfg(not(test))]
-fn vault_delete_should_fail(_path: &Path) -> bool {
-    false
 }
 
 #[cfg(test)]
@@ -1096,50 +1080,6 @@ async fn read_secure_file(path: &Path) -> Result<SecureStoreFile> {
     parse_secure_file(&bytes, path)
 }
 
-// HarmonyOS is `unix` but has no D-Bus Secret Service. The desktop host
-// injects the AssetStore vault, and this direct keyring path must not
-// compile there — a second write was failing Codex login after the asset
-// write had already succeeded.
-#[cfg(all(not(target_os = "macos"), not(target_env = "ohos")))]
-fn open_native_keyring_entry(entry_name: &str) -> std::result::Result<keyring_core::Entry, String> {
-    if keyring_core::get_default_store().is_none() {
-        #[cfg(target_os = "windows")]
-        let store = windows_native_keyring_store::Store::new();
-        #[cfg(all(
-            unix,
-            not(any(
-                target_os = "macos",
-                target_os = "ios",
-                target_os = "android",
-                target_env = "ohos"
-            ))
-        ))]
-        let store = zbus_secret_service_keyring_store::Store::new();
-        #[cfg(not(any(
-            target_os = "windows",
-            all(
-                unix,
-                not(any(
-                    target_os = "macos",
-                    target_os = "ios",
-                    target_os = "android",
-                    target_env = "ohos"
-                ))
-            )
-        )))]
-        let store: keyring_core::Result<std::sync::Arc<keyring_core::CredentialStore>> =
-            Err(keyring_core::Error::NoDefaultStore);
-
-        // Unlike the keyring v1 facade, failed initialization leaves no sticky
-        // once flag. A later UI retry can reconnect to Linux Secret Service.
-        let store =
-            store.map_err(|error| format!("initialize system credential store: {error}"))?;
-        keyring_core::set_default_store(store);
-    }
-    keyring_core::Entry::new(KEYRING_SERVICE, entry_name)
-        .map_err(|error| format!("open system credential entry: {error}"))
-}
-
 #[cfg(target_os = "macos")]
 fn macos_credential_vault(
     metadata_path: &Path,
@@ -1149,6 +1089,46 @@ fn macos_credential_vault(
         parent.join(".subscription_auth_vault.key"),
         parent.join("subscription_auth_vault.json"),
     )
+}
+
+// Keep the subscription vault filenames stable across upgrades. All operations
+// use this adapter, so a successful write cannot fall through to a second store.
+#[cfg(target_os = "macos")]
+#[derive(Debug)]
+struct MacosSubscriptionVault;
+
+#[cfg(target_os = "macos")]
+#[async_trait::async_trait]
+impl SecureCredentialVault for MacosSubscriptionVault {
+    async fn get_secret(&self, alias: &str) -> Result<Option<Vec<u8>>, String> {
+        let path = store_path().map_err(|error| error.to_string())?;
+        macos_credential_vault(&path)
+            .get(alias)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
+    async fn set_secret(&self, alias: &str, secret: &[u8]) -> Result<(), String> {
+        let path = store_path().map_err(|error| error.to_string())?;
+        macos_credential_vault(&path)
+            .set(alias, secret)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
+    async fn delete_secret(&self, alias: &str) -> Result<(), String> {
+        let path = store_path().map_err(|error| error.to_string())?;
+        macos_credential_vault(&path)
+            .remove(alias)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
+    async fn get_legacy_secret_text(&self, alias: &str) -> Result<Option<String>, String> {
+        self.get_secret(alias)
+            .await
+            .map(|secret| secret.and_then(|bytes| String::from_utf8(bytes).ok()))
+    }
 }
 
 async fn get_secret_bytes(entry_name: &str) -> Result<Option<Vec<u8>>> {
@@ -1166,59 +1146,10 @@ async fn get_secret_bytes(entry_name: &str) -> Result<Option<Vec<u8>>> {
 /// the OHOS ArkTS-backed vault returns `Ok(None)` because v1 migration only
 /// applies to legacy desktop installs.
 async fn get_legacy_password(provider: &str) -> Result<Option<String>> {
-    let vault = current_vault();
-    let legacy = vault
+    current_vault()
         .get_legacy_secret_text(provider)
         .await
-        .map_err(vault_unavailable)?;
-    if let Some(path) = overridden_store_path() {
-        if test_vault_is_unavailable(&path) {
-            return Err(vault_unavailable("subscription test vault unavailable"));
-        }
-        return test_secrets()
-            .lock()
-            .map_err(|_| anyhow!("subscription test vault lock poisoned"))
-            .map(|vault| {
-                vault
-                    .get(&path)
-                    .and_then(|items| items.get(provider))
-                    .and_then(|bytes| String::from_utf8(bytes.clone()).ok())
-            });
-    }
-
-    // HarmonyOS has no Secret Service. The injected vault is the only store,
-    // and its legacy read is already `None` for a fresh install.
-    #[cfg(target_env = "ohos")]
-    {
-        return Ok(legacy);
-    }
-    #[cfg(not(target_env = "ohos"))]
-    let _ = legacy;
-
-    #[cfg(target_os = "macos")]
-    {
-        return get_secret_bytes(provider)
-            .await
-            .map(|secret| secret.and_then(|bytes| String::from_utf8(bytes).ok()));
-    }
-    #[cfg(all(not(target_os = "macos"), not(target_env = "ohos")))]
-    {
-        let provider = provider.to_string();
-        tokio::task::spawn_blocking(move || {
-            let _guard = native_keyring_lock()
-                .lock()
-                .map_err(|_| "subscription keyring lock poisoned".to_string())?;
-            let entry = open_native_keyring_entry(&provider)?;
-            match entry.get_password() {
-                Ok(secret) => Ok(Some(secret)),
-                Err(keyring_core::Error::NoEntry) => Ok(None),
-                Err(err) => Err(format!("read legacy system credential entry: {err}")),
-            }
-        })
-        .await
-        .context("join legacy system credential read task")?
         .map_err(vault_unavailable)
-    }
 }
 
 async fn set_secret_bytes(entry_name: &str, secret: Vec<u8>) -> Result<()> {
@@ -1228,118 +1159,17 @@ async fn set_secret_bytes(entry_name: &str, secret: Vec<u8>) -> Result<()> {
             secret.len()
         ));
     }
-    let vault = current_vault();
-    vault
+    current_vault()
         .set_secret(entry_name, &secret)
         .await
-        .map_err(vault_unavailable)?;
-    if let Some(path) = overridden_store_path() {
-        if test_vault_is_unavailable(&path) {
-            return Err(vault_unavailable("subscription test vault unavailable"));
-        }
-        if vault_write_should_fail(&path) {
-            return Err(vault_unavailable(
-                "injected subscription test vault write failure",
-            ));
-        }
-        let mut vault = test_secrets()
-            .lock()
-            .map_err(|_| anyhow!("subscription test vault lock poisoned"))?;
-        vault
-            .entry(path)
-            .or_default()
-            .insert(entry_name.to_string(), secret);
-        return Ok(());
-    }
-
-    // The injected AssetStore vault above is the credential store on
-    // HarmonyOS. A following Secret Service write fails closed — there is
-    // no D-Bus session — and was reported as a Codex login credential
-    // failure even when the asset write succeeded.
-    #[cfg(target_env = "ohos")]
-    {
-        return Ok(());
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        let path = store_path()?;
-        return macos_credential_vault(&path)
-            .set(entry_name, &secret)
-            .await
-            .map_err(|error| vault_unavailable(error.to_string()));
-    }
-    #[cfg(all(not(target_os = "macos"), not(target_env = "ohos")))]
-    {
-        let entry_name = entry_name.to_string();
-        tokio::task::spawn_blocking(move || {
-            let _guard = native_keyring_lock()
-                .lock()
-                .map_err(|_| "subscription keyring lock poisoned".to_string())?;
-            let entry = open_native_keyring_entry(&entry_name)?;
-            entry
-                .set_secret(&secret)
-                .map_err(|err| format!("write system credential entry: {err}"))
-        })
-        .await
-        .context("join system credential write task")?
         .map_err(vault_unavailable)
-    }
 }
 
 async fn delete_secret_entry(entry_name: &str) -> Result<()> {
-    let vault = current_vault();
-    vault
+    current_vault()
         .delete_secret(entry_name)
         .await
-        .map_err(vault_unavailable)?;
-    if let Some(path) = overridden_store_path() {
-        if test_vault_is_unavailable(&path) {
-            return Err(vault_unavailable("subscription test vault unavailable"));
-        }
-        if vault_delete_should_fail(&path) {
-            return Err(vault_unavailable(
-                "injected subscription test vault delete failure",
-            ));
-        }
-        if let Ok(mut vault) = test_secrets().lock() {
-            if let Some(items) = vault.get_mut(&path) {
-                items.remove(entry_name);
-            }
-        }
-        return Ok(());
-    }
-
-    #[cfg(target_env = "ohos")]
-    {
-        return Ok(());
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        let path = store_path()?;
-        return macos_credential_vault(&path)
-            .remove(entry_name)
-            .await
-            .map_err(|error| vault_unavailable(error.to_string()));
-    }
-    #[cfg(all(not(target_os = "macos"), not(target_env = "ohos")))]
-    {
-        let entry_name = entry_name.to_string();
-        tokio::task::spawn_blocking(move || {
-            let _guard = native_keyring_lock()
-                .lock()
-                .map_err(|_| "subscription keyring lock poisoned".to_string())?;
-            let entry = open_native_keyring_entry(&entry_name)?;
-            match entry.delete_credential() {
-                Ok(()) | Err(keyring_core::Error::NoEntry) => Ok(()),
-                Err(err) => Err(format!("delete system credential entry: {err}")),
-            }
-        })
-        .await
-        .context("join system credential delete task")?
         .map_err(vault_unavailable)
-    }
 }
 
 fn secret_chunks(secret: &str) -> Vec<Vec<u8>> {

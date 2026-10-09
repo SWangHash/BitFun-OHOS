@@ -4,6 +4,7 @@ import { createTauriCommandError } from '@/infrastructure/api/errors/TauriComman
 import en from '@/locales/en-US/common.json';
 import zh from '@/locales/zh-CN/common.json';
 import tw from '@/locales/zh-TW/common.json';
+import flowChatZh from '@/locales/zh-CN/flow-chat.json';
 import { reviewPlatformErrorMessage } from './reviewErrors';
 import { reviewErrorText, reviewAuthErrorMessage } from './reviewErrors';
 
@@ -36,25 +37,43 @@ describe('Pull Requests missing Git message', () => {
 
   it('retains the stable error through Peer and JSON-RPC wrappers used by workspace loading', () => {
     const code = 'git_unavailable: Git is unavailable.';
-    const translate = () => zh.reviewPlatform.errors.gitUnavailable;
+    // Echo the key: a fixed translation would pass even if the code were misread.
+    const translate = (key: string) => key;
     for (const originalError of [
       { message: 'Host command failed', details: { originalError: code } },
       Object.assign(new Error('Invalid params'), { code: -32602, data: code }),
     ]) {
       const error = createTauriCommandError('review_platform_get_workspace_context', originalError);
-      expect(reviewPlatformErrorMessage(error, translate)).toBe(zh.reviewPlatform.errors.gitUnavailable);
+      expect(reviewPlatformErrorMessage(error, translate)).toBe('common:reviewPlatform.errors.gitUnavailable');
     }
   });
 
   it('keeps other failures distinct from missing Git and localizes the unknown-error fallback', () => {
-    const translate = () => zh.reviewPlatform.errors.loadFailed;
+    const translate = (key: string) => key;
     for (const message of [
       'Invalid repository path: No such file or directory',
       'Failed to execute git command: Permission denied',
     ]) {
-      expect(reviewPlatformErrorMessage(new Error(message), translate)).toBe(zh.reviewPlatform.errors.loadFailed);
+      expect(reviewPlatformErrorMessage(new Error(message), translate))
+        .toBe('common:reviewPlatform.errors.loadFailed');
     }
-    expect(reviewPlatformErrorMessage({}, translate)).toBe(zh.reviewPlatform.errors.loadFailed);
+    expect(reviewPlatformErrorMessage({}, translate)).toBe('common:reviewPlatform.errors.loadFailed');
+  });
+
+  it('keeps the specific cause of a Review launch failure instead of the generic fallback', () => {
+    const launchError = Object.assign(new Error('Failed to create review session.'), {
+      launchErrorMessageKey: 'deepReviewActionBar.launchError.modelConfig',
+    });
+    const translate = (key: string, options?: Record<string, unknown>) =>
+      key === 'flow-chat:deepReviewActionBar.launchError.modelConfig'
+        ? flowChatZh.deepReviewActionBar.launchError.modelConfig
+        : String(options?.defaultValue ?? key);
+
+    expect(reviewPlatformErrorMessage(launchError, translate, 'reviewFailed'))
+      .toBe(flowChatZh.deepReviewActionBar.launchError.modelConfig);
+    // A translator without the flow-chat namespace still yields the readable default.
+    expect(reviewPlatformErrorMessage(launchError, (_key, options) => String(options?.defaultValue), 'reviewFailed'))
+      .toBe('Failed to create review session.');
   });
 });
 

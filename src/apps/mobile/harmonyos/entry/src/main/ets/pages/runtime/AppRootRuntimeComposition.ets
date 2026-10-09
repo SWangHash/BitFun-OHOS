@@ -221,6 +221,7 @@ export abstract class AppRootRuntimeComposition {
   // Both caches hold what one account saw on one desktop, so they are dropped
   // together whenever that binding ends.
   readonly clearCachedRemoteData: () => Promise<void> = async (): Promise<void> => {
+    this.remoteWorkspaceSessions = [];
     await this.remoteChatCache.clear();
     await this.remoteSessionListCache.clear();
   };
@@ -697,6 +698,10 @@ export abstract class AppRootRuntimeComposition {
             this.captureLiveControlTarget();
           },
           onControlTargetLoading: (deviceId: string): void => {
+            // Sessions buffered from the outgoing desktop's sidebar belong to it.
+            // Left in place they are merged into the incoming desktop's list and
+            // stamped with its device id.
+            this.remoteWorkspaceSessions = [];
             this.deviceDirectoryViewModel.beginLiveCatalog(deviceId);
           },
           onControlTargetChanged: (): void => {

@@ -2083,7 +2083,7 @@
       "reviewError": "審查錯誤"
     },
     "auth": {
-      "github": "請在工作區執行環境中完成 GitHub 驗證後重試：{{command}}",
+      "github": "請在本機使用 GitHub CLI 完成驗證後重試：{{command}}",
       "missing": "請為 {{host}} 新增存取權杖以存取此儲存庫。",
       "invalid": "{{host}} 的存取權杖遭拒，請更新後重試。",
       "insufficientScope": "{{host}} 的存取權杖權限不足，請更新後重試。"

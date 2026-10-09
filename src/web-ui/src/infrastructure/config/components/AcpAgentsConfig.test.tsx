@@ -4,6 +4,7 @@ import React, { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
 import type { AcpManagedProvisioningProgress } from '../../api/service-api/ACPClientAPI';
+import acpAgentsEnglish from '@/locales/en-US/settings/acp-agents.json';
 import AcpAgentsConfigPage, { type AcpAgentsConfigHandle } from './AcpAgentsConfig';
 import {
   discardAndContinueSettingsNavigation,
@@ -20,6 +21,7 @@ import {
 
 const AcpAgentsConfig = () => <AcpAgentsConfigPage navigationRequestId={0} />;
 
+const isOpenHarmonyRuntimeMock = vi.hoisted(() => vi.fn(() => false));
 const loadJsonConfigMock = vi.hoisted(() => vi.fn());
 const getClientsMock = vi.hoisted(() => vi.fn());
 const probeClientRequirementsMock = vi.hoisted(() => vi.fn());
@@ -32,9 +34,21 @@ const listSavedConnectionsMock = vi.hoisted(() => vi.fn());
 const notifyErrorMock = vi.hoisted(() => vi.fn());
 const notifyInfoMock = vi.hoisted(() => vi.fn());
 const notifySuccessMock = vi.hoisted(() => vi.fn());
-const translate = (_key: string, options?: Record<string, unknown> & { defaultValue?: string }) => (
-  options?.defaultValue ?? _key
-);
+const translate = (_key: string, options?: Record<string, unknown> & { defaultValue?: string }) => {
+  if (_key.startsWith('installConfirm.')) {
+    const key = _key.slice('installConfirm.'.length) as keyof typeof acpAgentsEnglish.installConfirm;
+    const template = acpAgentsEnglish.installConfirm[key];
+    if (template) {
+      return template.replace(/\{\{(\w+)\}\}/g, (_match, name: string) => String(options?.[name] ?? ''));
+    }
+  }
+  return options?.defaultValue ?? _key;
+};
+
+vi.mock('@/infrastructure/runtime/environment', async importOriginal => ({
+  ...await importOriginal<typeof import('@/infrastructure/runtime/environment')>(),
+  isOpenHarmonyRuntime: isOpenHarmonyRuntimeMock,
+}));
 
 vi.mock('@/infrastructure/i18n', () => ({
   useI18n: () => ({
@@ -72,7 +86,7 @@ vi.mock('@bitfun/ui', async importOriginal => ({
         {confirmText}
       </button>
       {onSecondary ? <button type="button" onClick={onSecondary}>{secondaryText}</button> : null}
-      {cancelText ? <button type="button" onClick={() => onOpenChange(false)}>{cancelText}</button> : null}
+      <button type="button" data-testid="cancel-dialog" onClick={() => onOpenChange(false)}>{cancelText ?? 'Cancel'}</button>
     </div>
   ) : null,
   Tooltip: ({ children }: React.PropsWithChildren) => <>{children}</>,
@@ -271,6 +285,7 @@ describe('AcpAgentsConfig', () => {
   beforeEach(() => {
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     emitManagedProvisioningProgress = undefined;
+    isOpenHarmonyRuntimeMock.mockReturnValue(false);
     localStorage.clear();
     loadJsonConfigMock.mockResolvedValue(JSON.stringify({
       acpClients: {
@@ -409,9 +424,6 @@ describe('AcpAgentsConfig', () => {
     const desktopPresetIds = visiblePresetIdsForRuntime(false);
     expect(desktopPresetIds).toEqual([
       'opencode',
-      'kimi-code',
-      'qwen-code',
-      'codebuddy-code',
       'dsh',
       'omp',
       'claude-code',
@@ -419,13 +431,9 @@ describe('AcpAgentsConfig', () => {
     ]);
   });
 
-  it('keeps the full preset catalog available to remote hosts', () => {
-    const remotePresetIds = availableRemotePresetIds();
-    expect(remotePresetIds).toEqual([
+  it('keeps HarmonyOS-only presets off every SSH catalog', () => {
+    expect(availableRemotePresetIds()).toEqual([
       'opencode',
-      'kimi-code',
-      'qwen-code',
-      'codebuddy-code',
       'dsh',
       'omp',
       'claude-code',
@@ -474,13 +482,13 @@ describe('AcpAgentsConfig', () => {
     });
   });
 
-  it.each([true, false])('marks an unrunnable configured command as invalid (installed=%s)', async (installed) => {
+  it('marks an installed but unrunnable configured command as invalid', async () => {
     probeClientRequirementsMock.mockResolvedValue([
       {
         id: 'opencode',
         tool: {
           name: 'opencode',
-          installed,
+          installed: true,
           path: '/usr/bin/opencode',
           error: 'Process exited with status 1',
         },
@@ -503,9 +511,140 @@ describe('AcpAgentsConfig', () => {
       ?.textContent === 'opencode');
     expect(opencodeRow).toBeTruthy();
     expect(opencodeRow!.querySelector('[data-bitfun-state="invalid"]')).not.toBeNull();
-    expect(opencodeRow!.textContent).toContain(installed ? 'registry.configInvalid' : 'registry.cliMissing');
+    expect(opencodeRow!.textContent).toContain('registry.configInvalid');
     expect(opencodeRow!.textContent).toContain('actions.viewError');
     expect(opencodeRow!.textContent).not.toContain('registry.enabled');
+  });
+
+  it.each([
+    { name: 'desktop', ohos: false, clientId: 'kimi-code' },
+    { name: 'HarmonyOS', ohos: true, clientId: 'omp' },
+  ])('keeps a configured agent listed when this platform hides its preset: $name', async ({ ohos, clientId }) => {
+    vi.resetModules();
+    isOpenHarmonyRuntimeMock.mockReturnValue(ohos);
+    const Page = (await import('./AcpAgentsConfig')).default;
+    loadJsonConfigMock.mockResolvedValue(JSON.stringify({
+      acpClients: {
+        [clientId]: {
+          name: `Configured ${clientId}`,
+          command: clientId,
+          args: ['acp'],
+          env: {},
+          enabled: true,
+          readonly: false,
+          permissionMode: 'ask',
+        },
+      },
+    }));
+    getClientsMock.mockResolvedValue([]);
+    probeClientRequirementsMock.mockResolvedValue([]);
+
+    await act(async () => {
+      root.render(<Page navigationRequestId={0} />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const names = Array.from(container.querySelectorAll('.bitfun-acp-agents__registry-name'))
+      .map(element => element.textContent);
+    expect(names).toContain(`Configured ${clientId}`);
+  });
+
+  it('treats a remote PATH miss as a missing CLI instead of an invalid path', async () => {
+    loadJsonConfigMock.mockResolvedValue(JSON.stringify({
+      acpClients: {
+        'kimi-code': {
+          name: 'Kimi Code',
+          command: '/storage/Users/currentUser/.harmonybrew/bin/kimi',
+          args: ['acp'],
+          env: {},
+          enabled: true,
+          readonly: false,
+          permissionMode: 'ask',
+        },
+        'qwen-code': {
+          name: 'Qwen Code',
+          command: 'qwen',
+          args: ['--acp'],
+          env: {},
+          enabled: true,
+          readonly: false,
+          permissionMode: 'ask',
+        },
+        'codebuddy-code': {
+          name: 'CodeBuddy Code',
+          command: 'codebuddy',
+          args: ['--acp'],
+          env: {},
+          enabled: true,
+          readonly: false,
+          permissionMode: 'ask',
+        },
+        dsh: {
+          name: 'DeepSeek Harness',
+          command: 'dsh',
+          args: ['--profile', 'bitfun-acp'],
+          env: {},
+          enabled: true,
+          readonly: false,
+          permissionMode: 'ask',
+        },
+      },
+    }));
+    listSavedConnectionsMock.mockResolvedValue([{
+      id: 'remote-host',
+      name: 'Remote Host',
+      host: 'example.invalid',
+      port: 22,
+      username: 'tester',
+      authType: { type: 'Password' },
+    }]);
+    const remoteProbes = [
+      'kimi-code',
+      'qwen-code',
+      'codebuddy-code',
+      'dsh',
+    ].map(id => ({
+      id,
+      tool: {
+        name: id,
+        installed: false,
+        error: 'Configured ACP command could not be resolved on remote PATH',
+      },
+      runnable: false,
+      notes: [`${id} is not available on remote PATH`],
+    }));
+    probeClientRequirementsMock.mockImplementation((options?: { remoteConnectionId?: string }) => (
+      Promise.resolve(options?.remoteConnectionId === 'remote-host' ? remoteProbes : [])
+    ));
+
+    await act(async () => {
+      root.render(<AcpAgentsConfig />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await openView(container, 'views.ssh');
+    expect(probeClientRequirementsMock).toHaveBeenCalledWith({
+      remoteConnectionId: 'remote-host',
+      force: true,
+    });
+    const remoteRows = Array.from(container.querySelectorAll('.bitfun-acp-agents__registry-row--remote'));
+    const names = remoteRows.map(row => row.querySelector('.bitfun-acp-agents__registry-name')?.textContent);
+    for (const name of ['Kimi Code', 'Qwen Code', 'CodeBuddy Code']) {
+      expect(names).not.toContain(name);
+    }
+    const dshRow = remoteRows.find(candidate => candidate.querySelector('.bitfun-acp-agents__registry-name')
+      ?.textContent === 'DeepSeek Harness');
+    expect(dshRow).toBeTruthy();
+    expect(dshRow!.textContent).toContain('registry.cliMissing');
+    expect(dshRow!.textContent).not.toContain('registry.pathInvalid');
+    expect(dshRow!.querySelector('[data-bitfun-state="not_installed"]')).not.toBeNull();
+    expect(dshRow!.textContent).toContain('actions.installCli');
   });
 
   it('closes a clean dialog without saving configuration', async () => {
@@ -955,6 +1094,16 @@ describe('AcpAgentsConfig', () => {
       authType: { type: 'Password' },
     }]);
 
+    // A non-forced request represents the backend's empty snapshot read.
+    probeClientRequirementsMock.mockImplementation((options?: { remoteConnectionId?: string; force?: boolean }) => (
+      Promise.resolve(options?.remoteConnectionId && options.force ? [{
+        id: 'opencode',
+        tool: { name: 'opencode', installed: true },
+        runnable: true,
+        notes: [],
+      }] : [])
+    ));
+
     await act(async () => {
       root.render(<AcpAgentsConfig />);
     });
@@ -970,10 +1119,343 @@ describe('AcpAgentsConfig', () => {
     expect(container.textContent).toContain('ssh-root@119.8.182.138');
     expect(container.textContent).toContain('remote.refreshDetection');
     expect(container.textContent).not.toContain('remote.env');
+    const opencodeRow = Array.from(container.querySelectorAll('.bitfun-acp-agents__registry-row--remote'))
+      .find(row => row.querySelector('.bitfun-acp-agents__registry-name')?.textContent === 'opencode');
+    expect(opencodeRow).toBeTruthy();
+    expect(opencodeRow!.querySelector('[data-bitfun-state="enabled"]')).not.toBeNull();
     expect(probeClientRequirementsMock).toHaveBeenCalledWith({
       remoteConnectionId: 'huawei-server',
-      force: undefined,
+      force: true,
     });
+  });
+
+  async function beginManagedInstall() {
+    vi.resetModules();
+    isOpenHarmonyRuntimeMock.mockReturnValue(true);
+    const Page = (await import('./AcpAgentsConfig')).default;
+    const original = { acpClients: { opencode: {
+      command: 'opencode', args: ['acp'], env: {}, enabled: true,
+      readonly: false, permissionMode: 'ask',
+    } } };
+    loadJsonConfigMock.mockResolvedValue(JSON.stringify(original));
+    probeClientRequirementsMock.mockResolvedValue([
+      { id: 'opencode', tool: { name: 'opencode', installed: true }, runnable: true, notes: [] },
+      { id: 'kimi-code', tool: { name: 'kimi', installed: false }, runnable: false, notes: [] },
+    ]);
+    let finish!: (outcome: unknown) => void;
+    let fail!: (error: Error) => void;
+    installClientCliMock.mockImplementation(() => new Promise((resolve, reject) => {
+      finish = resolve;
+      fail = reject;
+    }));
+    await act(async () => root.render(<Page settingsDraftEnabled />));
+    const kimiRow = Array.from(container.querySelectorAll('.bitfun-acp-agents__registry-row'))
+      .find(row => row.querySelector('.bitfun-acp-agents__registry-name')?.textContent === 'presets.kimiCode.name')!;
+    const add = Array.from(kimiRow.querySelectorAll('button')).find(button => button.textContent === 'actions.add')!;
+    await act(async () => add.click());
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="confirm-install"]')!.click());
+    return async (options: { failConfigRefresh?: boolean; installError?: string } = {}) => {
+      loadJsonConfigMock.mockResolvedValue(JSON.stringify({ acpClients: {
+        ...original.acpClients,
+        'kimi-code': {
+          command: 'kimi', args: ['acp'], env: {}, enabled: true, readonly: false,
+          permissionMode: 'ask', localOverride: { command: '/managed/node', args: ['kimi.js'], env: {} },
+        },
+      } }));
+      if (options.failConfigRefresh) {
+        loadJsonConfigMock.mockRejectedValueOnce(new Error('Config refresh failed'));
+      }
+      await act(async () => {
+        if (options.installError) {
+          fail(new Error(options.installError));
+          return;
+        }
+        window.dispatchEvent(new Event('bitfun:acp-clients-changed'));
+        finish({ clientId: 'kimi-code', status: 'managed_ready' });
+      });
+    };
+  }
+
+  it('keeps edits made during managed setup and saves them with the installed runtime', async () => {
+    const finish = await beginManagedInstall();
+    const { getSettingsDraftSnapshot: getDraftSnapshot } = await import('../settingsDraftRegistry');
+    const draft = getDraftSnapshot().resources.find(resource => resource.id === 'acp-agent-config')!;
+    expect(draft.saving).toBe(true);
+    await act(async () => { expect(await draft.save()).toBe(false); });
+    expect(saveJsonConfigMock).not.toHaveBeenCalled();
+    const pendingLoads: Array<(connections: unknown[]) => void> = [];
+    listSavedConnectionsMock.mockImplementation(() => new Promise(resolve => pendingLoads.push(resolve)));
+    await finish();
+    expect(pendingLoads.length).toBeGreaterThan(0);
+    // The refresh began while clean; this edit arrives before it completes.
+    await selectPermission(container, 'allow_once');
+    const blockedSave = Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'actions.save')!;
+    expect(blockedSave.disabled).toBe(true);
+    await act(async () => blockedSave.click());
+    expect(saveJsonConfigMock).not.toHaveBeenCalled();
+    await act(async () => pendingLoads.forEach(resolve => resolve([])));
+    const save = Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'actions.save');
+    expect(save).toBeTruthy();
+    expect(save!.disabled).toBe(false);
+    expect(getDraftSnapshot().resources.find(resource => resource.id === 'acp-agent-config')!.saving).toBe(false);
+    await act(async () => save!.click());
+    const saved = JSON.parse(saveJsonConfigMock.mock.calls[0][0]);
+    expect(saved.acpClients.opencode.permissionMode).toBe('allow_once');
+    expect(saved.acpClients['kimi-code'].localOverride).toEqual({ command: '/managed/node', args: ['kimi.js'], env: {} });
+    expect(notifyInfoMock).not.toHaveBeenCalledWith('notifications.draftConflict');
+  });
+
+  it('keeps incomplete JSON during managed setup and rebases its later save onto the installed config', async () => {
+    const finish = await beginManagedInstall();
+    await openView(container, 'views.json');
+    const editor = container.querySelector<HTMLTextAreaElement>('[data-bitfun-part="jsonEditor"]')!;
+    const original = JSON.parse(editor.value);
+    const edit = async (value: string) => act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(editor, value);
+      editor.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    original.acpClients.opencode.name = 'My draft agent';
+    await edit(JSON.stringify(original));
+    const blockedSave = Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'actions.saveJson')!;
+    expect(blockedSave.disabled).toBe(true);
+    const { getSettingsDraftSnapshot: getDraftSnapshot } = await import('../settingsDraftRegistry');
+    await act(async () => {
+      expect(await getDraftSnapshot().resources.find(resource => resource.id === 'acp-agent-config')!.save()).toBe(false);
+    });
+    expect(saveJsonConfigMock).not.toHaveBeenCalled();
+    await edit('{ "acpClients":');
+    await finish();
+    expect(editor.value).toBe('{ "acpClients":');
+    expect(saveJsonConfigMock).not.toHaveBeenCalled();
+    original.acpClients.opencode.name = 'My draft agent';
+    await edit(JSON.stringify(original));
+    const save = Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'actions.saveJson');
+    await act(async () => save!.click());
+    const saved = JSON.parse(saveJsonConfigMock.mock.calls[0][0]);
+    expect(saved.acpClients.opencode.name).toBe('My draft agent');
+    expect(saved.acpClients['kimi-code'].localOverride.command).toBe('/managed/node');
+  });
+
+  it('ignores a pre-install config read that finishes after the managed config refresh', async () => {
+    const finish = await beginManagedInstall();
+    let completeEarlierRead!: (connections: unknown[]) => void;
+    listSavedConnectionsMock.mockImplementationOnce(() => new Promise(resolve => {
+      completeEarlierRead = resolve;
+    }));
+    await act(async () => window.dispatchEvent(new Event('bitfun:acp-clients-changed')));
+    await finish();
+    await selectPermission(container, 'allow_once');
+    await act(async () => completeEarlierRead([]));
+    const save = Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'actions.save')!;
+    await act(async () => save.click());
+    const saved = JSON.parse(saveJsonConfigMock.mock.calls[0][0]);
+    expect(saved.acpClients.opencode.permissionMode).toBe('allow_once');
+    expect(saved.acpClients['kimi-code'].localOverride.command).toBe('/managed/node');
+  });
+
+  it('retries a failed managed config refresh before saving a stale draft', async () => {
+    const finish = await beginManagedInstall();
+    await selectPermission(container, 'allow_once');
+    await finish({ failConfigRefresh: true });
+    expect(notifyErrorMock).toHaveBeenCalledWith('Config refresh failed', expect.any(Object));
+    const save = Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'actions.save')!;
+    loadJsonConfigMock.mockRejectedValueOnce(new Error('Config refresh still unavailable'));
+    await act(async () => save.click());
+    expect(saveJsonConfigMock).not.toHaveBeenCalled();
+    await act(async () => save.click());
+    const saved = JSON.parse(saveJsonConfigMock.mock.calls[0][0]);
+    expect(saved.acpClients.opencode.permissionMode).toBe('allow_once');
+    expect(saved.acpClients['kimi-code'].localOverride.command).toBe('/managed/node');
+  });
+
+  it('reloads after an install request times out and preserves the later backend rollback on save', async () => {
+    const finish = await beginManagedInstall();
+    await selectPermission(container, 'allow_once');
+    await finish({ installError: 'Request timeout' });
+    const save = Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'actions.save')!;
+    saveJsonConfigMock.mockRejectedValueOnce(new Error('[ACP_PROVISIONING_ALREADY_RUNNING] Setup is still running'));
+    await act(async () => save.click());
+    expect(JSON.parse(saveJsonConfigMock.mock.calls[0][0]).acpClients['kimi-code']).toBeDefined();
+    // The first save read the candidate while verification was still running.
+    // Verification then fails and the backend removes that candidate.
+    loadJsonConfigMock.mockResolvedValue(JSON.stringify({ acpClients: { opencode: {
+      command: 'opencode', args: ['acp'], env: {}, enabled: true,
+      readonly: false, permissionMode: 'ask',
+    } } }));
+    await act(async () => save.click());
+    const saved = JSON.parse(saveJsonConfigMock.mock.calls[1][0]);
+    expect(saved.acpClients.opencode.permissionMode).toBe('allow_once');
+    expect(saved.acpClients['kimi-code']).toBeUndefined();
+  });
+
+  it('reprobes a loaded SSH host after local managed installation invalidates its results', async () => {
+    vi.resetModules();
+    isOpenHarmonyRuntimeMock.mockReturnValue(true);
+    const Page = (await import('./AcpAgentsConfig')).default;
+    listSavedConnectionsMock.mockResolvedValue([{
+      id: 'remote-host', name: 'Remote Host', host: 'example.invalid', port: 22,
+      username: 'tester', authType: { type: 'Password' },
+    }]);
+    let managedReady = false;
+    const remoteCalls: unknown[] = [];
+    probeClientRequirementsMock.mockImplementation((options?: { remoteConnectionId?: string; force?: boolean }) => {
+      if (options?.remoteConnectionId) {
+        remoteCalls.push(options);
+        return Promise.resolve([{
+          id: 'opencode',
+          tool: { name: 'opencode', installed: true },
+          runnable: true,
+          notes: [],
+        }]);
+      }
+      return Promise.resolve([{
+        id: 'kimi-code', tool: { name: 'kimi', installed: managedReady }, runnable: managedReady, notes: [],
+      }]);
+    });
+    installClientCliMock.mockImplementation(async () => {
+      managedReady = true;
+      // Match ACPClientAPI's notification after managed setup updates config.
+      window.dispatchEvent(new Event('bitfun:acp-requirements-changed'));
+      window.dispatchEvent(new Event('bitfun:acp-clients-changed'));
+      return { clientId: 'kimi-code', status: 'managed_ready' };
+    });
+
+    await act(async () => {
+      root.render(<Page viewId="ssh" clientIds={['opencode', 'kimi-code']} />);
+    });
+    expect(remoteCalls).toHaveLength(1);
+    expect(container.textContent).toContain('registry.enabled');
+    await openView(container, 'views.local');
+    const kimiRow = Array.from(container.querySelectorAll('.bitfun-acp-agents__registry-row'))
+      .find(row => row.querySelector('.bitfun-acp-agents__registry-name')?.textContent === 'presets.kimiCode.name');
+    expect(kimiRow).toBeTruthy();
+    const addButton = Array.from(kimiRow!.querySelectorAll('button'))
+      .find(button => button.textContent === 'actions.add');
+    expect(addButton).toBeTruthy();
+    await act(async () => addButton!.click());
+    const confirm = container.querySelector<HTMLButtonElement>('[data-testid="confirm-install"]');
+    expect(confirm).not.toBeNull();
+    await act(async () => confirm!.click());
+    expect(installClientCliMock).toHaveBeenCalledWith({ clientId: 'kimi-code', remoteConnectionId: undefined });
+    expect(remoteCalls).toHaveLength(1);
+
+    await openView(container, 'views.ssh');
+    expect(remoteCalls).toEqual([
+      { remoteConnectionId: 'remote-host', force: true },
+      { remoteConnectionId: 'remote-host', force: true },
+    ]);
+    expect(container.textContent).toContain('registry.enabled');
+    expect(container.textContent).not.toContain('registry.checking');
+    expect(container.textContent).not.toContain('registry.cliMissing');
+  });
+
+  it.each([false, true])('ends failed SSH detection and recovers on refresh (previous result: %s)', async previouslyLoaded => {
+    listSavedConnectionsMock.mockResolvedValue([{
+      id: 'remote-host', name: 'Remote Host', host: 'example.invalid', port: 22,
+      username: 'tester', authType: { type: 'Password' },
+    }]);
+    const ready = [{
+      id: 'opencode', tool: { name: 'opencode', installed: true }, runnable: true, notes: [],
+    }];
+    const failure = new Error('Service error: Remote workspace manager is not initialized');
+    let fail = !previouslyLoaded;
+    let finishRetry!: (probes: unknown[]) => void;
+    let retryPending = false;
+    probeClientRequirementsMock.mockImplementation((options?: { remoteConnectionId?: string }) => {
+      if (!options?.remoteConnectionId) return Promise.resolve([]);
+      if (retryPending) return new Promise(resolve => { finishRetry = resolve; });
+      return fail ? Promise.reject(failure) : Promise.resolve(ready);
+    });
+    await act(async () => {
+      root.render(<AcpAgentsConfigPage viewId="ssh" clientIds={['opencode']} />);
+    });
+    const refresh = () => Array.from(container.querySelectorAll('button'))
+      .find(button => button.textContent === 'remote.refreshDetection')!;
+    if (previouslyLoaded) {
+      expect(container.textContent).toContain('registry.enabled');
+      fail = true;
+      await act(async () => refresh().click());
+    }
+    expect(container.textContent).toContain('notifications.probeFailed');
+    expect(container.textContent).toContain(failure.message);
+    expect(container.textContent).not.toContain('registry.checking');
+    expect(container.textContent).not.toContain('registry.enabled');
+    expect(container.textContent).not.toContain('registry.cliMissing');
+    expect(container.textContent).not.toContain('actions.installCli');
+
+    retryPending = true;
+    await act(async () => refresh().click());
+    expect(container.textContent).toContain('registry.checking');
+    expect(container.textContent).not.toContain(failure.message);
+    await act(async () => finishRetry(ready));
+    expect(container.textContent).toContain('registry.enabled');
+    expect(container.textContent).not.toContain('registry.checking');
+    expect(container.textContent).not.toContain('notifications.probeFailed');
+  });
+
+  it('finishes incomplete SSH results without inventing installation status', async () => {
+    listSavedConnectionsMock.mockResolvedValue([{
+      id: 'remote-host', name: 'Remote Host', host: 'example.invalid', port: 22,
+      username: 'tester', authType: { type: 'Password' },
+    }]);
+    probeClientRequirementsMock.mockResolvedValue([{
+      id: 'opencode', tool: { name: 'opencode', installed: true }, runnable: true, notes: [],
+    }]);
+    await act(async () => {
+      root.render(<AcpAgentsConfigPage viewId="ssh" clientIds={['opencode', 'codex']} />);
+    });
+    expect(container.textContent).toContain('registry.enabled');
+    expect(container.textContent).toContain('notifications.probeFailed');
+    expect(container.textContent).not.toContain('registry.checking');
+    expect(container.textContent).not.toContain('registry.cliMissing');
+    const errorButton = Array.from(container.querySelectorAll('button'))
+      .find(button => button.textContent === 'actions.viewError');
+    expect(errorButton).toBeTruthy();
+    await act(async () => errorButton!.click());
+    expect(notifyErrorMock).toHaveBeenCalledWith('remote.probeResultMissing', expect.anything());
+  });
+
+  it.each(['success', 'failure'])('deduplicates SSH probes and ignores invalidated %s responses', async staleResult => {
+    listSavedConnectionsMock.mockResolvedValue([{
+      id: 'remote-host', name: 'Remote Host', host: 'example.invalid', port: 22,
+      username: 'tester', authType: { type: 'Password' },
+    }]);
+    const pending: Array<{ resolve: (probes: unknown[]) => void; reject: (error: Error) => void }> = [];
+    probeClientRequirementsMock.mockImplementation((options?: { remoteConnectionId?: string }) => (
+      options?.remoteConnectionId
+        ? new Promise((resolve, reject) => pending.push({ resolve, reject }))
+        : Promise.resolve([])
+    ));
+    await act(async () => {
+      root.render(<AcpAgentsConfigPage viewId="ssh" clientIds={['opencode']} />);
+    });
+    const refresh = Array.from(container.querySelectorAll('button'))
+      .find(button => button.textContent === 'remote.refreshDetection');
+    expect(refresh).toBeTruthy();
+    await act(async () => refresh!.click());
+    expect(pending).toHaveLength(1);
+
+    await act(async () => {
+      window.dispatchEvent(new Event('bitfun:acp-clients-changed'));
+    });
+    expect(pending).toHaveLength(2);
+    await act(async () => {
+      if (staleResult === 'failure') pending[0].reject(new Error('outdated probe failure'));
+      else pending[0].resolve([{
+        id: 'opencode', tool: { name: 'opencode', installed: false }, runnable: false, notes: [],
+      }]);
+    });
+    expect(container.textContent).not.toContain('outdated probe failure');
+    expect(notifyErrorMock).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('registry.checking');
+    expect(container.textContent).not.toContain('registry.cliMissing');
+
+    await act(async () => pending[1].resolve([{
+      id: 'opencode', tool: { name: 'opencode', installed: true }, runnable: true, notes: [],
+    }]));
+    expect(container.textContent).toContain('registry.enabled');
+    expect(container.textContent).not.toContain('registry.checking');
+    expect(container.textContent).not.toContain('registry.cliMissing');
   });
 
   it('hides a saved remote server without deleting its SSH connection', async () => {
@@ -1085,7 +1567,7 @@ describe('AcpAgentsConfig', () => {
 
     expect(probeClientRequirementsMock).not.toHaveBeenCalledWith({
       remoteConnectionId: 'huawei-server',
-      force: undefined,
+      force: true,
     });
   });
 
@@ -1272,49 +1754,73 @@ describe('AcpAgentsConfig', () => {
     expect(notifySuccessMock).toHaveBeenCalledWith('notifications.configAddedManualCliRequired');
   });
 
-  it('offers the one-click installer for DeepSeek Harness and launches the bundled profile', async () => {
-    probeClientRequirementsMock.mockResolvedValue([
-      {
-        id: 'dsh',
-        tool: { name: 'dsh', installed: false },
-        runnable: false,
-        notes: ['dsh is not available on PATH'],
-      },
-    ]);
+  it.each([false, true])('confirms local DSH installation before starting it (HarmonyOS: %s)', async isOhos => {
+    let Page = AcpAgentsConfigPage;
+    if (isOhos) {
+      vi.resetModules();
+      isOpenHarmonyRuntimeMock.mockReturnValue(true);
+      Page = (await import('./AcpAgentsConfig')).default;
+    }
+    probeClientRequirementsMock.mockResolvedValue([{
+      id: 'dsh',
+      tool: { name: 'dsh', installed: false },
+      runnable: false,
+      notes: ['dsh is not available on PATH'],
+    }]);
 
     await act(async () => {
-      root.render(<AcpAgentsConfig />);
+      root.render(<Page navigationRequestId={0} />);
     });
     await act(async () => {
       await Promise.resolve();
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain('DeepSeek Harness');
-    // Unlike omp, the harness is a plain npm global, so BitFun installs it.
-    // The bridge is not a separate adapter — it ships inside BitFun.
+    const dshRow = Array.from(container.querySelectorAll('[data-bitfun-part="registryRow"]'))
+      .find(row => row.textContent?.includes('DeepSeek Harness'));
+    const installButton = Array.from(dshRow?.querySelectorAll('button') ?? [])
+      .find(button => button.textContent?.includes(isOhos ? 'actions.add' : 'actions.installCli'));
+    expect(installButton).toBeTruthy();
     expect(container.textContent).not.toContain('registry.adapterMissing');
 
-    const installButtons = Array.from(container.querySelectorAll('button'))
-      .filter(button => button.textContent?.includes('actions.installCli'));
-    expect(installButtons.length).toBeGreaterThan(0);
-
     await act(async () => {
-      installButtons[0].click();
+      installButton?.click();
       await Promise.resolve();
     });
-    const confirmInstall = container.querySelector<HTMLButtonElement>(
-      '[data-testid="confirm-install"]',
-    );
+    const dialog = container.querySelector('[role="dialog"]');
+    expect(dialog).not.toBeNull();
+    expect(installClientCliMock).not.toHaveBeenCalled();
+    if (isOhos) {
+      expect(dialog?.textContent).toContain('Add DeepSeek Harness?');
+      expect(dialog?.textContent).toContain('Current device');
+      expect(dialog?.textContent).toContain('HarmonyBrew');
+      expect(dialog?.textContent).not.toContain('npm install -g');
+    } else {
+      expect(dialog?.textContent).toContain('Current execution host');
+      expect(dialog?.textContent).toContain('npm install -g @deepseek-ai/dsh');
+    }
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="cancel-dialog"]')?.click();
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(installClientCliMock).not.toHaveBeenCalled();
+
+    await act(async () => {
+      installButton?.click();
+      await Promise.resolve();
+    });
+    const confirmInstall = container.querySelector<HTMLButtonElement>('[data-testid="confirm-install"]');
     expect(confirmInstall).not.toBeNull();
     await act(async () => {
       confirmInstall?.click();
       await Promise.resolve();
     });
 
-    expect(installClientCliMock).toHaveBeenCalledWith(
-      expect.objectContaining({ clientId: 'dsh' }),
-    );
+    expect(installClientCliMock).toHaveBeenCalledTimes(1);
+    expect(installClientCliMock).toHaveBeenCalledWith({ clientId: 'dsh', remoteConnectionId: undefined });
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
   });
 
   it('adds DeepSeek Harness as a launch of the profile BitFun materializes', async () => {
@@ -1433,7 +1939,13 @@ describe('AcpAgentsConfig', () => {
     expect(container.textContent).not.toContain('registry.cliMissing');
   });
 
-  it('installs a missing remote preset CLI on that remote server', async () => {
+  it.each([false, true])('confirms npm installation on the selected SSH host (HarmonyOS: %s)', async isOhos => {
+    let Page = AcpAgentsConfigPage;
+    if (isOhos) {
+      vi.resetModules();
+      isOpenHarmonyRuntimeMock.mockReturnValue(true);
+      Page = (await import('./AcpAgentsConfig')).default;
+    }
     listSavedConnectionsMock.mockResolvedValue([{
       id: 'huawei-server',
       name: 'huawei-server',
@@ -1469,7 +1981,7 @@ describe('AcpAgentsConfig', () => {
     });
 
     await act(async () => {
-      root.render(<AcpAgentsConfig />);
+      root.render(<Page navigationRequestId={0} />);
     });
 
     await act(async () => {
@@ -1490,11 +2002,16 @@ describe('AcpAgentsConfig', () => {
       '[data-testid="confirm-install"]',
     );
     expect(confirmInstall).not.toBeNull();
+    const dialog = container.querySelector('[role="dialog"]');
+    expect(dialog?.textContent).toContain('npm install -g @openai/codex');
+    expect(dialog?.textContent).not.toContain('HarmonyBrew');
+    expect(installClientCliMock).not.toHaveBeenCalled();
     await act(async () => {
       confirmInstall?.click();
       await Promise.resolve();
     });
 
+    expect(installClientCliMock).toHaveBeenCalledTimes(1);
     expect(installClientCliMock).toHaveBeenCalledWith({
       clientId: 'codex',
       remoteConnectionId: 'huawei-server',

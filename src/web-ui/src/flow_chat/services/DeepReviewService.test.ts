@@ -32,6 +32,10 @@ vi.mock('@/infrastructure/api', () => ({
   agentAPI: {
     deleteSession: (...args: any[]) => mockDeleteSession(...args),
   },
+  // `/review <workspace name>` resolution looks up the opened workspaces first.
+  globalAPI: {
+    getOpenedWorkspaces: () => Promise.resolve([]),
+  },
   gitAPI: {
     getStatus: (...args: any[]) => mockGitGetStatus(...args),
     getChangedFiles: (...args: any[]) => mockGitGetChangedFiles(...args),

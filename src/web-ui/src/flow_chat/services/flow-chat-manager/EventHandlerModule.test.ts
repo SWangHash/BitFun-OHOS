@@ -25,6 +25,7 @@ import { agentAPI } from '@/infrastructure/api/service-api/AgentAPI';
 import { localSessionDriver } from '../../session-drivers/local/LocalSessionDriver';
 import { chatInputSessionSubscriptionKey } from '../../utils/chatInputSessionSubscription';
 import { selectInterruptedTurnRecovery } from '../../utils/interruptedTurnRecovery';
+import { markCurrentTurnItemsAsCancelled } from '../../utils/turnCancellation';
 
 const {
   buildBuiltInBrowserTabOptions,
@@ -1962,5 +1963,87 @@ describe('handleTokenUsageUpdate', () => {
 
     const session = FlowChatStore.getInstance().getState().sessions.get('session-1');
     expect(session?.currentTokenUsage).toBeUndefined();
+  });
+});
+
+describe('stopping a streaming round', () => {
+  const streamingItems = (): ModelRound['items'] => [
+    {
+      id: 'think-1', type: 'thinking', content: 'pondering', isStreaming: true,
+      isCollapsed: false, timestamp: 1, status: 'streaming',
+    },
+    {
+      id: 'text-1', type: 'text', content: 'partial answer', isStreaming: true,
+      timestamp: 2, status: 'streaming',
+    },
+  ];
+
+  beforeEach(() => {
+    resetFlowChatStore();
+    stateMachineManager.clear();
+  });
+
+  afterEach(() => {
+    resetFlowChatStore();
+    stateMachineManager.clear();
+  });
+
+  function startStreamingTurn(): FlowChatContext {
+    const round = makeRound('round-1', streamingItems());
+    createSessionWithTurn({
+      id: 'turn-1',
+      sessionId: 'session-1',
+      agentType: 'Standard',
+      userMessage: { id: 'user-1', content: 'think about it', timestamp: 1 },
+      modelRounds: [{
+        ...round,
+        // A retried round keeps its items under attempts; both views must settle.
+        attempts: [{ id: 'attempt-1', index: 0, status: 'streaming', items: round.items }],
+      }],
+      status: 'processing',
+      startTime: 1,
+    });
+    return createFlowChatContext();
+  }
+
+  const settledRound = () =>
+    FlowChatStore.getInstance().getState().sessions.get('session-1')!.dialogTurns[0].modelRounds[0];
+
+  it.each(['interrupted', 'cancelled'] as const)(
+    'settles streaming text and thinking items when the turn is %s',
+    event => {
+      const context = startStreamingTurn();
+      if (event === 'interrupted') {
+        __test_only__.handleDialogTurnInterrupted(context, {
+          sessionId: 'session-1', turnId: 'turn-1', executionGeneration: 0,
+        });
+      } else {
+        __test_only__.handleDialogTurnCancelled(context, { sessionId: 'session-1', turnId: 'turn-1' });
+      }
+
+      const round = settledRound();
+      expect(round.isStreaming).toBe(false);
+      for (const item of [...round.items, ...round.attempts![0].items]) {
+        expect(item).toMatchObject({ isStreaming: false, status: 'cancelled' });
+      }
+      // Partial output stays in the transcript.
+      expect(round.items.map(item => (item as { content: string }).content))
+        .toEqual(['pondering', 'partial answer']);
+    },
+  );
+
+  it('keeps a Stop followed by the backend interrupt event fully settled', async () => {
+    const context = startStreamingTurn();
+    await stateMachineManager.transition('session-1', SessionExecutionEvent.START, {
+      taskId: 'session-1', dialogTurnId: 'turn-1',
+    });
+    markCurrentTurnItemsAsCancelled(context, 'session-1');
+    __test_only__.handleDialogTurnInterrupted(context, {
+      sessionId: 'session-1', turnId: 'turn-1', executionGeneration: 0,
+    });
+
+    for (const item of settledRound().items) {
+      expect(item).toMatchObject({ isStreaming: false, status: 'cancelled' });
+    }
   });
 });

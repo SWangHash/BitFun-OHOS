@@ -39,12 +39,14 @@ vi.mock('@/flow_chat/services/btwSessionPane', () => ({ openBtwSessionInAuxPane:
 vi.mock('@/shared/services/ide-control', () => ({ quickActions: {} }));
 vi.mock('@/shared/stores/contextStore', () => ({ useContextStore: {} }));
 vi.mock('@/infrastructure/markdown', () => ({ MarkdownRenderer: () => null }));
-vi.mock('@bitfun/ui', () => {
+vi.mock('@bitfun/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@bitfun/ui')>();
   const Box = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>;
   const Button = ({ children, onClick, disabled, 'aria-label': label }: {
     children?: React.ReactNode; onClick?: () => void; disabled?: boolean; 'aria-label'?: string;
   }) => <button onClick={onClick} disabled={disabled} aria-label={label}>{children}</button>;
   return {
+    ...actual,
     Button, IconButton: Button, Icon: () => null, Input: () => null, Combobox: () => null,
     Field: Box, ScrollArea: Box, TabGroup: () => null, Tooltip: Box, OverflowText: Box,
     Dialog: () => null, DialogBody: Box, DialogClose: Box, DialogHeader: Box,
@@ -85,7 +87,7 @@ afterEach(() => {
 
 describe('Review platform trust interaction', () => {
   it.each([false, true])('does not prompt during automatic loading (detailOnly=%s)', async (detailOnly) => {
-    await act(async () => root.render(<ReviewPlatformPanel workspacePath={workspacePath} detailOnly={detailOnly} />));
+    await act(async () => root.render(<ReviewPlatformPanel workspacePath={workspacePath} workspaceId="review-trust-test" detailOnly={detailOnly} />));
     expect(detailOnly ? mocks.context : mocks.snapshot).toHaveBeenCalledTimes(1);
     expect(mocks.confirm).not.toHaveBeenCalled();
     expect(mocks.trust).not.toHaveBeenCalled();
@@ -96,7 +98,7 @@ describe('Review platform trust interaction', () => {
   it.each([true, false])('asks on Retry and replays only after approval (approved=%s)', async (approved) => {
     mocks.confirm.mockResolvedValue(approved);
     mocks.trust.mockResolvedValue({ state: 'trusted', repositoryPath: workspacePath });
-    await act(async () => root.render(<ReviewPlatformPanel workspacePath={workspacePath} />));
+    await act(async () => root.render(<ReviewPlatformPanel workspacePath={workspacePath} workspaceId="review-trust-test" />));
     const retry = Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'Retry');
     expect(retry).toBeTruthy();
     await act(async () => retry!.click());

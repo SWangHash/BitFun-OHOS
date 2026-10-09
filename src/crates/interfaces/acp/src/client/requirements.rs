@@ -70,6 +70,15 @@ pub(crate) fn probe_configured_executable(config: &AcpClientConfig) -> AcpRequir
     }
 }
 
+fn remote_configured_executable_probe_command(config: &AcpClientConfig) -> String {
+    let env_prefix = render_remote_env_prefix(Some(&config.env));
+    remote_user_shell_command(&format!(
+        "{env_prefix}command -v {}",
+        shell_escape(config.command.trim())
+    ))
+}
+
+/// Discover the configured remote entry without executing an arbitrary --version.
 pub(crate) async fn probe_remote_configured_executable(
     ssh_manager: &SSHConnectionManager,
     connection_id: &str,
@@ -86,11 +95,7 @@ pub(crate) async fn probe_remote_configured_executable(
         item.error = Some("Configured ACP command is empty".to_string());
         return item;
     }
-    let env_prefix = render_remote_env_prefix(Some(&config.env));
-    let command = remote_user_shell_command(&format!(
-        "{env_prefix}command -v {}",
-        shell_escape(config.command.trim())
-    ));
+    let command = remote_configured_executable_probe_command(config);
     match ssh_manager.execute_command(connection_id, &command).await {
         Ok((stdout, _, 0)) if !stdout.trim().is_empty() => {
             item.installed = true;
@@ -98,7 +103,7 @@ pub(crate) async fn probe_remote_configured_executable(
         }
         Ok(_) => {
             item.error =
-                Some("Configured ACP command could not be resolved on remote PATH".to_string())
+                Some("Configured ACP command could not be resolved on remote PATH".to_string());
         }
         Err(error) => item.error = Some(error.to_string()),
     }
@@ -811,14 +816,8 @@ mod tests {
 
         let paths = command_search_paths(Some(&configured_paths));
 
-        assert_eq!(
-            paths.first(),
-            Some(&PathBuf::from("/tmp/bitfun-acp-first"))
-        );
-        assert_eq!(
-            paths.get(1),
-            Some(&PathBuf::from("/tmp/bitfun-acp-second"))
-        );
+        assert_eq!(paths.first(), Some(&PathBuf::from("/tmp/bitfun-acp-first")));
+        assert_eq!(paths.get(1), Some(&PathBuf::from("/tmp/bitfun-acp-second")));
     }
 
     #[test]
@@ -851,6 +850,30 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&test_dir);
         assert_eq!(found, Some(executable));
+    }
+
+    #[test]
+    fn remote_configured_probe_uses_the_launch_entry_and_environment() {
+        for (entry, rendered_entry) in [
+            (
+                "/opt/custom tools/opencode",
+                "'\\''/opt/custom tools/opencode'\\''",
+            ),
+            ("custom-acp", "custom-acp"),
+        ] {
+            let config: AcpClientConfig = serde_json::from_value(serde_json::json!({
+                "command": entry,
+                "args": ["acp", "--model", "custom-model"],
+                "env": { "PATH": "/opt/tools:/usr/bin", "BASE": "custom" }
+            }))
+            .expect("configured command");
+            let command = remote_configured_executable_probe_command(&config);
+            assert!(command.contains(&format!("command -v {rendered_entry}")));
+            assert!(!command.contains("--version"));
+            assert!(!command.contains("--model"));
+            assert!(command.contains("PATH=/opt/tools:/usr/bin"));
+            assert!(command.contains("BASE=custom"));
+        }
     }
 
     #[test]

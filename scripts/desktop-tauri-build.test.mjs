@@ -495,12 +495,14 @@ test('official packaging injects the DeepSeek profile resource', () => {
   }
 });
 
-test('static desktop configs keep the full frontend outside Tauri embedded assets', () => {
+test('static configs retain the OHOS asset entry and the desktop development bootstrap', () => {
   for (const name of ['tauri.conf.json', 'tauri.dev.conf.json']) {
     const config = JSON.parse(
       readFileSync(join(ROOT, 'src', 'apps', 'desktop', name), 'utf8')
     );
-    assert.equal(config.build.frontendDist, 'bootstrap-ui');
+    // OHOS uses the base config and serves its resfile/dist through Tauri.
+    // Desktop development keeps the separate workbench bootstrap.
+    assert.equal(config.build.frontendDist, name === 'tauri.conf.json' ? '../../../dist' : 'bootstrap-ui');
     assert.equal(config.bundle.resources['../../../dist'], undefined);
   }
 });

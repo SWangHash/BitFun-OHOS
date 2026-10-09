@@ -111,16 +111,20 @@ both build steps. Official `desktop:build` ships `dist-profile/` as a Tauri
 resource; `desktop:dev` and `cargo check` do not compile it. A failure during
 packaging fails the desktop build: an app that silently ships no bridge is
 indistinguishable from a working one until a user starts a DeepSeek session.
-`BITFUN_SKIP_DSH_PROFILE=1` opts out on purpose.
+`BITFUN_SKIP_DSH_PROFILE=1` allows an explicit standalone developer preparation opt-out; official packaging requires the profile.
 
-HarmonyOS packaging runs `prepare:dsh-profile` through Tauri's
-`beforeBuildCommand`. Build helpers that bypass that hook must run the same
-script before staging the OHOS project, including when reusing frontend outputs.
-The script stages the profile under
-`src/apps/ohos/entry/src/main/resources/resfile/dsh-profile`, using
-`bitfun-bridge.json` and `vendor-node-modules` as resource-safe aliases. Verify
-that the final HAP contains the stamp, `lib/app.js`, `cordis.patch.yml`, and the
-vendored dependencies under `resources/resfile/dsh-profile/`.
+HarmonyOS packaging prepares this resource through the entry module's Hvigor
+plugin before resource processing. This also covers assembly launched directly
+by a pipeline or DevEco Studio; no private build skill or manual profile step
+is required. `prepare:dsh-profile` by itself produces only the canonical
+`packages/dsh-acp/dist-profile` cache and does not write into the OHOS source tree.
+The plugin exports directly to the current assembly project's
+`entry/src/main/resources/resfile/dsh-profile`, including an external staging
+project, using `bitfun-bridge.json` and `vendor-node-modules` aliases.
+Input content and the complete cached profile are verified before reuse.
+The final unsigned HAP must contain exactly the prepared profile files and bytes;
+a missing or altered resource fails assembly before signing or delivery.
+`BITFUN_SKIP_DSH_PROFILE=1` is rejected for required packaging.
 
 On HarmonyOS, the built-in `dsh` client first checks the launcher's
 `--profile acp --dump-default-config` output for its native ACP transport. When
