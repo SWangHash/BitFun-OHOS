@@ -85,6 +85,7 @@ fn error(code: WorktreeErrorCode, message: impl Into<String>) -> WorktreeError {
         code,
         message: message.into(),
         recovery_path: None,
+        recovery_workspace_id: None,
     }
 }
 

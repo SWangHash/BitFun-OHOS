@@ -4969,6 +4969,7 @@ export class FlowChatStore {
   public setSessionWorktreeIsolationRequested(
     sessionId: string,
     requested: boolean | undefined,
+    requestId?: string,
   ): void {
     this.setState(prev => {
       const session = prev.sessions.get(sessionId);
@@ -4976,6 +4977,12 @@ export class FlowChatStore {
 
       const newSessions = new Map(prev.sessions);
       const config = { ...session.config };
+      if (requested === undefined || requested !== config.worktreeIsolationRequested) {
+        delete config.worktreeIsolationRequestId;
+      }
+      if (requested !== undefined && requestId) {
+        config.worktreeIsolationRequestId = requestId;
+      }
       if (requested === undefined) {
         delete config.worktreeIsolationRequested;
       } else {

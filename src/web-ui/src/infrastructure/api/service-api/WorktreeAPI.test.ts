@@ -23,7 +23,7 @@ describe('WorktreeAPI', () => {
   it('uses project-scoped commands and never enables force by default', async () => {
     invokeMock.mockResolvedValue({ worktreeId: 'wt-1', removed: true });
 
-    await api.remove('/repo', 'wt-1', 'request-1');
+    await api.remove({ projectWorkspacePath: '/repo' }, 'wt-1', 'request-1');
 
     expect(invokeMock).toHaveBeenCalledWith('worktree_remove', {
       request: {
@@ -54,7 +54,7 @@ describe('WorktreeAPI', () => {
     });
     invokeMock.mockRejectedValue(transportError);
 
-    await expect(api.remove('/repo', 'wt-1', 'request-2')).rejects.toMatchObject({
+    await expect(api.remove({ projectWorkspacePath: '/repo' }, 'wt-1', 'request-2')).rejects.toMatchObject({
       name: 'WorktreeCommandError',
       code: 'dirty_worktree',
       message: 'The worktree contains local changes',
@@ -74,7 +74,7 @@ describe('WorktreeAPI', () => {
     invokeMock.mockRejectedValue(transportError);
 
     await expect(
-      api.bindSession('history-1', true, 'request-3', 'D:\\workspace\\BitFun'),
+      api.bindSession('history-1', true, 'request-3', { projectWorkspacePath: '/repo' }),
     ).rejects.toMatchObject({
       name: 'WorktreeCommandError',
       code: 'worktree_not_found',
@@ -94,7 +94,7 @@ describe('WorktreeAPI', () => {
       },
     });
 
-    await api.bindSession('history-1', true, 'request-4', '/repo');
+    await api.bindSession('history-1', true, 'request-4', { projectWorkspacePath: '/repo' });
 
     expect(invokeMock).toHaveBeenCalledWith('worktree_bind_session', {
       request: {
@@ -103,6 +103,20 @@ describe('WorktreeAPI', () => {
         requestId: 'request-4',
         projectWorkspacePath: '/repo',
       },
+    });
+  });
+
+  it('preserves the owning workspace identity for explicit trust recovery', async () => {
+    invokeMock.mockRejectedValue({
+      code: 'repository_untrusted',
+      message: 'Git refuses the new worktree',
+      recoveryPath: '/worktrees/wt-1',
+      recoveryWorkspaceId: 'worktree-workspace-1',
+    });
+    await expect(api.bindSession('session-1', true, 'request-5', { projectWorkspacePath: '/repo' })).rejects.toMatchObject({
+      code: 'repository_untrusted',
+      recoveryPath: '/worktrees/wt-1',
+      recoveryWorkspaceId: 'worktree-workspace-1',
     });
   });
 

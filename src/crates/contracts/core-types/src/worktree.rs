@@ -196,6 +196,8 @@ pub struct WorktreeError {
     pub message: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recovery_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recovery_workspace_id: Option<String>,
 }
 
 impl std::fmt::Display for WorktreeError {
@@ -257,8 +259,23 @@ mod tests {
             code: WorktreeErrorCode::DirtyWorktree,
             message: "local changes".to_string(),
             recovery_path: None,
+            recovery_workspace_id: None,
         };
 
         assert_eq!(error.to_string(), "dirty_worktree: local changes");
+        let legacy = serde_json::json!({ "code": "dirty_worktree", "message": "local changes" });
+        let decoded: WorktreeError = serde_json::from_value(legacy.clone()).unwrap();
+        assert_eq!(decoded, error);
+        assert_eq!(serde_json::to_value(&decoded).unwrap(), legacy);
+
+        let mut recovery = error;
+        recovery.recovery_path = Some("/worktrees/new".to_string());
+        recovery.recovery_workspace_id = Some("workspace-new".to_string());
+        let encoded = serde_json::to_value(&recovery).unwrap();
+        assert_eq!(encoded["recoveryWorkspaceId"], "workspace-new");
+        assert_eq!(
+            serde_json::from_value::<WorktreeError>(encoded).unwrap(),
+            recovery
+        );
     }
 }

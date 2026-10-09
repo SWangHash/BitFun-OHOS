@@ -157,6 +157,10 @@ struct WorktreeRegistry {
     worktrees: Vec<RegisteredWorktree>,
     #[serde(default)]
     receipts: HashMap<String, WorktreeOperationReceipt>,
+    // Git may create the directory before its ownership check rejects the first
+    // read. Keep these receipts separate until explicit trust lets creation finish.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pending_creations: HashMap<String, WorktreeOperationReceipt>,
 }
 
 impl WorktreeRegistry {
@@ -166,6 +170,7 @@ impl WorktreeRegistry {
             project_workspace_path: path_string(project_workspace_path),
             worktrees: Vec::new(),
             receipts: HashMap::new(),
+            pending_creations: HashMap::new(),
         }
     }
 }
@@ -309,6 +314,9 @@ impl WorktreeService {
         registry
             .receipts
             .retain(|_, receipt| receipt.worktree_id() != worktree_id);
+        registry
+            .pending_creations
+            .retain(|_, receipt| receipt.worktree_id() != worktree_id);
         if let Err(registry_error) = Self::save_registry(&context, &registry).await {
             cleanup_issues.push(format!("registry could not be updated: {registry_error}"));
         }
@@ -320,6 +328,7 @@ impl WorktreeService {
                 code: WorktreeErrorCode::RollbackIncomplete,
                 message: cleanup_issues.join("; "),
                 recovery_path: Some(record.path),
+                recovery_workspace_id: None,
             })
         }
     }
@@ -427,7 +436,12 @@ impl WorktreeService {
             .filter(|claim| !claim.is_empty())
             .map(ToOwned::to_owned);
 
-        if let Some(receipt) = registry.receipts.get(&request.request_id).cloned() {
+        if let Some(receipt) = registry
+            .receipts
+            .get(&request.request_id)
+            .or_else(|| registry.pending_creations.get(&request.request_id))
+            .cloned()
+        {
             return match receipt {
                 WorktreeOperationReceipt::Create {
                     worktree_id,
@@ -445,11 +459,91 @@ impl WorktreeService {
                         &worktree_id,
                         claimed_by.as_deref(),
                     )?;
-                    if claim_restored {
+                    let resumed = registry.pending_creations.contains_key(&request.request_id);
+                    if resumed {
+                        let record = registry
+                            .worktrees
+                            .iter()
+                            .find(|record| record.worktree_id == worktree_id)
+                            .cloned()
+                            .ok_or_else(|| {
+                                error(
+                                    WorktreeErrorCode::WorktreeNotFound,
+                                    "Pending worktree no longer exists",
+                                )
+                            })?;
+                        let repository = GitService::resolve_worktree_repository(&record.path)
+                            .await
+                            .map_err(|failure| {
+                                let mut failure = map_git_error(failure);
+                                failure.recovery_workspace_id = record.workspace_id.clone();
+                                failure
+                            })?;
+                        if repository.common_git_dir != context.common_git_dir {
+                            return Err(error(
+                                WorktreeErrorCode::InvalidPath,
+                                "Pending worktree no longer belongs to the selected project",
+                            ));
+                        }
+                        // The first registration could not inspect Git topology while
+                        // ownership was refused. Refresh it now that the target opens.
+                        if let Some(workspace_service) = get_global_workspace_service() {
+                            let workspace =
+                                workspace_service
+                                    .track_workspace_activity(
+                                        PathBuf::from(&record.path),
+                                        WorkspaceCreateOptions::default(),
+                                        WorkspaceActivityMode::RefreshMetadata,
+                                    )
+                                    .await
+                                    .map_err(|failure| {
+                                        error(
+                                WorktreeErrorCode::IoFailed,
+                                format!("Failed to refresh the worktree workspace: {failure}"),
+                            )
+                                    })?;
+                            if let Some(registered) = registry
+                                .worktrees
+                                .iter_mut()
+                                .find(|registered| registered.worktree_id == worktree_id)
+                            {
+                                registered.workspace_id = Some(workspace.id);
+                            }
+                        }
+                        if copy_local_changes {
+                            let source_head = GitService::resolve_revision(&source_path, "HEAD")
+                                .await
+                                .map_err(map_git_error)?;
+                            if source_head != record.base_commit {
+                                return Err(error(WorktreeErrorCode::CopyConflict,
+                                    "Source HEAD changed while worktree creation was awaiting trust"));
+                            }
+                            GitService::copy_local_changes(&source_path, &record.path)
+                                .await
+                                .map_err(map_copy_error)?;
+                        }
+                        let receipt = registry
+                            .pending_creations
+                            .remove(&request.request_id)
+                            .expect("pending creation was checked");
+                        registry
+                            .receipts
+                            .insert(request.request_id.clone(), receipt);
                         Self::save_registry(&context, &registry).await?;
                     }
+                    if claim_restored && !resumed {
+                        Self::save_registry(&context, &registry).await?;
+                    }
+                    if resumed {
+                        if let Err(cleanup_error) =
+                            Self::auto_delete_old_worktrees(&context, &mut registry, &worktree_id)
+                                .await
+                        {
+                            log::warn!("Failed to auto-delete old worktrees after creation resumed: {cleanup_error}");
+                        }
+                    }
                     let result =
-                        Self::create_result_for_id(&context, &mut registry, &worktree_id, false)
+                        Self::create_result_for_id(&context, &mut registry, &worktree_id, resumed)
                             .await;
                     if result.is_err()
                         && claim_restored
@@ -470,6 +564,9 @@ impl WorktreeService {
                                 cleanup_error
                             );
                         }
+                    }
+                    if resumed && result.is_ok() {
+                        notify_changed(&context.project_workspace_path).await;
                     }
                     result
                 }
@@ -515,15 +612,29 @@ impl WorktreeService {
         )
         .await?;
 
-        GitService::add_detached_worktree(
+        let creation = GitService::add_detached_worktree(
             &context.project_workspace_path,
             &target_path,
             &base_commit,
         )
-        .await
-        .map_err(map_git_error)?;
+        .await;
+        let trust_failure = match creation {
+            Ok(_) => None,
+            Err(GitError::RepositoryUntrusted {
+                repository_path,
+                detail,
+            }) if normalized_lookup_path(Path::new(&repository_path))
+                == normalized_lookup_path(&target_path) =>
+            {
+                Some(map_git_error(GitError::RepositoryUntrusted {
+                    repository_path,
+                    detail,
+                }))
+            }
+            Err(failure) => return Err(map_git_error(failure)),
+        };
 
-        if request.copy_local_changes {
+        if request.copy_local_changes && trust_failure.is_none() {
             if let Err(copy_error) =
                 GitService::copy_local_changes(&source_path, &target_path).await
             {
@@ -574,7 +685,12 @@ impl WorktreeService {
             created_at_ms: current_unix_ms(),
             claimed_by: claimed_by.clone(),
         });
-        registry.receipts.insert(
+        let receipts = if trust_failure.is_some() {
+            &mut registry.pending_creations
+        } else {
+            &mut registry.receipts
+        };
+        receipts.insert(
             request.request_id,
             WorktreeOperationReceipt::Create {
                 worktree_id: worktree_id.clone(),
@@ -592,6 +708,12 @@ impl WorktreeService {
                 registry_error,
             )
             .await);
+        }
+
+        if let Some(mut failure) = trust_failure {
+            failure.recovery_workspace_id = tracked_workspace_id;
+            notify_changed(&context.project_workspace_path).await;
+            return Err(failure);
         }
 
         if let Err(cleanup_error) =
@@ -647,7 +769,12 @@ impl WorktreeService {
         let _process_guard = Self::acquire_repository_process_lock(&context).await?;
         let mut registry = Self::load_registry(&context).await?;
 
-        if let Some(receipt) = registry.receipts.get(&request.request_id).cloned() {
+        if let Some(receipt) = registry
+            .receipts
+            .get(&request.request_id)
+            .or_else(|| registry.pending_creations.get(&request.request_id))
+            .cloned()
+        {
             return match receipt {
                 WorktreeOperationReceipt::CreateBranch {
                     worktree_id,
@@ -705,7 +832,12 @@ impl WorktreeService {
         let _guard = lock.lock().await;
         let _process_guard = Self::acquire_repository_process_lock(&context).await?;
         let mut registry = Self::load_registry(&context).await?;
-        if let Some(receipt) = registry.receipts.get(&request.request_id).cloned() {
+        if let Some(receipt) = registry
+            .receipts
+            .get(&request.request_id)
+            .or_else(|| registry.pending_creations.get(&request.request_id))
+            .cloned()
+        {
             return match receipt {
                 WorktreeOperationReceipt::Promote { worktree_id }
                     if worktree_id == request.worktree_id =>
@@ -813,7 +945,11 @@ impl WorktreeService {
         let _guard = lock.lock().await;
         let _process_guard = Self::acquire_repository_process_lock(&context).await?;
         let mut registry = Self::load_registry(&context).await?;
-        if let Some(receipt) = registry.receipts.get(&request.request_id) {
+        if let Some(receipt) = registry
+            .receipts
+            .get(&request.request_id)
+            .or_else(|| registry.pending_creations.get(&request.request_id))
+        {
             return match receipt {
                 WorktreeOperationReceipt::Remove { worktree_id, force }
                     if worktree_id == &request.worktree_id && *force == request.force =>
@@ -862,6 +998,9 @@ impl WorktreeService {
         registry
             .worktrees
             .retain(|record| record.worktree_id != request.worktree_id);
+        registry
+            .pending_creations
+            .retain(|_, receipt| receipt.worktree_id() != request.worktree_id);
         registry.receipts.insert(
             request.request_id,
             WorktreeOperationReceipt::Remove {
@@ -881,6 +1020,7 @@ impl WorktreeService {
                     cleanup_issues.join("; ")
                 ),
                 recovery_path: Some(summary.path.clone()),
+                recovery_workspace_id: None,
             });
         }
         Ok(WorktreeRemoveResult {
@@ -898,7 +1038,12 @@ impl WorktreeService {
         let _guard = lock.lock().await;
         let _process_guard = Self::acquire_repository_process_lock(&context).await?;
         let mut registry = Self::load_registry(&context).await?;
-        if let Some(receipt) = registry.receipts.get(&request.request_id).cloned() {
+        if let Some(receipt) = registry
+            .receipts
+            .get(&request.request_id)
+            .or_else(|| registry.pending_creations.get(&request.request_id))
+            .cloned()
+        {
             return match receipt {
                 WorktreeOperationReceipt::Recreate { worktree_id }
                     if worktree_id == request.worktree_id =>
@@ -1065,6 +1210,15 @@ impl WorktreeService {
         registry: &mut WorktreeRegistry,
         managed_root: Option<&Path>,
     ) -> Result<(Vec<WorktreeSummary>, bool), WorktreeError> {
+        Self::reconcile_filtered(context, registry, managed_root, None).await
+    }
+
+    async fn reconcile_filtered(
+        context: &RepositoryContext,
+        registry: &mut WorktreeRegistry,
+        managed_root: Option<&Path>,
+        selected_worktree_id: Option<&str>,
+    ) -> Result<(Vec<WorktreeSummary>, bool), WorktreeError> {
         let git_worktrees = GitService::list_worktrees(&context.project_workspace_path)
             .await
             .map_err(map_git_error)?;
@@ -1092,6 +1246,11 @@ impl WorktreeService {
             let lookup_path = normalized_lookup_path(Path::new(&git_worktree.path));
             let missing = git_worktree.is_prunable || !Path::new(&git_worktree.path).is_dir();
             let registered = registered_by_path.get(&lookup_path);
+            if selected_worktree_id
+                .is_some_and(|id| registered.map(|record| record.worktree_id.as_str()) != Some(id))
+            {
+                continue;
+            }
             if let Some(record) = registered {
                 seen_registered_ids.insert(record.worktree_id.clone());
             }
@@ -1139,6 +1298,9 @@ impl WorktreeService {
         }
 
         for record in registry.worktrees.iter() {
+            if selected_worktree_id.is_some_and(|id| record.worktree_id != id) {
+                continue;
+            }
             if seen_registered_ids.contains(&record.worktree_id) {
                 continue;
             }
@@ -1240,7 +1402,15 @@ impl WorktreeService {
                     "Idempotent worktree result no longer exists",
                 )
             })?;
-        let (summaries, changed) = Self::reconcile(context, registry).await?;
+        let (summaries, changed) =
+            Self::reconcile_filtered(context, registry, None, Some(worktree_id))
+                .await
+                .map_err(|mut failure| {
+                    if failure.code == WorktreeErrorCode::RepositoryUntrusted {
+                        failure.recovery_workspace_id = record.workspace_id.clone();
+                    }
+                    failure
+                })?;
         if changed {
             Self::save_registry(context, registry).await?;
         }
@@ -1368,6 +1538,7 @@ impl WorktreeService {
                     original_error.message, rollback_error
                 ),
                 recovery_path: Some(path_string(target_path)),
+                recovery_workspace_id: None,
             },
         }
     }
@@ -1404,6 +1575,7 @@ impl WorktreeService {
                     rollback_issues.join("; ")
                 ),
                 recovery_path: Some(path_string(target_path)),
+                recovery_workspace_id: None,
             }
         }
     }
@@ -1549,6 +1721,12 @@ fn automatic_delete_candidate_ids(
         .skip(limit.max(1))
         .filter(|record| record.worktree_id != protected_worktree_id)
         .filter(|record| record.claimed_by.is_none())
+        .filter(|record| {
+            !registry
+                .pending_creations
+                .values()
+                .any(|receipt| receipt.worktree_id() == record.worktree_id)
+        })
         .filter(|record| now_ms.saturating_sub(record.created_at_ms) >= AUTO_DELETE_MIN_AGE_MS)
         .map(|record| record.worktree_id.clone())
         .collect()
@@ -1954,6 +2132,7 @@ fn error(code: WorktreeErrorCode, message: impl Into<String>) -> WorktreeError {
         code,
         message: message.into(),
         recovery_path: None,
+        recovery_workspace_id: None,
     }
 }
 
@@ -2052,13 +2231,15 @@ fn map_git_error(git_error: GitError) -> WorktreeError {
             repository_path, ..
         } => {
             let remedy = crate::service::git::trust::manual_trust_command(&repository_path);
-            error(
+            let mut failure = error(
                 WorktreeErrorCode::RepositoryUntrusted,
                 format!(
                     "Git refuses '{repository_path}': the repository is owned by another user. \
                      Run `{remedy}` and try again"
                 ),
-            )
+            );
+            failure.recovery_path = Some(repository_path);
+            failure
         }
         GitError::InvalidPath(message) => error(WorktreeErrorCode::InvalidPath, message),
         GitError::IoError(io_error) => error(WorktreeErrorCode::IoFailed, io_error.to_string()),
@@ -2381,6 +2562,32 @@ mod tests {
     }
 
     #[test]
+    fn pending_creation_registry_preserves_legacy_reads_and_recovery_receipts() {
+        let mut registry = WorktreeRegistry::new(Path::new("/repo"));
+        let legacy = serde_json::to_value(&registry).unwrap();
+        assert!(legacy.get("pendingCreations").is_none());
+        let decoded: WorktreeRegistry = serde_json::from_value(legacy).unwrap();
+        assert!(decoded.pending_creations.is_empty());
+        registry.pending_creations.insert(
+            "request".into(),
+            WorktreeOperationReceipt::Create {
+                worktree_id: "pending".into(),
+                source_workspace_path: "/repo".into(),
+                base_ref: "HEAD".into(),
+                copy_local_changes: false,
+                claimed_by: None,
+            },
+        );
+        let roundtrip: WorktreeRegistry =
+            serde_json::from_value(serde_json::to_value(&registry).unwrap()).unwrap();
+        assert_eq!(
+            roundtrip.pending_creations["request"].worktree_id(),
+            "pending"
+        );
+        assert!(roundtrip.receipts.is_empty());
+    }
+
+    #[test]
     fn automatic_cleanup_only_selects_managed_worktrees_older_than_the_limit() {
         let project = Path::new("/repo");
         let mut registry = WorktreeRegistry::new(project);
@@ -2408,6 +2615,20 @@ mod tests {
         assert_eq!(
             automatic_delete_candidate_ids(&registry, 2, "newest", AUTO_DELETE_MIN_AGE_MS + 100,),
             vec!["older".to_string(), "oldest".to_string()]
+        );
+        registry.pending_creations.insert(
+            "pending-request".into(),
+            WorktreeOperationReceipt::Create {
+                worktree_id: "oldest".into(),
+                source_workspace_path: "/repo".into(),
+                base_ref: "HEAD".into(),
+                copy_local_changes: false,
+                claimed_by: None,
+            },
+        );
+        assert_eq!(
+            automatic_delete_candidate_ids(&registry, 2, "newest", AUTO_DELETE_MIN_AGE_MS + 100),
+            vec!["older".to_string()]
         );
     }
 

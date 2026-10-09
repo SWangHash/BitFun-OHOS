@@ -88,6 +88,7 @@ fn worktree_error(
         code,
         message: message.into(),
         recovery_path,
+        recovery_workspace_id: None,
     })
 }
 

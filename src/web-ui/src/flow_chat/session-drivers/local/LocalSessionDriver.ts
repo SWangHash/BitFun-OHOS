@@ -12,7 +12,8 @@ import { requireSessionWorkspaceId, sessionWorkspaceId } from '../../utils/sessi
 import { agentAPI } from '@/infrastructure/api/service-api/AgentAPI';
 import { ACPClientAPI } from '@/infrastructure/api/service-api/ACPClientAPI';
 import { sessionAPI } from '@/infrastructure/api/service-api/SessionAPI';
-import { worktreeAPI } from '@/infrastructure/api/service-api/WorktreeAPI';
+import { worktreeAPI, WorktreeCommandError } from '@/infrastructure/api/service-api/WorktreeAPI';
+import { requestGitRepositoryTrust } from '@/shared/services/gitTrustService';
 import { createLogger } from '@/shared/utils/logger';
 import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 import { stateMachineManager } from '../../state-machine';
@@ -397,12 +398,35 @@ export const localSessionDriver: SessionDriver = {
           projectWorkspaceId: materialization.projectWorkspaceId,
           projectWorkspacePath: materialization.projectWorkspacePath,
         });
-        const result = await worktreeAPI.bindSession(
-          sessionId,
-          materialization.enabled,
-          globalThis.crypto?.randomUUID?.() ?? `worktree-first-turn-${Date.now()}`,
-          materialization,
+        const requestId = readySession.config.worktreeIsolationRequestId
+          ?? globalThis.crypto?.randomUUID?.()
+          ?? `worktree-first-turn-${Date.now()}`;
+        context.flowChatStore.setSessionWorktreeIsolationRequested(
+          sessionId, materialization.enabled, requestId,
         );
+        const bind = () => worktreeAPI.bindSession(
+          sessionId, materialization.enabled, requestId, materialization,
+        );
+        let result;
+        try {
+          result = await bind();
+        } catch (error) {
+          surfaceScope.assertCurrent('recover session worktree trust');
+          if (!(error instanceof WorktreeCommandError)
+            || error.code !== 'repository_untrusted'
+            || !error.recoveryWorkspaceId
+            || !error.recoveryPath) {
+            throw error;
+          }
+          const trusted = await requestGitRepositoryTrust({
+            workspaceId: error.recoveryWorkspaceId,
+            repositoryPath: error.recoveryPath,
+          }, { userInitiated: true, isCurrent: () => surfaceScope.isCurrent() });
+          if (!trusted) throw error;
+          surfaceScope.assertCurrent('resume session worktree creation');
+          // The backend resumes the durable pending creation for this exact request.
+          result = await bind();
+        }
         surfaceScope.assertCurrent('bind session worktree');
         context.flowChatStore.updateSessionExecutionTarget(sessionId, {
           workspacePath: result.workspacePath,
