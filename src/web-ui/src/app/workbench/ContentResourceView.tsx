@@ -31,7 +31,7 @@ export default function ContentResourceView({ resourceId, isActive }: { resource
       message: t('workbench.unsavedMessage', { title: latest.content.title }),
       confirmText: t('workbench.save'), secondaryText: t('workbench.discard'),
       cancelText: t('workbench.cancel'), type: 'warning' });
-    if (choice === 'cancel') return false;
+    if (choice === 'cancel' || choice === 'dismissed') return false;
     if (choice === 'secondary') return true;
     if (!document?.save || latest.scope.surfaceId !== getActiveSurfaceId()) return false;
     await document.save();

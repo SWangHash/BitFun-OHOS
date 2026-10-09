@@ -2,7 +2,9 @@ import type { ReactNode } from 'react';
 import { create } from 'zustand';
 import type { ConfirmDialogType } from '@bitfun/ui';
 
-export type ConfirmDialogChoice = 'confirm' | 'secondary' | 'cancel';
+// A button press is a decision; dismissing the surface (mask, Escape, close
+// button) is not. Callers that treat "dismissed" as "cancel" must say so.
+export type ConfirmDialogChoice = 'confirm' | 'secondary' | 'cancel' | 'dismissed';
 
 export interface ConfirmDialogOptions {
   cancelText?: ReactNode;
@@ -19,6 +21,7 @@ export interface ConfirmDialogOptions {
 interface ConfirmDialogState {
   cancel: () => void;
   confirm: () => void;
+  dismiss: () => void;
   isOpen: boolean;
   options: ConfirmDialogOptions | null;
   resolve: ((value: ConfirmDialogChoice) => void) | null;
@@ -37,6 +40,7 @@ export const useConfirmDialogStore = create<ConfirmDialogState>((set, get) => {
   return {
     cancel: () => settle('cancel'),
     confirm: () => settle('confirm'),
+    dismiss: () => settle('dismissed'),
     isOpen: false,
     options: null,
     resolve: null,

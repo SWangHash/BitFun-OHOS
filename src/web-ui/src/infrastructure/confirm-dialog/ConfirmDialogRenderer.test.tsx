@@ -51,4 +51,31 @@ describe('shared confirmation action roles', () => {
     act(() => button.click());
     await expect(result).resolves.toBe('confirm');
   });
+
+  it('resolves a mask dismissal without pretending the cancel action ran', async () => {
+    let result!: ReturnType<typeof confirmDialogChoice>;
+    act(() => {
+      result = confirmDialogChoice({
+        title: 'Close BitFun?',
+        cancelText: 'Minimize to tray',
+        confirmText: 'Quit',
+      });
+    });
+    const overlay = document.querySelector<HTMLElement>('[data-bitfun-part="overlay"]');
+    expect(overlay).not.toBeNull();
+    act(() => {
+      overlay!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+    });
+    await expect(result).resolves.toBe('dismissed');
+  });
+
+  it('still reports an explicit cancel button press as cancel', async () => {
+    let result!: ReturnType<typeof confirmDialogChoice>;
+    act(() => {
+      result = confirmDialogChoice({ title: 'Close BitFun?', cancelText: 'Minimize to tray' });
+    });
+    const buttons = document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] footer button');
+    act(() => buttons[0].click());
+    await expect(result).resolves.toBe('cancel');
+  });
 });

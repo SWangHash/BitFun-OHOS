@@ -27,7 +27,7 @@ import { workspaceAPI } from '@/infrastructure/api';
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
 import type { CloseBehavior } from '@/infrastructure/api/service-api/SystemAPI';
 import { RetainedMountBoundary } from '@/shared/presence';
-import { confirmDialog } from '@/infrastructure/confirm-dialog';
+import { confirmDialogChoice } from '@/infrastructure/confirm-dialog';
 import {
   confirmCriticalOperationExit,
   setMainWindowCloseRequestInProgress,
@@ -494,18 +494,21 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
             if (behavior === 'minimize_to_tray') {
               await systemAPI.minimizeToTray();
             } else if (behavior === 'ask') {
-              const shouldQuit = await confirmDialog({
+              const choice = await confirmDialogChoice({
                 title: tCommon('closeDialog.title'),
                 message: tCommon('closeDialog.message'),
                 confirmText: tCommon('closeDialog.quit'),
                 cancelText: tCommon('closeDialog.minimizeToTray'),
                 showCancel: true,
               });
-              if (shouldQuit) {
+              if (choice === 'confirm') {
                 await quitIfAllowed();
-              } else {
+              } else if (choice === 'cancel') {
                 await systemAPI.minimizeToTray();
               }
+              // Dismissing the dialog (mask, Escape, close button) decides
+              // nothing: the native close was already prevented, so the window
+              // simply stays open.
             } else {
               // quit
               await quitIfAllowed();
