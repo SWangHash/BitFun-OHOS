@@ -95,23 +95,23 @@ describe('settings information architecture', () => {
       .toEqual(['quick-actions', 'hooks']);
   });
 
-  it('exposes voice and shortcuts as independent application pages', () => {
+  it('hides voice from the application nav while keeping it routable', () => {
     const applicationPages = SETTINGS_CATEGORIES.find((category) => category.id === 'application')?.pages;
 
     expect(applicationPages?.map((page) => page.id)).toEqual([
       'application.general',
       'application.appearance',
       'application.pet',
-      'application.voice',
       'application.shortcuts',
       'application.terminal',
       'application.editor',
     ]);
-    expect(SETTINGS_PAGE_MANIFESTS.find((page) => page.id === 'application.voice')?.views)
-      .toBeUndefined();
+    expect(SETTINGS_PAGE_MANIFESTS.find((page) => page.id === 'application.voice')?.hidden)
+      .toBe(true);
     expect(SETTINGS_PAGE_MANIFESTS.find((page) => page.id === 'application.shortcuts')?.views)
       .toBeUndefined();
     expect(resolveSettingsDestination('application.input')).toEqual({ pageId: 'application.voice' });
+    expect(resolveSettingsDestination('voice-input')).toEqual({ pageId: 'application.voice' });
     expect(resolveSettingsDestination('shortcuts')).toEqual({ pageId: 'application.shortcuts' });
   });
 

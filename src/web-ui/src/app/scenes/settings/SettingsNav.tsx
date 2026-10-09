@@ -23,7 +23,7 @@ import { useSettingsDraftSnapshot } from '@/infrastructure/config/settingsDraftR
 import { getInteractionMotion } from '@/shared/utils/motionPreference';
 import {
   SETTINGS_CATEGORIES,
-  SETTINGS_PAGE_MANIFESTS,
+  VISIBLE_SETTINGS_PAGE_MANIFESTS,
   preloadSettingsPage,
   type SettingsSearchPhrase,
 } from './settingsRegistry';
@@ -63,7 +63,7 @@ function buildSettingsSearchIndex(t: SettingsT, i18n: I18nApi): SettingsSearchRo
     translateString(t, category.labelKey, category.id),
   ]));
 
-  return SETTINGS_PAGE_MANIFESTS.flatMap((page) => {
+  return VISIBLE_SETTINGS_PAGE_MANIFESTS.flatMap((page) => {
     const categoryLabel = categoryLabels.get(page.categoryId) ?? page.categoryId;
     const pageLabel = translateString(t, page.labelKey, page.id);
     const description = translateString(t, page.descriptionKey, '');

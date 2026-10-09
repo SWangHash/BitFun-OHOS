@@ -31,6 +31,11 @@ export interface SettingsPageManifest {
   namespaces: readonly I18nNamespace[];
   searchPhrases: readonly SettingsSearchPhrase[];
   views?: readonly SettingsViewManifest[];
+  /**
+   * Hidden pages stay routable (feature entry points, legacy deep links) but are
+   * omitted from the Settings navigation and search results.
+   */
+  hidden?: boolean;
   load: () => Promise<SettingsPageModule>;
   component: LazyExoticComponent<ComponentType<SettingsPageProps>>;
 }
@@ -112,6 +117,7 @@ export const SETTINGS_PAGE_MANIFESTS: readonly SettingsPageManifest[] = [
       phrase('settings/voice-input', 'title'),
       phrase('settings/voice-input', 'subtitle'),
     ],
+    hidden: true,
     load: () => import('../../../infrastructure/config/components/VoiceInputConfig'),
   }),
   definePage({
@@ -402,10 +408,14 @@ export interface SettingsCategory {
 
 const CATEGORY_ORDER: readonly SettingsCategoryId[] = ['application', 'ai', 'workspace', 'tools', 'data'];
 
+/** Pages rendered in the Settings navigation and indexed for search. */
+export const VISIBLE_SETTINGS_PAGE_MANIFESTS: readonly SettingsPageManifest[] =
+  SETTINGS_PAGE_MANIFESTS.filter((page) => !page.hidden);
+
 export const SETTINGS_CATEGORIES: readonly SettingsCategory[] = CATEGORY_ORDER.map((categoryId) => ({
   id: categoryId,
   labelKey: `navigation.categories.${categoryId}`,
-  pages: SETTINGS_PAGE_MANIFESTS.filter((page) => page.categoryId === categoryId),
+  pages: SETTINGS_PAGE_MANIFESTS.filter((page) => page.categoryId === categoryId && !page.hidden),
 }));
 
 export const DEFAULT_SETTINGS_PAGE_ID: SettingsPageId = 'application.general';
