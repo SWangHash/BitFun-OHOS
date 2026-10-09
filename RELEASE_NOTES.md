@@ -4,12 +4,29 @@
 
 ---
 
-## v1.0.8 ( unreleased ) — 工具与技能同步
+## v1.0.8 (2026-09-28) — 基于 BitFun 1.0.8
 
-### 工具重命名
+### HarmonyOS PC 适配
 
-- `check_arkts_files` 已重命名为 `arkts_check`，并改为直接调用 DevEco Studio 自带 Node + SDK checker，不再依赖 `deveco-mcp` MCP server。旧会话中 transcript 历史引用 `check_arkts_files` 的调用会自动归一化为 `arkts_check`，无需手动迁移。
-- `arkts_check` 自动发现 DevEco Studio 安装路径（`DEVECO_HOME` 环境变量 + 平台默认路径）；仅在自动发现失败时提示用户设置 `DEVECO_HOME`。
+- **开发工具链重构**:`check_arkts_files` 更名为 `arkts_check` 并改为直接调用 DevEco Studio 自带 Node + SDK checker,不再依赖 `deveco-mcp` MCP server;旧会话 transcript 历史引用自动归一化,无需手动迁移;`arkts_check` 自动发现 DevEco Studio 安装路径(`DEVECO_HOME` 环境变量 + 平台默认路径,仅发现失败时提示设置);build/search/cpp 工具收敛进 `devecocli`;Harmony Agent 对齐 harness 工作流,为 Harmony agents 启用 HarmonyOS 技能并清理权限规则。
+- **内置技能**:新增 `hmos-dev-env-setup` 内置技能(HarmonyOS 开发环境前置检查);HarmonyOS 技能整体对齐 deveco-code bundle 并从上游同步(arkts-grammar-standards 等);移除 `deveco-create-project`。
+- **QT 迁移**:修复工具链配置写入环境变量后卡片候选未识别;原始工程探测对齐 ohos-qt-skills 阶段零预检;修复迁移产物直写输出容器根目录(跳过 `<app-name>-ohos` 子目录);防止二次迁移覆盖历史迁移产物;修复问题卡片选项偶现需点击两次选中。
+- **DeepSeek on HarmonyOS**:ACP 使用兼容的 DeepSeek profiles。
+
+### 变更与新特性(同步上游)
+
+- **Review Platform**:支持 Gitee Pull Requests。
+- **Relay**:信任改名后的 `openbitfun-relay-server` 镜像仓库(修复一键自部署在镜像改名后整体失效的问题)。
+- **Review 本地化**:错误与完整诊断本地化、动作启动失败本地化、缺失显式目标报告、未信任仓库错误、缺失 Git 场景区分。
+- **Review 流程**:PR Tab 内容滚动约束、拒绝不匹配的工作区目标、评审期间导出控件保持可见、审批模式继承与轮次准入保留、全选时保持计划可见、GitCode PR 文件单次有界加载。
+- **Skills/Matrix**:陈旧请求清理加载标志防止卡死;Matrix ZIP 下载改为流式落盘并对解码错误重试。
+- **FlowChat**:权限请求路由到单一所有者;窄会话面板内保持搜索可用。
+- **Web UI**:浏览器 webview 背景跟随主题并修复编辑器/光晕/菜单回归;Remote Connect 移除已退役的 BitFun Server 入口;外观包安装移除版本检查。
+- **遥测**:托管接入对齐 schema v1。
+
+### 重要修复
+
+- 修复命令输出的二进制/超限内容经 xterm 渲染导致 webview 卡死。
 
 ---
 
