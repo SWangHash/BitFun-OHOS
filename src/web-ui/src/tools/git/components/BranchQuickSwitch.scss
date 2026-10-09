@@ -2,12 +2,17 @@
 @use '@/shared/styles/overlay-layout' as overlay-layout;
 @use '@/shared/styles/surface-recipes' as surfaces;
 
-.branch-quick-switch {
-  @include surfaces.floating;
+.branch-quick-switch__layer {
   @include overlay-layout.anchored-picker-inline-size;
-
   position: fixed;
   z-index: var(--bitfun-layer-popover);
+}
+
+.branch-quick-switch {
+  @include surfaces.floating;
+
+  position: relative;
+  inline-size: 100%;
   box-sizing: border-box;
   overflow: hidden;
   color: var(--bitfun-color-content-primary);
