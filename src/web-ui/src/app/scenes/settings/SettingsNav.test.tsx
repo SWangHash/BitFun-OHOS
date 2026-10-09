@@ -15,6 +15,7 @@ vi.mock('./settingsRegistry', () => {
   return {
     DEFAULT_SETTINGS_PAGE_ID: 'application.general',
     SETTINGS_PAGE_MANIFESTS: pages,
+    VISIBLE_SETTINGS_PAGE_MANIFESTS: pages,
     SETTINGS_CATEGORIES: [
       { id: 'application', labelKey: 'Application', pages: pages.slice(0, 2) },
       { id: 'ai', labelKey: 'AI', pages: pages.slice(2) },
