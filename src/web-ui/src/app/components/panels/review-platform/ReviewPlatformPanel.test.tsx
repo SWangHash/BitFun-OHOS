@@ -17,13 +17,15 @@ vi.mock('@/flow_chat/components/DeepReviewConsentDialog', () => ({ useDeepReview
 vi.mock('@/flow_chat/store/FlowChatStore', () => ({ flowChatStore: { getState: () => ({ sessions: new Map(), activeSessionId: null }), subscribe: () => () => {} } }));
 vi.mock('@/shared/stores/contextStore', () => ({ useContextStore: {} }));
 vi.mock('@/shared/services/ide-control', () => ({ quickActions: {} }));
-vi.mock('@bitfun/ui', async () => {
+vi.mock('@bitfun/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@bitfun/ui')>();
   const { createElement } = await import('react');
   const control = (tag: string) => ({ children, onClick, disabled, ...props }: Record<string, any>) => createElement(tag, {
     onClick, disabled, ...Object.fromEntries(Object.entries(props).filter(([key]) => key.startsWith('data-') || key.startsWith('aria-') || key === 'className')),
   }, children);
   const box = control('div');
   return {
+    ...actual,
     Button: control('button'), IconButton: control('button'), Input: control('input'),
     Combobox: () => null, Icon: () => null, Field: box, ScrollArea: box, TabGroup: () => null,
     Tooltip: box, OverflowText: box, Dialog: () => null, DialogBody: box, DialogClose: box, DialogHeader: box,
@@ -37,13 +39,13 @@ function pull(number: number, state: 'open' | 'merged'): ReviewPlatformPullReque
     changedFiles: 0, changedFileCountKnown: false, lineStatsKnown: false, comments: 0,
     reviewDecision: 'pending', checks: { total: 0, passed: 0, failed: 0, pending: 0 } };
 }
-function snapshot(path: string, page = 1, state = 'all'): ReviewPlatformWorkspaceSnapshot {
+function snapshot(scope: { repositoryPath: string }, page = 1, state = 'all'): ReviewPlatformWorkspaceSnapshot {
   const remote = { id: 'origin', name: 'origin', url: 'https://gitee.com/example/repo.git', platform: 'gitee' as const,
     host: 'gitee.com', owner: 'example', repositoryName: 'repo', projectPath: 'example/repo', webUrl: '', supported: true,
     authState: 'not_required' as const, authSource: 'none' as const };
   return { remotes: [remote], selectedRemoteId: 'origin', accounts: [],
     repository: { providerId: 'origin', platform: 'gitee', host: 'gitee.com', owner: 'example', name: 'repo', projectPath: 'example/repo',
-      defaultBranch: 'main', workspacePath: path, webUrl: '' },
+      defaultBranch: 'main', workspacePath: scope.repositoryPath, webUrl: '' },
     pullRequests: Array.from({ length: 10 }, (_, index) => pull((state === 'merged' ? 100 : page * 10) + index, state === 'merged' ? 'merged' : 'open')),
     pagination: { page, perPage: 10, total: state === 'merged' ? 269 : 376, hasNext: true },
     capabilities: { canCreateReview: true, canCreatePullRequest: false, canReplyToThread: false, canResolveThread: false,
@@ -67,9 +69,25 @@ let testNumber = 0;
 async function click(id: string) {
   await act(async () => { host.querySelector<HTMLButtonElement>(`[data-testid="${id}"]`)!.click(); });
 }
+async function selectMerged() {
+  await act(async () => {
+    const filter = [...host.querySelectorAll<HTMLButtonElement>('[aria-label="Pull request state"] button')]
+      .find(button => button.textContent === 'Merged');
+    expect(filter).toBeTruthy();
+    filter!.click();
+  });
+}
+function statisticText(owner: Element, id: string) {
+  if (id === 'detail-additions' || id === 'detail-deletions') {
+    const stats = owner.querySelector('[data-testid="review-platform-detail-line-stats"]');
+    return stats?.textContent === '—' ? '—'
+      : stats?.querySelector(`[data-bitfun-part="${id.slice('detail-'.length)}"]`)?.textContent;
+  }
+  return owner.querySelector(`[data-testid="review-platform-${id}"]`)?.textContent;
+}
 async function mount() {
   const path = `/gitee-panel-test-${++testNumber}`;
-  await act(async () => { root.render(<ReviewPlatformPanel workspacePath={path} />); });
+  await act(async () => { root.render(<ReviewPlatformPanel workspacePath={path} workspaceId={path} />); });
   return path;
 }
 
@@ -119,8 +137,8 @@ describe('Gitee panel state and asynchronous request ordering', () => {
     }));
     await mount();
     expect(host.querySelector('[data-testid="review-platform-detail-files"]')?.textContent).toBe(sameRevisions ? '2 files' : '— files');
-    expect(host.querySelector('[data-testid="review-platform-detail-additions"]')?.textContent).toBe(sameRevisions ? '+4' : '—');
-    expect(host.querySelector('[data-testid="review-platform-detail-deletions"]')?.textContent).toBe(sameRevisions ? '-3' : '—');
+    expect(statisticText(host, 'detail-additions')).toBe(sameRevisions ? '+4' : '—');
+    expect(statisticText(host, 'detail-deletions')).toBe(sameRevisions ? '-3' : '—');
   });
 
   it('updates both row and detail statistics to zero for a legacy overview', async () => {
@@ -140,8 +158,8 @@ describe('Gitee panel state and asynchronous request ordering', () => {
     const row = host.querySelector('[data-testid="review-platform-pr-row"][data-pr-number="10"]')!;
     for (const [owner, prefix] of [[row, 'pr'], [host, 'detail']] as const) {
       expect(owner.querySelector(`[data-testid="review-platform-${prefix}-files"]`)?.textContent).toBe('0 files');
-      expect(owner.querySelector(`[data-testid="review-platform-${prefix}-additions"]`)?.textContent).toBe('+0');
-      expect(owner.querySelector(`[data-testid="review-platform-${prefix}-deletions"]`)?.textContent).toBe('-0');
+      expect(statisticText(owner, `${prefix}-additions`)).toBe('+0');
+      expect(statisticText(owner, `${prefix}-deletions`)).toBe('-0');
     }
   });
 
@@ -152,9 +170,9 @@ describe('Gitee panel state and asynchronous request ordering', () => {
     const pending = deferred<ReviewPlatformWorkspaceSnapshot>();
     mocks.snapshot.mockReturnValueOnce(pending.promise);
     await click('review-platform-refresh');
-    await click('review-platform-filter-merged');
-    expect(mocks.snapshot).toHaveBeenLastCalledWith(path, null, 1, 10, 'merged');
-    await act(async () => pending.resolve(snapshot(path, 2)));
+    await selectMerged();
+    expect(mocks.snapshot).toHaveBeenLastCalledWith({ workspaceId: path, repositoryPath: path }, null, 1, 10, 'merged');
+    await act(async () => pending.resolve(snapshot({ repositoryPath: path }, 2)));
     expect(host.querySelector('[data-testid="review-platform-pagination"]')?.textContent).toContain('1-10 of 269');
     expect([...host.querySelectorAll('[data-testid="review-platform-pr-row"]')].map(row => row.getAttribute('data-pr-state'))).toEqual(Array(10).fill('merged'));
   });
@@ -165,11 +183,11 @@ describe('Gitee panel state and asynchronous request ordering', () => {
       ? pendingCi.promise : Promise.resolve(detail(Number(pullRequestId), section)));
     await mount();
     expect(mocks.detail).toHaveBeenCalledWith(expect.objectContaining({ pullRequestId: '10', section: 'ci' }));
-    await click('review-platform-filter-merged');
+    await selectMerged();
     await act(async () => pendingCi.resolve(detail(10, 'ci')));
     expect(mocks.detail).not.toHaveBeenCalledWith(expect.objectContaining({ pullRequestId: '10', section: 'reviews' }));
     expect(host.querySelector('[data-testid="review-platform-detail-state"]')?.textContent).toBe('Merged');
-    expect(host.querySelector('[data-bitfun-part="detailMeta"]')?.textContent).toContain('#100');
+    expect(host.querySelector('[data-bitfun-product-part="detailMeta"]')?.textContent).toContain('#100');
   });
 
   it.each([4, 0])('shares verified statistics (%i lines) with the list and discards them for a new revision', async lines => {
@@ -178,7 +196,7 @@ describe('Gitee panel state and asynchronous request ordering', () => {
       ? pendingOverview.promise : Promise.resolve(detail(Number(pullRequestId), section)));
     const path = await mount();
     const row = () => host.querySelector('[data-testid="review-platform-pr-row"][data-pr-number="10"]')!;
-    const text = (owner: Element, id: string) => owner.querySelector(`[data-testid="review-platform-${id}"]`)?.textContent;
+    const text = statisticText;
     expect(text(row(), 'pr-files')).toBe('— files');
     expect(text(row(), 'pr-additions')).toBe('—');
     expect(text(row(), 'pr-deletions')).toBe('—');
@@ -199,7 +217,7 @@ describe('Gitee panel state and asynchronous request ordering', () => {
     expect(text(row(), 'pr-additions')).toBe('+0');
     expect(text(host, 'detail-additions')).toBe('+0');
 
-    const next = snapshot(path);
+    const next = snapshot({ repositoryPath: path });
     next.pullRequests[0].headRevision = 'c'.repeat(40);
     mocks.snapshot.mockResolvedValueOnce(next);
     mocks.detail.mockImplementation(() => new Promise(() => {}));

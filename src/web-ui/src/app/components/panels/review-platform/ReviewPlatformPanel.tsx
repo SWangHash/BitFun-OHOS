@@ -746,6 +746,9 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
   }, []);
   const [snapshotError, setSnapshotError] = useState<{ cause: unknown } | null>(null);
   const error = snapshotError ? reviewPanelErrorMessage(snapshotError.cause, t) : null;
+  // `error` is localized text, so the host-capability case is detected on the cause.
+  const stateFilterUnsupported = snapshotError?.cause instanceof Error
+    && snapshotError.cause.message.includes('review_platform_state_filter_unsupported');
   const [query, setQuery] = useState('');
   const [stateFilter, setStateFilter] = useState<ListStateFilter>('all');
   const serverStateFilter = useRef<ListStateFilter>('all');
@@ -2043,7 +2046,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                 )}
                 {error && (
                   <Alert tone="error" data-bitfun-product-component="review-platform" data-bitfun-product-part="errorState"
-                    message={error.includes('review_platform_state_filter_unsupported') ? t('reviewPlatform.stateFilterUnsupported') : error}
+                    message={stateFilterUnsupported ? t('reviewPlatform.stateFilterUnsupported') : error}
                     description={
                       <Button size="sm" variant="outline" onClick={() => void loadSnapshot(listRemoteId, { force: true, page: currentPageIndex + 1, userInitiated: true })}>
                         Retry

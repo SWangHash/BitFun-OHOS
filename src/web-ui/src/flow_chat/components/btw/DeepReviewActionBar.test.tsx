@@ -334,49 +334,73 @@ describeWithJsdom('DeepReviewActionBar', () => {
     {
       name: 'stable dialog-start failure',
       error: new Error('Failed to start dialog turn: provider quota exhausted'),
+      notification: 'Unable to start this action: provider quota exhausted',
       stableHeaderSummary: 'Unable to start this action: provider quota exhausted',
       rawMessage: 'Failed to start dialog turn: provider quota exhausted',
     },
     {
+      // Launch failures name their own cause. The generic "check your network and
+      // model service" advice would be wrong for them (untrusted repository, no
+      // model configured, invalid target).
       name: 'structured launch failure',
       error: Object.assign(new Error('Network connection was interrupted before Review could start.'), {
         launchErrorMessageKey: 'deepReviewActionBar.launchError.network',
         originalMessage: 'Failed to start dialog turn: provider connection closed',
       }),
+      notification: 'Network connection interrupted. Review failed to start.\nprovider connection closed',
       stableHeaderSummary: null,
       rawMessage: 'Network connection was interrupted before Review could start.',
     },
-  ])('localizes the launch summary without dropping the complete diagnostic: $name', async ({
+  ])('keeps the launch cause in the summary without dropping the complete diagnostic: $name', async ({
     error,
+    notification,
     stableHeaderSummary,
     rawMessage,
   }) => {
     const { notificationService } = await import('@/shared/notification-system');
     sendMessageMock.mockRejectedValueOnce(error);
     useReviewActionBarStore.getState().showActionBar({
-      childSessionId: 'child-session',
+      childSessionId: 'review-session',
       parentSessionId: 'parent-session',
+      reviewMode: 'standard',
       reviewData: {
         summary: { recommended_action: 'request_changes' },
-        remediation_plan: ['Fix the provider failure.'],
+        remediation_plan: ['Fix the finding.'],
       },
       phase: 'review_completed',
     });
-    await act(async () => root.render(<ReviewActionBar childSessionId="child-session" />));
+    await act(async () => root.render(<ReviewActionBar />));
     const startFixButton = Array.from(container.querySelectorAll('button'))
-      .find((button) => button.textContent?.includes('Start fixing'));
+      .find(button => button.textContent?.includes('Start fixing'));
     expect(startFixButton).toBeTruthy();
     await act(async () => {
       startFixButton!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
     });
 
     const [message, options] = vi.mocked(notificationService.error).mock.calls.at(-1)!;
-    expect(message).toMatch(/[\u3400-\u9fff]/);
+    expect(message).toBe(notification);
+    expect(message).not.toMatch(/network connection and model service/i);
     expect(options?.metadata?.rawError).toBe(rawMessage);
 
     const displayedError = container.querySelector('.deep-review-action-bar__error-message');
-    expect(displayedError?.firstElementChild?.textContent).toBe(stableHeaderSummary ?? message);
+    expect(displayedError?.firstElementChild?.textContent).toBe(stableHeaderSummary ?? rawMessage);
     expect(displayedError?.lastElementChild?.textContent).toBe(rawMessage);
+  });
+
+  it.each([
+    'Review was cancelled before a report was produced.',
+    'Review ended without a structured report.',
+  ])('does not add provider advice to a plain review status message: %s', async (status) => {
+    useReviewActionBarStore.getState().showRunningActionBar({
+      childSessionId: 'review-session',
+      parentSessionId: 'parent-session',
+      reviewMode: 'standard',
+    });
+    useReviewActionBarStore.getState().updatePhase('review_error', status, 'review-session');
+    await act(async () => root.render(<ReviewActionBar childSessionId="review-session" />));
+
+    const displayedError = container.querySelector('.deep-review-action-bar__error-message');
+    expect(displayedError?.textContent).toBe(status);
   });
 
   it('keeps remediation in progress after submitting a fix turn', async () => {

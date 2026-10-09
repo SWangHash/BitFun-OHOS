@@ -62,9 +62,11 @@ export const ReviewActionHeader: React.FC<ReviewActionHeaderProps> = ({
     {errorMessage && (
       <div className="deep-review-action-bar__error-message" role="status">
         {errorSummary && errorSummary !== errorMessage && (
-          <div>{errorSummary}</div>
+          <>
+            <div>{errorSummary}</div>
+            {errorDetailsLabel && <div>{errorDetailsLabel}</div>}
+          </>
         )}
-        {errorDetailsLabel && <div>{errorDetailsLabel}</div>}
         <div>{errorMessage}</div>
       </div>
     )}

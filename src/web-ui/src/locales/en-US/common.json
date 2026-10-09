@@ -2083,7 +2083,7 @@
       "reviewError": "Review error"
     },
     "auth": {
-      "github": "Authenticate GitHub in the workspace environment, then retry: {{command}}",
+      "github": "Authenticate GitHub with the local CLI on this device, then retry: {{command}}",
       "missing": "Add an access token for {{host}} to access this repository.",
       "invalid": "The access token for {{host}} was rejected. Update it and retry.",
       "insufficientScope": "The access token for {{host}} lacks required permissions. Update it and retry."

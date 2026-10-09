@@ -6,6 +6,13 @@ type ReviewTranslate = (key: string, options?: Record<string, unknown>) => strin
 export type ReviewErrorFallback = 'loadFailed' | 'detailsFailed' | 'ciLogFailed' | 'reviewFailed' | 'saveTokenFailed' | 'clearTokenFailed' | 'openAuthFailed' | 'copyAuthFailed';
 
 export function reviewPlatformErrorMessage(error: unknown, t: ReviewTranslate, fallback: ReviewErrorFallback = 'loadFailed'): string {
+  // Review launch failures name their own cause through a stable flow-chat key
+  // (target, model configuration, untrusted repository, ...). The provider and Git
+  // codes below do not know them and would flatten them into the generic fallback.
+  const launchKey = (error as { launchErrorMessageKey?: unknown } | null | undefined)?.launchErrorMessageKey;
+  if (typeof launchKey === 'string' && launchKey) {
+    return t(`flow-chat:${launchKey}`, { defaultValue: error instanceof Error ? error.message : undefined });
+  }
   if (isGitUnavailableError(error)) return t('common:reviewPlatform.errors.gitUnavailable');
   if (isGitRepositoryUntrustedError(error)) return t('common:reviewPlatform.errors.repositoryUntrusted');
   switch (reviewPlatformErrorCode(error)) {
