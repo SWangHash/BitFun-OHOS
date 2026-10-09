@@ -12,3 +12,4 @@
 /.appanalyzer
 # hvigor generates a BuildProfile.ets in each module root.
 **/BuildProfile.ets
+/.bitfun-build-context.json
