@@ -30,6 +30,7 @@ const PRODUCT_TOOL_REGISTRATION_ORDER: &[&str] = &[
     "WriteStdin",
     "ExecControl",
     "GetTime",
+    "OpenUrl",
     "ListModels",
     "start_app",
     "hdc_log",
