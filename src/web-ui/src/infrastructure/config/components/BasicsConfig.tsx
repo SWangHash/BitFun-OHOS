@@ -1,3 +1,5 @@
+import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
+import { OhosLaunchAtLoginSetting } from './OhosLaunchAtLoginSetting';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Archive, FolderOpen, Plus, Trash2, Upload } from 'lucide-react';
@@ -43,6 +45,10 @@ const formatShellLabel = (shell: ShellInfo): string =>
   `${shell.name}${shell.version ? ` (${shell.version})` : ''}`;
 
 function BasicsLaunchAtLoginSection() {
+  return isOpenHarmonyRuntime() ? <OhosLaunchAtLoginSetting /> : <BasicsLaunchAtLoginSectionDesktop />;
+}
+
+function BasicsLaunchAtLoginSectionDesktop() {
   const { t } = useTranslation('settings/basics');
   const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
   const [enabled, setEnabled] = useState(false);

@@ -111,7 +111,11 @@
       "loading": "Loading...",
       "loadFailed": "Failed to read launch-at-login setting",
       "saveFailed": "Failed to update launch-at-login setting"
-    }
+    },
+    "ohosGuide": "Manage automatic startup in System Settings > Apps & services > App startup management. Add or remove BitFun there, then refresh this status.",
+    "ohosEnabled": "Enabled in system settings",
+    "ohosDisabled": "Disabled in system settings",
+    "refresh": "Refresh status"
   },
   "preventSleep": {
     "sections": {

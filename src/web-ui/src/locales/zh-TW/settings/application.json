@@ -97,7 +97,11 @@
       "loading": "載入中…",
       "loadFailed": "無法讀取開機啟動設置",
       "saveFailed": "無法更新開機啟動設置"
-    }
+    },
+    "ohosGuide": "請在系統設定 → 應用程式和元服務 → 應用程式啟動管理中新增或移除 BitFun，再重新整理此處狀態。",
+    "ohosEnabled": "系統已開啟",
+    "ohosDisabled": "系統未開啟",
+    "refresh": "重新整理狀態"
   },
   "preventSleep": {
     "sections": {

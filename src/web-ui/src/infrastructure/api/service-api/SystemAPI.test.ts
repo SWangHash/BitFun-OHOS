@@ -34,6 +34,12 @@ describe('SystemAPI', () => {
     vi.unstubAllGlobals();
   });
 
+  it('reads actual controller startup status instead of a constant', async () => {
+    controllerInvoke.mockResolvedValue({ currentOptionValues: { 'launch-at-login': true } });
+    await expect(systemAPI.getLaunchAtLoginEnabled()).resolves.toBe(true);
+    expect(invokeMock).not.toHaveBeenCalled();
+  });
+
   it.each([true, false])('allows explicit update checks with DEV=%s', async development => {
     vi.stubEnv('DEV', development);
     const response = {

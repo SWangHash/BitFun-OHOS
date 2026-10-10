@@ -111,7 +111,11 @@
       "loading": "加载中…",
       "loadFailed": "无法读取开机启动设置",
       "saveFailed": "无法更新开机启动设置"
-    }
+    },
+    "ohosGuide": "请在系统设置 → 应用和元服务 → 应用启动管理中添加或移除 BitFun，再刷新此处状态。",
+    "ohosEnabled": "系统已开启",
+    "ohosDisabled": "系统未开启",
+    "refresh": "刷新状态"
   },
   "preventSleep": {
     "sections": {

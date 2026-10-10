@@ -16,6 +16,7 @@ import { uniformTypeDescriptor } from '@kit.ArkData';
 import { calendarManager } from '@kit.CalendarKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { buffer } from '@kit.ArkTS';
+import { DesktopSystemService } from '../services/DesktopSystemService';
 import { notificationManager } from '@kit.NotificationKit';
 import RustModule from 'libbitfun_desktop_lib.so';
 import { AppUpdater, UpdateCheckResult } from '../utils/AppUpdater';
@@ -121,6 +122,7 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
   public defaultPage: boolean = true;
   public commonEventListener: CommonEventListener | undefined = undefined;
   public remoteUrl: string = "";
+  private desktopSystem: DesktopSystemService = new DesktopSystemService();
   private appUpdater: AppUpdater = new AppUpdater();
   private voiceInputService: VoiceInputService = new VoiceInputService();
   private systemColorMode: 'light' | 'dark' = 'dark';
@@ -470,6 +472,9 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
         hilog.error(201, 'vnext', `failed to launch Haitai CDP provider: ${detail.message}`);
         return JSON.stringify({ ok: false, error: detail.message ?? String(error) });
       }
+    });
+    RustModule.registerArktsFunction('get_launch_at_login', async (): Promise<string> => {
+      return String(await this.desktopSystem.getLaunchAtLogin());
     });
     RustModule.registerArktsFunction('window_is_minimized', async (err: Error, arg: string): Promise<string> => {
       let state = windowStage.getMainWindowSync().getWindowStatus();

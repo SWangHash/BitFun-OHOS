@@ -301,8 +301,13 @@ export class SystemAPI {
 
   /** Desktop only: whether the app is registered to launch at OS login. */
   async getLaunchAtLoginEnabled(): Promise<boolean> {
-    // Autostart plugin (@tauri-apps/plugin-autostart) is not available in this build.
-    return false;
+    const { invoke } = await import('@tauri-apps/api/core');
+    const result = await invoke<{ currentOptionValues: Record<string, unknown> }>('product_control_invoke', {
+      request: { action: 'get', capabilityId: 'setting.application.general' },
+    });
+    const enabled = result.currentOptionValues['launch-at-login'];
+    if (typeof enabled !== 'boolean') throw new Error('Automatic startup status is unavailable');
+    return enabled;
   }
 
   /**
