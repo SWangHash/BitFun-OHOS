@@ -50,6 +50,7 @@ const SkillCard: React.FC<SkillCardProps> = ({
   const glyph = iconKind === 'market'
     ? <Icon glyph={Package} size="md" />
     : <Icon name="extension" size="md" />;
+  const skillId = (rootProps as { 'data-skill-id'?: string })['data-skill-id'];
 
   return (
     <div data-bitfun-component="skill-card" data-bitfun-part="root"
@@ -68,6 +69,7 @@ const SkillCard: React.FC<SkillCardProps> = ({
             type="button"
             className="skill-card__open"
             aria-label={name}
+            data-testid={skillId ? `skill-card-open-${skillId}` : 'skill-card-open'}
             onClick={onOpenDetails}
           />
         )}

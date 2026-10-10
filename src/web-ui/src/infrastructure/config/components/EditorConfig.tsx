@@ -459,6 +459,8 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
               onValueChange={(v) => updateConfig('fontFamily', buildFontFamily(v as string))}
               placeholder={t('appearance.font')}
               size="sm"
+              triggerTestId="editor-font-select"
+              panelTestId="editor-font-select-menu"
             />
           </ConfigPageRow>
           <ConfigPageRow label={t('appearance.fontWeight')} align="center">
@@ -468,6 +470,8 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
               onValueChange={(v) => updateConfig('fontWeight', v as typeof config.fontWeight)}
               placeholder={t('appearance.fontWeight')}
               size="sm"
+              triggerTestId="editor-font-weight-select"
+              panelTestId="editor-font-weight-select-menu"
             />
           </ConfigPageRow>
           <ConfigPageRow label={t('appearance.fontSize')} align="center">
@@ -481,6 +485,7 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
               aria-label={t('appearance.fontSize')}
               disableWheel
               size="sm"
+              testId="editor-font-size-input"
             />
           </ConfigPageRow>
           <ConfigPageRow label={t('appearance.lineHeight')} description={t('appearance.lineHeightDesc')} align="center">
@@ -495,6 +500,7 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
               aria-label={t('appearance.lineHeight')}
               disableWheel
               size="sm"
+              testId="editor-line-height-input"
             />
           </ConfigPageRow>
           <ConfigPageRow label={t('appearance.cursorStyle')} align="center">
@@ -503,6 +509,8 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
               value={config.cursorStyle}
               onValueChange={(v) => updateConfig('cursorStyle', v as typeof config.cursorStyle)}
               size="sm"
+              triggerTestId="editor-cursor-style-select"
+              panelTestId="editor-cursor-style-select-menu"
             />
           </ConfigPageRow>
           <ConfigPageRow label={t('appearance.cursorBlinking')} align="center">
@@ -511,6 +519,8 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
               value={config.cursorBlinking}
               onValueChange={(v) => updateConfig('cursorBlinking', v as typeof config.cursorBlinking)}
               size="sm"
+              triggerTestId="editor-cursor-blinking-select"
+              panelTestId="editor-cursor-blinking-select-menu"
             />
           </ConfigPageRow>
         </ConfigPageSection>
@@ -530,12 +540,14 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
               aria-label={t('behavior.tabSize')}
               disableWheel
               size="sm"
+              testId="editor-tab-size-input"
             />
           </ConfigPageRow>
           <ConfigPageRow label={t('behavior.insertSpaces')} description={t('behavior.insertSpacesDesc')} align="center">
             <Switch
               aria-label={t('behavior.insertSpaces')}
               checked={config.insertSpaces}
+              data-testid="editor-insert-spaces-switch"
               onChange={(e) => updateConfig('insertSpaces', e.target.checked)}
             />
           </ConfigPageRow>
@@ -548,6 +560,7 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
               aria-label={t('behavior.detectIndentation')}
               checked={supportsIndentDetection && config.detectIndentation}
               disabled={!supportsIndentDetection}
+              data-testid="editor-detect-indentation-switch"
               onChange={(e) => updateConfig('detectIndentation', e.target.checked)}
             />
           </ConfigPageRow>
@@ -557,6 +570,8 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
               value={config.wordWrap}
               onValueChange={(v) => updateConfig('wordWrap', v as typeof config.wordWrap)}
               size="sm"
+              triggerTestId="editor-word-wrap-select"
+              panelTestId="editor-word-wrap-select-menu"
             />
           </ConfigPageRow>
           <ConfigPageRow label={t('behavior.lineNumbers')} align="center">
@@ -565,17 +580,21 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
               value={config.lineNumbers}
               onValueChange={(v) => updateConfig('lineNumbers', v as typeof config.lineNumbers)}
               size="sm"
+              triggerTestId="editor-line-numbers-select"
+              panelTestId="editor-line-numbers-select-menu"
             />
           </ConfigPageRow>
           <ConfigPageRow label={t('behavior.smoothScrolling')} description={t('behavior.smoothScrollingDesc')} align="center">
             <Switch
               checked={config.smoothScrolling}
+              data-testid="editor-smooth-scrolling-switch"
               onChange={(e) => updateConfig('smoothScrolling', e.target.checked)}
             />
           </ConfigPageRow>
           <ConfigPageRow label={t('behavior.scrollBeyondLastLine')} description={t('behavior.scrollBeyondLastLineDesc')} align="center">
             <Switch
               checked={config.scrollBeyondLastLine}
+              data-testid="editor-scroll-beyond-last-line-switch"
               onChange={(e) => updateConfig('scrollBeyondLastLine', e.target.checked)}
             />
           </ConfigPageRow>
@@ -588,6 +607,7 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
           <ConfigPageRow label={t('display.minimap')} description={t('display.minimapDesc')} align="center">
             <Switch
               checked={config.minimap.enabled}
+              data-testid="editor-minimap-switch"
               onChange={(e) => updateMinimapConfig('enabled', e.target.checked)}
             />
           </ConfigPageRow>
@@ -599,6 +619,8 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
                   value={config.minimap.side}
                   onValueChange={(v) => updateMinimapConfig('side', v as string)}
                   size="sm"
+                  triggerTestId="editor-minimap-position-select"
+                  panelTestId="editor-minimap-position-select-menu"
                 />
               </ConfigPageRow>
               <ConfigPageRow label={t('display.minimapSize')} align="center">
@@ -607,6 +629,8 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
                   value={config.minimap.size}
                   onValueChange={(v) => updateMinimapConfig('size', v as string)}
                   size="sm"
+                  triggerTestId="editor-minimap-size-select"
+                  panelTestId="editor-minimap-size-select-menu"
                 />
               </ConfigPageRow>
             </>
@@ -617,6 +641,8 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
               value={config.renderWhitespace}
               onValueChange={(v) => updateConfig('renderWhitespace', v as typeof config.renderWhitespace)}
               size="sm"
+              triggerTestId="editor-whitespace-select"
+              panelTestId="editor-whitespace-select-menu"
             />
           </ConfigPageRow>
           <ConfigPageRow label={t('display.lineHighlight')} align="center">
@@ -625,6 +651,8 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
               value={config.renderLineHighlight}
               onValueChange={(v) => updateConfig('renderLineHighlight', v as typeof config.renderLineHighlight)}
               size="sm"
+              triggerTestId="editor-line-highlight-select"
+              panelTestId="editor-line-highlight-select-menu"
             />
           </ConfigPageRow>
         </ConfigPageSection>
@@ -636,30 +664,35 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
           <ConfigPageRow label={t('advanced.semanticHighlighting')} description={t('advanced.semanticHighlightingDesc')} align="center">
             <Switch
               checked={config.semanticHighlighting}
+              data-testid="editor-semantic-highlighting-switch"
               onChange={(e) => updateConfig('semanticHighlighting', e.target.checked)}
             />
           </ConfigPageRow>
           <ConfigPageRow label={t('advanced.bracketPairColorization')} description={t('advanced.bracketPairColorizationDesc')} align="center">
             <Switch
               checked={config.bracketPairColorization}
+              data-testid="editor-bracket-pair-colorization-switch"
               onChange={(e) => updateConfig('bracketPairColorization', e.target.checked)}
             />
           </ConfigPageRow>
           <ConfigPageRow label={t('advanced.formatOnSave')} description={t('advanced.formatOnSaveDesc')} align="center">
             <Switch
               checked={config.formatOnSave}
+              data-testid="editor-format-on-save-switch"
               onChange={(e) => updateConfig('formatOnSave', e.target.checked)}
             />
           </ConfigPageRow>
           <ConfigPageRow label={t('advanced.formatOnPaste')} description={t('advanced.formatOnPasteDesc')} align="center">
             <Switch
               checked={config.formatOnPaste}
+              data-testid="editor-format-on-paste-switch"
               onChange={(e) => updateConfig('formatOnPaste', e.target.checked)}
             />
           </ConfigPageRow>
           <ConfigPageRow label={t('advanced.trimAutoWhitespace')} description={t('advanced.trimAutoWhitespaceDesc')} align="center">
             <Switch
               checked={config.trimAutoWhitespace}
+              data-testid="editor-trim-auto-whitespace-switch"
               onChange={(e) => updateConfig('trimAutoWhitespace', e.target.checked)}
             />
           </ConfigPageRow>

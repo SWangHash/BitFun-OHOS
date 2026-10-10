@@ -178,11 +178,13 @@ export function DefaultHarnessConfig(): React.ReactElement {
               size="sm"
               value={preference.strategy}
               options={[
-                { value: 'follow_last', label: t('defaultHarness.followLast') },
-                { value: 'fixed', label: t('defaultHarness.fixed') },
+                { value: 'follow_last', label: t('defaultHarness.followLast'), testId: 'default-harness-strategy-option-follow-last' },
+                { value: 'fixed', label: t('defaultHarness.fixed'), testId: 'default-harness-strategy-option-fixed' },
               ]}
               disabled={saving}
               onValueChange={handleStrategyChange}
+              triggerTestId="default-harness-strategy-select"
+              panelTestId="default-harness-strategy-select-menu"
             />
           </div>
         </ConfigPageRow>
@@ -203,6 +205,8 @@ export function DefaultHarnessConfig(): React.ReactElement {
                 options={fixedModeOptions}
                 disabled={saving}
                 onValueChange={handleFixedModeChange}
+                triggerTestId="default-harness-fixed-mode-select"
+                panelTestId="default-harness-fixed-mode-select-menu"
               />
             </div>
           </ConfigPageRow>

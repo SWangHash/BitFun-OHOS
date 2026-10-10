@@ -861,6 +861,7 @@ const MiniAppLibraryContent: React.FC<MiniAppLibraryViewProps> = ({ tabs }) => {
               }}
               placeholder={t('searchPlaceholder')}
               aria-label={t('searchPlaceholder')}
+              data-testid="miniapp-gallery-search-input"
               size="sm"
               value={query}
             />
@@ -874,6 +875,7 @@ const MiniAppLibraryContent: React.FC<MiniAppLibraryViewProps> = ({ tabs }) => {
                   setCategory(value as MiniAppCategory);
                 }}
                 aria-label={t('market.catalog')}
+                triggerTestId="miniapp-gallery-catalog-select"
                 size="sm"
               />
             </div>
@@ -887,6 +889,7 @@ const MiniAppLibraryContent: React.FC<MiniAppLibraryViewProps> = ({ tabs }) => {
                 setSort(value as MarketSort);
               }}
               aria-label={t('market.sortLabel')}
+              triggerTestId="miniapp-gallery-sort-select"
             />
             <span className="miniapp-gallery__result-count" aria-label={t('allApps')}>
               <NumberBadge value={libraryItems.length} />

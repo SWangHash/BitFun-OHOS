@@ -58,9 +58,13 @@ export interface SelectProps
   onValueChange?: (value: SelectValue) => void;
   open?: boolean;
   options: readonly SelectOption[];
+  /** data-testid for the opened popup panel (listbox surface). */
+  panelTestId?: string;
   placement?: SelectPlacement;
   placeholder?: string;
   size?: SelectSize;
+  /** data-testid for the closed trigger button. */
+  triggerTestId?: string;
   value?: SelectValue;
 }
 
@@ -138,6 +142,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
   onValueChange,
   open,
   options,
+  panelTestId,
   placement = "bottom",
   placeholder,
   required = false,
@@ -145,6 +150,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
   style,
   tabIndex,
   title,
+  triggerTestId,
   value,
   ...nativeProps
 }, forwardedRef) {
@@ -368,6 +374,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
       data-invalid={resolvedInvalid ? "true" : "false"}
       data-placement={layout?.placement ?? placement}
       data-size={size}
+      data-testid={panelTestId}
       ref={popoverRef}
       style={layout?.style ?? { position: "fixed", visibility: "hidden" }}
     >
@@ -434,6 +441,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
       ref={rootRef}
     >
       <select
+        data-testid={triggerTestId ? `${triggerTestId}-native` : undefined}
         {...nativeProps}
         aria-describedby={ariaDescribedBy}
         aria-hidden="true"
@@ -474,6 +482,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
         className={styles.trigger}
         data-bitfun-part="trigger"
         data-bitfun-preview-state={typeof previewState === "string" ? previewState : undefined}
+        data-testid={triggerTestId}
         disabled={disabled}
         id={resolvedOpen ? undefined : id}
         onClick={() => updateOpen(true)}

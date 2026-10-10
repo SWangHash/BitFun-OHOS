@@ -124,6 +124,7 @@ function LaunchAtLoginSetting() {
               void handleToggle(e.target.checked);
             }}
             disabled={saving}
+            data-testid="settings-launch-at-login-switch"
           />
         </div>
       </ConfigPageRow>
@@ -212,13 +213,14 @@ function AutoUpdateSetting() {
         description={t('autoUpdate.toggleDescription')}
         align="center"
       >
-        <div data-bitfun-component="application-settings" data-bitfun-part="autoUpdate">
+          <div data-bitfun-component="application-settings" data-bitfun-part="autoUpdate">
           <Switch
             checked={enabled}
             onChange={(e) => {
               void handleToggle(e.target.checked);
             }}
             disabled={saving}
+            data-testid="settings-auto-update-switch"
           />
         </div>
       </ConfigPageRow>
@@ -307,13 +309,14 @@ function PreventSleepSetting() {
         description={t('preventSleep.toggleDescription')}
         align="center"
       >
-        <div data-bitfun-component="application-settings" data-bitfun-part="preventSleep">
+          <div data-bitfun-component="application-settings" data-bitfun-part="preventSleep">
           <Switch
             checked={enabled}
             onChange={(event) => {
               void handleToggle(event.target.checked);
             }}
             disabled={saving}
+            data-testid="settings-prevent-sleep-switch"
           />
         </div>
       </ConfigPageRow>
@@ -336,12 +339,12 @@ function LoggingSection() {
 
   const levelOptions = useMemo(
     () => [
-      { value: 'trace', label: t('logging.levels.trace') },
-      { value: 'debug', label: t('logging.levels.debug') },
-      { value: 'info', label: t('logging.levels.info') },
-      { value: 'warn', label: t('logging.levels.warn') },
-      { value: 'error', label: t('logging.levels.error') },
-      { value: 'off', label: t('logging.levels.off') },
+      { value: 'trace', label: t('logging.levels.trace'), testId: 'settings-log-level-option-trace' },
+      { value: 'debug', label: t('logging.levels.debug'), testId: 'settings-log-level-option-debug' },
+      { value: 'info', label: t('logging.levels.info'), testId: 'settings-log-level-option-info' },
+      { value: 'warn', label: t('logging.levels.warn'), testId: 'settings-log-level-option-warn' },
+      { value: 'error', label: t('logging.levels.error'), testId: 'settings-log-level-option-error' },
+      { value: 'off', label: t('logging.levels.off'), testId: 'settings-log-level-option-off' },
     ],
     [t]
   );
@@ -509,6 +512,8 @@ function LoggingSection() {
               onValueChange={(v) => handleLevelChange(v as string)}
               options={levelOptions}
               disabled={saving}
+              triggerTestId="settings-log-level-select"
+              panelTestId="settings-log-level-select-menu"
             />
           </ConfigPageRow>
           <ConfigPageRow
@@ -522,6 +527,7 @@ function LoggingSection() {
                 void handleSensitiveDiagnosticsChange(e.target.checked);
               }}
               disabled={saving}
+              data-testid="settings-logging-sensitive-diagnostics-switch"
             />
           </ConfigPageRow>
           <ConfigPageRow
@@ -533,6 +539,7 @@ function LoggingSection() {
               <Input
                 className="bitfun-logging-config__path-box"
                 aria-label={t('logging.sections.path')}
+                data-testid="logging-log-path-input"
                 title={runtimeInfo?.sessionLogDir || undefined}
                 value={runtimeInfo?.sessionLogDir || '-'}
                 readOnly
@@ -543,6 +550,7 @@ function LoggingSection() {
                   aria-label={t('logging.actions.openFolderTooltip')}
                   variant="quiet"
                   size="sm"
+                  data-testid="logging-open-folder-btn"
                   onClick={handleOpenFolder}
                   loading={openingFolder}
                   disabled={openingFolder || !runtimeInfo?.sessionLogDir}
@@ -717,6 +725,8 @@ function TerminalSection() {
                 options={shellOptions}
                 placeholder={t('terminal.controls.placeholder')}
                 disabled={saving}
+                triggerTestId="settings-default-terminal-select"
+                panelTestId="settings-default-terminal-select-menu"
               />
             ) : (
               <div className="bitfun-terminal-config__no-shells">{t('terminal.controls.noShells')}</div>
@@ -745,9 +755,9 @@ function WindowBehaviorSetting() {
 
   const behaviorOptions = useMemo(
     () => [
-      { value: 'quit', label: t('windowBehavior.options.quit') },
-      { value: 'minimize_to_tray', label: t('windowBehavior.options.minimizeToTray') },
-      { value: 'ask', label: t('windowBehavior.options.ask') },
+      { value: 'quit', label: t('windowBehavior.options.quit'), testId: 'settings-window-close-option-quit' },
+      { value: 'minimize_to_tray', label: t('windowBehavior.options.minimizeToTray'), testId: 'settings-window-close-option-minimize-to-tray' },
+      { value: 'ask', label: t('windowBehavior.options.ask'), testId: 'settings-window-close-option-ask' },
     ],
     [t]
   );
@@ -827,6 +837,8 @@ function WindowBehaviorSetting() {
             onValueChange={(v) => { void handleChange(v as string); }}
             options={behaviorOptions}
             disabled={saving}
+            triggerTestId="settings-window-close-behavior-select"
+            panelTestId="settings-window-close-behavior-select-menu"
           />
         </div>
       </ConfigPageRow>
@@ -934,6 +946,7 @@ function NotificationSettings() {
             checked={dialogNotify}
             onChange={(e) => { void handleDialogNotifyToggle(e.target.checked); }}
             disabled={saving}
+            data-testid="settings-notify-dialog-switch"
           />
         </div>
       </ConfigPageRow>
@@ -946,6 +959,7 @@ function NotificationSettings() {
           checked={permissionRequestNotify}
           onChange={(e) => { void handlePermissionRequestNotifyToggle(e.target.checked); }}
           disabled={saving}
+          data-testid="settings-notify-permission-switch"
         />
       </ConfigPageRow>
       <ConfigPageRow
@@ -957,6 +971,7 @@ function NotificationSettings() {
           checked={startupTips}
           onChange={(e) => { void handleStartupTipsToggle(e.target.checked); }}
           disabled={saving}
+          data-testid="settings-startup-tips-switch"
         />
       </ConfigPageRow>
     </>

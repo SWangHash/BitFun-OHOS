@@ -435,6 +435,7 @@ const MiniAppGalleryView: React.FC<MiniAppGalleryViewProps> = ({ tabs }) => {
           <>
             <SearchField
               leadingIcon={<Icon name="search" size="lg" aria-hidden />}
+              data-testid="miniapp-gallery-search-input"
               onValueChange={setSearch}
               placeholder={t('searchPlaceholder')}
               size="sm"

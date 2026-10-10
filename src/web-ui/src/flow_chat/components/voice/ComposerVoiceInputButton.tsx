@@ -39,6 +39,7 @@ export function ComposerVoiceInputButton({ controller }: ComposerVoiceInputProps
               aria-label={controller.tooltip}
               className="bitfun-chat-input__voice-control"
               size="sm"
+              data-testid="chat-input-voice-control"
               disabled={controller.disabled}
               onClick={(event) => {
                 event.stopPropagation();
@@ -97,6 +98,7 @@ export function ComposerVoiceInputButton({ controller }: ComposerVoiceInputProps
               className="bitfun-chat-input__voice-setup-action"
               variant="primary"
               size="sm"
+              data-testid="chat-input-voice-setup-action"
               onClick={(event) => {
                 event.stopPropagation();
                 controller.installAndStart();

@@ -2964,6 +2964,8 @@ const ModelSettingsPage: React.FC = () => {
                       <MultiSelect
                         aria-required="true"
                         data-testid="settings-model-select"
+                        triggerTestId="settings-model-select-btn"
+                        panelTestId="settings-model-select-menu"
                         invalid={showModelValidation && missingModelFields.model}
                         value={selectedModelValues}
                         onValueChange={(value) => {
@@ -3638,6 +3640,7 @@ const ModelSettingsPage: React.FC = () => {
                 size="sm"
                 onClick={refreshSubscriptionAccounts}
                 aria-label={t('subscriptionAuth.rescan')}
+                data-testid="subscription-rescan-btn"
                 disabled={isLoadingSubscriptions}
                 icon={<Icon name="refresh" size="md" className={isLoadingSubscriptions ? 'bitfun-model-settings__spin' : ''} />}
               />
@@ -3740,6 +3743,7 @@ const ModelSettingsPage: React.FC = () => {
                           variant="primary"
                           loading={isLoggingIn}
                           disabled={anyLoginInProgress}
+                          data-testid={`subscription-login-btn-${account.provider}`}
                           onClick={() => void handleSubscriptionLogin(account.provider)}
                         >
                           {t(loginPanel?.status === 'failed'
@@ -3839,6 +3843,7 @@ const ModelSettingsPage: React.FC = () => {
               <IconButton
                 aria-label={t('actions.addProvider')}
                 size="sm"
+                data-testid="ai-model-add-provider-btn"
                 onClick={handleCreateNew}
                 icon={<Icon name="plus" size="md" />}
               />
@@ -3891,6 +3896,7 @@ const ModelSettingsPage: React.FC = () => {
                         className="bitfun-model-settings__provider-group-toggle"
                         aria-expanded={isExpanded}
                         aria-label={`${tComponents(isExpanded ? 'tooltip.collapse' : 'tooltip.expand')} ${group.providerName}`}
+                        data-testid={`model-provider-group-toggle-${group.key}`}
                         onClick={() => toggleProviderGroup(group.key)}
                       >
                         <Icon
@@ -3912,6 +3918,7 @@ const ModelSettingsPage: React.FC = () => {
                           <IconButton
                             aria-label={t('actions.edit')}
                             size="sm"
+                            data-testid={`model-provider-edit-btn-${group.key}`}
                             onClick={() => handleEditProvider(group.models[0])}
                             icon={<Icon name="edit" size="sm" />}
                           />
@@ -3921,6 +3928,7 @@ const ModelSettingsPage: React.FC = () => {
                             aria-label={`${t('actions.deleteProvider')}: ${group.providerName}`}
                             tone="danger"
                             size="sm"
+                            data-testid={`model-provider-delete-btn-${group.key}`}
                             onClick={() => void requestProviderDelete(group)}
                             icon={<Icon name="delete" size="sm" />}
                           />
@@ -3949,6 +3957,7 @@ const ModelSettingsPage: React.FC = () => {
                 <IconButton
                   aria-label={t('modelsDevCatalog.viewDetails')}
                   size="sm"
+                  data-testid="models-dev-catalog-view-details-btn"
                   onClick={() => setShowModelsDevDetails(true)}
                   icon={<Icon name="eye" size="sm" aria-hidden="true" />}
                 />
@@ -3961,6 +3970,7 @@ const ModelSettingsPage: React.FC = () => {
                     ? 'modelsDevCatalog.refreshing'
                     : 'modelsDevCatalog.refreshNow')}
                   size="sm"
+                  data-testid="models-dev-catalog-refresh-now-btn"
                   onClick={() => void handleRefreshModelsDev()}
                   disabled={isRefreshingModelsDev}
                   icon={<Icon name="refresh" size="sm" className={isRefreshingModelsDev ? 'bitfun-model-settings__spin' : ''} />}
@@ -3985,6 +3995,7 @@ const ModelSettingsPage: React.FC = () => {
               onChange={(e) => setStreamTtftTimeoutInput(e.target.value)}
               placeholder={t('streamTtftTimeout.placeholder')}
               size="sm"
+              data-testid="model-ttft-timeout-input"
             />
           </ConfigPageRow>
           <ConfigPageRow
@@ -3996,6 +4007,7 @@ const ModelSettingsPage: React.FC = () => {
               onChange={(e) => setStreamIdleTimeoutInput(e.target.value)}
               placeholder={t('streamIdleTimeout.placeholder')}
               size="sm"
+              data-testid="model-stream-idle-timeout-input"
             />
           </ConfigPageRow>
           <ConfigActionBar

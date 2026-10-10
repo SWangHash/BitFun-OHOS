@@ -423,6 +423,7 @@ export function AppearancePackageConfigSection() {
             size="sm"
             disabled={busy}
             onClick={() => setMarketOpen(true)}
+            data-testid="appearance-market-open-btn"
           >
             {t('package.market.open')}
           </Button>
@@ -431,6 +432,7 @@ export function AppearancePackageConfigSection() {
             size="sm"
             disabled={busy}
             onClick={() => inputRef.current?.click()}
+            data-testid="appearance-import-btn"
           >
             {t('package.import')}
           </Button>
@@ -494,6 +496,8 @@ export function AppearancePackageConfigSection() {
               disabled={busy}
               aria-label={t('package.builtinTheme')}
               data-testid="appearance-builtin-theme-select"
+              triggerTestId="appearance-builtin-theme-select-trigger"
+              panelTestId="appearance-builtin-theme-select-menu"
             />
           </span>
         </AppearancePackagePreview>

@@ -590,6 +590,7 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
           size="sm"
           variant="primary"
           className="asv__new-job"
+          data-testid="asv-new-job-btn"
           onClick={handleCreateNew}
           disabled={assistantWorkspaceMode ? !workspaceRef : targetKind === 'session' ? !canSave : !workspaceRef}
         >

@@ -188,6 +188,7 @@ export function AccountIdentityControls({
             className="market-account-controls__identity-trigger"
             data-bitfun-component="market-account-controls"
             data-bitfun-part="identityTrigger"
+            data-testid="market-account-menu-btn"
             aria-haspopup="menu"
             aria-expanded={menuOpen}
             aria-label={t('market.account.menuLabel', { login: account.me.email ?? account.me.user.login })}
@@ -204,6 +205,7 @@ export function AccountIdentityControls({
               ref={menuPanelRef}
               className="market-account-controls__menu"
               aria-label={t('market.account.menuLabel', { login: account.me.email ?? account.me.user.login })}
+              data-testid="market-account-menu"
               style={{
                 top: `${menuPosition?.top ?? 0}px`,
                 left: `${menuPosition?.left ?? 0}px`,
@@ -225,6 +227,7 @@ export function AccountIdentityControls({
               </div>
               <MenuItem
                 leading={<LogOut size={14} aria-hidden="true" />}
+                data-testid="market-account-sign-out"
                 onClick={() => void signOut()}
               >
                 {t('market.signOut')}
@@ -237,6 +240,7 @@ export function AccountIdentityControls({
         <Button
           size="sm"
           variant="outline"
+          data-testid="market-github-login-btn"
           disabled={!account.resolved}
           onClick={() => setLoginOpen(true)}
         >

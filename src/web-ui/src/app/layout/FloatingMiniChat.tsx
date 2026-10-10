@@ -569,6 +569,7 @@ export const FloatingMiniChat: React.FC = () => {
           data-bitfun-component="floating-mini-chat"
           data-bitfun-part="trigger"
           type="button"
+          data-testid="fmc-trigger-btn"
           className={[
             'bitfun-fmc__button',
             'bitfun-fmc__button--miniapp',
@@ -601,6 +602,7 @@ export const FloatingMiniChat: React.FC = () => {
         <LauncherButton
           aria-expanded={isOpen}
           aria-label={t('toolCards.toolbar.startNewChat')}
+          data-testid="fmc-trigger-btn"
           className="bitfun-fmc__button bitfun-fmc__button--hello"
           onClick={handleOpen}
           onPointerDown={handleTriggerPointerDown}

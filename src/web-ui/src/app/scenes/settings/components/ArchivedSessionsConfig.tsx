@@ -455,6 +455,7 @@ const ArchivedSessionsConfig: React.FC = () => {
     <div data-bitfun-component="archived-sessions-config" data-bitfun-part="headerActions" className="archived-sessions-config__header-actions">
       <ConfigRefreshButton
         tooltip={t('actions.refresh')}
+        testId="archived-sessions-refresh-btn"
         onClick={() => { void loadArchived(true); }}
         disabled={loading || refreshing || pendingAction !== null || bulkDeleting}
         loading={refreshing}

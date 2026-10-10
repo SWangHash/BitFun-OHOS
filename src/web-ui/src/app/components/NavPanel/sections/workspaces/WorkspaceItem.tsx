@@ -924,7 +924,11 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
                 >
                   {t('nav.workspaces.actions.newSession')}
                 </MenuItem>
-                <MenuItem leading={<Icon name="clock" size="xs" />} onClick={handleOpenScheduledJobs}>
+                <MenuItem
+                  leading={<Icon name="clock" size="xs" />}
+                  onClick={handleOpenScheduledJobs}
+                  data-testid="nav-workspace-menu-scheduled-jobs"
+                >
                   {t('nav.scheduledJobs.open')}
                 </MenuItem>
                 <MenuItem

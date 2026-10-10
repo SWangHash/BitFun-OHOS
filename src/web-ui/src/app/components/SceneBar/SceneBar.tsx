@@ -192,6 +192,7 @@ const SceneBar: React.FC<SceneBarProps> = ({
     items.push({
       value: tab.id,
       label: displayLabel,
+      tabProps: { 'data-testid': `scene-tab-${tab.id}` },
       labelSuffix: sessionLabel?.number || tab.pinned || (tab.contentId && (resources[tab.contentId]?.isDirty || resources[tab.contentId]?.fileMissing)) ? <>
         {sessionLabel?.number && <SessionTitleNumber number={sessionLabel.number} />}
         {tab.pinned && <Pin size={12} aria-label={tComponents('tabs.unpin')} />}
@@ -206,6 +207,7 @@ const SceneBar: React.FC<SceneBarProps> = ({
           type="button"
           aria-label={closeLabel}
           title={closeLabel}
+          data-testid={`scene-tab-close-${tab.id}`}
           data-motion="none"
           data-scene-bar-part="closeTab"
           data-scene-id={tab.id}

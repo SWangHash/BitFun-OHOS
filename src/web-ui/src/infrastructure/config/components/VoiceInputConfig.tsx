@@ -401,6 +401,7 @@ const VoiceInputConfig: React.FC = () => {
             <Switch
               checked={voiceInput.enabled}
               disabled={voiceInputSaving || (modelsLoadFailed && !voiceInput.enabled)}
+              data-testid="voice-input-enabled-switch"
               onChange={(event) => void updateVoiceInput({ enabled: event.target.checked })}
             />
           </ConfigPageRow>
@@ -477,6 +478,7 @@ const VoiceInputConfig: React.FC = () => {
                         <Button
                           variant="primary"
                           size="sm"
+                          data-testid="voice-use-local-btn"
                           onClick={() => void handleUseLocal()}
                           disabled={voiceInputSaving}
                         >
@@ -487,6 +489,7 @@ const VoiceInputConfig: React.FC = () => {
                         <Button
                           variant="fill"
                           size="sm"
+                          data-testid="voice-cancel-download-btn"
                           onClick={() => void handleCancelDownload(selectedModel)}
                           loading={busyAction === `cancel:${selectedModel.modelId}`}
                         >
@@ -496,6 +499,7 @@ const VoiceInputConfig: React.FC = () => {
                       <Button
                         variant={status === 'setup' ? 'primary' : 'outline'}
                         size="sm"
+                        data-testid="voice-download-model-btn"
                         onClick={() => setLocalModelsOpen(true)}
                       >
                         {t(statusActionKey(status))}
@@ -533,6 +537,7 @@ const VoiceInputConfig: React.FC = () => {
                       options={languageOptions}
                       size="sm"
                       disabled={voiceInputSaving}
+                      triggerTestId="voice-input-language-select"
                     />
                   </ConfigPageRow>
 
@@ -570,6 +575,7 @@ const VoiceInputConfig: React.FC = () => {
             >
               <Switch
                 checked={voiceCallDraft.enabled}
+                data-testid="voice-call-enabled-switch"
                 onChange={(event) => updateVoiceCall({ enabled: event.target.checked })}
               />
             </ConfigPageRow>
@@ -584,6 +590,7 @@ const VoiceInputConfig: React.FC = () => {
                 autoComplete="off"
                 value={voiceCallDraft.apiKey}
                 placeholder={t('voiceCall.apiKey.placeholder')}
+                data-testid="voice-api-key-input"
                 onChange={(event) => updateVoiceCall({ apiKey: event.target.value })}
               />
             </ConfigPageRow>
@@ -595,6 +602,7 @@ const VoiceInputConfig: React.FC = () => {
               <Input
                 size="sm"
                 value={voiceCallDraft.voice}
+                data-testid="voice-call-voice-input"
                 onChange={(event) => updateVoiceCall({ voice: event.target.value })}
               />
             </ConfigPageRow>

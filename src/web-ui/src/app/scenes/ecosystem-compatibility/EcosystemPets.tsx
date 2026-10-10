@@ -97,6 +97,7 @@ export default function EcosystemPets({ supported, refreshVersion, open, onOpenC
         <StatusPill tone="neutral">{state === 'available' ? t('content.itemCount', { count: formatNumber(entries.length) }) : state === 'loading' ? t('loading') : t(`content.pets.states.${state}`)}</StatusPill>
         <IconButton size="sm" variant="quiet" icon={<Icon name="chevron-right" size="sm" />} aria-haspopup="dialog" aria-controls={id}
           aria-label={t('content.viewCategory', { type: t('capabilities.pet') })}
+          data-testid="ecosystem-pets-view-btn"
           onClick={() => onOpenChange(true)} />
       </span>
     </div>

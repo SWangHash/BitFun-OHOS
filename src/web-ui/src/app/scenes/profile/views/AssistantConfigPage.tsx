@@ -364,6 +364,7 @@ const AssistantConfigPage: React.FC = () => {
                     size="sm"
                     selected={selected}
                     aria-pressed={selected}
+                    data-testid={`persona-doc-${labelKey.toLowerCase()}`}
                     leading={<Icon glyph={FileText} size="sm" />}
                     description={fileName}
                     onClick={() => openPersonaDoc(fileName)}
@@ -515,6 +516,7 @@ const AssistantConfigPage: React.FC = () => {
                 size="sm"
                 data-bitfun-component="assistant-config-page"
                 data-bitfun-part="back"
+                data-testid="nursery-back-btn"
                 onClick={openGallery}
                 aria-label={t('nursery.backToGallery')}
                 icon={<Icon name="arrow-left" size="sm" />}
@@ -556,6 +558,7 @@ const AssistantConfigPage: React.FC = () => {
                   type="button"
                   data-overflow-trigger
                   className="acp-left-header__name"
+                  data-testid="assistant-config-name"
                   onClick={() => startEdit('name')}
                   title={t('hero.editNameTitle')}
                 >
@@ -579,6 +582,7 @@ const AssistantConfigPage: React.FC = () => {
                     type="button"
                     data-overflow-trigger
                     className={`acp-left-header__meta-tag${!displayIdentity.creature ? ' is-empty' : ''}`}
+                    data-testid="persona-meta-role-type"
                     onClick={() => startEdit('creature')}
                   >
                     <OverflowText>{displayIdentity.creature || t('identity.creaturePlaceholderShort')}</OverflowText>
@@ -603,6 +607,7 @@ const AssistantConfigPage: React.FC = () => {
                     type="button"
                     data-overflow-trigger
                     className={`acp-left-header__meta-tag${!displayIdentity.vibe ? ' is-empty' : ''}`}
+                    data-testid="persona-meta-style"
                     onClick={() => startEdit('vibe')}
                   >
                     <OverflowText>{displayIdentity.vibe || t('identity.vibePlaceholderShort')}</OverflowText>

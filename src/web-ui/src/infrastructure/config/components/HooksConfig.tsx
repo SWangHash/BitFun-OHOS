@@ -390,6 +390,7 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
               size="sm"
               loading={importLoading}
               disabled={busyKey !== null}
+              data-testid="hooks-refresh-btn"
               onClick={() => void refreshImports()}
               leadingIcon={<Icon name="refresh" size="sm" />}
             >
@@ -421,6 +422,7 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
                     aria-label={t('imports.toggle', { name: item.source.displayName })}
                     checked={item.enabled}
                     disabled={!config.enabled || busyKey !== null}
+                    data-testid={`hooks-import-enabled-switch-${item.importId}`}
                     onChange={(event) => void mutateImport(
                       { kind: 'set_enabled', importId: item.importId, enabled: event.target.checked },
                       item.importId,
@@ -431,6 +433,7 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
                     variant="outline"
                     size="sm"
                     disabled={busyKey !== null || item.state === 'source_missing'}
+                    data-testid={`hooks-import-update-${item.importId}`}
                     onClick={() => void previewImport(item.source)}
                   >
                     {t('imports.update')}
@@ -440,6 +443,7 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
                     tone="danger"
                     size="sm"
                     disabled={busyKey !== null}
+                    data-testid={`hooks-import-remove-${item.importId}`}
                     onClick={() => setConfirmation({ kind: 'remove', importId: item.importId })}
                   >
                     {t('imports.remove')}
@@ -495,7 +499,7 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
             label={t('compatibility.reference.label')}
             align="center"
           >
-            <Button variant="outline" size="sm" onClick={openCodexHooksDoc} leadingIcon={<Icon name="arrow-up-right" size="sm" />}>
+            <Button variant="outline" size="sm" data-testid="hooks-codex-doc-open-btn" onClick={openCodexHooksDoc} leadingIcon={<Icon name="arrow-up-right" size="sm" />}>
 
               {t('compatibility.reference.open')}
             </Button>

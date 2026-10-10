@@ -825,6 +825,7 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
                 activeReviewMode && 'session-files-badge__review-btn--running',
               ].filter(Boolean).join(' ')}
               size="xs"
+              data-testid="session-files-badge-actions-btn"
               icon={<Icon name="commit" size="sm" className="session-files-badge__review-main-icon" />}
               loading={Boolean(activeReviewMode)}
               onClick={(event) => {
@@ -850,6 +851,7 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
             className="session-files-badge__review-menu-popover"
             data-bitfun-component="session-files-badge"
             data-bitfun-part="reviewPopover"
+            data-testid="session-files-badge-actions-menu"
             data-bitfun-placement={reviewPopoverLayout?.placement ?? 'bottom'}
             style={{
               top: `${reviewPopoverLayout?.top ?? 0}px`,
@@ -876,6 +878,7 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
               return (
                 <MenuItem data-bitfun-component="session-files-badge" data-bitfun-part="reviewItem"
                   key={action.id}
+                  data-testid={`session-files-action-${action.id}`}
                   onClick={() => { void handleQuickActionClick(action); }}
                   type="button"
                   disabled={isSessionProcessing}

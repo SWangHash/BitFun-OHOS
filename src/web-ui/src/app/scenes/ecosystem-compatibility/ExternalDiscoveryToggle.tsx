@@ -80,6 +80,7 @@ export default function ExternalDiscoveryToggle({ snapshot, onSnapshotChange, co
             aria-labelledby={labelId}
             aria-describedby={error ? `${descriptionId} ${errorId}` : descriptionId}
             aria-busy={busy}
+            data-testid="ecosystem-discovery-switch"
             onChange={(event) => void change(event.target.checked)}
           />
         </label>

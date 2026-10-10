@@ -39,6 +39,8 @@ export interface LocalizedDateTimeFieldProps {
   error?: boolean;
   disabled?: boolean;
   className?: string;
+  /** Base data-testid: input gets `${testId}`, calendar button gets `${testId}-picker-btn`. */
+  testId?: string;
   'aria-label'?: string;
 }
 
@@ -48,6 +50,7 @@ const LocalizedDateTimeField: React.FC<LocalizedDateTimeFieldProps> = ({
   error = false,
   disabled = false,
   className,
+  testId,
   'aria-label': ariaLabel,
 }) => {
   const { t, currentLanguage } = useI18n('common');
@@ -132,6 +135,7 @@ const LocalizedDateTimeField: React.FC<LocalizedDateTimeFieldProps> = ({
         placeholder={dateTimeFormatHint(order)}
         aria-label={ariaLabel ?? t('dateTimeField.label')}
         className="bitfun-datetime-field__input"
+        data-testid={testId}
         onFocus={() => { editingRef.current = true; }}
         onChange={event => commitText(event.currentTarget.value)}
         onBlur={handleBlur}
@@ -146,6 +150,7 @@ const LocalizedDateTimeField: React.FC<LocalizedDateTimeFieldProps> = ({
           aria-label={t('dateTimeField.openPicker')}
           aria-expanded={pickerOpen}
           icon={<CalendarDays />}
+          data-testid={testId ? `${testId}-picker-btn` : undefined}
           onClick={() => setPickerOpen(open => !open)}
         />
       </Tooltip>

@@ -227,12 +227,14 @@ const ActionRow: React.FC<ActionRowProps> = ({ action, onToggle, onEdit, onDelet
           checked={action.enabled}
           onChange={() => onToggle(action.id)}
           disabled={disabled}
+          data-testid={`quick-action-enabled-switch-${action.id}`}
         />
         <Tooltip content={t('edit.button')}>
           <IconButton
             type="button"
             size="sm"
             aria-label={t('edit.button')}
+            data-testid={`quick-action-edit-${action.id}`}
             onClick={() => onEdit(action)}
             disabled={disabled}
             icon={<Icon name="edit" size="xs" />}
@@ -244,6 +246,7 @@ const ActionRow: React.FC<ActionRowProps> = ({ action, onToggle, onEdit, onDelet
               type="button"
               size="sm"
               aria-label={t('delete.button')}
+              data-testid={`quick-action-delete-${action.id}`}
               onClick={() => onDelete(action.id)}
               disabled={disabled}
               className="quick-actions-config__delete-btn"
@@ -405,6 +408,7 @@ const QuickActionsConfig: React.FC = () => {
             <Button
               size="sm"
               variant="outline"
+              data-testid="quick-actions-add-btn"
               onClick={() => setModalTarget(null)}
               disabled={saving}
               leadingIcon={<Icon name="plus" size="sm" />}
@@ -422,6 +426,7 @@ const QuickActionsConfig: React.FC = () => {
                 <Button
                   size="sm"
                   variant="outline"
+                  data-testid="quick-actions-add-empty-btn"
                   onClick={() => setModalTarget(null)}
                   disabled={saving}
                   leadingIcon={<Icon name="plus" size="sm" />}

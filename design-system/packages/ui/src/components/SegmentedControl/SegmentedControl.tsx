@@ -14,6 +14,8 @@ export interface SegmentedControlOption {
   disabled?: boolean;
   icon?: ReactNode;
   label: ReactNode;
+  /** data-testid for the segment button. */
+  testId?: string;
   value: string;
 }
 
@@ -153,6 +155,7 @@ export const SegmentedControl = forwardRef<HTMLDivElement, SegmentedControlProps
               className={styles.segment}
               data-bitfun-part="segment"
               data-bitfun-value={option.value}
+              data-testid={option.testId}
               disabled={disabled || option.disabled}
               key={option.value}
               onClick={() => selectOption(option)}

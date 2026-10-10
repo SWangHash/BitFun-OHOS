@@ -348,6 +348,7 @@ const MemorySettingsPage: React.FC = () => {
               checked={memoryEnabled}
               onChange={(event) => void updateMemoryEnabled(event.target.checked)}
               disabled={savingKey === 'generate_memories' || savingKey === 'use_memories'}
+              data-testid="memories-enabled-switch"
             />
           </ConfigPageRow>
 
@@ -360,6 +361,7 @@ const MemorySettingsPage: React.FC = () => {
               checked={config.generate_for_btw_sessions}
               onChange={(event) => void updateConfig('generate_for_btw_sessions', event.target.checked)}
               disabled={savingKey === 'generate_for_btw_sessions' || memoryWorkDisabled}
+              data-testid="memories-btw-generate-switch"
             />
           </ConfigPageRow>
 
@@ -379,6 +381,8 @@ const MemorySettingsPage: React.FC = () => {
               options={externalContextPolicyOptions}
               size="sm"
               disabled={savingKey === 'external_context_policy' || memoryWorkDisabled}
+              triggerTestId="memories-external-context-policy-select"
+              panelTestId="memories-external-context-policy-select-menu"
             />
           </ConfigPageRow>
 
@@ -394,6 +398,7 @@ const MemorySettingsPage: React.FC = () => {
                 variant="outline"
                 size="sm"
                 trailingIcon={<Icon name="chevron-down" size="sm" />}
+                data-testid="memories-action-menu-btn"
                 onClick={() => setActionMenuOpen((open) => !open)}
                 loading={actionBusy !== null}
                 disabled={actionBusy !== null}
@@ -410,6 +415,7 @@ const MemorySettingsPage: React.FC = () => {
                 anchorRef={actionMenuAnchorRef}
                 placement="bottom"
                 aria-label={t('fields.memoryActions.label')}
+                data-testid="memories-action-menu"
               />
             </>
           </ConfigPageRow>
@@ -427,6 +433,8 @@ const MemorySettingsPage: React.FC = () => {
               options={buildModelOptions(t('models.followPrimary'), config.extract_model ?? null)}
               size="sm"
               disabled={savingKey === 'extract_model' || memoryWorkDisabled}
+              triggerTestId="memories-extract-model-select"
+              panelTestId="memories-extract-model-select-menu"
             />
           </ConfigPageRow>
           <ConfigPageRow
@@ -440,6 +448,8 @@ const MemorySettingsPage: React.FC = () => {
               options={buildModelOptions(t('models.followExtraction'), config.consolidation_model ?? null)}
               size="sm"
               disabled={savingKey === 'consolidation_model' || memoryWorkDisabled}
+              triggerTestId="memories-consolidation-model-select"
+              panelTestId="memories-consolidation-model-select-menu"
             />
           </ConfigPageRow>
         </ConfigPageSection>
@@ -456,6 +466,7 @@ const MemorySettingsPage: React.FC = () => {
                 type="button"
                 variant="quiet"
                 size="sm"
+                data-testid="memories-advanced-toggle-btn"
                 onClick={() => setAdvancedOpen((open) => !open)}
                 aria-label={t(advancedOpen ? 'actions.collapseAdvanced' : 'actions.expandAdvanced')}
                 aria-expanded={advancedOpen}
@@ -496,6 +507,7 @@ const MemorySettingsPage: React.FC = () => {
                   step={1}
                   unit={t('units.days')}
                   size="sm"
+                  testId="memories-max-rollout-age-days-input"
                   disabled={savingKey === 'max_rollout_age_days' || memoryWorkDisabled}
                 />
               </ConfigPageRow>
@@ -576,6 +588,7 @@ const MemorySettingsPage: React.FC = () => {
                   step={1}
                   unit={t('units.days')}
                   size="sm"
+                  testId="memories-max-unused-days-input"
                   disabled={savingKey === 'max_unused_days' || memoryWorkDisabled}
                 />
               </ConfigPageRow>

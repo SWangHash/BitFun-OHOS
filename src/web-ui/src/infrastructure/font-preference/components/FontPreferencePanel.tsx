@@ -87,6 +87,7 @@ export function FontPreferencePanel() {
           <Select
             aria-label={t('appearance.fontSize.uiSizeLabel')}
             data-testid="appearance-ui-font-level-group"
+            triggerTestId="appearance-ui-font-level-select"
             options={levelOptions}
             size="sm"
             value={level}

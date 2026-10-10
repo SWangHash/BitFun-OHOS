@@ -348,6 +348,7 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
             aria-selected={activeSection === section}
             className={`skills-matrix__section-btn ${activeSection === section ? 'is-active' : ''}`}
             onClick={() => onSelectSection(section)}
+            data-testid={`matrix-section-btn-${section}`}
             data-bitfun-scene="skills"
             data-bitfun-part="matrixSectionBtn"
           >
