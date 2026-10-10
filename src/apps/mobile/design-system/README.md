@@ -95,7 +95,7 @@ decorative wordmark scales with its 280-unit stage, rather than Dynamic Type;
 normal app text continues to respect accessibility sizing.
 
 The cyan dot hops with the letter reveals, returns to the dotless i, then the
-shared contour mark expands above the word. Cold-launch presentation is
+shared brand mark expands above the word. Cold-launch presentation is
 independent of account and network readiness. Backgrounding removes it without
 replay, and system reduced-motion skips it. Notification onboarding waits until
 the overlay finishes. Design-preview launches bypass the startup overlay.
@@ -135,13 +135,13 @@ HarmonyOS can render the isolated surface with the existing design-preview
 launch parameter `bitfunDesignPreview=welcome-home`, without logging out an
 active account or loading its connection state.
 
-The welcome and startup marks share the desktop AboutBrandMark contour geometry:
-15 rounded hexagonal paths with three low-opacity highlights traveling around
-each contour over 18 seconds. `assets/welcome-brand-contours.json` records the
-256-unit paths and lengths; native renderers own their drawing and lifecycle.
+The welcome and startup marks share the desktop AboutBrandMark geometry: one
+filled diagonal silhouette with three low-opacity highlights traveling along its
+outline over 18 seconds. `assets/welcome-brand-contours.json` records the
+256-unit path and length; native renderers own their drawing and lifecycle.
 The startup keeps its existing entrance choreography; the welcome mark stays
 in place while the highlights and short phrases loop. Reduced motion keeps the
-contours static. No microphone or voice-service dependency is introduced.
+mark static. No microphone or voice-service dependency is introduced.
 
 ### Recent-conversation home
 
@@ -153,7 +153,7 @@ stays in the workspace-owned sidebar action. Signed-in users without a remote
 target see the same home with a connection entry, while signed-out users retain
 the welcome page. Loading and offline states never erase retained sessions.
 The mark uses a five-second diagonal highlight sweep; reduced motion uses a
-static contour. Native hosts retain their own lifecycle and adaptive layout.
+static mark. Native hosts retain their own lifecycle and adaptive layout.
 
 The recent-home brand and headline are centered above the leading-aligned session list. The mark retains its original silhouette and uses the same diagonal sweep across native surfaces. HarmonyOS uses a 156vp mark and 21fp headline for its optical balance; other hosts use the shared geometry.
 

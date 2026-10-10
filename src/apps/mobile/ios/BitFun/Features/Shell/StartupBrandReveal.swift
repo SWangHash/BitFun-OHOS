@@ -115,57 +115,78 @@ struct StartupBrandReveal: View {
 }
 
 
-/// Same fixed contour ribbon as desktop AboutBrandMark, with slow highlights.
+/// Same fixed diagonal mark as the desktop AboutBrandMark, with slow highlights.
 struct WelcomeBrandFlowView: View {
     var sweep = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
-    private static let contours: [(Path, CGFloat)] = (0..<15).map { index in
-        let progress = CGFloat(index) / 14
-        let radius = 79 + 23 * progress
-        let angle = (-60 - 30 * progress) * .pi / 180
-        let vertices = (0..<6).map { vertex in
-            CGPoint(x: 128 + radius * cos(angle + CGFloat(vertex) * .pi / 3),
-                    y: 128 + radius * sin(angle + CGFloat(vertex) * .pi / 3))
-        }
+
+    /// The shared 256-unit geometry, recorded for native renderers in
+    /// `design-system/assets/welcome-brand-contours.json`.
+    private static let markLength: CGFloat = 1261.949
+    private static let mark: Path = {
+        let subpaths: [[CGFloat]] = [
+            [
+                66.56, 16, 67.84, 16, 67.84, 32.64, 70.4, 48, 74.24, 59.52, 82.56, 74.24, 96, 88.96, 131.2,
+                115.84, 147.84, 131.84, 152.96, 138.88, 158.72, 152.32, 158.72, 168.96, 151.68, 183.04,
+                137.6, 195.2, 122.88, 201.6, 113.92, 203.52, 101.76, 202.88, 108.8, 201.6, 120.96, 195.84,
+                130.56, 187.52, 134.4, 181.76, 136.96, 174.72, 137.6, 165.76, 132.48, 151.04, 122.24, 138.88,
+                88.32, 112, 71.04, 96, 58.88, 80.64, 51.84, 64, 50.56, 44.16, 52.48, 35.84, 58.88, 23.68
+            ],
+            [
+                52.48, 82.56, 58.24, 95.36, 65.28, 104.96, 80, 119.04, 113.28, 143.36, 126.72, 157.44,
+                130.56, 166.4, 130.56, 176, 126.72, 184.96, 119.04, 192.64, 112.64, 195.2, 117.12, 188.16,
+                117.12, 179.2, 111.36, 168.32, 103.04, 161.28, 71.68, 141.44, 56.32, 124.8, 51.2, 114.56,
+                48.64, 103.04, 49.28, 91.52
+            ],
+            [
+                199.68, 116.48, 206.72, 117.12, 212.48, 120.32, 223.36, 120.96, 232.96, 124.8, 211.84,
+                123.52, 200.96, 126.72, 191.36, 132.48, 172.8, 163.2, 158.08, 178.56, 162.56, 169.6, 163.2,
+                161.28, 172.16, 150.4, 184.96, 126.08, 191.36, 119.04
+            ],
+            [
+                111.36, 179.2, 112.64, 179.2, 113.28, 182.4, 112.64, 188.16, 106.24, 197.12, 93.44, 202.88,
+                58.24, 211.2, 39.68, 218.88, 26.24, 229.76, 19.84, 240.64, 24.32, 223.36, 30.72, 211.84,
+                35.2, 207.36, 42.88, 202.88, 54.4, 199.04, 97.28, 190.72, 106.24, 186.24
+            ],
+        ]
         var path = Path()
-        for i in 0..<6 {
-            let vertex = vertices[i], previous = vertices[(i+5)%6], next = vertices[(i+1)%6]
-            let entry = CGPoint(x: vertex.x+(previous.x-vertex.x)*0.16,y: vertex.y+(previous.y-vertex.y)*0.16)
-            let exit = CGPoint(x: vertex.x+(next.x-vertex.x)*0.16,y: vertex.y+(next.y-vertex.y)*0.16)
-            if i == 0 { path.move(to: entry) } else { path.addLine(to: entry) }
-            path.addQuadCurve(to: exit, control: vertex)
+        for flat in subpaths {
+            path.move(to: CGPoint(x: flat[0], y: flat[1]))
+            for index in stride(from: 2, to: flat.count, by: 2) {
+                path.addLine(to: CGPoint(x: flat[index], y: flat[index + 1]))
+            }
+            path.closeSubpath()
         }
-        path.closeSubpath()
-        return (path,radius*5.83080081501503)
-    }
+        return path
+    }()
+
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0/30, paused: reduceMotion || scenePhase != .active)) { timeline in
             let phase = timeline.date.timeIntervalSince1970.truncatingRemainder(dividingBy: 18)/18
             Canvas { context,size in
                 context.scaleBy(x: size.width/256,y: size.height/256)
-                for (index,contour) in Self.contours.enumerated() {
-                    if sweep {
-                        let progress = timeline.date.timeIntervalSince1970.truncatingRemainder(dividingBy: 5)/5
-                        let shift = reduceMotion ? 0 : (min(1, progress/0.75)*2-1)*256
-                        let stops: [Gradient.Stop] = [
-                            .init(color: BitFunTheme.ink.opacity(0.16), location: 0),
-                            .init(color: BitFunTheme.ink.opacity(0.25), location: 0.46),
-                            .init(color: BitFunTheme.ink, location: 0.55),
-                            .init(color: BitFunTheme.ink.opacity(0.25), location: 0.65),
-                            .init(color: BitFunTheme.ink.opacity(0.16), location: 1)
-                        ]
-                        context.stroke(contour.0, with: .linearGradient(Gradient(stops: stops),
-                            startPoint: CGPoint(x: shift, y: shift), endPoint: CGPoint(x: shift+256, y: shift+256)), lineWidth: 1.45)
-                        continue
-                    }
-                    context.stroke(contour.0,with: .color(BitFunTheme.ink.opacity(0.25)),lineWidth: 1)
-                    if !reduceMotion {
-                        for (layer,length) in [0.34,0.26,0.18].enumerated() {
-                            let total=contour.1
-                            context.stroke(contour.0,with: .color(BitFunTheme.ink.opacity([0.12,0.14,0.36][layer])),
-                                style: StrokeStyle(lineWidth: 1,dash: [total*length/2,total*(1-length),total*length/2,0],dashPhase: -total*(phase+Double(index)*0.03)))
-                        }
+                let ink = BitFunTheme.ink
+                if sweep {
+                    let progress = timeline.date.timeIntervalSince1970.truncatingRemainder(dividingBy: 5)/5
+                    let shift = reduceMotion ? 0 : (min(1, progress/0.75)*2-1)*256
+                    let stops: [Gradient.Stop] = [
+                        .init(color: ink.opacity(0.16), location: 0),
+                        .init(color: ink.opacity(0.25), location: 0.46),
+                        .init(color: ink, location: 0.55),
+                        .init(color: ink.opacity(0.25), location: 0.65),
+                        .init(color: ink.opacity(0.16), location: 1)
+                    ]
+                    context.fill(Self.mark, with: .linearGradient(Gradient(stops: stops),
+                        startPoint: CGPoint(x: shift, y: shift), endPoint: CGPoint(x: shift+256, y: shift+256)))
+                    return
+                }
+                context.fill(Self.mark,with: .color(ink.opacity(0.25)))
+                if !reduceMotion {
+                    for (layer,length) in [0.34,0.26,0.18].enumerated() {
+                        let total=Self.markLength
+                        context.stroke(Self.mark,with: .color(ink.opacity([0.12,0.14,0.36][layer])),
+                            style: StrokeStyle(lineWidth: 1,dash: [total*length/2,total*(1-length),total*length/2,0],dashPhase: -total*phase))
                     }
                 }
             }

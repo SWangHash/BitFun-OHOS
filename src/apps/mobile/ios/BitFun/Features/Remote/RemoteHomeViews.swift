@@ -160,7 +160,7 @@ struct RemoteConversationStatusBar: View {
     }
 }
 
-/// Signed-out home with a fixed contour mark and looping desktop phrases.
+/// Signed-out home with a fixed brand mark and looping desktop phrases.
 struct WelcomeHomeView: View {
     @ObservedObject var model: MobileAppModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

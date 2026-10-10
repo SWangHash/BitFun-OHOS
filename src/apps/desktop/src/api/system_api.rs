@@ -1014,7 +1014,7 @@ pub const TRAY_DESKTOP_PET_CHANGED_EVENT: &str = "tray://desktop-pet-changed";
 /// Whether the Agent companion pet is enabled, read from `app.ai_experience`.
 /// The HarmonyOS status-bar (system tray) icon's right-click menu uses this to
 /// render the checked state. Missing config resolves to the contract default
-/// (`enable_agent_companion: true`).
+/// (`enable_agent_companion: false`).
 #[cfg(target_env = "ohos")]
 #[napi]
 pub fn get_desktop_pet_enabled() -> bool {

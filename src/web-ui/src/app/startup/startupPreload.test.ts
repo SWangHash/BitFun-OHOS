@@ -52,13 +52,23 @@ describe('startup preload shell', () => {
     dom.window.close();
   });
 
-  it('uses injected startup locale text and mirrors native window-control state', async () => {
-    let isMaximized = true;
-    const invoke = vi.fn().mockImplementation((_command, payload) => {
-      const action = (payload as { request: { action: string } }).request.action;
-      if (action === 'toggle_maximize') isMaximized = !isMaximized;
-      return Promise.resolve({ isMaximized });
-    });
+  it('keeps the launch canvas black and light-toned regardless of the resolved scheme', () => {
+    const html = readIndexHtml();
+    const splashRule = html.match(/\.splash-screen \{(?<css>[\s\S]*?)\n      \}/)?.groups?.css;
+
+    expect(splashRule).toBeDefined();
+    expect(splashRule).toContain('background: #000000;');
+    expect(splashRule).not.toContain('var(--bitfun-color-surface-chrome)');
+    // The mark and the loading hint sit on the black canvas, so both resolve to
+    // the on-dark tone instead of a scheme-dependent surface token.
+    expect(html).toContain('background-color: var(--bitfun-color-content-on-dark);');
+    expect(html).toMatch(/\.splash-screen__message \{[\s\S]*?color: color-mix\(in srgb, var\(--bitfun-color-content-on-dark\) 72%, transparent\);/);
+    expect(html).not.toContain('background-color: var(--bitfun-color-content-on-light)');
+    expect(html).not.toContain('color: var(--bitfun-color-content-secondary)');
+    expect(html).not.toMatch(/\[data-color-scheme="dark"\][\s\S]{0,80}splash-screen__/);
+  });
+
+  it('leaves the window chrome to the app shell instead of the pre-React splash', async () => {
     const dom = new JSDOM(readIndexHtml(), {
       url: 'http://localhost:1422/',
       runScripts: 'dangerously',
@@ -66,8 +76,7 @@ describe('startup preload shell', () => {
         Object.defineProperty(window.navigator, 'platform', { value: 'Win32' });
         Object.assign(window, {
           __BITFUN_BOOTSTRAP_LOCALE__: 'zh-CN',
-          __BITFUN_SHOW_STARTUP_WINDOW_CONTROLS__: true,
-          __TAURI_INTERNALS__: { invoke },
+          __TAURI_INTERNALS__: { invoke: vi.fn() },
         });
       },
     });
@@ -78,54 +87,24 @@ describe('startup preload shell', () => {
     expect(dom.window.document.getElementById('bitfun-startup-overlay')).not.toBeNull();
     expect(hint?.textContent).toBe('正在启动 BitFun...');
 
-    const controls = dom.window.document.querySelector<HTMLElement>('[data-startup-window-controls]');
-    expect(controls?.hidden).toBe(false);
-    expect(controls?.classList.contains('window-controls')).toBe(true);
-    expect(controls?.classList.contains('window-controls--windows')).toBe(true);
-    expect(controls?.getAttribute('data-bitfun-component')).toBe('window-controls');
-    expect(dom.window.document.querySelector('.splash-screen')?.hasAttribute('aria-hidden')).toBe(false);
+    // Minimize/maximize/close stay off the launch canvas: the shell renders them
+    // together with the interface.
+    expect(dom.window.document.querySelector('[data-startup-window-controls]')).toBeNull();
+    expect(dom.window.document.querySelectorAll('.window-controls')).toHaveLength(0);
+    expect(dom.window.document.querySelector('[data-startup-window-action]')).toBeNull();
+    expect(dom.window.document.querySelector('.splash-screen__logo-wrap')).not.toBeNull();
     await Promise.resolve();
-
-    const minimizeButton = dom.window.document.querySelector<HTMLButtonElement>('[data-startup-window-action="minimize"]');
-    expect(minimizeButton?.className).toBe('window-controls__btn window-controls__btn--minimize');
-    expect(minimizeButton?.querySelector('.lucide-minus')).not.toBeNull();
-    expect(minimizeButton?.querySelectorAll('svg')).toHaveLength(1);
-
-    const maximizeButton = dom.window.document.querySelector<HTMLButtonElement>('[data-startup-window-action="toggle_maximize"]');
-    const visibleMaximizeGlyph = () => Array.from(maximizeButton?.querySelectorAll('svg') ?? [])
-      .find(glyph => glyph.style.display !== 'none')
-      ?.getAttribute('class');
-    expect(controls?.getAttribute('data-bitfun-state')).toBe('maximized');
-    expect(maximizeButton?.getAttribute('aria-label')).toBe('还原');
-    expect(visibleMaximizeGlyph()).toContain('lucide-copy');
 
     dom.window.document.documentElement.lang = 'zh-TW';
     await Promise.resolve();
     expect(hint?.textContent).toBe(readLoadingMessage('zh-TW'));
-    expect(maximizeButton?.getAttribute('aria-label')).toBe('還原');
-    dom.window.document.documentElement.lang = 'zh-CN';
-    await Promise.resolve();
-
-    maximizeButton?.click();
-    await Promise.resolve();
-    expect(controls?.hasAttribute('data-bitfun-state')).toBe(false);
-    expect(maximizeButton?.getAttribute('aria-label')).toBe('最大化');
-    expect(visibleMaximizeGlyph()).toContain('lucide-square');
-
-    const closeButton = dom.window.document.querySelector<HTMLButtonElement>('[data-startup-window-action="close"]');
-    expect(closeButton?.getAttribute('aria-label')).toBe('关闭');
-    closeButton?.click();
-
-    expect(invoke).toHaveBeenCalledWith('startup_window_control', {
-      request: { action: 'close' },
-    });
-    expect(invoke).toHaveBeenCalledWith('startup_window_control', {
-      request: { action: 'get_state' },
-    });
 
     const html = readIndexHtml();
+    expect(html).not.toContain('data-startup-window-controls');
+    expect(html).not.toContain('__BITFUN_SHOW_STARTUP_WINDOW_CONTROLS__');
+    expect(html).not.toContain('startup_window_control');
+    // The app shell still owns those styles through this stylesheet.
     expect(html).toContain('href="/src/app/components/WindowControls/WindowControls.scss"');
-    expect(html).toContain('.window-controls.bitfun-startup-window-controls');
     expect(html).not.toContain('bitfun-startup-window-controls__btn');
     expect(readWindowControlsSource()).not.toContain("import './WindowControls.scss'");
     dom.window.close();
@@ -150,6 +129,40 @@ describe('startup preload shell', () => {
     dom.window.document.documentElement.lang = 'en-US';
     await Promise.resolve();
     expect(hint?.textContent).toBe(readLoadingMessage('zh-CN'));
+    dom.window.close();
+  });
+
+  it('mirrors the OpenHarmony native start window on the webview host', () => {
+    const html = readIndexHtml();
+    // start_window_background is pinned to black in the OHOS resources (base and
+    // dark) and the launch mark is a single light silhouette, so the brand class
+    // only pins the mark size to the native start window: it must never override
+    // the shared launch canvas with a scheme-dependent tone.
+    expect(html).toContain("ohosSplash.classList.add('splash-screen--ohos-brand')");
+    expect(html).not.toMatch(/\.splash-screen--ohos-brand \{\s*background:/);
+    expect(html).toContain('--bitfun-ohos-start-icon-size');
+    // The overlay announces its own presentation so the OHOS shell releases the
+    // native splash mirror exactly on the takeover frame (no gap between them).
+    expect(html).toContain('bitfun-startup-overlay-presented');
+
+    const dom = new JSDOM(html, {
+      url: 'http://localhost:1422/',
+      runScripts: 'dangerously',
+      beforeParse(window) {
+        Object.defineProperty(window.navigator, 'userAgent', { value: 'Mozilla/5.0 (OpenHarmony)' });
+      },
+    });
+
+    expect(
+      dom.window.document.querySelector('.splash-screen')?.classList.contains('splash-screen--ohos-brand'),
+    ).toBe(true);
+    // The native start window draws the 240px mark without density scaling, so
+    // the overlay converts it to CSS px (jsdom dpr is 1, viewport is 1024x768).
+    expect(
+      dom.window.document.documentElement.style.getPropertyValue('--bitfun-ohos-start-icon-size'),
+    ).toBe('240px');
+    // No themed desktop loading hint on the OHOS brand splash.
+    expect(dom.window.document.querySelector('.splash-screen__message')?.textContent).toBe('');
     dom.window.close();
   });
 

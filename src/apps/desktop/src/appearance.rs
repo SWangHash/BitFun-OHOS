@@ -316,7 +316,6 @@ impl AppearanceConfig {
         let startup_locale = &bootstrap_config.locale;
         let startup_locale_json =
             serde_json::to_string(&startup_locale).unwrap_or_else(|_| "\"zh-CN\"".to_string());
-        let show_startup_window_controls = !cfg!(target_os = "macos");
         let native_sidebar_material = cfg!(any(target_os = "windows", target_os = "macos"));
         let startup_trace_id_json = serde_json::to_string(startup_trace_id)
             .unwrap_or_else(|_| "\"desktop-unknown\"".to_string());
@@ -352,7 +351,6 @@ impl AppearanceConfig {
                 window.__BITFUN_PERF_TRACE_ENABLED__ = {perf_trace_enabled};
                 window.__BITFUN_BOOTSTRAP_LOG_LEVEL__ = {bootstrap_log_level_json};
                 window.__BITFUN_BOOTSTRAP_LOCALE__ = {startup_locale_json};
-                window.__BITFUN_SHOW_STARTUP_WINDOW_CONTROLS__ = {show_startup_window_controls};
                 window.__BITFUN_BOOTSTRAP_APPEARANCE_ID__ = {bootstrap_appearance_id_json};
                 window.__BITFUN_BOOTSTRAP_APPEARANCE_SELECTION__ = {bootstrap_appearance_selection_json};
                 {bootstrap_keybindings_assignment}
@@ -414,7 +412,6 @@ impl AppearanceConfig {
             perf_trace_enabled = perf_trace_enabled,
             bootstrap_log_level_json = bootstrap_log_level_json,
             startup_locale_json = startup_locale_json,
-            show_startup_window_controls = show_startup_window_controls,
             bootstrap_keybindings_assignment = bootstrap_keybindings_assignment,
             bootstrap_workspace_startup_state_assignment =
                 bootstrap_workspace_startup_state_assignment,

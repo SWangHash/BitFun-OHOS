@@ -86,7 +86,7 @@ appearance, and a live resize/fold transition on supported hardware.
 
 ### Home and launch presentation
 
-Cold launches reuse the desktop contour mark and reveal the BitFun wordmark
+Cold launches reuse the desktop brand mark and reveal the BitFun wordmark
 letter by letter in approximately 1.3 seconds. This presentation does not wait
 for network/account initialization, is dismissed when backgrounded, and does not
 replay on foreground. The system reduced-motion preference skips it where the

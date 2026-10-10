@@ -1,15 +1,32 @@
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const workspaceAPI = vi.hoisted(() => ({ setDecorationsOhos: vi.fn() }));
+
+vi.mock('@/infrastructure/api/service-api/WorkspaceAPI', () => ({ workspaceAPI }));
+
 import {
   getStartupOverlayElapsedMs,
   hideStartupOverlay,
   isStartupOverlayPresent,
 } from './startupOverlay';
 
+const originalUserAgent = window.navigator.userAgent;
+
+function setUserAgent(value: string): void {
+  Object.defineProperty(window.navigator, 'userAgent', { value, configurable: true });
+}
+
+beforeEach(() => {
+  workspaceAPI.setDecorationsOhos.mockReset();
+  workspaceAPI.setDecorationsOhos.mockResolvedValue(undefined);
+});
+
 afterEach(() => {
   document.body.innerHTML = '';
   delete window.__BITFUN_STARTUP_OVERLAY_STARTED_AT__;
+  setUserAgent(originalUserAgent);
   vi.restoreAllMocks();
   vi.useRealTimers();
 });
@@ -20,6 +37,9 @@ describe('startupOverlay', () => {
     document.body.innerHTML = '<div id="bitfun-startup-overlay"></div>';
 
     const hidden = hideStartupOverlay();
+    // The exit markup lands once the host window-chrome handover resolves, which
+    // is a microtask even where the host owns no chrome.
+    await vi.advanceTimersByTimeAsync(0);
 
     const overlay = document.getElementById('bitfun-startup-overlay');
     expect(overlay?.classList.contains('bitfun-startup-overlay--exiting')).toBe(true);
@@ -31,20 +51,19 @@ describe('startupOverlay', () => {
     expect(isStartupOverlayPresent()).toBe(false);
   });
 
-  it('releases startup-control focus before hiding the exiting overlay', async () => {
+  it('releases startup-overlay focus before hiding the exiting overlay', async () => {
     vi.useFakeTimers();
     document.body.innerHTML = `
       <div id="bitfun-startup-overlay">
-        <button type="button" data-startup-window-action="close">Close</button>
+        <button type="button">Close</button>
       </div>
     `;
-    const closeButton = document.querySelector<HTMLButtonElement>(
-      '[data-startup-window-action="close"]',
-    );
+    const closeButton = document.querySelector<HTMLButtonElement>('button');
     closeButton?.focus();
     expect(document.activeElement).toBe(closeButton);
 
     const hidden = hideStartupOverlay();
+    await vi.advanceTimersByTimeAsync(0);
     const overlay = document.getElementById('bitfun-startup-overlay');
 
     expect(document.activeElement).not.toBe(closeButton);
@@ -67,6 +86,29 @@ describe('startupOverlay', () => {
     await vi.advanceTimersByTimeAsync(1);
     await hidden;
 
+    expect(isStartupOverlayPresent()).toBe(false);
+  });
+
+  it('hands the host-drawn window chrome over before the launch surface starts exiting', async () => {
+    vi.useFakeTimers();
+    setUserAgent('Mozilla/5.0 (OpenHarmony)');
+    document.body.innerHTML = '<div id="bitfun-startup-overlay"></div>';
+    let exitingWhenRequested: boolean | undefined;
+    workspaceAPI.setDecorationsOhos.mockImplementation(async () => {
+      exitingWhenRequested = document
+        .getElementById('bitfun-startup-overlay')
+        ?.classList.contains('bitfun-startup-overlay--exiting');
+    });
+
+    const hidden = hideStartupOverlay();
+    await vi.advanceTimersByTimeAsync(0);
+    // The host needs its own frame to draw the buttons, so the exit animation
+    // must not start until the host has confirmed them.
+    expect(exitingWhenRequested).toBe(false);
+    expect(isStartupOverlayPresent()).toBe(true);
+
+    document.getElementById('bitfun-startup-overlay')?.dispatchEvent(new Event('animationend'));
+    await hidden;
     expect(isStartupOverlayPresent()).toBe(false);
   });
 

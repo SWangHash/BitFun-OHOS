@@ -1,8 +1,8 @@
 import { ActionCard } from '@bitfun/ui';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { OverflowText, Button, Icon, IconButton, Select, Tooltip } from '@bitfun/ui';
+import { OverflowText, Icon, IconButton, Select, Tooltip } from '@bitfun/ui';
 
 import { confirmDialog } from '@/infrastructure/confirm-dialog';
 import {
@@ -14,7 +14,6 @@ import {
   type AppearanceValidationIssue,
 } from '@/infrastructure/appearance';
 import { notificationService } from '@/shared/notification-system';
-import { AppearanceMarketDialog } from './AppearanceMarketDialog';
 import { ConfigPageSection, formatStandaloneUiText } from './common';
 
 const DEFAULT_APPEARANCE_PREVIEW_SRC = '/assets/appearance/bitfun-default-preview@4x.png';
@@ -271,9 +270,7 @@ function AppearancePackagePreview({
 export function AppearancePackageConfigSection() {
   const { t } = useTranslation('settings/appearance');
   const { t: tApplication } = useTranslation('settings/application');
-  const inputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
-  const [marketOpen, setMarketOpen] = useState(false);
   const [failure, setFailure] = useState<AppearancePackageFailure | null>(null);
   const {
     appearances: appearanceCatalog,
@@ -281,7 +278,6 @@ export function AppearancePackageConfigSection() {
     selectedAppearanceId,
     pendingSelectionId,
     getPreviewAsset,
-    importPackage,
     exportPackage,
     deletePackage,
     select,
@@ -348,31 +344,6 @@ export function AppearancePackageConfigSection() {
     }
   };
 
-  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
-    setLoading(true);
-    try {
-      await importPackage(await file.arrayBuffer());
-      setFailure(null);
-      notificationService.success(t('package.importSuccess', { name: file.name }));
-    } catch (error) {
-      const validationError = getAppearancePackageValidationError(error);
-      setFailure({
-        operation: 'import',
-        ...(validationError
-          ? { validationError }
-          : { message: error instanceof Error ? error.message : String(error) }),
-      });
-      notificationService.error(validationError
-        ? t('package.diagnostics.importSummary', { count: validationError.issues.length })
-        : t('package.importFailed'), { duration: 5000 });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleExport = async (id: string) => {
     try {
       downloadArchive(await exportPackage(id), `${id}.bitfun-appearance`);
@@ -418,24 +389,6 @@ export function AppearancePackageConfigSection() {
           data-bitfun-component="appearance-settings"
           data-bitfun-part="packageActions"
         >
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={busy}
-            onClick={() => setMarketOpen(true)}
-            data-testid="appearance-market-open-btn"
-          >
-            {t('package.market.open')}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={busy}
-            onClick={() => inputRef.current?.click()}
-            data-testid="appearance-import-btn"
-          >
-            {t('package.import')}
-          </Button>
           {selectedAppearance && (
             <>
               <IconButton
@@ -463,13 +416,6 @@ export function AppearancePackageConfigSection() {
       data-bitfun-package-type={selectedAppearance ? 'imported' : 'native'}
       data-bitfun-state={busy ? 'disabled' : undefined}
     >
-      <input
-        ref={inputRef}
-        className="appearance-package-config__file-input"
-        type="file"
-        accept=".bitfun-appearance,.zip,application/zip"
-        onChange={handleImport}
-      />
       <div className="appearance-package-config__gallery">
         <AppearancePackagePreview
           appearanceId={SYSTEM_APPEARANCE_ID}
@@ -515,7 +461,6 @@ export function AppearancePackageConfigSection() {
           />
         ))}
       </div>
-      <AppearanceMarketDialog isOpen={marketOpen} onClose={() => setMarketOpen(false)} />
       {failure && (
         <AppearancePackageFailurePanel failure={failure} onDismiss={() => setFailure(null)} />
       )}
@@ -527,9 +472,6 @@ export function AppearancePackageConfigSection() {
         >
           <AlertTriangle size={16} aria-hidden="true" />
           <span>{t('package.missingSelection', { id: unavailableSelectionId })}</span>
-          <Button variant="primary" size="md" onClick={() => setMarketOpen(true)}>
-            {t('package.market.open')}
-          </Button>
         </div>
       )}
     </ConfigPageSection>

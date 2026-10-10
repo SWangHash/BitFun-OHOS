@@ -74,7 +74,7 @@ export const DEFAULT_QUICK_ACTIONS: QuickAction[] = [
 const defaultSettings: AIExperienceSettings = {
   enable_session_title_generation: true,
   enable_visual_mode: false,
-  enable_agent_companion: true,
+  enable_agent_companion: false,
   agent_companion_pet: DEFAULT_AGENT_COMPANION_PET,
   enable_workspace_search: false,
   voice_input: {

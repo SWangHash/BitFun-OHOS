@@ -22,10 +22,6 @@
   width: 100%;
   min-width: 0;
 
-  &__file-input {
-    display: none;
-  }
-
   &__gallery {
     display: grid;
     grid-template-columns: minmax(0, 1fr);

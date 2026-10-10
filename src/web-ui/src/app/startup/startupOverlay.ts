@@ -1,3 +1,5 @@
+import { handOverHostWindowChromeToAppSurface } from './hostWindowChrome';
+
 const STARTUP_OVERLAY_ID = 'bitfun-startup-overlay';
 const EXIT_CLASS = 'bitfun-startup-overlay--exiting';
 const EXIT_FALLBACK_MS = 350;
@@ -65,6 +67,13 @@ export async function hideStartupOverlay(): Promise<void> {
     await waitForOverlayExitAnimation(overlay);
     return;
   }
+
+  // Hand the window chrome over before the exit animation starts. The host
+  // applies it on its own UI thread, which is still busy painting the app's
+  // first frames, so this waits (bounded) for the acknowledgement: the launch
+  // surface then gives way to an interface whose buttons are already there,
+  // instead of showing the interface first and the buttons a beat later.
+  await handOverHostWindowChromeToAppSurface();
 
   overlay.classList.add(EXIT_CLASS);
   // Static startup window controls can still own focus when the React shell

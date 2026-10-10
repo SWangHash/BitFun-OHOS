@@ -2228,6 +2228,7 @@ pub async fn _run() {
             window_is_maximized,
             #[cfg(target_env = "ohos")]
             window_is_minimized,
+            #[cfg(target_env = "ohos")]
             window_is_focused,
             #[cfg(target_env = "ohos")]
             window_start_dragging,

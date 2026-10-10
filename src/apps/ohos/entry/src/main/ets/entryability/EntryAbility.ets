@@ -58,6 +58,10 @@ const OHOS_DECOR_BUTTON_STYLE: window.DecorButtonStyle = {
 // Decor bar height matching --bitfun-layout-toolbar-md-height (45px) so the
 // native buttons center on the same vertical axis as the web title bar.
 const OHOS_DECOR_HEIGHT = 45;
+// Upper bound for the native min/max/close cluster staying hidden behind the
+// launch surface. The app shell reveals it with the startup handoff; this timer
+// only covers a web view that never reports one.
+const STARTUP_WINDOW_CHROME_WATCHDOG_MS = 20000;
 
 interface SetAlwaysOnTopArg {
   isTopmost: boolean;
@@ -130,11 +134,28 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
   public shareStatus: boolean = false;
   private mainWindowStage: window.WindowStage | undefined = undefined;
   private statusBarTray: StatusBarTrayService | undefined = undefined;
+  // Pending fallback that reveals the system title buttons if the app shell
+  // never reports its startup handoff. Any explicit chrome request from the
+  // shell cancels it.
+  private startupChromeWatchdog: number = -1;
 
   async onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Promise<void> {
     super.onCreate(want, launchParam);
     this.commonEventListener = new CommonEventListener();
     this.updateSystemColorMode(this.context?.config?.colorMode);
+    // Publish the launch-page mirror appearance for the ArkUI page (see
+    // oh-rs-ability/.../DefaultXComponent), which renders it while the webview
+    // boots. The system start window is drawn by the AbilityMgr process, which
+    // resolves its color mode from the system and ignores application-level
+    // overrides, so the launch surface is pinned to a single constant color
+    // (`start_window_background` is #000000 in both base/ and dark/, with one
+    // light mark); the mirror takes the same resources, so the system start
+    // window and the mirror can never diverge.
+    AppStorage.setOrCreate<ResourceStr>('bitfunStartupSplashIcon', $r('app.media.bitfun_start_window'));
+    AppStorage.setOrCreate<ResourceColor>(
+      'bitfunStartupSplashBackground',
+      $r('app.color.start_window_background'),
+    );
     // Cold-start best-effort report of the current system color mode so the
     // web-ui "follow system" selection resolves correctly without waiting for
     // the first system change. web-ui dedups when it equals the resolved theme.
@@ -271,7 +292,96 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     }
   }
 
-  onWindowStageCreate(windowStage: window.WindowStage): Promise<void> {
+  /**
+   * Show or hide the system min/max/close cluster.
+   *
+   * HarmonyOS draws those buttons in the window frame rather than in the web
+   * view, so the app shell cannot hide them with CSS. The main window keeps them
+   * hidden from the launch surface and reveals them once the app shell reports
+   * that its startup handoff finished (`set_decorations_ohos(true)`); the
+   * startup watchdog reveals them if that report never arrives. `reason` only
+   * tags the diagnostic log.
+   */
+  private setNativeTitleButtonsVisible(visible: boolean, reason: string): void {
+    const stage = this.mainWindowStage;
+    if (stage === undefined) {
+      return;
+    }
+    try {
+      stage.getMainWindowSync().setWindowTitleButtonVisible(visible, visible, visible);
+    } catch (e) {
+      const be = e as BusinessError;
+      hilog.warn(DOMAIN, 'BitFunWindow', `title buttons visible=${visible} setup failed (${reason}): ${be.message}`);
+    }
+  }
+
+  /**
+   * Apply the native window decor once the launch page has taken effect.
+   *
+   * `setWindowDecorVisible`, `setWindowDecorHeight` and `setDecorButtonStyle`
+   * are dropped while the window still has no content, so they cannot run
+   * before `loadContent`. They are applied right after the window stage
+   * creation's content load resolves -- the first moment they are allowed -- so
+   * the native caption strip is hidden before its first mapped frame; deferring
+   * them to a timer leaves the strip painted over the launch surface as the
+   * title bar appearing and then vanishing. The cluster's hidden state is
+   * re-asserted here because a window frame repainted by that content handoff
+   * can otherwise bring it back.
+   */
+  private applyLaunchSurfaceDecor(windowStage: window.WindowStage): void {
+    let mainWin: window.Window;
+    try {
+      mainWin = windowStage.getMainWindowSync();
+    } catch (e) {
+      const be = e as BusinessError;
+      hilog.warn(DOMAIN, 'BitFunWindow', `launch surface decor skipped: ${be.message}`);
+      return;
+    }
+    mainWin.setWindowDecorHeight(OHOS_DECOR_HEIGHT);
+    mainWin.setWindowTitleMoveEnabled(false);
+    mainWin.setWindowDecorVisible(false);
+    // The system min/max/close cluster belongs to the app shell's window chrome,
+    // not to the launch surface, so it stays hidden until the shell reports that
+    // the startup handoff finished (`set_decorations_ohos`).
+    this.setNativeTitleButtonsVisible(false, 'startup');
+    try {
+      const density = display.getDefaultDisplaySync().densityPixels;
+      const scale = density > 0 ? density : 1;
+      mainWin.setWindowLimits({
+        minWidth: Math.round(800 * scale),
+        minHeight: Math.round(600 * scale),
+        maxWidth: -1,
+        maxHeight: -1,
+      }).catch((e: BusinessError) => {
+        hilog.warn(DOMAIN, 'BitFunWindow', `setWindowLimits failed: ${e.message}`);
+      });
+    } catch (e) {
+      const be = e as BusinessError;
+      hilog.warn(DOMAIN, 'BitFunWindow', `setWindowLimits setup failed: ${be.message}`);
+    }
+    try {
+      // Match the same compact decor-button geometry applied when the in-app
+      // chrome is later restored (set_decorations_ohos).
+      mainWin.setDecorButtonStyle(OHOS_DECOR_BUTTON_STYLE);
+    } catch (e) {
+      const be = e as BusinessError;
+      hilog.warn(DOMAIN, 'BitFunWindow', `setDecorButtonStyle failed: ${be.message}`);
+    }
+  }
+
+  async onWindowStageCreate(windowStage: window.WindowStage): Promise<void> {
+    // The window frame is created with the system min/max/close cluster already
+    // painted, and `module.json5` has no field that can start it hidden. Hide
+    // the cluster in the first synchronous step here -- before the bridge
+    // registration below and `super.onWindowStageCreate` (which starts the
+    // launch-page load) -- so the window's first painted frame cannot carry it.
+    // Hiding it later (only from the deferred decor block at the end of this
+    // method) leaves the buttons visible until that timer fires, which reads as
+    // the cluster appearing, disappearing, then reappearing at handoff. Only the
+    // cluster can be set this early; the decor geometry waits for the
+    // launch-page handoff (see the deferred block).
+    this.mainWindowStage = windowStage;
+    this.setNativeTitleButtonsVisible(false, 'startup-sync');
     windowStage.setWindowRectAutoSave(true).catch((error: BusinessError) => {
       hilog.warn(DOMAIN, 'window', `setWindowRectAutoSave failed: ${error.message}`);
     });
@@ -292,7 +402,6 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
       });
     });
 
-    this.mainWindowStage = windowStage;
     // HarmonyOS has no desktop tray. On 2in1 devices the equivalent surface is
     // the system status bar, and the system only lists a third-party entry that
     // the running application registers itself. Install the icon as soon as the
@@ -535,6 +644,13 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     });
     RustModule.registerArktsFunction('set_decorations_ohos', async (err: Error, arg: string): Promise<string> => {
       const req: SetDecorationsArg = JSON.parse(arg);
+      // The shell is driving the chrome explicitly now, so the startup fallback
+      // must not re-show the buttons behind its back (e.g. pet-only mode hides
+      // them well before the watchdog would fire).
+      if (this.startupChromeWatchdog !== -1) {
+        clearTimeout(this.startupChromeWatchdog);
+        this.startupChromeWatchdog = -1;
+      }
       const mainWin = windowStage.getMainWindowSync();
       try {
         // Keep the native caption strip visible when the system buttons are
@@ -792,36 +908,13 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
       const req: LabelRequest = JSON.parse(arg);
       return await browserService.getUrl(req);
     });
-    setTimeout(() => {
-      windowStage.getMainWindow((err, data) => {
-        data.setWindowDecorHeight(OHOS_DECOR_HEIGHT);
-        data.setWindowTitleMoveEnabled(false);
-        data.setWindowDecorVisible(false);
-        try {
-          const density = display.getDefaultDisplaySync().densityPixels;
-          const scale = density > 0 ? density : 1;
-          data.setWindowLimits({
-            minWidth: Math.round(800 * scale),
-            minHeight: Math.round(600 * scale),
-            maxWidth: -1,
-            maxHeight: -1,
-          }).catch((e: BusinessError) => {
-            hilog.warn(DOMAIN, TAG, `setWindowLimits failed: ${e.message}`);
-          });
-        } catch (e) {
-          const be = e as BusinessError;
-          hilog.warn(DOMAIN, TAG, `setWindowLimits setup failed: ${be.message}`);
-        }
-        try {
-          // Match the same compact decor-button geometry applied when the
-          // in-app chrome is later restored (set_decorations_ohos).
-          data.setDecorButtonStyle(OHOS_DECOR_BUTTON_STYLE);
-        } catch (e) {
-          const be = e as BusinessError;
-          hilog.warn(DOMAIN, TAG, `setDecorButtonStyle failed: ${be.message}`);
-        }
-      })
-    }, 40)
+    // Safety net: the shell reveals the cluster with the startup handoff. If the
+    // web view never gets that far (load failure), reveal it anyway so the
+    // window stays closable with the system buttons.
+    this.startupChromeWatchdog = setTimeout(() => {
+      this.startupChromeWatchdog = -1;
+      this.setNativeTitleButtonsVisible(true, 'startup-chrome-watchdog');
+    }, STARTUP_WINDOW_CHROME_WATCHDOG_MS)
     RustModule.registerArktsFunction('reveal_in_explorer', async (err: Error, arg: string): Promise<string> => {
       const context = getContext(this) as common.UIAbilityContext;
       let uri: string;
@@ -976,7 +1069,13 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
       }
       return result;
     });
-    return super.onWindowStageCreate(windowStage);
+    // `super.onWindowStageCreate` loads the launch page and resolves once that
+    // content has taken effect, which is the earliest moment the decor APIs
+    // below are allowed to run. Apply them immediately afterwards -- without a
+    // timer -- so the native caption strip is hidden before its first mapped
+    // frame instead of flashing over the launch surface for the timer's span.
+    await super.onWindowStageCreate(windowStage);
+    this.applyLaunchSurfaceDecor(windowStage);
   }
 
   /**

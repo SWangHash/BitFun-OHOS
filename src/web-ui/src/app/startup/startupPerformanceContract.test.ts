@@ -72,25 +72,40 @@ describe('startup performance contract', () => {
 
     expect(asset).toContain('viewBox="0 0 120 120"');
     expect(asset).toContain('fill="none"');
-    expect(asset).toContain('stroke="currentColor"');
-    expect(asset.match(/<path\b/g)).toHaveLength(15);
+    expect(asset).toContain('fill="currentColor"');
+    expect(asset.match(/<path\b/g)).toHaveLength(1);
     expect(asset).not.toContain('<rect');
   });
 
   it('uses semantic startup tones and the reference mark geometry', () => {
-    const source = readSource('../../../index.html');
     const componentStyles = readSource('../components/SplashScreen/SplashScreen.scss');
 
-    for (const styles of [source, componentStyles]) {
-      expect(styles).toContain('width: 120px;');
-      expect(styles).not.toContain('width: 144px;');
-      expect(styles).toContain('background-color: var(--bitfun-color-content-on-light);');
-      expect(styles).toContain('background-color: var(--bitfun-color-content-on-dark);');
-      expect(styles).toContain('color: var(--bitfun-color-content-secondary);');
-      expect(styles).not.toContain('var(--bitfun-color-content-on-dark) 80%, transparent');
-      expect(styles).toContain('var(--bitfun-color-content-on-dark) 60%, transparent');
-      expect(styles).toContain('font-size: var(--bitfun-type-label-md-font-size);');
-    }
+    expect(componentStyles).toContain('width: 120px;');
+    expect(componentStyles).not.toContain('width: 144px;');
+    expect(componentStyles).toContain('background-color: var(--bitfun-color-content-on-light);');
+    expect(componentStyles).toContain('background-color: var(--bitfun-color-content-on-dark);');
+    expect(componentStyles).toContain('color: var(--bitfun-color-content-secondary);');
+    expect(componentStyles).not.toContain('var(--bitfun-color-content-on-dark) 80%, transparent');
+    expect(componentStyles).toContain('var(--bitfun-color-content-on-dark) 60%, transparent');
+    expect(componentStyles).toContain('font-size: var(--bitfun-type-label-md-font-size);');
+  });
+
+  it('pins the pre-React launch canvas to the fixed black brand tones', () => {
+    const source = readSource('../../../index.html');
+    const splashRule = source.match(/\.splash-screen \{(?<css>[\s\S]*?)\n      \}/)?.groups?.css;
+
+    expect(source).toContain('width: 120px;');
+    expect(source).not.toContain('width: 144px;');
+    // The launch canvas is painted while the window is revealed, before the
+    // saved appearance is guaranteed to be applied, so the canvas is a constant
+    // black and the mark and hint resolve to the on-dark tone instead of the
+    // active color scheme.
+    expect(splashRule).toContain('background: #000000;');
+    expect(splashRule).not.toContain('var(--bitfun-color-surface-chrome)');
+    expect(source).toContain('background-color: var(--bitfun-color-content-on-dark);');
+    expect(source).toContain('var(--bitfun-color-content-on-dark) 72%, transparent');
+    expect(source).not.toContain('var(--bitfun-color-content-on-light)');
+    expect(source).toContain('font-size: var(--bitfun-type-label-md-font-size);');
   });
 
   it('keeps the startup overlay exit short enough for a fast visual handoff', () => {
