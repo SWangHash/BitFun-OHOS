@@ -1,7 +1,6 @@
 import { File as LucideFile } from 'lucide-react';
 import React, { useEffect, useCallback, useRef } from 'react';
-import { OverflowText, Button, Icon, IconButton, Tooltip } from '@bitfun/ui';
-import { createPortal } from 'react-dom';
+import { OverflowText, Button, Icon, IconButton, Tooltip, createOverlayPortal } from '@bitfun/ui';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 ;
 import { RetainedMountBoundary } from '@/shared/presence';
@@ -165,10 +164,12 @@ export const DiffFullscreenViewer: React.FC<DiffFullscreenViewerProps> = ({
     </div>
   );
 
-  return createPortal(
+  return createOverlayPortal(
     <RetainedMountBoundary present={isOpen}>
       {fullscreenContent}
     </RetainedMountBoundary>,
     getAppearanceOverlayHost(),
+    null,
+    { modal: true },
   );
 };

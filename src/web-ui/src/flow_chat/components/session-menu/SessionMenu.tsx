@@ -9,11 +9,9 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 
-import { OverflowText, Menu, MenuItem, MenuSeparator } from '@bitfun/ui';
-import { Tooltip, Icon } from '@bitfun/ui';
+import { OverflowText, Menu, MenuItem, MenuSeparator, Tooltip, Icon, createOverlayPortal, subscribeOverlayInteraction } from '@bitfun/ui';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { useAnchoredPopoverPosition } from '@/shared/utils/useAnchoredPopoverPosition';
 import { activateMainSession } from '../../services/sessionActivation';
@@ -74,12 +72,13 @@ export const SessionMenu: React.FC<SessionMenuProps> = ({ onOpenChange }) => {
       setOpen(false);
     };
 
+    let removeMousedown: (() => void) | undefined;
     const timer = setTimeout(() => {
-      document.addEventListener('mousedown', handleClickOutside);
+      removeMousedown = subscribeOverlayInteraction(dropdownRef, 'mousedown', handleClickOutside);
     }, 0);
     return () => {
       clearTimeout(timer);
-      document.removeEventListener('mousedown', handleClickOutside);
+      removeMousedown?.();
     };
   }, [isMenuOpen, setOpen]);
 
@@ -118,7 +117,7 @@ export const SessionMenu: React.FC<SessionMenuProps> = ({ onOpenChange }) => {
         </button>
       </Tooltip>
 
-      {isMenuOpen && createPortal(
+      {isMenuOpen && createOverlayPortal(
         <Menu
           className="bitfun-session-menu__dropdown"
           data-bitfun-component="session-menu"

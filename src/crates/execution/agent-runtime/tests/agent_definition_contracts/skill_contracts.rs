@@ -612,6 +612,7 @@ fn skill_discovery_root_facts_are_runtime_owned() {
         project_roots,
         [
             (".bitfun", "bitfun", "bitfun", "BitFun"),
+            (".bitfun", "matrix", "matrix", "Matrix"),
             (".claude", "claude", "claude-code", "Claude Code"),
             (".codex", "codex", "codex", "Codex"),
             (".cursor", "cursor", "cursor", "Cursor"),
@@ -636,6 +637,7 @@ fn skill_discovery_root_facts_are_runtime_owned() {
             (".agents", "home.agents", "agent-skills", "Agent Skills"),
             (".dsh", "home.dsh", "deepseek-harness", "DeepSeek Harness"),
             (".pi/agent", "home.pi", "pi", "PI"),
+            (".bitfun", "matrix", "matrix", "Matrix"),
         ]
     );
     assert_eq!(

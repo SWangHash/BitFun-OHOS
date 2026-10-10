@@ -1,11 +1,10 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import {
   Circle,
   CircleOff,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { OverflowText, Menu, MenuItem } from '@bitfun/ui';
+import { OverflowText, Menu, MenuItem, createOverlayPortal, subscribeOverlayInteraction } from '@bitfun/ui';
 import { Tooltip } from '@bitfun/ui';
 import { RetainedMountBoundary } from '@/shared/presence';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
@@ -118,8 +117,8 @@ export const ReasoningPresetSelector: React.FC<ReasoningPresetSelectorProps> = (
         setKeyboardOpen(false);
       }
     };
-    document.addEventListener('mousedown', handlePointerDown);
-    return () => document.removeEventListener('mousedown', handlePointerDown);
+    const removeMousedown = subscribeOverlayInteraction(menuRef, 'mousedown', handlePointerDown);
+    return () => removeMousedown();
   }, [open]);
 
   useEffect(() => {
@@ -244,7 +243,7 @@ export const ReasoningPresetSelector: React.FC<ReasoningPresetSelectorProps> = (
       </Tooltip>
 
       <RetainedMountBoundary present={open}>
-        {createPortal(
+        {createOverlayPortal(
           <Menu
           id={menuId}
           ref={menuRef}

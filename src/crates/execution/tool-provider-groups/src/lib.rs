@@ -92,9 +92,9 @@ pub fn enabled_feature_groups() -> Vec<ToolPackFeatureGroup> {
 pub fn tool_feature_group(tool_name: &str) -> Option<ToolPackFeatureGroup> {
     match tool_name {
         "LS" | "Read" | "Glob" | "Grep" | "Write" | "Edit" | "Delete" | "ExecCommand"
-        | "WriteStdin" | "ExecControl" | "GetTime" | "ListModels" | "build_project"
-        | "start_app" | "hdc_log" | "arkts_knowledge_search" | "check_arkts_files"
-        | "check_cpp_files" | "switch_cwd" | "verify_ui" | "get_ui_verification_log"
+        | "WriteStdin" | "ExecControl" | "GetTime" | "OpenUrl" | "ListModels"
+        | "start_app" | "hdc_log" | "arkts_check"
+        | "switch_cwd" | "verify_ui" | "get_ui_verification_log"
         | "save_ui_screenshot" | "QtMigrationIntake" => Some(ToolPackFeatureGroup::Basic),
         "Worktree" | "ReviewPlatform" | "GetFileDiff" => Some(ToolPackFeatureGroup::Git),
         "ListMCPResources" | "ReadMCPResource" | "ListMCPPrompts" | "GetMCPPrompt" => {
@@ -190,6 +190,7 @@ const PRODUCT_TOOL_PROVIDER_GROUP_PLAN: &[ToolProviderGroupPlan] = &[
             "WriteStdin",
             "ExecControl",
             "GetTime",
+            "OpenUrl",
             "ListModels",
         ],
     },
@@ -287,12 +288,9 @@ const PRODUCT_TOOL_PROVIDER_GROUP_PLAN: &[ToolProviderGroupPlan] = &[
         provider_id: "core.openharmony",
         feature_groups: CORE_OPENHARMONY_FEATURE_GROUPS,
         tool_names: &[
-            "build_project",
             "start_app",
             "hdc_log",
-            "arkts_knowledge_search",
-            "check_arkts_files",
-            "check_cpp_files",
+            "arkts_check",
             "switch_cwd",
             "verify_ui",
             "get_ui_verification_log",
@@ -557,6 +555,7 @@ mod tests {
                 "WriteStdin",
                 "ExecControl",
                 "GetTime",
+                "OpenUrl",
                 "ListModels",
                 "Task",
                 "AgentSpawn",
@@ -605,12 +604,9 @@ mod tests {
                 "ReadCanvas",
                 "UpdateCanvas",
                 "PatchCanvas",
-                "build_project",
                 "start_app",
                 "hdc_log",
-                "arkts_knowledge_search",
-                "check_arkts_files",
-                "check_cpp_files",
+                "arkts_check",
                 "switch_cwd",
                 "verify_ui",
                 "get_ui_verification_log",

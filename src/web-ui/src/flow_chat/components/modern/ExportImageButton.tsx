@@ -5,13 +5,12 @@
  */
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { FlowChatStore } from '../../store/FlowChatStore';
 import { notificationService } from '@/shared/notification-system';
 import { FlowTextBlock } from '../FlowTextBlock';
 import { FlowToolCard } from '../FlowToolCard';
-import { Icon, IconButton, Menu, MenuItem, Tooltip } from '@bitfun/ui';
+import { Icon, IconButton, Menu, MenuItem, Tooltip, createOverlayPortal, subscribeOverlayInteraction } from '@bitfun/ui';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { useAnchoredPopoverPosition } from '@/shared/utils/useAnchoredPopoverPosition';
 import type { DialogTurn, FlowTextItem, FlowToolItem, FlowThinkingItem } from '../../types/flow-chat';
@@ -199,11 +198,11 @@ export const ExportImageButton: React.FC<ExportImageButtonProps> = ({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setIsMenuOpen(false);
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleKeyDown);
+    const removeMousedown = subscribeOverlayInteraction(menuRef, 'mousedown', handleClickOutside);
+    const removeKeyDown = subscribeOverlayInteraction(menuRef, 'keydown', handleKeyDown);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
+      removeMousedown();
+      removeKeyDown();
     };
   }, [isMenuOpen]);
   // Ref guard to prevent double-invocation while state update is pending.
@@ -569,7 +568,7 @@ export const ExportImageButton: React.FC<ExportImageButtonProps> = ({
             : <Icon name="image" size="sm" />}
         />
       </Tooltip>
-      {isMenuOpen && createPortal(
+      {isMenuOpen && createOverlayPortal(
         <Menu
           ref={menuRef}
           className="export-image-menu"

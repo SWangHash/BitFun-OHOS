@@ -76,6 +76,10 @@
       "HarmonyFeature": {
         "name": "HarmonyOS Feature Enhancement Expert",
         "description": "Uses the 70+ HarmonyOS feature guide to match features, Kits, and 2C categories, then helps implement platform capabilities."
+      },
+      "HarmonyBuild": {
+        "name": "HarmonyOS Build Expert",
+        "description": "HarmonyOS build, deployment, diagnosis, and verification specialist."
       }
     }
   },
@@ -402,5 +406,10 @@
     "Creative": "Create and customize BitFun experiences and capabilities.",
     "HarmonyFeature": "Matches, plans, and implements HarmonyOS platform feature enhancements from the built-in feature guide.",
     "QtMigration": "Qt 5.12/5.15 to HarmonyOS migration: assess -> 8-step code migration -> build -> deploy -> verify -> issue-fixing loop, with fully visualized task progress."
+    ,"HarmonyBuild": "HarmonyOS build, deployment, diagnosis, and verification specialist"
+    ,"HarmonyPlan": "Read-only HarmonyOS planning and project analysis specialist"
+    ,"HarmonyGoal": "Constrained goal-driven HarmonyOS orchestration subagent"
+    ,"HarmonySpecImplementation": "Hidden approved-spec implementation subagent"
+    ,"HarmonySpecVerify": "Hidden HarmonyOS build, deployment, and UI verification subagent"
   }
 }

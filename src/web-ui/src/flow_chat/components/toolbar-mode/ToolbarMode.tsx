@@ -11,9 +11,8 @@
  */
 
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { IconButton, OverflowText, Menu, MenuItem } from '@bitfun/ui';
+import { IconButton, OverflowText, Menu, MenuItem, createOverlayPortal, subscribeOverlayInteraction } from '@bitfun/ui';
 import { Square, Maximize2, MoreVertical, PanelTopOpen, PanelTopClose } from 'lucide-react';
 import { useToolbarModeContext } from './ToolbarModeContext';
 import { type FlowToolItem } from '../../types/flow-chat';
@@ -155,12 +154,13 @@ export const ToolbarMode: React.FC = () => {
     };
 
     if (showHeaderOverflowMenu) {
+      let removeMousedown: (() => void) | undefined;
       const timer = setTimeout(() => {
-        document.addEventListener('mousedown', handleClickOutside);
+        removeMousedown = subscribeOverlayInteraction(headerOverflowRef, 'mousedown', handleClickOutside);
       }, 0);
       return () => {
         clearTimeout(timer);
-        document.removeEventListener('mousedown', handleClickOutside);
+        removeMousedown?.();
       };
     }
   }, [showHeaderOverflowMenu]);
@@ -272,7 +272,7 @@ export const ToolbarMode: React.FC = () => {
                     icon={<MoreVertical size={14} />}
                   />
                 </Tooltip>
-                {showHeaderOverflowMenu && createPortal(
+                {showHeaderOverflowMenu && createOverlayPortal(
                   <Menu
                     ref={headerOverflowRef}
                     className="bitfun-toolbar-mode__overflow-menu"

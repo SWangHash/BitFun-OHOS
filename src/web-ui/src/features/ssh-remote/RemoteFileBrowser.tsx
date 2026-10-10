@@ -3,9 +3,8 @@
  * Used to browse and select remote directory as workspace
  */
 
-import { Button, Dialog, ConfirmDialog, Icon, IconButton, Input, Menu, MenuItem, MenuSeparator, ScrollArea } from '@bitfun/ui';
+import { Button, Dialog, ConfirmDialog, Icon, IconButton, Input, Menu, MenuItem, MenuSeparator, ScrollArea, createOverlayPortal, subscribeOverlayInteraction } from '@bitfun/ui';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { createPortal } from 'react-dom';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { useI18n } from '@/infrastructure/i18n';
 import type { RemoteFileEntry } from './types';
@@ -105,6 +104,7 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
   });
   const [transferBusy, setTransferBusy] = useState(false);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const surfaceRef = useRef<HTMLDivElement>(null);
 
   // One-shot retry: when the SSH session was torn down by a transient network
   // blip, the backend transparently reconnects on the next call but the
@@ -147,13 +147,16 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
 
   // Close context menu when clicking outside
   useEffect(() => {
+    let removeOverlayMousedown0: (() => void) | undefined;
     const handleClickOutside = (e: MouseEvent) => {
       if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
         setContextMenu({ show: false, x: 0, y: 0, entry: null });
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    removeOverlayMousedown0 = subscribeOverlayInteraction(contextMenuRef, 'mousedown', handleClickOutside);
+    return () => {
+      removeOverlayMousedown0?.();
+    };
   }, []);
 
   const navigateTo = (path: string) => {
@@ -386,7 +389,7 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
   };
 
   const browser = (
-    <div className="remote-file-browser-overlay" data-bitfun-component="ssh-remote" data-bitfun-part="browserOverlay">
+    <div className="remote-file-browser-overlay" ref={surfaceRef} data-bitfun-component="ssh-remote" data-bitfun-part="browserOverlay">
       <div className="remote-file-browser" data-bitfun-component="ssh-remote" data-bitfun-part="browser">
         {/* Header */}
         <div className="remote-file-browser__header" data-bitfun-component="ssh-remote" data-bitfun-part="browserHeader">
@@ -602,7 +605,7 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
         </ScrollArea>
 
         {/* Context Menu */}
-        {contextMenu.show && contextMenu.entry && createPortal(
+        {contextMenu.show && contextMenu.entry && createOverlayPortal(
           <Menu
             ref={contextMenuRef}
             className="remote-file-browser__context-menu"
@@ -747,7 +750,7 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
     </div>
   );
 
-  return createPortal(browser, getAppearanceOverlayHost());
+  return createOverlayPortal(browser, getAppearanceOverlayHost(), null, { modal: true, surfaceRef, onDismiss: onCancel });
 };
 
 export default RemoteFileBrowser;

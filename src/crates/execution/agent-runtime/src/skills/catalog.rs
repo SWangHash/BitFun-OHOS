@@ -163,31 +163,23 @@ pub(super) const BUILTIN_SKILL_SPECS: &[BuiltinSkillSpec] = &[
         group: BuiltinSkillGroup::Meta,
     },
     BuiltinSkillSpec {
-        dir_name: "arkts-error-fixes",
-        group: BuiltinSkillGroup::HarmonyOS,
-    },
-    BuiltinSkillSpec {
-        dir_name: "arkts-grammar-standards",
-        group: BuiltinSkillGroup::HarmonyOS,
-    },
-    BuiltinSkillSpec {
-        dir_name: "arkts-runtime-fix",
-        group: BuiltinSkillGroup::HarmonyOS,
-    },
-    BuiltinSkillSpec {
         dir_name: "harmonyos-feature-guide",
         group: BuiltinSkillGroup::HarmonyOS,
     },
     BuiltinSkillSpec {
-        dir_name: "arkui-knowledge",
+        dir_name: "hmos-arkui-develop-skill",
+        group: BuiltinSkillGroup::HarmonyOS,
+    },
+    BuiltinSkillSpec {
+        dir_name: "hmos-dev-env-setup",
+        group: BuiltinSkillGroup::HarmonyOS,
+    },
+    BuiltinSkillSpec {
+        dir_name: "hmos-runtime-fix-skill",
         group: BuiltinSkillGroup::HarmonyOS,
     },
     BuiltinSkillSpec {
         dir_name: "deveco-cli",
-        group: BuiltinSkillGroup::HarmonyOS,
-    },
-    BuiltinSkillSpec {
-        dir_name: "deveco-create-project",
         group: BuiltinSkillGroup::HarmonyOS,
     },
     BuiltinSkillSpec {

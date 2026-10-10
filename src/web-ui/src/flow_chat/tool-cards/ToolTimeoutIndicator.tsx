@@ -1,6 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import { Menu, MenuItem } from '@bitfun/ui';
+import { Menu, MenuItem, createOverlayPortal } from '@bitfun/ui';
 import { Timer, Infinity as InfinityIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
@@ -226,7 +225,7 @@ export const ToolTimeoutIndicator: React.FC<ToolTimeoutIndicatorProps> = ({
             </span>
           </button>
 
-          {isPopoverOpen && createPortal(
+          {isPopoverOpen && createOverlayPortal(
             <Menu
               ref={popoverRef}
               data-bitfun-component="tool-timeout-indicator"

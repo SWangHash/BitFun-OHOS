@@ -7,6 +7,8 @@ pub mod agent_wait_tool;
 pub mod analyze_image_tool;
 #[cfg(feature = "tools-miniapp")]
 pub mod appearance_publish_tool;
+pub mod arkts_check_tool;
+pub mod arkts_checker;
 pub mod ask_user_question_tool;
 #[cfg(feature = "tools-canvas")]
 pub mod canvas_tools;
@@ -25,22 +27,13 @@ pub mod control_hub_tool;
 pub mod cron_tool;
 pub mod delete_file_tool;
     pub(crate) mod devecocli_run;
-    // DevEco MCP discovery pulls the MCP service layer; keep these helpers out
-    // of the light feature closures (agent-runtime, git) that never use them.
-    #[cfg(feature = "mcp-runtime")]
-    pub(crate) mod deveco_mcp_check;
+    pub mod devecocli_bash_guard;
     pub mod exec_command;
     pub mod file_edit_tool;
     pub mod file_read_tool;
     pub mod file_write_tool;
     pub(crate) mod harmony_device;
     pub(crate) mod hdc_fallback;
-    pub mod arkts_knowledge_search_tool;
-    pub mod build_project_tool;
-    #[cfg(feature = "mcp-runtime")]
-    pub mod check_arkts_files_tool;
-    #[cfg(feature = "mcp-runtime")]
-    pub mod check_cpp_files_tool;
     #[cfg(feature = "mcp-runtime")]
     pub mod get_ui_verification_log_tool;
     pub mod hdc_log_tool;
@@ -75,7 +68,7 @@ pub mod miniapp_publish_tool;
 pub mod bitfun_control_tool;
 #[cfg(feature = "tools-pages")]
 pub mod page_deploy_tool;
-#[cfg(feature = "tools-pages")]
+pub mod open_url_tool;
 pub mod page_publish_tool;
 mod plan_artifact_diagnostics;
 #[cfg(feature = "tools-miniapp")]
@@ -114,6 +107,7 @@ pub use appearance_publish_tool::PublishAppearanceTool;
 pub use ask_user_question_tool::AskUserQuestionTool;
 #[cfg(feature = "tools-canvas")]
 pub use canvas_tools::{CreateCanvasTool, PatchCanvasTool, ReadCanvasTool, UpdateCanvasTool};
+pub use arkts_check_tool::ArktsCheckTool;
 pub use code_review_tool::CodeReviewTool;
 #[cfg(feature = "tools-computer-use")]
 pub use computer_use_tool::ComputerUseTool;
@@ -126,12 +120,6 @@ pub use exec_command::{ExecCommandTool, ExecControlTool, WriteStdinTool};
 pub use file_edit_tool::FileEditTool;
 pub use file_read_tool::FileReadTool;
 pub use file_write_tool::FileWriteTool;
-pub use arkts_knowledge_search_tool::ArktsKnowledgeSearchTool;
-pub use build_project_tool::BuildProjectTool;
-    #[cfg(feature = "mcp-runtime")]
-    pub use check_arkts_files_tool::CheckArktsFilesTool;
-    #[cfg(feature = "mcp-runtime")]
-    pub use check_cpp_files_tool::CheckCppFilesTool;
     #[cfg(feature = "mcp-runtime")]
     pub use get_ui_verification_log_tool::GetUiVerificationLogTool;
     pub use hdc_log_tool::HdcLogTool;
@@ -152,6 +140,7 @@ pub use glob_tool::GlobTool;
 pub use grep_tool::GrepTool;
 pub use list_models_tool::ListModelsTool;
 pub use ls_tool::LSTool;
+pub use open_url_tool::OpenUrlTool;
 #[cfg(feature = "tools-mcp")]
 pub use mcp_tools::{
     GetMCPPromptTool, ListMCPPromptsTool, ListMCPResourcesTool, ReadMCPResourceTool,

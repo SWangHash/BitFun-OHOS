@@ -3,6 +3,8 @@ import type { ModeSkillInfo, SkillInfo } from './types';
 const SOURCE_LABEL_BY_ID: Record<string, string> = {
   bitfun: 'BitFun',
   'bitfun-system': 'BitFun',
+  openbitfun: 'BitFun',
+  'openbitfun-system': 'BitFun',
   'claude-code': 'Claude Code',
   claude: 'Claude Code',
   codex: 'Codex',
@@ -13,6 +15,7 @@ const SOURCE_LABEL_BY_ID: Record<string, string> = {
   'deepseek-harness': 'DeepSeek Harness',
   dsh: 'DeepSeek Harness',
   pi: 'PI',
+  matrix: 'Matrix',
 };
 
 function knownSourceLabel(value: string | undefined): string | undefined {
@@ -62,6 +65,9 @@ export function getSkillSourceId(skill: SkillInfo): string {
   if (identity === 'dsh') return 'deepseek-harness';
   if (identity === 'agents') return 'agent-skills';
   if (identity === 'bitfun-system' || identity === 'bitfun-user') return 'bitfun';
+  // Handle the legacy OpenBitFun brand identifiers so skills scanned by an
+  // older binary (or cached from before the brand rename) are still recognized.
+  if (identity === 'openbitfun' || identity === 'openbitfun-system' || identity === 'openbitfun-user') return 'bitfun';
   if (identity.startsWith('opencode.')) return 'opencode';
   return identity;
 }
@@ -83,12 +89,18 @@ export function isBitFunManagedSkill(skill: SkillInfo): boolean {
 export function canDeleteSkill(skill: SkillInfo): boolean {
   if (skill.isBuiltin) return false;
 
-  const sourceId = skill.sourceId?.trim().toLowerCase();
-  if (sourceId) {
-    return sourceId === 'bitfun' || sourceId === 'bitfun-system';
-  }
+  // Require a non-empty source identifier; getSkillSourceId defaults to 'bitfun'
+  // when both sourceId and sourceSlot are empty, but that default is for
+  // presentation labeling, not for deletion authorization.
+  const rawSourceId = skill.sourceId?.trim();
+  const rawSourceSlot = skill.sourceSlot?.trim();
+  if (!rawSourceId && !rawSourceSlot) return false;
 
-  return skill.sourceSlot?.trim().toLowerCase().startsWith('bitfun') ?? false;
+  // Use getSkillSourceId for normalization so that 'bitfun-system', 'bitfun-user',
+  // and other bitfun variants all resolve to 'bitfun'. Also allow 'matrix'
+  // source skills (Matrix market downloads) to be deleted, aligning with main/main.
+  const normalizedSourceId = getSkillSourceId(skill);
+  return normalizedSourceId === 'bitfun' || normalizedSourceId === 'matrix';
 }
 
 export interface SkillOriginLabels {

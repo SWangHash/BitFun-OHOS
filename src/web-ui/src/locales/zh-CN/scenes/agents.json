@@ -76,6 +76,10 @@
       "HarmonyFeature": {
         "name": "鸿蒙特性增强专家",
         "description": "基于 70+ 鸿蒙创新特性知识库，匹配特性、Kit 与 2C 分类，并辅助接入平台能力。"
+      },
+      "HarmonyBuild": {
+        "name": "鸿蒙构建专家",
+        "description": "鸿蒙项目构建、部署、诊断与验证专业智能体。"
       }
     }
   },
@@ -402,5 +406,10 @@
     "Creative": "创造与定制 BitFun 体验及能力。",
     "HarmonyFeature": "基于鸿蒙创新特性知识库，帮助匹配、规划并实现平台特性增强。",
     "QtMigration": "Qt 5.12/5.15工程鸿蒙化迁移：评估->8步代码迁移->编译构建->部署验->问题修复闭环，全程可视化任务进度。"
+    ,"HarmonyBuild": "鸿蒙项目构建、部署、诊断与验证专业智能体"
+    ,"HarmonyPlan": "只读的鸿蒙项目规划与工程分析 Sub-Agent"
+    ,"HarmonyGoal": "受限的鸿蒙目标驱动编排 Sub-Agent"
+    ,"HarmonySpecImplementation": "隐藏的已批准规格实施 Sub-Agent"
+    ,"HarmonySpecVerify": "隐藏的鸿蒙构建、部署与 UI 验证 Sub-Agent"
   }
 }

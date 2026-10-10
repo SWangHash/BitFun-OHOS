@@ -1,11 +1,12 @@
 use super::types::AgentCategory;
 use super::visibility::SubagentVisibilityPolicy;
 use crate::agentic::agents::{
-    Agent, ClawMode, CodeReviewAgent, ComputerUseMode, CoworkMode, CreativeHarness,
-    DeepResearchMode, DeepReviewAgent, ExploreAgent, GeneralPurposeAgent, GenerateDocAgent,
-    HarmonyFeatureMode, MinimalHarness, BitFunAgent, QtMigrationMode, ResearchSpecialistAgent,
-    ReviewFixerAgent, ReviewJudgeAgent, ReviewWorkerAgent, StandardHarness, SwarmPlannerAgent,
-    SwarmReviewerAgent, SwarmWorkerAgent, UltimateHarness,
+    harmony_goal_agent, harmony_spec_implementation_agent, harmony_spec_verify_agent, Agent,
+    ClawMode, CodeReviewAgent, ComputerUseMode, CoworkMode, CreativeHarness, DeepResearchMode,
+    DeepReviewAgent, ExploreAgent, GeneralPurposeAgent, GenerateDocAgent, HarmonyBuildMode,
+    HarmonyFeatureMode, HarmonyPlanAgent, MinimalHarness, BitFunAgent, QtMigrationMode,
+    ResearchSpecialistAgent, ReviewFixerAgent, ReviewJudgeAgent, ReviewWorkerAgent, StandardHarness,
+    SwarmPlannerAgent, SwarmReviewerAgent, SwarmWorkerAgent, UltimateHarness,
 };
 use crate::agentic::memories::MemoryPhase2Agent;
 use bitfun_agent_runtime::agents as runtime_agents;
@@ -50,6 +51,7 @@ fn builtin_agent_factory(id: &str) -> fn() -> Arc<dyn Agent> {
         "Standard" => || Arc::new(StandardHarness::new()),
         "Cowork" => || Arc::new(CoworkMode::new()),
         "Creative" => || Arc::new(CreativeHarness::new()),
+        "HarmonyBuild" => || Arc::new(HarmonyBuildMode::new()),
         "Claw" => || Arc::new(ClawMode::new()),
         "DeepResearch" => || Arc::new(DeepResearchMode::new()),
         "Ultimate" => || Arc::new(UltimateHarness::new()),
@@ -60,6 +62,10 @@ fn builtin_agent_factory(id: &str) -> fn() -> Arc<dyn Agent> {
         "SwarmReviewer" => || Arc::new(SwarmReviewerAgent::new()),
         "ComputerUse" => || Arc::new(ComputerUseMode::new()),
         "Explore" => || Arc::new(ExploreAgent::new()),
+        "HarmonyPlan" => || Arc::new(HarmonyPlanAgent::new()),
+        "HarmonyGoal" => || Arc::new(harmony_goal_agent()),
+        "HarmonySpecImplementation" => || Arc::new(harmony_spec_implementation_agent()),
+        "HarmonySpecVerify" => || Arc::new(harmony_spec_verify_agent()),
         "GeneralPurpose" => || Arc::new(GeneralPurposeAgent::new()),
         "ResearchSpecialist" => || Arc::new(ResearchSpecialistAgent::new()),
         "ReviewWorker" => || Arc::new(ReviewWorkerAgent::new()),

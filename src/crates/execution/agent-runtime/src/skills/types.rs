@@ -143,8 +143,9 @@ impl SkillInfo {
             self.source_id.trim()
         };
         matches!(
-            source,
+            source.to_lowercase().as_str(),
             "" | "bitfun" | "bitfun-system" | "bitfun-user"
+                | "openbitfun" | "openbitfun-system" | "openbitfun-user"
         )
     }
 

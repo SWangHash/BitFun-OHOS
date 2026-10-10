@@ -4,6 +4,66 @@
 
 ---
 
+## v1.0.8 ( unreleased ) — 工具与技能同步
+
+### 工具重命名
+
+- `check_arkts_files` 已重命名为 `arkts_check`，并改为直接调用 DevEco Studio 自带 Node + SDK checker，不再依赖 `deveco-mcp` MCP server。旧会话中 transcript 历史引用 `check_arkts_files` 的调用会自动归一化为 `arkts_check`，无需手动迁移。
+- `arkts_check` 自动发现 DevEco Studio 安装路径（`DEVECO_HOME` 环境变量 + 平台默认路径）；仅在自动发现失败时提示用户设置 `DEVECO_HOME`。
+
+---
+
+## v1.0.7 (2026-09-17) — 基于 BitFun 1.0.7
+
+### HarmonyOS PC 适配
+
+- **遥测与隐私**:引入可移植观测运行时并为 Agent 运行时事实埋点;OHOS 遥测接主机并按隐私门控加固;重新恢复 PrivacyGate(撤销移除);OHOS 反馈认证状态同步无需重启;遥测在禁用态避免无效开销。
+- **QT 迁移增强**:引入 LLM 语义识别迁移意图,prompt 路径直通迁移候选,问题卡片候选确定性注入 prompt 解析(不再依赖模型回传),迁移候选优先级调整,迁移产物路径过滤修复;修复问题卡片焦点丢失与回看不回显已提交输入;放开 `ohos-qt-skills` 加载限制。
+- **工具链与工作区**:鸿蒙工具链探测改用登录 shell 会话 PATH,工具链候选优先工作区并移除 skill 目录保底;OHOS 构建链路的工作区目录选择适配。
+- **内嵌浏览器**:适配外观模式。
+
+### 变更与新特性(同步上游)
+
+- **设置**:移除外部 AI 设置项。
+- **Skills**:Matrix 与 skills.sh 同名技能可独立共存;技能卡与 Matrix 芯片接入外观主题令牌。
+- **Web UI**:add-model UI 打磨、导航拖拽展开、滚动条可见性;文件树与终端工具栏改用 Tooltip 组件并锚定指针;导航面板可折叠分组头增加折叠指示箭头;聊天发送/停止按钮接入外观主按钮令牌;外观包允许在 registry 漂移时安装;终端工具栏与状态栏国际化。
+- **通知中心**:success 类通知纳入 info 过滤,修复搜索后 All 过滤计数。
+- **反馈**:反馈交互与鼠标光晕叠加改进;反馈收件箱条目分页。
+- **ACP**:提升深层嵌套 runtime futures 的递归上限。
+
+### 重要修复
+
+- 修复 DeepReview:读取 GitCode 对象 patch 并保留刷新统计;恢复被中断的 remediation 与会话提交;决策 tooltip 适配应用主题。
+- 修复 web UI 外观问题与 ADE 交互回归(release 分支同步携带)。
+
+---
+
+## v1.0.6 (2026-09-10) — 基于 BitFun 0.2.19
+
+### HarmonyOS PC 适配
+
+- **ACP 外部 Agent 供给**:新增平台感知的 ACP Agent 供给:Kimi Code、Qwen Code 经 HarmonyBrew 安装,CodeBuddy 经 HarmonyBrew 托管的 Node/npm 安装;复用已检测的安装,在 ACP 设置 UI 中暴露需求与供给状态。新增 HarmonyOS 版 Claude Code(HarmonyBrew Node/npm)与 Codex(HarmonyBrew formula)Agent 并绑定上游 ACP 适配器;DeepSeek Harness 经官方 HarmonyBrew formula 安装并打包进 HarmonyOS 资源,OpenCode 以手动获取链接提供 (`feat(acp): add platform-aware agent provisioning`、`feat(acp): support HarmonyOS agent provisioning`、`feat(acp): add HarmonyOS Claude and Codex agents`、`feat(ohos): enable DeepSeek Harness ACP setup`)。
+- **QT 工程迁移**:新增 QT 工程迁移鸿蒙能力:内置 `ohos-qt-skills` 技能组与 `qt_migration` Agent;Intake 工具注册分组并支持管理页启停;迁移问题卡片支持国际化并放宽模板问题 header 长度校验;迁移绑定输入注入与官方工具链下载语义;修复鸿蒙模板下载脚本安装根判定 (`QT工程迁移鸿蒙功能`、`QT迁移Intake工具注册分组并支持管理页启停`、`QT迁移问题卡片支持国际化`、`迁移绑定输入注入与官方工具链下载语义`)。
+- **Skills 中心与 Matrix 市场**:按设计稿重构技能中心 UI(卡片画廊、详情弹窗),市场 Tab 由分页改为无限滚动并支持加载失败重试;接入 OpenHarmony Matrix 市场,支持 Matrix 技能删除与安装失败提示 i18n;技能下载改为 Rust 原生实现,支持代理感知列表与偏移分页;按 installId 匹配安装、同级冲突报错,并接入 `saveFileToDownloadsOhos` API (`feat(skills): redesign skills center UI with Matrix market refinements`、`feat(skills): add OpenHarmony Matrix market integration`、`feat(skills): native Rust download + proxy-aware listing and offset pagination`、`fix(skills): installId-based matching, same-level conflict error, and saveFileToDownloadsOhos API`)。
+- **浏览器**:OHOS 内置 ArkWeb 支持 CDP 控制,新增海泰 TCP CDP 通道,OHOS 默认优先使用内置浏览器;支持 `file://` 协议在内置浏览器打开 HTML;海泰浏览器未安装时回退系统浏览器;隔离内嵌 webview 表面;经 ArkTS webview 桥暴露 `browser_get_url` (`feat(browser): control OHOS built-in ArkWeb via CDP`、`feat(browser): add OHOS Haitai TCP CDP control`、`feat(browser): prefer built-in browser on OHOS`、`fix(browser): isolate embedded webview surfaces`)。
+- **桌面宠物**:桌面宠物以应用内 overlay 形式适配 HarmonyOS;应用最小化时经 pet-only 窗口形变保持宠物可见 (`feat(agent-companion): adapt desktop pet to HarmonyOS as in-app overlay`、`feat(agent-companion): keep pet visible on HarmonyOS minimize via pet-only window morph`)。
+- **平台与构建**:新增平板(tablet)设备类型并移除无效的 `WINDOW_TOPMOST` 权限;OHOS SDK 升级到 6.0.1;显示版本号更新为 1.0.6 (`feat(ohos): add tablet device type and drop invalid WINDOW_TOPMOST permission`、`Adjust the SDK version to 6.0.1`、`update display version to 1.0.6`)。
+
+### 新特性(同步上游)
+
+- **Matrix 市场可靠性**:HTTP 重试与 5xx 重试、失败 facet 自动重载、facet 错误 i18n;ZIP 下载上限提升到 64 MiB 并移除冗余安装错误横幅 (`fix(matrix): add HTTP retry, 5xx retry, auto-reload failed facets, and i18n facet errors`、`fix(matrix): raise ZIP download limit to 64 MiB and remove redundant install error banner`)。
+- **行业智能体**:行业智能体卡片显示后端英文原名 (`行业智能体卡片显示后端英文原名`)。
+
+### 重要修复
+
+- 修复 ADE 交互回归:slash 命令浮层保持锚定且可关闭、通知展开互斥、搜索控件不再遮挡轮次上下文 (`fix(web-ui): resolve ADE interaction regressions`);修复左侧面板与会话窗口之间的拖拽区域 (`fix(web-ui) 修复左侧面板和会话窗口之间的拖拽区域`);修复 web UI 外观问题与普通问题卡片在其他输入框键入时被卸载 (`fix web UI appearance issues`)。
+- 修复 DeepReview:流式期间保持操作栏开关状态;评审画布跟随活动工作区切换;Other 分组复选框可选;评审平台从运行时环境解析 Git (`fix(review): preserve action bar toggles during streaming`、`fix(review): switch review canvas with the active workspace`、`fix(review): enable Other group checkbox selection`、`fix(review-platform): resolve Git from the runtime environment`)。
+- 修复 ACP:prompt 错误与传输终止正确传播;遗留权限迁移需显式保存;权限设置移除自动拒绝;禁用 Agent 显示为 inactive (`fix(acp): propagate prompt errors and transport termination`、`fix(acp): make legacy permission migration explicitly saveable`、`fix(acp): remove automatic rejection from permission settings`、`fix(acp): show disabled agents as inactive`)。
+- 修复快照大文件流式快照与恢复以限制内存占用 (`fix(snapshot): stream large file snapshots and restores to bound memory`);修复权限在显式授权范围内重复弹窗 (`fix(permission): reduce repeated prompts within explicit grant scopes`);修复 OHOS 凭据保留与市场登录绑定 (`fix(auth): preserve OHOS credentials and bound market sign-in`)。
+- 其他:反馈收件箱条目分页 (`fix(feedback): paginate feedback inbox entries`);桌面应用最小化时触发对话框完成通知 (`fix(ohos): fire dialog-completion notification when the desktop app is minimized`);移除重复的 OHOS downloads API (`fix(web-ui): remove duplicate OHOS downloads API`);非 OHOS 平台 guard profile 调试函数;反馈输入框使用 `useImeOwnedKeyGuard`。
+
+---
+
 ## v1.0.5 (2026-09-03) — 基于 BitFun 0.2.19
 
 ### HarmonyOS PC 适配

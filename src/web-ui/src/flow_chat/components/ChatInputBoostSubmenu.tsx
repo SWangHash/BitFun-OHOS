@@ -1,7 +1,6 @@
-import React, { useCallback, useId, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useCallback, useEffect, useId, useRef } from 'react';
 
-import { Menu, MenuItem, Icon } from '@bitfun/ui';
+import { createOverlayPortal, Menu, MenuItem, Icon, subscribeOverlayInteraction } from '@bitfun/ui';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { useSideAnchoredPopoverPosition } from '@/shared/utils/useSideAnchoredPopoverPosition';
 
@@ -32,6 +31,22 @@ export const ChatInputBoostSubmenu: React.FC<ChatInputBoostSubmenuProps> = ({
     popoverRef: submenuRef,
     layoutRevision: React.Children.count(children),
   });
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerInteraction = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target || triggerRef.current?.contains(target) || submenuRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    // Own the compatibility mouse event too, before the parent menu's capture listener.
+    const removePointerDown = subscribeOverlayInteraction(submenuRef, 'pointerdown', handlePointerInteraction);
+    const removeMouseDown = subscribeOverlayInteraction(submenuRef, 'mousedown', handlePointerInteraction);
+    return () => {
+      removePointerDown();
+      removeMouseDown();
+    };
+  }, [open, setOpen]);
 
   const openFlyout = useCallback((focusFirstItem = false) => {
     setOpen(true);
@@ -78,7 +93,7 @@ export const ChatInputBoostSubmenu: React.FC<ChatInputBoostSubmenuProps> = ({
       >
         {label}
       </MenuItem>
-      {open ? createPortal(
+      {open ? createOverlayPortal(
         <Menu
           ref={submenuRef}
           id={panelId}

@@ -100,6 +100,12 @@ pub fn builtin_agent_definition_specs() -> Vec<BuiltinAgentDefinitionSpec> {
             "primary",
             SubagentVisibilityPolicy::default(),
         ),
+        builtin_agent_spec(
+            "HarmonyBuild",
+            Mode,
+            "primary",
+            SubagentVisibilityPolicy::default(),
+        ),
         builtin_agent_spec("Claw", Mode, "primary", SubagentVisibilityPolicy::default()),
         builtin_agent_spec(
             "DeepResearch",
@@ -148,6 +154,30 @@ pub fn builtin_agent_definition_specs() -> Vec<BuiltinAgentDefinitionSpec> {
             SubAgent,
             "primary",
             SubagentVisibilityPolicy::public(),
+        ),
+        builtin_agent_spec(
+            "HarmonyPlan",
+            SubAgent,
+            "primary",
+            SubagentVisibilityPolicy::restricted(["HarmonyBuild"]),
+        ),
+        builtin_agent_spec(
+            "HarmonyGoal",
+            SubAgent,
+            "primary",
+            SubagentVisibilityPolicy::restricted(["HarmonyBuild"]),
+        ),
+        builtin_agent_spec(
+            "HarmonySpecImplementation",
+            Hidden,
+            "primary",
+            SubagentVisibilityPolicy::hidden(["HarmonyGoal", "HarmonyBuild"]),
+        ),
+        builtin_agent_spec(
+            "HarmonySpecVerify",
+            Hidden,
+            "primary",
+            SubagentVisibilityPolicy::hidden(["HarmonyGoal", "HarmonyBuild"]),
         ),
         builtin_agent_spec(
             "GeneralPurpose",
@@ -220,10 +250,12 @@ pub fn builtin_agent_definition_specs() -> Vec<BuiltinAgentDefinitionSpec> {
 
 pub fn default_model_id_for_builtin_agent(agent_type: &str) -> &'static str {
     match agent_type {
-        "BitFun" | "Minimal" | "Standard" | "Cowork" | "Creative" | "ComputerUse" | "Claw"
-        | "DeepResearch" | "Ultimate" | "HarmonyFeature" | "QtMigration" => "primary",
-        "Explore" | "CodeReview" | "GeneralPurpose" | "MemoryPhase2" | "SwarmPlanner"
-        | "SwarmWorker" => "primary",
+        "BitFun" | "Minimal" | "Standard" | "Cowork" | "Creative" | "HarmonyBuild" | "ComputerUse"
+        | "Claw" | "DeepResearch" | "Ultimate" | "HarmonyFeature"
+        | "QtMigration" => "primary",
+        "Explore" | "CodeReview" | "GeneralPurpose" | "MemoryPhase2" | "SwarmPlanner" | "SwarmWorker"
+        | "SwarmReviewer" | "HarmonyPlan" | "HarmonyGoal" | "HarmonySpecImplementation"
+        | "HarmonySpecVerify" => "primary",
         "GenerateDoc"
         | "ResearchSpecialist"
         | "DeepReview"

@@ -8,9 +8,8 @@
  * - Supports 'primary' | 'fast' | specific model IDs
  */
 
-import { Menu, MenuItem, MenuSection, MenuSeparator, OverflowText } from '@bitfun/ui';
+import { Menu, MenuItem, MenuSection, MenuSeparator, OverflowText, createOverlayPortal, subscribeOverlayInteraction } from '@bitfun/ui';
 import React, { useState, useEffect, useId, useRef, useCallback, useLayoutEffect, useMemo, useSyncExternalStore } from 'react';
-import { createPortal } from 'react-dom';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -601,12 +600,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     };
 
     if (dropdownOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
+      const removeMousedown = subscribeOverlayInteraction(portalDropdownRef, 'mousedown', handleClickOutside);
+      return () => removeMousedown();
     }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
   }, [dropdownOpen]);
 
   const acpAvailableModels = useMemo((): ModelInfo[] => {
@@ -1928,7 +1924,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
       {hasReasoningSettings && (
       <RetainedMountBoundary present={dropdownOpen}>
-        {createPortal(
+        {createOverlayPortal(
           <Menu
             id={menuId}
             className="bitfun-model-selector__dropdown"
@@ -2002,7 +1998,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       </RetainedMountBoundary>
       )}
 
-      {dropdownOpen && nativeSubmenu && createPortal(
+      {dropdownOpen && nativeSubmenu && createOverlayPortal(
         <Menu
           id={nativeSubmenuId}
           ref={nativeSubmenuRef}

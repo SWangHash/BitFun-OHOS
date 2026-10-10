@@ -18,14 +18,15 @@ pub use definitions::hidden::{
     CodeReviewAgent, DeepReviewAgent, GenerateDocAgent, BitFunAgent,
 };
 pub use definitions::modes::{
-    ClawMode, CoworkMode, CreativeHarness, DeepResearchMode, HarmonyFeatureMode, MinimalHarness,
-    QtMigrationMode, StandardHarness, UltimateHarness,
+    ClawMode, CoworkMode, CreativeHarness, DeepResearchMode, HarmonyBuildMode, HarmonyFeatureMode,
+    MinimalHarness, QtMigrationMode, StandardHarness, UltimateHarness,
 };
 pub use definitions::review::{ReviewFixerAgent, ReviewJudgeAgent, ReviewWorkerAgent};
 pub use definitions::shared::ReadonlySubagent;
 pub use definitions::subagents::{
-    ComputerUseMode, ExploreAgent, GeneralPurposeAgent, ResearchSpecialistAgent, SwarmPlannerAgent,
-    SwarmReviewerAgent, SwarmWorkerAgent,
+    harmony_goal_agent, harmony_spec_implementation_agent, harmony_spec_verify_agent,
+    ComputerUseMode, ExploreAgent, GeneralPurposeAgent, HarmonyAgent, HarmonyPlanAgent,
+    ResearchSpecialistAgent, SwarmPlannerAgent, SwarmReviewerAgent, SwarmWorkerAgent,
 };
 use indexmap::IndexMap;
 pub use bitfun_agent_runtime::agents::{
@@ -135,6 +136,7 @@ pub fn standard_harness_tools() -> Vec<String> {
         "ReviewPlatform".to_string(),
         "BitFunControl".to_string(),
         "ControlHub".to_string(),
+        "OpenUrl".to_string(),
         // Pairs with ControlHub: its `wait` sends anything repeating, or
         // further out than an hour, to Cron rather than holding the turn open
         // for the interval.

@@ -568,6 +568,7 @@ mod tests {
             "WriteStdin",
             "ExecControl",
             "GetTime",
+            "OpenUrl",
             "ListModels",
             "Task",
             "AgentSpawn",
@@ -612,16 +613,14 @@ mod tests {
             "ControlHub",
             "ComputerUse",
             "Playbook",
-            "build_project",
             "start_app",
             "hdc_log",
-            "arkts_knowledge_search",
-            "check_arkts_files",
-            "check_cpp_files",
+            "arkts_check",
             "switch_cwd",
             "verify_ui",
             "get_ui_verification_log",
             "save_ui_screenshot",
+            "QtMigrationIntake",
         ];
 
         assert_eq!(
@@ -868,6 +867,7 @@ mod tests {
                 "Glob",
                 "Grep",
                 "GetTime",
+                "OpenUrl",
                 "ListModels",
                 "AgentList",
                 "Skill",
@@ -887,10 +887,9 @@ mod tests {
                 "GenerativeUI",
                 "Playbook",
                 "hdc_log",
-                "arkts_knowledge_search",
-                "check_arkts_files",
-                "check_cpp_files",
+                "arkts_check",
                 "get_ui_verification_log",
+                "QtMigrationIntake",
             ],
             "readonly tool manifest must stay stable before moving registry ownership"
         );
