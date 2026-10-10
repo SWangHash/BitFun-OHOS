@@ -89,6 +89,7 @@ const SceneTab: React.FC<SceneTabProps> = ({
         isActive && 'bitfun-scene-tab--active',
         pinned && 'bitfun-scene-tab--pinned',
       ].filter(Boolean).join(' ')}
+      data-testid={`scene-tab-${tab.id}`}
       onClick={handleClick}
       onMouseDown={handleMouseDown}
       onAuxClick={handleAuxClick}
@@ -125,6 +126,7 @@ const SceneTab: React.FC<SceneTabProps> = ({
           type="button"
           className="bitfun-scene-tab__close"
           aria-label={`Close ${label}`}
+          data-testid={`scene-tab-close-${tab.id}`}
           onClick={handleClose}
           tabIndex={-1}
         >

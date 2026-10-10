@@ -247,6 +247,7 @@ const SettingsNav: React.FC = () => {
             ref={searchInputRef}
             className="bitfun-settings-nav__search-field"
             size="sm"
+            data-testid="settings-search-input"
             value={draftQuery}
             onValueChange={setDraftQuery}
             onClear={draftQuery ? () => {

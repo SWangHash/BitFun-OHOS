@@ -61,6 +61,8 @@ function AppearanceSelectionSection() {
                 disabled={isChanging}
                 placeholder={t('appearance.language')}
                 data-testid="appearance-language-select"
+                triggerTestId="appearance-language-select-trigger"
+                panelTestId="appearance-language-select-menu"
               />
             </div>
           </ConfigPageRow>

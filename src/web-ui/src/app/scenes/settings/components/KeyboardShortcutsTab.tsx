@@ -654,6 +654,7 @@ const KeyboardShortcutsTab: React.FC = () => {
             data-bitfun-component="keyboard-shortcuts"
             data-bitfun-part="search"
             size="sm"
+            data-testid="kb-shortcuts-search-input"
             value={searchQuery}
             onValueChange={setSearchQuery}
             leadingIcon={<Icon name="search" size="sm" aria-hidden />}
@@ -673,6 +674,7 @@ const KeyboardShortcutsTab: React.FC = () => {
               <Button
                 variant="primary"
                 size="sm"
+                data-testid="kb-shortcuts-apply-btn"
                 onClick={handleApply}
                 disabled={saving || hasBlockingConflicts}
               >
@@ -682,6 +684,7 @@ const KeyboardShortcutsTab: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
+              data-testid="kb-shortcuts-reset-btn"
               onClick={handleReset}
               disabled={saving}
             >
@@ -750,6 +753,7 @@ const KeyboardShortcutsTab: React.FC = () => {
                           size="xs"
                           tone={mergedTabConflict ? 'danger' : 'neutral'}
                           variant={recordingId === MERGED_TAB_RECORD_ID ? 'primary' : 'outline'}
+                          data-testid="kb-keybadge-merged-tab"
                           onClick={() =>
                             setRecordingId(recordingId === MERGED_TAB_RECORD_ID ? null : MERGED_TAB_RECORD_ID)
                           }
@@ -812,6 +816,7 @@ const KeyboardShortcutsTab: React.FC = () => {
                           size="xs"
                           tone={mergedSceneConflict ? 'danger' : 'neutral'}
                           variant={recordingId === MERGED_SCENE_RECORD_ID ? 'primary' : 'outline'}
+                          data-testid="kb-keybadge-merged-scene"
                           onClick={() =>
                             setRecordingId(recordingId === MERGED_SCENE_RECORD_ID ? null : MERGED_SCENE_RECORD_ID)
                           }
@@ -880,6 +885,7 @@ const KeyboardShortcutsTab: React.FC = () => {
                             size="xs"
                             tone={conflict ? 'danger' : 'neutral'}
                             variant={isRecording ? 'primary' : 'outline'}
+                            data-testid={`kb-keybadge-${reg.id}`}
                             onClick={() => setRecordingId(isRecording ? null : reg.id)}
                           >
                             {isRecording

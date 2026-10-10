@@ -375,6 +375,7 @@ export const GlobalSearchContent: React.FC<GlobalSearchContentProps> = ({
             <SearchField
               ref={inputRef}
               className="global-search__query global-search__query--system"
+              data-testid="global-search-input"
               value={query}
               onValueChange={(nextQuery) => {
                 setQuery(nextQuery);
@@ -538,6 +539,7 @@ export const GlobalSearchContent: React.FC<GlobalSearchContentProps> = ({
                         <ActionCard
                           key={item.id}
                           id={`${instanceId}-option-${item.id}`}
+                          data-testid={`global-search-action-${item.id}`}
                           data-search-result-id={item.id}
                           role="option"
                           aria-selected={selected}
@@ -570,6 +572,7 @@ export const GlobalSearchContent: React.FC<GlobalSearchContentProps> = ({
                         <ActionCard
                           key={item.id}
                           id={`${instanceId}-option-${item.id}`}
+                          data-testid={`global-search-result-${item.id}`}
                           data-search-result-id={item.id}
                           role="option"
                           aria-selected={selected}

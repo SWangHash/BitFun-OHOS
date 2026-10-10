@@ -1613,7 +1613,7 @@ const McpToolsConfig: React.FC = () => {
           {desktopConfigAvailable && !showJsonEditor && !mcpLoading
             && !serverLoadFailed && servers.length === 0 && (
             <div className="bitfun-collection-empty" data-bitfun-component="mcp-tools-config" data-bitfun-part="empty">
-              <Button variant="outline" size="sm" onClick={() => setShowJsonEditor(true)} leadingIcon={<FileJson size={14} />}>
+              <Button variant="outline" size="sm" data-testid="mcp-json-toggle-empty" onClick={() => setShowJsonEditor(true)} leadingIcon={<FileJson size={14} />}>
 
                 {tMcp('actions.jsonConfig')}
               </Button>

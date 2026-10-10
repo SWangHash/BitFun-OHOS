@@ -45,9 +45,9 @@ export const WindowControls: React.FC<WindowControlsProps> = ({
   restoreIcon,
   closeIcon,
   className = '',
-  'data-testid-minimize': testIdMinimize,
-  'data-testid-maximize': testIdMaximize,
-  'data-testid-close': testIdClose,
+  'data-testid-minimize': testIdMinimize = 'window-controls-minimize-btn',
+  'data-testid-maximize': testIdMaximize = 'window-controls-maximize-btn',
+  'data-testid-close': testIdClose = 'window-controls-close-btn',
   nativePlaceholder = false,
   ...props
 }) => {

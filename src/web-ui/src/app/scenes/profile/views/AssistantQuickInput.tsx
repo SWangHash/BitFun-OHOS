@@ -132,6 +132,7 @@ const AssistantQuickInput: React.FC<AssistantQuickInputProps> = ({
                 onClick={() => { void handleSend(); }}
                 aria-label={t('actions.send')}
                 className="aqi__send"
+                data-testid="aqi-send-btn"
                 icon={<Icon name="arrow-up" size="lg" />}
               />
             )}
@@ -141,6 +142,7 @@ const AssistantQuickInput: React.FC<AssistantQuickInputProps> = ({
         <textarea
           ref={textareaRef}
           className="aqi__editor"
+          data-testid="aqi-message-textarea"
           value={value}
           onChange={handleChange}
           onKeyDown={handleKeyDown}

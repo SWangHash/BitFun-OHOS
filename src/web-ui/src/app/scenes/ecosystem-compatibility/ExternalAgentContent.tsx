@@ -598,8 +598,8 @@ export default function ExternalAgentContent({ scopeKey, refreshControlRef, onRe
         <div><h2>{t('content.title', { name: runtime.spec.name })}</h2><p>{t('content.description')}</p></div>
         {localImportSupported && items.some((item) => ['mcp', 'hook'].includes(item.kind)) ? (
           <div className="ecosystem-compatibility__import-action">
-            <Button size="sm" variant="primary" disabled={busy || loading || planLoading} onClick={() => void prepareBatch()}>{t('content.importAll')}</Button>
-            <Button size="sm" variant="outline" disabled={busy || loading || !items.some((item) => contentState(item) === 'imported')} onClick={() => void prepareBatchUndo()}>{t('content.undoAll')}</Button>
+            <Button size="sm" variant="primary" data-testid={`ecosystem-import-all-btn-${runtime.spec.ecosystemId}`} disabled={busy || loading || planLoading} onClick={() => void prepareBatch()}>{t('content.importAll')}</Button>
+            <Button size="sm" variant="outline" data-testid={`ecosystem-undo-all-btn-${runtime.spec.ecosystemId}`} disabled={busy || loading || !items.some((item) => contentState(item) === 'imported')} onClick={() => void prepareBatchUndo()}>{t('content.undoAll')}</Button>
           </div>
         ) : null}
       </div>
@@ -646,6 +646,7 @@ export default function ExternalAgentContent({ scopeKey, refreshControlRef, onRe
                 icon={<Icon name="chevron-right" size="sm" />}
                 aria-label={t('content.viewCategory', { type: t(`capabilities.${group}`) })}
                 aria-haspopup="dialog" aria-controls={categoryDialogId}
+                data-testid={`ecosystem-view-category-${group}`}
                 onClick={() => { setAccountExpanded(false); setPetDialogOpen(false); setKind(group); setSearch(''); setSelected(new Set()); setNotice(null); }} /> : null}
             </span>
           </div>

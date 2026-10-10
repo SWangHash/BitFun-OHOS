@@ -447,6 +447,8 @@ const WebSearchSettingsPage: React.FC = () => {
               aria-describedby="web-search-provider-help"
               placeholder={t('fields.provider.placeholder')}
               disabled={mutationBusy}
+              triggerTestId="settings-web-search-provider-select"
+              panelTestId="settings-web-search-provider-select-menu"
               onValueChange={(value) => setConfig(previous => ({
                 ...previous,
                 provider: normalizeSelectValue(value),

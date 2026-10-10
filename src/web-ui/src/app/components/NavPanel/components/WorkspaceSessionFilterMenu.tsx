@@ -205,6 +205,7 @@ const WorkspaceSessionFilterMenu: React.FC = () => {
   const row = (submenu: Submenu, value?: string, active = false) => (
     <MenuItem
       data-submenu-id={submenu}
+      data-testid={`nav-session-filter-row-${submenu}`}
       data-bitfun-state={activeSubmenu === submenu ? 'open' : undefined}
       aria-haspopup="menu"
       aria-expanded={activeSubmenu === submenu}
@@ -249,6 +250,7 @@ const WorkspaceSessionFilterMenu: React.FC = () => {
           actions={[{
             id: 'reset',
             label: t('nav.sessions.viewMenu.filters.reset'),
+            testId: 'nav-session-filter-reset',
             icon: <RotateCcw size={12} aria-hidden="true" />,
             onClick: () => {
               setActiveSubmenu(null);
@@ -271,6 +273,7 @@ const WorkspaceSessionFilterMenu: React.FC = () => {
           </MenuItem>
         ) : null}
         <MenuItem
+          data-testid="nav-session-mark-all-read"
           onClick={() => {
             for (const session of flowChatStore.getState().sessions.values()) {
               if (session.hasUnreadCompletion) flowChatStore.clearSessionUnreadCompletion(session.sessionId);
@@ -309,6 +312,7 @@ const WorkspaceSessionFilterMenu: React.FC = () => {
             return (
               <MenuItem
                 key={option}
+                data-testid={`nav-session-filter-${activeSubmenu}-option-${option}`}
                 role={definition.kind === 'single' ? 'menuitemradio' : 'menuitemcheckbox'}
                 checked={selected}
                 reserveLeadingSpace

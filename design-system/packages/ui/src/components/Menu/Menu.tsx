@@ -46,6 +46,8 @@ export interface MenuSectionAction {
   id: string;
   label: string;
   onClick?: MouseEventHandler<HTMLButtonElement>;
+  /** data-testid for the heading action button. */
+  testId?: string;
   tone?: IconButtonProps["tone"];
 }
 
@@ -279,6 +281,7 @@ export const MenuSection = forwardRef<HTMLDivElement, MenuSectionProps>(function
                   aria-label={action.label}
                   className={styles.headingAction}
                   data-bitfun-menu-item=""
+                  data-testid={action.testId}
                   disabled={action.disabled}
                   icon={action.icon}
                   key={action.id}

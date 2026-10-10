@@ -476,6 +476,7 @@ const WorktreeSettingsPage: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
+              data-testid="worktrees-settings-reset-btn"
               onClick={() => updateSettings(DEFAULT_SETTINGS)}
               disabled={saving || settingsEqual(settings, DEFAULT_SETTINGS)}
               leadingIcon={<RotateCcw size={14} aria-hidden />}
@@ -492,6 +493,7 @@ const WorktreeSettingsPage: React.FC = () => {
               value={settings.rootPath}
               onChange={event => updateSettings({ rootPath: event.target.value })}
               disabled={saving}
+              data-testid="worktree-root-path-input"
             />
           </ConfigPageRow>
           <ConfigPageRow
@@ -502,6 +504,7 @@ const WorktreeSettingsPage: React.FC = () => {
               value={settings.branchPrefix}
               onChange={event => updateSettings({ branchPrefix: event.target.value })}
               disabled={saving}
+              data-testid="worktree-branch-prefix-input"
             />
           </ConfigPageRow>
           <ConfigPageRow
@@ -513,6 +516,7 @@ const WorktreeSettingsPage: React.FC = () => {
               checked={settings.copyLocalChanges}
               onChange={event => updateSettings({ copyLocalChanges: event.target.checked })}
               disabled={saving}
+              data-testid="worktree-copy-local-changes-switch"
             />
           </ConfigPageRow>
           <ConfigPageRow
@@ -524,6 +528,7 @@ const WorktreeSettingsPage: React.FC = () => {
               checked={settings.autoDeleteEnabled}
               onChange={event => updateSettings({ autoDeleteEnabled: event.target.checked })}
               disabled={saving}
+              data-testid="worktree-auto-delete-switch"
             />
           </ConfigPageRow>
           <ConfigPageRow
@@ -539,6 +544,7 @@ const WorktreeSettingsPage: React.FC = () => {
               showButtons={false}
               disableWheel
               disabled={saving || !settings.autoDeleteEnabled}
+              testId="worktree-auto-delete-limit-input"
             />
           </ConfigPageRow>
         </ConfigPageSection>
@@ -801,6 +807,7 @@ const WorktreeSettingsPage: React.FC = () => {
               onClick={() => void loadProjects()}
               loading={projectsLoading}
               disabled={deletingWorktreeId !== null}
+              testId="worktrees-management-refresh-btn"
             />
           )}
         >

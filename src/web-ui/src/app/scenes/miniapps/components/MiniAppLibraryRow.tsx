@@ -84,6 +84,7 @@ const MiniAppLibraryRow: React.FC<MiniAppLibraryRowProps> = ({
         type="button"
         className="miniapp-library-row__details"
         aria-label={detailsLabel}
+        data-testid={`miniapp-library-row-${itemKey}-details`}
         onClick={onOpenDetails}
       >
         <span
@@ -198,6 +199,7 @@ const MiniAppLibraryRow: React.FC<MiniAppLibraryRowProps> = ({
           disabled={actionDisabled}
           loading={busy}
           title={actionTitle}
+          data-testid={`miniapp-library-row-${itemKey}-primary`}
           onClick={onPrimaryAction}
         >
           {actionLabel}

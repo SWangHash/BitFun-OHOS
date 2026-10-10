@@ -447,6 +447,7 @@ const TodosScene: React.FC = () => {
             size="sm"
             variant="outline"
             className="bitfun-todos__today-button"
+            data-testid="todos-calendar-today-btn"
             onClick={showCurrentMonth}
           >
             {t('calendar.today')}
@@ -475,7 +476,7 @@ const TodosScene: React.FC = () => {
         data-testid="todos-editor-modal"
       >
         <DialogHeader className="bitfun-todos-editor-dialog__header">
-          {!renderedEditor.saving && <DialogClose />}
+          {!renderedEditor.saving && <DialogClose data-testid="todos-editor-modal-close-btn" />}
         </DialogHeader>
         <DialogBody className="bitfun-todos-editor-dialog__body" inset="none">
           <TodoEditor

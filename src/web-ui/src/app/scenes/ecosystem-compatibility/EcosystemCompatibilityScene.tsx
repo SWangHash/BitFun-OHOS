@@ -399,6 +399,7 @@ const EcosystemCompatibilityScene: React.FC = () => {
             className="ecosystem-compatibility__section-action"
             size="sm"
             variant="outline"
+            data-testid="ecosystem-manage-acp-btn"
             aria-haspopup="dialog"
             aria-controls="ecosystem-acp-manager"
             onClick={() => setOwnerSurface('acp')}
@@ -604,6 +605,7 @@ const EcosystemCompatibilityScene: React.FC = () => {
             <SearchField
               leadingIcon={<Icon name="search" aria-hidden />}
               size="sm"
+              data-testid="ecosystem-compat-search-input"
               value={searchQuery}
               onValueChange={setSearchQuery}
               placeholder={t('search.placeholder')}
@@ -618,8 +620,11 @@ const EcosystemCompatibilityScene: React.FC = () => {
                 value: runtime.spec.id,
                 label: runtime.spec.name,
                 group: t(`groups.${runtime.group}`),
+                testId: `ecosystem-product-option-${runtime.spec.id}`,
               }))}
               aria-label={t('sidebar.label')}
+              triggerTestId="ecosystem-compat-product-select"
+              panelTestId="ecosystem-compat-product-select-menu"
               onValueChange={(productId) => {
                 const runtime = productRuntimes.find((candidate) => candidate.spec.id === productId);
                 if (runtime) handleSelectProduct(runtime);
@@ -665,6 +670,7 @@ const EcosystemCompatibilityScene: React.FC = () => {
                         selected={runtime.spec.id === selectedRuntime.spec.id}
                         onClick={() => handleSelectProduct(runtime)}
                         data-product-id={runtime.spec.id}
+                        data-testid={`ecosystem-product-item-${runtime.spec.id}`}
                         title={`${runtime.spec.name} · ${renderProductSummary(runtime)}`}
                         leading={<EcosystemProductIcon productId={runtime.spec.id} size={22} />}
                       >
@@ -717,6 +723,7 @@ const EcosystemCompatibilityScene: React.FC = () => {
                   icon={<Icon name="refresh" size="sm" />}
                   aria-label={t('content.refresh')}
                   title={t('content.refresh')}
+                  data-testid="ecosystem-refresh-btn"
                   disabled={loading || contentRefreshDisabled}
                   onClick={() => void externalContentRef.current?.refresh()}
                 />

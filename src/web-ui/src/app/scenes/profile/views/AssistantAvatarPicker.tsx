@@ -113,6 +113,7 @@ const AssistantAvatarPicker: React.FC<AssistantAvatarPickerProps> = ({
         ref={triggerRef}
         type="button"
         className={`acp-avatar-picker__trigger${isOpen ? ' is-open' : ''}`}
+        data-testid="assistant-avatar-picker-trigger"
         aria-label={t('identity.avatarChange')}
         aria-expanded={isOpen}
         aria-controls={pickerId}
@@ -137,6 +138,7 @@ const AssistantAvatarPicker: React.FC<AssistantAvatarPickerProps> = ({
           className="acp-avatar-picker__popover"
           role="region"
           aria-labelledby={titleId}
+          data-testid="assistant-avatar-picker-panel"
           data-bitfun-placement={popoverLayout?.placement ?? 'bottom'}
           style={{
             top: `${popoverLayout?.top ?? 0}px`,
@@ -172,6 +174,7 @@ const AssistantAvatarPicker: React.FC<AssistantAvatarPickerProps> = ({
                   name: t(`identity.avatarFamilies.${preset.family}`),
                 })}
                 aria-pressed={selectedPresetId === preset.id}
+                data-testid={`assistant-avatar-preset-${preset.id}`}
                 onClick={() => choosePresetAvatar(preset.id)}
               >
                 <AssistantAvatar presetId={preset.id} size={30} />

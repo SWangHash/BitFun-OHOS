@@ -56,6 +56,8 @@ interface PickerCommonProps
   disabled?: boolean;
   errorMessage?: ReactNode;
   filterOption?: (option: ComboboxOption, query: string) => boolean;
+  /** data-testid for the opened popup panel (listbox surface). */
+  panelTestId?: string;
   invalid?: boolean;
   label?: ReactNode;
   loading?: boolean;
@@ -67,6 +69,8 @@ interface PickerCommonProps
   placeholder?: ReactNode;
   required?: boolean;
   size?: ComboboxSize;
+  /** data-testid for the closed trigger button. */
+  triggerTestId?: string;
 }
 
 export interface ComboboxProps extends PickerCommonProps {
@@ -143,10 +147,12 @@ const CollectionPicker = forwardRef<HTMLDivElement, PickerProps>(function Collec
     onOpenChange,
     open,
     options: optionsProp = [],
+    panelTestId,
     placement = "bottom",
     placeholder: placeholderProp,
     required = false,
     size = "md",
+    triggerTestId,
     ...rootProps
   } = props;
   delete (rootProps as Record<string, unknown>).defaultValue;
@@ -516,6 +522,7 @@ const CollectionPicker = forwardRef<HTMLDivElement, PickerProps>(function Collec
       data-invalid={invalid ? "true" : "false"}
       data-placement={layout?.placement ?? placement}
       data-size={size}
+      data-testid={panelTestId}
       ref={popoverRef}
       style={layout?.style ?? { position: "fixed", visibility: "hidden" }}
     >
@@ -686,6 +693,7 @@ const CollectionPicker = forwardRef<HTMLDivElement, PickerProps>(function Collec
           aria-busy={loading || undefined}
           className={styles.trigger}
           data-bitfun-part="trigger"
+          data-testid={triggerTestId}
           disabled={disabled}
           id={resolvedOpen ? undefined : id}
           onClick={() => {

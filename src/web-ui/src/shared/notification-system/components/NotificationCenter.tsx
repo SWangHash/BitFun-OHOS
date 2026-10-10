@@ -233,6 +233,7 @@ export const NotificationCenter: React.FC = () => {
                 disabled={!history.some(notification => !notification.read)}
                 title={t('components:notificationCenter.actions.markAllRead')}
                 aria-label={t('components:notificationCenter.actions.markAllRead')}
+                data-testid="notification-center-mark-all-read-btn"
               />
               <IconButton
                 icon={<Icon name="delete" size="md" />}
@@ -240,6 +241,7 @@ export const NotificationCenter: React.FC = () => {
                 disabled={history.length === 0}
                 title={t('components:notificationCenter.actions.clearAll')}
                 aria-label={t('components:notificationCenter.actions.clearAll')}
+                data-testid="notification-center-clear-all-btn"
               />
               <span className="notification-center__close" data-bitfun-component="notification" data-bitfun-part="centerClose">
                 <DialogClose
@@ -256,6 +258,7 @@ export const NotificationCenter: React.FC = () => {
             <SearchField
               placeholder={t('components:notificationCenter.searchPlaceholder')}
               aria-label={t('components:notificationCenter.searchPlaceholder')}
+              data-testid="notification-center-search-input"
               leadingIcon={<Icon name="search" size="md" aria-hidden />}
               value={searchQuery}
               onValueChange={setSearchQuery}

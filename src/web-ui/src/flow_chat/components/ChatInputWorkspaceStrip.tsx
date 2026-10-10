@@ -1052,6 +1052,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
               data-bitfun-part="usageAction"
               className="bitfun-chat-input-workspace-strip__usage-btn"
               type="button"
+              data-testid="chat-input-usage-btn"
               aria-label={t('usage.runtime.open')}
               onClick={e => {
                 e.stopPropagation();

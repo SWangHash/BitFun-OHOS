@@ -1001,6 +1001,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
               <Switch
                 checked={settings.enable_agent_companion}
                 onChange={(e) => updateSetting('enable_agent_companion', e.target.checked)}
+                data-testid="runtime-settings-agent-companion-switch"
               />
             </div>
           </ConfigPageRow>
@@ -1020,6 +1021,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
               <Button
                 size="md"
                 variant="primary"
+                data-testid="runtime-settings-pet-import-btn"
                 onClick={() => void handleImportCompanionPet()}
                 disabled={!IS_TAURI_DESKTOP || companionPetImporting}
                 title={t('features.pet.importHint')}
@@ -1074,6 +1076,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                       className="bitfun-runtime-settings__pet-card-select"
                       data-bitfun-component="runtime-settings"
                       data-bitfun-part="petTrigger"
+                      data-testid={`runtime-settings-pet-card-select-${pet.id}`}
                       data-bitfun-state={isSelected ? 'selected' : undefined}
                       role="radio"
                       aria-checked={isSelected}
@@ -1175,12 +1178,14 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                 size="sm"
                 value={resolveToolPermissionMode(toolPermissionConfig)}
                 options={[
-                  { value: 'ask', label: t('permissionPolicy.ask') },
-                  { value: 'auto', label: t('permissionPolicy.autoApprove') },
-                  { value: 'full_access', label: t('permissionPolicy.fullAccess') },
+                  { value: 'ask', label: t('permissionPolicy.ask'), testId: 'settings-permission-mode-option-ask' },
+                  { value: 'auto', label: t('permissionPolicy.autoApprove'), testId: 'settings-permission-mode-option-auto' },
+                  { value: 'full_access', label: t('permissionPolicy.fullAccess'), testId: 'settings-permission-mode-option-full-access' },
                 ]}
                 disabled={permissionConfigSaving}
                 onValueChange={handlePermissionModeChange}
+                triggerTestId="settings-permission-mode-select"
+                panelTestId="settings-permission-mode-select-menu"
               />
             </div>
           </ConfigPageRow>
@@ -1193,6 +1198,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
               <Switch
                 checked={showPermissionModeControl}
                 disabled={permissionModeControlVisibilitySaving}
+                data-testid="settings-permission-mode-in-chat-switch"
                 onChange={event => void handlePermissionModeControlVisibilityChange(event.target.checked)}
               />
             </div>
@@ -1207,6 +1213,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                 type="button"
                 size="sm"
                 variant="outline"
+                data-testid="permission-manage-global-rules-btn"
                 disabled={permissionConfigSaving}
                 onClick={() => setIsGlobalPermissionRulesDialogOpen(true)}
               >
@@ -1244,6 +1251,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                 unit={tTools('config.seconds')}
                 size="sm"
                 variant="compact"
+                testId="settings-tool-execution-timeout-input"
                 disabled={toolExecConfigLoading}
               />
             </div>
@@ -1262,10 +1270,13 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                     ? `${option.label} — ${formatStandaloneUiText(option.description)}`
                     : option.label,
                   value: option.value,
+                  testId: `settings-subagent-batch-option-${option.value}`,
                 }))}
                 size="sm"
                 disabled={toolExecConfigLoading}
                 onValueChange={handleSubagentBatchExecutionPolicyChange}
+                triggerTestId="settings-subagent-batch-policy-select"
+                panelTestId="settings-subagent-batch-policy-select-menu"
               />
             </div>
           </ConfigPageRow>
@@ -1283,6 +1294,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                 step={1}
                 size="sm"
                 variant="compact"
+                testId="settings-subagent-max-concurrency-input"
                 disabled={toolExecConfigLoading}
               />
             </div>
@@ -1301,6 +1313,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                 step={1}
                 size="sm"
                 variant="compact"
+                testId="settings-swarm-max-concurrency-input"
                 disabled={toolExecConfigLoading}
               />
             </div>
@@ -1321,6 +1334,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                 checked={enableDeferredToolLoading}
                 onChange={(event) => handleDeferredToolLoadingChange(event.target.checked)}
                 disabled={deferredToolLoadingConfigSaving}
+                data-testid="settings-deferred-tool-loading-switch"
               />
             </div>
           </ConfigPageRow>
@@ -1346,6 +1360,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
               tooltip={t('computerUse.refreshStatus')}
               loading={computerUseStatusLoading}
               disabled={computerUseBusy}
+              testId="settings-computer-use-refresh-btn"
               onClick={() => void refreshComputerUseStatus()}
             />
           ) : undefined}
@@ -1388,6 +1403,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                       className="bitfun-runtime-settings__row-action-btn"
                       size="sm"
                       variant="outline"
+                      data-testid="settings-computer-use-open-accessibility-btn"
                       disabled={computerUseBusy || computerUseStatusLoading}
                       onClick={() => void handleComputerUseOpenSettings('accessibility')}
                     >
@@ -1418,6 +1434,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                       className="bitfun-runtime-settings__row-action-btn"
                       size="sm"
                       variant="outline"
+                      data-testid="settings-computer-use-open-screen-capture-btn"
                       disabled={computerUseBusy || computerUseStatusLoading}
                       onClick={() => void handleComputerUseOpenSettings('screen_capture')}
                     >
@@ -1465,6 +1482,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
               tooltip={t('browserControl.refreshStatus')}
               loading={browserStatusLoading}
               disabled={browserControlBusy}
+              testId="settings-browser-refresh-btn"
               onClick={() => void refreshBrowserControlStatus()}
             />
           ) : undefined}
@@ -1491,6 +1509,8 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                     size="sm"
                     disabled={browserCdpAvailable || browserControlBusy || browserStatusLoading || browserStatusError || browserSelectOptions.length === 0}
                     onValueChange={(value) => void handleBrowserControlBrowserChange(value)}
+                    triggerTestId="settings-preferred-browser-select"
+                    panelTestId="settings-preferred-browser-select-menu"
                   />
                 </div>
               </ConfigPageRow>
@@ -1528,6 +1548,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                       checked={browserAutoConnectOnStartup}
                       onChange={(e) => void handleBrowserAutoConnectChange(e.target.checked)}
                       disabled={browserControlBusy || browserStatusLoading || browserStatusError}
+                      data-testid="settings-browser-auto-connect-switch"
                     />
                   </div>
                 </ConfigPageRow>
@@ -1555,6 +1576,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                       className="bitfun-runtime-settings__row-action-btn"
                       size="sm"
                       variant="outline"
+                      data-testid="settings-browser-disconnect-btn"
                       disabled={browserControlBusy || browserStatusLoading || browserStatusError}
                       onClick={() => void handleBrowserControlDisconnect()}
                     >
@@ -1565,6 +1587,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                       className="bitfun-runtime-settings__row-action-btn"
                       size="sm"
                       variant="outline"
+                      data-testid="settings-browser-connect-btn"
                       disabled={browserControlBusy || browserStatusLoading || browserStatusError}
                       onClick={() => void (browserDefaultCdpSupported
                         ? handleBrowserControlEnableDefaultCdp()

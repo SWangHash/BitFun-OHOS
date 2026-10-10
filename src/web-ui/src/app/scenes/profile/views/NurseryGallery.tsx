@@ -193,6 +193,7 @@ const NurseryGallery: React.FC = () => {
             type="button"
             variant="primary"
             size="sm"
+            data-testid="nursery-create-assistant-btn"
             onClick={handleCreateAssistant}
             disabled={creating}
             aria-busy={creating}
@@ -257,6 +258,7 @@ const NurseryGallery: React.FC = () => {
               variant="secondary"
               size="sm"
               className="nursery-defaults__action"
+              data-testid="nursery-configure-defaults-btn"
               leadingIcon={<Icon name="settings" size="sm" />}
               trailingIcon={<Icon name="chevron-right" size="sm" />}
               onClick={openDefaults}

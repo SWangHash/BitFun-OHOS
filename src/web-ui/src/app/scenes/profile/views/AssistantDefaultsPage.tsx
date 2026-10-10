@@ -615,6 +615,7 @@ const AssistantDefaultsPage: React.FC = () => {
           <button data-overflow-trigger
             type="button"
             className="assistant-defaults-row__identity"
+            data-testid={`assistant-defaults-row-identity-${row.id}`}
             onClick={() => openDetail(row.detail)}
             aria-label={t('nursery.template.openCapabilityDetail', { name: row.name })}
             aria-haspopup="dialog"
@@ -645,6 +646,7 @@ const AssistantDefaultsPage: React.FC = () => {
             type="button"
             size="sm"
             className="assistant-defaults-row__detail"
+            data-testid={`assistant-defaults-row-detail-${row.id}`}
             onClick={() => openDetail(row.detail)}
             aria-label={t('nursery.template.openCapabilityDetail', { name: row.name })}
             aria-haspopup="dialog"
@@ -751,6 +753,7 @@ const AssistantDefaultsPage: React.FC = () => {
                   type="button"
                   size="sm"
                   className="assistant-defaults-group__collapse"
+                  data-testid={`assistant-defaults-group-collapse-${group.id}`}
                   onClick={() => toggleCollapse(group.id)}
                   aria-expanded={!collapsed}
                   aria-label={t('nursery.template.toggleServerGroup', { name: serverName })}
@@ -773,6 +776,7 @@ const AssistantDefaultsPage: React.FC = () => {
                   type="button"
                   size="sm"
                   className="assistant-defaults-group__detail"
+                  data-testid={`assistant-defaults-group-detail-${group.id}`}
                   onClick={() => openDetail({ type: 'mcpServer', serverId: group.id })}
                   aria-label={t('nursery.template.openServerDetail')}
                   aria-haspopup="dialog"
@@ -787,6 +791,7 @@ const AssistantDefaultsPage: React.FC = () => {
                     aria-busy={allNames.some((name) => toolsLoading[name])}
                     onChange={() => void handleGroupToggleAll(allNames)}
                     aria-label={t('nursery.template.toggleServerTools', { name: serverName })}
+                    data-testid={`assistant-defaults-group-toggle-all-${group.id}`}
                   />
                 ) : null}
               </div>
@@ -1012,6 +1017,7 @@ const AssistantDefaultsPage: React.FC = () => {
                   onClick={openGallery}
                   aria-label={t('nursery.backToGallery')}
                   icon={<Icon name="arrow-left" size="sm" />}
+                  data-testid="assistant-defaults-back-btn"
                 />
               </Tooltip>
             )}
@@ -1026,6 +1032,7 @@ const AssistantDefaultsPage: React.FC = () => {
                 leadingIcon={<RotateCcw />}
                 loading={resetting}
                 className="assistant-defaults__reset"
+                data-testid="assistant-defaults-reset-btn"
                 onClick={() => void handleResetDefaults()}
                 disabled={resetting || assistantModeConfig === null}
               >
@@ -1073,6 +1080,7 @@ const AssistantDefaultsPage: React.FC = () => {
                   onValueChange={(value) => handleTabChange(value as AssistantDefaultsTab)}
                   options={tabs.map((tab) => ({
                     value: tab.id,
+                    testId: `assistant-defaults-tab-${tab.id}`,
                     label: <span className="assistant-defaults-tabs__label">{tab.label}<NumberBadge value={tab.count} /></span>,
                   }))}
                 />
@@ -1089,6 +1097,7 @@ const AssistantDefaultsPage: React.FC = () => {
                     leadingIcon={<Icon name="search" size="md" />}
                     placeholder={t('nursery.template.searchPlaceholder')}
                     aria-label={t('nursery.template.filterLabel')}
+                    data-testid="assistant-defaults-search-input"
                   />
                   <SegmentedControl
                     className="assistant-defaults-filters"
@@ -1098,7 +1107,7 @@ const AssistantDefaultsPage: React.FC = () => {
                     size="sm"
                     value={statusFilter}
                     onValueChange={(value) => setStatusFilter(value as AssistantDefaultsStatusFilter)}
-                    options={statusFilters.map((filter) => ({ value: filter.id, label: filter.label }))}
+                    options={statusFilters.map((filter) => ({ value: filter.id, testId: `assistant-defaults-filter-${filter.id}`, label: filter.label }))}
                   />
                 </section>
 

@@ -195,6 +195,7 @@ export const SessionTitleConfig: React.FC = () => {
               onChange={(e) => void updateEnabled(e.target.checked)}
               disabled={isLoading || !settings}
               aria-label={t('sessionTitle.title')}
+              data-testid="runtime-session-title-auto-switch"
             />
           </div>
         </ConfigPageRow>
@@ -216,6 +217,8 @@ export const SessionTitleConfig: React.FC = () => {
                 onValueChange={(value) => void handleModelChange(normalizeSelectValue(value))}
                 disabled={isLoading}
                 data-testid="settings-session-title-model-select"
+                triggerTestId="settings-session-title-model-select-btn"
+                panelTestId="settings-session-title-model-select-menu"
               />
             </div>
           </ConfigPageRow>

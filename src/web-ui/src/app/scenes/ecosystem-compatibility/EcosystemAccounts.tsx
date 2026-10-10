@@ -69,7 +69,7 @@ export default function EcosystemAccounts({ provider, supported, refreshVersion,
         <StatusPill tone="neutral" title={t(`content.accounts.states.${state}`)}>{state === 'loading' ? t('loading') : t(`content.accounts.labels.${state}`)}</StatusPill>
         <IconButton size="sm" variant="quiet" icon={<Icon name={expanded ? 'chevron-down' : 'chevron-right'} size="sm" />}
           aria-label={t(expanded ? 'content.collapseCategory' : 'content.expandCategory', { type: t('capabilities.account') })}
-          aria-expanded={expanded} aria-controls={id} onClick={() => { if (!expanded) setRevision((value) => value + 1); onToggle(); }} />
+          aria-expanded={expanded} aria-controls={id} data-testid={`ecosystem-account-expand-${provider}`} onClick={() => { if (!expanded) setRevision((value) => value + 1); onToggle(); }} />
       </span>
     </div>
     <div role="row" hidden={!expanded}><div id={id} role="cell" aria-colspan={3} className="ecosystem-compatibility__content-expanded">

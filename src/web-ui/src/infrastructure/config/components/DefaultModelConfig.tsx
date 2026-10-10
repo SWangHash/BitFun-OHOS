@@ -199,6 +199,8 @@ export const DefaultModelConfig: React.FC = () => {
           options={enabledModels.map(buildModelOption)}
           disabled={enabledModels.length === 0}
           size="sm"
+          triggerTestId="default-primary-model-select"
+          panelTestId="default-primary-model-select-menu"
         />
       </ConfigPageRow>
 
@@ -218,6 +220,8 @@ export const DefaultModelConfig: React.FC = () => {
             ...enabledModels.map(buildModelOption),
           ]}
           size="sm"
+          triggerTestId="default-fast-model-select"
+          panelTestId="default-fast-model-select-menu"
         />
       </ConfigPageRow>
 

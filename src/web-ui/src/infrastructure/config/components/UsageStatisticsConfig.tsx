@@ -856,6 +856,7 @@ const UsageStatisticsConfig: React.FC = () => {
                 onClick={() => void load(true)}
                 loading={refreshing}
                 disabled={loading}
+                testId="usage-stats-refresh-btn"
               />
             )}
             data-bitfun-component="usage-statistics-config"
@@ -879,6 +880,8 @@ const UsageStatisticsConfig: React.FC = () => {
                   onValueChange={(value) => setTimeRange(value as UsageTimeRange)}
                   aria-label={t('timeRange.label')}
                   disabled={loading}
+                  triggerTestId="usage-time-range-select"
+                  panelTestId="usage-time-range-select-menu"
                 />
               </div>
               <div className="bitfun-usage-stats__filter-field">
@@ -894,6 +897,8 @@ const UsageStatisticsConfig: React.FC = () => {
                   onValueChange={(value) => setGranularity(value as UsageGranularity)}
                   aria-label={t('granularity.label')}
                   disabled={loading}
+                  triggerTestId="usage-granularity-select"
+                  panelTestId="usage-granularity-select-menu"
                 />
               </div>
               <div className="bitfun-usage-stats__filter-field bitfun-usage-stats__filter-field--query">
@@ -910,6 +915,8 @@ const UsageStatisticsConfig: React.FC = () => {
                     onValueChange={(value) => setFilterKind(value as UsageStatisticsFilterKind)}
                     aria-label={t('filter.kind.label')}
                     disabled={loading}
+                    triggerTestId="usage-filter-kind-select"
+                    panelTestId="usage-filter-kind-select-menu"
                   />
                   <Input
                     className="bitfun-usage-stats__filter-input"

@@ -8,6 +8,7 @@ export interface ConfigRefreshButtonProps {
   loading?: boolean;
   disabled?: boolean;
   className?: string;
+  testId?: string;
 }
 
 export const ConfigRefreshButton: React.FC<ConfigRefreshButtonProps> = ({
@@ -16,6 +17,7 @@ export const ConfigRefreshButton: React.FC<ConfigRefreshButtonProps> = ({
   loading = false,
   disabled = false,
   className = '',
+  testId,
 }) => {
   return (
     <Tooltip content={tooltip} disabled={disabled}>
@@ -27,6 +29,7 @@ export const ConfigRefreshButton: React.FC<ConfigRefreshButtonProps> = ({
         disabled={disabled}
         loading={loading}
         className={className}
+        data-testid={testId}
         icon={<CatalogIcon name="refresh" size="sm" />}
       />
     </Tooltip>

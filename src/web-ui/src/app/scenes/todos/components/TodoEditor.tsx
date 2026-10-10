@@ -242,6 +242,7 @@ const TodoEditor: React.FC<TodoEditorProps> = ({
                 value={selectedWorkspaceId}
                 placeholder={t('editor.placeholders.workspace')}
                 aria-label={t('shared:features.workspace')}
+                triggerTestId="todos-editor-workspace"
                 onValueChange={(value) => onSelectedWorkspaceIdChange(String(value))}
               />
             </div>
@@ -271,6 +272,7 @@ const TodoEditor: React.FC<TodoEditorProps> = ({
                   disabled={isAssistantWorkspace}
                   placeholder={t('editor.placeholders.agentType')}
                   aria-label={t('editor.fields.agentType')}
+                  triggerTestId="todos-editor-agent-type"
                   onValueChange={(value) => {
                     clearError('agentType');
                     updateDraft({ agentType: String(value) });
@@ -295,6 +297,7 @@ const TodoEditor: React.FC<TodoEditorProps> = ({
                 ]}
                 aria-label={t('editor.fields.scheduleKind')}
                 onValueChange={handleScheduleKindChange}
+                triggerTestId="todos-editor-schedule-kind-trigger"
                 data-testid="todos-editor-schedule-kind"
               />
             </div>
@@ -315,6 +318,7 @@ const TodoEditor: React.FC<TodoEditorProps> = ({
                   value={draft.at}
                   error={validationErrors.at}
                   aria-label={t('editor.fields.at')}
+                  testId="todos-editor-execute-at"
                   onChange={(at) => {
                     clearError('at');
                     // Re-enable a Todo that was left off after its time passed.
@@ -520,6 +524,7 @@ const TodoEditor: React.FC<TodoEditorProps> = ({
           variant="fill"
           onClick={onCancel}
           disabled={saving}
+          data-testid="todos-editor-cancel"
         >
           {t('common:nav.scheduledJobs.actions.cancel')}
         </Button>

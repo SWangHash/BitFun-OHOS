@@ -237,6 +237,7 @@ export function VoiceInputDiagnostics({
             onPointerDown={() => void loadMicrophones()}
             options={microphoneOptions}
             size="sm"
+            triggerTestId="voice-diagnostics-device-select"
           />
         </div>
       </ConfigPageRow>
@@ -268,6 +269,7 @@ export function VoiceInputDiagnostics({
             loading={phase === 'preparing' || phase === 'transcribing'}
             disabled={phase === 'preparing' || phase === 'transcribing'}
             leadingIcon={phase === 'recording' ? <Square size={13} /> : undefined}
+            data-testid="voice-diagnostics-start-test-btn"
             onClick={() => {
               if (phase === 'recording') void finishRecognitionTest();
               else if (phase === 'idle') void startRecognitionTest();

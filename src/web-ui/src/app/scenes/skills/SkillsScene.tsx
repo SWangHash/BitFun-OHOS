@@ -410,6 +410,7 @@ const SkillsScene: React.FC = () => {
       >
         <NavigationPanelItem
           selected={installedView === cat.id}
+          data-testid={`skills-sidebar-item-${cat.id}`}
           onClick={() => setInstalledView(cat.id)}
           title={t(cat.descKey, { source: cat.sourceLabel })}
           leading={<span data-bitfun-scene="skills" data-bitfun-part="sidebarItemIcon">{cat.icon}</span>}
@@ -435,6 +436,7 @@ const SkillsScene: React.FC = () => {
               className="skills-sidebar__search"
               data-bitfun-scene="skills"
               data-bitfun-part="sidebarSearch"
+              data-testid="skills-sidebar-search-input"
               value={sidebarSearch.value}
               onValueChange={sidebarSearch.onValueChange}
               onSearch={sidebarSearch.onSearch}
@@ -465,6 +467,7 @@ const SkillsScene: React.FC = () => {
               >
                 <NavigationPanelItem
                   selected={isMarketView}
+                  data-testid="skills-sidebar-item-market"
                   onClick={() => setInstalledView('market')}
                   title={t('market.subtitle')}
                   leading={<span data-bitfun-scene="skills" data-bitfun-part="sidebarItemIcon"><Icon glyph={Compass} size="sm" /></span>}
@@ -481,6 +484,7 @@ const SkillsScene: React.FC = () => {
               >
                 <NavigationPanelItem
                   selected={isMatrixView}
+                  data-testid="skills-sidebar-item-matrix"
                   onClick={() => setInstalledView('matrix')}
                   title={t('matrix.subtitle')}
                   leading={<span data-bitfun-scene="skills" data-bitfun-part="sidebarItemIcon"><Icon glyph={Package} size="sm" /></span>}
@@ -553,6 +557,7 @@ const SkillsScene: React.FC = () => {
                     checked={hideDuplicates}
                     onCheckedChange={setHideDuplicates}
                     size="sm"
+                    data-testid="skills-hide-duplicates-checkbox"
                     label={t('toolbar.hideDuplicates')}
                   />
                 </div>
@@ -699,6 +704,7 @@ const SkillsScene: React.FC = () => {
                                 disabled={installed.savingGlobalSkillKey !== null}
                                 aria-busy={installed.savingGlobalSkillKey === skill.key}
                                 aria-label={t('list.item.globalToggleLabel', { name: skill.name })}
+                                data-testid={`skill-availability-switch-${skill.key}`}
                                 onChange={(event) => {
                                   void installed.handleGlobalSkillToggle(skill, event.target.checked);
                                 }}
@@ -1178,6 +1184,7 @@ const SkillsScene: React.FC = () => {
                   size="sm"
                   onClick={() => void market.handleDownload(selectedMarketSkill, 'project')}
                   disabled={market.downloadingPackage === selectedMarketSkill.installId || !market.hasWorkspace}
+                  data-testid="skill-detail-download-project-btn"
                 >
                   {t('market.item.downloadProject')}
                 </Button>
@@ -1187,6 +1194,7 @@ const SkillsScene: React.FC = () => {
                 size="sm"
                 onClick={() => void market.handleDownload(selectedMarketSkill, 'user')}
                 disabled={market.downloadingPackage === selectedMarketSkill.installId}
+                data-testid="skill-detail-download-user-btn"
               >
                 {t('market.item.downloadUser')}
               </Button>
@@ -1201,6 +1209,7 @@ const SkillsScene: React.FC = () => {
                   size="sm"
                   onClick={() => void matrix.handleInstall(selectedMatrixSkill, 'project')}
                   disabled={matrix.installingEnName === selectedMatrixSkill.enName || !matrix.hasWorkspace}
+                  data-testid="skill-detail-install-project-btn"
                 >
                   {matrix.installingEnName === selectedMatrixSkill.enName
                     ? t('matrix.item.installing')
@@ -1212,6 +1221,7 @@ const SkillsScene: React.FC = () => {
                 size="sm"
                 onClick={() => void matrix.handleInstall(selectedMatrixSkill, 'user')}
                 disabled={matrix.installingEnName === selectedMatrixSkill.enName}
+                data-testid="skill-detail-install-user-btn"
               >
                 {matrix.installingEnName === selectedMatrixSkill.enName
                   ? t('matrix.item.installing')
@@ -1236,7 +1246,7 @@ const SkillsScene: React.FC = () => {
           <DialogHeading>
             <DialogTitle>{t('form.title')}</DialogTitle>
           </DialogHeading>
-          <DialogClose />
+          <DialogClose data-testid="skills-add-modal-close-btn" />
         </DialogHeader>
         <DialogBody inset="none">
         <div className="bitfun-skills-scene__modal-form">
@@ -1253,6 +1263,7 @@ const SkillsScene: React.FC = () => {
               value={installed.formLevel}
               onValueChange={(value) => installed.setFormLevel(value as SkillLevel)}
               size="md"
+              triggerTestId="skills-add-level"
             />
           </Field>
 
@@ -1268,6 +1279,7 @@ const SkillsScene: React.FC = () => {
                 placeholder={t('form.path.placeholder')}
                 value={installed.formPath}
                 onChange={(e) => installed.setFormPath(e.target.value)}
+                data-testid="skills-add-path-input"
               />
             </Field>
             <IconButton
@@ -1276,6 +1288,7 @@ const SkillsScene: React.FC = () => {
               aria-label={t('form.path.browseTooltip')}
               title={t('form.path.browseTooltip')}
               icon={<FolderOpen size={15} />}
+              data-testid="skills-add-browse-btn"
             />
           </div>
           <div className="bitfun-skills-scene__path-hint">
@@ -1318,6 +1331,7 @@ const SkillsScene: React.FC = () => {
                 installed.resetForm();
                 setAddFormOpen(false);
               }}
+              data-testid="skills-add-cancel-btn"
             >
               {t('form.actions.cancel')}
             </Button>
@@ -1326,6 +1340,7 @@ const SkillsScene: React.FC = () => {
               size="sm"
               onClick={handleAddSkill}
               disabled={!installed.validationResult?.valid || installed.isAdding}
+              data-testid="skills-add-submit-btn"
             >
               {installed.isAdding ? t('form.actions.adding') : t('form.actions.add')}
             </Button>

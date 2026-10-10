@@ -154,6 +154,7 @@ export const TabGroup = forwardRef<HTMLDivElement, TabGroupProps>(function TabGr
               className={classNames(styles.tab, item.tabProps?.className)}
               data-bitfun-part="tab"
               data-bitfun-value={item.value}
+              data-testid={item.tabProps?.["data-testid"] ?? `tab-${item.value}`}
               disabled={item.disabled}
               id={item.id ?? `${generatedId}-tab-${index}`}
               onClick={() => selectItem(item)}

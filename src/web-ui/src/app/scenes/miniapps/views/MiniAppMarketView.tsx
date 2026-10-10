@@ -260,9 +260,9 @@ const MiniAppMarketView: React.FC<MiniAppMarketViewProps> = ({ tabs }) => {
     ? pickLocalizedString(detail, currentLanguage, 'description')
     : '';
   const sortOptions = useMemo<SelectOption[]>(() => [
-    { value: 'newest', label: t('market.sort.newest') },
-    { value: 'downloads', label: t('market.sort.downloads') },
-    { value: 'rating', label: t('market.sort.rating') },
+    { value: 'newest', label: t('market.sort.newest'), testId: 'miniapp-market-sort-newest' },
+    { value: 'downloads', label: t('market.sort.downloads'), testId: 'miniapp-market-sort-downloads' },
+    { value: 'rating', label: t('market.sort.rating'), testId: 'miniapp-market-sort-rating' },
   ], [t]);
 
   return (
@@ -278,6 +278,7 @@ const MiniAppMarketView: React.FC<MiniAppMarketViewProps> = ({ tabs }) => {
           >
             <SearchField
               leadingIcon={<Icon name="search" size="lg" aria-hidden />}
+              data-testid="miniapp-market-search-input"
               value={query}
               onValueChange={setQuery}
               placeholder={t('market.search')}
@@ -309,6 +310,8 @@ const MiniAppMarketView: React.FC<MiniAppMarketViewProps> = ({ tabs }) => {
               value={sort}
               onValueChange={(value) => setSort(value as MarketSort)}
               aria-label={t('market.sortLabel')}
+              triggerTestId="miniapp-market-sort-select"
+              panelTestId="miniapp-market-sort-select-menu"
             />
           )}
         >

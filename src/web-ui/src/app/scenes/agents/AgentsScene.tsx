@@ -286,17 +286,17 @@ const AgentsHomeView: React.FC = () => {
   );
 
   const sourceFilterOptions = useMemo(() => [
-    { value: 'all', label: t('filters.anySource') },
-    { value: 'builtin', label: t('filters.builtin') },
-    { value: 'user', label: t('filters.user') },
-    { value: 'project', label: t('filters.project') },
-    { value: 'external', label: t('filters.external') },
+    { value: 'all', label: t('filters.anySource'), testId: 'agents-source-filter-option-all' },
+    { value: 'builtin', label: t('filters.builtin'), testId: 'agents-source-filter-option-builtin' },
+    { value: 'user', label: t('filters.user'), testId: 'agents-source-filter-option-user' },
+    { value: 'project', label: t('filters.project'), testId: 'agents-source-filter-option-project' },
+    { value: 'external', label: t('filters.external'), testId: 'agents-source-filter-option-external' },
   ], [t]);
 
   const typeFilterOptions = useMemo(() => [
-    { value: 'all', label: t('filters.anyKind') },
-    { value: 'agent', label: t('filters.agent') },
-    { value: 'subagent', label: t('filters.subagent') },
+    { value: 'all', label: t('filters.anyKind'), testId: 'agents-kind-filter-option-all' },
+    { value: 'agent', label: t('filters.agent'), testId: 'agents-kind-filter-option-agent' },
+    { value: 'subagent', label: t('filters.subagent'), testId: 'agents-kind-filter-option-subagent' },
   ], [t]);
 
   const renderSkeletons = (prefix: string) => (
@@ -878,6 +878,8 @@ const AgentsHomeView: React.FC = () => {
                   value={agentFilterLevel}
                   options={sourceFilterOptions}
                   aria-label={t('filters.source')}
+                  triggerTestId="agents-source-filter-select"
+                  panelTestId="agents-source-filter-select-menu"
                   onValueChange={(value) => setAgentFilterLevel(
                     normalizeSelectValue(value) as AgentFilterLevel,
                   )}
@@ -896,6 +898,8 @@ const AgentsHomeView: React.FC = () => {
                   value={agentFilterType}
                   options={typeFilterOptions}
                   aria-label={t('filters.kind')}
+                  triggerTestId="agents-kind-filter-select"
+                  panelTestId="agents-kind-filter-select-menu"
                   onValueChange={(value) => setAgentFilterType(
                     normalizeSelectValue(value) as AgentFilterType,
                   )}

@@ -33,6 +33,7 @@ export interface NumberInputProps extends Pick<InputHTMLAttributes<HTMLInputElem
   showButtons?: boolean;
   size?: "sm" | "md" | "lg";
   step?: number;
+  testId?: string;
   unit?: string;
   value: number;
   variant?: "default" | "compact" | "stepper";
@@ -56,6 +57,7 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(functi
   showButtons = true,
   size = "md",
   step = 1,
+  testId,
   unit,
   value,
   variant = "default",
@@ -112,6 +114,7 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(functi
           aria-label={ariaLabel ?? label}
           className={styles.input}
           data-bitfun-part="input"
+          data-testid={testId}
           disabled={disabled}
           inputMode="decimal"
           onBlur={(event) => {
@@ -147,8 +150,8 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(functi
         {unit && <span className={styles.unit} data-bitfun-part="unit">{unit}</span>}
         {showButtons && variant !== "compact" && (
           <span className={styles.buttons} data-bitfun-part="buttons">
-            <button aria-label={decrementLabel} disabled={disabled || value <= min} onClick={() => changeBy(-step)} tabIndex={-1} type="button">−</button>
-            <button aria-label={incrementLabel} disabled={disabled || value >= max} onClick={() => changeBy(step)} tabIndex={-1} type="button">+</button>
+            <button aria-label={decrementLabel} data-testid={testId ? `${testId}-decrement-btn` : undefined} disabled={disabled || value <= min} onClick={() => changeBy(-step)} tabIndex={-1} type="button">−</button>
+            <button aria-label={incrementLabel} data-testid={testId ? `${testId}-increment-btn` : undefined} disabled={disabled || value >= max} onClick={() => changeBy(step)} tabIndex={-1} type="button">+</button>
           </span>
         )}
       </span>

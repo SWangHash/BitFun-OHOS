@@ -1528,6 +1528,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
       variant="outline"
       size="sm"
       trailingIcon={<Icon name="arrow-up-right" size="sm" />}
+      data-testid="acp-agents-learn-more-btn"
       onClick={openLearnMore}
     >
       {t('actions.learnMore')}
@@ -1695,6 +1696,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                 tooltip={t('actions.refresh')}
                 onClick={() => { void refreshRequirementProbes({ force: true }); }}
                 loading={probingRequirements}
+                testId="acp-agents-refresh-btn"
               />
             )}
           >
@@ -1713,6 +1715,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
               aria-label={t('registry.searchPlaceholder')}
               leadingIcon={<Icon name="search" size="sm" />}
               size="sm"
+              data-testid="acp-agents-search-input"
             />
             <Select
               className="bitfun-acp-agents__filter-select"
@@ -1721,6 +1724,8 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
               onValueChange={(value) => setRegistryFilter(value as RegistryFilter)}
               aria-label={t('registry.filterLabel')}
               size="sm"
+              triggerTestId="acp-agents-filter-select"
+              panelTestId="acp-agents-filter-select-menu"
             />
           </div>
           <FieldGroup appearance="subtle" dividers={false} fieldSurface="ambient">
@@ -1861,12 +1866,15 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                             permissionMode: normalizePermissionMode(value),
                           })}
                           size="sm"
+                          triggerTestId={`acp-preset-permission-select-${preset.id}`}
+                          panelTestId={`acp-preset-permission-select-${preset.id}-menu`}
                         />
                       ) : canInstallCli ? (
                         <Button
                           variant="outline"
                           size="sm"
                           leadingIcon={<Icon name="arrow-down" size="sm" />}
+                          data-testid={`acp-preset-install-cli-btn-${preset.id}`}
                           onClick={() => requestInstallPresetClient(preset)}
                           loading={installing}
                         >
@@ -1877,6 +1885,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                           variant="outline"
                           size="sm"
                           leadingIcon={<ExternalLink size={14} />}
+                          data-testid={`acp-preset-get-btn-${preset.id}`}
                           onClick={() => openManualInstallGuide(manualInstallGuide.repositoryUrl)}
                         >
                           {t('actions.get')}
@@ -1886,6 +1895,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                           variant="outline"
                           size="sm"
                           leadingIcon={<FileJson />}
+                          data-testid={`acp-preset-configure-btn-${preset.id}`}
                           onClick={() => { void configurePresetClient(preset); }}
                           loading={configuring}
                         >
@@ -1919,6 +1929,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                           variant="outline"
                           size="sm"
                           leadingIcon={<Icon name="plus" size="sm" />}
+                          data-testid={`acp-preset-add-config-btn-${preset.id}`}
                           onClick={() => addPresetClient(preset, {
                             manualCliRequired: selfManagedCliMissing,
                           })}
@@ -2308,6 +2319,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                                     variant="outline"
                                     size="sm"
                                     leadingIcon={<Icon name="arrow-down" size="sm" />}
+                                    data-testid={`acp-remote-install-cli-btn-${connection.id}-${row.preset?.id ?? 'unknown'}`}
                                     onClick={() => requestInstallPresetClient(row.preset!, {
                                       remoteConnectionId: connection.id,
                                       hostLabel: [connection.username, connection.host]
