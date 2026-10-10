@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { WorktreeCommandError } from '@/infrastructure/api/service-api/WorktreeAPI';
 import { localSessionDriver } from './LocalSessionDriver';
 import type { DialogTurn } from '../../types/flow-chat';
 import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 import { consumeSubmittedMessageArrival } from '../../services/submittedMessagePresentation';
 
-const { mockStartAcpDialogTurn, mockStartAgenticDialogTurn, mockTransition, mockUpdateSessionMetadata, mockGetMode, mockUpdateMode } = vi.hoisted(() => ({
+const { mockBindWorktree, mockTrust, mockStartAcpDialogTurn, mockStartAgenticDialogTurn, mockTransition, mockUpdateSessionMetadata, mockGetMode, mockUpdateMode } = vi.hoisted(() => ({
+  mockBindWorktree: vi.fn(),
+  mockTrust: vi.fn(),
   mockStartAcpDialogTurn: vi.fn(),
   mockStartAgenticDialogTurn: vi.fn(),
   mockTransition: vi.fn(),
@@ -27,7 +30,11 @@ vi.mock('@/infrastructure/api/service-api/AgentAPI', () => ({
 }));
 
 vi.mock('@/infrastructure/api/service-api/SessionAPI', () => ({ sessionAPI: {} }));
-vi.mock('@/infrastructure/api/service-api/WorktreeAPI', () => ({ worktreeAPI: {} }));
+vi.mock('@/infrastructure/api/service-api/WorktreeAPI', async importOriginal => ({
+  ...await importOriginal<typeof import('@/infrastructure/api/service-api/WorktreeAPI')>(),
+  worktreeAPI: { bindSession: mockBindWorktree },
+}));
+vi.mock('@/shared/services/gitTrustService', () => ({ requestGitRepositoryTrust: mockTrust }));
 
 vi.mock('../../state-machine', () => ({
   stateMachineManager: {
@@ -63,7 +70,7 @@ function persistedTurn(id: string, storageTurnIndex: number): DialogTurn {
 }
 
 function createHarness(existingTurns: DialogTurn[]) {
-  const session: any = {
+  let session: any = {
     sessionId: SESSION_ID,
     dialogTurns: [...existingTurns],
     workspacePath: WORKSPACE_PATH,
@@ -77,11 +84,12 @@ function createHarness(existingTurns: DialogTurn[]) {
       getState: () => ({ sessions: new Map([[SESSION_ID, session]]) }),
       addDialogTurn: (_sessionId: string, turn: DialogTurn) => {
         addedTurns.push(turn);
-        session.dialogTurns = [...session.dialogTurns, turn];
+        session = { ...session, dialogTurns: [...session.dialogTurns, turn] };
       },
       deleteDialogTurn: vi.fn(),
       updateSessionLastSubmittedMode: vi.fn(),
       setSessionWorktreeIsolationRequested: vi.fn(),
+      updateSessionExecutionTarget: vi.fn(),
     },
     processingManager: {
       registerStatus: vi.fn(),
@@ -111,10 +119,53 @@ function startTurnInput(session: any) {
 
 describe('localSessionDriver.startTurn on an ACP session', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     mockTransition.mockResolvedValue(true);
     mockStartAcpDialogTurn.mockResolvedValue(undefined);
     mockUpdateSessionMetadata.mockResolvedValue(undefined);
+  });
+
+  it('resumes the same worktree request after explicitly trusting the new workspace', async () => {
+    const { context, session } = createHarness([]);
+    session.config.worktreeIsolationRequested = true;
+    session.config.worktreeIsolationRequestId = 'pending-request';
+    mockBindWorktree.mockRejectedValueOnce(new WorktreeCommandError(
+      'repository_untrusted', 'ownership mismatch', '/worktrees/new', 'new-workspace',
+    )).mockResolvedValueOnce({
+      workspacePath: '/worktrees/new',
+      projectWorkspacePath: WORKSPACE_PATH,
+      workspaceId: 'new-workspace',
+      executionTarget: { kind: 'managedWorktree', worktreeId: 'wt-1', rootPath: '/worktrees/new' },
+    });
+    mockTrust.mockResolvedValueOnce(true);
+    await localSessionDriver.startTurn(context, startTurnInput(session), {
+      createdLocalTurnId: null, hostAcceptedTurn: false,
+    });
+    expect(mockTrust).toHaveBeenCalledWith(
+      { workspaceId: 'new-workspace', repositoryPath: '/worktrees/new' },
+      { userInitiated: true, isCurrent: expect.any(Function) },
+    );
+    expect(mockBindWorktree).toHaveBeenCalledTimes(2);
+    expect(mockBindWorktree.mock.calls[0][2]).toBe('pending-request');
+    expect(mockBindWorktree.mock.calls[1]).toEqual(mockBindWorktree.mock.calls[0]);
+    expect(context.flowChatStore.updateSessionExecutionTarget).toHaveBeenCalledTimes(1);
+    expect(mockStartAcpDialogTurn).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the session unstarted when worktree trust is declined', async () => {
+    const { context, session } = createHarness([]);
+    session.config.worktreeIsolationRequested = true;
+    const failure = new WorktreeCommandError(
+      'repository_untrusted', 'ownership mismatch', '/worktrees/new', 'new-workspace',
+    );
+    mockBindWorktree.mockRejectedValueOnce(failure);
+    mockTrust.mockResolvedValueOnce(false);
+    await expect(localSessionDriver.startTurn(context, startTurnInput(session), {
+      createdLocalTurnId: null, hostAcceptedTurn: false,
+    })).rejects.toBe(failure);
+    expect(mockBindWorktree).toHaveBeenCalledTimes(1);
+    expect(mockStartAcpDialogTurn).not.toHaveBeenCalled();
+    expect(context.flowChatStore.updateSessionExecutionTarget).not.toHaveBeenCalled();
   });
 
   it('gives the first turn a storage slot so it can be persisted', async () => {

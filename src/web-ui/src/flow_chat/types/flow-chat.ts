@@ -658,6 +658,8 @@ export interface SessionConfig {
    * is clicked.
    */
   worktreeIsolationRequested?: boolean;
+  /** Reuses a pending materialization when the user retries after resolving trust. */
+  worktreeIsolationRequestId?: string;
   /** Binds session to `WorkspaceInfo.id` (path alone is insufficient for remotes). */
   workspaceId?: string;
   projectWorkspaceId?: string;

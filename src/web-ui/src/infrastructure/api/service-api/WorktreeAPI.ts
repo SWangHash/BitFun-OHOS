@@ -91,6 +91,7 @@ interface WorktreeErrorPayload {
   code: WorktreeErrorCode;
   message: string;
   recoveryPath?: string;
+  recoveryWorkspaceId?: string;
 }
 
 export class WorktreeCommandError extends Error {
@@ -98,6 +99,7 @@ export class WorktreeCommandError extends Error {
     public readonly code: WorktreeErrorCode,
     message: string,
     public readonly recoveryPath?: string,
+    public readonly recoveryWorkspaceId?: string,
   ) {
     super(message);
     this.name = 'WorktreeCommandError';
@@ -197,6 +199,7 @@ export function toWorktreeCommandError(error: unknown): WorktreeCommandError {
           payload.code,
           payload.message,
           payload.recoveryPath,
+          payload.recoveryWorkspaceId,
         );
       }
       const details = payload.details;

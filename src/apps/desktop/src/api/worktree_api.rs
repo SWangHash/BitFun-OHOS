@@ -14,6 +14,7 @@ fn remote_unsupported() -> WorktreeError {
         code: WorktreeErrorCode::RemoteUnsupported,
         message: "Managed worktrees are not supported for remote SSH workspaces yet".to_string(),
         recovery_path: None,
+        recovery_workspace_id: None,
     }
 }
 
