@@ -483,6 +483,9 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
       await this.desktopSystem.setPreventSleep(arg === 'true');
       return '';
     });
+    RustModule.registerArktsFunction('window_is_focused', async (): Promise<string> => {
+      return String(windowStage.getMainWindowSync().isFocused());
+    });
     RustModule.registerArktsFunction('window_is_minimized', async (err: Error, arg: string): Promise<string> => {
       let state = windowStage.getMainWindowSync().getWindowStatus();
       if (state == window.WindowStatusType.MINIMIZE) {
@@ -868,15 +871,24 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     // once (idempotent afterwards); `publish` shows the notification.
     RustModule.registerArktsFunction('send_system_notification_ohos', async (err: Error, arg: string): Promise<string> => {
       const params: SendNotificationArg = JSON.parse(arg);
-      try {
+      if (!await notificationManager.isNotificationEnabled()) {
         await notificationManager.requestEnableNotification();
-      } catch (e) {
-        // user denied or unavailable; publish will no-op below
+      }
+      if (!await notificationManager.isNotificationEnabled()) {
+        throw new Error('System notifications are disabled');
+      }
+      const slotType = notificationManager.SlotType.SERVICE_INFORMATION;
+      const slots = await notificationManager.getSlots();
+      // Only create a missing channel; preserve the user's existing alert settings.
+      if (!slots.some(slot => slot.notificationType === slotType)) {
+        // SERVICE_INFORMATION uses the system's high-priority alert channel.
+        await notificationManager.addSlot(slotType);
       }
       const request: notificationManager.NotificationRequest = {
         id: Date.now() % 2147483647,
+        notificationSlotType: slotType,
         content: {
-          contentType: notificationManager.ContentType.NOTIFICATION_CONTENT_BASIC_TEXT as number,
+          notificationContentType: notificationManager.ContentType.NOTIFICATION_CONTENT_BASIC_TEXT,
           normal: {
             title: params.title,
             text: params.body ?? '',

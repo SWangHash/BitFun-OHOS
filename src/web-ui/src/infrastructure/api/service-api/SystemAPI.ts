@@ -318,7 +318,8 @@ export class SystemAPI {
   async sendSystemNotification(title: string, body?: string): Promise<void> {
     if (isOpenHarmonyRuntime()) {
       try {
-        await api.invoke('send_system_notification_ohos', {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('send_system_notification_ohos', {
           arg: JSON.stringify({ title, body: body ?? null }),
         });
       } catch (error) {
@@ -336,6 +337,15 @@ export class SystemAPI {
     } catch (error) {
       log.warn('Failed to send system notification', { title, error });
     }
+  }
+
+  /** Query the controller window, even while a peer workspace is displayed. */
+  async isNotificationWindowBackground(): Promise<boolean> {
+    if (isOpenHarmonyRuntime()) {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return !(await invoke<boolean>('window_is_focused'));
+    }
+    return document.hidden || !document.hasFocus();
   }
 
   /** Desktop only: register or unregister launch at OS login. */

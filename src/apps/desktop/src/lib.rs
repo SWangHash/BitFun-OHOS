@@ -79,7 +79,8 @@ use crate::ohos::window::{
     handle_restore_window, inner_size_ohos, maximize_ohos, outer_position_ohos, outer_size_ohos,
     set_always_on_top_ohos, set_decorations_ohos, set_focus_ohos, set_min_size_ohos,
     set_resizable_ohos, set_skip_taskbar_ohos, set_window_position_ohos, set_window_size_ohos,
-    unmaximize_ohos, window_is_maximized, window_is_minimized, window_start_dragging,
+    unmaximize_ohos, window_is_focused, window_is_maximized, window_is_minimized,
+    window_start_dragging,
 };
 use api::acp_client_api::*;
 use api::clipboard_file_api::*;
@@ -2227,6 +2228,7 @@ pub async fn _run() {
             window_is_maximized,
             #[cfg(target_env = "ohos")]
             window_is_minimized,
+            window_is_focused,
             #[cfg(target_env = "ohos")]
             window_start_dragging,
             #[cfg(target_env = "ohos")]

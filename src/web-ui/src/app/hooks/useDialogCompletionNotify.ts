@@ -7,7 +7,6 @@ import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
 import { useI18n } from '@/infrastructure/i18n';
 import { createLogger } from '@/shared/utils/logger';
 import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
-import { workspaceAPI } from '@/infrastructure/api/service-api/WorkspaceAPI';
 import {
   buildDialogCompletionNotificationCopy,
   shouldSendDialogCompletionNotification,
@@ -27,7 +26,7 @@ const log = createLogger('useDialogCompletionNotify');
  * "Not focused" means: the page is hidden (minimized / tab switched) OR the
  * window has lost focus to another OS-level application. On HarmonyOS the
  * webview does not reliably update document.hidden / fire window blur on
- * minimize, so the real minimized state is queried from the host instead.
+ * minimize, so the native window focus is queried from the host instead.
  */
 export const useDialogCompletionNotify = () => {
   const { t } = useI18n('common');
@@ -38,22 +37,17 @@ export const useDialogCompletionNotify = () => {
     const handleFocus = () => { windowFocusedRef.current = true; };
     const handleBlur = () => { windowFocusedRef.current = false; };
 
+    windowFocusedRef.current = document.hasFocus();
     window.addEventListener('focus', handleFocus);
     window.addEventListener('blur', handleBlur);
 
     const resolveIsBackground = async (): Promise<boolean> => {
-      // On HarmonyOS the webview does not reliably update document.hidden or
-      // fire window blur on minimize, so query the real window status from the
-      // host. The diagnostic log below still captures document.hidden /
-      // windowFocused for comparison.
-      if (isOpenHarmonyRuntime()) {
-        try {
-          return await workspaceAPI.window_is_minimized();
-        } catch {
-          return document.hidden || !windowFocusedRef.current;
-        }
+      try {
+        return await systemAPI.isNotificationWindowBackground();
+      } catch (error) {
+        log.warn('Failed to query notification window focus', error);
+        return false;
       }
-      return document.hidden || !windowFocusedRef.current;
     };
 
     const notify = async (

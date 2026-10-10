@@ -34,6 +34,14 @@ describe('SystemAPI', () => {
     vi.unstubAllGlobals();
   });
 
+  it.each([true, false])('uses native controller focus on HarmonyOS: focused=%s', async focused => {
+    vi.stubGlobal('navigator', { userAgent: 'HarmonyOS', platform: 'ohos' });
+    controllerInvoke.mockResolvedValue(focused);
+    await expect(systemAPI.isNotificationWindowBackground()).resolves.toBe(!focused);
+    expect(controllerInvoke).toHaveBeenCalledWith('window_is_focused');
+    expect(invokeMock).not.toHaveBeenCalled();
+  });
+
   it('reads actual controller startup status instead of a constant', async () => {
     controllerInvoke.mockResolvedValue({ currentOptionValues: { 'launch-at-login': true } });
     await expect(systemAPI.getLaunchAtLoginEnabled()).resolves.toBe(true);
