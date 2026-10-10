@@ -3,7 +3,8 @@ import {
   common,
   Configuration,
   ConfigurationConstant,
-  Want
+  Want,
+  wantConstant
 } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window, display } from '@kit.ArkUI';
@@ -390,36 +391,52 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
       }
       return '{"updateAvailable":' + (result.updateAvailable ? 'true' : 'false') + '}';
     });
-    RustModule.registerArktsFunction('open_browser', async (err: Error, url: string): Promise<string> => {
+    // Opens a web URL or a BitFun-owned local artifact. Local artifacts (for
+    // example the insights HTML report) live inside the app sandbox, which no
+    // other application can read from a bare filesystem path, so the system gets
+    // a file URI plus a temporary read grant instead. Failures reject the
+    // promise so the Rust caller reports them instead of faking success.
+    RustModule.registerArktsFunction('open_browser', async (err: Error, target: string): Promise<string> => {
       try {
+        if (!/^https?:\/\//i.test(target)) {
+          const fileWant: Want = {
+            "action": "ohos.want.action.viewData",
+            "entities": ["entity.system.browsable"],
+            "uri": fileUri.getUriFromPath(target),
+            "type": 'text/html',
+            "flags": wantConstant.Flags.FLAG_AUTH_READ_URI_PERMISSION
+          };
+          await this.context.startAbility(fileWant);
+          hilog.info(201, 'vnext', `open file succeed: ${target}`);
+          return `start ability succeed with ${target}`;
+        }
         let want : Want = {
           "action": "ohos.want.action.viewData",
           "entities": ["entity.system.browsable"],
-          "uri": url
+          "uri": target
         }
-        if (/^https?:\/\//i.test(url)) {
-          try {
-            want.bundleName = 'com.haitai.htbrowser';
-            want.moduleName = 'pc_entry';
-            want.abilityName = 'EntryAbility';
-            await this.context.startAbility(want);
-            hilog.info(201, 'vnext', `open url succeed (haitai): ${url}`);
-            return `start ability succeed with ${url}`;
-          } catch (haitaiError) {
-            hilog.info(201, 'vnext', `haitai browser unavailable, falling back to system browser: ${haitaiError.code}`);
-            want = {
-              "action": "ohos.want.action.viewData",
-              "entities": ["entity.system.browsable"],
-              "uri": url
-            };
-          }
+        try {
+          want.bundleName = 'com.haitai.htbrowser';
+          want.moduleName = 'pc_entry';
+          want.abilityName = 'EntryAbility';
+          await this.context.startAbility(want);
+          hilog.info(201, 'vnext', `open url succeed (haitai): ${target}`);
+          return `start ability succeed with ${target}`;
+        } catch (haitaiError) {
+          hilog.info(201, 'vnext', `haitai browser unavailable, falling back to system browser: ${haitaiError.code}`);
+          want = {
+            "action": "ohos.want.action.viewData",
+            "entities": ["entity.system.browsable"],
+            "uri": target
+          };
         }
         await this.context.startAbility(want);
-        hilog.info(201, 'vnext', `open url succeed: ${url}`);
-        return `start ability succeed with ${url}`;
+        hilog.info(201, 'vnext', `open url succeed: ${target}`);
+        return `start ability succeed with ${target}`;
       } catch (error) {
-        hilog.info(201, 'vnext', `fail to open ${url} ${error.code}`);
-        return `fail to open ${url} ${error.code}`;
+        const detail = error as BusinessError;
+        hilog.error(201, 'vnext', `fail to open ${target}: ${detail.message}`);
+        throw new Error(`fail to open ${target}: code=${detail.code} ${detail.message}`);
       }
     });
     RustModule.registerArktsFunction('launch_haitai_browser_cdp', async (err: Error, arg: string): Promise<string> => {
