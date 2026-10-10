@@ -59,6 +59,10 @@ describe('skill source presentation', () => {
     expect(getSkillSourceId(skill({ sourceId: '', sourceSlot: 'bitfun-system' }))).toBe('bitfun');
     expect(getSkillSourceId(skill({ sourceId: '', sourceSlot: '' }))).toBe('bitfun');
     expect(getSkillSourceId(skill({ sourceId: 'future-agent', sourceLabel: 'Codex' }))).toBe('future-agent');
+    // Legacy OpenBitFun brand identifiers normalize to 'bitfun'
+    expect(getSkillSourceId(skill({ sourceId: 'openbitfun' }))).toBe('bitfun');
+    expect(getSkillSourceId(skill({ sourceId: 'openbitfun-system' }))).toBe('bitfun');
+    expect(getSkillSourceId(skill({ sourceId: 'openbitfun-user' }))).toBe('bitfun');
   });
 
   it('uses the stable source label and falls back to source identity facts', () => {
@@ -72,10 +76,18 @@ describe('skill source presentation', () => {
     expect(getSkillSourceLabelFromIdentity('', '', 'home.codex')).toBe('Codex');
   });
 
-  it('only allows BitFun-owned non-builtin skills to be deleted', () => {
+  it('only allows BitFun-owned and Matrix non-builtin skills to be deleted', () => {
     expect(canDeleteSkill(skill())).toBe(true);
     expect(canDeleteSkill(skill({ isBuiltin: true }))).toBe(false);
     expect(canDeleteSkill(skill({ sourceId: 'bitfun-system', isBuiltin: false }))).toBe(true);
+    expect(canDeleteSkill(skill({ sourceId: 'bitfun-user', isBuiltin: false }))).toBe(true);
+    expect(canDeleteSkill(skill({ sourceId: '', sourceSlot: 'bitfun-user' }))).toBe(true);
+    expect(canDeleteSkill(skill({ sourceId: 'matrix', isBuiltin: false }))).toBe(true);
+    expect(canDeleteSkill(skill({ sourceId: '', sourceSlot: 'matrix' }))).toBe(true);
+    // Legacy OpenBitFun brand identifiers also allow deletion
+    expect(canDeleteSkill(skill({ sourceId: 'openbitfun', isBuiltin: false }))).toBe(true);
+    expect(canDeleteSkill(skill({ sourceId: 'openbitfun-system', isBuiltin: false }))).toBe(true);
+    expect(canDeleteSkill(skill({ sourceId: '', sourceSlot: 'openbitfun' }))).toBe(true);
     expect(canDeleteSkill(skill({ sourceId: 'opencode' }))).toBe(false);
     expect(canDeleteSkill(skill({ sourceId: '', sourceSlot: 'home.codex' }))).toBe(false);
     expect(canDeleteSkill(skill({ sourceId: '', sourceSlot: 'future' }))).toBe(false);

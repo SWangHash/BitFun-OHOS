@@ -11,7 +11,6 @@
  */
 
 import React, { useCallback, useState, useMemo, useEffect, useRef, useSyncExternalStore } from 'react';
-import { createPortal } from 'react-dom';
 import { OverflowText,
   Icon,
   KeyHint,
@@ -25,6 +24,8 @@ import { OverflowText,
   NavigationPanelHeader,
   ScrollArea,
   Tooltip,
+  createOverlayPortal,
+  subscribeOverlayInteraction,
 } from '@bitfun/ui';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { isImeOwnedKeyboardEvent } from '@/shared/utils/ime';
@@ -207,6 +208,8 @@ const MainNav: React.FC<MainNavProps> = ({
   }, [sshRemote]);
 
   useEffect(() => {
+    let removeOverlayMousedown0: (() => void) | undefined;
+    let removeOverlayKeydown1: (() => void) | undefined;
     if (!workspaceMenuOpen) return;
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node | null;
@@ -218,11 +221,11 @@ const MainNav: React.FC<MainNavProps> = ({
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !isImeOwnedKeyboardEvent(event)) closeWorkspaceMenu();
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleEscape);
+    removeOverlayMousedown0 = subscribeOverlayInteraction(workspaceMenuRef, 'mousedown', handleClickOutside);
+    removeOverlayKeydown1 = subscribeOverlayInteraction(workspaceMenuRef, 'keydown', handleEscape);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape);
+      removeOverlayMousedown0?.();
+      removeOverlayKeydown1?.();
     };
   }, [closeWorkspaceMenu, workspaceMenuOpen]);
 
@@ -270,7 +273,7 @@ const MainNav: React.FC<MainNavProps> = ({
     }
   }, [isAgentsActive, isEcosystemCompatibilityActive, isSkillsActive]);
 
-  const workspaceMenuPortal = workspaceMenuOpen ? createPortal(
+  const workspaceMenuPortal = workspaceMenuOpen ? createOverlayPortal(
     <Menu
       ref={workspaceMenuRef}
       className={`bitfun-nav-panel__workspace-menu${workspaceMenuClosing ? ' is-closing' : ''}`}

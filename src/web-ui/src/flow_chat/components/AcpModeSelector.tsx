@@ -9,11 +9,9 @@
  */
 
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 
 import { useTranslation } from 'react-i18next';
-import { OverflowText, Menu, MenuItem } from '@bitfun/ui';
-import { Tooltip, Icon } from '@bitfun/ui';
+import { OverflowText, Menu, MenuItem, Tooltip, Icon, createOverlayPortal, subscribeOverlayInteraction } from '@bitfun/ui';
 import { RetainedMountBoundary } from '@/shared/presence';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import type { AcpModeState } from '../utils/acpSessionConfig';
@@ -72,8 +70,8 @@ export const AcpModeSelector: React.FC<AcpModeSelectorProps> = ({
         setKeyboardOpen(false);
       }
     };
-    document.addEventListener('mousedown', handlePointerDown);
-    return () => document.removeEventListener('mousedown', handlePointerDown);
+    const removeMousedown = subscribeOverlayInteraction(menuRef, 'mousedown', handlePointerDown);
+    return () => removeMousedown();
   }, [open]);
 
   useEffect(() => {
@@ -178,7 +176,7 @@ export const AcpModeSelector: React.FC<AcpModeSelectorProps> = ({
       </Tooltip>
 
       <RetainedMountBoundary present={open}>
-        {createPortal(
+        {createOverlayPortal(
           <Menu
             id={menuId}
             ref={menuRef}

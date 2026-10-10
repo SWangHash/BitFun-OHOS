@@ -1,9 +1,8 @@
 import { HARNESS_IDS, canonicalAgentId, type HarnessId } from '@/shared/agents/identity';
 import { HARNESS_PRESENTATION } from '@/shared/agents/harnessPresentation';
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { OverflowText, Icon, Menu, MenuItem, MenuSection, MenuSeparator, Tooltip } from '@bitfun/ui';
+import { subscribeOverlayInteraction, createOverlayPortal, OverflowText, Icon, Menu, MenuItem, MenuSection, MenuSeparator, Tooltip } from '@bitfun/ui';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { confirmDialog } from '@/infrastructure/confirm-dialog';
 import { notificationService } from '@/shared/notification-system';
@@ -198,7 +197,7 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
   useEffect(() => {
     if (!open) return;
 
-    const handlePointerDown = (event: PointerEvent) => {
+    const handlePointerInteraction = (event: MouseEvent) => {
       const target = event.target as Node | null;
       if (!target || triggerRef.current?.contains(target) || menuRef.current?.contains(target)) {
         return;
@@ -209,11 +208,15 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
       if (event.key === 'Escape') close();
     };
 
-    document.addEventListener('pointerdown', handlePointerDown);
-    document.addEventListener('keydown', handleKeyDown);
+    // The parent boost menu also listens for mousedown; a portalled child must
+    // own both pointerdown and mousedown so its items are not treated as outside.
+    const removePointerDown = subscribeOverlayInteraction(menuRef, 'pointerdown', handlePointerInteraction);
+    const removeMouseDown = subscribeOverlayInteraction(menuRef, 'mousedown', handlePointerInteraction);
+    const removeKeyDown = subscribeOverlayInteraction(menuRef, 'keydown', handleKeyDown);
     return () => {
-      document.removeEventListener('pointerdown', handlePointerDown);
-      document.removeEventListener('keydown', handleKeyDown);
+      removePointerDown();
+      removeMouseDown();
+      removeKeyDown();
     };
   }, [close, open]);
 
@@ -432,7 +435,7 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
         )}
       </Tooltip>
 
-      {open && createPortal(
+      {open && createOverlayPortal(
         <Menu
           ref={menuRef}
           id={menuId}

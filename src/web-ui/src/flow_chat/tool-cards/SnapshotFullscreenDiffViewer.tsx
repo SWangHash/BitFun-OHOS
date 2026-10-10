@@ -3,9 +3,8 @@ import { File as LucideFile } from 'lucide-react';
  * Snapshot fullscreen diff viewer for all session file changes.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { OverflowText, Button, IconButton } from '@bitfun/ui';
-import { createPortal } from 'react-dom';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { OverflowText, Button, IconButton, createOverlayPortal, subscribeOverlayInteraction } from '@bitfun/ui';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { XCircle, FileText } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -42,9 +41,11 @@ export const SnapshotFullscreenDiffViewer: React.FC<SnapshotFullscreenDiffViewer
 }) => {
   const { t } = useTranslation('flow-chat');
   const [selectedFileIndex, setSelectedFileIndex] = useState(0);
+  const surfaceRef = useRef<HTMLDivElement>(null);
 
   // Close on Escape key.
   useEffect(() => {
+    let removeOverlayKeydown0: (() => void) | undefined;
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen && !isImeOwnedKeyboardEvent(e)) {
         onClose();
@@ -52,22 +53,23 @@ export const SnapshotFullscreenDiffViewer: React.FC<SnapshotFullscreenDiffViewer
     };
 
     if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
+      removeOverlayKeydown0 = subscribeOverlayInteraction(surfaceRef, 'keydown', handleEscape);
       // Prevent background scrolling while open.
       document.body.style.overflow = 'hidden';
     }
 
     return () => {
-      document.removeEventListener('keydown', handleEscape);
+      removeOverlayKeydown0?.();
       document.body.style.overflow = '';
     };
   }, [isOpen, onClose]);
 
   // Keyboard navigation across files.
   useEffect(() => {
+    let removeOverlayKeydown0: (() => void) | undefined;
     const handleKeyboard = (e: KeyboardEvent) => {
       if (!isOpen || files.length <= 1) return;
-      
+
       if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
         e.preventDefault();
         setSelectedFileIndex(prev => prev > 0 ? prev - 1 : files.length - 1);
@@ -78,11 +80,11 @@ export const SnapshotFullscreenDiffViewer: React.FC<SnapshotFullscreenDiffViewer
     };
 
     if (isOpen) {
-      document.addEventListener('keydown', handleKeyboard);
+      removeOverlayKeydown0 = subscribeOverlayInteraction(surfaceRef, 'keydown', handleKeyboard);
     }
 
     return () => {
-      document.removeEventListener('keydown', handleKeyboard);
+      removeOverlayKeydown0?.();
     };
   }, [isOpen, files.length]);
 
@@ -149,7 +151,7 @@ export const SnapshotFullscreenDiffViewer: React.FC<SnapshotFullscreenDiffViewer
   };
 
   const fullscreenContent = (
-    <div data-overflow-trigger data-bitfun-component="snapshot-fullscreen-diff-viewer" data-bitfun-part="overlay" className="snapshot-fullscreen-overlay" onClick={handleBackdropClick}>
+    <div ref={surfaceRef} data-overflow-trigger data-bitfun-component="snapshot-fullscreen-diff-viewer" data-bitfun-part="overlay" className="snapshot-fullscreen-overlay" onClick={handleBackdropClick}>
       <div data-bitfun-component="snapshot-fullscreen-diff-viewer" data-bitfun-part="root" className="snapshot-fullscreen-container">
         <div data-bitfun-component="snapshot-fullscreen-diff-viewer" data-bitfun-part="header" className="snapshot-fullscreen-header">
           <div data-bitfun-component="snapshot-fullscreen-diff-viewer" data-bitfun-part="sessionInfo" className="session-info">
@@ -317,5 +319,5 @@ export const SnapshotFullscreenDiffViewer: React.FC<SnapshotFullscreenDiffViewer
     </div>
   );
 
-  return createPortal(fullscreenContent, getAppearanceOverlayHost());
+  return createOverlayPortal(fullscreenContent, getAppearanceOverlayHost(), null, { modal: true, surfaceRef, onDismiss: onClose });
 };

@@ -1,6 +1,4 @@
 import React, { lazy, Suspense, useState, useCallback, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
-
 import {
   Icon,
   IconButton,
@@ -14,6 +12,7 @@ import {
   DialogHeader,
   DialogHeading,
   DialogTitle,
+  createOverlayPortal,
 } from '@bitfun/ui';
 import { RetainedMountBoundary } from '@/shared/presence';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
@@ -282,7 +281,7 @@ const PersistentFooterActions: React.FC = () => {
               />
             </Tooltip>
 
-            {menuOpen && createPortal(
+            {menuOpen && createOverlayPortal(
               <>
                 <div
                   className="bitfun-nav-panel__footer-backdrop"

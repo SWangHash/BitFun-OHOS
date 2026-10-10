@@ -7,8 +7,7 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { createPortal } from 'react-dom';
-import { Button, IconButton, OverflowText, Icon, KeyHint, Menu, MenuItem, MenuSeparator, Tooltip } from '@bitfun/ui';
+import { Button, IconButton, OverflowText, Icon, KeyHint, Menu, MenuItem, MenuSeparator, Tooltip, createOverlayPortal, subscribeOverlayInteraction } from '@bitfun/ui';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { LayoutGrid } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -94,14 +93,10 @@ export const TabOverflowMenu: React.FC<TabOverflowMenuProps> = ({
       }
     };
 
-    // Delay listener to avoid triggering the current click
-    const timer = setTimeout(() => {
-      document.addEventListener('mousedown', handleClickOutside);
-    }, 0);
+    const removeOverlayMousedown0 = subscribeOverlayInteraction(menuRef, 'mousedown', handleClickOutside);
 
     return () => {
-      clearTimeout(timer);
-      document.removeEventListener('mousedown', handleClickOutside);
+      removeOverlayMousedown0();
     };
   }, [isOpen]);
 
@@ -195,7 +190,7 @@ export const TabOverflowMenu: React.FC<TabOverflowMenuProps> = ({
         )}
       </Tooltip>
 
-      {isOpen && hasOverflow && createPortal(
+      {isOpen && hasOverflow && createOverlayPortal(
         <Menu
           ref={menuRef}
           className="canvas-tab-overflow-menu"

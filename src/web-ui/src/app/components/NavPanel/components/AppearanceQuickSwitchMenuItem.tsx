@@ -8,8 +8,7 @@ import React, {
   type KeyboardEvent,
   type RefObject,
 } from 'react';
-import { createPortal } from 'react-dom';
-import { OverflowText, Icon, Menu, MenuItem, MenuSeparator } from '@bitfun/ui';
+import { OverflowText, Icon, Menu, MenuItem, MenuSeparator, createOverlayPortal } from '@bitfun/ui';
 
 import {
   SYSTEM_APPEARANCE_ID,
@@ -234,7 +233,7 @@ const AppearanceQuickSwitchMenuItem: React.FC<AppearanceQuickSwitchMenuItemProps
         {t('nav.settingsMenu.theme')}
       </MenuItem>
 
-      {open && createPortal(
+      {open && createOverlayPortal(
         <Menu
           ref={submenuRef}
           className="bitfun-nav-panel__appearance-submenu"

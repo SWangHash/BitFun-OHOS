@@ -4,10 +4,9 @@
  */
 
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { FilePlus, SearchCheck, Zap, GitPullRequest } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { OverflowText, Icon, IconButton, Menu, MenuItem, MenuSeparator, Tooltip } from '@bitfun/ui';
+import { OverflowText, Icon, IconButton, Menu, MenuItem, MenuSeparator, Tooltip, createOverlayPortal, subscribeOverlayInteraction } from '@bitfun/ui';
 import { useSnapshotState } from '../../../tools/snapshot_system/hooks/useSnapshotState';
 import { createDiffEditorTab } from '../../../shared/utils/tabUtils';
 import { snapshotAPI } from '../../../infrastructure/api';
@@ -365,14 +364,10 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
       }
     };
 
-    // Delay binding to avoid immediate trigger.
-    const timeoutId = setTimeout(() => {
-      document.addEventListener('mousedown', handleClickOutside);
-    }, 0);
+    const removeOverlayMousedown0 = subscribeOverlayInteraction(badgeRef, 'mousedown', handleClickOutside);
 
     return () => {
-      clearTimeout(timeoutId);
-      document.removeEventListener('mousedown', handleClickOutside);
+      removeOverlayMousedown0();
     };
   }, [isExpanded, isReviewMenuOpen]);
 
@@ -845,7 +840,7 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
           </span>
         </Tooltip>
 
-        {isReviewMenuOpen && !isReviewLaunchOrActivityBlocking && createPortal(
+        {isReviewMenuOpen && !isReviewLaunchOrActivityBlocking && createOverlayPortal(
           <Menu
             ref={reviewPopoverRef}
             className="session-files-badge__review-menu-popover"
@@ -941,7 +936,7 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
       </button>
       ) : null}
 
-      {showFileStatsSummary && isExpanded && createPortal(
+      {showFileStatsSummary && isExpanded && createOverlayPortal(
         <div
           ref={filePopoverRef}
           className="session-files-badge__popover"
