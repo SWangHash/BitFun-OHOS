@@ -281,7 +281,12 @@ function PreventSleepSetting() {
       } catch (error) {
         setEnabled(previous);
         log.error('Failed to set prevent-sleep preference', { next, error });
-        showMessage('error', t('preventSleep.messages.saveFailed'));
+        const detail = String(error);
+        showMessage('error', detail.includes('OHOS_SLEEP_API_23_REQUIRED')
+          ? t('preventSleep.messages.api23Required')
+          : detail.includes('OHOS_SLEEP_UNSUPPORTED')
+            ? t('preventSleep.messages.unsupported')
+            : `${t('preventSleep.messages.saveFailed')}: ${detail}`);
       } finally {
         setSaving(false);
       }

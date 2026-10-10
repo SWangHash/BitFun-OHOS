@@ -128,7 +128,9 @@
       "loading": "Loading…",
       "loadFailed": "Failed to read the prevent-sleep setting",
       "saveFailed": "Failed to update the prevent-sleep setting",
-      "saved": "Prevent-sleep setting saved"
+      "saved": "Prevent-sleep setting saved",
+      "api23Required": "Keeping the computer awake requires HarmonyOS API 23 or later.",
+      "unsupported": "This device does not support preventing idle sleep."
     }
   },
   "logging": {

@@ -6,9 +6,7 @@
 
 use std::sync::{mpsc, Arc};
 
-use bitfun_core::service::config::{
-    subscribe_config_updates, ConfigService, ConfigUpdateEvent,
-};
+use bitfun_core::service::config::{subscribe_config_updates, ConfigService, ConfigUpdateEvent};
 use serde::Deserialize;
 use tauri::{AppHandle, Manager, State};
 
@@ -34,51 +32,61 @@ pub struct SleepPreventionState {
 
 impl SleepPreventionState {
     async fn set_enabled(&self, enabled: bool) -> Result<(), String> {
-        let mut worker = self.worker.lock().await;
-        if !enabled && worker.is_none() {
-            return Ok(());
+        #[cfg(target_env = "ohos")]
+        {
+            let _guard = self.worker.lock().await;
+            return crate::api::ohos::window::call_host("set_prevent_sleep", enabled.to_string())
+                .await
+                .map(|_| ());
         }
-
-        if worker.is_none() {
-            *worker = Some(start_worker()?);
-        }
-
-        let (response, result) = tokio::sync::oneshot::channel();
-        let send_result = worker
-            .as_ref()
-            .ok_or_else(|| "Sleep-prevention worker failed to initialize".to_string())?
-            .send(SleepPreventionRequest::SetEnabled { enabled, response });
-        if send_result.is_err() {
-            worker.take();
-            return Err("Sleep-prevention worker is unavailable".to_string());
-        }
-
-        // Bounded on purpose. The worker's `keepawake` call is a blocking D-Bus
-        // round-trip to logind on Linux, with no timeout of its own; a hung or
-        // slow session manager would otherwise hold this mutex forever and wedge
-        // every later toggle, including the one that turns the feature off.
-        let outcome = match tokio::time::timeout(WORKER_REQUEST_TIMEOUT, result).await {
-            Ok(received) => received
-                .map_err(|_| "Sleep-prevention worker stopped unexpectedly".to_string())
-                .and_then(|outcome| outcome),
-            Err(_) => {
-                // The thread is still stuck inside the OS call, so it cannot be
-                // reused; dropping the sender retires it once that call returns.
-                Err(format!(
-                    "Sleep-prevention request timed out after {} seconds",
-                    WORKER_REQUEST_TIMEOUT.as_secs()
-                ))
+        #[cfg(not(target_env = "ohos"))]
+        {
+            let mut worker = self.worker.lock().await;
+            if !enabled && worker.is_none() {
+                return Ok(());
             }
-        };
 
-        // An inactive or failed worker owns no useful resources. Dropping the
-        // final sender lets the thread exit instead of keeping one alive for
-        // the entire application lifetime while the preference is off.
-        if !enabled || outcome.is_err() {
-            worker.take();
+            if worker.is_none() {
+                *worker = Some(start_worker()?);
+            }
+
+            let (response, result) = tokio::sync::oneshot::channel();
+            let send_result = worker
+                .as_ref()
+                .ok_or_else(|| "Sleep-prevention worker failed to initialize".to_string())?
+                .send(SleepPreventionRequest::SetEnabled { enabled, response });
+            if send_result.is_err() {
+                worker.take();
+                return Err("Sleep-prevention worker is unavailable".to_string());
+            }
+
+            // Bounded on purpose. The worker's `keepawake` call is a blocking D-Bus
+            // round-trip to logind on Linux, with no timeout of its own; a hung or
+            // slow session manager would otherwise hold this mutex forever and wedge
+            // every later toggle, including the one that turns the feature off.
+            let outcome = match tokio::time::timeout(WORKER_REQUEST_TIMEOUT, result).await {
+                Ok(received) => received
+                    .map_err(|_| "Sleep-prevention worker stopped unexpectedly".to_string())
+                    .and_then(|outcome| outcome),
+                Err(_) => {
+                    // The thread is still stuck inside the OS call, so it cannot be
+                    // reused; dropping the sender retires it once that call returns.
+                    Err(format!(
+                        "Sleep-prevention request timed out after {} seconds",
+                        WORKER_REQUEST_TIMEOUT.as_secs()
+                    ))
+                }
+            };
+
+            // An inactive or failed worker owns no useful resources. Dropping the
+            // final sender lets the thread exit instead of keeping one alive for
+            // the entire application lifetime while the preference is off.
+            if !enabled || outcome.is_err() {
+                worker.take();
+            }
+
+            outcome
         }
-
-        outcome
     }
 }
 

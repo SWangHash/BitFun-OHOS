@@ -142,6 +142,9 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
   }
 
   onDestroy(): void {
+    try { this.desktopSystem.dispose(); } catch (error) {
+      hilog.error(DOMAIN, 'DesktopSystem', 'Failed to release idle sleep lock: %{public}s', String(error));
+    }
     this.statusBarTray?.remove();
     RustModule.ohosMarkCleanShutdown();
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
@@ -475,6 +478,10 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     });
     RustModule.registerArktsFunction('get_launch_at_login', async (): Promise<string> => {
       return String(await this.desktopSystem.getLaunchAtLogin());
+    });
+    RustModule.registerArktsFunction('set_prevent_sleep', async (_err: Error, arg: string): Promise<string> => {
+      await this.desktopSystem.setPreventSleep(arg === 'true');
+      return '';
     });
     RustModule.registerArktsFunction('window_is_minimized', async (err: Error, arg: string): Promise<string> => {
       let state = windowStage.getMainWindowSync().getWindowStatus();

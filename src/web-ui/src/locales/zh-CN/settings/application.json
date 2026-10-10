@@ -123,12 +123,14 @@
       "hint": "BitFun 运行时的电脑睡眠行为"
     },
     "toggleLabel": "阻止电脑睡眠",
-    "toggleDescription": "只要 BitFun 正在运行，就保持电脑唤醒，无论是否有任务在执行。显示器仍可关闭；主动睡眠或合上笔记本电脑由系统策略决定。",
+    "toggleDescription": "BitFun 运行期间保持电脑唤醒，即使没有任务。显示器仍可关闭；手动睡眠和合盖行为由系统决定",
     "messages": {
       "loading": "加载中…",
       "loadFailed": "无法读取阻止睡眠设置",
       "saveFailed": "无法更新阻止睡眠设置",
-      "saved": "阻止睡眠设置已保存"
+      "saved": "阻止睡眠设置已保存",
+      "api23Required": "当前系统不支持保持唤醒，需要 HarmonyOS API 23 或以上。",
+      "unsupported": "当前设备不支持防止空闲休眠。"
     }
   },
   "logging": {
@@ -281,7 +283,8 @@
       "saved": "窗口行为设置已保存"
     }
   },
-  "notifications": {    "title": "通知",
+  "notifications": {
+    "title": "通知",
     "hint": "Toast 弹窗通知偏好设置",
     "dialogCompletion": {
       "label": "任务完成通知",

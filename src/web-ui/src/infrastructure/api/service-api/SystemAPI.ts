@@ -357,7 +357,10 @@ export class SystemAPI {
 
   /** Desktop only: whether BitFun should keep the local computer awake. */
   async getPreventSleepEnabled(): Promise<boolean> {
-    const result = await productControlAPI.get('setting.application.general');
+    const { invoke } = await import('@tauri-apps/api/core');
+    const result = await invoke<{ currentOptionValues: Record<string, unknown> }>('product_control_invoke', {
+      request: { action: 'get', capabilityId: 'setting.application.general' },
+    });
     const enabled = result.currentOptionValues['prevent-sleep'];
     if (typeof enabled !== 'boolean') {
       throw new Error('ProductControl returned a non-boolean prevent-sleep state');
@@ -367,11 +370,10 @@ export class SystemAPI {
 
   /** Desktop only: apply and persist the app-wide sleep-prevention preference. */
   async setPreventSleepEnabled(enabled: boolean): Promise<void> {
-    await productControlAPI.configure(
-      'setting.application.general',
-      'prevent-sleep',
-      enabled,
-    );
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('product_control_invoke', {
+      request: { action: 'configure', capabilityId: 'setting.application.general', optionId: 'prevent-sleep', value: enabled },
+    });
   }
 
   // ?????? Window / Tray behavior ????????????????????????????????????????????????????????????????????????????????????????????????

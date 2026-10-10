@@ -114,7 +114,9 @@
       "loading": "載入中…",
       "loadFailed": "無法讀取防止睡眠設定",
       "saveFailed": "無法更新防止睡眠設定",
-      "saved": "防止睡眠設定已儲存"
+      "saved": "防止睡眠設定已儲存",
+      "api23Required": "目前系統不支援保持喚醒，需要 HarmonyOS API 23 或以上。",
+      "unsupported": "目前裝置不支援防止閒置休眠。"
     }
   },
   "logging": {

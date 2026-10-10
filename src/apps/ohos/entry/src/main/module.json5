@@ -33,6 +33,7 @@
       }
     ],
     "requestPermissions": [
+      { "name": "ohos.permission.RUNNING_LOCK" },
       {
         "name": "ohos.permission.INTERNET",
         "reason": "$string:permission_internet_reason"

@@ -28,3 +28,7 @@ The tests transpile the production bridge and mock AssetStoreKit and ArkTS
 utilities. They cover stored-format compatibility and bridge behavior, not
 HarmonyOS permissions, ArkTS compilation, or device execution. Use the
 `bitfun-ohos-build` preflight/build workflow when a HAP is required.
+
+For device-local automatic-startup queries and API-gated idle sleep prevention, run
+`node --test src/apps/ohos/tests/desktop-system.test.cjs`. These mocked host tests
+cover version gating and lock lifecycle, not OS permission grants or device behavior.
