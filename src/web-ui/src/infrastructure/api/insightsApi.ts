@@ -1,6 +1,6 @@
 import { api } from './service-api/ApiClient';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { openPath } from '@tauri-apps/plugin-opener';
+import { systemAPI } from './service-api/SystemAPI';
 
 // ============ Types (strict 1:1 mirror of Rust types) ============
 
@@ -208,6 +208,6 @@ export const insightsApi = {
   },
 
   async openReport(path: string): Promise<void> {
-    await openPath(path);
+    await systemAPI.openHtmlFileInBrowser(path);
   },
 };
