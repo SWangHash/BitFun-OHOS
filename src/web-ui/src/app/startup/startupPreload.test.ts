@@ -153,6 +153,40 @@ describe('startup preload shell', () => {
     dom.window.close();
   });
 
+  it('mirrors the OpenHarmony native start window on the webview host', () => {
+    const html = readIndexHtml();
+    // start_window_background is pinned to a neutral #6A6A6A in the OHOS
+    // resources (base and dark) and the launch mark is a single light
+    // silhouette, so the overlay is a constant neutral canvas that must not
+    // depend on prefers-color-scheme.
+    expect(html).toMatch(/\.splash-screen--ohos-brand \{\s*background: #6a6a6a;/);
+    expect(html).toContain("ohosSplash.classList.add('splash-screen--ohos-brand')");
+    expect(html).toContain('--bitfun-ohos-start-icon-size');
+    // The overlay announces its own presentation so the OHOS shell releases the
+    // native splash mirror exactly on the takeover frame (no gap between them).
+    expect(html).toContain('bitfun-startup-overlay-presented');
+
+    const dom = new JSDOM(html, {
+      url: 'http://localhost:1422/',
+      runScripts: 'dangerously',
+      beforeParse(window) {
+        Object.defineProperty(window.navigator, 'userAgent', { value: 'Mozilla/5.0 (OpenHarmony)' });
+      },
+    });
+
+    expect(
+      dom.window.document.querySelector('.splash-screen')?.classList.contains('splash-screen--ohos-brand'),
+    ).toBe(true);
+    // The native start window draws the 240px mark without density scaling, so
+    // the overlay converts it to CSS px (jsdom dpr is 1, viewport is 1024x768).
+    expect(
+      dom.window.document.documentElement.style.getPropertyValue('--bitfun-ohos-start-icon-size'),
+    ).toBe('240px');
+    // No themed desktop loading hint on the OHOS brand splash.
+    expect(dom.window.document.querySelector('.splash-screen__message')?.textContent).toBe('');
+    dom.window.close();
+  });
+
   it('shows the independent pet preload for the companion window', () => {
     const html = readIndexHtml();
     const dom = new JSDOM(html, {

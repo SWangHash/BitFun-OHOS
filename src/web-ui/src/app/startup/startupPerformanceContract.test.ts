@@ -72,8 +72,8 @@ describe('startup performance contract', () => {
 
     expect(asset).toContain('viewBox="0 0 120 120"');
     expect(asset).toContain('fill="none"');
-    expect(asset).toContain('stroke="currentColor"');
-    expect(asset.match(/<path\b/g)).toHaveLength(15);
+    expect(asset).toContain('fill="currentColor"');
+    expect(asset.match(/<path\b/g)).toHaveLength(1);
     expect(asset).not.toContain('<rect');
   });
 

@@ -13,6 +13,7 @@ const GENERATED_ICNS_FILES = [
 const HARMONY_MEDIA_DIRS = [
   'src/apps/mobile/harmonyos/AppScope/resources/base/media',
   'src/apps/mobile/harmonyos/entry/src/main/resources/base/media',
+  'src/apps/ohos/entry/src/main/resources/base/media',
 ];
 
 function createChunk(type, payload) {
@@ -44,12 +45,13 @@ test('ICNS canonicalization is independent of Tauri chunk order', () => {
   assert.deepEqual(canonicalizeIcns(forward), forward);
 });
 
-test('generated macOS icons use the canonical ICNS layout', () => {
+test('application ICNS files use the canonical ICNS layout', () => {
+  // The installer container is frozen at the previous artwork, so the two files
+  // are no longer expected to be identical; both must still be canonical.
   const [desktop, installer] = GENERATED_ICNS_FILES.map(filePath => readFileSync(filePath));
 
   assert.ok(desktop.equals(canonicalizeIcns(desktop)), 'desktop ICNS is not canonical');
   assert.ok(installer.equals(canonicalizeIcns(installer)), 'installer ICNS is not canonical');
-  assert.ok(desktop.equals(installer), 'desktop and installer ICNS files differ');
 });
 
 test('application icons preserve the submitted artwork independently from the startup Logo', async () => {
@@ -59,11 +61,11 @@ test('application icons preserve the submitted artwork independently from the st
 
   assert.equal(
     createHash('sha256').update(applicationMark).digest('hex'),
-    '6cda0b01d037ef552690d210a1e5adfa807a806d685a49f46d110b1e3765b5a0',
+    'ecba383b19baa7140f4c63741d19889d29fdb844357ff8219410199f5a561ed3',
   );
   assert.equal(
     createHash('sha256').update(generatedIcon).digest('hex'),
-    'df460c4a43d9a68e15bee7b23b0bb68f7b9e70c26c68158ef82e2d4fd9e6288f',
+    '1b9e53949131c5787991835cfba322234c4f50d0bd3c7076c23241679af04e83',
   );
   assert.notDeepEqual(applicationMark, startupMark);
 
@@ -105,9 +107,9 @@ test('Web UI exposes the canonical mark as a reusable currentColor vector asset'
   const source = readFileSync('assets/brand/source/bitfun-mark.svg', 'utf8');
   const webAsset = readFileSync('src/web-ui/public/brand/bitfun-mark.svg', 'utf8');
 
-  assert.equal(webAsset, source.replaceAll('stroke="black"', 'stroke="currentColor"'));
-  assert.equal(webAsset.match(/<path\b/g)?.length, 15);
-  assert.match(webAsset, /stroke="currentColor"/);
+  assert.equal(webAsset, source.replaceAll('fill="black"', 'fill="currentColor"'));
+  assert.equal(webAsset.match(/<path\b/g)?.length, 1);
+  assert.match(webAsset, /fill="currentColor"/);
   assert.doesNotMatch(webAsset, /#[0-9a-f]{3,8}\b/i);
 });
 
@@ -130,25 +132,30 @@ test('Windows ICO frames contain the size-specific app PNGs', async () => {
     sizes.push(size);
   }
   assert.deepEqual(sizes.sort((a, b) => a - b), [16, 24, 32, 48, 64, 256]);
-  assert.deepEqual(ico, readFileSync('BitFun-Installer/src-tauri/icons/bitfun-app-icon.ico'));
 });
 
-test('small icons retain a bright rim around the entire silhouette', async () => {
+test('small icons keep the diagonal mark readable inside the rounded square', async () => {
+  // The mark is a diagonal silhouette. Unlike the previous evenly spread
+  // contour ribbon it does not reach every compass sector, so the contract is
+  // that the mark survives antialiasing at every size instead of fading into
+  // the dark plate. The measured share is 4.4% at 16 px and grows with size.
   for (const size of [16, 24, 32, 48, 64]) {
     const { data, info } = await sharp(`assets/brand/exports/bitfun-app-icon-${size}.png`)
       .raw().toBuffer({ resolveWithObject: true });
-    const sectors = Array(12).fill(0);
+    let plate = 0;
+    let mark = 0;
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
-        const dx = (x + 0.5) / size - 0.5;
-        const dy = (y + 0.5) / size - 0.5;
-        const radius = Math.hypot(dx, dy);
-        if (radius < 0.32 || radius > 0.44) continue;
-        const sector = Math.floor((Math.atan2(dy, dx) + Math.PI) * 12 / (2 * Math.PI)) % 12;
-        sectors[sector] = Math.max(sectors[sector], data[(y * size + x) * info.channels]);
+        const offset = (y * size + x) * info.channels;
+        if (data[offset + 3] < 16) continue;
+        plate++;
+        if (data[offset] >= 200) mark++;
       }
     }
-    assert.ok(sectors.every(value => value >= 200), `${size}px rim has a dim sector: ${sectors}`);
+    assert.ok(
+      mark / plate >= 0.03,
+      `${size}px icon loses the mark: ${mark}/${plate} bright pixels`,
+    );
   }
 });
 
@@ -168,7 +175,6 @@ test('browser entry points reference generated application favicons', () => {
     ['src/web-ui/index.html', 'src/web-ui/public/brand'],
     ['src/mobile-web/index.html', 'src/mobile-web/public/brand'],
     ['src/apps/relay-server/static/index.html', 'src/apps/relay-server/static/brand'],
-    ['BitFun-Installer/index.html', 'BitFun-Installer/src/assets'],
   ]) {
     const html = readFileSync(htmlPath, 'utf8');
     for (const size of [16, 32]) {
@@ -178,6 +184,41 @@ test('browser entry points reference generated application favicons', () => {
       assert.deepEqual(readFileSync(`${assetDir}/${name}`), readFileSync(`assets/brand/exports/${name}`));
     }
   }
+
+  // The installer keeps its frozen icon set, so its entry point only has to
+  // reference files that are actually shipped.
+  const installerHtml = readFileSync('BitFun-Installer/index.html', 'utf8');
+  for (const name of ['bitfun-app-icon.png', 'bitfun-app-icon-16.png', 'bitfun-app-icon-32.png']) {
+    assert.ok(installerHtml.includes(name), `installer entry point no longer references ${name}`);
+    assert.doesNotThrow(() => readFileSync(`BitFun-Installer/src/assets/${name}`));
+  }
+});
+
+test('frozen installer, Android, and iOS launcher icons stay byte-identical', () => {
+  // These three targets deliberately ship the previous artwork: they are already
+  // released artifacts. The digest pins the exact bytes so that re-adding them to
+  // generate-brand-assets.mjs, or editing them by hand, fails loudly instead of
+  // silently changing shipped icons.
+  const androidRes = 'src/apps/mobile/android/app/src/main/res';
+  const files = [
+    'BitFun-Installer/src-tauri/icons/bitfun-app-icon.png',
+    'BitFun-Installer/src-tauri/icons/bitfun-app-icon.ico',
+    'BitFun-Installer/src-tauri/icons/bitfun-app-icon.icns',
+    'BitFun-Installer/src/assets/bitfun-app-icon.png',
+    'BitFun-Installer/src/assets/bitfun-app-icon-16.png',
+    'BitFun-Installer/src/assets/bitfun-app-icon-32.png',
+    'src/apps/mobile/ios/BitFun/Resources.xcassets/AppIcon.appiconset/bitfun-app-icon.png',
+    ...readdirSync(androidRes)
+      .filter(name => name.startsWith('mipmap-'))
+      .flatMap(density => readdirSync(`${androidRes}/${density}`)
+        .map(name => `${androidRes}/${density}/${name}`)),
+  ];
+  const digest = createHash('sha256');
+  for (const file of files.sort()) {
+    digest.update(file);
+    digest.update(readFileSync(file));
+  }
+  assert.equal(digest.digest('hex'), '39471141d4a8a54acf9f424a9f20869c9724b11933bbaf1055f751920f5a152a');
 });
 
 test('HarmonyOS generated media use valid resource identifiers', () => {
@@ -197,6 +238,23 @@ test('HarmonyOS generated media use valid resource identifiers', () => {
   assert.match(appConfig, /\$media:bitfun_app_icon/);
   assert.match(moduleConfig, /\$media:bitfun_app_icon/);
   assert.match(moduleConfig, /\$media:bitfun_start_window/);
+
+  // The HarmonyOS PC launch page reuses the shared start-window mark. The
+  // start window is pinned to a single neutral appearance (a #6A6A6A canvas
+  // and one light mark) so the AbilityMgr-drawn system start window, the ArkUI
+  // splash mirror, and the web-ui startup overlay can never diverge, and the
+  // handoff to either app theme is a moderate step rather than a flash.
+  const ohosModuleConfig = readFileSync('src/apps/ohos/entry/src/main/module.json5', 'utf8');
+  assert.match(ohosModuleConfig, /\$media:bitfun_start_window/);
+  assert.doesNotMatch(ohosModuleConfig, /bitfun_icon_light/);
+  assert.doesNotThrow(() => readFileSync('src/apps/ohos/entry/src/main/resources/base/media/bitfun_start_window.png'));
+  for (const scope of ['base', 'dark']) {
+    const colorConfig = JSON.parse(
+      readFileSync(`src/apps/ohos/entry/src/main/resources/${scope}/element/color.json`, 'utf8'),
+    );
+    const background = colorConfig.color.find(entry => entry.name === 'start_window_background');
+    assert.equal(background?.value, '#6A6A6A', `${scope} start_window_background must stay the neutral constant`);
+  }
 });
 
 test('ICNS canonicalization rejects malformed containers', () => {

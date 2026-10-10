@@ -20,15 +20,10 @@ const BRAND_SIZE = 512;
 const APP_ICON_SIZE = 1024;
 const APP_ICON_CORNER_RADIUS = 96;
 const APP_MARK_LIFT = 28;
-const ANDROID_FOREGROUND_SCALE = 0.66;
-
-const ANDROID_DENSITIES = {
-  mdpi: { icon: 48, adaptive: 108 },
-  hdpi: { icon: 72, adaptive: 162 },
-  xhdpi: { icon: 96, adaptive: 216 },
-  xxhdpi: { icon: 144, adaptive: 324 },
-  xxxhdpi: { icon: 192, adaptive: 432 },
-};
+// HarmonyOS draws the simple launch-page icon (`startWindowIcon`) at its raw
+// pixel size, so the PC start-window mark is authored at the pixel size that
+// matches the in-app web-ui splash (120vp) on a 2x-density 2in1 display.
+const OHOS_START_WINDOW_SIZE = 240;
 
 const DESKTOP_HICOLOR_SIZES = [16, 32, 48, 64, 96, 128, 256, 512];
 const EXPORT_SIZES = [16, 24, 32, 48, 64, 96, 128, 192, 256, 512, 1024, 2048];
@@ -72,6 +67,9 @@ const LEGACY_APPLICATION_ASSETS = [
   'src/apps/mobile/ios/BitFun/Resources.xcassets/AppIcon.appiconset/bitfun_icon.png',
   'src/apps/mobile/ios/BitFun/Resources.xcassets/BitFunLogo.imageset',
   'src/apps/relay-server/static/assets/Logo-ICON-BOaKcXgO.png',
+  // Superseded by the shared start-window mark below; the HarmonyOS PC launch
+  // page now reuses the same logo as the in-app splash.
+  'src/apps/ohos/entry/src/main/resources/base/media/bitfun_icon_light.png',
 ];
 
 const outputPath = (...segments) => path.join(ROOT_DIR, ...segments);
@@ -86,9 +84,9 @@ async function writePng(filePath, buffer) {
 }
 
 function createReusableWebMark(svg) {
-  const reusableMark = svg.replaceAll('stroke="black"', 'stroke="currentColor"');
+  const reusableMark = svg.replaceAll('fill="black"', 'fill="currentColor"');
   if (reusableMark === svg) {
-    throw new Error('BitFun mark source is missing its canonical black strokes');
+    throw new Error('BitFun mark source is missing its canonical black fill');
   }
   return reusableMark;
 }
@@ -101,26 +99,11 @@ async function normalizePng(input) {
     .toBuffer();
 }
 
-async function renderMark(svg, size, tone, opticalSize = size) {
-  // At favicon sizes, fifteen subpixel strokes disappear. Keep the same
-  // silhouette with fewer filaments. The opaque outer rim must survive
-  // antialiasing independently of the decorative interior strokes.
-  const indices = opticalSize <= 24 ? [0, 7, 14]
-    : opticalSize <= 48 ? [0, 3, 7, 11, 14]
-      : opticalSize <= 96 ? [0, 2, 4, 7, 10, 12, 14] : null;
-  let index = 0;
-  const reusableMark = createReusableWebMark(svg);
-  const artwork = indices ? reusableMark.replace(/<path\b[^>]*\/>/g, element => {
-    const contour = index++;
-    if (!indices.includes(contour)) return '';
-    const outer = contour === 14;
-    const inner = contour === 0;
-    const width = Math.max(outer ? 3.2 : inner ? 1.2 : 0.7,
-      (outer ? 1.35 : inner ? 0.85 : 0.65) * 256 / opticalSize);
-    return element.replace(/ (?:stroke-width|opacity)="[^"]*"/g, '')
-      .replace('/>', ` stroke-width="${width}" opacity="${outer ? 1 : inner ? 0.9 : 0.75}"/>`);
-  }) : reusableMark;
-  return sharp(Buffer.from(artwork.replaceAll('currentColor', tone)), { density: 144 })
+async function renderMark(svg, size, tone) {
+  // The mark is a filled silhouette, so every size renders from the same
+  // geometry: there are no subpixel filaments to thin out optically.
+  const artwork = createReusableWebMark(svg).replaceAll('currentColor', tone);
+  return sharp(Buffer.from(artwork), { density: 144 })
     .resize(size, size)
     .png({ compressionLevel: 9, adaptiveFiltering: true })
     .toBuffer();
@@ -178,27 +161,6 @@ async function createApplicationIcon(applicationMark) {
       { input: background },
       { input: applicationMark },
     ])
-    .png({ compressionLevel: 9, adaptiveFiltering: true })
-    .toBuffer();
-}
-
-async function createAdaptiveForeground(applicationMark, size) {
-  const artworkSize = Math.round(size * ANDROID_FOREGROUND_SCALE);
-  const artwork = await resizePng(applicationMark, artworkSize);
-
-  return sharp({
-    create: {
-      width: size,
-      height: size,
-      channels: 4,
-      background: { r: 255, g: 255, b: 255, alpha: 0 },
-    },
-  })
-    .composite([{
-      input: artwork,
-      left: Math.floor((size - artworkSize) / 2),
-      top: Math.floor((size - artworkSize) / 2),
-    }])
     .png({ compressionLevel: 9, adaptiveFiltering: true })
     .toBuffer();
 }
@@ -365,16 +327,16 @@ async function generateBrandAssets() {
     applicationIcon,
   );
 
+  // The installer, Android launcher, and iOS App Store icons deliberately keep
+  // their previous artwork: they are already-released artifacts. The generator
+  // only refreshes the installer's in-product mark. Read the "Frozen icon
+  // targets" section of assets/brand/README.md before adding them back, and
+  // update the matching guard in generate-brand-assets.test.mjs.
   const installerBrandDir = outputPath('BitFun-Installer', 'src', 'assets');
   await writePng(path.join(installerBrandDir, 'bitfun-mark-dark.png'), darkMark);
   await writePng(path.join(installerBrandDir, 'bitfun-mark-light.png'), lightMark);
-  await writePng(path.join(installerBrandDir, 'bitfun-app-icon.png'), applicationIcon);
-  const installerIconDir = outputPath('BitFun-Installer', 'src-tauri', 'icons');
-  await writePng(path.join(installerIconDir, 'bitfun-app-icon.png'), applicationIconLarge);
-  await writePng(path.join(installerIconDir, 'bitfun-app-icon.ico'), tauriContainers.ico);
-  await writePng(path.join(installerIconDir, 'bitfun-app-icon.icns'), tauriContainers.icns);
 
-  for (const directory of [webBrandDir, installerBrandDir,
+  for (const directory of [webBrandDir,
     outputPath('src', 'mobile-web', 'public', 'brand'),
     outputPath('src', 'apps', 'relay-server', 'static', 'brand')]) {
     for (const size of [16, 32]) {
@@ -382,21 +344,6 @@ async function generateBrandAssets() {
     }
   }
 
-  for (const [density, sizes] of Object.entries(ANDROID_DENSITIES)) {
-    const legacyIcon = await renderIcon(sizes.icon);
-    const adaptiveForeground = await createAdaptiveForeground(applicationMark, sizes.adaptive);
-    const androidDir = outputPath('src', 'apps', 'mobile', 'android', 'app', 'src', 'main', 'res', `mipmap-${density}`);
-    await writePng(path.join(androidDir, 'ic_launcher.png'), legacyIcon);
-    await writePng(path.join(androidDir, 'ic_launcher_round.png'), legacyIcon);
-    await writePng(path.join(androidDir, 'ic_launcher_foreground.png'), adaptiveForeground);
-    await writePng(path.join(androidDir, 'ic_launcher_monochrome.png'), adaptiveForeground);
-  }
-
-  await writePng(
-    outputPath('src', 'apps', 'mobile', 'ios', 'BitFun', 'Resources.xcassets', 'AppIcon.appiconset', 'bitfun-app-icon.png'),
-    // App Store icons must be opaque; iOS applies its own corner mask.
-    await sharp(applicationIconLarge).flatten({ background: '#000000' }).png().toBuffer(),
-  );
   await writePng(
     outputPath('src', 'apps', 'mobile', 'ios', 'BitFun', 'Resources.xcassets', 'BitFunMark.imageset', 'bitfun-mark-light.png'),
     lightMark,
@@ -414,19 +361,39 @@ async function generateBrandAssets() {
     outputPath('src', 'apps', 'mobile', 'harmonyos', 'entry', 'src', 'main', 'resources', 'base', 'media', 'bitfun_start_window.png'),
     await resizePng(lightMark, 144),
   );
+  // ArkUI tints this bitmap through its alpha mask, so the source stays a black
+  // silhouette and the caller supplies the theme color.
+  await writePng(
+    outputPath('src', 'apps', 'mobile', 'harmonyos', 'entry', 'src', 'main', 'resources', 'base', 'media', 'bitfun_brand_mark.png'),
+    await renderMark(svg, 256, '#000000'),
+  );
+
+  // HarmonyOS PC (2in1) launch page. `start_window_background` is pinned to a
+  // neutral gray (#6A6A6A) in both base/ and dark/, with a single light mark,
+  // so the launch surface is identical in every color mode and does not flip
+  // when the system/app color modes disagree. The neutral tone sits between the
+  // app's light (#f8f8f9) and dark (#1c1c1f) chrome surfaces, so the handoff to
+  // either app theme is a moderate step instead of a black or white flash. The
+  // AbilityMgr-drawn system start window, the ArkUI splash mirror
+  // (`oh-rs-ability/.../DefaultXComponent.ets`), and the web-ui startup overlay
+  // (`src/web-ui/index.html`, `.splash-screen--ohos-brand`) all render the same
+  // constant, so the cold-start handoff never breaks.
+  await writePng(
+    outputPath('src', 'apps', 'ohos', 'entry', 'src', 'main', 'resources', 'base', 'media', 'bitfun_start_window.png'),
+    await renderMark(svg, OHOS_START_WINDOW_SIZE, '#ffffff'),
+  );
 
   const ohosTrayMediaDir = outputPath('src', 'apps', 'ohos', 'entry', 'src', 'main', 'resources', 'base', 'media');
   // HarmonyOS status bar (system tray) marks for 2in1 devices. The status bar
   // paints the `white` icon on dark backgrounds and the `black` icon on light
-  // ones, and rejects pixel maps above its size limit, so both stay at a small
-  // optical size that keeps the mark readable at 48 px.
+  // ones and rejects pixel maps above its size limit.
   await writePng(
     path.join(ohosTrayMediaDir, 'bitfun_status_bar_icon_white.png'),
-    await renderMark(svg, 48, '#ffffff', 24),
+    await renderMark(svg, 48, '#ffffff'),
   );
   await writePng(
     path.join(ohosTrayMediaDir, 'bitfun_status_bar_icon_black.png'),
-    await renderMark(svg, 48, '#202020', 24),
+    await renderMark(svg, 48, '#202020'),
   );
 
   await removeLegacyApplicationAssets();

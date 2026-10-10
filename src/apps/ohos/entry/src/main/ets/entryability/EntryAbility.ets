@@ -133,6 +133,19 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     super.onCreate(want, launchParam);
     this.commonEventListener = new CommonEventListener();
     this.updateSystemColorMode(this.context?.config?.colorMode);
+    // Publish the launch-page mirror appearance for the ArkUI page (see
+    // oh-rs-ability/.../DefaultXComponent), which renders it while the webview
+    // boots. The system start window is drawn by the AbilityMgr process, which
+    // resolves its color mode from the system and ignores application-level
+    // overrides, so the launch surface is pinned to a single neutral constant
+    // (`start_window_background` is #6A6A6A in both base/ and dark/, with one
+    // light mark); the mirror takes the same resources, so the system start
+    // window and the mirror can never diverge.
+    AppStorage.setOrCreate<ResourceStr>('bitfunStartupSplashIcon', $r('app.media.bitfun_start_window'));
+    AppStorage.setOrCreate<ResourceColor>(
+      'bitfunStartupSplashBackground',
+      $r('app.color.start_window_background'),
+    );
     // Cold-start best-effort report of the current system color mode so the
     // web-ui "follow system" selection resolves correctly without waiting for
     // the first system change. web-ui dedups when it equals the resolved theme.
