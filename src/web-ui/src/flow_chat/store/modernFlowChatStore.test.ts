@@ -1574,4 +1574,77 @@ describe('sessionToVirtualItems explore grouping', () => {
     expect(secondItems[1]).toBe(firstItems[1]);
     expect(secondItems[2]).not.toBe(firstItems[2]);
   });
+
+  it('places the QT toolchain install row before the rounds that supersede it', () => {
+    const questionTool = makeTool('ask-tool-1', 'AskUserQuestion', 'completed');
+    questionTool.qtToolchainProvision = {
+      status: 'succeeded',
+      stage: 'completed',
+      kitRoot: '/data/storage/el2/base/files/qt-migration/toolchains/qt5.12.12',
+    };
+    const session = makeSession({
+      sessionId: 'qt-provision-session',
+      dialogTurns: [{
+        id: 'turn-1',
+        sessionId: 'qt-provision-session',
+        userMessage: { id: 'user-1', content: 'Migrate my Qt project', timestamp: 900 },
+        modelRounds: [
+          makeRound({ id: 'question-round', items: [questionTool] }),
+          makeRound({ id: 'build-round', items: makeTextItems(1, 'build') }),
+        ],
+        status: 'completed',
+        startTime: 900,
+      }],
+    });
+
+    const items = sessionToVirtualItems(session);
+    const rowIndex = items.findIndex(item => item.type === 'qt-toolchain-provision');
+    const roundIds = items
+      .map(item => (item.type === 'model-round' ? item.data.id : null))
+      .filter((id): id is string => id !== null);
+
+    // The install row belongs to the round that owns the answered question, so
+    // the later round renders below it and pushes it out of view instead of
+    // leaving it pinned to the turn tail.
+    expect(rowIndex).toBeGreaterThan(items.findIndex(
+      item => item.type === 'model-round' && item.data.id === 'question-round',
+    ));
+    expect(rowIndex).toBeLessThan(items.findIndex(
+      item => item.type === 'model-round' && item.data.id === 'build-round',
+    ));
+    expect(roundIds).toEqual(['question-round', 'build-round']);
+
+    // The row cut the round slice, so the question round must not claim the
+    // turn-tail marks (completion footer, trailing thinking/explore behaviour).
+    const modelItems = items.filter(
+      (item): item is ModelRoundVirtualItem => item.type === 'model-round',
+    );
+    expect(modelItems[0].isLastRound).toBe(false);
+    expect(modelItems[1].isLastRound).toBe(true);
+  });
+
+  it('keeps the QT toolchain install row as the turn tail when nothing follows it', () => {
+    const questionTool = makeTool('ask-tool-1', 'AskUserQuestion', 'completed');
+    questionTool.qtToolchainProvision = { status: 'running', stage: 'downloading' };
+    const session = makeSession({
+      sessionId: 'qt-provision-tail-session',
+      dialogTurns: [{
+        id: 'turn-1',
+        sessionId: 'qt-provision-tail-session',
+        userMessage: { id: 'user-1', content: 'Migrate my Qt project', timestamp: 900 },
+        modelRounds: [makeRound({ id: 'question-round', items: [questionTool] })],
+        status: 'completed',
+        startTime: 900,
+      }],
+    });
+
+    const items = sessionToVirtualItems(session);
+    const rowIndex = items.findIndex(item => item.type === 'qt-toolchain-provision');
+    const modelItems = items.filter(
+      (item): item is ModelRoundVirtualItem => item.type === 'model-round',
+    );
+
+    expect(rowIndex).toBeGreaterThan(items.indexOf(modelItems[0]));
+    expect(modelItems[0].isLastRound).toBe(true);
+  });
 });

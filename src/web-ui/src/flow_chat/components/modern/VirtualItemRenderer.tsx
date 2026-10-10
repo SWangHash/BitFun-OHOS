@@ -13,6 +13,7 @@ import { AmbientToolCard, AmbientToolCardHeader } from '@bitfun/ui/flow-chat';
 import { useFlowChatVolatileContext } from './FlowChatContext';
 import { TurnCompletionNoticeItem } from './TurnCompletionNoticeItem';
 import { TurnFailureNoticeItem } from './TurnFailureNoticeItem';
+import { QtToolchainProvisionItem } from './QtToolchainProvisionItem';
 import './VirtualItemRenderer.scss';
 import { getVirtualItemStableKey } from './virtualItemIdentity';
 import { useFlowChatSearchPresentation } from './useFlowChatSearchPresentation';
@@ -97,6 +98,13 @@ export const VirtualItemRenderer = React.memo<VirtualItemRendererProps>(
 
         case 'turn-failure-notice':
           return <TurnFailureNoticeItem error={item.data.error} errorDetail={item.data.errorDetail} />;
+
+        case 'qt-toolchain-provision':
+          return (
+            <div data-bitfun-component="virtual-item" data-bitfun-part="qtToolchainProvisionRow">
+              <QtToolchainProvisionItem provisioning={item.data} />
+            </div>
+          );
 
         case 'image-analyzing':
           return (

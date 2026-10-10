@@ -37,6 +37,7 @@ dunce = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
 futures-util = { workspace = true, optional = true }
 fs2 = { workspace = true, optional = true }
+flate2 = { workspace = true, optional = true }
 git2 = { workspace = true, optional = true }
 hostname = { workspace = true, optional = true }
 image = { workspace = true, optional = true }
@@ -486,6 +487,24 @@ speech-realtime = [
     "tokio/time",
     "dep:tokio-tungstenite",
     "tokio-tungstenite?/rustls-tls-native-roots",
+]
+qt-toolchain = [
+    "bitfun-services-core/tls-provider",
+    "flate2",
+    "futures-util",
+    "reqwest",
+    "reqwest/rustls-no-provider",
+    "reqwest/stream",
+    "sha2",
+    "tar",
+    "thiserror",
+    "tokio/fs",
+    "tokio/io-util",
+    "tokio/macros",
+    "tokio/rt",
+    "tokio-util",
+    "uuid",
+    "zip",
 ]
 workspace-search = [
     "async-trait",

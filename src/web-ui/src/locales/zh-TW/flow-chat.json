@@ -1944,7 +1944,24 @@
           "officialToolchain": "鴻蒙OS推薦工具鏈",
           "officialTemplate": "鴻蒙OS推薦模板",
           "officialDescription": "由 ohos-qt-skills 負責準備",
+          "officialToolchainDescription": "提交後由 BitFun 自動下載安裝",
           "recommend": "推薦"
+        },
+        "provisioning": "正在準備 QT 遷移工具鏈",
+        "provisioningPercent": "{{percent}}%",
+        "provisioningDone": "QT 工具鏈已就緒",
+        "provisioningFailed": "QT 工具鏈準備失敗（{{code}}）。請手動安裝工具鏈，或重新發起一次遷移請求。",
+        "provisioningFailedUnknownCode": "未知錯誤",
+        "provisioningStage": {
+          "checkingExisting": "檢查已安裝工具鏈",
+          "reused": "沿用已安裝工具鏈",
+          "fetchingChecksum": "取得校驗檔",
+          "downloading": "下載中",
+          "verifyingArchive": "校驗下載內容",
+          "extracting": "解壓中",
+          "verifyingInstall": "校驗安裝結果",
+          "publishing": "發佈工具鏈",
+          "completed": "完成"
         },
         "placeholder": {
           "sourceProject": "請填寫您的原始工程路徑",

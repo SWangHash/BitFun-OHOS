@@ -203,6 +203,7 @@ product-full = [
     "git",
     "local-storage",
     "process-runtime",
+    "qt-toolchain",
     "remote-workspace",
     "review-platform",
     "terminal",
@@ -474,6 +475,14 @@ file-watch = ["bitfun-services-integrations/file-watch"]
 git = ["bitfun-services-integrations/git"]
 review-platform = ["bitfun-services-integrations/review-platform"]
 service-integrations = ["announcement", "file-watch", "git", "review-platform"]
+# Runtime Qt toolchain provisioning for the `__official__` migration binding
+# (plan D5): the coordinator installs the kit through the integration service
+# instead of leaving the download to the model. Without this feature the
+# coordinator keeps the previous behaviour and delivers the answers immediately.
+qt-toolchain = [
+    "dep:bitfun-services-integrations",
+    "bitfun-services-integrations/qt-toolchain",
+]
 diagnostics = ["bitfun-services-core/diagnostics"]
 diff = ["bitfun-services-core/diff"]
 dispatch-store = ["dep:base64", "local-storage", "bitfun-services-core/dispatch-workspace"]
@@ -517,6 +526,28 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util"
 [[test]]
 name = "git_contracts"
 required-features = ["git"]
+
+# The Qt migration scanner's tests live in the module under test, which the
+# `--lib` test target cannot compile (pre-existing errors in unrelated modules
+# under this feature set). This target compiles that module's source directly, so
+# the tests can run: `cargo test -p bitfun-core --features agent-runtime,git
+# --test qt_migration_scan_contracts`. `git` is required because an integration
+# test links the crate's library, and the library does not compile under
+# `agent-runtime` alone (`worktree_tool` uses `service::worktree`, gated on
+# `agent-runtime` + `git`).
+[[test]]
+name = "qt_migration_scan_contracts"
+required-features = ["agent-runtime", "git"]
+
+# The runtime provisioning channel's contracts (stages 3 and 4) are covered the
+# same way as the stage-1 scan: the tests live in the module under test, which the
+# broken `--lib` test target cannot run. This target compiles the module's
+# dependency-free contracts half directly:
+# `cargo test -p bitfun-core --features agent-runtime,git,qt-toolchain
+# --test qt_toolchain_provisioning_contracts`.
+[[test]]
+name = "qt_toolchain_provisioning_contracts"
+required-features = ["agent-runtime", "git", "qt-toolchain"]
 
 [build-dependencies]
 sha2 = { workspace = true }

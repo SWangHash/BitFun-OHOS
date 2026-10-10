@@ -1949,7 +1949,24 @@
           "officialToolchain": "HarmonyOS recommended toolchain",
           "officialTemplate": "HarmonyOS recommended template",
           "officialDescription": "Prepared by ohos-qt-skills",
+          "officialToolchainDescription": "Downloaded and installed by BitFun after you submit",
           "recommend": "Recommended"
+        },
+        "provisioning": "Preparing the QT migration toolchain",
+        "provisioningPercent": "{{percent}}%",
+        "provisioningDone": "QT toolchain ready",
+        "provisioningFailed": "QT toolchain preparation failed ({{code}}). Install the toolchain manually, or start a new migration request to retry.",
+        "provisioningFailedUnknownCode": "unknown error",
+        "provisioningStage": {
+          "checkingExisting": "checking installed toolchains",
+          "reused": "using the installed toolchain",
+          "fetchingChecksum": "fetching the checksum file",
+          "downloading": "downloading",
+          "verifyingArchive": "verifying the download",
+          "extracting": "extracting",
+          "verifyingInstall": "verifying the install",
+          "publishing": "publishing the toolchain",
+          "completed": "done"
         },
         "placeholder": {
           "sourceProject": "Enter the source project path",

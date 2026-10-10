@@ -111,7 +111,7 @@ fn ask_user_question_answered_and_cancelled_results_keep_wire_shape() {
     let input = AskUserQuestionInput {
         questions: vec![question()],
         template_id: None,
-    timeout_seconds: 30,
+        timeout_seconds: 30,
     };
     let answered = build_answered_user_question_result(
         &input,
@@ -261,7 +261,7 @@ fn ask_user_question_template_id_round_trips_and_takes_precedence() {
     let plain = AskUserQuestionInput {
         questions: vec![question()],
         template_id: None,
-    timeout_seconds: 30,
+        timeout_seconds: 30,
     };
     let encoded_plain = serde_json::to_value(&plain).expect("input should serialize");
     assert!(encoded_plain.get("templateId").is_none());
@@ -313,6 +313,7 @@ fn template_resolved_payload_keeps_params_immutable_and_carries_policy() {
         presentation: Some(resolved.presentation),
         template_id: Some(QT_MIGRATION_PATHS_TEMPLATE_ID.to_string()),
         template_version: Some(resolved.template_version),
+        qt_migration_questions: resolved.qt_migration_questions,
     };
     let encoded = serde_json::to_value(&request).expect("payload must serialize");
 
@@ -324,8 +325,10 @@ fn template_resolved_payload_keeps_params_immutable_and_carries_policy() {
         encoded["resolvedQuestions"].as_array().map(Vec::len),
         Some(4)
     );
-    // Policy comes only from the backend template.
+    // Policy comes only from the backend template. The Qt intake must block on
+    // the user: a skipped question would silently drop required migration paths.
     assert_eq!(encoded["presentation"]["allowSkip"], false);
+    assert_eq!(encoded["presentation"]["allowTimeout"], false);
     assert_eq!(encoded["presentation"]["layout"], "wizard");
     assert_eq!(encoded["templateVersion"], "1");
     // No candidates passed to resolve -> template questions ship empty options
@@ -342,24 +345,42 @@ fn template_resolved_payload_keeps_params_immutable_and_carries_policy() {
             .map(|s| !s.trim().is_empty()),
         Some(true)
     );
+    // The Qt template additionally ships its own question shape, which the Qt
+    // intake card renders instead of the generic projection. Both carry the same
+    // four field ids, and the candidate path stays free of display text.
+    let qt_questions = encoded["qtMigrationQuestions"]
+        .as_array()
+        .expect("qtMigrationQuestions must ride on the envelope");
+    assert_eq!(qt_questions.len(), 4);
+    assert_eq!(qt_questions[2]["field"], "toolchain");
+    assert_eq!(
+        qt_questions[2]["prompt"],
+        "askUser.qtMigration.question.toolchain"
+    );
+    assert_eq!(
+        qt_questions[2]["options"][0]["value"], "__official__",
+        "no usable toolchain -> the managed download option is the only option"
+    );
+    assert_eq!(qt_questions[2]["options"][0]["path"], "");
+    assert!(qt_questions[2]["options"][0].get("version").is_none());
 
-#[test]
-fn timeout_is_distinct_from_answer_or_cancellation() {
-    let input = AskUserQuestionInput {
-        questions: vec![question()],
-        template_id: None,
-        timeout_seconds: 30,
-    };
-    let result =
-        bitfun_agent_runtime::user_questions::build_timed_out_user_question_result(&input);
-    assert_eq!(
-        result.data,
-        serde_json::json!({ "questions_count": 1, "status": "timeout" })
-    );
-    assert_eq!(
-        result.result_for_assistant,
-        "用户无响应，跳过提问，继续执行"
-    );
-    assert!(result.data.get("answers").is_none());
-}
+    #[test]
+    fn timeout_is_distinct_from_answer_or_cancellation() {
+        let input = AskUserQuestionInput {
+            questions: vec![question()],
+            template_id: None,
+            timeout_seconds: 30,
+        };
+        let result =
+            bitfun_agent_runtime::user_questions::build_timed_out_user_question_result(&input);
+        assert_eq!(
+            result.data,
+            serde_json::json!({ "questions_count": 1, "status": "timeout" })
+        );
+        assert_eq!(
+            result.result_for_assistant,
+            "用户无响应，跳过提问，继续执行"
+        );
+        assert!(result.data.get("answers").is_none());
+    }
 }

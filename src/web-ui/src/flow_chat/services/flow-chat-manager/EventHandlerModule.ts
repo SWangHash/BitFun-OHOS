@@ -128,6 +128,51 @@ export function handleUserQuestionWaiting(context: FlowChatContext, event: {
   // Restore the authoritative mailbox if the tool/turn has not arrived yet.
   requestRuntimeProjectionRepair(event.session_id);
 }
+
+/** Payload of the runtime QT toolchain provisioning channel (stage 4). */
+export interface QtToolchainProvisionEvent {
+  toolId?: unknown;
+  sessionId?: unknown;
+  status?: unknown;
+  stage?: unknown;
+  downloadedBytes?: unknown;
+  totalBytes?: unknown;
+  errorCode?: unknown;
+  kitRoot?: unknown;
+}
+
+/**
+ * Keep the live runtime QT toolchain provisioning state on the waiting question
+ * card.
+ *
+ * The card submission is acknowledged before the install finishes, so the waiting
+ * tool item is still there and must show what the runtime is doing: the same
+ * item is updated in place, exactly like the host-owned question timing above.
+ */
+export function handleQtToolchainProvision(context: FlowChatContext, event: QtToolchainProvisionEvent): void {
+  if (!event || typeof event.toolId !== 'string' || typeof event.sessionId !== 'string') return;
+  const status = event.status === 'succeeded' || event.status === 'failed' ? event.status : 'running';
+  const session = context.flowChatStore.getState().sessions.get(event.sessionId);
+  for (const turn of session?.dialogTurns ?? []) {
+    for (const round of turn.modelRounds) {
+      const tool = round.items.find(item => item.type === 'tool'
+        && (item.id === event.toolId || (item as FlowToolItem).toolCall?.id === event.toolId)) as FlowToolItem | undefined;
+      if (!tool) continue;
+      const updates: Partial<FlowToolItem> = {
+        qtToolchainProvision: {
+          status,
+          stage: typeof event.stage === 'string' ? event.stage : null,
+          downloadedBytes: typeof event.downloadedBytes === 'number' ? event.downloadedBytes : undefined,
+          totalBytes: typeof event.totalBytes === 'number' ? event.totalBytes : null,
+          errorCode: typeof event.errorCode === 'string' ? event.errorCode : null,
+          kitRoot: typeof event.kitRoot === 'string' ? event.kitRoot : null,
+        },
+      };
+      context.flowChatStore.updateModelRoundItem(event.sessionId, turn.id, tool.id, updates);
+      return;
+    }
+  }
+}
 const log = createLogger('EventHandlerModule');
 const TURN_COMPLETION_QUIET_WINDOW_MS = 500;
 
@@ -840,6 +885,9 @@ export async function initializeEventListeners(
   const unlistenAcpPermissionRequest = api.listen('backend-event-acppermissionrequest', (payload: any) => {
     void handleAcpPermissionRequest((payload as any)?.value || payload);
   });
+  const unlistenQtToolchainProvision = api.listen('backend-event-qttoolchainprovision', (payload: any) => {
+    handleQtToolchainProvision(context, (payload as any)?.value || payload);
+  });
 
   const callbacks: AgenticEventCallbacks = {
     onSessionCreated: (event) => {
@@ -945,6 +993,7 @@ export async function initializeEventListeners(
     unlistenBackgroundCommandLifecycle();
     unlistenMcpInteractionRequest();
     unlistenAcpPermissionRequest();
+    unlistenQtToolchainProvision();
     cleanupAcpPlanState();
     agenticEventListener.stopListening();
   };

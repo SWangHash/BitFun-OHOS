@@ -1,14 +1,4 @@
 //! QtMigration intake state (Session-level pure decision layer).
-//!
-//! Provider-neutral facts owned by `agent-runtime`: the overall intake status
-//! is derived from field-level resolution states by a single pure decision
-//! function, so no turn loop, tool adapter, or UI may re-derive it with
-//! hand-written `if`s.
-//!
-//! The snapshot is a Session-level fact and is snapshotted per DialogTurn;
-//! ModelRound never owns intake state. Writing (atomic transition) is the job
-//! of the single owner produced by [`IntakeStateMachine`]; file-system/execute
-//! host validation stays in `bitfun-core` execution boundaries.
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -55,12 +45,6 @@ pub enum QtMigrationFieldResolutionState {
     /// Bound to a concrete absolute path, product-registered ID, or explicit
     /// configuration that the executing Host can use. A backend-validated
     /// question-card submission binds both first-time and replacement values.
-    ///
-    /// There is deliberately no `Validated` level: the four inputs carry no
-    /// host-side validation state — correctness of the `source_project` /
-    /// `output_project` paths is judged by the agent (qmake signal, existence)
-    /// before the skill loads, and toolchain/template are the skill's
-    /// responsibility.
     Resolved,
 }
 
@@ -68,6 +52,43 @@ impl QtMigrationFieldResolutionState {
     /// Monotone progression used by [`qt_migration_derive_intake_status`].
     pub fn can_bind_value(self) -> bool {
         self >= QtMigrationFieldResolutionState::Resolved
+    }
+}
+
+/// How the generation mismatch between the bound source project and the bound
+/// toolchain was resolved.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum QtMigrationVersionStrategy {
+    /// No mismatch was measured for this intake, so there is nothing to decide.
+    #[default]
+    NotNeeded,
+    /// A mismatch was measured and the strategy question is waiting for the user.
+    Pending { project: u8, toolchain: u8 },
+    /// The project is newer than the toolchain and the user chose to migrate it
+    /// with the toolchain's generation (a Qt6 project built as Qt5).
+    Downgrade { project: u8, toolchain: u8 },
+    /// The project is older than the toolchain and the user chose to continue with
+    /// the newer toolchain.
+    Continue { project: u8, toolchain: u8 },
+    /// The user chose not to migrate.
+    Abort { project: u8, toolchain: u8 },
+}
+
+impl QtMigrationVersionStrategy {
+    /// The generations this state was decided on, when it came from a measurement.
+
+    /// Every measured state carries them — including the decided ones — so the facts
+    /// behind "migrate this Qt6 project with Qt5" survive the answer and can be handed
+    /// to every later step of the migration without probing the disk again.
+    pub fn measured_generations(self) -> Option<(u8, u8)> {
+        match self {
+            Self::NotNeeded => None,
+            Self::Pending { project, toolchain }
+            | Self::Downgrade { project, toolchain }
+            | Self::Continue { project, toolchain }
+            | Self::Abort { project, toolchain } => Some((project, toolchain)),
+        }
     }
 }
 
@@ -112,12 +133,6 @@ pub fn qt_migration_is_skill_managed_value(value: &str) -> bool {
 
 /// Provider-neutral proof that the managed `ohos-qt-skills` skill was
 /// successfully loaded into the current Session.
-///
-/// Written atomically by the Skill tool after it resolves and returns the
-/// built-in skill. The admission gate treats a missing or mismatched receipt
-/// as `qt_migration_skill_required` once the four minimum inputs are bound.
-/// `TurnSkillAgentSnapshot` is intentionally NOT consulted — it is an
-/// availability list, not a load proof.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct QtMigrationLoadedSkillReceipt {
     /// Stable skill key reported by the registry at load time (diagnostic).
@@ -134,11 +149,6 @@ pub struct QtMigrationLoadedSkillReceipt {
 /// Pure decision: a receipt proves the managed Qt migration skill was loaded
 /// from the built-in `.system` source iff its source slot, dir name and stable
 /// skill key match the managed baselines and a content fingerprint is present.
-///
-/// Note: this validates the receipt's own consistency, not freshness against
-/// the *current* managed bundle. Comparing `content_hash` to the live
-/// bundle/catalog hash requires registry access (IO), so it stays out of this
-/// pure function.
 pub fn is_valid_qt_migration_receipt(receipt: &QtMigrationLoadedSkillReceipt) -> bool {
     receipt.source_slot == MANAGED_SKILL_SOURCE_SLOT
         && receipt.dir_name == QT_MIGRATION_SKILL_DIR
@@ -159,6 +169,11 @@ pub struct QtMigrationIntakeStateSnapshot {
     /// successful load of the managed `ohos-qt-skills`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub loaded_skill_receipt: Option<QtMigrationLoadedSkillReceipt>,
+    /// How a generation mismatch between the bound source project and the bound
+    /// toolchain was resolved. Defaulted on deserialization so snapshots written
+    /// before this field existed keep loading.
+    #[serde(default)]
+    pub version_strategy: QtMigrationVersionStrategy,
 }
 
 impl QtMigrationIntakeStateSnapshot {
@@ -172,6 +187,7 @@ impl QtMigrationIntakeStateSnapshot {
             fields,
             status: QtMigrationIntakeStatus::NotApplicable,
             loaded_skill_receipt: None,
+            version_strategy: QtMigrationVersionStrategy::default(),
         }
     }
 }
@@ -213,18 +229,9 @@ impl std::fmt::Display for QtMigrationAnswerValidationError {
 }
 
 /// Single pure decision for the overall intake status:
-///
-/// ```text
-/// NeedsInput       = any required field state ∈ { Missing, Referenced }
-/// SkillRequired    = all required fields ≥ Resolved, but no valid skill receipt
-/// Ready            = all required fields ≥ Resolved AND valid skill receipt
-/// ```
-///
-/// Returns `NotApplicable` when not all required fields exist in the map
-/// (defensive; snapshots always seed the full set). `NeedsValidation` is kept
-/// as a serialized legacy value only; it is never derived here (older
-/// persisted snapshots may still carry it and must keep deserializing).
-pub fn qt_migration_derive_intake_status(snapshot: &QtMigrationIntakeStateSnapshot) -> QtMigrationIntakeStatus {
+pub fn qt_migration_derive_intake_status(
+    snapshot: &QtMigrationIntakeStateSnapshot,
+) -> QtMigrationIntakeStatus {
     for required in QT_MIGRATION_INTAKE_REQUIRED_FIELDS {
         let Some(field_state) = snapshot.fields.get(required) else {
             return QtMigrationIntakeStatus::NotApplicable;
@@ -232,6 +239,15 @@ pub fn qt_migration_derive_intake_status(snapshot: &QtMigrationIntakeStateSnapsh
         if !field_state.state.can_bind_value() {
             return QtMigrationIntakeStatus::NeedsInput;
         }
+    }
+    // A measured generation mismatch blocks the migration until the user answers the
+    // strategy question, and an explicit "do not migrate" keeps it blocked: all four
+    // fields being bound says nothing about whether the migration may run at all.
+    if matches!(
+        snapshot.version_strategy,
+        QtMigrationVersionStrategy::Pending { .. } | QtMigrationVersionStrategy::Abort { .. }
+    ) {
+        return QtMigrationIntakeStatus::Blocked;
     }
     let receipt_valid = snapshot
         .loaded_skill_receipt
@@ -245,16 +261,25 @@ pub fn qt_migration_derive_intake_status(snapshot: &QtMigrationIntakeStateSnapsh
     }
 }
 
+/// Record how the generation mismatch between the bound project and the bound
+/// toolchain was resolved, and recompute the derived status so the admission gate
+/// (`qt_migration_gate`) sees the effect immediately: `Pending` and `Abort` derive
+/// `Blocked`, which the gate treats as terminal.
+pub fn qt_migration_set_version_strategy(
+    snapshot: &QtMigrationIntakeStateSnapshot,
+    strategy: QtMigrationVersionStrategy,
+) -> QtMigrationIntakeStateSnapshot {
+    let mut next = snapshot.clone();
+    next.version_strategy = strategy;
+    next.status = qt_migration_derive_intake_status(&next);
+    next
+}
+
 /// Activate a session-level migration intake from `NotApplicable` into the
 /// status derived from the current fields.
-///
-/// Idempotent: a snapshot already in a non-`NotApplicable` status is returned
-/// unchanged so repeated `app_migration` detections do not overwrite fields
-/// already collected via answer submission. The first activation on an empty
-/// snapshot yields `NeedsInput` (all four fields `Missing`); once fields reach
-/// `Resolved` the derived status reflects that. This transition never mutates
-/// field values or forges `Resolved` — it only recomputes the overall status.
-pub fn qt_migration_activate_intake(snapshot: &QtMigrationIntakeStateSnapshot) -> QtMigrationIntakeStateSnapshot {
+pub fn qt_migration_activate_intake(
+    snapshot: &QtMigrationIntakeStateSnapshot,
+) -> QtMigrationIntakeStateSnapshot {
     if snapshot.status != QtMigrationIntakeStatus::NotApplicable {
         return snapshot.clone();
     }
@@ -263,7 +288,9 @@ pub fn qt_migration_activate_intake(snapshot: &QtMigrationIntakeStateSnapshot) -
     next
 }
 
-pub fn qt_migration_start_new_active_intake(snapshot: &QtMigrationIntakeStateSnapshot) -> QtMigrationIntakeStateSnapshot {
+pub fn qt_migration_start_new_active_intake(
+    snapshot: &QtMigrationIntakeStateSnapshot,
+) -> QtMigrationIntakeStateSnapshot {
     if !matches!(
         snapshot.status,
         QtMigrationIntakeStatus::Ready | QtMigrationIntakeStatus::Executing
@@ -273,7 +300,9 @@ pub fn qt_migration_start_new_active_intake(snapshot: &QtMigrationIntakeStateSna
     reset_project_bindings(snapshot)
 }
 
-fn reset_project_bindings(snapshot: &QtMigrationIntakeStateSnapshot) -> QtMigrationIntakeStateSnapshot {
+fn reset_project_bindings(
+    snapshot: &QtMigrationIntakeStateSnapshot,
+) -> QtMigrationIntakeStateSnapshot {
     let mut next = snapshot.clone();
     for field in QT_MIGRATION_INTAKE_REQUIRED_FIELDS {
         if let Some(entry) = next.fields.get_mut(field) {
@@ -282,15 +311,23 @@ fn reset_project_bindings(snapshot: &QtMigrationIntakeStateSnapshot) -> QtMigrat
         }
     }
     next.loaded_skill_receipt = None;
+    // A new migration task decides its own version strategy: keeping a previous
+    // `Abort` (or a `Pending` that was never answered) would leave the fresh intake
+    // permanently blocked.
+    next.version_strategy = QtMigrationVersionStrategy::default();
     next.status = qt_migration_derive_intake_status(&next);
     next
 }
 
 /// Start a new migration task in an existing QtMigration session.
-pub fn qt_migration_start_new_intake(snapshot: &QtMigrationIntakeStateSnapshot) -> QtMigrationIntakeStateSnapshot {
+pub fn qt_migration_start_new_intake(
+    snapshot: &QtMigrationIntakeStateSnapshot,
+) -> QtMigrationIntakeStateSnapshot {
     if !matches!(
         snapshot.status,
-        QtMigrationIntakeStatus::Completed | QtMigrationIntakeStatus::Blocked | QtMigrationIntakeStatus::Failed
+        QtMigrationIntakeStatus::Completed
+            | QtMigrationIntakeStatus::Blocked
+            | QtMigrationIntakeStatus::Failed
     ) {
         return snapshot.clone();
     }
@@ -299,7 +336,7 @@ pub fn qt_migration_start_new_intake(snapshot: &QtMigrationIntakeStateSnapshot) 
 }
 
 /// Backend answer re-validation.
-///
+
 /// `answers` is the raw answer group submitted by the frontend (keyed by field
 /// id). Returns the normalized values to atomically apply on success.
 pub fn qt_migration_validate_answers(
@@ -335,7 +372,8 @@ pub fn qt_migration_validate_answers(
             .ok_or_else(|| QtMigrationAnswerValidationError::MissingField((*field).to_string()))
             .and_then(|v| {
                 if is_placeholder_value(v)
-                    && !(qt_migration_is_skill_managed_value(v) && matches!(*field, "toolchain" | "template"))
+                    && !(qt_migration_is_skill_managed_value(v)
+                        && matches!(*field, "toolchain" | "template"))
                 {
                     Err(QtMigrationAnswerValidationError::PlaceholderValue(
                         (*field).to_string(),
@@ -375,12 +413,6 @@ fn is_placeholder_value(value: &str) -> bool {
 }
 
 /// Pure state transition for a submitted (already re-validated) answer group:
-/// copies the current snapshot, replaces the field values atomically, marks
-/// every submitted value as resolved, recomputes the overall status and returns
-/// the new snapshot. Submitting the backend-owned confirmation card is itself
-/// the binding step, including when a later migration changes a prior value.
-/// Caller (single owner) must swap the Session snapshot only when answer
-/// re-validation returned `Ok`.
 pub fn qt_migration_apply_validated_answers(
     snapshot: &QtMigrationIntakeStateSnapshot,
     answers: &BTreeMap<String, String>,
@@ -401,7 +433,9 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    fn flat(fields: &[(&str, QtMigrationFieldResolutionState)]) -> BTreeMap<String, QtMigrationIntakeFieldState> {
+    fn flat(
+        fields: &[(&str, QtMigrationFieldResolutionState)],
+    ) -> BTreeMap<String, QtMigrationIntakeFieldState> {
         let mut map = BTreeMap::new();
         for (id, state) in fields {
             map.insert(
@@ -424,7 +458,115 @@ mod tests {
             fields: flat(fields),
             status: QtMigrationIntakeStatus::NotApplicable,
             loaded_skill_receipt: receipt,
+            version_strategy: QtMigrationVersionStrategy::default(),
         }
+    }
+
+    fn all_resolved() -> Vec<(&'static str, QtMigrationFieldResolutionState)> {
+        QT_MIGRATION_INTAKE_REQUIRED_FIELDS
+            .iter()
+            .map(|field| (*field, QtMigrationFieldResolutionState::Resolved))
+            .collect()
+    }
+
+    #[test]
+    fn a_pending_version_mismatch_blocks_the_migration() {
+        // 绑定齐全 ≠ 可以迁移：工程与工具链代不一致时，策略问题未答之前必须挡住副作用
+        // （gate 把 Blocked 当终态）。
+        let bound = snapshot_with(&all_resolved(), Some(valid_receipt()));
+        assert_eq!(
+            qt_migration_derive_intake_status(&bound),
+            QtMigrationIntakeStatus::Ready,
+            "前提：绑定齐全 + 有技能回执时本来是 Ready"
+        );
+
+        let pending = qt_migration_set_version_strategy(
+            &bound,
+            QtMigrationVersionStrategy::Pending {
+                project: 6,
+                toolchain: 5,
+            },
+        );
+
+        assert_eq!(pending.status, QtMigrationIntakeStatus::Blocked);
+        assert_eq!(
+            qt_migration_derive_intake_status(&pending),
+            QtMigrationIntakeStatus::Blocked
+        );
+        // 方向随决策一起落库：后续校验/指令读这两个数，不再重新探测磁盘。
+        assert_eq!(
+            pending.version_strategy,
+            QtMigrationVersionStrategy::Pending {
+                project: 6,
+                toolchain: 5
+            }
+        );
+    }
+
+    #[test]
+    fn an_aborted_version_strategy_keeps_the_migration_blocked() {
+        let bound = snapshot_with(&all_resolved(), Some(valid_receipt()));
+
+        let aborted = qt_migration_set_version_strategy(
+            &bound,
+            QtMigrationVersionStrategy::Abort {
+                project: 6,
+                toolchain: 5,
+            },
+        );
+
+        assert_eq!(aborted.status, QtMigrationIntakeStatus::Blocked);
+        assert_eq!(
+            aborted.version_strategy.measured_generations(),
+            Some((6, 5)),
+            "不迁移也要留住本次实测的两侧代，供后续说明与审计"
+        );
+    }
+    #[test]
+    fn a_new_migration_task_clears_the_previous_version_strategy() {
+        // 上一轮选了"不迁移"（Blocked）后，用户换一个工程重新发请求：新任务必须能重来，
+        // 否则 intake 会永久卡在 Blocked。
+        let bound = snapshot_with(&all_resolved(), Some(valid_receipt()));
+        let aborted = qt_migration_set_version_strategy(
+            &bound,
+            QtMigrationVersionStrategy::Abort {
+                project: 6,
+                toolchain: 5,
+            },
+        );
+        assert_eq!(aborted.status, QtMigrationIntakeStatus::Blocked);
+
+        let restarted = qt_migration_start_new_intake(&aborted);
+
+        assert_eq!(
+            restarted.version_strategy,
+            QtMigrationVersionStrategy::NotNeeded
+        );
+        assert_eq!(restarted.status, QtMigrationIntakeStatus::NeedsInput);
+    }
+
+    #[test]
+    fn a_snapshot_without_the_version_strategy_field_still_loads() {
+        // 升级兼容：本字段之前落盘的快照没有 version_strategy，必须仍能反序列化并取默认值。
+        let legacy = json!({
+            "schema_version": QT_MIGRATION_INTAKE_SNAPSHOT_SCHEMA_VERSION,
+            "fields": {
+                "source_project": {"state": "resolved", "value": "/ws/app"},
+                "output_project": {"state": "resolved", "value": "/ws/out"},
+                "toolchain": {"state": "resolved", "value": "__official__"},
+                "template": {"state": "resolved", "value": "__official__"}
+            },
+            "status": "ready"
+        });
+
+        let snapshot: QtMigrationIntakeStateSnapshot =
+            serde_json::from_value(legacy).expect("legacy snapshot must deserialize");
+
+        assert_eq!(
+            snapshot.version_strategy,
+            QtMigrationVersionStrategy::NotNeeded
+        );
+        assert_eq!(snapshot.status, QtMigrationIntakeStatus::Ready);
     }
 
     fn valid_receipt() -> QtMigrationLoadedSkillReceipt {
@@ -440,14 +582,20 @@ mod tests {
     fn missing_fields_derive_needs_input() {
         let snapshot = snapshot_with(
             &[
-                ("source_project", QtMigrationFieldResolutionState::Referenced),
+                (
+                    "source_project",
+                    QtMigrationFieldResolutionState::Referenced,
+                ),
                 ("output_project", QtMigrationFieldResolutionState::Missing),
                 ("toolchain", QtMigrationFieldResolutionState::Missing),
                 ("template", QtMigrationFieldResolutionState::Missing),
             ],
             None,
         );
-        assert_eq!(qt_migration_derive_intake_status(&snapshot), QtMigrationIntakeStatus::NeedsInput);
+        assert_eq!(
+            qt_migration_derive_intake_status(&snapshot),
+            QtMigrationIntakeStatus::NeedsInput
+        );
     }
 
     #[test]
@@ -461,7 +609,10 @@ mod tests {
             ],
             None,
         );
-        assert_eq!(qt_migration_derive_intake_status(&snapshot), QtMigrationIntakeStatus::SkillRequired);
+        assert_eq!(
+            qt_migration_derive_intake_status(&snapshot),
+            QtMigrationIntakeStatus::SkillRequired
+        );
     }
 
     #[test]
@@ -475,7 +626,10 @@ mod tests {
             ],
             Some(valid_receipt()),
         );
-        assert_eq!(qt_migration_derive_intake_status(&snapshot), QtMigrationIntakeStatus::Ready);
+        assert_eq!(
+            qt_migration_derive_intake_status(&snapshot),
+            QtMigrationIntakeStatus::Ready
+        );
     }
 
     #[test]
@@ -489,7 +643,8 @@ mod tests {
                 &QT_MIGRATION_INTAKE_REQUIRED_FIELDS,
                 &json!({ "source_project": "   " })
             ),
-            Err(QtMigrationAnswerValidationError::MissingField(_)) | Err(QtMigrationAnswerValidationError::EmptyValue(_))
+            Err(QtMigrationAnswerValidationError::MissingField(_))
+                | Err(QtMigrationAnswerValidationError::EmptyValue(_))
         ));
         assert!(matches!(
             qt_migration_validate_answers(
@@ -523,48 +678,6 @@ mod tests {
         assert_eq!(normalized.len(), 4);
         assert_eq!(normalized["source_project"], "D:/work/myqt");
     }
-
-    #[test]
-    fn version_mismatch_fails_closed() {
-        let known = |_id: &str, v: &str| v == "1";
-        assert!(matches!(
-            qt_migration_validate_answers(
-                "qt-migration-paths",
-                "2",
-                known,
-                &QT_MIGRATION_INTAKE_REQUIRED_FIELDS,
-                &json!({ "source_project": "D:/x" })
-            ),
-            Err(QtMigrationAnswerValidationError::BindingMismatch { .. })
-        ));
-    }
-
-    #[test]
-    fn applying_new_value_rebinds_field_as_resolved() {
-        let mut snapshot = snapshot_with(
-            &[
-                ("source_project", QtMigrationFieldResolutionState::Resolved),
-                ("output_project", QtMigrationFieldResolutionState::Resolved),
-                ("toolchain", QtMigrationFieldResolutionState::Resolved),
-                ("template", QtMigrationFieldResolutionState::Resolved),
-            ],
-            None,
-        );
-        snapshot.fields.get_mut("source_project").unwrap().value = Some("D:/old".to_string());
-
-        let mut answers = BTreeMap::new();
-        answers.insert("source_project".to_string(), "D:/new".to_string());
-        let next = qt_migration_apply_validated_answers(&snapshot, &answers);
-
-        assert_eq!(
-            next.fields["source_project"].state,
-            QtMigrationFieldResolutionState::Resolved
-        );
-        // A re-submitted confirmation binds the new value immediately; the
-        // agent has already completed the separate source-project check.
-        assert_eq!(next.status, QtMigrationIntakeStatus::SkillRequired);
-    }
-
     #[test]
     fn terminal_task_restart_reuses_resources_and_requires_skill_reload() {
         let mut snapshot = snapshot_with(
@@ -588,42 +701,15 @@ mod tests {
 
         let next = qt_migration_start_new_intake(&snapshot);
         for field in QT_MIGRATION_INTAKE_REQUIRED_FIELDS {
-            assert_eq!(next.fields[field].state, QtMigrationFieldResolutionState::Missing);
+            assert_eq!(
+                next.fields[field].state,
+                QtMigrationFieldResolutionState::Missing
+            );
             assert_eq!(next.fields[field].value, None);
         }
         assert_eq!(next.loaded_skill_receipt, None);
         assert_eq!(next.status, QtMigrationIntakeStatus::NeedsInput);
     }
-
-    #[test]
-    fn active_task_is_not_reset_by_restart_helper() {
-        let mut snapshot = QtMigrationIntakeStateSnapshot::empty();
-        snapshot.status = QtMigrationIntakeStatus::Ready;
-        assert_eq!(qt_migration_start_new_intake(&snapshot), snapshot);
-    }
-
-    #[test]
-    fn active_task_restart_resets_project_paths_and_requires_skill_reload() {
-        let mut snapshot = snapshot_with(
-            &[
-                ("source_project", QtMigrationFieldResolutionState::Resolved),
-                ("output_project", QtMigrationFieldResolutionState::Resolved),
-                ("toolchain", QtMigrationFieldResolutionState::Resolved),
-                ("template", QtMigrationFieldResolutionState::Resolved),
-            ],
-            Some(valid_receipt()),
-        );
-        snapshot.status = QtMigrationIntakeStatus::Ready;
-        snapshot.fields.get_mut("source_project").unwrap().value = Some("D:/old".to_string());
-        snapshot.fields.get_mut("output_project").unwrap().value = Some("D:/out".to_string());
-        let next = qt_migration_start_new_active_intake(&snapshot);
-        assert_eq!(next.status, QtMigrationIntakeStatus::NeedsInput);
-        for field in QT_MIGRATION_INTAKE_REQUIRED_FIELDS {
-            assert!(next.fields[field].value.is_none());
-        }
-        assert_eq!(next.loaded_skill_receipt, None);
-    }
-
     #[test]
     fn first_ever_answers_bind_fields_to_resolved() {
         // Empty session snapshot receives the first confirmed answer group:
@@ -657,26 +743,6 @@ mod tests {
         // state after binding is decided by the receipt.
         assert_eq!(next.status, QtMigrationIntakeStatus::SkillRequired);
     }
-
-    #[test]
-    fn partial_first_answer_keeps_intake_in_needs_input() {
-        let snapshot = QtMigrationIntakeStateSnapshot::empty();
-
-        let mut answers = BTreeMap::new();
-        answers.insert("source_project".to_string(), "D:/work/myqt".to_string());
-        let next = qt_migration_apply_validated_answers(&snapshot, &answers);
-
-        assert_eq!(
-            next.fields["source_project"].state,
-            QtMigrationFieldResolutionState::Resolved
-        );
-        assert_eq!(
-            next.fields["output_project"].state,
-            QtMigrationFieldResolutionState::Missing
-        );
-        assert_eq!(next.status, QtMigrationIntakeStatus::NeedsInput);
-    }
-
     #[test]
     fn activate_from_not_applicable_derives_needs_input() {
         let snapshot = QtMigrationIntakeStateSnapshot::empty();
@@ -690,26 +756,5 @@ mod tests {
                 "activation must not fabricate field bindings"
             );
         }
-    }
-
-    #[test]
-    fn activate_is_idempotent_for_non_not_applicable() {
-        let mut snapshot = QtMigrationIntakeStateSnapshot::empty();
-        snapshot.status = QtMigrationIntakeStatus::NeedsInput;
-        let activated = qt_migration_activate_intake(&snapshot);
-        assert_eq!(activated, snapshot);
-    }
-
-    #[test]
-    fn activate_does_not_overwrite_collected_fields() {
-        let mut snapshot = QtMigrationIntakeStateSnapshot::empty();
-        snapshot.fields.get_mut("source_project").unwrap().state = QtMigrationFieldResolutionState::Resolved;
-        snapshot.status = QtMigrationIntakeStatus::NotApplicable;
-        let activated = qt_migration_activate_intake(&snapshot);
-        assert_eq!(
-            activated.fields["source_project"].state,
-            QtMigrationFieldResolutionState::Resolved
-        );
-        assert_eq!(activated.status, QtMigrationIntakeStatus::NeedsInput);
     }
 }

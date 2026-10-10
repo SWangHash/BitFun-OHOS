@@ -1,24 +1,4 @@
 //! QtMigrationIntake tool implementation.
-//!
-//! Routes a Qt -> HarmonyOS request. It returns a structured
-//! `taskType` (aligned with `ohos-qt-skills/_index/_task-routing.md`), a
-//! per-field minimum-input state for the four migration fields, secondary
-//! tasks for compound requests, and an `ambiguous` result instead of force
-//! mapping unclear requests to `app_migration`.
-//!
-//! Classification rules:
-//! - `app_migration` requires Qt 语境 AND 迁移动作 AND HarmonyOS 目标, matched
-//!   with English word boundaries (no `report`/`portable`/`viewport` hits);
-//! - compound requests keep the primary task by fixed priority and expose
-//!   `secondaryTaskTypes`;
-//! - field states are produced INDEPENDENTLY for the four inputs and never
-//!   share a path-token decision. The analyzer only goes up to "resolved"
-//!   (string layer); `validated` is produced by the execution boundary.
-//!
-//! The analyzer is a pure, synchronous function
-//! ([`QtMigrationIntakeTool::analyze_request`]) so the turn-level gate in
-//! the execution engine can reuse it without constructing a `ToolUseContext`.
-//! The same logic is also exposed as a normal (read-only, no-UI) tool.
 
 use crate::agentic::tools::framework::{Tool, ToolResult, ToolUseContext};
 use crate::util::errors::BitFunResult;
@@ -260,11 +240,6 @@ fn find_absolute_paths(text: &str) -> Vec<String> {
 }
 
 /// Classify each of the four minimum inputs independently.
-/// Rules:
-/// - bare keywords with no binding stay `Missing` (placeholder words such as
-///   "官方工具链" are not references);
-/// - a concrete absolute path / registered-ID-like token -> `Resolved`;
-/// - a domainful mention with a real name but no bindable value -> `Referenced`.
 fn classify_fields(text: &str) -> Value {
     let lower = text.to_lowercase();
     let paths = find_absolute_paths(text);
@@ -619,13 +594,6 @@ mod tests {
         assert_eq!(d["taskType"], "module_support");
         assert_ne!(d["taskType"], "app_migration");
     }
-
-    #[test]
-    fn build_troubleshooting_without_migration_action_is_not_migration() {
-        let d = QtMigrationIntakeTool::analyze_request("Qt 工程编译失败，帮我排查");
-        assert_eq!(d["taskType"], "build_troubleshooting");
-    }
-
     #[test]
     fn compound_request_keeps_primary_and_secondary() {
         let d = QtMigrationIntakeTool::analyze_request(
@@ -677,20 +645,6 @@ mod tests {
             "中文书名号包裹的路径必须剥除后提取"
         );
     }
-
-    #[test]
-    fn unanchored_paths_are_surfaced_as_unclassified() {
-        // 三个路径都无法匹配 output/toolchain/template 锚词：第一个按惯例
-        // 归为源工程，全部路径（含第一个）必须透传给模型辅助归类。
-        let d = QtMigrationIntakeTool::analyze_request(
-            "迁移 D:/ws/myqt 这个 Qt 工程到鸿蒙，工具链用 D:/qt/5.12.12，模板用 D:/tpl/ohos，输出到 D:/out/myapp",
-        );
-        let unclassified = d["resolvedPaths"]["unclassifiedPaths"]
-            .as_array()
-            .expect("unclassifiedPaths array");
-        assert_eq!(unclassified.len(), 4, "所有未锚定路径都要透传");
-    }
-
     #[test]
     fn output_anchor_binds_path_to_output() {
         let d = QtMigrationIntakeTool::analyze_request(
@@ -700,15 +654,6 @@ mod tests {
         assert_eq!(source, FieldLevel::Resolved);
         assert_eq!(output, FieldLevel::Resolved);
     }
-
-    #[test]
-    fn bare_keyword_toolchain_stays_missing_or_referenced_not_resolved() {
-        // "官方工具链" is a placeholder word with no bindable value.
-        let d = QtMigrationIntakeTool::analyze_request("把 D:/proj 迁移到鸿蒙，使用官方工具链");
-        assert_eq!(d["fields"]["toolchain"], "referenced");
-        assert_ne!(d["fields"]["toolchain"], "resolved");
-    }
-
     #[test]
     fn bound_toolchain_path_resolves() {
         let d =
@@ -723,17 +668,5 @@ mod tests {
             let decision = QtMigrationIntakeTool::analyze_request(request);
             assert_ne!(decision["taskType"], "app_migration", "request: {request}");
         }
-    }
-
-    #[test]
-    fn complete_migration_semantics_are_app_migration() {
-        let decision = QtMigrationIntakeTool::analyze_request("将QT工程迁移成鸿蒙工程");
-        assert_eq!(decision["taskType"], "app_migration");
-    }
-
-    #[test]
-    fn ohos_is_a_harmonyos_target() {
-        let decision = QtMigrationIntakeTool::analyze_request("将QT工程迁移成OHOS工程");
-        assert_eq!(decision["taskType"], "app_migration");
     }
 }

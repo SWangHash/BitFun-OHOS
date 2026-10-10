@@ -58,9 +58,8 @@ function questionTool(
           header: 'Database',
           question: 'Which database?',
           multiSelect,
-          // A single-select question opens on its first option, so the
-          // restore/isolation cases below select the alternate to keep the
-          // user's own choice distinguishable from the default.
+          // A plain question opens unanswered, so the restore/isolation cases
+          // below click the option they mean instead of relying on a default.
           options: [{
             label: 'PostgreSQL',
             description: 'Use PostgreSQL',
@@ -236,8 +235,6 @@ describe('AskUserQuestionCard', () => {
       );
     });
 
-    // The first option is the default; pick the alternate so the restored value
-    // is unambiguously the user's own choice.
     const radio = container.querySelector<HTMLInputElement>('input[value="SQLite"]');
     expect(radio).not.toBeNull();
     act(() => radio?.click());
@@ -254,12 +251,14 @@ describe('AskUserQuestionCard', () => {
         />,
       );
     });
+    // Another session's card is a fresh draft, and a plain question has no
+    // default: nothing is checked until that session's user picks.
     expect(
       container.querySelector<HTMLInputElement>('input[value="SQLite"]')?.checked,
     ).toBe(false);
     expect(
       container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.checked,
-    ).toBe(true);
+    ).toBe(false);
 
     act(() => root.render(null));
     act(() => {
@@ -289,8 +288,6 @@ describe('AskUserQuestionCard', () => {
       );
     });
 
-    // The alternate option is the surface's own answer; the local surface's
-    // default must not be mistaken for it.
     const localRadio = container.querySelector<HTMLInputElement>('input[value="SQLite"]');
     act(() => localRadio?.click());
     expect(localRadio?.checked).toBe(true);
@@ -299,12 +296,14 @@ describe('AskUserQuestionCard', () => {
       activateSurface('peer-device-b');
     });
 
+    // The peer surface owns a separate draft, so the local surface's click is
+    // not shown there; a plain question shows no default either.
     expect(
       container.querySelector<HTMLInputElement>('input[value="SQLite"]')?.checked,
     ).toBe(false);
     expect(
       container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.checked,
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('explains why an older CLI peer cannot answer instead of exposing a dead form', () => {
@@ -615,9 +614,12 @@ describe('AskUserQuestionCard', () => {
     expect(toolAPI.submitUserAnswers).toHaveBeenCalledTimes(1);
   });
 
-  // Qt migration intake: the backend resolves the template and emits it on the
-  // `resolvedQuestions` envelope. Options carry a display label plus the real
-  // path in `description`, and answers are re-validated by field id.
+  // Qt migration intake: the backend resolves the template and emits its own
+  // question shape on the `qtMigrationQuestions` envelope field, which the card
+  // selected by `templateId` renders. A candidate option submits its `path`
+  // (never the "Default path" role label), and the Qt major version is a
+  // structured badge instead of text appended to the path. Answers are
+  // re-validated by field id.
   function qtMigrationTool(): FlowToolItem {
     return {
       id: 'question-tool-1',
@@ -636,6 +638,8 @@ describe('AskUserQuestionCard', () => {
       questionRequest: {
         templateId: 'qt-migration-paths',
         templateVersion: '1',
+        // The generic projection still rides along for consumers that only know
+        // the shared contract; the Qt card must render its own shape instead.
         resolvedQuestions: [
           {
             field: 'source_project',
@@ -646,15 +650,48 @@ describe('AskUserQuestionCard', () => {
               { label: 'askUser.qtMigration.option.default', description: 'D:/work/myqt' },
             ],
           },
+        ],
+        qtMigrationQuestions: [
+          {
+            field: 'source_project',
+            header: 'askUser.qtMigration.field.sourceProject',
+            prompt: 'askUser.qtMigration.question.sourceProject',
+            placeholder: 'askUser.qtMigration.placeholder.sourceProject',
+            required: true,
+            options: [
+              { label: 'askUser.qtMigration.option.default', path: 'D:/work/myqt' },
+            ],
+          },
           {
             field: 'toolchain',
             header: 'askUser.qtMigration.field.toolchain',
-            question: 'askUser.qtMigration.question.toolchain',
-            inputPlaceholder: 'askUser.qtMigration.placeholder.toolchain',
+            prompt: 'askUser.qtMigration.question.toolchain',
+            placeholder: 'askUser.qtMigration.placeholder.toolchain',
+            required: true,
             options: [
               {
-                label: 'askUser.qtMigration.option.officialToolchain',
+                label: 'askUser.qtMigration.option.default',
+                path: 'D:/ohos/qt5-kit',
+                version: 5,
+              },
+              {
+                label: 'askUser.qtMigration.option.alternate',
+                path: 'D:/ohos/qt6-kit',
+                version: 6,
+              },
+            ],
+          },
+          {
+            field: 'template',
+            header: 'askUser.qtMigration.field.template',
+            prompt: 'askUser.qtMigration.question.template',
+            placeholder: 'askUser.qtMigration.placeholder.template',
+            required: true,
+            options: [
+              {
+                label: 'askUser.qtMigration.option.officialTemplate',
                 description: 'askUser.qtMigration.option.officialDescription',
+                path: '',
                 value: '__official__',
               },
             ],
@@ -664,16 +701,88 @@ describe('AskUserQuestionCard', () => {
     };
   }
 
-  it('reads the resolvedQuestions envelope and localizes template-owned keys', () => {
+  it('routes the Qt template to the Qt card and localizes its own copy keys', () => {
     act(() => root.render(
       <AskUserQuestionCard toolItem={qtMigrationTool()} config={config} sessionId="session-a" />,
     ));
 
-    // The envelope parsed: two questions rendered from resolvedQuestions.
-    expect(container.textContent).toContain('toolCards.askUser.questionsCount:2');
+    // The Qt payload parsed: three questions rendered from `qtMigrationQuestions`
+    // (the generic projection on the same envelope carries a different count).
+    expect(container.textContent).toContain('toolCards.askUser.questionsCount:3');
     // Template text is an i18n key; it must be resolved through the catalog
     // rather than rendered literally.
     expect(container.textContent).toContain('toolCards.askUser.qtMigration.question.sourceProject');
+  });
+
+  it('renders the Qt major version as its own badge, never inside the path', () => {
+    act(() => root.render(
+      <AskUserQuestionCard toolItem={qtMigrationTool()} config={config} sessionId="session-a" />,
+    ));
+
+    // Both toolchain candidates are badged. The badge lives on the option's role
+    // line: the path line below is one clipped, right-edge-faded line, so a
+    // trailing badge would be invisible behind a long toolchain path.
+    const badges = Array.from(
+      container.querySelectorAll('[data-bitfun-part="label"] span'),
+    ).map((badge) => badge.textContent)
+      .filter((text) => /^Qt\d+$/.test(text ?? ''));
+    expect(badges).toEqual(['Qt5', 'Qt6']);
+    // The path line keeps the clean path and no version text.
+    const pathLines = Array.from(
+      container.querySelectorAll('[data-bitfun-part="description"]'),
+    ).map((line) => line.textContent ?? '');
+    expect(pathLines).toContain('D:/ohos/qt5-kit');
+    expect(pathLines.some((text) => text.includes('(Qt'))).toBe(false);
+    // The clickable value is the clean path; the version is not part of it.
+    expect(container.querySelector<HTMLInputElement>('input[value="D:/ohos/qt5-kit"]'))
+      .not.toBeNull();
+    expect(container.querySelector<HTMLInputElement>('input[value="D:/ohos/qt5-kit (Qt5)"]'))
+      .toBeNull();
+  });
+
+  it('submits a plain option value instead of its display label', async () => {
+    // 版本策略问题由模型自拟（文案是它的），运行时只按选项取值判断用户选择：所以普通问题的
+    // 选项带 value 时，提交的必须是 value 而不是文案。
+    const tool: FlowToolItem = {
+      id: 'question-tool-1',
+      type: 'tool',
+      toolName: 'AskUserQuestion',
+      timestamp: 1,
+      status: 'waiting',
+      toolCall: {
+        id: 'question-call-1',
+        input: {
+          questions: [{
+            header: 'Qt 版本',
+            question: '原始工程是 Qt6、工具链是 Qt5，是否按 Qt5 降级迁移？',
+            multiSelect: false,
+            options: [
+              { label: '降级到 Qt5 迁移', description: '按工具链的 Qt5 构建', value: 'continue_migration' },
+              { label: '不迁移', description: '终止本次迁移', value: 'abort' },
+            ],
+          }],
+        },
+      },
+    };
+    act(() => root.render(
+      <AskUserQuestionCard toolItem={tool} config={config} sessionId="session-a" />,
+    ));
+
+    const text = container.textContent ?? '';
+    expect(text).toContain('降级到 Qt5 迁移');
+    expect(text).not.toContain('continue_migration');
+
+    act(() => container.querySelector<HTMLInputElement>('input[value="continue_migration"]')?.click());
+    const submitButton = container.querySelector<HTMLButtonElement>('[data-bitfun-part="submit"] button');
+    expect(submitButton?.disabled).toBe(false);
+    await act(async () => submitButton?.click());
+
+    // 普通问题按位置下标提交（模板问题才用字段 id）。
+    expect(toolAPI.submitUserAnswers).toHaveBeenCalledWith(
+      'question-tool-1',
+      { 0: 'continue_migration' },
+      'session-a',
+    );
   });
 
   it('submits template answers by field id using the resolved path, not the display label', async () => {
@@ -681,13 +790,16 @@ describe('AskUserQuestionCard', () => {
       <AskUserQuestionCard toolItem={qtMigrationTool()} config={config} sessionId="session-a" />,
     ));
 
-    // The candidate option submits the probed path (description), not the
-    // "Default path" label the backend would reject as a placeholder.
+    // The candidate option submits the probed path, not the "Default path"
+    // label the backend would reject as a placeholder.
     const pathOption = container.querySelector<HTMLInputElement>('input[value="D:/work/myqt"]');
     expect(pathOption).not.toBeNull();
     act(() => pathOption?.click());
+    // The alternate toolchain candidate proves the version badge does not leak
+    // into the submitted value.
+    act(() => container.querySelector<HTMLInputElement>('input[value="D:/ohos/qt6-kit"]')?.click());
 
-    // The skill-managed option carries an explicit value.
+    // The managed download option carries an explicit value.
     const officialOption = container.querySelector<HTMLInputElement>('input[value="__official__"]');
     expect(officialOption).not.toBeNull();
     act(() => officialOption?.click());
@@ -698,7 +810,7 @@ describe('AskUserQuestionCard', () => {
 
     expect(toolAPI.submitUserAnswers).toHaveBeenCalledWith(
       'question-tool-1',
-      { source_project: 'D:/work/myqt', toolchain: '__official__' },
+      { source_project: 'D:/work/myqt', toolchain: 'D:/ohos/qt6-kit', template: '__official__' },
       'session-a',
     );
   });
@@ -711,7 +823,8 @@ describe('AskUserQuestionCard', () => {
       result: {
         answers: {
           source_project: 'D:/work/myqt',
-          toolchain: '__official__',
+          toolchain: 'D:/ohos/qt5-kit',
+          template: '__official__',
         },
       },
     };
@@ -722,7 +835,29 @@ describe('AskUserQuestionCard', () => {
     // Both field-keyed answers are recognized as option selections, so the
     // summary shows them instead of treating them as typed custom values.
     expect(container.textContent).toContain('D:/work/myqt');
+    expect(container.textContent).toContain('D:/ohos/qt5-kit');
     expect(container.textContent).not.toContain('toolCards.askUser.notAnswered');
+  });
+
+  it('leaves a plain single-select question unanswered until the user picks', () => {
+    act(() => root.render(
+      <AskUserQuestionCard
+        toolItem={questionTool('pending_confirmation')}
+        config={config}
+        sessionId="session-a"
+        isLastItem
+      />,
+    ));
+
+    // No pre-selection on a model-authored question: the default would become
+    // the submitted answer, so the form must not be submittable before the user
+    // chooses.
+    expect(container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.checked)
+      .toBe(false);
+    expect(container.querySelector<HTMLInputElement>('input[value="SQLite"]')?.checked)
+      .toBe(false);
+    const submitButton = container.querySelector<HTMLButtonElement>('[data-bitfun-part="submit"] button');
+    expect(submitButton?.disabled).toBe(true);
   });
 
   it('pre-selects the first option of a single-select template question', async () => {
@@ -730,9 +865,12 @@ describe('AskUserQuestionCard', () => {
       <AskUserQuestionCard toolItem={qtMigrationTool()} config={config} sessionId="session-a" />,
     ));
 
-    // The card opens on the backend's first candidate, so a template question is
-    // never presented blank and the submit rule agrees with what is shown.
+    // The intake opts in to the candidate default, so it opens on the backend's
+    // first candidate per field and the submit rule agrees with what is shown.
+    // A plain question has no such default.
     expect(container.querySelector<HTMLInputElement>('input[value="D:/work/myqt"]')?.checked)
+      .toBe(true);
+    expect(container.querySelector<HTMLInputElement>('input[value="D:/ohos/qt5-kit"]')?.checked)
       .toBe(true);
     expect(container.querySelector<HTMLInputElement>('input[value="__official__"]')?.checked)
       .toBe(true);
@@ -743,36 +881,43 @@ describe('AskUserQuestionCard', () => {
 
     expect(toolAPI.submitUserAnswers).toHaveBeenCalledWith(
       'question-tool-1',
-      { source_project: 'D:/work/myqt', toolchain: '__official__' },
+      { source_project: 'D:/work/myqt', toolchain: 'D:/ohos/qt5-kit', template: '__official__' },
       'session-a',
     );
   });
 
+  it('fails loudly when a Qt request arrives without its own question shape', () => {
+    const tool = qtMigrationTool();
+    tool.questionRequest = { templateId: 'qt-migration-paths', templateVersion: '1' };
+    act(() => root.render(
+      <AskUserQuestionCard toolItem={tool} config={config} sessionId="session-a" />,
+    ));
+
+    // Routing is by template id, so the Qt card stays selected even with an
+    // incomplete payload instead of silently rendering the generic projection.
+    expect(container.textContent).toContain('toolCards.askUser.parseError');
+  });
+
   it('keeps a restored draft instead of overwriting it with the default', () => {
+    // Only a card that opts in has a default, so the case that matters is the
+    // Qt intake: its restored answer must survive, while fields the user has not
+    // touched still open on their candidate.
     askUserQuestionDraftStore.getState().setSingleAnswer(
       askUserQuestionDraftKey('session-a', 'question-call-1'),
-      0,
-      'Other',
-    );
-    askUserQuestionDraftStore.getState().setOtherInput(
-      askUserQuestionDraftKey('session-a', 'question-call-1'),
-      0,
-      'CockroachDB',
-      true,
+      1,
+      'D:/ohos/qt6-kit',
     );
 
     act(() => root.render(
-      <AskUserQuestionCard
-        toolItem={questionTool('pending_confirmation')}
-        config={config}
-        sessionId="session-a"
-        isLastItem
-      />,
+      <AskUserQuestionCard toolItem={qtMigrationTool()} config={config} sessionId="session-a" />,
     ));
 
-    expect(container.querySelector<HTMLInputElement>('input[value="Other"]')?.checked).toBe(true);
-    expect(container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.checked)
+    expect(container.querySelector<HTMLInputElement>('input[value="D:/ohos/qt6-kit"]')?.checked)
+      .toBe(true);
+    expect(container.querySelector<HTMLInputElement>('input[value="D:/ohos/qt5-kit"]')?.checked)
       .toBe(false);
+    expect(container.querySelector<HTMLInputElement>('input[value="D:/work/myqt"]')?.checked)
+      .toBe(true);
   });
 
   it('leaves a multi-select question unselected until the user opts in', () => {
@@ -785,8 +930,8 @@ describe('AskUserQuestionCard', () => {
       />,
     ));
 
-    // Multi-select answers stay opt-in: only single-select questions open on a
-    // recommended default.
+    // Answers stay opt-in by default: only a card that opts in opens on a
+    // candidate (the Qt intake), and multi-select is always opt-in.
     expect(container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.checked)
       .toBe(false);
     expect(container.querySelector<HTMLInputElement>('input[value="SQLite"]')?.checked)

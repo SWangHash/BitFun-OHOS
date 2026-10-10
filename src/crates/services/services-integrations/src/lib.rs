@@ -13,6 +13,7 @@ pub mod anonymous_auth;
     feature = "miniapp-market",
     feature = "miniapp-runtime",
     feature = "models-dev",
+    feature = "qt-toolchain",
     feature = "remote-connect",
     feature = "remote-ssh-concrete",
     feature = "review-platform",
@@ -85,6 +86,9 @@ pub mod plugin_source;
 
 #[cfg(feature = "privacy")]
 pub mod privacy;
+
+#[cfg(feature = "qt-toolchain")]
+pub mod qt_toolchain;
 
 #[cfg(any(feature = "git", feature = "review-platform"))]
 mod repository_trust;

@@ -14,6 +14,7 @@ export function getVirtualItemStableKey(item: VirtualItem): string {
       return `${item.type}:${item.turnId}:${item.data.reasonCode}`;
     case 'turn-failure-notice':
     case 'image-analyzing':
+    case 'qt-toolchain-provision':
       return `${item.type}:${item.turnId}`;
   }
 }

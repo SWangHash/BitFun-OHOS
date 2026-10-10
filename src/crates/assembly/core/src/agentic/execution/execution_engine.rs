@@ -676,7 +676,12 @@ const QT_MIGRATION_SKILL_GATE_INSTRUCTION: &str = r#"## 必用技能（系统约
 
 /// Host platform value expected by the skill's download scripts
 /// (`--platform=<macos|windows|linux|harmonyos>`).
-fn qt_migration_download_platform() -> &'static str {
+///
+/// Layout platform token used by the Qt migration knowledge-base download scripts
+/// and by the runtime toolchain provisioner, so both name the same target. It is
+/// `pub(crate)` because the provisioning call site (the coordinator) must feed the
+/// provisioner the exact token the script convention claims.
+pub(crate) fn qt_migration_download_platform() -> &'static str {
     if cfg!(target_env = "ohos") {
         "harmonyos"
     } else {
@@ -688,35 +693,84 @@ fn qt_migration_download_platform() -> &'static str {
     }
 }
 
-/// Guidance for `__official__` toolchain/template bindings: the question card
-/// already explored the environment and found no candidates, so the skill flow
-/// must skip exploration and download directly into the BitFun-managed dirs.
+/// Guidance for an `__official__` **toolchain** binding.
+///
+/// The runtime, not the model, owns the install (provisioning plan D5): the kit is
+/// downloaded when the binding is submitted. This paragraph is therefore rendered
+/// **only while the binding is still `__official__`** — after a successful install the
+/// field carries the installed kit path
+/// (`qt_toolchain_provisioning::resolve_bound_toolchain_field`) and there is nothing
+/// left to explain. The state that still needs it is a runtime that could not install
+/// the kit, where the knowledge-base script stays the documented backstop.
+fn qt_migration_official_toolchain_guidance(toolchains_dir: &str, platform: &str) -> String {
+    format!(
+        "- 工具链绑定值仍是 __official__，说明运行时还没有把工具链装好。工具链由运行时负责安装到 `{toolchains_dir}`（Qt 5.12.12，平台 `{platform}`），**不要**运行任何工具链下载脚本，也不要再做存在性探索或检查。备份路径：若运行时供给失败（绑定仍为 __official__ 且 `{toolchains_dir}` 下没有任何可用工具链），才回退到知识库脚本 `bash skills/kb-init/scripts/download-qt-sdk.sh --platform={platform}`（经 Bash 工具注入的 BITFUN_QT_MIGRATION_ROOT 默认安装到同一目录，不要用 --dest 改到其他位置），安装完成后使用脚本输出的 QT5_12_OHOS_SDK。\n"
+    )
+}
+
+/// Guidance for an `__official__` **template** binding: there is no template
+/// provisioner, so the knowledge-base script stays the install flow.
+fn qt_migration_official_template_guidance(templates_dir: &str, platform: &str) -> String {
+    format!(
+        "- 模板：运行时尚未提供模板供给，仍需按 ohos-qt-skills 流程安装：`bash skills/kb-init/scripts/download-template.sh --platform={platform}`，安装目标目录 `{templates_dir}`，安装完成后使用脚本输出的 OHOS_TEMPLATE_SRC。\n"
+    )
+}
+
+/// Guidance for the `__official__` bindings that still need it, one paragraph per
+/// field.
+///
+/// Each paragraph appears only for the field whose value **is still** `__official__`:
+/// the card offers that value when fewer than two candidates were found, the runtime
+/// installs the toolchain at submit time, and a field that carries a real path has
+/// nothing left to explain. `None` when neither field is official, so a fully resolved
+/// migration carries no download semantics at all.
 fn qt_migration_official_input_guidance(
     toolchains_dir: &str,
     templates_dir: &str,
     platform: &str,
-) -> String {
-    format!(
-        r#"### toolchain / template 为 __official__ 时的执行方式
-
-toolchain 或 template 的绑定值为 __official__ 时，表示使用鸿蒙OS官方推荐版本。问题卡片阶段已完成环境探索并确认当前环境没有可用的工具链/模板工程候选，因此不要再做任何存在性探索或检查，直接按 ohos-qt-skills 流程运行下载脚本安装：
-
-- 工具链：`bash skills/kb-init/scripts/download-qt-sdk.sh --platform={platform}`，安装目标目录 `{toolchains_dir}`（脚本经 Bash 工具注入的 BITFUN_QT_MIGRATION_ROOT 默认就安装到这里，不要用 --dest 改到其他位置），安装完成后使用脚本输出的 QT5_12_OHOS_SDK。
-- 模板：`bash skills/kb-init/scripts/download-template.sh --platform={platform}`，安装目标目录 `{templates_dir}`，安装完成后使用脚本输出的 OHOS_TEMPLATE_SRC。"#
-    )
+    toolchain_official: bool,
+    template_official: bool,
+) -> Option<String> {
+    if !toolchain_official && !template_official {
+        return None;
+    }
+    let mut text = String::from(
+        "### __official__ 绑定的执行方式\n\n绑定值为 __official__ 时表示使用鸿蒙OS官方推荐版本。绑定值即最终输入事实：不要因为本机还存在其它候选就改用它们，也不要在四项输入之外重新探测路径。\n",
+    );
+    if toolchain_official {
+        text.push_str(&qt_migration_official_toolchain_guidance(
+            toolchains_dir,
+            platform,
+        ));
+    }
+    if template_official {
+        text.push_str(&qt_migration_official_template_guidance(
+            templates_dir,
+            platform,
+        ));
+    }
+    Some(text)
 }
 
-/// Skill-gate instruction plus concrete `__official__` download semantics.
+/// Skill-gate instruction plus the `__official__` guidance for the bindings that still
+/// need it.
 fn qt_migration_skill_gate_instruction(
     toolchains_dir: &str,
     templates_dir: &str,
     platform: &str,
+    toolchain_official: bool,
+    template_official: bool,
 ) -> String {
-    format!(
-        "{}\n\n{}",
-        QT_MIGRATION_SKILL_GATE_INSTRUCTION,
-        qt_migration_official_input_guidance(toolchains_dir, templates_dir, platform)
-    )
+    match qt_migration_official_input_guidance(
+        toolchains_dir,
+        templates_dir,
+        platform,
+        toolchain_official,
+        template_official,
+    ) {
+        Some(guidance) => format!("{}\n\n{}", QT_MIGRATION_SKILL_GATE_INSTRUCTION, guidance),
+        None => QT_MIGRATION_SKILL_GATE_INSTRUCTION.to_string(),
+    }
 }
 
 /// Snapshot instruction listing the four bound inputs once all of them are
@@ -728,8 +782,8 @@ fn qt_migration_bound_inputs_instruction(
     platform: &str,
 ) -> Option<String> {
     use bitfun_agent_runtime::qt_migration_intake_state::{
-        QtMigrationFieldResolutionState, QT_MIGRATION_INTAKE_REQUIRED_FIELDS,
-        QT_MIGRATION_OFFICIAL_VALUE,
+        QtMigrationFieldResolutionState, QtMigrationVersionStrategy,
+        QT_MIGRATION_INTAKE_REQUIRED_FIELDS, QT_MIGRATION_OFFICIAL_VALUE,
     };
 
     let mut values = std::collections::BTreeMap::new();
@@ -754,15 +808,49 @@ fn qt_migration_bound_inputs_instruction(
             text.push_str(&format!("- {field}：{value}\n"));
         }
     }
-    if values["toolchain"] == QT_MIGRATION_OFFICIAL_VALUE
-        || values["template"] == QT_MIGRATION_OFFICIAL_VALUE
-    {
+    let toolchain_official = values["toolchain"] == QT_MIGRATION_OFFICIAL_VALUE;
+    let template_official = values["template"] == QT_MIGRATION_OFFICIAL_VALUE;
+    // A field the runtime already resolved (the installed kit root) is a plain path
+    // here: the download semantics belong to the fields that are still `__official__`.
+    if let Some(guidance) = qt_migration_official_input_guidance(
+        toolchains_dir,
+        templates_dir,
+        platform,
+        toolchain_official,
+        template_official,
+    ) {
         text.push_str("\n\n");
-        text.push_str(&qt_migration_official_input_guidance(
-            toolchains_dir,
-            templates_dir,
-            platform,
-        ));
+        text.push_str(&guidance);
+    }
+    // Generation strategy: a project and a toolchain of different Qt generations only
+    // migrate on the user's decision, and that decision is what every later step —
+    // including the knowledge base (ohos-qt-skills) — has to follow. It is stated on
+    // every turn the migration runs, not only on the answer that produced it, so a
+    // restarted or resumed session cannot drift back to the project's own generation.
+    match snapshot.version_strategy {
+        QtMigrationVersionStrategy::Pending { project, toolchain } => text.push_str(&format!(
+            "\n\n### 版本策略待用户确认（系统约束）\n\n\
+             原始工程是 Qt{project}，绑定的工具链是 Qt{toolchain}，两者代不一致。\
+             在用户通过版本策略问题作出选择之前，禁止执行任何迁移副作用（写文件、构建、部署、删除），\
+             也禁止按其中任何一代开始迁移；迁移的唯一入口是用户对那个问题的作答。"
+        )),
+        QtMigrationVersionStrategy::Downgrade { project, toolchain } => text.push_str(&format!(
+            "\n\n### 本次迁移的版本策略：用户已确认降级\n\n\
+             原始工程按 Qt{project} 写就，用户已确认**降级到工具链的 Qt{toolchain}** 迁移。\
+             迁移（包括使用 ohos-qt-skills 时的流程与参数）必须按 Qt{toolchain} 处理，\
+             不得按工程原本的 Qt{project} 处理，也不要重新询问用户。"
+        )),
+        QtMigrationVersionStrategy::Continue { project, toolchain } => text.push_str(&format!(
+            "\n\n### 本次迁移的版本策略：用户已确认继续\n\n\
+             原始工程是 Qt{project}，工具链是 Qt{toolchain}，用户已知版本不一致并确认继续迁移。\
+             按工具链的 Qt{toolchain} 执行，并在交付结论中明确说明这一版本差异。"
+        )),
+        QtMigrationVersionStrategy::Abort { project, toolchain } => text.push_str(&format!(
+            "\n\n### 本次迁移已按用户选择终止（系统约束）\n\n\
+             用户已选择不迁移这个 Qt{project} 工程（工具链为 Qt{toolchain}）。\
+             禁止执行任何迁移动作，也不要改用其他工程继续；如需迁移请由用户重新发起。"
+        )),
+        QtMigrationVersionStrategy::NotNeeded => {}
     }
     Some(text)
 }
@@ -3648,10 +3736,25 @@ impl ExecutionEngine {
                     instruction.push_str(&bound_inputs);
                     instruction.push_str("\n\n迁移工作必须遵守下面的必用技能约束：\n");
                 }
+                // The `__official__` download semantics follow the *current* bindings:
+                // once the runtime installed the toolchain, the field holds the kit
+                // path and there is nothing left to instruct.
+                let still_official = |field: &str| {
+                    bound_intake
+                        .fields
+                        .get(field)
+                        .and_then(|state| state.value.as_deref())
+                        == Some(
+                            bitfun_agent_runtime::qt_migration_intake_state::
+                                QT_MIGRATION_OFFICIAL_VALUE,
+                        )
+                };
                 instruction.push_str(&qt_migration_skill_gate_instruction(
                     &toolchains_dir,
                     &templates_dir,
                     platform,
+                    still_official("toolchain"),
+                    still_official("template"),
                 ));
                 initial_messages.insert(0, Message::user(instruction));
             }
@@ -7210,8 +7313,103 @@ mod tests {
         snapshot
     }
 
+    /// A bound snapshot carrying a decided generation strategy for the tests that
+    /// check the downgrade/continue/abort facts the engine states to the model.
+    fn bound_snapshot_with_strategy(
+        toolchain: &str,
+        template: &str,
+        strategy: bitfun_agent_runtime::qt_migration_intake_state::QtMigrationVersionStrategy,
+    ) -> QtMigrationIntakeStateSnapshot {
+        let mut snapshot = bound_snapshot(toolchain, template);
+        snapshot =
+            bitfun_agent_runtime::qt_migration_intake_state::qt_migration_set_version_strategy(
+                &snapshot, strategy,
+            );
+        snapshot
+    }
+
     #[test]
-    fn bound_inputs_instruction_lists_values_and_official_guidance() {
+    fn bound_inputs_instruction_states_the_decided_generation_strategy() {
+        // 代不一致的迁移只在用户决策后运行，而且后续每一轮（含使用 ohos-qt-skills 时）都必须
+        // 按这个决策走；因此绑定输入指令要带上策略事实，而不是只靠提问那一轮的上下文。
+        use bitfun_agent_runtime::qt_migration_intake_state::QtMigrationVersionStrategy;
+
+        let cases = [
+            (
+                QtMigrationVersionStrategy::Downgrade {
+                    project: 6,
+                    toolchain: 5,
+                },
+                ["用户已确认降级", "降级到工具链的 Qt5", "Qt6"],
+            ),
+            (
+                QtMigrationVersionStrategy::Continue {
+                    project: 5,
+                    toolchain: 6,
+                },
+                ["用户已确认继续", "按工具链的 Qt6 执行", "Qt5"],
+            ),
+            (
+                QtMigrationVersionStrategy::Abort {
+                    project: 6,
+                    toolchain: 5,
+                },
+                ["已按用户选择终止", "禁止执行任何迁移动作", "Qt6"],
+            ),
+            (
+                QtMigrationVersionStrategy::Pending {
+                    project: 6,
+                    toolchain: 5,
+                },
+                ["版本策略待用户确认", "禁止执行任何迁移副作用", "Qt6"],
+            ),
+        ];
+
+        for (strategy, expected) in cases {
+            let snapshot =
+                bound_snapshot_with_strategy("/root/toolchains/qt5.12.12", "D:/tpl", strategy);
+            let text = qt_migration_bound_inputs_instruction(
+                &snapshot,
+                "/root/toolchains",
+                "/root/templates",
+                "harmonyos",
+            )
+            .expect("all resolved");
+
+            for needle in expected {
+                assert!(
+                    text.contains(needle),
+                    "{strategy:?} 的绑定指令缺少 {needle}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn bound_inputs_instruction_has_no_strategy_block_when_generations_agree() {
+        use bitfun_agent_runtime::qt_migration_intake_state::QtMigrationVersionStrategy;
+
+        let snapshot = bound_snapshot_with_strategy(
+            "/root/toolchains/qt5.12.12",
+            "D:/tpl",
+            QtMigrationVersionStrategy::NotNeeded,
+        );
+        let text = qt_migration_bound_inputs_instruction(
+            &snapshot,
+            "/root/toolchains",
+            "/root/templates",
+            "harmonyos",
+        )
+        .expect("all resolved");
+
+        assert!(!text.contains("版本策略"));
+        assert!(!text.contains("用户已确认"));
+    }
+
+    #[test]
+    fn bound_inputs_instruction_guides_only_the_still_official_toolchain() {
+        // 工具链没装好（绑定仍是 __official__）才讲工具链的安装语义；模板不是 official 时
+        // 不能再把模板脚本一起塞进来。
         let snapshot = bound_snapshot(QT_MIGRATION_OFFICIAL_VALUE, "D:/tpl");
         let text = qt_migration_bound_inputs_instruction(
             &snapshot,
@@ -7225,13 +7423,65 @@ mod tests {
         assert!(text.contains("output_project：D:/out/hm"));
         assert!(text.contains("toolchain：__official__"));
         assert!(text.contains("template：D:/tpl"));
-        // official 语义：跳过探索、直接下载、指定目标目录与平台参数
-        assert!(text.contains("不要再做任何存在性探索或检查"));
+        // official 语义：工具链由运行时安装（不让模型跑下载脚本），知识库脚本只作为供给失败时的备份。
+        assert!(text.contains("也不要再做存在性探索或检查"));
+        assert!(text.contains("工具链由运行时负责安装"));
+        assert!(text.contains("备份路径"));
         assert!(text.contains("download-qt-sdk.sh --platform=harmonyos"));
-        assert!(text.contains("download-template.sh --platform=harmonyos"));
         assert!(text.contains("/root/toolchains"));
-        assert!(text.contains("/root/templates"));
         assert!(text.contains("BITFUN_QT_MIGRATION_ROOT"));
+        assert!(
+            !text.contains("download-template.sh"),
+            "模板不是 official，不得出现模板安装指令"
+        );
+    }
+
+    #[test]
+    fn bound_inputs_instruction_stops_passing_official_down_once_installed() {
+        // 用户要求：工具链由运行时装好后，指令里给的是**安装后的真实路径**，不再出现
+        // __official__ 与工具链下载语义；此时只有模板仍是 official，才讲模板安装。
+        let snapshot = bound_snapshot("/root/toolchains/qt5.12.12", QT_MIGRATION_OFFICIAL_VALUE);
+        let text = qt_migration_bound_inputs_instruction(
+            &snapshot,
+            "/root/toolchains",
+            "/root/templates",
+            "harmonyos",
+        )
+        .expect("all resolved");
+
+        assert!(text.contains("toolchain：/root/toolchains/qt5.12.12"));
+        assert!(!text.contains("toolchain：__official__"));
+        assert!(text.contains("template：__official__"));
+        // 已装好的工具链：不该再提下载/安装/备份。
+        assert!(!text.contains("工具链由运行时负责安装"));
+        assert!(!text.contains("download-qt-sdk.sh"));
+        assert!(!text.contains("BITFUN_QT_MIGRATION_ROOT"));
+        // 模板仍走技能流程。
+        assert!(text.contains("download-template.sh --platform=harmonyos"));
+        assert!(text.contains("/root/templates"));
+    }
+
+    #[test]
+    fn bound_inputs_instruction_resolved_toolchain_keeps_the_real_path() {
+        // After a successful runtime provisioning the binding is the installed kit
+        // root (D7), so the instruction carries the real path and no longer asks
+        // for any install step.
+        let snapshot = bound_snapshot("/root/toolchains/qt5.12.12", "D:/tpl");
+        let text = qt_migration_bound_inputs_instruction(
+            &snapshot,
+            "/root/toolchains",
+            "/root/templates",
+            "harmonyos",
+        )
+        .expect("all resolved");
+
+        assert!(text.contains("toolchain：/root/toolchains/qt5.12.12"));
+        assert!(!text.contains("toolchain：__official__"));
+        assert!(
+            !text.contains("__official__"),
+            "已装好就不该再出现 official 语义"
+        );
+        assert!(!text.contains("download-qt-sdk.sh"));
     }
 
     #[test]
@@ -7267,11 +7517,45 @@ mod tests {
 
     #[test]
     fn skill_gate_instruction_carries_official_download_targets() {
-        let text =
-            qt_migration_skill_gate_instruction("/root/toolchains", "/root/templates", "harmonyos");
-        assert!(text.contains("必须**先调用 Skill 工具加载技能 ohos-qt-skills"));
-        assert!(text.contains("download-qt-sdk.sh --platform=harmonyos"));
-        assert!(text.contains("/root/toolchains"));
+        // 只有仍是 official 的字段才带下载语义。
+        let both = qt_migration_skill_gate_instruction(
+            "/root/toolchains",
+            "/root/templates",
+            "harmonyos",
+            true,
+            true,
+        );
+        assert!(both.contains("必须**先调用 Skill 工具加载技能 ohos-qt-skills"));
+        // The runtime owns the toolchain install; the script remains only as the
+        // documented backstop, the template still uses the skill script.
+        assert!(both.contains("download-qt-sdk.sh --platform=harmonyos"));
+        assert!(both.contains("download-template.sh --platform=harmonyos"));
+        assert!(both.contains("/root/toolchains"));
+        assert!(both.contains("/root/templates"));
+
+        // 工具链装好后（绑定是真实路径）只保留模板语义。
+        let template_only = qt_migration_skill_gate_instruction(
+            "/root/toolchains",
+            "/root/templates",
+            "harmonyos",
+            false,
+            true,
+        );
+        assert!(template_only.contains("download-template.sh --platform=harmonyos"));
+        assert!(!template_only.contains("download-qt-sdk.sh"));
+        assert!(!template_only.contains("工具链由运行时负责安装"));
+
+        // 两者都不是 official 时没有任何下载语义。
+        let neither = qt_migration_skill_gate_instruction(
+            "/root/toolchains",
+            "/root/templates",
+            "harmonyos",
+            false,
+            false,
+        );
+        assert!(neither.contains("必须**先调用 Skill 工具加载技能 ohos-qt-skills"));
+        assert!(!neither.contains("download-"));
+        assert!(!neither.contains("__official__"));
     }
 
     #[test]

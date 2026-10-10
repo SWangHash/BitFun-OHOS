@@ -90,15 +90,11 @@ use crate::service::workspace::{
 };
 use crate::service_agent_runtime::CoreServiceAgentRuntime;
 use crate::util::errors::{BitFunError, BitFunResult};
-use dashmap::DashMap;
-use log::{debug, error, info, warn};
 use bitfun_agent_runtime::deep_review::FocusedReviewAssignment;
 use bitfun_agent_runtime::output_surface::{
     supports_inline_markdown_images_for_source, TOOL_CONTEXT_INLINE_MARKDOWN_IMAGE_DISPLAY_KEY,
 };
-use bitfun_agent_runtime::permission::{
-    AUTO_APPROVE_ASK_CONTEXT_KEY, PERMISSION_MODE_CONTEXT_KEY,
-};
+use bitfun_agent_runtime::permission::{AUTO_APPROVE_ASK_CONTEXT_KEY, PERMISSION_MODE_CONTEXT_KEY};
 use bitfun_agent_runtime::remote_file_delivery::{
     needs_computer_links_for_source, remote_file_delivery_reminder,
     TOOL_CONTEXT_REMOTE_FILE_DELIVERY_KEY,
@@ -129,6 +125,8 @@ use bitfun_services_core::workspace_text::{
     normalize_workspace_relative_path, resolve_workspace_relative_entry, WorkspaceEntryKind,
     WorkspaceTextReadError,
 };
+use dashmap::DashMap;
+use log::{debug, error, info, warn};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -1598,10 +1596,7 @@ impl ConversationCoordinator {
 
         let references = serde_json::from_value::<Vec<SessionReferenceLocator>>(value.clone())
             .map_err(|error| {
-                BitFunError::Validation(format!(
-                    "Invalid session reference metadata: {}",
-                    error
-                ))
+                BitFunError::Validation(format!("Invalid session reference metadata: {}", error))
             })?;
         if references.len() > MAX_SESSION_REFERENCES_PER_TURN {
             return Err(BitFunError::Validation(format!(
@@ -1879,10 +1874,7 @@ impl ConversationCoordinator {
         }
     }
 
-    async fn restore_path_for_existing_session(
-        &self,
-        session_id: &str,
-    ) -> BitFunResult<PathBuf> {
+    async fn restore_path_for_existing_session(&self, session_id: &str) -> BitFunResult<PathBuf> {
         if let Some(binding) = self
             .session_manager
             .resolve_session_workspace_binding(session_id)
@@ -1894,9 +1886,7 @@ impl ConversationCoordinator {
         let session = self
             .session_manager
             .get_session(session_id)
-            .ok_or_else(|| {
-                BitFunError::NotFound(format!("Session not found: {}", session_id))
-            })?;
+            .ok_or_else(|| BitFunError::NotFound(format!("Session not found: {}", session_id)))?;
         session
             .config
             .workspace_path
@@ -2211,9 +2201,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         result
     }
 
-    pub(crate) fn hook_registry(
-        &self,
-    ) -> &bitfun_agent_runtime::native_hooks::RuntimeHookRegistry {
+    pub(crate) fn hook_registry(&self) -> &bitfun_agent_runtime::native_hooks::RuntimeHookRegistry {
         &self.hook_registry
     }
 
@@ -2248,9 +2236,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
     ) -> BitFunResult<()> {
         self.runtime_ownership
             .register_verified_remote_scope(workspace_path, remote_connection_id, remote_ssh_host)
-            .map_err(|error| {
-                BitFunError::Service(self.runtime_ownership.error_message(&error))
-            })?;
+            .map_err(|error| BitFunError::Service(self.runtime_ownership.error_message(&error)))?;
         self.ensure_runtime_ownership(workspace_path, Some(remote_connection_id), remote_ssh_host)
     }
 
@@ -2452,9 +2438,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
     ) -> BitFunResult<()> {
         if let Some(session) = self.session_manager.get_session(session_id) {
             let workspace_path = session.config.workspace_path.as_deref().ok_or_else(|| {
-                BitFunError::Validation(format!(
-                    "Session workspace_path is missing: {session_id}"
-                ))
+                BitFunError::Validation(format!("Session workspace_path is missing: {session_id}"))
             })?;
             return self.ensure_runtime_ownership(
                 Path::new(workspace_path),
@@ -2606,11 +2590,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         .await
     }
 
-    pub async fn update_session_model(
-        &self,
-        session_id: &str,
-        model_id: &str,
-    ) -> BitFunResult<()> {
+    pub async fn update_session_model(&self, session_id: &str, model_id: &str) -> BitFunResult<()> {
         self.update_session_model_selection(session_id, model_id, None)
             .await
     }
@@ -3603,10 +3583,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         preserve_recovery_on_persist_failure: bool,
     ) -> crate::service::session::TurnStatus {
         let error_text = error.to_string();
-        let recoverable = !matches!(
-            error,
-            BitFunError::AIClient(_) | BitFunError::Timeout(_)
-        );
+        let recoverable = !matches!(error, BitFunError::AIClient(_) | BitFunError::Timeout(_));
 
         error!("Dialog turn execution failed: {}", error_text);
 
@@ -3840,10 +3817,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         }
     }
 
-    async fn load_session_context_messages(
-        &self,
-        session: &Session,
-    ) -> BitFunResult<Vec<Message>> {
+    async fn load_session_context_messages(&self, session: &Session) -> BitFunResult<Vec<Message>> {
         let session_id = &session.session_id;
         let mut context_messages = self
             .session_manager
@@ -4159,8 +4133,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         logical_id: String,
     ) -> futures::future::BoxFuture<'_, BitFunResult<()>> {
         Box::pin(async move {
-            bitfun_core_types::validate_session_id(&session_id)
-                .map_err(BitFunError::Validation)?;
+            bitfun_core_types::validate_session_id(&session_id).map_err(BitFunError::Validation)?;
             if prompt.trim().is_empty() {
                 return Err(BitFunError::Validation(
                     "External subagent delegation prompt must not be empty".to_string(),
@@ -4181,9 +4154,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             let mut session = self
                 .session_manager
                 .get_session(&session_id)
-                .ok_or_else(|| {
-                    BitFunError::NotFound(format!("Session not found: {session_id}"))
-                })?;
+                .ok_or_else(|| BitFunError::NotFound(format!("Session not found: {session_id}")))?;
             self.ensure_session_runtime_ownership(&session_id, None)?;
             if session.config.is_remote_workspace() {
                 return Err(BitFunError::NotImplemented(
@@ -4913,16 +4884,11 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .map(Path::new)
             .map(Path::to_path_buf)
             .ok_or_else(|| {
-                BitFunError::Validation(format!(
-                    "Session workspace_path is missing: {session_id}"
-                ))
+                BitFunError::Validation(format!("Session workspace_path is missing: {session_id}"))
             })
     }
 
-    async fn require_main_session_storage_path(
-        &self,
-        session_id: &str,
-    ) -> BitFunResult<PathBuf> {
+    async fn require_main_session_storage_path(&self, session_id: &str) -> BitFunResult<PathBuf> {
         self.require_main_session_workspace(session_id)?;
         self.session_manager
             .resolve_session_workspace_binding(session_id)
@@ -5349,10 +5315,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         .await;
     }
 
-    async fn load_active_thread_goal(
-        &self,
-        session_id: &str,
-    ) -> BitFunResult<Option<ThreadGoal>> {
+    async fn load_active_thread_goal(&self, session_id: &str) -> BitFunResult<Option<ThreadGoal>> {
         let storage_path = self.require_main_session_storage_path(session_id).await?;
         Ok(self
             .thread_goal_store()
@@ -5452,8 +5415,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         session_id: String,
         requested_turn_id: Option<String>,
     ) -> BitFunResult<ManualCompactionTask> {
-        bitfun_core_types::validate_session_id(&session_id)
-            .map_err(BitFunError::Validation)?;
+        bitfun_core_types::validate_session_id(&session_id).map_err(BitFunError::Validation)?;
         if requested_turn_id
             .as_deref()
             .is_some_and(|turn_id| turn_id.trim().is_empty())
@@ -5469,9 +5431,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         let initial_session = self
             .session_manager
             .get_session(&session_id)
-            .ok_or_else(|| {
-                BitFunError::NotFound(format!("Session not found: {}", session_id))
-            })?;
+            .ok_or_else(|| BitFunError::NotFound(format!("Session not found: {}", session_id)))?;
         match &initial_session.state {
             SessionState::Idle => {}
             SessionState::Processing {
@@ -5534,9 +5494,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         let session = self
             .session_manager
             .get_session(&session_id)
-            .ok_or_else(|| {
-                BitFunError::NotFound(format!("Session not found: {}", session_id))
-            })?;
+            .ok_or_else(|| BitFunError::NotFound(format!("Session not found: {}", session_id)))?;
         let turn_index = session.dialog_turn_ids.len().saturating_sub(1);
 
         let execution_lease = self.register_session_execution(&session_id);
@@ -7020,9 +6978,8 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
     ) -> BitFunResult<bitfun_runtime_ports::AgentDialogTurnRecoveryOutcome> {
         bitfun_core_types::validate_session_id(&request.session_id)
             .map_err(BitFunError::Validation)?;
-        bitfun_core_types::validate_session_id(&request.turn_id).map_err(|message| {
-            BitFunError::Validation(format!("Invalid turn_id: {message}"))
-        })?;
+        bitfun_core_types::validate_session_id(&request.turn_id)
+            .map_err(|message| BitFunError::Validation(format!("Invalid turn_id: {message}")))?;
         self.ensure_session_runtime_ownership(&request.session_id, None)?;
 
         let session = self
@@ -7753,9 +7710,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             let session = self
                 .session_manager
                 .get_session(session_id)
-                .ok_or_else(|| {
-                    BitFunError::NotFound(format!("Session not found: {session_id}"))
-                })?;
+                .ok_or_else(|| BitFunError::NotFound(format!("Session not found: {session_id}")))?;
             if session.kind != SessionKind::Standard {
                 return Err(BitFunError::Validation(
                     "Recoverable interruption is supported only for standard user sessions"
@@ -8689,8 +8644,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         session_storage_path: &Path,
         session_id: &str,
     ) -> BitFunResult<()> {
-        bitfun_core_types::validate_session_id(session_id)
-            .map_err(BitFunError::Validation)?;
+        bitfun_core_types::validate_session_id(session_id).map_err(BitFunError::Validation)?;
         self.session_manager
             .validate_session_storage_path_binding(session_id, session_storage_path)?;
         if let Some(state) = self
@@ -9492,10 +9446,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
     }
 
     /// List all sessions
-    pub async fn list_sessions(
-        &self,
-        workspace_path: &Path,
-    ) -> BitFunResult<Vec<SessionSummary>> {
+    pub async fn list_sessions(&self, workspace_path: &Path) -> BitFunResult<Vec<SessionSummary>> {
         self.session_manager.list_sessions(workspace_path).await
     }
 
@@ -9539,11 +9490,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         self.tool_pipeline.cancel_tool(tool_id, reason).await
     }
 
-    pub async fn reply_to_tool(
-        &self,
-        tool_id: &str,
-        reply: PermissionReply,
-    ) -> BitFunResult<()> {
+    pub async fn reply_to_tool(&self, tool_id: &str, reply: PermissionReply) -> BitFunResult<()> {
         self.tool_pipeline.reply_to_tool(tool_id, reply).await
     }
 
@@ -10993,10 +10940,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .session_manager
             .get_session(parent_session_id)
             .ok_or_else(|| {
-                BitFunError::NotFound(format!(
-                    "Parent session not found: {}",
-                    parent_session_id
-                ))
+                BitFunError::NotFound(format!("Parent session not found: {}", parent_session_id))
             })?;
         let context_messages = self.load_session_context_messages(&parent_session).await?;
         ForkAgentContextSnapshot::from_parent_session(&parent_session, context_messages)
@@ -11129,9 +11073,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             ));
         }
         if question.trim().is_empty() {
-            return Err(BitFunError::Validation(
-                "question is required".to_string(),
-            ));
+            return Err(BitFunError::Validation("question is required".to_string()));
         }
 
         let child_session = self
@@ -11431,10 +11373,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .session_manager
             .get_session(parent_session_id)
             .ok_or_else(|| {
-                BitFunError::NotFound(format!(
-                    "Parent session not found: {}",
-                    parent_session_id
-                ))
+                BitFunError::NotFound(format!("Parent session not found: {}", parent_session_id))
             })?;
 
         trimmed_model_id(parent_session.config.model_id.as_deref())
@@ -13066,11 +13005,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         Ok(normalized)
     }
 
-    pub async fn update_session_mode(
-        &self,
-        session_id: &str,
-        mode_id: &str,
-    ) -> BitFunResult<()> {
+    pub async fn update_session_mode(&self, session_id: &str, mode_id: &str) -> BitFunResult<()> {
         self.update_session_mode_with_route(session_id, mode_id, None)
             .await
     }
@@ -13299,8 +13234,7 @@ impl bitfun_runtime_ports::AgentSubmissionPort for ConversationCoordinator {
     async fn create_session(
         &self,
         request: bitfun_runtime_ports::AgentSessionCreateRequest,
-    ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::AgentSessionCreateResult>
-    {
+    ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::AgentSessionCreateResult> {
         create_agent_session_from_runtime_request(
             self,
             None,
@@ -13315,8 +13249,7 @@ impl bitfun_runtime_ports::AgentSubmissionPort for ConversationCoordinator {
         &self,
         session_id: String,
         request: bitfun_runtime_ports::AgentSessionCreateRequest,
-    ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::AgentSessionCreateResult>
-    {
+    ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::AgentSessionCreateResult> {
         bitfun_core_types::validate_session_id(&session_id).map_err(|message| {
             runtime_port_error_preserving_message(BitFunError::Validation(message))
         })?;
@@ -13334,8 +13267,7 @@ impl bitfun_runtime_ports::AgentSubmissionPort for ConversationCoordinator {
         &self,
         session_id: String,
         request: bitfun_runtime_ports::AgentSessionCreateRequest,
-    ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::AgentSessionCreateResult>
-    {
+    ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::AgentSessionCreateResult> {
         bitfun_core_types::validate_session_id(&session_id).map_err(|message| {
             runtime_port_error_preserving_message(BitFunError::Validation(message))
         })?;
@@ -13621,9 +13553,7 @@ pub(crate) fn runtime_transcript_messages_from_turns(
     messages
 }
 
-fn runtime_session_summary(
-    session: SessionSummary,
-) -> bitfun_runtime_ports::AgentSessionSummary {
+fn runtime_session_summary(session: SessionSummary) -> bitfun_runtime_ports::AgentSessionSummary {
     bitfun_runtime_ports::AgentSessionSummary {
         session_id: session.session_id,
         session_name: session.session_name,
@@ -13655,35 +13585,26 @@ fn runtime_session_workspace_binding(binding: WorkspaceBinding) -> AgentSessionW
     }
 }
 
-fn runtime_port_error_from_bitfun(
-    error: BitFunError,
-) -> bitfun_runtime_ports::PortError {
+fn runtime_port_error_from_bitfun(error: BitFunError) -> bitfun_runtime_ports::PortError {
     let (kind, message) = match error {
-        BitFunError::Validation(message) => (
-            bitfun_runtime_ports::PortErrorKind::InvalidRequest,
-            message,
-        ),
-        BitFunError::NotFound(message) => {
-            (bitfun_runtime_ports::PortErrorKind::NotFound, message)
+        BitFunError::Validation(message) => {
+            (bitfun_runtime_ports::PortErrorKind::InvalidRequest, message)
         }
+        BitFunError::NotFound(message) => (bitfun_runtime_ports::PortErrorKind::NotFound, message),
         BitFunError::Cancelled(message) => {
             (bitfun_runtime_ports::PortErrorKind::Cancelled, message)
         }
-        BitFunError::Timeout(message) => {
-            (bitfun_runtime_ports::PortErrorKind::Timeout, message)
-        }
+        BitFunError::Timeout(message) => (bitfun_runtime_ports::PortErrorKind::Timeout, message),
         BitFunError::SessionInUse { session_id } => (
             bitfun_runtime_ports::PortErrorKind::SessionInUse,
             format!("Session is already open for writing: {session_id}"),
         ),
-        BitFunError::OutcomeUnknown(message) => (
-            bitfun_runtime_ports::PortErrorKind::OutcomeUnknown,
-            message,
-        ),
-        BitFunError::NotImplemented(message) => (
-            bitfun_runtime_ports::PortErrorKind::NotAvailable,
-            message,
-        ),
+        BitFunError::OutcomeUnknown(message) => {
+            (bitfun_runtime_ports::PortErrorKind::OutcomeUnknown, message)
+        }
+        BitFunError::NotImplemented(message) => {
+            (bitfun_runtime_ports::PortErrorKind::NotAvailable, message)
+        }
         other => (
             bitfun_runtime_ports::PortErrorKind::Backend,
             other.to_string(),
@@ -13692,9 +13613,7 @@ fn runtime_port_error_from_bitfun(
     bitfun_runtime_ports::PortError::new(kind, message)
 }
 
-fn runtime_port_error_preserving_message(
-    error: BitFunError,
-) -> bitfun_runtime_ports::PortError {
+fn runtime_port_error_preserving_message(error: BitFunError) -> bitfun_runtime_ports::PortError {
     let message = error.to_string();
     let mut port_error = runtime_port_error_from_bitfun(error);
     port_error.message = message;
@@ -13720,8 +13639,7 @@ impl bitfun_runtime_ports::AgentSessionManagementPort for ConversationCoordinato
     async fn list_sessions(
         &self,
         request: bitfun_runtime_ports::AgentSessionListRequest,
-    ) -> bitfun_runtime_ports::PortResult<Vec<bitfun_runtime_ports::AgentSessionSummary>>
-    {
+    ) -> bitfun_runtime_ports::PortResult<Vec<bitfun_runtime_ports::AgentSessionSummary>> {
         let effective_storage_path = self
             .session_storage_for_reference(
                 request.workspace_id.as_deref(),
@@ -13885,9 +13803,8 @@ impl bitfun_runtime_ports::AgentSessionManagementPort for ConversationCoordinato
     async fn resolve_session_workspace_binding(
         &self,
         request: bitfun_runtime_ports::AgentSessionWorkspaceRequest,
-    ) -> bitfun_runtime_ports::PortResult<
-        Option<bitfun_runtime_ports::AgentSessionWorkspaceBinding>,
-    > {
+    ) -> bitfun_runtime_ports::PortResult<Option<bitfun_runtime_ports::AgentSessionWorkspaceBinding>>
+    {
         Ok(self
             .get_session_manager()
             .resolve_session_workspace_binding(&request.session_id)
@@ -14160,9 +14077,8 @@ impl bitfun_agent_runtime::sdk::AgentSessionRestorePort for ConversationCoordina
     async fn restore_session(
         &self,
         request: bitfun_agent_runtime::sdk::AgentSessionRestoreRequest,
-    ) -> bitfun_runtime_ports::PortResult<
-        bitfun_agent_runtime::sdk::AgentSessionRestoreResult,
-    > {
+    ) -> bitfun_runtime_ports::PortResult<bitfun_agent_runtime::sdk::AgentSessionRestoreResult>
+    {
         bitfun_core_types::validate_session_id(&request.session_id).map_err(|message| {
             bitfun_runtime_ports::PortError::new(
                 bitfun_runtime_ports::PortErrorKind::InvalidRequest,
@@ -14210,9 +14126,8 @@ impl bitfun_runtime_ports::AgentLocalCommandTurnPort for ConversationCoordinator
     async fn record_completed_local_command_turn(
         &self,
         request: bitfun_runtime_ports::AgentLocalCommandTurnRecordRequest,
-    ) -> bitfun_runtime_ports::PortResult<
-        bitfun_runtime_ports::AgentLocalCommandTurnRecordResult,
-    > {
+    ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::AgentLocalCommandTurnRecordResult>
+    {
         self.ensure_session_runtime_ownership(&request.session_id, None)
             .map_err(runtime_port_error_preserving_message)?;
         let mutation_guard = self
@@ -14264,8 +14179,7 @@ impl bitfun_runtime_ports::AgentLocalCommandTurnPort for ConversationCoordinator
 fn validate_user_shell_command_request(
     request: &bitfun_runtime_ports::AgentUserShellCommandRequest,
 ) -> BitFunResult<()> {
-    bitfun_core_types::validate_session_id(&request.session_id)
-        .map_err(BitFunError::Validation)?;
+    bitfun_core_types::validate_session_id(&request.session_id).map_err(BitFunError::Validation)?;
     bitfun_core_types::validate_session_id(&request.turn_id)
         .map_err(|message| BitFunError::Validation(format!("Invalid turn_id: {message}")))?;
     if request.command.trim().is_empty() {
@@ -14602,8 +14516,7 @@ impl bitfun_runtime_ports::AgentUserShellCommandPort for ConversationCoordinator
     async fn run_user_shell_command(
         &self,
         request: bitfun_runtime_ports::AgentUserShellCommandRequest,
-    ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::AgentUserShellCommandResult>
-    {
+    ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::AgentUserShellCommandResult> {
         validate_user_shell_command_request(&request)
             .map_err(runtime_port_error_preserving_message)?;
         self.ensure_session_runtime_ownership(&request.session_id, None)
@@ -14721,6 +14634,11 @@ impl ConversationCoordinator {
     /// Fails closed: an unknown template, a version mismatch, a missing path, or
     /// an output directory that is already a migration artifact all surface to
     /// the frontend as an error instead of delivering answers.
+    ///
+    /// An `__official__` toolchain binding additionally delegates the install to
+    /// the runtime (stage 3, plan D5): the port call is acknowledged as soon as the
+    /// bindings are persisted, the kit is provisioned on a detached task, and only
+    /// then is the waiting tool woken — on success and on failure alike (C7).
     async fn validate_and_apply_answers(
         &self,
         meta: &bitfun_agent_runtime::user_questions::PendingQuestionRequestMeta,
@@ -14833,9 +14751,113 @@ impl ConversationCoordinator {
             .remember_qt_migration_intake_state(&meta.session_id, updated)
             .await;
 
+        // Stage 3 (plan D5): an `__official__` toolchain binding means the runtime
+        // installs the kit, not the model. This port call is acknowledged now — the
+        // frontend submit resolves before the transfer finishes — and a detached
+        // task wakes the waiting tool afterwards, whether the install succeeded or
+        // failed (contract C7: a failure must still wake the turn instead of
+        // deadlocking it). Provisioning happens on this process because this is the
+        // host that owns the toolchains directory; a remote workspace is reported as
+        // an explicit unsupported state instead of silently installing locally
+        // (D12).
+        #[cfg(feature = "qt-toolchain")]
+        {
+            use crate::agentic::coordination::qt_toolchain_provisioning::{
+                binding_requires_toolchain_provisioning, spawn_official_toolchain_provisioning,
+                OfficialToolchainProvisioningPlan,
+            };
+
+            if binding_requires_toolchain_provisioning(&normalized) {
+                // The waiting tool's own turn owns cancellation: stopping the turn
+                // stops the transfer and removes its staging directory (plan §3.2).
+                let cancel = crate::agentic::tools::user_input_manager::get_user_input_manager()
+                    .pending_dialog_turn_id(&request.tool_id)
+                    .and_then(|turn_id| {
+                        self.execution_engine.cancel_token_for_dialog_turn(&turn_id)
+                    })
+                    .unwrap_or_else(CancellationToken::new);
+                spawn_official_toolchain_provisioning(
+                    OfficialToolchainProvisioningPlan {
+                        session_id: meta.session_id.clone(),
+                        tool_id: request.tool_id.clone(),
+                        answers: request.answers.clone(),
+                        toolchains_root: crate::infrastructure::get_path_manager_arc()
+                            .qt_migration_toolchains_dir(),
+                        // The provisioner resolves the same layout platform tokens
+                        // the knowledge-base scripts use, so the manual and the
+                        // runtime path cannot drift apart.
+                        platform: crate::agentic::execution::execution_engine::qt_migration_download_platform()
+                            .to_string(),
+                        cancel,
+                        remote_workspace: is_remote,
+                    },
+                    Arc::clone(session_manager),
+                );
+                return Ok(());
+            }
+        }
+
+        // Generation check on the complete binding (plan §4.17): the project the user
+        // picked and the toolchain that will build it must be the same Qt generation,
+        // and the card cannot guarantee it — a machine with no Qt6 kit still binds a
+        // Qt6 project to a Qt5 kit. A measured disagreement records the pending
+        // strategy question, which derives `Blocked` and therefore stops every
+        // migration side effect until the user decides. This runs after the
+        // `__official__` provisioner would have run (that path performs the same check
+        // on the installed kit before it wakes the tool), so the very first thing the
+        // model sees when the intake resumes already carries the decision it needs.
+        crate::agentic::coordination::record_version_mismatch_if_any(
+            &session_manager,
+            &meta.session_id,
+        )
+        .await;
+
         crate::agentic::tools::user_input_manager::get_user_input_manager()
             .send_answer(&request.tool_id, request.answers.clone())
             .map_err(user_input_port_error)
+    }
+
+    /// Record the user's version-strategy decision when this submission answers a
+    /// pending generation mismatch.
+    ///
+    /// The question is written by the model (`qt_migration_version_gate` owns the
+    /// measurement and the answer contract), so this keys on the owning session's
+    /// pending mismatch plus the answer's option values instead of a template id —
+    /// and on nothing else: a submission for any other question is left untouched.
+    ///
+    /// `None` means "not a strategy answer": no mismatch is pending, or the answer
+    /// carries neither contract value. The intake then stays `Pending` (derived
+    /// `Blocked`), so an answer the runtime cannot read never starts a migration; the
+    /// model is told to ask again through the AskUserQuestion follow-up instruction.
+    async fn record_version_strategy_answer(
+        &self,
+        session_id: &str,
+        request: &bitfun_agent_runtime::sdk::AgentUserAnswersRequest,
+    ) -> Option<bitfun_agent_runtime::qt_migration_intake_state::QtMigrationVersionStrategy> {
+        use crate::agentic::coordination::apply_version_strategy_answer;
+        use crate::agentic::tools::qt_migration_candidates::pending_generation_mismatch;
+        use bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeStateSnapshot;
+
+        let session_manager = self.get_session_manager();
+        let snapshot = session_manager
+            .qt_migration_intake_state(session_id)
+            .unwrap_or_else(QtMigrationIntakeStateSnapshot::empty);
+        if pending_generation_mismatch(&snapshot).is_none() {
+            return None;
+        }
+
+        // Persisted before the tool is woken, so the model resumes with the decision
+        // already recorded (its own tool result reads the snapshot back).
+        match apply_version_strategy_answer(&session_manager, session_id, &request.answers).await {
+            Some(strategy) => Some(strategy),
+            None => {
+                warn!(
+                    "Qt migration generation mismatch answer carries none of the required option values; the migration stays blocked: session_id={}",
+                    session_id
+                );
+                None
+            }
+        }
     }
 }
 
@@ -14853,13 +14875,56 @@ impl bitfun_agent_runtime::sdk::AgentInteractionResponsePort for ConversationCoo
         // and persisted into the Session intake snapshot before the waiting
         // tool call resumes. Validation failures surface to the frontend as an
         // error instead of delivering answers.
-        if let Some(meta) = user_input_manager.pending_meta(&request.tool_id) {
-            if let Some(template_id) = meta.template_id.as_deref() {
-                if template_id
-                    == bitfun_agent_runtime::qt_migration_question_templates::QT_MIGRATION_PATHS_TEMPLATE_ID
+        //
+        // The session is read through its own accessor instead of through the
+        // template meta: the generation-mismatch question is written by the model,
+        // so it is not template-bound and would otherwise be answered without any
+        // session-scoped effect (`pending_meta` is `None` for it).
+        if let Some(session_id) = user_input_manager.pending_session_id(&request.tool_id) {
+            if let Some(meta) = user_input_manager.pending_meta(&request.tool_id) {
+                if meta.template_id.as_deref()
+                    == Some(
+                        bitfun_agent_runtime::qt_migration_question_templates::QT_MIGRATION_PATHS_TEMPLATE_ID,
+                    )
                 {
                     return self.validate_and_apply_answers(&meta, &request).await;
                 }
+            }
+
+            // A measured generation mismatch is confirmed through a question the model
+            // wrote itself, so there is no template id to route on: the session's
+            // pending mismatch plus the answer's option values identify it.
+            let decided = self
+                .record_version_strategy_answer(&session_id, &request)
+                .await;
+            if matches!(
+                decided,
+                Some(bitfun_agent_runtime::qt_migration_intake_state::QtMigrationVersionStrategy::Abort { .. })
+            ) {
+                // The user refused this migration. Deliver the answer so the card
+                // resolves, then stop the turn instead of leaving the model to narrate
+                // a migration it may not run. Cancelling is the surface-independent stop
+                // (no recoverable-interruption preconditions, so a remote workspace stops
+                // too), and the blocked intake keeps a resumed or new turn from migrating.
+                let dialog_turn_id = user_input_manager.pending_dialog_turn_id(&request.tool_id);
+                user_input_manager
+                    .send_answer(&request.tool_id, request.answers)
+                    .map_err(user_input_port_error)?;
+                if let Some(dialog_turn_id) = dialog_turn_id {
+                    if let Err(error) = self.cancel_dialog_turn(&session_id, &dialog_turn_id).await
+                    {
+                        warn!(
+                            "Qt migration aborted by the user but the turn could not be stopped: session_id={}, dialog_turn_id={}, error={}",
+                            session_id, dialog_turn_id, error
+                        );
+                    }
+                } else {
+                    warn!(
+                        "Qt migration aborted by the user but the waiting request carried no dialog turn to stop: session_id={}",
+                        session_id
+                    );
+                }
+                return Ok(());
             }
         }
 
@@ -14960,8 +15025,7 @@ impl bitfun_runtime_ports::AgentSessionCompactionPort for ConversationCoordinato
     async fn start_session_compaction(
         &self,
         request: bitfun_runtime_ports::AgentSessionCompactionRequest,
-    ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::AgentSessionCompactionResult>
-    {
+    ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::AgentSessionCompactionResult> {
         let session_id = request.session_id;
         let task = self
             .start_manual_compaction_task(session_id.clone(), Some(request.turn_id))
@@ -14981,8 +15045,7 @@ impl bitfun_runtime_ports::AgentTurnCancellationPort for ConversationCoordinator
     async fn cancel_turn(
         &self,
         request: bitfun_runtime_ports::AgentTurnCancellationRequest,
-    ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::AgentTurnCancellationResult>
-    {
+    ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::AgentTurnCancellationResult> {
         let session_id = request.session_id;
         if let Some(turn_id) = request.turn_id {
             self.cancel_dialog_turn(&session_id, &turn_id)
@@ -15027,8 +15090,7 @@ impl bitfun_runtime_ports::AgentTurnCancellationPort for ConversationCoordinator
     async fn interrupt_turn(
         &self,
         request: bitfun_runtime_ports::AgentTurnInterruptionRequest,
-    ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::AgentTurnInterruptionResult>
-    {
+    ) -> bitfun_runtime_ports::PortResult<bitfun_runtime_ports::AgentTurnInterruptionResult> {
         let wait_timeout = Duration::from_millis(request.wait_timeout_ms.unwrap_or(30_000));
         self.interrupt_dialog_turn(&request.session_id, &request.turn_id, wait_timeout)
             .await
@@ -15038,9 +15100,7 @@ impl bitfun_runtime_ports::AgentTurnCancellationPort for ConversationCoordinator
                         BitFunError::Validation(_) => {
                             bitfun_runtime_ports::PortErrorKind::InvalidRequest
                         }
-                        BitFunError::NotFound(_) => {
-                            bitfun_runtime_ports::PortErrorKind::NotFound
-                        }
+                        BitFunError::NotFound(_) => bitfun_runtime_ports::PortErrorKind::NotFound,
                         _ => bitfun_runtime_ports::PortErrorKind::Backend,
                     },
                     error.to_string(),
@@ -15059,19 +15119,15 @@ impl bitfun_runtime_ports::RemoteControlStatePort for ConversationCoordinator {
     async fn read_remote_control_state(
         &self,
         request: bitfun_runtime_ports::RemoteControlStateRequest,
-    ) -> bitfun_runtime_ports::PortResult<
-        Option<bitfun_runtime_ports::RemoteControlStateSnapshot>,
-    > {
+    ) -> bitfun_runtime_ports::PortResult<Option<bitfun_runtime_ports::RemoteControlStateSnapshot>>
+    {
         let Some(session) = self.get_session_manager().get_session(&request.session_id) else {
             return Ok(None);
         };
 
         let mut metadata = serde_json::Map::new();
         let (state, active_turn_id) = match session.state {
-            SessionState::Idle => (
-                bitfun_runtime_ports::RemoteControlSessionState::Idle,
-                None,
-            ),
+            SessionState::Idle => (bitfun_runtime_ports::RemoteControlSessionState::Idle, None),
             SessionState::Processing {
                 current_turn_id,
                 phase,
@@ -15091,10 +15147,7 @@ impl bitfun_runtime_ports::RemoteControlStatePort for ConversationCoordinator {
                     "recoverable".to_string(),
                     serde_json::Value::Bool(recoverable),
                 );
-                (
-                    bitfun_runtime_ports::RemoteControlSessionState::Error,
-                    None,
-                )
+                (bitfun_runtime_ports::RemoteControlSessionState::Error, None)
             }
         };
 
@@ -15183,9 +15236,8 @@ impl ConversationCoordinator {
         storage_path: &Path,
         request: bitfun_runtime_ports::SessionTranscriptRequest,
         required_settled_turn_ids: &[String],
-    ) -> bitfun_runtime_ports::PortResult<
-        Option<bitfun_runtime_ports::AgentSessionLineageInspection>,
-    > {
+    ) -> bitfun_runtime_ports::PortResult<Option<bitfun_runtime_ports::AgentSessionLineageInspection>>
+    {
         let _mutation_guard = self
             .session_manager
             .acquire_session_mutation(&request.session_id)
@@ -15278,12 +15330,10 @@ impl ConversationCoordinator {
                     "Session turn settlement changed while its transcript was being inspected; retry the inspection",
                 ));
             }
-            return Ok(Some(
-                bitfun_runtime_ports::AgentSessionLineageInspection {
-                    transcript: settled_transcript,
-                    active_turn_id: None,
-                },
-            ));
+            return Ok(Some(bitfun_runtime_ports::AgentSessionLineageInspection {
+                transcript: settled_transcript,
+                active_turn_id: None,
+            }));
         }
         let active_turn_id = lineage_active_turn_after_transcript(
             candidate_active_turn_id,
@@ -15291,12 +15341,10 @@ impl ConversationCoordinator {
             persisted_turn_status.as_ref(),
         );
 
-        Ok(Some(
-            bitfun_runtime_ports::AgentSessionLineageInspection {
-                transcript,
-                active_turn_id,
-            },
-        ))
+        Ok(Some(bitfun_runtime_ports::AgentSessionLineageInspection {
+            transcript,
+            active_turn_id,
+        }))
     }
 }
 
@@ -15794,19 +15842,13 @@ mod tests {
             .expect("Ultimate should start a Swarm tree");
         assert!(ultra.allow_subagent_spawn);
         assert_eq!(ultra.nesting_depth, 0);
-        assert_eq!(
-            ultra.scope,
-            bitfun_runtime_ports::DelegationScope::Swarm
-        );
+        assert_eq!(ultra.scope, bitfun_runtime_ports::DelegationScope::Swarm);
 
         let planner = delegation_policy_for_agent_turn("SwarmPlanner", Some(2))
             .expect("a persisted planner should recover its tree depth");
         assert!(planner.allow_subagent_spawn);
         assert_eq!(planner.nesting_depth, 2);
-        assert_eq!(
-            planner.scope,
-            bitfun_runtime_ports::DelegationScope::Swarm
-        );
+        assert_eq!(planner.scope, bitfun_runtime_ports::DelegationScope::Swarm);
 
         let worker = delegation_policy_for_agent_turn("SwarmWorker", Some(2))
             .expect("workers use the standard non-recursive turn policy");
@@ -16764,9 +16806,7 @@ mod tests {
 
     #[tokio::test]
     async fn interaction_response_port_uses_user_question_owner_and_typed_stale_errors() {
-        use bitfun_agent_runtime::sdk::{
-            AgentInteractionResponsePort, AgentUserAnswersRequest,
-        };
+        use bitfun_agent_runtime::sdk::{AgentInteractionResponsePort, AgentUserAnswersRequest};
 
         let (coordinator, _) = test_coordinator();
         let answer_tool_id = format!("answer-{}", uuid::Uuid::new_v4());
@@ -16811,9 +16851,7 @@ mod tests {
 
     #[tokio::test]
     async fn session_model_port_preserves_core_not_found_errors() {
-        use bitfun_agent_runtime::sdk::{
-            AgentSessionModelPort, AgentSessionModelUpdateRequest,
-        };
+        use bitfun_agent_runtime::sdk::{AgentSessionModelPort, AgentSessionModelUpdateRequest};
 
         let (coordinator, _) = test_coordinator();
         let error = AgentSessionModelPort::update_session_model(
@@ -16826,10 +16864,7 @@ mod tests {
         .await
         .expect_err("missing session must remain a typed not-found error");
 
-        assert_eq!(
-            error.kind,
-            bitfun_runtime_ports::PortErrorKind::NotFound
-        );
+        assert_eq!(error.kind, bitfun_runtime_ports::PortErrorKind::NotFound);
         assert!(error.message.contains("missing-session"));
     }
 
@@ -16849,10 +16884,7 @@ mod tests {
         .await
         .expect_err("missing session must remain a typed not-found error");
 
-        assert_eq!(
-            error.kind,
-            bitfun_runtime_ports::PortErrorKind::NotFound
-        );
+        assert_eq!(error.kind, bitfun_runtime_ports::PortErrorKind::NotFound);
         assert!(error.message.contains("missing-session"));
     }
 
@@ -17156,10 +17188,7 @@ mod tests {
     ) -> (ConversationCoordinator, Arc<SessionManager>) {
         let event_queue = Arc::new(EventQueue::new(EventQueueConfig::default()));
         let coordination_database_file = std::env::temp_dir()
-            .join(format!(
-                "bitfun-coordinator-test-{}",
-                uuid::Uuid::new_v4()
-            ))
+            .join(format!("bitfun-coordinator-test-{}", uuid::Uuid::new_v4()))
             .join("coordination.sqlite");
         let session_manager = Arc::new(SessionManager::new(
             Arc::new(SessionContextStore::new()),
@@ -18679,20 +18708,19 @@ mod tests {
             .expect_err("Runtime attach must honor ownership before reading persistence");
         assert!(restore_error.to_string().contains("ownership"));
 
-        let archive_error =
-            bitfun_runtime_ports::AgentSessionManagementPort::set_session_archived(
-                &coordinator,
-                bitfun_runtime_ports::AgentSessionArchiveStateRequest {
-                    workspace_id: None,
-                    workspace_path,
-                    session_id: "missing-session".to_string(),
-                    archived: true,
-                    remote_connection_id: None,
-                    remote_ssh_host: None,
-                },
-            )
-            .await
-            .expect_err("Metadata mutation must honor ownership before touching persistence");
+        let archive_error = bitfun_runtime_ports::AgentSessionManagementPort::set_session_archived(
+            &coordinator,
+            bitfun_runtime_ports::AgentSessionArchiveStateRequest {
+                workspace_id: None,
+                workspace_path,
+                session_id: "missing-session".to_string(),
+                archived: true,
+                remote_connection_id: None,
+                remote_ssh_host: None,
+            },
+        )
+        .await
+        .expect_err("Metadata mutation must honor ownership before touching persistence");
         assert!(archive_error.message.contains("ownership"));
         assert!(session_manager
             .get_session("hidden-ownership-conflict")
@@ -21102,10 +21130,8 @@ mod tests {
     #[tokio::test]
     async fn fork_subagent_request_allows_requested_model_override() {
         let (coordinator, session_manager) = test_coordinator();
-        let workspace_path = std::env::temp_dir().join(format!(
-            "bitfun-fork-model-test-{}",
-            uuid::Uuid::new_v4()
-        ));
+        let workspace_path =
+            std::env::temp_dir().join(format!("bitfun-fork-model-test-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&workspace_path).expect("workspace dir should exist");
         crate::service::workspace::legacy_compat::register_local_fixture_blocking(&workspace_path);
         struct TempWorkspaceGuard(std::path::PathBuf);

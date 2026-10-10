@@ -485,7 +485,7 @@ mod tests {
         let wait = wait_for_user_question_response(
             &registration,
             receiver,
-            std::time::Duration::from_millis(1),
+            Some(std::time::Duration::from_millis(1)),
         );
         tokio::pin!(wait);
         assert!(

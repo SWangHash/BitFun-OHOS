@@ -103,6 +103,17 @@ const DISABLE_DEBUGGING: SkillPolicyRule = SkillPolicyRule {
     effect: PolicyEffect::Disable,
 };
 
+// `ohos-qt-skills` is the versioned Qt-to-HarmonyOS migration domain flow, owned
+// by the Qt migration expert. Every other mode keeps it disabled so an unrelated
+// task cannot pull migration procedures (path intake, provisioning, build and
+// deploy flow) into its context; the explicit Skill call is rejected too, not
+// just hidden from the listing. The rest of the HarmonyOS group (arkts, deveco)
+// stays available wherever its group is enabled.
+const DISABLE_OHOS_QT_SKILLS: SkillPolicyRule = SkillPolicyRule {
+    selector: SkillSelector::DirName("ohos-qt-skills"),
+    effect: PolicyEffect::Disable,
+};
+
 // ControlHub's browser domain is the single default browser-automation path.
 // The computer-use skill group (agent-browser) stays opt-in in every mode so the
 // model never sees two parallel browser stacks; users can still enable it via
@@ -184,6 +195,7 @@ const AGENTIC_POLICY: ModeSkillPolicy = ModeSkillPolicy {
         DISABLE_MINIAPP,
         DISABLE_CREATION,
         DISABLE_CANVAS,
+        DISABLE_OHOS_QT_SKILLS,
     ],
 };
 
@@ -197,6 +209,7 @@ const CLAW_POLICY: ModeSkillPolicy = ModeSkillPolicy {
         DISABLE_CREATION,
         DISABLE_DEBUGGING,
         DISABLE_CANVAS,
+        DISABLE_OHOS_QT_SKILLS,
     ],
 };
 
@@ -208,6 +221,7 @@ const CREATIVE_POLICY: ModeSkillPolicy = ModeSkillPolicy {
         DISABLE_COMPUTER_USE,
         DISABLE_DEBUGGING,
         DISABLE_CANVAS,
+        DISABLE_OHOS_QT_SKILLS,
     ],
 };
 
@@ -287,6 +301,43 @@ mod tests {
     use super::*;
     use crate::agents::{STANDARD_HARNESS_CONFIG_ID, STANDARD_HARNESS_CONFIG_MEMBERS};
     use crate::skills::catalog::BUILTIN_SKILL_SPECS;
+
+    #[test]
+    fn ohos_qt_skills_is_available_only_in_qt_migration_mode() {
+        // The Qt-to-HarmonyOS migration flow belongs to the Qt migration expert;
+        // every other mode must not be able to list or load it.
+        for mode_id in [
+            "Standard",
+            "Claw",
+            "Creative",
+            "Cowork",
+            "ComputerUse",
+            "DeepResearch",
+            "Ultimate",
+            "SwarmWorker",
+            "SomeUnknownMode",
+        ] {
+            assert_eq!(
+                resolve_builtin_default_enabled("ohos-qt-skills", mode_id),
+                Some(false),
+                "ohos-qt-skills must stay disabled for mode {mode_id}"
+            );
+        }
+
+        assert_eq!(
+            resolve_builtin_default_enabled("ohos-qt-skills", "QtMigration"),
+            Some(true),
+            "the Qt migration expert owns the ohos-qt-skills flow"
+        );
+
+        // The restriction is scoped to that one skill: the rest of the HarmonyOS
+        // group keeps following its own group policy.
+        assert_eq!(
+            resolve_builtin_default_enabled("deveco-cli", "Standard"),
+            Some(true),
+            "other HarmonyOS skills are unaffected"
+        );
+    }
 
     #[test]
     fn agent_browser_defaults_off_in_every_mode() {

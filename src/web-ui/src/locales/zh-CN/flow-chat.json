@@ -1949,7 +1949,24 @@
           "officialToolchain": "鸿蒙OS推荐工具链",
           "officialTemplate": "鸿蒙OS推荐模板",
           "officialDescription": "由 ohos-qt-skills 负责准备",
+          "officialToolchainDescription": "提交后由 BitFun 自动下载安装",
           "recommend": "推荐"
+        },
+        "provisioning": "正在准备 QT 迁移工具链",
+        "provisioningPercent": "{{percent}}%",
+        "provisioningDone": "QT 工具链已就绪",
+        "provisioningFailed": "QT 工具链准备失败（{{code}}）。请手动安装工具链，或重新发起一次迁移请求。",
+        "provisioningFailedUnknownCode": "未知错误",
+        "provisioningStage": {
+          "checkingExisting": "检查已安装工具链",
+          "reused": "复用已安装工具链",
+          "fetchingChecksum": "获取校验文件",
+          "downloading": "下载中",
+          "verifyingArchive": "校验下载内容",
+          "extracting": "解压中",
+          "verifyingInstall": "校验安装结果",
+          "publishing": "发布工具链",
+          "completed": "完成"
         },
         "placeholder": {
           "sourceProject": "请填写您原始工程路径",

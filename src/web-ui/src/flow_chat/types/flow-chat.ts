@@ -61,10 +61,11 @@ export interface FlowToolItem extends FlowItem {
   /**
    * Resolved AskUserQuestion payload coming from the backend
    * `toolawaitinguserinput` event (design V3 §8): `{ params, resolvedQuestions,
-   * presentation, templateId, templateVersion }`. Kept separate from
-   * `toolCall.input` (the immutable model tool-call params) so replay/audit
-   * keep the original params while the UI renders the actually-waited
-   * questions.
+   * presentation, templateId, templateVersion, qtMigrationQuestions? }`. Kept
+   * separate from `toolCall.input` (the immutable model tool-call params) so
+   * replay/audit keep the original params while the UI renders the actually-waited
+   * questions. `qtMigrationQuestions` is the Qt migration template's own question
+   * shape, rendered by its dedicated card; it is absent for every other request.
    */
   questionRequest?: unknown;
   toolResult?: {
@@ -134,6 +135,24 @@ export interface FlowToolItem extends FlowItem {
     deadlineMs?: number | null;
     monotonicDeadlineMs?: number;
     interactionStarted: boolean;
+  };
+  /**
+   * Host-owned live state of the runtime QT toolchain provisioning that runs
+   * after this card's `__official__` toolchain answer was accepted (provisioning
+   * plan v4 stages 3 and 4). The card is acknowledged before the install finishes
+   * and collapses right away, so this state is rendered as its own waterfall row
+   * by the virtual item projection — never inside the card.
+   */
+  qtToolchainProvision?: {
+    status: 'running' | 'succeeded' | 'failed';
+    /** Provisioner stage wire name, only while running. */
+    stage?: string | null;
+    downloadedBytes?: number;
+    totalBytes?: number | null;
+    /** Stable failure code (`source_not_published`, ...), only when failed. */
+    errorCode?: string | null;
+    /** Installed kit root the bound field was resolved to, only when succeeded. */
+    kitRoot?: string | null;
   };
 }
 

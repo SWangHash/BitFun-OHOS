@@ -278,6 +278,9 @@ export function estimateVirtualItemHeight(
       return { heightPx: 160, confidence: 'medium', kind: 'turn-failure-notice' };
     case 'image-analyzing':
       return { heightPx: 200, confidence: 'low', kind: 'image-analyzing' };
+    case 'qt-toolchain-provision':
+      // One ambient row: a status icon plus a single line of provisioning text.
+      return { heightPx: 200, confidence: 'low', kind: 'qt-toolchain-provision' };
   }
 }
 

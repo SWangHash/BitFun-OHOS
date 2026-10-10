@@ -31,8 +31,6 @@ pub mod event_source;
 pub mod events;
 #[cfg(feature = "agent-runtime")]
 pub mod evidence_ledger;
-#[cfg(feature = "agent-runtime")]
-pub mod qt_migration_intake_state;
 #[cfg(feature = "native-hook-settings")]
 pub mod native_hooks;
 #[cfg(feature = "agent-runtime")]
@@ -47,6 +45,10 @@ pub mod prompt;
 pub mod prompt_cache;
 #[cfg(feature = "agent-runtime")]
 pub mod prompt_markup;
+#[cfg(feature = "agent-runtime")]
+pub mod qt_migration_intake_state;
+#[cfg(feature = "agent-runtime")]
+pub mod qt_migration_layout;
 #[cfg(feature = "agent-runtime")]
 pub mod qt_migration_question_templates;
 #[cfg(feature = "agent-runtime")]

@@ -483,6 +483,10 @@ fn should_fanout_peer_ui_event(event: &str) -> bool {
             | "backend-event-toolexecutionerror"
             | "backend-event-toolawaitinguserinput"
             | "backend-event-toolcallconfirmation"
+            // Runtime QT toolchain provisioning progress for a submitted
+            // `__official__` migration toolchain binding: the controller shows
+            // the "preparing" state on the question card it submitted.
+            | "backend-event-qttoolchainprovision"
             | "permission://event"
             | AI_MODEL_CATALOG_UPDATED_EVENT
             | bitfun_core::service::workspace::WORKSPACE_CATALOG_CHANGED_EVENT
@@ -3601,6 +3605,15 @@ mod peer_event_tests {
     fn workspace_catalog_hints_are_fanned_out_to_peer_controllers() {
         assert!(should_fanout_peer_ui_event("workspace-catalog-changed"));
         assert!(!should_fanout_peer_ui_event("workspace-identity-changed"));
+    }
+
+    #[test]
+    fn qt_toolchain_provisioning_progress_reaches_peer_controllers() {
+        // The controller that submitted the migration card must see the runtime
+        // provisioning progress and its failure code.
+        assert!(should_fanout_peer_ui_event(
+            "backend-event-qttoolchainprovision"
+        ));
     }
 }
 

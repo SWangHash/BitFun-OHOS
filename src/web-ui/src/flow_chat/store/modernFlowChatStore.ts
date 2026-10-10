@@ -97,7 +97,12 @@ export type VirtualItem =
       };
       turnId: string;
     }
-  | { type: 'image-analyzing'; turnId: string };
+  | { type: 'image-analyzing'; turnId: string }
+  | {
+      type: 'qt-toolchain-provision';
+      data: NonNullable<FlowToolItem['qtToolchainProvision']>;
+      turnId: string;
+    };
 
 /**
  * Currently visible turn information
@@ -433,7 +438,17 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
 
     const flushRoundEntries = (
       rounds: ModelRound[],
-      options: { collapseTrailingExploreGroup: boolean },
+      options: {
+        collapseTrailingExploreGroup: boolean;
+        /**
+         * False when a following row (a steering message, the provisioning row)
+         * cuts this slice before the turn's round tail. The turn-tail marks —
+         * `isLastRound`, the trailing thinking expansion, the trailing explore
+         * group's auto-scroll — belong to the real tail only, or the slice's last
+         * round would render the completion footer in the middle of the turn.
+         */
+        marksTurnTail: boolean;
+      },
     ) => {
       if (rounds.length === 0) return;
 
@@ -495,12 +510,14 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
 
         if (group && group.startIndex === roundIndex) {
           const isLastGroupInTurn =
+            options.marksTurnTail &&
             group.endIndex === rounds.length - 1 &&
             !options.collapseTrailingExploreGroup;
           const isGroupStreaming = group.rounds.some(
             r => r.isStreaming || r.items.some(isActiveFlowItem),
           );
           const wasCutByCritical =
+            !options.marksTurnTail ||
             group.endIndex < rounds.length - 1 ||
             options.collapseTrailingExploreGroup;
 
@@ -531,14 +548,15 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
           // round into segments swaps a single virtual-item key for N new keys,
           // which remounts the visible assistant message and flashes the pane.
           const trailingItem = round.items.at(-1);
-          const shouldExpandTrailingThinking = roundIndex === rounds.length - 1
+          const shouldExpandTrailingThinking = options.marksTurnTail
+            && roundIndex === rounds.length - 1
             && trailingItem?.type === 'thinking'
             && (trailingItem as FlowThinkingItem).reasoningKind !== 'summary';
           items.push({
             type: 'model-round',
             data: round,
             turnId: turn.id,
-            isLastRound: roundIndex === rounds.length - 1,
+            isLastRound: options.marksTurnTail && roundIndex === rounds.length - 1,
             isTurnComplete,
             layoutHints: {
               expandedThinkingItemIds: shouldExpandTrailingThinking
@@ -562,15 +580,69 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
 
     const completionNotice = getTurnCompletionNotice(turn);
     const hasFailureNotice = turn.status === 'error' && Boolean(turn.error || turn.errorDetail);
+    const collapseTrailingExploreGroupForTurnTail =
+      hasNewerDialogTurn ||
+      completionNotice !== null ||
+      hasFailureNotice;
+
+    // The runtime provisioning that follows an accepted `__official__` toolchain
+    // answer gets a row of its own, placed right after the round that owns the
+    // question card: the card collapses as soon as the answer is accepted, so this
+    // row is what keeps the install visible. It must not be appended to the turn
+    // tail, or it would stay pinned below every later round and never scroll away
+    // (the row is a live install indicator, not the turn's last content).
+    let provisioning: NonNullable<FlowToolItem['qtToolchainProvision']> | undefined;
+    let provisioningOwnerRoundId: string | undefined;
+    for (const round of turn.modelRounds) {
+      for (const item of round.items) {
+        if (item.type !== 'tool') continue;
+        const candidate = (item as FlowToolItem).qtToolchainProvision;
+        if (candidate) {
+          provisioning = candidate;
+          provisioningOwnerRoundId = round.id;
+        }
+      }
+    }
+    const provisioningEntryIndex = provisioningOwnerRoundId
+      ? renderEntries.findIndex(
+        entry => entry.type === 'round' && entry.round.id === provisioningOwnerRoundId,
+      )
+      : -1;
+    // A row is only injected when the owning round is rendered; an owner round
+    // that never made it into the render entries (no content of its own) still
+    // reports the install, as the turn tail row it was before.
+    const provisioningRow = provisioning && provisioningEntryIndex >= 0
+      ? { type: 'qt-toolchain-provision' as const, turnId: turn.id, data: provisioning }
+      : null;
+    const provisioningIsTurnTail = provisioningRow !== null
+      && !renderEntries.some(
+        (entry, index) => index > provisioningEntryIndex && entry.type === 'round',
+      );
+
     let pendingRounds: ModelRound[] = [];
 
-    renderEntries.forEach(entry => {
+    renderEntries.forEach((entry, entryIndex) => {
       if (entry.type === 'round') {
         pendingRounds.push(entry.round);
+        if (provisioningRow && entryIndex === provisioningEntryIndex) {
+          // Later rounds must render below the install row so it is superseded by
+          // the following output instead of being pinned to the turn tail.
+          flushRoundEntries(pendingRounds, {
+            collapseTrailingExploreGroup: provisioningIsTurnTail
+              ? collapseTrailingExploreGroupForTurnTail
+              : true,
+            marksTurnTail: provisioningIsTurnTail,
+          });
+          pendingRounds = [];
+          items.push(provisioningRow);
+        }
         return;
       }
 
-      flushRoundEntries(pendingRounds, { collapseTrailingExploreGroup: true });
+      flushRoundEntries(pendingRounds, {
+        collapseTrailingExploreGroup: true,
+        marksTurnTail: true,
+      });
       pendingRounds = [];
 
       items.push({
@@ -583,11 +655,17 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
     });
 
     flushRoundEntries(pendingRounds, {
-      collapseTrailingExploreGroup:
-        hasNewerDialogTurn ||
-        completionNotice !== null ||
-        hasFailureNotice,
+      collapseTrailingExploreGroup: collapseTrailingExploreGroupForTurnTail,
+      marksTurnTail: true,
     });
+
+    if (provisioning && !provisioningRow) {
+      items.push({
+        type: 'qt-toolchain-provision',
+        turnId: turn.id,
+        data: provisioning,
+      });
+    }
 
     if (completionNotice) {
       items.push({

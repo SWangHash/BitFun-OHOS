@@ -8,6 +8,8 @@ use std::sync::{Arc, LazyLock, Mutex, MutexGuard, Weak};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::{oneshot, watch};
 
+use crate::qt_migration_question_templates::QtMigrationQuestion;
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct QuestionOption {
     pub label: String,
@@ -50,8 +52,11 @@ pub struct Question {
 }
 
 /// Template-level presentation policy. Only the backend versioned template
-/// produces this; inline model `presentation` is ignored. The frontend renders
-/// generically and must NOT branch on `templateId`.
+/// produces this; inline model `presentation` is ignored. The policy is
+/// template-owned copy, so hosts render it without knowing which template
+/// produced it; a template that renders through a dedicated product card ships
+/// its own question shape alongside (`qtMigrationQuestions`) and the shared
+/// `resolvedQuestions` projection stays the generic view.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct QuestionPresentation {
     /// `list` (render all at once) or `wizard` (one question per step).
@@ -73,6 +78,25 @@ pub struct QuestionPresentation {
         skip_serializing_if = "Option::is_none"
     )]
     pub required_fields: Option<Vec<String>>,
+    /// Whether the runtime may give up on an unattended card. Template-owned:
+    /// a template whose answers are required to start the work (the Qt migration
+    /// intake) sets `false`, so the tool blocks until the user answers instead of
+    /// reporting a timeout that would skip required input. Absent means `true`,
+    /// i.e. today's bounded wait.
+    #[serde(
+        rename = "allowTimeout",
+        default = "allow_timeout_by_default",
+        skip_serializing_if = "is_default_allow_timeout"
+    )]
+    pub allow_timeout: bool,
+}
+
+fn allow_timeout_by_default() -> bool {
+    true
+}
+
+fn is_default_allow_timeout(value: &bool) -> bool {
+    *value
 }
 
 fn default_presentation_layout() -> String {
@@ -110,6 +134,16 @@ pub struct ResolvedQuestionRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub template_version: Option<String>,
+    /// The Qt migration template's own question shape, rendered by the dedicated
+    /// Qt intake card. `resolved_questions` stays the generic projection of the
+    /// same questions, so hosts that only know the shared contract keep working;
+    /// requests that render through the generic card omit this field entirely.
+    #[serde(
+        rename = "qtMigrationQuestions",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub qt_migration_questions: Option<Vec<QtMigrationQuestion>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -420,22 +454,31 @@ pub enum UserQuestionWaitOutcome {
 
 /// The deadline only applies while unattended. Interaction permanently removes
 /// the deadline for this question; submitting and cancelling keep their meaning.
+///
+/// `unattended_timeout` bounds only the wait for the first interaction. `None`
+/// means the caller's template forbids giving up (`allowTimeout: false`), so the
+/// question stays open until it is answered or the turn is cancelled.
 pub async fn wait_for_user_question_response(
     registration: &UserInputRegistration,
     mut response: oneshot::Receiver<UserInputResponse>,
-    unattended_timeout: std::time::Duration,
+    unattended_timeout: Option<std::time::Duration>,
 ) -> UserQuestionWaitOutcome {
-    let mut activity = registration.interaction_started.clone();
-    let result = tokio::select! {
-        biased;
-        result = &mut response => result,
-        _ = async { let _ = activity.wait_for(|started| *started).await; } => response.await,
-        _ = tokio::time::sleep(unattended_timeout) => {
-            if registration.expire_if_unstarted() {
-                return UserQuestionWaitOutcome::TimedOut;
+    let result = match unattended_timeout {
+        Some(unattended_timeout) => {
+            let mut activity = registration.interaction_started.clone();
+            tokio::select! {
+                biased;
+                result = &mut response => result,
+                _ = async { let _ = activity.wait_for(|started| *started).await; } => response.await,
+                _ = tokio::time::sleep(unattended_timeout) => {
+                    if registration.expire_if_unstarted() {
+                        return UserQuestionWaitOutcome::TimedOut;
+                    }
+                    response.await
+                }
             }
-            response.await
         }
+        None => response.await,
     };
     match result {
         Ok(answer) => UserQuestionWaitOutcome::Answered(answer),
@@ -726,6 +769,35 @@ impl UserInputManager {
                     .as_ref()
                     .and_then(|question| question.meta())
             })
+    }
+
+    /// Dialog Turn that owns the currently registered waiting request.
+    ///
+    /// A runtime-side follow-up that outlives the submit call (for example the Qt
+    /// toolchain provisioning) needs the turn's cancellation state to stop when
+    /// the user stops the turn (`None` when the request carries no turn id).
+    pub fn pending_dialog_turn_id(&self, tool_id: &str) -> Option<String> {
+        lock_user_input_state(&self.state)
+            .pending
+            .get(tool_id)
+            .and_then(|pending| pending.question.as_ref())
+            .and_then(|question| question.dialog_turn_id.clone())
+    }
+
+    /// Session that owns the currently registered waiting request.
+    ///
+    /// Session-scoped effects that an answer triggers (for example the Qt migration
+    /// generation-strategy decision) must key on the owning session, and a
+    /// model-written question carries no template metadata at all, so
+    /// [`Self::pending_meta`] cannot be the only way to learn the owner
+    /// (`None` for plain questions, `None` once answered).
+    pub fn pending_session_id(&self, tool_id: &str) -> Option<String> {
+        lock_user_input_state(&self.state)
+            .pending
+            .get(tool_id)
+            .and_then(|pending| pending.question.as_ref())
+            .map(|question| question.session_id.clone())
+            .filter(|session_id| !session_id.is_empty())
     }
 }
 
@@ -1156,6 +1228,81 @@ mod tests {
         drop(registration);
     }
 
+    #[tokio::test]
+    async fn pending_dialog_turn_id_is_queryable_while_pending_and_dropped_after_answer() {
+        let manager = UserInputManager::new();
+        let (sender, receiver) = tokio::sync::oneshot::channel::<UserInputResponse>();
+        let question = PendingUserQuestion::new(
+            "tool-turn",
+            "session-1",
+            Some("turn-1".to_string()),
+            Some("round-1".to_string()),
+            json!({ "questions": [] }),
+        );
+        let registration = manager.register_question(question, sender);
+
+        // A runtime-side follow-up resolves the owning turn's cancellation state
+        // through this accessor while the tool is still waiting.
+        assert_eq!(
+            manager.pending_dialog_turn_id("tool-turn").as_deref(),
+            Some("turn-1")
+        );
+        assert!(manager.pending_dialog_turn_id("missing-tool").is_none());
+
+        manager
+            .send_answer("tool-turn", json!({ "0": "yes" }))
+            .expect("answer delivered");
+        receiver.await.expect("receiver gets answer");
+        assert!(manager.pending_dialog_turn_id("tool-turn").is_none());
+        drop(registration);
+    }
+
+    #[test]
+    fn pending_dialog_turn_id_is_none_without_a_question_turn() {
+        let manager = UserInputManager::new();
+        let (sender, _receiver) = tokio::sync::oneshot::channel::<UserInputResponse>();
+        manager.register_channel("channel-only".to_string(), sender);
+        assert!(manager.pending_dialog_turn_id("channel-only").is_none());
+    }
+
+    #[tokio::test]
+    async fn pending_session_id_is_available_for_a_plain_question_and_dropped_after_answer() {
+        let manager = UserInputManager::new();
+        let (sender, receiver) = tokio::sync::oneshot::channel::<UserInputResponse>();
+        // A model-written question: no template metadata, so `pending_meta` is None
+        // while the session is still the owner of the waiting request.
+        let question = PendingUserQuestion::new(
+            "tool-plain",
+            "session-1",
+            Some("turn-1".to_string()),
+            Some("round-1".to_string()),
+            json!({ "questions": [] }),
+        );
+        let registration = manager.register_question(question, sender);
+
+        assert!(manager.pending_meta("tool-plain").is_none());
+        assert_eq!(
+            manager.pending_session_id("tool-plain").as_deref(),
+            Some("session-1")
+        );
+        assert!(manager.pending_session_id("missing-tool").is_none());
+
+        manager
+            .send_answer("tool-plain", json!({ "0": "yes" }))
+            .expect("answer delivered");
+        receiver.await.expect("receiver gets answer");
+        assert!(manager.pending_session_id("tool-plain").is_none());
+        drop(registration);
+    }
+
+    #[test]
+    fn pending_session_id_is_none_without_a_question() {
+        let manager = UserInputManager::new();
+        let (sender, _receiver) = tokio::sync::oneshot::channel::<UserInputResponse>();
+        manager.register_channel("channel-only".to_string(), sender);
+        assert!(manager.pending_session_id("channel-only").is_none());
+    }
+
     fn unattended_question(
         manager: &UserInputManager,
     ) -> (
@@ -1177,7 +1324,7 @@ mod tests {
         let wait = super::wait_for_user_question_response(
             &registration,
             receiver,
-            std::time::Duration::from_millis(10),
+            Some(std::time::Duration::from_millis(10)),
         );
         tokio::pin!(wait);
         // Poll the wait before activity, so both the timer and activity receiver are live.
@@ -1215,12 +1362,66 @@ mod tests {
         let outcome = super::wait_for_user_question_response(
             &registration,
             receiver,
-            std::time::Duration::from_millis(1),
+            Some(std::time::Duration::from_millis(1)),
         )
         .await;
         assert!(matches!(outcome, super::UserQuestionWaitOutcome::TimedOut));
         assert!(!manager.has_pending("tool"));
         assert!(manager.start_interaction("session", "tool").is_err());
+    }
+
+    #[tokio::test]
+    async fn a_template_owned_wait_never_expires_while_unattended() {
+        // `allowTimeout: false` (the Qt migration intake): no interaction at all
+        // must still leave the question open — the answers are required, so the
+        // runtime must not give up and skip them.
+        let manager = UserInputManager::new();
+        let (registration, receiver) = unattended_question(&manager);
+        let wait = super::wait_for_user_question_response(&registration, receiver, None);
+        tokio::pin!(wait);
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(30), &mut wait)
+                .await
+                .is_err(),
+            "an unattended template-owned question must not time out"
+        );
+        assert!(manager.has_pending("tool"));
+        manager.send_answer("tool", json!({"0":"yes"})).unwrap();
+        assert!(matches!(
+            wait.await,
+            super::UserQuestionWaitOutcome::Answered(_)
+        ));
+    }
+
+    #[test]
+    fn presentation_timeout_policy_defaults_to_allowed_and_round_trips() {
+        use super::QuestionPresentation;
+        // A payload that predates/omits the policy keeps today's bounded wait,
+        // and the policy only reaches the wire when a template opts out.
+        let absent: QuestionPresentation = serde_json::from_value(json!({ "layout": "list" }))
+            .expect("presentation without the policy must deserialize");
+        assert!(absent.allow_timeout);
+
+        let bounded = QuestionPresentation {
+            layout: "wizard".to_string(),
+            allow_skip: false,
+            intro_key: None,
+            hint_key: None,
+            required_fields: None,
+            allow_timeout: true,
+        };
+        let encoded = serde_json::to_value(&bounded).expect("presentation must serialize");
+        assert!(
+            encoded.get("allowTimeout").is_none(),
+            "the default policy stays off the wire"
+        );
+
+        let blocking = QuestionPresentation {
+            allow_timeout: false,
+            ..bounded
+        };
+        let encoded = serde_json::to_value(&blocking).expect("presentation must serialize");
+        assert_eq!(encoded["allowTimeout"], false);
     }
 
     #[tokio::test]
@@ -1274,7 +1475,7 @@ mod tests {
             super::wait_for_user_question_response(
                 &registration,
                 receiver,
-                std::time::Duration::from_secs(30)
+                Some(std::time::Duration::from_secs(30))
             )
             .await,
             super::UserQuestionWaitOutcome::Cancelled
@@ -1297,7 +1498,7 @@ mod tests {
             super::wait_for_user_question_response(
                 &registration,
                 receiver,
-                std::time::Duration::from_secs(30)
+                Some(std::time::Duration::from_secs(30))
             )
             .await,
             super::UserQuestionWaitOutcome::Cancelled
@@ -1315,7 +1516,7 @@ mod tests {
             super::wait_for_user_question_response(
                 &registration,
                 receiver,
-                std::time::Duration::from_secs(30)
+                Some(std::time::Duration::from_secs(30))
             )
             .await,
             super::UserQuestionWaitOutcome::Cancelled

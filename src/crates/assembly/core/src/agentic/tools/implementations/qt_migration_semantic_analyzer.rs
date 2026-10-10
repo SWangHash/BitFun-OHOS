@@ -1,11 +1,4 @@
 //! LLM-backed semantic analysis for Qt migration intake.
-//!
-//! Layering: keyword pre-filter → per-turn cached LLM call (30s timeout) →
-//! code validation → fallback to the deterministic analyzer in
-//! [`QtMigrationIntakeTool`]. The LLM only classifies the request and extracts
-//! candidate paths; the side-effect gate and input binding stay code-owned and
-//! model-independent. Every LLM-produced path is verified against the local
-//! filesystem before it may count as `Resolved`.
 
 use crate::agentic::coordination::get_global_coordinator;
 use crate::agentic::tools::implementations::qt_migration_intake_tool::{
