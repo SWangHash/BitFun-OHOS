@@ -179,7 +179,15 @@ async fn current_option_value(
                 .map(Value::Bool)
                 .map_err(|error| error.to_string()),
             #[cfg(target_env = "ohos")]
-            Some(DesktopProviderOption::LaunchAtLogin) => Ok(Value::Bool(false)),
+            Some(DesktopProviderOption::LaunchAtLogin) => {
+                let value =
+                    crate::api::ohos::window::call_host("get_launch_at_login", String::new())
+                        .await?;
+                value
+                    .parse::<bool>()
+                    .map(Value::Bool)
+                    .map_err(|e| e.to_string())
+            }
             Some(DesktopProviderOption::PreventSleep) => state
                 .config_service
                 .get_config(Some("app.prevent_sleep"))
@@ -800,7 +808,7 @@ async fn configure_desktop_provider_option(
     match option {
         DesktopProviderOption::LaunchAtLogin => {
             #[cfg(target_env = "ohos")]
-            { let _ = (app, enabled); Ok(()) }
+            { let _ = (app, enabled); Err("Manage automatic startup in HarmonyOS Settings > Apps & services > App startup management".into()) }
             #[cfg(not(target_env = "ohos"))]
             {
             if enabled {

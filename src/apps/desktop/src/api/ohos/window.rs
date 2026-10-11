@@ -1,6 +1,25 @@
 use bitfun_core::util::JS_THREADSAFE_FUNCTION;
 use napi_ohos::threadsafe_function::ThreadsafeFunctionCallMode;
 
+pub(crate) async fn call_host(name: &str, argument: String) -> Result<String, String> {
+    let function = JS_THREADSAFE_FUNCTION
+        .read()
+        .get(name)
+        .cloned()
+        .ok_or_else(|| format!("HarmonyOS host function is unavailable: {name}"))?;
+    let promise = function
+        .call_async(Ok(argument))
+        .await
+        .map_err(|e| e.to_string())?;
+    promise.await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn window_is_focused() -> Result<bool, String> {
+    let result = call_host("window_is_focused", String::new()).await?;
+    result.parse::<bool>().map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn handle_min_window() -> Result<(), String> {
     let function = {

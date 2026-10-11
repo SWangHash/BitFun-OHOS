@@ -16,6 +16,7 @@ import { uniformTypeDescriptor } from '@kit.ArkData';
 import { calendarManager } from '@kit.CalendarKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { buffer } from '@kit.ArkTS';
+import { DesktopSystemService } from '../services/DesktopSystemService';
 import { notificationManager } from '@kit.NotificationKit';
 import RustModule from 'libbitfun_desktop_lib.so';
 import { AppUpdater, UpdateCheckResult } from '../utils/AppUpdater';
@@ -121,6 +122,7 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
   public defaultPage: boolean = true;
   public commonEventListener: CommonEventListener | undefined = undefined;
   public remoteUrl: string = "";
+  private desktopSystem: DesktopSystemService = new DesktopSystemService();
   private appUpdater: AppUpdater = new AppUpdater();
   private voiceInputService: VoiceInputService = new VoiceInputService();
   private systemColorMode: 'light' | 'dark' = 'dark';
@@ -140,6 +142,9 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
   }
 
   onDestroy(): void {
+    try { this.desktopSystem.dispose(); } catch (error) {
+      hilog.error(DOMAIN, 'DesktopSystem', 'Failed to release idle sleep lock: %{public}s', String(error));
+    }
     this.statusBarTray?.remove();
     RustModule.ohosMarkCleanShutdown();
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
@@ -470,6 +475,16 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
         hilog.error(201, 'vnext', `failed to launch Haitai CDP provider: ${detail.message}`);
         return JSON.stringify({ ok: false, error: detail.message ?? String(error) });
       }
+    });
+    RustModule.registerArktsFunction('get_launch_at_login', async (): Promise<string> => {
+      return String(await this.desktopSystem.getLaunchAtLogin());
+    });
+    RustModule.registerArktsFunction('set_prevent_sleep', async (_err: Error, arg: string): Promise<string> => {
+      await this.desktopSystem.setPreventSleep(arg === 'true');
+      return '';
+    });
+    RustModule.registerArktsFunction('window_is_focused', async (): Promise<string> => {
+      return String(windowStage.getMainWindowSync().isFocused());
     });
     RustModule.registerArktsFunction('window_is_minimized', async (err: Error, arg: string): Promise<string> => {
       let state = windowStage.getMainWindowSync().getWindowStatus();
@@ -856,15 +871,24 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     // once (idempotent afterwards); `publish` shows the notification.
     RustModule.registerArktsFunction('send_system_notification_ohos', async (err: Error, arg: string): Promise<string> => {
       const params: SendNotificationArg = JSON.parse(arg);
-      try {
+      if (!await notificationManager.isNotificationEnabled()) {
         await notificationManager.requestEnableNotification();
-      } catch (e) {
-        // user denied or unavailable; publish will no-op below
+      }
+      if (!await notificationManager.isNotificationEnabled()) {
+        throw new Error('System notifications are disabled');
+      }
+      const slotType = notificationManager.SlotType.SERVICE_INFORMATION;
+      const slots = await notificationManager.getSlots();
+      // Only create a missing channel; preserve the user's existing alert settings.
+      if (!slots.some(slot => slot.notificationType === slotType)) {
+        // SERVICE_INFORMATION uses the system's high-priority alert channel.
+        await notificationManager.addSlot(slotType);
       }
       const request: notificationManager.NotificationRequest = {
         id: Date.now() % 2147483647,
+        notificationSlotType: slotType,
         content: {
-          contentType: notificationManager.ContentType.NOTIFICATION_CONTENT_BASIC_TEXT as number,
+          notificationContentType: notificationManager.ContentType.NOTIFICATION_CONTENT_BASIC_TEXT,
           normal: {
             title: params.title,
             text: params.body ?? '',

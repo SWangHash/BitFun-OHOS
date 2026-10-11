@@ -34,6 +34,26 @@ describe('SystemAPI', () => {
     vi.unstubAllGlobals();
   });
 
+  it.each([true, false])('uses native controller focus on HarmonyOS: focused=%s', async focused => {
+    vi.stubGlobal('navigator', { userAgent: 'HarmonyOS', platform: 'ohos' });
+    controllerInvoke.mockResolvedValue(focused);
+    await expect(systemAPI.isNotificationWindowBackground()).resolves.toBe(!focused);
+    expect(controllerInvoke).toHaveBeenCalledWith('window_is_focused');
+    expect(invokeMock).not.toHaveBeenCalled();
+  });
+
+  it('reads actual controller startup status instead of a constant', async () => {
+    controllerInvoke.mockResolvedValue({ currentOptionValues: { 'launch-at-login': true } });
+    await expect(systemAPI.getLaunchAtLoginEnabled()).resolves.toBe(true);
+    expect(invokeMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps a rejected sleep request on the controller and propagates its reason', async () => {
+    controllerInvoke.mockRejectedValue(new Error('OHOS_SLEEP_API_23_REQUIRED'));
+    await expect(systemAPI.setPreventSleepEnabled(true)).rejects.toThrow('OHOS_SLEEP_API_23_REQUIRED');
+    expect(invokeMock).not.toHaveBeenCalled();
+  });
+
   it.each([true, false])('allows explicit update checks with DEV=%s', async development => {
     vi.stubEnv('DEV', development);
     const response = {
@@ -85,7 +105,7 @@ describe('SystemAPI', () => {
   });
 
   it('reads the persisted desktop preference', async () => {
-    invokeMock.mockResolvedValueOnce({
+    controllerInvoke.mockResolvedValueOnce({
       catalogDigest: 'digest',
       revision: 3,
       currentOptionValues: { 'prevent-sleep': false },
@@ -93,7 +113,7 @@ describe('SystemAPI', () => {
     });
 
     await expect(systemAPI.getPreventSleepEnabled()).resolves.toBe(false);
-    expect(invokeMock).toHaveBeenCalledWith('product_control_invoke', {
+    expect(controllerInvoke).toHaveBeenCalledWith('product_control_invoke', {
       request: { action: 'get', capabilityId: 'setting.application.general' },
     });
   });
@@ -114,10 +134,10 @@ describe('SystemAPI', () => {
   });
 
   it('sends the requested app-wide state', async () => {
-    invokeMock.mockResolvedValueOnce(undefined);
+    controllerInvoke.mockResolvedValueOnce(undefined);
 
     await expect(systemAPI.setPreventSleepEnabled(true)).resolves.toBeUndefined();
-    expect(invokeMock).toHaveBeenCalledWith('product_control_invoke', {
+    expect(controllerInvoke).toHaveBeenCalledWith('product_control_invoke', {
       request: {
         action: 'configure',
         capabilityId: 'setting.application.general',

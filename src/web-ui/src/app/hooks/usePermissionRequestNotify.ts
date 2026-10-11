@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { agentAPI } from '@/infrastructure/api';
 import {
   globalEventBus,
@@ -26,14 +26,10 @@ const PERMISSION_REQUEST_NOTIFY_CONFIG_KEY = 'app.notifications.permission_reque
  */
 export const usePermissionRequestNotify = () => {
   const { t } = useI18n('common');
-  const windowFocusedRef = useRef(true);
 
   useEffect(() => {
     let disposed = false;
-    const handleFocus = () => { windowFocusedRef.current = true; };
-    const handleBlur = () => { windowFocusedRef.current = false; };
-    windowFocusedRef.current = document.hasFocus();
-    const isBackground = () => document.hidden || !windowFocusedRef.current;
+    const isBackground = () => systemAPI.isNotificationWindowBackground();
 
     const sendBatchNotification = async (requestCount: number) => {
       let enabled = true;
@@ -43,8 +39,8 @@ export const usePermissionRequestNotify = () => {
         log.warn('Failed to read permission_request_notify config', error);
       }
 
-      if (!shouldSendPermissionRequestNotification({
-        isBackground: isBackground(),
+      if (disposed || !shouldSendPermissionRequestNotification({
+        isBackground: await isBackground(),
         notificationsEnabled: enabled,
       })) {
         return;
@@ -55,17 +51,15 @@ export const usePermissionRequestNotify = () => {
     };
 
     const batcher = new PermissionRequestNotificationBatcher(({ requestCount }) => {
-      void sendBatchNotification(requestCount);
+      void sendBatchNotification(requestCount).catch(error => log.warn('Failed to notify pending approvals', error));
     });
 
     const enqueueWhenBackground = (request: PermissionRequestNotificationEvent) => {
-      if (isBackground()) {
-        batcher.enqueue(request);
-      }
+      void isBackground().then(background => {
+        if (!disposed && background) batcher.enqueue(request);
+      }).catch(error => log.warn('Failed to query notification window focus', error));
     };
 
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('blur', handleBlur);
 
     const unlistenPermissionRequests = agentAPI.onPermissionRequestEvent((event) => {
       if (event.event !== 'asked') {
@@ -103,8 +97,6 @@ export const usePermissionRequestNotify = () => {
 
     return () => {
       disposed = true;
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('blur', handleBlur);
       unlistenPermissionRequests();
       unlistenAcpPermissionRequests();
       batcher.dispose();

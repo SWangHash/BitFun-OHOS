@@ -2043,6 +2043,7 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
     ("set_window_size_ohos", RemoteWorkspacePolicy::LocalOnly),
     ("share_file_ohos", RemoteWorkspacePolicy::LocalOnly),
     ("unmaximize_ohos", RemoteWorkspacePolicy::LocalOnly),
+    ("window_is_focused", RemoteWorkspacePolicy::LocalOnly),
     ("window_is_maximized", RemoteWorkspacePolicy::LocalOnly),
     ("window_is_minimized", RemoteWorkspacePolicy::LocalOnly),
     ("window_start_dragging", RemoteWorkspacePolicy::LocalOnly),

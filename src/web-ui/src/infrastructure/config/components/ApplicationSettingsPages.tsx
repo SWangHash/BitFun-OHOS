@@ -1,4 +1,6 @@
 import { Alert, Button, Combobox, ConfirmDialog, IconButton, Input, Select, Switch, Tooltip, type ComboboxOption } from '@bitfun/ui';
+import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
+import { OhosLaunchAtLoginSetting } from './OhosLaunchAtLoginSetting';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Archive, FolderOpen } from 'lucide-react';
@@ -37,6 +39,10 @@ const formatShellLabel = (shell: ShellInfo): string =>
   `${shell.name}${shell.version ? ` (${shell.version})` : ''}`;
 
 function LaunchAtLoginSetting() {
+  return isOpenHarmonyRuntime() ? <OhosLaunchAtLoginSetting /> : <LaunchAtLoginSettingDesktop />;
+}
+
+function LaunchAtLoginSettingDesktop() {
   const { t } = useTranslation('settings/application');
   const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
   const [enabled, setEnabled] = useState(false);
@@ -275,7 +281,12 @@ function PreventSleepSetting() {
       } catch (error) {
         setEnabled(previous);
         log.error('Failed to set prevent-sleep preference', { next, error });
-        showMessage('error', t('preventSleep.messages.saveFailed'));
+        const detail = String(error);
+        showMessage('error', detail.includes('OHOS_SLEEP_API_23_REQUIRED')
+          ? t('preventSleep.messages.api23Required')
+          : detail.includes('OHOS_SLEEP_UNSUPPORTED')
+            ? t('preventSleep.messages.unsupported')
+            : `${t('preventSleep.messages.saveFailed')}: ${detail}`);
       } finally {
         setSaving(false);
       }

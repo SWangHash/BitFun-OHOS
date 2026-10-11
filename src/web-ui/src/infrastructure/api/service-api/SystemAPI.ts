@@ -301,8 +301,13 @@ export class SystemAPI {
 
   /** Desktop only: whether the app is registered to launch at OS login. */
   async getLaunchAtLoginEnabled(): Promise<boolean> {
-    // Autostart plugin (@tauri-apps/plugin-autostart) is not available in this build.
-    return false;
+    const { invoke } = await import('@tauri-apps/api/core');
+    const result = await invoke<{ currentOptionValues: Record<string, unknown> }>('product_control_invoke', {
+      request: { action: 'get', capabilityId: 'setting.application.general' },
+    });
+    const enabled = result.currentOptionValues['launch-at-login'];
+    if (typeof enabled !== 'boolean') throw new Error('Automatic startup status is unavailable');
+    return enabled;
   }
 
   /**
@@ -313,7 +318,8 @@ export class SystemAPI {
   async sendSystemNotification(title: string, body?: string): Promise<void> {
     if (isOpenHarmonyRuntime()) {
       try {
-        await api.invoke('send_system_notification_ohos', {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('send_system_notification_ohos', {
           arg: JSON.stringify({ title, body: body ?? null }),
         });
       } catch (error) {
@@ -331,6 +337,15 @@ export class SystemAPI {
     } catch (error) {
       log.warn('Failed to send system notification', { title, error });
     }
+  }
+
+  /** Query the controller window, even while a peer workspace is displayed. */
+  async isNotificationWindowBackground(): Promise<boolean> {
+    if (isOpenHarmonyRuntime()) {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return !(await invoke<boolean>('window_is_focused'));
+    }
+    return document.hidden || !document.hasFocus();
   }
 
   /** Desktop only: register or unregister launch at OS login. */
@@ -352,7 +367,10 @@ export class SystemAPI {
 
   /** Desktop only: whether BitFun should keep the local computer awake. */
   async getPreventSleepEnabled(): Promise<boolean> {
-    const result = await productControlAPI.get('setting.application.general');
+    const { invoke } = await import('@tauri-apps/api/core');
+    const result = await invoke<{ currentOptionValues: Record<string, unknown> }>('product_control_invoke', {
+      request: { action: 'get', capabilityId: 'setting.application.general' },
+    });
     const enabled = result.currentOptionValues['prevent-sleep'];
     if (typeof enabled !== 'boolean') {
       throw new Error('ProductControl returned a non-boolean prevent-sleep state');
@@ -362,11 +380,10 @@ export class SystemAPI {
 
   /** Desktop only: apply and persist the app-wide sleep-prevention preference. */
   async setPreventSleepEnabled(enabled: boolean): Promise<void> {
-    await productControlAPI.configure(
-      'setting.application.general',
-      'prevent-sleep',
-      enabled,
-    );
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('product_control_invoke', {
+      request: { action: 'configure', capabilityId: 'setting.application.general', optionId: 'prevent-sleep', value: enabled },
+    });
   }
 
   // ?????? Window / Tray behavior ????????????????????????????????????????????????????????????????????????????????????????????????

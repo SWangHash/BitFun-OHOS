@@ -135,50 +135,29 @@ describe('requestGitRepositoryTrust', () => {
     expect(trustRepositoryMock).toHaveBeenCalledTimes(1);
   });
 
-  it('does not ask again in the quiet period after a decline', async () => {
-    confirmWarningMock.mockResolvedValue(false);
+  it('allows immediate approval after a declined request', async () => {
+    confirmWarningMock.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    trustRepositoryMock.mockResolvedValue(grantedOutcome());
 
-    await requestGitRepositoryTrust(WORKSPACE);
     await expect(requestGitRepositoryTrust(WORKSPACE)).resolves.toBe(false);
+    expect(trustRepositoryMock).not.toHaveBeenCalled();
+    await expect(requestGitRepositoryTrust(WORKSPACE)).resolves.toBe(true);
 
-    expect(confirmWarningMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not ask again in the quiet period after a failed grant', async () => {
-    confirmWarningMock.mockResolvedValue(true);
-    trustRepositoryMock.mockRejectedValue(new Error('config is read-only'));
-
-    await requestGitRepositoryTrust(WORKSPACE);
-    await expect(requestGitRepositoryTrust(WORKSPACE)).resolves.toBe(false);
-
-    expect(confirmWarningMock).toHaveBeenCalledTimes(1);
+    expect(confirmWarningMock).toHaveBeenCalledTimes(2);
     expect(trustRepositoryMock).toHaveBeenCalledTimes(1);
   });
 
-  // The Trust button is visible and enabled after a failure. Returning false
-  // without a dialog would read as a dead button, and would strand a user who
-  // just fixed safe.directory in a terminal or reconnected a remote host.
-  it('answers an explicit user request during the quiet period', async () => {
+  it('allows immediate retry after a failed grant', async () => {
     confirmWarningMock.mockResolvedValue(true);
-    trustRepositoryMock.mockRejectedValueOnce(new Error('config is read-only'));
+    trustRepositoryMock
+      .mockRejectedValueOnce(new Error('config is read-only'))
+      .mockResolvedValueOnce(grantedOutcome());
 
-    await requestGitRepositoryTrust(WORKSPACE);
-    expect(confirmWarningMock).toHaveBeenCalledTimes(1);
-
-    trustRepositoryMock.mockResolvedValueOnce(grantedOutcome());
-    await expect(
-      requestGitRepositoryTrust(WORKSPACE, { userInitiated: true }),
-    ).resolves.toBe(true);
-    expect(confirmWarningMock).toHaveBeenCalledTimes(2);
-  });
-
-  it('still absorbs the automatic burst that follows a user request', async () => {
-    confirmWarningMock.mockResolvedValue(false);
-
-    await requestGitRepositoryTrust(WORKSPACE, { userInitiated: true });
     await expect(requestGitRepositoryTrust(WORKSPACE)).resolves.toBe(false);
+    await expect(requestGitRepositoryTrust(WORKSPACE)).resolves.toBe(true);
 
-    expect(confirmWarningMock).toHaveBeenCalledTimes(1);
+    expect(confirmWarningMock).toHaveBeenCalledTimes(2);
+    expect(trustRepositoryMock).toHaveBeenCalledTimes(2);
   });
 
   it('dedupes display path aliases by workspace identity', async () => {
@@ -326,8 +305,6 @@ describe('requestGitRepositoryTrust', () => {
     expect(successMock.mock.calls[0][0]).toContain('trust.alreadyTrusted');
   });
 
-  // ...and the recovery it reports must be a real one: the next automatic call
-  // gets a fresh prompt rather than the quiet period a failure would have set.
   it('does not silence the next caller after recovering outside the product', async () => {
     confirmWarningMock.mockResolvedValue(true);
     trustRepositoryMock.mockRejectedValueOnce(new Error('config is read-only'));
@@ -391,10 +368,7 @@ describe('withGitRepositoryTrustRecovery', () => {
     expect(operation).toHaveBeenCalledTimes(2);
   });
 
-  // The quiet period absorbs a burst of automatic Git reads. It must not answer
-  // a deliberate launch with a silent refusal plus an error telling the user to
-  // trust the folder "when prompted".
-  it('still prompts a user-initiated recovery during the quiet period', async () => {
+  it('prompts and replays an immediate retry after a decline', async () => {
     confirmWarningMock.mockResolvedValue(false);
     await requestGitRepositoryTrust(WORKSPACE);
     expect(confirmWarningMock).toHaveBeenCalledTimes(1);
@@ -407,20 +381,9 @@ describe('withGitRepositoryTrustRecovery', () => {
       .mockResolvedValueOnce('status');
 
     await expect(
-      withGitRepositoryTrustRecovery(operation, WORKSPACE, { userInitiated: true }),
+      withGitRepositoryTrustRecovery(operation, WORKSPACE),
     ).resolves.toBe('status');
     expect(confirmWarningMock).toHaveBeenCalledTimes(2);
-  });
-
-  it('stays quiet for an automatic recovery during the quiet period', async () => {
-    confirmWarningMock.mockResolvedValue(false);
-    await requestGitRepositoryTrust(WORKSPACE);
-
-    const error = untrustedError();
-    const operation = vi.fn().mockRejectedValue(error);
-
-    await expect(withGitRepositoryTrustRecovery(operation, WORKSPACE)).rejects.toBe(error);
-    expect(confirmWarningMock).toHaveBeenCalledTimes(1);
   });
 
   // The whole point of handing over a manual command on a host that cannot

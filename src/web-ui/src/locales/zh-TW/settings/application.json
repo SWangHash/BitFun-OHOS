@@ -97,7 +97,11 @@
       "loading": "載入中…",
       "loadFailed": "無法讀取開機啟動設置",
       "saveFailed": "無法更新開機啟動設置"
-    }
+    },
+    "ohosGuide": "請在系統設定 → 應用程式和元服務 → 應用程式啟動管理中新增或移除 BitFun，再重新整理此處狀態。",
+    "ohosEnabled": "系統已開啟",
+    "ohosDisabled": "系統未開啟",
+    "refresh": "重新整理狀態"
   },
   "preventSleep": {
     "sections": {
@@ -110,7 +114,9 @@
       "loading": "載入中…",
       "loadFailed": "無法讀取防止睡眠設定",
       "saveFailed": "無法更新防止睡眠設定",
-      "saved": "防止睡眠設定已儲存"
+      "saved": "防止睡眠設定已儲存",
+      "api23Required": "目前系統不支援保持喚醒，需要 HarmonyOS API 23 或以上。",
+      "unsupported": "目前裝置不支援防止閒置休眠。"
     }
   },
   "logging": {

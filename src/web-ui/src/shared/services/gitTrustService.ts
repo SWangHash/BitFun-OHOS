@@ -28,20 +28,7 @@ import { GitWorkspaceScope, gitWorkspaceKey } from '@/infrastructure/api/service
 
 const log = createLogger('GitTrustService');
 
-/**
- * How long a settled decision keeps later prompts quiet.
- *
- * One user action (launching Review, refreshing a panel) fans out into many
- * Git reads. Without this, every remaining call in the same burst would ask
- * again ??after a decline, and just as much after a grant that failed (a
- * read-only configuration, a refusing peer host): confirming into the same
- * wall is not a fresh decision. The window is deliberately short: a fresh
- * attempt later is a fresh decision.
- */
-const PROMPT_QUIET_PERIOD_MS = 30_000;
-
 const inFlightRequests = new Map<string, { promise: Promise<boolean>; isCurrent: () => boolean }>();
-const promptQuietUntil = new Map<string, number>();
 
 /** Trust decisions belong to the owning surface and workspace ID. */
 const promptKey = gitWorkspaceKey;
@@ -54,10 +41,9 @@ export function describeGitTrustFailure(failure: unknown): string | undefined {
     : undefined;
 }
 
-/** Test seam: forgets in-flight prompts and remembered decisions. */
+/** Test seam: forgets in-flight prompts. */
 export function resetGitTrustDecisions(): void {
   inFlightRequests.clear();
-  promptQuietUntil.clear();
 }
 
 /**
@@ -106,7 +92,6 @@ async function settleUngrantedTrust(
   const report = await readTrustReport(repositoryPath);
   if (!isCurrent()) return false;
   if (report?.state === 'trusted') {
-    promptQuietUntil.delete(promptKey(repositoryPath));
     log.info('Git repository trust was resolved outside the product', { repositoryPath });
     notificationService.success(
       i18nService.t('panels/git:trust.alreadyTrusted', { path: repositoryPath.repositoryPath ?? repositoryPath.workspaceId }),
@@ -114,11 +99,6 @@ async function settleUngrantedTrust(
     return true;
   }
 
-  // Like a decline, an unresolved failure settles the current burst: confirming
-  // into the same wall is not a fresh decision, so no re-prompt until the quiet
-  // period ends. Keyed on the caller's path ??the key the next call arrives
-  // under ??while the message names the path Git actually rejected.
-  promptQuietUntil.set(promptKey(repositoryPath), Date.now() + PROMPT_QUIET_PERIOD_MS);
   reportManualPath(reportedPath, manualCommand ?? report?.manualCommand ?? null);
   return false;
 }
@@ -143,7 +123,6 @@ async function promptAndTrust(
   const report = await readTrustReport(repositoryPath);
   if (!isCurrent()) return false;
   if (report?.state === 'trusted') {
-    promptQuietUntil.delete(promptKey(repositoryPath));
     notificationService.success(
       i18nService.t('panels/git:trust.alreadyTrusted', { path: repositoryPath.repositoryPath ?? repositoryPath.workspaceId }),
     );
@@ -154,7 +133,6 @@ async function promptAndTrust(
     (report.grantSupported === false || isPeerDeviceModeActive())
   ) {
     const reportedPath = report.repositoryPath ?? repositoryPath.repositoryPath ?? repositoryPath.workspaceId;
-    promptQuietUntil.set(promptKey(repositoryPath), Date.now() + PROMPT_QUIET_PERIOD_MS);
     log.info('Git repository trust must be granted on the repository host', {
       repositoryPath,
       reportedPath,
@@ -179,7 +157,6 @@ async function promptAndTrust(
 
   if (!isCurrent()) return false;
   if (!confirmed) {
-    promptQuietUntil.set(promptKey(repositoryPath), Date.now() + PROMPT_QUIET_PERIOD_MS);
     log.info('Git repository trust declined by user', { repositoryPath });
     return false;
   }
@@ -188,7 +165,6 @@ async function promptAndTrust(
     const outcome = await gitAPI.trustRepository(repositoryPath);
     if (!isCurrent()) return false;
     if (outcome.state === 'trusted') {
-      promptQuietUntil.delete(promptKey(repositoryPath));
       notificationService.success(
         i18nService.t('panels/git:trust.granted', { path: repositoryPath.repositoryPath ?? repositoryPath.workspaceId }),
       );
@@ -214,16 +190,7 @@ async function promptAndTrust(
 }
 
 export interface GitRepositoryTrustRequestOptions {
-  /**
-   * The user asked for this directly (the Trust button), rather than a Git read
-   * tripping over the wall.
-   *
-   * A direct ask is always answered: the quiet period exists to keep one user
-   * action from prompting once per Git call in the burst, not to make a visible
-   * button do nothing. Silently returning `false` to a click reads as a broken
-   * button, and it strands the user who just fixed `safe.directory` in a
-   * terminal or reconnected a remote host.
-   */
+  /** Accepted for existing callers; all settled requests can be retried immediately. */
   userInitiated?: boolean;
   /** Cancel automatic recovery when its workspace activation is no longer current. */
   isCurrent?: () => boolean;
@@ -249,14 +216,6 @@ export function requestGitRepositoryTrust(
     return pending.promise;
   }
 
-  const quietUntil = promptQuietUntil.get(key);
-  if (quietUntil !== undefined) {
-    if (quietUntil > Date.now() && !options.userInitiated) {
-      return Promise.resolve(false);
-    }
-    promptQuietUntil.delete(key);
-  }
-
   const request = promptAndTrust(repositoryPath, isCurrent).finally(() => {
     if (inFlightRequests.get(flightKey)?.promise === request) inFlightRequests.delete(flightKey);
   });
@@ -273,10 +232,6 @@ export function requestGitRepositoryTrust(
  *
  * Only for operations that are safe to run twice. Do not wrap mutations.
  *
- * Pass `userInitiated` when the operation is one discrete thing the user asked
- * for (launching Review), rather than one call inside an automatic burst: the
- * quiet period would otherwise answer a deliberate action with a silent `false`
- * and an error telling them to trust the folder "when prompted".
  */
 export async function withGitRepositoryTrustRecovery<T>(
   operation: () => Promise<T>,
