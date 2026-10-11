@@ -34,7 +34,8 @@ vi.mock('../services/NotificationService', () => ({
 vi.mock('@/infrastructure/i18n', () => ({
   useI18n: () => ({
     formatDate: () => '12:00',
-    t: (key: string) => key,
+    t: (key: string, options?: Record<string, unknown>) =>
+      options && 'count' in options ? `${key}:${String(options.count)}` : key,
   }),
 }));
 
@@ -59,7 +60,10 @@ vi.mock('@/component-library', () => ({
   ),
 }));
 
-const makeNotification = (id: string): NotificationRecord => ({
+const makeNotification = (
+  id: string,
+  overrides: Partial<NotificationRecord> = {},
+): NotificationRecord => ({
   id,
   message: `Message ${id}`,
   read: true,
@@ -68,6 +72,7 @@ const makeNotification = (id: string): NotificationRecord => ({
   title: `Title ${id}`,
   type: 'info',
   variant: 'toast',
+  ...overrides,
 });
 
 describe('NotificationCenter', () => {
@@ -120,5 +125,31 @@ describe('NotificationCenter', () => {
     expect(container.querySelector<HTMLButtonElement>(
       '[data-testid="notification-item-expand-second"]',
     )?.title).toBe('common:actions.collapse');
+  });
+
+  it('shows per-category counts and keeps the all count stable across filters', () => {
+    vi.mocked(useNotificationHistory).mockReturnValue([
+      makeNotification('error-1', { type: 'error' }),
+      makeNotification('error-2', { type: 'error' }),
+      makeNotification('warning-1', { type: 'warning' }),
+      makeNotification('info-1', { type: 'info' }),
+      makeNotification('success-1', { type: 'success' }),
+    ]);
+
+    const getFilterText = (testId: string): string =>
+      container.querySelector<HTMLButtonElement>(`[data-testid="${testId}"]`)?.textContent ?? '';
+
+    act(() => root.render(<NotificationCenter />));
+
+    expect(getFilterText('notification-filter-all')).toBe('components:notificationCenter.filters.all:5');
+    expect(getFilterText('notification-filter-error')).toBe('components:notificationCenter.filters.error:2');
+    expect(getFilterText('notification-filter-warning')).toBe('components:notificationCenter.filters.warning:1');
+    expect(getFilterText('notification-filter-info')).toBe('components:notificationCenter.filters.info:2');
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="notification-filter-error"]')?.click();
+    });
+
+    expect(getFilterText('notification-filter-all')).toBe('components:notificationCenter.filters.all:5');
   });
 });
