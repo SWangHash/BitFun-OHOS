@@ -52,7 +52,7 @@ fn client_secret() -> String {
     format!("{prefix}{suffix}")
 }
 
-/// Returns the platform-specific User-Agent and Client-Metadata platform token.
+/// Keep User-Agent OS/architecture labels separate from the Code Assist platform enum.
 fn platform_tokens() -> (String, &'static str) {
     platform_tokens_for(std::env::consts::OS, std::env::consts::ARCH)
 }
@@ -63,18 +63,16 @@ fn platform_tokens_for(os: &str, arch: &str) -> (String, &'static str) {
         "macos" => "darwin",
         _ => "linux",
     };
-    let metadata_os = match os {
-        "windows" => "WINDOWS",
-        "macos" => "MACOS",
-        _ => "LINUX",
-    };
     let user_agent_arch = match arch {
         "x86_64" => "amd64",
         "aarch64" => "arm64",
         "x86" => "386",
         other => other,
     };
-    (format!("{user_agent_os}/{user_agent_arch}"), metadata_os)
+    (
+        format!("{user_agent_os}/{user_agent_arch}"),
+        "PLATFORM_UNSPECIFIED",
+    )
 }
 
 #[derive(Debug, Deserialize)]
@@ -393,26 +391,30 @@ mod tests {
     }
 
     #[test]
-    fn reports_real_architecture_on_all_desktop_platforms() {
+    fn reports_real_architecture_with_valid_protocol_metadata() {
+        assert_eq!(
+            platform_tokens_for("ohos", "aarch64"),
+            ("linux/arm64".to_string(), "PLATFORM_UNSPECIFIED")
+        );
         assert_eq!(
             platform_tokens_for("windows", "x86_64"),
-            ("windows/amd64".to_string(), "WINDOWS")
+            ("windows/amd64".to_string(), "PLATFORM_UNSPECIFIED")
         );
         assert_eq!(
             platform_tokens_for("windows", "aarch64"),
-            ("windows/arm64".to_string(), "WINDOWS")
+            ("windows/arm64".to_string(), "PLATFORM_UNSPECIFIED")
         );
         assert_eq!(
             platform_tokens_for("macos", "aarch64"),
-            ("darwin/arm64".to_string(), "MACOS")
+            ("darwin/arm64".to_string(), "PLATFORM_UNSPECIFIED")
         );
         assert_eq!(
             platform_tokens_for("linux", "x86_64"),
-            ("linux/amd64".to_string(), "LINUX")
+            ("linux/amd64".to_string(), "PLATFORM_UNSPECIFIED")
         );
         assert_eq!(
             platform_tokens_for("linux", "aarch64"),
-            ("linux/arm64".to_string(), "LINUX")
+            ("linux/arm64".to_string(), "PLATFORM_UNSPECIFIED")
         );
     }
 }

@@ -986,6 +986,8 @@ const AIModelConfig: React.FC = () => {
       return;
     }
 
+    const usesAccountCatalog = discoveryConfig.auth?.type === 'subscription'
+      && discoveryConfig.auth.provider === 'antigravity';
     const requestSignature = buildModelDiscoverySignature(discoveryConfig);
     if (activeRemoteFetchSignatureRef.current === requestSignature) {
       return;
@@ -1008,16 +1010,24 @@ const AIModelConfig: React.FC = () => {
 
       if (dedupedModels.length === 0) {
         setRemoteModelOptions([]);
-        setRemoteModelsError(t('providerSelection.fetchEmptyFallback'));
+        setRemoteModelsError(usesAccountCatalog
+          ? t('providerSelection.noPresetModels')
+          : t('providerSelection.fetchEmptyFallback'));
         return;
       }
 
       setRemoteModelOptions(dedupedModels);
       setRemoteModelsError(null);
     } catch (error) {
-      log.warn('Failed to fetch remote model list, falling back to presets', { error });
+      log.warn('Failed to fetch remote model list', { error });
       setRemoteModelOptions([]);
-      setRemoteModelsError(t('providerSelection.fetchFailedFallback'));
+      setRemoteModelsError(usesAccountCatalog
+        ? t('providerSelection.fetchFailedAccount', { error: String(error) })
+        : t('providerSelection.fetchFailedFallback'));
+      if (usesAccountCatalog) {
+        lastRemoteFetchSignatureRef.current = null;
+        setHasAttemptedRemoteFetch(false);
+      }
     } finally {
       setIsFetchingRemoteModels(false);
       if (activeRemoteFetchSignatureRef.current === requestSignature) {
@@ -2162,6 +2172,8 @@ const AIModelConfig: React.FC = () => {
           'data-model-source': model.source,
         },
       }));
+    const usesAccountCatalog = editingConfig.auth?.type === 'subscription'
+      && editingConfig.auth.provider === 'antigravity';
     const fetchedOrPresetModelOptions: SelectOption[] = remoteModelOptions.length > 0
       ? remoteModelOptions.map(model => ({
           label: model.display_name || model.id,
@@ -2173,17 +2185,19 @@ const AIModelConfig: React.FC = () => {
             'data-model-name': model.id,
           },
         }))
-      : catalogModelOptions.length > 0
-        ? catalogModelOptions
-        : (currentTemplate?.models || []).map(model => ({
-          label: model,
-          value: model,
-          testId: 'settings-model-option',
-          testAttributes: {
-            'data-model-id': model,
-            'data-model-name': model,
-          },
-        }));
+      : usesAccountCatalog
+        ? []
+        : catalogModelOptions.length > 0
+          ? catalogModelOptions
+          : (currentTemplate?.models || []).map(model => ({
+            label: model,
+            value: model,
+            testId: 'settings-model-option',
+            testAttributes: {
+              'data-model-id': model,
+              'data-model-name': model,
+            },
+          }));
     const selectedModelOptions: SelectOption[] = selectedModelDrafts.map(draft => ({
       label: draft.modelName,
       value: draft.modelName,

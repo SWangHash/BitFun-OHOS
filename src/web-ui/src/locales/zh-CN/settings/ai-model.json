@@ -134,6 +134,7 @@
     "fetchingModels": "正在拉取模型列表...",
     "fetchSuccessCount": "已从供应商拉取 {{count}} 个模型",
     "fetchFailedFallback": "拉取模型列表失败，已回退到常用预设模型",
+    "fetchFailedAccount": "读取账户模型失败：{{error}}",
     "fetchEmptyFallback": "供应商未返回可用模型，已回退到常用预设模型",
     "fillApiKeyBeforeFetch": "请先填写 API Key 再获取模型列表",
     "usingPresetModels": "当前显示的是常用预设模型",
