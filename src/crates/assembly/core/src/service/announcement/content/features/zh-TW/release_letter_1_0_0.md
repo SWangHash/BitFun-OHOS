@@ -2,7 +2,7 @@
 id: release_letter_1_0_0
 card_type: announcement
 app_version: 1.0.0
-trigger: always
+trigger: manual
 once_per_version: true
 delay_ms: 0
 toast_title: BitFun 1.0.0
