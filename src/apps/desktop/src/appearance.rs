@@ -614,10 +614,15 @@ let main_url = if use_development_frontend() || cfg!(target_env = "ohos") {
     // briefly while the Desktop host resolves their original paths through
     // WebView2, without copying file contents. WKWebView/WebKitGTK do not have
     // that conflict, so their native handler remains enabled and supplies paths.
-    #[cfg(target_os = "windows")]
-    {
-        builder = builder.disable_drag_drop_handler();
-    }
+    // Keep the native drag-drop handler enabled on the main window. External
+    // files are delivered through Webview::onDragDropEvent with real paths;
+    // disabling it makes browser File.path unavailable and drops appear inert.
+    // The Agent companion window still disables it (see below) to avoid OLE
+    // conflicts with its transparent overlay.
+    // #[cfg(target_os = "windows")]
+    // {
+    //     builder = builder.disable_drag_drop_handler();
+    // }
 
     // The Desktop host arms each exact Creative preview/rollback transition.
     // Page-driven navigations remain blocked, including in development where

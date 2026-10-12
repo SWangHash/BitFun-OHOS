@@ -49,7 +49,7 @@ import type {
 import { SmartRecommendations } from './smart-recommendations';
 import { useCurrentWorkspace, useWorkspaceContext } from '@/infrastructure/contexts/WorkspaceContext';
 import { flowChatSessionConfigForCurrentWorkspace } from '@/app/utils/projectSessionWorkspace';
-import { createImageContextFromFile, createImageContextFromClipboard } from '../utils/imageUtils';
+import { createImageContextFromFile, createImageContextFromClipboard, isImageFile } from '../utils/imageUtils';
 import {
   getInlineSkillPickerQuery,
   getInlineSlashCommandPickerQuery,
@@ -237,7 +237,10 @@ import { workspaceAPI } from '@/infrastructure/api/service-api/WorkspaceAPI';
 import { useLocalFileDrop } from '@/infrastructure/files/useLocalFileDrop';
 import { useWindowsFileDropPreview } from '@/infrastructure/files/useWindowsFileDropPreview';
 import type { FileDropPreview, FileDropPosition } from '@/shared/types/fileDropPreview';
+import { WorkspaceKind } from '@/shared/types/global-state';
 import { resolveBrowserDroppedFilePaths } from '@/infrastructure/files/resolveBrowserDroppedFilePaths';
+import { useNativeFileDrop } from '@/infrastructure/hooks/useNativeFileDrop';
+import { resolveNativeDroppedPaths } from '../utils/nativeFileDrop';
 import {
   buildExternalFileContexts,
   partitionExternalDropFiles,
@@ -539,6 +542,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const externalFileDropTargetRef = useRef<HTMLDivElement>(null);
   const [nativeFileDragOver, setNativeFileDragOver] = useState(false);
   const [contextFileDragOver, setContextFileDragOver] = useState(false);
+  const nativeDropZoneRef = useRef<HTMLDivElement>(null);
+  const [isNativeDragOverInput, setIsNativeDragOverInput] = useState(false);
   const inputAreaAnchorRef = useRef<HTMLDivElement>(null);
   const agentBoostRef = useRef<HTMLDivElement>(null);
   const boostTriggerRef = useRef<HTMLSpanElement>(null);
@@ -601,6 +606,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   composerActiveRef.current = isSceneActive;
   const contexts = useContextStore(state => state.contexts);
   const addContext = useContextStore(state => state.addContext);
+  const updateValidation = useContextStore(state => state.updateValidation);
   const removeContext = useContextStore(state => state.removeContext);
   const clearContexts = useContextStore(state => state.clearContexts);
   const replaceContexts = useContextStore(state => state.replaceContexts);
@@ -4985,6 +4991,48 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     onDragOver: setNativeFileDragOver,
   });
 
+  useNativeFileDrop({
+    targetRef: nativeDropZoneRef,
+    enabled: isSceneActive && !caps.transferInFlight && !isInterruptedTurnRecoveryInFlight,
+    onDragOver: setIsNativeDragOverInput,
+    onDrop: async (paths) => {
+      if (paths.length === 0) return;
+      const targetsRemoteWorkspace = workspace?.workspaceKind === WorkspaceKind.Remote
+        || Boolean(effectiveTargetSession?.remoteConnectionId || effectiveTargetSession?.config.remoteConnectionId);
+      if (targetsRemoteWorkspace) {
+        notificationService.warning(t('input.nativeDropRemoteUnsupported'), { duration: 4000 });
+        return;
+      }
+      const contexts = await resolveNativeDroppedPaths(
+        paths,
+        (filePath) => workspaceAPI.getFileMetadata(filePath),
+        (filePath, error) => log.warn('Failed to inspect native dropped path', { filePath, error }),
+      );
+      if (contexts.length === 0) {
+        notificationService.warning(t('input.nativeDropFailed'), { duration: 4000 });
+        return;
+      }
+      let remainingImages = CHAT_INPUT_CONFIG.image.maxCount - currentImageCount;
+      let imageLimitNotified = false;
+      for (const context of contexts) {
+        if (context.type === 'image') {
+          if (remainingImages <= 0) {
+            if (!imageLimitNotified) {
+              notificationService.warning(t('input.maxImagesWarning', { count: CHAT_INPUT_CONFIG.image.maxCount }), {
+                duration: 3000,
+              });
+              imageLimitNotified = true;
+            }
+            continue;
+          }
+          remainingImages -= 1;
+        }
+        addContext(context);
+        updateValidation(context.id, { valid: true });
+      }
+    },
+  });
+
   useEffect(() => {
     onFileDragOverChange?.(isSceneActive && !caps.transferInFlight
       && !isInterruptedTurnRecoveryInFlight && (nativeFileDragOver || contextFileDragOver));
@@ -6089,8 +6137,37 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         extendedTargetRef={fileDropTargetRef}
         onDragStateChange={setContextFileDragOver}
         acceptedTypes={['file', 'directory', 'image', 'code-snippet', 'mermaid-diagram']}
-        className={`bitfun-chat-input-drop-zone${presentation === 'conversation' ? ' bitfun-chat-input-drop-zone--conversation' : ''}`}
+        className={`bitfun-chat-input-drop-zone${presentation === 'conversation' ? ' bitfun-chat-input-drop-zone--conversation' : ''}${isNativeDragOverInput ? ' bitfun-context-drop-zone--can-accept' : ''}`}
         disabled={!isSceneActive || caps.transferInFlight || isInterruptedTurnRecoveryInFlight}
+        rootRef={nativeDropZoneRef}
+        resolveExternalFiles={async (files) => {
+          const items: ContextItem[] = [];
+          const toFileContext = (file: File, filePath: string): FileContext => ({
+            id: `file-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+            type: 'file',
+            filePath,
+            fileName: file.name,
+            fileSize: file.size,
+            mimeType: file.type,
+            timestamp: Date.now(),
+          });
+          for (const file of files) {
+            const filePath = (file as unknown as { path?: string }).path || '';
+            if (isImageFile(file.name)) {
+              try {
+                items.push(await createImageContextFromFile(file));
+                continue;
+              } catch {
+                if (!filePath) continue;
+                items.push(toFileContext(file, filePath));
+                continue;
+              }
+            }
+            if (!filePath) continue;
+            items.push(toFileContext(file, filePath));
+          }
+          return items;
+        }}
         onExternalFilesDrop={
           isWindowsDesktopRuntime() && !caps.transferInFlight
             ? files => { void handleHtmlExternalFilesDrop(files); }
