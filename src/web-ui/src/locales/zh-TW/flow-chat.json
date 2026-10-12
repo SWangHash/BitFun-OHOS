@@ -955,6 +955,7 @@
       "Team": "Team",
       "QtMigration": "QT 遷移專家",
       "HarmonyFeature": "鴻蒙特性增強專家",
+      "HarmonyBuild": "鴻蒙構建專家",
       "Standard": "$t(shared:agents.Standard)",
       "Ultimate": "$t(shared:agents.Ultimate)",
       "Minimal": "$t(shared:agents.Minimal)",
