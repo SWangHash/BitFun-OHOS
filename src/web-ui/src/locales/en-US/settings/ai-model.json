@@ -134,6 +134,7 @@
     "fetchingModels": "Fetching model list...",
     "fetchSuccessCount": "Fetched {{count}} models from the provider",
     "fetchFailedFallback": "Failed to fetch model list, fell back to common preset models",
+    "fetchFailedAccount": "Failed to load account models: {{error}}",
     "fetchEmptyFallback": "Provider returned no models, fell back to common preset models",
     "fillApiKeyBeforeFetch": "Enter the API key before fetching models",
     "usingPresetModels": "Currently showing common preset models",

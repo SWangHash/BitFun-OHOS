@@ -12,10 +12,11 @@ use crate::providers::shared;
 use crate::stream::handle_gemini_stream;
 use crate::trace::ModelExchangeTraceConfig;
 use crate::types::{Message, RemoteModelInfo, ToolDefinition};
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use log::{debug, warn};
 use reqwest::RequestBuilder;
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use tokio::sync::Mutex;
@@ -24,10 +25,58 @@ const CODE_ASSIST_BASE: &str = "https://cloudcode-pa.googleapis.com";
 const STREAM_ENDPOINT: &str = "/v1internal:streamGenerateContent?alt=sse";
 const LOAD_CODE_ASSIST_ENDPOINT: &str = "/v1internal:loadCodeAssist";
 const ONBOARD_USER_ENDPOINT: &str = "/v1internal:onboardUser";
+const AVAILABLE_MODELS_ENDPOINT: &str = "/v1internal:fetchAvailableModels";
 
-fn cached_project() -> &'static Mutex<Option<String>> {
-    static CACHE: OnceLock<Mutex<Option<String>>> = OnceLock::new();
+struct CachedProject {
+    credential: [u8; 32],
+    antigravity: bool,
+    project: String,
+}
+
+fn cached_project() -> &'static Mutex<Option<CachedProject>> {
+    static CACHE: OnceLock<Mutex<Option<CachedProject>>> = OnceLock::new();
     CACHE.get_or_init(|| Mutex::new(None))
+}
+
+fn is_antigravity(client: &AIClient) -> bool {
+    client
+        .config
+        .custom_headers
+        .as_ref()
+        .is_some_and(|headers| {
+            headers.iter().any(|(name, value)| {
+                name.eq_ignore_ascii_case("Client-Metadata") && value.contains("ANTIGRAVITY")
+            })
+        })
+}
+
+async fn project_for(client: &AIClient) -> Option<String> {
+    let credential: [u8; 32] = Sha256::digest(client.config.api_key.as_bytes()).into();
+    cached_project()
+        .lock()
+        .await
+        .as_ref()
+        .filter(|entry| {
+            entry.credential == credential && entry.antigravity == is_antigravity(client)
+        })
+        .map(|entry| entry.project.clone())
+}
+
+async fn remember_project(client: &AIClient, project: String) -> String {
+    *cached_project().lock().await = Some(CachedProject {
+        credential: Sha256::digest(client.config.api_key.as_bytes()).into(),
+        antigravity: is_antigravity(client),
+        project: project.clone(),
+    });
+    project
+}
+
+fn client_metadata(client: &AIClient) -> serde_json::Value {
+    serde_json::json!({
+        "ideType": if is_antigravity(client) { "ANTIGRAVITY" } else { "IDE_UNSPECIFIED" },
+        "platform": "PLATFORM_UNSPECIFIED",
+        "pluginType": "GEMINI",
+    })
 }
 
 pub(crate) fn apply_headers(client: &AIClient, builder: RequestBuilder) -> RequestBuilder {
@@ -55,7 +104,27 @@ pub(crate) fn apply_headers(client: &AIClient, builder: RequestBuilder) -> Reque
 #[derive(Debug, Deserialize)]
 struct LoadCodeAssistResponse {
     #[serde(default, rename = "cloudaicompanionProject")]
-    cloudaicompanion_project: Option<String>,
+    cloudaicompanion_project: Option<serde_json::Value>,
+    #[serde(default, rename = "allowedTiers")]
+    allowed_tiers: Option<Vec<CodeAssistTier>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CodeAssistTier {
+    id: Option<String>,
+    #[serde(default, rename = "isDefault")]
+    is_default: bool,
+}
+
+fn extract_project(value: Option<&serde_json::Value>) -> Option<String> {
+    value
+        .and_then(|value| {
+            value
+                .as_str()
+                .or_else(|| value.get("id").and_then(serde_json::Value::as_str))
+        })
+        .filter(|project| !project.trim().is_empty())
+        .map(str::to_string)
 }
 
 #[derive(Debug, Deserialize)]
@@ -79,48 +148,21 @@ struct OnboardProject {
 }
 
 async fn discover_project(client: &AIClient) -> Result<String> {
-    {
-        let guard = cached_project().lock().await;
-        if let Some(p) = guard.clone() {
-            return Ok(p);
+    if let Some(project) = project_for(client).await {
+        return Ok(project);
+    }
+    if let Ok(project) = std::env::var("GOOGLE_CLOUD_PROJECT") {
+        if !project.is_empty() {
+            return Ok(remember_project(client, project).await);
         }
     }
+    let project = load_project(client, CODE_ASSIST_BASE).await?;
+    Ok(remember_project(client, project).await)
+}
 
-    if let Ok(env_project) = std::env::var("GOOGLE_CLOUD_PROJECT") {
-        if !env_project.is_empty() {
-            *cached_project().lock().await = Some(env_project.clone());
-            return Ok(env_project);
-        }
-    }
-
-    let antigravity = client
-        .config
-        .custom_headers
-        .as_ref()
-        .and_then(|headers| headers.get("Client-Metadata"))
-        .is_some_and(|value| value.contains("ANTIGRAVITY"));
-    let metadata = if antigravity {
-        let platform = if cfg!(target_os = "windows") {
-            "WINDOWS"
-        } else if cfg!(target_os = "macos") {
-            "MACOS"
-        } else {
-            "LINUX"
-        };
-        serde_json::json!({
-            "ideType": "ANTIGRAVITY",
-            "platform": platform,
-            "pluginType": "GEMINI",
-        })
-    } else {
-        serde_json::json!({
-            "ideType": "IDE_UNSPECIFIED",
-            "platform": "PLATFORM_UNSPECIFIED",
-            "pluginType": "GEMINI",
-        })
-    };
-
-    let load_url = format!("{}{}", CODE_ASSIST_BASE, LOAD_CODE_ASSIST_ENDPOINT);
+async fn load_project(client: &AIClient, base_url: &str) -> Result<String> {
+    let metadata = client_metadata(client);
+    let load_url = format!("{base_url}{LOAD_CODE_ASSIST_ENDPOINT}");
     let load_body = serde_json::json!({ "metadata": metadata });
     let load_resp = apply_headers(client, client.client.post(&load_url))
         .json(&load_body)
@@ -132,18 +174,23 @@ async fn discover_project(client: &AIClient) -> Result<String> {
         return Err(anyhow!("loadCodeAssist failed: HTTP {load_status}: {body}"));
     }
     let load_parsed: LoadCodeAssistResponse = load_resp.json().await?;
-    if let Some(project) = load_parsed
-        .cloudaicompanion_project
-        .filter(|s| !s.is_empty())
-    {
-        *cached_project().lock().await = Some(project.clone());
+    if let Some(project) = extract_project(load_parsed.cloudaicompanion_project.as_ref()) {
         return Ok(project);
     }
 
-    // Need to onboard – create a free-tier Code Assist project.
-    let onboard_url = format!("{}{}", CODE_ASSIST_BASE, ONBOARD_USER_ENDPOINT);
+    // Use the account's default tier when provisioning its managed project.
+    let tier = load_parsed
+        .allowed_tiers
+        .as_deref()
+        .unwrap_or_default()
+        .iter()
+        .find(|tier| tier.is_default)
+        .and_then(|tier| tier.id.as_deref())
+        .filter(|id| !id.trim().is_empty())
+        .unwrap_or("free-tier");
+    let onboard_url = format!("{base_url}{ONBOARD_USER_ENDPOINT}");
     let onboard_body = serde_json::json!({
-        "tierId": "free-tier",
+        "tierId": tier,
         "metadata": metadata,
     });
     let onboard_resp = apply_headers(client, client.client.post(&onboard_url))
@@ -163,8 +210,8 @@ async fn discover_project(client: &AIClient) -> Result<String> {
         .response
         .and_then(|r| r.cloudaicompanion_project)
         .and_then(|p| p.id)
+        .filter(|project| !project.trim().is_empty())
         .ok_or_else(|| anyhow!("onboardUser response missing project id"))?;
-    *cached_project().lock().await = Some(project.clone());
     Ok(project)
 }
 
@@ -189,14 +236,14 @@ pub(crate) async fn send_stream(
         extra_body,
     )?;
 
-    let antigravity = client
-        .config
-        .custom_headers
-        .as_ref()
-        .and_then(|headers| headers.get("Client-Metadata"))
-        .is_some_and(|value| value.contains("ANTIGRAVITY"));
+    let antigravity = is_antigravity(client);
+    let model = if antigravity {
+        resolve_antigravity_model(&client.config.model, &inner)
+    } else {
+        client.config.model.clone()
+    };
     let mut request_body = serde_json::json!({
-        "model": client.config.model,
+        "model": model,
         "project": project,
         "request": inner,
     });
@@ -235,6 +282,88 @@ pub(crate) async fn send_stream(
         },
     )
     .await
+}
+
+/// Only legacy preview aliases need translation; account catalog IDs are wire IDs.
+fn resolve_antigravity_model(configured: &str, request: &serde_json::Value) -> String {
+    let pro = match configured {
+        "gemini-3-pro-preview" | "gemini-3-pro-preview-customtools" => Some("gemini-3-pro"),
+        "gemini-3.1-pro-preview" | "gemini-3.1-pro-preview-customtools" => Some("gemini-3.1-pro"),
+        "gemini-3-flash-preview" => return "gemini-3-flash".to_string(),
+        _ => None,
+    };
+    if let Some(base) = pro {
+        let high = request
+            .get("generationConfig")
+            .and_then(|config| config.get("thinkingConfig"))
+            .and_then(|config| config.get("thinkingLevel"))
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|level| level.eq_ignore_ascii_case("high"));
+        return format!("{base}-{}", if high { "high" } else { "low" });
+    }
+    configured.to_string()
+}
+
+#[derive(Deserialize)]
+struct AvailableModelsResponse {
+    models: std::collections::BTreeMap<String, AvailableModel>,
+}
+
+#[derive(Deserialize)]
+struct AvailableModel {
+    #[serde(default, rename = "displayName")]
+    display_name: Option<String>,
+}
+
+async fn list_antigravity_models(
+    client: &AIClient,
+    base_url: &str,
+) -> Result<Vec<RemoteModelInfo>> {
+    // Opening a model picker must not provision a project or reuse another account's project.
+    let mut body = serde_json::json!({});
+    if let Some(project) = project_for(client).await {
+        body["project"] = serde_json::json!(project);
+    }
+    let response = apply_headers(
+        client,
+        client
+            .client
+            .post(format!("{base_url}{AVAILABLE_MODELS_ENDPOINT}")),
+    )
+    .timeout(std::time::Duration::from_secs(
+        AIClient::STREAM_CONNECT_TIMEOUT_SECS,
+    ))
+    .json(&body)
+    .send()
+    .await
+    .context("fetch Antigravity account models")?;
+    let status = response.status();
+    if !status.is_success() {
+        let body = response.text().await.unwrap_or_default();
+        return Err(anyhow!(
+            "Antigravity model discovery failed: HTTP {status}: {body}"
+        ));
+    }
+    let payload = response
+        .json::<AvailableModelsResponse>()
+        .await
+        .context("parse Antigravity account model catalog")?;
+    let models = crate::client::utils::dedupe_remote_models(
+        payload
+            .models
+            .into_iter()
+            .map(|(id, model)| RemoteModelInfo {
+                id,
+                display_name: model.display_name,
+            })
+            .collect(),
+    );
+    if models.is_empty() {
+        return Err(anyhow!(
+            "Antigravity returned no available models for this account"
+        ));
+    }
+    Ok(models)
 }
 
 const DEFAULT_CODE_ASSIST_MODELS: &[(&str, &str)] = &[
@@ -314,11 +443,12 @@ fn read_gemini_env_model(gemini_home: &Path) -> Option<String> {
     })
 }
 
-/// Code Assist (`cloudcode-pa.googleapis.com`) does not expose a list-models
-/// endpoint; the upstream `gemini-cli` ships a hard-coded `VALID_GEMINI_MODELS`
-/// set in `packages/core/src/config/models.ts`. We mirror its stable entries and
-/// preserve the user's local configured model when present.
-pub(crate) async fn list_models(_client: &AIClient) -> Result<Vec<RemoteModelInfo>> {
+/// Antigravity uses its account catalog. Ordinary Code Assist keeps the existing
+/// defaults and local model selection.
+pub(crate) async fn list_models(client: &AIClient) -> Result<Vec<RemoteModelInfo>> {
+    if is_antigravity(client) {
+        return list_antigravity_models(client, CODE_ASSIST_BASE).await;
+    }
     let mut models = Vec::new();
 
     if let Some(gemini_home) = gemini_home_dir() {
@@ -340,4 +470,204 @@ pub(crate) async fn list_models(_client: &AIClient) -> Result<Vec<RemoteModelInf
     }
 
     Ok(crate::client::utils::dedupe_remote_models(models))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::{
+        http::{HeaderMap, StatusCode},
+        routing::post,
+        Json, Router,
+    };
+    use serde_json::{json, Value};
+    use std::sync::Arc;
+
+    fn client(credential: &str, antigravity: bool) -> AIClient {
+        AIClient::new(serde_json::from_value(json!({
+            "name": "code-assist-test", "base_url": CODE_ASSIST_BASE, "request_url": "",
+            "api_key": credential, "model": "gemini-3.1-pro-preview", "format": "gemini-code-assist",
+            "context_window": 128000, "inline_think_in_text": false, "skip_ssl_verify": false,
+            "custom_headers": if antigravity {
+                json!({"user-agent": "antigravity/test", "client-metadata": json!({"ideType": "ANTIGRAVITY", "platform": "PLATFORM_UNSPECIFIED", "pluginType": "GEMINI"}).to_string()})
+            } else { json!({}) }
+        })).unwrap())
+    }
+
+    async fn serve(app: Router) -> (String, tokio::task::JoinHandle<()>) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        (base, server)
+    }
+
+    #[tokio::test]
+    async fn lists_account_wire_ids_with_only_the_matching_cached_project() {
+        let bodies = Arc::new(Mutex::new(Vec::new()));
+        let captured = bodies.clone();
+        let app = Router::new().route(AVAILABLE_MODELS_ENDPOINT, post(move |headers: HeaderMap, Json(body): Json<Value>| {
+            let captured = captured.clone();
+            async move {
+                assert_eq!(headers["user-agent"], "antigravity/test");
+                assert!(headers["authorization"].to_str().unwrap().starts_with("Bearer catalog-"));
+                captured.lock().await.push(body);
+                Json(json!({"models": {
+                    "Future-Model-preview-high": {"displayName": "Future model", "quotaInfo": {"remainingFraction": 0}},
+                    "gemini-3.1-pro-high": {"displayName": "Gemini Pro (High)"},
+                    "other-model": {}
+                }}))
+            }
+        }));
+        let (base, server) = serve(app).await;
+        let first = client("catalog-first", true);
+        let other = client("catalog-other", true);
+        let models = list_antigravity_models(&first, &base).await.unwrap();
+        remember_project(&first, "account-project".to_string()).await;
+        list_antigravity_models(&first, &base).await.unwrap();
+        list_antigravity_models(&other, &base).await.unwrap();
+        assert_eq!(project_for(&client("catalog-first", false)).await, None);
+        server.abort();
+        assert_eq!(
+            *bodies.lock().await,
+            vec![json!({}), json!({"project": "account-project"}), json!({})]
+        );
+        assert_eq!(
+            models
+                .iter()
+                .map(|model| model.id.as_str())
+                .collect::<Vec<_>>(),
+            [
+                "Future-Model-preview-high",
+                "gemini-3.1-pro-high",
+                "other-model"
+            ]
+        );
+        assert_eq!(models[0].display_name.as_deref(), Some("Future model"));
+        assert_eq!(models[2].display_name, None);
+        for model in models {
+            assert_eq!(resolve_antigravity_model(&model.id, &json!({})), model.id);
+        }
+    }
+
+    #[tokio::test]
+    async fn reports_catalog_failures_without_static_models() {
+        for (status, body, expected) in [
+            (StatusCode::OK, json!({"models": {}}), "no available models"),
+            (
+                StatusCode::OK,
+                json!({}),
+                "parse Antigravity account model catalog",
+            ),
+            (
+                StatusCode::BAD_REQUEST,
+                json!({"error": "INVALID_ARGUMENT"}),
+                "INVALID_ARGUMENT",
+            ),
+        ] {
+            let app = Router::new().route(
+                AVAILABLE_MODELS_ENDPOINT,
+                post(move || {
+                    let body = body.clone();
+                    async move { (status, Json(body)) }
+                }),
+            );
+            let (base, server) = serve(app).await;
+            let error = list_antigravity_models(&client("catalog-error", true), &base)
+                .await
+                .unwrap_err();
+            server.abort();
+            assert!(format!("{error:#}").contains(expected), "{error:#}");
+        }
+    }
+
+    #[tokio::test]
+    async fn sends_valid_metadata_and_onboards_the_account_default_tier() {
+        let app = Router::new()
+            .route(LOAD_CODE_ASSIST_ENDPOINT, post(|Json(body): Json<Value>| async move {
+                assert_eq!(body, json!({"metadata": {
+                    "ideType": "ANTIGRAVITY", "platform": "PLATFORM_UNSPECIFIED", "pluginType": "GEMINI"
+                }}));
+                Json(json!({"allowedTiers": [{"id": "other-tier"}, {"id": "account-tier", "isDefault": true}]}))
+            }))
+            .route(ONBOARD_USER_ENDPOINT, post(|Json(body): Json<Value>| async move {
+                assert_eq!(body["tierId"], "account-tier");
+                assert_eq!(body["metadata"]["platform"], "PLATFORM_UNSPECIFIED");
+                assert!(body.get("cloudaicompanionProject").is_none());
+                assert!(body["metadata"].get("duetProject").is_none());
+                Json(json!({"done": true, "response": {"cloudaicompanionProject": {"id": "managed-project"}}}))
+            }));
+        let (base, server) = serve(app).await;
+        let project = load_project(&client("initialization-test", true), &base)
+            .await
+            .unwrap();
+        server.abort();
+        assert_eq!(project, "managed-project");
+    }
+
+    #[tokio::test]
+    async fn preserves_initialization_parameter_errors() {
+        let app = Router::new().route(LOAD_CODE_ASSIST_ENDPOINT, post(|| async {
+            (StatusCode::BAD_REQUEST, Json(json!({"error": {"status": "INVALID_ARGUMENT", "message": "metadata.platform rejected"}})))
+        }));
+        let (base, server) = serve(app).await;
+        let error = load_project(&client("initialization-error", true), &base)
+            .await
+            .unwrap_err();
+        server.abort();
+        let message = format!("{error:#}");
+        assert!(
+            message.contains("400")
+                && message.contains("INVALID_ARGUMENT")
+                && message.contains("metadata.platform")
+        );
+    }
+
+    #[test]
+    fn accepts_legacy_and_object_project_responses() {
+        for (payload, expected) in [
+            (
+                json!({"cloudaicompanionProject": "legacy-project"}),
+                Some("legacy-project"),
+            ),
+            (
+                json!({"cloudaicompanionProject": {"id": "object-project"}, "allowedTiers": null}),
+                Some("object-project"),
+            ),
+            (json!({"cloudaicompanionProject": null}), None),
+        ] {
+            let load: LoadCodeAssistResponse = serde_json::from_value(payload).unwrap();
+            assert_eq!(
+                extract_project(load.cloudaicompanion_project.as_ref()).as_deref(),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn maps_only_known_legacy_preview_aliases() {
+        let plain = json!({});
+        for (alias, wire) in [
+            ("gemini-3-pro-preview", "gemini-3-pro-low"),
+            ("gemini-3.1-pro-preview", "gemini-3.1-pro-low"),
+            ("gemini-3.1-pro-preview-customtools", "gemini-3.1-pro-low"),
+            ("gemini-3-flash-preview", "gemini-3-flash"),
+        ] {
+            assert_eq!(resolve_antigravity_model(alias, &plain), wire);
+        }
+        let high = json!({"generationConfig": {"thinkingConfig": {"thinkingLevel": "HIGH"}}});
+        assert_eq!(
+            resolve_antigravity_model("gemini-3.1-pro-preview", &high),
+            "gemini-3.1-pro-high"
+        );
+    }
+
+    #[tokio::test]
+    async fn keeps_ordinary_code_assist_defaults() {
+        let ordinary = client("ordinary-test", false);
+        assert_eq!(client_metadata(&ordinary)["ideType"], "IDE_UNSPECIFIED");
+        let models = list_models(&ordinary).await.unwrap();
+        assert!(models
+            .iter()
+            .any(|model| model.id == "gemini-3.1-pro-preview"));
+    }
 }
