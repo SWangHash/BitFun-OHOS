@@ -142,6 +142,19 @@ impl GeminiMessageConverter {
     }
 
     pub fn convert_tools(tools: Option<Vec<ToolDefinition>>) -> Option<Vec<Value>> {
+        Self::convert_tools_with_schema_format(tools, false)
+    }
+
+    pub(crate) fn convert_code_assist_tools(
+        tools: Option<Vec<ToolDefinition>>,
+    ) -> Option<Vec<Value>> {
+        Self::convert_tools_with_schema_format(tools, true)
+    }
+
+    fn convert_tools_with_schema_format(
+        tools: Option<Vec<ToolDefinition>>,
+        preserve_json_schema: bool,
+    ) -> Option<Vec<Value>> {
         tools.and_then(|tool_defs| {
             let mut native_tools = Vec::new();
             let mut custom_tools = Vec::new();
@@ -169,12 +182,12 @@ impl GeminiMessageConverter {
                             .cloned()
                             .filter_map(Self::convert_native_tool_to_custom_definition),
                     )
-                    .map(Self::convert_custom_tool)
+                    .map(|tool| Self::convert_custom_tool(tool, preserve_json_schema))
                     .collect()
             } else {
                 custom_tools
                     .into_iter()
-                    .map(Self::convert_custom_tool)
+                    .map(|tool| Self::convert_custom_tool(tool, preserve_json_schema))
                     .collect()
             };
 
@@ -221,13 +234,48 @@ impl GeminiMessageConverter {
         })
     }
 
-    fn convert_custom_tool(tool: ToolDefinition) -> Value {
-        let parameters = Self::sanitize_schema(tool.parameters);
-        json!({
-            "name": tool.name,
-            "description": tool.description,
-            "parameters": parameters,
-        })
+    fn convert_custom_tool(tool: ToolDefinition, preserve_json_schema: bool) -> Value {
+        // JSON Schema can express constraints that the protobuf Schema cannot,
+        // including non-string enums and arrays with unconstrained elements.
+        let use_json_schema = preserve_json_schema && Self::requires_json_schema(&tool.parameters);
+        let parameters = if use_json_schema {
+            tool.parameters
+        } else {
+            Self::sanitize_schema(tool.parameters)
+        };
+        let mut declaration = json!({"name": tool.name, "description": tool.description});
+        declaration[if use_json_schema {
+            "parametersJsonSchema"
+        } else {
+            "parameters"
+        }] = parameters;
+        declaration
+    }
+
+    fn requires_json_schema(schema: &Value) -> bool {
+        match schema {
+            Value::Object(map) => {
+                let schema_type = map.get("type").and_then(Value::as_str);
+                let unsupported_enum = map.get("enum").is_some_and(|value| {
+                    schema_type != Some("string")
+                        || !value.as_array().is_some_and(|values| {
+                            !values.is_empty() && values.iter().all(Value::is_string)
+                        })
+                });
+                let untyped_array = schema_type == Some("array")
+                    && !map.get("items").is_some_and(|items| {
+                        items.as_object().is_some_and(|items| {
+                            items.contains_key("type")
+                                || items.contains_key("properties")
+                                || items.contains_key("$ref")
+                                || items.contains_key("anyOf")
+                        })
+                    });
+                unsupported_enum || untyped_array || map.values().any(Self::requires_json_schema)
+            }
+            Value::Array(values) => values.iter().any(Self::requires_json_schema),
+            _ => false,
+        }
     }
 
     fn native_tool_name(tool_name: &str) -> Option<&'static str> {
@@ -850,6 +898,34 @@ mod tests {
             schema["properties"]["items"]["required"],
             json!(["name", "count"])
         );
+    }
+
+    #[test]
+    fn preserves_code_assist_schema_constraints_without_narrowing_array_elements() {
+        let schema = json!({
+            "type": "object", "additionalProperties": false,
+            "properties": {
+                "enabled": {"type": "boolean", "enum": [true]},
+                "count": {"type": "integer", "enum": [1, 2]},
+                "values": {"type": "array"},
+                "objects": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "integer"}}}},
+                "numbers": {"type": "array", "items": {"type": "number"}}
+            }
+        });
+        let tool = ToolDefinition {
+            name: "configure".into(),
+            description: "Configure".into(),
+            parameters: schema.clone(),
+        };
+        let converted =
+            GeminiMessageConverter::convert_code_assist_tools(Some(vec![tool.clone()])).unwrap();
+        let declaration = &converted[0]["functionDeclarations"][0];
+        assert_eq!(declaration["parametersJsonSchema"], schema);
+        assert!(declaration.get("parameters").is_none());
+        let ordinary = GeminiMessageConverter::convert_tools(Some(vec![tool])).unwrap();
+        assert!(ordinary[0]["functionDeclarations"][0]
+            .get("parametersJsonSchema")
+            .is_none());
     }
 
     #[test]

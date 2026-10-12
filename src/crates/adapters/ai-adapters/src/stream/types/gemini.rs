@@ -23,6 +23,8 @@ pub struct GeminiSSEData {
     pub usage_metadata: Option<GeminiUsageMetadata>,
     #[serde(default)]
     pub prompt_feedback: Option<Value>,
+    #[serde(default)]
+    pub response: Option<Box<GeminiSSEData>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -339,7 +341,18 @@ impl GeminiSSEData {
         }
     }
 
-    pub fn into_unified_responses(self) -> Vec<UnifiedResponse> {
+    pub fn into_unified_responses(mut self) -> Vec<UnifiedResponse> {
+        if let Some(response) = self.response.take() {
+            if self.candidates.is_empty() {
+                self.candidates = response.candidates;
+            }
+            if self.usage_metadata.is_none() {
+                self.usage_metadata = response.usage_metadata;
+            }
+            if self.prompt_feedback.is_none() {
+                self.prompt_feedback = response.prompt_feedback;
+            }
+        }
         let mut usage = self.usage_metadata.map(Into::into);
         let prompt_feedback = self.prompt_feedback;
         let Some(candidate) = self.candidates.into_iter().next() else {
@@ -558,34 +571,39 @@ mod tests {
             }
         });
 
-        let data: GeminiSSEData = serde_json::from_value(payload).expect("gemini payload");
-        let responses = data.into_unified_responses();
+        for event in [
+            payload.clone(),
+            serde_json::json!({"response": payload, "traceId": "test"}),
+        ] {
+            let data: GeminiSSEData = serde_json::from_value(event).expect("gemini payload");
+            let responses = data.into_unified_responses();
 
-        assert_eq!(responses.len(), 2);
-        assert_eq!(responses[0].reasoning_content.as_deref(), Some("thinking"));
-        assert_eq!(responses[0].thinking_signature.as_deref(), Some("sig_1"));
-        assert_eq!(
-            responses[0]
-                .usage
-                .as_ref()
-                .and_then(|usage| usage.reasoning_token_count),
-            Some(2)
-        );
-        assert_eq!(
-            responses[0]
-                .usage
-                .as_ref()
-                .map(|usage| usage.candidates_token_count),
-            Some(6)
-        );
-        assert_eq!(
-            responses[0]
-                .usage
-                .as_ref()
-                .map(|usage| usage.total_token_count),
-            Some(14)
-        );
-        assert_eq!(responses[1].text.as_deref(), Some("answer"));
+            assert_eq!(responses.len(), 2);
+            assert_eq!(responses[0].reasoning_content.as_deref(), Some("thinking"));
+            assert_eq!(responses[0].thinking_signature.as_deref(), Some("sig_1"));
+            assert_eq!(
+                responses[0]
+                    .usage
+                    .as_ref()
+                    .and_then(|usage| usage.reasoning_token_count),
+                Some(2)
+            );
+            assert_eq!(
+                responses[0]
+                    .usage
+                    .as_ref()
+                    .map(|usage| usage.candidates_token_count),
+                Some(6)
+            );
+            assert_eq!(
+                responses[0]
+                    .usage
+                    .as_ref()
+                    .map(|usage| usage.total_token_count),
+                Some(14)
+            );
+            assert_eq!(responses[1].text.as_deref(), Some("answer"));
+        }
     }
 
     #[test]
