@@ -337,7 +337,7 @@ where
             StreamSendOutcome::Transport(e) => {
                 let connect_time = request_start_time.elapsed().as_millis();
                 let error_msg = format_transport_error(label, &e);
-                let error = anyhow!("{}", error_msg);
+                let error = anyhow::Error::new(e).context(error_msg.clone());
                 warn!(
                     "{} request failed: {}ms, transport_attempt {}/{}, error: {}",
                     label,
