@@ -4,11 +4,11 @@ use crate::client::StreamResponse;
 use crate::stream::UnifiedResponse;
 use crate::trace::{ModelExchangeRequestAttempt, ModelExchangeTraceConfig};
 use anyhow::{anyhow, Result};
+use bitfun_agent_stream::ToolCallCompletion;
+use bitfun_core_types::errors::{AiProviderError, ErrorCategory};
 use chrono::{DateTime, Utc};
 use futures::Stream;
 use log::{debug, error, warn};
-use bitfun_agent_stream::ToolCallCompletion;
-use bitfun_core_types::errors::{AiProviderError, ErrorCategory};
 use reqwest::{
     header::{HeaderMap, RETRY_AFTER},
     StatusCode,
@@ -459,7 +459,7 @@ where
                 drop(request_permit);
                 let connect_time = request_start_time.elapsed().as_millis();
                 let error_msg = format_transport_error(label, &e);
-                let error = anyhow!("{}", error_msg);
+                let error = anyhow::Error::new(e).context(error_msg.clone());
                 warn!(
                     "{} request failed: {}ms, transport_attempt {}/{}, error: {}",
                     label,
@@ -570,8 +570,8 @@ mod tests {
     use axum::response::IntoResponse;
     use axum::routing::post;
     use axum::{Json, Router};
-    use futures::StreamExt;
     use bitfun_core_types::errors::ErrorCategory;
+    use futures::StreamExt;
     use reqwest::header::HeaderValue;
     use std::sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},

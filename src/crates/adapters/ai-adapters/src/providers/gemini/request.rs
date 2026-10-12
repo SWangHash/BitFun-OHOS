@@ -80,6 +80,7 @@ fn compile_reasoning_action(
     request_body: &mut serde_json::Value,
     configured_model: &str,
     max_tokens: Option<u32>,
+    antigravity: bool,
 ) -> Result<bool> {
     let model = preset
         .execution_model
@@ -88,6 +89,13 @@ fn compile_reasoning_action(
         .trim()
         .to_ascii_lowercase();
     let is_generic_reasoning = shared::is_generic_reasoning_preset(preset);
+    if antigravity {
+        if let Some(applied) =
+            super::antigravity::compile_reasoning_action(action, request_body, &model, max_tokens)?
+        {
+            return Ok(applied);
+        }
+    }
     match action {
         ReasoningPresetAction::Effort { value }
             if model.starts_with("gemini-3-") || is_generic_reasoning =>
@@ -302,6 +310,45 @@ fn try_build_request_body_with_context(
     extra_body: Option<serde_json::Value>,
     request_context: Option<&ModelRequestContext>,
 ) -> Result<serde_json::Value> {
+    try_build_code_assist_request_body_with_context(
+        client,
+        system_instruction,
+        contents,
+        gemini_tools,
+        extra_body,
+        request_context,
+        false,
+    )
+}
+
+pub(crate) fn try_build_code_assist_request_body(
+    client: &AIClient,
+    system_instruction: Option<serde_json::Value>,
+    contents: Vec<serde_json::Value>,
+    gemini_tools: Option<Vec<serde_json::Value>>,
+    extra_body: Option<serde_json::Value>,
+    antigravity: bool,
+) -> Result<serde_json::Value> {
+    try_build_code_assist_request_body_with_context(
+        client,
+        system_instruction,
+        contents,
+        gemini_tools,
+        extra_body,
+        None,
+        antigravity,
+    )
+}
+
+fn try_build_code_assist_request_body_with_context(
+    client: &AIClient,
+    system_instruction: Option<serde_json::Value>,
+    contents: Vec<serde_json::Value>,
+    gemini_tools: Option<Vec<serde_json::Value>>,
+    extra_body: Option<serde_json::Value>,
+    request_context: Option<&ModelRequestContext>,
+    antigravity: bool,
+) -> Result<serde_json::Value> {
     let mut request_body = serde_json::json!({
         "contents": contents,
     });
@@ -379,6 +426,7 @@ fn try_build_request_body_with_context(
                     body,
                     &client.config.model,
                     client.config.max_tokens,
+                    antigravity,
                 )
             },
         )?;
@@ -424,6 +472,7 @@ fn try_build_request_body_with_context(
                     body,
                     &client.config.model,
                     client.config.max_tokens,
+                    antigravity,
                 )
             },
         )?;

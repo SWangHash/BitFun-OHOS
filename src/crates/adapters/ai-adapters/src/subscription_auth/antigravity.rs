@@ -57,7 +57,7 @@ fn client_secret() -> String {
     format!("{prefix}{suffix}")
 }
 
-/// Returns the platform-specific User-Agent and Client-Metadata platform token.
+/// Keep compatible User-Agent fingerprints separate from the Code Assist platform enum.
 fn platform_tokens() -> (String, &'static str) {
     platform_tokens_for(std::env::consts::OS, std::env::consts::ARCH)
 }
@@ -67,9 +67,9 @@ fn platform_tokens_for(os: &str, arch: &str) -> (String, &'static str) {
     // plugin deliberately chooses from these supported fingerprints even when
     // it runs under Linux, WSL, or a container.
     match (os, arch) {
-        (_, "aarch64") => ("darwin/arm64".to_string(), "MACOS"),
-        ("macos", _) => ("darwin/amd64".to_string(), "MACOS"),
-        _ => ("windows/amd64".to_string(), "WINDOWS"),
+        (_, "aarch64") => ("darwin/arm64".to_string(), "PLATFORM_UNSPECIFIED"),
+        ("macos", _) => ("darwin/amd64".to_string(), "PLATFORM_UNSPECIFIED"),
+        _ => ("windows/amd64".to_string(), "PLATFORM_UNSPECIFIED"),
     }
 }
 
@@ -356,8 +356,7 @@ pub(crate) async fn begin_login(
         method: super::SubscriptionLoginMethod::Browser,
         authorization_url,
         user_code: None,
-        instructions: "Complete authorization in your browser, then return to BitFun."
-            .to_string(),
+        instructions: "Complete authorization in your browser, then return to BitFun.".to_string(),
         runner: Box::pin(runner),
     })
 }
@@ -500,23 +499,23 @@ mod tests {
     fn uses_only_antigravity_supported_desktop_fingerprints() {
         assert_eq!(
             platform_tokens_for("windows", "x86_64"),
-            ("windows/amd64".to_string(), "WINDOWS")
+            ("windows/amd64".to_string(), "PLATFORM_UNSPECIFIED")
         );
         assert_eq!(
             platform_tokens_for("windows", "aarch64"),
-            ("darwin/arm64".to_string(), "MACOS")
+            ("darwin/arm64".to_string(), "PLATFORM_UNSPECIFIED")
         );
         assert_eq!(
             platform_tokens_for("macos", "aarch64"),
-            ("darwin/arm64".to_string(), "MACOS")
+            ("darwin/arm64".to_string(), "PLATFORM_UNSPECIFIED")
         );
         assert_eq!(
             platform_tokens_for("linux", "x86_64"),
-            ("windows/amd64".to_string(), "WINDOWS")
+            ("windows/amd64".to_string(), "PLATFORM_UNSPECIFIED")
         );
         assert_eq!(
             platform_tokens_for("linux", "aarch64"),
-            ("darwin/arm64".to_string(), "MACOS")
+            ("darwin/arm64".to_string(), "PLATFORM_UNSPECIFIED")
         );
     }
 

@@ -3,9 +3,9 @@ use super::{next_stream_item, StreamTimeoutController, StreamTimeoutStage, Timed
 use crate::stream::types::gemini::GeminiSSEData;
 use crate::stream::types::unified::UnifiedResponse;
 use anyhow::{anyhow, Result};
+use bitfun_core_types::errors::AiProviderError;
 use eventsource_stream::Eventsource;
 use log::{error, trace};
-use bitfun_core_types::errors::AiProviderError;
 use reqwest::Response;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -67,7 +67,14 @@ impl GeminiToolCallState {
 }
 
 fn extract_api_error_message(event_json: &Value) -> Option<String> {
-    let error = event_json.get("error")?;
+    let error = event_json
+        .get("error")
+        .filter(|error| !error.is_null())
+        .or_else(|| {
+            event_json
+                .get("response")
+                .and_then(|response| response.get("error"))
+        })?;
     if let Some(message) = error.get("message").and_then(Value::as_str) {
         return Some(message.to_string());
     }
@@ -78,7 +85,14 @@ fn extract_api_error_message(event_json: &Value) -> Option<String> {
 }
 
 fn extract_api_error(event_json: &Value) -> Option<AiProviderError> {
-    let error = event_json.get("error")?;
+    let error = event_json
+        .get("error")
+        .filter(|error| !error.is_null())
+        .or_else(|| {
+            event_json
+                .get("response")
+                .and_then(|response| response.get("error"))
+        })?;
     let code = error
         .get("status")
         .or_else(|| error.get("code"))
@@ -101,6 +115,25 @@ pub async fn handle_gemini_stream(
     tx_raw_sse: Option<mpsc::UnboundedSender<String>>,
     ttft_timeout: Option<Duration>,
     idle_timeout: Option<Duration>,
+) {
+    handle_gemini_stream_with_empty_tools(
+        response,
+        tx_event,
+        tx_raw_sse,
+        ttft_timeout,
+        idle_timeout,
+        Vec::new(),
+    )
+    .await;
+}
+
+pub(crate) async fn handle_gemini_stream_with_empty_tools(
+    response: Response,
+    tx_event: mpsc::UnboundedSender<Result<UnifiedResponse>>,
+    tx_raw_sse: Option<mpsc::UnboundedSender<String>>,
+    ttft_timeout: Option<Duration>,
+    idle_timeout: Option<Duration>,
+    empty_tools: Vec<String>,
 ) {
     let mut stream = response.bytes_stream().eventsource();
     let mut received_finish_reason = false;
@@ -210,6 +243,22 @@ pub async fn handle_gemini_stream(
         }
         for unified_response in &mut unified_responses {
             if let Some(tool_call) = unified_response.tool_call.as_mut() {
+                if tool_call
+                    .name
+                    .as_ref()
+                    .is_some_and(|name| empty_tools.contains(name))
+                {
+                    if let Some(arguments) = tool_call.arguments.as_deref() {
+                        if let Ok(Value::Object(mut arguments)) =
+                            serde_json::from_str::<Value>(arguments)
+                        {
+                            arguments.remove(
+                                crate::providers::gemini::antigravity::EMPTY_PARAMETER_NAME,
+                            );
+                            tool_call.arguments = serde_json::to_string(&arguments).ok();
+                        }
+                    }
+                }
                 tool_call_state.assign_id(tool_call);
             } else {
                 tool_call_state.on_non_tool_response();
@@ -384,8 +433,10 @@ mod tests {
             }
         });
 
-        let error = extract_api_error(&event).expect("provider error");
-        assert_eq!(error.category, ErrorCategory::ContextOverflow);
-        assert_eq!(error.provider_code.as_deref(), Some("INVALID_ARGUMENT"));
+        for event in [event.clone(), serde_json::json!({"response": event})] {
+            let error = extract_api_error(&event).expect("provider error");
+            assert_eq!(error.category, ErrorCategory::ContextOverflow);
+            assert_eq!(error.provider_code.as_deref(), Some("INVALID_ARGUMENT"));
+        }
     }
 }

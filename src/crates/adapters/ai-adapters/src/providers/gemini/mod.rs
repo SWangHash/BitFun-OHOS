@@ -1,5 +1,6 @@
 //! Gemini provider module
 
+pub(crate) mod antigravity;
 pub mod code_assist;
 pub mod discovery;
 pub mod message_converter;
