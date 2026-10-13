@@ -16,7 +16,11 @@ const mocks = vi.hoisted(() => ({
   setOwnerSurface: vi.fn(),
   workspaceId: 'workspace-a' as string | null,
   workspacePath: '/workspace',
+  remoteConnectionId: '',
   peerDeviceId: '',
+  isOhos: false,
+  getSystemInfo: vi.fn(),
+  getServerInfo: vi.fn(),
   skills: [] as Array<Record<string, unknown>>,
   t: (key: string, values?: Record<string, unknown>) => key === 'productSummary.assets' ? `assets:${values?.count}` : key,
 }));
@@ -24,7 +28,7 @@ vi.mock('@/infrastructure/api/service-api/ExternalSourcesAPI', () => ({ external
 vi.mock('@/infrastructure/api/service-api/ACPClientAPI', () => ({ ACPClientAPI: { getClients: async () => [] } }));
 // The workspace is identified by its ID; the path is only the IO projection.
 vi.mock('@/infrastructure/contexts/WorkspaceContext', () => ({ useCurrentWorkspace: () => (mocks.workspaceId
-  ? { workspacePath: mocks.workspacePath, workspace: { id: mocks.workspaceId, name: 'Workspace', rootPath: mocks.workspacePath, workspaceKind: 'normal' } }
+  ? { workspacePath: mocks.workspacePath, workspace: { id: mocks.workspaceId, name: 'Workspace', rootPath: mocks.workspacePath, workspaceKind: mocks.remoteConnectionId ? 'remote' : 'normal', connectionId: mocks.remoteConnectionId || undefined } }
   : { workspacePath: '', workspace: null }) }));
 vi.mock('@/infrastructure/i18n', () => ({ useI18n: () => ({ t: mocks.t, formatNumber: String }) }));
 vi.mock('@/infrastructure/peer-device/peerDeviceContextState', () => ({ usePeerDeviceModeOptional: () => mocks.peerDeviceId ? ({ peerMode: { active: true, deviceId: mocks.peerDeviceId } }) : null }));
@@ -62,7 +66,9 @@ vi.mock('@/infrastructure/config/services/AgentCompanionPetService', () => ({
 vi.mock('@/infrastructure/config/services/AIExperienceConfigService', () => ({ aiExperienceConfigService: {
   addChangeListener: () => () => {},
 } }));
-vi.mock('@/infrastructure/runtime', () => ({ isTauriRuntime: () => true }));
+vi.mock('@/infrastructure/runtime', () => ({ isTauriRuntime: () => true, isOpenHarmonyRuntime: () => mocks.isOhos }));
+vi.mock('@/infrastructure/api/service-api/SystemAPI', () => ({ systemAPI: { getSystemInfo: mocks.getSystemInfo } }));
+vi.mock('@/features/ssh-remote/sshApi', () => ({ sshApi: { getServerInfo: mocks.getServerInfo } }));
 vi.mock('@/infrastructure/api/service-api/ConfigAPI', () => ({ configAPI: { getGlobalSkillSettings: async () => ({ directSkillManagementVersion: 1, globallyDisabledUserSkillKeys: [], globallyDisabledProjectSkillKeys: [] }), getConfig: async () => ({ enable_agent_companion: false }), getSkillScanReport: async () => ({ skills: mocks.skills, diagnostics: [] }) } }));
 vi.mock('@/infrastructure/api/service-api/ExternalHooksAPI', () => ({ externalHooksAPI: {
   getCatalog: async () => ({ sources: [], entries: [], providers: [], failedProviderIds: [], discoveryPending: false }),
@@ -108,6 +114,10 @@ describe('compatibility discovery lifecycle', () => {
     mocks.workspaceId = 'workspace-a';
     mocks.workspacePath = '/workspace';
     mocks.peerDeviceId = '';
+    mocks.remoteConnectionId = '';
+    mocks.isOhos = false;
+    mocks.getSystemInfo.mockReset().mockResolvedValue({ platform: 'linux' });
+    mocks.getServerInfo.mockReset().mockResolvedValue({ osType: 'Linux' });
     mocks.skills = [];
     container = document.createElement('div');
     document.body.append(container);
@@ -134,6 +144,53 @@ describe('compatibility discovery lifecycle', () => {
     expect(container.querySelector<HTMLElement>('[data-product-logo="cursor"]')?.style.maskImage).toContain('/assets/ecosystem-compatibility/cursor.svg');
     expect(container.querySelector('[data-product-id="agent-skills"]')).toBeNull();
     expect(container.textContent).not.toContain('Agent Skills');
+  });
+
+  it.each([
+    { isOhos: true, target: 'local', platform: 'openharmony', hidden: true },
+    { isOhos: false, target: 'local', platform: 'windows', hidden: false },
+    { isOhos: false, target: 'ssh', platform: 'OpenHarmony', hidden: true },
+    { isOhos: true, target: 'ssh', platform: 'Linux', hidden: false },
+    { isOhos: false, target: 'peer', platform: 'harmonyos', hidden: true },
+    { isOhos: true, target: 'peer', platform: 'darwin', hidden: false },
+  ])('uses $target target $platform for product visibility (local HarmonyOS: $isOhos)', async ({ isOhos, target, platform, hidden }) => {
+    mocks.isOhos = isOhos;
+    mocks.remoteConnectionId = target === 'ssh' ? 'ssh-target' : '';
+    mocks.peerDeviceId = target === 'peer' ? 'peer-target' : '';
+    mocks.getSystemInfo.mockResolvedValue({ platform });
+    mocks.getServerInfo.mockResolvedValue({ osType: platform });
+    mocks.selectedProductId = 'cursor';
+    mocks.getDiscoverySnapshot.mockResolvedValue(snapshot(true));
+    await act(async () => root.render(<EcosystemCompatibilityScene />));
+    const products = Array.from(container.querySelectorAll('[data-product-id]'))
+      .map((element) => element.getAttribute('data-product-id'));
+    expect(products.includes('cursor')).toBe(!hidden);
+    expect(products.includes('pi')).toBe(!hidden);
+    expect(products).toEqual(expect.arrayContaining(['claude-code', 'codex', 'dsh', 'opencode']));
+    expect(container.querySelector('.ecosystem-compatibility__product-header')?.textContent)
+      .toContain(hidden ? 'Claude Code' : 'Cursor');
+    if (target === 'ssh') {
+      expect(mocks.getServerInfo).toHaveBeenCalledWith('ssh-target');
+      expect(mocks.getSystemInfo).not.toHaveBeenCalled();
+    } else {
+      expect(mocks.getSystemInfo).toHaveBeenCalled();
+      expect(mocks.getServerInfo).not.toHaveBeenCalled();
+    }
+  });
+
+  it('ignores a previous target platform result after switching workspaces', async () => {
+    let resolvePrevious!: (value: { osType: string }) => void;
+    mocks.remoteConnectionId = 'ssh-old';
+    mocks.getServerInfo.mockReturnValueOnce(new Promise((resolve) => { resolvePrevious = resolve; }));
+    mocks.getDiscoverySnapshot.mockResolvedValue(snapshot(true));
+    await act(async () => root.render(<EcosystemCompatibilityScene />));
+    mocks.workspaceId = 'workspace-b';
+    mocks.remoteConnectionId = 'ssh-current';
+    mocks.getServerInfo.mockResolvedValue({ osType: 'Linux' });
+    await act(async () => root.render(<EcosystemCompatibilityScene />));
+    await act(async () => resolvePrevious({ osType: 'OpenHarmony' }));
+    expect(container.querySelector('[data-product-id="cursor"]')).not.toBeNull();
+    expect(container.querySelector('[data-product-id="pi"]')).not.toBeNull();
   });
 
   function discoverySwitch(): HTMLInputElement {

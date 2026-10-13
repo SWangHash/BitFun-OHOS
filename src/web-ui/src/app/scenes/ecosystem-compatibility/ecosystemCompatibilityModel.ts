@@ -307,8 +307,12 @@ function knownCapabilityId(value: string): value is Exclude<CompatibilityCapabil
 export function buildEcosystemProductRuntimes(
   snapshot: ExternalSourceCatalogSnapshot | null,
   clients: readonly AcpClientInfo[],
+  targetPlatform?: string,
 ): EcosystemProductRuntime[] {
-  return ECOSYSTEM_PRODUCT_SPECS.map((spec) => {
+  const isOhos = /(?:openharmony|harmonyos|ohos)/i.test(targetPlatform ?? '');
+  return ECOSYSTEM_PRODUCT_SPECS.filter((spec) => (
+    !isOhos || (spec.id !== 'cursor' && spec.id !== 'pi')
+  )).map((spec) => {
     const sources = productSources(snapshot, spec.ecosystemId);
     const descriptor = spec.ecosystemId
       ? snapshot?.integrationPolicy?.registeredEcosystems?.find(

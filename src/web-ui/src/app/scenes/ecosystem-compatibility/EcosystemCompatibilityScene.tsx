@@ -38,7 +38,10 @@ import {
 } from '@/infrastructure/api/service-api/ACPClientAPI';
 import { useNotification } from '@/shared/notification-system';
 import { usePeerDeviceModeOptional } from '@/infrastructure/peer-device/peerDeviceContextState';
-import { isTauriRuntime } from '@/infrastructure/runtime';
+import { isOpenHarmonyRuntime, isTauriRuntime } from '@/infrastructure/runtime';
+import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
+import { sshApi } from '@/features/ssh-remote/sshApi';
+import { createLogger } from '@/shared/utils/logger';
 import { WorkspaceKind } from '@/shared/types';
 import {
   buildEcosystemProductRuntimes,
@@ -91,6 +94,7 @@ function EcosystemProductIcon({ productId, size }: {
 }
 
 const GROUP_ORDER = ['identified', 'more', 'other'] as const;
+const log = createLogger('EcosystemCompatibilityScene');
 
 type LoadIssue = 'externalSources' | 'acpClients';
 interface AcpSubagentDraft {
@@ -122,6 +126,14 @@ const EcosystemCompatibilityScene: React.FC = () => {
   // Discovery results are owned by the (peer, workspace ID) pair; the path is
   // an IO projection and must not fork the cache when a checkout moves.
   const requestScope = JSON.stringify([peerDeviceId, workspace?.id]);
+  const isRemoteWorkspace = workspace?.workspaceKind === WorkspaceKind.Remote;
+  const remoteConnectionId = isRemoteWorkspace ? workspace.connectionId : undefined;
+  const platformScope = JSON.stringify([requestScope, isRemoteWorkspace, remoteConnectionId]);
+  const [platformState, setPlatformState] = useState<{ scope: string; value?: string }>();
+  const targetPlatform = platformState?.scope === platformScope
+    ? platformState.value
+    : !isRemoteWorkspace && !peerDeviceId && isTauriRuntime() && isOpenHarmonyRuntime()
+      ? 'openharmony' : undefined;
   const requestSequence = useRef(0);
   const contentRef = useRef<HTMLDivElement>(null);
   const acpManagerRef = useRef<React.ComponentRef<typeof AcpAgentsConfig>>(null);
@@ -174,9 +186,14 @@ const EcosystemCompatibilityScene: React.FC = () => {
     const sequence = ++requestSequence.current;
     if (!forceRefresh && !backgroundRequest) setLoading(true);
 
-    const [sourceResult, clientsResult] = await Promise.allSettled([
+    const [sourceResult, clientsResult, platformResult] = await Promise.allSettled([
       externalSourcesAPI.getDiscoverySnapshot(workspace?.id, forceRefresh),
       ACPClientAPI.getClients(),
+      isRemoteWorkspace
+        ? remoteConnectionId
+          ? sshApi.getServerInfo(remoteConnectionId).then((info) => info?.osType)
+          : Promise.resolve(undefined)
+        : systemAPI.getSystemInfo().then((info) => info.platform),
     ]);
     if (sequence !== requestSequence.current || backgroundRequest?.isCurrent() === false) return undefined;
 
@@ -191,10 +208,15 @@ const EcosystemCompatibilityScene: React.FC = () => {
     } else {
       nextIssues.push('acpClients');
     }
+    if (platformResult.status === 'fulfilled') {
+      setPlatformState({ scope: platformScope, value: platformResult.value });
+    } else {
+      log.warn('Failed to detect ecosystem target platform', { error: platformResult.reason });
+    }
     setLoadIssues(nextIssues);
     setLoading(false);
     return sourceResult.status === 'fulfilled' ? sourceResult.value : undefined;
-  }, [setAcpClients, setSnapshot, workspace?.id]);
+  }, [setAcpClients, setSnapshot, workspace?.id, isRemoteWorkspace, remoteConnectionId, platformScope]);
 
   useEffect(() => {
     setSnapshot(null);
@@ -240,12 +262,12 @@ const EcosystemCompatibilityScene: React.FC = () => {
   }, [loadCompatibility]);
 
   const productRuntimes = useMemo(
-    () => buildEcosystemProductRuntimes(snapshot, acpClients).map((runtime): EcosystemProductRuntime => (
+    () => buildEcosystemProductRuntimes(snapshot, acpClients, targetPlatform).map((runtime): EcosystemProductRuntime => (
       runtime.group === 'more' && ((supplementalCounts?.[runtime.spec.ecosystemId] ?? 0) > 0
         || ecosystemDiscoveryCache(requestScope).identified.has(runtime.spec.ecosystemId))
         ? { ...runtime, group: 'identified' } : runtime
     )),
-    [acpClients, snapshot, supplementalCounts, requestScope],
+    [acpClients, snapshot, supplementalCounts, requestScope, targetPlatform],
   );
   const selectedRuntime = productRuntimes.find(
     (runtime) => runtime.spec.id === selectedProductId,
