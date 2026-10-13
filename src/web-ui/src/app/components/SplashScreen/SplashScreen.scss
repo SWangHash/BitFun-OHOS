@@ -21,10 +21,6 @@
 
   &--exiting {
     animation: splash-bg-exit 0.5s ease-in-out both;
-
-    .splash-screen__logo-wrap {
-      animation: none; // Stop idle pulse; let container opacity drive the fade
-    }
   }
 }
 
@@ -44,10 +40,6 @@
   position: relative;
   width: 120px;
   height: 120px;
-  animation: splash-logo-idle 3.2s ease-in-out infinite;
-  // WebKit prefix for Linux WebKitGTK compatibility
-  -webkit-animation: splash-logo-idle 3.2s ease-in-out infinite;
-  will-change: transform;
 }
 
 .splash-screen__logo {
@@ -98,34 +90,9 @@
 .splash-screen__message--visible {
   opacity: 1;
   transform: translate(-50%, 0);
-  animation: splash-message-breathe 3.6s ease-in-out var(--bitfun-motion-duration-base) infinite;
 }
 
 // ── Keyframes ─────────────────────────────────────────────────────────────────
-
-// Breathe as one line after its entrance transition has finished.
-@keyframes splash-message-breathe {
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.68;
-  }
-}
-
-// Idle logo: keep the requested tone stable and use only a slight breathing scale
-@keyframes splash-logo-idle {
-  0%,
-  100% {
-    transform: scale(0.99);
-  }
-
-  50% {
-    transform: scale(1);
-  }
-}
 
 // Exit: whole container fades to transparent
 @keyframes splash-bg-exit {
@@ -136,12 +103,7 @@
 // ── Reduced motion ────────────────────────────────────────────────────────────
 
 @media (prefers-reduced-motion: reduce) {
-  .splash-screen__logo-wrap {
-    animation: none;
-  }
-
   .splash-screen__message {
-    animation: none;
     transition: none;
   }
 

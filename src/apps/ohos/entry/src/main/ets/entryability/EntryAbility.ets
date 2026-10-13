@@ -797,6 +797,15 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
         data.setWindowDecorHeight(OHOS_DECOR_HEIGHT);
         data.setWindowTitleMoveEnabled(false);
         data.setWindowDecorVisible(false);
+        // Keep the system caption buttons (minimize/maximize/close) hidden while
+        // the startup splash is on screen; `set_decorations_ohos` restores them
+        // once the web-ui reports that the React shell has handed off.
+        try {
+          data.setWindowTitleButtonVisible(false, false, false);
+        } catch (e) {
+          const be = e as BusinessError;
+          hilog.warn(DOMAIN, TAG, `setWindowTitleButtonVisible(false) failed: ${be.message}`);
+        }
         try {
           const density = display.getDefaultDisplaySync().densityPixels;
           const scale = density > 0 ? density : 1;

@@ -317,6 +317,10 @@ impl AppearanceConfig {
         let startup_locale_json =
             serde_json::to_string(&startup_locale).unwrap_or_else(|_| "\"zh-CN\"".to_string());
         let show_startup_window_controls = !cfg!(target_os = "macos");
+        // HarmonyOS renders the pre-React splash on a black surface so it
+        // matches the native start window (`start_window_background`) and keeps
+        // the startup image theme-independent. Desktop keeps its themed splash.
+        let startup_force_black = cfg!(target_env = "ohos");
         let native_sidebar_material = cfg!(any(target_os = "windows", target_os = "macos"));
         let startup_trace_id_json = serde_json::to_string(startup_trace_id)
             .unwrap_or_else(|_| "\"desktop-unknown\"".to_string());
@@ -353,6 +357,7 @@ impl AppearanceConfig {
                 window.__BITFUN_BOOTSTRAP_LOG_LEVEL__ = {bootstrap_log_level_json};
                 window.__BITFUN_BOOTSTRAP_LOCALE__ = {startup_locale_json};
                 window.__BITFUN_SHOW_STARTUP_WINDOW_CONTROLS__ = {show_startup_window_controls};
+                window.__BITFUN_STARTUP_FORCE_BLACK__ = {startup_force_black};
                 window.__BITFUN_BOOTSTRAP_APPEARANCE_ID__ = {bootstrap_appearance_id_json};
                 window.__BITFUN_BOOTSTRAP_APPEARANCE_SELECTION__ = {bootstrap_appearance_selection_json};
                 {bootstrap_keybindings_assignment}
@@ -415,6 +420,7 @@ impl AppearanceConfig {
             bootstrap_log_level_json = bootstrap_log_level_json,
             startup_locale_json = startup_locale_json,
             show_startup_window_controls = show_startup_window_controls,
+            startup_force_black = startup_force_black,
             bootstrap_keybindings_assignment = bootstrap_keybindings_assignment,
             bootstrap_workspace_startup_state_assignment =
                 bootstrap_workspace_startup_state_assignment,

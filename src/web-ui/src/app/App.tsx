@@ -420,6 +420,18 @@ function App() {
     return () => window.clearTimeout(timer);
   }, [startupOverlayVisible, verifyMainWindowVisible]);
 
+  // HarmonyOS keeps the native caption buttons (minimize/maximize/close) hidden
+  // while the startup splash is up (see EntryAbility). Restore them once the
+  // React shell has handed off so the window chrome returns; the pet-only morph
+  // re-applies its own decoration state when it activates later.
+  useEffect(() => {
+    if (startupOverlayVisible || !isOpenHarmonyRuntime()) {
+      return;
+    }
+    void api.invoke('set_decorations_ohos', { arg: JSON.stringify({ visible: true }) })
+      .catch(error => log.warn('Failed to restore HarmonyOS window decorations after startup', error));
+  }, [startupOverlayVisible]);
+
   // Safety net: if startup gets stuck, reveal the window so the user can see errors.
   useEffect(() => {
     const timer = window.setTimeout(() => {

@@ -17,7 +17,7 @@
         "srcEntry": "./ets/entryability/EntryAbility.ets",
         "description": "$string:EntryAbility_desc",
         "label": "$string:EntryAbility_label",
-        "startWindowIcon": "$media:bitfun_icon_light",
+        "startWindowIcon": "$media:bitfun_start_window",
         "startWindowBackground": "$color:start_window_background",
         "exported": true,
         "skills": [

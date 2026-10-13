@@ -99,7 +99,14 @@
         }
         root.setAttribute('data-contrast', 'standard');
         root.setAttribute('data-density', 'compact');
-        var bg = root.style.backgroundColor || 'var(--bitfun-color-surface-chrome)';
+        // HarmonyOS start-window parity: paint the pre-React splash black
+        // regardless of the resolved theme so it matches the native start
+        // window and the startup image stays theme-independent.
+        var forceBlack = window.__BITFUN_STARTUP_FORCE_BLACK__ === true;
+        if (forceBlack) {
+          root.setAttribute('data-bitfun-startup-black', '');
+        }
+        var bg = forceBlack ? '#000000' : (root.style.backgroundColor || 'var(--bitfun-color-surface-chrome)');
         root.style.backgroundColor = bg;
         function paintBody() {
           if (document.body) document.body.style.backgroundColor = bg;
@@ -209,9 +216,6 @@
         position: relative;
         width: 120px;
         height: 120px;
-        animation: splash-logo-idle 3.2s ease-in-out infinite;
-        -webkit-animation: splash-logo-idle 3.2s ease-in-out infinite;
-        will-change: transform;
       }
 
       .splash-screen__logo,
@@ -233,6 +237,21 @@
       [data-color-scheme="dark"] .splash-screen__logo,
       [data-color-scheme="dark"] .bitfun-preload__logo {
         background-color: var(--bitfun-color-content-on-dark);
+      }
+
+      /* Black startup surface (HarmonyOS): keep the light mark so the splash
+         image does not depend on the resolved theme. */
+      [data-bitfun-startup-black] #bitfun-startup-overlay,
+      [data-bitfun-startup-black] .splash-screen {
+        background: #000000;
+      }
+
+      [data-bitfun-startup-black] .splash-screen__logo,
+      [data-bitfun-startup-black] .bitfun-preload__logo {
+        background-color: var(--bitfun-color-content-on-dark);
+        /* HarmonyOS startup image: the app-icon mark, theme-independent. */
+        -webkit-mask: url('/brand/bitfun-startup-mark.png') center / contain no-repeat;
+        mask: url('/brand/bitfun-startup-mark.png') center / contain no-repeat;
       }
 
       .splash-screen__message {
@@ -263,25 +282,6 @@
       .splash-screen__message--visible {
         opacity: 1;
         transform: translate(-50%, 0);
-        animation: splash-message-breathe 3.6s ease-in-out var(--bitfun-motion-duration-base) infinite;
-      }
-
-      @keyframes splash-message-breathe {
-        0%, 100% {
-          opacity: 1;
-        }
-        50% {
-          opacity: 0.68;
-        }
-      }
-
-      @keyframes splash-logo-idle {
-        0%, 100% {
-          transform: scale(0.99);
-        }
-        50% {
-          transform: scale(1);
-        }
       }
 
       @keyframes bitfun-startup-overlay-exit {
@@ -294,12 +294,7 @@
       }
 
       @media (prefers-reduced-motion: reduce) {
-        .splash-screen__logo-wrap {
-          animation: none;
-        }
-
         .splash-screen__message {
-          animation: none;
           transition: none;
         }
       }
