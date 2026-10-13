@@ -19,7 +19,7 @@ import { OverflowText,
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import { isOpenHarmonyRuntime } from '@/infrastructure/runtime/environment';
-import { CircleAlert, ExternalLink, EyeOff, FileJson, Save, Server, X } from 'lucide-react';
+import { CircleAlert, EyeOff, FileJson, Save, Server, X } from 'lucide-react';
 import {
   ConfigPageContent,
   ConfigPageHeader,
@@ -52,7 +52,6 @@ import {
   SELF_MANAGED_INSTALL_PRESET_IDS,
   availableRemotePresetIds,
   canInstallPresetCli,
-  getManualInstallGuide,
   isOhosOnlyAcpPreset,
   presetsForRuntime,
   type AcpClientPreset,
@@ -1383,15 +1382,6 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
     });
   }, [notifyError, t]);
 
-  const openManualInstallGuide = useCallback((repositoryUrl: string) => {
-    void systemAPI.openExternal(repositoryUrl).catch((error) => {
-      log.error('Failed to open ACP agent installation guide', error);
-      notifyError(error instanceof Error ? error.message : String(error), {
-        title: t('notifications.openLinkFailed'),
-      });
-    });
-  }, [notifyError, t]);
-
   const ohosPresetCopy: Record<string, { name: string; description: string }> = IS_OHOS
     ? {
         opencode: {
@@ -1793,11 +1783,6 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                   issueKind,
                   hasConfigEntry,
                 });
-                const manualInstallGuide = getManualInstallGuide({
-                  isOhos: IS_OHOS,
-                  presetId: preset.id,
-                  status,
-                });
                 const presetCopy = ohosPresetCopy[preset.id];
                 const canConfigureAcp = !requiresAdapter
                   ? false
@@ -1879,16 +1864,6 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                           loading={installing}
                         >
                           {IS_OHOS ? t('actions.add') : t('actions.installCli')}
-                        </Button>
-                      ) : manualInstallGuide ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          leadingIcon={<ExternalLink size={14} />}
-                          data-testid={`acp-preset-get-btn-${preset.id}`}
-                          onClick={() => openManualInstallGuide(manualInstallGuide.repositoryUrl)}
-                        >
-                          {t('actions.get')}
                         </Button>
                       ) : canConfigureAcp ? (
                         <Button

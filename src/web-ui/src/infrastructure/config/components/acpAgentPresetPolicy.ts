@@ -43,6 +43,7 @@ export const NATIVE_ACP_PRESET_IDS = new Set([
 export const SELF_MANAGED_INSTALL_PRESET_IDS = new Set(['omp']);
 
 const OHOS_MANAGED_INSTALL_PRESET_IDS = new Set([
+  'opencode',
   'kimi-code',
   'qwen-code',
   'codebuddy-code',
@@ -57,7 +58,6 @@ const OHOS_MANAGED_ADAPTER_PRESET_IDS = new Set([
 ]);
 
 const OHOS_SUPPORTED_PRESET_IDS = new Set([
-  'opencode',
   ...OHOS_MANAGED_INSTALL_PRESET_IDS,
 ]);
 
@@ -71,16 +71,6 @@ const OHOS_ONLY_PRESET_IDS = new Set([
 export function isOhosOnlyAcpPreset(presetId: string): boolean {
   return OHOS_ONLY_PRESET_IDS.has(presetId);
 }
-
-export interface AcpManualInstallGuide {
-  repositoryUrl: string;
-}
-
-const OHOS_MANUAL_INSTALL_GUIDES = new Map<string, AcpManualInstallGuide>([
-  ['opencode', {
-    repositoryUrl: 'https://atomgit.com/social4hyq/homebrew-core',
-  }],
-]);
 
 export const ALL_ACP_CLIENT_PRESETS: AcpClientPreset[] = [
   {
@@ -160,24 +150,6 @@ export function availableRemotePresetIds(): string[] {
   return ALL_ACP_CLIENT_PRESETS
     .filter(preset => !OHOS_ONLY_PRESET_IDS.has(preset.id))
     .map(preset => preset.id);
-}
-
-export function getManualInstallGuide({
-  isOhos,
-  presetId,
-  status,
-}: {
-  isOhos: boolean;
-  presetId: string;
-  status: AgentRowStatus;
-}): AcpManualInstallGuide | undefined {
-  if (
-    !isOhos
-    || status !== 'not_installed'
-  ) {
-    return undefined;
-  }
-  return OHOS_MANUAL_INSTALL_GUIDES.get(presetId);
 }
 
 export function canInstallPresetCli({

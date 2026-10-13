@@ -15,7 +15,6 @@ import {
 import {
   availableRemotePresetIds,
   canInstallPresetCli,
-  getManualInstallGuide,
   visiblePresetIdsForRuntime,
 } from './acpAgentPresetPolicy';
 
@@ -399,7 +398,7 @@ describe('AcpAgentsConfig', () => {
       status: 'not_installed',
       issueKind: 'cli_missing',
       hasConfigEntry: false,
-    })).toBe(false);
+    })).toBe(true);
     expect(canInstallPresetCli({
       isOhos: true,
       presetId: 'opencode',
@@ -441,24 +440,26 @@ describe('AcpAgentsConfig', () => {
     ]);
   });
 
-  it('offers the OpenCode installation guide only when its HarmonyOS CLI is missing', () => {
-    expect(getManualInstallGuide({
-      isOhos: true,
-      presetId: 'opencode',
-      status: 'not_installed',
-    })).toEqual({
-      repositoryUrl: 'https://atomgit.com/social4hyq/homebrew-core',
-    });
-    expect(getManualInstallGuide({
-      isOhos: true,
-      presetId: 'opencode',
-      status: 'ready',
-    })).toBeUndefined();
-    expect(getManualInstallGuide({
-      isOhos: false,
-      presetId: 'opencode',
-      status: 'not_installed',
-    })).toBeUndefined();
+  it('adds a missing OpenCode CLI through managed HarmonyBrew setup', async () => {
+    vi.resetModules();
+    isOpenHarmonyRuntimeMock.mockReturnValue(true);
+    const Page = (await import('./AcpAgentsConfig')).default;
+    loadJsonConfigMock.mockResolvedValue(JSON.stringify({ acpClients: {} }));
+    getClientsMock.mockResolvedValue([]);
+    probeClientRequirementsMock.mockResolvedValue([{
+      id: 'opencode', tool: { name: 'opencode', installed: false }, runnable: false, notes: [],
+    }]);
+    await act(async () => root.render(<Page clientIds={['opencode']} />));
+    const row = container.querySelector('[data-bitfun-part="registryRow"]');
+    expect(row?.textContent).not.toContain('actions.get');
+    const add = Array.from(row?.querySelectorAll('button') ?? [])
+      .find((button) => button.textContent === 'actions.add');
+    expect(add).toBeTruthy();
+    await act(async () => add!.click());
+    expect(container.querySelector('[role="dialog"]')?.textContent).toContain('HarmonyBrew');
+    expect(installClientCliMock).not.toHaveBeenCalled();
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="confirm-install"]')!.click());
+    expect(installClientCliMock).toHaveBeenCalledWith({ clientId: 'opencode', remoteConnectionId: undefined });
   });
 
   it('keeps empty commands and local overrides when saving JSON', async () => {
