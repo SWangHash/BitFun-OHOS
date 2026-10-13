@@ -115,12 +115,10 @@ const BUILTIN_ACP_CLIENT_PRESETS: &[BuiltinAcpClientPreset] = &[
         args: &["acp"],
         tool_command: "opencode",
         install_package: Some("opencode-ai"),
-        // OpenCode's verified HarmonyOS formula lives in a third-party tap.
-        // HiShell owns that tap's private trust state, which BitFun cannot
-        // observe or reuse. Detect existing installations, but never install.
+        // HarmonyBrew provides OpenCode through its core formula catalog.
         ohos: OhosAcpSupport::HarmonyBrewFormula(OhosHarmonyBrewFormulaPreset {
             formula: "opencode",
-            auto_install: false,
+            auto_install: true,
             entry_relative_path: "bin/opencode",
         }),
         ohos_adapter: None,

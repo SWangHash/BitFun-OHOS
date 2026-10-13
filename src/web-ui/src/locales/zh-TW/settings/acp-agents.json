@@ -25,7 +25,7 @@
   "presets": {
     "openCode": {
       "name": "OpenCode",
-      "description": "可透過已信任的第三方 HarmonyBrew 倉庫安裝的原生 ACP 編碼 Agent。"
+      "description": "透過 HarmonyBrew 核心配方安裝的原生 ACP 編碼 Agent。"
     },
     "kimiCode": {
       "name": "Kimi Code",
