@@ -1063,17 +1063,29 @@ mod tests {
     }
 
     #[test]
-    fn opencode_formula_is_detect_only() {
+    fn opencode_plan_installs_the_core_formula_when_missing() {
         let preset = managed_ohos_preset("opencode").expect("managed OpenCode preset");
+        assert!(preset.ohos.allows_managed_install());
+        let plan = build_formula_plan_from_environment(
+            "opencode",
+            &probe("brew", true, Some(HARMONYBREW_EXECUTABLE)),
+            &probe("opencode", false, None),
+        )
+        .expect("missing OpenCode can be installed");
         assert_eq!(
-            preset.ohos.formula().map(|formula| formula.formula),
-            Some("opencode")
+            plan.recipe,
+            ManagedProvisioningRecipe::HarmonyBrewFormula(OhosHarmonyBrewFormulaPreset {
+                formula: "opencode",
+                auto_install: true,
+                entry_relative_path: "bin/opencode",
+            })
         );
-        assert!(!preset.ohos.allows_managed_install());
-        assert!(managed_ohos_preset("kimi-code")
-            .expect("managed Kimi preset")
-            .ohos
-            .allows_managed_install());
+        assert_eq!(plan.brew_path, PathBuf::from(HARMONYBREW_EXECUTABLE));
+        assert_eq!(
+            plan.tool_path,
+            PathBuf::from("/storage/Users/currentUser/.harmonybrew/bin/opencode")
+        );
+        assert!(!plan.tool_was_runnable);
     }
 
     #[test]

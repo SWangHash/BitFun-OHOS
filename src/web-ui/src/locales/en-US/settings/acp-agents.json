@@ -25,7 +25,7 @@
   "presets": {
     "openCode": {
       "name": "OpenCode",
-      "description": "Native ACP coding agent available through a trusted third-party HarmonyBrew tap."
+      "description": "Native ACP coding agent installed from the HarmonyBrew core formula."
     },
     "kimiCode": {
       "name": "Kimi Code",

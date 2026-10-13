@@ -9,7 +9,6 @@ import AcpAgentsConfig from './AcpAgentsConfig';
 import {
   availableRemotePresetIds,
   canInstallPresetCli,
-  getManualInstallGuide,
   visiblePresetIdsForRuntime,
 } from './acpAgentPresetPolicy';
 
@@ -25,6 +24,7 @@ const listSavedConnectionsMock = vi.hoisted(() => vi.fn());
 const notifyErrorMock = vi.hoisted(() => vi.fn());
 const notifyInfoMock = vi.hoisted(() => vi.fn());
 const notifySuccessMock = vi.hoisted(() => vi.fn());
+const isOpenHarmonyRuntimeMock = vi.hoisted(() => vi.fn());
 const translate = (_key: string, options?: Record<string, unknown> & { defaultValue?: string }) => (
   options?.defaultValue ?? _key
 );
@@ -32,6 +32,10 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: translate,
   }),
+}));
+
+vi.mock('@/infrastructure/runtime/environment', () => ({
+  isOpenHarmonyRuntime: isOpenHarmonyRuntimeMock,
 }));
 
 vi.mock('@/component-library', () => ({
@@ -183,6 +187,7 @@ describe('AcpAgentsConfig', () => {
 
   beforeEach(() => {
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    isOpenHarmonyRuntimeMock.mockReturnValue(false);
     emitManagedProvisioningProgress = undefined;
     localStorage.clear();
     loadJsonConfigMock.mockResolvedValue(JSON.stringify({
@@ -296,7 +301,7 @@ describe('AcpAgentsConfig', () => {
       status: 'not_installed',
       issueKind: 'cli_missing',
       hasConfigEntry: false,
-    })).toBe(false);
+    })).toBe(true);
     expect(canInstallPresetCli({
       isOhos: true,
       presetId: 'opencode',
@@ -345,24 +350,24 @@ describe('AcpAgentsConfig', () => {
     ]);
   });
 
-  it('offers the OpenCode installation guide only when its HarmonyOS CLI is missing', () => {
-    expect(getManualInstallGuide({
-      isOhos: true,
-      presetId: 'opencode',
-      status: 'not_installed',
-    })).toEqual({
-      repositoryUrl: 'https://atomgit.com/social4hyq/homebrew-core',
-    });
-    expect(getManualInstallGuide({
-      isOhos: true,
-      presetId: 'opencode',
-      status: 'ready',
-    })).toBeUndefined();
-    expect(getManualInstallGuide({
-      isOhos: false,
-      presetId: 'opencode',
-      status: 'not_installed',
-    })).toBeUndefined();
+  it('adds a missing OpenCode CLI through managed HarmonyBrew setup', async () => {
+    vi.resetModules();
+    isOpenHarmonyRuntimeMock.mockReturnValue(true);
+    const Page = (await import('./AcpAgentsConfig')).default;
+    loadJsonConfigMock.mockResolvedValue(JSON.stringify({ acpClients: {} }));
+    getClientsMock.mockResolvedValue([]);
+    probeClientRequirementsMock.mockResolvedValue([{
+      id: 'opencode', tool: { name: 'opencode', installed: false }, runnable: false, notes: [],
+    }]);
+    await act(async () => root.render(<Page />));
+    const row = Array.from(container.querySelectorAll('[data-bf-part="registryRow"]'))
+      .find((item) => item.textContent?.includes('presets.openCode.name'));
+    expect(row?.textContent).not.toContain('actions.get');
+    const add = Array.from(row?.querySelectorAll('button') ?? [])
+      .find((button) => button.textContent?.includes('actions.add'));
+    expect(add).toBeTruthy();
+    await act(async () => add!.click());
+    expect(installClientCliMock).toHaveBeenCalledWith({ clientId: 'opencode', remoteConnectionId: undefined });
   });
 
   it('keeps empty commands and local overrides when saving JSON', async () => {

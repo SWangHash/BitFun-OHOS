@@ -46,7 +46,6 @@ import {
   SELF_MANAGED_INSTALL_PRESET_IDS,
   availableRemotePresetIds,
   canInstallPresetCli,
-  getManualInstallGuide,
   presetsForRuntime,
   type AcpClientPreset,
   type AgentRowStatus,
@@ -1031,15 +1030,6 @@ const AcpAgentsConfig: React.FC = () => {
     });
   }, [notifyError, t]);
 
-  const openManualInstallGuide = useCallback((repositoryUrl: string) => {
-    void systemAPI.openExternal(repositoryUrl).catch((error) => {
-      log.error('Failed to open ACP agent installation guide', error);
-      notifyError(error instanceof Error ? error.message : String(error), {
-        title: t('notifications.openLinkFailed'),
-      });
-    });
-  }, [notifyError, t]);
-
   const remoteAgentIds = useMemo(() => {
     const ids = new Set<string>([
       ...availableRemotePresetIds(),
@@ -1295,11 +1285,6 @@ const AcpAgentsConfig: React.FC = () => {
                   issueKind,
                   hasConfigEntry,
                 });
-                const manualInstallGuide = getManualInstallGuide({
-                  isOhos: IS_OHOS,
-                  presetId: preset.id,
-                  status,
-                });
                 const presetCopy = ohosPresetCopy[preset.id];
                 const canConfigureAcp = !requiresAdapter
                   ? false
@@ -1399,16 +1384,6 @@ const AcpAgentsConfig: React.FC = () => {
                           {IS_OHOS
                             ? t('actions.add')
                             : t('actions.installCli')}
-                        </Button>
-                      ) : manualInstallGuide ? (
-                        <Button
-                          className="bitfun-acp-agents__add-button"
-                          variant="secondary"
-                          size="small"
-                          onClick={() => openManualInstallGuide(manualInstallGuide.repositoryUrl)}
-                        >
-                          <ExternalLink size={14} />
-                          {t('actions.get')}
                         </Button>
                       ) : canConfigureAcp ? (
                         <Button
