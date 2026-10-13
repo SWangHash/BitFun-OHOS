@@ -118,7 +118,7 @@ use bitfun_runtime_ports::{
     PermissionDelegationContext, PermissionMode, PermissionModeLayers, PermissionRuntimeCeiling,
     RemoteExecPort, ResolvedPermissionMode, SessionStoragePathRequest,
     SessionStoragePathResolution, SessionStorePort, SubagentContextMode, TerminalPort, ThreadGoal,
-    ThreadGoalContinuationPlan, ThreadGoalStatus, OUTPUT_SCHEMA_CONTEXT_KEY,
+    ThreadGoalContinuationPlan, ThreadGoalStatus, ToolAdmissionRegistry, OUTPUT_SCHEMA_CONTEXT_KEY,
 };
 use bitfun_services_core::filesystem::{FileSearchOptions, FileSystemService, FileTreeNode};
 use bitfun_services_core::workspace_text::{
@@ -1269,6 +1269,13 @@ pub struct ConversationCoordinator {
     thread_goal_runtime: Arc<ThreadGoalRuntime>,
     terminal_port: OnceLock<Arc<dyn TerminalPort>>,
     remote_exec_port: OnceLock<Arc<dyn RemoteExecPort>>,
+    /// Domain tool-admission registry assembled once at construction and
+    /// threaded into every ExecutionContext this coordinator builds.
+    admission_registry: Arc<ToolAdmissionRegistry>,
+    /// Long-running provisioning runs kicked off by an answer submit,
+    /// registered at construction.
+    #[cfg(feature = "qt-toolchain")]
+    provisioning_task: Option<Arc<dyn bitfun_runtime_ports::ProvisioningTaskPort>>,
     hook_registry: bitfun_agent_runtime::native_hooks::RuntimeHookRegistry,
 }
 
@@ -2133,6 +2140,12 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             Arc::clone(&session_manager),
             coordination_store,
         ));
+        #[cfg(feature = "qt-toolchain")]
+        let provisioning_task: Arc<dyn bitfun_runtime_ports::ProvisioningTaskPort> = Arc::new(
+            crate::agentic::coordination::qt_toolchain_provisioning::OfficialToolchainProvisioning::new(
+                Arc::clone(&session_manager),
+            ),
+        );
         Self {
             session_manager,
             runtime_ownership,
@@ -2157,6 +2170,11 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             thread_goal_runtime: Arc::new(ThreadGoalRuntime::new()),
             terminal_port: OnceLock::new(),
             remote_exec_port: OnceLock::new(),
+            admission_registry: Arc::new(
+                crate::agentic::tools::tool_admission::assemble_admission_registry(),
+            ),
+            #[cfg(feature = "qt-toolchain")]
+            provisioning_task: Some(provisioning_task),
             hook_registry: crate::native_hooks::new_runtime_hook_registry(),
         }
     }
@@ -5687,6 +5705,9 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                         workspace_services: manual_workspace_services,
                         terminal_port,
                         remote_exec_port,
+                        // Compaction runs no tools, so no admission gating.
+                        admission_registry: None,
+                        domain_state_store: None,
                         round_injection: None,
                         emit_lifecycle_events: false,
                         recover_partial_on_cancel: false,
@@ -6245,19 +6266,17 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         );
 
         let turn_index = self.session_manager.get_turn_count(&session_id);
-        let migration_enabled = if effective_agent_type == "QtMigration" {
-            // LLM-backed semantic analysis with a deterministic fallback; the
-            // result is cached per (session, prompt) and shared with the
-            // execution engine's turn gate.
-            let decision = crate::agentic::tools::implementations::qt_migration_semantic_analyzer::analyze_qt_migration_intent(
+        // LLM-backed turn-intent analysis with a deterministic fallback, cached
+        // per (session, prompt) and shared with the execution engine's turn gate.
+        let migration_enabled =
+            crate::agentic::tools::implementations::turn_intent_analyzer::analyze_turn_intent(
                 &session_id,
+                &effective_agent_type,
                 &original_user_input,
             )
-            .await;
-            decision["taskType"].as_str() == Some("app_migration")
-        } else {
-            false
-        };
+            .await
+            .map(|decision| decision.flow_enabled)
+            .unwrap_or(false);
         let mut skill_agent_context_vars = HashMap::new();
         skill_agent_context_vars.insert(
             "qt_migration_enabled".to_string(),
@@ -6728,6 +6747,13 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             workspace_services,
             terminal_port: self.terminal_port(),
             remote_exec_port: self.remote_exec_port(),
+            admission_registry: Some(Arc::clone(&self.admission_registry)),
+            domain_state_store: Some(Arc::new(
+                crate::agentic::tools::tool_admission::SessionDomainStateStore::new(
+                    Arc::clone(&self.session_manager),
+                    session_id.clone(),
+                ),
+            )),
             round_injection: self.round_injection_source.get().cloned(),
             emit_lifecycle_events: true,
             recover_partial_on_cancel: false,
@@ -7231,6 +7257,13 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             workspace_services,
             terminal_port: self.terminal_port(),
             remote_exec_port: self.remote_exec_port(),
+            admission_registry: Some(Arc::clone(&self.admission_registry)),
+            domain_state_store: Some(Arc::new(
+                crate::agentic::tools::tool_admission::SessionDomainStateStore::new(
+                    Arc::clone(&self.session_manager),
+                    plan.session_id.clone(),
+                ),
+            )),
             round_injection: self.round_injection_source.get().cloned(),
             // Recovered terminal lifecycle is published only after the Runtime-owned
             // Turn payload is durably committed by the coordinator.
@@ -10308,6 +10341,13 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             workspace_services: subagent_services,
             terminal_port: self.terminal_port(),
             remote_exec_port: self.remote_exec_port(),
+            admission_registry: Some(Arc::clone(&self.admission_registry)),
+            domain_state_store: Some(Arc::new(
+                crate::agentic::tools::tool_admission::SessionDomainStateStore::new(
+                    Arc::clone(&self.session_manager),
+                    session_id.clone(),
+                ),
+            )),
             // Subagents are autonomous; user steering is targeted at top-level
             // dialog turns only. Leave None so we don't intercept buffer entries
             // that belong to a different (parent) session/turn.
@@ -12333,21 +12373,13 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         timeout_seconds: Option<u64>,
     ) -> BitFunResult<SubagentResult> {
         let request = self.prepare_subagent_execution_request(request).await?;
-        // Subagents inherit the parent's migration admission context so the
-        // intake gate constrains delegated side effects even when the
-        // subagent's own agent_type is not QtMigration. Only fork/fresh spawns
-        // carry a parent; agent_id re-dispatch (send_input) already targets an
-        // existing child session.
+        // Subagents inherit the parent's registered domain state slots so the
+        // intake gate constrains delegated side effects regardless of the
+        // child's agent_type.
         if let Some(child_session_id) = request.target_session_id() {
             if let Some(parent_info) = request.subagent_parent_info.as_ref() {
                 self.get_session_manager()
-                    .seed_forked_qt_migration_intake_state(
-                        &parent_info.session_id,
-                        child_session_id,
-                    )
-                    .await;
-                self.get_session_manager()
-                    .seed_forked_qt_migration_active(&parent_info.session_id, child_session_id)
+                    .replicate_domain_state_slots(&parent_info.session_id, child_session_id)
                     .await;
             }
         }
@@ -12484,19 +12516,13 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 "Background subagent start was cancelled".to_string(),
             ));
         }
-        // Background subagents inherit the parent migration admission context too,
-        // so delegated side effects stay gated even when the background
-        // subagent's agent_type is not QtMigration.
+        // Background subagents inherit the parent's registered domain state
+        // slots too, so delegated side effects stay gated even when the
+        // background subagent's agent_type is not QtMigration.
         if let Some(child_session_id) = request.target_session_id() {
             if let Some(parent_info) = request.subagent_parent_info.as_ref() {
                 self.get_session_manager()
-                    .seed_forked_qt_migration_intake_state(
-                        &parent_info.session_id,
-                        child_session_id,
-                    )
-                    .await;
-                self.get_session_manager()
-                    .seed_forked_qt_migration_active(&parent_info.session_id, child_session_id)
+                    .replicate_domain_state_slots(&parent_info.session_id, child_session_id)
                     .await;
             }
         }
@@ -14305,6 +14331,10 @@ impl ConversationCoordinator {
         workspace_services: Option<WorkspaceServices>,
         terminal_port: Option<Arc<dyn TerminalPort>>,
         remote_exec_port: Option<Arc<dyn RemoteExecPort>>,
+        admission_registry: Option<Arc<ToolAdmissionRegistry>>,
+        domain_state_store: Option<
+            Arc<crate::agentic::tools::tool_admission::SessionDomainStateStore>,
+        >,
         options: ToolExecutionOptions,
         session_id: String,
         turn_id: String,
@@ -14352,6 +14382,8 @@ impl ConversationCoordinator {
             workspace_services,
             terminal_port,
             remote_exec_port,
+            admission_registry,
+            domain_state_store,
         };
 
         let results = match Self::execute_user_shell_pipeline(
@@ -14586,6 +14618,17 @@ impl bitfun_runtime_ports::AgentUserShellCommandPort for ConversationCoordinator
         let execution_engine = Arc::clone(&self.execution_engine);
         let tool_pipeline = Arc::clone(&self.tool_pipeline);
         let event_queue = Arc::clone(&self.event_queue);
+        // The shell path runs a real tool dispatch, so it keeps the same domain
+        // admission gate as ordinary turns.
+        let admission_registry = Some(Arc::clone(&self.admission_registry));
+        let domain_state_store: Option<
+            Arc<crate::agentic::tools::tool_admission::SessionDomainStateStore>,
+        > = Some(Arc::new(
+            crate::agentic::tools::tool_admission::SessionDomainStateStore::new(
+                Arc::clone(&self.session_manager),
+                request.session_id.clone(),
+            ),
+        ));
         let session_id_for_task = request.session_id.clone();
         let turn_id_for_task = turn_id.clone();
         let (started_tx, started_rx) = oneshot::channel();
@@ -14606,6 +14649,8 @@ impl bitfun_runtime_ports::AgentUserShellCommandPort for ConversationCoordinator
                 workspace_services,
                 terminal_port,
                 remote_exec_port,
+                admission_registry,
+                domain_state_store,
                 options,
                 session_id_for_task,
                 turn_id_for_task,
@@ -14627,80 +14672,62 @@ impl bitfun_runtime_ports::AgentUserShellCommandPort for ConversationCoordinator
 }
 
 impl ConversationCoordinator {
-    /// Validate Qt migration intake answers against the exact waiting template
-    /// and persist the normalized bindings into the Session intake snapshot
-    /// before the waiting tool call resumes.
+    /// Validate template-backed question answers against the exact waiting
+    /// template and persist the normalized bindings into the template's domain
+    /// state slot before the waiting tool call resumes.
     ///
     /// Fails closed: an unknown template, a version mismatch, a missing path, or
     /// an output directory that is already a migration artifact all surface to
     /// the frontend as an error instead of delivering answers.
     ///
     /// An `__official__` toolchain binding additionally delegates the install to
-    /// the runtime (stage 3, plan D5): the port call is acknowledged as soon as the
-    /// bindings are persisted, the kit is provisioned on a detached task, and only
-    /// then is the waiting tool woken — on success and on failure alike (C7).
+    /// the runtime: the port call is acknowledged as soon as the bindings are
+    /// persisted, the kit is provisioned on a detached task, and only then is
+    /// the waiting tool woken.
     async fn validate_and_apply_answers(
         &self,
         meta: &bitfun_agent_runtime::user_questions::PendingQuestionRequestMeta,
         request: &bitfun_agent_runtime::sdk::AgentUserAnswersRequest,
     ) -> bitfun_runtime_ports::PortResult<()> {
-        use bitfun_agent_runtime::qt_migration_intake_state::{
-            qt_migration_apply_validated_answers, qt_migration_validate_answers,
-            QtMigrationIntakeStateSnapshot, QT_MIGRATION_INTAKE_REQUIRED_FIELDS,
-            QT_MIGRATION_OFFICIAL_VALUE,
-        };
+        use bitfun_qt_migration::state::QtMigrationAnswerValidationError;
 
-        let template_id = match meta.template_id.as_deref() {
-            Some(id) => id,
-            None => {
-                return Err(bitfun_runtime_ports::PortError::new(
-                    bitfun_runtime_ports::PortErrorKind::InvalidRequest,
-                    "Waiting question request carries no template id",
-                ));
-            }
-        };
-        let template_version = match meta.template_version.as_deref() {
-            Some(version) => version,
-            None => {
-                return Err(bitfun_runtime_ports::PortError::new(
-                    bitfun_runtime_ports::PortErrorKind::InvalidRequest,
-                    "Waiting question request carries no template version",
-                ));
-            }
-        };
-
-        // Backend-owned template existence/version check (fail closed).
-        let known_template = |template_id: &str, template_version: &str| {
-            bitfun_agent_runtime::qt_migration_question_templates::resolve_question_template_full(
-                template_id,
-                &std::collections::HashMap::new(),
-            )
-            .is_some_and(|resolved| resolved.template_version == template_version)
-        };
-
-        // Required fields come from the waiting template's presentation policy;
-        // fall back to the canonical minimum-input set defensively.
-        let required_fields: Vec<&str> = meta
-            .required_fields
-            .as_ref()
-            .map(|fields| fields.iter().map(String::as_str).collect())
-            .unwrap_or_else(|| QT_MIGRATION_INTAKE_REQUIRED_FIELDS.to_vec());
-
-        let normalized = qt_migration_validate_answers(
-            template_id,
-            template_version,
-            known_template,
-            &required_fields,
-            &request.answers,
-        )
-        .map_err(|error| {
+        let template_id = meta.template_id.as_deref().ok_or_else(|| {
             bitfun_runtime_ports::PortError::new(
                 bitfun_runtime_ports::PortErrorKind::InvalidRequest,
-                format!("Migration answers rejected: {error}"),
+                "Waiting question request carries no template id",
+            )
+        })?;
+        let template_version = meta.template_version.as_deref().ok_or_else(|| {
+            bitfun_runtime_ports::PortError::new(
+                bitfun_runtime_ports::PortErrorKind::InvalidRequest,
+                "Waiting question request carries no template version",
             )
         })?;
 
-        // Path existence check (local workspaces only; remote skips this).
+        // Backend-owned template lookup and version check (fail closed),
+        // reusing the validator's mismatch wording so the frontend keeps the
+        // same localized message.
+        let contribution =
+            crate::agentic::tools::tool_admission::assemble_question_template_registry()
+                .get(template_id)
+                .ok_or_else(|| {
+                    bitfun_runtime_ports::PortError::new(
+                        bitfun_runtime_ports::PortErrorKind::InvalidRequest,
+                        format!("Unknown AskUserQuestion template: {template_id}"),
+                    )
+                })?;
+        if contribution.template_version() != template_version {
+            return Err(bitfun_runtime_ports::PortError::new(
+                bitfun_runtime_ports::PortErrorKind::InvalidRequest,
+                format!(
+                    "Migration answers rejected: {}",
+                    QtMigrationAnswerValidationError::BindingMismatch {
+                        expected_version: template_version.to_string(),
+                    }
+                ),
+            ));
+        }
+
         let session_manager = self.get_session_manager();
         let is_remote = session_manager
             .get_session(&meta.session_id)
@@ -14709,95 +14736,67 @@ impl ConversationCoordinator {
                     || session.config.remote_ssh_host.is_some()
             })
             .unwrap_or(false);
-        if !is_remote {
-            for (field, value) in &normalized {
-                if value == QT_MIGRATION_OFFICIAL_VALUE {
-                    continue;
-                }
-                if !std::path::Path::new(value).exists() {
-                    // Stable machine-parseable code so the web card can render
-                    // a localized message (code + field id + path).
-                    return Err(bitfun_runtime_ports::PortError::new(
-                        bitfun_runtime_ports::PortErrorKind::InvalidRequest,
-                        format!("qt_migration_path_not_found: field={field}; path={value}"),
-                    ));
-                }
-                // A migrated product directory must never be bound as the
-                // output target: re-migration would overwrite the previous
-                // result. Same artifact criteria the output-candidate probe
-                // excludes, so typed-in paths cannot bypass candidate
-                // filtering. The card renders the stable code with recovery
-                // copy (choose another output directory).
-                if field == "output_project"
-                    && crate::agentic::tools::qt_migration_candidates::is_migration_output_artifact(
-                        std::path::Path::new(value),
-                    )
-                {
-                    return Err(bitfun_runtime_ports::PortError::new(
-                        bitfun_runtime_ports::PortErrorKind::InvalidRequest,
-                        format!("qt_migration_output_is_artifact: field={field}; path={value}"),
-                    ));
-                }
-            }
-        }
 
-        // Persist the normalized bindings into the Session intake snapshot
+        // The contribution validates the field contract and path rules in one
+        // backend-owned step.
+        let normalized = contribution
+            .validate_submission(&bitfun_runtime_ports::SubmissionContext {
+                required_fields: meta.required_fields.as_deref(),
+                answers: &request.answers,
+                workspace_is_remote: is_remote,
+            })
+            .map_err(|error| {
+                bitfun_runtime_ports::PortError::new(
+                    bitfun_runtime_ports::PortErrorKind::InvalidRequest,
+                    format!("Migration answers rejected: {error}"),
+                )
+            })?;
+
+        // Persist the normalized bindings into the template's state slot
         // before waking the tool, so downstream gates and restore see them.
+        let slot = contribution.state_slot();
         let current = session_manager
-            .qt_migration_intake_state(&meta.session_id)
-            .unwrap_or_else(QtMigrationIntakeStateSnapshot::empty);
-        let updated = qt_migration_apply_validated_answers(&current, &normalized);
+            .domain_state_get(&meta.session_id, &slot)
+            .unwrap_or(serde_json::Value::Null);
+        let updated = contribution.apply_answers(current, &normalized);
         session_manager
-            .remember_qt_migration_intake_state(&meta.session_id, updated)
+            .domain_state_set(&meta.session_id, &slot, updated)
             .await;
 
-        // Stage 3 (plan D5): an `__official__` toolchain binding means the runtime
+        // An `__official__` toolchain binding means the runtime
         // installs the kit, not the model. This port call is acknowledged now — the
         // frontend submit resolves before the transfer finishes — and a detached
         // task wakes the waiting tool afterwards, whether the install succeeded or
-        // failed (contract C7: a failure must still wake the turn instead of
-        // deadlocking it). Provisioning happens on this process because this is the
+        // failed (a failure must still wake the turn instead of deadlocking it).
+        // Provisioning happens on this process because this is the
         // host that owns the toolchains directory; a remote workspace is reported as
-        // an explicit unsupported state instead of silently installing locally
-        // (D12).
+        // an explicit unsupported state instead of silently installing locally.
         #[cfg(feature = "qt-toolchain")]
         {
-            use crate::agentic::coordination::qt_toolchain_provisioning::{
-                binding_requires_toolchain_provisioning, spawn_official_toolchain_provisioning,
-                OfficialToolchainProvisioningPlan,
-            };
+            use bitfun_runtime_ports::ProvisioningSubmit;
 
-            if binding_requires_toolchain_provisioning(&normalized) {
-                // The waiting tool's own turn owns cancellation: stopping the turn
-                // stops the transfer and removes its staging directory (plan §3.2).
-                let cancel = crate::agentic::tools::user_input_manager::get_user_input_manager()
-                    .pending_dialog_turn_id(&request.tool_id)
-                    .and_then(|turn_id| {
-                        self.execution_engine.cancel_token_for_dialog_turn(&turn_id)
-                    })
-                    .unwrap_or_else(CancellationToken::new);
-                spawn_official_toolchain_provisioning(
-                    OfficialToolchainProvisioningPlan {
-                        session_id: meta.session_id.clone(),
-                        tool_id: request.tool_id.clone(),
-                        answers: request.answers.clone(),
-                        toolchains_root: crate::infrastructure::get_path_manager_arc()
-                            .qt_migration_toolchains_dir(),
-                        // The provisioner resolves the same layout platform tokens
-                        // the knowledge-base scripts use, so the manual and the
-                        // runtime path cannot drift apart.
-                        platform: crate::agentic::execution::execution_engine::qt_migration_download_platform()
-                            .to_string(),
-                        cancel,
-                        remote_workspace: is_remote,
-                    },
-                    Arc::clone(session_manager),
-                );
-                return Ok(());
+            // The waiting tool's own turn owns cancellation: stopping the turn
+            // stops the transfer and removes its staging directory.
+            let cancel = crate::agentic::tools::user_input_manager::get_user_input_manager()
+                .pending_dialog_turn_id(&request.tool_id)
+                .and_then(|turn_id| self.execution_engine.cancel_token_for_dialog_turn(&turn_id))
+                .unwrap_or_else(CancellationToken::new);
+            if let Some(port) = self.provisioning_task.as_ref() {
+                if let Some(provisioning_request) = port.plan(&ProvisioningSubmit {
+                    session_id: meta.session_id.clone(),
+                    tool_id: request.tool_id.clone(),
+                    bindings: normalized.clone(),
+                    answers: request.answers.clone(),
+                    remote_workspace: is_remote,
+                    cancel,
+                }) {
+                    port.spawn(provisioning_request);
+                    return Ok(());
+                }
             }
         }
 
-        // Generation check on the complete binding (plan §4.17): the project the user
+        // Generation check on the complete binding: the project the user
         // picked and the toolchain that will build it must be the same Qt generation,
         // and the card cannot guarantee it — a machine with no Qt6 kit still binds a
         // Qt6 project to a Qt5 kit. A measured disagreement records the pending
@@ -14833,15 +14832,17 @@ impl ConversationCoordinator {
         &self,
         session_id: &str,
         request: &bitfun_agent_runtime::sdk::AgentUserAnswersRequest,
-    ) -> Option<bitfun_agent_runtime::qt_migration_intake_state::QtMigrationVersionStrategy> {
+    ) -> Option<bitfun_qt_migration::state::QtMigrationVersionStrategy> {
         use crate::agentic::coordination::apply_version_strategy_answer;
-        use crate::agentic::tools::qt_migration_candidates::pending_generation_mismatch;
-        use bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeStateSnapshot;
+        use bitfun_qt_migration::strategy::pending_generation_mismatch;
 
         let session_manager = self.get_session_manager();
-        let snapshot = session_manager
-            .qt_migration_intake_state(session_id)
-            .unwrap_or_else(QtMigrationIntakeStateSnapshot::empty);
+        let snapshot = bitfun_qt_migration::state::intake_snapshot_from_slot_value(
+            session_manager.domain_state_get(
+                session_id,
+                &bitfun_qt_migration::admission::QT_MIGRATION_SLOT_INTAKE_STATE,
+            ),
+        );
         if pending_generation_mismatch(&snapshot).is_none() {
             return None;
         }
@@ -14870,11 +14871,9 @@ impl bitfun_agent_runtime::sdk::AgentInteractionResponsePort for ConversationCoo
         let user_input_manager =
             crate::agentic::tools::user_input_manager::get_user_input_manager();
 
-        // QtMigration intake wiring: template-backed waiting requests carry the
-        // request meta so answers are re-validated against the exact template
-        // and persisted into the Session intake snapshot before the waiting
-        // tool call resumes. Validation failures surface to the frontend as an
-        // error instead of delivering answers.
+        // Template-backed waiting requests carry the request meta so answers
+        // are re-validated against the exact registered template and persisted
+        // before the waiting tool call resumes.
         //
         // The session is read through its own accessor instead of through the
         // template meta: the generation-mismatch question is written by the model,
@@ -14882,11 +14881,13 @@ impl bitfun_agent_runtime::sdk::AgentInteractionResponsePort for ConversationCoo
         // session-scoped effect (`pending_meta` is `None` for it).
         if let Some(session_id) = user_input_manager.pending_session_id(&request.tool_id) {
             if let Some(meta) = user_input_manager.pending_meta(&request.tool_id) {
-                if meta.template_id.as_deref()
-                    == Some(
-                        bitfun_agent_runtime::qt_migration_question_templates::QT_MIGRATION_PATHS_TEMPLATE_ID,
-                    )
-                {
+                let is_registered_template =
+                    meta.template_id.as_deref().is_some_and(|template_id| {
+                        crate::agentic::tools::tool_admission::assemble_question_template_registry()
+                            .get(template_id)
+                            .is_some()
+                    });
+                if is_registered_template {
                     return self.validate_and_apply_answers(&meta, &request).await;
                 }
             }
@@ -14899,7 +14900,7 @@ impl bitfun_agent_runtime::sdk::AgentInteractionResponsePort for ConversationCoo
                 .await;
             if matches!(
                 decided,
-                Some(bitfun_agent_runtime::qt_migration_intake_state::QtMigrationVersionStrategy::Abort { .. })
+                Some(bitfun_qt_migration::state::QtMigrationVersionStrategy::Abort { .. })
             ) {
                 // The user refused this migration. Deliver the answer so the card
                 // resolves, then stop the turn instead of leaving the model to narrate
@@ -16018,6 +16019,8 @@ mod tests {
                     workspace_services: None,
                     terminal_port: None,
                     remote_exec_port: None,
+                    admission_registry: None,
+                    domain_state_store: None,
                 },
                 ToolExecutionOptions::default(),
             ))

@@ -5216,6 +5216,12 @@ export const requiredContentRules = [
       { regex: /#\[cfg\(feature = "git-port"\)\]\r?\npub use git_port::\*;/, message: 'git-port must gate its public exports' },
       { regex: /#\[cfg\(feature = "tool-runtime-handles"\)\]\r?\nmod tool_runtime_handles;/, message: 'tool-runtime-handles must gate its source module' },
       { regex: /#\[cfg\(feature = "tool-runtime-handles"\)\]\r?\npub use tool_runtime_handles::\*;/, message: 'tool-runtime-handles must gate its public exports' },
+      { regex: /#\[cfg\(feature = "question-template-port"\)\]\r?\nmod question_template;/, message: 'question-template-port must gate its source module' },
+      { regex: /#\[cfg\(feature = "question-template-port"\)\]\r?\npub use question_template::\*;/, message: 'question-template-port must gate its public exports' },
+      { regex: /#\[cfg\(feature = "intent-analysis-port"\)\]\r?\nmod intent_analysis;/, message: 'intent-analysis-port must gate its source module' },
+      { regex: /#\[cfg\(feature = "intent-analysis-port"\)\]\r?\npub use intent_analysis::\*;/, message: 'intent-analysis-port must gate its public exports' },
+      { regex: /#\[cfg\(feature = "provisioning-task-port"\)\]\r?\nmod provisioning_task;/, message: 'provisioning-task-port must gate its source module' },
+      { regex: /#\[cfg\(feature = "provisioning-task-port"\)\]\r?\npub use provisioning_task::\*;/, message: 'provisioning-task-port must gate its public exports' },
     ],
   },
   {

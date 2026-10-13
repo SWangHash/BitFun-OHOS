@@ -434,9 +434,12 @@ test('portable contract crates expose only capability-local feature slices', asy
       'agent-api',
       'git-port',
       'hook-function-runtime',
+      'intent-analysis-port',
       'permission',
       'plugin-runtime',
       'product-search',
+      'provisioning-task-port',
+      'question-template-port',
       'remote-exec-port',
       'remote-workspace-ports',
       'runtime-event-port',
@@ -450,8 +453,10 @@ test('portable contract crates expose only capability-local feature slices', asy
   );
   assert.deepEqual(runtimePortFeatures['agent-api'], ['dep:bitfun-core-types']);
   assert.deepEqual(runtimePortFeatures['hook-function-runtime'], []);
+  assert.deepEqual(runtimePortFeatures['intent-analysis-port'], []);
   assert.deepEqual(runtimePortFeatures['plugin-runtime'], []);
   assert.deepEqual(runtimePortFeatures['product-search'], ['dep:bitfun-product-domains']);
+  assert.deepEqual(runtimePortFeatures['provisioning-task-port'], ['dep:tokio-util']);
   assert.deepEqual(runtimePortFeatures['script-tool-runtime'], []);
   assert.deepEqual(runtimePortFeatures['web-search-port'], []);
   // Workspace byte readers expose AsyncRead/AsyncSeek without selecting a
@@ -465,6 +470,7 @@ test('portable contract crates expose only capability-local feature slices', asy
       'workspace-ports',
       'terminal-port',
       'remote-exec-port',
+      'question-template-port',
     ]),
   );
 
@@ -494,6 +500,9 @@ test('runtime-port capability source gates protect modules and public exports', 
     ['runtime-event-port', 'runtime_event_port'],
     ['git-port', 'git_port'],
     ['product-search', 'product_search'],
+    ['question-template-port', 'question_template'],
+    ['intent-analysis-port', 'intent_analysis'],
+    ['provisioning-task-port', 'provisioning_task'],
     ['tool-runtime-handles', 'tool_runtime_handles'],
   ]) {
     assert.match(patterns, new RegExp(`${feature}.*mod ${moduleName}`));
@@ -518,7 +527,7 @@ test('runtime-ports async dependencies stay behind their exact port owners', () 
   );
   assert.deepEqual(
     ownersByDependency.get('tokio-util'),
-    new Set(['workspace-ports']),
+    new Set(['provisioning-task-port', 'workspace-ports']),
   );
   assert.deepEqual(
     ownersByDependency.get('tokio'),
@@ -660,15 +669,23 @@ const RUNTIME_PORT_FEATURE_PROFILES = {
   'agent-api': ['dep:bitfun-core-types'],
   'git-port': [],
   'hook-function-runtime': [],
+  'intent-analysis-port': [],
   permission: ['dep:bitfun-product-domains'],
   'plugin-runtime': [],
   'product-search': ['dep:bitfun-product-domains'],
+  'provisioning-task-port': ['dep:tokio-util'],
+  'question-template-port': ['dep:bitfun-product-domains'],
   'remote-exec-port': ['dep:tokio'],
   'remote-workspace-ports': [],
   'runtime-event-port': [],
   'script-tool-runtime': [],
   'terminal-port': ['dep:tokio'],
-  'tool-runtime-handles': ['workspace-ports', 'terminal-port', 'remote-exec-port'],
+  'tool-runtime-handles': [
+    'workspace-ports',
+    'terminal-port',
+    'remote-exec-port',
+    'question-template-port',
+  ],
   ts: [
     'dep:ts-rs',
     'agent-api',

@@ -1,0 +1,41 @@
+[package]
+name = "bitfun-qt-migration"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+description = "Qt migration domain: disk scanning, Qt generation detection, intake state, and question templates"
+autotests = false
+
+[lib]
+name = "bitfun_qt_migration"
+crate-type = ["rlib"]
+
+[[test]]
+name = "qt_migration_contracts"
+path = "tests/qt_migration_contracts.rs"
+
+[features]
+default = []
+# Mirrors the core-side `qt-toolchain` gate: only the installable-source build
+# asks whether the official toolchain package can serve the card's projects.
+# Core passes its own `qt-toolchain` feature through to this one.
+qt-toolchain = []
+
+[dependencies]
+bitfun-product-domains = { path = "../../contracts/product-domains" }
+bitfun-runtime-ports = { path = "../../contracts/runtime-ports", features = [
+    "intent-analysis-port",
+    "question-template-port",
+] }
+dunce = { workspace = true }
+dirs = { workspace = true }
+log = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

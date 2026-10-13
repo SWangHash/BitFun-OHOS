@@ -26,26 +26,12 @@ pub mod control_hub_tool;
 #[cfg(feature = "tools-agent-control")]
 pub mod cron_tool;
 pub mod delete_file_tool;
-    pub(crate) mod devecocli_run;
-    pub mod devecocli_bash_guard;
-    pub mod exec_command;
-    pub mod file_edit_tool;
-    pub mod file_read_tool;
-    pub mod file_write_tool;
-    pub(crate) mod harmony_device;
-    pub(crate) mod hdc_fallback;
-    #[cfg(feature = "mcp-runtime")]
-    pub mod get_ui_verification_log_tool;
-    pub mod hdc_log_tool;
-    #[cfg(feature = "mcp-runtime")]
-    pub mod save_ui_screenshot_tool;
-    pub(crate) mod session_cwd;
-    pub mod start_app_tool;
-    pub mod switch_cwd_tool;
-    #[cfg(feature = "mcp-runtime")]
-    pub(crate) mod ui_verification_mcp;
-    #[cfg(feature = "mcp-runtime")]
-    pub mod verify_ui_tool;
+pub(crate) mod devecocli_run;
+pub mod devecocli_bash_guard;
+pub mod exec_command;
+pub mod file_edit_tool;
+pub mod file_read_tool;
+pub mod file_write_tool;
 #[cfg(feature = "tools-creation")]
 pub mod frontend_workbench_tool;
 #[cfg(feature = "tools-miniapp")]
@@ -53,8 +39,13 @@ pub mod generative_ui_tool;
 #[cfg(feature = "tools-git")]
 pub mod get_file_diff_tool;
 pub mod get_time_tool;
+#[cfg(feature = "mcp-runtime")]
+pub mod get_ui_verification_log_tool;
 pub mod glob_tool;
 pub mod grep_tool;
+pub(crate) mod harmony_device;
+pub(crate) mod hdc_fallback;
+pub mod hdc_log_tool;
 pub mod list_models_tool;
 pub mod ls_tool;
 #[cfg(feature = "tools-mcp")]
@@ -76,18 +67,27 @@ pub mod playbook_tool;
 #[cfg(feature = "tools-agent-control")]
 pub mod port_forward_tool;
 pub mod qt_migration_intake_tool;
-pub mod qt_migration_semantic_analyzer;
 #[cfg(feature = "tools-git")]
 pub mod review_platform_tool;
+#[cfg(feature = "mcp-runtime")]
+pub mod save_ui_screenshot_tool;
 pub mod session_control_tool;
+pub(crate) mod session_cwd;
 pub mod session_history_tool;
 pub mod session_message_tool;
 pub mod skill_tool;
 pub mod skills;
+pub mod start_app_tool;
+pub mod switch_cwd_tool;
 pub mod task;
 pub mod thread_goal_tools;
 pub mod todo_write_tool;
+pub mod turn_intent_analyzer;
+#[cfg(feature = "mcp-runtime")]
+pub(crate) mod ui_verification_mcp;
 pub mod util;
+#[cfg(feature = "mcp-runtime")]
+pub mod verify_ui_tool;
 #[cfg(feature = "tools-image-analysis")]
 pub mod view_image_tool;
 #[cfg(feature = "tools-browser-web")]
@@ -101,10 +101,10 @@ pub use agent_list_tool::AgentListTool;
 pub use agent_wait_tool::AgentWaitTool;
 #[cfg(feature = "tools-image-analysis")]
 pub use analyze_image_tool::AnalyzeImageTool;
-pub use qt_migration_intake_tool::QtMigrationIntakeTool;
 #[cfg(feature = "tools-miniapp")]
 pub use appearance_publish_tool::PublishAppearanceTool;
 pub use ask_user_question_tool::AskUserQuestionTool;
+pub use bitfun_control_tool::BitFunControlTool;
 #[cfg(feature = "tools-canvas")]
 pub use canvas_tools::{CreateCanvasTool, PatchCanvasTool, ReadCanvasTool, UpdateCanvasTool};
 pub use arkts_check_tool::ArktsCheckTool;
@@ -120,15 +120,6 @@ pub use exec_command::{ExecCommandTool, ExecControlTool, WriteStdinTool};
 pub use file_edit_tool::FileEditTool;
 pub use file_read_tool::FileReadTool;
 pub use file_write_tool::FileWriteTool;
-    #[cfg(feature = "mcp-runtime")]
-    pub use get_ui_verification_log_tool::GetUiVerificationLogTool;
-    pub use hdc_log_tool::HdcLogTool;
-    #[cfg(feature = "mcp-runtime")]
-    pub use save_ui_screenshot_tool::SaveUiScreenshotTool;
-pub use start_app_tool::StartAppTool;
-pub use switch_cwd_tool::SwitchCwdTool;
-    #[cfg(feature = "mcp-runtime")]
-    pub use verify_ui_tool::VerifyUiTool;
 #[cfg(feature = "tools-creation")]
 pub use frontend_workbench_tool::FrontendWorkbenchTool;
 #[cfg(feature = "tools-miniapp")]
@@ -136,8 +127,11 @@ pub use generative_ui_tool::GenerativeUITool;
 #[cfg(feature = "tools-git")]
 pub use get_file_diff_tool::GetFileDiffTool;
 pub use get_time_tool::GetTimeTool;
+#[cfg(feature = "mcp-runtime")]
+pub use get_ui_verification_log_tool::GetUiVerificationLogTool;
 pub use glob_tool::GlobTool;
 pub use grep_tool::GrepTool;
+pub use hdc_log_tool::HdcLogTool;
 pub use list_models_tool::ListModelsTool;
 pub use ls_tool::LSTool;
 pub use open_url_tool::OpenUrlTool;
@@ -151,7 +145,6 @@ pub use miniapp_finalize_tool::FinalizeMiniAppTool;
 pub use miniapp_init_tool::InitMiniAppTool;
 #[cfg(feature = "tools-miniapp")]
 pub use miniapp_publish_tool::PublishMiniAppTool;
-pub use bitfun_control_tool::BitFunControlTool;
 #[cfg(feature = "tools-pages")]
 pub use page_deploy_tool::PageDeployTool;
 #[cfg(feature = "tools-pages")]
@@ -160,17 +153,24 @@ pub use page_publish_tool::PagePublishTool;
 pub use playbook_tool::PlaybookTool;
 #[cfg(feature = "tools-agent-control")]
 pub use port_forward_tool::PortForwardTool;
+pub use qt_migration_intake_tool::QtMigrationIntakeTool;
 #[cfg(feature = "tools-git")]
 pub use review_platform_tool::ReviewPlatformTool;
+#[cfg(feature = "mcp-runtime")]
+pub use save_ui_screenshot_tool::SaveUiScreenshotTool;
 pub use session_control_tool::SessionControlTool;
 pub use session_history_tool::SessionHistoryTool;
 pub use session_message_tool::SessionMessageTool;
 pub use skill_tool::SkillTool;
+pub use start_app_tool::StartAppTool;
+pub use switch_cwd_tool::SwitchCwdTool;
 pub use task::{
     AgentInterruptTool, AgentSendInputTool, AgentSpawnTool, LaunchReviewAgentTool, TaskTool,
 };
 pub use thread_goal_tools::{CreateGoalTool, GetGoalTool, UpdateGoalTool};
 pub use todo_write_tool::TodoWriteTool;
+#[cfg(feature = "mcp-runtime")]
+pub use verify_ui_tool::VerifyUiTool;
 #[cfg(feature = "tools-image-analysis")]
 pub use view_image_tool::ViewImageTool;
 #[cfg(feature = "tools-browser-web")]

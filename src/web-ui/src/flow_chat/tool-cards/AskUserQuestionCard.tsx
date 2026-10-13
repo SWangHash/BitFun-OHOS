@@ -3,21 +3,12 @@
  *
  * The backend owns template content and emits the resolved request on
  * `questionRequest`. A template that renders through a dedicated product card
- * ships its own question shape and is routed by `templateId` here; everything
- * else — plain model-authored questions and any future template that only needs
- * the shared contract — is rendered by the generic card below, which knows only
- * `resolvedQuestions`.
+ * registers itself in {@link TEMPLATE_CARD_REGISTRY}; everything else — plain
+ * model-authored questions included — renders through the generic card, which
+ * knows only `resolvedQuestions`.
  *
  * AskUser owns the rendered anatomy, interaction semantics, and styling; the
  * shared interaction shell owns drafts, interaction, submission and sizing.
- *
- * MERGE NOTE (this split is going to remote main): main still has the pre-split
- * single component, where the pre-selection of a question's first option was
- * shared policy and the card's own payload concerns were not separated. When
- * this split meets main, keep the three-layer shape (dispatcher -> generic card
- * or owning card -> {@link AskUserQuestionShell}) and keep the pre-selection
- * opt-in per card; do not fold the Qt-specific payload back into the generic
- * card, and do not restore a shared default.
  */
 
 import React, { useMemo } from 'react';
@@ -32,13 +23,13 @@ import {
 } from './QtMigrationIntakeCard';
 
 /**
- * Template id used by the wire shape; the routing key is the template the
- * backend resolved the request from, never the tool name (Qt intake is served by
- * the AskUserQuestion tool, not by a `QtMigrationIntake` card).
+ * Template id -> owning card. A registered card keeps rendering its request
+ * even when the payload is incomplete, so a broken payload fails loudly
+ * instead of silently falling back to the generic card.
  */
-export const QT_MIGRATION_TEMPLATE_IDS: readonly string[] = [
-  QT_MIGRATION_PATHS_TEMPLATE_ID,
-];
+const TEMPLATE_CARD_REGISTRY: Readonly<Record<string, React.FC<ToolCardProps>>> = {
+  [QT_MIGRATION_PATHS_TEMPLATE_ID]: QtMigrationIntakeCard,
+};
 
 /**
  * Resolve the card for this request. A template-backed request that carries its
@@ -47,8 +38,11 @@ export const QT_MIGRATION_TEMPLATE_IDS: readonly string[] = [
  */
 export const AskUserQuestionCard: React.FC<ToolCardProps> = (props) => {
   const templateId = askUserQuestionTemplateId(props.toolItem);
-  return templateId && QT_MIGRATION_TEMPLATE_IDS.includes(templateId)
-    ? <QtMigrationIntakeCard {...props} />
+  const OwningCard = templateId
+    ? TEMPLATE_CARD_REGISTRY[templateId]
+    : undefined;
+  return OwningCard
+    ? <OwningCard {...props} />
     : <GenericAskUserQuestionCard {...props} />;
 };
 

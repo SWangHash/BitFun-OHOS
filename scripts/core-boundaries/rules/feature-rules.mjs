@@ -124,9 +124,9 @@ export const optionalDependencyFeatureOwnerRules = [
     dependencies: [
       { depName: 'anyhow', ownerFeatures: ['workspace-ports'] },
       { depName: 'bitfun-core-types', ownerFeatures: ['agent-api', 'ts'] },
-      { depName: 'bitfun-product-domains', ownerFeatures: ['permission', 'product-search', 'ts'] },
+      { depName: 'bitfun-product-domains', ownerFeatures: ['permission', 'product-search', 'question-template-port', 'ts'] },
       { depName: 'tokio', ownerFeatures: ['remote-exec-port', 'terminal-port', 'workspace-ports'] },
-      { depName: 'tokio-util', ownerFeatures: ['workspace-ports'] },
+      { depName: 'tokio-util', ownerFeatures: ['provisioning-task-port', 'workspace-ports'] },
       { depName: 'ts-rs', ownerFeatures: ['ts'] },
     ],
   },
@@ -141,6 +141,7 @@ export const optionalDependencyFeatureOwnerRules = [
       { depName: 'bitfun-agent-tools', ownerFeatures: ['agent-runtime'] },
       { depName: 'bitfun-core-types', ownerFeatures: ['agent-runtime', 'definition-contracts'] },
       { depName: 'bitfun-events', ownerFeatures: ['agent-runtime'] },
+      { depName: 'bitfun-product-domains', ownerFeatures: ['agent-runtime'] },
       { depName: 'bitfun-runtime-ports', ownerFeatures: ['agent-runtime'] },
       { depName: 'bitfun-runtime-services', ownerFeatures: ['agent-runtime'] },
       { depName: 'dashmap', ownerFeatures: ['agent-runtime'] },
@@ -405,15 +406,23 @@ export const capabilityContractDependencyRules = [
       'agent-api': ['dep:bitfun-core-types'],
       'git-port': [],
       'hook-function-runtime': [],
+      'intent-analysis-port': [],
       permission: ['dep:bitfun-product-domains'],
       'plugin-runtime': [],
       'product-search': ['dep:bitfun-product-domains'],
+      'provisioning-task-port': ['dep:tokio-util'],
+      'question-template-port': ['dep:bitfun-product-domains'],
       'remote-exec-port': ['dep:tokio'],
       'remote-workspace-ports': [],
       'runtime-event-port': [],
       'script-tool-runtime': [],
       'terminal-port': ['dep:tokio'],
-      'tool-runtime-handles': ['workspace-ports', 'terminal-port', 'remote-exec-port'],
+      'tool-runtime-handles': [
+        'workspace-ports',
+        'terminal-port',
+        'remote-exec-port',
+        'question-template-port',
+      ],
       'web-search-port': [],
       ts: [
         'dep:ts-rs',
@@ -465,6 +474,7 @@ export const capabilityContractDependencyRules = [
           capabilityForwarder('opencode-plugin-host', 'hook-function-runtime'),
           capabilityForwarder('plugin-runtime', 'plugin-runtime'),
           capabilityForwarder('product-search', 'product-search'),
+          capabilityForwarder('qt-toolchain', 'provisioning-task-port'),
           capabilityForwarder('script-tool-runtime', 'script-tool-runtime'),
           capabilityForwarder('ts', 'ts'),
           capabilityForwarder('web-tools', 'web-search-port'),
@@ -491,6 +501,11 @@ export const capabilityContractDependencyRules = [
       ['bitfun-product-capabilities', capabilityConsumer([
         capabilityEdge(['plugin-runtime']),
         capabilityEdge(['agent-api'], { kind: 'dev' }),
+      ])],
+      // Qt migration domain crate reads the ports it registers into
+      // (admission, turn-instruction, question-template, intent-analysis).
+      ['bitfun-qt-migration', capabilityConsumer([
+        capabilityEdge(['intent-analysis-port', 'question-template-port']),
       ])],
       ['bitfun-runtime-services', capabilityConsumer([
         capabilityEdge([
@@ -637,6 +652,7 @@ export const capabilityContractDependencyRules = [
         'dep:bitfun-agent-tools',
         'dep:bitfun-core-types',
         'dep:bitfun-events',
+        'dep:bitfun-product-domains',
         'dep:bitfun-runtime-ports',
         'dep:bitfun-runtime-services',
         'dep:dashmap',
@@ -917,6 +933,7 @@ export const coreClosedFeatureProfileRules = [
       'product-capabilities',
       'dep:bitfun-product-domains',
       'bitfun-product-domains/external-sources',
+      'dep:bitfun-qt-migration',
       'runtime-services',
       'tool-packs',
       'tools-basic',

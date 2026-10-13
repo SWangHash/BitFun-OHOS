@@ -1,6 +1,7 @@
 //! Standard skill-root traversal. Keep the logical path in stable keys and
 //! follow linked skill directories on the filesystem that owns each root.
 use super::*;
+use crate::agentic::tools::implementations::skills::builtin::BUILTIN_SKILLS_STAGING_PREFIX;
 use std::collections::VecDeque;
 use tokio::io::AsyncReadExt;
 
@@ -892,7 +893,11 @@ impl SkillRegistry {
                 let child_path = child.path();
                 if depth == 0
                     && matches!(entry.slot, BITFUN_USER_SKILL_SLOT | "home.dsh")
-                    && child.file_name() == BITFUN_SYSTEM_SKILL_DIR
+                    && (child.file_name() == BITFUN_SYSTEM_SKILL_DIR
+                        || child
+                            .file_name()
+                            .to_string_lossy()
+                            .starts_with(BUILTIN_SKILLS_STAGING_PREFIX))
                 {
                     continue;
                 }
@@ -1054,6 +1059,51 @@ mod tests {
             assert!(content.contains("review body"));
             assert_eq!(flat.info.path, temp.path().to_string_lossy());
         }
+    }
+
+    #[tokio::test]
+    async fn bitfun_user_root_skips_installer_staging_and_system_children() {
+        let temp = tempfile::tempdir().unwrap();
+        for (path, content) in [
+            ("my-skill/SKILL.md", markdown("my-skill")),
+            (
+                // A staging directory left behind by an interrupted built-in
+                // install must not shadow the managed `.system` skill of the
+                // same name as an explicitly installed user skill.
+                ".system.tmp.49832.1000/ohos-qt-skills/SKILL.md",
+                markdown("ohos-qt-skills"),
+            ),
+            (
+                ".system/ohos-qt-skills/SKILL.md",
+                markdown("ohos-qt-skills"),
+            ),
+        ] {
+            std::fs::create_dir_all(temp.path().join(path).parent().unwrap()).unwrap();
+            std::fs::write(temp.path().join(path), content).unwrap();
+        }
+        let entry = SkillRootEntry {
+            path: temp.path().into(),
+            level: SkillLocation::User,
+            slot: BITFUN_USER_SKILL_SLOT,
+            source_id: BITFUN_SKILL_SOURCE_ID,
+            source_label: BITFUN_SKILL_SOURCE_LABEL,
+            priority: 0,
+            is_builtin: false,
+        };
+
+        let scan = SkillRegistry::scan_skills_in_dir(&entry).await;
+
+        assert!(scan.diagnostics.is_empty());
+        let names: Vec<_> = scan
+            .candidates
+            .iter()
+            .map(|candidate| candidate.info.name.as_str())
+            .collect();
+        assert_eq!(
+            names,
+            vec!["my-skill"],
+            "installer-internal children must not surface as user skills"
+        );
     }
 
     struct FlatRemote;

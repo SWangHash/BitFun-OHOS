@@ -14,6 +14,11 @@ pub struct ToolRuntimeHandles {
     round_injection_preemption_token: Option<CancellationToken>,
     terminal_port: Option<Arc<dyn TerminalPort>>,
     remote_exec_port: Option<Arc<dyn RemoteExecPort>>,
+    admission_registry: Option<Arc<ToolAdmissionRegistry>>,
+    domain_state_reader: Option<Arc<dyn DomainStateReader>>,
+    domain_state_writer: Option<Arc<dyn DomainStateWriter>>,
+    question_template_registry: Option<Arc<QuestionTemplateRegistry>>,
+    skill_receipt_registry: Option<Arc<SkillReceiptRegistry>>,
     #[cfg(feature = "web-search-port")]
     web_search_provider: Option<Arc<dyn WebSearchProvider>>,
 }
@@ -29,6 +34,11 @@ impl ToolRuntimeHandles {
             round_injection_preemption_token: None,
             terminal_port: None,
             remote_exec_port: None,
+            admission_registry: None,
+            domain_state_reader: None,
+            domain_state_writer: None,
+            question_template_registry: None,
+            skill_receipt_registry: None,
             #[cfg(feature = "web-search-port")]
             web_search_provider: None,
         }
@@ -52,6 +62,46 @@ impl ToolRuntimeHandles {
         remote_exec_port: Option<Arc<dyn RemoteExecPort>>,
     ) -> Self {
         self.remote_exec_port = remote_exec_port;
+        self
+    }
+
+    pub fn with_admission_registry(
+        mut self,
+        admission_registry: Option<Arc<ToolAdmissionRegistry>>,
+    ) -> Self {
+        self.admission_registry = admission_registry;
+        self
+    }
+
+    pub fn with_domain_state_reader(
+        mut self,
+        domain_state_reader: Option<Arc<dyn DomainStateReader>>,
+    ) -> Self {
+        self.domain_state_reader = domain_state_reader;
+        self
+    }
+
+    pub fn with_domain_state_writer(
+        mut self,
+        domain_state_writer: Option<Arc<dyn DomainStateWriter>>,
+    ) -> Self {
+        self.domain_state_writer = domain_state_writer;
+        self
+    }
+
+    pub fn with_question_template_registry(
+        mut self,
+        question_template_registry: Option<Arc<QuestionTemplateRegistry>>,
+    ) -> Self {
+        self.question_template_registry = question_template_registry;
+        self
+    }
+
+    pub fn with_skill_receipt_registry(
+        mut self,
+        skill_receipt_registry: Option<Arc<SkillReceiptRegistry>>,
+    ) -> Self {
+        self.skill_receipt_registry = skill_receipt_registry;
         self
     }
 
@@ -82,6 +132,26 @@ impl ToolRuntimeHandles {
 
     pub fn remote_exec_port(&self) -> Option<&Arc<dyn RemoteExecPort>> {
         self.remote_exec_port.as_ref()
+    }
+
+    pub fn admission_registry(&self) -> Option<&Arc<ToolAdmissionRegistry>> {
+        self.admission_registry.as_ref()
+    }
+
+    pub fn domain_state_reader(&self) -> Option<&Arc<dyn DomainStateReader>> {
+        self.domain_state_reader.as_ref()
+    }
+
+    pub fn domain_state_writer(&self) -> Option<&Arc<dyn DomainStateWriter>> {
+        self.domain_state_writer.as_ref()
+    }
+
+    pub fn question_template_registry(&self) -> Option<&Arc<QuestionTemplateRegistry>> {
+        self.question_template_registry.as_ref()
+    }
+
+    pub fn skill_receipt_registry(&self) -> Option<&Arc<SkillReceiptRegistry>> {
+        self.skill_receipt_registry.as_ref()
     }
 
     #[cfg(feature = "web-search-port")]
@@ -125,6 +195,22 @@ impl std::fmt::Debug for ToolRuntimeHandles {
                     .as_ref()
                     .map(|_| "<dyn RemoteExecPort>"),
             )
+            .field("admission_registry", &self.admission_registry)
+            .field("domain_state_reader", &{
+                self.domain_state_reader
+                    .as_ref()
+                    .map(|_| "<dyn DomainStateReader>")
+            })
+            .field("domain_state_writer", &{
+                self.domain_state_writer
+                    .as_ref()
+                    .map(|_| "<dyn DomainStateWriter>")
+            })
+            .field(
+                "question_template_registry",
+                &self.question_template_registry,
+            )
+            .field("skill_receipt_registry", &self.skill_receipt_registry)
             .field("web_search_provider", &{
                 #[cfg(feature = "web-search-port")]
                 {
@@ -182,7 +268,7 @@ mod tests {
         ));
         assert_eq!(
             format!("{:?}", handles),
-            "ToolRuntimeHandles { workspace_services: Some(\"<WorkspaceServices>\"), cancellation_token: Some(\"<CancellationToken>\"), round_injection_preemption_token: Some(\"<CancellationToken>\"), terminal_port: None, remote_exec_port: None, web_search_provider: None }"
+            "ToolRuntimeHandles { workspace_services: Some(\"<WorkspaceServices>\"), cancellation_token: Some(\"<CancellationToken>\"), round_injection_preemption_token: Some(\"<CancellationToken>\"), terminal_port: None, remote_exec_port: None, admission_registry: None, domain_state_reader: None, domain_state_writer: None, question_template_registry: None, skill_receipt_registry: None, web_search_provider: None }"
         );
     }
 }

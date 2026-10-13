@@ -94,6 +94,9 @@ bitfun-services-core = { path = "../../services/services-core", features = ["jso
 # Integration service owner crate
 bitfun-services-integrations = { path = "../../services/services-integrations", optional = true }
 
+# Qt migration domain crate (scan/detect/strategy/output + intake state machine)
+bitfun-qt-migration = { path = "../../services/qt-migration", optional = true }
+
 # Optional compatibility export for the independent offline migration adapters.
 bitfun-legacy-migration-adapters = { path = "../../services/legacy-migration-adapters", optional = true }
 
@@ -222,6 +225,7 @@ test-support = []
 # external ecosystem discovery.
 agent-runtime = [
     "dep:bitfun-product-domains",
+    "dep:bitfun-qt-migration",
     "bitfun-services-core/coordination-store",
     "bitfun-services-core/session-event-format",
     "ai-adapter-runtime",
@@ -482,6 +486,8 @@ service-integrations = ["announcement", "file-watch", "git", "review-platform"]
 qt-toolchain = [
     "dep:bitfun-services-integrations",
     "bitfun-services-integrations/qt-toolchain",
+    "bitfun-qt-migration/qt-toolchain",
+    "bitfun-runtime-ports/provisioning-task-port",
 ]
 diagnostics = ["bitfun-services-core/diagnostics"]
 diff = ["bitfun-services-core/diff"]
@@ -526,18 +532,6 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util"
 [[test]]
 name = "git_contracts"
 required-features = ["git"]
-
-# The Qt migration scanner's tests live in the module under test, which the
-# `--lib` test target cannot compile (pre-existing errors in unrelated modules
-# under this feature set). This target compiles that module's source directly, so
-# the tests can run: `cargo test -p bitfun-core --features agent-runtime,git
-# --test qt_migration_scan_contracts`. `git` is required because an integration
-# test links the crate's library, and the library does not compile under
-# `agent-runtime` alone (`worktree_tool` uses `service::worktree`, gated on
-# `agent-runtime` + `git`).
-[[test]]
-name = "qt_migration_scan_contracts"
-required-features = ["agent-runtime", "git"]
 
 # The runtime provisioning channel's contracts (stages 3 and 4) are covered the
 # same way as the stage-1 scan: the tests live in the module under test, which the

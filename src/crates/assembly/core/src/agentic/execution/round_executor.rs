@@ -1497,6 +1497,8 @@ impl RoundExecutor {
                 workspace_services: context.workspace_services.clone(),
                 terminal_port: context.terminal_port.clone(),
                 remote_exec_port: context.remote_exec_port.clone(),
+                admission_registry: context.admission_registry.clone(),
+                domain_state_store: context.domain_state_store.clone(),
             };
 
             // Use the round-start configuration so stream repair and tool
@@ -2162,6 +2164,8 @@ pub(super) mod tests {
             workspace_services: None,
             terminal_port: None,
             remote_exec_port: None,
+            admission_registry: None,
+            domain_state_store: None,
             recover_partial_on_cancel: false,
         }
     }

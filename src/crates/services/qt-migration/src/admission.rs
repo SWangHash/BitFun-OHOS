@@ -1,13 +1,48 @@
-//! QtMigration admission gate.
+//! Qt migration tool admission: which tools may run while the migration
+//! intake is incomplete.
+//!
+//! Registered as a `ToolAdmissionPolicy`; session state is read only through
+//! `DomainStateReader` slots. Sessions without an activated intake stay
+//! ungated (zero overhead for the rest of the product).
 
-use crate::agentic::coordination::get_global_coordinator;
-use crate::agentic::tools::framework::ToolUseContext;
-use crate::util::errors::{BitFunError, BitFunResult};
-use bitfun_agent_runtime::qt_migration_intake_state::{
+use bitfun_runtime_ports::{
+    DomainStateReader, DomainStateSlot, ToolAdmissionPolicy, ToolAdmissionRejection,
+    ToolAdmissionRequest,
+};
+use serde_json::Value;
+
+use crate::state::{
     is_valid_qt_migration_receipt, QtMigrationIntakeStateSnapshot, QtMigrationIntakeStatus,
     QtMigrationVersionStrategy, QT_MIGRATION_INTAKE_REQUIRED_FIELDS,
 };
-use serde_json::Value;
+
+/// Domain namespace of the session state slots this crate owns.
+pub const QT_MIGRATION_STATE_NAMESPACE: &str = "qt_migration";
+
+/// Serialized [`QtMigrationIntakeStateSnapshot`] for the session. The slot key
+/// is the persisted session-metadata key verbatim: existing sessions already
+/// carry this key in their custom metadata, so a rename would orphan their
+/// restored intake state.
+pub const QT_MIGRATION_SLOT_INTAKE_STATE: DomainStateSlot = DomainStateSlot {
+    namespace: QT_MIGRATION_STATE_NAMESPACE,
+    key: "qtMigrationIntakeState",
+};
+/// Whether the session is an active Qt migration session (JSON bool). The key
+/// matches the persisted session-metadata key verbatim (see the intake slot).
+pub const QT_MIGRATION_SLOT_ACTIVE: DomainStateSlot = DomainStateSlot {
+    namespace: QT_MIGRATION_STATE_NAMESPACE,
+    key: "qtMigrationActive",
+};
+/// Host toolchains directory (JSON string) used by `__official__` guidance.
+pub const QT_MIGRATION_SLOT_TOOLCHAINS_DIR: DomainStateSlot = DomainStateSlot {
+    namespace: QT_MIGRATION_STATE_NAMESPACE,
+    key: "toolchains_dir",
+};
+/// Host templates directory (JSON string) used by `__official__` guidance.
+pub const QT_MIGRATION_SLOT_TEMPLATES_DIR: DomainStateSlot = DomainStateSlot {
+    namespace: QT_MIGRATION_STATE_NAMESPACE,
+    key: "templates_dir",
+};
 
 /// Tools always allowed while the migration intake is incomplete: they are
 /// required to finish input collection or load the migration skill, and carry
@@ -43,78 +78,10 @@ fn bootstrap_qmake_probe_command(input: Option<&Value>) -> bool {
 }
 
 /// Stable rejection code surfaced to the model so it can recover.
-const REJECT_CODE_INPUT_REQUIRED: &str = "qt_migration_input_required";
+pub const REJECT_CODE_INPUT_REQUIRED: &str = "qt_migration_input_required";
 /// Stable rejection code used when the four inputs are bound but the managed
 /// Qt migration skill has not been loaded (or its receipt is stale).
-const REJECT_CODE_SKILL_REQUIRED: &str = "qt_migration_skill_required";
-
-/// Structured admission rejection. Carries a stable code, failure kind, the
-/// missing input fields (if any) and a recovery action so the Host/UI can
-/// project a recovery path without parsing free-form text.
-#[derive(Debug, Clone)]
-pub(crate) struct QtMigrationAdmissionRejection {
-    pub code: &'static str,
-    pub kind: &'static str,
-    pub missing_fields: Vec<&'static str>,
-    pub recovery_action: &'static str,
-}
-
-impl QtMigrationAdmissionRejection {
-    /// Render into the stable error text consumed by the model and surfaced to
-    /// the Host/UI: `code: kind[; missing:...]; recovery:...`. The Host
-    /// matches `code` and may parse `kind`/`missing` without depending on prose.
-    pub(crate) fn to_error(&self) -> BitFunError {
-        let missing_part = if self.missing_fields.is_empty() {
-            String::new()
-        } else {
-            format!("; missing: {}", self.missing_fields.join(", "))
-        };
-        BitFunError::tool(format!(
-            "{}: {}{}; recovery: {}",
-            self.code, self.kind, missing_part, self.recovery_action
-        ))
-    }
-}
-
-/// Check whether `tool_name` may execute under the current QtMigration
-/// admission state. Returns `Ok()` when allowed, or a structured rejection
-/// error otherwise. Sessions without an activated intake are never gated
-/// (zero overhead for the rest of the product). `input` is the tool call's
-/// arguments, used to recognize the bootstrap qmake resolution command.
-pub(crate) fn check_admission(
-    tool_name: &str,
-    input: Option<&Value>,
-    context: &ToolUseContext,
-) -> BitFunResult<()> {
-    let Some(session_id) = context.session_id.as_deref() else {
-        return Ok(());
-    };
-
-    let Some(coordinator) = get_global_coordinator() else {
-        // Coordinator unavailable (e.g. tool-listing/test context) -> do not
-        // gate. Production dispatch paths always have it set.
-        return Ok(());
-    };
-    let session_manager = coordinator.get_session_manager();
-    let qt_migration_active = session_manager.qt_migration_active(session_id);
-    let intake = session_manager
-        .qt_migration_intake_state(session_id)
-        .unwrap_or_else(QtMigrationIntakeStateSnapshot::empty);
-    // A session marked as an active migration must fail closed when the intake
-    // snapshot is missing or non-activated (e.g. an older persisted session
-    // whose intake did not restore) instead of treating the absence as a
-    // non-migration session and letting side effects through.
-    if qt_migration_active && intake.status == QtMigrationIntakeStatus::NotApplicable {
-        return Err(QtMigrationAdmissionRejection {
-            code: REJECT_CODE_INPUT_REQUIRED,
-            kind: "intake_lost",
-            missing_fields: Vec::new(),
-            recovery_action: "reload the session or re-trigger the migration analyzer",
-        }
-        .to_error());
-    }
-    check_admission_for_intake(tool_name, input, &intake)
-}
+pub const REJECT_CODE_SKILL_REQUIRED: &str = "qt_migration_skill_required";
 
 /// Pure decision: given the resolved intake, decide admission. The gate is
 /// driven by Session admission state, not agent_type: a non-migration session
@@ -122,11 +89,11 @@ pub(crate) fn check_admission(
 /// gated; a subagent that inherited an activated intake from a QtMigration
 /// parent is gated regardless of its own agent_type. `input` is the tool
 /// call's arguments, used to recognize the bootstrap qmake resolution command.
-pub(crate) fn check_admission_for_intake(
+pub fn check_admission_for_intake(
     tool_name: &str,
     input: Option<&Value>,
     intake: &QtMigrationIntakeStateSnapshot,
-) -> BitFunResult<()> {
+) -> Result<(), ToolAdmissionRejection> {
     if intake.status == QtMigrationIntakeStatus::NotApplicable {
         return Ok(());
     }
@@ -145,13 +112,12 @@ pub(crate) fn check_admission_for_intake(
         intake.version_strategy,
         QtMigrationVersionStrategy::Pending { .. }
     ) {
-        return Err(QtMigrationAdmissionRejection {
+        return Err(ToolAdmissionRejection {
             code: REJECT_CODE_INPUT_REQUIRED,
             kind: "version_strategy_pending",
             missing_fields: Vec::new(),
             recovery_action: "call AskUserQuestion with your own question offering exactly two options and wait for the user's decision: the option that continues the migration must carry \"value\": \"continue_migration\" and the option that refuses it \"value\": \"abort\"",
-        }
-        .to_error());
+        });
     }
     // Terminal states: a migration that is Blocked, Failed or Completed must
     // not accept further side effects even with a valid receipt — the
@@ -160,13 +126,12 @@ pub(crate) fn check_admission_for_intake(
         QtMigrationIntakeStatus::Blocked
         | QtMigrationIntakeStatus::Failed
         | QtMigrationIntakeStatus::Completed => {
-            return Err(QtMigrationAdmissionRejection {
+            return Err(ToolAdmissionRejection {
                 code: REJECT_CODE_INPUT_REQUIRED,
                 kind: "terminal",
                 missing_fields: Vec::new(),
                 recovery_action: "migration session ended; start a new migration",
-            }
-            .to_error());
+            });
         }
         _ => {}
     }
@@ -193,44 +158,84 @@ pub(crate) fn check_admission_for_intake(
         if tool_name == "ExecCommand" && bootstrap_qmake_probe_command(input) {
             return Ok(());
         }
-        return Err(QtMigrationAdmissionRejection {
+        return Err(ToolAdmissionRejection {
             code: REJECT_CODE_INPUT_REQUIRED,
             kind: "input_required",
             missing_fields: missing,
             recovery_action: "run ExecCommand with exactly `command -v qmake` to resolve the session toolchain, then answer the qt-migration-paths question template via AskUserQuestion",
-        }
-        .to_error());
+        });
     }
     // Four fields are bound. The managed skill must have been loaded into this
     // Session; a missing or stale receipt keeps side effects blocked until the
     // Agent reloads the built-in `ohos-qt-skills`.
     let Some(receipt) = intake.loaded_skill_receipt.as_ref() else {
-        return Err(QtMigrationAdmissionRejection {
+        return Err(ToolAdmissionRejection {
             code: REJECT_CODE_SKILL_REQUIRED,
             kind: "skill_required",
             missing_fields: Vec::new(),
             recovery_action: "load the built-in ohos-qt-skills via the Skill tool",
-        }
-        .to_error());
+        });
     };
     if !is_valid_qt_migration_receipt(receipt) {
-        return Err(QtMigrationAdmissionRejection {
+        return Err(ToolAdmissionRejection {
             code: REJECT_CODE_SKILL_REQUIRED,
             kind: "skill_stale",
             missing_fields: Vec::new(),
             recovery_action: "reload the built-in ohos-qt-skills via the Skill tool",
-        }
-        .to_error());
+        });
     }
     Ok(())
+}
+
+/// `ToolAdmissionPolicy` for the Qt migration intake gate. Registered by
+/// product assembly; reads session state only through [`DomainStateReader`].
+///
+/// A session marked as an active migration must fail closed when the intake
+/// snapshot is missing or non-activated (e.g. an older persisted session whose
+/// intake did not restore) instead of treating the absence as a non-migration
+/// session and letting side effects through.
+#[derive(Debug, Default)]
+pub struct QtMigrationAdmissionPolicy;
+
+impl ToolAdmissionPolicy for QtMigrationAdmissionPolicy {
+    fn id(&self) -> &'static str {
+        "qt_migration"
+    }
+
+    fn check(
+        &self,
+        request: &ToolAdmissionRequest<'_>,
+        state: &dyn DomainStateReader,
+    ) -> Result<(), ToolAdmissionRejection> {
+        if request.session_id.is_none() {
+            return Ok(());
+        }
+        let active = matches!(
+            state.get(&QT_MIGRATION_SLOT_ACTIVE),
+            Some(Value::Bool(true))
+        );
+        let intake = state
+            .get(&QT_MIGRATION_SLOT_INTAKE_STATE)
+            .and_then(|value| serde_json::from_value::<QtMigrationIntakeStateSnapshot>(value).ok())
+            .unwrap_or_else(QtMigrationIntakeStateSnapshot::empty);
+        if active && intake.status == QtMigrationIntakeStatus::NotApplicable {
+            return Err(ToolAdmissionRejection {
+                code: REJECT_CODE_INPUT_REQUIRED,
+                kind: "intake_lost",
+                missing_fields: Vec::new(),
+                recovery_action: "reload the session or re-trigger the migration analyzer",
+            });
+        }
+        check_admission_for_intake(request.tool_name, request.input, &intake)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bitfun_agent_runtime::qt_migration_intake_state::{
+    use crate::state::{
         QtMigrationFieldResolutionState, QtMigrationIntakeFieldState,
-        QtMigrationLoadedSkillReceipt, QT_MIGRATION_INTAKE_REQUIRED_FIELDS, QT_MIGRATION_SKILL_DIR,
+        QtMigrationLoadedSkillReceipt, QT_MIGRATION_SKILL_DIR,
     };
     use std::collections::BTreeMap;
 
@@ -277,9 +282,9 @@ mod tests {
             QtMigrationIntakeStatus::NeedsInput,
             QtMigrationFieldResolutionState::Missing,
         );
-        let err = check_admission_for_intake("Write", None, &intake)
+        let rejection = check_admission_for_intake("Write", None, &intake)
             .expect_err("side effect must be rejected while inputs incomplete");
-        assert!(err.to_string().contains(REJECT_CODE_INPUT_REQUIRED));
+        assert_eq!(rejection.code, REJECT_CODE_INPUT_REQUIRED);
     }
 
     #[test]
@@ -321,9 +326,9 @@ mod tests {
             QtMigrationIntakeStatus::Ready,
         ] {
             let intake = snapshot(status, QtMigrationFieldResolutionState::Resolved);
-            let err = check_admission_for_intake("Write", None, &intake)
+            let rejection = check_admission_for_intake("Write", None, &intake)
                 .expect_err("side effects must be rejected until the skill is loaded");
-            assert!(err.to_string().contains(REJECT_CODE_SKILL_REQUIRED));
+            assert_eq!(rejection.code, REJECT_CODE_SKILL_REQUIRED);
         }
     }
 
@@ -354,9 +359,9 @@ mod tests {
             dir_name: QT_MIGRATION_SKILL_DIR.to_string(),
             content_hash: "deadbeef".to_string(),
         });
-        let err = check_admission_for_intake("Write", None, &intake)
+        let rejection = check_admission_for_intake("Write", None, &intake)
             .expect_err("unmanaged source receipt must be rejected");
-        assert!(err.to_string().contains(REJECT_CODE_SKILL_REQUIRED));
+        assert_eq!(rejection.code, REJECT_CODE_SKILL_REQUIRED);
 
         // A receipt with the wrong dir name is stale too.
         let mut intake2 = snapshot(
@@ -369,10 +374,11 @@ mod tests {
             dir_name: "other-skill".to_string(),
             content_hash: "deadbeef".to_string(),
         });
-        let err = check_admission_for_intake("Write", None, &intake2)
+        let rejection = check_admission_for_intake("Write", None, &intake2)
             .expect_err("wrong dir name receipt must be rejected");
-        assert!(err.to_string().contains(REJECT_CODE_SKILL_REQUIRED));
+        assert_eq!(rejection.code, REJECT_CODE_SKILL_REQUIRED);
     }
+
     #[test]
     fn terminal_states_reject_side_effects() {
         for status in [
@@ -381,9 +387,9 @@ mod tests {
             QtMigrationIntakeStatus::Completed,
         ] {
             let intake = snapshot_with_receipt(status, QtMigrationFieldResolutionState::Resolved);
-            let err = check_admission_for_intake("Write", None, &intake)
+            let rejection = check_admission_for_intake("Write", None, &intake)
                 .expect_err("terminal state must reject side effects");
-            assert!(err.to_string().contains(REJECT_CODE_INPUT_REQUIRED));
+            assert_eq!(rejection.code, REJECT_CODE_INPUT_REQUIRED);
         }
     }
 
@@ -400,9 +406,9 @@ mod tests {
             toolchain: 5,
         };
 
-        let err = check_admission_for_intake("Write", None, &intake)
+        let rejection = check_admission_for_intake("Write", None, &intake)
             .expect_err("side effects must stay blocked while the strategy is pending");
-        let message = err.to_string();
+        let message = rejection.to_message();
         assert!(message.contains("version_strategy_pending"));
         assert!(message.contains("AskUserQuestion"));
         assert!(
@@ -418,6 +424,7 @@ mod tests {
             assert!(check_admission_for_intake(tool, None, &intake).is_ok());
         }
     }
+
     #[test]
     fn bootstrap_qmake_probe_recognition() {
         assert!(bootstrap_qmake_probe_command(Some(
@@ -452,20 +459,126 @@ mod tests {
         )
         .is_ok());
         // Anything other than the exact probe command stays rejected.
-        let err = check_admission_for_intake(
+        let rejection = check_admission_for_intake(
             "ExecCommand",
             Some(&serde_json::json!({"cmd": "cat /etc/passwd"})),
             &intake,
         )
         .expect_err("non-probe shell command must stay rejected");
-        assert!(err.to_string().contains(REJECT_CODE_INPUT_REQUIRED));
+        assert_eq!(rejection.code, REJECT_CODE_INPUT_REQUIRED);
         // Bash is not the bootstrap probe vehicle.
-        let err = check_admission_for_intake(
+        let rejection = check_admission_for_intake(
             "Bash",
             Some(&serde_json::json!({"command": "command -v qmake"})),
             &intake,
         )
         .expect_err("Bash must stay rejected while inputs are missing");
-        assert!(err.to_string().contains(REJECT_CODE_INPUT_REQUIRED));
+        assert_eq!(rejection.code, REJECT_CODE_INPUT_REQUIRED);
+    }
+
+    /// Session-bound reader over the two slots the policy consumes.
+    #[derive(Debug)]
+    struct SlotReader {
+        active: bool,
+        intake: Option<QtMigrationIntakeStateSnapshot>,
+    }
+    impl DomainStateReader for SlotReader {
+        fn get(&self, slot: &DomainStateSlot) -> Option<Value> {
+            if slot == &QT_MIGRATION_SLOT_ACTIVE {
+                return Some(Value::Bool(self.active));
+            }
+            if slot == &QT_MIGRATION_SLOT_INTAKE_STATE {
+                return self
+                    .intake
+                    .as_ref()
+                    .map(|snap| serde_json::to_value(snap).expect("serialize intake snapshot"));
+            }
+            None
+        }
+    }
+
+    fn request(tool_name: &'static str) -> ToolAdmissionRequest<'static> {
+        ToolAdmissionRequest {
+            tool_name,
+            input: None,
+            session_id: Some("session-1"),
+        }
+    }
+
+    #[test]
+    fn slot_keys_are_the_persisted_metadata_keys_verbatim() {
+        // Upgrade compatibility: session metadata on disk already carries these
+        // keys, so a slot rename would orphan every restored intake.
+        assert_eq!(QT_MIGRATION_SLOT_INTAKE_STATE.key, "qtMigrationIntakeState");
+        assert_eq!(QT_MIGRATION_SLOT_ACTIVE.key, "qtMigrationActive");
+        assert_eq!(QT_MIGRATION_SLOT_ACTIVE.namespace, "qt_migration");
+    }
+
+    #[test]
+    fn policy_without_intake_state_stays_ungated() {
+        let policy = QtMigrationAdmissionPolicy;
+        assert!(policy
+            .check(
+                &request("Write"),
+                &SlotReader {
+                    active: false,
+                    intake: None
+                }
+            )
+            .is_ok());
+    }
+
+    #[test]
+    fn policy_fails_closed_when_active_intake_is_lost() {
+        let policy = QtMigrationAdmissionPolicy;
+        let rejection = policy
+            .check(
+                &request("Write"),
+                &SlotReader {
+                    active: true,
+                    intake: None,
+                },
+            )
+            .expect_err("active migration without a restored intake must fail closed");
+        assert_eq!(rejection.kind, "intake_lost");
+        assert_eq!(rejection.code, REJECT_CODE_INPUT_REQUIRED);
+    }
+
+    #[test]
+    fn policy_gates_side_effects_through_slots() {
+        let policy = QtMigrationAdmissionPolicy;
+        let intake = snapshot(
+            QtMigrationIntakeStatus::NeedsInput,
+            QtMigrationFieldResolutionState::Missing,
+        );
+        let rejection = policy
+            .check(
+                &request("Write"),
+                &SlotReader {
+                    active: true,
+                    intake: Some(intake),
+                },
+            )
+            .expect_err("active migration with missing inputs must gate side effects");
+        assert_eq!(rejection.kind, "input_required");
+    }
+
+    #[test]
+    fn policy_without_session_id_is_not_gated() {
+        let policy = QtMigrationAdmissionPolicy;
+        let admission = ToolAdmissionRequest {
+            tool_name: "Write",
+            input: None,
+            session_id: None,
+        };
+        assert!(policy
+            .check(
+                &admission,
+                &SlotReader {
+                    active: true,
+                    intake: None
+                }
+            )
+            .is_ok());
     }
 }

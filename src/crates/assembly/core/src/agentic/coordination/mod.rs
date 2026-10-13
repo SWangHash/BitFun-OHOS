@@ -11,15 +11,9 @@ mod coordination_store;
 // behaviour (the submitted answers are delivered immediately).
 #[cfg(feature = "qt-toolchain")]
 mod qt_toolchain_provisioning;
-// The official toolchain's Qt generation, published crate-wide: the migration
-// intake card needs it to avoid offering a download that cannot build the user's
-// project. Gated with the module it comes from, so a build without the
-// provisioning capability has no such fact.
 pub use control_conversation::{
     ControlConversation, CreateControlConversationRequest, VoiceExchangeRequest,
 };
-#[cfg(feature = "qt-toolchain")]
-pub(crate) use qt_toolchain_provisioning::QT_MIGRATION_OFFICIAL_QT_MAJOR;
 pub mod coordinator;
 // The generation-mismatch gate between the bound project and the bound toolchain.
 // Feature-independent: it degrades to `Unknown` for facts this build cannot measure

@@ -11,7 +11,7 @@ use bitfun_agent_tools::LoadedDeferredToolSpec;
 use bitfun_core_types::ModelRequestContext;
 use bitfun_runtime_ports::{
     DelegationPolicy, PermissionConstraintLayer, PermissionDelegationContext,
-    PermissionRuntimeCeiling, RemoteExecPort, TerminalPort,
+    PermissionRuntimeCeiling, RemoteExecPort, TerminalPort, ToolAdmissionRegistry,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -45,6 +45,14 @@ pub struct ExecutionContext {
     pub terminal_port: Option<Arc<dyn TerminalPort>>,
     /// Remote execution provider injected by product assembly.
     pub remote_exec_port: Option<Arc<dyn RemoteExecPort>>,
+    /// Domain admission registry consulted at dispatch time. `None`/empty
+    /// means "do not gate".
+    pub admission_registry: Option<Arc<ToolAdmissionRegistry>>,
+    /// Session-bound domain state store the admission policies and domain
+    /// contributions read and write. `None` means "no domain state" (do not
+    /// gate; contributions see empty slots).
+    pub domain_state_store:
+        Option<Arc<crate::agentic::tools::tool_admission::SessionDomainStateStore>>,
     /// When set, engine drains pending round injections at each round boundary
     /// and injects them into the dialog history without ending the turn.
     pub round_injection: Option<Arc<dyn DialogRoundInjectionSource>>,
@@ -95,6 +103,13 @@ pub struct RoundContext {
     pub workspace_services: Option<WorkspaceServices>,
     pub terminal_port: Option<Arc<dyn TerminalPort>>,
     pub remote_exec_port: Option<Arc<dyn RemoteExecPort>>,
+    /// Domain admission registry consulted at dispatch time. `None`/empty
+    /// means "do not gate".
+    pub admission_registry: Option<Arc<ToolAdmissionRegistry>>,
+    /// Session-bound domain state store the admission policies and domain
+    /// contributions read and write. `None` means "no domain state".
+    pub domain_state_store:
+        Option<Arc<crate::agentic::tools::tool_admission::SessionDomainStateStore>>,
     pub recover_partial_on_cancel: bool,
 }
 

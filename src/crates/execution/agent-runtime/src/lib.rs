@@ -46,12 +46,6 @@ pub mod prompt_cache;
 #[cfg(feature = "agent-runtime")]
 pub mod prompt_markup;
 #[cfg(feature = "agent-runtime")]
-pub mod qt_migration_intake_state;
-#[cfg(feature = "agent-runtime")]
-pub mod qt_migration_layout;
-#[cfg(feature = "agent-runtime")]
-pub mod qt_migration_question_templates;
-#[cfg(feature = "agent-runtime")]
 pub mod remote_file_delivery;
 #[cfg(feature = "agent-runtime")]
 pub mod review_read_receipt;

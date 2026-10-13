@@ -1,117 +1,16 @@
-//! QtMigration intake state (Session-level pure decision layer).
+//! Qt migration intake state (Session-level pure decision layer).
+//!
+//! The wire serde DTOs live in `bitfun_product_domains::qt_migration`; this
+//! module re-exports them so core keeps a single import path for the state
+//! surface.
 
-use serde::{Deserialize, Serialize};
+pub use bitfun_product_domains::qt_migration::{
+    QtMigrationFieldResolutionState, QtMigrationIntakeFieldState, QtMigrationIntakeStateSnapshot,
+    QtMigrationIntakeStatus, QtMigrationLoadedSkillReceipt, QtMigrationVersionStrategy,
+    QT_MIGRATION_INTAKE_REQUIRED_FIELDS, QT_MIGRATION_INTAKE_SNAPSHOT_SCHEMA_VERSION,
+};
+
 use std::collections::BTreeMap;
-
-/// Current protocol version of the snapshot shape. Bump when the persisted or
-/// transported shape changes so stale snapshots can be rejected.
-pub const QT_MIGRATION_INTAKE_SNAPSHOT_SCHEMA_VERSION: u32 = 1;
-
-/// Overall intake status.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum QtMigrationIntakeStatus {
-    /// QtMigration mode not active for the current request.
-    NotApplicable,
-    /// At least one required field still has no concrete value (Missing /
-    /// Referenced only). Side-effect tools are rejected.
-    NeedsInput,
-    /// Legacy serialized state kept for upgrade compatibility: older persisted
-    /// snapshots may carry it and must keep deserializing. Never derived by
-    /// [`qt_migration_derive_intake_status`].
-    NeedsValidation,
-    /// All four required fields are bound (≥ Resolved) AND a valid skill
-    /// receipt exists (the state is decided by the receipt, not by any
-    /// host-side evidence).
-    Ready,
-    /// Skill not loaded or loaded snapshot incompatible. Side effects rejected.
-    SkillRequired,
-    /// All preconditions satisfied; migration workflow may execute.
-    Executing,
-    Completed,
-    Blocked,
-    Failed,
-}
-
-/// Field-level resolution state for one of the four minimum inputs.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum QtMigrationFieldResolutionState {
-    /// No reference recognized yet; empty value or bare keyword must stay here.
-    Missing,
-    /// A name/path/ID reference was recognized in the user text (string-layer
-    /// recognition only, no existence assumption).
-    Referenced,
-    /// Bound to a concrete absolute path, product-registered ID, or explicit
-    /// configuration that the executing Host can use. A backend-validated
-    /// question-card submission binds both first-time and replacement values.
-    Resolved,
-}
-
-impl QtMigrationFieldResolutionState {
-    /// Monotone progression used by [`qt_migration_derive_intake_status`].
-    pub fn can_bind_value(self) -> bool {
-        self >= QtMigrationFieldResolutionState::Resolved
-    }
-}
-
-/// How the generation mismatch between the bound source project and the bound
-/// toolchain was resolved.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum QtMigrationVersionStrategy {
-    /// No mismatch was measured for this intake, so there is nothing to decide.
-    #[default]
-    NotNeeded,
-    /// A mismatch was measured and the strategy question is waiting for the user.
-    Pending { project: u8, toolchain: u8 },
-    /// The project is newer than the toolchain and the user chose to migrate it
-    /// with the toolchain's generation (a Qt6 project built as Qt5).
-    Downgrade { project: u8, toolchain: u8 },
-    /// The project is older than the toolchain and the user chose to continue with
-    /// the newer toolchain.
-    Continue { project: u8, toolchain: u8 },
-    /// The user chose not to migrate.
-    Abort { project: u8, toolchain: u8 },
-}
-
-impl QtMigrationVersionStrategy {
-    /// The generations this state was decided on, when it came from a measurement.
-
-    /// Every measured state carries them — including the decided ones — so the facts
-    /// behind "migrate this Qt6 project with Qt5" survive the answer and can be handed
-    /// to every later step of the migration without probing the disk again.
-    pub fn measured_generations(self) -> Option<(u8, u8)> {
-        match self {
-            Self::NotNeeded => None,
-            Self::Pending { project, toolchain }
-            | Self::Downgrade { project, toolchain }
-            | Self::Continue { project, toolchain }
-            | Self::Abort { project, toolchain } => Some((project, toolchain)),
-        }
-    }
-}
-
-/// One minimum input field.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct QtMigrationIntakeFieldState {
-    pub state: QtMigrationFieldResolutionState,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub value: Option<String>,
-}
-
-impl Default for QtMigrationIntakeFieldState {
-    fn default() -> Self {
-        Self {
-            state: QtMigrationFieldResolutionState::Missing,
-            value: None,
-        }
-    }
-}
-
-/// The four minimum inputs for Qt migration.
-pub const QT_MIGRATION_INTAKE_REQUIRED_FIELDS: [&str; 4] =
-    ["source_project", "output_project", "toolchain", "template"];
 
 /// Directory name of the managed built-in Qt migration skill (matches the
 /// registry spec in `skills::catalog`).
@@ -124,26 +23,11 @@ pub const QT_MIGRATION_OFFICIAL_VALUE: &str = "__official__";
 /// Managed built-in skill source slot (mirrors
 /// `skills::roots::BITFUN_SYSTEM_SKILL_SLOT`). Inlined here so the receipt
 /// decision stays provider-neutral without a cross-module import.
-const MANAGED_SKILL_SOURCE_SLOT: &str = "bitfun-system";
+pub const MANAGED_SKILL_SOURCE_SLOT: &str = "bitfun-system";
 
 /// A value that explicitly delegates preparation to the loaded skill.
 pub fn qt_migration_is_skill_managed_value(value: &str) -> bool {
     value == QT_MIGRATION_OFFICIAL_VALUE
-}
-
-/// Provider-neutral proof that the managed `ohos-qt-skills` skill was
-/// successfully loaded into the current Session.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct QtMigrationLoadedSkillReceipt {
-    /// Stable skill key reported by the registry at load time (diagnostic).
-    pub skill_key: String,
-    /// Skill source slot; must equal the managed built-in slot.
-    pub source_slot: String,
-    /// Skill directory name; must equal [`QT_MIGRATION_SKILL_DIR`].
-    pub dir_name: String,
-    /// SHA-256 of the loaded skill content; detects upgrades/content changes
-    /// so a stale receipt can be invalidated.
-    pub content_hash: String,
 }
 
 /// Pure decision: a receipt proves the managed Qt migration skill was loaded
@@ -155,41 +39,6 @@ pub fn is_valid_qt_migration_receipt(receipt: &QtMigrationLoadedSkillReceipt) ->
         && !receipt.skill_key.is_empty()
         && receipt.skill_key.contains(QT_MIGRATION_SKILL_DIR)
         && !receipt.content_hash.is_empty()
-}
-
-/// Immutable Session-level intake snapshot.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct QtMigrationIntakeStateSnapshot {
-    pub schema_version: u32,
-    /// Field id -> field state. Only the four minimum inputs exist in batch 1.
-    pub fields: BTreeMap<String, QtMigrationIntakeFieldState>,
-    /// Overall status derived from [`QtMigrationIntakeFieldState`]s plus evidence status.
-    pub status: QtMigrationIntakeStatus,
-    /// Skill load receipt. `None` until the Skill tool atomically records a
-    /// successful load of the managed `ohos-qt-skills`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub loaded_skill_receipt: Option<QtMigrationLoadedSkillReceipt>,
-    /// How a generation mismatch between the bound source project and the bound
-    /// toolchain was resolved. Defaulted on deserialization so snapshots written
-    /// before this field existed keep loading.
-    #[serde(default)]
-    pub version_strategy: QtMigrationVersionStrategy,
-}
-
-impl QtMigrationIntakeStateSnapshot {
-    pub fn empty() -> Self {
-        let mut fields = BTreeMap::new();
-        for field in QT_MIGRATION_INTAKE_REQUIRED_FIELDS {
-            fields.insert(field.to_string(), QtMigrationIntakeFieldState::default());
-        }
-        Self {
-            schema_version: QT_MIGRATION_INTAKE_SNAPSHOT_SCHEMA_VERSION,
-            fields,
-            status: QtMigrationIntakeStatus::NotApplicable,
-            loaded_skill_receipt: None,
-            version_strategy: QtMigrationVersionStrategy::default(),
-        }
-    }
 }
 
 /// Reason a submitted answer group was rejected. The backend must re-validate
@@ -337,21 +186,14 @@ pub fn qt_migration_start_new_intake(
 
 /// Backend answer re-validation.
 
-/// `answers` is the raw answer group submitted by the frontend (keyed by field
-/// id). Returns the normalized values to atomically apply on success.
-pub fn qt_migration_validate_answers(
-    template_id: &str,
-    template_version: &str,
-    known_templates_by_version: impl Fn(&str, &str) -> bool,
+/// Field-level answer validation without the template binding check: the
+/// binding (template id/version) is verified by the caller against the waiting
+/// request, then the raw answer group is normalized here. `answers` is keyed by
+/// field id; the returned map carries the trimmed values to apply atomically.
+pub fn qt_migration_validate_answer_fields(
     required_fields: &[&str],
     answers: &serde_json::Value,
 ) -> Result<BTreeMap<String, String>, QtMigrationAnswerValidationError> {
-    if !known_templates_by_version(template_id, template_version) {
-        return Err(QtMigrationAnswerValidationError::BindingMismatch {
-            expected_version: template_version.to_string(),
-        });
-    }
-
     let Some(answers_obj) = answers.as_object() else {
         return Err(QtMigrationAnswerValidationError::MissingField(
             required_fields
@@ -385,6 +227,23 @@ pub fn qt_migration_validate_answers(
         normalized.insert((*field).to_string(), raw);
     }
     Ok(normalized)
+}
+
+/// `answers` is the raw answer group submitted by the frontend (keyed by field
+/// id). Returns the normalized values to atomically apply on success.
+pub fn qt_migration_validate_answers(
+    template_id: &str,
+    template_version: &str,
+    known_templates_by_version: impl Fn(&str, &str) -> bool,
+    required_fields: &[&str],
+    answers: &serde_json::Value,
+) -> Result<BTreeMap<String, String>, QtMigrationAnswerValidationError> {
+    if !known_templates_by_version(template_id, template_version) {
+        return Err(QtMigrationAnswerValidationError::BindingMismatch {
+            expected_version: template_version.to_string(),
+        });
+    }
+    qt_migration_validate_answer_fields(required_fields, answers)
 }
 
 /// Bare keywords that must never be accepted as real values: no "default
@@ -426,6 +285,52 @@ pub fn qt_migration_apply_validated_answers(
     }
     next.status = qt_migration_derive_intake_status(&next);
     next
+}
+
+/// Slot-value (de)serialization helpers.
+///
+/// Session domain-state slots travel as JSON values through the generic
+/// `DomainStateReader`/`DomainStateWriter` ports; these helpers are the single
+/// typed boundary between the slot value and the snapshot.
+
+/// Parse a session domain-state slot value into the intake snapshot. A missing
+/// or corrupt value degrades to the empty snapshot (missing input, gate stays
+/// closed) instead of failing the caller; a corrupt value is a logged
+/// deviation, an absent one is the normal non-migration session shape.
+pub fn intake_snapshot_from_slot_value(
+    value: Option<serde_json::Value>,
+) -> QtMigrationIntakeStateSnapshot {
+    match value {
+        None => QtMigrationIntakeStateSnapshot::empty(),
+        Some(value) => match serde_json::from_value(value) {
+            Ok(snapshot) => snapshot,
+            Err(error) => {
+                log::warn!(
+                    "Failed to parse the Qt migration intake state slot; treating the intake as empty: {}",
+                    error
+                );
+                QtMigrationIntakeStateSnapshot::empty()
+            }
+        },
+    }
+}
+
+/// Serialize the intake snapshot into its session domain-state slot value.
+pub fn intake_snapshot_to_slot_value(
+    snapshot: &QtMigrationIntakeStateSnapshot,
+) -> serde_json::Value {
+    serde_json::to_value(snapshot).unwrap_or(serde_json::Value::Null)
+}
+
+/// Read the migration-active slot value. Only an explicit `true` is active, so
+/// an absent (or corrupt) slot reads as inactive.
+pub fn migration_active_from_slot_value(value: Option<&serde_json::Value>) -> bool {
+    matches!(value, Some(serde_json::Value::Bool(true)))
+}
+
+/// Build the migration-active slot value.
+pub fn migration_active_slot_value(active: bool) -> serde_json::Value {
+    serde_json::Value::Bool(active)
 }
 
 #[cfg(test)]

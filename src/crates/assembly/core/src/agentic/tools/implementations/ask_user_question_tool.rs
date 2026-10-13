@@ -3,9 +3,6 @@
 //! Allows AI to ask questions to users during execution and wait for answers
 
 use async_trait::async_trait;
-use bitfun_agent_runtime::qt_migration_question_templates::{
-    resolve_question_template_with_context, QtMigrationQuestionContext,
-};
 use bitfun_agent_runtime::user_questions::{
     ask_user_question_available_in_context, build_answered_user_question_result,
     build_cancelled_user_question_result, build_timed_out_user_question_result,
@@ -19,36 +16,10 @@ use log::{debug, warn};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
-#[cfg(feature = "qt-toolchain")]
-use crate::agentic::coordination::QT_MIGRATION_OFFICIAL_QT_MAJOR;
 use crate::agentic::tools::framework::{Tool, ToolResult, ToolUseContext};
 use crate::agentic::tools::user_input_manager::get_user_input_manager;
 use crate::infrastructure::events::event_system::{get_global_event_system, BackendEvent};
 use crate::util::errors::BitFunResult;
-
-/// Merge prompt-resolved Qt migration paths into the model-provided candidate
-/// map. These paths come from the turn gate's semantic analyzer (stashed in
-/// `custom_data["qt_migration_resolved_paths"]`) and must reach the option list
-/// even when the model calls the template without echoing them.
-fn merge_prompt_resolved_paths(
-    candidates: &mut std::collections::HashMap<String, Vec<String>>,
-    resolved: &Value,
-) {
-    for field in ["source_project", "output_project", "toolchain", "template"] {
-        let Some(path) = resolved
-            .get(field)
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .filter(|path| !path.is_empty())
-        else {
-            continue;
-        };
-        let entry = candidates.entry(field.to_string()).or_default();
-        if !entry.iter().any(|existing| existing == path) {
-            entry.push(path.to_string());
-        }
-    }
-}
 
 /// How long the runtime may wait for the user's first interaction.
 ///
@@ -77,180 +48,29 @@ impl Default for AskUserQuestionTool {
 }
 
 impl AskUserQuestionTool {
-    /// The installed-toolchain fact for an intake answer, when the runtime installed
-    /// the kit while applying that answer.
-    ///
-    /// `__official__` is a request, not a place: the runtime downloads the official
-    /// package on submit (`qt_toolchain_provisioning`) and records the installed kit
-    /// root in the session intake snapshot. The model has to build with that path, so it
-    /// is stated as a fact on the answer's tool result instead of leaving `__official__`
-    /// to travel one hop further. `None` when the answer bound a real toolchain path
-    /// already, or when the provisioning has not produced a path yet (its failure path
-    /// keeps the official binding, and the knowledge-base script stays the backstop for
-    /// that case — the turn-start instruction carries it).
-    fn qt_migration_installed_toolchain_fact(
-        snapshot: &bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeStateSnapshot,
-        answers: &Value,
-    ) -> Option<String> {
-        use bitfun_agent_runtime::qt_migration_intake_state::QT_MIGRATION_OFFICIAL_VALUE;
-
-        let submitted_official = answers.as_object()?.values().any(|value| match value {
-            Value::String(answer) => answer.trim() == QT_MIGRATION_OFFICIAL_VALUE,
-            Value::Array(items) => items
-                .iter()
-                .any(|item| item.as_str().map(str::trim) == Some(QT_MIGRATION_OFFICIAL_VALUE)),
-            _ => false,
-        });
-        if !submitted_official {
-            return None;
-        }
-        let toolchain = snapshot.fields.get("toolchain")?;
-        if !toolchain.state.can_bind_value() {
-            return None;
-        }
-        let installed = toolchain.value.as_deref()?;
-        if installed == QT_MIGRATION_OFFICIAL_VALUE {
-            return None;
-        }
-        Some(format!(
-            "## 工具链已就绪（系统事实，必须使用）\n\n本次提交的 toolchain 绑定是 __official__，运行时已经把它安装到 `{installed}`。\
-             本次迁移的工具链就是这个路径：直接使用它，不要再运行任何工具链下载脚本，也不要再做存在性探索或检查，\
-             不要在后续任何步骤里把 toolchain 当成 __official__。"
-        ))
-    }
-
-    /// The Qt migration instruction an answered question must carry back, if any.
-    ///
-    /// Three answered questions have a consequence inside the same turn:
-    ///
-    /// - the intake card, when the runtime measured that the bound project and the
-    ///   bound toolchain are different Qt generations while applying the answer: the
-    ///   intake is `Pending` (derived `Blocked`, so no side effect may run) and the
-    ///   model must ask the user about the migration strategy next;
-    /// - the strategy question itself — written by the model, so it arrives as a plain
-    ///   question with no template id — whose answer decides how the migration may run
-    ///   (including "do not migrate", which the coordinator also acts on by stopping
-    ///   the turn);
-    /// - the same question answered without the required option values, or answered
-    ///   with them while the session still records no decision: either way the intake
-    ///   stays blocked and the model has to ask again.
-    ///
-    /// Every fact is read from the session intake snapshot and from the answer values
-    /// through `version_strategy_follow_up`, never re-measured here, so the
-    /// instruction cannot disagree with the decision the runtime recorded.
-    fn qt_migration_follow_up_instruction(
+    /// Facts registered template contributions append to the resumed tool
+    /// result so the model acts on a decided consequence inside the current turn.
+    fn answer_receipt_facts(
         resolved_request: Option<&ResolvedQuestionRequest>,
         answers: &Value,
         context: &ToolUseContext,
-    ) -> Option<String> {
-        use crate::agentic::tools::qt_migration_candidates::{
-            pending_generation_mismatch, version_strategy_follow_up, QtMigrationStrategyFollowUp,
+    ) -> Vec<String> {
+        let Some(registry) = context.runtime_handles.question_template_registry() else {
+            return Vec::new();
         };
-        use bitfun_agent_runtime::qt_migration_intake_state::{
-            QtMigrationIntakeStateSnapshot, QtMigrationVersionStrategy,
+        let Some(state) = context.runtime_handles.domain_state_reader() else {
+            return Vec::new();
         };
-        use bitfun_agent_runtime::qt_migration_question_templates::QT_MIGRATION_PATHS_TEMPLATE_ID;
-
-        let intake_template = resolved_request.and_then(|resolved| resolved.template_id.as_deref())
-            == Some(QT_MIGRATION_PATHS_TEMPLATE_ID);
-        let session_id = context.session_id.as_deref()?;
-        let coordinator = crate::agentic::coordination::get_global_coordinator()?;
-        let snapshot = coordinator
-            .get_session_manager()
-            .qt_migration_intake_state(session_id)
-            .unwrap_or_else(QtMigrationIntakeStateSnapshot::empty);
-
-        if intake_template {
-            let mut facts: Vec<String> = Vec::new();
-            // The runtime installed the kit for an `__official__` binding and wrote the
-            // kit path into the session snapshot before waking this tool, but the answer
-            // the model is reading still carries `__official__` (the recorded user answer
-            // is never rewritten). State the installed path here, or the model starts the
-            // migration in this very turn without the path it has to build with.
-            if let Some(installed) = Self::qt_migration_installed_toolchain_fact(&snapshot, answers)
-            {
-                facts.push(installed);
-            }
-            // `None` when the generations agree: the answer stands on its own.
-            if let Some(mismatch) = pending_generation_mismatch(&snapshot) {
-                if let Some(instruction) = mismatch.strategy_instruction() {
-                    facts.push(instruction);
-                }
-            }
-            return if facts.is_empty() {
-                None
-            } else {
-                Some(facts.join("\n\n"))
-            };
-        }
-
-        // Only a session that measured a generation mismatch has anything to say about a
-        // plain question; any other question gets no Qt-specific note.
-        let follow_up = version_strategy_follow_up(&snapshot, answers)?;
-        let (project, toolchain) = follow_up.measured_generations()?;
-        // The direction the measurement recorded decides the wording in every branch: a
-        // "proceed" answer means a downgrade for a newer project and a continue for an
-        // older one. Both re-ask instructions have to carry it again, or the model
-        // rewrites the same direction-agnostic question the first instruction replaced.
-        let direction = follow_up.strategy_accept_semantics()?;
-
-        match follow_up {
-            QtMigrationStrategyFollowUp::MissingAnswer { .. } => Some(format!(
-                "## 迁移策略未生效（系统约束，必须重新提问）\n\n\
-                 刚才那次提问的答案里没有运行时要求的选项取值，所以用户的决定无法被确认，迁移仍然被阻断。\
-                 请重新调用 AskUserQuestion，给出两个选项并带上取值：接受本次迁移的选项 value 必须是 \
-                 \"{proceed}\"，不迁移的选项 value 必须是 \"{abort}\"（文案随你写）。\n\
-                 {direction}\n\n\
-                 在得到可确认的选择之前，禁止执行任何迁移副作用（写文件、构建、部署、删除）、禁止加载技能。",
-                proceed =
-                    crate::agentic::tools::qt_migration_candidates::QT_MIGRATION_STRATEGY_PROCEED_VALUE,
-                abort =
-                    crate::agentic::tools::qt_migration_candidates::QT_MIGRATION_STRATEGY_ABORT_VALUE,
-            )),
-            QtMigrationStrategyFollowUp::NotRecorded { .. } => Some(format!(
-                "## 迁移策略未记录（系统约束，必须重新提问）\n\n\
-                 刚才那次提问的答案带有运行时要求的取值，但会话里仍然没有记录下任何迁移策略，迁移保持阻断。\
-                 请重新调用 AskUserQuestion 提问同一件事（接受的选项 value 用 \"{proceed}\"，\
-                 不迁移的选项 value 用 \"{abort}\"），并等待用户作答。\n\
-                 {direction}\n\n\
-                 在策略被记录之前，禁止执行任何迁移副作用（写文件、构建、部署、删除）、禁止加载技能。",
-                proceed =
-                    crate::agentic::tools::qt_migration_candidates::QT_MIGRATION_STRATEGY_PROCEED_VALUE,
-                abort =
-                    crate::agentic::tools::qt_migration_candidates::QT_MIGRATION_STRATEGY_ABORT_VALUE,
-            )),
-            QtMigrationStrategyFollowUp::Decided { mismatch, strategy } => {
-                let downgrade = matches!(
-                    mismatch,
-                    crate::agentic::tools::qt_migration_candidates::QtMigrationGenerationMismatch::ProjectNewer { .. }
-                );
-                let body = match strategy {
-                    QtMigrationVersionStrategy::Downgrade { .. }
-                    | QtMigrationVersionStrategy::Continue { .. } => {
-                        if downgrade {
-                            format!(
-                                "用户已确认：原始工程是 Qt{project}，但本次迁移按工具链的 Qt{toolchain} 执行（工程降级到工具链这一代）。\
-                                 后续所有迁移动作，包括使用 ohos-qt-skills 时，都必须按 Qt{toolchain} 处理，不得按工程原本的 Qt{project} 处理，也不要重新询问。"
-                            )
-                        } else {
-                            format!(
-                                "用户已确认：原始工程是 Qt{project}，工具链是 Qt{toolchain}，两者版本不一致但用户要求继续迁移。\
-                                 按工具链的 Qt{toolchain} 执行，并在最终结论中说明这一版本差异。"
-                            )
-                        }
-                    }
-                    QtMigrationVersionStrategy::Abort { .. } => format!(
-                        "用户已选择不迁移这个 Qt{project} 工程（工具链为 Qt{toolchain}）。\
-                         本次任务到此结束：禁止执行任何迁移动作（写文件、构建、部署、删除），也不要改用其他工程继续，只需简短说明已按用户选择终止。"
-                    ),
-                    // `measured_generations` is `Some` only for measured states, so a
-                    // decision always carries a wording; anything else is not ours.
-                    QtMigrationVersionStrategy::NotNeeded
-                    | QtMigrationVersionStrategy::Pending { .. } => return None,
-                };
-                Some(format!("## 迁移策略已确认（系统事实，必须遵守）\n\n{body}"))
-            }
-        }
+        let template_id = resolved_request.and_then(|resolved| resolved.template_id.as_deref());
+        registry
+            .iter()
+            .flat_map(|contribution| {
+                contribution
+                    .on_answers(template_id, answers, state.as_ref())
+                    .into_iter()
+                    .map(|fact| fact.text)
+            })
+            .collect()
     }
 
     async fn question_controllers(context: &ToolUseContext) -> Vec<UserQuestionController> {
@@ -510,158 +330,98 @@ Usage notes:
         // 1b. Load questions (+ backend presentation policy + version) from a
         // static backend template when templateId is referenced. Template
         // content is backend-owned: the model cannot rephrase or drop fields,
-        // and inline `presentation` is never accepted from the model.
+        // and inline `presentation` is never accepted from the model. The
+        // contribution owns candidate preparation and the render end to end.
         let mut resolved_request: Option<ResolvedQuestionRequest> = None;
-        if let Some(template_id) = &tool_input.template_id {
-            let mut candidates: std::collections::HashMap<String, Vec<String>> = input
+        if let Some(template_id) = tool_input.template_id.clone() {
+            let contribution = context
+                .runtime_handles
+                .question_template_registry()
+                .and_then(|registry| registry.get(&template_id))
+                .ok_or_else(|| {
+                    crate::util::errors::BitFunError::Validation(format!(
+                        "Unknown AskUserQuestion template: {template_id}"
+                    ))
+                })?;
+
+            let candidates: std::collections::HashMap<String, Vec<String>> = input
                 .get("candidates")
                 .and_then(|v| serde_json::from_value(v.clone()).ok())
                 .unwrap_or_default();
 
-            let mut question_context = QtMigrationQuestionContext::default();
+            // Host resources are pre-resolved into plain data; a listing that
+            // could not be produced is `None`, not an empty workspace.
+            let workspace_root = context.workspace_root();
+            let workspace_is_remote = context.is_remote();
+            let workspace_dir_entries = match (&workspace_root, workspace_is_remote) {
+                (Some(workspace), false) => {
+                    let listing = match context.workspace_services() {
+                        Some(services) => services
+                            .fs
+                            .read_dir(&workspace.to_string_lossy())
+                            .await
+                            .ok(),
+                        None => None,
+                    };
+                    listing.map(|entries| {
+                        entries
+                            .into_iter()
+                            .map(|entry| bitfun_runtime_ports::TemplateDirEntry {
+                                name: entry.name,
+                                path: entry.path,
+                                is_dir: entry.is_dir,
+                                is_symlink: entry.is_symlink,
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                }
+                _ => None,
+            };
+            let managed_resources_root =
+                Some(crate::infrastructure::get_path_manager_arc().qt_migration_root_dir());
+            let official_toolchain_qt_major = {
+                #[cfg(feature = "qt-toolchain")]
+                {
+                    Some(bitfun_runtime_ports::QT_MIGRATION_OFFICIAL_QT_MAJOR)
+                }
+                #[cfg(not(feature = "qt-toolchain"))]
+                {
+                    None
+                }
+            };
 
-            // Backend-owned candidate processing for Qt migration combines
-            // model-provided paths with paths discovered from local resources.
-            // The backend validates, deduplicates, sorts, and caps the final list.
-            if template_id.as_str()
-                == bitfun_agent_runtime::qt_migration_question_templates::QT_MIGRATION_PATHS_TEMPLATE_ID
+            let template_context = bitfun_runtime_ports::TemplateContext {
+                template_id: template_id.as_str(),
+                candidates: &candidates,
+                raw_input: &raw_input,
+                context_vars: &context.custom_data,
+                workspace_root,
+                workspace_is_remote,
+                workspace_dir_entries: workspace_dir_entries.as_deref(),
+                managed_resources_root: managed_resources_root.as_deref(),
+                official_toolchain_qt_major,
+            };
+            let resolved = contribution
+                .render(&template_context)
+                .map_err(|rejection| {
+                    crate::util::errors::BitFunError::Validation(rejection.message)
+                })?;
+            // The opaque payload travels back verbatim under `templatePayload`,
+            // plus the template's legacy wire field for older surfaces.
+            let legacy_payload = match (&resolved.payload, contribution.legacy_payload_wire_field())
             {
-                let migration_enabled = context
-                    .custom_data
-                    .get("qt_migration_enabled")
-                    .and_then(Value::as_bool)
-                    .unwrap_or(false);
-                if !migration_enabled {
-                    return Err(crate::util::errors::BitFunError::Validation(
-                        "qt-migration-paths is available only for a classified Qt to HarmonyOS migration request".to_string(),
-                    ));
-                }
-                // Backend-owned seeding: prompt-resolved paths reach the
-                // option list even when the model calls the template without
-                // echoing them in `candidates`.
-                if let Some(resolved) = context.custom_data.get("qt_migration_resolved_paths") {
-                    merge_prompt_resolved_paths(&mut candidates, resolved);
-                }
-                // The session probe results (the model's `qmake` / `qmake6` /
-                // `qt-cmake` hits) arrive under their dedicated key and are
-                // consumed directly at the lowest priority tier (plan §6.1
-                // tier 4): 输入 > 工作区 > 托管 > 已知安装根 > 会话探测.
-                let session_probe_dirs =
-                    crate::agentic::tools::qt_migration_candidates::take_session_probe_dirs(
-                        &mut candidates,
-                    );
-                if let Some(workspace) = context.workspace_root() {
-                    if !context.is_remote() {
-                        // Pre-probe prompt-named candidate map (model echo +
-                        // seeded paths); the scan replaces `candidates` and
-                        // the output merge below re-ranks from this snapshot.
-                        let prompt_named = candidates.clone();
-                        let path_manager = crate::infrastructure::get_path_manager_arc();
-                        // One shared scan for the card and the provisioning tool
-                        // (plan §D14). `extra_known_install_roots` is the reserved
-                        // hook for user-configurable roots (plan §6 row 8); the
-                        // well-known roots are resolved inside the scan.
-                        let probe = crate::agentic::tools::qt_migration_candidates::probe_qt_migration_candidates(
-                            workspace,
-                            &path_manager.qt_migration_root_dir(),
-                            &candidates,
-                            &session_probe_dirs,
-                            &[],
-                        );
-                        // The official toolchain installs one fixed Qt generation, so
-                        // it can only be offered when a project the card lists is
-                        // written against that generation — for a Qt6-only list the
-                        // download would install a kit the migration cannot build
-                        // with. Any listed project counts, not just the first: a Qt5
-                        // project listed behind a Qt6 default otherwise has no
-                        // toolchain at all when no Qt5 kit is installed. `None` means
-                        // the fact is unknown — no measured source project, or a build
-                        // without the provisioning capability (`qt-toolchain`), where
-                        // there is no official install path and the card keeps its
-                        // previous behavior.
-                        let official_toolchain_serves_project_generation = {
-                            #[cfg(feature = "qt-toolchain")]
-                            {
-                                crate::agentic::tools::qt_migration_candidates::official_toolchain_serves_a_project(
-                                    &probe.project_versions,
-                                    QT_MIGRATION_OFFICIAL_QT_MAJOR,
-                                )
-                            }
-                            #[cfg(not(feature = "qt-toolchain"))]
-                            {
-                                None
-                            }
-                        };
-                        question_context = QtMigrationQuestionContext {
-                            managed_toolchain_available: probe.managed_toolchain_available,
-                            managed_template_available: probe.managed_template_available,
-                            // Candidate path -> measured Qt major version, so the
-                            // rendered option can tell Qt5 from Qt6 (plan §6 row 7).
-                            toolchain_versions: probe
-                                .toolchain_candidates
-                                .iter()
-                                .filter_map(|candidate| {
-                                    candidate
-                                        .qt_major
-                                        .map(|qt_major| (candidate.path.clone(), qt_major))
-                                })
-                                .collect(),
-                            // Source projects are measured from their own code, so
-                            // they carry their own version list (design §6/§7).
-                            project_versions: probe.project_versions,
-                            official_toolchain_serves_project_generation,
-                        };
-                        candidates = probe.candidates;
-
-                        if let Some(services) = context.workspace_services() {
-                            let workspace_text = workspace.to_string_lossy();
-                            if let Ok(entries) = services.fs.read_dir(&workspace_text).await {
-                                let workspace_outputs = entries
-                                    .into_iter()
-                                    .filter(|entry| {
-                                        entry.is_dir
-                                            && !entry.is_symlink
-                                            && crate::agentic::tools::qt_migration_candidates::is_output_container_name(&entry.name)
-                                    })
-                                    .map(|entry| entry.path)
-                                    .collect::<Vec<_>>();
-                                let source_candidates = candidates
-                                    .get("source_project")
-                                    .cloned()
-                                    .unwrap_or_default();
-                                let model_outputs = prompt_named
-                                    .get("output_project")
-                                    .cloned()
-                                    .unwrap_or_default();
-                                let output_candidates = crate::agentic::tools::qt_migration_candidates::merge_workspace_output_candidates(
-                                    workspace,
-                                    &model_outputs,
-                                    &source_candidates,
-                                    &workspace_outputs,
-                                );
-                                candidates.insert("output_project".to_string(), output_candidates);
-                            }
-                        }
-                    }
-                }
-            }
-
-            let resolved =
-                resolve_question_template_with_context(template_id, &candidates, question_context)
-                    .ok_or_else(|| {
-                        crate::util::errors::BitFunError::Validation(format!(
-                            "Unknown AskUserQuestion template: {}",
-                            template_id
-                        ))
-                    })?;
+                (Some(payload), Some(_)) => Some(payload.clone()),
+                _ => None,
+            };
             tool_input.questions = resolved.questions.clone();
             resolved_request = Some(ResolvedQuestionRequest {
                 raw_params: raw_input,
                 resolved_questions: resolved.questions,
                 presentation: Some(resolved.presentation),
-                template_id: Some(template_id.clone()),
+                template_id: Some(template_id),
                 template_version: Some(resolved.template_version),
-                qt_migration_questions: resolved.qt_migration_questions,
+                template_payload: resolved.payload,
+                qt_migration_questions: legacy_payload,
             });
         }
 
@@ -788,19 +548,18 @@ Usage notes:
                 );
                 let mut result =
                     build_answered_user_question_result(&tool_input, response.answers.clone());
-                // Qt migration answers can carry a consequence the model must act on
-                // before it continues (the intake card can require the strategy
-                // question first; the strategy answer decides how the migration may
-                // run). It travels on this very tool result because that is the moment
-                // the model resumes — a new dialog turn's injected context is too late
-                // for a decision that has to be taken inside the current turn.
-                if let Some(follow_up) = Self::qt_migration_follow_up_instruction(
+                // A decided consequence must reach the model on this very tool
+                // result — the moment it resumes, inside the current turn.
+                let follow_ups = Self::answer_receipt_facts(
                     resolved_request.as_ref(),
                     &response.answers,
                     context,
-                ) {
+                );
+                if !follow_ups.is_empty() {
                     result.result_for_assistant.push_str("\n\n");
-                    result.result_for_assistant.push_str(&follow_up);
+                    result
+                        .result_for_assistant
+                        .push_str(&follow_ups.join("\n\n"));
                 }
 
                 Ok(vec![ToolResult::Result {
@@ -838,6 +597,7 @@ mod tests {
     use crate::agentic::tools::user_input_manager::get_user_input_manager;
     use bitfun_agent_runtime::user_questions::USER_INPUT_MODEL_ROUND_CONTEXT_KEY;
     use std::collections::HashMap;
+    use std::sync::Arc;
 
     fn context_with_custom_data(custom_data: HashMap<String, serde_json::Value>) -> ToolUseContext {
         ToolUseContext {
@@ -862,10 +622,22 @@ mod tests {
         )]))
     }
 
+    /// Attach the assembled question-template registry the way the real tool
+    /// runtime wires it, so template-backed calls reach their contribution.
+    fn with_question_template_registry(mut context: ToolUseContext) -> ToolUseContext {
+        context.runtime_handles = context
+            .runtime_handles
+            .with_question_template_registry(Some(Arc::new(
+                crate::agentic::tools::tool_admission::assemble_question_template_registry(),
+            )));
+        context
+    }
+
     #[tokio::test]
     async fn qt_migration_template_rejects_request_without_harmonyos_target() {
         let tool = AskUserQuestionTool::new();
-        let context = context_with_original_user_input("将QT工程迁移");
+        let context =
+            with_question_template_registry(context_with_original_user_input("将QT工程迁移"));
         let input = serde_json::json!({ "templateId": "qt-migration-paths" });
 
         let error = tool
@@ -883,7 +655,9 @@ mod tests {
         let tool = AskUserQuestionTool::new();
         let unique = uuid::Uuid::new_v4().to_string();
         let tool_id = format!("qt-question-{unique}");
-        let mut context = context_with_original_user_input("将QT工程迁移成鸿蒙工程");
+        let mut context = with_question_template_registry(context_with_original_user_input(
+            "将QT工程迁移成鸿蒙工程",
+        ));
         context.custom_data.insert(
             "qt_migration_enabled".to_string(),
             serde_json::Value::Bool(true),

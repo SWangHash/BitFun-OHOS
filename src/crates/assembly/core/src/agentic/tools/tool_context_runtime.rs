@@ -20,6 +20,7 @@ use crate::agentic::tools::post_call_hooks;
 use crate::agentic::tools::restrictions::{
     is_local_path_within_root, is_remote_posix_path_within_root, ToolPathOperation,
 };
+use crate::agentic::tools::tool_admission::SessionDomainStateStore;
 use crate::agentic::tools::workspace_paths::{
     build_bitfun_runtime_uri, is_bitfun_tool_uri, normalize_runtime_relative_path,
 };
@@ -32,8 +33,6 @@ use crate::service::git::{GitDiffParams, GitService};
 use crate::service::remote_ssh::workspace_state::remote_workspace_runtime_root;
 use crate::service::{get_workspace_runtime_service_arc, WorkspaceRuntimeContext};
 use crate::util::errors::{BitFunError, BitFunResult};
-#[cfg(feature = "git")]
-use log::warn;
 #[cfg(feature = "git")]
 use bitfun_agent_runtime::checkpoint::GitStatusCheckpointFacts;
 use bitfun_agent_runtime::checkpoint::{
@@ -53,10 +52,13 @@ use bitfun_agent_tools::{
 #[cfg(feature = "canvas-runtime")]
 use bitfun_product_domains::canvas::CanvasStoragePort;
 use bitfun_runtime_ports::{
-    DelegationPolicy, PermissionMode, RemoteExecPort, TerminalPort, ToolRuntimeHandles,
+    DelegationPolicy, PermissionMode, RemoteExecPort, TerminalPort, ToolAdmissionRegistry,
+    ToolRuntimeHandles,
 };
 #[cfg(feature = "canvas-runtime")]
 use bitfun_services_integrations::canvas::CanvasService;
+#[cfg(feature = "git")]
+use log::warn;
 use serde_json::Value;
 #[cfg(feature = "git")]
 use sha2::{Digest, Sha256};
@@ -208,6 +210,8 @@ impl ToolUseContext {
                 None,
                 None,
                 remote_exec_port,
+                None,
+                None,
             ),
         }
     }
@@ -225,18 +229,16 @@ pub(crate) async fn call_with_tool_runtime_hooks(
     context: &ToolUseContext,
     call_impl: impl Future<Output = BitFunResult<Vec<ToolResult>>>,
 ) -> BitFunResult<Vec<ToolResult>> {
-    // QtMigration admission gate (dispatch-time). Only active for QtMigration
-    // sessions with an incomplete intake; zero overhead for the rest of the
-    // product.
+    // Domain admission gate (dispatch-time). Only active when the runtime
+    // handles carry a populated admission registry and state reader; zero
+    // overhead for the rest of the product.
     #[cfg(feature = "agent-runtime")]
     {
-        if let Err(error) = crate::agentic::tools::qt_migration_gate::check_admission(
-            tool_name,
-            Some(input),
-            context,
-        ) {
+        if let Err(error) =
+            crate::agentic::tools::tool_admission::check_admission(tool_name, Some(input), context)
+        {
             log::debug!(
-                "QtMigration admission gate rejected tool: tool={}, session={:?}",
+                "Domain admission gate rejected tool: tool={}, session={:?}",
                 tool_name,
                 context.session_id
             );
@@ -309,6 +311,8 @@ pub(crate) fn build_tool_use_context_for_execution_context(
             round_injection_preemption_token,
             context.terminal_port.clone(),
             context.remote_exec_port.clone(),
+            context.admission_registry.clone(),
+            context.domain_state_store.clone(),
         ),
         runtime_tool_restrictions: context.runtime_tool_restrictions.clone(),
     }
@@ -348,6 +352,8 @@ pub(crate) fn build_tool_description_context(
             None,
             terminal_port.cloned(),
             remote_exec_port.cloned(),
+            None,
+            None,
         ),
     }
 }
@@ -366,11 +372,25 @@ fn core_tool_runtime_handles(
     round_injection_preemption_token: Option<CancellationToken>,
     terminal_port: Option<Arc<dyn TerminalPort>>,
     remote_exec_port: Option<Arc<dyn RemoteExecPort>>,
+    admission_registry: Option<Arc<ToolAdmissionRegistry>>,
+    domain_state_store: Option<Arc<SessionDomainStateStore>>,
 ) -> ToolRuntimeHandles {
     let handles = ToolRuntimeHandles::new(workspace_services, cancellation_token)
         .with_round_injection_preemption_token(round_injection_preemption_token)
         .with_terminal_port(terminal_port)
-        .with_remote_exec_port(remote_exec_port);
+        .with_remote_exec_port(remote_exec_port)
+        .with_admission_registry(admission_registry)
+        // One store coerced into both faces of the domain-state port. The
+        // registries are static product content, so they attach even without
+        // a session-bound store.
+        .with_domain_state_reader(domain_state_store.clone().map(|store| store as _))
+        .with_domain_state_writer(domain_state_store.clone().map(|store| store as _))
+        .with_question_template_registry(Some(Arc::new(
+            crate::agentic::tools::tool_admission::assemble_question_template_registry(),
+        )))
+        .with_skill_receipt_registry(Some(Arc::new(
+            crate::agentic::tools::tool_admission::assemble_skill_receipt_registry(),
+        )));
     #[cfg(feature = "web-tools")]
     let handles = handles
         .with_web_search_provider(Some(crate::service::web_search::global_web_search_runtime()));
@@ -1771,6 +1791,8 @@ mod task_context_tests {
                 workspace_services: None,
                 terminal_port: None,
                 remote_exec_port: None,
+                admission_registry: None,
+                domain_state_store: None,
             },
             ToolExecutionOptions::default(),
         )

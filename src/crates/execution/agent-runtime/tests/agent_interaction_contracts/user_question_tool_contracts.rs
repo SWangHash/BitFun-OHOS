@@ -2,7 +2,9 @@ use bitfun_agent_runtime::user_questions::{
     ask_user_question_available_for_acp_transport, ask_user_question_available_in_context,
     build_answered_user_question_result, build_cancelled_user_question_result,
     validate_ask_user_question_input, AskUserQuestionInput, Question, QuestionOption,
+    QuestionPresentation,
 };
+use bitfun_product_domains::qt_migration::{QtMigrationOption, QtMigrationQuestion};
 
 fn question() -> Question {
     Question {
@@ -268,52 +270,91 @@ fn ask_user_question_template_id_round_trips_and_takes_precedence() {
 }
 
 #[test]
-fn ask_user_question_template_registry_serves_qt_migration_paths() {
-    use bitfun_agent_runtime::qt_migration_question_templates::{
-        resolve_question_template, QT_MIGRATION_PATHS_TEMPLATE_ID,
-    };
-
-    let questions = resolve_question_template(QT_MIGRATION_PATHS_TEMPLATE_ID)
-        .expect("qt-migration-paths template must resolve");
-    assert_eq!(questions.len(), 4);
-    // Every question carries an input placeholder so users can type real paths.
-    assert!(questions.iter().all(|q| q
-        .input_placeholder
-        .as_deref()
-        .is_some_and(|s| !s.trim().is_empty())));
-    // The template passes the shared validation so the tool can use it as-is.
+fn ask_user_question_validation_accepts_template_backed_questions() {
+    // Template content is pinned by the domain crate's contract test; here the
+    // tool-side contract is that template-shaped questions pass the shared
+    // validation with template-backed leniency.
+    let questions: Vec<Question> = ["source_project", "output_project", "toolchain", "template"]
+        .iter()
+        .map(|field| Question {
+            question: format!("Where is the {field}?"),
+            header: "Path".to_string(),
+            options: Vec::new(),
+            multi_select: false,
+            input_placeholder: Some("/path/to/dir".to_string()),
+            field: Some((*field).to_string()),
+            required: true,
+        })
+        .collect();
     assert!(validate_ask_user_question_input(
         &AskUserQuestionInput {
             questions,
-            template_id: Some(QT_MIGRATION_PATHS_TEMPLATE_ID.to_string()),
+            template_id: Some("qt-migration-paths".to_string()),
             timeout_seconds: 30,
         },
         true
     )
     .is_ok());
-
-    assert!(resolve_question_template("unknown-template").is_none());
 }
 
 #[test]
 fn template_resolved_payload_keeps_params_immutable_and_carries_policy() {
-    use bitfun_agent_runtime::qt_migration_question_templates::{
-        resolve_question_template_full, QT_MIGRATION_PATHS_TEMPLATE_ID,
-    };
     use bitfun_agent_runtime::user_questions::ResolvedQuestionRequest;
 
-    let resolved = resolve_question_template_full(
-        QT_MIGRATION_PATHS_TEMPLATE_ID,
-        &std::collections::HashMap::new(),
-    )
-    .expect("template must resolve");
+    // The shapes the qt-migration-paths template produces; content is pinned
+    // by the domain crate's contract test.
+    let fields = ["source_project", "output_project", "toolchain", "template"];
+    let resolved_questions: Vec<Question> = fields
+        .iter()
+        .map(|field| Question {
+            question: format!("Where is the {field}?"),
+            header: "Path".to_string(),
+            options: Vec::new(),
+            multi_select: false,
+            input_placeholder: Some("/path/to/dir".to_string()),
+            field: Some((*field).to_string()),
+            required: true,
+        })
+        .collect();
+    let presentation = QuestionPresentation {
+        layout: "wizard".to_string(),
+        allow_skip: false,
+        intro_key: None,
+        hint_key: None,
+        required_fields: Some(fields.iter().map(|f| f.to_string()).collect()),
+        allow_timeout: false,
+    };
+    let qt_migration_questions: Vec<QtMigrationQuestion> = fields
+        .iter()
+        .map(|field| QtMigrationQuestion {
+            field: (*field).to_string(),
+            header: format!("askUser.qtMigration.field.{field}"),
+            prompt: format!("askUser.qtMigration.question.{field}"),
+            placeholder: None,
+            required: true,
+            options: vec![QtMigrationOption {
+                label: "Official toolchain".to_string(),
+                description: None,
+                path: String::new(),
+                value: Some("__official__".to_string()),
+                version: None,
+            }],
+        })
+        .collect();
+    // The payload rides the envelope as opaque JSON; the host never interprets it.
+    let template_payload =
+        serde_json::to_value(&qt_migration_questions).expect("template payload must serialize");
+
     let request = ResolvedQuestionRequest {
         raw_params: serde_json::json!({ "templateId": "qt-migration-paths" }),
-        resolved_questions: resolved.questions.clone(),
-        presentation: Some(resolved.presentation),
-        template_id: Some(QT_MIGRATION_PATHS_TEMPLATE_ID.to_string()),
-        template_version: Some(resolved.template_version),
-        qt_migration_questions: resolved.qt_migration_questions,
+        resolved_questions,
+        presentation: Some(presentation),
+        template_id: Some("qt-migration-paths".to_string()),
+        template_version: Some("1".to_string()),
+        template_payload: Some(template_payload.clone()),
+        // The template's legacy wire field keeps the same projection so older
+        // surfaces and replays keep rendering.
+        qt_migration_questions: Some(template_payload.clone()),
     };
     let encoded = serde_json::to_value(&request).expect("payload must serialize");
 
@@ -363,24 +404,110 @@ fn template_resolved_payload_keeps_params_immutable_and_carries_policy() {
     );
     assert_eq!(qt_questions[2]["options"][0]["path"], "");
     assert!(qt_questions[2]["options"][0].get("version").is_none());
+    // The generic payload and the legacy projection carry the same wire value,
+    // so a surface reading either field renders the same card.
+    assert_eq!(
+        encoded["templatePayload"], encoded["qtMigrationQuestions"],
+        "templatePayload is the generic name of the same opaque payload"
+    );
+}
 
-    #[test]
-    fn timeout_is_distinct_from_answer_or_cancellation() {
-        let input = AskUserQuestionInput {
-            questions: vec![question()],
-            template_id: None,
-            timeout_seconds: 30,
-        };
-        let result =
-            bitfun_agent_runtime::user_questions::build_timed_out_user_question_result(&input);
-        assert_eq!(
-            result.data,
-            serde_json::json!({ "questions_count": 1, "status": "timeout" })
-        );
-        assert_eq!(
-            result.result_for_assistant,
-            "用户无响应，跳过提问，继续执行"
-        );
-        assert!(result.data.get("answers").is_none());
-    }
+#[test]
+fn timeout_is_distinct_from_answer_or_cancellation() {
+    let input = AskUserQuestionInput {
+        questions: vec![question()],
+        template_id: None,
+        timeout_seconds: 30,
+    };
+    let result = bitfun_agent_runtime::user_questions::build_timed_out_user_question_result(&input);
+    assert_eq!(
+        result.data,
+        serde_json::json!({ "questions_count": 1, "status": "timeout" })
+    );
+    assert_eq!(
+        result.result_for_assistant,
+        "用户无响应，跳过提问，继续执行"
+    );
+    assert!(result.data.get("answers").is_none());
+}
+
+#[test]
+fn resolved_request_without_a_template_payload_omits_both_payload_fields() {
+    use bitfun_agent_runtime::user_questions::ResolvedQuestionRequest;
+
+    let request = ResolvedQuestionRequest {
+        raw_params: serde_json::json!({ "questions": [] }),
+        resolved_questions: vec![question()],
+        presentation: None,
+        template_id: None,
+        template_version: None,
+        template_payload: None,
+        qt_migration_questions: None,
+    };
+    let encoded = serde_json::to_value(&request).expect("payload must serialize");
+    assert!(
+        encoded.get("templatePayload").is_none(),
+        "a plain question carries no template payload"
+    );
+    assert!(
+        encoded.get("qtMigrationQuestions").is_none(),
+        "the legacy projection stays off the wire when there is nothing to project"
+    );
+    // The legacy shape (an old sender's payload: no templatePayload) still
+    // deserializes — the envelope must keep reading payloads written before
+    // the generic field existed.
+    let legacy: ResolvedQuestionRequest = serde_json::from_value(serde_json::json!({
+        "params": { "questions": [] },
+        "resolvedQuestions": [question()],
+        "templateId": "qt-migration-paths",
+        "templateVersion": "1",
+        "qtMigrationQuestions": [{ "field": "toolchain" }],
+    }))
+    .expect("a payload without templatePayload must deserialize");
+    assert_eq!(
+        legacy.qt_migration_questions,
+        Some(serde_json::json!([{ "field": "toolchain" }]))
+    );
+    assert_eq!(legacy.template_payload, None);
+}
+
+#[test]
+fn resolved_request_round_trips_an_opaque_template_payload_verbatim() {
+    use bitfun_agent_runtime::user_questions::ResolvedQuestionRequest;
+
+    // An arbitrary template-owned shape: the host never interprets it, so the
+    // envelope must carry it through unchanged in both wire fields.
+    let payload = serde_json::json!({
+        "questions": [{ "id": "a", "kind": "future-template", "deep": { "keep": [1, 2] } }],
+        "policy": { "anyKey": true },
+    });
+    let both = ResolvedQuestionRequest {
+        raw_params: serde_json::json!({}),
+        resolved_questions: vec![question()],
+        presentation: None,
+        template_id: Some("future-template".to_string()),
+        template_version: Some("1".to_string()),
+        template_payload: Some(payload.clone()),
+        qt_migration_questions: Some(payload.clone()),
+    };
+    let encoded = serde_json::to_value(&both).expect("payload must serialize");
+    assert_eq!(encoded["templatePayload"], payload);
+    assert_eq!(encoded["qtMigrationQuestions"], payload);
+
+    let decoded: ResolvedQuestionRequest =
+        serde_json::from_value(encoded).expect("both-field payload must round-trip");
+    assert_eq!(decoded.template_payload.as_ref(), Some(&payload));
+    assert_eq!(decoded.qt_migration_questions.as_ref(), Some(&payload));
+
+    // A sender that only knows the generic field still round-trips verbatim.
+    let only_generic = ResolvedQuestionRequest {
+        template_payload: Some(payload.clone()),
+        qt_migration_questions: None,
+        ..both
+    };
+    let encoded = serde_json::to_value(&only_generic).expect("payload must serialize");
+    let decoded: ResolvedQuestionRequest =
+        serde_json::from_value(encoded).expect("templatePayload-only payload must round-trip");
+    assert_eq!(decoded.template_payload, Some(payload));
+    assert_eq!(decoded.qt_migration_questions, None);
 }

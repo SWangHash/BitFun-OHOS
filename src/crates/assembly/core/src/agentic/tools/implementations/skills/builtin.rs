@@ -23,7 +23,13 @@ include!(concat!(env!("OUT_DIR"), "/embedded_builtin_skills.rs"));
 
 const BUILTIN_SKILLS_MANIFEST_FILE_NAME: &str = ".manifest.json";
 const BUILTIN_SKILLS_INSTALL_LOCK_FILE_NAME: &str = ".system.install.lock";
-const BUILTIN_SKILLS_STAGING_PREFIX: &str = ".system.tmp";
+
+/// Prefix of the installer staging directories created under the user skills
+/// root. A staging directory is renamed over `.system` on success; a surviving
+/// one is an orphan from an interrupted install and must never surface as a
+/// discoverable skill root (see [`sweep_stale_staging_roots`] and the matching
+/// scanner guard in `registry::discovery`).
+pub(super) const BUILTIN_SKILLS_STAGING_PREFIX: &str = ".system.tmp";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct BuiltinSkillsManifest {
@@ -89,6 +95,61 @@ fn builtin_skills_staging_root(parent: &Path) -> PathBuf {
         std::process::id(),
         timestamp
     ))
+}
+
+/// Remove staging directories left under the user skills root by an
+/// interrupted install. Callers hold the built-in skills install lock, so no
+/// other install can be in flight and every staging directory found here is an
+/// orphan. A leftover staging directory would otherwise shadow `.system`
+/// during skill discovery, because the nested skill directories look like
+/// explicitly installed user skills. Removal failures are logged and skipped:
+/// the scanner keeps orphans out of discovery independently, so a failed sweep
+/// must not fail the install itself.
+async fn sweep_stale_staging_roots(user_skills_root: &Path) {
+    let mut entries = match fs::read_dir(user_skills_root).await {
+        Ok(entries) => entries,
+        Err(error) => {
+            warn!(
+                "Failed to read user skills directory while sweeping stale built-in skills staging directories: path={}, error={}",
+                user_skills_root.display(),
+                error
+            );
+            return;
+        }
+    };
+    loop {
+        let entry = match entries.next_entry().await {
+            Ok(Some(entry)) => entry,
+            Ok(None) => break,
+            Err(error) => {
+                warn!(
+                    "Failed to list user skills directory while sweeping stale built-in skills staging directories: path={}, error={}",
+                    user_skills_root.display(),
+                    error
+                );
+                break;
+            }
+        };
+        if !entry
+            .file_name()
+            .to_string_lossy()
+            .starts_with(BUILTIN_SKILLS_STAGING_PREFIX)
+        {
+            continue;
+        }
+        let path = entry.path();
+        match fs::remove_dir_all(&path).await {
+            Ok(()) => warn!(
+                "Removed a stale built-in skills staging directory left by an interrupted install: path={}",
+                path.display()
+            ),
+            Err(error) => warn!(
+                "Failed to remove a stale built-in skills staging directory: path={}, error={}",
+                path.display(),
+                error
+            ),
+        }
+    }
 }
 
 async fn read_installed_manifest(root: &Path) -> BitFunResult<Option<BuiltinSkillsManifest>> {
@@ -185,6 +246,11 @@ pub async fn ensure_builtin_skills_installed() -> BitFunResult<()> {
     }
 
     let _install_lock = acquire_install_lock(&user_skills_root).await?;
+
+    // Sweep before the manifest check: an up-to-date bundle must still sweep,
+    // and holding the lock means every staging directory left here is an
+    // orphan from an interrupted install.
+    sweep_stale_staging_roots(&user_skills_root).await;
 
     if let Some(manifest) = read_installed_manifest(&dest_root).await? {
         if manifest.bundle_hash == builtin_skills_bundle_hash() {
@@ -649,5 +715,28 @@ mod tests {
                 "redistribution-restricted skill {skill} must not be embedded"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn install_sweep_removes_only_stale_staging_directories() {
+        let temp = tempfile::tempdir().unwrap();
+        let stale = temp.path().join(".system.tmp.49832.1000");
+        std::fs::create_dir_all(stale.join("ohos-qt-skills")).unwrap();
+        std::fs::write(stale.join("ohos-qt-skills").join("SKILL.md"), "stale").unwrap();
+        std::fs::create_dir_all(temp.path().join(".system")).unwrap();
+        std::fs::write(temp.path().join(".system").join("SKILL.md"), "keep").unwrap();
+        std::fs::create_dir_all(temp.path().join("my-skill")).unwrap();
+
+        super::sweep_stale_staging_roots(temp.path()).await;
+
+        assert!(!stale.exists(), "a stale staging directory must be swept");
+        assert!(
+            temp.path().join(".system").join("SKILL.md").exists(),
+            "the managed .system directory is not staging and must be kept"
+        );
+        assert!(
+            temp.path().join("my-skill").exists(),
+            "explicitly installed user skills must be kept"
+        );
     }
 }

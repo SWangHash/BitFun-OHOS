@@ -38,6 +38,7 @@ members = [
     "src/crates/services/relay-service",
     "src/crates/services/page-function-runtime",
     "src/crates/services/terminal",
+    "src/crates/services/qt-migration",
     "src/crates/assembly/product-capabilities",
     "src/crates/contracts/product-domains",
     "src/crates/execution/agent-runtime",

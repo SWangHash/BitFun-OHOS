@@ -15,6 +15,8 @@ pub use bitfun_core_types::{
 
 #[cfg(feature = "hook-function-runtime")]
 mod hook_function;
+#[cfg(feature = "intent-analysis-port")]
+mod intent_analysis;
 #[cfg(feature = "workspace-ports")]
 mod local_workspace_snapshot;
 #[cfg(feature = "permission")]
@@ -23,17 +25,15 @@ mod permission;
 mod plugin;
 #[cfg(feature = "product-search")]
 mod product_search;
+#[cfg(feature = "provisioning-task-port")]
+mod provisioning_task;
+#[cfg(feature = "question-template-port")]
+mod question_template;
 #[cfg(feature = "script-tool-runtime")]
 mod script_tool;
+mod skill_receipt;
 #[cfg(feature = "web-search-port")]
 mod web_search;
-#[cfg(feature = "hook-function-runtime")]
-pub use hook_function::*;
-#[cfg(feature = "workspace-ports")]
-pub use local_workspace_snapshot::{
-    LocalWorkspaceSnapshotPort, LocalWorkspaceSnapshotSessionRequest, LocalWorkspaceSnapshotStats,
-    LocalWorkspaceSnapshotTurnRequest,
-};
 #[cfg(feature = "product-search")]
 pub use bitfun_product_domains::product_search::{
     SessionContentSearchRequest, SessionContentSearchResponse,
@@ -50,6 +50,15 @@ pub use bitfun_product_domains::tool_permissions::{
     PermissionRequestSourceKind, PermissionResourceCaseSensitivity, PermissionRule,
     PermissionRuleset, PermissionRuntimeCeiling, PermissionRuntimeCeilingValidationError,
     ResolvedPermissionMode, ResolvedPermissionPolicy, ToolPermissionConfig,
+};
+#[cfg(feature = "hook-function-runtime")]
+pub use hook_function::*;
+#[cfg(feature = "intent-analysis-port")]
+pub use intent_analysis::*;
+#[cfg(feature = "workspace-ports")]
+pub use local_workspace_snapshot::{
+    LocalWorkspaceSnapshotPort, LocalWorkspaceSnapshotSessionRequest, LocalWorkspaceSnapshotStats,
+    LocalWorkspaceSnapshotTurnRequest,
 };
 #[cfg(feature = "permission")]
 pub use permission::{
@@ -74,12 +83,17 @@ pub use plugin::{
 };
 #[cfg(feature = "product-search")]
 pub use product_search::ProductSearchPort;
+#[cfg(feature = "provisioning-task-port")]
+pub use provisioning_task::*;
+#[cfg(feature = "question-template-port")]
+pub use question_template::*;
 #[cfg(feature = "script-tool-runtime")]
 pub use script_tool::{
     ScriptToolDescriptor, ScriptToolExpectedExport, ScriptToolInvokeRequest,
     ScriptToolInvokeResponse, ScriptToolLoadRequest, ScriptToolLoadResponse, ScriptToolRuntime,
     ScriptToolRuntimeAvailability,
 };
+pub use skill_receipt::*;
 #[cfg(feature = "web-search-port")]
 pub use web_search::*;
 
@@ -196,8 +210,10 @@ mod runtime_event_port;
 mod service_markers;
 #[cfg(feature = "terminal-port")]
 mod terminal_port;
+mod tool_admission;
 #[cfg(feature = "tool-runtime-handles")]
 mod tool_runtime_handles;
+mod turn_instruction;
 #[cfg(feature = "workspace-ports")]
 mod workspace_ports;
 
@@ -214,8 +230,10 @@ pub use runtime_event_port::*;
 pub use service_markers::*;
 #[cfg(feature = "terminal-port")]
 pub use terminal_port::*;
+pub use tool_admission::*;
 #[cfg(feature = "tool-runtime-handles")]
 pub use tool_runtime_handles::*;
+pub use turn_instruction::*;
 #[cfg(feature = "workspace-ports")]
 pub use workspace_ports::*;
 

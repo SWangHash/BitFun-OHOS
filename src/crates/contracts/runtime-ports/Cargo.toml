@@ -51,6 +51,7 @@ default = []
 agent-api = ["dep:bitfun-core-types"]
 plugin-runtime = []
 hook-function-runtime = []
+intent-analysis-port = []
 script-tool-runtime = []
 web-search-port = []
 workspace-ports = ["dep:anyhow", "dep:tokio-util", "dep:tokio", "tokio/io-util"]
@@ -60,12 +61,15 @@ tool-runtime-handles = [
     "workspace-ports",
     "terminal-port",
     "remote-exec-port",
+    "question-template-port",
 ]
 remote-workspace-ports = []
 git-port = []
 runtime-event-port = []
+question-template-port = ["dep:bitfun-product-domains"]
 permission = ["dep:bitfun-product-domains"]
 product-search = ["dep:bitfun-product-domains"]
+provisioning-task-port = ["dep:tokio-util"]
 # Derive `ts_rs::TS` on the wire types so downstream crates (app-server) can
 # export TypeScript bindings. The `permission` feature gates the product
 # types; enabling `ts` requires `permission` so all TS-derivable types are in

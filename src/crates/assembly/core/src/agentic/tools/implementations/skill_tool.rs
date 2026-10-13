@@ -8,16 +8,12 @@ use crate::agentic::tools::framework::{
 };
 use crate::util::errors::{BitFunError, BitFunResult};
 use async_trait::async_trait;
-use log::debug;
 use bitfun_services_core::markdown::expand_prompt_template_arguments_with_names;
+use log::debug;
 use serde_json::{json, Value};
 
 // Use skills module
 use super::skills::{get_skill_registry, render_loaded_skill_for_assistant};
-use bitfun_agent_runtime::qt_migration_intake_state::{
-    QtMigrationIntakeStatus, QtMigrationLoadedSkillReceipt, QT_MIGRATION_SKILL_DIR,
-};
-use bitfun_agent_runtime::skills::BITFUN_SYSTEM_SKILL_SLOT;
 
 /// Skill tool
 pub struct SkillTool;
@@ -313,14 +309,13 @@ impl Tool for SkillTool {
         let location_str = skill_data.location.as_str();
         let result_for_assistant = render_loaded_skill_for_assistant(&skill_data, use_stable_key);
 
-        record_qt_migration_skill_receipt(
+        record_skill_load_receipts(
             &skill_data.key,
             &skill_data.source_slot,
             &skill_data.dir_name,
             &skill_data.content,
             context,
-        )
-        .await;
+        );
 
         let result = ToolResult::Result {
             data: json!({
@@ -343,48 +338,31 @@ impl Tool for SkillTool {
     }
 }
 
-/// Record a Qt migration skill load receipt into the Session intake snapshot.
-/// Only the managed built-in `ohos-qt-skills` loaded from the `.system` source
-/// qualifies; other skills or name collisions produce no receipt. The receipt
-/// is attached to an existing intake only — if no intake exists yet the
-/// session is not an active migration, so there is nothing to attach the
-/// receipt to.
-async fn record_qt_migration_skill_receipt(
+/// Dispatch a skill load to the registered receipt contributions. Matching,
+/// intake gating, and the state write belong to the contributions; a missing
+/// writer means there is no session state to record into.
+fn record_skill_load_receipts(
     skill_key: &str,
     source_slot: &str,
     dir_name: &str,
     content: &str,
     context: &ToolUseContext,
 ) {
-    if dir_name != QT_MIGRATION_SKILL_DIR || source_slot != BITFUN_SYSTEM_SKILL_SLOT {
-        return;
-    }
-    let Some(session_id) = context.session_id.as_deref() else {
+    let Some(registry) = context.runtime_handles.skill_receipt_registry() else {
         return;
     };
-    let Some(coordinator) = crate::agentic::coordination::get_global_coordinator() else {
+    let Some(state) = context.runtime_handles.domain_state_writer() else {
         return;
     };
-    let session_manager = coordinator.get_session_manager();
-    let Some(mut snapshot) = session_manager.qt_migration_intake_state(session_id) else {
-        return;
-    };
-    // Receipt is intake-driven (not agent_type), matching the gate: a subagent
-    // that inherited an activated intake may reload the skill and refresh its
-    // receipt even when its own agent_type is not QtMigration. A session
-    // without an activated intake is not a migration.
-    if snapshot.status == QtMigrationIntakeStatus::NotApplicable {
-        return;
-    }
-    snapshot.loaded_skill_receipt = Some(QtMigrationLoadedSkillReceipt {
-        skill_key: skill_key.to_string(),
-        source_slot: source_slot.to_string(),
-        dir_name: dir_name.to_string(),
-        content_hash: sha256_hex(content),
-    });
-    session_manager
-        .remember_qt_migration_intake_state(session_id, snapshot)
-        .await;
+    registry.on_skill_loaded(
+        &bitfun_runtime_ports::LoadedSkillFact {
+            skill_key,
+            source_slot,
+            dir_name,
+            content_hash: &sha256_hex(content),
+        },
+        state.as_ref(),
+    );
 }
 
 /// SHA-256 hex digest used for the skill content fingerprint in the load

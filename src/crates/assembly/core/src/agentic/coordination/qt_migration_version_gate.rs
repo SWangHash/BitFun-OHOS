@@ -1,12 +1,14 @@
 //! The Qt migration generation-mismatch gate.
 
-use bitfun_agent_runtime::qt_migration_intake_state::{
-    qt_migration_set_version_strategy, QtMigrationIntakeStateSnapshot, QtMigrationVersionStrategy,
+use bitfun_qt_migration::admission::QT_MIGRATION_SLOT_INTAKE_STATE;
+use bitfun_qt_migration::state::{
+    intake_snapshot_from_slot_value, intake_snapshot_to_slot_value,
+    qt_migration_set_version_strategy, QtMigrationVersionStrategy,
 };
 use log::info;
 
 use crate::agentic::session::SessionManager;
-use crate::agentic::tools::qt_migration_candidates::{
+use bitfun_qt_migration::strategy::{
     measure_bound_generation_mismatch, pending_generation_mismatch, read_version_strategy_answer,
     QtMigrationGenerationMismatch, QtMigrationStrategyAnswer,
 };
@@ -15,7 +17,7 @@ use crate::agentic::tools::qt_migration_candidates::{
 fn official_qt_major() -> Option<u8> {
     #[cfg(feature = "qt-toolchain")]
     {
-        Some(crate::agentic::coordination::QT_MIGRATION_OFFICIAL_QT_MAJOR)
+        Some(bitfun_runtime_ports::QT_MIGRATION_OFFICIAL_QT_MAJOR)
     }
     #[cfg(not(feature = "qt-toolchain"))]
     {
@@ -29,9 +31,9 @@ pub(crate) async fn record_version_mismatch_if_any(
     session_manager: &SessionManager,
     session_id: &str,
 ) -> Option<QtMigrationGenerationMismatch> {
-    let snapshot = session_manager
-        .qt_migration_intake_state(session_id)
-        .unwrap_or_else(QtMigrationIntakeStateSnapshot::empty);
+    let snapshot = intake_snapshot_from_slot_value(
+        session_manager.domain_state_get(session_id, &QT_MIGRATION_SLOT_INTAKE_STATE),
+    );
     if snapshot.version_strategy != QtMigrationVersionStrategy::NotNeeded {
         return None;
     }
@@ -42,7 +44,11 @@ pub(crate) async fn record_version_mismatch_if_any(
         QtMigrationVersionStrategy::Pending { project, toolchain },
     );
     session_manager
-        .remember_qt_migration_intake_state(session_id, updated)
+        .domain_state_set(
+            session_id,
+            &QT_MIGRATION_SLOT_INTAKE_STATE,
+            intake_snapshot_to_slot_value(&updated),
+        )
         .await;
     info!(
         "Qt migration generation mismatch requires a user decision: session_id={}, project_qt={}, toolchain_qt={}",
@@ -60,9 +66,9 @@ pub(crate) async fn apply_version_strategy_answer(
     answers: &serde_json::Value,
 ) -> Option<QtMigrationVersionStrategy> {
     let answer = read_version_strategy_answer(answers)?;
-    let snapshot = session_manager
-        .qt_migration_intake_state(session_id)
-        .unwrap_or_else(QtMigrationIntakeStateSnapshot::empty);
+    let snapshot = intake_snapshot_from_slot_value(
+        session_manager.domain_state_get(session_id, &QT_MIGRATION_SLOT_INTAKE_STATE),
+    );
     let mismatch = pending_generation_mismatch(&snapshot)?;
     let (project, toolchain) = mismatch.measured_generations()?;
 
@@ -85,7 +91,11 @@ pub(crate) async fn apply_version_strategy_answer(
 
     let updated = qt_migration_set_version_strategy(&snapshot, strategy);
     session_manager
-        .remember_qt_migration_intake_state(session_id, updated)
+        .domain_state_set(
+            session_id,
+            &QT_MIGRATION_SLOT_INTAKE_STATE,
+            intake_snapshot_to_slot_value(&updated),
+        )
         .await;
     info!(
         "Qt migration version strategy decided: session_id={}, project_qt={}, toolchain_qt={}, strategy={:?}",

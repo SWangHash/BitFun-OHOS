@@ -9,7 +9,7 @@ use crate::agentic::WorkspaceBinding;
 use bitfun_agent_tools::{ResolvedToolInvocation, ValidationResult};
 use bitfun_runtime_ports::{
     DelegationPolicy, PermissionDelegationContext, RemoteExecPort, ResolvedPermissionPolicy,
-    TerminalPort,
+    TerminalPort, ToolAdmissionRegistry,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -109,6 +109,13 @@ pub struct ToolExecutionContext {
     pub workspace_services: Option<WorkspaceServices>,
     pub terminal_port: Option<Arc<dyn TerminalPort>>,
     pub remote_exec_port: Option<Arc<dyn RemoteExecPort>>,
+    /// Domain admission registry consulted at dispatch time. `None`/empty
+    /// means "do not gate".
+    pub admission_registry: Option<Arc<ToolAdmissionRegistry>>,
+    /// Session-bound domain state store the admission policies and domain
+    /// contributions read and write. `None` means "no domain state".
+    pub domain_state_store:
+        Option<Arc<crate::agentic::tools::tool_admission::SessionDomainStateStore>>,
 }
 
 /// Tool execution task

@@ -6,16 +6,18 @@
 pub mod account;
 pub mod agent_catalog;
 pub mod canvas;
+pub mod feedback;
 pub mod mcp;
 pub mod native_hooks;
+pub mod privacy;
 pub mod product_control;
 pub mod product_control_owner_registry;
 pub mod product_release;
 pub mod product_search;
-pub mod feedback;
-pub mod privacy;
+pub mod qt_migration;
 pub mod remote_surface;
 pub mod tool_permissions;
+pub mod user_questions;
 
 #[cfg(feature = "appearance-market")]
 pub mod appearance_market;

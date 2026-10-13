@@ -47,6 +47,7 @@ agent-runtime = [
     "dep:bitfun-agent-tools",
     "dep:bitfun-core-types",
     "dep:bitfun-events",
+    "dep:bitfun-product-domains",
     "dep:bitfun-runtime-ports",
     "dep:bitfun-runtime-services",
     "dep:dashmap",
@@ -72,6 +73,7 @@ bitfun-agent-stream = { path = "../agent-stream", optional = true }
 bitfun-agent-tools = { path = "../tool-contracts", optional = true }
 bitfun-core-types = { path = "../../contracts/core-types", optional = true }
 bitfun-events = { path = "../../contracts/events", optional = true }
+bitfun-product-domains = { path = "../../contracts/product-domains", optional = true }
 bitfun-runtime-ports = { path = "../../contracts/runtime-ports", optional = true, features = ["agent-api", "git-port", "permission", "plugin-runtime", "remote-workspace-ports", "runtime-event-port", "terminal-port", "workspace-ports"] }
 bitfun-runtime-services = { path = "../runtime-services", optional = true }
 dashmap = { workspace = true, optional = true }

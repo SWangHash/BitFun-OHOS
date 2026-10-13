@@ -898,6 +898,31 @@ describe('AskUserQuestionCard', () => {
     expect(container.textContent).toContain('toolCards.askUser.parseError');
   });
 
+  it('renders an unregistered template through the generic card', () => {
+    // A template id the frontend does not know renders the shared contract,
+    // not nothing.
+    const tool = qtMigrationTool();
+    tool.questionRequest = {
+      templateId: 'future-template',
+      templateVersion: '1',
+      resolvedQuestions: [
+        {
+          field: 'target_dir',
+          header: 'Destination',
+          question: 'Where should the result go?',
+          inputPlaceholder: '/path/to/dir',
+          options: [],
+        },
+      ],
+    };
+    act(() => root.render(
+      <AskUserQuestionCard toolItem={tool} config={config} sessionId="session-a" />,
+    ));
+
+    expect(container.textContent).toContain('Where should the result go?');
+    expect(container.textContent).not.toContain('toolCards.askUser.parseError');
+  });
+
   it('keeps a restored draft instead of overwriting it with the default', () => {
     // Only a card that opts in has a default, so the case that matters is the
     // Qt intake: its restored answer must survive, while fields the user has not

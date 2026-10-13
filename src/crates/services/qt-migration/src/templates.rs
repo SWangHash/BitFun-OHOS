@@ -1,7 +1,11 @@
 //! Static question templates for the `AskUserQuestion` tool.
 
-use crate::user_questions::{Question, QuestionOption, QuestionPresentation};
-use serde::{Deserialize, Serialize};
+use crate::state::QT_MIGRATION_OFFICIAL_VALUE;
+use bitfun_product_domains::qt_migration::{
+    QtMigrationOption, QtMigrationQuestion, ResolvedQuestionTemplate,
+    QT_MIGRATION_INTAKE_REQUIRED_FIELDS,
+};
+use bitfun_product_domains::user_questions::{Question, QuestionPresentation};
 use std::collections::HashMap;
 
 /// Template id for the Qt migration path confirmation questions.
@@ -20,89 +24,6 @@ pub const QT_MIGRATION_PATHS_HINT_KEY: &str = "askUser.qtMigration.pathsHint";
 /// Current template version. Bump whenever the question/policy shape changes;
 /// submit-time binding checks this against the waiting request.
 pub const QT_MIGRATION_PATHS_TEMPLATE_VERSION: &str = "1";
-
-/// One Qt migration intake candidate in the template's own shape.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct QtMigrationOption {
-    /// i18n key for the option's role line (`askUser.qtMigration.option.*`).
-    pub label: String,
-    /// i18n key for the second line of an option that has no path (the managed
-    /// download option). Candidate options leave it unset; their path is the
-    /// second line.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    /// Concrete candidate path, submitted as-is. Empty for the managed download
-    /// option, which submits `value` instead.
-    pub path: String,
-    /// Explicit submitted value (`__official__`). `None` when the path itself is
-    /// the submitted value.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub value: Option<String>,
-    /// Qt major version of a toolchain candidate, when the scan identified it.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub version: Option<u8>,
-}
-
-/// One Qt migration intake question in the template's own shape.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct QtMigrationQuestion {
-    /// Field id the answer binds to (`source_project`,...).
-    pub field: String,
-    /// i18n key for the field label chip (`askUser.qtMigration.field.*`).
-    pub header: String,
-    /// i18n key for the prompt (`askUser.qtMigration.question.*`).
-    pub prompt: String,
-    /// i18n key for the free-text input placeholder.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub placeholder: Option<String>,
-    /// Backend-owned requiredness.
-    pub required: bool,
-    pub options: Vec<QtMigrationOption>,
-}
-
-impl QtMigrationQuestion {
-    /// Projection onto the shared question contract. Candidate options keep
-    /// their role label and carry the clean path in `description`; the managed
-    /// download option carries its description key and its explicit value.
-    pub fn to_question(&self) -> Question {
-        Question {
-            question: self.prompt.clone(),
-            header: self.header.clone(),
-            options: self
-                .options
-                .iter()
-                .map(|option| QuestionOption {
-                    label: option.label.clone(),
-                    // The generic contract has no path slot, so a candidate path
-                    // is projected as the option's second line.
-                    description: option
-                        .description
-                        .clone()
-                        .unwrap_or_else(|| option.path.clone()),
-                    value: option.value.clone(),
-                })
-                .collect(),
-            multi_select: false,
-            input_placeholder: self.placeholder.clone(),
-            field: Some(self.field.clone()),
-            required: self.required,
-        }
-    }
-}
-
-/// Everything resolved from a template: questions plus backend presentation
-/// policy plus version. Templates that render through a dedicated product card
-/// additionally ship their own question shape.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ResolvedQuestionTemplate {
-    /// Generic projection every question consumer can render.
-    pub questions: Vec<Question>,
-    pub presentation: QuestionPresentation,
-    pub template_version: String,
-    /// Qt migration's own question shape, rendered by the Qt intake card.
-    /// `None` for templates that render through the generic question card.
-    pub qt_migration_questions: Option<Vec<QtMigrationQuestion>>,
-}
 
 /// Resolve the question list for a template id. Returns `None` for unknown ids
 /// so callers can fail closed instead of showing an unexpected/empty dialog.
@@ -173,7 +94,7 @@ pub fn resolve_question_template_with_context(
                     intro_key: Some(QT_MIGRATION_PATHS_INTRO_KEY.to_string()),
                     hint_key: Some(QT_MIGRATION_PATHS_HINT_KEY.to_string()),
                     required_fields: Some(
-                        crate::qt_migration_intake_state::QT_MIGRATION_INTAKE_REQUIRED_FIELDS
+                        QT_MIGRATION_INTAKE_REQUIRED_FIELDS
                             .iter()
                             .map(|field| (*field).to_string())
                             .collect(),
@@ -190,9 +111,6 @@ pub fn resolve_question_template_with_context(
         _ => None,
     }
 }
-
-/// Candidate value used by the official skill-managed option.
-pub const QT_MIGRATION_OFFICIAL_VALUE: &str = "__official__";
 
 /// Candidate paths are rendered as options. The `toolchain` and `source_project`
 /// fields additionally carry the Qt major version of each candidate, and both

@@ -62,6 +62,10 @@ export const servicesIntegrationsIntegrationTestTargets = [
   { name: 'workspace_search_contracts', path: 'tests/workspace_search_contracts.rs' },
 ];
 
+export const qtMigrationIntegrationTestTargets = [
+  { name: 'qt_migration_contracts', path: 'tests/qt_migration_contracts.rs' },
+];
+
 export const opencodeAdapterIntegrationTestTargets = [
   { name: 'opencode_mcp_adapter', path: 'tests/opencode_mcp_adapter.rs' },
   { name: 'opencode_source_adapter', path: 'tests/opencode_source_adapter.rs' },
@@ -865,6 +869,13 @@ export function checkServicesIntegrationsIntegrationTestTopology(root) {
   });
 }
 
+export function checkQtMigrationIntegrationTestTopology(root) {
+  return checkExplicitIntegrationTestTopology(root, {
+    cratePath: 'src/crates/services/qt-migration',
+    expectedTargets: qtMigrationIntegrationTestTargets,
+  });
+}
+
 export function checkOpencodeAdapterIntegrationTestTopology(root) {
   return checkExplicitIntegrationTestTopology(root, {
     cratePath: 'src/crates/adapters/opencode-adapter',
@@ -907,6 +918,7 @@ export function checkServiceIntegrationTestTopologies(root) {
   return [
     ...checkServicesCoreIntegrationTestTopology(root),
     ...checkServicesIntegrationsIntegrationTestTopology(root),
+    ...checkQtMigrationIntegrationTestTopology(root),
   ];
 }
 

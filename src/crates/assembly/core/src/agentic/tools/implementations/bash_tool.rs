@@ -684,11 +684,11 @@ Usage notes:
 
     async fn call(&self, input: &Value, context: &ToolUseContext) -> BitFunResult<Vec<ToolResult>> {
         // Bash overrides Tool::call (it needs pre/post logic the default hook
-        // does not cover), so it must run the QtMigration admission gate
+        // does not cover), so it must run the domain admission gate
         // explicitly before executing any command.
         #[cfg(feature = "agent-runtime")]
         {
-            if let Err(error) = crate::agentic::tools::qt_migration_gate::check_admission(
+            if let Err(error) = crate::agentic::tools::tool_admission::check_admission(
                 self.name(),
                 Some(input),
                 context,

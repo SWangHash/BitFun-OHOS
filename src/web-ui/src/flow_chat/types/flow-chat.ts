@@ -60,12 +60,13 @@ export interface FlowToolItem extends FlowItem {
   };
   /**
    * Resolved AskUserQuestion payload coming from the backend
-   * `toolawaitinguserinput` event (design V3 §8): `{ params, resolvedQuestions,
-   * presentation, templateId, templateVersion, qtMigrationQuestions? }`. Kept
-   * separate from `toolCall.input` (the immutable model tool-call params) so
-   * replay/audit keep the original params while the UI renders the actually-waited
-   * questions. `qtMigrationQuestions` is the Qt migration template's own question
-   * shape, rendered by its dedicated card; it is absent for every other request.
+   * `toolawaitinguserinput` event: `{ params, resolvedQuestions,
+   * presentation, templateId, templateVersion, templatePayload?,
+   * qtMigrationQuestions? }`. Kept separate from `toolCall.input` (the
+   * immutable model tool-call params) so replay/audit keep the original
+   * params. `templatePayload` is the resolved template's own opaque wire
+   * data, rendered by the template's registered card; `qtMigrationQuestions`
+   * is its legacy name, still emitted while older surfaces read it.
    */
   questionRequest?: unknown;
   toolResult?: {

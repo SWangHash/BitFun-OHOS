@@ -1423,7 +1423,7 @@ impl ToolPipeline {
             };
             let tool_context = self.build_tool_use_context(&task, CancellationToken::new());
             #[cfg(feature = "agent-runtime")]
-            if let Err(error) = crate::agentic::tools::qt_migration_gate::check_admission(
+            if let Err(error) = crate::agentic::tools::tool_admission::check_admission(
                 &tool_name,
                 Some(&task.invocation.effective_arguments),
                 &tool_context,
@@ -2487,9 +2487,10 @@ impl ToolPipeline {
         debug!("Starting tool execution: tool_id={}", tool_id);
 
         // Get task
-        let mut task = self.state_manager.get_task(&tool_id).ok_or_else(|| {
-            BitFunError::NotFound(format!("Tool task not found: {}", tool_id))
-        })?;
+        let mut task = self
+            .state_manager
+            .get_task(&tool_id)
+            .ok_or_else(|| BitFunError::NotFound(format!("Tool task not found: {}", tool_id)))?;
 
         let wire_tool_name = task.tool_call.tool_name.clone();
         let tool_name = task.invocation.effective_tool_name.clone();
@@ -2809,12 +2810,12 @@ impl ToolPipeline {
             return Ok(result);
         }
 
-        // Permission waits can outlive the migration admission facts used when
+        // Permission waits can outlive the domain admission facts used when
         // the request was planned. Re-read the authoritative Session state
         // immediately before dispatch; the Tool::call hook checks again as the
         // final common boundary (Bash has the equivalent explicit check).
         #[cfg(feature = "agent-runtime")]
-        crate::agentic::tools::qt_migration_gate::check_admission(
+        crate::agentic::tools::tool_admission::check_admission(
             &tool_name,
             Some(&tool_args),
             &tool_context,
@@ -4095,6 +4096,8 @@ mod tests {
             workspace_services: None,
             terminal_port: None,
             remote_exec_port: None,
+            admission_registry: None,
+            domain_state_store: None,
         }
     }
 

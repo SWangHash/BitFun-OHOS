@@ -52,7 +52,7 @@ use crate::service::workspace::{get_global_workspace_service, WorkspaceInfo};
 use crate::util::errors::{BitFunError, BitFunResult};
 use crate::util::sanitize_plain_model_output;
 use crate::util::timing::elapsed_ms_u64;
-use bitfun_core_types::SessionExecutionTarget;
+use bitfun_core_types::{ModelRequestContext, SessionExecutionTarget};
 pub use bitfun_runtime_ports::SessionViewRestoreTiming;
 use bitfun_runtime_ports::{
     AgentTurnSettlementResult, PermissionMode, SessionStoragePathRequest, SessionStorePort,
@@ -307,14 +307,9 @@ pub struct ResolvedSessionTitle {
 // older snapshots lazily based on this persisted cutoff.
 const LISTING_BASELINE_REBUILD_TURN_INDEX_METADATA_KEY: &str = "listingBaselineRebuildTurnIndex";
 
-/// Custom-metadata key that persists the QtMigration intake snapshot for a
-/// session. Stored next to edit-constraint state so restore and fork paths can
-/// re-seed the in-memory intake store.
-pub const INTAKE_STATE_METADATA_KEY: &str = "qtMigrationIntakeState";
-/// Session metadata key persisting the QtMigration activation flag so a
-/// restart can still tell an activated migration from a non-migration session
-/// even when the intake snapshot is missing.
-pub const MIGRATION_ACTIVE_METADATA_KEY: &str = "qtMigrationActive";
+// Domain state slots persist as session metadata keyed by the slot's stable
+// key. Slot keys double as legacy metadata keys (`qtMigrationIntakeState`,
+// `qtMigrationActive`) and must not be renamed.
 
 fn current_unix_secs() -> i64 {
     SystemTime::now()
@@ -409,20 +404,11 @@ pub struct SessionManager {
     /// restore and fork paths preserve both constraints and extraction evidence.
     edit_constraints_store:
         Arc<DashMap<String, crate::agentic::execution::edit_constraint_guard::EditConstraintState>>,
-    /// Session-scoped QtMigration intake snapshot. Mirrors the edit-constraint
-    /// pattern: the in-memory copy serves the answer-submission validation path
-    /// and is persisted in session metadata for restore/fork.
-    qt_migration_intake_state_store: Arc<
-        DashMap<
-            String,
-            bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeStateSnapshot,
-        >,
-    >,
-    /// Session-scoped QtMigration activation flag. True once the analyzer
-    /// confirmed an app_migration request for this session. Lets the gate fail
-    /// closed when the intake snapshot is missing instead of treating absence
-    /// as non-migration.
-    qt_migration_active_store: Arc<DashMap<String, bool>>,
+    /// Session-scoped domain state slots owned by registered domain
+    /// contributions. The in-memory copy serves the hot read path; persisted
+    /// slots are mirrored into session metadata for restore and fork.
+    domain_state_store:
+        Arc<DashMap<String, DashMap<bitfun_runtime_ports::DomainStateSlot, serde_json::Value>>>,
     review_read_receipt_store: Arc<ReviewReadReceiptStore>,
     evidence_ledger: Arc<SessionEvidenceLedger>,
     evidence_ledger_operation_locks: Arc<KeyedAsyncLock>,
@@ -448,11 +434,10 @@ fn clear_session_runtime_stores(
     skill_agent_baseline_override_snapshot_store: &DashMap<String, TurnSkillAgentSnapshot>,
     review_read_receipt_store: &ReviewReadReceiptStore,
     evidence_ledger: &SessionEvidenceLedger,
-    qt_migration_intake_state_store: &DashMap<
+    domain_state_store: &DashMap<
         String,
-        bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeStateSnapshot,
+        DashMap<bitfun_runtime_ports::DomainStateSlot, serde_json::Value>,
     >,
-    qt_migration_active_store: &DashMap<String, bool>,
 ) {
     context_store.delete_session(session_id);
     prompt_cache_store.delete_session(session_id);
@@ -461,8 +446,27 @@ fn clear_session_runtime_stores(
     skill_agent_baseline_override_snapshot_store.remove(session_id);
     review_read_receipt_store.delete_session(session_id);
     evidence_ledger.delete_session(session_id);
-    qt_migration_intake_state_store.remove(session_id);
-    qt_migration_active_store.remove(session_id);
+    domain_state_store.remove(session_id);
+}
+
+/// Extract every requested domain state slot from persisted session metadata.
+/// Metadata keys are the slots' own keys, so sessions written by older builds
+/// restore unchanged; values are carried verbatim.
+fn domain_state_slots_from_metadata(
+    metadata: Option<&SessionMetadata>,
+    slots: &[bitfun_runtime_ports::DomainStateSlot],
+) -> Vec<(bitfun_runtime_ports::DomainStateSlot, serde_json::Value)> {
+    let Some(custom_metadata) = metadata.and_then(|metadata| metadata.custom_metadata.as_ref())
+    else {
+        return Vec::new();
+    };
+    slots
+        .iter()
+        .filter_map(|slot| {
+            let value = custom_metadata.get(slot.key)?;
+            Some((*slot, value.clone()))
+        })
+        .collect()
 }
 
 #[derive(Clone)]
@@ -2035,8 +2039,7 @@ impl SessionManager {
             turn_skill_agent_snapshot_store: Arc::new(TurnSkillAgentSnapshotStore::new()),
             skill_agent_baseline_override_snapshot_store: Arc::new(DashMap::new()),
             edit_constraints_store: Arc::new(DashMap::new()),
-            qt_migration_intake_state_store: Arc::new(DashMap::new()),
-            qt_migration_active_store: Arc::new(DashMap::new()),
+            domain_state_store: Arc::new(DashMap::new()),
             review_read_receipt_store: Arc::new(ReviewReadReceiptStore::new()),
             evidence_ledger: Arc::new(SessionEvidenceLedger::new()),
             evidence_ledger_operation_locks: Arc::new(KeyedAsyncLock::default()),
@@ -2540,8 +2543,7 @@ impl SessionManager {
         let skill_agent_baseline_override_snapshot_store =
             self.skill_agent_baseline_override_snapshot_store.clone();
         let edit_constraints_store = self.edit_constraints_store.clone();
-        let qt_migration_intake_state_store = self.qt_migration_intake_state_store.clone();
-        let qt_migration_active_store = self.qt_migration_active_store.clone();
+        let domain_state_store = self.domain_state_store.clone();
         let review_read_receipt_store = self.review_read_receipt_store.clone();
         let evidence_ledger = self.evidence_ledger.clone();
         let evidence_ledger_operation_locks = self.evidence_ledger_operation_locks.clone();
@@ -2578,8 +2580,7 @@ impl SessionManager {
                 turn_skill_agent_snapshot_store,
                 skill_agent_baseline_override_snapshot_store,
                 edit_constraints_store,
-                qt_migration_intake_state_store,
-                qt_migration_active_store,
+                domain_state_store,
                 review_read_receipt_store,
                 evidence_ledger,
                 evidence_ledger_operation_locks,
@@ -3441,165 +3442,118 @@ impl SessionManager {
             .map(|value| value.clone())
     }
 
-    /// QtMigration intake snapshot for a session. The in-memory store serves the
-    /// answer-submission hot path; restored sessions re-seed it from persisted
-    /// metadata during restore.
-    pub fn qt_migration_intake_state(
+    /// Current in-memory value of one domain state slot for a session;
+    /// `None` means the slot was never written for this session.
+    pub fn domain_state_get(
         &self,
         session_id: &str,
-    ) -> Option<bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeStateSnapshot>
-    {
-        self.qt_migration_intake_state_store
+        slot: &bitfun_runtime_ports::DomainStateSlot,
+    ) -> Option<serde_json::Value> {
+        self.domain_state_store
             .get(session_id)
-            .map(|value| value.clone())
+            .and_then(|slots| slots.get(slot).map(|value| value.clone()))
     }
 
-    /// Atomically swap the session intake snapshot in memory and mirror it into
-    /// persisted session metadata so restore/fork paths preserve it.
-    pub async fn remember_qt_migration_intake_state(
+    /// Read every requested domain state slot for a session, in the given
+    /// order, skipping slots that were never written.
+    pub fn domain_state_all(
         &self,
         session_id: &str,
-        snapshot: bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeStateSnapshot,
+        slots: &[bitfun_runtime_ports::DomainStateSlot],
+    ) -> Vec<(bitfun_runtime_ports::DomainStateSlot, serde_json::Value)> {
+        let stored = self.domain_state_store.get(session_id);
+        slots
+            .iter()
+            .filter_map(|slot| {
+                let value = stored
+                    .as_ref()
+                    .and_then(|slots| slots.get(slot).map(|value| value.clone()))?;
+                Some((*slot, value))
+            })
+            .collect()
+    }
+
+    /// Set one domain state slot in memory and await the metadata mirror; hot
+    /// tool paths use [`Self::domain_state_set_deferred`].
+    pub async fn domain_state_set(
+        &self,
+        session_id: &str,
+        slot: &bitfun_runtime_ports::DomainStateSlot,
+        value: serde_json::Value,
     ) {
-        self.qt_migration_intake_state_store
-            .insert(session_id.to_string(), snapshot.clone());
+        self.domain_state_store
+            .entry(session_id.to_string())
+            .or_default()
+            .insert(*slot, value.clone());
 
         if self.should_persist_session_id(session_id) {
             if let Err(error) = self
-                .merge_session_custom_metadata(
-                    session_id,
-                    json!({
-                        INTAKE_STATE_METADATA_KEY: snapshot,
-                    }),
-                )
+                .merge_session_custom_metadata(session_id, Self::slot_metadata_patch(slot, &value))
                 .await
             {
                 warn!(
-                    "Failed to persist qt-migration intake state: session_id={}, error={}",
-                    session_id, error
+                    "Failed to persist domain state slot: session_id={}, slot={}, error={}",
+                    session_id, slot.key, error
                 );
             }
         }
     }
 
-    fn qt_migration_intake_state_from_metadata(
-        metadata: Option<&SessionMetadata>,
-    ) -> Option<bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeStateSnapshot>
-    {
-        let value = metadata?
-            .custom_metadata
-            .as_ref()?
-            .get(INTAKE_STATE_METADATA_KEY)?;
-        match serde_json::from_value(value.clone()) {
-            Ok(snapshot) => Some(snapshot),
-            Err(error) => {
+    /// Fire-and-forget variant of [`Self::domain_state_set`]: memory updates
+    /// synchronously, the metadata mirror is spawned and logs on failure.
+    pub fn domain_state_set_deferred(
+        self: &Arc<Self>,
+        session_id: &str,
+        slot: &bitfun_runtime_ports::DomainStateSlot,
+        value: serde_json::Value,
+    ) {
+        self.domain_state_store
+            .entry(session_id.to_string())
+            .or_default()
+            .insert(*slot, value.clone());
+
+        if !self.should_persist_session_id(session_id) {
+            return;
+        }
+        let manager = Arc::clone(self);
+        let session_id = session_id.to_string();
+        let slot_key = slot.key.to_string();
+        let patch = Self::slot_metadata_patch(slot, &value);
+        tokio::spawn(async move {
+            if let Err(error) = manager
+                .merge_session_custom_metadata(&session_id, patch)
+                .await
+            {
                 warn!(
-                    "Failed to restore qt-migration intake state from session metadata: {}",
-                    error
+                    "Failed to persist domain state slot: session_id={}, slot={}, error={}",
+                    session_id, slot_key, error
                 );
-                None
             }
-        }
+        });
     }
 
-    /// Subagent forks inherit the parent's intake snapshot so migration path
-    /// confirmation survives delegation boundaries.
-    pub async fn seed_forked_qt_migration_intake_state(
+    /// Copy every registered persisted slot from the parent session to the
+    /// child at fork time; new persisted slots propagate without per-domain
+    /// seeding code.
+    pub async fn replicate_domain_state_slots(
         &self,
         parent_session_id: &str,
         child_session_id: &str,
     ) {
-        if let Some(snapshot) = self.qt_migration_intake_state(parent_session_id) {
-            self.qt_migration_intake_state_store
-                .insert(child_session_id.to_string(), snapshot.clone());
-            if self.should_persist_session_id(child_session_id) {
-                if let Err(error) = self
-                    .merge_session_custom_metadata(
-                        child_session_id,
-                        json!({
-                            INTAKE_STATE_METADATA_KEY: snapshot,
-                        }),
-                    )
-                    .await
-                {
-                    warn!(
-                        "Failed to persist inherited intake state: session_id={}, error={}",
-                        child_session_id, error
-                    );
-                }
-            }
+        let slots = crate::agentic::tools::tool_admission::session_persisted_domain_state_slots();
+        for (slot, value) in self.domain_state_all(parent_session_id, slots) {
+            self.domain_state_set(child_session_id, &slot, value).await;
         }
     }
 
-    /// Whether the session has an activated QtMigration admission context. The
-    /// gate uses this to fail closed when the intake snapshot is missing
-    /// instead of treating absence as non-migration.
-    pub fn qt_migration_active(&self, session_id: &str) -> bool {
-        self.qt_migration_active_store
-            .get(session_id)
-            .map(|v| *v)
-            .unwrap_or(false)
-    }
-
-    /// Atomically mark the session's QtMigration admission context as active
-    /// (or inactive on terminal/cancel) and mirror it into persisted metadata.
-    pub async fn remember_qt_migration_active(&self, session_id: &str, active: bool) {
-        self.qt_migration_active_store
-            .insert(session_id.to_string(), active);
-        if self.should_persist_session_id(session_id) {
-            if let Err(error) = self
-                .merge_session_custom_metadata(
-                    session_id,
-                    json!({
-                        MIGRATION_ACTIVE_METADATA_KEY: active,
-                    }),
-                )
-                .await
-            {
-                warn!(
-                    "Failed to persist qt-migration active flag: session_id={}, error={}",
-                    session_id, error
-                );
-            }
-        }
-    }
-
-    fn qt_migration_active_from_metadata(metadata: Option<&SessionMetadata>) -> bool {
-        metadata
-            .and_then(|m| m.custom_metadata.as_ref())
-            .and_then(|cm| cm.get(MIGRATION_ACTIVE_METADATA_KEY))
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false)
-    }
-
-    /// Subagent forks inherit the parent's migration activation flag so a
-    /// delegated subagent is still gated even before its own intake is seeded.
-    pub async fn seed_forked_qt_migration_active(
-        &self,
-        parent_session_id: &str,
-        child_session_id: &str,
-    ) {
-        let active = self.qt_migration_active(parent_session_id);
-        if active {
-            self.qt_migration_active_store
-                .insert(child_session_id.to_string(), active);
-            if self.should_persist_session_id(child_session_id) {
-                if let Err(error) = self
-                    .merge_session_custom_metadata(
-                        child_session_id,
-                        json!({
-                            MIGRATION_ACTIVE_METADATA_KEY: active,
-                        }),
-                    )
-                    .await
-                {
-                    warn!(
-                        "Failed to persist inherited migration active flag: session_id={}, error={}",
-                        child_session_id, error
-                    );
-                }
-            }
-        }
+    /// Metadata patch carrying one slot value under the slot's stable key.
+    fn slot_metadata_patch(
+        slot: &bitfun_runtime_ports::DomainStateSlot,
+        value: &serde_json::Value,
+    ) -> serde_json::Value {
+        let mut patch = serde_json::Map::new();
+        patch.insert(slot.key.to_string(), value.clone());
+        serde_json::Value::Object(patch)
     }
 
     fn edit_constraint_state_from_metadata(
@@ -5161,8 +5115,7 @@ impl SessionManager {
             self.skill_agent_baseline_override_snapshot_store.as_ref(),
             self.review_read_receipt_store.as_ref(),
             self.evidence_ledger.as_ref(),
-            self.qt_migration_intake_state_store.as_ref(),
-            self.qt_migration_active_store.as_ref(),
+            self.domain_state_store.as_ref(),
         );
         self.release_session_write_lock(session_id);
         Ok(true)
@@ -5207,8 +5160,7 @@ impl SessionManager {
             self.skill_agent_baseline_override_snapshot_store.as_ref(),
             self.review_read_receipt_store.as_ref(),
             self.evidence_ledger.as_ref(),
-            self.qt_migration_intake_state_store.as_ref(),
-            self.qt_migration_active_store.as_ref(),
+            self.domain_state_store.as_ref(),
         );
 
         if let Some(cron) = crate::service::cron::get_global_cron_service() {
@@ -5976,10 +5928,10 @@ impl SessionManager {
             Self::listing_baseline_rebuild_turn_index_from_metadata(session_metadata.as_ref());
         let restored_edit_constraint_state =
             Self::edit_constraint_state_from_metadata(session_metadata.as_ref());
-        let restored_qt_migration_intake_state =
-            Self::qt_migration_intake_state_from_metadata(session_metadata.as_ref());
-        let restored_qt_migration_active =
-            Self::qt_migration_active_from_metadata(session_metadata.as_ref());
+        let restored_domain_state_slots = domain_state_slots_from_metadata(
+            session_metadata.as_ref(),
+            crate::agentic::tools::tool_admission::session_persisted_domain_state_slots(),
+        );
         debug!(
             "Session restore phase completed: session_id={}, phase=load_metadata, duration_ms={}",
             session_id,
@@ -6401,8 +6353,7 @@ impl SessionManager {
                 self.skill_agent_baseline_override_snapshot_store.as_ref(),
                 self.review_read_receipt_store.as_ref(),
                 self.evidence_ledger.as_ref(),
-                self.qt_migration_intake_state_store.as_ref(),
-                self.qt_migration_active_store.as_ref(),
+                self.domain_state_store.as_ref(),
             );
         }
         self.evidence_ledger
@@ -6448,14 +6399,14 @@ impl SessionManager {
                 .insert(session_id.to_string(), state);
         }
 
-        if let Some(snapshot) = restored_qt_migration_intake_state {
-            self.qt_migration_intake_state_store
-                .insert(session_id.to_string(), snapshot);
+        let session_domain_state_store = self
+            .domain_state_store
+            .entry(session_id.to_string())
+            .or_default();
+        for (slot, value) in restored_domain_state_slots {
+            session_domain_state_store.insert(slot, value);
         }
-        if restored_qt_migration_active {
-            self.qt_migration_active_store
-                .insert(session_id.to_string(), true);
-        }
+        drop(session_domain_state_store);
 
         Ok((session, persisted_turns))
     }
@@ -7762,24 +7713,33 @@ impl SessionManager {
     /// plain questions or unknown template ids so unchanged records serialize
     /// without the extra field.
     fn build_ask_user_question_request(arguments: &serde_json::Value) -> Option<serde_json::Value> {
-        use bitfun_agent_runtime::qt_migration_question_templates::resolve_question_template_full;
         use bitfun_agent_runtime::user_questions::ResolvedQuestionRequest;
 
         let template_id = arguments
             .get("templateId")
             .and_then(|value| value.as_str())?;
-        let candidates: std::collections::HashMap<String, Vec<String>> = arguments
-            .get("candidates")
-            .and_then(|value| serde_json::from_value(value.clone()).ok())
-            .unwrap_or_default();
-        let resolved = resolve_question_template_full(template_id, &candidates)?;
+        // The registry is static product content, so building it per call on
+        // this cold restore path is a single Vec push. Replay renders never
+        // probe the workspace: the persisted record must rebuild identically
+        // without host resources.
+        let registry = crate::agentic::tools::tool_admission::assemble_question_template_registry();
+        let contribution = registry.get(template_id)?;
+        let resolved = contribution.render_replay(arguments)?;
+        // Same envelope population as the live tool path: the template's
+        // opaque payload rides the generic `templatePayload` field and, while
+        // the template declares a legacy wire field, that projection too.
+        let legacy_payload = match (&resolved.payload, contribution.legacy_payload_wire_field()) {
+            (Some(payload), Some(_)) => Some(payload.clone()),
+            _ => None,
+        };
         let request = ResolvedQuestionRequest {
             raw_params: arguments.clone(),
             resolved_questions: resolved.questions,
             presentation: Some(resolved.presentation),
             template_id: Some(template_id.to_string()),
             template_version: Some(resolved.template_version),
-            qt_migration_questions: resolved.qt_migration_questions,
+            template_payload: resolved.payload,
+            qt_migration_questions: legacy_payload,
         };
         serde_json::to_value(request).ok()
     }
@@ -9679,13 +9639,16 @@ impl SessionManager {
     }
 
     /// Single-shot completion bound to the session's inherited model. Used by
-    /// engine-side semantic helpers (e.g. Qt migration intent analysis); not
-    /// part of the conversation loop.
+    /// engine-side semantic helpers (e.g. turn-intent analysis); not part of
+    /// the conversation loop. `request_context` carries provider-neutral
+    /// request-scoped facts such as a structured-output schema; adapters that
+    /// do not support them ignore it.
     pub async fn session_quick_completion(
         &self,
         session_id: &str,
         system_prompt: &str,
         user_prompt: &str,
+        request_context: Option<ModelRequestContext>,
     ) -> BitFunResult<String> {
         use crate::util::types::Message;
         let client = self.resolve_inherit_session_client(session_id).await?;
@@ -9716,7 +9679,7 @@ impl SessionManager {
             },
         ];
         let response = client
-            .send_message(messages, None)
+            .send_message_with_trace_and_request_context(messages, None, request_context, None)
             .await
             .map_err(|e| BitFunError::ai(format!("AI call failed: {}", e)))?;
         Ok(response.text)
@@ -9989,8 +9952,7 @@ impl SessionManager {
         let skill_agent_baseline_override_snapshot_store =
             self.skill_agent_baseline_override_snapshot_store.clone();
         let edit_constraints_store = self.edit_constraints_store.clone();
-        let qt_migration_intake_state_store = self.qt_migration_intake_state_store.clone();
-        let qt_migration_active_store = self.qt_migration_active_store.clone();
+        let domain_state_store = self.domain_state_store.clone();
         let review_read_receipt_store = self.review_read_receipt_store.clone();
         let evidence_ledger = self.evidence_ledger.clone();
 
@@ -10090,8 +10052,7 @@ impl SessionManager {
                             skill_agent_baseline_override_snapshot_store.as_ref(),
                             review_read_receipt_store.as_ref(),
                             evidence_ledger.as_ref(),
-                            qt_migration_intake_state_store.as_ref(),
-                            qt_migration_active_store.as_ref(),
+                            domain_state_store.as_ref(),
                         );
                         edit_constraints_store.remove(&candidate.session_id);
                     }
@@ -19314,7 +19275,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn qt_migration_intake_state_round_trips_through_memory_and_persisted_metadata() {
+    async fn domain_state_slot_round_trips_through_memory_and_persisted_metadata() {
         let workspace = TestWorkspace::new();
         let manager = test_manager(Arc::new(
             PersistenceManager::new(workspace.path_manager()).expect("persistence manager"),
@@ -19331,58 +19292,48 @@ mod tests {
             .await
             .expect("session should be created");
 
+        let intake_slot = bitfun_qt_migration::admission::QT_MIGRATION_SLOT_INTAKE_STATE;
+        let active_slot = bitfun_qt_migration::admission::QT_MIGRATION_SLOT_ACTIVE;
         assert!(manager
-            .qt_migration_intake_state(&session.session_id)
+            .domain_state_get(&session.session_id, &intake_slot)
             .is_none());
 
-        let snapshot = bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeStateSnapshot {
+        let snapshot = bitfun_qt_migration::state::QtMigrationIntakeStateSnapshot {
             schema_version: 1,
-            fields: std::collections::BTreeMap::from([
-                (
-                    "source_project".to_string(),
-                    bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeFieldState {
-                        state: bitfun_agent_runtime::qt_migration_intake_state::QtMigrationFieldResolutionState::Resolved,
-                        value: Some("D:/work/myqt".to_string()),
-                    },
-                ),
-                (
-                    "output_project".to_string(),
-                    bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeFieldState {
-                        state: bitfun_agent_runtime::qt_migration_intake_state::QtMigrationFieldResolutionState::Resolved,
-                        value: Some("D:/out/hm".to_string()),
-                    },
-                ),
-                (
-                    "toolchain".to_string(),
-                    bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeFieldState {
-                        state: bitfun_agent_runtime::qt_migration_intake_state::QtMigrationFieldResolutionState::Resolved,
-                        value: Some("D:/sdk/ohos".to_string()),
-                    },
-                ),
-                (
-                    "template".to_string(),
-                    bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeFieldState {
-                        state: bitfun_agent_runtime::qt_migration_intake_state::QtMigrationFieldResolutionState::Resolved,
-                        value: Some("qt-hm-template-1".to_string()),
-                    },
-                ),
-            ]),
-            status: bitfun_agent_runtime::qt_migration_intake_state::QtMigrationIntakeStatus::NeedsValidation,
+            fields: std::collections::BTreeMap::from([(
+                "source_project".to_string(),
+                bitfun_qt_migration::state::QtMigrationIntakeFieldState {
+                    state: bitfun_qt_migration::state::QtMigrationFieldResolutionState::Resolved,
+                    value: Some("D:/work/myqt".to_string()),
+                },
+            )]),
+            status: bitfun_qt_migration::state::QtMigrationIntakeStatus::NeedsInput,
             loaded_skill_receipt: None,
-            version_strategy:
-                bitfun_agent_runtime::qt_migration_intake_state::QtMigrationVersionStrategy::default(),
+            version_strategy: bitfun_qt_migration::state::QtMigrationVersionStrategy::default(),
         };
+        let snapshot_value = serde_json::to_value(&snapshot).expect("intake snapshot serializes");
         manager
-            .remember_qt_migration_intake_state(&session.session_id, snapshot.clone())
+            .domain_state_set(&session.session_id, &intake_slot, snapshot_value.clone())
+            .await;
+        manager
+            .domain_state_set(
+                &session.session_id,
+                &active_slot,
+                serde_json::Value::Bool(true),
+            )
             .await;
 
         // In-memory read path.
         assert_eq!(
-            manager.qt_migration_intake_state(&session.session_id),
-            Some(snapshot.clone())
+            manager.domain_state_get(&session.session_id, &intake_slot),
+            Some(snapshot_value.clone())
+        );
+        assert_eq!(
+            manager.domain_state_get(&session.session_id, &active_slot),
+            Some(serde_json::Value::Bool(true))
         );
 
-        // Restore path re-seeds the intake store from persisted metadata.
+        // Restore path re-seeds the domain store from persisted metadata.
         manager.evict_loaded_session_for_test(&session.session_id);
         let restored = test_manager(Arc::new(
             PersistenceManager::new(workspace.path_manager()).expect("persistence manager"),
@@ -19392,8 +19343,156 @@ mod tests {
             .await
             .expect("session should restore");
         assert_eq!(
-            restored.qt_migration_intake_state(&session.session_id),
-            Some(snapshot)
+            restored.domain_state_get(&session.session_id, &intake_slot),
+            Some(snapshot_value)
+        );
+        assert_eq!(
+            restored.domain_state_get(&session.session_id, &active_slot),
+            Some(serde_json::Value::Bool(true))
+        );
+    }
+
+    #[tokio::test]
+    async fn legacy_session_metadata_keys_restore_into_domain_slots() {
+        let workspace = TestWorkspace::new();
+        let manager = test_manager(Arc::new(
+            PersistenceManager::new(workspace.path_manager()).expect("persistence manager"),
+        ));
+        let session = manager
+            .create_session(
+                "Legacy".to_string(),
+                "QtMigration".to_string(),
+                SessionConfig {
+                    workspace_path: Some(workspace.path().to_string_lossy().to_string()),
+                    ..SessionConfig::default()
+                },
+            )
+            .await
+            .expect("session should be created");
+
+        let intake_slot = bitfun_qt_migration::admission::QT_MIGRATION_SLOT_INTAKE_STATE;
+        let active_slot = bitfun_qt_migration::admission::QT_MIGRATION_SLOT_ACTIVE;
+        // Upgrade compat guard: slot keys ARE the legacy metadata keys. Renaming
+        // either side orphans sessions persisted by older builds.
+        assert_eq!(intake_slot.key, "qtMigrationIntakeState");
+        assert_eq!(active_slot.key, "qtMigrationActive");
+
+        // Hand-written old-shape metadata (what a pre-slot build persisted),
+        // including the legacy NeedsValidation status kept for upgrade compat.
+        manager
+            .merge_session_custom_metadata(
+                &session.session_id,
+                serde_json::json!({
+                    "qtMigrationIntakeState": {
+                        "schema_version": 1,
+                        "fields": {
+                            "source_project": { "state": "resolved", "value": "D:/work/myqt" }
+                        },
+                        "status": "needs_validation"
+                    },
+                    "qtMigrationActive": true,
+                }),
+            )
+            .await;
+
+        manager.evict_loaded_session_for_test(&session.session_id);
+        let restored = test_manager(Arc::new(
+            PersistenceManager::new(workspace.path_manager()).expect("persistence manager"),
+        ));
+        restored
+            .restore_session(workspace.path(), &session.session_id)
+            .await
+            .expect("session should restore");
+
+        let restored_value = restored
+            .domain_state_get(&session.session_id, &intake_slot)
+            .expect("legacy intake metadata restores");
+        let snapshot: bitfun_qt_migration::state::QtMigrationIntakeStateSnapshot =
+            serde_json::from_value(restored_value).expect("legacy snapshot shape deserializes");
+        assert_eq!(
+            snapshot.status,
+            bitfun_qt_migration::state::QtMigrationIntakeStatus::NeedsValidation
+        );
+        assert_eq!(
+            restored.domain_state_get(&session.session_id, &active_slot),
+            Some(serde_json::Value::Bool(true))
+        );
+    }
+
+    #[tokio::test]
+    async fn fork_replication_copies_registered_domain_slots_to_the_child() {
+        let workspace = TestWorkspace::new();
+        let manager = test_manager(Arc::new(
+            PersistenceManager::new(workspace.path_manager()).expect("persistence manager"),
+        ));
+        let parent = manager
+            .create_session(
+                "Parent".to_string(),
+                "QtMigration".to_string(),
+                SessionConfig {
+                    workspace_path: Some(workspace.path().to_string_lossy().to_string()),
+                    ..SessionConfig::default()
+                },
+            )
+            .await
+            .expect("parent session should be created");
+        let child = manager
+            .create_session(
+                "Child".to_string(),
+                "QtMigration".to_string(),
+                SessionConfig {
+                    workspace_path: Some(workspace.path().to_string_lossy().to_string()),
+                    ..SessionConfig::default()
+                },
+            )
+            .await
+            .expect("child session should be created");
+
+        let intake_slot = bitfun_qt_migration::admission::QT_MIGRATION_SLOT_INTAKE_STATE;
+        let active_slot = bitfun_qt_migration::admission::QT_MIGRATION_SLOT_ACTIVE;
+        let snapshot = bitfun_qt_migration::state::QtMigrationIntakeStateSnapshot::empty();
+        let snapshot_value = serde_json::to_value(&snapshot).expect("intake snapshot serializes");
+        manager
+            .domain_state_set(&parent.session_id, &intake_slot, snapshot_value.clone())
+            .await;
+        manager
+            .domain_state_set(
+                &parent.session_id,
+                &active_slot,
+                serde_json::Value::Bool(true),
+            )
+            .await;
+
+        manager
+            .replicate_domain_state_slots(&parent.session_id, &child.session_id)
+            .await;
+
+        // Memory mirror on the child.
+        assert_eq!(
+            manager.domain_state_get(&child.session_id, &intake_slot),
+            Some(snapshot_value.clone())
+        );
+        assert_eq!(
+            manager.domain_state_get(&child.session_id, &active_slot),
+            Some(serde_json::Value::Bool(true))
+        );
+
+        // Persisted mirror on the child.
+        manager.evict_loaded_session_for_test(&child.session_id);
+        let restored = test_manager(Arc::new(
+            PersistenceManager::new(workspace.path_manager()).expect("persistence manager"),
+        ));
+        restored
+            .restore_session(workspace.path(), &child.session_id)
+            .await
+            .expect("child session should restore");
+        assert_eq!(
+            restored.domain_state_get(&child.session_id, &intake_slot),
+            Some(snapshot_value)
+        );
+        assert_eq!(
+            restored.domain_state_get(&child.session_id, &active_slot),
+            Some(serde_json::Value::Bool(true))
         );
     }
 

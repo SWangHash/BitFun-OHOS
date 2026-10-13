@@ -383,6 +383,8 @@ mod tests {
                 workspace_services: None,
                 terminal_port: None,
                 remote_exec_port: None,
+                admission_registry: None,
+                domain_state_store: None,
             },
             ToolExecutionOptions::default(),
         )
