@@ -195,6 +195,22 @@ export class SystemAPI {
     }
   }
 
+  /**
+   * Open the app market listing of this build, where the person can rate it.
+   * The AppGallery listing is a HarmonyOS surface: the host launches the
+   * AppGallery application on the running app's own bundle name through an
+   * AppGallery Deep Link (`ohos.want.action.appdetail`), so no store URL is
+   * passed from here, and other runtimes reject the command instead of opening a
+   * browser page.
+   */
+  async openAppMarketPage(): Promise<void> {
+    if (!isOpenHarmonyRuntime()) {
+      throw new Error('The app market page is only available on HarmonyOS');
+    }
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('open_app_market_ohos');
+  }
+
   async openHtmlFileInBrowser(path: string): Promise<void> {
     try {
       await api.invoke('open_html_file_in_browser', {

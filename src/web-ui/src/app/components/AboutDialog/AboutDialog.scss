@@ -54,14 +54,10 @@
   max-width: 192px;
 }
 
-.bitfun-about-dialog__brand-mark {
+.bitfun-about-dialog__artwork-image {
   display: block;
   width: 100%;
   height: auto;
-  color: var(--bitfun-color-content-primary);
-  stroke-width: 0.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
   user-select: none;
   pointer-events: none;
 }
@@ -353,10 +349,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bitfun-about-dialog__brand-flow {
-    display: none;
-  }
-
   .bitfun-about-dialog__download-fill--indeterminate {
     animation: none;
     transform: none;

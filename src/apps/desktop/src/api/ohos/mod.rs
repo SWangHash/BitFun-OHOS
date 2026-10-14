@@ -1,3 +1,4 @@
+pub mod app_market;
 pub mod browser;
 #[cfg(target_env = "ohos")]
 pub mod feedback_credentials;

@@ -8,7 +8,12 @@ import { canonicalizeIcns } from './icns-container.mjs';
 const GENERATED_ICNS_FILES = [
   'src/apps/desktop/icons/bitfun-app-icon.icns',
   'BitFun-Installer/src-tauri/icons/bitfun-app-icon.icns',
+  'src/apps/data-migrator/icons/bitfun-app-icon.icns',
 ];
+
+const ANDROID_LAUNCHER_SIZES = { mdpi: 48, hdpi: 72, xhdpi: 96, xxhdpi: 144, xxxhdpi: 192 };
+const ANDROID_ADAPTIVE_CANVAS_DP = 108;
+const ANDROID_LEGACY_ICON_DP = 48;
 
 const HARMONY_MEDIA_DIRS = [
   'src/apps/mobile/harmonyos/AppScope/resources/base/media',
@@ -46,12 +51,15 @@ test('ICNS canonicalization is independent of Tauri chunk order', () => {
 });
 
 test('application ICNS files use the canonical ICNS layout', () => {
-  // The installer container is frozen at the previous artwork, so the two files
-  // are no longer expected to be identical; both must still be canonical.
-  const [desktop, installer] = GENERATED_ICNS_FILES.map(filePath => readFileSync(filePath));
+  // Every bundled product (desktop, installer, data migrator) ships one icon
+  // family, so the three containers must stay byte-identical and canonical.
+  const [desktop, ...rest] = GENERATED_ICNS_FILES.map(filePath => readFileSync(filePath));
 
   assert.ok(desktop.equals(canonicalizeIcns(desktop)), 'desktop ICNS is not canonical');
-  assert.ok(installer.equals(canonicalizeIcns(installer)), 'installer ICNS is not canonical');
+  for (const [index, container] of rest.entries()) {
+    assert.ok(container.equals(canonicalizeIcns(container)), `${GENERATED_ICNS_FILES[index + 1]} is not canonical`);
+    assert.deepEqual(container, desktop, `${GENERATED_ICNS_FILES[index + 1]} drifted from the shared artwork`);
+  }
 });
 
 test('application icons preserve the submitted artwork independently from the startup Logo', async () => {
@@ -185,40 +193,118 @@ test('browser entry points reference generated application favicons', () => {
     }
   }
 
-  // The installer keeps its frozen icon set, so its entry point only has to
-  // reference files that are actually shipped.
+  // The installer now ships the generated application artwork, so its entry
+  // point and its bundled files must reference the same exports as every other
+  // surface.
   const installerHtml = readFileSync('BitFun-Installer/index.html', 'utf8');
   for (const name of ['bitfun-app-icon.png', 'bitfun-app-icon-16.png', 'bitfun-app-icon-32.png']) {
     assert.ok(installerHtml.includes(name), `installer entry point no longer references ${name}`);
-    assert.doesNotThrow(() => readFileSync(`BitFun-Installer/src/assets/${name}`));
+  }
+  assert.deepEqual(
+    readFileSync('BitFun-Installer/src/assets/bitfun-app-icon.png'),
+    readFileSync('assets/brand/exports/bitfun-app-icon-512.png'),
+  );
+  for (const size of [16, 32]) {
+    assert.deepEqual(
+      readFileSync(`BitFun-Installer/src/assets/bitfun-app-icon-${size}.png`),
+      readFileSync(`assets/brand/exports/bitfun-app-icon-${size}.png`),
+      `installer ships a stale ${size}px favicon`,
+    );
   }
 });
 
-test('frozen installer, Android, and iOS launcher icons stay byte-identical', () => {
-  // These three targets deliberately ship the previous artwork: they are already
-  // released artifacts. The digest pins the exact bytes so that re-adding them to
-  // generate-brand-assets.mjs, or editing them by hand, fails loudly instead of
-  // silently changing shipped icons.
-  const androidRes = 'src/apps/mobile/android/app/src/main/res';
-  const files = [
-    'BitFun-Installer/src-tauri/icons/bitfun-app-icon.png',
-    'BitFun-Installer/src-tauri/icons/bitfun-app-icon.ico',
-    'BitFun-Installer/src-tauri/icons/bitfun-app-icon.icns',
-    'BitFun-Installer/src/assets/bitfun-app-icon.png',
-    'BitFun-Installer/src/assets/bitfun-app-icon-16.png',
-    'BitFun-Installer/src/assets/bitfun-app-icon-32.png',
-    'src/apps/mobile/ios/BitFun/Resources.xcassets/AppIcon.appiconset/bitfun-app-icon.png',
-    ...readdirSync(androidRes)
-      .filter(name => name.startsWith('mipmap-'))
-      .flatMap(density => readdirSync(`${androidRes}/${density}`)
-        .map(name => `${androidRes}/${density}/${name}`)),
-  ];
-  const digest = createHash('sha256');
-  for (const file of files.sort()) {
-    digest.update(file);
-    digest.update(readFileSync(file));
+test('installer, data migrator, and Mini App Market icons reuse the application exports', () => {
+  const exportedPng = size => readFileSync(`assets/brand/exports/bitfun-app-icon-${size}.png`);
+  const exportedIco = readFileSync('assets/brand/exports/bitfun-app-icon.ico');
+  const exportedIcns = readFileSync('assets/brand/exports/bitfun-app-icon.icns');
+
+  for (const directory of [
+    'BitFun-Installer/src-tauri/icons',
+    'src/apps/data-migrator/icons',
+  ]) {
+    assert.deepEqual(readFileSync(`${directory}/bitfun-app-icon.png`), exportedPng(1024), directory);
+    assert.deepEqual(readFileSync(`${directory}/bitfun-app-icon.ico`), exportedIco, directory);
+    assert.deepEqual(readFileSync(`${directory}/bitfun-app-icon.icns`), exportedIcns, directory);
   }
-  assert.equal(digest.digest('hex'), '39471141d4a8a54acf9f424a9f20869c9724b11933bbaf1055f751920f5a152a');
+
+  const market = 'src/miniapp-market-web/public';
+  assert.deepEqual(readFileSync(`${market}/icon-512.png`), exportedPng(512));
+  assert.deepEqual(readFileSync(`${market}/icon-192.png`), exportedPng(192));
+  assert.deepEqual(readFileSync(`${market}/favicon.ico`), exportedIco);
+  for (const size of [16, 32]) {
+    assert.deepEqual(readFileSync(`${market}/assets/bitfun-favicon-${size}.png`), exportedPng(size));
+  }
+});
+
+test('Mini App Market touch icon keeps the application plate at its own size', async () => {
+  const { data, info } = await sharp('src/miniapp-market-web/public/apple-touch-icon.png')
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  assert.equal(info.width, 180);
+  assert.equal(info.height, 180);
+  assert.ok(data[info.channels - 1] <= 16, 'the corner stays outside the rounded plate');
+  const center = ((90 * info.width) + 90) * info.channels;
+  assert.equal(data[center + 3], 255, 'the plate must be opaque at its center');
+});
+
+test('Mini App Market favicon is a vector twin of the application icon', () => {
+  const source = readFileSync('assets/brand/source/bitfun-mark.svg', 'utf8');
+  const favicon = readFileSync('src/miniapp-market-web/public/favicon.svg', 'utf8');
+  const markPath = source.match(/<path[^>]*\sd="([^"]+)"/)?.[1];
+
+  assert.ok(markPath, 'source mark has no path geometry');
+  assert.match(favicon, /<rect width="512" height="512" rx="96" fill="#000000"\/>/);
+  assert.match(favicon, /viewBox="0 0 120 120"/);
+  assert.ok(favicon.includes(markPath), 'favicon must embed the canonical mark geometry');
+  assert.equal(favicon.match(/<path\b/g)?.length, 1);
+  assert.doesNotMatch(favicon, /currentColor/);
+});
+
+test('Android launcher icons keep the application plate and the adaptive safe area', async () => {
+  const androidRes = 'src/apps/mobile/android/app/src/main/res';
+  // The 512px export is the canonical application icon the generator resizes
+  // from, so the legacy bitmaps are checked against the same downsample.
+  const applicationIcon = readFileSync('assets/brand/exports/bitfun-app-icon-512.png');
+  const downsample = size => sharp(applicationIcon)
+    .resize({ width: size, height: size, fit: 'contain', kernel: 'lanczos3' })
+    .png({ compressionLevel: 9, adaptiveFiltering: true })
+    .toBuffer();
+
+  for (const [density, legacySize] of Object.entries(ANDROID_LAUNCHER_SIZES)) {
+    const directory = `${androidRes}/mipmap-${density}`;
+    const legacyIcon = readFileSync(`${directory}/ic_launcher.png`);
+
+    assert.deepEqual(legacyIcon, await downsample(legacySize), `${density} launcher plate`);
+    assert.deepEqual(readFileSync(`${directory}/ic_launcher_round.png`), legacyIcon);
+    assert.deepEqual(
+      readFileSync(`${directory}/ic_launcher_monochrome.png`),
+      readFileSync(`${directory}/ic_launcher_foreground.png`),
+    );
+
+    const canvas = legacySize * ANDROID_ADAPTIVE_CANVAS_DP / ANDROID_LEGACY_ICON_DP;
+    const { data, info } = await sharp(`${directory}/ic_launcher_foreground.png`)
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    assert.equal(info.width, canvas, `${density} adaptive canvas`);
+    assert.equal(info.height, canvas, `${density} adaptive canvas`);
+    assert.equal(info.channels, 4);
+
+    // The launcher mask may cut anything outside the safe area, so the mark has
+    // to stay clear of the canvas edge at every density.
+    const margin = Math.round(canvas * 0.1);
+    for (let y = 0; y < canvas; y++) {
+      for (let x = 0; x < canvas; x++) {
+        if (data[((y * canvas) + x) * info.channels + 3] === 0) continue;
+        assert.ok(
+          x >= margin && x < canvas - margin && y >= margin && y < canvas - margin,
+          `${density} adaptive mark leaves the safe area at ${x},${y}`,
+        );
+      }
+    }
+  }
 });
 
 test('HarmonyOS generated media use valid resource identifiers', () => {

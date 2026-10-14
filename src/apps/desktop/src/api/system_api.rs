@@ -722,6 +722,26 @@ pub async fn open_external_ohos(url: String) -> Result<(), String> {
         Err("open_external is only supported on ohos".to_string())
     }
 }
+/// Opens the AppGallery detail page of this build.
+///
+/// The store listing is a HarmonyOS surface: the host launches the AppGallery
+/// application on this build's own bundle name through an AppGallery Deep Link,
+/// so no store URL or AppGallery APP ID is compiled into the frontend. Other
+/// targets have no AppGallery and reject the command instead of falling back to
+/// a browser page.
+#[tauri::command]
+pub async fn open_app_market_ohos() -> Result<(), String> {
+    #[cfg(target_env = "ohos")]
+    {
+        use crate::api::ohos::app_market::open_product_page;
+        open_product_page().await
+    }
+    #[cfg(not(target_env = "ohos"))]
+    {
+        Err("the app market page is only available on ohos".to_string())
+    }
+}
+
 #[tauri::command]
 pub async fn check_for_updates_ohos() -> Result<String, String> {
     #[cfg(target_env = "ohos")]

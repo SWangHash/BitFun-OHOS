@@ -115,7 +115,7 @@ struct StartupBrandReveal: View {
 }
 
 
-/// Same fixed diagonal mark as the desktop AboutBrandMark, with slow highlights.
+/// Same fixed diagonal mark as the application mark, with slow highlights.
 struct WelcomeBrandFlowView: View {
     var sweep = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

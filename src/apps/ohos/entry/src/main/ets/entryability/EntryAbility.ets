@@ -553,6 +553,42 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
         throw new Error(`fail to open ${target}: code=${detail.code} ${detail.message}`);
       }
     });
+    // About dialog "rate us" entry point. Bring up the AppGallery application
+    // itself on this build's store detail page. The Deep Link form resolves the
+    // listing from this build's own bundle name, so neither a store URL nor an
+    // AppGallery APP ID has to be compiled into the frontend, and a product
+    // flavor shipping under another bundle name still opens its own listing.
+    // `startAbility` launches the AppGallery app in the foreground, unlike
+    // `productViewManager.loadProduct`, which renders the detail page as an
+    // in-app surface. Failures reject so the caller reports them instead of the
+    // store page silently never appearing.
+    RustModule.registerArktsFunction('open_app_market_ohos', async (
+      _err: Error,
+      _arg: string,
+    ): Promise<string> => {
+      const bundleName = CommonUtils.getBundleName();
+      if (bundleName.length === 0) {
+        hilog.error(DOMAIN, 'BitFunAppMarket', 'bundle name unavailable');
+        return JSON.stringify({ ok: false, error: 'bundle name unavailable' });
+      }
+      try {
+        const want: Want = {
+          action: 'ohos.want.action.appdetail',
+          uri: 'store://appgallery.huawei.com/app/detail?id=' + bundleName,
+        };
+        await this.context.startAbility(want);
+        hilog.info(DOMAIN, 'BitFunAppMarket', `app market detail started: ${bundleName}`);
+        return JSON.stringify({ ok: true });
+      } catch (error) {
+        const businessError: BusinessError = error as BusinessError;
+        hilog.error(DOMAIN, 'BitFunAppMarket',
+          `startAbility threw: code=${businessError.code}, message=${businessError.message}`);
+        return JSON.stringify({
+          ok: false,
+          error: businessError.message ?? 'startAbility failed',
+        });
+      }
+    });
     RustModule.registerArktsFunction('launch_haitai_browser_cdp', async (err: Error, arg: string): Promise<string> => {
       try {
         const request = JSON.parse(arg) as HaitaiBrowserLaunchRequest;

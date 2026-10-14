@@ -41,7 +41,7 @@
     "colorDomainNearPairs.assetMetadata.nearTotal": { "max": 0 },
     "colorDomainScopes.appUi.occurrences": { "max": 0 },
     "colorDomainScopes.appUi.uniqueColors": { "max": 0 },
-    "colorDomainScopes.assetMetadata.occurrences": { "max": 7 },
-    "colorDomainScopes.assetMetadata.uniqueColors": { "max": 5 }
+    "colorDomainScopes.assetMetadata.occurrences": { "max": 4 },
+    "colorDomainScopes.assetMetadata.uniqueColors": { "max": 3 }
   }
 }

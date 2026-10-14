@@ -135,7 +135,7 @@ HarmonyOS can render the isolated surface with the existing design-preview
 launch parameter `bitfunDesignPreview=welcome-home`, without logging out an
 active account or loading its connection state.
 
-The welcome and startup marks share the desktop AboutBrandMark geometry: one
+The welcome and startup marks share the application mark geometry: one
 filled diagonal silhouette with three low-opacity highlights traveling along its
 outline over 18 seconds. `assets/welcome-brand-contours.json` records the
 256-unit path and length; native renderers own their drawing and lifecycle.

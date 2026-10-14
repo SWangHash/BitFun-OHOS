@@ -2242,6 +2242,8 @@ pub async fn _run() {
             send_system_notification_ohos,
             #[cfg(target_env = "ohos")]
             share_file_ohos,
+            #[cfg(target_env = "ohos")]
+            open_app_market_ohos,
             open_external_ohos,
             #[cfg(target_env = "ohos")]
             set_always_on_top_ohos,

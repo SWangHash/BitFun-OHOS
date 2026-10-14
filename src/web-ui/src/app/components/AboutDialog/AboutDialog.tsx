@@ -1,7 +1,7 @@
 /**
  * About dialog component.
  * Shows product identity, build metadata, license, app-update status, and the
- * persistent GitHub repository entry point.
+ * HarmonyOS app-market review entry point.
  */
 
 import {
@@ -20,6 +20,7 @@ import {
 } from '@bitfun/ui';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
+import { useAppearance, type AppearanceMode } from '@/infrastructure/appearance';
 import {
   formatBuildDate,
   formatDisplayedVersion,
@@ -35,12 +36,17 @@ import { useUpdateInstallStore } from '@/infrastructure/update/updateInstallStor
 import { formatUpdateInstallError } from '@/infrastructure/update/updateErrorMessage';
 import { PrivacyStatementDialog } from '@/app/components/Privacy/PrivacyStatementDialog';
 import { usePrivacy } from '@/app/components/Privacy/PrivacyContext';
-import { AboutBrandMark } from './AboutBrandMark';
 import './AboutDialog.scss';
 
 const log = createLogger('AboutDialog');
-const GITHUB_REPOSITORY_URL = 'https://github.com/GCWing/BitFun';
 const USER_AGREEMENT_URL = 'https://agreement-drcn.hispace.dbankcloud.cn/index.html?lang=zh&agreementId=1959693293117791424';
+// The application icon badge keeps its black plate on light surfaces. Dark
+// surfaces use the transparent white mark instead, because the badge plate is
+// indistinguishable from the raised dark dialog surface.
+const BRAND_ARTWORK_SRC: Record<AppearanceMode, string> = {
+  light: '/brand/bitfun-app-icon.png',
+  dark: '/brand/bitfun-mark-light.png',
+};
 
 interface AboutDialogProps {
   /** Whether visible */
@@ -54,6 +60,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
   onClose,
 }) => {
   const { t } = useI18n('common');
+  const appearanceMode: AppearanceMode = useAppearance().current?.mode ?? 'light';
   const [copiedItem, setCopiedItem] = useState<string | null>(null);
   const [manualCheckBusy, setManualCheckBusy] = useState(false);
   const [manualCheckStatus, setManualCheckStatus] = useState<'idle' | 'latest' | 'error'>('idle');
@@ -75,6 +82,9 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
   const { version, license } = aboutInfo;
   const nativeRuntime = isTauriRuntime();
   const updateChecksAvailable = canCheckForAppUpdates();
+  // The AppGallery product page resolves from the running build's bundle name
+  // through AppGallery Kit, so the review entry point only exists on HarmonyOS.
+  const appMarketAvailable = isOpenHarmonyRuntime();
   const displayedVersion = formatDisplayedVersion(
     version,
     nativeVersion,
@@ -165,9 +175,9 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
     }
   }, [t]);
 
-  const handleGithubStar = useCallback(() => {
-    systemAPI.openExternal(GITHUB_REPOSITORY_URL).catch(error => {
-      log.error('Failed to open the GitHub repository', { url: GITHUB_REPOSITORY_URL, error });
+  const handleAppMarketReview = useCallback(() => {
+    systemAPI.openAppMarketPage().catch(error => {
+      log.error('Failed to open the app market product page', error);
     });
   }, []);
 
@@ -255,7 +265,14 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
                 aria-hidden="true"
               >
                 <div className="bitfun-about-dialog__artwork">
-                  <AboutBrandMark active={isOpen} />
+                  <img
+                    className="bitfun-about-dialog__artwork-image"
+                    src={BRAND_ARTWORK_SRC[appearanceMode]}
+                    alt=""
+                    width={512}
+                    height={512}
+                    decoding="async"
+                  />
                 </div>
                 <p className="bitfun-about-dialog__brand-statement">
                   {t('about.brandStatement')}
@@ -515,32 +532,34 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
               data-bitfun-component="about-dialog"
               data-bitfun-part="footer"
             >
-              <div
-                className="bitfun-about-dialog__star-callout"
-                data-bitfun-component="about-dialog"
-                data-bitfun-part="starCallout"
-                role="group"
-                aria-labelledby="bitfun-about-star-title"
-              >
-                <div className="bitfun-about-dialog__star-copy">
-                  <h3 id="bitfun-about-star-title" className="bitfun-about-dialog__star-title">
-                    {t('about.githubStarTitle')}
-                  </h3>
-                  <p className="bitfun-about-dialog__star-description">
-                    {t('about.githubStarDescription')}
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="bitfun-about-dialog__star-button"
-                  leadingIcon={<Icon name="star" size="sm" aria-hidden="true" />}
-                  onClick={handleGithubStar}
-                  data-testid="about-github-star"
+              {appMarketAvailable ? (
+                <div
+                  className="bitfun-about-dialog__star-callout"
+                  data-bitfun-component="about-dialog"
+                  data-bitfun-part="starCallout"
+                  role="group"
+                  aria-labelledby="bitfun-about-star-title"
                 >
-                  {t('about.githubStarAction')}
-                </Button>
-              </div>
+                  <div className="bitfun-about-dialog__star-copy">
+                    <h3 id="bitfun-about-star-title" className="bitfun-about-dialog__star-title">
+                      {t('about.appMarketReviewTitle')}
+                    </h3>
+                    <p className="bitfun-about-dialog__star-description">
+                      {t('about.appMarketReviewDescription')}
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="bitfun-about-dialog__star-button"
+                    leadingIcon={<Icon name="star" size="sm" aria-hidden="true" />}
+                    onClick={handleAppMarketReview}
+                    data-testid="about-github-star"
+                  >
+                    {t('about.appMarketReviewAction')}
+                  </Button>
+                </div>
+              ) : null}
               <p
                 className="bitfun-about-dialog__copyright"
                 data-bitfun-component="about-dialog"

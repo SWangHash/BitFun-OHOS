@@ -940,7 +940,10 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         RemoteWorkspacePolicy::RemoteRouted,
     ),
     ("list_matrix_categories", RemoteWorkspacePolicy::LocalOnly),
-    ("list_matrix_organizations", RemoteWorkspacePolicy::LocalOnly),
+    (
+        "list_matrix_organizations",
+        RemoteWorkspacePolicy::LocalOnly,
+    ),
     ("list_matrix_tags", RemoteWorkspacePolicy::LocalOnly),
     ("list_matrix_skills", RemoteWorkspacePolicy::LocalOnly),
     ("list_mcp_prompts", RemoteWorkspacePolicy::LegacyUnaudited),
@@ -1971,21 +1974,45 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
     ("write_file_content", RemoteWorkspacePolicy::LegacyUnaudited),
     // Commands merged from upstream/main whose behavior matches the generated
     // Product Operation Registry stances.
-    ("account_github_info", RemoteWorkspacePolicy::WorkspaceAgnostic),
-    ("account_github_poll", RemoteWorkspacePolicy::WorkspaceAgnostic),
-    ("account_github_start", RemoteWorkspacePolicy::WorkspaceAgnostic),
-    ("account_load_older_session", RemoteWorkspacePolicy::WorkspaceAgnostic),
-    ("account_subscribe_session", RemoteWorkspacePolicy::WorkspaceAgnostic),
-    ("account_unsubscribe_session", RemoteWorkspacePolicy::WorkspaceAgnostic),
+    (
+        "account_github_info",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
+    ),
+    (
+        "account_github_poll",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
+    ),
+    (
+        "account_github_start",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
+    ),
+    (
+        "account_load_older_session",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
+    ),
+    (
+        "account_subscribe_session",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
+    ),
+    (
+        "account_unsubscribe_session",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
+    ),
     (
         "browser_webview_capture_preview",
         RemoteWorkspacePolicy::LocalOnly,
     ),
     ("browser_webview_close", RemoteWorkspacePolicy::LocalOnly),
     ("browser_webview_hide", RemoteWorkspacePolicy::LocalOnly),
-    ("browser_webview_set_focus", RemoteWorkspacePolicy::LocalOnly),
+    (
+        "browser_webview_set_focus",
+        RemoteWorkspacePolicy::LocalOnly,
+    ),
     ("browser_webview_show", RemoteWorkspacePolicy::LocalOnly),
-    ("get_chat_mcp_catalog", RemoteWorkspacePolicy::RemoteUnsupported),
+    (
+        "get_chat_mcp_catalog",
+        RemoteWorkspacePolicy::RemoteUnsupported,
+    ),
     (
         "get_external_source_discovery_snapshot",
         RemoteWorkspacePolicy::RemoteUnsupported,
@@ -1998,13 +2025,22 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         "get_session_interaction_mailbox",
         RemoteWorkspacePolicy::WorkspaceAgnostic,
     ),
-    ("local_file_download", RemoteWorkspacePolicy::WorkspaceAgnostic),
-    ("market_image_load", RemoteWorkspacePolicy::WorkspaceAgnostic),
+    (
+        "local_file_download",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
+    ),
+    (
+        "market_image_load",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
+    ),
     (
         "resolve_browser_dropped_file_paths",
         RemoteWorkspacePolicy::LocalOnly,
     ),
-    ("set_file_drop_preview_target", RemoteWorkspacePolicy::LocalOnly),
+    (
+        "set_file_drop_preview_target",
+        RemoteWorkspacePolicy::LocalOnly,
+    ),
     ("set_tray_unread_count", RemoteWorkspacePolicy::LocalOnly),
     (
         "start_user_question_interaction",
@@ -2025,12 +2061,19 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
     ("handle_restore_window", RemoteWorkspacePolicy::LocalOnly),
     ("inner_size_ohos", RemoteWorkspacePolicy::LocalOnly),
     ("maximize_ohos", RemoteWorkspacePolicy::LocalOnly),
+    ("open_app_market_ohos", RemoteWorkspacePolicy::LocalOnly),
     ("open_external_ohos", RemoteWorkspacePolicy::LocalOnly),
     ("open_oh_file_dialog", RemoteWorkspacePolicy::LocalOnly),
     ("outer_position_ohos", RemoteWorkspacePolicy::LocalOnly),
     ("outer_size_ohos", RemoteWorkspacePolicy::LocalOnly),
-    ("save_file_to_downloads_ohos", RemoteWorkspacePolicy::LocalOnly),
-    ("send_system_notification_ohos", RemoteWorkspacePolicy::LocalOnly),
+    (
+        "save_file_to_downloads_ohos",
+        RemoteWorkspacePolicy::LocalOnly,
+    ),
+    (
+        "send_system_notification_ohos",
+        RemoteWorkspacePolicy::LocalOnly,
+    ),
     ("set_always_on_top_ohos", RemoteWorkspacePolicy::LocalOnly),
     ("set_clipboard", RemoteWorkspacePolicy::LocalOnly),
     ("set_decorations_ohos", RemoteWorkspacePolicy::LocalOnly),

@@ -47,10 +47,11 @@ interface AboutLayoutEvidence {
   modalHeight: number;
   modalRight: number;
   modalWidth: number;
-  starBackgroundColor: string;
-  starBorderRadius: string;
-  starColor: string;
-  starRight: number;
+  starBackgroundColor: string | null;
+  starBorderRadius: string | null;
+  starColor: string | null;
+  starEntryPresent: boolean;
+  starRight: number | null;
   titleColor: string;
   viewportWidth: number;
 }
@@ -149,8 +150,12 @@ async function readAboutLayoutEvidence(): Promise<AboutLayoutEvidence> {
     const title = document.querySelector<HTMLElement>('.bitfun-about-dialog__title');
     const branch = document.querySelector<HTMLElement>('[data-testid="about-branch-value"]');
     const dotMatrix = document.querySelector<HTMLElement>('[data-testid="about-dot-matrix"]');
+    const footer = document.querySelector<HTMLElement>('[data-bitfun-part="footer"]');
+    // The app-market review callout resolves the store listing from the running
+    // build's bundle name through AppGallery Kit, so it only exists in a
+    // HarmonyOS build. Native Desktop renders the footer without it.
     const starButton = document.querySelector<HTMLElement>('[data-testid="about-github-star"]');
-    if (!modal || !root || !brand || !metadata || !header || !headerTitle || !closeButton || !title || !branch || !dotMatrix || !starButton) return null;
+    if (!modal || !root || !brand || !metadata || !header || !headerTitle || !closeButton || !title || !branch || !dotMatrix || !footer) return null;
 
     const modalRect = modal.getBoundingClientRect();
     const brandRect = brand.getBoundingClientRect();
@@ -158,8 +163,8 @@ async function readAboutLayoutEvidence(): Promise<AboutLayoutEvidence> {
     const headerRect = header.getBoundingClientRect();
     const closeRect = closeButton.getBoundingClientRect();
     const dotMatrixRect = dotMatrix.getBoundingClientRect();
-    const starRect = starButton.getBoundingClientRect();
-    const starStyle = window.getComputedStyle(starButton);
+    const starRect = starButton?.getBoundingClientRect() ?? null;
+    const starStyle = starButton ? window.getComputedStyle(starButton) : null;
     return {
       brandRight: brandRect.right,
       branchHorizontalOverflow: branch.scrollWidth - branch.clientWidth,
@@ -177,10 +182,11 @@ async function readAboutLayoutEvidence(): Promise<AboutLayoutEvidence> {
       modalHeight: modalRect.height,
       modalRight: modalRect.right,
       modalWidth: modalRect.width,
-      starBackgroundColor: starStyle.backgroundColor,
-      starBorderRadius: starStyle.borderRadius,
-      starColor: starStyle.color,
-      starRight: starRect.right,
+      starBackgroundColor: starStyle?.backgroundColor ?? null,
+      starBorderRadius: starStyle?.borderRadius ?? null,
+      starColor: starStyle?.color ?? null,
+      starEntryPresent: starButton != null,
+      starRight: starRect?.right ?? null,
       titleColor: window.getComputedStyle(title).color,
       viewportWidth: window.innerWidth,
     };
@@ -256,10 +262,15 @@ describe('L0 Popup Surface Consistency', () => {
     expect(aboutLayout.dotMatrixHeight).toBeGreaterThanOrEqual(90);
     expect(aboutLayout.dotMatrixHeight).toBeLessThanOrEqual(110);
     expect(Math.abs(aboutLayout.brandRight - aboutLayout.metadataLeft)).toBeLessThanOrEqual(1);
-    expect(aboutLayout.starBackgroundColor).toBe(aboutLayout.titleColor);
-    expect(aboutLayout.starColor).not.toBe(aboutLayout.starBackgroundColor);
-    expect(Number.parseFloat(aboutLayout.starBorderRadius)).toBeGreaterThanOrEqual(20);
-    expect(aboutLayout.starRight).toBeLessThanOrEqual(aboutLayout.modalRight + 1);
+    // The primary action styling only has an element to measure while the
+    // HarmonyOS-only app-market callout is rendered. On Desktop the footer keeps
+    // the copyright line and the overflow contract above instead.
+    if (aboutLayout.starEntryPresent) {
+      expect(aboutLayout.starBackgroundColor).toBe(aboutLayout.titleColor);
+      expect(aboutLayout.starColor).not.toBe(aboutLayout.starBackgroundColor);
+      expect(Number.parseFloat(aboutLayout.starBorderRadius ?? '')).toBeGreaterThanOrEqual(20);
+      expect(aboutLayout.starRight).toBeLessThanOrEqual(aboutLayout.modalRight + 1);
+    }
     if (aboutLayout.viewportWidth >= 1040) {
       expect(aboutLayout.modalWidth).toBeGreaterThanOrEqual(900);
       expect(aboutLayout.modalWidth).toBeLessThanOrEqual(980);
