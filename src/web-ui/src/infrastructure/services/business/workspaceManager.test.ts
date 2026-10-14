@@ -9,6 +9,7 @@ const globalStateMocks = vi.hoisted(() => ({
   getCurrentWorkspace: vi.fn(),
   getPrimaryAssistantWorkspace: vi.fn(),
   updateWorkspaceInfo: vi.fn(),
+  openWorkspace: vi.fn(),
 }));
 
 const listenMock = vi.hoisted(() => vi.fn());
@@ -84,6 +85,15 @@ describe('WorkspaceManager startup initialization', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     configureGlobalState();
+  });
+
+  it('preserves folder opening errors and the original rejection for callers', async () => {
+    const error = 'FILESYSTEM_PERMISSION_DENIED: Failed to inspect workspace: Permission denied (os error 13)';
+    globalStateMocks.openWorkspace.mockRejectedValue(error);
+    const manager = await getFreshWorkspaceManager();
+    await manager.initialize();
+    await expect(manager.openWorkspace('/restricted')).rejects.toBe(error);
+    expect(manager.getState().error).toContain('Permission denied (os error 13)');
   });
 
   it('does not block startup workspace state on identity listener registration', async () => {
@@ -829,5 +839,42 @@ describe('WorkspaceManager host catalog hints', () => {
 
     expect(globalStateMocks.getOpenedWorkspaces).not.toHaveBeenCalled();
     expect(manager.getState().openedWorkspaces.size).toBe(1);
+  });
+
+  it('retains the catalog after a failed read and recovers on reattachment without another hint', async () => {
+    globalStateMocks.initializeWorkspaceStartupState.mockResolvedValue(snapshot([localWorkspace], localWorkspace));
+    const handler = captureCatalogHandler();
+    const manager = await getFreshWorkspaceManager();
+    await manager.initialize();
+    globalStateMocks.getOpenedWorkspaces.mockRejectedValueOnce(new Error('Host offline'));
+    handler.current()?.({ payload: { revision: 100 } });
+    await flushAsyncWork();
+    expect(manager.getState().openedWorkspaces.has(localWorkspace.id)).toBe(true);
+    expect(manager.getState().error).toBe('Host offline');
+    globalStateMocks.getOpenedWorkspaces.mockResolvedValue([localWorkspace, remoteOpenedWorkspace]);
+    manager.refreshHostCatalog();
+    await flushAsyncWork();
+    expect(manager.getState().openedWorkspaces.has(remoteOpenedWorkspace.id)).toBe(true);
+    expect(manager.getState().error).toBeNull();
+  });
+
+  it('reads only the rendered peer and discards a catalog response after switching back', async () => {
+    globalStateMocks.initializeWorkspaceStartupState.mockResolvedValue(snapshot([localWorkspace], localWorkspace));
+    const handler = captureCatalogHandler();
+    const { manager, deviceSurface } = await getFreshWorkspaceHarness();
+    await manager.initialize();
+    deviceSurface.activateSurface('peer-b');
+    await manager.reinitializeForPeerModeSwitch();
+    handler.current()?.({ payload: { revision: 1 } });
+    expect(globalStateMocks.getOpenedWorkspaces).not.toHaveBeenCalled();
+    let resolve!: (rows: Array<typeof localWorkspace>) => void;
+    globalStateMocks.getOpenedWorkspaces.mockReturnValue(new Promise(done => { resolve = done; }));
+    handler.current()?.({ payload: { revision: 1, __bitfunSourceDeviceId: 'peer-b' } });
+    expect(globalStateMocks.getOpenedWorkspaces).toHaveBeenCalledTimes(1);
+    deviceSurface.activateSurface(deviceSurface.LOCAL_SURFACE_ID);
+    resolve([remoteOpenedWorkspace]);
+    await flushAsyncWork();
+    expect(manager.getState().openedWorkspaces.has(localWorkspace.id)).toBe(true);
+    expect(manager.getState().openedWorkspaces.has(remoteOpenedWorkspace.id)).toBe(false);
   });
 });

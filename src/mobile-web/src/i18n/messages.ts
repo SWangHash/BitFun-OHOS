@@ -8,6 +8,9 @@ type MessageTree = { readonly [key: string]: MessageLeaf | MessageTree };
 
 export const messages: Record<MobileLanguage, MessageTree> = {
   'en-US': {
+    fileAccess: {
+      remoteWaiting: "Waiting for the target device. If a system folder-access dialog appears there, confirm it on that device. You can cancel this browse while waiting.",
+    },
     shared: SHARED_TERMS_BY_LOCALE['en-US'],
     common: {
       questionTimeoutActive: 'Could not stop the question timeout. Submit promptly or update the execution device.',
@@ -338,6 +341,9 @@ export const messages: Record<MobileLanguage, MessageTree> = {
     },
   },
   'zh-CN': {
+    fileAccess: {
+      remoteWaiting: "正在等待目标设备。如果该设备出现系统目录访问授权弹窗，请在该设备上确认；等待期间可以取消本次浏览。",
+    },
     shared: SHARED_TERMS_BY_LOCALE['zh-CN'],
     common: {
       questionTimeoutActive: '未能停止提问计时，请尽快提交或更新执行设备。',
@@ -668,6 +674,9 @@ export const messages: Record<MobileLanguage, MessageTree> = {
     },
   },
   'zh-TW': {
+    fileAccess: {
+      remoteWaiting: "正在等待目標裝置。如果該裝置出現系統目錄存取授權視窗，請在該裝置上確認；等待期間可以取消此次瀏覽。",
+    },
     shared: SHARED_TERMS_BY_LOCALE['zh-TW'],
     common: {
       questionTimeoutActive: '無法停止提問計時，請儘快提交或更新執行裝置。',

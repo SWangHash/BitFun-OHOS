@@ -4,6 +4,9 @@ import {
   type PeerConnectionState,
 } from './PeerConnectionManager';
 
+// These tests supply the RPC port. Do not bootstrap the window-wide API singleton.
+vi.mock('@/infrastructure/api/service-api/RemoteConnectAPI', () => ({ remoteConnectAPI: {} }));
+
 const KEEPALIVE_MS = 20_000;
 const RECONNECT_BASE_MS = 1_000;
 const RECONNECT_MAX_MS = 4_000;
@@ -239,6 +242,7 @@ describe('PeerConnectionManager health', () => {
     });
     // A recovered peer re-attaches: the host may have pruned us during the gap.
     expect(rpc.commands().filter(c => c === 'peer_control_attach')).toHaveLength(2);
+    expect(manager.get('peer-1')?.getState().eventAttachmentRevision).toBe(1);
   });
 
   it('caps the reconnect delay', async () => {

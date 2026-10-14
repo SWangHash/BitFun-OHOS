@@ -154,6 +154,9 @@ function createDependencies(): PeerDeviceSurfaceControllerDependencies {
       await workspaceManager.reinitializeForPeerModeSwitch();
       scope.assertCurrent('rebootstrap device surface workspaces');
     },
+    refreshWorkspaceCatalog: scope => {
+      if (scope.isCurrent()) workspaceManager.refreshHostCatalog();
+    },
     setPeerControllerActive,
     commitSurface: target => activateSurface(target.surfaceId, () => {
       setActiveSurfaceDeviceId(target.deviceId);

@@ -122,7 +122,7 @@ impl FileOperationService {
             Err(_) => {
                 let bytes = fs::read(path)
                     .await
-                    .map_err(|e| FileSystemError::service(format!("Failed to read file: {}", e)))?;
+                    .map_err(|e| FileSystemError::io("Failed to read file", e))?;
 
                 let is_binary = self.is_binary_content(&bytes);
 
@@ -156,23 +156,14 @@ impl FileOperationService {
 
         self.validate_file_access(path, false).await?;
 
-        if !path.exists() {
+        let metadata = fs::metadata(path)
+            .await
+            .map_err(|e| FileSystemError::io(format!("Failed to inspect file '{file_path}'"), e))?;
+        if metadata.is_dir() {
             return Err(FileSystemError::service(format!(
-                "File does not exist: {}",
-                file_path
+                "Path is a directory: {file_path}"
             )));
         }
-
-        if path.is_dir() {
-            return Err(FileSystemError::service(format!(
-                "Path is a directory: {}",
-                file_path
-            )));
-        }
-
-        let metadata = fs::metadata(path).await.map_err(|e| {
-            FileSystemError::service(format!("Failed to read file metadata: {}", e))
-        })?;
         let file_size = metadata.len();
         if file_size > self.max_file_size_mb * 1024 * 1024 {
             return Err(FileSystemError::service(format!(
@@ -184,7 +175,7 @@ impl FileOperationService {
 
         fs::read(path)
             .await
-            .map_err(|e| FileSystemError::service(format!("Failed to read file: {}", e)))
+            .map_err(|e| FileSystemError::io("Failed to read file", e))
     }
 
     /// SHA-256 (hex, lowercase) of `bytes` using the same normalization as the web editor sync check,
@@ -208,23 +199,14 @@ impl FileOperationService {
 
         self.validate_file_access(path, false).await?;
 
-        if !path.exists() {
+        let metadata = fs::metadata(path)
+            .await
+            .map_err(|e| FileSystemError::io(format!("Failed to inspect file '{file_path}'"), e))?;
+        if metadata.is_dir() {
             return Err(FileSystemError::service(format!(
-                "File does not exist: {}",
-                file_path
+                "Path is a directory: {file_path}"
             )));
         }
-
-        if path.is_dir() {
-            return Err(FileSystemError::service(format!(
-                "Path is a directory: {}",
-                file_path
-            )));
-        }
-
-        let metadata = fs::metadata(path).await.map_err(|e| {
-            FileSystemError::service(format!("Failed to read file metadata: {}", e))
-        })?;
 
         let file_size = metadata.len();
         if file_size > self.max_file_size_mb * 1024 * 1024 {
@@ -237,7 +219,7 @@ impl FileOperationService {
 
         let bytes = fs::read(path)
             .await
-            .map_err(|e| FileSystemError::service(format!("Failed to read file: {}", e)))?;
+            .map_err(|e| FileSystemError::io("Failed to read file", e))?;
 
         Ok(self.editor_sync_sha256_hex_from_raw_bytes(&bytes))
     }
@@ -262,14 +244,14 @@ impl FileOperationService {
         }
 
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).await.map_err(|e| {
-                FileSystemError::service(format!("Failed to create parent directory: {}", e))
-            })?;
+            fs::create_dir_all(parent)
+                .await
+                .map_err(|e| FileSystemError::io("Failed to create parent directory", e))?;
         }
 
         fs::write(path, content)
             .await
-            .map_err(|e| FileSystemError::service(format!("Failed to write file: {}", e)))?;
+            .map_err(|e| FileSystemError::io("Failed to write file", e))?;
 
         let bytes_written = content.len() as u64;
 
@@ -300,14 +282,14 @@ impl FileOperationService {
         }
 
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).await.map_err(|e| {
-                FileSystemError::service(format!("Failed to create parent directory: {}", e))
-            })?;
+            fs::create_dir_all(parent)
+                .await
+                .map_err(|e| FileSystemError::io("Failed to create parent directory", e))?;
         }
 
         fs::write(path, data)
             .await
-            .map_err(|e| FileSystemError::service(format!("Failed to write binary file: {}", e)))?;
+            .map_err(|e| FileSystemError::io("Failed to write binary file", e))?;
 
         let bytes_written = data.len() as u64;
 
@@ -330,12 +312,9 @@ impl FileOperationService {
         // Use symlink_metadata (do not follow symlinks). `Path::exists()` follows links and
         // returns false for broken symlinks and some reparse-point / cloud placeholder edge cases
         // even though the name is listed in the directory.
-        if fs::symlink_metadata(from_path).await.is_err() {
-            return Err(FileSystemError::service(format!(
-                "Source file does not exist: {}",
-                from_trim
-            )));
-        }
+        fs::symlink_metadata(from_path).await.map_err(|error| {
+            FileSystemError::io(format!("Failed to inspect source '{from_trim}'"), error)
+        })?;
 
         if from_path.is_dir() {
             return Err(FileSystemError::service(
@@ -344,14 +323,14 @@ impl FileOperationService {
         }
 
         if let Some(parent) = to_path.parent() {
-            fs::create_dir_all(parent).await.map_err(|e| {
-                FileSystemError::service(format!("Failed to create target directory: {}", e))
-            })?;
+            fs::create_dir_all(parent)
+                .await
+                .map_err(|e| FileSystemError::io("Failed to create target directory", e))?;
         }
 
         let bytes_copied = fs::copy(from_path, to_path)
             .await
-            .map_err(|e| FileSystemError::service(format!("Failed to copy file: {}", e)))?;
+            .map_err(|e| FileSystemError::io("Failed to copy file", e))?;
 
         Ok(bytes_copied)
     }
@@ -365,22 +344,19 @@ impl FileOperationService {
         self.validate_file_access(from_path, true).await?;
         self.validate_file_access(to_path, true).await?;
 
-        if fs::symlink_metadata(from_path).await.is_err() {
-            return Err(FileSystemError::service(format!(
-                "Source file does not exist: {}",
-                from_trim
-            )));
-        }
+        fs::symlink_metadata(from_path).await.map_err(|error| {
+            FileSystemError::io(format!("Failed to inspect source '{from_trim}'"), error)
+        })?;
 
         if let Some(parent) = to_path.parent() {
-            fs::create_dir_all(parent).await.map_err(|e| {
-                FileSystemError::service(format!("Failed to create target directory: {}", e))
-            })?;
+            fs::create_dir_all(parent)
+                .await
+                .map_err(|e| FileSystemError::io("Failed to create target directory", e))?;
         }
 
         fs::rename(from_path, to_path)
             .await
-            .map_err(|e| FileSystemError::service(format!("Failed to move file: {}", e)))?;
+            .map_err(|e| FileSystemError::io("Failed to move file", e))?;
 
         Ok(())
     }
@@ -390,7 +366,12 @@ impl FileOperationService {
 
         self.validate_file_access(path, true).await?;
 
-        if !path.exists() {
+        if !fs::try_exists(path).await.map_err(|error| {
+            FileSystemError::io(
+                format!("Failed to inspect path '{}'", path.display()),
+                error,
+            )
+        })? {
             return Err(FileSystemError::service(format!(
                 "File does not exist: {}",
                 file_path
@@ -405,7 +386,7 @@ impl FileOperationService {
 
         fs::remove_file(path)
             .await
-            .map_err(|e| FileSystemError::service(format!("Failed to delete file: {}", e)))?;
+            .map_err(|e| FileSystemError::io("Failed to delete file", e))?;
 
         Ok(())
     }
@@ -415,16 +396,9 @@ impl FileOperationService {
 
         self.validate_file_access(path, false).await?;
 
-        if !path.exists() {
-            return Err(FileSystemError::service(format!(
-                "File does not exist: {}",
-                file_path
-            )));
-        }
-
-        let metadata = fs::metadata(path).await.map_err(|e| {
-            FileSystemError::service(format!("Failed to read file metadata: {}", e))
-        })?;
+        let metadata = fs::metadata(path)
+            .await
+            .map_err(|e| FileSystemError::io(format!("Failed to inspect file '{file_path}'"), e))?;
 
         let file_name = path
             .file_name()
@@ -482,7 +456,7 @@ impl FileOperationService {
 
         fs::create_dir(path)
             .await
-            .map_err(|e| FileSystemError::service(format!("Failed to create directory: {}", e)))?;
+            .map_err(|e| FileSystemError::io("Failed to create directory", e))?;
 
         Ok(())
     }
@@ -492,7 +466,12 @@ impl FileOperationService {
 
         self.validate_file_access(path, true).await?;
 
-        if !path.exists() {
+        if !fs::try_exists(path).await.map_err(|error| {
+            FileSystemError::io(
+                format!("Failed to inspect path '{}'", path.display()),
+                error,
+            )
+        })? {
             return Err(FileSystemError::service(format!(
                 "Directory does not exist: {}",
                 dir_path
@@ -506,13 +485,13 @@ impl FileOperationService {
         }
 
         if recursive {
-            fs::remove_dir_all(path).await.map_err(|e| {
-                FileSystemError::service(format!("Failed to delete directory recursively: {}", e))
-            })?;
+            fs::remove_dir_all(path)
+                .await
+                .map_err(|e| FileSystemError::io("Failed to delete directory recursively", e))?;
         } else {
-            fs::remove_dir(path).await.map_err(|e| {
-                FileSystemError::service(format!("Failed to delete directory: {}", e))
-            })?;
+            fs::remove_dir(path)
+                .await
+                .map_err(|e| FileSystemError::io("Failed to delete directory", e))?;
         }
 
         Ok(())
@@ -533,23 +512,14 @@ impl FileOperationService {
     async fn validate_readable_file(&self, path: &Path, file_path: &str) -> FileSystemResult<u64> {
         self.validate_file_access(path, false).await?;
 
-        if !path.exists() {
+        let metadata = fs::metadata(path)
+            .await
+            .map_err(|e| FileSystemError::io(format!("Failed to inspect file '{file_path}'"), e))?;
+        if metadata.is_dir() {
             return Err(FileSystemError::service(format!(
-                "File does not exist: {}",
-                file_path
+                "Path is a directory: {file_path}"
             )));
         }
-
-        if path.is_dir() {
-            return Err(FileSystemError::service(format!(
-                "Path is a directory: {}",
-                file_path
-            )));
-        }
-
-        let metadata = fs::metadata(path).await.map_err(|e| {
-            FileSystemError::service(format!("Failed to read file metadata: {}", e))
-        })?;
 
         let file_size = metadata.len();
         if file_size > self.max_file_size_mb * 1024 * 1024 {
@@ -624,7 +594,7 @@ impl FileOperationService {
 
         fs::copy(path, &backup_path)
             .await
-            .map_err(|e| FileSystemError::service(format!("Failed to create backup: {}", e)))?;
+            .map_err(|e| FileSystemError::io("Failed to create backup", e))?;
 
         Ok(backup_path.to_string_lossy().to_string())
     }

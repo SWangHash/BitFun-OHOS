@@ -28,12 +28,12 @@ use crate::service::workspace_runtime::{
     try_get_workspace_runtime_service_arc, WorkspaceRuntimeService,
 };
 use crate::util::errors::*;
-use log::{info, warn};
 use bitfun_core_types::product_identity::product_id;
 use bitfun_services_core::workspace_identity::{
     canonicalize_local_workspace_root, local_workspace_roots_equal,
     normalize_remote_workspace_path, remote_workspace_stable_id,
 };
+use log::{info, warn};
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -917,10 +917,7 @@ impl WorkspaceService {
     }
 
     /// Reorders the opened workspaces without changing active or recent state.
-    pub async fn reorder_opened_workspaces(
-        &self,
-        workspace_ids: Vec<String>,
-    ) -> BitFunResult<()> {
+    pub async fn reorder_opened_workspaces(&self, workspace_ids: Vec<String>) -> BitFunResult<()> {
         let current_ids = {
             let manager = self.manager.read().await;
             manager.get_opened_workspace_ids().clone()
@@ -984,10 +981,7 @@ impl WorkspaceService {
     }
 
     /// Reopen/select a persisted workspace without re-identifying it by path.
-    pub async fn open_workspace_by_id(
-        &self,
-        workspace_id: &str,
-    ) -> BitFunResult<WorkspaceInfo> {
+    pub async fn open_workspace_by_id(&self, workspace_id: &str) -> BitFunResult<WorkspaceInfo> {
         let workspace = self.require_workspace(workspace_id).await?;
         #[cfg(not(feature = "remote-workspace"))]
         if workspace.workspace_kind == WorkspaceKind::Remote {
@@ -1316,9 +1310,7 @@ impl WorkspaceService {
             let manager = self.manager.read().await;
             manager.get_workspace(workspace_id).cloned()
         }
-        .ok_or_else(|| {
-            BitFunError::service(format!("Workspace not found: {}", workspace_id))
-        })?;
+        .ok_or_else(|| BitFunError::service(format!("Workspace not found: {}", workspace_id)))?;
 
         if workspace.workspace_kind != WorkspaceKind::Assistant {
             return Ok(None);
@@ -1867,13 +1859,13 @@ impl WorkspaceService {
             saved_at: chrono::Utc::now(),
         };
 
+        // The in-memory catalog is already committed. Even if persistence
+        // fails, attached surfaces must reconcile the state the runtime uses.
+        workspace_catalog_revision().send_modify(|revision| *revision = revision.wrapping_add(1));
         self.persistence
             .save_json("workspace_data", &workspace_data, StorageOptions::default())
             .await
-            .map_err(|e| {
-                BitFunError::service(format!("Failed to save workspace data: {}", e))
-            })?;
-        workspace_catalog_revision().send_modify(|revision| *revision = revision.wrapping_add(1));
+            .map_err(|e| BitFunError::service(format!("Failed to save workspace data: {}", e)))?;
         Ok(())
     }
 
@@ -1883,9 +1875,7 @@ impl WorkspaceService {
             .persistence
             .load_json("workspace_data")
             .await
-            .map_err(|e| {
-                BitFunError::service(format!("Failed to load workspace data: {}", e))
-            })?;
+            .map_err(|e| BitFunError::service(format!("Failed to load workspace data: {}", e)))?;
 
         if let Some(mut data) = workspace_data {
             super::legacy_compat::upgrade_legacy_worktree_references(
@@ -2230,9 +2220,7 @@ impl WorkspaceService {
         self.persistence
             .delete("workspace_data")
             .await
-            .map_err(|e| {
-                BitFunError::service(format!("Failed to clear workspace data: {}", e))
-            })?;
+            .map_err(|e| BitFunError::service(format!("Failed to clear workspace data: {}", e)))?;
 
         Ok(())
     }
@@ -2341,10 +2329,8 @@ mod tests {
 
     impl TestEnvironment {
         fn new() -> Self {
-            let root = std::env::temp_dir().join(format!(
-                "bitfun-workspace-service-test-{}",
-                Uuid::new_v4()
-            ));
+            let root = std::env::temp_dir()
+                .join(format!("bitfun-workspace-service-test-{}", Uuid::new_v4()));
             std::fs::create_dir_all(&root).expect("test root should be created");
 
             let path_manager = Arc::new(PathManager::with_user_root_for_tests(

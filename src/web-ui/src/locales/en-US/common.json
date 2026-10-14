@@ -2166,5 +2166,8 @@
     "nextMonth": "Next month",
     "now": "Now",
     "close": "Close"
+  },
+  "fileAccess": {
+    "remoteWaiting": "Waiting for the target device. If a system folder-access dialog appears there, confirm it on that device. You can cancel this browse while waiting."
   }
 }

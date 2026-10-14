@@ -1,3 +1,4 @@
+import { describeFileAccessError } from '@/infrastructure/services/business/fileAccessErrorPresentation';
 /**
  * Remote File Browser Component
  * Used to browse and select remote directory as workspace
@@ -134,7 +135,7 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
       });
       setEntries(result);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load directory');
+      setError(describeFileAccessError(e));
       setEntries([]);
     } finally {
       setLoading(false);
@@ -238,7 +239,7 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
     try {
       await sshApi.downloadToLocalPath(connectionId, entry.path, localPath);
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('ssh.remote.transferFailed'));
+      setError(describeFileAccessError(e));
     } finally {
       setTransferBusy(false);
     }
@@ -272,7 +273,7 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
         }
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Operation failed');
+      setError(describeFileAccessError(e));
     }
   };
 
@@ -285,7 +286,7 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
       await sshApi.remove(connectionId, entry.path, entry.isDir);
       loadDirectory(currentPath);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Delete failed');
+      setError(describeFileAccessError(e));
     }
   };
 
@@ -306,7 +307,7 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
       setRenameEntry(null);
       loadDirectory(currentPath);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to rename');
+      setError(describeFileAccessError(e));
     }
   };
 
@@ -337,7 +338,7 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
       }
       await loadDirectory(currentPath);
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('ssh.remote.transferFailed'));
+      setError(describeFileAccessError(e));
     } finally {
       setTransferBusy(false);
     }

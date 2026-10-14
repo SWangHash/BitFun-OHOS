@@ -362,11 +362,14 @@ impl FileTreeService {
     ) -> Result<Vec<FileTreeNode>, String> {
         let root_path_buf = PathBuf::from(root_path);
 
-        if !root_path_buf.exists() {
-            return Err("Directory does not exist".to_string());
-        }
-
-        if !root_path_buf.is_dir() {
+        let metadata = fs::metadata(&root_path_buf).await.map_err(|error| {
+            FileSystemError::io(
+                format!("Failed to inspect directory '{}'", root_path_buf.display()),
+                error,
+            )
+            .to_string()
+        })?;
+        if !metadata.is_dir() {
             return Err("Path is not a directory".to_string());
         }
 
@@ -381,13 +384,13 @@ impl FileTreeService {
     ) -> FileSystemResult<(Vec<FileTreeNode>, FileTreeStatistics)> {
         let root_path_buf = PathBuf::from(root_path);
 
-        if !root_path_buf.exists() {
-            return Err(FileSystemError::service(
-                "Directory does not exist".to_string(),
-            ));
-        }
-
-        if !root_path_buf.is_dir() {
+        let metadata = fs::metadata(&root_path_buf).await.map_err(|error| {
+            FileSystemError::io(
+                format!("Failed to inspect directory '{}'", root_path_buf.display()),
+                error,
+            )
+        })?;
+        if !metadata.is_dir() {
             return Err(FileSystemError::service(
                 "Path is not a directory".to_string(),
             ));
@@ -446,7 +449,7 @@ impl FileTreeService {
 
             let mut read_dir = fs::read_dir(path)
                 .await
-                .map_err(|e| format!("Failed to read directory: {}", e))?;
+                .map_err(|e| FileSystemError::io("Failed to read directory", e).to_string())?;
 
             // Land (entry, file_type, metadata) in one pass so the sort
             // comparator and per-entry processing make zero extra syscalls.
@@ -455,7 +458,7 @@ impl FileTreeService {
             while let Some(entry) = read_dir
                 .next_entry()
                 .await
-                .map_err(|e| format!("Failed to read directory entry: {}", e))?
+                .map_err(|e| FileSystemError::io("Failed to read directory entry", e).to_string())?
             {
                 let file_name = entry.file_name();
                 let file_name_str = file_name.to_string_lossy();
@@ -554,9 +557,8 @@ impl FileTreeService {
                         Ok(children) => {
                             node = node.with_children(children);
                         }
-                        Err(_) => {
-                            node = node.with_children(vec![]);
-                        }
+                        // Leave unreadable children unexpanded, not falsely empty.
+                        Err(_) => {}
                     }
                 }
 
@@ -599,7 +601,7 @@ impl FileTreeService {
 
             let mut read_dir = fs::read_dir(path)
                 .await
-                .map_err(|e| format!("Failed to read directory: {}", e))?;
+                .map_err(|e| FileSystemError::io("Failed to read directory", e).to_string())?;
 
             // Land (entry, file_type, metadata) in one pass so the sort
             // comparator and per-entry processing make zero extra syscalls.
@@ -608,7 +610,7 @@ impl FileTreeService {
             while let Some(entry) = read_dir
                 .next_entry()
                 .await
-                .map_err(|e| format!("Failed to read directory entry: {}", e))?
+                .map_err(|e| FileSystemError::io("Failed to read directory entry", e).to_string())?
             {
                 let file_name = entry.file_name();
                 let file_name_str = file_name.to_string_lossy();
@@ -748,9 +750,7 @@ impl FileTreeService {
                         Ok(children) => {
                             node = node.with_children(children);
                         }
-                        Err(_) => {
-                            node = node.with_children(vec![]);
-                        }
+                        Err(_) => {}
                     }
                 }
 
@@ -799,11 +799,14 @@ impl FileTreeService {
     ) -> Result<Vec<FileTreeNode>, String> {
         let path_buf = PathBuf::from(path);
 
-        if !path_buf.exists() {
-            return Err("Directory does not exist".to_string());
-        }
-
-        if !path_buf.is_dir() {
+        let metadata = fs::metadata(&path_buf).await.map_err(|error| {
+            FileSystemError::io(
+                format!("Failed to inspect directory '{}'", path_buf.display()),
+                error,
+            )
+            .to_string()
+        })?;
+        if !metadata.is_dir() {
             return Err("Path is not a directory".to_string());
         }
 
@@ -811,12 +814,12 @@ impl FileTreeService {
 
         let mut read_dir = fs::read_dir(&path_buf)
             .await
-            .map_err(|e| format!("Failed to read directory: {}", e))?;
+            .map_err(|e| FileSystemError::io("Failed to read directory", e).to_string())?;
 
         while let Some(entry) = read_dir
             .next_entry()
             .await
-            .map_err(|e| format!("Failed to read directory entry: {}", e))?
+            .map_err(|e| FileSystemError::io("Failed to read directory entry", e).to_string())?
         {
             let file_name = entry.file_name();
             let file_name_str = file_name.to_string_lossy();
@@ -1032,11 +1035,22 @@ impl FileTreeService {
     ) -> FileSystemResult<FileSearchOutcome> {
         let root_path_buf = PathBuf::from(root_path);
 
-        if !root_path_buf.exists() {
-            return Err(FileSystemError::service(
-                "Directory does not exist".to_string(),
-            ));
-        }
+        fs::metadata(&root_path_buf).await.map_err(|error| {
+            FileSystemError::io(
+                format!(
+                    "Failed to inspect search root '{}'",
+                    root_path_buf.display()
+                ),
+                error,
+            )
+        })?;
+        // A search walker can silently skip an unreadable root. Probe it first.
+        fs::read_dir(&root_path_buf).await.map_err(|error| {
+            FileSystemError::io(
+                format!("Failed to read search root '{}'", root_path_buf.display()),
+                error,
+            )
+        })?;
 
         let matcher = Arc::new(Self::compile_search_regex(
             pattern,
@@ -1186,11 +1200,22 @@ impl FileTreeService {
     ) -> FileSystemResult<FileSearchOutcome> {
         let root_path_buf = PathBuf::from(root_path);
 
-        if !root_path_buf.exists() {
-            return Err(FileSystemError::service(
-                "Directory does not exist".to_string(),
-            ));
-        }
+        fs::metadata(&root_path_buf).await.map_err(|error| {
+            FileSystemError::io(
+                format!(
+                    "Failed to inspect search root '{}'",
+                    root_path_buf.display()
+                ),
+                error,
+            )
+        })?;
+        // A search walker can silently skip an unreadable root. Probe it first.
+        fs::read_dir(&root_path_buf).await.map_err(|error| {
+            FileSystemError::io(
+                format!("Failed to read search root '{}'", root_path_buf.display()),
+                error,
+            )
+        })?;
 
         let matcher = Arc::new(Self::compile_search_regex(
             pattern,

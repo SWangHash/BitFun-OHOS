@@ -31,33 +31,27 @@ pub fn list_directory_entries(
     limit: usize,
 ) -> FileSystemResult<Vec<DirectoryListingEntry>> {
     let path = Path::new(dir_path);
-    if !path.exists() {
-        return Err(FileSystemError::service(format!(
-            "Directory does not exist: {}",
-            dir_path
-        )));
-    }
-
+    let metadata = fs::symlink_metadata(path).map_err(|error| {
+        FileSystemError::io(format!("Failed to inspect directory '{dir_path}'"), error)
+    })?;
     let mut result = Vec::with_capacity(limit.min(4096));
     let mut queue = VecDeque::new();
-
-    if let Ok(metadata) = fs::symlink_metadata(path) {
-        if !metadata.file_type().is_symlink() && metadata.is_dir() {
-            if let Ok(entries) = fs::read_dir(path) {
-                for dir_entry in entries.flatten() {
-                    let entry_path = dir_entry.path();
-                    if let Ok(entry_metadata) = fs::symlink_metadata(&entry_path) {
-                        if !entry_metadata.file_type().is_symlink() {
-                            queue.push_back(DirectoryListingEntry {
-                                path: entry_path,
-                                is_dir: entry_metadata.is_dir(),
-                                depth: 1,
-                                modified_time: entry_metadata
-                                    .modified()
-                                    .unwrap_or(SystemTime::UNIX_EPOCH),
-                            });
-                        }
-                    }
+    if !metadata.file_type().is_symlink() && metadata.is_dir() {
+        let entries = fs::read_dir(path).map_err(|error| {
+            FileSystemError::io(format!("Failed to read directory '{dir_path}'"), error)
+        })?;
+        for dir_entry in entries {
+            let dir_entry = dir_entry
+                .map_err(|error| FileSystemError::io("Failed to read directory entry", error))?;
+            let entry_path = dir_entry.path();
+            if let Ok(entry_metadata) = fs::symlink_metadata(&entry_path) {
+                if !entry_metadata.file_type().is_symlink() {
+                    queue.push_back(DirectoryListingEntry {
+                        path: entry_path,
+                        is_dir: entry_metadata.is_dir(),
+                        depth: 1,
+                        modified_time: entry_metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH),
+                    });
                 }
             }
         }

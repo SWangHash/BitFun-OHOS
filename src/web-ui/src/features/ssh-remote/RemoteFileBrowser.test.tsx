@@ -2,7 +2,8 @@
 import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Simulate } from 'react-dom/test-utils';
-import { expect, it, vi } from 'vitest';
+import common from '../../locales/zh-CN/common.json';
+import { describe, expect, it, vi } from 'vitest';
 import { RemoteFileBrowser } from './RemoteFileBrowser';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -12,7 +13,10 @@ const api = vi.hoisted(() => ({
   rename: vi.fn(async () => undefined),
 }));
 vi.mock('./sshApi', () => ({ sshApi: api }));
-vi.mock('@/infrastructure/i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }));
+vi.mock('@/infrastructure/i18n', () => ({
+  useI18n: () => ({ t: (key: string) => key }),
+  i18nService: { t: (key: string) => key.replace('common:', '').split('.').reduce<any>((node, part) => node?.[part], common) ?? key },
+}));
 
 it('renames a remote file once and keeps IME and outside clicks from dismissing the dialog', async () => {
   const container = document.createElement('div');
@@ -49,4 +53,26 @@ it('renames a remote file once and keeps IME and outside clicks from dismissing 
     act(() => root.unmount());
     container.remove();
   }
+});
+
+describe('SSH directory error presentation', () => {
+  it.each([
+    ['SFTP status: 3 (permission denied)', 'SFTP status: 3 (permission denied)'],
+    ['Failed to list directory: unexpected SFTP response', 'Failed to list directory: unexpected SFTP response'],
+  ])('preserves an unknown dependency message %s without a category fallback', async (raw, expected) => {
+    api.readDir.mockReset().mockRejectedValue(raw);
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    try {
+      await act(async () => root.render(<RemoteFileBrowser connectionId="ssh-test" initialPath="/restricted" onSelect={vi.fn()} onCancel={vi.fn()} />));
+      await act(async () => { await new Promise(resolve => setTimeout(resolve, 300)); });
+      expect(document.body.textContent).toContain(expected);
+
+      expect(api.readDir).toHaveBeenCalledWith('ssh-test', '/restricted');
+    } finally {
+      act(() => root.unmount());
+      container.remove();
+    }
+  });
 });

@@ -21,6 +21,7 @@ class WorkspaceGitInitializer {
   private removeListener: (() => void) | null = null;
   private activation = 0;
   private currentWorkspaceId: string | null = null;
+  private currentSurfaceEpoch = -1;
 
   private constructor() {}
 
@@ -49,6 +50,17 @@ class WorkspaceGitInitializer {
         case 'workspace:switched':
           await this.handleWorkspaceSwitched(event.workspace.id);
           break;
+
+        case 'workspace:active-changed':
+          if (event.workspace) {
+            if (this.currentWorkspaceId !== event.workspace.id
+              || this.currentSurfaceEpoch !== getActiveSurfaceScope().epoch) {
+              await this.handleWorkspaceSwitched(event.workspace.id);
+            }
+          } else if (this.currentWorkspaceId) {
+            await this.handleWorkspaceClosed(this.currentWorkspaceId);
+          }
+          break;
       }
     });
 
@@ -67,13 +79,16 @@ class WorkspaceGitInitializer {
   }
 
   private async handleWorkspaceOpened(workspaceId: string): Promise<void> {
+    // Catalog publication can announce another controller's background workspace.
+    const currentWorkspace = workspaceManager.getState().currentWorkspace;
+    if (currentWorkspace?.id !== workspaceId) return;
     const activation = ++this.activation;
     const surface = getActiveSurfaceScope();
     this.currentWorkspaceId = workspaceId;
+    this.currentSurfaceEpoch = surface.epoch;
     const isCurrent = () => surface.isCurrent()
       && this.activation === activation
       && workspaceManager.getState().currentWorkspace?.id === workspaceId;
-    const currentWorkspace = workspaceManager.getState().currentWorkspace;
     const scope = { workspaceId, repositoryPath: currentWorkspace?.rootPath };
     try {
       await gitStateManager.refresh(scope, {

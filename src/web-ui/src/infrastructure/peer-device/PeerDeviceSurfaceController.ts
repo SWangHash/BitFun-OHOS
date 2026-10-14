@@ -70,6 +70,7 @@ export interface PeerDeviceSurfaceControllerDependencies {
   resetProductSurface: (assertCurrent: () => void) => Promise<void>;
   reloadConfig: (scope: SurfaceScope) => Promise<void>;
   rebootstrapWorkspaces: (scope: SurfaceScope) => Promise<void>;
+  refreshWorkspaceCatalog?: (scope: SurfaceScope) => void;
   setPeerControllerActive: (active: boolean, required: boolean) => Promise<void>;
   commitSurface: (target: ResolvedSurfaceTarget) => SurfaceScope;
   invalidateCurrentSurface: () => SurfaceScope;
@@ -589,6 +590,7 @@ export class PeerDeviceSurfaceController {
   }
 
   private handleConnectionStates(connections: readonly PeerConnectionState[]): void {
+    const previous = this.connectionStates.find(connection => connection.deviceId === this.currentTarget.deviceId);
     this.connectionStates = connections;
     const activeConnection = this.currentTarget.deviceId
       ? connections.find(connection => connection.deviceId === this.currentTarget.deviceId)
@@ -600,6 +602,11 @@ export class PeerDeviceSurfaceController {
       };
     }
     this.publish();
+
+    if (this.currentTargetReady && activeConnection?.health === 'ready' && previous
+      && activeConnection.eventAttachmentRevision !== previous.eventAttachmentRevision) {
+      this.dependencies.refreshWorkspaceCatalog?.(getActiveSurfaceScope());
+    }
 
     // Connectivity changes update status only. The user owns surface selection;
     // a peer that is reconnecting retains its transport, epoch and cached state.

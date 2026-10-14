@@ -61,7 +61,7 @@ export function WorkspaceFolderPicker({ manager, initialPath, remoteConnectionId
     <div className="workspace-folder-picker__list" aria-busy={busy}>
       {folders.map(folder => <MobileListRow key={folder.path} appearance="plain" label={folder.name} leading={<Folder size={20}/>}
         trailing={<ChevronRight size={16}/>} disabled={busy} onClick={() => void browse(folder.path)}/>)}
-      {busy && <MobileStatus loading title={t('common.loading')}/>}
+      {busy && <MobileStatus loading title={t('common.loading')} description={t('fileAccess.remoteWaiting')}/>}
       {!busy && !error && !folders.length && <MobileStatus description={t('workspace.noSubfolders')}/>}
       {more && !busy && <MobileButton block appearance="plain" onClick={() => void browse(directory, true)}>{t('common.more')}</MobileButton>}
     </div>

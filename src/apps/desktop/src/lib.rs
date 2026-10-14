@@ -3000,6 +3000,10 @@ fn init_services(app_handle: tauri::AppHandle, default_log_level: log::LevelFilt
 
         service::snapshot::initialize_snapshot_event_emitter(emitter.clone());
 
+        // Every controller mutates the same host catalog. Publish from the
+        // entered runtime (OHOS startup itself has no Tokio context).
+        service::workspace::start_workspace_catalog_publication(emitter.clone());
+
         bitfun_core::service::initialize_file_watch_service(emitter.clone());
 
         if let Err(e) = workspace_identity_watch_service

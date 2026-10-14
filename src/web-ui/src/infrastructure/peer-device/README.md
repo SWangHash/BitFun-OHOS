@@ -222,6 +222,28 @@ listener alone recovers an interaction emitted before attachment.
     and CLI peers. Discovery reports the host's OS availability; it must never
     inspect or execute the controller's WSL installation as a fallback.
 
+## Workspace catalogs and operating-system file access
+
+Desktop and CLI publish `workspace-catalog-changed` from the host-owned workspace
+service. Web UI reconciles opened/recent workspaces and the primary assistant by
+source device, retaining its selected workspace while it remains open. A hint
+during a read schedules another read; event reattachment refreshes the catalog
+even when a disconnect lost the hint or the host restarted. Publication follows
+the in-memory mutation even if saving the catalog fails.
+
+Filesystem permission failures retain `FILESYSTEM_PERMISSION_DENIED` in the
+legacy string error envelope. This keeps older controllers readable without a
+new wire requirement. File pickers retain the attempted directory for retry and
+show guidance while the host is waiting. A timeout does not prove a create/write
+failed, so controllers must refresh before repeating a mutation.
+
+HarmonyOS system directory consent belongs to the target OS. BitFun's remote
+tool approval cannot grant it. Confirm a system prompt on the target device or
+choose an already authorized directory; the remote client can retry afterward.
+Do not gate access solely on a broad directory permission: a picker-issued grant
+may already authorize a particular subtree. Temporary access failures must not
+remove saved workspace records or turn an unreadable folder into an empty one.
+
 ## Related account-login guards
 
 Incomplete login (cloud vs local settings choice) must not persist a session

@@ -99,6 +99,8 @@ export interface PeerHostCapabilities {
 
 /** Immutable view of one connection; safe to hold in component state. */
 export interface PeerConnectionState {
+  /** Changes after event delivery is reattached, even without a degraded status. */
+  readonly eventAttachmentRevision?: number;
   readonly deviceId: string;
   readonly deviceName: string;
   readonly surfaceId: DeviceSurfaceId;
@@ -193,6 +195,7 @@ function parseHostKind(value: string | undefined): PeerHostKind | null {
 }
 
 interface ConnectionEntry {
+  eventAttachmentRevision: number;
   deviceId: string;
   deviceName: string;
   adapter: PeerDeviceTransportAdapter;
@@ -383,6 +386,7 @@ export class PeerConnectionManager {
       adapter,
       health: 'connecting',
       capabilities: NO_CAPABILITIES,
+      eventAttachmentRevision: 0,
       consecutiveFailures: 0,
       timer: null,
       disposed: false,
@@ -579,6 +583,7 @@ export class PeerConnectionManager {
 
   private async checkHealth(entry: ConnectionEntry): Promise<void> {
     try {
+      let reattached = false;
       const capabilities = await this.probeCapabilities(entry);
       // A request/presence failure may have arrived while the ping was in
       // flight. Check the current state, not the state at probe start.
@@ -588,11 +593,13 @@ export class PeerConnectionManager {
         entry.reattachInFlight = reattach;
         try {
           await reattach;
+          reattached = true;
         } finally {
           if (entry.reattachInFlight === reattach) entry.reattachInFlight = null;
         }
       }
       this.assertEntryActive(entry);
+      if (reattached) entry.eventAttachmentRevision += 1;
       const previousCapabilities = entry.capabilities;
       entry.capabilities = capabilities;
       entry.adapter.setHostCapabilities({
@@ -610,7 +617,7 @@ export class PeerConnectionManager {
       // build mid-session must push a fresh React snapshot, or UI keeps gating
       // on stale capabilities (e.g. a tool-catalog flag flipping). See #2428 #6.
       const capabilitiesChanged = !capabilitiesEqual(previousCapabilities, capabilities);
-      if (recovered || capabilitiesChanged) {
+      if (recovered || capabilitiesChanged || reattached) {
         if (recovered) {
           log.info('Peer connection recovered', { deviceId: entry.deviceId });
         }
@@ -706,6 +713,7 @@ export class PeerConnectionManager {
       surfaceId: entry.handle.surfaceId,
       health: entry.health,
       capabilities: entry.capabilities,
+      eventAttachmentRevision: entry.eventAttachmentRevision,
       consecutiveFailures: entry.consecutiveFailures,
     };
   }

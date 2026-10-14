@@ -2399,11 +2399,16 @@ async fn ensure_directory_request_path(path: &str) -> Result<(), String> {
         return Ok(());
     }
 
-    let path_buf = Path::new(path);
-    if !path_buf.exists() {
-        return Err("Directory does not exist".to_string());
-    }
-    if !path_buf.is_dir() {
+    let metadata = tokio::fs::metadata(Path::new(path))
+        .await
+        .map_err(|error| {
+            bitfun_core::service::filesystem::FileSystemError::io(
+                format!("Failed to inspect directory '{path}'"),
+                error,
+            )
+            .to_string()
+        })?;
+    if !metadata.is_dir() {
         return Err("Path is not a directory".to_string());
     }
 

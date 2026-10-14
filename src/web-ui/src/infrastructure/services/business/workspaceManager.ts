@@ -24,7 +24,8 @@ import {
   type DeviceSurfaceId,
   type SurfaceScope,
 } from '@/infrastructure/peer-device/deviceSurface';
-import { i18nService } from '@/infrastructure/i18n';
+import { describeFileAccessError } from './fileAccessErrorPresentation';
+import { readSourceDeviceId } from '@/infrastructure/peer-device/deviceSurfaceRouting';
 
 const log = createLogger('WorkspaceManager');
 
@@ -101,6 +102,7 @@ interface WorkspaceInitializationRun {
 }
 
 interface WorkspaceSurfaceContainer {
+  catalogDirty: boolean;
   state: WorkspaceState;
   isInitialized: boolean;
   startupLegacyRemoteWorkspaceSnapshotAvailable: boolean;
@@ -110,6 +112,7 @@ interface WorkspaceSurfaceContainer {
 
 function createWorkspaceSurfaceContainer(): WorkspaceSurfaceContainer {
   return {
+    catalogDirty: false,
     state: {
       currentWorkspace: null,
       openedWorkspaces: new Map(),
@@ -134,6 +137,9 @@ class WorkspaceManager {
   private switchGeneration = 0;
   private activeInitialization: WorkspaceInitializationRun | null = null;
   private identityEventListening = false;
+  private catalogListener: Promise<void> | null = null;
+  private catalogListenerReady = false;
+  private catalogRefresh: WorkspaceInitializationRun | null = null;
   private identityListenerReady = false;
   private identityListenerRegistrationPromise: Promise<void> | null = null;
   /** The identity watcher is local-Tauri-only, so its missed-event resync is too. */
@@ -458,6 +464,89 @@ class WorkspaceManager {
     );
   }
 
+  private ensureCatalogListener(): void {
+    if (this.catalogListener) return;
+    const failed = (error: unknown): void => {
+      this.catalogListener = null;
+      log.warn('Failed to subscribe workspace catalog changes', { error });
+    };
+    try {
+      this.catalogListener = listen('workspace-catalog-changed', event => {
+        const surfaceId = readSourceDeviceId(event.payload) ?? LOCAL_SURFACE_ID;
+        this.surfaceContainer(surfaceId).catalogDirty = true;
+        if (surfaceId === getActiveSurfaceId()) this.refreshHostCatalog();
+      }).then(() => {
+        this.catalogListenerReady = true;
+        // A snapshot obtained before subscription may have missed a write.
+        if (this.isInitialized && this.activeSurface.catalogDirty) this.refreshHostCatalog();
+      }).catch(failed);
+    } catch (error) {
+      failed(error);
+    }
+  }
+
+  /** Reconcile hints or a reattached peer without changing this window's selection. */
+  public refreshHostCatalog(): void {
+    this.activeSurface.catalogDirty = true;
+    if (!this.isInitialized) return;
+    this.ensureCatalogListener();
+    if (this.catalogRefresh && this.isSurfaceUnchanged(this.catalogRefresh.surface)) return;
+    const surface = this.captureSurface();
+    const run = { surface, promise: this.refreshHostCatalogSnapshot(surface) };
+    this.catalogRefresh = run;
+    void run.promise.finally(() => {
+      if (this.catalogRefresh === run) this.catalogRefresh = null;
+    });
+  }
+
+  private async refreshHostCatalogSnapshot(surface: SurfaceCapture): Promise<void> {
+    const container = this.surfaceContainer(surface.scope.surfaceId);
+    try {
+      while (container.catalogDirty && this.isSurfaceUnchanged(surface)) {
+        container.catalogDirty = false;
+        const [hostCurrent, recent, opened, primaryAssistant] = await Promise.all([
+          globalStateAPI.getCurrentWorkspace(),
+          globalStateAPI.getRecentWorkspaces(),
+          globalStateAPI.getOpenedWorkspaces(),
+          globalStateAPI.getPrimaryAssistantWorkspace(),
+        ]);
+        if (!this.isSurfaceUnchanged(surface)) return;
+        const previous = this.state;
+        const openedMap = this.buildOpenedWorkspaceMap(opened);
+        const current = openedMap.get(previous.activeWorkspaceId ?? '')
+          ?? openedMap.get(hostCurrent?.id ?? '') ?? opened[0] ?? null;
+        this.updateWorkspaceState(current, recent, opened, previous.loading, null);
+        this.updateState({ primaryAssistantWorkspaceId: primaryAssistant?.id ?? null });
+        let changed = false;
+        for (const id of previous.openedWorkspaces.keys()) {
+          if (!openedMap.has(id)) {
+            this.emit({ type: 'workspace:closed', workspaceId: id });
+            changed = true;
+          }
+        }
+        for (const workspace of opened) {
+          const old = previous.openedWorkspaces.get(workspace.id);
+          if (!old || JSON.stringify(old) !== JSON.stringify(workspace)) {
+            this.emit({ type: old ? 'workspace:updated' : 'workspace:opened', workspace });
+            changed = true;
+          }
+        }
+        if (previous.activeWorkspaceId !== current?.id && (previous.activeWorkspaceId || current)) {
+          this.emit({ type: 'workspace:active-changed', workspace: current });
+          changed = true;
+        }
+        if (!changed) this.emit({ type: 'workspace:recent-updated' });
+      }
+    } catch (error) {
+      container.catalogDirty = true;
+      if (this.isSurfaceUnchanged(surface)) {
+        // Retain the catalog on a failed read; a later hint/reconnect can retry.
+        this.setError(describeFileAccessError(error));
+        log.warn('Failed to refresh host workspace catalog', { error });
+      }
+    }
+  }
+
   private async ensureIdentityChangeListener(): Promise<void> {
     if (this.identityListenerRegistrationPromise) {
       return this.identityListenerRegistrationPromise;
@@ -683,6 +772,7 @@ class WorkspaceManager {
 
       const identityListenerStartedAt = markWorkspaceStartupStepStart('ensure_identity_listener');
       void this.ensureIdentityChangeListener();
+      this.ensureCatalogListener();
       markWorkspaceStartupStepEnd('ensure_identity_listener', identityListenerStartedAt, {
         blocking: false,
       });
@@ -697,6 +787,7 @@ class WorkspaceManager {
         legacyRemoteWorkspace,
       } = await globalStateAPI.initializeWorkspaceStartupState();
       this.assertSurfaceUnchanged(surface, 'initialize workspace state');
+      if (!this.catalogListenerReady) this.activeSurface.catalogDirty = true;
       if (surface.scope.surfaceId === LOCAL_SURFACE_ID && !this.identityListenerReady) {
         this.localIdentityListenerReadyResyncPending = true;
       }
@@ -740,6 +831,7 @@ class WorkspaceManager {
 
       this.emit({ type: 'workspace:loading', loading: false });
       this.isInitialized = true;
+      if (this.catalogListenerReady && this.activeSurface.catalogDirty) this.refreshHostCatalog();
       if (
         surface.scope.surfaceId === LOCAL_SURFACE_ID
         && this.localIdentityListenerReadyResyncPending
@@ -776,7 +868,7 @@ class WorkspaceManager {
         durationMs: elapsedMs(initializeStartedAt),
       });
       log.error('Failed to initialize workspace state', { error });
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = describeFileAccessError(error);
       // Keep this surface's last known workspace projection. A weak-link
       // refresh failure is visible through `error`, but it must not turn a
       // usable cached device into an empty workspace list.
@@ -863,12 +955,7 @@ class WorkspaceManager {
         throw error;
       }
       log.error('Failed to open workspace', { path, error });
-      const rawMessage = error instanceof Error ? error.message : String(error);
-      // Map the common "folder moved/deleted" backend error to a localized
-      // message; other errors pass through verbatim (callers log the raw error).
-      const errorMessage = /does not exist|not a directory/i.test(rawMessage)
-        ? i18nService.t('common:newProject.errorPathNotFound')
-        : rawMessage;
+      const errorMessage = describeFileAccessError(error);
       this.updateState({ loading: false, error: errorMessage }, { type: 'workspace:error', error: errorMessage });
       throw error;
     }
@@ -917,7 +1004,7 @@ class WorkspaceManager {
         throw error;
       }
       log.error('Failed to open remote workspace', { remoteWorkspace, error });
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = describeFileAccessError(error);
       this.updateState({ loading: false, error: errorMessage }, { type: 'workspace:error', error: errorMessage });
       throw error;
     }
@@ -965,7 +1052,7 @@ class WorkspaceManager {
         throw error;
       }
       log.error('Failed to remove remote workspace', { connectionId, remotePath, error });
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = describeFileAccessError(error);
       this.updateState({ error: errorMessage }, { type: 'workspace:error', error: errorMessage });
       throw error;
     }
@@ -1021,7 +1108,7 @@ class WorkspaceManager {
         throw error;
       }
       log.error('Failed to create assistant workspace', { error });
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = describeFileAccessError(error);
       this.updateState({ loading: false, error: errorMessage }, { type: 'workspace:error', error: errorMessage });
       throw error;
     }
@@ -1072,7 +1159,7 @@ class WorkspaceManager {
         throw error;
       }
       log.error('Failed to close workspace', { workspaceId, error });
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = describeFileAccessError(error);
       this.updateState({ loading: false, error: errorMessage }, { type: 'workspace:error', error: errorMessage });
       throw error;
     }
@@ -1134,7 +1221,7 @@ class WorkspaceManager {
         throw error;
       }
       log.error('Failed to delete assistant workspace', { workspaceId, error });
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = describeFileAccessError(error);
       this.updateState({ loading: false, error: errorMessage }, { type: 'workspace:error', error: errorMessage });
       throw error;
     }
@@ -1177,7 +1264,7 @@ class WorkspaceManager {
       this.emit({ type: 'workspace:active-changed', workspace: currentWorkspace });
     } catch (error) {
       log.error('Failed to delete workspace', { workspaceId, error });
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = describeFileAccessError(error);
       this.updateState({ loading: false, error: errorMessage }, { type: 'workspace:error', error: errorMessage });
       throw error;
     }
@@ -1206,7 +1293,7 @@ class WorkspaceManager {
         throw error;
       }
       log.error('Failed to set primary assistant workspace', { workspaceId, error });
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = describeFileAccessError(error);
       this.updateState(
         { loading: false, error: errorMessage },
         { type: 'workspace:error', error: errorMessage }
@@ -1248,7 +1335,7 @@ class WorkspaceManager {
         throw error;
       }
       log.error('Failed to reset assistant workspace', { workspaceId, error });
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = describeFileAccessError(error);
       this.updateState({ loading: false, error: errorMessage }, { type: 'workspace:error', error: errorMessage });
       throw error;
     }
@@ -1292,7 +1379,7 @@ class WorkspaceManager {
         throw error;
       }
       log.error('Failed to set active workspace', { workspaceId, error });
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = describeFileAccessError(error);
       this.updateState({ loading: false, error: errorMessage }, { type: 'workspace:error', error: errorMessage });
       throw error;
     }
@@ -1356,7 +1443,7 @@ class WorkspaceManager {
       if (!this.isSurfaceUnchanged(surface)) {
         throw error;
       }
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = describeFileAccessError(error);
       const rollbackEventWorkspace = previousCurrentWorkspace
         ?? workspaceMap.get(sourceWorkspaceId)
         ?? previousOpenedWorkspaces[0]
@@ -1442,7 +1529,7 @@ class WorkspaceManager {
         throw error;
       }
       log.error('Failed to scan workspace info', { error });
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = describeFileAccessError(error);
       this.setError(errorMessage);
       this.setLoading(false);
       throw error;
@@ -1488,7 +1575,7 @@ class WorkspaceManager {
         throw error;
       }
       log.error('Failed to update workspace related paths', { workspaceId, error });
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = describeFileAccessError(error);
       this.updateState({ error: errorMessage }, { type: 'workspace:error', error: errorMessage });
       throw error;
     }
@@ -1511,7 +1598,7 @@ class WorkspaceManager {
         throw error;
       }
       log.error('Failed to rename workspace', { workspaceId, error });
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = describeFileAccessError(error);
       this.updateState({ error: errorMessage }, { type: 'workspace:error', error: errorMessage });
       throw error;
     }

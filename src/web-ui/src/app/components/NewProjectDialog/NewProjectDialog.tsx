@@ -19,6 +19,7 @@ import {
 import React, { useState, useCallback, useMemo, useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createLogger } from '@/shared/utils/logger';
+import { describeFileAccessError } from '@/infrastructure/services/business/fileAccessErrorPresentation';
 import './NewProjectDialog.scss';
 
 const log = createLogger('NewProjectDialog');
@@ -68,6 +69,7 @@ export const NewProjectDialog: React.FC<NewProjectDialogProps> = ({
       }
     } catch (error) {
       log.error('Failed to select directory', error);
+      setError(describeFileAccessError(error));
     }
   }, [parentPath, defaultParentPath, t]);
 
@@ -94,7 +96,7 @@ export const NewProjectDialog: React.FC<NewProjectDialogProps> = ({
       onClose();
     } catch (error) {
       log.error('Failed to create project', error);
-      setError(error instanceof Error ? error.message : t('newProject.errorCreateFailed'));
+      setError(describeFileAccessError(error));
     } finally {
       setIsCreating(false);
     }

@@ -12,6 +12,7 @@ import { workspaceAPI } from '@/infrastructure/api';
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
 import { createLogger } from '@/shared/utils/logger';
 import { isImeOwnedKeyboardEvent } from '@/shared/utils/ime';
+import { describeFileAccessError } from '@/infrastructure/services/business/fileAccessErrorPresentation';
 import {
   joinDirectoryPath,
   parentDirectoryPath,
@@ -63,7 +64,13 @@ export const PeerDirectoryBrowser: React.FC<PeerDirectoryBrowserProps> = ({
     try {
       const path = requestedPath || (await systemAPI.getSystemInfo()).homeDir;
       if (seq !== loadSeqRef.current) return;
-      if (!path) throw new Error(t('peerDirectoryPicker.homeUnavailable'));
+      if (!path) {
+        setError(t('peerDirectoryPicker.homeUnavailable'));
+        return;
+      }
+      // Keep retry and parent navigation on the attempted path after denial.
+      setCurrentPath(path);
+      if (inputRevision === inputRevisionRef.current) setPathInputValue(path);
       const children = await workspaceAPI.getDirectoryChildren(path, '');
       if (seq !== loadSeqRef.current) {
         return;
@@ -83,9 +90,8 @@ export const PeerDirectoryBrowser: React.FC<PeerDirectoryBrowserProps> = ({
       if (seq !== loadSeqRef.current) {
         return;
       }
-      const message = loadError instanceof Error ? loadError.message : String(loadError);
       log.warn('Failed to list peer directory', { path: requestedPath, error: loadError });
-      setError(message);
+      setError(describeFileAccessError(loadError));
       setEntries([]);
     } finally {
       if (seq === loadSeqRef.current) {
@@ -275,6 +281,7 @@ export const PeerDirectoryBrowser: React.FC<PeerDirectoryBrowserProps> = ({
             >
               <Loader2 size={16} className="peer-directory-browser__spinner" />
               <span>{t('peerDirectoryPicker.loading')}</span>
+              <span>{t('fileAccess.remoteWaiting')}</span>
             </div>
           ) : error ? (
             <div
@@ -284,6 +291,7 @@ export const PeerDirectoryBrowser: React.FC<PeerDirectoryBrowserProps> = ({
               data-bitfun-state="error"
             >
               <span>{error}</span>
+              <Button variant="fill" onClick={handleRefresh}>{t('peerDirectoryPicker.refresh')}</Button>
             </div>
           ) : entries.length === 0 ? (
             <div

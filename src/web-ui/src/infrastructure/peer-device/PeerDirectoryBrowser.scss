@@ -104,16 +104,19 @@
 
   &__state {
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 8px;
+    padding: 16px;
+    text-align: center;
+    overflow-wrap: anywhere;
     min-height: 160px;
     color: var(--bitfun-color-content-muted);
     font-size: var(--bitfun-type-label-md-font-size);
 
     &--error {
       color: var(--bitfun-color-status-danger-content);
-      padding: 0 16px;
       text-align: center;
     }
   }

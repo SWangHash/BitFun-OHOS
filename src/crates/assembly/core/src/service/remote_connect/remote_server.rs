@@ -247,9 +247,13 @@ impl RemoteCommandRuntimeHost for CoreRemoteCommandRuntimeHost<'_> {
                 let path = std::path::PathBuf::from(path);
                 // Create the directory if it doesn't exist, then open it
                 // as a workspace via the workspace manager.
-                if let Err(e) = std::fs::create_dir_all(&path) {
+                if let Err(e) = tokio::fs::create_dir_all(&path).await {
                     return RemoteResponse::Error {
-                        message: format!("Failed to create workspace directory: {e}"),
+                        message: bitfun_services_core::filesystem::FileSystemError::io(
+                            format!("Failed to create workspace directory '{}'", path.display()),
+                            e,
+                        )
+                        .to_string(),
                     };
                 }
                 // Now delegate to the workspace host to actually open/track it.

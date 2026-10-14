@@ -8,13 +8,13 @@ pub use super::types::{
 use super::worktree_topology::global_worktree_topology_service;
 use super::WorktreeTopologyFreshness;
 use crate::util::{errors::*, FrontMatterMarkdown};
-use log::warn;
 pub use bitfun_runtime_ports::RelatedPath;
 use bitfun_services_core::workspace_identity::{
     canonicalize_local_workspace_root, local_workspace_stable_storage_id,
     normalize_local_workspace_root_for_stable_id, normalize_remote_workspace_path,
     remote_workspace_stable_id, LOCAL_WORKSPACE_SSH_HOST,
 };
+use log::warn;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -565,8 +565,7 @@ impl WorkspaceInfoRuntimeExt for WorkspaceInfo {
         stats: &'a mut WorkspaceStatistics,
         options: &'a ScanOptions,
         depth: usize,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = BitFunResult<()>> + 'a + Send>>
-    {
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = BitFunResult<()>> + 'a + Send>> {
         Box::pin(async move {
             if let Some(max_depth) = options.max_depth {
                 if depth > max_depth {
@@ -574,9 +573,9 @@ impl WorkspaceInfoRuntimeExt for WorkspaceInfo {
                 }
             }
 
-            let mut read_dir = fs::read_dir(dir).await.map_err(|e| {
-                BitFunError::service(format!("Failed to read directory: {}", e))
-            })?;
+            let mut read_dir = fs::read_dir(dir)
+                .await
+                .map_err(|e| BitFunError::service(format!("Failed to read directory: {}", e)))?;
 
             while let Some(entry) = read_dir.next_entry().await.map_err(|e| {
                 BitFunError::service(format!("Failed to read directory entry: {}", e))
@@ -596,9 +595,10 @@ impl WorkspaceInfoRuntimeExt for WorkspaceInfo {
                     continue;
                 }
 
-                let metadata = entry.metadata().await.map_err(|e| {
-                    BitFunError::service(format!("Failed to read metadata: {}", e))
-                })?;
+                let metadata = entry
+                    .metadata()
+                    .await
+                    .map_err(|e| BitFunError::service(format!("Failed to read metadata: {}", e)))?;
 
                 if metadata.is_file() {
                     stats.total_files += 1;
@@ -684,7 +684,14 @@ impl WorkspaceInfoRuntimeExt for WorkspaceInfo {
         if self.workspace_kind == WorkspaceKind::Remote {
             return true;
         }
-        self.root_path.exists() && self.root_path.is_dir()
+        match fs::metadata(&self.root_path).await {
+            Ok(metadata) => metadata.is_dir(),
+            Err(error) => {
+                // Denied/revoked access and unavailable mounts are not deletion.
+                // Keep the saved record so granting access can recover it.
+                error.kind() != std::io::ErrorKind::NotFound
+            }
+        }
     }
 
     /// Returns a workspace summary.
@@ -808,9 +815,10 @@ impl WorkspaceManager {
         add_to_recent: bool,
         refresh_worktree: Option<Option<WorkspaceWorktreeInfo>>,
     ) -> BitFunResult<WorkspaceInfo> {
-        let workspace = self.workspaces.get_mut(workspace_id).ok_or_else(|| {
-            BitFunError::service(format!("Workspace not found: {workspace_id}"))
-        })?;
+        let workspace = self
+            .workspaces
+            .get_mut(workspace_id)
+            .ok_or_else(|| BitFunError::service(format!("Workspace not found: {workspace_id}")))?;
         if let Some(worktree) = refresh_worktree {
             workspace.load_identity().await;
             workspace.worktree = worktree;
@@ -845,14 +853,16 @@ impl WorkspaceManager {
         let is_remote = options.workspace_kind == WorkspaceKind::Remote;
 
         if !is_remote {
-            if !path.exists() {
-                return Err(BitFunError::service(format!(
-                    "Workspace path does not exist: {:?}",
-                    path
-                )));
-            }
-
-            if !path.is_dir() {
+            let metadata = tokio::fs::metadata(&path).await.map_err(|error| {
+                BitFunError::service(
+                    bitfun_services_core::filesystem::FileSystemError::io(
+                        format!("Failed to inspect workspace '{}'", path.display()),
+                        error,
+                    )
+                    .to_string(),
+                )
+            })?;
+            if !metadata.is_dir() {
                 return Err(BitFunError::service(format!(
                     "Workspace path is not a directory: {:?}",
                     path

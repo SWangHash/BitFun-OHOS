@@ -463,7 +463,15 @@ pub async fn path_exists(
     )
     .await?
     {
-        DesktopPathTarget::Local { resolved_path, .. } => Ok(resolved_path.exists()),
+        DesktopPathTarget::Local { resolved_path, .. } => tokio::fs::try_exists(&resolved_path)
+            .await
+            .map_err(|error| {
+                bitfun_core::service::filesystem::FileSystemError::io(
+                    format!("Failed to inspect path '{raw_path}'"),
+                    error,
+                )
+                .to_string()
+            }),
         DesktopPathTarget::Remote {
             requested_path,
             entry,

@@ -126,6 +126,7 @@ describe('PeerDirectoryBrowser', () => {
     mocks.getSystemInfo.mockRejectedValue(new Error('Peer offline'));
     await render();
     expect(document.body.textContent).toContain('Peer offline');
+
     expect(mocks.getDirectoryChildren).not.toHaveBeenCalled();
     expect(select().disabled).toBe(true);
   });
@@ -139,6 +140,23 @@ describe('PeerDirectoryBrowser', () => {
     expect(select().disabled).toBe(true);
     await act(async () => select().click());
     expect(onSelect).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain('Permission denied');
+    mocks.getDirectoryChildren.mockResolvedValueOnce([]);
+    await act(async () => document.querySelector<HTMLButtonElement>('[title="peerDirectoryPicker.refresh"]')!.click());
+    expect(mocks.getDirectoryChildren).toHaveBeenLastCalledWith('/restricted', HOST_LOCAL_CONNECTION);
+    expect(select().disabled).toBe(false);
+  });
+
+  it('explains a pending host request and selects only after the host returns', async () => {
+    let resolve!: (entries: []) => void;
+    mocks.getDirectoryChildren.mockReturnValue(new Promise<[]>(done => { resolve = done; }));
+    await render('/protected');
+    expect(document.body.textContent).toContain('fileAccess.remoteWaiting');
+    expect(select().disabled).toBe(true);
+    await act(async () => resolve([]));
+    expect(select().disabled).toBe(false);
+    await act(async () => select().click());
+    expect(onSelect).toHaveBeenCalledWith('/protected');
   });
 
   it('ignores a slow home response after the user navigates manually', async () => {

@@ -105,6 +105,7 @@ class FakeConnectionManager {
     this.states.set(deviceId, {
       ...previous,
       health,
+      eventAttachmentRevision: (previous.eventAttachmentRevision ?? 0) + (health === 'ready' ? 1 : 0),
     });
     this.publish();
   }
@@ -153,6 +154,7 @@ class FakeConnectionManager {
 
 function createHarness(options: {
   rebootstrap?: (scope: SurfaceScope) => Promise<void>;
+  refreshCatalog?: (scope: SurfaceScope) => void;
 } = {}) {
   const manager = new FakeConnectionManager();
   const commits: string[] = [];
@@ -170,6 +172,7 @@ function createHarness(options: {
     reloadConfig: async scope => scope.assertCurrent('reload config'),
     rebootstrapWorkspaces: options.rebootstrap
       ?? (async scope => scope.assertCurrent('rebootstrap workspaces')),
+    refreshWorkspaceCatalog: options.refreshCatalog,
     setPeerControllerActive: async active => {
       controllerFlags.push(active);
     },
@@ -341,7 +344,8 @@ describe('PeerDeviceSurfaceController connection loss', () => {
   });
 
   it('preserves the rendered surface and epoch throughout disconnection and recovery', async () => {
-    const harness = createHarness();
+    const refreshCatalog = vi.fn();
+    const harness = createHarness({ refreshCatalog });
     harness.controller.start();
     await harness.controller.switchToDevice('peer-a', 'A');
     const originalScope = getActiveSurfaceScope();
@@ -361,6 +365,10 @@ describe('PeerDeviceSurfaceController connection loss', () => {
     expect(harness.commits).toEqual(['peer-a']);
     expect(harness.manager.get('peer-a')).toBe(originalConnection);
     expect(harness.snapshot().attachments[0].health).toBe('ready');
+    expect(refreshCatalog).toHaveBeenCalledExactlyOnceWith(originalScope);
+    // A presence gap can reattach event delivery without a degraded status.
+    harness.manager.setHealth('peer-a', 'ready');
+    expect(refreshCatalog).toHaveBeenCalledTimes(2);
     harness.controller.stop();
   });
 

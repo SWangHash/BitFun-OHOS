@@ -36,6 +36,20 @@ beforeEach(() => {
 afterEach(() => workspaceGitInitializer.stop());
 
 describe('WorkspaceGitInitializer', () => {
+  it('ignores background catalog opens and follows the fallback when the selected workspace closes', async () => {
+    workspaceGitInitializer.start();
+    mocks.refresh.mockClear();
+    const other = { id: 'workspace-2', rootPath: '/other' };
+    await mocks.listener?.({ type: 'workspace:opened', workspace: other });
+    expect(mocks.refresh).not.toHaveBeenCalled();
+    mocks.workspace = other;
+    await mocks.listener?.({ type: 'workspace:closed', workspaceId: 'workspace-1' });
+    await mocks.listener?.({ type: 'workspace:active-changed', workspace: other });
+    expect(mocks.refresh).toHaveBeenCalledExactlyOnceWith(
+      { workspaceId: 'workspace-2', repositoryPath: '/other' }, expect.any(Object),
+    );
+  });
+
   it('refreshes only basic Git facts for the active workspace on startup', async () => {
     workspaceGitInitializer.start();
     expect(mocks.refresh).toHaveBeenCalledWith(
