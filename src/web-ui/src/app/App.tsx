@@ -289,6 +289,20 @@ function App() {
   }, [workspaceLoading, appLayoutReady, releaseInteractiveShellReadyIfReady]);
 
   useEffect(() => {
+    const preventDefaultForFileDrags = (e: DragEvent) => {
+      if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('dragover', preventDefaultForFileDrags, { capture: true });
+    window.addEventListener('drop', preventDefaultForFileDrags, { capture: true });
+    return () => {
+      window.removeEventListener('dragover', preventDefaultForFileDrags, { capture: true });
+      window.removeEventListener('drop', preventDefaultForFileDrags, { capture: true });
+    };
+  }, []);
+
+  useEffect(() => {
     if (!isTauriRuntime()) {
       return;
     }

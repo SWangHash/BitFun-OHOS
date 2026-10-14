@@ -8,11 +8,15 @@ import { WebHeader } from "@kit.ArkUI";
 import { unifiedDataChannel, uniformTypeDescriptor, uniformDataStruct } from "@kit.ArkData";
 import { bundleManager } from "@kit.AbilityKit";
 import fileUri from "@ohos.file.fileuri";
+import fs from "@ohos.file.fs";
 import hilog from "@ohos.hilog";
+import { BusinessError } from "@ohos.base";
 
 const FILE_DROP_LOG_DOMAIN: number = 0x0000;
 const FILE_DROP_LOG_TAG: string = "BitFunFileDrop";
 const USER_APPDATA_PREFIX: string = "/storage/Users/currentUser/appdata";
+const FILE_DROP_MAX_RETRIES: number = 3;
+const FILE_DROP_RETRY_INTERVAL_MS: number = 1500;
 
 export interface WebviewStyle {
   x?: number | string;
@@ -48,9 +52,21 @@ interface WebviewNodeData extends WebviewInitData {
   controller: WebviewController;
 }
 
+interface OhosFileMetadata {
+  size: number;
+  isFile: boolean;
+  isDir: boolean;
+}
+
 interface OhosNativeDropPayload {
   type: string;
   paths: string[];
+  metadata?: OhosFileMetadata[];
+}
+
+interface CollectedDropResult {
+  paths: string[];
+  metadata: OhosFileMetadata[];
 }
 
 // ArkWeb does not deliver external (file manager) file drags as HTML5 drop
@@ -58,12 +74,16 @@ interface OhosNativeDropPayload {
 // drag-drop handler. The Web component therefore collects the dropped files
 // and forwards their filesystem paths to the web-ui through a global JS hook.
 function normalizeDroppedFileUri(uri: string): string {
+  hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `normalizeDroppedFileUri input uri=${uri}`);
   if (!uri.startsWith("file://") && !uri.startsWith("docs://")) {
+    hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `normalizeDroppedFileUri passthrough no prefix: ${uri}`);
     return uri;
   }
 
   const path = new fileUri.FileUri(uri).path;
+  hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `normalizeDroppedFileUri FileUri.path=${path}`);
   if (!path.startsWith(USER_APPDATA_PREFIX)) {
+    hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `normalizeDroppedFileUri returning non-appdata path: ${path}`);
     return path;
   }
 
@@ -72,30 +92,59 @@ function normalizeDroppedFileUri(uri: string): string {
     const bundleName = bundleManager.getBundleInfoForSelfSync(
       bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT,
     ).name;
-    return bundleName.length > 0
+    hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `normalizeDroppedFileUri bundleName=${bundleName}`);
+    const result = bundleName.length > 0
       ? storagePath.replace("/" + bundleName + "/", "/base/")
       : storagePath;
+    hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `normalizeDroppedFileUri final path=${result}`);
+    return result;
   } catch (e) {
-    hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, "Unable to resolve bundle name for dropped file");
+    const err = e as BusinessError;
+    hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `Unable to resolve bundle name: code=${err.code} msg=${err.message}`);
     return storagePath;
   }
 }
 
-function collectDroppedFilePaths(dragEvent: DragEvent): string[] {
+function resolveFileMetadata(path: string): OhosFileMetadata {
+  try {
+    const stat = fs.statSync(path);
+    const isDir = stat.isDirectory();
+    const meta: OhosFileMetadata = {
+      size: stat.size,
+      isFile: !isDir,
+      isDir: isDir,
+    };
+    hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `resolveFileMetadata: path=${path} size=${meta.size} isFile=${meta.isFile} isDir=${meta.isDir}`);
+    return meta;
+  } catch (e) {
+    const err = e as BusinessError;
+    hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `resolveFileMetadata: fs.stat failed path=${path}: code=${err.code} msg=${err.message}`);
+    return { size: 0, isFile: false, isDir: false };
+  }
+}
+
+function tryCollectDroppedFilePaths(dragEvent: DragEvent): CollectedDropResult {
   const paths: string[] = [];
+  const metadata: OhosFileMetadata[] = [];
   const seen: Set<string> = new Set<string>();
   try {
     const data = dragEvent.getData() as unifiedDataChannel.UnifiedData;
     if (!data) {
-      return paths;
+      hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, "tryCollect: getData returned null");
+      return { paths, metadata };
     }
     const records: unifiedDataChannel.UnifiedRecord[] = data.getRecords();
     if (!records || records.length <= 0) {
-      return paths;
+      const count = records ? records.length : 0;
+      hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `tryCollect: records null or empty, count=${count}`);
+      return { paths, metadata };
     }
+    hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `tryCollect: records count=${records.length}`);
     for (let i = 0; i < records.length; i++) {
       const types = records[i].getTypes();
-      if (types.includes(uniformTypeDescriptor.UniformDataType.FILE_URI)) {
+      const hasFileUri = types.includes(uniformTypeDescriptor.UniformDataType.FILE_URI);
+      hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `tryCollect: record[${i}] typesCount=${types.length} hasFileUri=${hasFileUri}`);
+      if (hasFileUri) {
         const fileUriUds =
           records[i].getEntry(uniformTypeDescriptor.UniformDataType.FILE_URI) as uniformDataStruct.FileUri;
         if (fileUriUds && fileUriUds.oriUri) {
@@ -104,29 +153,74 @@ function collectDroppedFilePaths(dragEvent: DragEvent): string[] {
             if (path.length > 0 && !seen.has(path)) {
               seen.add(path);
               paths.push(path);
+              metadata.push(resolveFileMetadata(path));
+            } else {
+              hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `tryCollect: record[${i}] path empty or duplicate: ${path}`);
             }
           } catch (e) {
-            hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, "Unable to normalize dropped file URI");
+            const err = e as BusinessError;
+            hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `tryCollect: normalize failed record[${i}]: code=${err.code} msg=${err.message}`);
           }
+        } else {
+          hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `tryCollect: record[${i}] fileUriUds null or oriUri empty`);
         }
       }
     }
   } catch (e) {
-    hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, "Unable to inspect native drag data");
+    const err = e as BusinessError;
+    hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `tryCollect: inspect failed: code=${err.code} msg=${err.message}`);
   }
-  return paths;
+  return { paths, metadata };
 }
 
-function dispatchNativeDragEvent(controller: WebviewController, type: string, paths: string[]): void {
+function collectDroppedFilePathsWithRetry(
+  controller: WebviewController,
+  dragEvent: DragEvent,
+  attempt: number,
+): void {
+  hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `collectWithRetry: attempt=${attempt + 1}/${FILE_DROP_MAX_RETRIES}`);
+  const result = tryCollectDroppedFilePaths(dragEvent);
+  if (result.paths.length > 0) {
+    hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `Native file drop collected: attempt=${attempt + 1} pathCount=${result.paths.length}`);
+    for (let i = 0; i < result.paths.length; i++) {
+      hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `Native file drop path[${i}]=${result.paths[i]}`);
+    }
+    dispatchNativeDragEvent(controller, "drop", result.paths, result.metadata);
+    return;
+  }
+  if (attempt >= FILE_DROP_MAX_RETRIES - 1) {
+    hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `Native file drop exhausted retries: pathCount=0 after ${FILE_DROP_MAX_RETRIES} attempts`);
+    dispatchNativeDragEvent(controller, "drop", [], []);
+    return;
+  }
+  hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `Native file drop retry scheduled: nextAttempt=${attempt + 2} afterMs=${FILE_DROP_RETRY_INTERVAL_MS}`);
+  setTimeout(() => {
+    collectDroppedFilePathsWithRetry(controller, dragEvent, attempt + 1);
+  }, FILE_DROP_RETRY_INTERVAL_MS);
+}
+
+function dispatchNativeDragEvent(
+  controller: WebviewController,
+  type: string,
+  paths: string[],
+  metadata?: OhosFileMetadata[],
+): void {
   const payload: OhosNativeDropPayload = { type: type, paths: paths };
+  if (metadata && metadata.length > 0) {
+    payload.metadata = metadata;
+  }
   const code: string =
     "window.__bitFunNativeFileDrop && window.__bitFunNativeFileDrop(" + JSON.stringify(payload) + ");";
+  hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `dispatchNativeDragEvent: type=${type} pathCount=${paths.length} hasMetadata=${payload.metadata !== undefined}`);
   try {
-    controller.runJavaScript(code).then((ret: string) => {}).catch((e: Error) => {
-      hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, "Native drag event JavaScript dispatch failed");
+    controller.runJavaScript(code).then((ret: string) => {
+      hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `dispatchNativeDragEvent: JS dispatch ok type=${type}`);
+    }).catch((e: BusinessError) => {
+      hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `dispatchNativeDragEvent: JS dispatch failed type=${type}: code=${e.code} msg=${e.message}`);
     });
   } catch (e) {
-    hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, "Native drag event controller is unavailable");
+    const err = e as BusinessError;
+    hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `dispatchNativeDragEvent: controller unavailable type=${type}: code=${err.code} msg=${err.message}`);
   }
 }
 
@@ -174,8 +268,13 @@ function WebBuilder(data: WebviewNodeData) {
       }
     })
     .onLoadIntercept((event) => {
+      const url = event.data.getRequestUrl();
+      if (url.startsWith("file://")) {
+        hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG,
+          `onLoadIntercept: blocked file:// navigation from drag-drop default: ${url}`);
+        return true;
+      }
       if (typeof data?.onNavigationRequest === "function") {
-        const url = event.data.getRequestUrl();
         const ret = data.onNavigationRequest(url);
         return ret;
       }
@@ -229,22 +328,21 @@ function WebBuilder(data: WebviewNodeData) {
       }
     })
     .onDragEnter((dragEvent: DragEvent) => {
+      hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, "onDragEnter triggered");
       dispatchNativeDragEvent(data.controller, "enter", []);
     })
     .onDragMove((dragEvent: DragEvent) => {
-      dispatchNativeDragEvent(data.controller, "over", []);
+      // No dispatch: onDragMove fires for every pixel of movement, flooding
+      // runJavaScript and contending with GitStateManager's listen fetches.
+      // The enter event already sets the drag-over state; over is redundant.
     })
     .onDragLeave((dragEvent: DragEvent) => {
+      hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, "onDragLeave triggered");
       dispatchNativeDragEvent(data.controller, "leave", []);
     })
     .onDrop((dragEvent: DragEvent) => {
-      const paths = collectDroppedFilePaths(dragEvent);
-      hilog.info(
-        FILE_DROP_LOG_DOMAIN,
-        FILE_DROP_LOG_TAG,
-        `Native file drop collected: pathCount=${paths.length}`,
-      );
-      dispatchNativeDragEvent(data.controller, "drop", paths);
+      hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, "onDrop triggered, starting retry collection");
+      collectDroppedFilePathsWithRetry(data.controller, dragEvent, 0);
     });
 }
 

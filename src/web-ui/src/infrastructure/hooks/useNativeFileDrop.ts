@@ -10,9 +10,16 @@ declare global {
   }
 }
 
+export interface OhosFileMetadata {
+  size: number;
+  isFile: boolean;
+  isDir: boolean;
+}
+
 export interface OhosNativeDropPayload {
   type: string;
   paths?: string[];
+  metadata?: OhosFileMetadata[];
 }
 
 export function parseOhosNativeDropPayload(
@@ -29,6 +36,15 @@ export function parseOhosNativeDropPayload(
       paths: Array.isArray(candidate.paths)
         ? candidate.paths.filter((path): path is string => typeof path === 'string')
         : undefined,
+      metadata: Array.isArray(candidate.metadata)
+        ? candidate.metadata.filter(
+            (m): m is OhosFileMetadata =>
+              typeof m === 'object' && m !== null
+              && typeof m.size === 'number'
+              && typeof m.isFile === 'boolean'
+              && typeof m.isDir === 'boolean',
+          )
+        : undefined,
     };
   } catch {
     return null;
@@ -39,7 +55,7 @@ interface NativeFileDropOptions {
   targetRef: RefObject<HTMLElement>;
   enabled?: boolean;
   onDragOver: (overTarget: boolean) => void;
-  onDrop: (paths: string[]) => void | Promise<void>;
+  onDrop: (paths: string[], metadata?: OhosFileMetadata[]) => void | Promise<void>;
 }
 
 export function isNativeDragPositionOverElement(
@@ -97,8 +113,12 @@ export function useNativeFileDrop({
           const paths = Array.isArray(data.paths)
             ? data.paths.filter((p): p is string => typeof p === 'string' && p.length > 0)
             : [];
-          log.debug('OHOS native file drop received', { pathCount: paths.length });
-          void onDropRef.current(paths);
+          log.debug('OHOS native file drop received', { pathCount: paths.length, hasMetadata: Boolean(data.metadata) });
+          // Metadata is pre-resolved in ArkTS via fs.statSync, so the web-ui
+          // onDrop callback does NOT initiate a get_file_metadata IPC fetch.
+          // This eliminates custom-protocol contention with GitStateManager's
+          // listen fetches that caused white screens on OHOS.
+          void onDropRef.current(paths, data.metadata);
         } else if (data.type === 'enter' || data.type === 'over') {
           onDragOverRef.current(true);
         } else if (data.type === 'leave') {

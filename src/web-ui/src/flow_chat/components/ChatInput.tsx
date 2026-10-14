@@ -120,7 +120,7 @@ import {
 import { chatInputSessionSubscriptionKey } from '../utils/chatInputSessionSubscription';
 import { isLocalWorkspaceSession, sessionProjectWorkspacePath } from '../utils/sessionWorkspace';
 import { findWorkspaceForSession } from '../utils/workspaceScope';
-import { isTauriRuntime, isWindowsDesktopRuntime } from '@/infrastructure/runtime';
+import { isTauriRuntime, isWindowsDesktopRuntime, isOpenHarmonyRuntime } from '@/infrastructure/runtime';
 import { subscribeOverlayInteraction, createOverlayPortal, OverflowText, Tooltip } from '@bitfun/ui';
 import { useShortcut } from '@/infrastructure/hooks/useShortcut';
 import { confirmDanger, confirmWarning } from '@/infrastructure/confirm-dialog';
@@ -237,10 +237,10 @@ import { workspaceAPI } from '@/infrastructure/api/service-api/WorkspaceAPI';
 import { useLocalFileDrop } from '@/infrastructure/files/useLocalFileDrop';
 import { useWindowsFileDropPreview } from '@/infrastructure/files/useWindowsFileDropPreview';
 import type { FileDropPreview, FileDropPosition } from '@/shared/types/fileDropPreview';
-import { WorkspaceKind } from '@/shared/types/global-state';
 import { resolveBrowserDroppedFilePaths } from '@/infrastructure/files/resolveBrowserDroppedFilePaths';
 import { useNativeFileDrop } from '@/infrastructure/hooks/useNativeFileDrop';
-import { resolveNativeDroppedPaths } from '../utils/nativeFileDrop';
+import type { FileMetadata } from '@/infrastructure/api/service-api/WorkspaceAPI';
+import { gitStateManager } from '@/tools/git/state';
 import {
   buildExternalFileContexts,
   partitionExternalDropFiles,
@@ -606,7 +606,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   composerActiveRef.current = isSceneActive;
   const contexts = useContextStore(state => state.contexts);
   const addContext = useContextStore(state => state.addContext);
-  const updateValidation = useContextStore(state => state.updateValidation);
   const removeContext = useContextStore(state => state.removeContext);
   const clearContexts = useContextStore(state => state.clearContexts);
   const replaceContexts = useContextStore(state => state.replaceContexts);
@@ -4791,6 +4790,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     request: ExternalFileIntakeRequest,
     source: ExternalFileSource,
     paths: string[],
+    preResolvedMetadata?: Map<string, FileMetadata>,
   ) => {
     if (!request.availability.supported) {
       notificationService.warning(
@@ -4815,7 +4815,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       existingContexts: contextStore.getState().contexts,
       workspacePath: sessionBoundWorkspacePath || undefined,
       maxImageCount: CHAT_INPUT_CONFIG.image.maxCount,
-      loadMetadata: pathToInspect => workspaceAPI.getFileMetadata(pathToInspect),
+      loadMetadata: preResolvedMetadata
+        ? (path: string) => {
+            const meta = preResolvedMetadata.get(path);
+            if (meta) return Promise.resolve(meta);
+            return workspaceAPI.getFileMetadata(path);
+          }
+        : (path: string) => workspaceAPI.getFileMetadata(path),
     });
     if (!isExternalFileIntakeRequestCurrent(request)) return;
 
@@ -4849,11 +4855,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const intakeExternalPaths = useCallback((
     source: ExternalFileSource,
     paths: string[],
+    preResolvedMetadata?: Map<string, FileMetadata>,
   ) => {
     const request = captureExternalFileIntakeRequest();
     return enqueueExternalFileIntake(
       request,
-      () => addExternalPaths(request, source, paths),
+      () => addExternalPaths(request, source, paths, preResolvedMetadata),
     );
   }, [addExternalPaths, captureExternalFileIntakeRequest, enqueueExternalFileIntake]);
 
@@ -4995,49 +5002,33 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     targetRef: nativeDropZoneRef,
     enabled: isSceneActive && !caps.transferInFlight && !isInterruptedTurnRecoveryInFlight,
     onDragOver: setIsNativeDragOverInput,
-    onDrop: async (paths) => {
+    onDrop: async (paths, metadata) => {
       if (paths.length === 0) return;
-      const targetsRemoteWorkspace = workspace?.workspaceKind === WorkspaceKind.Remote
-        || Boolean(effectiveTargetSession?.remoteConnectionId || effectiveTargetSession?.config.remoteConnectionId);
-      if (targetsRemoteWorkspace) {
-        notificationService.warning(t('input.nativeDropRemoteUnsupported'), { duration: 4000 });
-        return;
-      }
-      const contexts = await resolveNativeDroppedPaths(
-        paths,
-        (filePath) => workspaceAPI.getFileMetadata(filePath),
-        (filePath, error) => log.warn('Failed to inspect native dropped path', { filePath, error }),
-      );
-      if (contexts.length === 0) {
-        notificationService.warning(t('input.nativeDropFailed'), { duration: 4000 });
-        return;
-      }
-      let remainingImages = CHAT_INPUT_CONFIG.image.maxCount - currentImageCount;
-      let imageLimitNotified = false;
-      for (const context of contexts) {
-        if (context.type === 'image') {
-          if (remainingImages <= 0) {
-            if (!imageLimitNotified) {
-              notificationService.warning(t('input.maxImagesWarning', { count: CHAT_INPUT_CONFIG.image.maxCount }), {
-                duration: 3000,
-              });
-              imageLimitNotified = true;
-            }
-            continue;
-          }
-          remainingImages -= 1;
+      gitStateManager.pauseForDrop(3000);
+      if (metadata && metadata.length === paths.length) {
+        const metaMap = new Map<string, FileMetadata>();
+        for (let i = 0; i < paths.length; i++) {
+          metaMap.set(paths[i], {
+            path: paths[i],
+            modified: 0,
+            size: metadata[i].size,
+            isFile: metadata[i].isFile,
+            isDir: metadata[i].isDir,
+          });
         }
-        addContext(context);
-        updateValidation(context.id, { valid: true });
+        intakeExternalPaths('drop', paths, metaMap);
+      } else {
+        intakeExternalPaths('drop', paths);
       }
     },
   });
 
   useEffect(() => {
     onFileDragOverChange?.(isSceneActive && !caps.transferInFlight
-      && !isInterruptedTurnRecoveryInFlight && (nativeFileDragOver || contextFileDragOver));
+      && !isInterruptedTurnRecoveryInFlight
+      && (nativeFileDragOver || contextFileDragOver || isNativeDragOverInput));
   }, [onFileDragOverChange, isSceneActive, caps.transferInFlight,
-    isInterruptedTurnRecoveryInFlight, nativeFileDragOver, contextFileDragOver]);
+    isInterruptedTurnRecoveryInFlight, nativeFileDragOver, contextFileDragOver, isNativeDragOverInput]);
 
   useEffect(() => () => onFileDragOverChange?.(false), [onFileDragOverChange]);
 
@@ -6140,7 +6131,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         className={`bitfun-chat-input-drop-zone${presentation === 'conversation' ? ' bitfun-chat-input-drop-zone--conversation' : ''}${isNativeDragOverInput ? ' bitfun-context-drop-zone--can-accept' : ''}`}
         disabled={!isSceneActive || caps.transferInFlight || isInterruptedTurnRecoveryInFlight}
         rootRef={nativeDropZoneRef}
-        resolveExternalFiles={async (files) => {
+        resolveExternalFiles={!isOpenHarmonyRuntime() ? (async (files) => {
           const items: ContextItem[] = [];
           const toFileContext = (file: File, filePath: string): FileContext => ({
             id: `file-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
@@ -6167,7 +6158,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             items.push(toFileContext(file, filePath));
           }
           return items;
-        }}
+        }) : undefined}
         onExternalFilesDrop={
           isWindowsDesktopRuntime() && !caps.transferInFlight
             ? files => { void handleHtmlExternalFilesDrop(files); }

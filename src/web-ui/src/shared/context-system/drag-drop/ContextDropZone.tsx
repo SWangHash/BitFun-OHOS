@@ -145,9 +145,9 @@ export const ContextDropZone: React.FC<ContextDropZoneProps> = ({
   
    
   const handleDragEnter = useCallback((e: DropEvent) => {
-    if (!e.dataTransfer) return;
     e.preventDefault();
     e.stopPropagation();
+    if (!e.dataTransfer) return;
 
     dragCounterRef.current++;
     
@@ -172,9 +172,9 @@ export const ContextDropZone: React.FC<ContextDropZoneProps> = ({
   }, [disabled]);
   
   const handleDragOver = useCallback((e: DropEvent) => {
-    if (!e.dataTransfer) return;
     e.preventDefault();
     e.stopPropagation();
+    if (!e.dataTransfer) return;
 
     const hasExternalFiles = Array.from(e.dataTransfer.types).includes('Files');
     const hasResolver = Boolean(resolveExternalFilesRef.current || onExternalFilesDropRef.current);
@@ -211,15 +211,17 @@ export const ContextDropZone: React.FC<ContextDropZoneProps> = ({
   }, []);
   
   const handleDrop = useCallback(async (e: DropEvent) => {
-    if (!e.dataTransfer) return;
     e.preventDefault();
     e.stopPropagation();
+    if (!e.dataTransfer) return;
     
     dragCounterRef.current = 0;
     setIsDragOver(false);
     setCanAccept(false);
 
     const hasExternalFiles = Array.from(e.dataTransfer.types).includes('Files');
+
+    log.debug('handleDrop: preventDefault called', { hasDataTransfer: Boolean(e.dataTransfer), hasExternalFiles });
 
     // Try the new async resolver first
     if (hasExternalFiles && resolveExternalFilesRef.current && !disabled) {

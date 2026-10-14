@@ -39,6 +39,7 @@ import { sendDebugProbe } from '@/shared/utils/debugProbe';
 import { startupTrace } from '@/shared/utils/startupTrace';
 import { elapsedMs, nowMs } from '@/shared/utils/timing';
 import { i18nService } from '@/infrastructure/i18n';
+import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
 
 const log = createLogger('GitStateManager');
 
@@ -60,8 +61,13 @@ interface SubscriberEntry {
  * plus repo name), so it is cheap even at 2 s cadence. Heavy `status` and
  * `detailed` layers keep their longer TTLs and are only refreshed on demand
  * or by user-driven events.
+ *
+ * On OpenHarmony the ArkWeb custom protocol cannot handle concurrent fetches
+ * reliably — a 2 s cadence causes occasional `scheme_handler resource
+ * canceled` errors that kill the renderer. Polling is slowed to 10 s there;
+ * manual refresh (button, session switch, git operation) is unaffected.
  */
-const POLL_INTERVAL_MS = 2000;
+const POLL_INTERVAL_MS = isOpenHarmonyRuntime() ? 10000 : 2000;
 
 interface PendingRefresh {
   layers: Set<GitStateLayer>;
@@ -91,6 +97,8 @@ export class GitStateManager {
   private globalListenerCleanups: Array<() => void> = [];
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private pollVisibilityCleanup: (() => void) | null = null;
+  private dropPauseActive: boolean = false;
+  private dropPauseTimer: ReturnType<typeof setTimeout> | null = null;
 
   private constructor() {
     this.setupGlobalListeners();
@@ -892,6 +900,7 @@ export class GitStateManager {
   }
 
   private handleWindowFocus = (): void => {
+    if (this.dropPauseActive) return;
     if (isPeerDeviceModeActive()) {
       sendDebugProbe('GitStateManager.ts:handleWindowFocus', 'Git window focus refresh skipped in peer mode', {
         participatingRepositoryCount: this.windowFocusRefreshCounts.size,
@@ -1054,7 +1063,34 @@ export class GitStateManager {
     }
   }
 
+  /**
+   * Temporarily pause polling and window-focus refresh to give drag-drop IPC
+   * fetches exclusive access to the ArkWeb custom protocol on OHOS. Polling
+   * resumes automatically after the timeout.
+   */
+  pauseForDrop(durationMs: number = 3000): void {
+    this.stopPollingTimerOnly();
+    this.dropPauseActive = true;
+    if (this.dropPauseTimer) {
+      clearTimeout(this.dropPauseTimer);
+    }
+    this.dropPauseTimer = setTimeout(() => {
+      this.resumeFromDrop();
+    }, durationMs);
+  }
+
+  resumeFromDrop(): void {
+    if (!this.dropPauseActive) return;
+    this.dropPauseActive = false;
+    if (this.dropPauseTimer) {
+      clearTimeout(this.dropPauseTimer);
+      this.dropPauseTimer = null;
+    }
+    this.startPollingTimer();
+  }
+
   private pollTick(): void {
+    if (this.dropPauseActive) return;
     if (isPeerDeviceModeActive()) {
       // In peer-device mode the controller is not the execution host; rely
       // on the transport's state sync instead of issuing local git calls.

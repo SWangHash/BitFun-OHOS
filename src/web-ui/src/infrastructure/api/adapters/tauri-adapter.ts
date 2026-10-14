@@ -8,8 +8,26 @@ import { getActiveSurfaceDeviceId, isSurfaceScopedEvent, routeSurfaceEvent } fro
 import { getActiveSurfaceScope, surfaceIdForDevice } from '@/infrastructure/peer-device/deviceSurface';
 import { markRuntimeSessionProjectionStale, routeRuntimeSessionEvent } from '@/infrastructure/peer-device/runtimeSessionEventGate';
 import { sanitizeErrorForLog } from '../logSanitizer';
+import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
 
 const log = createLogger('TauriAdapter');
+
+// OHOS's ArkWeb custom protocol cannot handle concurrent fetches — two
+// simultaneous invoke or listen fetches cause "Failed to fetch", after which
+// Tauri permanently switches to postMessage (unsupported on OHOS), white-
+// screening the app. Serialize all custom-protocol fetches through a single
+// promise chain so no two ever execute concurrently. Windows/Linux are
+// unaffected (full concurrency via WebView2).
+let ohosFetchChain: Promise<unknown> = Promise.resolve();
+
+function withOhosFetchLock<T>(fn: () => Promise<T>): Promise<T> {
+  if (!isOpenHarmonyRuntime()) {
+    return fn();
+  }
+  const result = ohosFetchChain.then(fn, fn);
+  ohosFetchChain = result.catch(() => undefined);
+  return result as Promise<T>;
+}
 
 interface SharedTauriEventListener {
   subscriptions: Set<TauriEventSubscription>;
@@ -56,7 +74,7 @@ function registerSharedTauriEventListener(
   event: string,
   shared: SharedTauriEventListener,
 ): Promise<void> {
-  const registration = listen<unknown>(event, (e) => {
+  const registration = withOhosFetchLock(() => listen<unknown>(event, (e) => {
     if (shared.closed) {
       return;
     }
@@ -104,7 +122,7 @@ function registerSharedTauriEventListener(
         }
       },
     );
-  }).then(fn => {
+  })).then(fn => {
     if (shared.closed || sharedTauriEventListeners.get(event) !== shared) {
       fn();
     } else {
@@ -212,9 +230,11 @@ export class TauriTransportAdapter implements ITransportAdapter {
       }
       const invokeStartedAt = nowMs();
       try {
-        const result = params !== undefined
-          ? await this.invokeFn(action, params)
-          : await this.invokeFn(action);
+        const result = await withOhosFetchLock(() =>
+          params !== undefined
+            ? this.invokeFn!(action, params)
+            : this.invokeFn!(action),
+        );
         if (timing) {
           timing.invokeDurationMs = elapsedMs(invokeStartedAt);
           timing.transportDurationMs = elapsedMs(transportStartedAt);
