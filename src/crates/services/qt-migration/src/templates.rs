@@ -233,14 +233,27 @@ pub fn qt_migration_intake_questions(
     // Only the toolchain has an official generation to compare against; the
     // template's download option keeps its own rule.
     let official_toolchain_download_allowed = context.official_toolchain_is_offerable();
-    // With the download hidden for a Qt6-only project list, the toolchain field is
-    // just the free-text input; tell the user to install the Qt6 toolchain with
-    // the Qt installer first, since BitFun cannot provision it. The guide only
-    // covers Windows and macOS hosts, so other hosts (HarmonyOS) get no notice.
+    let toolchain_options = candidate_options(
+        candidates,
+        "toolchain",
+        context.managed_toolchain_available,
+        official_toolchain_download_allowed,
+        &toolchain_versions,
+    );
+    // The listed source projects are all Qt6 and the scan found no toolchain path
+    // to recommend for them, so the field cannot be answered with a candidate.
+    // BitFun cannot provision a Qt6 toolchain: tell the user to install it with
+    // the Qt installer first. A scanned Qt6 kit, or any Qt5 project (served by a
+    // Qt5 kit or the official download), needs no notice. The guide only covers
+    // Windows and macOS hosts, so other hosts (HarmonyOS) get no notice.
     let qt6_toolchain_must_be_installed_manually = QT6_TOOLCHAIN_GUIDE_HOST_SUPPORTED
-        && !official_toolchain_download_allowed
         && !project_versions.is_empty()
-        && project_versions.iter().all(|(_, qt_major)| *qt_major == 6);
+        && project_versions.iter().all(|(_, qt_major)| *qt_major == 6)
+        && !toolchain_options.iter().any(|option| {
+            // A candidate path recommends a toolchain unless it is measured as
+            // another generation.
+            !option.path.is_empty() && !matches!(option.version, Some(qt_major) if qt_major != 6)
+        });
     let (toolchain_notice, toolchain_notice_url) = if qt6_toolchain_must_be_installed_manually {
         (
             Some(QT_MIGRATION_QT6_TOOLCHAIN_NOTICE_KEY.to_string()),
@@ -285,13 +298,7 @@ pub fn qt_migration_intake_questions(
             prompt: "askUser.qtMigration.question.toolchain".to_string(),
             placeholder: Some("askUser.qtMigration.placeholder.toolchain".to_string()),
             required: true,
-            options: candidate_options(
-                candidates,
-                "toolchain",
-                context.managed_toolchain_available,
-                official_toolchain_download_allowed,
-                &toolchain_versions,
-            ),
+            options: toolchain_options,
             notice: toolchain_notice,
             notice_url: toolchain_notice_url,
         },
@@ -598,8 +605,8 @@ mod tests {
 
     #[test]
     fn qt6_only_projects_ask_the_user_to_install_the_toolchain_first() {
-        // Qt6 工程没有官方下载项，工具链问题只剩输入框：此时必须提示用户
-        // 先按官方文档用 Qt installer 自行安装 Qt6 工具链。
+        // 原始工程全为 Qt6 且扫描不到可推荐的工具链路径（只剩输入框）时，
+        // 提示用户先按官方文档用 Qt installer 自行安装 Qt6 工具链。
         let candidates = HashMap::from([(
             "source_project".to_string(),
             vec!["D:/proj/qt6-app".to_string()],
@@ -648,6 +655,39 @@ mod tests {
         assert!(qt5[2].notice.is_none() && qt5[2].notice_url.is_none());
         let unknown = resolve_with(Vec::new(), None);
         assert!(unknown[2].notice.is_none());
+        // Qt5、Qt6 工程混合时，工具链不必只靠 Qt6，不提示。
+        let mixed = resolve_with(
+            vec![
+                ("D:/proj/qt6-app".to_string(), 6),
+                ("D:/proj/qt5-app".to_string(), 5),
+            ],
+            Some(true),
+        );
+        assert!(mixed[2].notice.is_none());
+
+        // 扫描到了 Qt6 工具链（能给出推荐路径）时不提示。
+        let with_qt6_kit = HashMap::from([
+            (
+                "source_project".to_string(),
+                vec!["D:/proj/qt6-app".to_string()],
+            ),
+            ("toolchain".to_string(), vec!["D:/ohos/qt6-kit".to_string()]),
+        ]);
+        let scanned = resolve_question_template_with_context(
+            QT_MIGRATION_PATHS_TEMPLATE_ID,
+            &with_qt6_kit,
+            QtMigrationQuestionContext {
+                toolchain_versions: vec![("D:/ohos/qt6-kit".to_string(), 6)],
+                project_versions: vec![("D:/proj/qt6-app".to_string(), 6)],
+                official_toolchain_serves_project_generation: Some(false),
+                ..QtMigrationQuestionContext::default()
+            },
+        )
+        .expect("known template must resolve")
+        .qt_migration_questions
+        .expect("the Qt template ships its own question shape");
+        assert_eq!(scanned[2].options[0].path, "D:/ohos/qt6-kit");
+        assert!(scanned[2].notice.is_none() && scanned[2].notice_url.is_none());
 
         // 线上形状：字段为 camelCase 的 noticeUrl，旧载荷缺字段时可反序列化。
         let encoded = serde_json::to_value(toolchain).expect("serialize");
