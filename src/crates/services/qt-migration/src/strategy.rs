@@ -10,7 +10,9 @@ use crate::detect::{
 };
 use crate::scan::{QtScanCandidate, MAX_TOOLCHAINS};
 use crate::state::{
-    qt_migration_is_skill_managed_value, QtMigrationIntakeStateSnapshot, QtMigrationVersionStrategy,
+    qt_migration_is_skill_managed_value, qt_migration_set_version_strategy,
+    QtMigrationFieldResolutionState, QtMigrationIntakeFieldState, QtMigrationIntakeStateSnapshot,
+    QtMigrationVersionStrategy,
 };
 use crate::templates::QT_MIGRATION_PATHS_TEMPLATE_ID;
 
@@ -135,6 +137,64 @@ pub fn read_version_strategy_answer(
         }
     }
     decided
+}
+
+/// Qt kit typed into a strategy question's free-text answer; a file path resolves
+/// to its directory.
+pub fn read_replacement_toolchain_answer(answers: &serde_json::Value) -> Option<String> {
+    let answers = answers.as_object()?;
+    for value in answers.values() {
+        let tokens: Vec<&str> = match value {
+            serde_json::Value::String(token) => vec![token.as_str()],
+            serde_json::Value::Array(items) => {
+                items.iter().filter_map(|item| item.as_str()).collect()
+            }
+            _ => continue,
+        };
+        for token in tokens {
+            let token = token.trim();
+            if token.is_empty()
+                || token == QT_MIGRATION_STRATEGY_ABORT_VALUE
+                || token == QT_MIGRATION_STRATEGY_PROCEED_VALUE
+            {
+                continue;
+            }
+            let path = Path::new(token);
+            let dir = if path.is_file() {
+                match path.parent() {
+                    Some(parent) => parent,
+                    None => continue,
+                }
+            } else {
+                path
+            };
+            if detect_qt_major(resolve_kit_root(dir)).is_some() {
+                return Some(dir.to_string_lossy().into_owned());
+            }
+        }
+    }
+    None
+}
+
+/// Bind `toolchain` and re-measure the generation mismatch.
+pub fn rebind_strategy_toolchain(
+    snapshot: &QtMigrationIntakeStateSnapshot,
+    toolchain: &str,
+    official_qt_major: Option<u8>,
+) -> QtMigrationIntakeStateSnapshot {
+    let mut next = snapshot.clone();
+    next.fields.insert(
+        "toolchain".to_string(),
+        QtMigrationIntakeFieldState {
+            state: QtMigrationFieldResolutionState::Resolved,
+            value: Some(toolchain.to_string()),
+        },
+    );
+    let strategy = match measure_bound_generation_mismatch(&next, official_qt_major) {
+        Some((project, toolchain)) => QtMigrationVersionStrategy::Pending { project, toolchain },
+        None => QtMigrationVersionStrategy::NotNeeded,
+    };
+    qt_migration_set_version_strategy(&next, strategy)
 }
 
 /// The measured `(project, toolchain)` generations of the bound intake values, when

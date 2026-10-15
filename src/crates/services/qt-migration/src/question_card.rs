@@ -23,8 +23,8 @@ use crate::state::{
 #[cfg(feature = "qt-toolchain")]
 use crate::strategy::official_toolchain_serves_a_project;
 use crate::strategy::{
-    pending_generation_mismatch, version_strategy_follow_up, QtMigrationGenerationMismatch,
-    QtMigrationStrategyFollowUp, QT_MIGRATION_STRATEGY_ABORT_VALUE,
+    pending_generation_mismatch, read_replacement_toolchain_answer, version_strategy_follow_up,
+    QtMigrationGenerationMismatch, QtMigrationStrategyFollowUp, QT_MIGRATION_STRATEGY_ABORT_VALUE,
     QT_MIGRATION_STRATEGY_PROCEED_VALUE,
 };
 use crate::templates::{
@@ -152,6 +152,11 @@ impl QtMigrationQuestionCard {
             };
         }
 
+        // The re-ask wording below would still describe the replaced toolchain.
+        if let Some(replaced) = Self::replaced_toolchain_fact(answers, snapshot) {
+            return Some(replaced);
+        }
+
         // Only a session that measured a generation mismatch has anything to say about a
         // plain question; any other question gets no Qt-specific note.
         let follow_up = version_strategy_follow_up(snapshot, answers)?;
@@ -213,6 +218,32 @@ impl QtMigrationQuestionCard {
                     | QtMigrationVersionStrategy::Pending { .. } => return None,
                 };
                 Some(format!("## 迁移策略已确认（系统事实，必须遵守）\n\n{body}"))
+            }
+        }
+    }
+
+    fn replaced_toolchain_fact(
+        answers: &Value,
+        snapshot: &QtMigrationIntakeStateSnapshot,
+    ) -> Option<String> {
+        let replaced = read_replacement_toolchain_answer(answers)?;
+        let bound = snapshot.fields.get("toolchain")?.value.as_deref()?;
+        if bound != replaced {
+            return None;
+        }
+        let header = format!(
+            "## 工具链已替换（系统事实，必须使用）\n\n\
+             用户在迁移策略提问中指定了新的工具链 `{replaced}`，运行时已把它绑定为本次迁移的 toolchain，\
+             替换掉之前选择的工具链。后续所有迁移动作都必须使用这个路径。"
+        );
+        match pending_generation_mismatch(snapshot) {
+            None => Some(format!(
+                "{header}\n\n新工具链与原始工程的 Qt 版本一致，迁移策略问题已经解除：\
+                 不要再询问迁移策略，也不要再次调用 {QT_MIGRATION_PATHS_TEMPLATE_ID}，直接继续迁移流程。"
+            )),
+            Some(mismatch) => {
+                let instruction = mismatch.strategy_instruction()?;
+                Some(format!("{header}\n\n{instruction}"))
             }
         }
     }

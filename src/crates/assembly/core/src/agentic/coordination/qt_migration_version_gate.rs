@@ -9,7 +9,8 @@ use log::info;
 
 use crate::agentic::session::SessionManager;
 use bitfun_qt_migration::strategy::{
-    measure_bound_generation_mismatch, pending_generation_mismatch, read_version_strategy_answer,
+    measure_bound_generation_mismatch, pending_generation_mismatch,
+    read_replacement_toolchain_answer, read_version_strategy_answer, rebind_strategy_toolchain,
     QtMigrationGenerationMismatch, QtMigrationStrategyAnswer,
 };
 
@@ -59,17 +60,33 @@ pub(crate) async fn record_version_mismatch_if_any(
     ))
 }
 
-/// Apply a submitted version-strategy answer to the session intake snapshot.
+/// Apply a submitted version-strategy answer to the session intake snapshot. A Qt
+/// kit typed as free text replaces the bound toolchain.
 pub(crate) async fn apply_version_strategy_answer(
     session_manager: &SessionManager,
     session_id: &str,
     answers: &serde_json::Value,
 ) -> Option<QtMigrationVersionStrategy> {
-    let answer = read_version_strategy_answer(answers)?;
     let snapshot = intake_snapshot_from_slot_value(
         session_manager.domain_state_get(session_id, &QT_MIGRATION_SLOT_INTAKE_STATE),
     );
     let mismatch = pending_generation_mismatch(&snapshot)?;
+    let Some(answer) = read_version_strategy_answer(answers) else {
+        let toolchain = read_replacement_toolchain_answer(answers)?;
+        let updated = rebind_strategy_toolchain(&snapshot, &toolchain, official_qt_major());
+        session_manager
+            .domain_state_set(
+                session_id,
+                &QT_MIGRATION_SLOT_INTAKE_STATE,
+                intake_snapshot_to_slot_value(&updated),
+            )
+            .await;
+        info!(
+            "Qt migration toolchain replaced from the version strategy answer: session_id={}, strategy={:?}",
+            session_id, updated.version_strategy
+        );
+        return Some(updated.version_strategy);
+    };
     let (project, toolchain) = mismatch.measured_generations()?;
 
     let strategy = match answer {

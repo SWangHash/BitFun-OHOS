@@ -1394,6 +1394,61 @@ fn bound_intake_snapshot(
     snapshot.version_strategy = strategy;
     snapshot
 }
+
+#[test]
+fn a_toolchain_typed_into_the_strategy_question_replaces_the_bound_one() {
+    use serde_json::json;
+
+    let (_t, root) = tree();
+    let project = mkdir(&root, "qt6-app");
+    create_version_fixture(
+        &project,
+        "find_package(Qt6 COMPONENTS Widgets REQUIRED)",
+        "QAnyStringView view;\n",
+    );
+    let qt5_bin = create_qt5_ohos_kit(&mkdir(&root, "Qt5.15.2"));
+    let qt6_bin = create_qt6_ohos_kit(&mkdir(&root, "Qt6.12.0"));
+    let pending = bound_intake_snapshot(
+        &project.to_string_lossy(),
+        &qt5_bin.to_string_lossy(),
+        QtMigrationVersionStrategy::Pending {
+            project: 6,
+            toolchain: 5,
+        },
+    );
+
+    assert_eq!(
+        read_replacement_toolchain_answer(&json!({ "0": QT_MIGRATION_STRATEGY_PROCEED_VALUE })),
+        None
+    );
+    assert_eq!(
+        read_replacement_toolchain_answer(&json!({ "0": "降级到 Qt5 迁移" })),
+        None
+    );
+
+    let qt6_bin_text = qt6_bin.to_string_lossy().into_owned();
+    for typed in [
+        qt6_bin_text.clone(),
+        qt6_bin.join("qmake").to_string_lossy().into_owned(),
+    ] {
+        assert_eq!(
+            read_replacement_toolchain_answer(&json!({ "0": typed })),
+            Some(qt6_bin_text.clone())
+        );
+    }
+
+    let matched = rebind_strategy_toolchain(&pending, &qt6_bin_text, None);
+    assert_eq!(
+        matched.fields["toolchain"].value.as_deref(),
+        Some(qt6_bin_text.as_str())
+    );
+    assert_eq!(
+        matched.version_strategy,
+        QtMigrationVersionStrategy::NotNeeded
+    );
+    assert_ne!(matched.status, QtMigrationIntakeStatus::Blocked);
+}
+
 #[test]
 fn a_generation_with_no_kit_is_left_unserved_without_substitution() {
     // 反向：盘上只有 Qt6 kit 时，Qt5 工程那一位留空，不得拿 Qt6 kit 冒充。默认位与
