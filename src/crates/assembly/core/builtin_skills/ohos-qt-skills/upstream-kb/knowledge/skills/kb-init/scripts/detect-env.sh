@@ -66,6 +66,28 @@ OS=$(detect_os)
 echo "OS=$OS"
 echo "ARCH=$(uname -m)"
 
+# BitFun 用户级 Qt 迁移资源目录。BitFun 启动的进程优先通过环境变量传入
+# 与 PathManager 完全一致的路径；独立运行脚本时使用平台默认值
+# （命名空间与 PathManager 一致，全小写 `bitfun`）。
+if [ -n "${BITFUN_QT_MIGRATION_ROOT:-}" ]; then
+  QT_MIGRATION_ROOT="$BITFUN_QT_MIGRATION_ROOT"
+elif [ "$OS" = "windows" ]; then
+  CONFIG_ROOT="${BITFUN_USER_ROOT:-${APPDATA:-${HOME:-}/AppData/Roaming}/bitfun}"
+  QT_MIGRATION_ROOT="$CONFIG_ROOT/data/qt-migration"
+elif [ "$OS" = "macos" ]; then
+  CONFIG_ROOT="${BITFUN_USER_ROOT:-${HOME}/Library/Application Support/bitfun}"
+  QT_MIGRATION_ROOT="$CONFIG_ROOT/data/qt-migration"
+elif [ "$OS" = "harmonyos" ]; then
+  QT_MIGRATION_ROOT="${BITFUN_USER_ROOT:-/data/storage/el2/base/files/bitfun}/data/qt-migration"
+else
+  DATA_ROOT="${XDG_DATA_HOME:-${HOME}/.local/share}"
+  CONFIG_ROOT="${BITFUN_USER_ROOT:-$DATA_ROOT/bitfun}"
+  QT_MIGRATION_ROOT="$CONFIG_ROOT/data/qt-migration"
+fi
+echo "QT_MIGRATION_ROOT=$QT_MIGRATION_ROOT"
+echo "QT_MIGRATION_TOOLCHAINS_DIR=$QT_MIGRATION_ROOT/toolchains"
+echo "QT_MIGRATION_TEMPLATES_DIR=$QT_MIGRATION_ROOT/templates"
+
 # ═══════════════════════════════════════════════════════════
 # 2. DevEco Studio + HarmonyOS SDK + DevEco CLI
 # ═══════════════════════════════════════════════════════════
@@ -285,6 +307,14 @@ if [ "$KB_FOUND" = "true" ]; then
   done
 fi
 
+# BitFun 用户级共享工具链优先于旧 workspace 位置。
+for d in "$QT_MIGRATION_ROOT"/toolchains/qt5.12*/* "$QT_MIGRATION_ROOT"/toolchains/qt5.12*; do
+  [ -d "$d" ] && { QT5_12_SDK_FOUND="true"; QT5_12_OHOS_SDK_PATH="$d"; break; }
+done
+for d in "$QT_MIGRATION_ROOT"/toolchains/qt5.15*/* "$QT_MIGRATION_ROOT"/toolchains/qt5.15*; do
+  [ -d "$d" ] && { QT5_15_SDK_FOUND="true"; QT5_15_OHOS_SDK_PATH="$d"; break; }
+done
+
 echo "QT5_12_SRC_FOUND=$QT5_12_SRC_FOUND"
 echo "QT5_12_SRC_PATH=$QT5_12_SRC_PATH"
 echo "QT5_15_SRC_FOUND=$QT5_15_SRC_FOUND"
@@ -295,17 +325,18 @@ echo "QT5_15_SDK_FOUND=$QT5_15_SDK_FOUND"
 echo "QT5_15_OHOS_SDK_PATH=$QT5_15_OHOS_SDK_PATH"
 
 # ═══════════════════════════════════════════════════════════
-# 5b. 独立模板归档检测（workspace/templates/）
+# 5b. 独立模板归档检测（BitFun 用户级共享资源目录）
 # ═══════════════════════════════════════════════════════════
 TEMPLATE_STANDALONE_FOUND="false"
 TEMPLATE_STANDALONE_PATH=""
-if [ "$KB_FOUND" = "true" ]; then
-  _tpl="$KB_ROOT/workspace/templates"
-  if [ -d "$_tpl/entry" ] && [ -f "$_tpl/build-profile.json5" ]; then
+_tpl="$QT_MIGRATION_ROOT/templates"
+for candidate in "$_tpl"/*/* "$_tpl"/*; do
+  if [ -d "$candidate/entry" ] && [ -f "$candidate/build-profile.json5" ]; then
     TEMPLATE_STANDALONE_FOUND="true"
-    TEMPLATE_STANDALONE_PATH="$_tpl"
+    TEMPLATE_STANDALONE_PATH="$candidate"
+    break
   fi
-fi
+done
 echo "TEMPLATE_STANDALONE_FOUND=$TEMPLATE_STANDALONE_FOUND"
 echo "TEMPLATE_STANDALONE_PATH=$TEMPLATE_STANDALONE_PATH"
 

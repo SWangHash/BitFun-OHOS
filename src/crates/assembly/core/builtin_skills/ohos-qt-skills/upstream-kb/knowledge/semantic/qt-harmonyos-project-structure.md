@@ -62,16 +62,16 @@ templates/
 **归档名称**：`templates-0625.zip`
 
 ```bash
-# 使用 kb-init 脚本自动下载
-bash skills/kb-init/scripts/download-template.sh --dest=workspace/templates
+# 使用 kb-init 脚本自动下载到 BitFun 用户级共享资源目录
+bash <skill>/scripts/bitfun-download-template.sh
 
-# 或手动下载后解压
+# 或手动下载后解压到 BitFun 共享模板目录
 curl -fSL -o /tmp/templates-0625.zip "<下载链接>"
-unzip /tmp/templates-0625.zip -d workspace/templates/
+unzip /tmp/templates-0625.zip -d "$BITFUN_QT_MIGRATION_ROOT/templates/qt5.12.12/templates-0625"
 ```
 
 解压后目录结构与源码内置模板一致（`AppScope/`、`entry/`、`build-profile.json5` 等）。
-`ENV.local.md` 中 `OHOS_TEMPLATE_SRC` 应指向 `workspace/templates`。
+`ENV.local.md` 中 `OHOS_TEMPLATE_SRC` 应使用脚本输出的路径（BitFun 共享模板目录 `$BITFUN_QT_MIGRATION_ROOT/templates`）。
 
 ### 2.3 旧方式（已退役）：从 Gerrit 下载 ZIP
 

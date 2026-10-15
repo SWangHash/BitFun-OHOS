@@ -50,14 +50,14 @@
 
 | 变量名 | 含义 | 示例值 |
 |--------|------|--------|
-| `OHOS_TEMPLATE_SRC` | Qt 鸿蒙胶水模板路径 | 有源码: `/Users/you/dev/qt-src/qt5.12/qtbase/src/harmonyos/templates`<br>无源码: `workspace/templates` |
-| `OHOS_TEMPLATE_STANDALONE` | 独立模板归档路径（无 Qt 源码时使用，文档概念，不写入 ENV.local.md） | `workspace/templates`（从 GitCode releases 下载 `templates-0625.zip`） |
+| `OHOS_TEMPLATE_SRC` | Qt 鸿蒙胶水模板路径 | 有源码: `/Users/you/dev/qt-src/qt5.12/qtbase/src/harmonyos/templates`<br>无源码: BitFun 用户级 `data/qt-migration/templates/<Qt版本>/<模板版本>` |
+| `OHOS_TEMPLATE_STANDALONE` | 独立模板归档路径（无 Qt 源码时使用，文档概念，不写入 ENV.local.md） | BitFun 用户级 `data/qt-migration/templates/<Qt版本>/<模板版本>` |
 
 **有 Qt 源码时**：模板内置在源码树中，`generate-env-local.sh` 自动从 `QT5_15_SRC` 或 `QT5_12_SRC` 计算。
 
-**无 Qt 源码时（仅预编译 SDK 或鸿蒙 PC）**：从 GitCode releases 页面下载独立模板归档 `templates-0625.zip`，解压到 `workspace/templates/`，手动指定 `OHOS_TEMPLATE_SRC`。
+**无 Qt 源码时（仅预编译 SDK 或鸿蒙 PC）**：运行 `<skill>/scripts/bitfun-download-template.sh` 下载独立模板归档 `templates-0625.zip`。脚本默认安装到 BitFun 用户级共享资源目录（`$BITFUN_QT_MIGRATION_ROOT/templates`，也是迁移输入扫描读取的位置）并输出 `OHOS_TEMPLATE_SRC`；只有用户明确要求自定义位置时才传 `--dest`。
 - 下载地址: https://gitcode.com/ohos-qt/qt-harmonyos-src/releases
-- 自动下载: `bash skills/kb-init/scripts/download-template.sh --dest=workspace/templates`
+- 自动下载: `bash <skill>/scripts/bitfun-download-template.sh`
 
 ## 构建工具链（仅 Windows 编译 Qt 框架时需要）
 

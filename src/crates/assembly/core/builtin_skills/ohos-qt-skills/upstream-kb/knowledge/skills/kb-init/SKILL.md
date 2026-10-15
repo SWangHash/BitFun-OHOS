@@ -171,6 +171,8 @@ git config --global user.email "用户的邮箱"
 
 Phase 1 完成后，Agent 已收集到所有必要信息。以下所有路径均基于知识库根目录（`KB_ROOT`）下的 `workspace/` 子目录。
 
+> BitFun 会话中例外：Qt 工具链与模板由 BitFun 供给，默认安装到 BitFun 用户级共享资源目录（`$BITFUN_QT_MIGRATION_ROOT` 下的 `toolchains/`、`templates/`），不写入 `workspace/`。供给脚本会输出实际安装路径；只有用户明确要求换位置时才传 `--dest`，其中模板必须用 BitFun 供给脚本 `<skill>/scripts/bitfun-download-template.sh`。
+
 ### Step 1: 环境检测
 
 ```bash
@@ -229,6 +231,8 @@ bash skills/kb-init/scripts/install-deps-harmonyos.sh
 ### Step 4: 获取 Qt 源码/SDK
 
 所有文件安装到 `KB_ROOT/workspace/` 下。
+
+> BitFun 会话中例外：预编译 SDK 与模板默认安装到 BitFun 用户级共享资源目录——SDK 用 `<skill>/scripts/bitfun-download-qt-sdk.sh --platform=<平台>`（不传 `--dest`），模板用 `<skill>/scripts/bitfun-download-template.sh`（不传 `--dest`）；源码仍使用 `--dest` 指定到用户选择的源码目录。
 
 **场景 A: commercial（需要源码 + 编译 SDK）**
 

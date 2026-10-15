@@ -299,6 +299,8 @@ mkdir -p "${PROJECTS_ROOT}/<app-name>-ohos"
 ```
 
 命名规范：格式 `<原始应用名>-ohos`（如 calculator-ohos），全部小写，空格替换为短横线。
+**同名冲突**：若目标目录已存在（同一工程的历次迁移产物），**禁止覆盖或复用旧目录**——为本次迁移追加序号区分：`<app-name>-ohos-2`、`<app-name>-ohos-3`（取最小可用序号），并在最终响应中告知用户新目录名。
+**`${PROJECTS_ROOT}` 取值**见 `ENV.md`「迁移输出根目录」；BitFun QtMigration 会话中 = 用户确认的 `output_project` 绑定值（输出容器）。模板与迁移产物只能写入 `<app-name>-ohos/` 子目录内，**禁止直接写入 `${PROJECTS_ROOT}` 根目录**——即使它是当前工作区根。
 
 #### 2.4 复制 Qt 源码内置胶水模板
 
@@ -315,11 +317,11 @@ cp -r <QT5_15_SRC>/qtbase/src/harmonyos/templates/. "${PROJECTS_ROOT}/<app-name>
 
 旧 Gerrit ZIP 模板方式已退役。
 
-**无 Qt 源码时**：从 GitCode releases 下载独立模板归档 `templates-0625.zip`：
+**无 Qt 源码时**：用 BitFun 供给脚本下载独立模板归档 `templates-0625.zip` 到 BitFun 共享模板目录（`$BITFUN_QT_MIGRATION_ROOT/templates`，也是迁移输入扫描读取的位置）：
 
 ```bash
-bash skills/kb-init/scripts/download-template.sh --dest=workspace/templates
-cp -r workspace/templates/. "${PROJECTS_ROOT}/<app-name>-ohos/"
+bash <skill>/scripts/bitfun-download-template.sh
+cp -r "${OHOS_TEMPLATE_SRC}/." "${PROJECTS_ROOT}/<app-name>-ohos/"
 ```
 
 下载地址：<https://gitcode.com/ohos-qt/qt-harmonyos-src/releases>
