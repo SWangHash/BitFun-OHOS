@@ -347,6 +347,40 @@ describe('codeReviewReport', () => {
     expect(() => formatCodeReviewReportMarkdown(normalized!)).not.toThrow();
   });
 
+  it('keeps usable legacy report content when optional fields contain invalid types', () => {
+    const raw = {
+      summary: { overall_assessment: 42, confidence_note: {}, risk_level: 'high', recommended_action: 'request_changes' },
+      issues: [{ title: 'A valid finding', description: 'Keep this evidence.' }],
+      review_mode: 'deep',
+      reviewers: [null, { name: 'Reviewer', specialty: 'security', status: 'partial_timeout', summary: 'Partial evidence', partial_output: 12, packet_id: 'reviewer:ReviewSecurity:group-1-of-2', covered_files: ['src/a.ts', null] }],
+      review_scope: {},
+      positive_points: ['A valid strength', null],
+      remediation_plan: ['A valid next step', 7],
+      reliability_signals: [null, { kind: 'context_pressure', detail: 9, count: 2 }],
+      extension: { retained: true },
+    };
+    const original = JSON.stringify(raw);
+    const report = normalizeCodeReviewReportData(raw)!;
+    expect(report.summary).toEqual({ risk_level: 'high', recommended_action: 'request_changes' });
+    expect(report.reviewers?.[0]).toMatchObject({ name: 'Reviewer', status: 'partial_timeout', covered_files: ['src/a.ts'] });
+    expect(() => buildCodeReviewReportSections(report)).not.toThrow();
+    expect(() => buildCodeReviewReliabilityNotices(report)).not.toThrow();
+    const legacyManifest = {
+      workPackets: [null, { packetId: 'reviewer:ReviewSecurity:group-1-of-2', subagentId: 'ReviewSecurity' }],
+      tokenBudget: null,
+      skippedReviewers: null,
+    } as unknown as ReviewTeamRunManifest;
+    expect(extractDeepReviewRetryableSlices(report, legacyManifest)).toEqual([]);
+    const markdown = formatCodeReviewReportMarkdown(report, undefined, { runManifest: legacyManifest });
+    expect(markdown).toContain('A valid finding');
+    expect(markdown).toContain('A valid strength');
+    expect(markdown).toContain('A valid next step');
+    expect((report as unknown as typeof raw).extension).toEqual({ retained: true });
+    expect(JSON.stringify(raw)).toBe(original);
+    expect(normalizeCodeReviewReportData({ summary: null, issues: [] })).toBeNull();
+    expect(normalizeCodeReviewReportData({ ...raw, reviewers: {} })?.reviewers).toBeUndefined();
+  });
+
   it('surfaces partial review output in coverage notes', () => {
     const sections = buildCodeReviewReportSections({
       summary: {

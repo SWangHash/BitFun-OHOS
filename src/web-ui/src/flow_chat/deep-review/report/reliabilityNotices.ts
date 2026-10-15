@@ -103,16 +103,18 @@ function countPartialReviewers(reviewers: CodeReviewReviewer[] = []): number {
 }
 
 function countSkippedReviewers(runManifest?: ReviewTeamRunManifest): number {
-  return runManifest?.skippedReviewers.length ?? 0;
+  return Array.isArray(runManifest?.skippedReviewers) ? runManifest.skippedReviewers.length : 0;
 }
 
 function countTokenBudgetLimitedReviewers(runManifest?: ReviewTeamRunManifest): number {
   if (!runManifest) {
     return 0;
   }
-  const skippedByBudget = new Set(runManifest.tokenBudget.skippedReviewerIds);
-  for (const reviewer of runManifest.skippedReviewers) {
-    if (reviewer.reason === 'budget_limited') {
+  const skippedIds = runManifest.tokenBudget?.skippedReviewerIds;
+  const skippedByBudget = new Set(Array.isArray(skippedIds) ? skippedIds : []);
+  const skippedReviewers = Array.isArray(runManifest.skippedReviewers) ? runManifest.skippedReviewers : [];
+  for (const reviewer of skippedReviewers) {
+    if (reviewer?.reason === 'budget_limited') {
       skippedByBudget.add(reviewer.subagentId);
     }
   }
@@ -219,9 +221,9 @@ export function buildCodeReviewReliabilityNotices(
 ): ReviewReliabilityNotice[] {
   const notices: ReviewReliabilityNotice[] = [];
   const structuredNotices = structuredReliabilityNoticeMap(report);
-  const hasContextPressure = runManifest
-    ? runManifest.tokenBudget.largeDiffSummaryFirst || runManifest.tokenBudget.warnings.length > 0
-    : false;
+  const budget = runManifest?.tokenBudget;
+  const hasContextPressure = budget?.largeDiffSummaryFirst === true ||
+    (Array.isArray(budget?.warnings) && budget.warnings.length > 0);
 
   const structuredContextPressure = structuredNotices.get('context_pressure');
   if (structuredContextPressure) {
@@ -230,7 +232,7 @@ export function buildCodeReviewReliabilityNotices(
     notices.push({
       kind: 'context_pressure',
       severity: 'info',
-      count: runManifest.tokenBudget.estimatedReviewerCalls,
+      count: budget?.estimatedReviewerCalls,
       source: 'manifest',
     });
   }

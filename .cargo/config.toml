@@ -8,3 +8,6 @@ TS_RS_EXPORT_DIR = { value = "src/web-ui/src/generated/api", relative = true }
 # Map i64/u64 to `number` (not `bigint`) so generated types match the existing
 # frontend convention (timestamps are `number` ms throughout the web UI).
 TS_RS_LARGE_INT = "number"
+
+[net]
+git-fetch-with-cli = true

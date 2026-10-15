@@ -1,3 +1,4 @@
+import errorsMessages from '@/locales/en-US/errors.json';
 import commonMessages from '@/locales/en-US/common.json';
 import componentsMessages from '@/locales/en-US/components.json';
 import flowChatMessages from '@/locales/en-US/flow-chat.json';
@@ -10,6 +11,7 @@ type TranslationKey = string | readonly string[];
 
 const resources: Record<string, unknown> = {
   common: commonMessages,
+  errors: errorsMessages,
   components: componentsMessages,
   'flow-chat': flowChatMessages,
 };

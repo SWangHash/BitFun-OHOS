@@ -1,3 +1,4 @@
+import { desktopDomainErrorMessage } from '@/shared/ai-errors/desktopDomainErrors';
 /** Account login and authenticated device connections. */
 
 import { OverflowText, Alert, Avatar, Button, Icon, IconButton, ScrollArea, StatusPill } from '@bitfun/ui';
@@ -575,7 +576,7 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
       <div data-bitfun-component="remote-account-panel" data-bitfun-part="root" data-bitfun-view={view} className="account-panel">
         {error && (
           <div className="account-panel__error-banner" data-bitfun-component="remote-account-panel" data-bitfun-part="error">
-            <Alert tone="error" message={error} closable onClose={() => setError(null)} />
+            <Alert tone="error" message={desktopDomainErrorMessage(error, t)} closable onClose={() => setError(null)} />
           </div>
         )}
 

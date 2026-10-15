@@ -1,3 +1,4 @@
+import { desktopDomainErrorMessage } from '@/shared/ai-errors/desktopDomainErrors';
 /**
  * Device surface switcher — the account's devices, one click apart.
  *
@@ -105,7 +106,7 @@ export const DeviceSurfaceSwitcher: React.FC = () => {
       }
     } catch (error) {
       if (latestSwitchRequestRef.current === requestId) {
-        warning(error instanceof Error ? error.message : String(error));
+        warning(desktopDomainErrorMessage(error instanceof Error ? error.message : String(error), t));
       }
     } finally {
       if (latestSwitchRequestRef.current === requestId) {
@@ -127,7 +128,7 @@ export const DeviceSurfaceSwitcher: React.FC = () => {
       await peerDevice.disconnectDevice(device.deviceId);
       success(t('accountLogin.deviceSwitcher.disconnected', { name: device.deviceName }));
     } catch (error) {
-      warning(error instanceof Error ? error.message : String(error));
+      warning(desktopDomainErrorMessage(error instanceof Error ? error.message : String(error), t));
     } finally {
       setSwitching(false);
     }

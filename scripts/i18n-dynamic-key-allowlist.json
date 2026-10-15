@@ -177,6 +177,21 @@
         "filters.",
         "categories."
       ]
+    },
+    {
+      "id": "web-desktop-domain-error-messages",
+      "surface": "web-ui",
+      "namespace": "errors",
+      "owner": "src/web-ui/src/shared/ai-errors/desktopDomainErrors.ts",
+      "description": "Complete source-message templates preserve specific ACP, Review, SSH and desktop Remote Connect failures and their parameters.",
+      "sourceReferences": [
+        "Object.entries(english.desktopDomains)",
+        "Object.entries(english.desktopDomainParameters)"
+      ],
+      "keyPrefixes": [
+        "desktopDomains.",
+        "desktopDomainParameters."
+      ]
     }
   ]
 }

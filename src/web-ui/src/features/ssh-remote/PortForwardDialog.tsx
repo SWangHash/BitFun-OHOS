@@ -1,3 +1,4 @@
+import { desktopDomainErrorMessage } from '@/shared/ai-errors/desktopDomainErrors';
 /**
  * Remote Port Forwarding Dialog
  *
@@ -271,7 +272,7 @@ export const PortForwardDialog: React.FC<PortForwardDialogProps> = ({
             data-bitfun-part="portForwardError"
           >
             <AlertTriangle size={16} aria-hidden="true" />
-            <span>{error}</span>
+            <span>{desktopDomainErrorMessage(error, t)}</span>
           </div>
         )}
 

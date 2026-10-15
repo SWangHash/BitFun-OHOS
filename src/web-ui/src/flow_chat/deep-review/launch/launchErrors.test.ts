@@ -19,6 +19,11 @@ describe('Deep Review launch errors', () => {
     expect(isSessionMissingError(new Error('Session does not exist'))).toBe(true);
     expect(isSessionMissingError(new Error('session not found'))).toBe(true);
     expect(isSessionMissingError(new Error('permission denied'))).toBe(false);
+    const wrapped = Object.assign(new Error('Internal error'), {
+      data: 'Workspace not found: remote-workspace',
+    });
+    expect(isSessionMissingError(wrapped)).toBe(false);
+    expect(normalizeErrorMessage(wrapped)).toBe('Internal error');
   });
 
   it('creates localized launch errors for user-facing surfaces', () => {

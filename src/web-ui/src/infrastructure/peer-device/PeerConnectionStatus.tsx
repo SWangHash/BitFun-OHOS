@@ -1,3 +1,4 @@
+import { desktopDomainErrorMessage } from '@/shared/ai-errors/desktopDomainErrors';
 import React, { useEffect, useState } from 'react';
 import { Button, Tooltip } from '@bitfun/ui';
 import { useI18n } from '@/infrastructure/i18n';
@@ -51,7 +52,7 @@ export const PeerConnectionStatus: React.FC = () => {
           {t(returning ? 'peerConnection.returningShort' : 'peerConnection.returnLocalShort')}
         </Button>
       </div>
-      {error && <span className="peer-connection-status__error" role="alert">{error}</span>}
+      {error && <span className="peer-connection-status__error" role="alert">{desktopDomainErrorMessage(error, t)}</span>}
     </div>
   );
 };

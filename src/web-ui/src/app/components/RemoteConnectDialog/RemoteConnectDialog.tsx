@@ -1,3 +1,4 @@
+import { desktopDomainErrorMessage } from '@/shared/ai-errors/desktopDomainErrors';
 import { useAccountIdentity } from '@/infrastructure/account-identity';
 /**
  * Device & Connections center.
@@ -864,7 +865,7 @@ export const RemoteConnectDialog: React.FC<RemoteConnectDialogProps> = ({
     if (!error) return null;
     return (
       <div data-bitfun-component="remote-connect-dialog" data-bitfun-part="error" className="bitfun-remote-connect__error-group">
-        <p className="bitfun-remote-connect__error">{error}</p>
+        <p className="bitfun-remote-connect__error">{desktopDomainErrorMessage(error, t)}</p>
 
       </div>
     );
@@ -877,7 +878,7 @@ export const RemoteConnectDialog: React.FC<RemoteConnectDialogProps> = ({
       setQrCopied(true);
       window.setTimeout(() => setQrCopied(false), 2000);
     } else {
-      notifyError(t('remoteConnect.copyUrlFailed', { error: copied.error ?? '' }));
+      notifyError(t('remoteConnect.copyUrlFailed', { error: desktopDomainErrorMessage(copied.error ?? '', t) }));
     }
   }, [connectionResult?.qr_url, notifyError, t]);
 

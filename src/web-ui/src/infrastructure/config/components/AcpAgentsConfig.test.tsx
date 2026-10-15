@@ -4,6 +4,7 @@ import React, { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
 import type { AcpManagedProvisioningProgress } from '../../api/service-api/ACPClientAPI';
+import errorsEnglish from '@/locales/en-US/errors.json';
 import acpAgentsEnglish from '@/locales/en-US/settings/acp-agents.json';
 import AcpAgentsConfigPage, { type AcpAgentsConfigHandle } from './AcpAgentsConfig';
 import {
@@ -34,6 +35,13 @@ const notifyErrorMock = vi.hoisted(() => vi.fn());
 const notifyInfoMock = vi.hoisted(() => vi.fn());
 const notifySuccessMock = vi.hoisted(() => vi.fn());
 const translate = (_key: string, options?: Record<string, unknown> & { defaultValue?: string }) => {
+  if (_key.startsWith('errors:')) {
+    const template = _key.slice('errors:'.length).split('.').reduce<unknown>((value, part) =>
+      value && typeof value === 'object' ? (value as Record<string, unknown>)[part] : undefined, errorsEnglish);
+    if (typeof template === 'string') {
+      return template.replace(/\{\{(\w+)\}\}/g, (_match, name: string) => String(options?.[name] ?? ''));
+    }
+  }
   if (_key.startsWith('installConfirm.')) {
     const key = _key.slice('installConfirm.'.length) as keyof typeof acpAgentsEnglish.installConfirm;
     const template = acpAgentsEnglish.installConfirm[key];

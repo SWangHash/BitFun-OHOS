@@ -1,3 +1,4 @@
+import { desktopDomainErrorMessage } from '@/shared/ai-errors/desktopDomainErrors';
 import { isGitUnavailableError, isGitRepositoryUntrustedError, reviewPlatformErrorCode } from '@/infrastructure/api/errors/TauriCommandError';
 import type { ReviewPlatformAuthChallenge } from '@/infrastructure/api';
 
@@ -66,7 +67,7 @@ function localizedErrorText(message: string, t: ReviewTranslate): string | undef
 }
 
 export function reviewErrorText(message: string | null | undefined, t: ReviewTranslate): string {
-  return message ? localizedErrorText(message, t) ?? message : "";
+  return message ? localizedErrorText(message, t) ?? desktopDomainErrorMessage(message, t) : "";
 }
 
 export function reviewAuthErrorMessage(challenge: ReviewPlatformAuthChallenge, t: ReviewTranslate): string {

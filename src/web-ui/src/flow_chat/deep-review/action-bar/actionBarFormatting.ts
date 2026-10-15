@@ -1,3 +1,4 @@
+import { desktopDomainErrorMessage } from '@/shared/ai-errors/desktopDomainErrors';
 import { getDeepReviewLaunchErrorMessage, type DeepReviewLaunchError } from '../launch/launchErrors';
 
 const START_DIALOG_TURN_ERROR_PREFIX = 'Failed to start dialog turn:';
@@ -46,15 +47,15 @@ export function getReviewActionErrorMessage(
     const reason = presentation?.kind === 'start_dialog_turn_failed'
       ? presentation.reason
       : original;
-    return reason && reason !== message ? `${message}\n${reason}` : message;
+    return reason && reason !== message ? `${message}\n${desktopDomainErrorMessage(reason, translate)}` : message;
   }
 
   const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
   if (!message.trim()) return fallback;
 
   const presentation = classifyReviewActionErrorMessage(message);
-  if (presentation.kind === 'raw') return presentation.message;
+  if (presentation.kind === 'raw') return desktopDomainErrorMessage(presentation.message, translate);
   return presentation.reason
-    ? translate('deepReviewActionBar.actionStartFailedWithReason', { reason: presentation.reason })
+    ? translate('deepReviewActionBar.actionStartFailedWithReason', { reason: desktopDomainErrorMessage(presentation.reason, translate) })
     : translate('deepReviewActionBar.actionStartFailed');
 }

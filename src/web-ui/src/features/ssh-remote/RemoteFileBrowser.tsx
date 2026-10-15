@@ -1,4 +1,5 @@
 import { describeFileAccessError } from '@/infrastructure/services/business/fileAccessErrorPresentation';
+import { desktopDomainErrorMessage } from '@/shared/ai-errors/desktopDomainErrors';
 /**
  * Remote File Browser Component
  * Used to browse and select remote directory as workspace
@@ -516,7 +517,7 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
         <ScrollArea className="remote-file-browser__content" data-bitfun-component="ssh-remote" data-bitfun-part="content">
           {error && (
             <div className="remote-file-browser__error">
-              <span>{error}</span>
+              <span>{desktopDomainErrorMessage(error, t)}</span>
               <IconButton
                 type="button"
                 onClick={() => loadDirectory(currentPath)}

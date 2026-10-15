@@ -1,3 +1,4 @@
+import { desktopDomainErrorMessage } from '@/shared/ai-errors/desktopDomainErrors';
 import { classifyLaunchError } from '../../utils/deepReviewExperience';
 
 export type DeepReviewLaunchStep =
@@ -101,7 +102,7 @@ export function getDeepReviewLaunchErrorMessage(
   }
 
   if (error instanceof Error && error.message.trim()) {
-    return error.message.trim();
+    return desktopDomainErrorMessage(error.message.trim(), translate);
   }
 
   return fallback;

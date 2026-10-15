@@ -1,3 +1,4 @@
+import { desktopDomainErrorMessage } from '@/shared/ai-errors/desktopDomainErrors';
 /**
  * SSH Connection Dialog Component
  * Professional SSH connection dialog following BitFun design patterns
@@ -796,7 +797,7 @@ export const SSHConnectionDialog: React.FC<SSHConnectionDialogProps> = ({
             <div className="ssh-connection-dialog__error-banner" data-bitfun-component="ssh-remote" data-bitfun-part="connectionError">
               <Alert
                 tone="error"
-                message={error}
+                message={desktopDomainErrorMessage(error, t)}
                 closable
                 onClose={dismissError}
                 className="ssh-connection-dialog__error-alert"

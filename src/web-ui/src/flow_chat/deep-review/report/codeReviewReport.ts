@@ -203,23 +203,79 @@ function normalizeCodeReviewReportSections(value: unknown): CodeReviewReportSect
   return normalized;
 }
 
-/** Preserve the report shape while replacing untrusted nested values with safe DTOs. */
-export function normalizeCodeReviewReportData(value: unknown): CodeReviewReportData | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value) || !('summary' in value)) {
-    return null;
-  }
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
 
+function normalizeReportReviewer(value: unknown): CodeReviewReviewer | null {
+  if (!isRecord(value)) return null;
+  const reviewer: CodeReviewReviewer = {
+    ...value,
+    name: optionalString(value.name) ?? '',
+    specialty: optionalString(value.specialty) ?? '',
+    status: optionalString(value.status) ?? '',
+    summary: optionalString(value.summary) ?? '',
+  };
+  for (const key of [
+    'partial_output', 'packet_id', 'packet_status_source', 'capacity_reason',
+    'provider_capacity_reason', 'queue_skip_reason',
+  ] as const) {
+    if (typeof value[key] !== 'string') delete reviewer[key];
+  }
+  for (const key of ['covered_files', 'retry_scope_files', 'unresolved_files'] as const) {
+    const files = normalizeStringArray(value[key]);
+    if (files) reviewer[key] = files;
+    else delete reviewer[key];
+  }
+  if (typeof value.issue_count !== 'number') delete reviewer.issue_count;
+  return reviewer;
+}
+
+/** Normalize a display copy; persisted reports and unknown extension fields stay intact. */
+export function normalizeCodeReviewReportData(value: unknown): CodeReviewReportData | null {
+  if (!isRecord(value) || !isRecord(value.summary)) return null;
+
+  const summary: CodeReviewSummary = { ...value.summary };
+  for (const key of ['overall_assessment', 'risk_level', 'recommended_action', 'confidence_note'] as const) {
+    if (typeof value.summary[key] !== 'string') delete summary[key];
+  }
   const report = value as CodeReviewReportData;
   const normalizedReport: CodeReviewReportData = {
     ...report,
+    summary,
     issues: normalizeCodeReviewIssues(report.issues),
   };
-  const reportSections = normalizeCodeReviewReportSections(report.report_sections);
-  if (reportSections) {
-    normalizedReport.report_sections = reportSections;
-  } else {
-    delete normalizedReport.report_sections;
+  for (const key of ['positive_points', 'remediation_plan'] as const) {
+    const entries = normalizeStringArray(value[key]);
+    if (entries) normalizedReport[key] = entries;
+    else delete normalizedReport[key];
   }
+  for (const key of ['review_scope', 'review_mode', 'evidence_status'] as const) {
+    if (typeof value[key] !== 'string') delete normalizedReport[key];
+  }
+  if (Array.isArray(value.reviewers)) {
+    normalizedReport.reviewers = value.reviewers.map(normalizeReportReviewer)
+      .filter((reviewer): reviewer is CodeReviewReviewer => reviewer !== null);
+  } else {
+    delete normalizedReport.reviewers;
+  }
+  if (Array.isArray(value.reliability_signals)) {
+    normalizedReport.reliability_signals = value.reliability_signals
+      .filter((signal): signal is Record<string, unknown> => isRecord(signal) && typeof signal.kind === 'string')
+      .map((signal) => {
+        const normalized = { ...signal } as unknown as CodeReviewReliabilitySignal;
+        for (const key of ['detail', 'severity', 'source'] as const) {
+          if (typeof signal[key] !== 'string') delete normalized[key];
+        }
+        if (typeof signal.count !== 'number') delete normalized.count;
+        return normalized;
+      });
+  } else {
+    delete normalizedReport.reliability_signals;
+  }
+  const reportSections = normalizeCodeReviewReportSections(report.report_sections);
+  if (reportSections) normalizedReport.report_sections = reportSections;
+  else delete normalizedReport.report_sections;
   return normalizedReport;
 }
 
@@ -484,7 +540,7 @@ function findWorkPacket(
   reviewerId: string,
 ) {
   return runManifest.workPackets?.find((packet) => (
-    packet.packetId === packetId && packet.subagentId === reviewerId
+    packet && packet.packetId === packetId && packet.subagentId === reviewerId
   ));
 }
 
@@ -521,7 +577,7 @@ export function extractDeepReviewRetryableSlices(
   report: CodeReviewReportData,
   runManifest?: ReviewTeamRunManifest,
 ): DeepReviewRetryableSlice[] {
-  if (report.review_mode !== 'deep' || !runManifest?.workPackets?.length) {
+  if (report.review_mode !== 'deep' || !Array.isArray(runManifest?.workPackets) || !runManifest.workPackets.length) {
     return [];
   }
 
@@ -553,7 +609,7 @@ export function extractDeepReviewRetryableSlices(
     }
 
     const packet = findWorkPacket(runManifest, sourcePacketId, reviewerId);
-    const packetFiles = nonEmpty(packet?.assignedScope.files ?? []);
+    const packetFiles = nonEmpty(packet?.assignedScope?.files ?? []);
     if (!packet || packetFiles.length <= 1) {
       continue;
     }

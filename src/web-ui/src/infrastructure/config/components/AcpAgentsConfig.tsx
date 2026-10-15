@@ -1,3 +1,4 @@
+import { desktopDomainErrorMessage } from '@/shared/ai-errors/desktopDomainErrors';
 import { OverflowText,
   Alert,
   Button,
@@ -438,9 +439,10 @@ function CapabilityStatusPill({
   missingText: string;
   checkingText: string;
 }) {
+  const { t: translateErrors } = useI18n('errors');
   const tone = requirementTone(item, checking);
   const title = item
-    ? [label, item.installed ? installedText : missingText, item.path, item.version, item.error]
+    ? [label, item.installed ? installedText : missingText, item.path, item.version, item.error ? desktopDomainErrorMessage(item.error, translateErrors) : item.error]
       .filter(Boolean)
       .join('\n')
     : checking ? `${label}\n${checkingText}` : label;
@@ -693,7 +695,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
     } catch (error) {
       log.error('Failed to probe ACP agent requirements', error);
       if (options.notifyOnError ?? true) {
-        notifyError(error instanceof Error ? error.message : String(error), {
+        notifyError(desktopDomainErrorMessage(error instanceof Error ? error.message : String(error), t), {
           title: t('notifications.probeFailed'),
         });
       }
@@ -754,7 +756,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
       }));
       log.error('Failed to probe remote ACP agent requirements', error);
       if (options.notifyOnError ?? true) {
-        notifyError(error instanceof Error ? error.message : String(error), {
+        notifyError(desktopDomainErrorMessage(error instanceof Error ? error.message : String(error), t), {
           title: t('notifications.probeFailed'),
         });
       }
@@ -833,7 +835,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
       log.error('Failed to load ACP agent config', error);
       if (showLoading) setLoadFailed(true);
       else {
-        notifyError(error instanceof Error ? error.message : String(error), {
+        notifyError(desktopDomainErrorMessage(error instanceof Error ? error.message : String(error), t), {
           title: t('notifications.loadFailed'),
         });
       }
@@ -1025,7 +1027,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
         return;
       }
       log.error('Failed to install ACP agent CLI', error);
-      notifyError(message, {
+      notifyError(desktopDomainErrorMessage(message, t), {
         title: t('notifications.installFailed'),
       });
     } finally {
@@ -1051,7 +1053,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
       notifyInfo(t('notifications.cancelRequested'));
     } catch (error) {
       log.error('Failed to cancel managed ACP installation', error);
-      notifyError(error instanceof Error ? error.message : String(error), {
+      notifyError(desktopDomainErrorMessage(error instanceof Error ? error.message : String(error), t), {
         title: t('notifications.cancelError'),
       });
     }
@@ -1077,7 +1079,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
       notifySuccess(t('notifications.configureSuccess'));
     } catch (error) {
       log.error('Failed to predownload ACP adapter', error);
-      notifyError(error instanceof Error ? error.message : String(error), {
+      notifyError(desktopDomainErrorMessage(error instanceof Error ? error.message : String(error), t), {
         title: t('notifications.configureFailed'),
       });
     } finally {
@@ -1142,7 +1144,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
     } catch (error) {
       if (refreshManagedConfig) managedConfigRefreshPendingRef.current = true;
       log.error('Failed to save ACP agent config', error);
-      notifyError(error instanceof Error ? error.message : String(error), {
+      notifyError(desktopDomainErrorMessage(error instanceof Error ? error.message : String(error), t), {
         title: t('notifications.saveFailed'),
       });
       return false;
@@ -1204,7 +1206,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
       setJsonDirty(false);
       return true;
     } catch (error) {
-      notifyError(error instanceof Error ? error.message : String(error), {
+      notifyError(desktopDomainErrorMessage(error instanceof Error ? error.message : String(error), t), {
         title: t('notifications.invalidJson'),
       });
       return false;
@@ -1352,13 +1354,13 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
       lines.push(`${t('registry.toolVersion')}: ${probe.tool.version}`);
     }
     if (probe?.tool.error) {
-      lines.push(probe.tool.error);
+      lines.push(desktopDomainErrorMessage(probe.tool.error, t));
     }
     if (probe?.adapter?.error) {
-      lines.push(probe.adapter.error);
+      lines.push(desktopDomainErrorMessage(probe.adapter.error, t));
     }
     if (probe?.notes.length) {
-      lines.push(...probe.notes);
+      lines.push(...probe.notes.map(note => desktopDomainErrorMessage(note, t)));
     }
     return lines.filter(Boolean).join('\n');
   }, [t]);
@@ -1376,7 +1378,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
   const openLearnMore = useCallback(() => {
     void systemAPI.openExternal('https://agentclientprotocol.com/get-started/introduction').catch((error) => {
       log.error('Failed to open ACP documentation', error);
-      notifyError(error instanceof Error ? error.message : String(error), {
+      notifyError(desktopDomainErrorMessage(error instanceof Error ? error.message : String(error), t), {
         title: t('notifications.openLinkFailed'),
       });
     });
@@ -2198,7 +2200,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                         </div>
                       </div>
                       {remoteProbeError !== undefined && (
-                        <Alert tone="error" message={t('notifications.probeFailed')} description={remoteProbeError} />
+                        <Alert tone="error" message={t('notifications.probeFailed')} description={desktopDomainErrorMessage(remoteProbeError, t)} />
                       )}
                       <div
                         className="bitfun-acp-agents__remote-agent-list"
