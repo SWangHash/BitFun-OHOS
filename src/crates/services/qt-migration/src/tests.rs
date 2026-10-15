@@ -911,7 +911,7 @@ fn project_qt_major_hits_every_listed_type_name() {
         let (_t, root) = tree();
         create_version_fixture(
             &root,
-            "find_package(Qt6 COMPONENTS Gui REQUIRED)",
+            "find_package(Qt5 COMPONENTS Gui REQUIRED)",
             &format!("#include <QtGui/{name}>\n"),
         );
         assert_eq!(
@@ -939,10 +939,44 @@ fn project_qt_major_requires_an_identifier_boundary() {
     let (_t2, qt6_root) = tree();
     create_version_fixture(
         &qt6_root,
-        "find_package(Qt6 COMPONENTS Gui REQUIRED)",
+        "find_package(Qt5 COMPONENTS Gui REQUIRED)",
         "QEventPointPrivate point;\n",
     );
     assert_eq!(detect_project_qt_major(&qt6_root), 6);
+}
+
+#[test]
+fn project_qt_major_trusts_only_a_qt6_only_cmake_declaration() {
+    let (_t, root) = tree();
+    create_version_fixture(
+        &root,
+        "find_package(Qt6\n    REQUIRED\n        COMPONENTS\n            Core\n            Widgets\n)\nqt_standard_project_setup()",
+        "#include <QApplication>\nint main() { return 0; }\n",
+    );
+    assert_eq!(detect_project_qt_major(&root), 6);
+
+    let (_t2, included_root) = tree();
+    create_version_fixture(
+        &included_root,
+        "include(cmake/qt.cmake)",
+        "int main() { return 0; }\n",
+    );
+    std::fs::write(
+        mkdir(&included_root, "cmake").join("qt.cmake"),
+        "find_package(Qt6 COMPONENTS Widgets REQUIRED)\n",
+    )
+    .unwrap();
+    assert_eq!(detect_project_qt_major(&included_root), 6);
+
+    for declaration in [
+        "find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)\nfind_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)",
+        "find_package(Qt6 COMPONENTS Widgets)\nif(NOT Qt6_FOUND)\n    find_package(Qt5 REQUIRED COMPONENTS Widgets)\nendif()",
+        "# find_package(Qt6 COMPONENTS Widgets REQUIRED)\nfind_package(Qt5 COMPONENTS Widgets REQUIRED)",
+    ] {
+        let (_t, root) = tree();
+        create_version_fixture(&root, declaration, "int main() { return 0; }\n");
+        assert_eq!(detect_project_qt_major(&root), 5, "{declaration}");
+    }
 }
 
 #[test]
@@ -970,7 +1004,7 @@ fn project_qt_major_stops_at_the_file_budget() {
     let (_t, root) = tree();
     std::fs::write(
         root.join("CMakeLists.txt"),
-        "cmake_minimum_required(VERSION 3.16)\nfind_package(Qt6 COMPONENTS Gui REQUIRED)\n",
+        "cmake_minimum_required(VERSION 3.16)\nfind_package(Qt5 COMPONENTS Gui REQUIRED)\n",
     )
     .unwrap();
     std::fs::write(root.join("clean.cpp"), "int main() { return 0; }\n").unwrap();

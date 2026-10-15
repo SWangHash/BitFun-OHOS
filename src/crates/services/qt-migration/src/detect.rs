@@ -30,9 +30,8 @@ pub const QT6_ONLY_TYPE_NAMES: &[&str] = &[
     "QAnyStringView",
 ];
 
-/// Source extensions read for a project's version evidence. Build declaration
-/// files (`.pro`, `.pri`, `.cmake`, `CMakeLists.txt`) are *not* read: the
-/// declaration classes were dropped from the criterion, and a real
+/// Source extensions read for a project's version evidence. Build declarations
+/// only count when they request Qt6 alone ([`cmake_declares_qt6_only`]); a real
 /// project such as `notepad--` declares only `QT += core gui widgets …`, which
 /// carries no version at all.
 pub(crate) const PROJECT_VERSION_SOURCE_EXTENSIONS: &[&str] =
@@ -95,7 +94,8 @@ pub(crate) fn resolve_template_kit_root(dir: &Path) -> Option<&Path> {
         .find(|ancestor| detect_qt_major(ancestor).is_some() || is_ohos_target_kit(ancestor))
 }
 
-/// Detected Qt major version of a **Qt source project**, read from its C++ code.
+/// Detected Qt major version of a **Qt source project**, from a Qt6-only CMake
+/// declaration or its C++ code.
 pub fn detect_project_qt_major(project_dir: &Path) -> u8 {
     detect_project_qt_major_within(project_dir, MAX_PROJECT_VERSION_FILES)
 }
@@ -103,6 +103,9 @@ pub fn detect_project_qt_major(project_dir: &Path) -> u8 {
 /// [`detect_project_qt_major`] with an explicit file budget, so the budget itself
 /// is testable without building a fixture of thousands of files.
 pub fn detect_project_qt_major_within(project_dir: &Path, file_budget: usize) -> u8 {
+    if cmake_declares_qt6_only(project_dir) {
+        return 6;
+    }
     let mut guard = ScanGuard::new(file_budget);
     let mut examined = 0usize;
     if project_uses_qt6_only_type(project_dir, &mut guard, &mut examined) {
@@ -110,6 +113,78 @@ pub fn detect_project_qt_major_within(project_dir: &Path, file_budget: usize) ->
     } else {
         5
     }
+}
+
+/// Whether the root `CMakeLists.txt` (or a module it includes) requests Qt6 and
+/// never mentions Qt5. Dual-generation and Qt5 declarations are left to the code.
+pub(crate) fn cmake_declares_qt6_only(dir: &Path) -> bool {
+    let Some(root) = read_cmake_file(&dir.join("CMakeLists.txt")) else {
+        return false;
+    };
+    let mut texts = vec![root];
+    for include in cmake_include_targets(&texts[0]) {
+        if let Some(text) = read_cmake_file(&dir.join(include)) {
+            texts.push(text);
+        }
+    }
+    let mut declares_qt6 = false;
+    for text in &texts {
+        for arguments in cmake_find_package_arguments(text) {
+            if arguments.iter().any(|argument| argument == "qt5") {
+                return false;
+            }
+            if arguments.first().map(String::as_str) == Some("qt6") {
+                declares_qt6 = true;
+            }
+        }
+    }
+    declares_qt6
+}
+
+fn read_cmake_file(path: &Path) -> Option<String> {
+    let metadata = std::fs::metadata(path).ok()?;
+    if metadata.len() > MAX_PROJECT_VERSION_FILE_BYTES {
+        return None;
+    }
+    let bytes = std::fs::read(path).ok()?;
+    Some(String::from_utf8_lossy(&bytes).into_owned())
+}
+
+/// Lowercased arguments of every `find_package(...)` call, ignoring `#` comments.
+pub(crate) fn cmake_find_package_arguments(contents: &str) -> Vec<Vec<String>> {
+    let code = contents
+        .lines()
+        .map(|line| line.split_once('#').map_or(line, |(code, _)| code))
+        .collect::<Vec<_>>()
+        .join("\n")
+        .to_ascii_lowercase();
+    let mut calls = Vec::new();
+    let mut rest = code.as_str();
+    while let Some(start) = rest.find("find_package") {
+        let after = &rest[start + "find_package".len()..];
+        let preceded_by_identifier = code[..code.len() - rest.len() + start]
+            .chars()
+            .next_back()
+            .map(|previous| previous.is_alphanumeric() || previous == '_')
+            .unwrap_or(false);
+        rest = after;
+        if preceded_by_identifier {
+            continue;
+        }
+        let Some(open) = after.trim_start().strip_prefix('(') else {
+            continue;
+        };
+        let Some(end) = open.find(')') else {
+            break;
+        };
+        calls.push(
+            open[..end]
+                .split_whitespace()
+                .map(|argument| argument.trim_matches('"').to_string())
+                .collect(),
+        );
+    }
+    calls
 }
 
 /// Whether any source file under `dir` uses a Qt6-only type, stopping at the first
