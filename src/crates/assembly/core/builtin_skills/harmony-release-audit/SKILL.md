@@ -58,4 +58,4 @@ node "<SKILL_DIR>/scripts/scan.mjs" "<PROJECT_ROOT>" --theme all --out "<PROJECT
 
 回复先给风险或修复摘要、仍待处理项和报告路径，细节放入文件。区分已修复并验证、已修改待验证、用户跳过和等待决策；宿主无法提问或编辑时写明实际阻塞。结论限于本次三项预检；不要用“必定通过/必定拒审/硬性拒绝项”替代证据。仅有手机源码检查不能证明布局、闪退、审核账号或 AGC 后台资料合规。
 
-修改本 Skill 后执行 `node --test "<SKILL_DIR>/scripts/scan.test.mjs"`，用实际项目验证资源证据和候选，并检查 BitFun 的上架预检助手能加载本 Skill。修改修复流程时，另按 [repair-scenarios.md](evals/repair-scenarios.md) 检查选择、修复和复验行为；扫描器测试不等于模型交互测试。
+修改本 Skill 后执行 `node --test "<SKILL_DIR>/scripts/scan.test.mjs"`，用实际项目验证资源证据和候选，并检查 BitFun 的鸿蒙应用上架预检专家能加载本 Skill。修改修复流程时，另按 [repair-scenarios.md](evals/repair-scenarios.md) 检查选择、修复和复验行为；扫描器测试不等于模型交互测试。

@@ -954,7 +954,7 @@
       "DeepResearch": "$t(shared:agents.DeepResearch)",
       "Team": "Team",
       "QtMigration": "QT 遷移專家",
-      "HarmonyReleaseAudit": "上架預檢助手",
+      "HarmonyReleaseAudit": "鴻蒙應用上架預檢專家",
       "HarmonyFeature": "鴻蒙特性增強專家",
       "HarmonyBuild": "鴻蒙構建專家",
       "Standard": "$t(shared:agents.Standard)",

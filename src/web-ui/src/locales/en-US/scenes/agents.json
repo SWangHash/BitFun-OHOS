@@ -74,8 +74,8 @@
         "description": "Qt 5.12/5.15 to HarmonyOS migration: assess, migrate, build, deploy, verify, and fix issues."
       },
       "HarmonyReleaseAudit": {
-        "name": "Release Preflight Assistant",
-        "description": "Review HarmonyOS phone app text contrast, release readiness and active privacy consent, then repair selected issues and recheck."
+        "name": "HarmonyOS App Release Preflight Expert",
+        "description": "Review HarmonyOS apps against pre-release submission rules, identify potential risks, and provide remediation guidance with optional fixes and rechecks."
       },
       "HarmonyFeature": {
         "name": "HarmonyOS Feature Enhancement Expert",
@@ -410,7 +410,7 @@
     "Ultimate": "Decompose complex tasks, coordinate parallel SubAgents, and review their results.",
     "Minimal": "A compact execution loop with a fixed, small tool set.",
     "Creative": "Create and customize BitFun experiences and capabilities.",
-    "HarmonyReleaseAudit": "Review HarmonyOS phone app text contrast, release readiness and active privacy consent, then repair selected issues and recheck.",
+    "HarmonyReleaseAudit": "Review HarmonyOS apps against pre-release submission rules, identify potential risks, and provide remediation guidance with optional fixes and rechecks.",
     "HarmonyFeature": "Matches, plans, and implements HarmonyOS platform feature enhancements from the built-in feature guide.",
     "QtMigration": "Qt 5.12/5.15 to HarmonyOS migration: assess -> 8-step code migration -> build -> deploy -> verify -> issue-fixing loop, with fully visualized task progress."
     ,"HarmonyBuild": "HarmonyOS build, deployment, diagnosis, and verification specialist"

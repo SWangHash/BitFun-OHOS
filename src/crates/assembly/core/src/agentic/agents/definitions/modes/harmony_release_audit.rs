@@ -13,10 +13,10 @@ impl Agent for HarmonyReleaseAuditMode {
         "HarmonyReleaseAudit"
     }
     fn name(&self) -> &str {
-        "HarmonyOS Release Preflight Assistant"
+        "HarmonyOS App Release Preflight Expert"
     }
     fn description(&self) -> &str {
-        "Review phone app text contrast, release readiness and privacy consent; repair selected issues and verify source evidence."
+        "Review HarmonyOS apps against pre-release submission rules, identify potential risks, and provide remediation guidance with optional fixes and rechecks."
     }
     fn prompt_template_name(&self, _model_name: Option<&str>) -> &str {
         "harmony_release_audit_agent"
