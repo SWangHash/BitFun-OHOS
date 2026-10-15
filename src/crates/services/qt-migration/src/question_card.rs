@@ -23,8 +23,8 @@ use crate::state::{
 #[cfg(feature = "qt-toolchain")]
 use crate::strategy::official_toolchain_serves_a_project;
 use crate::strategy::{
-    pending_generation_mismatch, read_replacement_toolchain_answer, version_strategy_follow_up,
-    QtMigrationGenerationMismatch, QtMigrationStrategyFollowUp, QT_MIGRATION_STRATEGY_ABORT_VALUE,
+    pending_generation_mismatch, version_strategy_follow_up, QtMigrationGenerationMismatch,
+    QtMigrationStrategyFollowUp, QT_MIGRATION_STRATEGY_ABORT_VALUE,
     QT_MIGRATION_STRATEGY_PROCEED_VALUE,
 };
 use crate::templates::{
@@ -152,11 +152,6 @@ impl QtMigrationQuestionCard {
             };
         }
 
-        // The re-ask wording below would still describe the replaced toolchain.
-        if let Some(replaced) = Self::replaced_toolchain_fact(answers, snapshot) {
-            return Some(replaced);
-        }
-
         // Only a session that measured a generation mismatch has anything to say about a
         // plain question; any other question gets no Qt-specific note.
         let follow_up = version_strategy_follow_up(snapshot, answers)?;
@@ -169,12 +164,15 @@ impl QtMigrationQuestionCard {
 
         match follow_up {
             QtMigrationStrategyFollowUp::MissingAnswer { .. } => Some(format!(
-                "## 迁移策略未生效（系统约束，必须重新提问）\n\n\
-                 刚才那次提问的答案里没有运行时要求的选项取值，所以用户的决定无法被确认，迁移仍然被阻断。\
-                 请重新调用 AskUserQuestion，给出两个选项并带上取值：接受本次迁移的选项 value 必须是 \
+                "## 迁移策略未生效（系统约束，必须先处理）\n\n\
+                 刚才那次提问的答案里没有运行时要求的选项取值，迁移仍然被阻断。\n\
+                 - 如果用户在答案原文里指定了要改用的工具链：从原文中提取路径，信任用户的输入，不要再向用户提问确认。\
+                 若路径是 Qt 安装根目录而不是 kit 的 bin 目录，先用 Glob 找到其中鸿蒙 kit（如 harmonyos_*）下含 qmake 的 bin 目录；\
+                 然后调用 QtMigrationIntake 并传入 {{\"toolchain\": \"<该路径>\"}} 替换本次迁移绑定的工具链，按它的返回结果继续。\n\
+                 - 否则请重新调用 AskUserQuestion，给出两个选项并带上取值：接受本次迁移的选项 value 必须是 \
                  \"{proceed}\"，不迁移的选项 value 必须是 \"{abort}\"（文案随你写）。\n\
                  {direction}\n\n\
-                 在得到可确认的选择之前，禁止执行任何迁移副作用（写文件、构建、部署、删除）、禁止加载技能。",
+                 在迁移被解除阻断之前，禁止执行任何迁移副作用（写文件、构建、部署、删除）、禁止加载技能。",
                 proceed = QT_MIGRATION_STRATEGY_PROCEED_VALUE,
                 abort = QT_MIGRATION_STRATEGY_ABORT_VALUE,
             )),
@@ -222,19 +220,12 @@ impl QtMigrationQuestionCard {
         }
     }
 
-    fn replaced_toolchain_fact(
-        answers: &Value,
-        snapshot: &QtMigrationIntakeStateSnapshot,
-    ) -> Option<String> {
-        let replaced = read_replacement_toolchain_answer(answers)?;
-        let bound = snapshot.fields.get("toolchain")?.value.as_deref()?;
-        if bound != replaced {
-            return None;
-        }
+    /// Instruction returned after the model rebinds the toolchain the user typed.
+    pub fn replaced_toolchain_fact(snapshot: &QtMigrationIntakeStateSnapshot) -> Option<String> {
+        let replaced = snapshot.fields.get("toolchain")?.value.as_deref()?;
         let header = format!(
             "## 工具链已替换（系统事实，必须使用）\n\n\
-             用户在迁移策略提问中指定了新的工具链 `{replaced}`，运行时已把它绑定为本次迁移的 toolchain，\
-             替换掉之前选择的工具链。后续所有迁移动作都必须使用这个路径。"
+             已把 `{replaced}` 绑定为本次迁移的 toolchain，替换掉之前选择的工具链。后续所有迁移动作都必须使用这个路径。"
         );
         match pending_generation_mismatch(snapshot) {
             None => Some(format!(

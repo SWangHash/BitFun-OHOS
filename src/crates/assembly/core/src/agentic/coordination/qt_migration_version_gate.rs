@@ -9,13 +9,12 @@ use log::info;
 
 use crate::agentic::session::SessionManager;
 use bitfun_qt_migration::strategy::{
-    measure_bound_generation_mismatch, pending_generation_mismatch,
-    read_replacement_toolchain_answer, read_version_strategy_answer, rebind_strategy_toolchain,
+    measure_bound_generation_mismatch, pending_generation_mismatch, read_version_strategy_answer,
     QtMigrationGenerationMismatch, QtMigrationStrategyAnswer,
 };
 
 /// Generation of the official Qt package, when this build can install it.
-fn official_qt_major() -> Option<u8> {
+pub(crate) fn official_qt_major() -> Option<u8> {
     #[cfg(feature = "qt-toolchain")]
     {
         Some(bitfun_runtime_ports::QT_MIGRATION_OFFICIAL_QT_MAJOR)
@@ -60,8 +59,7 @@ pub(crate) async fn record_version_mismatch_if_any(
     ))
 }
 
-/// Apply a submitted version-strategy answer to the session intake snapshot. A Qt
-/// kit typed as free text replaces the bound toolchain.
+/// Apply a submitted version-strategy answer to the session intake snapshot.
 pub(crate) async fn apply_version_strategy_answer(
     session_manager: &SessionManager,
     session_id: &str,
@@ -71,22 +69,7 @@ pub(crate) async fn apply_version_strategy_answer(
         session_manager.domain_state_get(session_id, &QT_MIGRATION_SLOT_INTAKE_STATE),
     );
     let mismatch = pending_generation_mismatch(&snapshot)?;
-    let Some(answer) = read_version_strategy_answer(answers) else {
-        let toolchain = read_replacement_toolchain_answer(answers)?;
-        let updated = rebind_strategy_toolchain(&snapshot, &toolchain, official_qt_major());
-        session_manager
-            .domain_state_set(
-                session_id,
-                &QT_MIGRATION_SLOT_INTAKE_STATE,
-                intake_snapshot_to_slot_value(&updated),
-            )
-            .await;
-        info!(
-            "Qt migration toolchain replaced from the version strategy answer: session_id={}, strategy={:?}",
-            session_id, updated.version_strategy
-        );
-        return Some(updated.version_strategy);
-    };
+    let answer = read_version_strategy_answer(answers)?;
     let (project, toolchain) = mismatch.measured_generations()?;
 
     let strategy = match answer {

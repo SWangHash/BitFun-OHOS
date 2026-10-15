@@ -1397,8 +1397,6 @@ fn bound_intake_snapshot(
 
 #[test]
 fn a_toolchain_typed_into_the_strategy_question_replaces_the_bound_one() {
-    use serde_json::json;
-
     let (_t, root) = tree();
     let project = mkdir(&root, "qt6-app");
     create_version_fixture(
@@ -1417,26 +1415,7 @@ fn a_toolchain_typed_into_the_strategy_question_replaces_the_bound_one() {
         },
     );
 
-    assert_eq!(
-        read_replacement_toolchain_answer(&json!({ "0": QT_MIGRATION_STRATEGY_PROCEED_VALUE })),
-        None
-    );
-    assert_eq!(
-        read_replacement_toolchain_answer(&json!({ "0": "降级到 Qt5 迁移" })),
-        None
-    );
-
     let qt6_bin_text = qt6_bin.to_string_lossy().into_owned();
-    for typed in [
-        qt6_bin_text.clone(),
-        qt6_bin.join("qmake").to_string_lossy().into_owned(),
-    ] {
-        assert_eq!(
-            read_replacement_toolchain_answer(&json!({ "0": typed })),
-            Some(qt6_bin_text.clone())
-        );
-    }
-
     let matched = rebind_strategy_toolchain(&pending, &qt6_bin_text, None);
     assert_eq!(
         matched.fields["toolchain"].value.as_deref(),

@@ -36,7 +36,7 @@ pub(crate) use background_outcomes::{
 };
 pub(crate) use coordination_store::{validate_agent_id, DirectChildAgentRecord};
 pub(crate) use qt_migration_version_gate::{
-    apply_version_strategy_answer, record_version_mismatch_if_any,
+    apply_version_strategy_answer, official_qt_major, record_version_mismatch_if_any,
 };
 
 pub use coordinator::get_global_coordinator;
