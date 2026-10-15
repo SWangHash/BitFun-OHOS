@@ -26,11 +26,15 @@ const authFilePickerMock = vi.hoisted(() => ({
   pickSshCertificatePath: vi.fn(),
 }));
 
-vi.mock('@/infrastructure/i18n', () => ({
-  useI18n: () => ({
-    t: (key: string) => key,
-  }),
-}));
+vi.mock('@/infrastructure/i18n', async () => {
+  const { createInstance } = await import('i18next');
+  const { default: errors } = await import('@/locales/zh-CN/errors.json');
+  const i18n = createInstance();
+  await i18n.init({ lng: 'zh-CN', resources: { 'zh-CN': { errors } }, interpolation: { escapeValue: false } });
+  const translateErrors = i18n.t.bind(i18n);
+  const translateForm = (key: string) => key;
+  return { useI18n: (namespace: string) => ({ t: namespace === 'errors' ? translateErrors : translateForm }) };
+});
 
 vi.mock('./SSHRemoteContext', () => ({
   useSSHRemoteContext: () => ({
@@ -138,7 +142,7 @@ vi.mock('@/component-library', () => ({
       ))}
     </select>
   ),
-  Alert: () => null,
+  Alert: ({ message }: { message: string }) => <div role="alert">{message}</div>,
 }));
 
 describe('SSHConnectionDialog', () => {
@@ -348,6 +352,19 @@ describe('SSHConnectionDialog', () => {
     );
     expect(remoteContextMock.connect.mock.calls[0]?.[1].container).toBeUndefined();
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('displays the exact credential error from a structured host failure', async () => {
+    remoteContextMock.connect.mockRejectedValueOnce({
+      message: 'Host invocation failed',
+      details: { originalError: 'SSH password is required (no saved password for this connection)' },
+    });
+    await renderDialog();
+    setInputValue('ssh.remote.host', 'example.test');
+    setInputValue('ssh.remote.username', 'dev');
+    setInputValue('ssh.remote.password', 'secret');
+    await act(async () => { findConnectButton()?.click(); });
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe('此连接没有已保存的 SSH 密码，请输入密码');
   });
 
   it.each([

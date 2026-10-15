@@ -5,6 +5,8 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
+import { sshErrorMessage } from '@/shared/ai-errors/connectionErrors';
+import { acpReviewErrorText } from '@/shared/ai-errors/acpReviewErrors';
 import { useSSHRemoteContext } from './SSHRemoteContext';
 import { SSHAuthPromptDialog, type SSHAuthPromptSubmitPayload } from './SSHAuthPromptDialog';
 import { Modal } from '@/component-library';
@@ -60,6 +62,7 @@ export const SSHConnectionDialog: React.FC<SSHConnectionDialogProps> = ({
   onClose,
 }) => {
   const { t } = useI18n('common');
+  const { t: translateErrors } = useI18n('errors');
   const { connect, status, connectionError, clearError } = useSSHRemoteContext();
   const [savedConnections, setSavedConnections] = useState<SavedConnection[]>([]);
   const [sshConfigHosts, setSSHConfigHosts] = useState<SSHConfigEntry[]>([]);
@@ -389,7 +392,7 @@ export const SSHConnectionDialog: React.FC<SSHConnectionDialogProps> = ({
       await connect(config.id, config, { browseAfterConnect: true });
       onClose();
     } catch (e) {
-      setLocalError(e instanceof Error ? e.message : 'Connection failed');
+      setLocalError(acpReviewErrorText(e) || 'Connection failed');
     } finally {
       setIsConnecting(false);
     }
@@ -405,7 +408,7 @@ export const SSHConnectionDialog: React.FC<SSHConnectionDialogProps> = ({
     try {
       setConnectionTest(await sshApi.testConnection(config));
     } catch (error) {
-      setLocalError(error instanceof Error ? error.message : t('ssh.remote.testFailed'));
+      setLocalError(acpReviewErrorText(error) || t('ssh.remote.testFailed'));
     } finally {
       setIsTesting(false);
     }
@@ -424,7 +427,7 @@ export const SSHConnectionDialog: React.FC<SSHConnectionDialogProps> = ({
         setLocalError(t('ssh.remote.noContainersFound'));
       }
     } catch (error) {
-      setLocalError(error instanceof Error ? error.message : t('ssh.remote.containerListFailed'));
+      setLocalError(acpReviewErrorText(error) || t('ssh.remote.containerListFailed'));
     } finally {
       setIsListingContainers(false);
     }
@@ -561,7 +564,7 @@ export const SSHConnectionDialog: React.FC<SSHConnectionDialogProps> = ({
       setCredentialsPrompt(null);
       onClose();
     } catch (e) {
-      setLocalError(e instanceof Error ? e.message : 'Connection failed');
+      setLocalError(acpReviewErrorText(e) || 'Connection failed');
     } finally {
       setIsConnecting(false);
     }
@@ -640,7 +643,7 @@ export const SSHConnectionDialog: React.FC<SSHConnectionDialogProps> = ({
       await sshApi.deleteConnection(connectionId);
       await loadSavedConnections();
     } catch (err) {
-      setLocalError(err instanceof Error ? err.message : 'Failed to delete');
+      setLocalError(acpReviewErrorText(err) || 'Failed to delete');
     }
   };
 
@@ -731,7 +734,7 @@ export const SSHConnectionDialog: React.FC<SSHConnectionDialogProps> = ({
             <div className="ssh-connection-dialog__error-banner" data-bf-component="ssh-remote" data-bf-part="connectionError">
               <Alert
                 type="error"
-                message={error}
+                message={sshErrorMessage(error, translateErrors)}
                 closable
                 onClose={dismissError}
                 className="ssh-connection-dialog__error-alert"
@@ -1313,7 +1316,7 @@ export const SSHConnectionDialog: React.FC<SSHConnectionDialogProps> = ({
                       ? <CheckCircle2 size={14} />
                       : <XCircle size={14} />}
                     <span>{formatTestStageLabel(stage)}</span>
-                    {stage.error && <span title={stage.error}>{stage.error}</span>}
+                    {stage.error && <span title={sshErrorMessage(stage.error, translateErrors)}>{sshErrorMessage(stage.error, translateErrors)}</span>}
                   </div>
                 ))}
                 {connectionTest.resolvedContainerAccess && (

@@ -7,6 +7,7 @@
  */
 
 import { getAiErrorPresentation } from '@/shared/ai-errors/aiErrorPresenter';
+import { isAcpReviewAuthoredError } from '@/shared/ai-errors/acpReviewErrors';
 import type { Session } from '../types/flow-chat';
 import type { CodeReviewRemediationData } from './codeReviewRemediation';
 import type { DeepReviewInterruption, DeepReviewReviewerProgress } from './deepReviewContinuation';
@@ -302,6 +303,15 @@ export function buildErrorAttribution(
     };
   }
 
+  if (isAcpReviewAuthoredError(interruption.errorDetail?.rawMessage)) {
+    return {
+      category: 'review_error',
+      title: 'deepReviewActionBar.reviewError',
+      description: 'deepReviewActionBar.reviewError',
+      severity: 'error',
+      actions: interruption.recommendedActions.map(action => ({ code: action.code, labelKey: action.labelKey })),
+    };
+  }
   const presentation = getAiErrorPresentation(interruption.errorDetail);
 
   return {

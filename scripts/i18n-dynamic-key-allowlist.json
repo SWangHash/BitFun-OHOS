@@ -196,6 +196,23 @@
         "acpReview.",
         "acpReviewParameters."
       ]
+    },
+    {
+      "id": "web-desktop-connection-error-messages",
+      "surface": "web-ui",
+      "namespace": "errors",
+      "owner": "src/web-ui/src/shared/ai-errors/connectionErrors.ts",
+      "description": "Complete SSH and Remote Connect authored error templates select precise translations while preserving external diagnostics.",
+      "sourceReferences": [
+        "Object.entries(messages)",
+        "catalog('ssh', english.connections.ssh)",
+        "catalog('remoteConnect', english.connections.remoteConnect)",
+        "errors:connections.${namespace}.${key}",
+        "Object.entries(english.connections.sshStages)"
+      ],
+      "keyPrefixes": [
+        "connections."
+      ]
     }
   ]
 }

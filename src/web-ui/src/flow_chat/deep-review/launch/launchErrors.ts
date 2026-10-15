@@ -1,4 +1,4 @@
-import { acpReviewErrorMessage, acpReviewErrorText } from '@/shared/ai-errors/acpReviewErrors';
+import { acpReviewErrorKey, acpReviewErrorMessage, acpReviewErrorText } from '@/shared/ai-errors/acpReviewErrors';
 import { classifyLaunchError } from '../../utils/deepReviewExperience';
 
 export type DeepReviewLaunchStep =
@@ -68,7 +68,11 @@ export function createDeepReviewLaunchError(
 
   friendlyError.launchErrorCategory = classified.category;
   friendlyError.launchErrorActions = classified.actions;
-  friendlyError.launchErrorMessageKey = classified.messageKey;
+  const originalKey = originalError && typeof originalError === 'object' && 'launchErrorMessageKey' in originalError
+    ? originalError.launchErrorMessageKey : undefined;
+  friendlyError.launchErrorMessageKey = typeof originalKey === 'string' ? originalKey
+    : acpReviewErrorKey(originalError) ?? classified.messageKey;
+  if (typeof originalKey === 'string') friendlyError.launchErrorCategory = 'target';
   friendlyError.launchErrorStep = classified.step;
   friendlyError.originalMessage = acpReviewErrorText(originalError).trim() || normalizeErrorMessage(originalError);
   if (originalError && typeof originalError === 'object' && 'cleanupCause' in originalError) {
