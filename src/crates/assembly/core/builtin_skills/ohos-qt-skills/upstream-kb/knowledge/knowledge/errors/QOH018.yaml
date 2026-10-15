@@ -1,0 +1,18 @@
+id: QOH018
+name: bash_windows_path_escape
+stage: [build]
+severity: medium
+patterns:
+  - 'PROGRA~1'
+  - 'clang++: No such file or directory'
+root_causes:
+  - bash mangles Windows short paths (C:PROGRA~1... backslashes eaten)
+  - clang++ path resolved from mangled SDK path
+diagnosis:
+  - check whether the build runs from bash/git-bash on Windows
+solutions:
+  - run Qt/OHOS builds in PowerShell, not bash/git-bash (see ENV.md)
+refs:
+  problems: [problems/build-fail-bash-path-escape.md]
+  kb:
+    - semantic/qt-harmonyos-build.md

@@ -1,0 +1,32 @@
+# knowledge/errors - error pattern database for the automatic diagnosis engine
+#
+#     python tools/qt-ohos-run.py analyze-log <logfile>
+#
+# Each QOH*.yaml is one machine-matchable error pattern. Entries map 1:1 to
+# the human-readable pages in problems/ (single source of truth stays there;
+# this directory is the machine index over it).
+#
+# Schema:
+#   id: QOH001
+#   name: short_name
+#   stage: [build|package|install|launch|runtime]
+#   severity: critical|high|medium|low
+#   patterns:                # matched case-insensitively against log text
+#     - "literal text"       # literal substring
+#     - "re:regex"           # regex (must stay quoted)
+#   root_causes: [...]
+#   diagnosis: [...]
+#   solutions: [...]
+#   refs:
+#     problems: [problems/<page>.md]   # the full human knowledge page
+#     kb: [semantic/...md]
+#
+# Scoring: score = matched_patterns / total_patterns (stage hint adds +0.1).
+# Adding entries: copy an existing file, use the next free QOH id, and update
+# the counts below (single source of truth principle - keep numbers real).
+
+version: 1
+entry_count: 42
+namespace: QOH
+source_of_truth: problems/
+entry: qt-ohos-run analyze-log <logfile>

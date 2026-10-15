@@ -1,0 +1,21 @@
+id: QOH013
+name: qt515_icu_detection_fail
+stage: [build]
+severity: high
+patterns:
+  - '-licui18n'
+  - 'unable to find library'
+  - 'ures.h'
+  - 'UCNV_FROM_U_CALLBACK_SUBSTITUTE'
+root_causes:
+  - Qt 5.15 configure cannot detect ICU on the OHOS sysroot
+  - ICU detection falls back to ICU=no and later breaks
+diagnosis:
+  - check configure output for ICU=no / unable to find library -licui18n
+solutions:
+  - point configure at the OHOS ICU (bundled in the sysroot) or pass the
+    ICU include/lib paths explicitly
+refs:
+  problems: [problems/build-fail-qt515-icu-detection.md]
+  kb:
+    - semantic/qt-harmonyos-build.md

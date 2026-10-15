@@ -1,0 +1,23 @@
+id: R001
+name: dbus_usage
+category: module
+severity: critical
+platform:
+  harmonyos: unsupported
+match:
+  modules: [dbus]
+  source:
+    - "#\s*include\s*<\s*QtDBus"
+    - "QDBus(Connection|Interface|Message|ServiceWatcher)"
+  pro:
+    - "QT\s*\+?=.*\bdbus\b"
+  cmake:
+    - "find_package\s*\(\s*Qt[56][^)]*DBus"
+golden_rules: []
+kb:
+  - semantic/qt-harmonyos-modules.md
+  - problems/runtime-fail-libqtdbus-missing.md
+solution: >
+  HarmonyOS has no DBus. Remove the QtDBus dependency: replace IPC with
+  socket/StartAbility-based communication. If libQt5DBus.so load fails at
+  runtime the app crashes immediately (see problems/runtime-fail-libqtdbus-missing.md).

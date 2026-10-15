@@ -1,0 +1,21 @@
+id: QOH011
+name: sandbox_readonly_path_write
+stage: [launch, runtime]
+severity: critical
+patterns:
+  - 'SIGABRT'
+  - 'read-only'
+  - 'exit(1)'
+root_causes:
+  - app writes a config file to the read-only bundle path then calls exit(1)
+  - delayed crash after launch (SIGABRT)
+diagnosis:
+  - inspect the crash stack for the config-write failure then exit(1)
+  - find the hardcoded bundle-relative write path
+solutions:
+  - redirect writes to the writable sandbox directory (/data/storage/el2)
+refs:
+  problems: [problems/runtime-crash-sandbox-readonly-path.md]
+  kb:
+    - ohos-common-kb-public/semantic/application-sandbox-paths.md
+    - ohos-common-kb-public/problems/runtime-write-to-readonly-bundle-path.md

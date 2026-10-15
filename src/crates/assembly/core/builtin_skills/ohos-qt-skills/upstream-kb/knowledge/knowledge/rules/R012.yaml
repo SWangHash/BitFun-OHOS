@@ -1,0 +1,18 @@
+id: R012
+name: system_tray_usage
+category: window
+severity: high
+platform:
+  harmonyos: unsupported
+match:
+  source:
+    - "\bQSystemTrayIcon\b"
+golden_rules: [W5]
+kb:
+  - semantic/qt-harmonyos-system-tray.md
+  - semantic/qt-harmonyos-window-model.md
+solution: >
+  HarmonyOS has no system tray. QSystemTrayIcon will not function; main
+  window hide() degrades to minimize (golden rule W5). Rework tray-based
+  UX (background run, notifications) into the OHOS equivalents and remove
+  tray-dependent flows.

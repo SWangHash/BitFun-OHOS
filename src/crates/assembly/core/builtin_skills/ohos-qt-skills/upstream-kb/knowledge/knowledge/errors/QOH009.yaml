@@ -1,0 +1,20 @@
+id: QOH009
+name: ohos_deviceinfo_global_expression
+stage: [launch]
+severity: critical
+patterns:
+  - '@ohos.deviceInfo'
+  - 'onAcceptWant'
+  - 'LAST_FATAL_MESSAGE'
+root_causes:
+  - global expression / deviceType property error from @ohos.deviceInfo
+  - triggered on onAcceptWant, window recreate, or QApplication re-construction
+diagnosis:
+  - check faultlog LAST_FATAL_MESSAGE for the Napi::Error
+  - distinguish from the older 'object has no property deviceType' variant
+solutions:
+  - align the glue template with the target SDK deviceInfo API generation
+refs:
+  problems: [problems/runtime-crash-ohos-deviceinfo-global-expression.md]
+  kb:
+    - semantic/qt-harmonyos-lifecycle.md

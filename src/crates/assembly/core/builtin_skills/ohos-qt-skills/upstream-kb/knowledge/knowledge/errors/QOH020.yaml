@@ -1,0 +1,18 @@
+id: QOH020
+name: libuuid_missing_ohos_musl
+stage: [build]
+severity: high
+patterns:
+  - 'uuid/uuid.h'
+  - '-luuid'
+  - 'No such file or directory'
+root_causes:
+  - Linux app expects libuuid; OHOS musl sysroot has no uuid/uuid.h or -luuid
+diagnosis:
+  - check whether uuid is a hard dependency or guarded
+solutions:
+  - cross-compile libuuid for OHOS or switch to a header-only uuid generator
+refs:
+  problems: [problems/build-fail-libuuid-missing-ohos-musl.md]
+  kb:
+    - semantic/qt-harmonyos-third-party-libs.md

@@ -1,0 +1,18 @@
+id: R009
+name: qprocess_usage
+category: process
+severity: high
+platform:
+  harmonyos: restricted
+match:
+  source:
+    - "\bQProcess\b"
+golden_rules: []
+kb:
+  - semantic/qt-harmonyos-platform-limits.md
+  - semantic/qt-harmonyos-api-mapping.md
+solution: >
+  QProcess depends on child-process support which HarmonyOS HAPs do not
+  provide in the general case. Replace with in-process libraries or the
+  platform equivalents; if unavoidable, verify against the platform-limits
+  page and the target API level.

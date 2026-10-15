@@ -1,0 +1,24 @@
+id: R002
+name: webengine_usage
+category: module
+severity: critical
+platform:
+  harmonyos: unsupported
+match:
+  modules: [webengine, webenginecore, webenginewidgets, webkit]
+  source:
+    - "#\s*include\s*<\s*QtWebEngine"
+    - "#\s*include\s*<\s*QtWebKit"
+    - "QWebEngine(View|Page|Profile)"
+  pro:
+    - "QT\s*\+?=.*webengine"
+  cmake:
+    - "find_package\s*\(\s*Qt[56][^)]*WebEngine"
+golden_rules: []
+kb:
+  - semantic/qt-harmonyos-modules.md
+  - procedural/qt-cef-ohos-dev-guide.md
+solution: >
+  QtWebEngine/WebKit are not available on HarmonyOS. CEF for OpenHarmony is
+  the full Chromium substitute: follow procedural/qt-cef-ohos-dev-guide.md
+  (WebEngine->CEF API mapping + graft script tools/kb-cef-graft.py).

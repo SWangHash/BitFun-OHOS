@@ -1,0 +1,22 @@
+id: R010
+name: hardcoded_unix_paths
+category: path
+severity: high
+platform:
+  harmonyos: restricted
+match:
+  source:
+    - "\"/tmp/"
+    - "\"/etc/"
+    - "\"/usr/"
+    - "\"/var/"
+    - "getenv\s*\(\s*\"(HOME|TMPDIR|XDG_DATA_HOME)\""
+golden_rules: []
+kb:
+  - semantic/qt-harmonyos-platform-limits.md
+  - ohos-common-kb-public/semantic/application-sandbox-paths.md
+  - problems/runtime-crash-sandbox-readonly-path.md
+solution: >
+  HarmonyOS apps live in a sandbox: bundle install path is read-only and
+  writable data must go to /data/storage/el2 (QStandardPaths). Replace
+  hardcoded /tmp, /etc, $HOME paths with QStandardPaths / sandbox paths.

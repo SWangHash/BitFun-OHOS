@@ -1,0 +1,18 @@
+id: R018
+name: qrc_resources_present
+category: build
+severity: low
+platform:
+  harmonyos: review
+match:
+  files:
+    - "*.qrc"
+golden_rules: [B10]
+kb:
+  - semantic/qt-harmonyos-golden-rules.md
+  - semantic/qt-harmonyos-project-structure.md
+solution: >
+  Golden rule B10: QML/qrc apps must enable CMAKE_AUTORCC ON, otherwise
+  qrc resources are not compiled and the app shows a black screen at
+  runtime. qt-ohos-run patch enables it automatically when a CMakeLists
+  already uses CMAKE_AUTOMOC.

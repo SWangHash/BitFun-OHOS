@@ -1,0 +1,18 @@
+id: QOH038
+name: qml_python_missing
+stage: [build]
+severity: high
+patterns:
+  - 'sh: 1: python: not found'
+  - 'Building QtQml requires Python'
+root_causes:
+  - qtdeclarative qmake scripts invoke `python` (not `python3`) but most Linux distros ship only python3
+diagnosis:
+  - 'command -v python   # empty on minimal Ubuntu/Debian'
+solutions:
+  - nothing to do with the CLI (v2026-09-19+ auto-shims python -> python3 via .qtsdk/pyshim on PATH during configure/build)
+  - 'manual: apt install python-is-python3, or symlink /usr/local/bin/python -> /usr/bin/python3'
+refs:
+  problems: [problems/build-fail-python-not-found.md]
+  kb:
+    - skills/qt-sdk-forge/references/build-matrix.md

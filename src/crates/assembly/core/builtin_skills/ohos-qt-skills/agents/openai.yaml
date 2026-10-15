@@ -1,0 +1,4 @@
+interface:
+  display_name: "Migrate Qt to HarmonyOS"
+  short_description: "Port one Qt app to HarmonyOS with pinned knowledge provenance"
+  default_prompt: "Use $qt-harmonyos-migration to assess, port, and verify this Qt application on HarmonyOS."

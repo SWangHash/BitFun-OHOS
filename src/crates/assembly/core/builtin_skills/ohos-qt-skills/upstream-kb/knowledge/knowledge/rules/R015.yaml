@@ -1,0 +1,18 @@
+id: R015
+name: qmake_unix_scope_without_ohos
+category: build
+severity: high
+platform:
+  harmonyos: workaround
+match:
+  pro:
+    - "(^|[\s\{\(])unix(:!\w+)*\s*[:{]"
+golden_rules: [B9]
+kb:
+  - semantic/qt-harmonyos-golden-rules.md
+  - semantic/qt-harmonyos-code-patterns.md
+solution: >
+  Golden rule B9: ohos also matches qmake's unix scope, so
+  `unix:!android:!macx` branches compile wrong Linux code for OHOS.
+  Append :!ohos (e.g. unix:!android:!macx:!ohos). qt-ohos-run patch
+  applies this fix automatically and tracks it.

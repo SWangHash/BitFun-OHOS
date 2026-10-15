@@ -1,0 +1,280 @@
+# knowledge/adaptation/modules.yaml — Qt 模块可用性矩阵（机器可读）
+#
+# 单一事实源：semantic/qt-harmonyos-modules.md + semantic/qt-harmonyos-qt6-status.md
+# 本文件是其机器投影，供 qt-ohos-run.py assess / plan 消费；修改时与人类页同步。
+# 模块名一律小写、去版本前缀（scanner 输出口径：core/gui/widgets/...）。
+#
+# status 取值：
+#   available    — SDK 内置，直接可用
+#   self-compile — 不在 SDK，需自行交叉编译（不必然阻断）
+#   out-of-scope — 平台不支持（核心依赖即阻断）
+#   restricted   — 部分支持/能力受限，需逐项验证
+#
+# 基准：Qt 5.12.12 (tqtc/harmonyos-5.12.12, 613336de) / Qt 5.15.16 (962aa625)
+#       Qt 6.12.0 预构建安装器（2026-07-25 复核）
+
+schema: 1
+updated: 2026-09-08
+source: semantic/qt-harmonyos-modules.md
+
+versions:
+  qt5_12: "5.12.12"
+  qt5_15: "5.15.16"
+  qt6_12: "6.12.0"
+
+modules:
+  core:
+    qt5_12: available
+    qt5_15: available
+    qt6_12: available
+  gui:
+    qt5_12: available
+    qt5_15: available
+    qt6_12: available
+  widgets:
+    qt5_12: available
+    qt5_15: available
+    qt6_12: available
+  network:
+    qt5_12: available
+    qt5_15: available
+    qt6_12: available
+  sql:
+    qt5_12: available
+    qt5_15: available
+    qt6_12: available
+  concurrent:
+    qt5_12: available
+    qt5_15: available
+    qt6_12: available
+  xml:
+    qt5_12: available
+    qt5_15: available
+    qt6_12: available
+  test:
+    qt5_12: available
+    qt5_15: available
+    qt6_12: available
+  opengl:
+    qt5_12: available
+    qt5_15: available
+    qt6_12: available
+  openglextensions:
+    qt5_12: restricted
+    qt5_15: restricted
+    qt6_12: restricted
+    note: "多数发行为静态/头文件模块，无独立 .so（2026-09-09 实测 Qt-full 5.15.16 与 Qt6 beta3 均无 libQt*OpenGLExtensions.so）"
+    ref: semantic/qt-harmonyos-modules.md
+  printsupport:
+    qt5_12: available
+    qt5_15: available
+    qt6_12: available
+  svg:
+    qt5_12: available
+    qt5_15: available
+    qt6_12: available
+  qml:
+    qt5_12: available
+    qt5_15: available
+    qt6_12: available
+  quick:
+    qt5_12: available
+    qt5_15: available
+    qt6_12: available
+  quickwidgets:
+    qt5_12: available
+    qt5_15: available
+    qt6_12: available
+  quickcontrols2:
+    qt5_12: available
+    qt5_15: available
+    qt6_12: available
+  quicktest:
+    qt5_12: available
+    qt5_15: available
+    qt6_12: available
+  ohosextras:
+    qt5_12: available
+    qt5_15: available
+    qt6_12: restricted
+    note: "Qt6 重新独立为 HarmonyExtras，公开头仅 exports/version 桩，功能头私有 _p.h"
+    ref: semantic/qt-ohos-extras.md
+  docgallery:
+    qt5_12: available
+    qt5_15: out-of-scope
+    qt6_12: out-of-scope
+  uitools:
+    qt5_12: self-compile
+    qt5_15: self-compile
+    qt6_12: available
+    note: "qttools 依赖只能在鸿蒙PC上主机编译（host build），Windows 交叉编译不可行"
+    ref: problems/build-missing-qt5uitools-ohos.md
+  help:
+    qt5_12: self-compile
+    qt5_15: self-compile
+    qt6_12: available
+    note: "Qt5 同 uitools 需鸿蒙PC主机编译；Qt6 beta3 实测含 libQt6Help.so（2026-09-09）"
+    ref: problems/build-missing-qt5uitools-ohos.md
+  multimedia:
+    qt5_12: self-compile
+    qt5_15: self-compile
+    qt6_12: available
+    note: "官方 Qt5 SDK 不含（modules 页）；Qt-full 全量构建实测含 libQt5Multimedia.so；Qt6 beta3 实测含"
+    ref: semantic/qt-harmonyos-modules.md
+  multimediawidgets:
+    qt5_12: self-compile
+    qt5_15: self-compile
+    qt6_12: available
+    ref: semantic/qt-harmonyos-modules.md
+  pdf:
+    qt5_12: out-of-scope
+    qt5_15: restricted
+    qt6_12: out-of-scope
+    note: "仅 5.15 部分支持；Qt6 预构建不含"
+    ref: semantic/qt-harmonyos-modules.md
+  quicktimeline:
+    qt5_12: out-of-scope
+    qt5_15: restricted
+    qt6_12: available
+    note: "Qt6 beta3 实测含 libQt6QuickTimeline.so（2026-09-09）"
+    ref: semantic/qt-harmonyos-qt6-status.md
+  webengine:
+    qt5_12: out-of-scope
+    qt5_15: out-of-scope
+    qt6_12: out-of-scope
+    substitute: "CEF for OpenHarmony（chromium_cef，完整 Chromium 内核）"
+    ref: procedural/qt-cef-ohos-dev-guide.md
+  webenginecore:
+    qt5_12: out-of-scope
+    qt5_15: out-of-scope
+    qt6_12: out-of-scope
+    substitute: "CEF for OpenHarmony"
+    ref: procedural/qt-cef-ohos-dev-guide.md
+  webenginewidgets:
+    qt5_12: out-of-scope
+    qt5_15: out-of-scope
+    qt6_12: out-of-scope
+    substitute: "CEF for OpenHarmony"
+    ref: procedural/qt-cef-ohos-dev-guide.md
+  webkit:
+    qt5_12: out-of-scope
+    qt5_15: out-of-scope
+    qt6_12: out-of-scope
+    substitute: "CEF for OpenHarmony"
+    ref: procedural/qt-cef-ohos-dev-guide.md
+  webview:
+    qt5_12: restricted
+    qt5_15: restricted
+    qt6_12: out-of-scope
+    note: "Qt-full 全量构建实测含 libQt5WebView.so；官方 SDK 状态待核。轻量展示用原生桥；完整内核用 CEF"
+    ref: procedural/qt-cef-ohos-dev-guide.md
+  dbus:
+    qt5_12: out-of-scope
+    qt5_15: out-of-scope
+    qt6_12: out-of-scope
+    note: "HarmonyOS 无 D-Bus；软总线/Ability 机制替代"
+    ref: problems/runtime-fail-libqtdbus-missing.md
+  remoteobjects:
+    qt5_12: out-of-scope
+    qt5_15: out-of-scope
+    qt6_12: available
+    note: "Qt6 beta3 实测含 libQt6RemoteObjects.so（2026-09-09）；Qt5 不含"
+    ref: semantic/qt-harmonyos-qt6-status.md
+  serialbus:
+    qt5_12: out-of-scope
+    qt5_15: out-of-scope
+    qt6_12: available
+    note: "Qt6 6.12 预构建已含"
+    ref: semantic/qt-harmonyos-qt6-status.md
+  wayland:
+    qt5_12: out-of-scope
+    qt5_15: out-of-scope
+    qt6_12: out-of-scope
+    ref: semantic/qt-harmonyos-qt6-status.md
+  script:
+    qt5_12: out-of-scope
+    qt5_15: out-of-scope
+    qt6_12: out-of-scope
+    ref: semantic/qt-harmonyos-qt6-status.md
+  serialport:
+    qt5_12: restricted
+    qt5_15: restricted
+    qt6_12: restricted
+    ref: semantic/qt-harmonyos-modules.md
+  bluetooth:
+    qt5_12: restricted
+    qt5_15: restricted
+    qt6_12: available
+    ref: semantic/qt-harmonyos-qt6-status.md
+  nfc:
+    qt5_12: restricted
+    qt5_15: restricted
+    qt6_12: restricted
+    ref: semantic/qt-harmonyos-modules.md
+  positioning:
+    qt5_12: restricted
+    qt5_15: restricted
+    qt6_12: available
+    ref: semantic/qt-harmonyos-modules.md
+  location:
+    qt5_12: restricted
+    qt5_15: restricted
+    qt6_12: available
+    ref: semantic/qt-harmonyos-qt6-status.md
+  sensors:
+    qt5_12: restricted
+    qt5_15: restricted
+    qt6_12: available
+    ref: semantic/qt-harmonyos-qt6-status.md
+  charts:
+    qt5_12: restricted
+    qt5_15: restricted
+    qt6_12: restricted
+    note: "Qt-full 5.15.16 全量构建实测含 libQt5Charts.so；Qt6 本机 beta3 安装缺失（与 qt6-status 'Charts 全在' 论断不符，以安装器组件勾选为准——2026-09-09 核）"
+    ref: semantic/qt-harmonyos-qt6-status.md
+  datavisualization:
+    qt5_12: out-of-scope
+    qt5_15: out-of-scope
+    qt6_12: restricted
+    note: "Qt6 本机 beta3 安装缺失（与 qt6-status 'DataVisualization 全在' 论断不符——2026-09-09 核）；依赖 Charts 类组件时先确认 kit 实际内容"
+    ref: semantic/qt-harmonyos-qt6-status.md
+  core5compat:
+    qt5_12: out-of-scope
+    qt5_15: out-of-scope
+    qt6_12: available
+    ref: semantic/qt-harmonyos-qt6-status.md
+
+# 别名归一化：scanner/构建系统可能出现的写法 -> 上面 modules 的键
+aliases:
+  qtwebengine: webengine
+  webenginequick: webengine
+  qtdbus: dbus
+  dbusextended: dbus
+  qtquickcontrols2: quickcontrols2
+  quickcontrols: quickcontrols2
+  qtuitools: uitools
+  qtmultimedia: multimedia
+  qtsvg: svg
+  qtnetwork: network
+  qtsql: sql
+  qtconcurrent: concurrent
+  qtxml: xml
+  qttest: test
+  qtopengl: opengl
+  qtprintsupport: printsupport
+  qtwebsockets: websockets
+  qtwebchannel: webchannel
+  qtserialport: serialport
+  qtbluetooth: bluetooth
+  qtnfc: nfc
+  qtpositioning: positioning
+  qtlocation: location
+  qtsensors: sensors
+  qtcharts: charts
+  qtdatavisualization: datavisualization
+  qtdocgallery: docgallery
+  qtquicktimeline: quicktimeline
+  qtpdf: pdf
+  qthelp: help
+  designer: uitools
+  assistant: help

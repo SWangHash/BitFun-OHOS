@@ -1,0 +1,21 @@
+id: QOH021
+name: glibc_internal_symbols_ohos_musl
+stage: [build]
+severity: medium
+patterns:
+  - '__pid_t'
+  - '__uid_t'
+  - 's6_addr32'
+  - 'unknown type name'
+root_causes:
+  - Linux code uses glibc-internal types (__pid_t/__uid_t) or in6_addr.s6_addr32
+  - OHOS uses musl which lacks these glibc internals
+diagnosis:
+  - grep for glibc-internal typedefs in the ported sources
+solutions:
+  - replace glibc internals with standard POSIX types (pid_t/uid_t) and
+    portable in6_addr accessors
+refs:
+  problems: [problems/build-fail-glibc-internal-symbols-ohos-musl.md]
+  kb:
+    - ohos-common-kb-public/semantic/ohos-cross-compile-pitfalls.md

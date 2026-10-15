@@ -1,0 +1,20 @@
+id: R005
+name: macos_native_api
+category: api
+severity: critical
+platform:
+  harmonyos: unsupported
+match:
+  source:
+    - "#\s*include\s*<\s*(Cocoa|AppKit|Foundation)/"
+    - "#\s*import\s*<\s*(Cocoa|AppKit|UIKit)/"
+    - "\bNSApplication\b"
+    - "@autoreleasepool"
+golden_rules: []
+kb:
+  - semantic/qt-harmonyos-platform-limits.md
+  - semantic/qt-harmonyos-api-mapping.md
+solution: >
+  Objective-C / Cocoa / AppKit code cannot compile for HarmonyOS. Provide a
+  Qt-only code path behind #ifdef Q_OS_MACOS and implement the OHOS branch
+  with Qt APIs / QtOhosExtras.

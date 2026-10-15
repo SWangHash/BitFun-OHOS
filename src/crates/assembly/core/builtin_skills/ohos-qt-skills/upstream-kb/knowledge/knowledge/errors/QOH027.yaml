@@ -1,0 +1,19 @@
+id: QOH027
+name: hvigor_cli_hap_launch_crash
+stage: [package, install, launch]
+severity: medium
+patterns:
+  - 'hvigor CLI'
+  - 'IDE Run'
+root_causes:
+  - HAP built via hvigor CLI crashes on launch, while DevEco Studio IDE Run works
+  - CLI build misses some packaging/signing inputs the IDE provides
+diagnosis:
+  - compare CLI-built HAP contents against the IDE-built HAP
+solutions:
+  - align the hvigor CLI invocation (signing config, native libs) with the
+    IDE behavior
+refs:
+  problems: [problems/deploy-fail-hvigor-cli-hap-crash.md]
+  kb:
+    - semantic/qt-harmonyos-build-run-workflow.md

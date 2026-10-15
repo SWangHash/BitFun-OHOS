@@ -1,0 +1,22 @@
+id: QOH037
+name: src_clone_exec_bit_crlf
+stage: [build]
+severity: high
+patterns:
+  - 'qtbase/configure: Permission denied'
+  - 're:bad interpreter.*\^M'
+  - 'Remote branch tqtc/harmonyos-5.12.12 not found'
+root_causes:
+  - GitCode opensource mirror initial import stored all files as 100644, shebang scripts lost the executable bit
+  - opensource mirror main/5.12.12 snapshots carry Windows CRLF line endings that break POSIX shells
+  - CLI tried to clone the commercial branch name (tqtc/harmonyos-5.12.12) which does not exist on the GitCode mirror
+diagnosis:
+  - 'file qtbase/configure  # "with CRLF line terminators" = CRLF snapshot'
+  - 'git ls-remote --heads https://gitcode.com/ohos-qt/qt-harmonyos-src.git'
+solutions:
+  - re-run src-clone --method opensource (v2026-09-19+ defaults to the POSIX build branch, auto-restores exec bits, refuses CRLF trees)
+  - 'manual: clone branch build/macos-arm64-qt5.12.12, chmod +x shebang scripts and commit the mode change'
+refs:
+  problems: [problems/build-fail-configure-exec-bit-crlf.md]
+  kb:
+    - skills/qt-sdk-forge/references/build-matrix.md

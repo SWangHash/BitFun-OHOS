@@ -1,0 +1,20 @@
+id: R011
+name: unsupported_modules_other
+category: module
+severity: critical
+platform:
+  harmonyos: unsupported
+match:
+  modules: [remoteobjects, serialbus, multimedia, multimediawidgets, bluetooth, serialport]
+  source:
+    - "#\s*include\s*<\s*QtRemoteObjects"
+    - "#\s*include\s*<\s*QtSerialBus"
+    - "#\s*include\s*<\s*QtMultimedia"
+golden_rules: []
+kb:
+  - semantic/qt-harmonyos-modules.md
+solution: >
+  QtRemoteObjects / QtSerialBus / QtMultimedia are not usable in the OHOS
+  Qt SDK (Multimedia modules are absent from the SDK; verified 2026-06-11).
+  Check semantic/qt-harmonyos-modules.md for per-module status and
+  substitutes before planning the port.

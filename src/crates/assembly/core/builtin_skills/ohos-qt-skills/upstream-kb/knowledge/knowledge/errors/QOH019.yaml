@@ -1,0 +1,19 @@
+id: QOH019
+name: qtohosextras_camelcase_headers_missing
+stage: [build]
+severity: medium
+patterns:
+  - "'QtOhosExtras/"
+  - 'file not found'
+root_causes:
+  - fatal error 'QtOhosExtras/QOhosAppContext' file not found
+  - CamelCase forwarding headers not generated/installed for the module
+diagnosis:
+  - check the QtOhosExtras include directory for CamelCase headers
+solutions:
+  - include the real headers (e.g. qohosappcontext.h) or install the
+    CamelCase forwarding headers from the Qt source tree
+refs:
+  problems: [problems/build-fail-qtohosextras-camelcase-headers.md]
+  kb:
+    - semantic/qt-ohos-extras.md

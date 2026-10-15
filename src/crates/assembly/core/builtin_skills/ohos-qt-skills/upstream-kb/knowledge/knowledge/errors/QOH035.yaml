@@ -1,0 +1,19 @@
+id: QOH035
+name: textchanged_crash_no_debounce
+stage: [runtime]
+severity: high
+patterns:
+  - 'textChanged'
+  - 'debounce'
+  - 'Load File'
+root_causes:
+  - typing in a path input triggers textChanged handlers without debounce;
+    heavy work per keystroke crashes the app
+diagnosis:
+  - check textChanged slots for blocking/expensive work
+solutions:
+  - debounce textChanged (timer) and move work off the UI thread
+refs:
+  problems: [problems/runtime-crash-loadfile-textchanged-no-debounce.md]
+  kb:
+    - semantic/qt-harmonyos-code-patterns.md

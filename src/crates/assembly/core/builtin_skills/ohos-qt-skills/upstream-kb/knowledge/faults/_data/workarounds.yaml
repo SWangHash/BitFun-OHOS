@@ -1,0 +1,170 @@
+# faults/_data/workarounds.yaml — 临时方案（W）真源
+#
+# 实体：临时方案 = 根治/迁移前的可执行绕过手段（limitation 语境即"替代方案"）。
+# 一个根因可有多个 W（可选方案）；W 独立跟踪自己的验证与退役。
+#
+# 字段：
+#   id          W-XXXX（只增不复用）
+#   title       方案一句话
+#   targets     作用的根因（W→C 边）
+#   status      proposed（提出未验证）→ tested（已验证）→ adopted（已采用为主案）→ retired（已退役）
+#   cost        代价一句话
+#   verified    最近验证（嵌套：date + env）；无记录可省略
+#   retire_when 退役条件（官方修复/迁移完成后要撤销什么）
+#   detail      详细步骤位置（通常为 C 页小节锚点）
+#   used_by     采用方（应用/工程，可选）
+
+schema: 1
+workarounds:
+  - id: W-0001
+    title: "QML 用 Qt.platform.pluginName 判断平台（C++ 用 productType()/#ifdef Q_OS_OHOS）"
+    targets: [C-0001]
+    status: adopted
+    cost: "pluginName 依赖运行时 QPA 插件，-platform offscreen 等测试环境值会变"
+    verified:
+      date: 2026-08-06
+      env: "Qt 5.15.16 (962aa625) 源码验证"
+    retire_when: "上游修复进入所用 Qt OHOS SDK（os() 加 Q_OS_OHOS 分支）后换回 Qt.platform.os 判断"
+    detail: "C-0001-qqmlplatform-os-ohos-branch.md §临时方案"
+
+  - id: W-0002
+    title: "重编 libqohos.so（reset 只 finalize preedit，不 detach）并替换 kit"
+    targets: [C-0002]
+    status: adopted
+    cost: "Qt kit 每次更新需重打补丁重编"
+    verified:
+      date: 2026-09-12
+      env: "Qt 6.12-beta3 / HarmonyOS PC（MateBook Pro）真机"
+    retire_when: "上游版本含此修复后恢复官方 kit，移除本地重编流程"
+    detail: "C-0002-ime-reset-detach.md §临时方案"
+
+  - id: W-0003
+    title: "退出补丁：原子变量 s_qtAppThreadIdle + 独立线程并行轮询，绕过 TSFN"
+    targets: [C-0004]
+    status: adopted
+    cost: "侵入胶水层 handleAbilityOnDestroy；退出阶段回调投递类插件需同思路防御"
+    verified:
+      date: 2026-06-09
+      env: "Qt 5.12.12 / 真机"
+    retire_when: "确认所用 HarmonyOS 版本已在销毁窗口处理 TSFN 后移除补丁并回归退出测试"
+    detail: "C-0004-ability-destroy-tsfn.md §临时方案"
+
+  - id: W-0004
+    title: "换构建组合：MinGW g++ 13.1.0 host + API 23 SDK + superbuild 路径"
+    targets: [C-0005, C-0006]
+    status: adopted
+    cost: "三变量同时变未隔离确认是哪个解；原失败组合（llvm-mingw clang22 + API 24 + per-module qt-cmake）仍必现——未根治"
+    verified:
+      date: 2026-07-13
+      env: "Qt 6.12.0 全量构建 + gallery demo 真机"
+    retire_when: "Qt 去除 -isystem 注入或 SDK 修 C-0006 后，恢复标准构建组合并重跑隔离测试"
+    detail: "C-0005-qt-cmake-isystem-injection.md §临时方案"
+
+  - id: W-0005
+    title: "构建/打包期展开真实文件（替代运行时 symlink）"
+    targets: [C-0008]
+    status: adopted
+    cost: "构建/打包脚本需增加展开逻辑"
+    retire_when: "无退役预期（wontfix：沙箱规格稳定）"
+    detail: "C-0008-sandbox-chmod-symlink.md §替代方案"
+
+  - id: W-0006
+    title: "权限需求交平台打包契约，不作运行时业务成功条件"
+    targets: [C-0008]
+    status: adopted
+    cost: "依赖 setPermissions 返回值的代码路径需改造"
+    retire_when: "无退役预期（wontfix：沙箱规格稳定）"
+    detail: "C-0008-sandbox-chmod-symlink.md §替代方案"
+
+  - id: W-0007
+    title: "重编 libqohos.so 打 transientParent 反写 patch（showImmediate 约 8 行）并替换 kit"
+    targets: [C-0009]
+    status: adopted
+    cost: "Qt kit 每次更新需重打补丁重编；应用层备选 QDialog(self)+WA_DeleteOnClose 改不到三方库内部构造的 QDialog"
+    verified:
+      date: 2026-08-06
+      env: "Qt 5.15.16 / OHOS 真机（ohostemplate，hilog 17:39 验证链）"
+    retire_when: "上游 harmonyos 分支合入 transientParent 反写后恢复官方 kit，移除本地重编流程并回归三级窗口关闭测试"
+    detail: "C-0009-qpa-syntheticparent-no-transientparent.md §临时方案"
+
+  - id: W-0008
+    title: "钦定完整版参考模板替换胶水 4 文件（26+13 eager default-import + objects API）"
+    targets: [C-0010]
+    status: adopted
+    cost: "libqohos 代际变更后需重新 strings 对齐 @ohos.*/@kit.* 清单；每个从源码树模板生成的工程都要替换"
+    verified:
+      date: 2026-07-23
+      env: "Qt 5.15.16（515 代际 libqohos 7/17）/ HarmonyOS 6.0.0.29 MateBook Fold 真机（qapp-recreate-test）"
+    retire_when: "Qt 源码树模板与 libqohos 同批次更新（eager import 清单对齐）后恢复官方模板，移除 4 文件替换流程"
+    detail: "C-0010-stale-template-ohos-bare-eval.md §临时方案"
+
+  - id: W-0009
+    title: "main() 约束：QApplication 必须是第一个 Qt API 调用（构造前不触碰 QThreadData）"
+    targets: [C-0011]
+    status: proposed
+    cost: "既有 main() 前置 Qt 调用需重排；针对假说①（根因未定），不保证生效"
+    retire_when: "根因确认并根治（或定性为使用约束并文档化转正）后，撤销临时约束并回归 Debug 构建点击测试"
+    detail: "C-0011-the-mainthread-mismatch.md §临时方案"
+
+  - id: W-0010
+    title: "插件 .so 随 HAP lib 目录打包交付（或固定集合静态链接），不做运行时下载加载"
+    targets: [C-0012]
+    status: adopted
+    cost: "插件无法运行时下载/热更新，新增插件需重新打包发版；需动态下发的逻辑改用 ArkTS/JS 脚本"
+    retire_when: "无退役预期（wontfix：loader 规格稳定）；若平台开放可写区代码加载则改回运行时下载模式"
+    detail: "C-0012-loader-rejects-writable-path.md §临时方案"
+
+  - id: W-0011
+    title: "路径获取加 Q_OS_OHOS 分支：QStandardPaths::writableLocation(AppDataLocation) 替代 currentPath/applicationDirPath"
+    targets: [C-0013]
+    status: adopted
+    cost: "所有文件写入点（配置/日志/QSettings/临时文件）需排查改造；跨平台分支维护"
+    verified:
+      date: 2026-07-09
+      env: "Qt 5.15.16 / HarmonyOS 6.0 / HUAWEI MateBook 14（FRequest commit 8a8ba95，真机验证）"
+    retire_when: "无退役预期（wontfix：bundle 只读规格稳定）；若平台放开应用目录写语义则回归 QDir 原生路径"
+    detail: "C-0013-sandbox-readonly-bundle-path.md §临时方案"
+
+  - id: W-0012
+    title: "去冗余 resize：size 未变时不触发 resizeAsync，规避跨屏闪烁"
+    targets: [C-0014]
+    status: proposed
+    cost: "改 Qt 适配层需重编 libqohos.so/kit 且须评估影响（跳过 setSize 可能致首次大小不正确）；应用层方案只覆盖自管窗口"
+    verified:
+      date: 2026-06-05
+      env: "HUAWEI MateBook Fold 双屏真机（对照实验：屏蔽 resizeAsync 后闪烁消失；纯 ArkTS 复现同结论）"
+    retire_when: "系统侧保证跨屏 move+resize 渲染原子性（或提供原子几何更新 API）后，移除补丁并回归跨屏拖拽测试"
+    detail: "C-0014-crossscreen-move-resize-conflict.md §临时方案"
+
+  - id: W-0013
+    title: "放弃 hvigor CLI 打包，改用 DevEco Studio IDE Run 部署"
+    targets: [C-0015]
+    status: adopted
+    cost: "CI/CD 自动化场景不可用（命令行打包是流水线标配）；日常流程绑定 IDE"
+    verified:
+      date: 2026-08-06
+      env: "OHOS + Qt 5.15.16 + DevEco Studio IDE Run（源页记录：IDE 打包流程正常）"
+    retire_when: "hvigor CLI 打包差异查明并修复（或 CLI 提供等价 IDE 打包的正确配置项）后，恢复命令行打包并回归启动测试"
+    detail: "C-0015-hvigor-cli-ide-packaging-divergence.md §临时方案"
+
+  - id: W-0014
+    title: "中文 JSON 写入 UTF-8 临时文件后 curl -d @file 引用"
+    targets: [C-0017]
+    status: adopted
+    cost: "每次请求多一步写临时文件；heredoc 内容须确保 UTF-8"
+    verified:
+      date: 2026-06-10
+      env: "Windows 10/11 + Git Bash (MSYS2) + curl 7.x/8.x（GitCode API 建/改 PR 实战）"
+    retire_when: "终端环境可稳定保证 UTF-8（chcp 65001 在所用 Git Bash 版本稳定，或改用 UTF-8 默认终端）后，可恢复 -d 直接内联中文"
+    detail: "C-0017-curl-gbk-terminal-mojibake.md §临时方案"
+
+  - id: W-0015
+    title: "OHOS 上 alpha-PNG(RGBA8) 实体关 mipmap（generateMipMaps:false + minificationFilter:Texture.Linear）"
+    targets: [C-0018]
+    status: adopted
+    cost: "alpha-PNG 实体失去 mipmap（远处纹理混叠）；需按实体粒度加开关；QML 守卫须用 Qt.platform.pluginName（C-0001）"
+    verified:
+      date: 2026-07-14
+      env: "Qt 5.12.12 OHOS SDK / HUAWEI MateBook Fold 真机 / Mesa ZINK（planets-qml-ohos）"
+    retire_when: "Mesa ZINK 修复 RGBA8 glGenerateMipmap（vkCmdBlitImage 路径）并随所用 OHOS SDK 到达后，移除 diffuseGenerateMipMaps 开关、恢复 upstream mipmap 行为并回归验证"
+    detail: "C-0018-zink-rgba8-mipmap-black.md §临时方案"

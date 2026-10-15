@@ -1,0 +1,19 @@
+id: R008
+name: dynamic_loading
+category: deploy
+severity: high
+platform:
+  harmonyos: restricted
+match:
+  source:
+    - "\bdlopen\s*\("
+    - "\bQLibrary\b"
+    - "\bQPluginLoader\b"
+golden_rules: [P3]
+kb:
+  - semantic/qt-harmonyos-platform-limits.md
+  - problems/runtime-fail-dlopen-writable-path.md
+solution: >
+  Golden rule P3: dlopen rejects writable data paths (e.g. /data/storage/el2).
+  Ship dynamically loaded libraries inside the HAP native lib directory and
+  load from the bundle lib path; never download-and-load from data directories.

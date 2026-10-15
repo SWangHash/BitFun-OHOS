@@ -1,0 +1,4 @@
+# The knowledge baseline is hash-pinned byte for byte (upstream-kb/manifest.tsv).
+# Never let git rewrite line endings in it, or hashes differ per machine.
+upstream-kb/knowledge/** -text
+upstream-kb/manifest.tsv -text

@@ -1,0 +1,16 @@
+# Upstream paths this skill's own documents depend on (SKILL.md, references/, features/).
+# One path per line, relative to upstream-kb/knowledge/; a trailing "/" means
+# "a directory that must contain at least one active page".
+# verify_kb.py fails if one is missing; sync_upstream.py plan reports a BLOCKER
+# when upstream removes or excludes one. Update the skill documents first, then
+# edit this list in the same commit.
+_index/_task-routing.md
+_index/_map.md
+semantic/qt-harmonyos-golden-rules.md
+skills/kb-init/
+skills/kb-init/SKILL.md
+portgraph/portgraph.py
+knowledge/errors/
+knowledge/rules/
+knowledge/adaptation/
+faults/

@@ -1,0 +1,17 @@
+id: QOH026
+name: qt5uitools_missing_ohos
+stage: [build]
+severity: medium
+patterns:
+  - 'Qt5UiTools'
+  - 'find_package(Qt5 COMPONENTS'
+root_causes:
+  - OHOS Qt5 SDK does not ship the Qt5UiTools module
+diagnosis:
+  - check find_package(Qt5 COMPONENTS ... UiTools ...) in CMake
+solutions:
+  - make UiTools optional, build it from source, or replace .ui loading
+refs:
+  problems: [problems/build-missing-qt5uitools-ohos.md]
+  kb:
+    - semantic/qt-harmonyos-modules.md

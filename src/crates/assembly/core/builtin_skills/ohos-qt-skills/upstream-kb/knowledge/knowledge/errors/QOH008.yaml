@@ -1,0 +1,20 @@
+id: QOH008
+name: arkts_template_modules_mismatch
+stage: [launch]
+severity: high
+patterns:
+  - 'handleAbilityStageOnCreate undefined'
+  - 'QAbilityStage.ets'
+  - 'TypeError'
+root_causes:
+  - HAP installs fine but launch crashes in QAbilityStage.ets
+  - ArkTS glue template out of sync with bundled Qt libs
+diagnosis:
+  - check the ArkTS template version vs the Qt SDK used to build native libs
+  - look for handleAbilityStageOnCreate undefined in faultlog
+solutions:
+  - regenerate the entry module from the matching Qt glue template
+refs:
+  problems: [problems/runtime-crash-arkts-template-modules-mismatch.md]
+  kb:
+    - semantic/qt-harmonyos-project-structure.md

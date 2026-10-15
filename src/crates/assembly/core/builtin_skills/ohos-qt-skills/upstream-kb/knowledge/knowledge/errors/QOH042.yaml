@@ -1,0 +1,37 @@
+id: QOH042
+name: harmonydeployqt_deployment_gaps
+stage: [package, launch]
+severity: critical
+patterns:
+  - 'Cannot read property handleAbilityStageOnCreate of undefined'
+  - 'MUSL-LDSO'
+  - 'Error loading shared library'
+  - 'libfontconfig.so.1'
+  - 'libz.so.1'
+root_causes:
+  - harmonydeployqt copyPlatformPlugin only handles libQt6*-prefixed deps, so
+    the QPA plugin's non-Qt dependency chain (fontconfig) is never deployed
+  - bottle .so built without SONAME makes lld record absolute Windows paths in
+    DT_NEEDED; readElfDependencies stops at the first line containing ':' and
+    the whole dependency list gets truncated
+  - libz.so.1 is skipped as a "system library" (Android convention) but on
+    HarmonyOS it lives outside the app linker namespace
+  - bottle ships only versioned filenames (libfoo.so.1) while the Qt kit links
+    the unversioned name (libfoo.so)
+diagnosis:
+  - run a readelf NEEDED closure check over every deployed .so
+  - verify every bottle .so has a SONAME
+  - confirm device system libs across chipset-sdk-sp / ndk / platformsdk
+    paths, not only /system/lib64
+solutions:
+  - declare the fontconfig chain explicitly on the app target, wrapped in
+    -Wl,--no-as-needed ... -Wl,--as-needed
+  - rebuild SONAME-less bottles with -Wl,-soname,libfoo.so.N
+  - inject libz.so.1 into entry/libs/arm64-v8a/ manually
+  - materialize unversioned copies of versioned bottle libs
+  - hvigor env trio: DEVECO_SDK_HOME + JAVA_HOME (DevEco jbr) + backslash
+    java PATH in PATH
+refs:
+  problems: [problems/runtime-harmonydeployqt-deploy-gaps.md]
+  kb:
+    - semantic/qt-harmonyos-third-party-libs.md

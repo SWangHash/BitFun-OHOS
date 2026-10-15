@@ -1,0 +1,20 @@
+id: QOH031
+name: rgba8_texture_black_zink
+stage: [runtime]
+severity: high
+patterns:
+  - 'RGBA8'
+  - 'zink'
+  - 'mipmap'
+root_causes:
+  - Qt3D textures using RGBA8 (alpha) render pure black on the zink/GL
+    path; RGB8 textures render fine (mipmap generation difference)
+diagnosis:
+  - compare failing texture format (RGBA8) against working ones (RGB8/JPG)
+solutions:
+  - avoid the RGBA8+mipmap combination on the zink path or convert textures
+    to RGB8; see the postmortem for the verified workaround
+refs:
+  problems: [problems/render-black-rgba8-zink-mipmap.md]
+  kb:
+    - semantic/qt-harmonyos-platform-limits.md

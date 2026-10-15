@@ -1,0 +1,21 @@
+id: R006
+name: linux_process_api
+category: process
+severity: critical
+platform:
+  harmonyos: unsupported
+match:
+  source:
+    - "\bfork\s*\("
+    - "\bvfork\s*\("
+    - "\bexecve?\s*\("
+    - "\bexeclp\s*\("
+    - "\bsystem\s*\(\s*\""
+golden_rules: []
+kb:
+  - semantic/qt-harmonyos-platform-limits.md
+  - semantic/qt-harmonyos-api-mapping.md
+solution: >
+  HarmonyOS restricts process creation for normal HAP apps (no fork/execve,
+  sandbox model). Move the work into threads or a background task; if the
+  app spawns helpers, redesign them as in-process components.

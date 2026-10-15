@@ -1,0 +1,20 @@
+id: QOH030
+name: dark_palette_pure_black
+stage: [runtime]
+severity: medium
+patterns:
+  - 'dark theme'
+  - 'pure black'
+  - 'palette'
+root_causes:
+  - OHOS dark-theme device renders default widget background pure black,
+    controls blend into the background
+diagnosis:
+  - run the app on a dark-theme device and inspect the palette
+solutions:
+  - set an explicit palette / style or adapt to the OHOS color theme via
+    QOhosAppContext ColorThemeMode
+refs:
+  problems: [problems/runtime-style-dark-palette-pure-black.md]
+  kb:
+    - semantic/qt-harmonyos-lifecycle.md

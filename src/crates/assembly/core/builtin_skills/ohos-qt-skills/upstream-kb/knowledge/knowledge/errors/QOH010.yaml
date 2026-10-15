@@ -1,0 +1,20 @@
+id: QOH010
+name: null_pointer_entry_shim
+stage: [launch]
+severity: critical
+patterns:
+  - 'SIGSEGV'
+  - 'QtMainThread'
+  - 'null pointer'
+root_causes:
+  - app crashes ~1s after launch with C++ SIGSEGV in the QtMainThread frame
+  - null pointer dereference in the entry shim / extern "C" main bridge
+diagnosis:
+  - inspect the crash stack for the QtMainThread frame
+  - verify the entry shim initializes the app context before use
+solutions:
+  - fix the entry shim initialization order; guard nullable globals
+refs:
+  problems: [problems/runtime-crash-null-pointer-entry-shim.md]
+  kb:
+    - semantic/qt-harmonyos-lifecycle.md

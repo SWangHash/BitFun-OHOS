@@ -1,0 +1,96 @@
+# knowledge/adaptation/checklist.yaml — 应用鸿蒙化必须适配清单（机器可读）
+#
+# 源：procedural/qt-app-harmonyos-migration.md 阶段零预检 + golden-rules 必须级条目
+#     + semantic/qt-harmonyos-code-patterns.md 高频项
+# 消费方：qt-ohos-run.py assess（命中项进入报告的 must-adapt 段）
+# severity: critical=不做必败 / high=大概率失败 / medium=需验证
+
+schema: 1
+updated: 2026-09-08
+source: procedural/qt-app-harmonyos-migration.md
+
+items:
+  - id: AC01
+    title: 创建鸿蒙壳工程（entry 模块 + CMake 胶水 + QAbility 胶水）
+    trigger: always
+    severity: critical
+    how: "从 templates/qt-ohos-app 或 OHOS_TEMPLATE_SRC（qtbase/src/harmonyos/templates）创建；业务代码编译为 libXxx.so"
+    ref: semantic/qt-harmonyos-project-structure.md
+  - id: AC02
+    title: CMake 交叉编译接线（CMAKE_FIND_ROOT_PATH ONLY + 绝对路径）
+    trigger: build_system 含 cmake
+    severity: critical
+    how: "golden rule B1：find_root_path only 模式下所有路径必须绝对"
+    ref: semantic/qt-harmonyos-golden-rules.md
+  - id: AC03
+    title: 链接 QPA 平台插件 libqohos（Qt6 为 libqohos QPA + HarmonyExtras）
+    trigger: always
+    severity: critical
+    how: "golden rule B2；Qt6 注意 HarmonyExtras 公开头仅桩"
+    ref: semantic/qt-harmonyos-golden-rules.md
+  - id: AC04
+    title: qmake unix scope 追加 :!ohos
+    trigger: build_system 含 qmake
+    severity: high
+    how: "golden rule B9：unix(:!android:!macx) 需加 :!ohos，否则误编 Linux 路径"
+    ref: semantic/qt-harmonyos-golden-rules.md
+  - id: AC05
+    title: 启用 CMAKE_AUTORCC（qrc 资源）
+    trigger: 存在 .qrc 文件
+    severity: high
+    how: "golden rule B10"
+    ref: semantic/qt-harmonyos-golden-rules.md
+  - id: AC06
+    title: Qt 运行时与三方 .so 部署到 entry/libs/arm64-v8a/
+    trigger: always
+    severity: critical
+    how: "golden rule B7：只读沙箱不可 dlopen 可写路径；.so 必须打包进 libs/arm64-v8a/（styles/ 子目录同理）"
+    ref: semantic/qt-harmonyos-golden-rules.md
+  - id: AC07
+    title: 窗口模型适配（首个窗口=主窗口；后续窗口 tagging 必须在 show/winId 之前）
+    trigger: 多窗口或对话框
+    severity: high
+    how: "独立对话框按 window-model 的 tagging 机制标记为子窗口（QOhosFunctions；QtOhosExtras 窗口 API 见 qohoswindowutils.h）；tagging 时机在 show/winId 之前"
+    ref: semantic/qt-harmonyos-window-model.md
+  - id: AC08
+    title: 审查 Q_OS_LINUX 守卫（Q_OS_OHOS 隐含 Q_OS_LINUX）
+    trigger: 源码含 Q_OS_LINUX
+    severity: high
+    how: "禁止盲目扩写守卫；逐个确认 Linux 分支在鸿蒙下的正确性"
+    ref: semantic/qt-harmonyos-golden-rules.md
+  - id: AC09
+    title: 平台绑定代码处置（X11/xcb/Win32/Cocoa/Wayland）
+    trigger: 源码含平台 API 调用
+    severity: high
+    how: "核心功能依赖则阻断（CONCEPT-MISMATCH/PLATFORM-FEATURE-UNSUPPORTED）；非核心用 #ifndef Q_OS_OHOS + 桩 + feature flag 裁剪"
+    ref: semantic/qt-harmonyos-platform-limits.md
+  - id: AC10
+    title: dlopen/文件路径适配（沙箱只读 + Data 目录）
+    trigger: 源码含 dlopen 或绝对路径写文件
+    severity: high
+    how: ".so 从 libs/ 加载；可写数据走应用沙箱 Data 目录（QStandardPaths 差异）"
+    ref: semantic/qt-harmonyos-platform-limits.md
+  - id: AC11
+    title: 签名配置与 bundleName 一致（.p7b Profile 绑定）
+    trigger: always
+    severity: critical
+    how: "AppScope/app.json5 的 bundleName 必须与签名 Profile 一致；签名材料不入库"
+    ref: procedural/qt-ohos-run-test.md
+  - id: AC12
+    title: 子进程与外部程序启动改造
+    trigger: 源码含 QProcess/system/popen
+    severity: medium
+    how: "无界面 QProcess 可用；有界面 Qt 程序用 startAppProcess；有界面非 Qt 用 startAbility"
+    ref: semantic/qt-harmonyos-api-mapping.md
+  - id: AC13
+    title: foreach 宏与 C++ 标准兼容检查
+    trigger: Qt5 老代码
+    severity: medium
+    how: "Qt 5.12/5.15 OHOS 下的 foreach 语义与警告；C++17 语法差异"
+    ref: semantic/qt515-vs-qt512-api-diff.md
+  - id: AC14
+    title: 三方依赖的 OHOS 交叉编译可行性
+    trigger: 存在第三方依赖
+    severity: high
+    how: "优先 Harmonybrew 预编译 bottle；无 bottle 评估交叉编译（musl/OHOS Clang 坑）或换库"
+    ref: semantic/qt-harmonyos-third-party-libs.md

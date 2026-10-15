@@ -1,0 +1,21 @@
+id: QOH032
+name: surfaceholder_nativexcomponent_null
+stage: [runtime]
+severity: high
+patterns:
+  - 'SurfaceHolder_Create'
+  - 'GetNativeXComponent'
+  - 'XComponent'
+root_causes:
+  - SurfaceHolder_Create returns null when the XComponent surface is opaque
+  - GetNativeXComponent returns null before node mount (launch crash)
+diagnosis:
+  - check surface type flags on the XComponent
+  - verify native handle acquisition happens after node mount
+solutions:
+  - do not set the surface opaque; acquire the native XComponent only after
+    mount (see the problems page for the verified sequence)
+refs:
+  problems: [problems/surfaceholder-nativexcomponent-incompatibility.md]
+  kb:
+    - ohos-common-kb-public/semantic/arkui-window-xcomponent-model.md

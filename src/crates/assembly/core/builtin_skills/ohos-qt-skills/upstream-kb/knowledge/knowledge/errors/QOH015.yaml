@@ -1,0 +1,19 @@
+id: QOH015
+name: hvigor_spawn_java_enoent
+stage: [build, package]
+severity: high
+patterns:
+  - 'spawn java ENOENT'
+  - 'PackageHap'
+root_causes:
+  - running hvigorw assembleHap from bash where java is not resolvable
+  - node spawn cannot find the DevEco jbr java even with PATH set in bash
+diagnosis:
+  - check which shell runs the hvigor command (bash vs PowerShell/cmd)
+solutions:
+  - run the hvigor build in PowerShell/cmd with JAVA_HOME pointing at the
+    DevEco jbr; avoid bash for the packaging step
+refs:
+  problems: [problems/build-fail-hvigor-spawn-java-enoent.md]
+  kb:
+    - semantic/qt-harmonyos-build-run-workflow.md

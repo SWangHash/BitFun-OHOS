@@ -1,0 +1,81 @@
+# faults/_data/tickets.yaml — 上游跟踪单（T）真源
+#
+# 实体：跟踪单 = 向上游（Qt bug tracker / 鸿蒙 issue / Gitee / 伙伴交付件）提交的问题单。
+# 一个根因可挂多个 T（Qt 侧 + 华为侧各一）；T 的 fix_version 是"修复版本号"的权威来源。
+#
+# 字段：
+#   id          T-XXXX（只增不复用）
+#   tracker     qt-bug / ohos-issue / gitee / partner（伙伴交付件）/ forum
+#   number      单号（QTBUG-xxxxxx / 华为 issue 号等；交付件可空）
+#   url         单据链接
+#   tracks      跟踪的根因（T→C 边）
+#   status      draft（草稿）→ submitted（已提交）→ accepted（已受理）→ fixed（已合入）
+#               → released（已随版本发布，fix_version 必填）→ closed；
+#               分支：dup（重复）/ wontfix（被拒）
+#   filed       提交日期（未记录留空）
+#   fix_version 修复版本号（如 "Qt 6.12-beta4"、"API 25"；released 起必填）
+#   fix_commit  修复 commit（可选）
+#   last_update 最近进展日期（可选）
+#   notes       说明（单据性质、答复摘要等）
+
+schema: 1
+tickets:
+  - id: T-0001
+    tracker: partner
+    number: ""
+    url: ""
+    tracks: [C-0004]
+    status: submitted
+    filed: 2026-06-09
+    fix_version: ""
+    fix_commit: ""
+    last_update: 2026-06-09
+    notes: "ISSUE.md（中英双语根因）+ patch + 可复现 demo 交付件；等系统侧定性（defect/limitation）"
+
+  - id: T-0002
+    tracker: qt-bug
+    number: "QTBUG-146622"
+    url: "https://bugreports.qt.io/browse/QTBUG-146622"
+    tracks: [C-0007]
+    status: submitted
+    filed: ""
+    fix_version: ""
+    fix_commit: ""
+    last_update: ""
+    notes: "Qt 侧 XComponent SURFACE → ContentSlot 迁移跟踪（单号来自官方平台限制页）"
+
+  - id: T-0003
+    tracker: qt-bug
+    number: "QTBUG-146619"
+    url: "https://bugreports.qt.io/browse/QTBUG-146619"
+    tracks: [C-0008]
+    status: submitted
+    filed: ""
+    fix_version: ""
+    fix_commit: ""
+    last_update: ""
+    notes: "QFile::setPermissions 平台行为记录（Qt 侧登记，非修复请求）"
+
+  - id: T-0004
+    tracker: qt-bug
+    number: "QTBUG-146621"
+    url: "https://bugreports.qt.io/browse/QTBUG-146621"
+    tracks: [C-0008]
+    status: submitted
+    filed: ""
+    fix_version: ""
+    fix_commit: ""
+    last_update: ""
+    notes: "QFile::link 平台行为记录（Qt 侧登记，非修复请求）"
+
+  - id: T-0007
+    tracker: qt-bug
+    number: "QTBUG-146624"
+    url: "https://bugreports.qt.io/browse/QTBUG-146624"
+    tracks: [C-0012]
+    status: submitted
+    filed: ""
+    fix_version: ""
+    fix_commit: ""
+    last_update: ""
+    notes: "Qt 侧平台行为记录：QPluginLoader/运行时 .so 动态插件加载限制（非修复请求）；单号来自官方平台限制页"

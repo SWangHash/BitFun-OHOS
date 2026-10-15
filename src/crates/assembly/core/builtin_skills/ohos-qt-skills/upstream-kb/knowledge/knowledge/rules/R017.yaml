@@ -1,0 +1,16 @@
+id: R017
+name: pthread_cancel_usage
+category: api
+severity: low
+platform:
+  harmonyos: restricted
+match:
+  source:
+    - "\bpthread_cancel\s*\("
+    - "\bpthread_setcancelstate\s*\("
+golden_rules: [P4]
+kb:
+  - semantic/qt-harmonyos-platform-limits.md
+solution: >
+  Golden rule P4: do not assume pthread_cancel semantics on OHOS. Use
+  cooperative thread stopping (condition flags / QThread interruption).

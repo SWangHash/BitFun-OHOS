@@ -1,0 +1,21 @@
+id: QOH025
+name: closeeventrootcause_enum_path
+stage: [build]
+severity: high
+patterns:
+  - 'AbilityClose'
+  - 'CloseEventRootCause'
+  - 'no member named'
+root_causes:
+  - code uses QtOhosExtras::AbilityClose short path; the enum is scoped
+  - must use QtOhosExtras::CloseEventRootCause::AbilityClose (golden rule A1)
+diagnosis:
+  - grep for QtOhosExtras::AbilityClose short-path usage
+solutions:
+  - use the full enum path CloseEventRootCause::AbilityClose (Qt6 renamed it
+    CloseRootCause and privatized it)
+refs:
+  problems: [problems/build-fail-closeeventrootcause-path.md]
+  kb:
+    - semantic/qt-harmonyos-golden-rules.md
+    - semantic/qt-harmonyos-lifecycle.md

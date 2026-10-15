@@ -1,0 +1,18 @@
+id: QOH022
+name: magic_enum_bracket_depth
+stage: [build]
+severity: medium
+patterns:
+  - 'bracket depth exceeded'
+  - 'magic_enum'
+root_causes:
+  - magic_enum's heavy template nesting exceeds OHOS clang bracket depth limit
+diagnosis:
+  - confirm the failing TU includes magic_enum
+solutions:
+  - raise -fbracket-depth or pin a lighter magic_enum version / reduce
+    instantiations
+refs:
+  problems: [problems/build-fail-magic-enum-bracket-depth.md]
+  kb:
+    - semantic/qt-harmonyos-build.md

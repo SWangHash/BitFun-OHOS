@@ -1,0 +1,20 @@
+id: QOH041
+name: ohos_sdk_api_too_old
+stage: [build]
+severity: critical
+patterns:
+  - "no member named 'OH_ArkUI_PointerEvent_GetGlobalDisplayX'"
+  - "no member named 'OH_ArkUI_PointerEvent_GetGlobalDisplayY'"
+  - "no member named 'OH_ArkUI_HoverEvent_IsHovered'"
+root_causes:
+  - the OHOS QPA plugin (qarkui) takes ArkUI NDK function addresses at compile time with no fallback, requiring apiVersion >= 23 (OpenHarmony SDK >= 6.1; the official prebuilt used API 24 v6.1.1.125)
+diagnosis:
+  - 'cat <native-sdk>/oh-uni-package.json   # check apiVersion'
+  - 'grep the failing symbol in <native-sdk>/sysroot/usr/include/arkui/ui_input_event.h'
+solutions:
+  - fetch a newer native SDK from the public OpenHarmony mirror (repo.huaweicloud.com/openharmony/os/6.1-LTS/, extract only ohos-sdk/linux/native-linux-x64-*.zip) and config set ohos_sdk_native <path>
+  - wipe the build dir after swapping the SDK (or QOH040 follows)
+refs:
+  problems: [problems/build-fail-ohos-sdk-api-too-old.md]
+  kb:
+    - skills/qt-sdk-forge/references/build-matrix.md

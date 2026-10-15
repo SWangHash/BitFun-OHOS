@@ -1,0 +1,19 @@
+id: QOH023
+name: qinitresources_extern_c_main
+stage: [build]
+severity: medium
+patterns:
+  - 'qInitResources'
+  - 'undefined symbol'
+root_causes:
+  - entry shim uses extern "C" main with .qrc resources
+  - linker cannot find qInitResources_<name> symbol
+diagnosis:
+  - check the entry shim main signature and qrc resource init symbols
+solutions:
+  - match the resource init symbol mangling (drop extern "C" on the C++ side)
+    or initialize resources explicitly
+refs:
+  problems: [problems/build-fail-qinitresource-extern-c-main.md]
+  kb:
+    - semantic/qt-harmonyos-project-structure.md

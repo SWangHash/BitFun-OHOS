@@ -1,0 +1,20 @@
+id: QOH005
+name: sqlite_open_database_fail
+stage: [launch]
+severity: high
+patterns:
+  - '无法创建本地数据库'
+  - 'sqlite3_open'
+  - 'unable to open database file'
+root_causes:
+  - database path points at the read-only bundle directory
+  - missing writable sandbox path for the sqlite file
+diagnosis:
+  - check the database file path argument
+  - confirm the parent directory is inside /data/storage/el2 (writable)
+solutions:
+  - use QStandardPaths / the app sandbox writable directory for the database
+refs:
+  problems: [problems/runtime-fail-sqlite-open-database.md]
+  kb:
+    - ohos-common-kb-public/semantic/application-sandbox-paths.md

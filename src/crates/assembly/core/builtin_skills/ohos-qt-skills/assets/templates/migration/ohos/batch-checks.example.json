@@ -1,0 +1,12 @@
+{
+  "steps": [
+    {"name": "configure", "command": ["cmake", "-S", ".", "-B", "build/ohos", "-G", "Ninja"]},
+    {"name": "build", "command": ["cmake", "--build", "build/ohos", "--", "-k", "0"], "timeout": 1800},
+    {"name": "package-inspect", "command": ["python", "-c", "print(\"replace with HAP inspection command\")"], "continue_on_failure": true},
+    {"name": "device-evidence", "command": ["python", "-c", "print(\"replace with device evidence command\")"], "continue_on_failure": true}
+  ],
+  "artifact_receipts": [
+    {"pattern": "build/ohos/**/libREPLACE_APP_TARGET.so", "receipt": "so-path.txt", "archive": true},
+    {"pattern": "REPLACE_OHOS_PROJECT/**/outputs/**/*.hap", "receipt": "hap-path.txt", "archive": true}
+  ]
+}

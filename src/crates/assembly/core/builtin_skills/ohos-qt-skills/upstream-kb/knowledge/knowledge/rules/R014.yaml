@@ -1,0 +1,21 @@
+id: R014
+name: qwindow_native_handles
+category: window
+severity: medium
+platform:
+  harmonyos: restricted
+match:
+  source:
+    - "\bQWindow::fromWinId\s*\("
+    - "\bwinId\s*\(\s*\)"
+    - "class\s+\w+\s*:\s*public\s+QWindow\b"
+    - "\bsetSurfaceType\s*\("
+golden_rules: [W1, W2, W3, W4]
+kb:
+  - semantic/qt-harmonyos-window-model.md
+  - semantic/qt-harmonyos-golden-rules.md
+solution: >
+  Window model differs: the first QWindow/QWidget binds to the system main
+  window; extra windows need tagging (golden rules W1-W4); native window
+  handles and surface lifecycle behave differently. Review each window
+  against qt-harmonyos-window-model.md.

@@ -1,0 +1,19 @@
+id: QOH016
+name: hvigor_native_build_skipped
+stage: [build]
+severity: high
+patterns:
+  - 'BuildNativeWithCmake'
+  - 'DEVECO_SDK_HOME'
+root_causes:
+  - BuildNativeWithCmake finishes in ~1ms producing no .so artifact
+  - DEVECO_SDK_HOME missing so the native build is silently skipped
+diagnosis:
+  - check the hvigor log for 'BuildNativeWithCmake finished after 1 ms'
+  - verify DEVECO_SDK_HOME is exported in the build environment
+solutions:
+  - export DEVECO_SDK_HOME to the DevEco sdk directory and rebuild
+refs:
+  problems: [problems/build-hvigor-native-skip.md]
+  kb:
+    - semantic/qt-harmonyos-build-run-workflow.md

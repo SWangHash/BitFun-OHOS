@@ -1,0 +1,19 @@
+id: QOH034
+name: file_dialog_invalid_default_uri
+stage: [runtime]
+severity: high
+patterns:
+  - 'invalid-path'
+  - 'default uri'
+  - 'picker'
+root_causes:
+  - file dialog opened with an invalid default URI shows an invalid-path popup
+  - system picker does not list extension-less files (e.g. qmake)
+diagnosis:
+  - check the default URI passed to the native file picker
+solutions:
+  - pass a valid sandbox default URI; handle extension-less files explicitly
+refs:
+  problems: [problems/runtime-fail-file-dialog-invalid-default-uri.md]
+  kb:
+    - ohos-common-kb-public/semantic/document-picker-uri-access.md

@@ -1,0 +1,24 @@
+id: QOH001
+name: qpa_plugin_not_found
+stage: [launch]
+severity: critical
+patterns:
+  - 'dlopen failed: library "libqohos.so" not found'
+  - 'Cannot load Qt platform plugin "qohos"'
+  - 'could not find or load the Qt platform plugin'
+root_causes:
+  - QPA plugin libqohos.so not deployed into the HAP (golden rule B2 missing)
+  - CMakeLists does not link QOhosPlatformIntegrationPlugin
+  - ABI mismatch between app libs and the plugin
+diagnosis:
+  - check target_link_libraries for Qt5::QOhosPlatformIntegrationPlugin
+  - check entry/libs/arm64-v8a/ contains libqohos.so
+  - check DT_NEEDED of the app .so via llvm-readelf
+solutions:
+  - link Qt${QT_VERSION_MAJOR}::QOhosPlatformIntegrationPlugin in CMakeLists
+  - rebuild and repackage the HAP
+refs:
+  problems: [problems/runtime-fail-qpa-plugin-not-found.md]
+  kb:
+    - semantic/qt-harmonyos-project-structure.md
+    - semantic/qt-harmonyos-golden-rules.md

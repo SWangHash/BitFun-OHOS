@@ -1,0 +1,20 @@
+id: QOH007
+name: libqohos_modules_mismatch
+stage: [launch]
+severity: critical
+patterns:
+  - 'libqohos'
+  - 'process died'
+  - 'module mismatch'
+root_causes:
+  - libqohos.so compiled against a different set of Qt modules than the app
+  - app dies 1-2s after aa start (launch crash, no window)
+diagnosis:
+  - check the module list libqohos expects vs the modules bundled
+  - inspect hilog around the aa start moment
+solutions:
+  - rebuild libqohos and the app from the same Qt source tree / config
+refs:
+  problems: [problems/runtime-crash-libqohos-modules-mismatch.md]
+  kb:
+    - semantic/qt-harmonyos-build.md

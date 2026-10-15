@@ -1,0 +1,21 @@
+id: R013
+name: desktop_opengl
+category: graphics
+severity: medium
+platform:
+  harmonyos: restricted
+match:
+  source:
+    - "#\s*include\s*<\s*(GL/gl\.h|GL/glew\.h|GL/glext\.h)"
+    - "\bQGLWidget\b"
+    - "\bglBegin\s*\("
+    - "QSurfaceFormat::OpenGL"
+golden_rules: []
+kb:
+  - semantic/qt-harmonyos-platform-limits.md
+  - episodic/coin3d-quarter-ohos.md
+solution: >
+  HarmonyOS provides EGL/GLES, not desktop GL. Prefer QOpenGLWidget /
+  QOpenGLFunctions with the GLES profile; legacy immediate-mode GL
+  (glBegin) must be rewritten. See episodic/coin3d-quarter-ohos.md for a
+  real OpenGL port case.

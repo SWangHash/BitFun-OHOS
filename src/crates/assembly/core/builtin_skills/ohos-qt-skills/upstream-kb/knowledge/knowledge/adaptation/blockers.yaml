@@ -1,0 +1,79 @@
+# knowledge/adaptation/blockers.yaml — 阻断根因分类法（机器可读，public 化改编）
+#
+# 源：内部脚手架库 semantic/qt-harmonyos-blocking-cause-taxonomy.md（蒸馏，剥离内部立项路由）
+# 人类页：semantic/qt-harmonyos-blocking-taxonomy.md
+# 消费方：qt-ohos-run.py assess（verdict 判定遵循本分类法的边界表）
+#
+# 判定原则：先确认根因无法通过「适配可解」手段解决，才归入阻断。
+# 能用适配手段解决的（见 boundary 段）不属于阻断点。
+
+schema: 1
+updated: 2026-09-08
+source: semantic/qt-harmonyos-blocking-taxonomy.md
+
+# 适配可解 vs 不可适配 的边界（先查这里，再谈阻断）
+boundary:
+  - means: "QtOhosExtras 封装接口"
+    covers: "子进程启动、应用间通信、窗口子窗口标记、生命周期 closeEvent 分级、防截屏、暗色模式"
+    apis: "startAppProcess / startNewAbilityInstance / startAbility(want) / setBundledAbilityAndQWindowBindingKeyForQWindow (子窗口绑定) / getCloseEventRootCause / QOhosAppContext"
+  - means: "代码守卫 #ifndef Q_OS_OHOS"
+    covers: "chmod/symlink/pthread_cancel/平台条件分支误命中 Linux（注意 Q_OS_OHOS 隐含 Q_OS_LINUX）"
+    apis: "平台限制页 8 类"
+  - means: ".so 部署路径调整"
+    covers: "dlopen EINVAL（只读路径不可加载）—— .so 打包进 entry/libs/arm64-v8a/"
+    apis: ""
+  - means: "feature flag OFF / 裁剪非核心功能"
+    covers: "X11/HWND/Cocoa/Wayland 直调用、可选平台集成"
+    apis: "#ifndef Q_OS_OHOS + 桩 + CMake 开关"
+  - means: "shim 头文件 / 禁用加速路径"
+    covers: "musl 缺符号、Clang intrinsic 缺"
+    apis: "inline 函数 shim、--disable-modules 软件实现"
+
+# 阻断根因分类（前提：已确认适配改不动）
+categories:
+  - code: LIB-MISSING
+    title: 三方库未鸿蒙化
+    verdict_impact: uncertain
+    signals: "find_package(X REQUIRED) 找不到、undefined reference、Harmonybrew 无 bottle 且无交叉编译配方"
+    action: "立项-三方库（或换等价库/后端）；若为整套框架栈（如 KDE Frameworks >=5 模块）判框架栈大实例"
+  - code: MODULE-OUT-OF-SCOPE
+    title: Qt 模块平台不支持且为核心依赖
+    verdict_impact: blocked
+    signals: "矩阵标 out-of-scope（webengine/dbus/remoteobjects 等）；find_package(Qt5/6 <Module> REQUIRED) 失败"
+    action: "Qt 模块补齐，或用替代方案（webengine→CEF）；可裁剪则不算阻断"
+  - code: PLATFORM-FEATURE-UNSUPPORTED
+    title: 平台能力根本不提供
+    verdict_impact: blocked
+    signals: "native API/框架在 OHOS SDK 无对应头/库（非库缺失、非沙箱权限）"
+    action: "系统需求"
+  - code: ABI-PERFORMANCE
+    title: ABI/编译器不匹配且无 workaround
+    verdict_impact: uncertain
+    signals: "undefined symbol intrinsic、musl 缺符号、W^X 禁 JIT、ARMv8 性能问题，shim/禁用加速均失效"
+    action: "立项-三方库（重写/重选后端）"
+  - code: CONCEPT-MISMATCH
+    title: 问题域无移动端对应
+    verdict_impact: blocked
+    signals: "应用核心问题域即桌面/系统管理能力，沙箱不暴露对应资源；裁剪后核心功能不复存在"
+    action: "不投入"
+  - code: OTHER
+    title: 其他待归类
+    verdict_impact: uncertain
+    signals: ""
+    action: "进一步评估"
+
+# 框架栈大实例特判：KDE Frameworks（ECM + 多 KF 模块 + PolkitQt）
+kde_framework_stack:
+  detect: "find_package(KF5/KF6 ...) >= 5 个组件，或 ECM + KF 多模块组合"
+  verdict: blocked
+  note: "工作量数人年且部分子模块平台无对应——不立项，判不投入；类别仍记 LIB-MISSING，注明框架栈大实例"
+
+# 229 应用调研的工作量参考维度（评估报告引用）
+effort_dimensions:
+  - qt_version_fit
+  - qt_module_availability
+  - deps_ohos_difficulty
+  - platform_specific_code
+  - build_system
+  - hardware_deps
+  - architecture_fit

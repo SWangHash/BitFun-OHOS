@@ -1,0 +1,21 @@
+id: QOH004
+name: ffmpeg_versioned_soname_transitive_deps
+stage: [launch]
+severity: critical
+patterns:
+  - 'libavcodec.so'
+  - 'dlopen failed'
+  - 'symbol not found'
+root_causes:
+  - FFmpeg versioned sonames (libavcodec.so.61 etc.) break OHOS deployment
+  - transitive dependencies not bundled or not found by the loader
+diagnosis:
+  - check DT_NEEDED of the ffmpeg libs and the app lib
+  - verify all transitive deps are inside entry/libs/arm64-v8a
+solutions:
+  - rebuild ffmpeg for OHOS with unversioned sonames or bundle every
+    transitive dependency into the HAP lib directory
+refs:
+  problems: [problems/runtime-ffmpeg-versioned-soname-transitive-deps.md]
+  kb:
+    - semantic/qt-harmonyos-third-party-libs.md

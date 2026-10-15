@@ -1,0 +1,20 @@
+id: R003
+name: x11_api
+category: api
+severity: critical
+platform:
+  harmonyos: unsupported
+match:
+  source:
+    - "#\s*include\s*<\s*X11/"
+    - "#\s*include\s*<\s*xcb/"
+    - "\bXOpenDisplay\s*\("
+    - "\bxcb_connect\s*\("
+golden_rules: []
+kb:
+  - semantic/qt-harmonyos-platform-limits.md
+  - semantic/qt-harmonyos-window-model.md
+solution: >
+  No X11/xcb on HarmonyOS. Windowing goes through the QPA plugin (qohos) and
+  ArkUI windows. Replace X11 code with Qt window APIs plus
+  QtOhosExtras window utilities; see qt-harmonyos-window-model.md.

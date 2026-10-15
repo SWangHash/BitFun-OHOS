@@ -1,0 +1,19 @@
+id: QOH014
+name: qt6_libcpp_musl_isystem_shadow
+stage: [build]
+severity: critical
+patterns:
+  - "no member named 'nullptr_t'"
+  - '__promote'
+  - "call to 'hypot' is ambiguous"
+root_causes:
+  - injecting sysroot/usr/include as -isystem shadows clang builtin headers
+  - libcxx-ohos c++/v1 headers resolve against musl incorrectly
+diagnosis:
+  - check for -isystem sysroot/usr/include in the compile flags
+solutions:
+  - remove the sysroot include injection; rely on the driver default sysroot
+refs:
+  problems: [problems/build-fail-qt6-libcpp-musl-isystem.md]
+  kb:
+    - semantic/qt-harmonyos-qt6-status.md

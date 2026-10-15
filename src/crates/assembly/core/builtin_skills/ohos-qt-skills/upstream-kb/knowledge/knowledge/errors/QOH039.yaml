@@ -1,0 +1,20 @@
+id: QOH039
+name: ohos_qtdbus_werror
+stage: [build]
+severity: high
+patterns:
+  - 're:qdbusreply\.h.*-Wdeprecated-copy'
+  - 're:definition of implicit copy constructor for .QDBusReply'
+root_causes:
+  - Qt 5.12 QtDBus headers trip -Wdeprecated-copy warnings on OHOS clang 15 and the ohos-clang mkspec turns warnings into errors (-Werror)
+  - HarmonyOS has no DBus at runtime anyway (see QOH002) - the module should never be built
+diagnosis:
+  - 'grep "Qt D-Bus" build-dir/config.summary  # "yes" = misconfigured'
+solutions:
+  - configure with -no-dbus (built into the CLI configure since v2026-09-19, matching the official prebuilt build config)
+  - after switching, wipe the build dir or you will hit QOH040 next
+refs:
+  problems: [problems/build-fail-qtdbus-deprecated-copy.md]
+  kb:
+    - semantic/qt-harmonyos-build.md
+    - knowledge/errors/QOH002.yaml

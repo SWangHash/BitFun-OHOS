@@ -1,0 +1,172 @@
+# faults/_data/symptoms.yaml — 症状（S）真源
+#
+# 实体：症状 = 开发者可观察的应用层表现（检索入口，薄记录）。
+# 字段规范见 faults/_index.md §五；本文件是单一真源，
+# _graph.yaml / _registry.md 由 `python tools/faults-build.py build` 重建，勿手改派生物。
+#
+# 字段：
+#   id          S-XXXX（只增不复用）
+#   title       现象一句话（检索锚点，用开发者会说的词）
+#   domain      build/deploy/runtime/render/api/input/lifecycle/toolchain/filesystem
+#   severity    blocker/critical/high/medium/low
+#   status      active（未采取方案仍会遇到）/ mitigated（方案后消失）/ resolved（根因修复后消失）
+#   causes      根因边（S→C）；多根因时配 cause_relation
+#   cause_relation  any_of（默认：任一根因解除症状即消失）/ all_of（各根因叠加才致病）
+#   first_seen  首次发现日期
+#   refs        关联知识页 id
+
+schema: 1
+symptoms:
+  - id: S-0001
+    title: "QML 平台守卫静默失效（Qt.platform.os 返回 \"linux\" 而非 \"ohos\"）"
+    domain: api
+    severity: high
+    status: mitigated
+    causes: [C-0001]
+    first_seen: 2026-08-06
+    refs: [semantic-qt-harmonyos-api, semantic-qt-harmonyos-platform-limits]
+
+  - id: S-0002
+    title: "拼音组合输入异常：键盘中途收起 + 拼音字母污染上屏文本"
+    domain: input
+    severity: high
+    status: mitigated
+    causes: [C-0002]
+    first_seen: 2026-09-12
+    refs: [problem-runtime-ohos-ime-reset-detach]
+
+  - id: S-0003
+    title: "输入框焦点切换后首字符偶发丢失"
+    domain: input
+    severity: medium
+    status: active
+    causes: [C-0003]
+    first_seen: 2026-09-12
+    refs: [problem-runtime-ohos-ime-reset-detach]
+
+  - id: S-0004
+    title: "qApp->quit() 后应用卡死约 2 分钟（Ability 销毁 Promise 永不 resolve）"
+    domain: lifecycle
+    severity: critical
+    status: mitigated
+    causes: [C-0004]
+    first_seen: 2026-06-05
+    refs: [episodic-quit-deadlock-tsfn]
+
+  - id: S-0005
+    title: "Qt6 OHOS target 构建连锁崩溃（nullptr_t / __promote / hypot ambiguous）"
+    domain: build
+    severity: blocker
+    status: mitigated
+    causes: [C-0005, C-0006]
+    cause_relation: all_of
+    first_seen: 2026-06-25
+    refs: [problem-build-fail-qt6-libcpp-musl-isystem]
+
+  - id: S-0006
+    title: "SURFACE 型 XComponent 原生渲染表面处于弃用轨道（API 20 起弃用）"
+    domain: api
+    severity: medium
+    status: active
+    causes: [C-0007]
+    first_seen: 2026-06-02
+    refs: [semantic-qt-harmonyos-platform-limits]
+
+  - id: S-0007
+    title: "运行时 chmod / symlink 失败（QFile::setPermissions / QFile::link 返回失败）"
+    domain: filesystem
+    severity: medium
+    status: mitigated
+    causes: [C-0008]
+    first_seen: 2026-06-02
+    refs: [semantic-qt-harmonyos-platform-limits]
+
+  - id: S-0008
+    title: "无 parent 的 QDialog 关不掉且滚轮不响应（blockedByModalWindow=1 拦截 close/wheel）"
+    domain: runtime
+    severity: high
+    status: mitigated
+    causes: [C-0009]
+    first_seen: 2026-08-04
+    refs: [problem-runtime-blocked-by-modal-window-no-parent, episodic-ohostemplate-blockedbymodal-patch]
+
+  - id: S-0009
+    title: "Qt5 鸿蒙应用触发 onAcceptWant 崩溃：Napi::Error global expression doesn't start with known module path: '@ohos.deviceInfo'"
+    domain: runtime
+    severity: critical
+    status: mitigated
+    causes: [C-0010]
+    first_seen: 2026-07-23
+    refs: [problem-runtime-crash-ohos-deviceinfo-global-expression, procedural-qt-bug-report-sample]
+
+  - id: S-0010
+    title: "QWidget 应用 Debug 构建鼠标点击即崩：sendThroughApplicationEventFilters Q_ASSERT（theMainThread 不匹配）"
+    domain: runtime
+    severity: high
+    status: active
+    causes: [C-0011]
+    first_seen: 2026-06-13
+    refs: [problem-ohos-mainthread-mismatch]
+
+  - id: S-0011
+    title: "运行时 dlopen 从可写路径加载 .so 失败（errno=22 EINVAL / QPluginLoader 插件加载失败）"
+    domain: runtime
+    severity: high
+    status: mitigated
+    causes: [C-0012]
+    first_seen: 2026-06-03
+    refs: [problem-runtime-fail-dlopen-writable-path, semantic-qt-harmonyos-platform-limits]
+
+  - id: S-0012
+    title: "应用启动数秒后 SIGABRT 崩溃（exit(1)，栈指向配置/日志文件写入失败）"
+    domain: runtime
+    severity: critical
+    status: mitigated
+    causes: [C-0013]
+    first_seen: 2026-07-09
+    refs: [problem-runtime-crash-sandbox-readonly-path]
+
+  - id: S-0013
+    title: "多屏拖拽 MainWindow 跨屏时 Qt::Tool 子窗口闪烁"
+    domain: render
+    severity: medium
+    status: active
+    causes: [C-0014]
+    first_seen: 2026-06-05
+    refs: [episodic-toolwindow-crossscreen-flicker]
+
+  - id: S-0014
+    title: "hvigor CLI (--mode module) 打包的 HAP 启动崩溃（handleAbilityStageOnCreate of undefined），DevEco IDE Run 正常"
+    domain: deploy
+    severity: medium
+    status: mitigated
+    causes: [C-0015]
+    first_seen: 2026-08-06
+    refs: [problem-deploy-fail-hvigor-cli-hap-crash]
+
+  - id: S-0015
+    title: "误为 QFileDialog 添加 Q_OS_OHOS 替代分支（守卫与平台插件内置原生支持冲突）"
+    domain: api
+    severity: low
+    status: resolved
+    causes: [C-0016]
+    first_seen: 2026-07-29
+    refs: [problem-ohos-qfiledialog-native-support]
+
+  - id: S-0016
+    title: "Windows Git Bash 下 curl 请求体中文乱码（API 返回 200/201 但中文字段变 Cyrillic/Latin-1）"
+    domain: toolchain
+    severity: medium
+    status: mitigated
+    causes: [C-0017]
+    first_seen: 2026-06-10
+    refs: [runtime-curl-chinese-garbled]
+
+  - id: S-0017
+    title: "Qt3D alpha-PNG(RGBA8) 贴图实体渲染纯黑（光照正常、RGB8 JPG 正常、无 GL 错误）"
+    domain: render
+    severity: high
+    status: mitigated
+    causes: [C-0018]
+    first_seen: 2026-07-14
+    refs: [problem-render-black-rgba8-zink-mipmap, semantic-qt-harmonyos-platform-limits]

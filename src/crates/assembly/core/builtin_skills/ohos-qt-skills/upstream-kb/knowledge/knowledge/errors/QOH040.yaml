@@ -1,0 +1,19 @@
+id: QOH040
+name: stale_build_state
+stage: [build]
+severity: medium
+patterns:
+  - "unknown type name 'QDBusArgument'"
+  - 'qibusplatforminputcontext.h'
+root_causes:
+  - build dir reused across configure changes - stale module pri files (e.g. qt_lib_dbus.pri) survive a reconfigure, so qtHaveModule(dbus) stays true and the ibus plugin still builds after -no-dbus
+  - swapping the OHOS SDK behind the CLI's back leaves cached state pointing at the old sysroot
+diagnosis:
+  - 'ls build-dir/qtbase/mkspecs/modules/ | grep dbus  # stale pri files'
+  - compare config.summary (Qt D-Bus no) with what is actually building
+solutions:
+  - wipe the variant build dir and reconfigure (CLI v2026-09-19+ does this automatically via the configure fingerprint - args + OHOS SDK identity)
+refs:
+  problems: [problems/build-fail-stale-build-state.md]
+  kb:
+    - semantic/qt-harmonyos-build.md

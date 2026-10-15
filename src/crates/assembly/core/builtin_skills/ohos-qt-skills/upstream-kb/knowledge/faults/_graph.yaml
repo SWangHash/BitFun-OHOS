@@ -1,0 +1,749 @@
+# faults/_graph.yaml — 故障图（机读全量图）【自动生成，勿手改】
+#
+# 重建：python tools/faults-build.py build
+# 真源：_data/symptoms.yaml（S+causes 边）/_data/workarounds.yaml（W+targets 边）/
+#       _data/tickets.yaml（T+tracks 边）/C-*.md frontmatter（C+depends_on 边）
+# 模型规范：faults/_index.md ｜ 人类视图：faults/_registry.md（同为派生物）
+#
+# 节点：S 症状（应用层表现，检索入口）｜C 根因（defect 会修/limitation 规格限制→替代方案）
+#       W 临时方案（proposed→tested→adopted→retired）｜T 上游跟踪单（Qt 单号/华为单号/交付件）
+# 边：causes S→C（多因时 cause_relation: any_of|all_of）｜targets W→C｜tracks T→C
+#      depends_on C→C（仅实证阻塞）｜manifests 为 causes 的派生反查索引
+
+schema: 2
+updated: 2026-09-29
+
+counts:
+  symptoms: 17
+  causes: 18
+  workarounds: 15
+  tickets: 5
+  nature: ["defect 11", "limitation 4", "undetermined 3"]
+  cause_status: ["closed 1", "diagnosed 4", "open 1", "reported 1", "watching 1", "wontfix 3", "workaround 7"]
+  disposition: ["must-adapt 4", "qt-defect 6", "system-defect 2", "app-usage 2", "third-party 1", "undetermined 3"]
+  chain_state: ["root-resolved 1", "temp-resolved 6", "missing-ticket 7", "missing-workaround 2", "both-missing 2"]
+
+symptoms:
+  - id: S-0001
+    title: "QML 平台守卫静默失效（Qt.platform.os 返回 \\\"linux\\\" 而非 \\\"ohos\\\"）"
+    domain: api
+    severity: high
+    status: mitigated
+    causes: [C-0001]
+    first_seen: 2026-08-06
+    refs: [semantic-qt-harmonyos-api, semantic-qt-harmonyos-platform-limits]
+    chain_state: missing-ticket
+    gaps: [ticket]
+  - id: S-0002
+    title: "拼音组合输入异常：键盘中途收起 + 拼音字母污染上屏文本"
+    domain: input
+    severity: high
+    status: mitigated
+    causes: [C-0002]
+    first_seen: 2026-09-12
+    refs: [problem-runtime-ohos-ime-reset-detach]
+    chain_state: missing-ticket
+    gaps: [ticket]
+  - id: S-0003
+    title: "输入框焦点切换后首字符偶发丢失"
+    domain: input
+    severity: medium
+    status: active
+    causes: [C-0003]
+    first_seen: 2026-09-12
+    refs: [problem-runtime-ohos-ime-reset-detach]
+    chain_state: both-missing
+    gaps: [workaround, ticket]
+  - id: S-0004
+    title: "qApp->quit() 后应用卡死约 2 分钟（Ability 销毁 Promise 永不 resolve）"
+    domain: lifecycle
+    severity: critical
+    status: mitigated
+    causes: [C-0004]
+    first_seen: 2026-06-05
+    refs: [episodic-quit-deadlock-tsfn]
+    chain_state: temp-resolved
+    gaps: []
+  - id: S-0005
+    title: "Qt6 OHOS target 构建连锁崩溃（nullptr_t / __promote / hypot ambiguous）"
+    domain: build
+    severity: blocker
+    status: mitigated
+    causes: [C-0005, C-0006]
+    cause_relation: all_of
+    first_seen: 2026-06-25
+    refs: [problem-build-fail-qt6-libcpp-musl-isystem]
+    chain_state: missing-ticket
+    gaps: [ticket]
+  - id: S-0006
+    title: "SURFACE 型 XComponent 原生渲染表面处于弃用轨道（API 20 起弃用）"
+    domain: api
+    severity: medium
+    status: active
+    causes: [C-0007]
+    first_seen: 2026-06-02
+    refs: [semantic-qt-harmonyos-platform-limits]
+    chain_state: missing-workaround
+    gaps: [workaround]
+  - id: S-0007
+    title: "运行时 chmod / symlink 失败（QFile::setPermissions / QFile::link 返回失败）"
+    domain: filesystem
+    severity: medium
+    status: mitigated
+    causes: [C-0008]
+    first_seen: 2026-06-02
+    refs: [semantic-qt-harmonyos-platform-limits]
+    chain_state: temp-resolved
+    gaps: []
+  - id: S-0008
+    title: "无 parent 的 QDialog 关不掉且滚轮不响应（blockedByModalWindow=1 拦截 close/wheel）"
+    domain: runtime
+    severity: high
+    status: mitigated
+    causes: [C-0009]
+    first_seen: 2026-08-04
+    refs: [problem-runtime-blocked-by-modal-window-no-parent, episodic-ohostemplate-blockedbymodal-patch]
+    chain_state: missing-ticket
+    gaps: [ticket]
+  - id: S-0009
+    title: "Qt5 鸿蒙应用触发 onAcceptWant 崩溃：Napi::Error global expression doesn't start with known module path: '@ohos.deviceInfo'"
+    domain: runtime
+    severity: critical
+    status: mitigated
+    causes: [C-0010]
+    first_seen: 2026-07-23
+    refs: [problem-runtime-crash-ohos-deviceinfo-global-expression, procedural-qt-bug-report-sample]
+    chain_state: missing-ticket
+    gaps: [ticket]
+  - id: S-0010
+    title: "QWidget 应用 Debug 构建鼠标点击即崩：sendThroughApplicationEventFilters Q_ASSERT（theMainThread 不匹配）"
+    domain: runtime
+    severity: high
+    status: active
+    causes: [C-0011]
+    first_seen: 2026-06-13
+    refs: [problem-ohos-mainthread-mismatch]
+    chain_state: missing-workaround
+    gaps: [workaround]
+  - id: S-0011
+    title: "运行时 dlopen 从可写路径加载 .so 失败（errno=22 EINVAL / QPluginLoader 插件加载失败）"
+    domain: runtime
+    severity: high
+    status: mitigated
+    causes: [C-0012]
+    first_seen: 2026-06-03
+    refs: [problem-runtime-fail-dlopen-writable-path, semantic-qt-harmonyos-platform-limits]
+    chain_state: temp-resolved
+    gaps: []
+  - id: S-0012
+    title: "应用启动数秒后 SIGABRT 崩溃（exit(1)，栈指向配置/日志文件写入失败）"
+    domain: runtime
+    severity: critical
+    status: mitigated
+    causes: [C-0013]
+    first_seen: 2026-07-09
+    refs: [problem-runtime-crash-sandbox-readonly-path]
+    chain_state: temp-resolved
+    gaps: []
+  - id: S-0013
+    title: "多屏拖拽 MainWindow 跨屏时 Qt::Tool 子窗口闪烁"
+    domain: render
+    severity: medium
+    status: active
+    causes: [C-0014]
+    first_seen: 2026-06-05
+    refs: [episodic-toolwindow-crossscreen-flicker]
+    chain_state: both-missing
+    gaps: [workaround, ticket]
+  - id: S-0014
+    title: "hvigor CLI (--mode module) 打包的 HAP 启动崩溃（handleAbilityStageOnCreate of undefined），DevEco IDE Run 正常"
+    domain: deploy
+    severity: medium
+    status: mitigated
+    causes: [C-0015]
+    first_seen: 2026-08-06
+    refs: [problem-deploy-fail-hvigor-cli-hap-crash]
+    chain_state: temp-resolved
+    gaps: []
+  - id: S-0015
+    title: "误为 QFileDialog 添加 Q_OS_OHOS 替代分支（守卫与平台插件内置原生支持冲突）"
+    domain: api
+    severity: low
+    status: resolved
+    causes: [C-0016]
+    first_seen: 2026-07-29
+    refs: [problem-ohos-qfiledialog-native-support]
+    chain_state: root-resolved
+    gaps: []
+  - id: S-0016
+    title: "Windows Git Bash 下 curl 请求体中文乱码（API 返回 200/201 但中文字段变 Cyrillic/Latin-1）"
+    domain: toolchain
+    severity: medium
+    status: mitigated
+    causes: [C-0017]
+    first_seen: 2026-06-10
+    refs: [runtime-curl-chinese-garbled]
+    chain_state: temp-resolved
+    gaps: []
+  - id: S-0017
+    title: "Qt3D alpha-PNG(RGBA8) 贴图实体渲染纯黑（光照正常、RGB8 JPG 正常、无 GL 错误）"
+    domain: render
+    severity: high
+    status: mitigated
+    causes: [C-0018]
+    first_seen: 2026-07-14
+    refs: [problem-render-black-rgba8-zink-mipmap, semantic-qt-harmonyos-platform-limits]
+    chain_state: missing-ticket
+    gaps: [ticket]
+
+causes:
+  - id: C-0001
+    page: C-0001-qqmlplatform-os-ohos-branch.md
+    title: "qqmlplatform os() 的 #ifdef 链缺 Q_OS_OHOS 分支"
+    nature: defect
+    responsible: qt-port
+    disposition: qt-defect
+    domain: api
+    severity: high
+    evidence_type: source
+    status: workaround
+    manifests: [S-0001]
+    workarounds: [W-0001]
+    workaround_state: adopted
+    tickets: []
+    fixed_in: ""
+    depends_on: []
+    affects_qt: ["Qt 5.12.12 (613336de)", "Qt 5.15.16 (962aa625)", "Qt 6.12（os() 实现一致）"]
+    affects_ohos: ["全版本（与系统/API 版本无关）"]
+    review_due: 2026-12-14
+    chain_state: missing-ticket
+    gaps: [ticket]
+  - id: C-0002
+    page: C-0002-ime-reset-detach.md
+    title: "QOhosInputContext::reset() Detach/Attach 收起 IMF 面板并 commit 污染文本"
+    nature: defect
+    responsible: qt-port
+    disposition: qt-defect
+    domain: input
+    severity: high
+    evidence_type: logs
+    status: workaround
+    manifests: [S-0002]
+    workarounds: [W-0002]
+    workaround_state: adopted
+    tickets: []
+    fixed_in: ""
+    depends_on: []
+    affects_qt: ["Qt 6.12-beta3 (libqohos)"]
+    affects_ohos: ["HarmonyOS PC（MateBook Pro，物理键盘 + 华为输入法）"]
+    review_due: 2026-12-14
+    chain_state: missing-ticket
+    gaps: [ticket]
+  - id: C-0003
+    page: C-0003-ime-focus-switch-race.md
+    title: "IME focus 切换瞬间 Detach→Attach 竞态，首字符 commit 给旧 focus object"
+    nature: defect
+    responsible: qt-port
+    disposition: qt-defect
+    domain: input
+    severity: medium
+    evidence_type: logs
+    status: open
+    manifests: [S-0003]
+    workarounds: []
+    workaround_state: none
+    tickets: []
+    fixed_in: ""
+    depends_on: []
+    affects_qt: ["Qt 6.12-beta3 (libqohos)"]
+    affects_ohos: ["HarmonyOS PC（华为输入法）"]
+    review_due: 2026-12-14
+    chain_state: both-missing
+    gaps: [workaround, ticket]
+  - id: C-0004
+    page: C-0004-ability-destroy-tsfn.md
+    title: "Ability 销毁窗口不处理 N-API TSFN 回调（Promise resolve 通道被阻塞）"
+    nature: undetermined
+    responsible: ohos-runtime
+    disposition: undetermined
+    domain: lifecycle
+    severity: critical
+    evidence_type: both
+    status: reported
+    manifests: [S-0004]
+    workarounds: [W-0003]
+    workaround_state: adopted
+    tickets: [T-0001]
+    fixed_in: ""
+    depends_on: []
+    affects_qt: ["Qt 5.12.12 (613336de)"]
+    affects_ohos: ["真机（系统版本未记录）"]
+    review_due: 2026-12-14
+    chain_state: temp-resolved
+    gaps: []
+  - id: C-0005
+    page: C-0005-qt-cmake-isystem-injection.md
+    title: "Qt cmake 向每个 CXX 命令注入 -isystem sysroot/usr/include（musl 遮蔽 clang builtin）"
+    nature: defect
+    responsible: qt-port
+    disposition: qt-defect
+    domain: build
+    severity: blocker
+    evidence_type: logs
+    status: workaround
+    manifests: [S-0005]
+    workarounds: [W-0004]
+    workaround_state: adopted
+    tickets: []
+    fixed_in: ""
+    depends_on: []
+    affects_qt: ["Qt 6.12.0 (c7581743)"]
+    affects_ohos: ["API 22 (Release 6.0.2.130)", "API 24 Beta1 (DevEco 6.1.1.268)"]
+    review_due: 2026-10-15
+    chain_state: missing-ticket
+    gaps: [ticket]
+  - id: C-0006
+    page: C-0006-libcxx-ohos-cmath-promote.md
+    title: "libcxx-ohos <cmath> 使用 __promote 但缺 #include <__math/promote.h>"
+    nature: defect
+    responsible: ohos-ndk
+    disposition: system-defect
+    domain: build
+    severity: medium
+    evidence_type: source
+    status: diagnosed
+    manifests: [S-0005]
+    workarounds: [W-0004]
+    workaround_state: adopted
+    tickets: []
+    fixed_in: ""
+    depends_on: []
+    affects_qt: []
+    affects_ohos: ["API 22", "API 24 Beta1（libcxx-ohos）"]
+    review_due: 2026-10-15
+    chain_state: missing-ticket
+    gaps: [ticket]
+  - id: C-0007
+    page: C-0007-xcomponent-surface-deprecated.md
+    title: "ARKUI_XCOMPONENT_TYPE_SURFACE 于 API 20 弃用，迁移方向 ContentSlot"
+    nature: limitation
+    responsible: ohos-runtime
+    disposition: must-adapt
+    domain: api
+    severity: medium
+    evidence_type: docs
+    status: watching
+    manifests: [S-0006]
+    workarounds: []
+    workaround_state: none
+    tickets: [T-0002]
+    fixed_in: ""
+    depends_on: []
+    affects_qt: []
+    affects_ohos: ["API 20+"]
+    review_due: 2026-12-14
+    chain_state: missing-workaround
+    gaps: [workaround]
+  - id: C-0008
+    page: C-0008-sandbox-chmod-symlink.md
+    title: "应用沙箱禁运行时 chmod/symlink（文件权限与链接属打包契约，不属运行时能力）"
+    nature: limitation
+    responsible: ohos-runtime
+    disposition: must-adapt
+    domain: filesystem
+    severity: medium
+    evidence_type: docs
+    status: wontfix
+    manifests: [S-0007]
+    workarounds: [W-0005, W-0006]
+    workaround_state: adopted
+    tickets: [T-0003, T-0004]
+    fixed_in: ""
+    depends_on: []
+    affects_qt: []
+    affects_ohos: ["全版本（沙箱规格）"]
+    review_due: 2026-12-14
+    chain_state: temp-resolved
+    gaps: []
+  - id: C-0009
+    page: C-0009-qpa-syntheticparent-no-transientparent.md
+    title: "OHOS QPA syntheticParent fallback 不反写 transientParent，无 parent QDialog 被 blockedByModalWindow 误拦截"
+    nature: defect
+    responsible: qt-port
+    disposition: qt-defect
+    domain: runtime
+    severity: high
+    evidence_type: logs
+    status: workaround
+    manifests: [S-0008]
+    workarounds: [W-0007]
+    workaround_state: adopted
+    tickets: []
+    fixed_in: ""
+    depends_on: []
+    affects_qt: ["Qt 5.15.16 (tqtc/harmonyos-5.15.16，patch 基线 commit 未记录)"]
+    affects_ohos: ["真机（系统版本未记录）"]
+    review_due: 2026-12-15
+    chain_state: missing-ticket
+    gaps: [ticket]
+  - id: C-0010
+    page: C-0010-stale-template-ohos-bare-eval.md
+    title: "陈旧胶水模板缺 @ohos.* eager import 注册，libqohos 裸 eval 被 ArkTS 运行时拒（onAcceptWant 崩溃）"
+    nature: defect
+    responsible: qt-port
+    disposition: qt-defect
+    domain: runtime
+    severity: critical
+    evidence_type: both
+    status: workaround
+    manifests: [S-0009]
+    workarounds: [W-0008]
+    workaround_state: adopted
+    tickets: []
+    fixed_in: ""
+    depends_on: []
+    affects_qt: ["Qt 5.15.16（libqohos 515 代际 2026-07-17 构建；源码树模板 2026-04-21 版）"]
+    affects_ohos: ["HarmonyOS 6.0.0.29（HUAWEI MateBook Fold HPR-W72 真机）"]
+    review_due: 2026-12-15
+    chain_state: missing-ticket
+    gaps: [ticket]
+  - id: C-0011
+    page: C-0011-the-mainthread-mismatch.md
+    title: "theMainThread 与 QCoreApplication::instance()->thread() 指向不同 QThread（QtMainThread thread-local 被清除重建）"
+    nature: undetermined
+    responsible: undetermined
+    disposition: undetermined
+    domain: runtime
+    severity: high
+    evidence_type: source
+    status: diagnosed
+    manifests: [S-0010]
+    workarounds: [W-0009]
+    workaround_state: proposed
+    tickets: []
+    fixed_in: ""
+    depends_on: []
+    affects_qt: ["Qt 5.15.16 (tqtc/harmonyos-5.15.16)"]
+    affects_ohos: ["未记录（伙伴反馈案例，设备/系统版本未留）"]
+    review_due: 2026-12-15
+    chain_state: missing-workaround
+    gaps: [workaround]
+  - id: C-0012
+    page: C-0012-loader-rejects-writable-path.md
+    title: "应用 loader 拒绝从可写路径加载动态库（代码加载仅限 HAP lib 目录，el2 可写区 dlopen 返回 EINVAL）"
+    nature: limitation
+    responsible: ohos-runtime
+    disposition: must-adapt
+    domain: runtime
+    severity: high
+    evidence_type: logs
+    status: wontfix
+    manifests: [S-0011]
+    workarounds: [W-0010]
+    workaround_state: adopted
+    tickets: [T-0007]
+    fixed_in: ""
+    depends_on: []
+    affects_qt: []
+    affects_ohos: ["全版本（loader 规格；源页记录 Qt 5.12/5.15 真机实证）"]
+    review_due: 2026-12-15
+    chain_state: temp-resolved
+    gaps: []
+  - id: C-0013
+    page: C-0013-sandbox-readonly-bundle-path.md
+    title: "OHOS 沙箱 bundle 安装路径只读，桌面式 currentPath/applicationDirPath 写文件失败（应用 exit(1) → SIGABRT）"
+    nature: limitation
+    responsible: ohos-runtime
+    disposition: must-adapt
+    domain: filesystem
+    severity: critical
+    evidence_type: logs
+    status: wontfix
+    manifests: [S-0012]
+    workarounds: [W-0011]
+    workaround_state: adopted
+    tickets: []
+    fixed_in: ""
+    depends_on: []
+    affects_qt: ["Qt 5.15.16（源页实证；规格本身与 Qt 版本无关）"]
+    affects_ohos: ["HarmonyOS 6.0（源页实证；bundle 只读为全版本沙箱规格）"]
+    review_due: 2026-12-15
+    chain_state: temp-resolved
+    gaps: []
+  - id: C-0014
+    page: C-0014-crossscreen-move-resize-conflict.md
+    title: "ohos window 接口 moveWindowToGlobalDisplay × resizeAsync 跨屏迁移无渲染原子性（冗余 resize 成闪烁触发器）"
+    nature: defect
+    responsible: ohos-runtime
+    disposition: system-defect
+    domain: render
+    severity: medium
+    evidence_type: both
+    status: diagnosed
+    manifests: [S-0013]
+    workarounds: [W-0012]
+    workaround_state: proposed
+    tickets: []
+    fixed_in: ""
+    depends_on: []
+    affects_qt: ["未记录（源页仅记 libqohos.so 重编插桩采集日志，kit 版本未记录）"]
+    affects_ohos: ["未记录（HUAWEI MateBook Fold 双屏真机实证，系统版本未记录）"]
+    review_due: 2026-12-15
+    chain_state: both-missing
+    gaps: [workaround, ticket]
+  - id: C-0015
+    page: C-0015-hvigor-cli-ide-packaging-divergence.md
+    title: "hvigor CLI (--mode module) 打包与 DevEco IDE 打包不等价（NAPI 模块注册不完整致 HAP 启动崩溃）"
+    nature: undetermined
+    responsible: ohos-toolchain
+    disposition: undetermined
+    domain: deploy
+    severity: medium
+    evidence_type: logs
+    status: diagnosed
+    manifests: [S-0014]
+    workarounds: [W-0013]
+    workaround_state: adopted
+    tickets: []
+    fixed_in: ""
+    depends_on: []
+    affects_qt: ["Qt 5.15.16（源页环境；回退无 patch libqohos.so 仍崩，已排除 Qt 代码因素）"]
+    affects_ohos: ["未记录（hvigor CLI / DevEco Studio 版本源页未记录）"]
+    review_due: 2026-12-15
+    chain_state: temp-resolved
+    gaps: []
+  - id: C-0016
+    page: C-0016-qfiledialog-unnecessary-ohos-ifdef.md
+    title: "应用误判 QFileDialog 无 OHOS 原生支持而添加 #ifdef 替代分支（QOhosPlatformIntegrationPlugin 实已内置）"
+    nature: defect
+    responsible: app
+    disposition: app-usage
+    domain: api
+    severity: low
+    evidence_type: source
+    status: closed
+    manifests: [S-0015]
+    workarounds: []
+    workaround_state: none
+    tickets: []
+    fixed_in: ""
+    depends_on: []
+    affects_qt: []
+    affects_ohos: []
+    review_due: 2026-12-15
+    chain_state: root-resolved
+    gaps: []
+  - id: C-0017
+    page: C-0017-curl-gbk-terminal-mojibake.md
+    title: "非 UTF-8 终端（Windows Git Bash/GBK）下向 curl -d 直接内联中文：shell 按终端编码传字节，curl 设计上只透传，API 端按 UTF-8 解码成乱码"
+    nature: defect
+    responsible: app
+    disposition: app-usage
+    domain: toolchain
+    severity: medium
+    evidence_type: logs
+    status: workaround
+    manifests: [S-0016]
+    workarounds: [W-0014]
+    workaround_state: adopted
+    tickets: []
+    fixed_in: ""
+    depends_on: []
+    affects_qt: []
+    affects_ohos: []
+    review_due: 2026-12-15
+    chain_state: temp-resolved
+    gaps: []
+  - id: C-0018
+    page: C-0018-zink-rgba8-mipmap-black.md
+    title: "Mesa ZINK 以 vkCmdBlitImage 实现 glGenerateMipmap 对 GL_RGBA8 生成失败/坏 mipchain：纹理不完整，采样静默返回黑"
+    nature: defect
+    responsible: third-party
+    disposition: third-party
+    domain: render
+    severity: high
+    evidence_type: both
+    status: workaround
+    manifests: [S-0017]
+    workarounds: [W-0015]
+    workaround_state: adopted
+    tickets: []
+    fixed_in: ""
+    depends_on: []
+    affects_qt: ["Qt 5.12.12 (OHOS SDK，Mesa ZINK)"]
+    affects_ohos: ["真机 HUAWEI MateBook Fold（NEED_OPENGL=1；API 版本未记录）"]
+    review_due: 2026-12-15
+    chain_state: missing-ticket
+    gaps: [ticket]
+
+workarounds:
+  - id: W-0001
+    title: "QML 用 Qt.platform.pluginName 判断平台（C++ 用 productType()/#ifdef Q_OS_OHOS）"
+    targets: [C-0001]
+    status: adopted
+    verified:
+      date: 2026-08-06
+      env: "Qt 5.15.16 (962aa625) 源码验证"
+    retire_when: "上游修复进入所用 Qt OHOS SDK（os() 加 Q_OS_OHOS 分支）后换回 Qt.platform.os 判断"
+    detail: "C-0001-qqmlplatform-os-ohos-branch.md §临时方案"
+  - id: W-0002
+    title: "重编 libqohos.so（reset 只 finalize preedit，不 detach）并替换 kit"
+    targets: [C-0002]
+    status: adopted
+    verified:
+      date: 2026-09-12
+      env: "Qt 6.12-beta3 / HarmonyOS PC（MateBook Pro）真机"
+    retire_when: "上游版本含此修复后恢复官方 kit，移除本地重编流程"
+    detail: "C-0002-ime-reset-detach.md §临时方案"
+  - id: W-0003
+    title: "退出补丁：原子变量 s_qtAppThreadIdle + 独立线程并行轮询，绕过 TSFN"
+    targets: [C-0004]
+    status: adopted
+    verified:
+      date: 2026-06-09
+      env: "Qt 5.12.12 / 真机"
+    retire_when: "确认所用 HarmonyOS 版本已在销毁窗口处理 TSFN 后移除补丁并回归退出测试"
+    detail: "C-0004-ability-destroy-tsfn.md §临时方案"
+  - id: W-0004
+    title: "换构建组合：MinGW g++ 13.1.0 host + API 23 SDK + superbuild 路径"
+    targets: [C-0005, C-0006]
+    status: adopted
+    verified:
+      date: 2026-07-13
+      env: "Qt 6.12.0 全量构建 + gallery demo 真机"
+    retire_when: "Qt 去除 -isystem 注入或 SDK 修 C-0006 后，恢复标准构建组合并重跑隔离测试"
+    detail: "C-0005-qt-cmake-isystem-injection.md §临时方案"
+  - id: W-0005
+    title: "构建/打包期展开真实文件（替代运行时 symlink）"
+    targets: [C-0008]
+    status: adopted
+    retire_when: "无退役预期（wontfix：沙箱规格稳定）"
+    detail: "C-0008-sandbox-chmod-symlink.md §替代方案"
+  - id: W-0006
+    title: "权限需求交平台打包契约，不作运行时业务成功条件"
+    targets: [C-0008]
+    status: adopted
+    retire_when: "无退役预期（wontfix：沙箱规格稳定）"
+    detail: "C-0008-sandbox-chmod-symlink.md §替代方案"
+  - id: W-0007
+    title: "重编 libqohos.so 打 transientParent 反写 patch（showImmediate 约 8 行）并替换 kit"
+    targets: [C-0009]
+    status: adopted
+    verified:
+      date: 2026-08-06
+      env: "Qt 5.15.16 / OHOS 真机（ohostemplate，hilog 17:39 验证链）"
+    retire_when: "上游 harmonyos 分支合入 transientParent 反写后恢复官方 kit，移除本地重编流程并回归三级窗口关闭测试"
+    detail: "C-0009-qpa-syntheticparent-no-transientparent.md §临时方案"
+  - id: W-0008
+    title: "钦定完整版参考模板替换胶水 4 文件（26+13 eager default-import + objects API）"
+    targets: [C-0010]
+    status: adopted
+    verified:
+      date: 2026-07-23
+      env: "Qt 5.15.16（515 代际 libqohos 7/17）/ HarmonyOS 6.0.0.29 MateBook Fold 真机（qapp-recreate-test）"
+    retire_when: "Qt 源码树模板与 libqohos 同批次更新（eager import 清单对齐）后恢复官方模板，移除 4 文件替换流程"
+    detail: "C-0010-stale-template-ohos-bare-eval.md §临时方案"
+  - id: W-0009
+    title: "main() 约束：QApplication 必须是第一个 Qt API 调用（构造前不触碰 QThreadData）"
+    targets: [C-0011]
+    status: proposed
+    retire_when: "根因确认并根治（或定性为使用约束并文档化转正）后，撤销临时约束并回归 Debug 构建点击测试"
+    detail: "C-0011-the-mainthread-mismatch.md §临时方案"
+  - id: W-0010
+    title: "插件 .so 随 HAP lib 目录打包交付（或固定集合静态链接），不做运行时下载加载"
+    targets: [C-0012]
+    status: adopted
+    retire_when: "无退役预期（wontfix：loader 规格稳定）；若平台开放可写区代码加载则改回运行时下载模式"
+    detail: "C-0012-loader-rejects-writable-path.md §临时方案"
+  - id: W-0011
+    title: "路径获取加 Q_OS_OHOS 分支：QStandardPaths::writableLocation(AppDataLocation) 替代 currentPath/applicationDirPath"
+    targets: [C-0013]
+    status: adopted
+    verified:
+      date: 2026-07-09
+      env: "Qt 5.15.16 / HarmonyOS 6.0 / HUAWEI MateBook 14（FRequest commit 8a8ba95，真机验证）"
+    retire_when: "无退役预期（wontfix：bundle 只读规格稳定）；若平台放开应用目录写语义则回归 QDir 原生路径"
+    detail: "C-0013-sandbox-readonly-bundle-path.md §临时方案"
+  - id: W-0012
+    title: "去冗余 resize：size 未变时不触发 resizeAsync，规避跨屏闪烁"
+    targets: [C-0014]
+    status: proposed
+    verified:
+      date: 2026-06-05
+      env: "HUAWEI MateBook Fold 双屏真机（对照实验：屏蔽 resizeAsync 后闪烁消失；纯 ArkTS 复现同结论）"
+    retire_when: "系统侧保证跨屏 move+resize 渲染原子性（或提供原子几何更新 API）后，移除补丁并回归跨屏拖拽测试"
+    detail: "C-0014-crossscreen-move-resize-conflict.md §临时方案"
+  - id: W-0013
+    title: "放弃 hvigor CLI 打包，改用 DevEco Studio IDE Run 部署"
+    targets: [C-0015]
+    status: adopted
+    verified:
+      date: 2026-08-06
+      env: "OHOS + Qt 5.15.16 + DevEco Studio IDE Run（源页记录：IDE 打包流程正常）"
+    retire_when: "hvigor CLI 打包差异查明并修复（或 CLI 提供等价 IDE 打包的正确配置项）后，恢复命令行打包并回归启动测试"
+    detail: "C-0015-hvigor-cli-ide-packaging-divergence.md §临时方案"
+  - id: W-0014
+    title: "中文 JSON 写入 UTF-8 临时文件后 curl -d @file 引用"
+    targets: [C-0017]
+    status: adopted
+    verified:
+      date: 2026-06-10
+      env: "Windows 10/11 + Git Bash (MSYS2) + curl 7.x/8.x（GitCode API 建/改 PR 实战）"
+    retire_when: "终端环境可稳定保证 UTF-8（chcp 65001 在所用 Git Bash 版本稳定，或改用 UTF-8 默认终端）后，可恢复 -d 直接内联中文"
+    detail: "C-0017-curl-gbk-terminal-mojibake.md §临时方案"
+  - id: W-0015
+    title: "OHOS 上 alpha-PNG(RGBA8) 实体关 mipmap（generateMipMaps:false + minificationFilter:Texture.Linear）"
+    targets: [C-0018]
+    status: adopted
+    verified:
+      date: 2026-07-14
+      env: "Qt 5.12.12 OHOS SDK / HUAWEI MateBook Fold 真机 / Mesa ZINK（planets-qml-ohos）"
+    retire_when: "Mesa ZINK 修复 RGBA8 glGenerateMipmap（vkCmdBlitImage 路径）并随所用 OHOS SDK 到达后，移除 diffuseGenerateMipMaps 开关、恢复 upstream mipmap 行为并回归验证"
+    detail: "C-0018-zink-rgba8-mipmap-black.md §临时方案"
+
+tickets:
+  - id: T-0001
+    tracker: partner
+    number: ""
+    url: ""
+    tracks: [C-0004]
+    status: submitted
+    filed: 2026-06-09
+    fix_version: ""
+    notes: "ISSUE.md（中英双语根因）+ patch + 可复现 demo 交付件；等系统侧定性（defect/limitation）"
+  - id: T-0002
+    tracker: qt-bug
+    number: QTBUG-146622
+    url: "https://bugreports.qt.io/browse/QTBUG-146622"
+    tracks: [C-0007]
+    status: submitted
+    filed: ""
+    fix_version: ""
+    notes: "Qt 侧 XComponent SURFACE → ContentSlot 迁移跟踪（单号来自官方平台限制页）"
+  - id: T-0003
+    tracker: qt-bug
+    number: QTBUG-146619
+    url: "https://bugreports.qt.io/browse/QTBUG-146619"
+    tracks: [C-0008]
+    status: submitted
+    filed: ""
+    fix_version: ""
+    notes: "QFile::setPermissions 平台行为记录（Qt 侧登记，非修复请求）"
+  - id: T-0004
+    tracker: qt-bug
+    number: QTBUG-146621
+    url: "https://bugreports.qt.io/browse/QTBUG-146621"
+    tracks: [C-0008]
+    status: submitted
+    filed: ""
+    fix_version: ""
+    notes: "QFile::link 平台行为记录（Qt 侧登记，非修复请求）"
+  - id: T-0007
+    tracker: qt-bug
+    number: QTBUG-146624
+    url: "https://bugreports.qt.io/browse/QTBUG-146624"
+    tracks: [C-0012]
+    status: submitted
+    filed: ""
+    fix_version: ""
+    notes: "Qt 侧平台行为记录：QPluginLoader/运行时 .so 动态插件加载限制（非修复请求）；单号来自官方平台限制页"

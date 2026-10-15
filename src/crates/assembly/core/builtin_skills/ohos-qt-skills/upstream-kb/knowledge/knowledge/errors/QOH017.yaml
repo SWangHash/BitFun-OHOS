@@ -1,0 +1,19 @@
+id: QOH017
+name: hap_duplicate_lib_files
+stage: [package]
+severity: medium
+patterns:
+  - 'Duplicated files found'
+  - 'ProcessLibs'
+  - '00306049'
+root_causes:
+  - hvigor ProcessLibs stage finds duplicated .so files (error code 00306049)
+  - the same library copied into multiple abi directories or libs sources
+diagnosis:
+  - search entry/libs and build outputs for duplicated lib file names
+solutions:
+  - deduplicate the native lib sources in build-profile / CMake install rules
+refs:
+  problems: [problems/build-fail-duplicate-so.md]
+  kb:
+    - semantic/qt-harmonyos-project-structure.md

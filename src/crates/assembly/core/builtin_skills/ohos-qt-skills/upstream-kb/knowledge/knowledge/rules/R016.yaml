@@ -1,0 +1,22 @@
+id: R016
+name: prebuilt_binary_artifacts
+category: deploy
+severity: high
+platform:
+  harmonyos: review
+match:
+  files:
+    - "*.so"
+    - "*.a"
+    - "*.dll"
+    - "*.dylib"
+    - "*.lib"
+golden_rules: []
+kb:
+  - semantic/qt-harmonyos-third-party-libs.md
+  - problems/build-fail-glibc-internal-symbols-ohos-musl.md
+solution: >
+  Prebuilt libraries in the repo must be rebuilt for aarch64 OHOS (musl
+  libc, no glibc symbols). Check each artifact against
+  qt-harmonyos-third-party-libs.md and rebuild from source with the OHOS
+  LLVM toolchain.

@@ -1,0 +1,21 @@
+id: QOH012
+name: cmake_findpackage_ohosextras_fail
+stage: [build]
+severity: high
+patterns:
+  - 'find_package'
+  - 'OhosExtras'
+  - 'Could not find a package configuration file'
+root_causes:
+  - CMake configure fails: find_package cannot locate the OhosExtras package
+  - QtOhosExtras only supports qmake (golden rule B6), no CMake config exists
+diagnosis:
+  - check whether the project tries find_package(... OhosExtras) under CMake
+solutions:
+  - QtOhosExtras is qmake-only; use headers/link directly or switch the
+    module wiring to qmake (golden rule B6)
+refs:
+  problems: [problems/build-fail-cmake-ohosextras.md]
+  kb:
+    - semantic/qt-ohos-extras.md
+    - semantic/qt-harmonyos-golden-rules.md

@@ -1,0 +1,23 @@
+id: R007
+name: file_permissions_symlink
+category: path
+severity: high
+platform:
+  harmonyos: restricted
+match:
+  source:
+    - "\bchmod\s*\("
+    - "\bsymlink\s*\("
+    - "QFile::setPermissions"
+    - "\.setPermissions\s*\("
+    - "QFile::link\s*\("
+    - "\.link\s*\(\s*\""
+golden_rules: [P1, P2]
+kb:
+  - semantic/qt-harmonyos-platform-limits.md
+  - semantic/qt-harmonyos-api-mapping.md
+solution: >
+  Golden rules P1/P2: QFile::setPermissions() is a silent no-op on OHOS;
+  symlinks are not available in the sandbox. Guard permission calls with
+  #ifndef Q_OS_OHOS and replace symlink-dependent logic with copies or
+  direct paths.

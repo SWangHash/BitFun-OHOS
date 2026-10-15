@@ -1,0 +1,39 @@
+# knowledge/rules - machine-executable pre-scan rules
+#
+# These rules upgrade semantic/qt-harmonyos-golden-rules.md from
+# "rules an LLM reads" into "rules a tool executes":
+#
+#     python tools/qt-ohos-run.py scan <project>
+#
+# Schema of each R*.yaml:
+#
+#   id: R001                    # stable rule id (referenced by reports)
+#   name: short_name
+#   category: process|window|api|module|build|path|graphics|deploy
+#   severity: critical|high|medium|low
+#   platform:
+#     harmonyos: unsupported|restricted|workaround|review
+#   match:
+#     source:  ["regex", ...]   # matched line-by-line against C/C++/ObjC/QML
+#     pro:     ["regex", ...]   # matched against .pro/.pri contents
+#     cmake:   ["regex", ...]   # matched against CMakeLists.txt contents
+#     modules: [dbus]           # matched against detected Qt module list
+#     files:   ["*.so"]         # glob against project files
+#   golden_rules: [B9]          # refs to qt-harmonyos-golden-rules.md
+#   kb: [semantic/xxx.md]       # knowledge pages to read when this hits
+#   solution: >                 # machine + human readable fix guidance
+#
+# Notes:
+# - patterns are Python regexes, written exactly as they should compile
+#   (the YAML parser performs no escape translation - keep them quoted)
+# - severity ladder:
+#     critical = will not run on HarmonyOS without rework
+#     high     = very likely breaks build or runtime
+#     medium   = probably needs adaptation
+#     low      = review / informational
+# - add new rules freely; ids must stay unique and sorted
+
+version: 1
+rule_count: 18
+severity_levels: [critical, high, medium, low]
+entry: qt-ohos-run scan <project>

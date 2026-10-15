@@ -1,0 +1,20 @@
+id: QOH028
+name: mainthread_mismatch_assert
+stage: [runtime]
+severity: high
+patterns:
+  - 'sendThroughApplicationEventFilters'
+  - 'threadData.loadAcquire'
+  - 'mainThread()'
+root_causes:
+  - Debug-build Q_ASSERT fires because an event is delivered from a thread
+    that does not match mainThread() (QtMainThread mismatch)
+diagnosis:
+  - check which thread posts the event triggering the assert
+solutions:
+  - marshal the event/invocation onto the Qt main thread (queued connection
+    or the JS thread gateway)
+refs:
+  problems: [problems/ohos-mainthread-mismatch.md]
+  kb:
+    - semantic/qt-ohos-js-thread-gateway.md

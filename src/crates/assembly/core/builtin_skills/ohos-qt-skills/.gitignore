@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+# portgraph local scratch (see SKILL.md)
+upstream-kb/knowledge/portgraph/workspace/
+# sync_upstream.py working area (plan, review sheet, incoming files)
+upstream-kb/.sync/
+.bitfun/

@@ -1,0 +1,18 @@
+id: QOH024
+name: ffmpeg9_removed_api
+stage: [build]
+severity: medium
+patterns:
+  - 'undeclared identifier'
+  - 'avcodec'
+  - 'ffmpeg'
+root_causes:
+  - code uses FFmpeg APIs removed in FFmpeg 9 (undeclared identifiers)
+diagnosis:
+  - check the FFmpeg version targeted vs the APIs used
+solutions:
+  - migrate to the current FFmpeg API surface or pin an older FFmpeg
+refs:
+  problems: [problems/build-fail-ffmpeg9-removed-api.md]
+  kb:
+    - semantic/qt-harmonyos-third-party-libs.md

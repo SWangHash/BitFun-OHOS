@@ -1,0 +1,21 @@
+id: QOH029
+name: dialog_blocked_no_parent
+stage: [runtime]
+severity: high
+patterns:
+  - 'blocked by modal window'
+  - 'cannot close'
+  - 'three-level'
+root_causes:
+  - QDialog without parent is treated as a new main window; the window
+    without focus cannot receive events (dialog cannot close / cannot scroll)
+diagnosis:
+  - check dialog construction for missing parent or missing tagging
+solutions:
+  - pass a parent or tag the dialog as subwindow before show() (golden
+    rules W1/W3); see the ohostemplate-blockedbymodal-patch postmortem
+refs:
+  problems: [problems/runtime-blocked-by-modal-window-no-parent.md]
+  kb:
+    - semantic/qt-harmonyos-window-model.md
+    - episodic/postmortems/ohostemplate-blockedbymodal-patch.md

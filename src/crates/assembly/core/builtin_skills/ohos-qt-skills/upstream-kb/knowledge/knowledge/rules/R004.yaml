@@ -1,0 +1,22 @@
+id: R004
+name: win32_api
+category: api
+severity: critical
+platform:
+  harmonyos: unsupported
+match:
+  source:
+    - "#\s*include\s*<\s*windows\.h\s*>"
+    - "#\s*include\s*<\s*shellapi\.h\s*>"
+    - "\bHWND\b"
+    - "\bCreateWindowEx[AW]?\s*\("
+    - "\bShellExecute[AW]?\s*\("
+golden_rules: []
+kb:
+  - semantic/qt-harmonyos-platform-limits.md
+  - semantic/qt-harmonyos-api-mapping.md
+solution: >
+  Win32 APIs (HWND, ShellExecute, registry...) do not exist on HarmonyOS.
+  Guard with #ifdef Q_OS_WIN and provide an OHOS path using Qt APIs or
+  QtOhosExtras (startAbility etc.). Guard branch order matters: check
+  Q_OS_OHOS before Q_OS_LINUX where needed (Q_OS_OHOS implies Q_OS_LINUX).

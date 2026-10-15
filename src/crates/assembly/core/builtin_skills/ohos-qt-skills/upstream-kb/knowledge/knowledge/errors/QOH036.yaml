@@ -1,0 +1,18 @@
+id: QOH036
+name: qfiledialog_native_support_caveat
+stage: [build, runtime]
+severity: low
+patterns:
+  - 'QFileDialog'
+  - 'Q_OS_OHOS'
+root_causes:
+  - unnecessary #ifdef Q_OS_OHOS workarounds around QFileDialog
+  - QOhosPlatformIntegrationPlugin already provides native QFileDialog support
+diagnosis:
+  - check for hand-written QFileDialog replacements / guards added for OHOS
+solutions:
+  - remove the workaround; use the standard QFileDialog API directly
+refs:
+  problems: [problems/ohos-qfiledialog-native-support.md]
+  kb:
+    - semantic/qt-harmonyos-api-mapping.md

@@ -1,0 +1,21 @@
+id: QOH006
+name: libqohos_libqt5core_version_mismatch
+stage: [launch]
+severity: critical
+patterns:
+  - 'handleAbilityStageOnCreate'
+  - 'deviceType'
+  - 'jscrash TypeError'
+root_causes:
+  - libqohos.so / ArkTS template built against a different Qt5Core version
+  - HAP template modules out of sync with the Qt SDK used
+diagnosis:
+  - compare the Qt SDK version of libqohos.so with libQt5Core.so
+  - check faultlog jscrash details (handleAbilityStageOnCreate of undefined /
+    deviceType property missing)
+solutions:
+  - rebuild the app and the glue template with one consistent Qt SDK
+refs:
+  problems: [problems/runtime-crash-libqohos-libqt5core-version-mismatch.md]
+  kb:
+    - semantic/qt-harmonyos-project-structure.md

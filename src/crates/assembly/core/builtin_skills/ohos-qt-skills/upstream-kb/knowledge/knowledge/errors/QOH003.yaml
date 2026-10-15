@@ -1,0 +1,22 @@
+id: QOH003
+name: dlopen_writable_path_rejected
+stage: [launch, runtime]
+severity: high
+patterns:
+  - 'dlopen'
+  - 'EINVAL'
+  - '/data/storage/el2'
+root_causes:
+  - plugin/so loaded from a writable data directory; the OHOS dynamic
+    loader rejects writable paths (errno=22 EINVAL)
+diagnosis:
+  - locate the dlopen call site and its path argument
+  - verify the library ships inside the HAP lib directory instead
+solutions:
+  - move the library into the HAP native libs and load from the bundle path
+  - golden rule P3 / knowledge/rules/R008.yaml
+refs:
+  problems: [problems/runtime-fail-dlopen-writable-path.md]
+  kb:
+    - semantic/qt-harmonyos-platform-limits.md
+    - ohos-common-kb-public/problems/dlopen-rejects-writable-path.md

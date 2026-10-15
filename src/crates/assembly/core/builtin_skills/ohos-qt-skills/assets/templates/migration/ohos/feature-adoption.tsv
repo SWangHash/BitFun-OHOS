@@ -1,0 +1,2 @@
+id	feature_id	playbook_path	playbook_sha256	status	capability_ids	validation_ids	decision_id	notes	evidence
+FEAT-001	TODO	TODO	none	planned	TODO	TODO	TODO	Set not-applicable when the contract selects no HarmonyOS feature	TODO

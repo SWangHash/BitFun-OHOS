@@ -1,0 +1,22 @@
+id: QOH002
+name: libqtdbus_missing
+stage: [launch]
+severity: critical
+patterns:
+  - 'libQt5DBus.so'
+  - 'Qt5DBus'
+  - 'JSCrash'
+root_causes:
+  - app depends on QtDBus but HarmonyOS ships no DBus and no libQt5DBus
+  - Qt module dbus left in the build configuration
+diagnosis:
+  - grep the project for QT += dbus / find_package ... DBus
+  - check hilog for the load failure line of libQt5DBus.so
+solutions:
+  - remove the dbus module from the build and port IPC to sockets or
+    StartAbility-based mechanisms
+refs:
+  problems: [problems/runtime-fail-libqtdbus-missing.md]
+  kb:
+    - semantic/qt-harmonyos-modules.md
+    - knowledge/rules/R001.yaml
