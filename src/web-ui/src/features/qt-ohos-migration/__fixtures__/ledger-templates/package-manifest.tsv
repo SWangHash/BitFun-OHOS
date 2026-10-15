@@ -1,0 +1,6 @@
+id	package_revision	entry_path	artifact_type	origin	expected	present	sha256	abi	needed_or_plugin	contract_check	status	evidence
+PKG-001	TODO	TODO	application-hap	build	true	TODO	TODO	TODO	TODO	TODO	planned	TODO
+PKG-002	TODO	entry/libs/arm64-v8a/TODO.so	native-library	application	true	TODO	TODO	arm64-v8a	TODO	TODO	planned	TODO
+PKG-003	TODO	TODO	qt-runtime-library	Qt SDK/template deployment	true	TODO	TODO	arm64-v8a	libqohos.so + Qt dependencies	TODO	planned	TODO
+PKG-004	TODO	TODO	qml-plugin-or-module	Qt SDK/template deployment	conditional	TODO	TODO	arm64-v8a	qmldir/QML plugin closure	TODO	planned	TODO
+PKG-005	TODO	TODO	glue-template-file	complete template tree	true	TODO	TODO	all	AppScope/entry/qEmbeddedUiExtensionHost/build profiles	TODO	planned	TODO

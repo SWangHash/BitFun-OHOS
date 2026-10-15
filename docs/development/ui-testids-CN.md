@@ -335,6 +335,7 @@
 |---|---|---|
 | 后台 subagents 按钮 | `flowchat-header-background-subagents` | 打开后台 subagent 活动状态。 |
 | Pull requests 按钮 | `flowchat-header-pull-requests` | 打开 pull request 相关 UI。 |
+| 迁移进度按钮 | `flowchat-header-migration-progress` | 打开 Qt→鸿蒙迁移进度页签。 |
 | Turn 列表 | `flowchat-header-turn-list` | Turn 导航列表。 |
 | 上一个 turn 按钮 | `flowchat-header-turn-prev` | 切换到上一个可见 turn。 |
 | 下一个 turn 按钮 | `flowchat-header-turn-next` | 切换到下一个可见 turn。 |

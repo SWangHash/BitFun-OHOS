@@ -42,9 +42,10 @@ doing more source or build work.
    When the app targets a newer Qt than the SDK, record the
    `scan_qt_api_gap.py` result as one `qt-api-gap` capability row.
 3. **Migration plan contract (`contract`):** freeze Qt/SDK/ABI/template, platform boundaries,
-   dependency dispositions, target behavior, and accepted deviations. If the
-   user wants HarmonyOS-specific features, select candidates from
-   `features/registry.tsv` here (decision only, no implementation).
+   dependency dispositions, target behavior, and accepted deviations. Show
+   the external-feature candidates (`feature_hooks.py candidates`), record
+   the user's choice (default none) as an `external-features` decision, and
+   activate it (`feature_hooks.py activate`); nothing runs yet.
    Degradations and stubs need a user-owned decision (`owner=user`, evidence
    `user: ...`); the gate rejects agent-approved ones.
 4. **Pilot verification (`pilot`):** validate app envelope, entry point, linkage, package
@@ -62,13 +63,13 @@ doing more source or build work.
    Implementers update only disjoint source scopes; append `work-queue.tsv` 的 change/evidence 字段
    with before/after hashes; a central owner merges contract, inventory, and
    project-envelope changes.
-6. **HarmonyOS feature adaptation (`features`):** for each contract-approved feature, pin its
-   playbook hash in `feature-adoption.tsv`, expand it into `CAP-*`/`VAL-*`
-   rows, and implement it in the same serialized, evidence-backed way. Close
-   the template row as `not-applicable` when the contract selects no feature;
-   run `validate_ledgers.py ... --phase features`.
-   Catalog-absent features are blockers, not freestyle work. See
-   [feature-adaptation.md](feature-adaptation.md).
+6. **HarmonyOS feature adaptation (`features`):** run each activated capability feature, one at
+   a time, between `feature_gate.py enter` and `feature_gate.py exit`; it
+   expands into `CAP-*`/`VAL-*` rows implemented in the same serialized,
+   evidence-backed way. Activated verification features run the same way in
+   `handoff` and never edit sources. Run `validate_ledgers.py ... --phase features`.
+   Unregistered features are blockers, not freestyle work. See
+   [external-features.md](external-features.md).
 7. **Build and diagnostics (`diagnostics`):** one build/package/device owner emits numbered evidence;
    fixers consume classified diagnostics. Three distinct failed approaches to
    one blocker stop the loop and require a decision.

@@ -1,0 +1,193 @@
+{
+  "title": "迁移进度",
+  "live": {
+    "blocked": "已阻塞",
+    "idle": "空闲"
+  },
+  "header": {
+    "refresh": "刷新",
+    "overall": "总体进度",
+    "currentPhase": "当前阶段",
+    "assessment": "可行性结论",
+    "completionTier": "完成级别",
+    "lastWrite": "最近写入",
+    "openState": "打开 STATE.md",
+    "modeWatch": "实时（文件监听）",
+    "modePoll": "轮询",
+    "root": "监听目录",
+    "rootOutside": "工作区外",
+    "currentAction": "正在执行",
+    "lastAction": "最近动作",
+    "elapsed": "已用 {{time}}",
+    "completed": "迁移已完成",
+    "completedGateBlocked": "handoff 门控未通过（{{n}} 项）",
+    "phaseIndex": "第 {{index}}/{{total}} 阶段",
+    "phaseStrip": "迁移阶段进度"
+  },
+  "time": {
+    "secondsAgo": "{{n}} 秒前",
+    "minutesAgo": "{{n}} 分钟前",
+    "seconds": "{{n}} 秒",
+    "minutesSeconds": "{{m}} 分 {{s}} 秒"
+  },
+  "sections": {
+    "decisions": "需要你决定",
+    "phases": "迁移阶段",
+    "diagnostics": "问题与诊断",
+    "references": "参考信息",
+    "externalFeatures": "外部特性"
+  },
+  "status": {
+    "doing": "进行中",
+    "ready": "可开始",
+    "pending": "未开始",
+    "blocked": "阻塞",
+    "unknown": "未知",
+    "paused": "已暂停"
+  },
+  "phases": {
+    "baseline": {
+      "name": "环境准备",
+      "description": "确认 Qt for HarmonyOS 发行版、HarmonyOS SDK 与 native 工具链、构建打包工具和工程模板都已就位并可用。",
+      "short": "环境"
+    },
+    "inventory": {
+      "name": "迁移项盘点",
+      "description": "扫描源码与构建文件，列出需要迁移的 Qt 模块、平台相关代码、系统接口和第三方库，每项对应一个验收场景。",
+      "short": "盘点"
+    },
+    "contract": {
+      "name": "迁移方案确认",
+      "description": "给出可行性结论并冻结迁移方案；删减、降级或替换功能必须经你确认后记录。",
+      "short": "方案"
+    },
+    "pilot": {
+      "name": "先行验证",
+      "description": "在大范围改代码之前，用最小工程证明应用外壳、入口、Qt 链接、打包和一个高风险点能走通。",
+      "short": "先行"
+    },
+    "implementation": {
+      "name": "功能迁移",
+      "description": "按依赖顺序逐项迁移功能：先编译三方库和应用，再根据编译结果小步修改源码，每项都有验证记录。",
+      "short": "功能"
+    },
+    "features": {
+      "name": "鸿蒙特性接入",
+      "description": "应用能安装启动后，按方案接入选定的鸿蒙特性（如碰一碰、接续、分享）；方案未选特性时标记为不适用。",
+      "short": "特性"
+    },
+    "diagnostics": {
+      "name": "构建与问题修复",
+      "description": "构建、打包、安装并在设备上运行应用；每次失败按首个根因记录，修复后再重试。",
+      "short": "构建"
+    },
+    "handoff": {
+      "name": "验收与交付",
+      "description": "逐项验证验收场景，核对最终安装包内容和真机运行结果，输出迁移报告。",
+      "short": "交付"
+    }
+  },
+  "phase": {
+    "noItems": "暂无台账记录。",
+    "ledger": "台账：",
+    "ledgerOverride": "账本条目已全部完成，STATE.md 仍记为“{{raw}}”",
+    "migrationState": {
+      "pending": "待迁移",
+      "doing": "迁移中",
+      "done": "已迁移",
+      "blocked": "受阻"
+    },
+    "rowsFrac": "记录 {{done}}/{{total}}",
+    "rowsFracHint": "已闭合的台账记录数；阶段是否完成以门禁结果为准，不看这个计数。"
+  },
+  "features": {
+    "status": {
+      "planned": "已计划",
+      "in-progress": "进行中",
+      "passed": "已通过",
+      "deferred-approved": "已批准延后",
+      "blocked": "阻塞",
+      "verified": "已验证"
+    },
+    "kind": "类型：{{kind}}",
+    "hostPhase": "挂载阶段：{{phase}}",
+    "attempts": "已尝试 {{n}} 次",
+    "attemptsOf": "尝试 {{n}}/{{max}}",
+    "legacy": "旧格式记录",
+    "milestones": "特性里程碑",
+    "currentStep": "当前步骤",
+    "gate": {
+      "entry": "准入门控",
+      "exit": "退出门控",
+      "ready": "通过",
+      "readyRestart": "通过（重新进入）",
+      "blocked": "未通过（{{n}}）",
+      "closed": "已关闭：{{status}}"
+    },
+    "links": "关联台账项（{{n}}）",
+    "linkMissing": "尚未记录",
+    "files": "工作目录与文档",
+    "playbook": "特性操作手册",
+    "decision": "启用决策：{{id}}",
+    "notes": "备注",
+    "evidence": "证据",
+    "selection": {
+      "label": "用户选择",
+      "none": "不启用",
+      "selected": "已选 {{n}} 项",
+      "unanswered": "用户未作答",
+      "unconfirmed": "未经用户确认",
+      "unansweredHint": "提问超时或被跳过，这不是用户的决定，门禁会拒绝。需要重新询问用户并记录其回答。",
+      "unconfirmedHint": "该决定缺少 owner=user、status=approved 或引用用户原话的证据（“user: ...”），门禁不认可。",
+      "notActivated": "已选择但未激活：{{ids}}"
+    }
+  },
+  "decisions": {
+    "options": "选项",
+    "impact": "影响",
+    "source": "来源：{{source}}"
+  },
+  "diagnostics": {
+    "unclassified": "未归类",
+    "attempts": "尝试 {{n}} 次",
+    "rootCause": "根因",
+    "nextAction": "下一步",
+    "recurrence": "复发情况",
+    "openLog": "打开日志",
+    "open": "未解决",
+    "resolved": "已修复",
+    "fix": "修复方式",
+    "noneRecorded": "没有记录到迁移中遇到的问题。",
+    "noneRecordedButRetried": "没有记录到问题，但有 {{n}} 次失败的尝试未写入台账。",
+    "receipts": "通过记录（{{n}}）",
+    "unrecorded": "{{n}} 次失败未记录"
+  },
+  "references": {
+    "document": "文档",
+    "ledger": "台账",
+    "rows": "{{n}} 行",
+    "knowledge": "知识库",
+    "modified": "本地已修改"
+  },
+  "errors": {
+    "loadFailed": "读取台账失败：{{error}}，当前显示上一次的快照。"
+  },
+  "warnings": {
+    "schema": "台账列与预期不一致：{{detail}}"
+  },
+  "heartbeat": {
+    "running": "Agent 运行中",
+    "stopped": "Agent 已停止",
+    "lastActivity": "最近活动 {{time}}"
+  },
+  "gate": {
+    "ready": "门控通过",
+    "blocked": "门控未通过（{{n}}）",
+    "unmetTitle": "未满足的门控条件",
+    "invalid": "账本校验失败",
+    "more": "……另有 {{n}} 项"
+  },
+  "todos": {
+    "progress": "Agent 任务 {{done}}/{{total}}"
+  }
+}

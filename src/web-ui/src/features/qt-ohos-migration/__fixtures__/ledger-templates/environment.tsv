@@ -1,0 +1,11 @@
+id	category	name	value	version_or_revision	source_or_path	status	last_verified_at	evidence
+ENV-001	qt-target	Qt target distribution	TODO	TODO	TODO	planned	TODO	TODO
+ENV-002	ohos-sdk	HarmonyOS SDK/API and ABI	TODO	TODO	TODO	planned	TODO	TODO
+ENV-003	toolchain	CMake/qmake/NDK/generator	TODO	TODO	TODO	planned	TODO	TODO
+ENV-004	package	Hvigor/DevEco/deployment tool	TODO	TODO	TODO	planned	TODO	TODO
+ENV-005	device	Signing/HDC/device availability	TODO	TODO	TODO	planned	TODO	TODO
+ENV-006	qt-source	Qt source checkout (if source-build or template-from-source)	TODO	TODO	TODO	planned	TODO	TODO
+ENV-007	qt-template	Complete Qt HarmonyOS glue template tree	TODO	TODO	TODO	planned	TODO	TODO
+ENV-008	ohos-native	OHOS native clang/sysroot/toolchain file	TODO	TODO	TODO	planned	TODO	TODO
+ENV-009	build-host	Host CMake/Ninja/Perl/MinGW or equivalent	TODO	TODO	TODO	planned	TODO	TODO
+ENV-010	package-runtime	JDK/Node/Hvigor and DevEco CLI runtime	TODO	TODO	TODO	planned	TODO	TODO

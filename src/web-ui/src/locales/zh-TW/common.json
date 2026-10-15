@@ -1628,6 +1628,7 @@
     "gitDiff": "Git Diff",
     "gitSettings": "Git 設置",
     "pullRequests": "Pull Requests",
+    "migrationProgress": "遷移進度",
     "taskPlanner": "任務規劃器",
     "fileBrowser": "檔案瀏覽器",
     "editor": "編輯器",

@@ -32,9 +32,15 @@
 | Migration plan contract (`contract`, decisions.tsv) | planned | TODO |
 | Pilot verification (`pilot`, pilot.tsv) | planned | TODO |
 | Capability migration (`implementation`, work-queue.tsv) | planned | TODO |
-| HarmonyOS feature adaptation (`features`, feature-adoption.tsv) | planned | TODO |
+| HarmonyOS capability features (`features`, feature-adoption.tsv) | planned | TODO |
 | Build and diagnostics (`diagnostics`, diagnostics.tsv) | planned | TODO |
 | Acceptance and handoff (`handoff`, validation.tsv) | planned | TODO |
+
+## External features
+
+Written by `feature_hooks.py` / `feature_gate.py`; do not edit by hand.
+
+No external feature activated.
 
 ## Invalidation rules
 

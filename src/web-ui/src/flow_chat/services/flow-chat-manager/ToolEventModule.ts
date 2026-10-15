@@ -13,6 +13,10 @@ import { applyPendingAcpPermissionForTool } from './AcpPermissionToolCardModule'
 import { normalizeParamsPartialFragment } from '../EventBatcher';
 import { effectiveToolInvocation } from '../../utils/toolInvocationIdentity';
 import { requestRuntimeProjectionRepair } from './PeerSessionRefreshModule';
+import {
+  reportMigrationToolEvent,
+  type MigrationToolPhase,
+} from '@/features/qt-ohos-migration/services/migrationToolSignals';
 import type {
   CancelledToolEvent,
   CompletedToolEvent,
@@ -107,6 +111,59 @@ interface ToolTerminalReadyEvent {
 }
 
 /**
+ * Forward tool lifecycle to the Qt→HarmonyOS migration progress panel (skill
+ * invocation, skill scripts with their gate output, and the activity of
+ * migration sessions). Read-only signal; never affects tool-event processing.
+ */
+function forwardMigrationToolSignal(
+  store: FlowChatStore,
+  sessionId: string,
+  turnId: string,
+  toolEvent: FlowToolEvent,
+  options?: ToolEventOptions,
+): void {
+  if (options?.isSubagent) return;
+  try {
+    let phase: MigrationToolPhase;
+    let wireInput: unknown;
+    let wireToolName = toolEvent.tool_name;
+    let rawResult: unknown;
+    let resultForAssistant: string | undefined;
+    let error: string | undefined;
+    if (toolEvent.event_type === 'Started') {
+      phase = 'started';
+      wireInput = toolEvent.params;
+    } else if (toolEvent.event_type === 'Completed' || toolEvent.event_type === 'Failed') {
+      phase = toolEvent.event_type === 'Completed' ? 'completed' : 'failed';
+      const existing = store.findToolItem(sessionId, turnId, toolEvent.tool_id) as FlowToolItem | null;
+      wireInput = existing?.toolCall?.input;
+      wireToolName = existing?.toolName || wireToolName;
+      if (toolEvent.event_type === 'Completed') {
+        rawResult = toolEvent.result;
+        resultForAssistant = toolEvent.result_for_assistant;
+      } else {
+        error = toolEvent.error;
+      }
+    } else {
+      return;
+    }
+    const effective = effectiveToolInvocation(wireToolName, wireInput);
+    reportMigrationToolEvent({
+      phase,
+      sessionId,
+      toolId: toolEvent.tool_id,
+      toolName: toolEvent.effective_tool_name || effective.toolName,
+      input: effective.input,
+      rawResult,
+      resultForAssistant,
+      error,
+    });
+  } catch (error) {
+    log.debug('Migration tool signal skipped', { error });
+  }
+}
+
+/**
  * Unified tool event handler
  * Supports both main session and subagent scenarios
  */
@@ -139,6 +196,7 @@ export function processToolEvent(
   }
 
   reconcileToolEventWireIdentity(store, sessionId, turnId, toolEvent);
+  forwardMigrationToolSignal(store, sessionId, turnId, toolEvent, options);
 
   switch (toolEvent.event_type) {
     case 'EarlyDetected': {

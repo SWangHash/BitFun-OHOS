@@ -16,6 +16,14 @@
 - Problems met and their fixes (`diagnostics.tsv` rows that are not `receipt`): TODO
 - Blockers, unknowns, and unverified claims: TODO
 
+## External features
+
+One line per `FEAT-*` row with its final status (`passed`, `deferred-approved`,
+`blocked`), evidence path and limitations; write `none activated` when the user
+selected none.
+
+- TODO
+
 ## Reproducible next commands or manual scenarios
 
 TODO

@@ -9,9 +9,10 @@ SKILL.md                        # Agent 入口：知识基线、台账、门控�
 AGENTS.md / CLAUDE.md           # 维护本 skill 的 agent 须知（"同步上游知识库"路由到 upstream-kb/AGENTS.md）
 agents/openai.yaml              # Agent 元信息
 assets/templates/migration/ohos/ # 迁移台账模板
-features/                       # 鸿蒙特有特性目录
-references/                     # 规则文档（knowledge-sync、persistence-model、migration-workflow、feature-adaptation…）
-scripts/                        # 迁移侧脚本：init_migration / next_step / sync_knowledge / mark_knowledge_used / validate_ledgers / phase_gate / gate_state / record_diagnostic / batch_checks / scan_qt_api_gap / queue_status
+features/                       # 外部 feature 包（鸿蒙能力 / 外部验收流程，以 skill 交付，外加 hook.json 与接入说明）与接入规范
+references/                     # 规则文档（knowledge-sync、persistence-model、migration-workflow、external-features…）
+scripts/                        # 迁移侧脚本：init_migration / next_step / sync_knowledge / mark_knowledge_used / validate_ledgers / phase_gate / gate_state / record_diagnostic / batch_checks / scan_qt_api_gap / queue_status / feature_hooks / feature_gate
+tests/                          # 外部 feature 机制的单元与端到端测试
 upstream-kb/                    # 与上游 ohos_qt-skills 的唯一接口（维护者）
   AGENTS.md                     # 同步指南：参数映射、plan→审阅→apply→verify、纳入/排除标准
   upstream.json                 # 默认上游仓库/分支 + 最近同步的 commit
@@ -74,7 +75,7 @@ upstream-kb/                    # 与上游 ohos_qt-skills 的唯一接口（维
 
 - 汇总阶段 1/2 证据，给出 verdict：`ready` / `ready-with-decisions` / `blocked` / `not-recommended`——只有前两种能进实现；
 - **冻结合同**（`PORTING_CONTRACT.md`）：钉死 Qt/SDK/ABI/模板、平台隔离姿态、模块取舍、降级清单、目标行为；
-- **特性候选选择**：若用户想要碰一碰/接续等，扫描 `features/registry.tsv` 触发词，列出候选与前置要求，用户挑选后写进合同 + `decisions.tsv`（此时只选不做）；
+- **外部 feature 选择**：`feature_hooks.py candidates` 列出所有已登记的鸿蒙能力 feature 与外部验收 feature（触发词只用于排序），由用户人工选择（默认不选），写进合同 + `decisions.tsv`（`feature_or_scope=external-features`），再 `feature_hooks.py activate` 生成 FEAT 行（此时只选不做）；
 - 材料性决策（去功能、降级、改包身份）全部进 `decisions.tsv` 留痕；降级/stub 类决策必须 `owner=user` 且 evidence 以 `user:` 引用用户原话（任务 prompt 也算），agent 自批的降级会被合同门拒绝；已批准决策同样约束实现，改走 stub 需要新的用户决策行。
 
 **出口条件**：verdict=ready、合同冻结、验收场景（VAL）定义完毕。
@@ -113,22 +114,21 @@ upstream-kb/                    # 与上游 ohos_qt-skills 的唯一接口（维
 
 ### 阶段 6：HarmonyOS feature adaptation（鸿蒙特性接入，`features`）
 
-**做什么**：给已经能跑的应用叠加系统能力特性（碰一碰、接续、分享等）。
-- 检查 `features/registry.tsv` 对照合同里批准的特性清单；
-- 每个采纳的特性：在 `feature-adoption.tsv` 建行并**钉版 playbook 哈希** → 按 playbook 展开成 CAP-\*/VAL-\* 行塞进同一个 work-queue → 按普通切片实现；
-- 设备依赖类特性（NFC 对端等）必须有 `device-runs.tsv` 真机证据；没有验证条件时走 `deferred-approved`/`blocked` 终态（用户决策）；
-- **registry 之外没有特性**——缺特性记 blocker 申请目录新增，不许自由发挥。
+**做什么**：给已经能跑的应用叠加系统能力特性（碰一碰、接续、分享等），即本阶段激活的 `capability` 类外部 feature。
+- 逐个串行执行：`feature_gate.py enter`（准入：阶段已开放、依赖已关闭、包哈希未变、`entry.requires` 满足）→ 按包内 `feature.md` 展开成 CAP-\*/VAL-\* 行并按普通切片实现 → `feature_gate.py exit`（准出：显式条件 + 隐式条件，记录证据摘要）；
+- 设备依赖类特性（NFC 对端等）隐式要求 `device-runs.tsv` 真机证据；做不完时 `feature_hooks.py close` 走 `deferred-approved`/`blocked` 终态（需决策）；
+- **未登记、未激活的 feature 不做**——缺特性记 blocker 申请目录新增，不许自由发挥。
 
-**出口条件**：每个 FEAT-\* 行 `verified` 或显式 `deferred-approved`/`blocked`；合同未选特性时模板行标 `not-applicable`（`validate_ledgers.py --phase features`）。
+**出口条件**：本阶段每个 FEAT-\* 行都由脚本写成 `passed`（证据摘要仍一致）或 `deferred-approved`/`blocked`；未选 feature 时台账为空（`validate_ledgers.py --phase features`）。
 
-**设计意图**：特性 = 带 playbook 的能力切片，全部复用第 5 阶段的基础设施；playbook 钉版与知识钉版同一套冻结规则。
+**设计意图**：主流程是宿主、feature 是钩子：主 skill 只管登记、激活、准入、准出，feature 内部是灰盒；包哈希钉版与知识钉版同一套冻结规则。开发者接入说明见 `features/README.md`，包规则见 `features/RULES.md`。
 
 ### 阶段 7：Build and diagnostics（构建与问题修复，`diagnostics`）
 
 **做什么**：构建/打包/装机的失败处理机制，贯穿实现期但在此时集中运转：
 
 - **单一 build owner** 串行执行，每轮在 `diagnostics.tsv` 的 attempt/build/log 字段 记编号、树/环境哈希、命令、错误数、日志摘要——可观察错误是否收敛；
-- 失败进 `diagnostics.tsv`，**按根因一行**（不是按日志行），先比对 playbook"常见陷阱"和已知签名；必须在下一次尝试前写入；
+- 失败进 `diagnostics.tsv`，**按根因一行**（不是按日志行），先比对已知失败签名（含所用 feature 的接入说明与 skill 中列出的）；必须在下一次尝试前写入；
 - 失败行是历史，不会被覆盖：每次尝试一行，后续通过的批次把同一条目的失败行改为 `resolved`（保留签名、根因、修复和日志），失败行不能改成 `passed`；批次外解决的问题（工具链/SDK 文件、宿主 DLL、部署路径等）用 `record_diagnostic.py --id new ... --status resolved` 补记；
 - 构建用 keep-going（Ninja `-- -k 0`），一次尝试暴露全部失败编译单元；批次摘要给出 `error_count` 与去重 `errors`，按根因分组、每轮修一整组；诊断门拒绝没有 `batch_checks.py` 回执或 `work-queue.tsv` 从未更新的循环；
 - 上下文压缩后的摘要不是证据：只在摘要里出现的错误，必须先在最新诊断行的 `log_path` 与磁盘文件中核实，找不到就丢弃；
@@ -146,7 +146,8 @@ upstream-kb/                    # 与上游 ohos_qt-skills 的唯一接口（维
 - 按**实际达到的最强层**定级：`implemented-unverified` → configure 过 → 编译链接过 → 包内容正确 → 安装/启动过 → 设备场景过 → 行为验证（`behavior-verified`）；
 - 包检查独立于构建成功（`package-manifest.tsv`：native 库闭包、ABI、DT_NEEDED、权限声明）；设备观测分五层记录（安装/启动/存活/渲染/行为，`device-runs.tsv`）；
 - 共享代码改动后重跑宿主回归；审计所有 unknown/TODO/降级行；
-- 写 `report.md`：结论、每条结论映射到台账证据、可复现命令、limitations（未验证的明说）、下一步命令。
+- 运行本阶段激活的 `verification` 类外部 feature（其他团队的验收流程），同样走 enter/exit 门禁；它不得改源码，发现缺陷回主流程修复后 `feature_gate.py enter --restart` 重跑；
+- 写 `report.md`：结论、每条结论映射到台账证据、可复现命令、limitations（未验证的明说）、`## External features` 逐行列出每个 FEAT 及状态、下一步命令。
 
 **出口条件**：`STATE.md`、`decisions.tsv` 与 `validation.tsv` 全部关闭或带失效说明，report 完成。
 
@@ -156,7 +157,7 @@ upstream-kb/                    # 与上游 ohos_qt-skills 的唯一接口（维
 
 1. **材料变更必须用户决策**：范围、降级、签名、破坏性设备操作 → `decisions.tsv`，agent 不得自作主张；
 2. **可恢复性**：任何时刻中断，新会话 = `validate_ledgers.py`（先验证台账没坏）→ 读 STATE.md/decisions.tsv/work-queue.tsv → 从第一个未关闭行继续；
-3. **漂移即报告**：知识 baseline 或特性 playbook 在迁移中途变化 → 报告用户 → 用户决定是否重迁移，绝不静默续跑；
+3. **漂移即报告**：知识 baseline 或外部 feature 包在迁移中途变化 → 报告用户 → 用户决定是否重迁移，绝不静默续跑；
 4. **平台隔离红线**：所有 C++ 改动置于 `Q_OS_OHOS`/qmake `ohos` scope/平台守卫内，保持其他宿主平台行为不变（`baseline.tsv` 宿主回归佐证）；只改 source-of-truth，不改生成物/SDK，不为模仿语言迁移建平行树；不静默 stub——记 `blocked`/`unknown` 或经批准的 `degraded-approved`；凭据、签名密钥、完整设备标识不入任何台账。
 
 ---
@@ -212,7 +213,7 @@ python upstream-kb/scripts/verify_kb.py --smoke
 - `sync_knowledge.py` 播种前**逐文件校验基线哈希**——损坏或被篡改的基线不可能进入项目；之后写项目 manifest 钉版；
 - **迁移期间基线冻结**：钉版后基线再变化，sync/validate 报告漂移（警告），**由用户决定**是否删除 manifest/整个迁移目录重迁移；agent 绝不静默续跑、绝不手改 manifest 行向新基线看齐；
 - 项目侧本地适配页被再修改 → validate 报哈希 mismatch 错误，须重新注册刷新记录；
-- 特性 playbook 同一套规则：采纳时钉版 `playbook_sha256`，之后变更 → 漂移警告 → 用户决策。
+- 外部 feature 包同一套规则：激活时钉版 `package_sha256`（整个包），之后变更 → 准入/准出拒绝并警告 → 用户决策后 `feature_hooks.py repin`。
 
 ### 更新红线（维护者）
 
@@ -226,16 +227,16 @@ python upstream-kb/scripts/verify_kb.py --smoke
 
 ## 三、迁移过程可视化（十二个核心台账）
 
-迁移项目只保留十二个核心台账，覆盖知识版本、环境基线、兼容性差异、用户决策、先行验证、执行队列、特性接入、失败诊断、包内容和真机验收。八个阶段各对应一个台账：环境准备 `environment.tsv`、迁移项盘点 `inventory.tsv`、迁移方案确认 `decisions.tsv`、先行验证 `pilot.tsv`、功能迁移 `work-queue.tsv`、鸿蒙特性接入 `feature-adoption.tsv`、构建与问题修复 `diagnostics.tsv`、验收与交付 `validation.tsv`；`baseline.tsv`、`package-manifest.tsv`、`device-runs.tsv` 是多个阶段共用的参考证据。`STATE.md`、`PORTING_CONTRACT.md`、`assessment.md`、`report.md` 是导航、合同、评估和交付文档，不计入台账数量。
+迁移项目只保留十二个核心台账，覆盖知识版本、环境基线、兼容性差异、用户决策、先行验证、执行队列、特性接入、失败诊断、包内容和真机验收。八个阶段各对应一个台账：环境准备 `environment.tsv`、迁移项盘点 `inventory.tsv`、迁移方案确认 `decisions.tsv`、先行验证 `pilot.tsv`、功能迁移 `work-queue.tsv`、鸿蒙特性接入 `feature-adoption.tsv`（也记录第 8 阶段的外部验收 feature）、构建与问题修复 `diagnostics.tsv`、验收与交付 `validation.tsv`；`baseline.tsv`、`package-manifest.tsv`、`device-runs.tsv` 是多个阶段共用的参考证据。`STATE.md`、`PORTING_CONTRACT.md`、`assessment.md`、`report.md` 是导航、合同、评估和交付文档，不计入台账数量。
 
 - **`knowledge-manifest.tsv`**：钉住知识基线、来源和哈希，记录使用状态。
 - **`environment.tsv`**：记录 Qt、HarmonyOS SDK/API、ABI、工具、模板、签名和设备环境。
 - **`baseline.tsv`**：记录源版本、脏状态及宿主构建/冒烟基线。
 - **`inventory.tsv`**：记录每个兼容缺口/能力、源码位置、风险、前置依赖、扫描证据和关联验证；`status` 是该能力的迁移状态，盘点时为 `planned`，对应队列工作完成后关闭。
-- **`decisions.tsv`**：记录用户批准的范围、模块取舍、降级、包身份和 HarmonyOS 特性选择。
+- **`decisions.tsv`**：记录用户批准的范围、模块取舍、降级、包身份和外部 feature 选择。
 - **`pilot.tsv`**：记录先行验证的每次尝试（`PILOT-*`，列与 `diagnostics.tsv` 相同）：用最小工程证明应用外壳、入口、Qt 链接、打包和一个高风险点能走通。
 - **`work-queue.tsv`**：按 prerequisites 排列待实施能力切片，并记录负责人、改动、证据和验证关联；`inventory_ids` 列写明该切片关闭哪些 `inventory.tsv` 行（纯构建切片写 `none`）。
-- **`feature-adoption.tsv`**：记录合同选定的鸿蒙特性（`FEAT-*`）、钉住的 playbook 哈希、状态及关联的能力/验证行；未选特性时整行标 `not-applicable`。
+- **`feature-adoption.tsv`**：记录用户激活的外部 feature（`FEAT-*`）：类型、挂载阶段、钉住的包哈希、状态、尝试次数、准入/准出记录及关联的能力/验证行；状态只由脚本写入，未选时只有表头。
 - **`diagnostics.tsv`**：按根因记录应用构建、打包、安装、启动和运行时失败，包含尝试次数、日志和下一动作。
 - **`package-manifest.tsv`**：记录最终 HAP 入口、native 库、ABI、依赖、插件、QML、资源和权限闭包。
 - **`device-runs.tsv`**：分层记录安装、启动、进程存活、渲染、日志和行为观察。
@@ -274,7 +275,7 @@ python scripts/mark_knowledge_used.py <app>/migration/ohos/knowledge-manifest.ts
 python scripts/sync_knowledge.py --target <app>/migration/ohos \
   --register-modified semantic/qt-harmonyos-window-model.md
 
-# 4. 任意时刻校验台账完整性、修改页哈希、baseline/特性 playbook 钉版是否漂移
+# 4. 任意时刻校验台账完整性、修改页哈希、baseline/外部 feature 包钉版是否漂移
 python scripts/validate_ledgers.py <app>/migration/ohos
 
 # 4.1 清单阶段：应用依赖的 Qt 高于 SDK 时，扫描高版本 API 缺口
@@ -299,9 +300,18 @@ python scripts/record_diagnostic.py <app>/migration/ohos/diagnostics.tsv \
 # 7. 查看能力队列状态与就绪项（参数是 work-queue.tsv 文件，不是目录）
 python scripts/queue_status.py <app>/migration/ohos/work-queue.tsv status
 python scripts/queue_status.py <app>/migration/ohos/work-queue.tsv next
+
+# 8. 外部 feature：合同阶段列候选、按用户决定激活；宿主阶段内逐个准入/准出
+python scripts/feature_hooks.py candidates <app>/migration/ohos --request "<用户需求>"
+python scripts/feature_hooks.py activate <app>/migration/ohos --decision DEC-004 --select <feature-id>
+python scripts/feature_gate.py enter <app>/migration/ohos FEAT-001
+python scripts/feature_gate.py exit <app>/migration/ohos FEAT-001
+python scripts/feature_register.py inspect <skill-dir>   # 登记 skill：读出候选项（见 features/REGISTER.md）
+python scripts/feature_register.py scaffold --skill <skill-dir> --id <feature-id> ...  # 按问答结果生成包
+python scripts/feature_hooks.py lint            # feature 开发者：登记前自检
 ```
 
-字段级台账定义见 `references/persistence-model.md`；信任边界与 manifest 协议见 `references/knowledge-sync.md`；特性阶段规则见 `references/feature-adaptation.md`。
+字段级台账定义见 `references/persistence-model.md`；信任边界与 manifest 协议见 `references/knowledge-sync.md`；外部 feature 规则见 `references/external-features.md`，开发者接入说明见 `features/README.md`，包规则见 `features/RULES.md`，登记流程见 `features/REGISTER.md`。
 
 ## 效果
 
@@ -313,7 +323,7 @@ python scripts/queue_status.py <app>/migration/ohos/work-queue.tsv next
 | so + hap + 安装成功 | 6/9 | **9/9** |
 | 启动成功且 a11y 可用 | 6/9 | **8/9** |
 
-最大收益在编译链路保通（3 个旧 skill 编译失败/放弃的任务全部走通）。
+最大收益在编译链路保通（3 个旧 skill 编译失败/放弃的任务全部走通）。详见 `D:\code\qt\IMPROVEMENTS-VS-UPSTREAM.md`。
 
 ## 边界（不做什么）
 

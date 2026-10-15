@@ -21,6 +21,8 @@ import {
   createReviewPlatformPullRequestDetailTab,
   createReviewPlatformTab,
 } from '@/shared/utils/tabUtils';
+import { openMigrationProgressPanel } from '@/features/qt-ohos-migration/services/openMigrationProgress';
+import { useMigrationProgressStore } from '@/features/qt-ohos-migration/store/useMigrationProgressStore';
 import './FlowChatHeader.scss';
 
 const PULL_REQUEST_OVERVIEW_LIMIT = 3;
@@ -392,6 +394,20 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
     createReviewPlatformTab(currentWorkspaceId, currentWorkspaceRootPath);
     closeSessionOverview(false);
   }, [closeSessionOverview, currentWorkspaceId, currentWorkspaceRootPath]);
+
+  const currentWorkspaceConnectionId = currentWorkspace?.connectionId;
+  // The migration panel exists only for a workspace holding `migration/ohos/STATE.md`
+  // (tracked by useMigrationAutoOpen), so its entry is offered only there.
+  const migrationAvailable = useMigrationProgressStore((state) => (
+    !!currentWorkspaceRootPath && state.ledgerWorkspaces.includes(currentWorkspaceRootPath)
+  ));
+  const handleOpenMigrationProgress = useCallback(() => {
+    openMigrationProgressPanel({
+      workspacePath: currentWorkspaceRootPath,
+      remoteConnectionId: currentWorkspaceConnectionId,
+    });
+    closeSessionOverview(false);
+  }, [closeSessionOverview, currentWorkspaceConnectionId, currentWorkspaceRootPath]);
 
   const handleOpenPullRequest = useCallback((pullRequest: ReviewPlatformPullRequest) => {
     if (!currentWorkspaceId) return;
@@ -995,6 +1011,28 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
                     </div>
                   )}
                 </div>
+
+                {migrationAvailable && (
+                <div
+                  className="flowchat-header__session-overview-section flowchat-header__session-overview-section--migration"
+                  data-bitfun-component="flow-chat-header"
+                  data-bitfun-part="sessionOverviewItem"
+                  data-bitfun-state={currentWorkspaceRootPath ? undefined : 'unavailable'}
+                >
+                  <button data-overflow-trigger
+                    type="button"
+                    className="flowchat-header__session-overview-section-header flowchat-header__session-overview-section-header--action"
+                    onClick={handleOpenMigrationProgress}
+                    aria-label={t('flowChatHeader.migrationProgress')}
+                    disabled={!currentWorkspaceRootPath}
+                    data-testid="flowchat-header-migration-progress"
+                  >
+                    <OverflowText className="flowchat-header__session-overview-section-title">
+                      {t('flowChatHeader.migrationProgress')}
+                    </OverflowText>
+                  </button>
+                </div>
+                )}
               </div>
             </div>,
             getAppearanceOverlayHost(),
