@@ -151,6 +151,12 @@ const ReviewPlatformPanel = React.lazy(() =>
   import('@/app/components/panels/review-platform/ReviewPlatformPanel')
 );
 
+const MigrationProgressPanel = React.lazy(() =>
+  import('@/features/qt-ohos-migration/components/MigrationProgressPanel').then(module => ({
+    default: module.MigrationProgressPanel
+  }))
+);
+
 // CodePreview, ChartRenderer and CodeNode removed - visualization features disabled
 import { 
   FlexiblePanelProps
@@ -869,6 +875,17 @@ const FlexiblePanel: React.FC<ExtendedFlexiblePanelProps> = memo(({
         return (
           <React.Suspense fallback={<div className="bitfun-flexible-panel__loading" data-bitfun-component="flexible-panel" data-bitfun-part="loading" data-bitfun-state="loading">{t('flexiblePanel.loading.terminal')}</div>}>
             <BackgroundCommandOutputPanel data={content.data} />
+          </React.Suspense>
+        );
+
+      case 'migration-progress':
+        return (
+          <React.Suspense fallback={<div className="bitfun-flexible-panel__loading" data-bitfun-component="flexible-panel" data-bitfun-part="loading" data-bitfun-state="loading">{t('flexiblePanel.loading.taskDetail')}</div>}>
+            <MigrationProgressPanel
+              ledgerRoot={content.data?.ledgerRoot}
+              workspacePath={content.data?.workspacePath || workspacePath}
+              remoteConnectionId={content.data?.remoteConnectionId}
+            />
           </React.Suspense>
         );
 

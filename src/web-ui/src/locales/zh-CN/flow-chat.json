@@ -1443,6 +1443,7 @@
     "backgroundCommandStopAll": "全部终止",
     "backgroundCommandStopFailed": "终止后台命令失败。",
     "pullRequests": "拉取请求",
+    "migrationProgress": "迁移进度",
     "pullRequestCount": "{{count}} 个拉取请求",
     "pullRequestEmpty": "暂无拉取请求",
     "pullRequestLoading": "正在加载拉取请求...",

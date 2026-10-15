@@ -1,0 +1,193 @@
+{
+  "title": "遷移進度",
+  "live": {
+    "blocked": "已阻塞",
+    "idle": "閒置"
+  },
+  "header": {
+    "refresh": "重新整理",
+    "overall": "總體進度",
+    "currentPhase": "目前階段",
+    "assessment": "可行性結論",
+    "completionTier": "完成級別",
+    "lastWrite": "最近寫入",
+    "openState": "開啟 STATE.md",
+    "modeWatch": "即時（檔案監聽）",
+    "modePoll": "輪詢",
+    "root": "監聽目錄",
+    "rootOutside": "工作區外",
+    "currentAction": "正在執行",
+    "lastAction": "最近動作",
+    "elapsed": "已用 {{time}}",
+    "completed": "遷移已完成",
+    "completedGateBlocked": "handoff 門控未通過（{{n}} 項）",
+    "phaseIndex": "第 {{index}}/{{total}} 階段",
+    "phaseStrip": "遷移階段進度"
+  },
+  "time": {
+    "secondsAgo": "{{n}} 秒前",
+    "minutesAgo": "{{n}} 分鐘前",
+    "seconds": "{{n}} 秒",
+    "minutesSeconds": "{{m}} 分 {{s}} 秒"
+  },
+  "sections": {
+    "decisions": "需要你決定",
+    "phases": "遷移階段",
+    "diagnostics": "問題與診斷",
+    "references": "參考資訊",
+    "externalFeatures": "外部特性"
+  },
+  "status": {
+    "doing": "進行中",
+    "ready": "可開始",
+    "pending": "未開始",
+    "blocked": "阻塞",
+    "unknown": "未知",
+    "paused": "已暫停"
+  },
+  "phases": {
+    "baseline": {
+      "name": "環境準備",
+      "description": "確認 Qt for HarmonyOS 發行版、HarmonyOS SDK 與 native 工具鏈、建置打包工具和工程範本都已就位並可用。",
+      "short": "環境"
+    },
+    "inventory": {
+      "name": "遷移項盤點",
+      "description": "掃描原始碼與建置檔案，列出需要遷移的 Qt 模組、平台相關程式碼、系統介面和第三方函式庫，每項對應一個驗收情境。",
+      "short": "盤點"
+    },
+    "contract": {
+      "name": "遷移方案確認",
+      "description": "給出可行性結論並凍結遷移方案；刪減、降級或替換功能必須經你確認後記錄。",
+      "short": "方案"
+    },
+    "pilot": {
+      "name": "先行驗證",
+      "description": "在大範圍修改程式碼之前，用最小工程證明應用外殼、入口、Qt 連結、打包和一個高風險點能走通。",
+      "short": "先行"
+    },
+    "implementation": {
+      "name": "功能遷移",
+      "description": "依相依順序逐項遷移功能：先編譯第三方函式庫和應用，再根據編譯結果小步修改原始碼，每項都有驗證記錄。",
+      "short": "功能"
+    },
+    "features": {
+      "name": "鴻蒙特性接入",
+      "description": "應用能安裝啟動後，依方案接入選定的鴻蒙特性（如碰一碰、接續、分享）；方案未選特性時標記為不適用。",
+      "short": "特性"
+    },
+    "diagnostics": {
+      "name": "建置與問題修復",
+      "description": "建置、打包、安裝並在裝置上執行應用；每次失敗依首個根因記錄，修復後再重試。",
+      "short": "建置"
+    },
+    "handoff": {
+      "name": "驗收與交付",
+      "description": "逐項驗證驗收情境，核對最終安裝套件內容和實機執行結果，輸出遷移報告。",
+      "short": "交付"
+    }
+  },
+  "phase": {
+    "noItems": "尚無台帳記錄。",
+    "ledger": "台帳：",
+    "ledgerOverride": "帳本條目已全部完成，STATE.md 仍記為「{{raw}}」",
+    "migrationState": {
+      "pending": "待遷移",
+      "doing": "遷移中",
+      "done": "已遷移",
+      "blocked": "受阻"
+    },
+    "rowsFrac": "記錄 {{done}}/{{total}}",
+    "rowsFracHint": "已閉合的台帳記錄數；階段是否完成以門禁結果為準，不看這個計數。"
+  },
+  "features": {
+    "status": {
+      "planned": "已計畫",
+      "in-progress": "進行中",
+      "passed": "已通過",
+      "deferred-approved": "已核准延後",
+      "blocked": "阻塞",
+      "verified": "已驗證"
+    },
+    "kind": "類型：{{kind}}",
+    "hostPhase": "掛載階段：{{phase}}",
+    "attempts": "已嘗試 {{n}} 次",
+    "attemptsOf": "嘗試 {{n}}/{{max}}",
+    "legacy": "舊格式記錄",
+    "milestones": "特性里程碑",
+    "currentStep": "目前步驟",
+    "gate": {
+      "entry": "准入門控",
+      "exit": "退出門控",
+      "ready": "通過",
+      "readyRestart": "通過（重新進入）",
+      "blocked": "未通過（{{n}}）",
+      "closed": "已關閉：{{status}}"
+    },
+    "links": "關聯台帳項（{{n}}）",
+    "linkMissing": "尚未記錄",
+    "files": "工作目錄與文件",
+    "playbook": "特性操作手冊",
+    "decision": "啟用決策：{{id}}",
+    "notes": "備註",
+    "evidence": "證據",
+    "selection": {
+      "label": "使用者選擇",
+      "none": "不啟用",
+      "selected": "已選 {{n}} 項",
+      "unanswered": "使用者未作答",
+      "unconfirmed": "未經使用者確認",
+      "unansweredHint": "提問逾時或被略過，這不是使用者的決定，門禁會拒絕。需要重新詢問使用者並記錄其回答。",
+      "unconfirmedHint": "該決定缺少 owner=user、status=approved 或引用使用者原話的證據（「user: ...」），門禁不認可。",
+      "notActivated": "已選擇但未啟用：{{ids}}"
+    }
+  },
+  "decisions": {
+    "options": "選項",
+    "impact": "影響",
+    "source": "來源：{{source}}"
+  },
+  "diagnostics": {
+    "unclassified": "未歸類",
+    "attempts": "嘗試 {{n}} 次",
+    "rootCause": "根因",
+    "nextAction": "下一步",
+    "recurrence": "復發情況",
+    "openLog": "開啟日誌",
+    "open": "未解決",
+    "resolved": "已修復",
+    "fix": "修復方式",
+    "noneRecorded": "沒有記錄到遷移中遇到的問題。",
+    "noneRecordedButRetried": "沒有記錄到問題，但有 {{n}} 次失敗的嘗試未寫入台帳。",
+    "receipts": "通過記錄（{{n}}）",
+    "unrecorded": "{{n}} 次失敗未記錄"
+  },
+  "references": {
+    "document": "文件",
+    "ledger": "台帳",
+    "rows": "{{n}} 列",
+    "knowledge": "知識庫",
+    "modified": "本地已修改"
+  },
+  "errors": {
+    "loadFailed": "讀取台帳失敗：{{error}}，目前顯示上一次的快照。"
+  },
+  "warnings": {
+    "schema": "台帳欄位與預期不一致：{{detail}}"
+  },
+  "heartbeat": {
+    "running": "Agent 執行中",
+    "stopped": "Agent 已停止",
+    "lastActivity": "最近活動 {{time}}"
+  },
+  "gate": {
+    "ready": "門控通過",
+    "blocked": "門控未通過（{{n}}）",
+    "unmetTitle": "未滿足的門控條件",
+    "invalid": "帳本校驗失敗",
+    "more": "……另有 {{n}} 項"
+  },
+  "todos": {
+    "progress": "Agent 任務 {{done}}/{{total}}"
+  }
+}

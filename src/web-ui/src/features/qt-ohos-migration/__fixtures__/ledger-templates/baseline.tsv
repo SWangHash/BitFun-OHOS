@@ -1,0 +1,3 @@
+id	kind	platform	revision	command_or_scenario	exit_code	result	status	evidence	run_at
+BASE-001	host-smoke	host	TODO	TODO	TODO	TODO	planned	TODO	TODO
+BASE-002	host-tests	host	TODO	TODO	TODO	TODO	not-run	TODO	TODO

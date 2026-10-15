@@ -335,6 +335,7 @@ Notes:
 |---|---|---|
 | Background subagents button | `flowchat-header-background-subagents` | Opens background subagent activity state. |
 | Pull requests button | `flowchat-header-pull-requests` | Opens pull request related UI. |
+| Migration progress button | `flowchat-header-migration-progress` | Opens the Qt→HarmonyOS migration progress tab. |
 | Turn list | `flowchat-header-turn-list` | Turn navigation list. |
 | Previous turn button | `flowchat-header-turn-prev` | Moves to previous visible turn. |
 | Next turn button | `flowchat-header-turn-next` | Moves to next visible turn. |

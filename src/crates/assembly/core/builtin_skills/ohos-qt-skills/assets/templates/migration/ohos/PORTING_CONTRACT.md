@@ -29,6 +29,16 @@ amendments and apply them between rounds.
 Allowed dispositions: `unchanged`, `guarded-adaptation`, `ohos-replacement`,
 `packaging-only`, `degraded-approved`, `blocked`, `unknown`.
 
+## External features
+
+User selection recorded in `decisions.tsv` (`feature_or_scope=external-features`;
+default: none). Selected features run inside their host phase through
+`feature_gate.py enter/exit`.
+
+| Feature | Kind | Host phase | Decision |
+|---|---|---|---|
+| TODO (or `none selected`) | TODO | TODO | TODO |
+
 ## Amendments and deviations
 
 | ID | Status | Trigger/evidence | Proposed change | Approval |

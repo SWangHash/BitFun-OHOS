@@ -1440,6 +1440,7 @@
     "backgroundCommandStopAll": "全部終止",
     "backgroundCommandStopFailed": "終止背景命令失敗。",
     "pullRequests": "拉取請求",
+    "migrationProgress": "遷移進度",
     "pullRequestCount": "{{count}} 個拉取請求",
     "pullRequestEmpty": "目前沒有拉取請求",
     "pullRequestLoading": "正在載入拉取請求...",

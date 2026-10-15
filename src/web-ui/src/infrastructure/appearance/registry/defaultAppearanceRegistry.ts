@@ -283,6 +283,7 @@ import { tokenUsageIndicatorAppearanceDescriptor } from '@/flow_chat/components/
 import { toolApprovalBarAppearanceDescriptor } from '@/flow_chat/components/ToolApprovalBar.appearance';
 import { smartRecommendationsAppearanceDescriptor } from '@/flow_chat/components/smart-recommendations/SmartRecommendations.appearance';
 import { sessionRuntimeStatusEntryAppearanceDescriptor } from '@/flow_chat/components/usage/SessionRuntimeStatusEntry.appearance';
+import { migrationProgressPanelAppearanceDescriptor } from '@/features/qt-ohos-migration/components/MigrationProgressPanel.appearance';
 import { runtimeStatusSlotAppearanceDescriptor } from '@/flow_chat/components/modern/RuntimeStatusSlot.appearance';
 import { sessionMenuAppearanceDescriptor } from '@/flow_chat/components/session-menu/SessionMenu.appearance';
 import { subagentAvatarAppearanceDescriptor } from '@/flow_chat/subagent-identity/SubagentAvatar.appearance';
@@ -563,6 +564,7 @@ export function createDefaultAppearanceRegistry(): AppearanceRegistry {
     .registerComponent(toolApprovalBarAppearanceDescriptor)
     .registerComponent(smartRecommendationsAppearanceDescriptor)
     .registerComponent(sessionRuntimeStatusEntryAppearanceDescriptor)
+    .registerComponent(migrationProgressPanelAppearanceDescriptor)
     .registerComponent(runtimeStatusSlotAppearanceDescriptor)
     .registerComponent(sessionMenuAppearanceDescriptor)
     .registerComponent(dispatchInstallDialogAppearanceDescriptor)

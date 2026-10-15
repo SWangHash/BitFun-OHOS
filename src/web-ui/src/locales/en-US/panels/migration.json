@@ -1,0 +1,193 @@
+{
+  "title": "Migration Progress",
+  "live": {
+    "blocked": "Blocked",
+    "idle": "Idle"
+  },
+  "header": {
+    "refresh": "Refresh",
+    "overall": "Overall",
+    "currentPhase": "Current phase",
+    "assessment": "Assessment",
+    "completionTier": "Completion tier",
+    "lastWrite": "Last ledger write",
+    "openState": "Open STATE.md",
+    "modeWatch": "Live (file watcher)",
+    "modePoll": "Polling",
+    "root": "Watching",
+    "rootOutside": "outside workspace",
+    "currentAction": "Running now",
+    "lastAction": "Last action",
+    "elapsed": "for {{time}}",
+    "completed": "Migration completed",
+    "completedGateBlocked": "handoff gate still blocked ({{n}})",
+    "phaseIndex": "phase {{index}}/{{total}}",
+    "phaseStrip": "Migration phase progress"
+  },
+  "time": {
+    "secondsAgo": "{{n}}s ago",
+    "minutesAgo": "{{n}} min ago",
+    "seconds": "{{n}}s",
+    "minutesSeconds": "{{m}}m {{s}}s"
+  },
+  "sections": {
+    "decisions": "Needs your decision",
+    "phases": "Phases",
+    "diagnostics": "Problems & diagnostics",
+    "references": "References",
+    "externalFeatures": "External features"
+  },
+  "status": {
+    "doing": "In progress",
+    "ready": "Ready",
+    "pending": "Pending",
+    "blocked": "Blocked",
+    "unknown": "Unknown",
+    "paused": "paused"
+  },
+  "phases": {
+    "baseline": {
+      "name": "Environment setup",
+      "description": "Confirm the Qt for HarmonyOS distribution, HarmonyOS SDK and native toolchain, build/package tools and project template are in place and usable.",
+      "short": "Env"
+    },
+    "inventory": {
+      "name": "Migration inventory",
+      "description": "Scan sources and build files for the Qt modules, platform-specific code, system APIs and third-party libraries to migrate, each with an acceptance scenario.",
+      "short": "Scan"
+    },
+    "contract": {
+      "name": "Migration plan sign-off",
+      "description": "State the feasibility verdict and freeze the migration plan; removing, degrading or replacing a feature needs your approval.",
+      "short": "Plan"
+    },
+    "pilot": {
+      "name": "Pilot verification",
+      "description": "Before broad code changes, prove with a minimal project that the app shell, entry point, Qt linkage, packaging and one high-risk point all work.",
+      "short": "Pilot"
+    },
+    "implementation": {
+      "name": "Feature migration",
+      "description": "Migrate features in dependency order: build third-party libraries and the app first, then make small source changes driven by the build results, each with a validation record.",
+      "short": "Port"
+    },
+    "features": {
+      "name": "HarmonyOS features",
+      "description": "Once the app installs and launches, add the HarmonyOS features chosen in the plan (tap-to-transfer, continuation, share); marked not applicable when none were chosen.",
+      "short": "Feat"
+    },
+    "diagnostics": {
+      "name": "Build & fix",
+      "description": "Build, package, install and run the app on a device; each failure is recorded by its first root cause and fixed before retrying.",
+      "short": "Build"
+    },
+    "handoff": {
+      "name": "Acceptance & handoff",
+      "description": "Verify every acceptance scenario, check the final package contents and device runs, and write the migration report.",
+      "short": "Ship"
+    }
+  },
+  "phase": {
+    "noItems": "No ledger rows yet.",
+    "ledger": "Ledger:",
+    "ledgerOverride": "All ledger rows are closed; STATE.md still says \"{{raw}}\"",
+    "migrationState": {
+      "pending": "Not migrated",
+      "doing": "Migrating",
+      "done": "Migrated",
+      "blocked": "Blocked"
+    },
+    "rowsFrac": "{{done}}/{{total}} rows",
+    "rowsFracHint": "Closed ledger rows. Whether the phase is done is decided by its gate, not by this count."
+  },
+  "features": {
+    "status": {
+      "planned": "Planned",
+      "in-progress": "In progress",
+      "passed": "Passed",
+      "deferred-approved": "Deferred (approved)",
+      "blocked": "Blocked",
+      "verified": "Verified"
+    },
+    "kind": "Kind: {{kind}}",
+    "hostPhase": "Hosted in: {{phase}}",
+    "attempts": "{{n}} attempts",
+    "attemptsOf": "Attempt {{n}}/{{max}}",
+    "legacy": "Legacy row",
+    "milestones": "Feature milestones",
+    "currentStep": "Current step",
+    "gate": {
+      "entry": "Entry gate",
+      "exit": "Exit gate",
+      "ready": "Passed",
+      "readyRestart": "Passed (re-entered)",
+      "blocked": "Not met ({{n}})",
+      "closed": "Closed: {{status}}"
+    },
+    "links": "Linked ledger items ({{n}})",
+    "linkMissing": "Not recorded yet",
+    "files": "Work directory & docs",
+    "playbook": "Feature playbook",
+    "decision": "Activation decision: {{id}}",
+    "notes": "Notes",
+    "evidence": "Evidence",
+    "selection": {
+      "label": "User selection",
+      "none": "None enabled",
+      "selected": "{{n}} selected",
+      "unanswered": "Not answered",
+      "unconfirmed": "Not confirmed by the user",
+      "unansweredHint": "The question timed out or was skipped, so this is not the user's decision. The gate rejects it; ask the user again and record their answer.",
+      "unconfirmedHint": "This decision lacks owner=user, status=approved, or evidence quoting the user (\"user: ...\"); the gate does not accept it.",
+      "notActivated": "Selected but not activated: {{ids}}"
+    }
+  },
+  "decisions": {
+    "options": "Options",
+    "impact": "Impact",
+    "source": "Source: {{source}}"
+  },
+  "diagnostics": {
+    "unclassified": "Unclassified",
+    "attempts": "{{n}} attempt(s)",
+    "rootCause": "Root cause",
+    "nextAction": "Next action",
+    "recurrence": "Recurrence",
+    "openLog": "Open log",
+    "open": "Open",
+    "resolved": "Fixed",
+    "fix": "Fix",
+    "noneRecorded": "No problems were recorded during the migration.",
+    "noneRecordedButRetried": "No problems recorded, but {{n}} failed attempts were never written to the ledger.",
+    "receipts": "Passing receipts ({{n}})",
+    "unrecorded": "{{n}} failures not recorded"
+  },
+  "references": {
+    "document": "Document",
+    "ledger": "Ledger",
+    "rows": "{{n}} rows",
+    "knowledge": "Knowledge",
+    "modified": "locally modified"
+  },
+  "errors": {
+    "loadFailed": "Failed to read ledgers: {{error}}. Showing the last snapshot."
+  },
+  "warnings": {
+    "schema": "Ledger columns differ from the expected schema: {{detail}}"
+  },
+  "heartbeat": {
+    "running": "Agent is working",
+    "stopped": "Agent is idle",
+    "lastActivity": "last activity {{time}}"
+  },
+  "gate": {
+    "ready": "Gate passed",
+    "blocked": "Gate blocked ({{n}})",
+    "unmetTitle": "Unmet gate conditions",
+    "invalid": "Ledgers are invalid",
+    "more": "… {{n}} more"
+  },
+  "todos": {
+    "progress": "Agent tasks {{done}}/{{total}}"
+  }
+}

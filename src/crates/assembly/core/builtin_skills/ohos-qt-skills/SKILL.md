@@ -63,9 +63,9 @@ command closes it:
 | 3 | Migration plan contract (`contract`) | `decisions.tsv` | freeze target, bundle name, deliverables, dispositions, feature selection; user approvals | copying the template, build files, source edits |
 | 4 | Pilot verification (`pilot`) | `pilot.tsv` | create the HarmonyOS project from the template; prove envelope, entry, Qt linkage, packaging, one risky boundary | porting or building the application target |
 | 5 | Capability migration (`implementation`) | `work-queue.tsv` | application build files and guarded source changes per `CAP-*` row | HarmonyOS-specific features |
-| 6 | HarmonyOS feature adaptation (`features`) | `feature-adoption.tsv` | contract-approved catalog features, or close as `not-applicable` | — |
+| 6 | HarmonyOS feature adaptation (`features`) | `feature-adoption.tsv` | run activated capability features one at a time through their entry/exit gates | — |
 | 7 | Build and diagnostics (`diagnostics`) | `diagnostics.tsv` | application build/package/install/device rounds, classified failures | — |
-| 8 | Acceptance and handoff (`handoff`) | `validation.tsv` | verify the real artifact and device behavior; write `report.md` | — |
+| 8 | Acceptance and handoff (`handoff`) | `validation.tsv` | verify the real artifact and device behavior; run activated verification features; write `report.md` | — |
 
 - Right after initialization, after every gate, after a context compaction,
   and whenever the next step is unclear, run
@@ -279,6 +279,15 @@ refuses pilot batches before the contract gate and build/package/device
 batches before the pilot gate. Do not write build files or port code for
 `implementation` while an earlier phase is still open.
 
+A `READY` gate is not a stopping point. Enter the next phase in the same turn
+and keep going until the `handoff` gate is `READY`. Stop only when a gate is
+`BLOCKED` on something only the user can resolve, when a user decision is
+pending, or when the budget is exhausted; then write the reason in `Next
+executable action`. Do not end a turn just to ask whether to continue, and do
+not leave `features`, `diagnostics`, or `handoff` as "remaining wrap-up".
+Keeping going never justifies answering or defaulting a user question
+yourself: a pending decision is a valid stop.
+
 Keep `STATE.md` → `Next executable action` current: update it before every
 long-running step (scan, configure, build, package, device run) so a reader
 of the ledgers can tell what is happening between gates. Never say
@@ -405,17 +414,29 @@ phases are resumable because their queues are files on disk:
    command, and negative-control evidence, or the gate remains blocked.
 3. **Migration plan contract (`contract`):** choose `ready`,
    `ready-with-decisions`, `blocked`, or `not-recommended`. Only `ready` may
-   enter implementation. Freeze the contract and acceptance scenarios. If the
-   user wants HarmonyOS-specific features (碰一碰/接续/分享 or similar), scan
-   `features/registry.tsv` triggers against the request, list the candidates,
-   and record the user's selection in the contract and `decisions.tsv`
-   (selection only; implementation happens in phase 6).
+   enter implementation. Freeze the contract and acceptance scenarios.
+   External features: run `feature_hooks.py candidates <root> --request "<request>"`,
+   show the list to the user, and let the user choose (default: none). Record
+   the choice as a user-owned `decisions.tsv` row with
+   `feature_or_scope=external-features` and `selected` = feature ids or `none`,
+   then `feature_hooks.py activate <root> --decision <DEC>` with one
+   `--select` per chosen id. Never select a feature yourself; keyword hits only
+   rank candidates.
+   A question that returns without an answer (timed out, skipped, dismissed)
+   is not a decision: do not record it as `owner=user`/`approved`, and do not
+   apply a default on the user's behalf. Ask again (with a longer wait if the
+   question tool allows it); if it is still unanswered, leave the decision
+   pending, write the open question in `Next executable action`, and stop.
+   Evidence quotes the user's reply verbatim; never write it in your own voice
+   ("default applied", "按默认"). The gate rejects evidence that records a
+   timeout, a skip, or no reply.
    Run `validate_ledgers.py ... --phase contract`. Freeze the contract before any source or
    build edit; repair loops may not silently amend it.
    Only the user can approve removing, stubbing, deferring, or degrading a
    capability. Such a `decisions.tsv` row needs `owner=user` and evidence
    starting with `user:` that quotes or references the user's words (the task
-   prompt counts); the gate rejects an agent-approved degradation, and every
+   prompt counts; an unanswered question does not); the gate rejects an
+   agent-approved degradation, and every
    `degraded-approved` inventory row must be listed in that decision's
    `affected_ids`. Without that approval, implement the capability or mark it
    `blocked`. An approved decision also binds the implementation: replacing a
@@ -477,16 +498,15 @@ phases are resumable because their queues are files on disk:
    affected queue, inventory, and validation rows before starting another
    attempt. Run `validate_ledgers.py ... --phase implementation` before broad implementation.
 6. **HarmonyOS feature adaptation (`features`):** enter only after the core app envelope
-   installs and launches. Check `features/registry.tsv` against the features
-   approved in the contract; record one `feature-adoption.tsv` row per adopted
-   feature (`FEAT-*`, `feature_id`, `playbook_path`, pinned `playbook_sha256`),
-   expand it into `CAP-*`/`VAL-*` rows in the existing queue, and implement it
-   like any capability slice. When the contract selects no feature, close the
-   template row as `not-applicable` with evidence that quotes the contract. Never implement a feature
-   that is absent from the catalog — record a blocker and request a catalog
-   addition instead. Device-dependent features require `device-runs.tsv`
-   evidence. Exit when every adopted row is `verified` or explicitly
-   `deferred-approved`/`blocked` with a decision.
+   installs and launches. Run each activated `capability` feature, one at a
+   time: `feature_gate.py enter <root> <FEAT>`, follow the package's
+   `feature.md` and, when it wraps a skill, that skill's `SKILL.md` — this
+   workflow overrides conflicting skill instructions (expand into `CAP-*`/`VAL-*` rows, implement like any slice,
+   `feature_hooks.py progress ... --step` per step, list the ids in the
+   `FEAT` row), then `feature_gate.py exit <root> <FEAT>`. Only these scripts
+   write a `FEAT` status. Never implement a feature that was not activated or
+   is absent from the catalog. A feature that cannot finish is closed with
+   `feature_hooks.py close ... --status deferred-approved|blocked --decision <DEC>`.
    Run `validate_ledgers.py ... --phase features`.
 7. **Build and diagnostics (`diagnostics`):** one build owner emits numbered logs. Pilot
    attempts stay in `pilot.tsv`; `diagnostics.tsv` holds the application
@@ -536,7 +556,10 @@ phases are resumable because their queues are files on disk:
 8. **Acceptance and handoff (`handoff`):** climb the strongest actually reached tier
    (`implemented-unverified` through `behavior-verified`), rerun host
    regression after shared changes, audit all unknowns/limitations/TODOs, and
-   write the report.
+   write the report. Run activated `verification` features with the same
+   enter/exit gates; they never edit sources: a defect goes back to the main
+   flow, then `feature_gate.py enter --restart`. List every `FEAT` row with
+   its status under `report.md` `## External features`.
    Run `validate_ledgers.py ... --phase handoff`. Final success requires evidence for the
    actual application target, its ABI, HAP/package contents, and matching
    entry identity. Pilot artifacts, source diffs, or a verifier summary alone
@@ -590,8 +613,8 @@ restart the migration against the new baseline
   syncing, updating, or reviewing KB files.
 - Read [migration-workflow.md](references/migration-workflow.md) for phase
   gates, queue semantics, and evidence rules.
-- Read [feature-adaptation.md](references/feature-adaptation.md) when
-  selecting, adopting, or implementing HarmonyOS-specific features in phase 6.
+- Read [external-features.md](references/external-features.md) when
+  selecting, activating, or running external features (phases 3, 6, 8).
 - Read [third-party-parallel-dispatch.md](references/third-party-parallel-dispatch.md)
   when third-party dependency work (judgment / fetch / cross-compile) follows
   from the portgraph closure; it owns the forced-parallel thresholds and the

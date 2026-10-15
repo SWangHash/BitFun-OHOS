@@ -1,0 +1,26 @@
+{
+  "schema": "qt-ohos-feature/1",
+  "feature_id": "harmonyos-example",
+  "title": "示例能力",
+  "kind": "capability",
+  "version": "0.1.0",
+  "owner": "TODO",
+  "skill": "skill",
+  "hook": { "phase": "features", "after": [] },
+  "trigger": { "keywords": ["示例能力", "example capability"] },
+  "entry": {
+    "requires": [
+      { "check": "phase-passed", "phase": "implementation" },
+      { "check": "ledger-row", "ledger": "device-runs.tsv", "status_in": ["passed"], "min": 1 }
+    ]
+  },
+  "exit": {
+    "criteria": [ { "check": "validation-passed", "ids": "row" } ],
+    "max_attempts": 3
+  },
+  "outputs": { "ledgers": ["inventory.tsv", "work-queue.tsv", "validation.tsv", "device-runs.tsv"], "evidence_files": [] },
+  "permissions": { "modify_sources": true, "device": true },
+  "milestones": ["阅读 skill", "按 skill 实施", "真机验证"],
+  "playbook": "feature.md",
+  "refs": []
+}

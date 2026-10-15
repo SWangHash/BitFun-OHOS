@@ -1,0 +1,29 @@
+{
+  "schema": "qt-ohos-feature/1",
+  "feature_id": "ext-example-acceptance",
+  "title": "示例验收流程",
+  "kind": "verification",
+  "version": "0.1.0",
+  "owner": "TODO",
+  "skill": "skill",
+  "hook": { "phase": "handoff", "after": [] },
+  "trigger": { "keywords": ["示例验收", "example acceptance"] },
+  "entry": {
+    "requires": [
+      { "check": "ledger-row", "ledger": "package-manifest.tsv",
+        "where": { "artifact_type": "application-hap" }, "status_in": ["passed", "verified"], "min": 1 }
+    ]
+  },
+  "exit": {
+    "criteria": [
+      { "check": "validation-passed", "ids": "row" },
+      { "check": "artifact", "path": "{workdir}/report.json", "json": { "result": "pass" } }
+    ],
+    "max_attempts": 3
+  },
+  "outputs": { "ledgers": ["validation.tsv", "diagnostics.tsv"], "evidence_files": ["{workdir}/report.json"] },
+  "permissions": { "modify_sources": false, "device": false },
+  "milestones": ["阅读 skill", "按 skill 执行验收", "汇总报告"],
+  "playbook": "feature.md",
+  "refs": []
+}

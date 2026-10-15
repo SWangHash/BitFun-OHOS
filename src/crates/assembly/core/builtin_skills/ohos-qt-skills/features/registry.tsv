@@ -1,1 +1,1 @@
-feature_id	title	status	playbook_path	requirements	triggers	summary
+feature_id	title	kind	hook_phase	status	package_path	owner	summary

@@ -1443,6 +1443,7 @@
     "backgroundCommandStopAll": "Stop all",
     "backgroundCommandStopFailed": "Failed to stop background command.",
     "pullRequests": "Pull requests",
+    "migrationProgress": "Migration progress",
     "pullRequestCount": "{{count}} pull requests",
     "pullRequestEmpty": "No pull requests",
     "pullRequestLoading": "Loading pull requests...",

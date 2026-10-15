@@ -14,6 +14,7 @@ import {
   MessageSquareQuote,
   Activity,
   GitPullRequest,
+  Route,
 } from 'lucide-react';
 import { PanelContentType, PanelContentConfig } from './types';
 
@@ -111,6 +112,14 @@ export const PANEL_CONTENT_CONFIGS: Record<PanelContentType, PanelContentConfig>
     type: 'html-preview',
     displayName: 'HTML Preview',
     icon: catalogPanelIcon('browser'),
+    supportsCopy: false,
+    supportsDownload: false,
+    showHeader: false
+  },
+  'migration-progress': {
+    type: 'migration-progress',
+    displayName: 'Migration Progress',
+    icon: Route,
     supportsCopy: false,
     supportsDownload: false,
     showHeader: false

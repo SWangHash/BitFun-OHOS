@@ -35,7 +35,8 @@ ID_PREFIXES = {
     "pilot.tsv": "PILOT-",
     "feature-adoption.tsv": "FEAT-",
 }
-FEATURE_STATUSES = {"planned", "in-progress", "verified", "deferred-approved", "blocked", "not-applicable"}
+# Ledgers that may legitimately have only a header (no external feature selected).
+HEADER_ONLY_OK = {"feature-adoption.tsv"}
 # Keep in sync with record_diagnostic.py; phase_gate.py treats passed/resolved as a pilot pass.
 DIAGNOSTIC_STATUSES = {"planned", "in-progress", "failed", "timeout", "blocked", "resolved", "passed", "not-applicable"}
 
@@ -55,6 +56,62 @@ def column_errors(path: Path) -> list[str]:
     width = len(lines[0])
     return [f"{path.name} line {number} has {len(line)} columns, header has {width}"
             for number, line in enumerate(lines[1:], 2) if line and len(line) != width]
+
+def feature_ledger_checks(root: Path, features_root: Path, features: list[dict[str, str]],
+                          validation_ids: set[str], decision_ids: set[str]) -> tuple[list[str], list[str]]:
+    """Structure of feature-adoption.tsv (external features); the lifecycle rules are in phase_gate.hook_errors."""
+    import feature_predicates as fp
+    errors: list[str] = []; warnings: list[str] = []
+    registry_path = features_root / "registry.tsv"
+    catalog = fp.read_registry(features_root) if registry_path.is_file() else {}
+    legacy = fp.is_legacy(fp.adoption_fields(root))
+    if legacy:
+        warnings.append("feature-adoption.tsv uses the pre-hook header (playbook_path); validated in compatibility mode "
+                        "(host phase features, verified = passed, not-applicable = not selected)")
+        statuses = fp.STATUSES | fp.LEGACY_STATUSES
+    else:
+        statuses = fp.STATUSES | {"verified"}
+        missing = [name for name in fp.ADOPTION_FIELDS if name not in fp.adoption_fields(root)]
+        if (root / fp.ADOPTION).is_file() and missing:
+            errors.append(f"feature-adoption.tsv lacks columns: {', '.join(missing)}")
+    for row in features:
+        row_id = row.get("id", "").strip()
+        status = row.get("status", "").strip()
+        if status not in statuses:
+            errors.append(f"feature {row_id} has unknown status '{status}' (expected one of {', '.join(sorted(statuses))})")
+        fid = row.get("feature_id", "").strip()
+        if fid and fid.upper() not in {"TODO", "NONE"} and status != "not-applicable":
+            if not registry_path.is_file(): warnings.append(f"feature registry missing: {registry_path}")
+            elif fid not in catalog: errors.append(f"feature {row_id} references unknown feature {fid}; request a catalog entry instead")
+        if legacy:
+            playbook_rel = row.get("playbook_path", "").strip(); expected = row.get("playbook_sha256", "").strip()
+            if playbook_rel and playbook_rel.upper() != "TODO" and expected and expected.lower() not in {"none", "todo"}:
+                playbook = features_root / playbook_rel
+                if not playbook.is_file(): errors.append(f"adopted feature playbook missing: {playbook_rel}")
+                elif hashlib.sha256(playbook.read_bytes()).hexdigest() != expected:
+                    warnings.append(f"adopted feature playbook drifted from pinned hash: {playbook_rel}; only the user decides whether to restart")
+        else:
+            if row.get("kind", "").strip() not in fp.KINDS:
+                errors.append(f"feature {row_id} has unknown kind '{row.get('kind', '')}'")
+            if row.get("host_phase", "").strip() not in fp.PHASE_ORDER:
+                errors.append(f"feature {row_id} has unknown host_phase '{row.get('host_phase', '')}'")
+            attempts = row.get("attempts", "").strip()
+            if attempts and not attempts.isdigit():
+                errors.append(f"feature {row_id} has non-numeric attempts: {attempts}")
+            package = features_root / row.get("package_path", "").strip()
+            pinned = row.get("package_sha256", "").strip()
+            if not row.get("package_path", "").strip() or not package.is_dir():
+                errors.append(f"feature {row_id} package missing: {package}")
+            elif pinned and status not in fp.TERMINAL and fp.package_hash(package) != pinned:
+                warnings.append(f"feature {row_id} package drifted from the hash pinned at activation; "
+                                "only the user decides (feature_hooks.py repin --decision DEC-xxx)")
+        for value in row.get("validation_ids", "").split(","):
+            value = value.strip()
+            if value and value.upper() not in {"TODO", "NONE"} and value not in validation_ids: errors.append(f"feature {row_id} references missing validation {value}")
+        decision = row.get("decision_id", "").strip()
+        if decision and decision.upper() not in {"TODO", "NONE"} and decision not in decision_ids:
+            errors.append(f"feature {row_id} references missing decision {decision}")
+    return errors, warnings
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -84,7 +141,7 @@ def main() -> int:
     manifest = read_tsv(root/"knowledge-manifest.tsv")
     for name, rows in rows_by_name.items():
         errors.extend(column_errors(root / name))
-        if not rows:
+        if not rows and name not in HEADER_ONLY_OK:
             hint = "every pilot/build/package/device attempt needs a receipt" if name in {"diagnostics.tsv", "pilot.tsv"} else "record the phase receipt before continuing"
             errors.append(f"{name} has no data rows; {hint}")
         prefix = ID_PREFIXES.get(name)
@@ -133,29 +190,9 @@ def main() -> int:
             known = value in queue_ids or value in {r.get("id", "") for r in inventory} or value in validation_ids
             if not known and not value.startswith(("ENV-", "BASE-", "PKG-", "DEV-RUN-", "DEC-", "DIAG-", "PILOT-", "FEAT-")):
                 errors.append(f"diagnostic {row.get('id')} references unknown affected id {value}")
-    registry_path = skill_dir / "features" / "registry.tsv"
-    feature_catalog = {r.get("feature_id", "") for r in read_tsv(registry_path) if r.get("feature_id")}
-    decision_ids = {r.get("id", "") for r in rows_by_name["decisions.tsv"]}
-    for row in features:
-        status = row.get("status", "").strip()
-        if status not in FEATURE_STATUSES:
-            errors.append(f"feature {row.get('id')} has unknown status '{status}' (expected one of {', '.join(sorted(FEATURE_STATUSES))})")
-        fid = row.get("feature_id", "").strip()
-        if fid and fid.upper() not in {"TODO", "NONE"} and status != "not-applicable":
-            if not registry_path.is_file(): warnings.append(f"feature registry missing: {registry_path}")
-            elif fid not in feature_catalog: errors.append(f"feature {row.get('id')} references unknown feature {fid}; request a catalog entry instead")
-        playbook_rel = row.get("playbook_path", "").strip(); expected = row.get("playbook_sha256", "").strip()
-        if playbook_rel and playbook_rel.upper() != "TODO" and expected and expected.lower() not in {"none", "todo"}:
-            playbook = skill_dir / "features" / playbook_rel
-            if not playbook.is_file(): errors.append(f"adopted feature playbook missing: {playbook_rel}")
-            elif hashlib.sha256(playbook.read_bytes()).hexdigest() != expected:
-                warnings.append(f"adopted feature playbook drifted from pinned hash: {playbook_rel}; only the user decides whether to restart")
-        for value in row.get("validation_ids", "").split(","):
-            value = value.strip()
-            if value and value.upper() != "TODO" and value not in validation_ids: errors.append(f"feature {row.get('id')} references missing validation {value}")
-        decision = row.get("decision_id", "").strip()
-        if decision and decision.upper() not in {"TODO", "NONE"} and decision not in decision_ids:
-            errors.append(f"feature {row.get('id')} references missing decision {decision}")
+    errors_f, warnings_f = feature_ledger_checks(root, skill_dir / "features", features, validation_ids,
+                                                  {r.get("id", "") for r in rows_by_name["decisions.tsv"]})
+    errors.extend(errors_f); warnings.extend(warnings_f)
     for row in manifest:
         snapshot = root / row.get("snapshot_path",""); expected = row.get("snapshot_sha256","")
         if row.get("modified") == "yes":
@@ -200,7 +237,7 @@ def main() -> int:
     if errors: print("INVALID"); print("\n".join(f"- {e}" for e in errors))
     else: print(f"OK inventory={len(inventory)} validation={len(validation)} queue={len(queue)} pilot={len(pilot)} features={len(features)} manifest={len(manifest)}")
     # One command per checkpoint: structural validity plus the requested phase gate.
-    gate_errors = evaluate(root, args.phase) if args.phase else []
+    gate_errors = evaluate(root, args.phase, skill_dir / "features") if args.phase else []
     if args.phase:
         if gate_errors: print(f"BLOCKED phase={args.phase}"); print("\n".join(f"- {e}" for e in gate_errors))
         else: print(f"READY phase={args.phase}")

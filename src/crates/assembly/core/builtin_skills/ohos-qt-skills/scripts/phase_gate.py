@@ -18,15 +18,39 @@ PASS_STATUSES = {"passed", "verified", "accepted", "accepted-limitation", "not-a
 # Keep in sync with DIAGNOSTIC_STATUSES in record_diagnostic.py and validate_ledgers.py.
 PILOT_PASS_STATUSES = {"passed", "resolved"}
 # One phase per SKILL.md step; each phase has one primary ledger:
-# environment, inventory, decisions, pilot, work-queue, feature-adoption,
+# environment, inventory, decisions, pilot, work-queue, feature-adoption (external
+# features hooked into `features`; `handoff` also hosts verification features),
 # diagnostics, validation.
 PHASES = ("baseline", "inventory", "contract", "pilot", "implementation", "features", "diagnostics", "handoff")
-# A closed feature-adoption row; blocked/deferred rows need a decision_id.
-FEATURE_CLOSED = {"verified", "deferred-approved", "blocked", "not-applicable"}
+# Closed rows of a feature-adoption ledger created before external features
+# (old header with playbook_path); the current lifecycle is in feature_predicates.py.
+LEGACY_FEATURE_CLOSED = {"verified", "deferred-approved", "blocked", "not-applicable"}
 ASSESSMENT_RE = re.compile(r"^\s*-\s*Assessment:\s*`?([A-Za-z-]+)`?", re.MULTILINE)
 # A selected option that removes or fakes behavior is a user decision, never an agent default.
 DEGRADING_RE = re.compile(r"degrad|\bstub|\bdrop|\bremov|\bdisabl|\bdefer|no-op|\bnull\w*|placeholder|not[- ]ported", re.IGNORECASE)
 USER_EVIDENCE_RE = re.compile(r"\buser:\s*\S", re.IGNORECASE)
+# A question the user never answered (prompt timed out, skipped, no reply) is
+# not a user decision, even when the evidence is written as "user: ...".
+# The non-answer word must describe the question itself ("question timed out",
+# "提问超时"), not a topic the user talked about ("question about build timeout").
+_ASKED = r"(?:askuserquestion|question|prompt|ask)(?:\s+for\s+(?:the\s+)?[\w.`'-]+)?"
+_NON_ANSWER_EN = (
+    r"(?:\s+(?:was|has|had|got|is|have))?(?:\s+been)?\s*[:(-]?\s*"
+    r"(?:timed?[ -]?out|timeout|expired|skipped|dismissed|went unanswered|unanswered|got no (?:response|answer|reply))"
+)
+_ASKED_ZH = r"(?:提问|询问|问题|弹窗)(?:已|后)?\s*"
+_NON_ANSWER_ZH = r"(?:超时|已过期|被跳过|被关闭|无人回答|无人回复|未获回复|未获回答|无响应|未响应|无回复)"
+NON_ANSWER_RE = re.compile(
+    r"\b" + _ASKED + _NON_ANSWER_EN
+    + r"|" + _ASKED_ZH + _NON_ANSWER_ZH
+    + r"|(?:user|用户)\s*(?:did ?n[o']t|never|has ?n[o']t|未|没有|没)\s*(?:respond|answer|reply|select|choose|回复|回答|作答|选择|响应)"
+    + r"|no (?:response|answer|reply|input) from (?:the )?user|without (?:a |any )?(?:user )?(?:response|answer|reply|input)"
+    # The agent applying a default in its own voice is not the user's answer either.
+    + r"|skip[- ]and[- ]continue|(?:skill|tool|agent)['’]?s? default (?:is|=|applies|applied|used)"
+    + r"|defaulted to|fell back to (?:the )?default|falling back to (?:the )?default|applied (?:the )?default"
+    + r"|自动(?:按|采用|使用|套用)默认|按默认值处理|默认值生效",
+    re.IGNORECASE,
+)
 QUEUE_DONE = {"passed", "accepted-limitation", "not-applicable"}
 # An inventory row's status is its capability's migration state: `planned`
 # while only recorded, closed once the linked queue work is done.
@@ -57,12 +81,22 @@ def has_receipt(row: dict[str, str], *fields: str) -> bool:
     return all(non_placeholder(row.get(field, "")) for field in fields)
 
 
+def unanswered(row: dict[str, str]) -> bool:
+    """The evidence says the user was asked but never answered (timeout, skip, tool default)."""
+    return bool(NON_ANSWER_RE.search(row.get("evidence", "")))
+
+
 def user_approved(row: dict[str, str]) -> bool:
-    """A degradation needs owner=user and evidence quoting the user (``user: ...``)."""
+    """A degradation needs owner=user and evidence quoting the user (``user: ...``).
+
+    A prompt that timed out or was skipped is not an answer: such a row never
+    counts as user-approved, whatever its owner/status say.
+    """
     return (
         row.get("status", "").strip().lower() == "approved"
         and row.get("owner", "").strip().lower() == "user"
         and bool(USER_EVIDENCE_RE.search(row.get("evidence", "")))
+        and not unanswered(row)
     )
 
 
@@ -81,17 +115,19 @@ def report(phase: str, errors: list[str]) -> int:
     return 0
 
 
-def feature_errors(features: list[dict[str, str]], validation: list[dict[str, str]], root: Path) -> list[str]:
-    """Exit rule of HarmonyOS feature adaptation: every feature-adoption row is closed."""
+def legacy_feature_errors(features: list[dict[str, str]], validation: list[dict[str, str]], root: Path) -> list[str]:
+    """Feature rule of ledgers created before external features (``playbook_path`` header).
+
+    Every row is closed; ``verified`` needs a pinned playbook and passed VAL
+    rows. A ledger with no rows means no feature was selected.
+    """
     errors: list[str] = []
-    if not features:
-        return ["feature-adoption.tsv has no rows; set FEAT-001 not-applicable when no feature was selected"]
     decision_ids = {row.get("id", "") for row in read_rows(root / "decisions.tsv")}
     validation_status = {row.get("id", ""): row.get("status", "") for row in validation}
     for row in features:
         row_id = row.get("id", "")
         status = row.get("status", "").strip().lower()
-        if status not in FEATURE_CLOSED:
+        if status not in LEGACY_FEATURE_CLOSED:
             errors.append(f"{row_id} is '{status or 'missing'}'; feature rows must end verified, deferred-approved, blocked or not-applicable")
             continue
         if status == "not-applicable":
@@ -111,6 +147,100 @@ def feature_errors(features: list[dict[str, str]], validation: list[dict[str, st
             for value in ids:
                 if validation_status.get(value, "") not in PASS_STATUSES:
                     errors.append(f"{row_id} is verified but {value} is not a passed validation row")
+    return errors
+
+
+def hook_errors(root: Path, phase: str, validation: list[dict[str, str]], features_root: Path | None = None) -> list[str]:
+    """External features (hooks) that ``phase`` depends on.
+
+    From the contract phase on: when features are registered, the user's
+    selection is recorded (a user-approved ``external-features`` decision,
+    even ``selected=none``) and the FEAT rows match it. For every feature whose
+    host phase is not later than ``phase``: it is closed, ``passed`` carries a
+    script-written exit record, and, for the host phase itself, the evidence
+    digest is unchanged since the exit gate. Handoff also needs every FEAT id
+    in report.md's External features section.
+    """
+    import feature_predicates as fp  # lazy: feature_predicates imports this module
+
+    features_root = features_root or fp.default_features_root()
+    rows = read_rows(root / fp.ADOPTION)
+    if fp.is_legacy(fp.adoption_fields(root)):
+        return legacy_feature_errors(rows, validation, root) if phase in {"features", "diagnostics", "handoff"} else []
+    errors: list[str] = []
+    gated = PHASES.index(phase)
+    if gated < PHASES.index("contract"):
+        return errors
+    registry = fp.read_registry(features_root)
+    offered = {key for key, row in registry.items() if row.get("status", "").strip() != "draft"}
+    decisions = read_rows(root / "decisions.tsv")
+    activations = [row for row in decisions
+                   if row.get("feature_or_scope", "").strip().lower() == fp.ACTIVATION_SCOPE and user_approved(row)]
+    active = {row.get("feature_id", "").strip() for row in rows}
+    if offered and not activations:
+        errors.append(
+            "external features are registered but the user's selection is not recorded; run feature_hooks.py candidates, "
+            "ask the user (default: none) and wait for the answer (a timed-out or skipped question is not one), record a decisions.tsv row feature_or_scope=external-features owner=user "
+            "status=approved evidence 'user: ...', then feature_hooks.py activate"
+        )
+    if activations:
+        newest = fp.selected_features(activations[-1])
+        missing = sorted(newest - active)
+        if missing:
+            errors.append(f"{activations[-1].get('id')} selects {', '.join(missing)} but feature-adoption.tsv has no row; run feature_hooks.py activate")
+    allowed = {item for row in activations for item in fp.selected_features(row)}
+    decision_by_id = {row.get("id", "").strip(): row for row in decisions}
+    for row in rows:
+        row_id, feature_id = row.get("id", "").strip(), row.get("feature_id", "").strip()
+        status = fp.status_of(row)
+        if feature_id not in allowed:
+            errors.append(f"{row_id} ({feature_id}) was not selected by a user-approved external-features decision")
+        if feature_id not in registry:
+            errors.append(f"{row_id} ({feature_id}) is not registered in features/registry.tsv")
+        if not non_placeholder(row.get("package_sha256", "")):
+            errors.append(f"{row_id} has no pinned package_sha256; activate it with feature_hooks.py")
+        host = row.get("host_phase", "").strip()
+        if host not in PHASES:
+            errors.append(f"{row_id} has unknown host_phase '{host}'")
+            continue
+        if status not in fp.STATUSES:
+            errors.append(f"{row_id} has unknown status '{row.get('status', '')}'")
+            continue
+        if PHASES.index(host) > gated:
+            continue
+        if status not in fp.TERMINAL:
+            errors.append(
+                f"{row_id} ({feature_id}) hooks into {host} and is still {status}; "
+                + ("run feature_gate.py enter" if status == "planned" else "finish it and run feature_gate.py exit")
+                + ", or ask the user to close it (feature_hooks.py close)"
+            )
+        elif status == "passed":
+            match = re.match(r"READY @\S+ digest=([0-9a-f]{16})", row.get("exit_gate", "").strip())
+            if not match:
+                errors.append(f"{row_id} is passed without a feature_gate.py exit record; only the exit gate sets passed")
+            elif host == phase:
+                try:
+                    ctx = fp.build_context(root, features_root, row, rows, run_commands=False)
+                except ValueError as error:
+                    errors.append(f"{row_id}: {error}")
+                else:
+                    if fp.evidence_digest(ctx) != match.group(1):
+                        errors.append(f"{row_id} evidence changed after its exit gate (evidence files, VAL status, sources or package); "
+                                      "re-run it: feature_gate.py enter --restart, then exit")
+        elif status == "deferred-approved":
+            if not user_approved(decision_by_id.get(row.get("decision_id", "").strip(), {})):
+                errors.append(f"{row_id} is deferred-approved without a user-approved decision (owner=user, evidence 'user: ...')")
+        elif status == "blocked" and row.get("decision_id", "").strip() not in decision_by_id:
+            errors.append(f"{row_id} is blocked without a decision_id in decisions.tsv")
+    if phase == "handoff" and rows:
+        report_path = root / "report.md"
+        text = report_path.read_text(encoding="utf-8", errors="replace") if report_path.is_file() else ""
+        section = re.search(r"^##\s+External features\s*$(.*?)(?=^##\s|\Z)", text, re.MULTILINE | re.DOTALL)
+        body = section.group(1) if section else ""
+        for row in rows:
+            row_id = row.get("id", "").strip()
+            if not any(row_id in line and fp.status_of(row) in line.lower() for line in body.splitlines()):
+                errors.append(f"report.md External features does not list {row_id} with its final status {fp.status_of(row)}")
     return errors
 
 
@@ -166,7 +296,7 @@ def queue_fields(path: Path) -> list[str]:
         return next(csv.reader(stream, delimiter="\t"), [])
 
 
-def evaluate(root: Path, phase: str) -> list[str]:
+def evaluate(root: Path, phase: str, features_root: Path | None = None) -> list[str]:
     """Return the unmet gate conditions for ``phase``; empty means READY."""
     errors: list[str] = []
 
@@ -182,7 +312,6 @@ def evaluate(root: Path, phase: str) -> list[str]:
         row for row in all_diagnostics if row.get("phase", "").lower() == "pilot"
     ]
     diagnostics = [row for row in all_diagnostics if row.get("phase", "").lower() != "pilot"]
-    features = read_rows(root / "feature-adoption.tsv")
     package = read_rows(root / "package-manifest.tsv")
     device = read_rows(root / "device-runs.tsv")
     state = (root / "STATE.md").read_text(encoding="utf-8", errors="replace") if (root / "STATE.md").is_file() else ""
@@ -271,6 +400,16 @@ def evaluate(root: Path, phase: str) -> list[str]:
         for row in decisions:
             if (
                 row.get("status", "").strip().lower() == "approved"
+                and row.get("owner", "").strip().lower() == "user"
+                and unanswered(row)
+            ):
+                errors.append(
+                    f"{row.get('id')} is recorded as a user approval, but its evidence says the question was never "
+                    "answered (timeout/skip/no reply); that is not a user decision. Ask again and wait for the "
+                    "answer, then record the user's words as 'user: ...'"
+                )
+            if (
+                row.get("status", "").strip().lower() == "approved"
                 and DEGRADING_RE.search(row.get("selected", ""))
                 and not user_approved(row)
             ):
@@ -305,8 +444,9 @@ def evaluate(root: Path, phase: str) -> list[str]:
         ):
             errors.append("validation.tsv needs an OHOS acceptance scenario before pilot exit")
 
-    if phase in {"features", "diagnostics", "handoff"}:
-        errors.extend(feature_errors(features, validation, root))
+    # External features: the user's selection from the contract on, closed
+    # features from their host phase on (features: capability, handoff: verification).
+    errors.extend(hook_errors(root, phase, validation, features_root))
 
     if phase in {"diagnostics", "handoff"}:
         for row in diagnostics + pilot_rows:
@@ -382,11 +522,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("migration_root", type=Path)
     parser.add_argument("phase", choices=PHASES)
+    parser.add_argument("--features-root", type=Path, help="features/ directory (default: the skill's)")
     parser.add_argument("--no-record", action="store_true",
                         help="do not write the verdict into STATE.md (Gate / Progress)")
     args = parser.parse_args()
     root = args.migration_root.resolve()
-    errors = evaluate(root, args.phase)
+    errors = evaluate(root, args.phase, args.features_root)
     code = report(args.phase, errors)
     if not args.no_record:
         from gate_state import record_gate

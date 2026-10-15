@@ -21,6 +21,7 @@ import type { PanelContent as OldPanelContent } from '../../components/panels/ba
 import type { PanelContent } from '../../components/panels/content-canvas/types';
 import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
 import { createLogger } from '@/shared/utils/logger';
+import { useMigrationAutoOpen } from '@/features/qt-ohos-migration/hooks/useMigrationAutoOpen';
 
 import './AuxPane.scss';
 
@@ -45,6 +46,9 @@ const AuxPane = forwardRef<AuxPaneRef, AuxPaneProps>(
     const { t } = useI18n('components');
     const { workspace } = useCurrentWorkspace();
     const workspaceId = workspace?.id;
+
+    // Auto-open the Qt→HarmonyOS migration progress tab when a migration is detected.
+    useMigrationAutoOpen();
 
     // Fine-grained selectors so unrelated store changes do not re-render.
     const addTab = useCanvasStore(state => state.addTab);
