@@ -2358,7 +2358,10 @@
         "validation": "驗證說明",
         "source": "來源",
         "reliabilitySignals": "審核可靠性",
-        "noItems": "無。"
+        "noItems": "無。",
+        "invalidFields": "報告的部分欄位無法讀取：{{fields}}。有效內容已保留。",
+        "unavailableIssues": "問題列表無法讀取。",
+        "partialReport": "報告包含無法讀取的欄位"
       },
       "export": {
         "copyMarkdown": "複製 Markdown",

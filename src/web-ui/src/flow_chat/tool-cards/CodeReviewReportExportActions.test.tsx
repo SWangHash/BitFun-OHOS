@@ -9,6 +9,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CodeReviewReportExportActions } from './CodeReviewReportExportActions';
 import type { ReviewTeamRunManifest } from '@/shared/services/reviewTeamService';
+import type { CodeReviewReportData } from '../utils/codeReviewReport';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -71,7 +72,8 @@ vi.mock('@/infrastructure/services/infra/saveTextFileWithDialog', () => ({
   saveTextFileWithDialog: (...args: unknown[]) => saveTextFileWithDialogMock(...args),
 }));
 
-vi.mock('../utils/codeReviewReport', () => ({
+vi.mock('../utils/codeReviewReport', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../utils/codeReviewReport')>(),
   formatCodeReviewReportMarkdown: (...args: unknown[]) => formatCodeReviewReportMarkdownMock(...args),
 }));
 
@@ -83,6 +85,35 @@ describe('CodeReviewReportExportActions', () => {
       status: 'saved',
       filePath: '/tmp/review.md',
     });
+  });
+
+  it('renders and exports valid content from a malformed historical report', async () => {
+    const original = await vi.importActual<typeof import('../utils/codeReviewReport')>('../utils/codeReviewReport');
+    formatCodeReviewReportMarkdownMock.mockImplementation(original.formatCodeReviewReportMarkdown);
+    const raw = {
+      summary: { overall_assessment: 12, recommended_action: 'request_changes' },
+      review_scope: {},
+      reviewers: [null, { name: 'Reviewer', summary: {}, covered_files: 4 }],
+      issues: [{ title: 'Preserved finding', description: 'Preserved evidence' }],
+      report_sections: { executive_summary: ['Valid assessment', null] },
+    };
+    const persisted = JSON.stringify(raw);
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    try {
+      await act(async () => {
+        root.render(<CodeReviewReportExportActions reviewData={raw as unknown as CodeReviewReportData} actions={['save']} />);
+      });
+      expect(formatCodeReviewReportMarkdownMock).toHaveBeenCalled();
+      await act(async () => { container.querySelector<HTMLButtonElement>('button')?.click(); });
+      expect(saveTextFileWithDialogMock).toHaveBeenCalledWith(expect.objectContaining({
+        content: expect.stringContaining('Preserved finding'),
+      }));
+      expect(saveTextFileWithDialogMock.mock.calls[0][0].content).toContain('Valid assessment');
+      expect(JSON.stringify(raw)).toBe(persisted);
+    } finally {
+      act(() => root.unmount());
+    }
   });
 
   async function clickSave(): Promise<void> {
@@ -189,6 +220,7 @@ describe('CodeReviewReportExportActions', () => {
       {
         review_mode: 'deep',
         summary: { recommended_action: 'approve' },
+        issues: [],
       },
       expect.any(Object),
       { runManifest },
@@ -215,6 +247,7 @@ describe('CodeReviewReportExportActions', () => {
       {
         review_mode: 'standard',
         summary: { recommended_action: 'approve' },
+        issues: [],
       },
       expect.any(Object),
       { runManifest: undefined },
@@ -227,7 +260,7 @@ describe('CodeReviewReportExportActions', () => {
     );
 
     expect(formatCodeReviewReportMarkdownMock).toHaveBeenLastCalledWith(
-      { summary: { recommended_action: 'approve' } },
+      { summary: { recommended_action: 'approve' }, issues: [] },
       expect.objectContaining({
         coverageSourceLabels: expect.objectContaining({ focusedCheck: '补充检查' }),
       }),

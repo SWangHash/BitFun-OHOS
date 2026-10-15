@@ -314,7 +314,7 @@ describe('CodeReviewToolCard', () => {
         success: true,
         result: {
           summary: {
-            overall_assessment: 'One fix is required.',
+            overall_assessment: { text: 'Malformed assessment' },
             risk_level: 'high',
             recommended_action: 'request_changes',
           },
@@ -326,6 +326,9 @@ describe('CodeReviewToolCard', () => {
             suggestion: { text: 'Flip the branch.' },
           }],
           positive_points: [],
+          review_scope: { files: ['src/app.ts'] },
+          reviewers: [null, { name: 'Reviewer', summary: 7, covered_files: {} }],
+          reliability_signals: [null, { kind: 'partial_reviewer', detail: {} }],
           report_sections: {
             remediation_groups: {
               must_fix: ['Add the missing guard.'],
@@ -361,6 +364,8 @@ describe('CodeReviewToolCard', () => {
     });
 
     expect(container.textContent).toContain('Issues (1)');
+    expect(container.textContent).toContain('Some report fields could not be read');
+    expect(container.textContent).toContain('summary.overall_assessment');
     expect(container.textContent).toContain('Add the missing guard.');
     expect(container.textContent).not.toContain('Object-shaped title');
   });

@@ -205,6 +205,52 @@ function buildReducedScopeRunManifest(): ReviewTeamRunManifest {
 }
 
 describe('codeReviewReport', () => {
+  it('preserves string values from reports with unfamiliar labels', () => {
+    const report = {
+      summary: { risk_level: 'future-risk', recommended_action: 'future-action' },
+      review_mode: 'future-mode', evidence_status: 'future-status', issues: [],
+    };
+    expect(normalizeCodeReviewReportData(report)).toEqual(report);
+  });
+
+  it('normalizes consumed report fields without changing the original record or valid content', () => {
+    const raw = {
+      summary: { overall_assessment: 3, risk_level: {}, recommended_action: 'approve', confidence_note: 'Preserve this note.' },
+      issues: {}, review_scope: { path: 'src/a.ts' }, reviewers: [null, {
+        name: 'Security', status: 'partial_timeout', summary: { text: 'invalid' },
+        partial_output: 7, packet_id: [], covered_files: ['src/a.ts', null],
+      }],
+      reliability_signals: [null, { kind: 'partial_reviewer', detail: 42, count: {} }],
+      report_sections: { executive_summary: ['Valid finding.', { text: 'invalid' }] },
+    };
+    const original = JSON.stringify(raw);
+    const report = normalizeCodeReviewReportData(raw)!;
+    expect(report.summary).toEqual({ recommended_action: 'approve', confidence_note: 'Preserve this note.' });
+    expect(report.reviewers).toMatchObject([{ name: 'Security', status: 'partial_timeout', covered_files: ['src/a.ts'] }]);
+    expect(report.normalization_issues).toEqual(expect.arrayContaining([
+      'summary.overall_assessment', 'summary.risk_level', 'issues', 'review_scope',
+      'reviewers[0]', 'reviewers[1].summary', 'reviewers[1].partial_output', 'reviewers[1].packet_id',
+      'reliability_signals[0]', 'reliability_signals[1].detail', 'report_sections.executive_summary',
+    ]));
+    expect(() => buildCodeReviewReportSections(report)).not.toThrow();
+    expect(() => buildCodeReviewReliabilityNotices(report)).not.toThrow();
+    const markdown = formatCodeReviewReportMarkdown(report);
+    expect(markdown).toContain('Valid finding.');
+    expect(markdown).toContain('The issue list could not be read.');
+    expect(markdown).not.toContain('No validated issues.');
+    expect(normalizeCodeReviewReportData(report)).toEqual(report);
+    expect(JSON.stringify(raw)).toBe(original);
+  });
+
+  it.each([null, 2, 'invalid', []])('keeps partial report content when summary has the invalid shape %j', summary => {
+    const report = normalizeCodeReviewReportData({ summary, reviewers: {}, reliability_signals: {},
+      issues: [{ title: 'Preserved finding', description: 'Details remain readable.' }] })!;
+    expect(report.normalization_issues).toContain('summary');
+    expect(report.summary?.recommended_action).toBeUndefined();
+    expect(() => formatCodeReviewReportMarkdown(report)).not.toThrow();
+    expect(formatCodeReviewReportMarkdown(report)).toContain('Preserved finding');
+    expect(normalizeCodeReviewReportData(report)).toEqual(report);
+  });
   it('uses structured report sections when present', () => {
     const report = {
       summary: {

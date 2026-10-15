@@ -641,6 +641,11 @@ export const CodeReviewToolCard: React.FC<ToolCardProps> = React.memo(({
 
         <div className="review-summary" data-bf-component="code-review-tool-card" data-bf-part="summary">
           <div className="summary-header">{t('toolCards.codeReview.overallAssessment')}</div>
+          {reviewData.normalization_issues?.length ? (
+            <p role="status">{t('toolCards.codeReview.report.invalidFields', {
+              fields: reviewData.normalization_issues.join(', '),
+            })}</p>
+          ) : null}
           <div className="summary-rows">
             {riskLevel && (
               <div className="summary-row">

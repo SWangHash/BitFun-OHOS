@@ -7,6 +7,7 @@ import { createMarkdownEditorTab } from '@/shared/utils/tabUtils';
 import { saveTextFileWithDialog } from '@/infrastructure/services/infra/saveTextFileWithDialog';
 import {
   formatCodeReviewReportMarkdown,
+  normalizeCodeReviewReportData,
   type CodeReviewReportData,
   type CodeReviewReportMarkdownLabels,
 } from '../utils/codeReviewReport';
@@ -40,9 +41,12 @@ export const CodeReviewReportExportActions: React.FC<CodeReviewReportExportActio
   const { t } = useTranslation('flow-chat');
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
+  const normalizedData = useMemo(() => normalizeCodeReviewReportData(reviewData), [reviewData]);
   const visibleActions = useMemo(() => new Set(actions), [actions]);
 
   const markdownLabels = useMemo<Partial<CodeReviewReportMarkdownLabels>>(() => ({
+    invalidFields: t('toolCards.codeReview.report.invalidFields', { fields: '{{fields}}' }),
+    unavailableIssues: t('toolCards.codeReview.report.unavailableIssues'),
     titleStandard: t('toolCards.codeReview.report.titleStandard'),
     titleDeep: t('toolCards.codeReview.report.titleDeep'),
     executiveSummary: t('toolCards.codeReview.sections.summary'),
@@ -100,12 +104,12 @@ export const CodeReviewReportExportActions: React.FC<CodeReviewReportExportActio
   }), [t]);
 
   const markdown = useMemo(
-    () => reviewData ? formatCodeReviewReportMarkdown(
-      reviewData,
+    () => normalizedData ? formatCodeReviewReportMarkdown(
+      normalizedData,
       markdownLabels,
-      { runManifest: reviewData.review_mode === 'deep' ? runManifest : undefined },
+      { runManifest: normalizedData.review_mode === 'deep' ? runManifest : undefined },
     ) : '',
-    [markdownLabels, reviewData, runManifest],
+    [markdownLabels, normalizedData, runManifest],
   );
 
   const fileName = useMemo(() => {
@@ -178,7 +182,7 @@ export const CodeReviewReportExportActions: React.FC<CodeReviewReportExportActio
             size="small"
             className="code-review-report-actions__footer-button"
             onClick={handleOpenInEditor}
-            disabled={!reviewData}
+            disabled={!normalizedData}
           >
             <FilePenLine size={14} />
             {t('toolCards.codeReview.export.openMarkdown')}
@@ -196,7 +200,7 @@ export const CodeReviewReportExportActions: React.FC<CodeReviewReportExportActio
             type="button"
             className="code-review-report-actions__button"
             onClick={handleCopy}
-            disabled={!reviewData}
+            disabled={!normalizedData}
             aria-label={t('toolCards.codeReview.export.copyMarkdown')}
           >
             {copied ? <Check size={14} /> : <Copy size={14} />}
@@ -209,7 +213,7 @@ export const CodeReviewReportExportActions: React.FC<CodeReviewReportExportActio
             type="button"
             className="code-review-report-actions__button"
             onClick={handleOpenInEditor}
-            disabled={!reviewData}
+            disabled={!normalizedData}
             aria-label={t('toolCards.codeReview.export.openMarkdown')}
           >
             <FilePenLine size={14} />
@@ -222,7 +226,7 @@ export const CodeReviewReportExportActions: React.FC<CodeReviewReportExportActio
             type="button"
             className="code-review-report-actions__button"
             onClick={handleSave}
-            disabled={saving || !reviewData}
+            disabled={saving || !normalizedData}
             aria-label={t('toolCards.codeReview.export.saveMarkdown')}
           >
             {saving ? <Loader2 className="animate-spin" size={14} /> : <Download size={14} />}

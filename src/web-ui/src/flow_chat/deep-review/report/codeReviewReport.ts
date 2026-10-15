@@ -210,16 +210,138 @@ export function normalizeCodeReviewReportData(value: unknown): CodeReviewReportD
   }
 
   const report = value as CodeReviewReportData;
+  const invalidFields = normalizeStringArray(report.normalization_issues) ?? [];
+  const record = (field: string) => invalidFields.push(field);
+  const object = (item: unknown): item is Record<string, unknown> =>
+    Boolean(item) && typeof item === 'object' && !Array.isArray(item);
+  const strings = (item: unknown, field: string): string[] | undefined => {
+    if (item === undefined) return undefined;
+    if (!Array.isArray(item)) { record(field); return undefined; }
+    if (item.some(entry => typeof entry !== 'string')) record(field);
+    return normalizeStringArray(item);
+  };
+  const fields = (raw: Record<string, unknown>, names: string[], prefix: string) => {
+    const result = { ...raw };
+    for (const name of names) {
+      if (raw[name] !== undefined && typeof raw[name] !== 'string') {
+        record(`${prefix}${name}`);
+        delete result[name];
+      }
+    }
+    return result;
+  };
   const normalizedReport: CodeReviewReportData = {
     ...report,
     issues: normalizeCodeReviewIssues(report.issues),
   };
+  if (report.summary !== undefined) {
+    if (object(report.summary)) {
+      const summary = fields(report.summary,
+        ['overall_assessment', 'confidence_note', 'risk_level', 'recommended_action'], 'summary.');
+      normalizedReport.summary = summary as CodeReviewSummary;
+    } else {
+      record('summary');
+      normalizedReport.summary = {};
+    }
+  }
+  if (report.issues !== undefined && !Array.isArray(report.issues)) record('issues');
+  if (Array.isArray(report.issues)) {
+    report.issues.forEach((issue, index) => {
+      if (!object(issue)) record(`issues[${index}]`);
+    });
+  }
+  for (const name of ['positive_points', 'remediation_plan'] as const) {
+    const entries = strings(report[name], name);
+    if (entries) normalizedReport[name] = entries;
+    else delete normalizedReport[name];
+  }
+  if (report.review_scope !== undefined && typeof report.review_scope !== 'string') {
+    record('review_scope');
+    delete normalizedReport.review_scope;
+  }
+  for (const name of ['review_mode', 'evidence_status'] as const) {
+    if (report[name] !== undefined && typeof report[name] !== 'string') {
+      record(name);
+      delete normalizedReport[name];
+    }
+  }
+  if (report.reviewers !== undefined) {
+    if (Array.isArray(report.reviewers)) {
+      normalizedReport.reviewers = report.reviewers.flatMap((reviewer, index) => {
+        if (!object(reviewer)) { record(`reviewers[${index}]`); return []; }
+        const prefix = `reviewers[${index}].`;
+        const normalized = fields(reviewer, [
+          'name', 'specialty', 'status', 'summary', 'partial_output', 'packet_id',
+          'packet_status_source', 'capacity_reason', 'provider_capacity_reason', 'queue_skip_reason',
+        ], prefix);
+        for (const name of ['name', 'specialty', 'status', 'summary']) normalized[name] ??= '';
+        for (const name of ['covered_files', 'retry_scope_files', 'unresolved_files']) {
+          const entries = strings(reviewer[name], prefix + name);
+          if (entries) normalized[name] = entries;
+          else delete normalized[name];
+        }
+        if (reviewer.issue_count !== undefined &&
+          (typeof reviewer.issue_count !== 'number' || !Number.isFinite(reviewer.issue_count))) {
+          record(prefix + 'issue_count');
+          delete normalized.issue_count;
+        }
+        return [normalized as unknown as CodeReviewReviewer];
+      });
+    } else {
+      record('reviewers');
+      delete normalizedReport.reviewers;
+    }
+  }
+  if (report.reliability_signals !== undefined) {
+    if (Array.isArray(report.reliability_signals)) {
+      normalizedReport.reliability_signals = report.reliability_signals.flatMap((signal, index) => {
+        if (!object(signal) || typeof signal.kind !== 'string') {
+          record(`reliability_signals[${index}]`); return [];
+        }
+        const prefix = `reliability_signals[${index}].`;
+        const normalized = fields(signal, ['detail', 'severity', 'source'], prefix);
+        if (signal.count !== undefined &&
+          (typeof signal.count !== 'number' || !Number.isFinite(signal.count))) {
+          record(prefix + 'count');
+          delete normalized.count;
+        }
+        return [normalized as unknown as CodeReviewReliabilitySignal];
+      });
+    } else {
+      record('reliability_signals');
+      delete normalizedReport.reliability_signals;
+    }
+  }
   const reportSections = normalizeCodeReviewReportSections(report.report_sections);
   if (reportSections) {
     normalizedReport.report_sections = reportSections;
   } else {
     delete normalizedReport.report_sections;
   }
+  if (report.report_sections !== undefined && !object(report.report_sections)) record('report_sections');
+  if (object(report.report_sections)) {
+    for (const name of ['executive_summary', 'coverage_notes']) {
+      strings(report.report_sections[name], `report_sections.${name}`);
+    }
+    for (const [name, groups] of [
+      ['remediation_groups', ['must_fix', 'should_improve', 'needs_decision', 'verification']],
+      ['strength_groups', ['architecture', 'maintainability', 'tests', 'security', 'performance', 'user_experience', 'other']],
+    ] as const) {
+      const container = report.report_sections[name];
+      if (container === undefined) continue;
+      if (!object(container)) { record(`report_sections.${name}`); continue; }
+      for (const id of groups) {
+        if (id === 'needs_decision') {
+          const entries = container[id];
+          if (entries !== undefined && (!Array.isArray(entries) || entries.some(entry => normalizeDecisionEntry(entry) === null))) {
+            record(`report_sections.${name}.${id}`);
+          }
+        } else strings(container[id], `report_sections.${name}.${id}`);
+      }
+    }
+  }
+  if (invalidFields.length) normalizedReport.normalization_issues = [...new Set(invalidFields)];
+  else delete normalizedReport.normalization_issues;
   return normalizedReport;
 }
 
@@ -301,6 +423,8 @@ export function normalizeDecisionEntry(entry: unknown): DecisionContext | null {
 }
 
 export interface CodeReviewReportData {
+  /** Read-time diagnostics only; the persisted tool result remains unchanged. */
+  normalization_issues?: string[];
   schema_version?: number;
   schemaVersion?: number;
   summary?: CodeReviewSummary;
@@ -378,6 +502,8 @@ export interface CodeReviewReliabilitySignal {
 }
 
 export interface CodeReviewReportMarkdownLabels {
+  invalidFields: string;
+  unavailableIssues: string;
   titleStandard: string;
   titleDeep: string;
   executiveSummary: string;

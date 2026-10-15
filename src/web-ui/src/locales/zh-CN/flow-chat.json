@@ -2358,7 +2358,10 @@
         "validation": "验证说明",
         "source": "来源",
         "reliabilitySignals": "审核可靠性",
-        "noItems": "无。"
+        "noItems": "无。",
+        "invalidFields": "报告的部分字段无法读取：{{fields}}。有效内容已保留。",
+        "unavailableIssues": "问题列表无法读取。",
+        "partialReport": "报告包含无法读取的字段"
       },
       "export": {
         "copyMarkdown": "复制 Markdown",

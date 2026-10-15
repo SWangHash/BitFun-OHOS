@@ -1104,9 +1104,13 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
       {/* Friendly message when review completed with no remediation items */}
       {phase === 'review_completed' && remediationItems.length === 0 && (
         <div className="deep-review-action-bar__no-issues" data-bf-component="deep-review-action-bar" data-bf-part="noIssues">
-          <CheckCircle size={18} className="deep-review-action-bar__no-issues-icon" />
+          {reviewData?.normalization_issues?.length
+            ? <AlertTriangle size={18} className="deep-review-action-bar__no-issues-icon" />
+            : <CheckCircle size={18} className="deep-review-action-bar__no-issues-icon" />}
           <span className="deep-review-action-bar__no-issues-text">
-            {t('reviewActionBar.noIssuesFound')}
+            {reviewData?.normalization_issues?.length
+              ? t('toolCards.codeReview.report.invalidFields', { fields: reviewData.normalization_issues.join(', ') })
+              : t('reviewActionBar.noIssuesFound')}
           </span>
         </div>
       )}

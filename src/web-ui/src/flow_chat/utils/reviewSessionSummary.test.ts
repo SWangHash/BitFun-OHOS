@@ -27,6 +27,11 @@ function session(overrides: Partial<Session>): Session {
 }
 
 describe('reviewSessionSummary', () => {
+  it('counts findings when an older result omits its optional summary', () => {
+    expect(summarizeCodeReviewResult({ issues: [{ title: 'Existing finding' }] }))
+      .toMatchObject({ issueCount: 1, summaryText: '' });
+  });
+
   it('parses the latest submit_code_review result from a review session', () => {
     const reviewSession = session({
       dialogTurns: [{

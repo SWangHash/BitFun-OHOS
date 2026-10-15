@@ -2357,7 +2357,10 @@
         "validation": "Validation",
         "source": "Source",
         "reliabilitySignals": "Review Reliability",
-        "noItems": "None."
+        "noItems": "None.",
+        "invalidFields": "Some report fields could not be read: {{fields}}. Valid content is preserved.",
+        "unavailableIssues": "The issue list could not be read.",
+        "partialReport": "Report contains unreadable fields"
       },
       "export": {
         "copyMarkdown": "Copy Markdown",
