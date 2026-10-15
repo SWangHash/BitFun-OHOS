@@ -87,6 +87,8 @@ export const ReviewSessionSummaryCard: React.FC<ToolCardProps> = React.memo(({
     ? t('toolCards.reviewSessionSummary.failed')
     : running
       ? t('toolCards.reviewSessionSummary.running')
+      : reviewResult?.normalization_issues?.length
+        ? t('toolCards.codeReview.report.partialReport')
       : summary.issueCount > 0
         ? t('toolCards.reviewSessionSummary.issueCount', {
             count: summary.issueCount,
@@ -124,6 +126,11 @@ export const ReviewSessionSummaryCard: React.FC<ToolCardProps> = React.memo(({
       )}
       expandedContent={(
         <div className="review-session-summary-card__details" data-bf-component="review-session-summary-card" data-bf-part="details" onClick={(event) => event.stopPropagation()}>
+          {reviewResult?.normalization_issues?.length ? (
+            <p role="status">{t('toolCards.codeReview.report.invalidFields', {
+              fields: reviewResult.normalization_issues.join(', '),
+            })}</p>
+          ) : null}
           {summary.summaryText ? (
             <p className="review-session-summary-card__summary" data-bf-component="review-session-summary-card" data-bf-part="summary">{summary.summaryText}</p>
           ) : (

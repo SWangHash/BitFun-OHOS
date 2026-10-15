@@ -320,6 +320,19 @@ describeWithJsdom('DeepReviewActionBar', () => {
     );
   });
 
+  it('shows unreadable report fields instead of claiming that there are no findings', async () => {
+    useReviewActionBarStore.getState().showActionBar({
+      childSessionId: 'report-session',
+      parentSessionId: 'parent-session',
+      reviewMode: 'standard',
+      reviewData: { summary: {}, normalization_issues: ['issues'] },
+      phase: 'review_completed',
+    });
+    await act(async () => root.render(<ReviewActionBar childSessionId="report-session" />));
+    expect(container.textContent).toContain('Some report fields could not be read: issues');
+    expect(container.textContent).not.toContain('No issues found');
+  });
+
   it('keeps remediation in progress after submitting a fix turn', async () => {
     flowChatSessionsMock.set('child-session', {
       sessionId: 'child-session',

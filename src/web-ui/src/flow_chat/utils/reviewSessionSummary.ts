@@ -15,6 +15,7 @@ export interface CodeReviewIssueData {
 }
 
 export interface CodeReviewResultData {
+  normalization_issues?: string[];
   schemaVersion?: number;
   evidence_status?: 'complete' | 'limited' | 'stale' | 'failed';
   summary?: CodeReviewSummaryData;
@@ -104,12 +105,13 @@ export function findLatestCodeReviewResult(session?: Session | null): CodeReview
 }
 
 export function summarizeCodeReviewResult(result?: CodeReviewResultData | null): ReviewResultSummary {
-  const issueCount = result?.issues?.length ?? 0;
+  const normalized = normalizeCodeReviewReportData(result && { ...result, summary: result.summary });
+  const issueCount = normalized?.issues?.length ?? 0;
   return {
     issueCount,
-    riskLevel: result?.summary?.risk_level,
-    recommendedAction: result?.summary?.recommended_action,
-    summaryText: result?.summary?.overall_assessment?.trim() || '',
+    riskLevel: normalized?.summary?.risk_level,
+    recommendedAction: normalized?.summary?.recommended_action,
+    summaryText: normalized?.summary?.overall_assessment?.trim() || '',
   };
 }
 

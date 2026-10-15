@@ -26,6 +26,7 @@ export interface CodeReviewRemediationIssue {
 }
 
 export interface CodeReviewRemediationData {
+  normalization_issues?: string[];
   summary?: CodeReviewRemediationSummary;
   issues?: CodeReviewRemediationIssue[];
   remediation_plan?: string[];

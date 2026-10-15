@@ -18,6 +18,8 @@ import {
 } from './reviewCoverageSource';
 
 export const DEFAULT_CODE_REVIEW_MARKDOWN_LABELS: CodeReviewReportMarkdownLabels = {
+  invalidFields: 'Some report fields could not be read: {{fields}}. Valid content is preserved.',
+  unavailableIssues: 'The issue list could not be read.',
   titleStandard: 'Review Report',
   titleDeep: 'Strict Review Report',
   executiveSummary: 'Executive Summary',
@@ -103,6 +105,10 @@ export function formatCodeReviewReportMarkdown(
 
   lines.push(`# ${report.review_mode === 'deep' ? mergedLabels.titleDeep : mergedLabels.titleStandard}`);
   lines.push('');
+  if (report.normalization_issues?.length) {
+    lines.push(mergedLabels.invalidFields.replace('{{fields}}', report.normalization_issues.join(', ')));
+    lines.push('');
+  }
   lines.push(`## ${mergedLabels.executiveSummary}`);
   pushList(lines, sections.executiveSummary, mergedLabels.noItems);
   lines.push('');
@@ -124,7 +130,8 @@ export function formatCodeReviewReportMarkdown(
   }
   lines.push(`## ${mergedLabels.issues}`);
   if (issues.length === 0) {
-    lines.push(`- ${mergedLabels.noIssues}`);
+    lines.push(`- ${report.normalization_issues?.some(field => field === 'issues' || field.startsWith('issues['))
+      ? mergedLabels.unavailableIssues : mergedLabels.noIssues}`);
   } else {
     issues.forEach((issue, index) => {
       const location = issueLocation(issue);
