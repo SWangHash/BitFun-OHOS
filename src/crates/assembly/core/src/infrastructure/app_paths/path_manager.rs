@@ -3,8 +3,8 @@
 //! Provides unified management for all app storage paths, supporting user, project, and temporary levels
 
 use crate::util::errors::*;
-use log::{debug, error, warn};
 use bitfun_services_core::product_identity::{data_namespace, hidden_data_directory};
+use log::{debug, error, warn};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -32,6 +32,9 @@ pub enum StorageLevel {
 pub struct PathManager {
     /// User config root directory
     user_root: PathBuf,
+    /// Skill storage follows an explicitly isolated user root, captured at
+    /// construction time like the other path overrides.
+    user_skills_root_override: Option<PathBuf>,
     /// Optional override for the product home directory, used by tests to avoid
     /// touching the real user home.
     product_home_override: Option<PathBuf>,
@@ -44,10 +47,13 @@ impl PathManager {
     pub fn new() -> BitFunResult<Self> {
         Self::validate_e2e_storage_guard()?;
         let user_root = Self::get_user_config_root()?;
+        let user_skills_root_override =
+            Self::get_user_root_override().map(|root| root.join("skills"));
         let product_home_override = Self::get_product_home_override();
 
         Ok(Self {
             user_root,
+            user_skills_root_override,
             product_home_override,
             project_runtime_slug_cache: Arc::new(Mutex::new(HashMap::new())),
         })
@@ -73,8 +79,8 @@ impl PathManager {
 
         let has_user_root = Self::env_path("BITFUN_USER_ROOT").is_some()
             || Self::env_path("BITFUN_E2E_USER_ROOT").is_some();
-        let has_home_root = Self::env_path("BITFUN_HOME").is_some()
-            || Self::env_path("BITFUN_E2E_HOME").is_some();
+        let has_home_root =
+            Self::env_path("BITFUN_HOME").is_some() || Self::env_path("BITFUN_E2E_HOME").is_some();
 
         if has_user_root && has_home_root {
             return Ok(());
@@ -91,9 +97,7 @@ impl PathManager {
     /// - macOS: ~/Library/Application Support/bitfun/
     /// - Linux: ~/.config/bitfun/
     fn get_user_config_root() -> BitFunResult<PathBuf> {
-        if let Some(path) = Self::env_path("BITFUN_USER_ROOT")
-            .or_else(|| Self::env_path("BITFUN_E2E_USER_ROOT"))
-        {
+        if let Some(path) = Self::get_user_root_override() {
             return Ok(path);
         }
 
@@ -112,6 +116,10 @@ impl PathManager {
 
             Ok(config_dir.join(data_namespace()))
         }
+    }
+
+    fn get_user_root_override() -> Option<PathBuf> {
+        Self::env_path("BITFUN_USER_ROOT").or_else(|| Self::env_path("BITFUN_E2E_USER_ROOT"))
     }
 
     fn get_product_home_override() -> Option<PathBuf> {
@@ -204,12 +212,16 @@ impl PathManager {
         self.user_root.join("agents")
     }
 
-    /// Get user skills directory:
+    /// Get user skills directory (explicit user-root overrides use <root>/skills):
     /// - Windows: C:\Users\xxx\AppData\Roaming\bitfun\skills\
     /// - macOS: ~/Library/Application Support/bitfun/skills/
     /// - Linux: ~/.local/share/bitfun/skills/
     /// - OpenHarmony: /data/storage/el2/base/files/bitfun/skills/ (app sandbox)
     pub fn user_skills_dir(&self) -> PathBuf {
+        if let Some(path) = &self.user_skills_root_override {
+            return path.clone();
+        }
+
         if cfg!(target_os = "windows") {
             dirs::data_dir()
                 .unwrap_or_else(|| PathBuf::from("C:\\ProgramData"))
@@ -262,9 +274,7 @@ impl PathManager {
 
     /// Get temporary Qt migration downloads.
     pub fn qt_migration_downloads_dir(&self) -> PathBuf {
-        self.cache_root()
-            .join("qt-migration")
-            .join("downloads")
+        self.cache_root().join("qt-migration").join("downloads")
     }
 
     /// Get cache root directory: ~/.config/bitfun/cache/
@@ -625,6 +635,7 @@ impl Default for PathManager {
                 );
                 Self {
                     user_root: std::env::temp_dir().join("bitfun"),
+                    user_skills_root_override: Some(std::env::temp_dir().join("bitfun/skills")),
                     product_home_override: Self::get_product_home_override(),
                     project_runtime_slug_cache: Arc::new(Mutex::new(HashMap::new())),
                 }
@@ -641,6 +652,7 @@ impl PathManager {
             .map(Path::to_path_buf)
             .unwrap_or_else(|| user_root.clone());
         Self {
+            user_skills_root_override: Some(user_root.join("skills")),
             user_root,
             product_home_override: Some(base.join("home").join(".bitfun")),
             project_runtime_slug_cache: Arc::new(Mutex::new(HashMap::new())),
@@ -903,7 +915,29 @@ mod tests {
         assert_eq!(pm.user_config_dir(), user_root.join("config"));
         assert_eq!(pm.user_data_dir(), user_root.join("data"));
         assert_eq!(pm.logs_dir(), user_root.join("logs"));
+        assert_eq!(pm.user_skills_dir(), user_root.join("skills"));
+        assert_eq!(pm.builtin_skills_dir(), user_root.join("skills/.system"));
         assert_eq!(pm.product_home_dir(), home_root);
+
+        // The primary override wins over the E2E alias, and later environment
+        // changes must not move a manager's already-selected storage roots.
+        let primary_root = temp_root.join("primary-root");
+        std::env::set_var("BITFUN_USER_ROOT", &primary_root);
+        let primary_pm = PathManager::new().expect("primary override should win");
+        assert_eq!(primary_pm.user_skills_dir(), primary_root.join("skills"));
+        assert_eq!(pm.user_skills_dir(), user_root.join("skills"));
+        std::env::remove_var("BITFUN_USER_ROOT");
+        std::env::remove_var("BITFUN_E2E_USER_ROOT");
+        assert_eq!(primary_pm.user_skills_dir(), primary_root.join("skills"));
+        assert_eq!(pm.user_skills_dir(), user_root.join("skills"));
+    }
+
+    #[test]
+    fn explicit_test_root_keeps_skills_isolated() {
+        let root = std::env::temp_dir().join("bitfun-test-skills-root");
+        let pm = PathManager::with_user_root_for_tests(root.clone());
+        assert_eq!(pm.user_skills_dir(), root.join("skills"));
+        assert_eq!(pm.builtin_skills_dir(), root.join("skills/.system"));
     }
 
     #[test]

@@ -276,13 +276,14 @@ describeWithJsdom('AgentsScene', () => {
     expect(container.querySelector('.bitfun-agents-scene--page')).toBeTruthy();
   }, 10_000);
 
-  it('renders industry agents only in the industry zone', async () => {
+  it.each(['HarmonyFeature', 'HarmonyReleaseAudit'])('renders %s only in the industry zone', async (agentId) => {
+    const industryName = `Industry agent ${agentId}`;
     mockAgentsList({
       allAgents: [
         {
-          key: 'mode::HarmonyFeature',
-          id: 'HarmonyFeature',
-          name: '鸿蒙特性增强专家',
+          key: `mode::${agentId}`,
+          id: agentId,
+          name: industryName,
           description: 'HarmonyOS feature enhancement',
           isReadonly: false,
           toolCount: 1,
@@ -306,9 +307,9 @@ describeWithJsdom('AgentsScene', () => {
       ],
       filteredAgents: [
         {
-          key: 'mode::HarmonyFeature',
-          id: 'HarmonyFeature',
-          name: '鸿蒙特性增强专家',
+          key: `mode::${agentId}`,
+          id: agentId,
+          name: industryName,
           description: 'HarmonyOS feature enhancement',
           isReadonly: false,
           toolCount: 1,
@@ -340,8 +341,8 @@ describeWithJsdom('AgentsScene', () => {
     const industryZone = container.querySelector('[data-testid="agents-industry-zone"]');
     const catalogZone = container.querySelector('[data-testid="agents-catalog-zone"]');
     expect(industryZone?.querySelectorAll('[data-testid="industry-agent-card"]')).toHaveLength(1);
-    expect(industryZone?.textContent).toContain('鸿蒙特性增强专家');
-    expect(catalogZone?.textContent).not.toContain('鸿蒙特性增强专家');
+    expect(industryZone?.textContent).toContain(industryName);
+    expect(catalogZone?.textContent).not.toContain(industryName);
     expect(catalogZone?.textContent).toContain('通用智能体');
   }, 10_000);
 

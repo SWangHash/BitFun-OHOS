@@ -30,6 +30,7 @@ const BUILTIN_NAME_KEYS: Readonly<Record<string, string>> = {
   ComputerUse: 'shared:agents.ComputerUse',
   HarmonyFeature: 'scenes/agents:industryAgentsZone.agents.HarmonyFeature.name',
   HarmonyBuild: 'scenes/agents:industryAgentsZone.agents.HarmonyBuild.name',
+  HarmonyReleaseAudit: 'scenes/agents:industryAgentsZone.agents.HarmonyReleaseAudit.name',
 };
 
 export function agentName(agent: { id: string; name: string; source?: string }, t: (key: string) => string): string {

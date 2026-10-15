@@ -159,3 +159,25 @@ fn cli_pages_are_independent_of_miniapp_and_acp() {
             .any(|group| group.provider_id() == "core.pages"));
     }
 }
+
+#[test]
+fn desktop_registers_release_audit_with_source_workflow_tools() {
+    let plan = product_assembly_plan_for_profile(DeliveryProfile::Desktop);
+    assert!(plan.agent_ids().contains(&"HarmonyReleaseAudit"));
+    let tools: Vec<_> = plan
+        .tool_plan()
+        .tool_provider_group_plan()
+        .iter()
+        .flat_map(|group| group.tool_names().iter().copied())
+        .collect();
+    for tool in [
+        "Skill",
+        "AskUserQuestion",
+        "Read",
+        "Write",
+        "Edit",
+        "ExecCommand",
+    ] {
+        assert!(tools.contains(&tool), "release audit requires {tool}");
+    }
+}

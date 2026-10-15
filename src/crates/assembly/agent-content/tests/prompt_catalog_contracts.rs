@@ -58,6 +58,10 @@ const CATALOG_PROMPT_SOURCES: &[(&str, &[u8])] = &[
         include_bytes!("../prompts/agents/generate_doc_agent.md"),
     ),
     (
+        "harmony_release_audit_agent",
+        include_bytes!("../prompts/agents/harmony_release_audit_agent.md"),
+    ),
+    (
         "harmony_feature_agent",
         include_bytes!("../prompts/agents/harmony_feature_agent.md"),
     ),
@@ -150,10 +154,11 @@ fn generated_rust_source_bytes(source: &[u8]) -> Vec<u8> {
 fn agent_prompt_catalog_preserves_every_stable_key() {
     let mut names = agent_prompt_names();
     names.sort_unstable();
-    let expected_names: Vec<_> = CATALOG_PROMPT_SOURCES
+    let mut expected_names: Vec<_> = CATALOG_PROMPT_SOURCES
         .iter()
         .map(|(name, _)| *name)
         .collect();
+    expected_names.sort_unstable();
     assert_eq!(names, expected_names);
     assert_eq!(EMBEDDED_PROMPTS.len(), CATALOG_PROMPT_SOURCES.len());
 

@@ -163,6 +163,10 @@ pub(super) const BUILTIN_SKILL_SPECS: &[BuiltinSkillSpec] = &[
         group: BuiltinSkillGroup::Meta,
     },
     BuiltinSkillSpec {
+        dir_name: "harmony-release-audit",
+        group: BuiltinSkillGroup::HarmonyOS,
+    },
+    BuiltinSkillSpec {
         dir_name: "harmonyos-feature-guide",
         group: BuiltinSkillGroup::HarmonyOS,
     },

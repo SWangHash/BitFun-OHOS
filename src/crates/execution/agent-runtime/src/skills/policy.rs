@@ -10,6 +10,7 @@ enum SkillModeId {
     ComputerUse,
     DeepResearch,
     HarmonyFeature,
+    HarmonyReleaseAudit,
     Ultra,
     SwarmWorker,
     QtMigration,
@@ -27,6 +28,7 @@ impl SkillModeId {
             "ComputerUse" => Self::ComputerUse,
             "DeepResearch" => Self::DeepResearch,
             "HarmonyFeature" => Self::HarmonyFeature,
+            "HarmonyReleaseAudit" => Self::HarmonyReleaseAudit,
             "Ultimate" => Self::Ultra,
             "SwarmWorker" => Self::SwarmWorker,
             "QtMigration" => Self::QtMigration,
@@ -260,6 +262,14 @@ const HARMONY_FEATURE_POLICY: ModeSkillPolicy = ModeSkillPolicy {
     rules: &[ENABLE_HARMONY_FEATURE_GUIDE],
 };
 
+const HARMONY_RELEASE_AUDIT_POLICY: ModeSkillPolicy = ModeSkillPolicy {
+    builtin_default: PolicyEffect::Disable,
+    rules: &[SkillPolicyRule {
+        selector: SkillSelector::DirName("harmony-release-audit"),
+        effect: PolicyEffect::Enable,
+    }],
+};
+
 fn policy_for_mode(mode_id: &str) -> ModeSkillPolicy {
     let policy_scope = resolve_mode_config_profile_id(mode_id);
     match SkillModeId::parse(policy_scope.as_ref()) {
@@ -269,6 +279,7 @@ fn policy_for_mode(mode_id: &str) -> ModeSkillPolicy {
         SkillModeId::Cowork => COWORK_POLICY,
         SkillModeId::DeepResearch => DEEP_RESEARCH_POLICY,
         SkillModeId::HarmonyFeature => HARMONY_FEATURE_POLICY,
+        SkillModeId::HarmonyReleaseAudit => HARMONY_RELEASE_AUDIT_POLICY,
         SkillModeId::Ultra => ULTRA_POLICY,
         SkillModeId::SwarmWorker => SWARM_WORKER_POLICY,
         SkillModeId::QtMigration => QT_MIGRATION_POLICY,
@@ -493,6 +504,18 @@ mod tests {
                     mode_id
                 );
             }
+        }
+    }
+
+    #[test]
+    fn release_audit_exposes_only_its_review_skill_by_default() {
+        for spec in BUILTIN_SKILL_SPECS {
+            assert_eq!(
+                resolve_builtin_default_enabled(spec.dir_name, "HarmonyReleaseAudit"),
+                Some(spec.dir_name == "harmony-release-audit"),
+                "unexpected release audit skill policy for {}",
+                spec.dir_name
+            );
         }
     }
 

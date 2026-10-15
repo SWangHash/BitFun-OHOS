@@ -963,6 +963,7 @@
       "DeepResearch": "$t(shared:agents.DeepResearch)",
       "Team": "Team",
       "QtMigration": "QT Migration Expert",
+      "HarmonyReleaseAudit": "Release Preflight Assistant",
       "HarmonyFeature": "HarmonyOS Feature Enhancement Expert",
       "HarmonyBuild": "Harmony Build",
       "Standard": "$t(shared:agents.Standard)",

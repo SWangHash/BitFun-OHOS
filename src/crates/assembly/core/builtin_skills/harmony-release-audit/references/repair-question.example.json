@@ -1,0 +1,24 @@
+{
+  "timeout_seconds": 300,
+  "questions": [
+    {
+      "header": "修复范围",
+      "question": "示例：F01 将说明文字改为已计算合格的局部颜色；F02 去掉两个语言资源中的 Beta 后缀。具体位置与比值见本轮 fix-plan.md。如何继续？",
+      "options": [
+        {
+          "label": "执行推荐项",
+          "description": "只执行已列明的 F01、F02，再复扫验证。"
+        },
+        {
+          "label": "逐项选择",
+          "description": "进一步选择问题组与具体方案。"
+        },
+        {
+          "label": "仅保留报告",
+          "description": "不修改应用源码。"
+        }
+      ],
+      "multiSelect": false
+    }
+  ]
+}

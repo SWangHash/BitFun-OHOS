@@ -28,7 +28,7 @@ export function isOrdinaryAgent(agent: { agentKind?: string }): boolean {
 }
 
 /** Vertical-domain industry agents shown in the dedicated industry zone only. */
-export const INDUSTRY_AGENT_IDS = new Set<string>(['QtMigration', 'HarmonyFeature', 'HarmonyBuild']);
+export const INDUSTRY_AGENT_IDS = new Set<string>(['QtMigration', 'HarmonyFeature', 'HarmonyBuild', 'HarmonyReleaseAudit']);
 
 /** Agents that appear in the bottom overview grid (same pool as filter chip counts). */
 export function isAgentInOverviewZone(

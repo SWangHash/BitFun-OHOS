@@ -208,9 +208,7 @@ async fn acquire_install_lock(user_skills_root: &Path) -> BitFunResult<BuiltinSk
     Ok(BuiltinSkillsInstallLock { file })
 }
 
-async fn install_builtin_skills_to_staging(
-    staging_root: &Path,
-) -> BitFunResult<(usize, usize)> {
+async fn install_builtin_skills_to_staging(staging_root: &Path) -> BitFunResult<(usize, usize)> {
     let mut installed = 0usize;
     let mut updated = 0usize;
 
@@ -684,8 +682,7 @@ mod tests {
         let metadata = embedded_skill_text("create-bitfun-skin/agents/openai.yaml");
         assert!(metadata.contains("display_name: \"BitFun Appearance Manual\""));
 
-        let workflow =
-            embedded_skill_text("create-bitfun-skin/references/authoring-workflow.md");
+        let workflow = embedded_skill_text("create-bitfun-skin/references/authoring-workflow.md");
         assert!(workflow.contains("Bump it whenever the manifest"));
     }
 
@@ -705,6 +702,41 @@ mod tests {
             .expect("gstack-ship should have YAML frontmatter");
         assert!(ship_frontmatter.contains("explicit `/ship`"));
         assert!(ship_frontmatter.contains("built-in `commit-push-pr` skill instead"));
+    }
+
+    #[test]
+    fn release_audit_bundle_contains_executable_dependencies_and_valid_question() {
+        for file in [
+            "SKILL.md",
+            "scripts/scan.mjs",
+            "scripts/project.mjs",
+            "scripts/syntax.mjs",
+            "scripts/colors.mjs",
+            "scripts/vendor/json5.mjs",
+            "scripts/vendor/JSON5-LICENSE.md",
+            "references/rules.md",
+            "references/report-format.md",
+            "references/repair-workflow.md",
+            "references/bitfun-host.md",
+            "evals/repair-scenarios.md",
+            "UPSTREAM.json",
+        ] {
+            assert!(
+                BUILTIN_SKILLS_DIR
+                    .get_file(format!("harmony-release-audit/{file}"))
+                    .is_some(),
+                "missing release audit asset {file}"
+            );
+        }
+        use bitfun_agent_runtime::user_questions::{
+            validate_ask_user_question_input, AskUserQuestionInput,
+        };
+        let input: AskUserQuestionInput = serde_json::from_str(&embedded_skill_text(
+            "harmony-release-audit/references/repair-question.example.json",
+        ))
+        .unwrap();
+        validate_ask_user_question_input(&input, false).unwrap();
+        assert!(!input.questions[0].multi_select);
     }
 
     #[test]

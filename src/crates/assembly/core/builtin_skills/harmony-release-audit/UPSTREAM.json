@@ -1,0 +1,15 @@
+{
+  "repository": "https://gitcode.com/BitFun_Coder/harmony-release-audit",
+  "commit": "4222949fa4af3cb5f3bfc5adb3c0e17564d35da3",
+  "rulesetVersion": "phone-source-mvp-0.4",
+  "schemaVersion": "4",
+  "unchangedScriptsSha256": {
+    "scan.mjs": "3183bbe158ef4d7bb42e0a8bb5a5ce30475249b8ff533ca31fd7501bc322ab60",
+    "project.mjs": "e9497ca9b26a265d8fb81a4f585252bc8a00aab54d09ab4e893da978c09e3f0b",
+    "colors.mjs": "11f9ed8c6f9d49b8be55c4741c394f26a13b82c9dbbb68a27a2dec559362e39b",
+    "syntax.mjs": "6e7b6633f55eb594dd53662be98b80455f90e93cc8871bc281e85f4c083a51e3",
+    "scan.test.mjs": "32adfad8862f50f12a8bd04b1a4513174fa7ae5749b7070232e121891c89b6de"
+  },
+  "adaptation": "BitFun AskUserQuestion host integration; scanner and rule thresholds preserved. JSON5 attribution and license retained under scripts/vendor.",
+  "hashNormalization": "UTF-8 with LF line endings; verified against the pinned upstream Git contents."
+}

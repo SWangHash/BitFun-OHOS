@@ -201,15 +201,21 @@ fn builtin_agent_definition_catalog_preserves_order_categories_models_and_visibi
             "Standard",
             "Cowork",
             "Creative",
+            "HarmonyBuild",
             "Claw",
             "DeepResearch",
             "Ultimate",
+            "HarmonyReleaseAudit",
             "HarmonyFeature",
             "SwarmPlanner",
             "SwarmWorker",
             "SwarmReviewer",
             "ComputerUse",
             "Explore",
+            "HarmonyPlan",
+            "HarmonyGoal",
+            "HarmonySpecImplementation",
+            "HarmonySpecVerify",
             "GeneralPurpose",
             "ResearchSpecialist",
             "ReviewWorker",
@@ -375,4 +381,18 @@ fn shared_coding_modes_have_identical_builtin_subagent_defaults() {
             );
         }
     }
+}
+
+#[test]
+fn release_audit_is_a_primary_mode_with_primary_model() {
+    let specs = builtin_agent_definition_specs();
+    let spec = specs
+        .iter()
+        .find(|spec| spec.id == "HarmonyReleaseAudit")
+        .unwrap();
+    assert_eq!(
+        spec.category,
+        bitfun_agent_runtime::agents::BuiltinAgentCategory::Mode
+    );
+    assert_eq!(spec.default_model_id, "primary");
 }

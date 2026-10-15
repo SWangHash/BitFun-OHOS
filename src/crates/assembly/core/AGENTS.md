@@ -285,3 +285,10 @@ cargo test -p bitfun-core --no-default-features --features remote-connect,tools-
 `tools-pages` selects only the Pages tool group. Account host wiring additionally
 requires `remote-connect`; CLI and Desktop select both explicitly. Pages does
 not select MiniApp runtime or market dependencies.
+
+HarmonyOS release preflight bundle and primary-mode integration:
+
+```bash
+pnpm run test:harmony-release-audit
+cargo test --locked -p bitfun-core --no-default-features --features agent-runtime,git --lib release_audit
+```

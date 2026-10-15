@@ -11,24 +11,6 @@ use crate::agentic::tools::framework::ToolExposure;
 use crate::agentic::WorkspaceBinding;
 use crate::util::errors::{BitFunError, BitFunResult};
 use async_trait::async_trait;
-pub use definitions::custom::{CustomMode, CustomSubagent, CustomSubagentKind};
-#[cfg(feature = "external-sources")]
-pub(crate) use definitions::external::ExternalProvidedAgent;
-pub use definitions::hidden::{
-    CodeReviewAgent, DeepReviewAgent, GenerateDocAgent, BitFunAgent,
-};
-pub use definitions::modes::{
-    ClawMode, CoworkMode, CreativeHarness, DeepResearchMode, HarmonyBuildMode, HarmonyFeatureMode,
-    MinimalHarness, QtMigrationMode, StandardHarness, UltimateHarness,
-};
-pub use definitions::review::{ReviewFixerAgent, ReviewJudgeAgent, ReviewWorkerAgent};
-pub use definitions::shared::ReadonlySubagent;
-pub use definitions::subagents::{
-    harmony_goal_agent, harmony_spec_implementation_agent, harmony_spec_verify_agent,
-    ComputerUseMode, ExploreAgent, GeneralPurposeAgent, HarmonyAgent, HarmonyPlanAgent,
-    ResearchSpecialistAgent, SwarmPlannerAgent, SwarmReviewerAgent, SwarmWorkerAgent,
-};
-use indexmap::IndexMap;
 pub use bitfun_agent_runtime::agents::{
     is_swarm_delegate_agent_type, is_swarm_planner_agent_type, mode_config_profile_label,
     mode_config_profile_member_mode_ids, mode_presentation_rank, resolve_mode_config_profile_id,
@@ -41,6 +23,22 @@ pub use bitfun_agent_runtime::custom_agent::{
     default_custom_agent_user_context_policy, CustomAgentKind, CustomAgentLevel,
 };
 use bitfun_runtime_ports::PermissionConstraintLayer;
+pub use definitions::custom::{CustomMode, CustomSubagent, CustomSubagentKind};
+#[cfg(feature = "external-sources")]
+pub(crate) use definitions::external::ExternalProvidedAgent;
+pub use definitions::hidden::{BitFunAgent, CodeReviewAgent, DeepReviewAgent, GenerateDocAgent};
+pub use definitions::modes::{
+    ClawMode, CoworkMode, CreativeHarness, DeepResearchMode, HarmonyBuildMode, HarmonyFeatureMode,
+    HarmonyReleaseAuditMode, MinimalHarness, QtMigrationMode, StandardHarness, UltimateHarness,
+};
+pub use definitions::review::{ReviewFixerAgent, ReviewJudgeAgent, ReviewWorkerAgent};
+pub use definitions::shared::ReadonlySubagent;
+pub use definitions::subagents::{
+    harmony_goal_agent, harmony_spec_implementation_agent, harmony_spec_verify_agent,
+    ComputerUseMode, ExploreAgent, GeneralPurposeAgent, HarmonyAgent, HarmonyPlanAgent,
+    ResearchSpecialistAgent, SwarmPlannerAgent, SwarmReviewerAgent, SwarmWorkerAgent,
+};
+use indexmap::IndexMap;
 pub use prompt_builder::{
     build_prompt_context_for_workspace, render_direct_tool_listing_body, PrependedPromptReminders,
     PromptBuilder, PromptBuilderContext, RemoteExecutionHints, RuntimeContextNeeds,

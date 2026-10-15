@@ -120,6 +120,12 @@ pub fn builtin_agent_definition_specs() -> Vec<BuiltinAgentDefinitionSpec> {
             SubagentVisibilityPolicy::default(),
         ),
         builtin_agent_spec(
+            "HarmonyReleaseAudit",
+            Mode,
+            "primary",
+            SubagentVisibilityPolicy::default(),
+        ),
+        builtin_agent_spec(
             "HarmonyFeature",
             Mode,
             "primary",
@@ -250,11 +256,28 @@ pub fn builtin_agent_definition_specs() -> Vec<BuiltinAgentDefinitionSpec> {
 
 pub fn default_model_id_for_builtin_agent(agent_type: &str) -> &'static str {
     match agent_type {
-        "BitFun" | "Minimal" | "Standard" | "Cowork" | "Creative" | "HarmonyBuild" | "ComputerUse"
-        | "Claw" | "DeepResearch" | "Ultimate" | "HarmonyFeature"
-        | "QtMigration" => "primary",
-        "Explore" | "CodeReview" | "GeneralPurpose" | "MemoryPhase2" | "SwarmPlanner" | "SwarmWorker"
-        | "SwarmReviewer" | "HarmonyPlan" | "HarmonyGoal" | "HarmonySpecImplementation"
+        "BitFun"
+        | "Minimal"
+        | "Standard"
+        | "Cowork"
+        | "Creative"
+        | "HarmonyBuild"
+        | "ComputerUse"
+        | "Claw"
+        | "DeepResearch"
+        | "Ultimate"
+        | "HarmonyFeature"
+        | "QtMigration"
+        | "HarmonyReleaseAudit" => "primary",
+        "Explore"
+        | "CodeReview"
+        | "GeneralPurpose"
+        | "MemoryPhase2"
+        | "SwarmPlanner"
+        | "SwarmWorker"
+        | "HarmonyPlan"
+        | "HarmonyGoal"
+        | "HarmonySpecImplementation"
         | "HarmonySpecVerify" => "primary",
         "GenerateDoc"
         | "ResearchSpecialist"

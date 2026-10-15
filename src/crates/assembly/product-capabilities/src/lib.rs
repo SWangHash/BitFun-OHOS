@@ -1043,6 +1043,7 @@ const CODE_AGENT_IDS: &[&str] = &[
     "HarmonyGoal",
     "HarmonySpecImplementation",
     "HarmonySpecVerify",
+    "HarmonyReleaseAudit",
     "SwarmPlanner",
     "SwarmWorker",
     "SwarmReviewer",
