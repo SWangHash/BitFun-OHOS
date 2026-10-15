@@ -21,14 +21,16 @@
  * DeepSeek session, and that is the wrong place to find out. Set
  * `BITFUN_SKIP_DSH_PROFILE=1` to opt out deliberately.
  *
- * Official `desktop:build` compiles this via `frontend:build-all`. desktop:dev
+ * Official packaging calls this from its product build entrypoint. desktop:dev
  * and cargo check do not: the profile is not a compile-time Tauri resource.
- * Local DeepSeek sessions run this script explicitly. A stamped profile whose
- * inputs have not changed is left alone — the same mtime short-circuit
- * mobile-web uses. Escape hatches: `--force` /
+ * Local DeepSeek sessions run this script explicitly. An intact stamped profile whose
+ * inputs have not changed is reused using a content hash of the build inputs and complete output. Escape hatches: `--force` /
  * `BITFUN_DSH_PROFILE_FORCE_BUILD=1`.
  */
 
+import { createHash } from 'node:crypto';
+import { parseArgs } from 'node:util';
+import { validateProfileDirectory } from './dsh-profile-artifact.mjs';
 import { spawnSync } from 'node:child_process';
 import {
   cpSync,
@@ -39,7 +41,6 @@ import {
   readFileSync,
   renameSync,
   rmSync,
-  statSync,
   writeFileSync,
 } from 'node:fs';
 import path, { resolve } from 'node:path';
@@ -48,18 +49,6 @@ import { fileURLToPath } from 'node:url';
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PACKAGE_DIR = path.join(ROOT_DIR, 'packages', 'dsh-acp');
 const OUT_DIR = path.join(PACKAGE_DIR, 'dist-profile');
-const OHOS_OUT_DIR = path.join(
-  ROOT_DIR,
-  'src',
-  'apps',
-  'ohos',
-  'entry',
-  'src',
-  'main',
-  'resources',
-  'resfile',
-  'dsh-profile',
-);
 const STAMP_FILENAME = '.bitfun-bridge.json';
 const OHOS_STAMP_FILENAME = 'bitfun-bridge.json';
 const NODE_MODULES_DIR = 'node_modules';
@@ -67,13 +56,6 @@ const OHOS_NODE_MODULES_DIR = 'vendor-node-modules';
 
 /** One installed harness package is enough to tell a populated tree from a bare one. */
 const DEPS_PROBE = path.join(PACKAGE_DIR, 'node_modules', '@deepseek-ai', 'dsh-app-boot');
-
-const INPUT_IGNORED_DIRS = new Set([
-  'node_modules',
-  'lib',
-  'dist-profile',
-  '.sessions',
-]);
 
 /** Explains an empty dist-profile to whoever finds one in a build tree. */
 const PLACEHOLDER = `This BitFun build ships no DeepSeek Harness bridge.
@@ -85,44 +67,24 @@ reports that the bridge is missing from the build.
 To include it: run \`pnpm run prepare:dsh-profile\` without that variable.
 `;
 
-/**
- * Newest mtime among the profile build inputs (recursively for directories).
- * @param {string} entryPath
- * @returns {{ path: string, mtimeMs: number } | null}
- */
-export function getNewestInputMtime(entryPath) {
-  if (!existsSync(entryPath)) {
-    return null;
-  }
-
-  const stat = lstatSync(entryPath);
-  if (stat.isSymbolicLink()) {
-    return null;
-  }
-
-  if (stat.isFile()) {
-    return { path: entryPath, mtimeMs: stat.mtimeMs };
-  }
-
-  if (!stat.isDirectory()) {
-    return null;
-  }
-
-  let newest = null;
-  for (const entry of readdirSync(entryPath, { withFileTypes: true })) {
-    if (entry.isSymbolicLink()) {
-      continue;
+export function dshProfileInputDigest({ packageDir = PACKAGE_DIR, prepareScriptPath = fileURLToPath(import.meta.url) } = {}) {
+  const digest = createHash('sha256');
+  const visit = (name, file) => {
+    if (!existsSync(file)) { digest.update(`missing:${name}\0`); return; }
+    const stat = lstatSync(file);
+    if (stat.isDirectory()) {
+      for (const entry of readdirSync(file).sort()) visit(`${name}/${entry}`, path.join(file, entry));
+    } else {
+      digest.update(`${name}\0`);
+      digest.update(readFileSync(file));
     }
-    if (entry.isDirectory() && INPUT_IGNORED_DIRS.has(entry.name)) {
-      continue;
-    }
-    const candidate = getNewestInputMtime(path.join(entryPath, entry.name));
-    if (candidate && (!newest || candidate.mtimeMs > newest.mtimeMs)) {
-      newest = candidate;
-    }
+  };
+  for (const name of ['src', 'presets', 'cordis.yml', 'package.json', 'package-lock.json', 'tsconfig.build.json', 'scripts/build-profile.mjs']) {
+    visit(name, path.join(packageDir, name));
   }
-
-  return newest;
+  visit('prepare-dsh-profile.mjs', prepareScriptPath);
+  visit('dsh-profile-artifact.mjs', path.join(ROOT_DIR, 'scripts', 'dsh-profile-artifact.mjs'));
+  return digest.digest('hex');
 }
 
 /**
@@ -169,31 +131,13 @@ export function getDshProfileRebuildPlan({
     return { shouldBuild: true, reason: 'dsh-profile stamp is unreadable' };
   }
 
-  const stampMtimeMs = statSync(stampPath).mtimeMs;
-  const inputs = [
-    path.join(packageDir, 'src'),
-    path.join(packageDir, 'presets'),
-    path.join(packageDir, 'cordis.yml'),
-    path.join(packageDir, 'package.json'),
-    path.join(packageDir, 'package-lock.json'),
-    path.join(packageDir, 'tsconfig.build.json'),
-    path.join(packageDir, 'scripts', 'build-profile.mjs'),
-    prepareScriptPath,
-  ];
-
-  let newestInput = null;
-  for (const input of inputs) {
-    const candidate = getNewestInputMtime(input);
-    if (candidate && (!newestInput || candidate.mtimeMs > newestInput.mtimeMs)) {
-      newestInput = candidate;
+  try {
+    const stamp = validateProfileDirectory(outDir);
+    if (stamp.buildInputs !== dshProfileInputDigest({ packageDir, prepareScriptPath })) {
+      return { shouldBuild: true, reason: 'dsh-profile inputs changed since the last build' };
     }
-  }
-
-  if (newestInput && newestInput.mtimeMs > stampMtimeMs) {
-    return {
-      shouldBuild: true,
-      reason: `dsh-profile inputs changed since the last build (${path.relative(ROOT_DIR, newestInput.path)})`,
-    };
+  } catch (error) {
+    return { shouldBuild: true, reason: `dsh-profile requires rebuilding: ${error.message}` };
   }
 
   return {
@@ -215,15 +159,22 @@ export function getDshProfileRebuildPlan({
  */
 export function syncOhosDshProfile({
   sourceDir = OUT_DIR,
-  destinationDir = OHOS_OUT_DIR,
+  destinationDir,
 } = {}) {
+  if (!destinationDir) throw new Error('An explicit OHOS profile destination is required');
+  const stamp = validateProfileDirectory(sourceDir);
+  try {
+    if (JSON.stringify(validateProfileDirectory(destinationDir)) === JSON.stringify(stamp)) return;
+  } catch {
+    // A new stage or an incomplete export needs one fresh resource placement.
+  }
   rmSync(destinationDir, { recursive: true, force: true });
   mkdirSync(path.dirname(destinationDir), { recursive: true });
   cpSync(sourceDir, destinationDir, { recursive: true, dereference: true });
 
-  const stamp = path.join(destinationDir, STAMP_FILENAME);
-  if (existsSync(stamp)) {
-    renameSync(stamp, path.join(destinationDir, OHOS_STAMP_FILENAME));
+  const stampPath = path.join(destinationDir, STAMP_FILENAME);
+  if (existsSync(stampPath)) {
+    renameSync(stampPath, path.join(destinationDir, OHOS_STAMP_FILENAME));
   }
 
   const nodeModules = path.join(destinationDir, NODE_MODULES_DIR);
@@ -244,6 +195,7 @@ function run(command, args) {
     shell: process.platform === 'win32',
     stdio: 'inherit',
     env: process.env,
+    windowsHide: true,
   });
   return result.status ?? 1;
 }
@@ -256,27 +208,27 @@ function run(command, args) {
 function fail(message, status) {
   process.stderr.write(`[dsh-profile] ${message}\n`);
   process.stderr.write(
-    '[dsh-profile] set BITFUN_SKIP_DSH_PROFILE=1 to build without the DeepSeek bridge\n',
+    '[dsh-profile] fix profile preparation before packaging\n',
   );
   process.exit(status === 0 ? 1 : status);
 }
 
-function main() {
+export function prepareDshProfile({ destinationDir, required = false, force = false } = {}) {
   if (process.env.BITFUN_SKIP_DSH_PROFILE === '1') {
+    if (required) throw new Error('Packaging requires the DSH profile; BITFUN_SKIP_DSH_PROFILE cannot be used');
     process.stdout.write('[dsh-profile] skipped (this build ships no DeepSeek bridge)\n');
     rmSync(OUT_DIR, { recursive: true, force: true });
     mkdirSync(OUT_DIR, { recursive: true });
     writeFileSync(path.join(OUT_DIR, 'NOT-BUILT.md'), PLACEHOLDER);
-    syncOhosDshProfile();
+    if (destinationDir) syncOhosDshProfile({ destinationDir });
     return;
   }
 
-  const force =
-    process.argv.includes('--force') || process.env.BITFUN_DSH_PROFILE_FORCE_BUILD === '1';
+  force ||= process.env.BITFUN_DSH_PROFILE_FORCE_BUILD === '1';
   const plan = getDshProfileRebuildPlan({ force });
   if (!plan.shouldBuild) {
     process.stdout.write(`[dsh-profile] ${plan.reason}\n`);
-    syncOhosDshProfile();
+    if (destinationDir) syncOhosDshProfile({ destinationDir });
     return;
   }
   process.stdout.write(`[dsh-profile] ${plan.reason}\n`);
@@ -290,12 +242,19 @@ function main() {
   const compiled = run('npm', ['run', 'build']);
   if (compiled !== 0) fail('tsc failed', compiled);
 
-  const packaged = run('node', ['scripts/build-profile.mjs']);
+  const packaged = run('node', ['scripts/build-profile.mjs', '--from-local']);
   if (packaged !== 0) fail('profile packaging failed', packaged);
 
-  syncOhosDshProfile();
+  const stampPath = path.join(OUT_DIR, STAMP_FILENAME);
+  const stamp = validateProfileDirectory(OUT_DIR);
+  stamp.buildInputs = dshProfileInputDigest();
+  writeFileSync(stampPath, `${JSON.stringify(stamp, null, 2)}\n`);
+  if (destinationDir) syncOhosDshProfile({ destinationDir });
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  main();
+  const { values } = parseArgs({ options: {
+    force: { type: 'boolean' }, required: { type: 'boolean' }, 'ohos-out': { type: 'string' },
+  } });
+  prepareDshProfile({ destinationDir: values['ohos-out'] && resolve(values['ohos-out']), required: values.required, force: values.force });
 }

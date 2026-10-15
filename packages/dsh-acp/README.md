@@ -111,22 +111,28 @@ both build steps. Official `desktop:build` ships `dist-profile/` as a Tauri
 resource; `desktop:dev` and `cargo check` do not compile it. A failure during
 packaging fails the desktop build: an app that silently ships no bridge is
 indistinguishable from a working one until a user starts a DeepSeek session.
-`BITFUN_SKIP_DSH_PROFILE=1` opts out on purpose.
+`BITFUN_SKIP_DSH_PROFILE=1` opts out of optional preparation; HarmonyOS
+packaging rejects this setting.
 
-HarmonyOS packaging runs `prepare:dsh-profile` through Tauri's
-`beforeBuildCommand`. Build helpers that bypass that hook must run the same
-script before staging the OHOS project, including when reusing frontend outputs.
-The script stages the profile under
-`src/apps/ohos/entry/src/main/resources/resfile/dsh-profile`, using
-`bitfun-bridge.json` and `vendor-node-modules` as resource-safe aliases. Verify
-that the final HAP contains the stamp, `lib/app.js`, `cordis.patch.yml`, and the
-vendored dependencies under `resources/resfile/dsh-profile/`.
+HarmonyOS packaging registers the DSH profile plugin in the entry module's
+Hvigor build. Before `PreBuild`, it prepares and validates the profile, then
+copies it into the actual assembly project's `entry/src/main/resources/resfile/dsh-profile`.
+This also runs when frontend outputs are reused. Staged builds locate the source
+checkout through `.bitfun-build-context.json`; direct builds use the repository
+containing the OHOS project. Resource names use `bitfun-bridge.json` and
+`vendor-node-modules` aliases. After `PackageHap` and before signing or completing
+`assembleHap`, verification compares every profile file in the unsigned HAP
+against the prepared source. Missing, altered, or unexpected resources fail the
+build. Cached profiles are reused only when input and output digests match.
 
 On HarmonyOS, the built-in `dsh` client first checks the launcher's
 `--profile acp --dump-default-config` output for its native ACP transport. When
 available, startup uses `--profile acp` so the transport matches the installed
 runtime's APIs. Otherwise it keeps the bundled bridge path. This selection is
-made at launch without rewriting persisted client configuration. A missing
+made at launch without rewriting persisted client configuration. Requirement
+probing uses the same effective saved launcher and environment, including a
+managed local override, so native ACP remains available after saving or reloading
+the default DSH configuration. A missing
 bundled profile makes the legacy path unavailable even if the CLI is installed;
 the probe reports the resource error. Custom client IDs continue to
 launch their configured commands without BitFun materializing a profile.

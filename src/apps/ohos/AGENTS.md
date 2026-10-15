@@ -3,6 +3,19 @@
 This directory owns the ArkTS host and platform bridges. Follow the root
 `AGENTS.md` for shared product behavior and Windows/WSL build boundaries.
 
+## DSH profile packaging
+
+The entry Hvigor plugin prepares the profile in the active assembly project and
+verifies its unsigned HAP before signing. Cached frontend output must not skip
+these tasks. Run the focused resource and task-order regressions in WSL:
+
+```bash
+node --test scripts/prepare-dsh-profile.test.mjs scripts/dsh-profile-artifact.test.mjs src/apps/ohos/tests/dsh-profile-plugin.test.cjs
+```
+
+These cover source/resource integrity and Hvigor task registration. An actual
+HarmonyOS assembly is separate verification of the installed Hvigor toolchain.
+
 ## Secure credential bridge
 
 `SecureCredentialStore.ets` returns Base64 secret bytes to Rust. The legacy
