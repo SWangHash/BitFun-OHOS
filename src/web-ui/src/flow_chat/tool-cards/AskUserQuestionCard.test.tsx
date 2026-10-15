@@ -28,7 +28,14 @@ vi.mock('@/infrastructure/api/service-api/ToolAPI', () => ({
   },
 }));
 
+vi.mock('@/infrastructure/api/service-api/SystemAPI', () => ({
+  systemAPI: {
+    openExternal: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
 import { toolAPI } from '@/infrastructure/api/service-api/ToolAPI';
+import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
 import { AskUserQuestionCard } from './AskUserQuestionCard';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -738,6 +745,33 @@ describe('AskUserQuestionCard', () => {
       .not.toBeNull();
     expect(container.querySelector<HTMLInputElement>('input[value="D:/ohos/qt5-kit (Qt5)"]'))
       .toBeNull();
+  });
+
+  it('renders the backend toolchain notice with a link that opens the guide externally', async () => {
+    const tool = qtMigrationTool();
+    const guideUrl = 'https://wiki.qt.io/Qt_for_HarmonyOS/development_with_6.12.0_Beta2_zh';
+    const qtQuestions = (tool.questionRequest as unknown as {
+      qtMigrationQuestions: Array<Record<string, unknown>>;
+    }).qtMigrationQuestions;
+    qtQuestions[2] = {
+      ...qtQuestions[2],
+      options: [],
+      notice: 'askUser.qtMigration.notice.qt6ToolchainManualInstall',
+      noticeUrl: guideUrl,
+    };
+    act(() => root.render(
+      <AskUserQuestionCard toolItem={tool} config={config} sessionId="session-a" />,
+    ));
+
+    const notices = container.querySelectorAll('[data-qt-migration-notice]');
+    expect(notices).toHaveLength(1);
+    expect(notices[0].textContent).toContain(
+      'toolCards.askUser.qtMigration.notice.qt6ToolchainManualInstall',
+    );
+    const link = notices[0].querySelector<HTMLAnchorElement>('a');
+    expect(link?.textContent).toBe('toolCards.askUser.qtMigration.notice.openGuide');
+    await act(async () => link?.click());
+    expect(systemAPI.openExternal).toHaveBeenCalledWith(guideUrl);
   });
 
   it('submits a plain option value instead of its display label', async () => {

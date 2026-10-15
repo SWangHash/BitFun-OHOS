@@ -25,6 +25,17 @@ pub const QT_MIGRATION_PATHS_HINT_KEY: &str = "askUser.qtMigration.pathsHint";
 /// submit-time binding checks this against the waiting request.
 pub const QT_MIGRATION_PATHS_TEMPLATE_VERSION: &str = "1";
 
+/// i18n key for the toolchain notice shown when every listed source project is
+/// written against a Qt generation the official managed toolchain cannot build
+/// (Qt6). BitFun cannot install that toolchain: the user installs it with the Qt
+/// installer first and then picks its path.
+pub const QT_MIGRATION_QT6_TOOLCHAIN_NOTICE_KEY: &str =
+    "askUser.qtMigration.notice.qt6ToolchainManualInstall";
+
+/// Installation guide for the Qt6 for HarmonyOS toolchain.
+pub const QT_MIGRATION_QT6_TOOLCHAIN_GUIDE_URL: &str =
+    "https://wiki.qt.io/Qt_for_HarmonyOS/development_with_6.12.0_Beta2_zh";
+
 /// Resolve the question list for a template id. Returns `None` for unknown ids
 /// so callers can fail closed instead of showing an unexpected/empty dialog.
 pub fn resolve_question_template(template_id: &str) -> Option<Vec<Question>> {
@@ -217,6 +228,20 @@ pub fn qt_migration_intake_questions(
     // Only the toolchain has an official generation to compare against; the
     // template's download option keeps its own rule.
     let official_toolchain_download_allowed = context.official_toolchain_is_offerable();
+    // With the download hidden for a Qt6-only project list, the toolchain field is
+    // just the free-text input; tell the user to install the Qt6 toolchain with
+    // the Qt installer first, since BitFun cannot provision it.
+    let qt6_toolchain_must_be_installed_manually = !official_toolchain_download_allowed
+        && !project_versions.is_empty()
+        && project_versions.iter().all(|(_, qt_major)| *qt_major == 6);
+    let (toolchain_notice, toolchain_notice_url) = if qt6_toolchain_must_be_installed_manually {
+        (
+            Some(QT_MIGRATION_QT6_TOOLCHAIN_NOTICE_KEY.to_string()),
+            Some(QT_MIGRATION_QT6_TOOLCHAIN_GUIDE_URL.to_string()),
+        )
+    } else {
+        (None, None)
+    };
     // Four intake questions, each with candidate-path options (when available)
     // plus a real text input (placeholder). The backend owns requiredness.
     // Question/header/placeholder text is i18n-keyed (askUser.qtMigration.*).
@@ -234,6 +259,8 @@ pub fn qt_migration_intake_questions(
                 false,
                 &project_versions,
             ),
+            notice: None,
+            notice_url: None,
         },
         QtMigrationQuestion {
             field: "output_project".to_string(),
@@ -242,6 +269,8 @@ pub fn qt_migration_intake_questions(
             placeholder: Some("askUser.qtMigration.placeholder.outputProject".to_string()),
             required: true,
             options: candidate_options(candidates, "output_project", false, false, &[]),
+            notice: None,
+            notice_url: None,
         },
         QtMigrationQuestion {
             field: "toolchain".to_string(),
@@ -256,6 +285,8 @@ pub fn qt_migration_intake_questions(
                 official_toolchain_download_allowed,
                 &toolchain_versions,
             ),
+            notice: toolchain_notice,
+            notice_url: toolchain_notice_url,
         },
         QtMigrationQuestion {
             field: "template".to_string(),
@@ -270,6 +301,8 @@ pub fn qt_migration_intake_questions(
                 true,
                 &[],
             ),
+            notice: None,
+            notice_url: None,
         },
     ]
 }
@@ -554,6 +587,63 @@ mod tests {
         assert_eq!(options.len(), 1);
         assert_eq!(options[0].description, "D:/ohos/qt6-kit");
         assert!(options.iter().all(|option| option.value.is_none()));
+    }
+
+    #[test]
+    fn qt6_only_projects_ask_the_user_to_install_the_toolchain_first() {
+        // Qt6 工程没有官方下载项，工具链问题只剩输入框：此时必须提示用户
+        // 先按官方文档用 Qt installer 自行安装 Qt6 工具链。
+        let candidates = HashMap::from([(
+            "source_project".to_string(),
+            vec!["D:/proj/qt6-app".to_string()],
+        )]);
+        let resolve_with = |project_versions: Vec<(String, u8)>, serves: Option<bool>| {
+            resolve_question_template_with_context(
+                QT_MIGRATION_PATHS_TEMPLATE_ID,
+                &candidates,
+                QtMigrationQuestionContext {
+                    project_versions,
+                    official_toolchain_serves_project_generation: serves,
+                    ..QtMigrationQuestionContext::default()
+                },
+            )
+            .expect("known template must resolve")
+            .qt_migration_questions
+            .expect("the Qt template ships its own question shape")
+        };
+
+        let qt6 = resolve_with(vec![("D:/proj/qt6-app".to_string(), 6)], Some(false));
+        let toolchain = &qt6[2];
+        assert_eq!(toolchain.field, "toolchain");
+        assert!(toolchain.options.is_empty());
+        assert_eq!(
+            toolchain.notice.as_deref(),
+            Some(QT_MIGRATION_QT6_TOOLCHAIN_NOTICE_KEY)
+        );
+        assert_eq!(
+            toolchain.notice_url.as_deref(),
+            Some(QT_MIGRATION_QT6_TOOLCHAIN_GUIDE_URL)
+        );
+        for (index, question) in qt6.iter().enumerate() {
+            if index != 2 {
+                assert!(question.notice.is_none() && question.notice_url.is_none());
+            }
+        }
+
+        // 官方下载仍可用（Qt5 工程或版本未知）时不提示。
+        let qt5 = resolve_with(vec![("D:/proj/qt6-app".to_string(), 5)], Some(true));
+        assert!(qt5[2].notice.is_none() && qt5[2].notice_url.is_none());
+        let unknown = resolve_with(Vec::new(), None);
+        assert!(unknown[2].notice.is_none());
+
+        // 线上形状：字段为 camelCase 的 noticeUrl，旧载荷缺字段时可反序列化。
+        let encoded = serde_json::to_value(toolchain).expect("serialize");
+        assert_eq!(
+            encoded["noticeUrl"].as_str(),
+            Some(QT_MIGRATION_QT6_TOOLCHAIN_GUIDE_URL)
+        );
+        let encoded = serde_json::to_value(&qt5[2]).expect("serialize");
+        assert!(encoded.get("notice").is_none() && encoded.get("noticeUrl").is_none());
     }
 
     #[test]

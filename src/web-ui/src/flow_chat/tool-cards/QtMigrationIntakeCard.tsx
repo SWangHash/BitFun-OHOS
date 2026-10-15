@@ -22,11 +22,15 @@ import React, { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { ToolCardProps } from '../types/flow-chat';
+import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
+import { createLogger } from '@/shared/utils/logger';
 import {
   AskUserQuestionShell,
   type AskUserCardOption,
   type AskUserCardQuestion,
 } from './AskUserQuestionShell';
+
+const log = createLogger('QtMigrationIntakeCard');
 
 /** Backend template id the Qt intake is resolved from. */
 export const QT_MIGRATION_PATHS_TEMPLATE_ID = 'qt-migration-paths';
@@ -61,6 +65,10 @@ export interface QtMigrationQuestion {
   placeholder?: string;
   required: boolean;
   options: QtMigrationOption[];
+  /** i18n key for a notice rendered under the prompt. */
+  notice?: string;
+  /** External documentation the notice links to. */
+  noticeUrl?: string;
 }
 
 /**
@@ -166,10 +174,17 @@ function normalizeQtMigrationQuestions(input: unknown): QtMigrationQuestion[] {
     const placeholder = typeof rawQuestion.placeholder === 'string'
       ? rawQuestion.placeholder.trim()
       : '';
+    const notice = typeof rawQuestion.notice === 'string' ? rawQuestion.notice.trim() : '';
+    const noticeUrl = typeof rawQuestion.noticeUrl === 'string'
+      && /^https:\/\//i.test(rawQuestion.noticeUrl.trim())
+      ? rawQuestion.noticeUrl.trim()
+      : '';
 
     return [{
       field,
       header: header || field,
+      notice: notice || undefined,
+      noticeUrl: noticeUrl || undefined,
       options,
       placeholder: placeholder || undefined,
       prompt,
@@ -212,6 +227,55 @@ function qtVersionBadge(version: number | undefined): React.ReactNode {
   );
 }
 
+/**
+ * A backend notice under the prompt (e.g. "install the Qt6 toolchain yourself
+ * first"), with an optional link to the external guide. Inline-styled for the
+ * same reason as {@link qtVersionBadge}. The link opens in the system browser.
+ */
+function qtMigrationNotice(
+  text: string,
+  url: string | undefined,
+  linkLabel: string,
+): React.ReactNode {
+  return (
+    <span
+      data-qt-migration-notice=""
+      style={{
+        display: 'block',
+        marginBlockStart: 'var(--bitfun-space-1)',
+        color: 'var(--bitfun-color-status-warning-content)',
+        fontSize: 'var(--bitfun-type-support-font-size)',
+        fontWeight: 'normal',
+        lineHeight: 1.5,
+      }}
+    >
+      {text}
+      {url ? (
+        <>
+          {' '}
+          <a
+            href={url}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              void systemAPI.openExternal(url).catch((error: unknown) => {
+                log.warn('Failed to open Qt toolchain guide', { error });
+              });
+            }}
+            style={{
+              color: 'var(--bitfun-color-accent-default)',
+              textDecoration: 'underline',
+              cursor: 'pointer',
+            }}
+          >
+            {linkLabel}
+          </a>
+        </>
+      ) : null}
+    </span>
+  );
+}
+
 export const QtMigrationIntakeCard: React.FC<ToolCardProps> = ({
   toolItem,
   isLastItem,
@@ -235,6 +299,13 @@ export const QtMigrationIntakeCard: React.FC<ToolCardProps> = ({
         : undefined,
       multiSelect: false,
       prompt: localize(question.prompt),
+      notice: question.notice
+        ? qtMigrationNotice(
+          localize(question.notice),
+          question.noticeUrl,
+          t('toolCards.askUser.qtMigration.notice.openGuide'),
+        )
+        : undefined,
       options: question.options.map((option): AskUserCardOption => {
         const role = localize(option.label);
         // A candidate option renders its role line plus the Qt major badge, and
@@ -259,7 +330,7 @@ export const QtMigrationIntakeCard: React.FC<ToolCardProps> = ({
         };
       }),
     })),
-    [localize, questions],
+    [localize, questions, t],
   );
   const describeSubmitFailure = useCallback(
     (message: string, translate: TFunction<'flow-chat'>) => {

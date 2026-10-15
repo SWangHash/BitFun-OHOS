@@ -339,6 +339,8 @@ fn template_resolved_payload_keeps_params_immutable_and_carries_policy() {
                 value: Some("__official__".to_string()),
                 version: None,
             }],
+            notice: None,
+            notice_url: None,
         })
         .collect();
     // The payload rides the envelope as opaque JSON; the host never interprets it.

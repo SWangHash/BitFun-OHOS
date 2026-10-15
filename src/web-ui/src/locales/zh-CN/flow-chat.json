@@ -1968,6 +1968,10 @@
           "publishing": "发布工具链",
           "completed": "完成"
         },
+        "notice": {
+          "qt6ToolchainManualInstall": "当前原始工程为 Qt6 工程，BitFun 暂不提供鸿蒙 Qt6 工具链的下载安装。请先按照官方文档使用 Qt 安装器自行安装 Qt6 工具链，再在下方填写或选择其路径。",
+          "openGuide": "查看安装文档"
+        },
         "placeholder": {
           "sourceProject": "请填写您原始工程路径",
           "outputProject": "请填写输出工程路径",

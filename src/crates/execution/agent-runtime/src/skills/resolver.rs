@@ -1,5 +1,5 @@
 use super::keys::normalize_skill_keys;
-use super::policy::resolve_builtin_default_enabled;
+use super::policy::{is_builtin_skill_locked_for_mode, resolve_builtin_default_enabled};
 use super::types::{ModeSkillStateReason, SkillInfo, SkillLocation};
 use std::collections::HashSet;
 
@@ -87,6 +87,10 @@ pub fn resolve_skill_state_for_mode(
         SkillLocation::User => {
             let default_state = resolve_default_state_for_user_skill(skill, mode_id);
 
+            if skill.is_builtin && is_builtin_skill_locked_for_mode(&skill.dir_name, mode_id) {
+                return default_state;
+            }
+
             if default_state.default_enabled {
                 if user_overrides.disabled_skills.contains(&skill.key) {
                     return ModeSkillState {
@@ -105,5 +109,40 @@ pub fn resolve_skill_state_for_mode(
 
             default_state
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ohos_qt_skills_user_override_cannot_enable_outside_qt_migration() {
+        let skill: SkillInfo = serde_json::from_value(serde_json::json!({
+            "key": "user::bitfun-system::ohos-qt-skills",
+            "name": "ohos-qt-skills",
+            "description": "",
+            "path": "/tmp/ohos-qt-skills",
+            "level": "user",
+            "sourceSlot": "bitfun-system",
+            "dirName": "ohos-qt-skills",
+            "isBuiltin": true,
+        }))
+        .unwrap();
+        let overrides = UserModeSkillOverrides {
+            disabled_skills: Vec::new(),
+            enabled_skills: vec![skill.key.clone()],
+        };
+        let disabled_project = HashSet::new();
+
+        for mode_id in ["Standard", "HarmonyBuild", "Cowork", "SomeUnknownMode"] {
+            let state =
+                resolve_skill_state_for_mode(&skill, mode_id, &overrides, &disabled_project);
+            assert!(!state.effective_enabled, "mode {mode_id}");
+        }
+        assert!(
+            resolve_skill_state_for_mode(&skill, "QtMigration", &overrides, &disabled_project)
+                .effective_enabled
+        );
     }
 }

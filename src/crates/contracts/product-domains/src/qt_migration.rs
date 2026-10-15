@@ -204,6 +204,19 @@ pub struct QtMigrationQuestion {
     /// Backend-owned requiredness.
     pub required: bool,
     pub options: Vec<QtMigrationOption>,
+    /// i18n key for a notice rendered under the prompt
+    /// (`askUser.qtMigration.notice.*`), e.g. that the user must install the
+    /// toolchain themselves before choosing its path.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notice: Option<String>,
+    /// External documentation the notice points to.
+    #[serde(
+        default,
+        rename = "noticeUrl",
+        alias = "notice_url",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub notice_url: Option<String>,
 }
 
 impl QtMigrationQuestion {

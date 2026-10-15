@@ -78,6 +78,8 @@ export interface AskUserCardQuestion {
   options: AskUserCardOption[];
   /** Prompt, already localized. Also used as the path picker title. */
   prompt: string;
+  /** Owner-supplied notice rendered under the prompt text. */
+  notice?: React.ReactNode;
 }
 
 export interface AskUserQuestionShellProps {
@@ -631,7 +633,9 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
       // question instead of only after the custom option is selected.
       inputPlaceholder: question.inputPlaceholder,
       options: question.options,
-      prompt: question.prompt,
+      prompt: question.notice
+        ? <>{question.prompt}{question.notice}</>
+        : question.prompt,
       selectionMode: question.multiSelect ? 'multiple' : 'single',
     })),
     [questions, t],

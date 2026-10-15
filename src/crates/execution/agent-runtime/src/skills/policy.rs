@@ -227,11 +227,17 @@ const CREATIVE_POLICY: ModeSkillPolicy = ModeSkillPolicy {
 
 /// HarmonyBuild mode (and its Harmony sub-agents) enable the HarmonyOS built-in
 /// skill group so the Skill tool can load `hmos-arkui-develop-skill`,
-/// `deveco-cli`, `ohos-qt-skills`, etc. Office, Gstack, and Computer Use stay
-/// disabled to keep the industry agent focused on HarmonyOS workflows.
+/// `deveco-cli`, etc. Office, Gstack, and Computer Use stay disabled to keep the
+/// industry agent focused on HarmonyOS workflows. `ohos-qt-skills` stays owned by
+/// the Qt migration expert.
 const HARMONY_BUILD_POLICY: ModeSkillPolicy = ModeSkillPolicy {
     builtin_default: PolicyEffect::Enable,
-    rules: &[DISABLE_OFFICE, DISABLE_GSTACK, DISABLE_COMPUTER_USE],
+    rules: &[
+        DISABLE_OFFICE,
+        DISABLE_GSTACK,
+        DISABLE_COMPUTER_USE,
+        DISABLE_OHOS_QT_SKILLS,
+    ],
 };
 
 const COWORK_POLICY: ModeSkillPolicy = ModeSkillPolicy {
@@ -296,6 +302,22 @@ pub fn resolve_builtin_default_enabled(dir_name: &str, mode_id: &str) -> Option<
         .map(|spec| resolve_builtin_default_effect(spec, mode_id).is_enabled())
 }
 
+/// Built-in skills owned exclusively by one mode. Outside the owner mode they
+/// stay disabled even when a user mode override tries to enable them.
+const MODE_OWNED_BUILTIN_SKILLS: &[(&str, SkillModeId)] =
+    &[("ohos-qt-skills", SkillModeId::QtMigration)];
+
+pub(super) fn is_builtin_skill_locked_for_mode(dir_name: &str, mode_id: &str) -> bool {
+    let Some((_, owner)) = MODE_OWNED_BUILTIN_SKILLS
+        .iter()
+        .find(|(name, _)| *name == dir_name)
+    else {
+        return false;
+    };
+    let policy_scope = resolve_mode_config_profile_id(mode_id);
+    SkillModeId::parse(policy_scope.as_ref()) != *owner
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -313,8 +335,14 @@ mod tests {
             "Cowork",
             "ComputerUse",
             "DeepResearch",
+            "HarmonyFeature",
             "Ultimate",
             "SwarmWorker",
+            "HarmonyBuild",
+            "HarmonyPlan",
+            "HarmonyGoal",
+            "HarmonySpecImplementation",
+            "HarmonySpecVerify",
             "SomeUnknownMode",
         ] {
             assert_eq!(
@@ -322,7 +350,16 @@ mod tests {
                 Some(false),
                 "ohos-qt-skills must stay disabled for mode {mode_id}"
             );
+            assert!(
+                is_builtin_skill_locked_for_mode("ohos-qt-skills", mode_id),
+                "ohos-qt-skills must not be user-enabled for mode {mode_id}"
+            );
         }
+        assert!(!is_builtin_skill_locked_for_mode(
+            "ohos-qt-skills",
+            "QtMigration"
+        ));
+        assert!(!is_builtin_skill_locked_for_mode("deveco-cli", "Standard"));
 
         assert_eq!(
             resolve_builtin_default_enabled("ohos-qt-skills", "QtMigration"),
@@ -587,8 +624,8 @@ mod tests {
         );
         assert_eq!(
             resolve_builtin_default_enabled("ohos-qt-skills", "HarmonyBuild"),
-            Some(true),
-            "ohos-qt-skills must be enabled in HarmonyBuild mode"
+            Some(false),
+            "ohos-qt-skills is owned by the Qt migration expert"
         );
         assert_eq!(
             resolve_builtin_default_enabled("hmos-runtime-fix-skill", "HarmonyBuild"),

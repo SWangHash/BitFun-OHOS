@@ -1968,6 +1968,10 @@
           "publishing": "publishing the toolchain",
           "completed": "done"
         },
+        "notice": {
+          "qt6ToolchainManualInstall": "The source project is a Qt6 project. BitFun does not download or install the HarmonyOS Qt6 toolchain. Install the Qt6 toolchain with the Qt installer by following the official guide first, then enter or browse to its path below.",
+          "openGuide": "View installation guide"
+        },
         "placeholder": {
           "sourceProject": "Enter the source project path",
           "outputProject": "Enter the output project path",
