@@ -9,7 +9,7 @@ import {
   resolveReleaseChannel,
   validateReleaseVersion,
 } from './release-channel.mjs';
-import { setBuildVersion } from './set-build-version.mjs';
+import { harmonyOsVersionCode, setBuildVersion } from './set-build-version.mjs';
 import { decodeMinisignPublicKey } from './write-minisign-public-key.mjs';
 
 const RAW_PUBLIC_KEY = `untrusted comment: minisign public key E3E0874CEC1C22C3
@@ -64,6 +64,13 @@ test('release public key export accepts raw and legacy base64 values', () => {
     expected,
   );
   assert.throws(() => decodeMinisignPublicKey('not-a-key'));
+});
+
+test('desktop HarmonyOS stable versions preserve the established numeric encoding', () => {
+  assert.equal(harmonyOsVersionCode('1.0.6'), 1_000_006);
+  assert.equal(harmonyOsVersionCode('2.3.4'), 2_003_004);
+  assert.equal(harmonyOsVersionCode('2.3.4-beta.1'), null);
+  assert.throws(() => harmonyOsVersionCode('2.1000.0'), /below 1000/);
 });
 
 test('build version projection updates every release-owned version file', () => {
@@ -125,6 +132,11 @@ exclude = ["src/apps/relay-server", "BitFun-Installer/src-tauri"]
     'src/apps/mobile/harmonyos/AppScope/app.json5',
     '{\n  "app": {\n    "versionName": "1.0.0"\n  }\n}\n',
   );
+  writeFixture(
+    root,
+    'src/apps/ohos/AppScope/app.json5',
+    '{\n  "app": {\n    "versionCode": 1000000,\n    "versionName": "1.0.0"\n  }\n}\n',
+  );
   const initialLock = spawnSync('cargo', ['generate-lockfile'], {
     cwd: root,
     encoding: 'utf8',
@@ -163,6 +175,12 @@ exclude = ["src/apps/relay-server", "BitFun-Installer/src-tauri"]
     readFileSync(path.join(root, 'src/apps/mobile/harmonyos/AppScope/app.json5'), 'utf8'),
     /"versionName": "1\.1\.0-beta\.2"/,
   );
+  const desktopHarmonyBeta = readFileSync(
+    path.join(root, 'src/apps/ohos/AppScope/app.json5'),
+    'utf8',
+  );
+  assert.match(desktopHarmonyBeta, /"versionName": "1\.1\.0-beta\.2"/);
+  assert.match(desktopHarmonyBeta, /"versionCode": 1000000/);
   assert.match(
     readFileSync(path.join(root, 'Cargo.lock'), 'utf8'),
     /name = "build-version-fixture"\nversion = "1\.1\.0-beta\.2"/,
@@ -172,6 +190,14 @@ exclude = ["src/apps/relay-server", "BitFun-Installer/src-tauri"]
     encoding: 'utf8',
   });
   assert.equal(lockedMetadata.status, 0, lockedMetadata.stderr);
+
+  setBuildVersion(root, '2.3.4');
+  const desktopHarmonyStable = readFileSync(
+    path.join(root, 'src/apps/ohos/AppScope/app.json5'),
+    'utf8',
+  );
+  assert.match(desktopHarmonyStable, /"versionName": "2\.3\.4"/);
+  assert.match(desktopHarmonyStable, /"versionCode": 2003004/);
 });
 
 function writeFixture(root, relative, content) {

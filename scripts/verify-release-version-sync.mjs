@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync } from 'fs';
+import { harmonyOsVersionCode } from './set-build-version.mjs';
 
 const args = parseArgs(process.argv.slice(2));
 const expected = args.version || readJsonVersion('package.json');
@@ -21,6 +22,7 @@ const versions = new Map([
   ['src/apps/mobile/android/app/build.gradle.kts', readTextVersion('src/apps/mobile/android/app/build.gradle.kts', /versionName\s*=\s*"([^"]+)"/)],
   ['src/apps/mobile/ios/BitFun/Info.plist', readTextVersion('src/apps/mobile/ios/BitFun/Info.plist', /<key>CFBundleShortVersionString<\/key>\s*<string>([^<]+)<\/string>/)],
   ['src/apps/mobile/harmonyos/AppScope/app.json5', readTextVersion('src/apps/mobile/harmonyos/AppScope/app.json5', /"versionName"\s*:\s*"([^"]+)"/)],
+  ['src/apps/ohos/AppScope/app.json5', readTextVersion('src/apps/ohos/AppScope/app.json5', /"versionName"\s*:\s*"([^"]+)"/)],
 ]);
 
 if (!expected.includes('-')) {
@@ -29,10 +31,24 @@ if (!expected.includes('-')) {
 }
 
 const mismatches = [...versions].filter(([, version]) => version !== expected);
-if (mismatches.length > 0) {
-  for (const [file, version] of mismatches) {
-    console.error(`[release-version] ${file}: expected ${expected}, found ${version}`);
+let hasMismatch = mismatches.length > 0;
+for (const [file, version] of mismatches) {
+  console.error(`[release-version] ${file}: expected ${expected}, found ${version}`);
+}
+
+const expectedHarmonyCode = harmonyOsVersionCode(expected);
+if (expectedHarmonyCode !== null) {
+  const file = 'src/apps/ohos/AppScope/app.json5';
+  const actualHarmonyCode = Number(readTextVersion(file, /"versionCode"\s*:\s*(\d+)/));
+  if (actualHarmonyCode !== expectedHarmonyCode) {
+    console.error(
+      `[release-version] ${file} versionCode: expected ${expectedHarmonyCode}, found ${actualHarmonyCode}`,
+    );
+    hasMismatch = true;
   }
+}
+
+if (hasMismatch) {
   process.exit(1);
 }
 console.log(`[release-version] OK: ${expected}`);

@@ -72,8 +72,32 @@ export function setBuildVersion(root, version) {
     /^(\s*"versionName"\s*:\s*")[^"]+(".*)$/m,
     `$1${version}$2`,
   );
+  replaceVersion(
+    path.join(root, 'src/apps/ohos/AppScope/app.json5'),
+    /^(\s*"versionName"\s*:\s*")[^"]+(".*)$/m,
+    `$1${version}$2`,
+  );
+  const stableVersionCode = harmonyOsVersionCode(version);
+  if (stableVersionCode !== null) {
+    replaceVersion(
+      path.join(root, 'src/apps/ohos/AppScope/app.json5'),
+      /^(\s*"versionCode"\s*:\s*)\d+(.*)$/m,
+      `$1${stableVersionCode}$2`,
+    );
+  }
 
   syncCargoLock(root);
+}
+
+/** Preserve the existing major/minor/patch encoding used by the desktop HAP. */
+export function harmonyOsVersionCode(version) {
+  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
+  if (!match) return null;
+  const [, major, minor, patch] = match.map(Number);
+  if (minor >= 1000 || patch >= 1000) {
+    throw new Error(`HarmonyOS version components must be below 1000: ${version}`);
+  }
+  return major * 1_000_000 + minor * 1_000 + patch;
 }
 
 // Workspace members inherit the root version, so the lockfile carries a copy of

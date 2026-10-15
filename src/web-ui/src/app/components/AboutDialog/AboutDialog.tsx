@@ -81,6 +81,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
   const aboutInfo = getAboutInfo();
   const { version, license } = aboutInfo;
   const nativeRuntime = isTauriRuntime();
+  const openHarmonyRuntime = isOpenHarmonyRuntime();
   const updateChecksAvailable = canCheckForAppUpdates();
   // The AppGallery product page resolves from the running build's bundle name
   // through AppGallery Kit, so the review entry point only exists on HarmonyOS.
@@ -122,7 +123,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
   useEffect(() => {
     if (!isOpen || !nativeRuntime) return;
     // OHOS has no staged in-app update flow; the AppGallery owns updates.
-    if (canCheckForAppUpdates() && !isOpenHarmonyRuntime()) {
+    if (canCheckForAppUpdates() && !openHarmonyRuntime) {
       void useUpdateInstallStore.getState().initialize();
     }
     let active = true;
@@ -136,7 +137,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
     return () => {
       active = false;
     };
-  }, [isOpen, nativeRuntime]);
+  }, [isOpen, nativeRuntime, openHarmonyRuntime]);
 
   const handleCheckForUpdates = useCallback(async () => {
     if (!canCheckForAppUpdates()) return;
@@ -145,7 +146,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
     setManualCheckErrorMessage(null);
     setManualCheckBusy(true);
     try {
-      if (isOpenHarmonyRuntime()) {
+      if (openHarmonyRuntime) {
         // OHOS: the AppGallery check shows the system update dialog when an
         // update exists; the in-app install flow stays desktop-only.
         const ohosRes = await systemAPI.checkForUpdatesOhos();
@@ -173,7 +174,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
     } finally {
       setManualCheckBusy(false);
     }
-  }, [t]);
+  }, [openHarmonyRuntime, t]);
 
   const handleAppMarketReview = useCallback(() => {
     systemAPI.openAppMarketPage().catch(error => {
@@ -221,7 +222,13 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
   };
 
   const updateState = `${manualCheckBusy ? 'checking' : ''} ${manualCheckStatus} ${updateStatus}`.trim();
-  const updateBusy = !updateInitialized || manualCheckBusy || updateStatus === 'downloading' || updateStatus === 'ready' || updateStatus === 'installing';
+  const desktopUpdateBusy = !updateInitialized
+    || updateStatus === 'downloading'
+    || updateStatus === 'ready'
+    || updateStatus === 'installing';
+  // HarmonyOS delegates updates to AppGallery and intentionally never
+  // initializes the desktop download/install store.
+  const updateBusy = manualCheckBusy || (!openHarmonyRuntime && desktopUpdateBusy);
 
   const privacyStatementButton = (
     <Button
