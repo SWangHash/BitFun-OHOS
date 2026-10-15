@@ -7,6 +7,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { useI18n } from '@/infrastructure/i18n';
+import { sshErrorMessage } from '@/shared/ai-errors/connectionErrors';
+import { acpReviewErrorText } from '@/shared/ai-errors/acpReviewErrors';
 import { Button } from '@/component-library';
 import { ConfirmDialog } from './ConfirmDialog';
 import type { RemoteFileEntry } from './types';
@@ -95,6 +97,7 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
 }) => {
   const homeAnchor = homePath ?? initialPath;
   const { t } = useI18n('common');
+  const { t: translateErrors } = useI18n('errors');
   const [currentPath, setCurrentPath] = useState(initialPath);
   const [pathInputValue, setPathInputValue] = useState(initialPath);
   const [isEditingPath, setIsEditingPath] = useState(false);
@@ -146,7 +149,7 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
       });
       setEntries(result);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load directory');
+      setError(acpReviewErrorText(e) || 'Failed to load directory');
       setEntries([]);
     } finally {
       setLoading(false);
@@ -240,7 +243,7 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
     try {
       await sshApi.downloadToLocalPath(connectionId, entry.path, localPath);
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('ssh.remote.transferFailed'));
+      setError(acpReviewErrorText(e) || t('ssh.remote.transferFailed'));
     } finally {
       setTransferBusy(false);
     }
@@ -274,7 +277,7 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
         }
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Operation failed');
+      setError(acpReviewErrorText(e) || 'Operation failed');
     }
   };
 
@@ -287,7 +290,7 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
       await sshApi.remove(connectionId, entry.path, entry.isDir);
       loadDirectory(currentPath);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Delete failed');
+      setError(acpReviewErrorText(e) || 'Delete failed');
     }
   };
 
@@ -308,7 +311,7 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
       setRenameEntry(null);
       loadDirectory(currentPath);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to rename');
+      setError(acpReviewErrorText(e) || 'Failed to rename');
     }
   };
 
@@ -334,7 +337,7 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
       }
       await loadDirectory(currentPath);
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('ssh.remote.transferFailed'));
+      setError(acpReviewErrorText(e) || t('ssh.remote.transferFailed'));
     } finally {
       setTransferBusy(false);
     }
@@ -494,7 +497,7 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
         <div className="remote-file-browser__content" data-bf-component="ssh-remote" data-bf-part="content">
           {error && (
             <div className="remote-file-browser__error">
-              <span>{error}</span>
+              <span>{sshErrorMessage(error, translateErrors)}</span>
               <button
                 type="button"
                 onClick={() => loadDirectory(currentPath)}

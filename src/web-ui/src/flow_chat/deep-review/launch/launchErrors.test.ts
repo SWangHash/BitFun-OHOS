@@ -30,6 +30,19 @@ describe('Deep Review launch errors', () => {
     )).toBe('session not found');
   });
 
+  it('retains the exact target error key and reason through launch wrapping', async () => {
+    const i18n = createInstance();
+    await i18n.init({ lng: 'zh-CN', resources: { 'zh-CN': { errors: cn } } });
+    const cause = Object.assign(new Error('The pull request contains no reviewable changed files.'), {
+      launchErrorMessageKey: 'errors:acpReview.reviewNoChangesPr',
+    });
+    const error = createDeepReviewLaunchError('prepare_review_team', cause);
+    expect(error.launchErrorMessageKey).toBe(cause.launchErrorMessageKey);
+    expect(error.launchErrorCategory).toBe('target');
+    expect(getDeepReviewLaunchErrorMessage(error, i18n.t.bind(i18n)))
+      .toBe(i18n.t(cause.launchErrorMessageKey));
+  });
+
   it('preserves the cause while retaining recovery classification', () => {
     const error = createDeepReviewLaunchError(
       'send_start_message',

@@ -17,6 +17,8 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
+import { remoteConnectErrorMessage } from '@/shared/ai-errors/connectionErrors';
+import { acpReviewErrorText } from '@/shared/ai-errors/acpReviewErrors';
 import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext';
 import { Button, Input, Alert } from '@/component-library';
 import {
@@ -158,18 +160,20 @@ function isNonRetryableSyncError(error: unknown): boolean {
 function syncFailureMessage(
   t: (key: string, options?: Record<string, string | number>) => string,
   error: unknown,
+  translateErrors: (key: string, options?: Record<string, unknown>) => string,
 ): string {
+  const detail = remoteConnectErrorMessage(error, translateErrors);
   if (isNonRetryableSyncError(error)) {
     const msg = error instanceof Error ? error.message : String(error ?? '');
     if (
       msg.toLowerCase().includes('http 413')
       || msg.toLowerCase().includes('payload too large')
     ) {
-      return t('accountLogin.syncPayloadTooLarge');
+      return [t('accountLogin.syncPayloadTooLarge'), detail].filter(Boolean).join(': ');
     }
-    return t('accountLogin.syncQuotaFull');
+    return [t('accountLogin.syncQuotaFull'), detail].filter(Boolean).join(': ');
   }
-  return t('accountLogin.syncFailed');
+  return detail || t('accountLogin.syncFailed');
 }
 
 function syncPhaseLabel(
@@ -215,6 +219,7 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
   onCloseDialog,
 }) => {
   const { t, formatRelativeTime } = useI18n('common');
+  const { t: translateErrors } = useI18n('errors');
   const { success, info, warning } = useNotification();
   const { workspacePath } = useCurrentWorkspace();
   const { peerMode, switchToDevice, switchToLocal } = usePeerDeviceMode();
@@ -716,8 +721,8 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
       } catch (e) {
         if (!isCurrentOperation()) return;
         log.error('Auto-sync failed', e);
-        setSyncFailed(e instanceof Error ? e.message : String(e));
-        warning(syncFailureMessage(t, e));
+        setSyncFailed(acpReviewErrorText(e));
+        warning(syncFailureMessage(t, e, translateErrors));
       } finally {
         if (isCurrentOperation()) {
           syncInFlightRef.current = false;
@@ -790,7 +795,7 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
       completeLogin(server, true, epoch);
     } catch (e: unknown) {
       if (!isAccountEpochCurrent(epoch)) return;
-      setError(e instanceof Error ? e.message : String(e));
+      setError(acpReviewErrorText(e));
     } finally {
       // The account session has its own token after this call; retaining the
       // password in React state while the device list is open is unnecessary.
@@ -857,7 +862,7 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
         await handleSessionExpired(e, epoch);
         return;
       }
-      setError(e instanceof Error ? e.message : String(e));
+      setError(acpReviewErrorText(e));
       // Stop any detached work before accountLogout can yield.
       syncInFlightRef.current = false;
       clearSync();
@@ -903,7 +908,7 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
       } catch (e) {
         log.warn('pending login cancel failed', e);
         if (isAccountEpochCurrent(epoch)) {
-          setError(e instanceof Error ? e.message : String(e));
+          setError(acpReviewErrorText(e));
         }
         return;
       }
@@ -929,7 +934,7 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
       // Logout failed before the backend changed the account; resume presence
       // delivery for the still-current frontend epoch.
       setActiveAccountEpoch(epoch);
-      setError(e instanceof Error ? e.message : String(e));
+      setError(acpReviewErrorText(e));
     } finally {
       if (isAccountEpochCurrent(epoch)) setLoading(false);
     }
@@ -980,7 +985,7 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
       if (isAccountAuthFailure(e)) {
         await handleSessionExpired(e, epoch);
       } else {
-        const message = e instanceof Error ? e.message : String(e);
+        const message = acpReviewErrorText(e);
         if (isLocal) setActiveAccountEpoch(epoch);
         setError(message);
         if (
@@ -1051,7 +1056,7 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
         onCloseDialog();
       }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(acpReviewErrorText(e));
     } finally {
       setLoading(false);
     }
@@ -1072,7 +1077,7 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
       <div data-bf-component="remote-account-panel" data-bf-part="root" data-bf-view={view} className="account-panel">
         {error && (
           <div className="account-panel__error-banner" data-bf-component="remote-account-panel" data-bf-part="error">
-            <Alert type="error" message={error} closable onClose={() => setError(null)}
+            <Alert type="error" message={remoteConnectErrorMessage(error, translateErrors)} closable onClose={() => setError(null)}
               className="account-panel__error-alert" />
           </div>
         )}
@@ -1213,7 +1218,7 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
                       syncProgress.total,
                     )}
                     {syncStatus === 'done' && t('accountLogin.syncDoneShort')}
-                    {syncStatus === 'failed' && syncFailureMessage(t, lastSyncError)}
+                    {syncStatus === 'failed' && syncFailureMessage(t, lastSyncError, translateErrors)}
                   </span>
                   {syncStatus === 'failed' && (
                     <button

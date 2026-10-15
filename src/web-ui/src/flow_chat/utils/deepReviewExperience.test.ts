@@ -54,6 +54,20 @@ function sessionWithTaskResult(result: unknown): Session {
 }
 
 describe('deepReviewExperience', () => {
+  it('attributes authored target failures to review rather than an AI provider', () => {
+    const attribution = buildErrorAttribution({
+      phase: 'review_interrupted',
+      childSessionId: 'deep-review-session',
+      originalTarget: '/DeepReview review pull request',
+      errorDetail: { category: 'model_error', rawMessage: 'The pull request contains no reviewable changed files.' },
+      canResume: false,
+      recommendedActions: [],
+      reviewers: [],
+    });
+    expect(attribution.category).toBe('review_error');
+    expect(attribution.description).toBe('deepReviewActionBar.reviewError');
+  });
+
   it('counts cancelled reviewers as handled in running progress summary', () => {
     const summary = buildReviewerProgressSummary([
       { reviewer: 'ReviewPerformance', displayName: 'Performance', status: 'completed' },

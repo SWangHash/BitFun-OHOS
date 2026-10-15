@@ -11,6 +11,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom';
 import { Check, ChevronUp, Monitor, MonitorSmartphone, Loader2 } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
+import { remoteConnectErrorMessage } from '@/shared/ai-errors/connectionErrors';
 import { useNotification } from '@/shared/notification-system';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { useAnchoredPopoverPosition } from '@/shared/utils/useAnchoredPopoverPosition';
@@ -28,6 +29,7 @@ function useDeviceActivityVersion(): number {
 
 export const DeviceSurfaceSwitcher: React.FC = () => {
   const { t } = useI18n('common');
+  const { t: translateErrors } = useI18n('errors');
   const { success, warning } = useNotification();
   const peerDevice = usePeerDeviceModeOptional();
   const { loggedIn, localDeviceId, devices } = useAccountDeviceRoster();
@@ -105,14 +107,14 @@ export const DeviceSurfaceSwitcher: React.FC = () => {
       }
     } catch (error) {
       if (latestSwitchRequestRef.current === requestId) {
-        warning(error instanceof Error ? error.message : String(error));
+        warning(remoteConnectErrorMessage(error, translateErrors));
       }
     } finally {
       if (latestSwitchRequestRef.current === requestId) {
         setSwitching(false);
       }
     }
-  }, [peerDevice, switching, activeDeviceId, success, warning, t]);
+  }, [peerDevice, switching, activeDeviceId, success, warning, t, translateErrors]);
 
   const handleDisconnect = useCallback(async (
     event: React.MouseEvent,
@@ -127,11 +129,11 @@ export const DeviceSurfaceSwitcher: React.FC = () => {
       await peerDevice.disconnectDevice(device.deviceId);
       success(t('accountLogin.deviceSwitcher.disconnected', { name: device.deviceName }));
     } catch (error) {
-      warning(error instanceof Error ? error.message : String(error));
+      warning(remoteConnectErrorMessage(error, translateErrors));
     } finally {
       setSwitching(false);
     }
-  }, [peerDevice, switching, success, warning, t]);
+  }, [peerDevice, switching, success, warning, t, translateErrors]);
 
   useEffect(() => {
     if (!open) {

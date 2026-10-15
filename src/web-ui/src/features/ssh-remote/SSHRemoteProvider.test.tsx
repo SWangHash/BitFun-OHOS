@@ -12,6 +12,16 @@ import { SSHContext, type ConnectionStatus } from './SSHRemoteContext';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
+const translationMock = vi.hoisted(() => ({
+  t: undefined as undefined | ((key: string, options?: Record<string, unknown>) => string),
+}));
+
+vi.mock('@/infrastructure/i18n', async () => {
+  const { createTestI18nT } = await import('@/test/i18nTestUtils');
+  const t = createTestI18nT('errors');
+  return { useI18n: () => ({ t: translationMock.t ?? t }) };
+});
+
 const peerModeFlagMock = vi.hoisted(() => ({ active: false }));
 
 vi.mock('@/infrastructure/peer-device/peerModeFlag', () => ({
@@ -81,6 +91,7 @@ describe('SSHRemoteProvider startup restore', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    translationMock.t = undefined;
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -134,6 +145,24 @@ describe('SSHRemoteProvider startup restore', () => {
 
     expect(workspaceManagerMock.consumeStartupLegacyRemoteWorkspaceSnapshot).toHaveBeenCalledTimes(1);
     expect(sshApiMock.getWorkspaceInfo).not.toHaveBeenCalled();
+  });
+
+  it('does not repeat workspace restoration when the language changes', async () => {
+    const workspace = {
+      id: 'workspace-language', name: 'project', rootPath: '/workspace/project',
+      workspaceType: WorkspaceType.SingleProject, workspaceKind: WorkspaceKind.Remote,
+      languages: [], openedAt: new Date().toISOString(), lastAccessed: new Date().toISOString(),
+      tags: [], connectionId: 'connection-language', connectionName: 'Remote', sshHost: 'ssh.example',
+    };
+    workspaceManagerMock.getState.mockReturnValue({
+      loading: false, openedWorkspaces: new Map([[workspace.id, workspace]]), activeWorkspaceId: workspace.id,
+    });
+    sshApiMock.isConnected.mockResolvedValue(true);
+    await renderProvider();
+    expect(sshApiMock.openWorkspace).toHaveBeenCalledTimes(1);
+    translationMock.t = (key) => `translated:${key}`;
+    await renderProvider();
+    expect(sshApiMock.openWorkspace).toHaveBeenCalledTimes(1);
   });
 
   it('falls back to the legacy remote IPC when no startup snapshot is available', async () => {

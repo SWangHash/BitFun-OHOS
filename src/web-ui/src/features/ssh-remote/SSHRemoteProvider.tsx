@@ -2,6 +2,9 @@
  * SSH Remote Feature - React Context Provider
  */
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { useI18n } from '@/infrastructure/i18n';
+import { sshErrorMessage } from '@/shared/ai-errors/connectionErrors';
+import { acpReviewErrorText } from '@/shared/ai-errors/acpReviewErrors';
 import { createLogger } from '@/shared/utils/logger';
 import { workspaceManager } from '@/infrastructure/services/business/workspaceManager';
 import { WorkspaceKind } from '@/shared/types/global-state';
@@ -126,6 +129,9 @@ interface SSHRemoteProviderProps {
 }
 
 export const SSHRemoteProvider: React.FC<SSHRemoteProviderProps> = ({ children }) => {
+  const { t: translateErrors } = useI18n('errors');
+  const translateErrorsRef = useRef(translateErrors);
+  translateErrorsRef.current = translateErrors;
   const [status, setStatus] = useState<ConnectionStatus>('disconnected');
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -218,9 +224,9 @@ export const SSHRemoteProvider: React.FC<SSHRemoteProviderProps> = ({ children }
           .join(', ');
 
         notificationService.error(
-          pathList
+          sshErrorMessage(pathList
             ? `Remote workspace connection timed out after ${RECONNECT_TIMEOUT_SECONDS} seconds. The saved workspace was kept for retry: ${pathList}`
-            : `Remote workspace connection timed out after ${RECONNECT_TIMEOUT_SECONDS} seconds. The saved workspace was kept for retry.`,
+            : `Remote workspace connection timed out after ${RECONNECT_TIMEOUT_SECONDS} seconds. The saved workspace was kept for retry.`, translateErrorsRef.current),
           { duration: 8000 }
         );
       }, REMOTE_WORKSPACE_RECONNECT_TIMEOUT_MS);
@@ -237,7 +243,7 @@ export const SSHRemoteProvider: React.FC<SSHRemoteProviderProps> = ({ children }
     }
     const path = normalizeRemoteWorkspacePath(workspace.remotePath);
     notificationService.error(
-      `Remote workspace could not reconnect within ${RECONNECT_TIMEOUT_SECONDS} seconds. It remains saved for retry: ${path}`,
+      sshErrorMessage(`Remote workspace could not reconnect within ${RECONNECT_TIMEOUT_SECONDS} seconds. It remains saved for retry: ${path}`, translateErrorsRef.current),
       { duration: 8000 }
     );
   }, []);
@@ -251,9 +257,9 @@ export const SSHRemoteProvider: React.FC<SSHRemoteProviderProps> = ({ children }
     }
     const path = normalizeRemoteWorkspacePath(workspace.remotePath);
     notificationService.warning(
-      reason === 'missing-password'
+      sshErrorMessage(reason === 'missing-password'
         ? `Remote workspace was kept. Re-enter its SSH password to reconnect: ${path}`
-        : `Remote workspace was kept, but its saved SSH connection is unavailable: ${path}`,
+        : `Remote workspace was kept, but its saved SSH connection is unavailable: ${path}`, translateErrorsRef.current),
       { duration: 8000 }
     );
   }, []);
@@ -834,7 +840,7 @@ export const SSHRemoteProvider: React.FC<SSHRemoteProviderProps> = ({ children }
       }
       const errorMsg = e instanceof Error ? e.message : 'Connection failed';
       setStatus('error');
-      setConnectionError(errorMsg);
+      setConnectionError(acpReviewErrorText(e) || errorMsg);
       throw new Error(errorMsg);
     } finally {
       setIsConnecting(false);

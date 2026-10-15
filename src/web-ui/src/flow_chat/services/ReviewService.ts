@@ -43,7 +43,7 @@ const log = createLogger('ReviewService');
 
 function reviewTargetError(
   message: string,
-  messageKey = 'deepReviewActionBar.launchError.target',
+  messageKey: string,
 ): Error {
   return Object.assign(new Error(message), {
     launchErrorMessageKey: messageKey,
@@ -250,13 +250,14 @@ async function prepareFromResolvedTarget(params: {
   ) {
     throw reviewTargetError(
       'The provider did not return immutable base and head revisions for this pull request.',
+      'errors:acpReview.reviewPrRevisionsMissing',
     );
   }
   if (
     params.targetEvidence.source === 'pull_request' &&
     params.targetEvidence.files.length === 0
   ) {
-    throw reviewTargetError('The pull request contains no reviewable changed files.');
+    throw reviewTargetError('The pull request contains no reviewable changed files.', 'errors:acpReview.reviewNoChangesPr');
   }
   if (
     params.targetEvidence.source === 'pull_request' &&
@@ -264,6 +265,7 @@ async function prepareFromResolvedTarget(params: {
   ) {
     throw reviewTargetError(
       'The provider did not return an exact diff for any changed file in this pull request.',
+      'errors:acpReview.reviewPrExactDiffMissing',
     );
   }
   if (params.targetEvidence.limitations.includes('review_workspace_mismatch')) {
@@ -484,7 +486,7 @@ export async function prepareReviewLaunchFromPullRequest(params: {
   reviewTarget: ReviewPlatformPullRequestReviewTarget;
 }): Promise<PreparedReviewLaunch> {
   if (params.remote.platform === 'unknown') {
-    throw reviewTargetError('This pull request provider does not support Review.');
+    throw reviewTargetError('This pull request provider does not support Review.', 'errors:acpReview.reviewPrProviderUnsupported');
   }
   const pullRequest = params.reviewTarget.pullRequest;
   const classifiedTarget = classifyReviewTargetFromPathChanges(

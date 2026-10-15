@@ -10,6 +10,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useI18n } from '@/infrastructure/i18n';
+import { remoteConnectErrorMessage } from '@/shared/ai-errors/connectionErrors';
 import { getLocaleFallbackChain, type LocaleId } from '@/infrastructure/i18n/presets';
 import { Modal, Badge, Input, Select, Tooltip } from '@/component-library';
 import { confirmWarning } from '@/component-library/components/ConfirmDialog/confirmService';
@@ -144,6 +145,7 @@ export const RemoteConnectDialog: React.FC<RemoteConnectDialogProps> = ({
   initialGroup,
 }) => {
   const { t, currentLanguage } = useI18n('common');
+  const { t: translateErrors } = useI18n('errors');
   const { error: notifyError } = useNotification();
   const { hasWorkspace } = useCurrentWorkspace();
   const { loggedIn: accountLoggedIn } = useAccountLoginState();
@@ -890,7 +892,7 @@ export const RemoteConnectDialog: React.FC<RemoteConnectDialogProps> = ({
     const isNgrokErr = error.includes('ngrok is not installed');
     return (
       <div data-bf-component="remote-connect-dialog" data-bf-part="error" className="bitfun-remote-connect__error-group">
-        <p className="bitfun-remote-connect__error">{error}</p>
+        <p className="bitfun-remote-connect__error">{remoteConnectErrorMessage(error, translateErrors)}</p>
         {isNgrokErr && (
           <button type="button" className="bitfun-remote-connect__error-action" onClick={handleOpenNgrokSetup}>
             {t('remoteConnect.openNgrokSetup')}

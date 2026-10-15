@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { Button } from '@/component-library';
 import { useI18n } from '@/infrastructure/i18n';
+import { remoteConnectErrorMessage } from '@/shared/ai-errors/connectionErrors';
+import { acpReviewErrorText } from '@/shared/ai-errors/acpReviewErrors';
 import { workspaceAPI } from '@/infrastructure/api';
 import { globalAPI } from '@/infrastructure/api/service-api/GlobalAPI';
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
@@ -75,6 +77,7 @@ export const PeerDirectoryBrowser: React.FC<PeerDirectoryBrowserProps> = ({
   onCancel,
 }) => {
   const { t } = useI18n('common');
+  const { t: translateErrors } = useI18n('errors');
   const [currentPath, setCurrentPath] = useState(initialPath || '/');
   const [pathInputValue, setPathInputValue] = useState(initialPath || '/');
   const [isEditingPath, setIsEditingPath] = useState(false);
@@ -111,7 +114,7 @@ export const PeerDirectoryBrowser: React.FC<PeerDirectoryBrowserProps> = ({
       if (seq !== loadSeqRef.current) {
         return;
       }
-      const message = loadError instanceof Error ? loadError.message : String(loadError);
+      const message = acpReviewErrorText(loadError);
       log.warn('Failed to list peer directory', { path, error: loadError });
       setError(message);
       setEntries([]);
@@ -322,7 +325,7 @@ export const PeerDirectoryBrowser: React.FC<PeerDirectoryBrowserProps> = ({
               data-bf-part="status"
               data-bf-state="error"
             >
-              <span>{error}</span>
+              <span>{remoteConnectErrorMessage(error, translateErrors)}</span>
             </div>
           ) : entries.length === 0 ? (
             <div

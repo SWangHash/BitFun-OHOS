@@ -31,7 +31,7 @@ const patterns = templates.filter(([, value]) => value.includes('{{')).map(([key
 
 // Only prose/cause parameters are translated recursively. Identifiers, paths,
 // commands and provider output parameters retain their original values.
-const proseParameters = new Set(['detail', 'details', 'error', 'message', 'reason', 'issues', 'warnings', 'step', 'itemLabel', 'capability']);
+const proseParameters = new Set(['detail', 'details', 'error', 'message', 'reason', 'issues', 'warnings', 'step', 'itemLabel', 'capability', 'nodeDetail', 'npmDetail']);
 const parameterLabels = new Map(Object.entries(english.acpReviewParameters).map(([key, value]) => [value, key]));
 const labelParameters = new Set(['step', 'phase', 'itemLabel', 'resource', 'repository']);
 
@@ -105,4 +105,13 @@ export function isAcpReviewAuthoredError(error: unknown): boolean {
   let matched = false;
   acpReviewErrorMessage(error, () => { matched = true; return ''; });
   return matched;
+}
+
+/** The stable presentation key for a complete authored message. */
+export function acpReviewErrorKey(error: unknown): string | undefined {
+  let text = acpReviewErrorText(error);
+  const platform = /^review_platform_error:[^:]+:\s*([\s\S]*)$/.exec(text);
+  if (platform) text = platform[1];
+  const key = exact.get(text) ?? patterns.find(pattern => pattern.expression.test(text))?.key;
+  return key ? `errors:acpReview.${key}` : undefined;
 }
