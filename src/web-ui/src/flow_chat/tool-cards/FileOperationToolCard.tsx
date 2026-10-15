@@ -1,3 +1,4 @@
+import { acpReviewErrorMessage } from '@/shared/ai-errors/acpReviewErrors';
 /**
  * File operation tool card - refactored based on BaseToolCard
  * Supports Write/Edit/Delete file operations
@@ -602,7 +603,7 @@ export const FileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
 
   const getErrorMessage = () => {
     if (rawErrorMessage !== undefined) {
-      return rawErrorMessage;
+      return acpReviewErrorMessage(rawErrorMessage, t);
     }
     return t('error.unknown');
   };

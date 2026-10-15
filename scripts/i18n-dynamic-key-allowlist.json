@@ -180,6 +180,22 @@
         "suite.modes.",
         "suite.modeDescriptions."
       ]
+    },
+    {
+      "id": "web-acp-review-error-messages",
+      "surface": "web-ui",
+      "namespace": "errors",
+      "owner": "src/web-ui/src/shared/ai-errors/acpReviewErrors.ts",
+      "description": "Exact BitFun ACP and Review error templates, including parameters and nested causes, select their own locale keys.",
+      "sourceReferences": [
+        "Object.entries(english.acpReview)",
+        "errors:acpReview.${pattern.key}",
+        "Object.entries(english.acpReviewParameters)"
+      ],
+      "keyPrefixes": [
+        "acpReview.",
+        "acpReviewParameters."
+      ]
     }
   ]
 }

@@ -21,6 +21,15 @@ const presentation: AiErrorPresentation = {
 };
 
 describe('buildInterruptionDiagnostics', () => {
+  it('preserves original technical messages when presentation labels are translated', () => {
+    const rawMessage = 'The pull request contains no reviewable changed files.';
+    const diagnostics = buildInterruptionDiagnostics(
+      { rawMessage, providerMessage: rawMessage }, presentation, (key) => `translated:${key}`,
+    );
+    expect(diagnostics).toContain(`provider message: ${rawMessage}`);
+    expect(diagnostics).toContain(`raw message: ${rawMessage}`);
+  });
+
   it('prefers sanitized diagnostics produced by the AI error presenter', () => {
     expect(buildInterruptionDiagnostics(
       { category: 'network', rawMessage: 'raw' },

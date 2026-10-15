@@ -600,7 +600,7 @@ describeWithJsdom('TaskToolDisplay', () => {
     expect(container.textContent).not.toContain('src/auth.ts');
   });
 
-  it('hides internal additional-check failure details', async () => {
+  it('preserves the specific additional-check failure details', async () => {
     const toolItem: FlowToolItem = {
       ...reviewTaskItem('error', 'ReviewWorker'),
       toolName: 'LaunchReviewAgent',
@@ -628,10 +628,7 @@ describeWithJsdom('TaskToolDisplay', () => {
 
     const indicator = container.querySelector('[data-testid="tool-timeout-indicator"]');
     expect(indicator?.getAttribute('data-completed-failure-reason'))
-      .toBe('This check could not be completed. The main review can continue.');
-    expect(indicator?.getAttribute('data-completed-failure-reason')).not.toContain('ReviewWorker');
-    expect(indicator?.getAttribute('data-completed-failure-reason')).not.toContain('src/private.ts');
-    expect(indicator?.getAttribute('data-completed-failure-reason')).not.toContain('max calls');
+      .toBe('ReviewWorker exceeded max calls while reading src/private.ts');
     expect(container.textContent).toContain('Checking a specific concern');
     expect(container.textContent).not.toContain('skill:private');
     expect(container.textContent).not.toContain('src/private.ts');
@@ -663,7 +660,7 @@ describeWithJsdom('TaskToolDisplay', () => {
     expect(container.querySelector('.task-failed-badge')).toBeNull();
   });
 
-  it('shows a safe timeout outcome for a Review check', async () => {
+  it('keeps the timeout outcome and its original cause for a Review check', async () => {
     const toolItem: FlowToolItem = {
       ...reviewTaskItem('error', 'ReviewWorker'),
       toolName: 'LaunchReviewAgent',
@@ -684,7 +681,7 @@ describeWithJsdom('TaskToolDisplay', () => {
     expect(container.textContent).toContain('Timed out');
     expect(container.textContent).not.toContain('provider timeout');
     expect(container.textContent).not.toContain('src/private.ts');
-    expect(container.querySelector('[data-completed-failure-reason="Timed out"]')).toBeTruthy();
+    expect(container.querySelector('[data-completed-failure-reason="provider timeout while reading src/private.ts"]')).toBeTruthy();
     expect(container.querySelector('.task-failed-badge')).toBeNull();
   });
 
@@ -1374,47 +1371,50 @@ describeWithJsdom('TaskToolDisplay', () => {
     });
   });
 
-  it('keeps a Review check running locally when cancellation cannot be confirmed', async () => {
-    mocks.cancelSession.mockResolvedValueOnce({ cancelled: false, dialogTurnId: null });
-    const toolItem: FlowToolItem = {
-      ...reviewTaskItem('running', 'ReviewWorker', 'Check authentication changes'),
-      subagentSessionId: 'review-session-running',
-      toolCall: {
-        id: 'task-call-review-stop-failed',
-        input: {
-          description: 'Check authentication changes',
-          prompt: 'Review the authentication changes',
-          subagent_type: 'ReviewWorker',
-          packet_id: 'reviewer:security:group-1-of-1',
+  it.each([undefined, 'Remote cancellation rejected: connection closed'])(
+    'keeps a Review check running and preserves cancellation diagnostics (%s)', async (error) => {
+      if (error) mocks.cancelSession.mockRejectedValueOnce(error);
+      else mocks.cancelSession.mockResolvedValueOnce({ cancelled: false, dialogTurnId: null });
+      const toolItem: FlowToolItem = {
+        ...reviewTaskItem('running', 'ReviewWorker', 'Check authentication changes'),
+        subagentSessionId: 'review-session-running',
+        toolCall: {
+          id: 'task-call-review-stop-failed',
+          input: {
+            description: 'Check authentication changes',
+            prompt: 'Review the authentication changes',
+            subagent_type: 'ReviewWorker',
+            packet_id: 'reviewer:security:group-1-of-1',
+          },
         },
-      },
-    };
+      };
 
-    await act(async () => {
-      root.render(
-        <TaskToolDisplay toolItem={toolItem} config={config} sessionId="parent-session" />,
+      await act(async () => {
+        root.render(
+          <TaskToolDisplay toolItem={toolItem} config={config} sessionId="parent-session" />,
+        );
+      });
+
+      const stopButton = container.querySelector<HTMLButtonElement>('.task-subagent-stop-button');
+      expect(stopButton).toBeTruthy();
+
+      await act(async () => {
+        stopButton!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+        await Promise.resolve();
+      });
+
+      expect(mocks.notificationError).toHaveBeenCalledWith(
+        error ?? 'toolCards.taskDetailPanel.stopReviewWorkFailed',
+        { duration: 5000 },
       );
-    });
-
-    const stopButton = container.querySelector<HTMLButtonElement>('.task-subagent-stop-button');
-    expect(stopButton).toBeTruthy();
-
-    await act(async () => {
-      stopButton!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
-      await Promise.resolve();
-    });
-
-    expect(mocks.notificationError).toHaveBeenCalledWith(
-      'toolCards.taskDetailPanel.stopReviewWorkFailed',
-      { duration: 5000 },
-    );
-    expect(mocks.loadBtwSessionHistory).toHaveBeenCalledWith({
-      childSessionId: 'review-session-running',
-      workspacePath: 'D:\\workspace\\repo',
-      remoteConnectionId: 'remote-1',
-      remoteSshHost: 'host-1',
-    });
-  });
+      expect(mocks.loadBtwSessionHistory).toHaveBeenCalledWith({
+        childSessionId: 'review-session-running',
+        workspacePath: 'D:\\workspace\\repo',
+        remoteConnectionId: 'remote-1',
+        remoteSshHost: 'host-1',
+      });
+    },
+  );
 
   it('does not report a stop failure when the Review check already completed', async () => {
     mocks.cancelSession.mockResolvedValueOnce({ cancelled: false, dialogTurnId: null });

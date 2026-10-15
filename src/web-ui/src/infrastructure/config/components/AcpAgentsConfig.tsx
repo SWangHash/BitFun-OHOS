@@ -1,3 +1,4 @@
+import { acpReviewErrorMessage } from '@/shared/ai-errors/acpReviewErrors';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -329,9 +330,10 @@ function CapabilityBadge({
   missingText: string;
   checkingText: string;
 }) {
+  const { t } = useTranslation('errors');
   const tone = item ? requirementTone(item) : 'muted';
   const title = item
-    ? [label, item.installed ? installedText : missingText, item.path, item.version, item.error]
+    ? [label, item.installed ? installedText : missingText, item.path, item.version, item.error ? acpReviewErrorMessage(item.error, t) : undefined]
       .filter(Boolean)
       .join('\n')
     : checking ? `${label}\n${checkingText}` : label;
@@ -502,7 +504,7 @@ const AcpAgentsConfig: React.FC = () => {
     } catch (error) {
       log.error('Failed to probe ACP agent requirements', error);
       if (options.notifyOnError ?? true) {
-        notifyError(error instanceof Error ? error.message : String(error), {
+        notifyError(acpReviewErrorMessage(error, t), {
           title: t('notifications.probeFailed'),
         });
       }
@@ -539,7 +541,7 @@ const AcpAgentsConfig: React.FC = () => {
     } catch (error) {
       log.error('Failed to probe remote ACP agent requirements', error);
       if (options.notifyOnError ?? true) {
-        notifyError(error instanceof Error ? error.message : String(error), {
+        notifyError(acpReviewErrorMessage(error, t), {
           title: t('notifications.probeFailed'),
         });
       }
@@ -589,7 +591,7 @@ const AcpAgentsConfig: React.FC = () => {
       }
     } catch (error) {
       log.error('Failed to load ACP agent config', error);
-      notifyError(error instanceof Error ? error.message : String(error), {
+      notifyError(acpReviewErrorMessage(error, t), {
         title: t('notifications.loadFailed'),
       });
     } finally {
@@ -729,7 +731,7 @@ const AcpAgentsConfig: React.FC = () => {
         return;
       }
       log.error('Failed to install ACP agent CLI', error);
-      notifyError(message, {
+      notifyError(acpReviewErrorMessage(error, t), {
         title: t('notifications.installFailed'),
       });
     } finally {
@@ -754,7 +756,7 @@ const AcpAgentsConfig: React.FC = () => {
       notifyInfo(t('notifications.cancelRequested'));
     } catch (error) {
       log.error('Failed to cancel managed ACP installation', error);
-      notifyError(error instanceof Error ? error.message : String(error), {
+      notifyError(acpReviewErrorMessage(error, t), {
         title: t('notifications.cancelError'),
       });
     }
@@ -771,7 +773,7 @@ const AcpAgentsConfig: React.FC = () => {
       notifySuccess(t('notifications.configureSuccess'));
     } catch (error) {
       log.error('Failed to predownload ACP adapter', error);
-      notifyError(error instanceof Error ? error.message : String(error), {
+      notifyError(acpReviewErrorMessage(error, t), {
         title: t('notifications.configureFailed'),
       });
     } finally {
@@ -821,7 +823,7 @@ const AcpAgentsConfig: React.FC = () => {
       return true;
     } catch (error) {
       log.error('Failed to save ACP agent config', error);
-      notifyError(error instanceof Error ? error.message : String(error), {
+      notifyError(acpReviewErrorMessage(error, t), {
         title: t('notifications.saveFailed'),
       });
       return false;
@@ -877,7 +879,7 @@ const AcpAgentsConfig: React.FC = () => {
       );
       setShowJsonEditor(false);
     } catch (error) {
-      notifyError(error instanceof Error ? error.message : String(error), {
+      notifyError(acpReviewErrorMessage(error, t), {
         title: t('notifications.invalidJson'),
       });
     }
@@ -1000,13 +1002,13 @@ const AcpAgentsConfig: React.FC = () => {
       lines.push(`${t('registry.toolVersion')}: ${probe.tool.version}`);
     }
     if (probe?.tool.error) {
-      lines.push(probe.tool.error);
+      lines.push(acpReviewErrorMessage(probe.tool.error, t));
     }
     if (probe?.adapter?.error) {
-      lines.push(probe.adapter.error);
+      lines.push(acpReviewErrorMessage(probe.adapter.error, t));
     }
     if (probe?.notes.length) {
-      lines.push(...probe.notes);
+      lines.push(...probe.notes.map(note => acpReviewErrorMessage(note, t)));
     }
     return lines.filter(Boolean).join('\n');
   }, [t]);
@@ -1024,7 +1026,7 @@ const AcpAgentsConfig: React.FC = () => {
   const openLearnMore = useCallback(() => {
     void systemAPI.openExternal('https://agentclientprotocol.com/get-started/introduction').catch((error) => {
       log.error('Failed to open ACP documentation', error);
-      notifyError(error instanceof Error ? error.message : String(error), {
+      notifyError(acpReviewErrorMessage(error, t), {
         title: t('notifications.openLinkFailed'),
       });
     });

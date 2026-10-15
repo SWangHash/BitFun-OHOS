@@ -16,6 +16,9 @@ import { ACPClientAPI } from '@/infrastructure/api/service-api/ACPClientAPI';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
+const notifications = vi.hoisted(() => ({ error: vi.fn() }));
+vi.mock('@/shared/notification-system', () => ({ notificationService: notifications }));
+
 const aiApiMocks = vi.hoisted(() => ({
   getModelCatalog: vi.fn(),
   onModelCatalogUpdated: vi.fn(),
@@ -222,6 +225,18 @@ describe('ModelSelector ACP mode picker', () => {
     expect(
       container.querySelector('[data-testid="chat-acp-mode-selector-btn"]')?.textContent,
     ).toContain('Minimal');
+  });
+
+  it('preserves a specific failure when the ACP agent rejects a mode change', async () => {
+    await renderWithOptions([MODE_OPTION]);
+    const cause = 'agent-preset: mode cannot change after the first prompt';
+    vi.mocked(ACPClientAPI.setSessionConfigOption).mockRejectedValueOnce(new Error(cause));
+    await act(async () => { container.querySelector<HTMLButtonElement>('[data-testid="chat-acp-mode-selector-btn"]')?.click(); });
+    await act(async () => {
+      document.body.querySelector<HTMLButtonElement>('[data-testid="chat-acp-mode-option"][data-mode-value="minimal"]')?.click();
+      await Promise.resolve();
+    });
+    expect(notifications.error).toHaveBeenCalledWith(cause);
   });
 
   it('disables the picker once the agent leaves one mode', async () => {

@@ -121,4 +121,15 @@ describe('NotificationCenter', () => {
       '[data-testid="notification-item-expand-second"]',
     )?.title).toBe('common:actions.collapse');
   });
+
+  it('keeps raw diagnostic metadata separate from translated notification text', () => {
+    const rawError = 'The pull request contains no reviewable changed files.';
+    vi.mocked(useNotificationHistory).mockReturnValue([{
+      ...makeNotification('raw'), message: 'translated notification',
+      metadata: { diagnostics: 'category=review', rawError },
+    }]);
+    act(() => root.render(<NotificationCenter />));
+    expect(container.querySelector('[data-notification-id="raw"]')
+      ?.getAttribute('data-notification-diagnostics')).toBe(`category=review\nraw_error=${rawError}`);
+  });
 });

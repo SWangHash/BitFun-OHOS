@@ -1,3 +1,4 @@
+import { acpReviewErrorMessage } from '@/shared/ai-errors/acpReviewErrors';
 /**
  * Default tool card component
  * Used for tool types without specific customization
@@ -110,7 +111,7 @@ export const DefaultToolCard: React.FC<ToolCardProps> = ({
   const filteredInput = useMemo(() => sanitizeToolInput(toolCall?.input), [toolCall?.input]);
   const hasInput = useMemo(() => hasVisibleValue(filteredInput), [filteredInput]);
   const hasResult = toolResult !== undefined && toolResult !== null && config.resultDisplayType !== 'hidden';
-  const errorMessage = toolResult?.success === false ? toolResult.error || t('toolCards.default.failed') : null;
+  const errorMessage = toolResult?.success === false ? acpReviewErrorMessage(toolResult.error, t) || t('toolCards.default.failed') : null;
   const hasError = Boolean(errorMessage);
   const needsConfirmation = requiresConfirmation && !userConfirmed &&
     status !== 'completed' &&

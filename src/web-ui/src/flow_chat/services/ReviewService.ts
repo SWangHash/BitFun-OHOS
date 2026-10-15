@@ -548,6 +548,7 @@ export async function launchPreparedReviewSession(params: {
 }): Promise<{
   childSessionId: string;
   launchStatus: 'started' | 'uncertain';
+  launchError?: unknown;
 }> {
   const childSessionName = params.childSessionName ?? 'Review';
   if (params.prepared.mode !== 'standard') {
@@ -639,7 +640,7 @@ export async function launchPreparedReviewSession(params: {
       requestId,
       error,
     });
-    return { childSessionId: created.childSessionId, launchStatus: 'uncertain' };
+    return { childSessionId: created.childSessionId, launchStatus: 'uncertain', launchError: error };
   }
   insertReviewSessionSummaryMarker({
     parentSessionId: params.parentSessionId,

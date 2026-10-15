@@ -633,6 +633,7 @@ export class FlowChatManager {
     }));
 
     let succeeded = false;
+    let failure: unknown;
     try {
       const response = await ACPClientAPI.createFlowSession({
         clientId,
@@ -660,9 +661,12 @@ export class FlowChatManager {
 
       succeeded = true;
       return response.sessionId;
+    } catch (error) {
+      failure = error;
+      throw error;
     } finally {
       window.dispatchEvent(new CustomEvent('bitfun:acp-session-creation', {
-        detail: { phase: 'finish', clientId, action: 'create', succeeded },
+        detail: { phase: 'finish', clientId, action: 'create', succeeded, error: failure },
       }));
     }
   }

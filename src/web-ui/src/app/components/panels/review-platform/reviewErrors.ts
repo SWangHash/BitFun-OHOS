@@ -1,42 +1,11 @@
-import { isGitUnavailableError, isGitRepositoryUntrustedError, reviewPlatformErrorCode } from '@/infrastructure/api/errors/TauriCommandError';
+import { acpReviewErrorMessage, acpReviewErrorText } from '@/shared/ai-errors/acpReviewErrors';
 import type { ReviewPlatformAuthChallenge } from '@/infrastructure/api';
 
 type ReviewTranslate = (key: string, options?: Record<string, unknown>) => string;
 
-export type ReviewErrorFallback = 'loadFailed' | 'detailsFailed' | 'ciLogFailed' | 'reviewFailed' | 'saveTokenFailed' | 'clearTokenFailed' | 'openAuthFailed' | 'copyAuthFailed';
 
-export function reviewPlatformErrorMessage(error: unknown, t: ReviewTranslate, fallback: ReviewErrorFallback = 'loadFailed'): string {
-  if (isGitUnavailableError(error)) return t('common:reviewPlatform.errors.gitUnavailable');
-  if (isGitRepositoryUntrustedError(error)) return t('common:reviewPlatform.errors.repositoryUntrusted');
-  switch (reviewPlatformErrorCode(error)) {
-    case 'invalidRepository': return t('common:reviewPlatform.errors.invalidRepository');
-    case 'repositoryUntrusted': return t('common:reviewPlatform.errors.repositoryUntrusted');
-    case 'remoteNotFound': return t('common:reviewPlatform.errors.remoteNotFound');
-    case 'unsupportedPlatform': return t('common:reviewPlatform.errors.unsupportedPlatform');
-    case 'providerFailed': return t('common:reviewPlatform.errors.providerFailed');
-    case 'authenticationRequired': return t('common:reviewPlatform.errors.authenticationRequired');
-    case 'permissionDenied': return t('common:reviewPlatform.errors.permissionDenied');
-    case 'notFound': return t('common:reviewPlatform.errors.notFound');
-    case 'networkFailed': return t('common:reviewPlatform.errors.networkFailed');
-    case 'invalidResponse': return t('common:reviewPlatform.errors.invalidResponse');
-    case 'staleTarget': return t('common:reviewPlatform.errors.staleTarget');
-    case 'evidenceTooLarge': return t('common:reviewPlatform.errors.evidenceTooLarge');
-    case 'targetIsPullRequest': return t('common:reviewPlatform.errors.targetIsPullRequest');
-  }
-  const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
-  const localized = localizedErrorText(message, t);
-  if (localized !== undefined) return localized;
-  // Unknown technical failures stay in the diagnostic log, not in the UI.
-  switch (fallback) {
-    case 'loadFailed': return t('common:reviewPlatform.errors.loadFailed');
-    case 'detailsFailed': return t('common:reviewPlatform.messages.detailsFailed');
-    case 'ciLogFailed': return t('common:reviewPlatform.messages.ciLogFailed');
-    case 'reviewFailed': return t('common:reviewPlatform.messages.reviewFailed');
-    case 'saveTokenFailed': return t('common:reviewPlatform.messages.saveTokenFailed');
-    case 'clearTokenFailed': return t('common:reviewPlatform.messages.clearTokenFailed');
-    case 'openAuthFailed': return t('common:reviewPlatform.messages.openAuthFailed');
-    case 'copyAuthFailed': return t('common:reviewPlatform.messages.copyAuthFailed');
-  }
+export function reviewPlatformErrorMessage(error: unknown, t: ReviewTranslate): string {
+  return localizedErrorText(acpReviewErrorText(error), t) ?? acpReviewErrorMessage(error, t);
 }
 
 function localizedErrorText(message: string, t: ReviewTranslate): string | undefined {
@@ -59,17 +28,9 @@ function localizedErrorText(message: string, t: ReviewTranslate): string | undef
 }
 
 export function reviewErrorText(message: string | null | undefined, t: ReviewTranslate): string {
-  return message ? localizedErrorText(message, t) ?? message : "";
+  return message ? localizedErrorText(message, t) ?? acpReviewErrorMessage(message, t) : "";
 }
 
 export function reviewAuthErrorMessage(challenge: ReviewPlatformAuthChallenge, t: ReviewTranslate): string {
-  if (challenge.platform === 'github') {
-    return t('common:reviewPlatform.auth.github', { command: 'gh auth login --hostname ' + challenge.host });
-  }
-  const options = { host: challenge.host };
-  switch (challenge.state) {
-    case 'missing': return t('common:reviewPlatform.auth.missing', options);
-    case 'insufficient_scope': return t('common:reviewPlatform.auth.insufficientScope', options);
-    default: return t('common:reviewPlatform.auth.invalid', options);
-  }
+  return acpReviewErrorMessage(challenge.message, t);
 }

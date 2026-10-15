@@ -1,96 +1,57 @@
 import { createInstance } from 'i18next';
 import { describe, expect, it } from 'vitest';
-import { createTauriCommandError } from '@/infrastructure/api/errors/TauriCommandError';
-import en from '@/locales/en-US/common.json';
-import zh from '@/locales/zh-CN/common.json';
-import tw from '@/locales/zh-TW/common.json';
-import { reviewPlatformErrorMessage } from './reviewErrors';
-import { reviewErrorText, reviewAuthErrorMessage } from './reviewErrors';
+import en from '@/locales/en-US/errors.json';
+import cn from '@/locales/zh-CN/errors.json';
+import common from '@/locales/zh-CN/common.json';
+import tw from '@/locales/zh-TW/errors.json';
+import { reviewPlatformErrorMessage, reviewAuthErrorMessage } from './reviewErrors';
 
-describe('Pull Requests missing Git message', () => {
-  it('uses the selected locale and updates an existing error after language changes', async () => {
+describe('Review-platform specific failures', () => {
+  it('keeps empty PR, missing revisions and missing diff failures distinct when switching languages', async () => {
     const i18n = createInstance();
-    await i18n.init({
-      lng: 'zh-CN',
-      fallbackLng: 'en-US',
-      resources: {
-        'zh-CN': { common: zh },
-        'en-US': { common: en },
-        'zh-TW': { common: tw },
-      },
-    });
-    const error = createTauriCommandError(
-      'review_platform_get_workspace_snapshot',
-      'git_unavailable: Git is unavailable.',
-    );
-    const translate = (key: string) => i18n.t(key);
-
-    expect(reviewPlatformErrorMessage(error, translate)).toBe(
-      'Git 不可用。请在运行此工作区的环境中安装 Git 并将其加入 PATH，然后重试。',
-    );
-    await i18n.changeLanguage('en-US');
-    expect(reviewPlatformErrorMessage(error, translate)).toBe(en.reviewPlatform.errors.gitUnavailable);
-    await i18n.changeLanguage('zh-TW');
-    expect(reviewPlatformErrorMessage(error, translate)).toBe(tw.reviewPlatform.errors.gitUnavailable);
-  });
-
-  it('retains the stable error through Peer and JSON-RPC wrappers used by workspace loading', () => {
-    const code = 'git_unavailable: Git is unavailable.';
-    const translate = () => zh.reviewPlatform.errors.gitUnavailable;
-    for (const originalError of [
-      { message: 'Host command failed', details: { originalError: code } },
-      Object.assign(new Error('Invalid params'), { code: -32602, data: code }),
-    ]) {
-      const error = createTauriCommandError('review_platform_get_workspace_context', originalError);
-      expect(reviewPlatformErrorMessage(error, translate)).toBe(zh.reviewPlatform.errors.gitUnavailable);
+    const resources = { 'en-US': { errors: en }, 'zh-CN': { errors: cn, common }, 'zh-TW': { errors: tw } };
+    await i18n.init({ lng: 'en-US', resources });
+    const messages = [
+      'The pull request contains no reviewable changed files.',
+      'The provider did not return immutable base and head revisions for this pull request.',
+      'The provider did not return an exact diff for any changed file in this pull request.',
+    ];
+    for (const locale of Object.keys(resources)) {
+      await i18n.changeLanguage(locale);
+      const translated = messages.map(message => reviewPlatformErrorMessage(new Error(message), i18n.t.bind(i18n)));
+      expect(new Set(translated).size).toBe(3);
+      if (locale === 'en-US') expect(translated).toEqual(messages);
+      else for (const message of translated) expect(message).toMatch(/[\u3400-\u9fff]/);
     }
   });
 
-  it('keeps other failures distinct from missing Git and localizes the unknown-error fallback', () => {
-    const translate = () => zh.reviewPlatform.errors.loadFailed;
-    for (const message of [
-      'Invalid repository path: No such file or directory',
-      'Failed to execute git command: Permission denied',
-    ]) {
-      expect(reviewPlatformErrorMessage(new Error(message), translate)).toBe(zh.reviewPlatform.errors.loadFailed);
-    }
-    expect(reviewPlatformErrorMessage({}, translate)).toBe(zh.reviewPlatform.errors.loadFailed);
-  });
-});
-
-describe('Review-platform user-visible failures', () => {
-  it('localizes each backend failure code through wrapped transports', async () => {
+  it('uses concrete backend details even when two errors have the same stable code', async () => {
     const i18n = createInstance();
-    await i18n.init({ lng: 'zh-CN', resources: { 'zh-CN': { common: zh } } });
-    const t = (key: string) => i18n.t(key);
-    for (const [code, translated] of Object.entries(zh.reviewPlatform.errors)) {
-      if (['gitUnavailable', 'repositoryUntrusted', 'loadFailed'].includes(code)) continue;
-      const error = createTauriCommandError('review_platform_get_pull_request_detail_page', {
-        message: 'Host command failed',
-        details: { originalError: 'review_platform_error:' + code + ': internal English diagnostic' },
-      });
-      expect(reviewPlatformErrorMessage(error, t)).toBe(translated);
-    }
-    expect(reviewPlatformErrorMessage(new Error('secret internal diagnostic'), t, 'saveTokenFailed'))
-      .toBe(zh.reviewPlatform.messages.saveTokenFailed);
+    await i18n.init({ lng: 'zh-CN', resources: { 'zh-CN': { errors: cn, common } } });
+    const t = i18n.t.bind(i18n);
+    expect(reviewPlatformErrorMessage('review_platform_error:remoteNotFound: provider remote was not found', t))
+      .toBe(t('errors:acpReview.legacyPlatformRemote'));
+    expect(reviewPlatformErrorMessage('review_platform_error:networkFailed: provider network request failed', t))
+      .toBe(t('errors:acpReview.legacyPlatformNetwork'));
+    expect(reviewPlatformErrorMessage('review_platform_error:remoteNotFound: Remote not found: origin', t))
+      .toBe('未找到远程仓库：origin');
+    expect(reviewPlatformErrorMessage('review_platform_error:remoteNotFound: Remote not found: upstream', t))
+      .toBe('未找到远程仓库：upstream');
+    expect(reviewPlatformErrorMessage('Token is required.', t)).toBe(common.reviewPlatform.messages.tokenRequired);
+    expect(reviewPlatformErrorMessage('This link is not a supported pull request URL.', t)).toBe(common.reviewPlatform.messages.unsupportedLink);
+    expect(reviewPlatformErrorMessage('git_unavailable: Git is unavailable.', t)).toBe('Git 不可用。');
+    expect(reviewPlatformErrorMessage('spawn git EACCES', t)).toBe('spawn git EACCES');
   });
 
-  it('keeps validation messages specific in English and translates only failure messages while preserving ordinary status text', async () => {
+  it('translates the auth challenge itself without replacing its cause by a platform summary', async () => {
     const i18n = createInstance();
-    await i18n.init({ lng: 'en-US', resources: { 'en-US': { common: en }, 'zh-CN': { common: zh } } });
-    const t = (key: string, options?: Record<string, unknown>) => i18n.t(key, options);
-    expect(reviewPlatformErrorMessage('Token is required.', t, 'saveTokenFailed')).toBe('Token is required.');
-    await i18n.changeLanguage('zh-CN');
-    for (const key of ['headUnavailable', 'noActionsJob', 'reviewResultUnavailable'] as const) {
-      expect(reviewErrorText(en.reviewPlatform.messages[key], t)).toBe(zh.reviewPlatform.messages[key]);
-    }
-    const challenge = { platform: 'gitlab', host: 'git.example', state: 'insufficient_scope' } as const;
-    expect(reviewAuthErrorMessage({ ...challenge, remoteId: 'origin', projectPath: 'example/repo', message: 'English backend text', requiredScopes: [] }, t))
-      .toBe(zh.reviewPlatform.auth.insufficientScope.replace('{{host}}', 'git.example'));
-    expect(reviewErrorText('Provider-authored job description', t)).toBe('Provider-authored job description');
-    expect(reviewErrorText('Review complete · 2 findings · high · limited coverage', t))
-      .toBe('Review complete · 2 findings · high · limited coverage');
-    expect(reviewErrorText('Review complete · 0 findings · limited coverage', t))
-      .toBe('Review complete · 0 findings · limited coverage');
+    await i18n.init({ lng: 'zh-CN', resources: { 'zh-CN': { errors: cn, common } } });
+    const challenge = { platform: 'gitlab', host: 'git.example', state: 'invalid', remoteId: 'origin', projectPath: 'example/repo' } as const;
+    const message = 'Update GitLab token for git.example: the saved or environment token was rejected.';
+    const translated = reviewAuthErrorMessage({ ...challenge, requiredScopes: [], message }, i18n.t.bind(i18n));
+    expect(translated).toContain('GitLab');
+    expect(translated).toContain('git.example');
+    expect(translated).toMatch(/[\u3400-\u9fff]/);
+    expect(translated).not.toBe(message);
   });
 });
