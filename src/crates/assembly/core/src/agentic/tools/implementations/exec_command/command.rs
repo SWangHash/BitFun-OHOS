@@ -235,7 +235,13 @@ impl ExecCommandTool {
     }
 
     fn command_env() -> HashMap<String, String> {
-        exec_command_noninteractive_env()
+        let mut env = exec_command_noninteractive_env();
+        // `ExecCommand` is the shell surface the Qt migration instructions name, so
+        // it must carry the same shared Qt migration roots as the PTY bash tool:
+        // the acquisition scripts install where the intake scan looks only when both
+        // surfaces resolve one root (`path_manager::qt_migration_script_env`).
+        env.extend(crate::infrastructure::get_path_manager_arc().qt_migration_script_env());
+        env
     }
 
     fn requested_workdir(input: &Value, context: &ToolUseContext) -> BitFunResult<String> {

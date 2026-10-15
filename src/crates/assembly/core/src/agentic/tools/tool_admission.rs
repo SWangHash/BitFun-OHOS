@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use bitfun_qt_migration::admission::{
     QtMigrationAdmissionPolicy, QT_MIGRATION_SLOT_ACTIVE, QT_MIGRATION_SLOT_INTAKE_STATE,
-    QT_MIGRATION_SLOT_TEMPLATES_DIR, QT_MIGRATION_SLOT_TOOLCHAINS_DIR,
+    QT_MIGRATION_SLOT_SKILL_DIR, QT_MIGRATION_SLOT_TEMPLATES_DIR, QT_MIGRATION_SLOT_TOOLCHAINS_DIR,
 };
 use bitfun_qt_migration::instructions::QtMigrationTurnInstructions;
 use bitfun_qt_migration::question_card::QtMigrationQuestionCard;
@@ -102,6 +102,17 @@ impl DomainStateReader for SessionDomainStateStore {
             return Some(Value::String(
                 crate::infrastructure::get_path_manager_arc()
                     .qt_migration_templates_dir()
+                    .to_string_lossy()
+                    .into_owned(),
+            ));
+        }
+        if slot == &QT_MIGRATION_SLOT_SKILL_DIR {
+            // The installed managed skill bundle: it owns the BitFun acquisition
+            // scripts the `__official__` guidance hands to the model.
+            return Some(Value::String(
+                crate::infrastructure::get_path_manager_arc()
+                    .builtin_skills_dir()
+                    .join(bitfun_qt_migration::state::QT_MIGRATION_SKILL_DIR)
                     .to_string_lossy()
                     .into_owned(),
             ));

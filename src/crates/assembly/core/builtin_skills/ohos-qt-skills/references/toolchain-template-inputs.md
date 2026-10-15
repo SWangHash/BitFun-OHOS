@@ -43,23 +43,44 @@ not bundled in this repository:
 
 | Input | State in this skill | Acquisition/verification route |
 |---|---|---|
-| Qt OHOS SDK binaries | external-required | `skills/kb-init/scripts/download-qt-sdk.sh` or compile with `compile-qt-sdk.sh`; record exact path/version in `migration/ohos/environment.tsv` |
+| Qt OHOS SDK binaries | external-required | `<skill>/scripts/bitfun-download-qt-sdk.sh` (BitFun backstop; the runtime provisioner owns the normal install) or compile with `compile-qt-sdk.sh`; record exact path/version in `migration/ohos/environment.tsv` |
 | Qt source tree | external-required | `clone-qt-src.sh`; its `qtbase/src/harmonyos/templates` directory is also a template source |
 | OHOS SDK native (clang, sysroot, CMake toolchain) | external-required | DevEco/Command Line Tools installation; verify with `verify-env.sh` and record API/ABI/tool versions |
 | DevEco Studio / `devecocli` / HDC / Hvigor / CMake / Ninja / JDK / Node | external-required | platform-specific `deveco-install.md` and dependency scripts; record executable paths and versions |
-| Qt HarmonyOS glue template project | not-present-in-skill | copy the complete directory from `<QT_SRC>/qtbase/src/harmonyos/templates`, or run `download-template.sh` for `templates-0625.zip`; inspect expected files before use |
+| Qt HarmonyOS glue template project | not-present-in-skill | copy the complete directory from `<QT_SRC>/qtbase/src/harmonyos/templates`, or run `<skill>/scripts/bitfun-download-template.sh` for `templates-0625.zip`; inspect expected files before use |
 
 Do not mark a template or toolchain row `verified` merely because a path is
 configured. Require the executable/version or complete template-tree checks
 and attach the command output digest to the environment or pilot evidence.
+
+## BitFun acquisition entry points
+
+BitFun does not read the working directory for these two inputs: it scans the
+shared Qt migration root and reports what it finds as the intake candidates
+(`toolchains/` and `templates/`). Resource acquisition therefore goes through the
+skill's own BitFun scripts, which resolve that root themselves
+(`BITFUN_QT_MIGRATION_ROOT`, then `--platform`, then host detection) and verify
+the result with the same predicates the scan uses:
+
+| Resource | Entry point | Installed into |
+|---|---|---|
+| Template tree | `<skill>/scripts/bitfun-download-template.sh [--platform=<...>]` | `<qt_migration_root>/templates/qt5.12.12/templates-0625`; prints `OHOS_TEMPLATE_SRC` |
+| Qt OHOS SDK (backstop) | `<skill>/scripts/bitfun-download-qt-sdk.sh --platform=<...>` | `<qt_migration_root>/toolchains/qt5.12.12/<platform>-arm64-gles`; prints `QT5_12_OHOS_SDK` |
+
+Use the printed path as `OHOS_TEMPLATE_SRC` / the toolchain path; do not add
+`--dest`, and do not substitute the vendored upstream copies under
+`upstream-kb/knowledge/skills/kb-init/scripts/`: those are baseline references
+that require an explicit `--dest` and install outside the scanned root, so the
+intake would not see the result.
+
 
 ## Template handling contract
 
 There are two distinct operations:
 
 1. **Acquire the template** from the Qt source tree or the standalone archive.
-   The upstream `download-template.sh` is the canonical fallback when no Qt
-   source checkout exists.
+   `<skill>/scripts/bitfun-download-template.sh` is the canonical fallback when no
+   Qt source checkout exists.
 2. **Materialize it into the application** as a whole directory. Preserve
    `AppScope/`, `entry/`, `qEmbeddedUiExtensionHost/`, `build-profile.json5`,
    `hvigorfile.ts`, `oh-package.json5`, and all nested resources. Then record

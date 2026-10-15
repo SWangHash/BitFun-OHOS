@@ -196,21 +196,9 @@ impl BashTool {
     /// (pagers, editors, prompts) so agent-driven commands never block.
     pub fn noninteractive_env() -> std::collections::HashMap<String, String> {
         let mut env = bash_noninteractive_env();
-        let path_manager = crate::infrastructure::get_path_manager_arc();
-        env.insert(
-            "BITFUN_QT_MIGRATION_ROOT".to_string(),
-            path_manager
-                .qt_migration_root_dir()
-                .to_string_lossy()
-                .into_owned(),
-        );
-        env.insert(
-            "BITFUN_QT_MIGRATION_DOWNLOADS".to_string(),
-            path_manager
-                .qt_migration_downloads_dir()
-                .to_string_lossy()
-                .into_owned(),
-        );
+        // Shared Qt migration roots, so a script this shell runs installs where the
+        // intake scan looks (`path_manager::qt_migration_script_env`).
+        env.extend(crate::infrastructure::get_path_manager_arc().qt_migration_script_env());
         env
     }
 

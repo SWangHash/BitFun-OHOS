@@ -488,6 +488,24 @@ mod tests {
     }
 
     #[test]
+    fn qt_migration_bundle_keeps_the_bitfun_acquisition_scripts() {
+        // The Qt migration `__official__` guidance hands the model these absolute
+        // paths, and the migration scan reads the shared root they install into. A
+        // bundle refresh that drops them leaves only the vendored upstream copies,
+        // which require an explicit --dest outside the scanned root.
+        for path in [
+            "ohos-qt-skills/scripts/bitfun-resource-root.sh",
+            "ohos-qt-skills/scripts/bitfun-download-template.sh",
+            "ohos-qt-skills/scripts/bitfun-download-qt-sdk.sh",
+        ] {
+            assert!(
+                BUILTIN_SKILLS_DIR.get_file(path).is_some(),
+                "the built-in Qt migration skill is missing {path}"
+            );
+        }
+    }
+
+    #[test]
     fn canvas_skills_keep_internal_artifact_references_out_of_chat() {
         for path in [
             "bitfun-canvas/SKILL.md",

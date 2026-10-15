@@ -43,6 +43,16 @@ pub const QT_MIGRATION_SLOT_TEMPLATES_DIR: DomainStateSlot = DomainStateSlot {
     namespace: QT_MIGRATION_STATE_NAMESPACE,
     key: "templates_dir",
 };
+/// Host directory of the managed built-in Qt migration skill (JSON string). The
+/// BitFun acquisition scripts that own the resource-root policy live in that
+/// skill's own `scripts/`, so the `__official__` guidance must name them by an
+/// absolute path: the vendored upstream copies under
+/// `upstream-kb/knowledge/skills/kb-init/scripts/` need an explicit `--dest` and
+/// install outside the scanned root.
+pub const QT_MIGRATION_SLOT_SKILL_DIR: DomainStateSlot = DomainStateSlot {
+    namespace: QT_MIGRATION_STATE_NAMESPACE,
+    key: "skill_dir",
+};
 
 /// Tools always allowed while the migration intake is incomplete: they are
 /// required to finish input collection or load the migration skill, and carry

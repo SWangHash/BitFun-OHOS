@@ -277,6 +277,27 @@ impl PathManager {
         self.cache_root().join("qt-migration").join("downloads")
     }
 
+    /// Environment every shell surface must carry so the Qt migration acquisition
+    /// scripts resolve the same shared root the intake scan reads
+    /// (`BITFUN_QT_MIGRATION_ROOT`) and keep their transfers out of it
+    /// (`BITFUN_QT_MIGRATION_DOWNLOADS`).
+    ///
+    /// Both variables are derived here, next to the roots they name, so the PTY
+    /// bash tool, `ExecCommand`, and a manual script run cannot end up resolving
+    /// different roots (a template installed elsewhere is invisible to the intake).
+    pub fn qt_migration_script_env(&self) -> HashMap<String, String> {
+        HashMap::from([
+            (
+                "BITFUN_QT_MIGRATION_ROOT".to_string(),
+                self.qt_migration_root_dir().to_string_lossy().into_owned(),
+            ),
+            (
+                "BITFUN_QT_MIGRATION_DOWNLOADS".to_string(),
+                self.qt_migration_downloads_dir().to_string_lossy().into_owned(),
+            ),
+        ])
+    }
+
     /// Get cache root directory: ~/.config/bitfun/cache/
     pub fn cache_root(&self) -> PathBuf {
         self.user_root.join("cache")

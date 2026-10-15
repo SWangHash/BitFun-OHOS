@@ -132,6 +132,15 @@ scripts from the external Qt/DevEco/OHOS binaries and the real template tree.
 The latter must be acquired and verified as a whole directory before the pilot;
 this skill must never invent a partial template.
 
+Acquiring those two shared inputs goes through this skill's own BitFun scripts:
+`<skill>/scripts/bitfun-download-template.sh` and
+`<skill>/scripts/bitfun-download-qt-sdk.sh`. They resolve the shared Qt migration
+root BitFun scans (template into `templates/`, kit into `toolchains/`) and verify
+the result with the scan's own predicates, so use the path they print
+(`OHOS_TEMPLATE_SRC`, `QT5_12_OHOS_SDK`). The vendored `download-*.sh` copies under
+`upstream-kb/knowledge/skills/kb-init/scripts/` are baseline references: they demand
+an explicit `--dest` and would install where the intake cannot see the result.
+
 Read only skill-baseline pages during the migration. External links and source
 paths embedded in those pages are provenance, not permission to fetch missing
 knowledge. If a required page is absent from the baseline, block the row and

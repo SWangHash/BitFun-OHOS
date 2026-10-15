@@ -14,7 +14,7 @@ use bitfun_runtime_ports::{
 use serde_json::Value;
 
 use super::admission::{
-    QT_MIGRATION_SLOT_INTAKE_STATE, QT_MIGRATION_SLOT_TEMPLATES_DIR,
+    QT_MIGRATION_SLOT_INTAKE_STATE, QT_MIGRATION_SLOT_SKILL_DIR, QT_MIGRATION_SLOT_TEMPLATES_DIR,
     QT_MIGRATION_SLOT_TOOLCHAINS_DIR,
 };
 use crate::state::{QtMigrationIntakeStateSnapshot, QT_MIGRATION_OFFICIAL_VALUE};
@@ -103,18 +103,22 @@ pub fn activation_message(is_migration: bool) -> String {
 /// field carries the installed kit path
 /// (`qt_toolchain_provisioning::resolve_bound_toolchain_field`) and there is nothing
 /// left to explain. The state that still needs it is a runtime that could not install
-/// the kit, where the knowledge-base script stays the documented backstop.
-pub fn official_toolchain_guidance(toolchains_dir: &str, platform: &str) -> String {
+/// the kit, where the BitFun acquisition script stays the documented backstop.
+pub fn official_toolchain_guidance(
+    toolchains_dir: &str,
+    skill_dir: &str,
+    platform: &str,
+) -> String {
     format!(
-        "- 工具链绑定值仍是 __official__，说明运行时还没有把工具链装好。工具链由运行时负责安装到 `{toolchains_dir}`（Qt 5.12.12，平台 `{platform}`），**不要**运行任何工具链下载脚本，也不要再做存在性探索或检查。备份路径：若运行时供给失败（绑定仍为 __official__ 且 `{toolchains_dir}` 下没有任何可用工具链），才回退到知识库脚本 `bash skills/kb-init/scripts/download-qt-sdk.sh --platform={platform}`（经 Bash 工具注入的 BITFUN_QT_MIGRATION_ROOT 默认安装到同一目录，不要用 --dest 改到其他位置），安装完成后使用脚本输出的 QT5_12_OHOS_SDK。\n"
+        "- 工具链绑定值仍是 __official__，说明运行时还没有把工具链装好。工具链由运行时负责安装到 `{toolchains_dir}`（Qt 5.12.12，平台 `{platform}`），**不要**运行任何工具链下载脚本，也不要再做存在性探索或检查。备份路径：若运行时供给失败（绑定仍为 __official__ 且 `{toolchains_dir}` 下没有任何可用工具链），才回退到 BitFun 供给脚本 `bash \"{skill_dir}/scripts/bitfun-download-qt-sdk.sh\" --platform={platform}`（Bash 工具已注入 BITFUN_QT_MIGRATION_ROOT，脚本据此安装到 `{toolchains_dir}` 下，不要用 --dest 改到其他位置，也不要改用技能基线里 vendored 的上游 download-qt-sdk.sh），安装完成后使用脚本输出的 QT5_12_OHOS_SDK。\n"
     )
 }
 
 /// Guidance for an `__official__` **template** binding: there is no template
-/// provisioner, so the knowledge-base script stays the install flow.
-pub fn official_template_guidance(templates_dir: &str, platform: &str) -> String {
+/// provisioner, so the BitFun acquisition script stays the install flow.
+pub fn official_template_guidance(templates_dir: &str, skill_dir: &str, platform: &str) -> String {
     format!(
-        "- 模板：运行时尚未提供模板供给，仍需按 ohos-qt-skills 流程安装：`bash skills/kb-init/scripts/download-template.sh --platform={platform}`，安装目标目录 `{templates_dir}`，安装完成后使用脚本输出的 OHOS_TEMPLATE_SRC。\n"
+        "- 模板：运行时尚未提供模板供给，仍需按 BitFun 供给脚本安装：`bash \"{skill_dir}/scripts/bitfun-download-template.sh\" --platform={platform}`，安装目标目录 `{templates_dir}`（脚本按 BITFUN_QT_MIGRATION_ROOT 落盘，不要用 --dest 改到其他位置，也不要改用技能基线里 vendored 的上游 download-template.sh：它要求显式 --dest，会装到迁移扫描不到的目录），安装完成后使用脚本输出的 OHOS_TEMPLATE_SRC，该路径也必须是后续迁移使用的模板源（OHOS_TEMPLATE_SRC）。\n"
     )
 }
 
@@ -129,6 +133,7 @@ pub fn official_template_guidance(templates_dir: &str, platform: &str) -> String
 pub fn official_input_guidance(
     toolchains_dir: &str,
     templates_dir: &str,
+    skill_dir: &str,
     platform: &str,
     toolchain_official: bool,
     template_official: bool,
@@ -140,10 +145,18 @@ pub fn official_input_guidance(
         "### __official__ 绑定的执行方式\n\n绑定值为 __official__ 时表示使用鸿蒙OS官方推荐版本。绑定值即最终输入事实：不要因为本机还存在其它候选就改用它们，也不要在四项输入之外重新探测路径。\n",
     );
     if toolchain_official {
-        text.push_str(&official_toolchain_guidance(toolchains_dir, platform));
+        text.push_str(&official_toolchain_guidance(
+            toolchains_dir,
+            skill_dir,
+            platform,
+        ));
     }
     if template_official {
-        text.push_str(&official_template_guidance(templates_dir, platform));
+        text.push_str(&official_template_guidance(
+            templates_dir,
+            skill_dir,
+            platform,
+        ));
     }
     Some(text)
 }
@@ -153,6 +166,7 @@ pub fn official_input_guidance(
 pub fn skill_gate_instruction(
     toolchains_dir: &str,
     templates_dir: &str,
+    skill_dir: &str,
     platform: &str,
     toolchain_official: bool,
     template_official: bool,
@@ -160,6 +174,7 @@ pub fn skill_gate_instruction(
     match official_input_guidance(
         toolchains_dir,
         templates_dir,
+        skill_dir,
         platform,
         toolchain_official,
         template_official,
@@ -175,6 +190,7 @@ pub fn bound_inputs_instruction(
     snapshot: &QtMigrationIntakeStateSnapshot,
     toolchains_dir: &str,
     templates_dir: &str,
+    skill_dir: &str,
     platform: &str,
 ) -> Option<String> {
     use crate::state::{QtMigrationFieldResolutionState, QtMigrationVersionStrategy};
@@ -208,6 +224,7 @@ pub fn bound_inputs_instruction(
     if let Some(guidance) = official_input_guidance(
         toolchains_dir,
         templates_dir,
+        skill_dir,
         platform,
         toolchain_official,
         template_official,
@@ -309,6 +326,14 @@ impl QtMigrationTurnInstructions {
             .unwrap_or(false);
         let toolchains_dir = Self::slot_string(context, &QT_MIGRATION_SLOT_TOOLCHAINS_DIR);
         let templates_dir = Self::slot_string(context, &QT_MIGRATION_SLOT_TEMPLATES_DIR);
+        // The managed skill bundle owns the BitFun acquisition scripts, so the
+        // `__official__` guidance names them absolutely. A host that does not
+        // resolve the slot keeps the skill-relative placeholder the bundle's own
+        // documents use.
+        let skill_dir: String = match Self::slot_string(context, &QT_MIGRATION_SLOT_SKILL_DIR) {
+            dir if dir.trim().is_empty() => "<skill>".to_string(),
+            dir => dir,
+        };
         let platform = download_platform();
         let intake = Self::intake(context);
         let mut instruction = String::new();
@@ -340,7 +365,7 @@ impl QtMigrationTurnInstructions {
             }
             instruction.push_str("\n\n输入收集完成后，迁移工作必须遵守下面的必用技能约束：\n");
         } else if let Some(bound_inputs) =
-            bound_inputs_instruction(&intake, &toolchains_dir, &templates_dir, platform)
+            bound_inputs_instruction(&intake, &toolchains_dir, &templates_dir, &skill_dir, platform)
         {
             instruction.push_str(&bound_inputs);
             instruction.push_str("\n\n迁移工作必须遵守下面的必用技能约束：\n");
@@ -358,6 +383,7 @@ impl QtMigrationTurnInstructions {
         instruction.push_str(&skill_gate_instruction(
             &toolchains_dir,
             &templates_dir,
+            &skill_dir,
             platform,
             still_official("toolchain"),
             still_official("template"),
@@ -417,6 +443,10 @@ mod tests {
             "non-migration turn must forbid the migration skill"
         );
     }
+
+    /// Installed path of the managed skill bundle, which owns the BitFun
+    /// acquisition scripts the `__official__` guidance hands to the model.
+    const SKILL_DIR: &str = "/root/skills/.system/ohos-qt-skills";
 
     fn bound_snapshot(toolchain: &str, template: &str) -> QtMigrationIntakeStateSnapshot {
         let mut snapshot = QtMigrationIntakeStateSnapshot::empty();
@@ -493,6 +523,7 @@ mod tests {
                 &snapshot,
                 "/root/toolchains",
                 "/root/templates",
+                SKILL_DIR,
                 "harmonyos",
             )
             .expect("all resolved");
@@ -517,6 +548,7 @@ mod tests {
             &snapshot,
             "/root/toolchains",
             "/root/templates",
+            SKILL_DIR,
             "harmonyos",
         )
         .expect("all resolved");
@@ -534,6 +566,7 @@ mod tests {
             &snapshot,
             "/root/toolchains",
             "/root/templates",
+            SKILL_DIR,
             "harmonyos",
         )
         .expect("all resolved");
@@ -542,15 +575,18 @@ mod tests {
         assert!(text.contains("output_project：D:/out/hm"));
         assert!(text.contains("toolchain：__official__"));
         assert!(text.contains("template：D:/tpl"));
-        // official 语义：工具链由运行时安装（不让模型跑下载脚本），知识库脚本只作为供给失败时的备份。
+        // official 语义：工具链由运行时安装（不让模型跑下载脚本），BitFun 供给脚本只作为
+        // 供给失败时的备份，并且必须按技能目录的绝对路径与 --platform 调用。
         assert!(text.contains("也不要再做存在性探索或检查"));
         assert!(text.contains("工具链由运行时负责安装"));
         assert!(text.contains("备份路径"));
-        assert!(text.contains("download-qt-sdk.sh --platform=harmonyos"));
+        assert!(text.contains(&format!(
+            "bash \"{SKILL_DIR}/scripts/bitfun-download-qt-sdk.sh\" --platform=harmonyos"
+        )));
         assert!(text.contains("/root/toolchains"));
         assert!(text.contains("BITFUN_QT_MIGRATION_ROOT"));
         assert!(
-            !text.contains("download-template.sh"),
+            !text.contains("bitfun-download-template.sh"),
             "模板不是 official，不得出现模板安装指令"
         );
     }
@@ -564,6 +600,7 @@ mod tests {
             &snapshot,
             "/root/toolchains",
             "/root/templates",
+            SKILL_DIR,
             "harmonyos",
         )
         .expect("all resolved");
@@ -573,10 +610,12 @@ mod tests {
         assert!(text.contains("template：__official__"));
         // 已装好的工具链：不该再提下载/安装/备份。
         assert!(!text.contains("工具链由运行时负责安装"));
-        assert!(!text.contains("download-qt-sdk.sh"));
+        assert!(!text.contains("bitfun-download-qt-sdk.sh"));
         assert!(!text.contains("BITFUN_QT_MIGRATION_ROOT"));
-        // 模板仍走技能流程。
-        assert!(text.contains("download-template.sh --platform=harmonyos"));
+        // 模板仍走 BitFun 供给脚本流程。
+        assert!(text.contains(&format!(
+            "bash \"{SKILL_DIR}/scripts/bitfun-download-template.sh\" --platform=harmonyos"
+        )));
         assert!(text.contains("/root/templates"));
     }
 
@@ -590,6 +629,7 @@ mod tests {
             &snapshot,
             "/root/toolchains",
             "/root/templates",
+            SKILL_DIR,
             "harmonyos",
         )
         .expect("all resolved");
@@ -606,9 +646,14 @@ mod tests {
     #[test]
     fn bound_inputs_instruction_skips_official_guidance_without_official_value() {
         let snapshot = bound_snapshot("D:/sdk/qt", "D:/tpl");
-        let text =
-            bound_inputs_instruction(&snapshot, "/root/toolchains", "/root/templates", "windows")
-                .expect("all resolved");
+        let text = bound_inputs_instruction(
+            &snapshot,
+            "/root/toolchains",
+            "/root/templates",
+            SKILL_DIR,
+            "windows",
+        )
+        .expect("all resolved");
 
         assert!(!text.contains("__official__"));
         assert!(!text.contains("download-qt-sdk.sh"));
@@ -625,6 +670,7 @@ mod tests {
             &snapshot,
             "/root/toolchains",
             "/root/templates",
+            SKILL_DIR,
             "windows",
         )
         .is_none());
@@ -636,34 +682,46 @@ mod tests {
         let both = skill_gate_instruction(
             "/root/toolchains",
             "/root/templates",
+            SKILL_DIR,
             "harmonyos",
             true,
             true,
         );
         assert!(both.contains("必须**先调用 Skill 工具加载技能 ohos-qt-skills"));
-        // The runtime owns the toolchain install; the script remains only as the
-        // documented backstop, the template still uses the skill script.
-        assert!(both.contains("download-qt-sdk.sh --platform=harmonyos"));
-        assert!(both.contains("download-template.sh --platform=harmonyos"));
+        // The runtime owns the toolchain install; the BitFun acquisition script
+        // remains only as the documented backstop, the template still uses it.
+        assert!(both.contains(&format!(
+            "bash \"{SKILL_DIR}/scripts/bitfun-download-qt-sdk.sh\" --platform=harmonyos"
+        )));
+        assert!(both.contains(&format!(
+            "bash \"{SKILL_DIR}/scripts/bitfun-download-template.sh\" --platform=harmonyos"
+        )));
         assert!(both.contains("/root/toolchains"));
         assert!(both.contains("/root/templates"));
+        // The vendored upstream copies are named only to steer the model away from
+        // them: they need an explicit --dest outside the scanned root.
+        assert!(both.contains("不要改用技能基线里 vendored 的上游 download-template.sh"));
 
         // 工具链装好后（绑定是真实路径）只保留模板语义。
         let template_only = skill_gate_instruction(
             "/root/toolchains",
             "/root/templates",
+            SKILL_DIR,
             "harmonyos",
             false,
             true,
         );
-        assert!(template_only.contains("download-template.sh --platform=harmonyos"));
-        assert!(!template_only.contains("download-qt-sdk.sh"));
+        assert!(template_only.contains(&format!(
+            "bash \"{SKILL_DIR}/scripts/bitfun-download-template.sh\" --platform=harmonyos"
+        )));
+        assert!(!template_only.contains("bitfun-download-qt-sdk.sh"));
         assert!(!template_only.contains("工具链由运行时负责安装"));
 
         // 两者都不是 official 时没有任何下载语义。
         let neither = skill_gate_instruction(
             "/root/toolchains",
             "/root/templates",
+            SKILL_DIR,
             "harmonyos",
             false,
             false,
