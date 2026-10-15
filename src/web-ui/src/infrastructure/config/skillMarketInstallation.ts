@@ -26,3 +26,15 @@ export function isSkillMarketItemInstalled(skill: SkillMarketItem, installedIds:
   }
   return !!skill.source.trim() && installedIds.has(installationKey(skill.source, skill.name));
 }
+
+/**
+ * Whether the installId represents a GitHub source (org/repo@subdir).
+ * Non-GitHub sources (e.g. `modelscope.cn/name`) have no `/` before the first
+ * `@` and are not supported by the native installer — the install button is
+ * disabled and the user is guided to install manually via the link.
+ */
+export function isGithubInstallSource(installId: string): boolean {
+  const atIdx = installId.indexOf('@');
+  if (atIdx < 0) return false;
+  return installId.slice(0, atIdx).includes('/');
+}

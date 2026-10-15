@@ -1656,6 +1656,23 @@ mod tests {
             writer.remove("stale-skill");
         }
     }
+
+    #[test]
+    fn skill_page_url_builds_github_and_non_github_paths() {
+        let base = "https://skills.sh";
+
+        // GitHub source: first segment has no dot → standard path.
+        let gh = super::skill_page_url(base, "anthropics/skills/pdf");
+        assert_eq!(gh, "https://skills.sh/anthropics/skills/pdf");
+
+        // Non-GitHub source: first segment contains a dot → /site/ prefix.
+        let non_gh = super::skill_page_url(base, "modelscope.cn/minimax-pdf");
+        assert_eq!(non_gh, "https://skills.sh/site/modelscope.cn/minimax-pdf");
+
+        // Leading slash is stripped.
+        let leading = super::skill_page_url(base, "/anthropics/skills/pdf");
+        assert_eq!(leading, "https://skills.sh/anthropics/skills/pdf");
+    }
 }
 
 #[tauri::command]
@@ -1829,6 +1846,23 @@ fn normalize_market_offset(value: Option<u32>) -> u32 {
     value.unwrap_or(0)
 }
 
+/// Build the skills.sh page URL for a skill id.
+///
+/// GitHub sources (e.g. `anthropics/skills/pdf`) use the standard path
+/// `{base}/{id}`. Non-GitHub sources (e.g. `modelscope.cn/minimax-pdf`)
+/// require a `/site/` prefix to avoid a 404 on skills.sh. We detect
+/// non-GitHub sources by checking whether the first segment of the id
+/// contains a dot (domain indicator).
+fn skill_page_url(base_url: &str, skill_id: &str) -> String {
+    let id = skill_id.trim_start_matches('/');
+    let first_segment = id.split('/').next().unwrap_or("");
+    if first_segment.contains('.') {
+        format!("{}/site/{}", base_url, id)
+    } else {
+        format!("{}/{}", base_url, id)
+    }
+}
+
 async fn fetch_skill_market(query: &str, limit: u32, offset: u32) -> Result<Vec<SkillMarketItem>, String> {
     // The upstream skills.sh `/api/search` endpoint is an Algolia fuzzy search
     // that (a) ignores `offset`/`page` and (b) re-ranks results differently
@@ -1931,7 +1965,7 @@ async fn load_or_fetch_all_skills(query: &str) -> Result<Vec<SkillMarketItem>, S
             description: raw.description,
             source,
             installs: raw.installs,
-            url: format!("{}/{}", base_url, raw.id.trim_start_matches('/')),
+            url: skill_page_url(base_url, &raw.id),
             install_id,
         });
     }
@@ -2004,7 +2038,7 @@ async fn fetch_descriptions_for_ids(
 
     for skill_id in missing {
         let client_clone = client.clone();
-        let page_url = format!("{}/{}", base_url, skill_id.trim_start_matches('/'));
+        let page_url = skill_page_url(base_url, &skill_id);
 
         join_set.spawn(async move {
             let description = fetch_description_from_skill_page(&client_clone, &page_url).await;

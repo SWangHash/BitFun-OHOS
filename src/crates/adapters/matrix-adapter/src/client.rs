@@ -11,6 +11,7 @@
 use crate::error::{MatrixApiError, MatrixApiErrorKind};
 use futures::StreamExt;
 use std::time::Duration;
+use tokio::io::AsyncWriteExt;
 
 const MATRIX_HTTP_TIMEOUT_SECS: u64 = 25;
 const MAX_MATRIX_REDIRECTS: usize = 5;
@@ -209,7 +210,7 @@ impl MatrixHttpClient {
         Ok(body)
     }
 
-    /// Fetch the skill ZIP binary for `en_name` (bounded to 16 MiB).
+    /// Fetch the skill ZIP binary for `en_name` (bounded to 64 MiB).
     ///
     /// Calls `GET {base}/api/registry/skill/{en_name}/install?agents=claude,codex,gemini,opencode&format=zip`.
     /// The `agents` query parameter is a Matrix-internal convention that
@@ -223,6 +224,160 @@ impl MatrixHttpClient {
         ));
         self.send_get_bytes_bounded(&url, DEFAULT_BYTES_RESPONSE_MAX_BYTES)
             .await
+    }
+
+    /// Stream-download a skill ZIP to a file with no size limit.
+    ///
+    /// Uses a 300 s per-request timeout (vs the 25 s global timeout) suitable
+    /// for large skill packages. Retries both transport errors and body-decode
+    /// errors during streaming, up to `MAX_NETWORK_RETRIES` additional attempts
+    /// with the same backoff as `send_with_retry`. Returns the total bytes
+    /// written. The caller is responsible for cleaning up `dest` on error.
+    pub async fn fetch_skill_zip_to_file(
+        &self,
+        en_name: &str,
+        dest: &std::path::Path,
+    ) -> Result<u64, MatrixApiError> {
+        const ZIP_DOWNLOAD_TIMEOUT_SECS: u64 = 300;
+
+        let encoded = urlencoding::encode(en_name);
+        let url = self.url(&format!(
+            "api/registry/skill/{}/install?agents=claude,codex,gemini,opencode&format=zip",
+            encoded
+        ));
+        log::info!("Matrix ZIP stream download: url={}", url);
+
+        for attempt in 0..=MAX_NETWORK_RETRIES {
+            if attempt > 0 {
+                let backoff = RETRY_BACKOFF_MS[(attempt - 1) as usize];
+                log::warn!(
+                    "Matrix ZIP download retry {}/{}: url={}, backoff={}ms",
+                    attempt,
+                    MAX_NETWORK_RETRIES,
+                    url,
+                    backoff
+                );
+                tokio::time::sleep(Duration::from_millis(backoff)).await;
+            }
+
+            let request = self
+                .inner
+                .get(&url)
+                .timeout(Duration::from_secs(ZIP_DOWNLOAD_TIMEOUT_SECS));
+
+            match request.send().await {
+                Ok(response) => {
+                    let status = response.status();
+                    log::info!(
+                        "Matrix ZIP download response: url={}, status={}",
+                        url,
+                        status.as_u16()
+                    );
+                    if status.is_server_error() && attempt < MAX_NETWORK_RETRIES {
+                        log::warn!(
+                            "Matrix ZIP download server error (will retry): url={}, status={}, attempt={}/{}",
+                            url,
+                            status.as_u16(),
+                            attempt + 1,
+                            MAX_NETWORK_RETRIES + 1
+                        );
+                        continue;
+                    }
+                    if !status.is_success() {
+                        return Err(MatrixApiError::new(
+                            MatrixApiErrorKind::Http {
+                                status: status.as_u16(),
+                            },
+                            format!("Matrix API returned HTTP {}", status.as_u16()),
+                        ));
+                    }
+
+                    // Stream body to file.
+                    let mut file = tokio::fs::File::create(dest).await.map_err(|error| {
+                        MatrixApiError::new(
+                            MatrixApiErrorKind::Io,
+                            format!(
+                                "Failed to create ZIP temp file {}: {}",
+                                dest.display(),
+                                error
+                            ),
+                        )
+                    })?;
+
+                    let mut stream = response.bytes_stream();
+                    let mut total: u64 = 0;
+                    let mut stream_error: Option<MatrixApiError> = None;
+
+                    while let Some(chunk_result) = stream.next().await {
+                        match chunk_result {
+                            Ok(chunk) => {
+                                if let Err(error) = file.write_all(&chunk).await {
+                                    let _ = tokio::fs::remove_file(dest).await;
+                                    return Err(MatrixApiError::new(
+                                        MatrixApiErrorKind::Io,
+                                        format!("Failed to write ZIP chunk to temp file: {}", error),
+                                    ));
+                                }
+                                total += chunk.len() as u64;
+                            }
+                            Err(error) => {
+                                log::warn!(
+                                    "Matrix ZIP stream error (will retry): url={}, attempt={}, error={}",
+                                    url,
+                                    attempt + 1,
+                                    error
+                                );
+                                stream_error = Some(MatrixApiError::from(error));
+                                break;
+                            }
+                        }
+                    }
+
+                    if let Some(error) = stream_error {
+                        let _ = tokio::fs::remove_file(dest).await;
+                        if attempt < MAX_NETWORK_RETRIES {
+                            continue;
+                        }
+                        return Err(error);
+                    }
+
+                    file.flush().await.map_err(|error| {
+                        MatrixApiError::new(
+                            MatrixApiErrorKind::Io,
+                            format!("Failed to flush ZIP temp file: {}", error),
+                        )
+                    })?;
+
+                    log::info!(
+                        "Matrix ZIP stream download complete: url={}, bytes={}",
+                        url,
+                        total
+                    );
+                    return Ok(total);
+                }
+                Err(error) => {
+                    let retryable =
+                        error.is_timeout() || error.is_connect() || error.is_request();
+                    if retryable && attempt < MAX_NETWORK_RETRIES {
+                        log::error!(
+                            "Matrix ZIP download send error (will retry): url={}, attempt={}, error={}",
+                            url,
+                            attempt + 1,
+                            error
+                        );
+                        continue;
+                    }
+                    log::error!(
+                        "Matrix ZIP download send error (final): url={}, attempt={}, error={}",
+                        url,
+                        attempt + 1,
+                        error
+                    );
+                    return Err(MatrixApiError::from(error));
+                }
+            }
+        }
+        unreachable!("ZIP download retry loop should have returned before exhausting attempts")
     }
 }
 
