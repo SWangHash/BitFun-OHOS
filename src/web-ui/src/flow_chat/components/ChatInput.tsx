@@ -1,3 +1,4 @@
+import { acpReviewErrorMessage } from '@/shared/ai-errors/acpReviewErrors';
 /**
  * Standalone chat input component
  * Separated from bottom bar, supports session-level state awareness
@@ -3844,7 +3845,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         childSessionName: t('chatInput.reviewThreadTitle'),
       });
       if (launched?.launchStatus === 'uncertain') {
-        notificationService.warning(t('deepReviewActionBar.launchError.uncertain'), {
+        notificationService.warning([t('deepReviewActionBar.launchError.uncertain'), acpReviewErrorMessage(launched.launchError, t)].filter(Boolean).join(' '), {
           duration: 8000,
         });
       }
@@ -3858,7 +3859,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       dispatchInput({ type: 'ACTIVATE' });
       dispatchInput({ type: 'SET_VALUE', payload: message });
       notificationService.error(
-        getDeepReviewLaunchErrorMessage(error, t, t('error.unknown')),
+        getDeepReviewLaunchErrorMessage(error, t),
         {
           title: t('chatInput.reviewFailed'),
           duration: 5000,

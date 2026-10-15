@@ -789,7 +789,7 @@ describe('ReviewService', () => {
       workspacePath: 'D:/workspace/project',
       displayMessage: '/review',
       prepared,
-    })).resolves.toEqual({ childSessionId: 'review-child', launchStatus: 'uncertain' });
+    })).resolves.toEqual({ childSessionId: 'review-child', launchStatus: 'uncertain', launchError: new Error('send failed') });
 
     expect(mocks.deleteSession).not.toHaveBeenCalled();
     expect(mocks.discardLocalSession).not.toHaveBeenCalled();

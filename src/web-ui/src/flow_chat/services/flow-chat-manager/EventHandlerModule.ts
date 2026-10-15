@@ -1,3 +1,5 @@
+import { acpReviewErrorMessage } from '@/shared/ai-errors/acpReviewErrors';
+import { i18nService } from '@/infrastructure/i18n';
 /**
  * Event handling module
  * Initializes event listeners and handles various Agentic events
@@ -968,7 +970,7 @@ async function handleAcpPermissionRequest(rawEvent: unknown): Promise<void> {
     });
   } catch (error) {
     log.error('Failed to submit ACP permission auto-rejection', { permissionId, error });
-    notificationService.error('Failed to respond to ACP permission request');
+    notificationService.error(acpReviewErrorMessage(error, i18nService.t.bind(i18nService)));
   }
 }
 

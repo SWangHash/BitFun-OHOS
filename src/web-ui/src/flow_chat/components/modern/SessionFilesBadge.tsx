@@ -1,3 +1,4 @@
+import { acpReviewErrorMessage } from '@/shared/ai-errors/acpReviewErrors';
 /**
  * Session file change badge.
  * Shows compact file change stats in FlowChatHeader.
@@ -706,7 +707,7 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
         childSessionName: reviewThreadTitle,
       });
       if (launched?.launchStatus === 'uncertain') {
-        notificationService.warning(t('deepReviewActionBar.launchError.uncertain'), {
+        notificationService.warning([t('deepReviewActionBar.launchError.uncertain'), acpReviewErrorMessage(launched.launchError, t)].filter(Boolean).join(' '), {
           duration: 8000,
         });
       }
@@ -720,7 +721,7 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
         error,
       });
       notificationService.error(
-        getDeepReviewLaunchErrorMessage(error, t, t('error.unknown')),
+        getDeepReviewLaunchErrorMessage(error, t),
         {
           title: t('sessionFilesBadge.review.launchFailed'),
           duration: 5000,

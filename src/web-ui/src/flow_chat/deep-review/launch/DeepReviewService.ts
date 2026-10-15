@@ -324,6 +324,7 @@ export async function launchDeepReviewSession({
 }: LaunchDeepReviewSessionParams): Promise<{
   childSessionId: string;
   launchStatus: 'started' | 'uncertain';
+  launchError?: unknown;
 }> {
   let childSessionId: string | null = null;
   let parentDialogTurnId: string | undefined;
@@ -438,7 +439,7 @@ export async function launchDeepReviewSession({
         requestId: effectiveRequestId,
         error,
       });
-      return { childSessionId, launchStatus: 'uncertain' };
+      return { childSessionId, launchStatus: 'uncertain', launchError: error };
     }
 
     const cleanupResult = await cleanupFailedDeepReviewLaunch(childSessionId, launchStep);

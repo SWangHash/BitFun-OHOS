@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FlowChatManager } from './FlowChatManager';
+import { ACPClientAPI } from '@/infrastructure/api/service-api/ACPClientAPI';
 import {
   activateSurface,
   isSurfaceChangedError,
@@ -49,7 +50,7 @@ vi.mock('../../shared/services/agent-service', () => ({
 }));
 
 vi.mock('@/infrastructure/api/service-api/ACPClientAPI', () => ({
-  ACPClientAPI: {},
+  ACPClientAPI: { createFlowSession: vi.fn() },
 }));
 
 vi.mock('../state-machine', () => ({
@@ -667,5 +668,29 @@ describe('FlowChatManager live subscription self-healing', () => {
 
     expect(storeMocks.initializeEventListeners).toHaveBeenCalledTimes(1);
     manager.destroy();
+  });
+});
+
+
+describe('ACP session creation errors', () => {
+  it('delivers the original cause in the finish event and rejects with that cause', async () => {
+    (FlowChatManager as any).instance = undefined;
+    storeMocks.store = {};
+    const manager = FlowChatManager.getInstance();
+    const failure = new Error("ACP client 'example' exited before initialization completed");
+    vi.mocked(ACPClientAPI.createFlowSession).mockRejectedValueOnce(failure);
+    const events: CustomEvent[] = [];
+    const listener = (event: Event) => events.push(event as CustomEvent);
+    window.addEventListener('bitfun:acp-session-creation', listener);
+    try {
+      await expect(manager.createAcpChatSession('example', { workspacePath: '/workspace' })).rejects.toBe(failure);
+      expect(events.map(event => event.detail)).toEqual([
+        { phase: 'start', clientId: 'example', action: 'create' },
+        { phase: 'finish', clientId: 'example', action: 'create', succeeded: false, error: failure },
+      ]);
+    } finally {
+      window.removeEventListener('bitfun:acp-session-creation', listener);
+      manager.destroy();
+    }
   });
 });

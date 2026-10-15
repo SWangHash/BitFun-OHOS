@@ -617,13 +617,13 @@ describe('launchDeepReviewSession', () => {
     }
 
     expect(caughtError).toBeInstanceOf(Error);
-    expect((caughtError as Error).message).toBe('Review failed to start. Please try again.');
+    expect((caughtError as Error).message).toBe('Session creation failed');
     expect((caughtError as { launchErrorMessageKey?: string }).launchErrorMessageKey).toBe(
       'deepReviewActionBar.launchError.unknown',
     );
     expect(
       getDeepReviewLaunchErrorMessage(caughtError, (key: string) => `translated:${key}`),
-    ).toBe('translated:deepReviewActionBar.launchError.unknown');
+    ).toBe('Session creation failed');
 
     expect(mockCloseBtwSessionInAuxPane).not.toHaveBeenCalled();
     expect(mockDeleteSession).not.toHaveBeenCalled();
@@ -670,7 +670,7 @@ describe('launchDeepReviewSession', () => {
       workspacePath: 'D:\\workspace\\repo',
       prompt: 'Review these files',
       displayMessage: 'Strict review started',
-    })).resolves.toEqual({ childSessionId: 'child-123', launchStatus: 'uncertain' });
+    })).resolves.toEqual({ childSessionId: 'child-123', launchStatus: 'uncertain', launchError: new Error('SSE stream connection timeout') });
 
     expect(mockCloseBtwSessionInAuxPane).not.toHaveBeenCalled();
     expect(mockDeleteSession).not.toHaveBeenCalled();
@@ -700,7 +700,7 @@ describe('launchDeepReviewSession', () => {
         workspacePath: 'D:\\workspace\\repo',
         prompt: 'Review these files',
         displayMessage: 'Strict review started',
-      })).resolves.toEqual({ childSessionId: 'child-123', launchStatus: 'uncertain' });
+      })).resolves.toEqual({ childSessionId: 'child-123', launchStatus: 'uncertain', launchError: new Error('SSE stream connection timeout') });
 
     expect(mockCloseBtwSessionInAuxPane).not.toHaveBeenCalled();
     expect(mockDeleteSession).not.toHaveBeenCalled();
@@ -722,7 +722,7 @@ describe('launchDeepReviewSession', () => {
         workspacePath: 'D:\\workspace\\repo',
         prompt: 'Review these files',
         displayMessage: 'Strict review started',
-      })).resolves.toEqual({ childSessionId: 'child-123', launchStatus: 'uncertain' });
+      })).resolves.toEqual({ childSessionId: 'child-123', launchStatus: 'uncertain', launchError: new Error('SSE stream connection timeout') });
 
     expect(mockDeleteSession).not.toHaveBeenCalled();
     expect(mockDiscardLocalSession).not.toHaveBeenCalled();

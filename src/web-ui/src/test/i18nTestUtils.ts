@@ -1,6 +1,7 @@
 import commonMessages from '@/locales/en-US/common.json';
 import componentsMessages from '@/locales/en-US/components.json';
 import flowChatMessages from '@/locales/en-US/flow-chat.json';
+import errorMessages from '@/locales/en-US/errors.json';
 
 type TranslationOptions = Record<string, unknown> & {
   defaultValue?: string;
@@ -12,6 +13,7 @@ const resources: Record<string, unknown> = {
   common: commonMessages,
   components: componentsMessages,
   'flow-chat': flowChatMessages,
+  errors: errorMessages,
 };
 
 export function createTestI18nT(defaultNamespace = 'common') {

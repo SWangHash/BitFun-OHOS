@@ -1,3 +1,4 @@
+import { acpReviewErrorMessage } from '@/shared/ai-errors/acpReviewErrors';
 /**
  * Skill tool display — compact row (same pattern as Read file).
  */
@@ -31,7 +32,7 @@ export const SkillDisplay: React.FC<ToolCardProps> = React.memo(({ toolItem }) =
 
   const getErrorMessage = () => {
     if (toolResult && 'error' in toolResult && toolResult.error) {
-      return String(toolResult.error);
+      return acpReviewErrorMessage(toolResult.error, t);
     }
     return t('toolCards.skill.loadSkillFailed');
   };

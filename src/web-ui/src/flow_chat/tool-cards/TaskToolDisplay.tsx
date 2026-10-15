@@ -1,3 +1,4 @@
+import { acpReviewErrorMessage } from '@/shared/ai-errors/acpReviewErrors';
 /**
  * TaskTool card display component.
  */
@@ -557,11 +558,9 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
   const taskErrorMessage = displayStatus === 'error'
     ? linkedSubagentTurn?.error || rawTaskErrorMessage
     : rawTaskErrorMessage;
-  const visibleTaskErrorMessage = isReviewTimeout
-    ? t('toolCards.taskTool.reviewTimedOut')
-    : isReviewCoverageTask && taskErrorMessage
-      ? t('toolCards.taskTool.reviewCheckUnavailable')
-    : taskErrorMessage;
+  const visibleTaskErrorMessage = taskErrorMessage
+    ? acpReviewErrorMessage(taskErrorMessage, t)
+    : isReviewTimeout ? t('toolCards.taskTool.reviewTimedOut') : null;
   const reviewOutcome = isReviewPartialTimeout
     ? { key: 'toolCards.taskTool.reviewPartialTimeout', kind: 'partial-timeout' }
     : isReviewTimeout
@@ -617,7 +616,7 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
     }
 
     setIsStoppingSubagent(true);
-    const reportStopFailure = async () => {
+    const reportStopFailure = async (error?: unknown) => {
       if (isReviewCoverageTask) {
         await loadLinkedReviewHistory().catch(() => undefined);
         const latestSession = flowChatStore.getState().sessions.get(linkedSubagentSessionId);
@@ -628,9 +627,9 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
         }
       }
       setIsStoppingSubagent(false);
-      notificationService.error(t(isReviewCoverageTask
+      notificationService.error(error === undefined ? t(isReviewCoverageTask
         ? 'toolCards.taskDetailPanel.stopReviewWorkFailed'
-        : 'toolCards.taskDetailPanel.stopSubagentFailed'), {
+        : 'toolCards.taskDetailPanel.stopSubagentFailed') : acpReviewErrorMessage(error, t), {
         duration: 5000,
       });
     };
@@ -647,8 +646,8 @@ export const TaskToolDisplay: React.FC<ToolCardProps> = ({
           duration: 5000,
         });
       }
-    } catch (_error) {
-      await reportStopFailure();
+    } catch (error) {
+      await reportStopFailure(error);
     }
   }, [isReviewCoverageTask, isStoppingSubagent, linkedSubagentSessionId, loadLinkedReviewHistory, t]);
 

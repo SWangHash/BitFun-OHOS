@@ -1,3 +1,4 @@
+import { acpReviewErrorMessage } from '@/shared/ai-errors/acpReviewErrors';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useI18n } from '@/infrastructure/i18n';
@@ -48,7 +49,6 @@ import { useSettingsStore } from '@/app/scenes/settings/settingsStore';
 import { useSceneStore } from '@/app/stores/sceneStore';
 import type { ConfigTab } from '@/app/scenes/settings/settingsConfig';
 import {
-  classifyReviewActionErrorMessage,
   formatElapsedTime,
 } from './actionBarFormatting';
 import { CapacityQueueNotice } from './CapacityQueueNotice';
@@ -172,11 +172,8 @@ const PHASE_CONFIG: Record<ReviewActionPhase, {
 export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId: scopedChildSessionId }) => {
   const { t } = useTranslation('flow-chat');
   const { t: translateError } = useI18n('errors');
-  const localizeActionError = useCallback((rawMessage: string, fallback: string) => {
-    const presentation = getAiErrorPresentation({ rawMessage });
-    const title = presentation.category === 'unknown' ? fallback : translateError(presentation.titleKey);
-    return `${title} ${translateError(presentation.messageKey)}`;
-  }, [translateError]);
+  const localizeActionError = useCallback((error: unknown) =>
+    acpReviewErrorMessage(error, translateError), [translateError]);
   const store = useReviewActionBarStore();
   const scopedState = scopedChildSessionId
     ? getReviewActionBarStateForSession(store, scopedChildSessionId)
@@ -270,7 +267,7 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
       (result): result is PromiseRejectedResult => result.status === 'rejected',
     );
     if (failedResults.length > 0) {
-      const reason = normalizeActionErrorMessage(failedResults[0].reason);
+      const reason = acpReviewErrorMessage(failedResults[0].reason, t);
       log.warn('Failed to control DeepReview capacity queue', failedResults[0].reason);
       if (failedResults.length < toolIds.length) {
         notificationService.error(t('deepReviewActionBar.capacityQueue.controlPartiallyFailedWithReason', {
@@ -507,7 +504,7 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
       store.updatePhase(isTimeout ? 'fix_timeout' : 'fix_failed', msg, childSessionId);
       store.restore(childSessionId ?? undefined);
       notificationService.error(
-        localizeActionError(msg, t('deepReviewActionBar.fixFailed')),
+        localizeActionError(error),
         { duration: 5000, metadata: { rawError: msg } },
       );
     } finally {
@@ -622,7 +619,7 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
       });
       store.setFollowUpReviewSessionId(launched.childSessionId, childSessionId);
       if (launched?.launchStatus === 'uncertain') {
-        notificationService.warning(t('deepReviewActionBar.launchError.uncertain'), {
+        notificationService.warning([t('deepReviewActionBar.launchError.uncertain'), acpReviewErrorMessage(launched.launchError, t)].filter(Boolean).join(' '), {
           duration: 8000,
         });
       }
@@ -642,7 +639,7 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
         error,
       });
       const message = normalizeActionErrorMessage(error);
-      notificationService.error(localizeActionError(message, t('deepReviewActionBar.reviewError')), {
+      notificationService.error(localizeActionError(error), {
         duration: 5000,
         metadata: { rawError: message },
       });
@@ -712,7 +709,7 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
       const message = error instanceof Error
         ? error.message
         : t('deepReviewActionBar.retryIncompleteFailed');
-      notificationService.error(localizeActionError(message, t('deepReviewActionBar.retryIncompleteFailed')), {
+      notificationService.error(localizeActionError(error), {
         duration: 5000,
         metadata: { rawError: message },
       });
@@ -787,10 +784,10 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
       await continueDeepReviewSession(interruption, t('deepReviewActionBar.resumeRequestDisplay'), { force: !interruption.canResume });
     } catch (error) {
       log.error('Failed to continue interrupted strict review', { childSessionId, error });
-      const message = t('deepReviewActionBar.resumeFailedMessage');
+      const message = normalizeActionErrorMessage(error);
       store.updatePhase('resume_failed', message, childSessionId ?? undefined);
       store.restore(childSessionId ?? undefined);
-      notificationService.error(message, { duration: 5000, metadata: { rawError: normalizeActionErrorMessage(error) } });
+      notificationService.error(acpReviewErrorMessage(message, t), { duration: 5000, metadata: { rawError: message } });
     } finally {
       store.setActiveAction(null, undefined, childSessionId ?? undefined);
     }
@@ -819,21 +816,6 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
       setShowPartialResults(true);
     }
   }, []);
-
-  const localizedStartErrorMessage = useMemo(() => {
-    if (!errorMessage) return null;
-
-    const presentation = classifyReviewActionErrorMessage(errorMessage);
-    if (presentation.kind === 'raw') {
-      return null;
-    }
-
-    return presentation.reason
-      ? t('deepReviewActionBar.actionStartFailedWithReason', {
-        reason: presentation.reason,
-      })
-      : t('deepReviewActionBar.actionStartFailed');
-  }, [errorMessage, t]);
 
   const handleCopyDiagnostics = useCallback(async () => {
     const detail = interruption?.errorDetail;
@@ -933,9 +915,9 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
         PhaseIcon={PhaseIcon}
         phaseIconClass={phaseConfig.iconClass}
         phaseTitle={phaseTitle}
-        errorMessage={errorMessage}
+        errorMessage={errorMessage ? localizeActionError(errorMessage) : errorMessage}
         errorSummary={errorMessage
-          ? localizedStartErrorMessage ?? localizeActionError(errorMessage, phaseTitle)
+          ? localizeActionError(errorMessage)
           : undefined}
         errorDetailsLabel={t('deepReviewActionBar.diagnosticsTechnicalDetails')}
         minimizeLabel={t('deepReviewActionBar.minimize')}
@@ -1025,7 +1007,7 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
           aria-live="polite"
         >
           <span className="deep-review-action-bar__attribution-message">
-            {t(errorAttribution.description, { defaultValue: '' })}
+            {acpReviewErrorMessage(interruption?.errorDetail?.rawMessage, t) || t(errorAttribution.description, { defaultValue: '' })}
           </span>
         </div>
       )}

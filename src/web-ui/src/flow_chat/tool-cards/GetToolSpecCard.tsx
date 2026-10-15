@@ -1,3 +1,4 @@
+import { acpReviewErrorMessage } from '@/shared/ai-errors/acpReviewErrors';
 import React, { useMemo } from 'react';
 import { Info } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -32,7 +33,7 @@ export const GetToolSpecCard: React.FC<ToolCardProps> = ({ toolItem }) => {
 
   const parsedResult = useMemo(() => parseGetToolSpecResult(toolItem), [toolItem]);
   const targetToolName = parsedResult?.toolName || toolCall?.input?.tool_name || t('toolCards.getToolSpec.unknownTool');
-  const errorMessage = toolResult?.error || t('toolCards.getToolSpec.readFailed');
+  const errorMessage = acpReviewErrorMessage(toolResult?.error, t) || t('toolCards.getToolSpec.readFailed');
 
   const renderContent = () => {
     if (status === 'completed') {

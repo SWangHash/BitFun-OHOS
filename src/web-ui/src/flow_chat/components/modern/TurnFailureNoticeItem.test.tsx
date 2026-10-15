@@ -19,6 +19,7 @@ const TRANSLATIONS: Record<string, string> = {
   'turnFailure.providerError': 'Provider error',
   'turnFailure.copy': 'Copy error',
   'turnFailure.copied': 'Copied',
+  'errors:acpReview.reviewNoChangesPr': 'No reviewable changed files in this pull request.',
 };
 
 vi.mock('@/infrastructure/i18n', () => ({
@@ -70,6 +71,12 @@ describe('TurnFailureNoticeItem', () => {
     expect(toggle?.getAttribute('aria-label')).toBe('Show technical details');
     expect(toggle?.getAttribute('aria-expanded')).toBe('false');
     expect(container.textContent).not.toContain('Provider error');
+  });
+
+  it('shows the specific BitFun cause in the summary', () => {
+    act(() => root.render(<TurnFailureNoticeItem error="The pull request contains no reviewable changed files." />));
+    expect(container.querySelector('.turn-failure-notice__message')?.textContent)
+      .toBe('No reviewable changed files in this pull request.');
   });
 
   it('expands raw diagnostics and copies the original error', async () => {

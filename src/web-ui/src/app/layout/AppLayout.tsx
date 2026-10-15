@@ -1,3 +1,4 @@
+import { acpReviewErrorMessage } from '@/shared/ai-errors/acpReviewErrors';
 /**
  * Main application layout.
  *
@@ -78,6 +79,7 @@ interface AcpSessionCreationEventDetail {
   action?: 'create' | 'restore';
   requestId?: string;
   succeeded?: boolean;
+  error?: unknown;
 }
 
 interface WindowModeHint {
@@ -702,7 +704,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
           title: clientId,
           message: succeeded
             ? tCommon('nav.workspaces.acpSessionStarted')
-            : tCommon('nav.workspaces.acpSessionStartFailed'),
+            : acpReviewErrorMessage(detail.error, tCommon) || tCommon('nav.workspaces.acpSessionStartFailed'),
           type: succeeded ? 'success' : 'error',
           metadata: { source: 'acp-session', clientId, action, requestId: id, phase: 'finish', succeeded },
         });

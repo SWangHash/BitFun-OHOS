@@ -1,3 +1,4 @@
+import { acpReviewErrorMessage } from '@/shared/ai-errors/acpReviewErrors';
 /**
  * Model selector component.
  * Shows the active model and allows quick switching.
@@ -378,6 +379,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     }
 
     let succeeded = false;
+    let failure: unknown;
     try {
       const options = await withTimeout(
         ACPClientAPI.getSessionOptions({
@@ -394,6 +396,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       syncAcpContextUsageToStore(sessionId, options);
       succeeded = true;
     } catch (error) {
+      failure = error;
       log.warn('Failed to load ACP session model options', { sessionId, acpClientId, error });
       setAcpOptions(null);
     } finally {
@@ -405,6 +408,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             action: 'restore',
             requestId: restoreRequestId,
             succeeded,
+            error: failure,
           },
         }));
       }
@@ -858,7 +862,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       if (sessionId && sessionModelWrittenOptimistically) {
         store.updateSessionReasoningPreset(sessionId, previousReasoningPreset);
       }
-      notificationService.error(t('modelSelector.switchFailed'));
+      notificationService.error(isAcpSession ? acpReviewErrorMessage(error, t) : t('modelSelector.switchFailed'));
     } finally {
       setLoading(false);
     }
@@ -1002,7 +1006,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       log.info('ACP reasoning level updated', { sessionId, acpClientId, presetId });
     } catch (error) {
       log.error('Failed to update ACP reasoning level', error);
-      notificationService.error(t('reasoningSelector.updateFailed'));
+      notificationService.error(acpReviewErrorMessage(error, t));
     } finally {
       setReasoningLoading(false);
     }
@@ -1041,7 +1045,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       log.info('ACP session mode updated', { sessionId, acpClientId, value });
     } catch (error) {
       log.error('Failed to update ACP session mode', error);
-      notificationService.error(t('modelSelector.acpModeFailed'));
+      notificationService.error(acpReviewErrorMessage(error, t));
     } finally {
       setLoading(false);
     }

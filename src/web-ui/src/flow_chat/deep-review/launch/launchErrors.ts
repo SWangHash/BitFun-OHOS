@@ -1,3 +1,4 @@
+import { acpReviewErrorMessage, acpReviewErrorText } from '@/shared/ai-errors/acpReviewErrors';
 import { classifyLaunchError } from '../../utils/deepReviewExperience';
 
 export type DeepReviewLaunchStep =
@@ -20,13 +21,9 @@ export interface DeepReviewLaunchError extends Error {
   childSessionId?: string;
   cleanupCompleted?: boolean;
   cleanupIssues?: string[];
+  cleanupCause?: unknown;
+  cleanupStepDescription?: string;
 }
-
-const LAUNCH_ERROR_DEFAULT_MESSAGES: Record<string, string> = {
-  'deepReviewActionBar.launchError.modelConfig': 'Review could not create a session. Check the model configuration.',
-  'deepReviewActionBar.launchError.network': 'Network connection was interrupted before Review could start.',
-  'deepReviewActionBar.launchError.unknown': 'Review failed to start. Please try again.',
-};
 
 export function normalizeErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim()) {
@@ -67,16 +64,17 @@ export function createDeepReviewLaunchError(
   cleanupResult?: FailedDeepReviewCleanupResult,
 ): DeepReviewLaunchError {
   const classified = classifyLaunchError(launchStep, originalError);
-  const friendlyError = new Error(
-    LAUNCH_ERROR_DEFAULT_MESSAGES[classified.messageKey] ??
-      LAUNCH_ERROR_DEFAULT_MESSAGES['deepReviewActionBar.launchError.unknown'],
-  ) as DeepReviewLaunchError;
+  const friendlyError = new Error(normalizeErrorMessage(originalError)) as DeepReviewLaunchError;
 
   friendlyError.launchErrorCategory = classified.category;
   friendlyError.launchErrorActions = classified.actions;
   friendlyError.launchErrorMessageKey = classified.messageKey;
   friendlyError.launchErrorStep = classified.step;
-  friendlyError.originalMessage = normalizeErrorMessage(originalError);
+  friendlyError.originalMessage = acpReviewErrorText(originalError).trim() || normalizeErrorMessage(originalError);
+  if (originalError && typeof originalError === 'object' && 'cleanupCause' in originalError) {
+    friendlyError.cleanupCause = originalError.cleanupCause;
+    friendlyError.cleanupStepDescription = describeLaunchStep(launchStep);
+  }
   if (childSessionId) {
     friendlyError.childSessionId = childSessionId;
   }
@@ -90,21 +88,9 @@ export function createDeepReviewLaunchError(
 
 export function getDeepReviewLaunchErrorMessage(
   error: unknown,
-  translate: (key: string, options?: { defaultValue?: string }) => string,
-  fallback = LAUNCH_ERROR_DEFAULT_MESSAGES['deepReviewActionBar.launchError.unknown'],
+  translate: (key: string, options?: Record<string, unknown>) => string,
 ): string {
-  const launchError = error as DeepReviewLaunchError | null | undefined;
-  if (launchError?.launchErrorMessageKey) {
-    return translate(launchError.launchErrorMessageKey, {
-      defaultValue: launchError.message || fallback,
-    });
-  }
-
-  if (error instanceof Error && error.message.trim()) {
-    return error.message.trim();
-  }
-
-  return fallback;
+  return acpReviewErrorMessage(error, translate);
 }
 
 export function buildLaunchCleanupError(
@@ -119,8 +105,14 @@ export function buildLaunchCleanupError(
   }
 
   const cleanupSummary = cleanupResult.cleanupIssues.join(' ');
-  return new Error(
+  return Object.assign(new Error(
     `${originalMessage} Cleanup was incomplete after failure while ${describeLaunchStep(launchStep)}. ` +
       `The partially created Review session (${childSessionId}) may need manual cleanup. ${cleanupSummary}`.trim(),
-  );
+  ), {
+    cleanupCause: originalError ?? originalMessage,
+    cleanupStepDescription: describeLaunchStep(launchStep),
+    cleanupCompleted: false,
+    cleanupIssues: cleanupResult.cleanupIssues,
+    childSessionId,
+  });
 }

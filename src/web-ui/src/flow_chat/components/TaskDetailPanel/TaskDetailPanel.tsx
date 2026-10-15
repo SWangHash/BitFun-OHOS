@@ -1,3 +1,4 @@
+import { acpReviewErrorMessage } from '@/shared/ai-errors/acpReviewErrors';
 /**
  * TaskDetailPanel - Subtask detail panel.
  * Minimal layout to match the FlowChat background.
@@ -400,7 +401,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({ data }) => {
       return t('toolCards.taskTool.reviewCheckUnavailable');
     }
     if (toolResult && 'error' in toolResult) {
-      return toolResult.error as string;
+      return acpReviewErrorMessage(toolResult.error, t);
     }
     return t('toolCards.taskTool.subAgentFailed');
   };
@@ -468,10 +469,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({ data }) => {
         setStoppingSubagent(false);
       }
     } catch (error) {
-      const message = error instanceof Error
-        ? error.message
-        : t('toolCards.taskDetailPanel.stopSubagentFailed');
-      setStopError(message);
+      setStopError(acpReviewErrorMessage(error, t));
       log.error('Failed to stop subagent session', {
         subagentSessionId,
         error,

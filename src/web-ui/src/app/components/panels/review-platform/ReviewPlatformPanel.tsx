@@ -1,3 +1,4 @@
+import { acpReviewErrorMessage } from '@/shared/ai-errors/acpReviewErrors';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronDown,
@@ -64,7 +65,7 @@ import {
   samePullRequestIdentity,
   type PullRequestReviewFreshness,
 } from './reviewLinking';
-import { reviewPlatformErrorMessage, reviewErrorText, reviewAuthErrorMessage, type ReviewErrorFallback } from './reviewErrors';
+import { reviewPlatformErrorMessage, reviewErrorText, reviewAuthErrorMessage } from './reviewErrors';
 import './ReviewPlatformPanel.scss';
 
 const log = createLogger('ReviewPlatformPanel');
@@ -684,10 +685,10 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
   const [activeTab, setActiveTab] = useState<DetailTab>('overview');
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [detailFailure, setDetailFailure] = useState<{ cause: unknown; fallback: ReviewErrorFallback } | null>(null);
-  const detailError = detailFailure ? reviewPlatformErrorMessage(detailFailure.cause, t, detailFailure.fallback) : null;
-  const setDetailError = useCallback((cause: unknown, fallback: ReviewErrorFallback = 'detailsFailed') => {
-    setDetailFailure(cause === null ? null : { cause, fallback });
+  const [detailFailure, setDetailFailure] = useState<{ cause: unknown } | null>(null);
+  const detailError = detailFailure ? reviewPlatformErrorMessage(detailFailure.cause, t) : null;
+  const setDetailError = useCallback((cause: unknown) => {
+    setDetailFailure(cause === null ? null : { cause });
   }, []);
   const [snapshotError, setSnapshotError] = useState<{ cause: unknown } | null>(null);
   const error = snapshotError ? reviewPlatformErrorMessage(snapshotError.cause, t) : null;
@@ -712,10 +713,10 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authToken, setAuthToken] = useState('');
   const [authSaving, setAuthSaving] = useState(false);
-  const [authFailure, setAuthFailure] = useState<{ cause: unknown; fallback: ReviewErrorFallback } | null>(null);
-  const authError = authFailure ? reviewPlatformErrorMessage(authFailure.cause, t, authFailure.fallback) : null;
-  const setAuthError = useCallback((cause: unknown, fallback: ReviewErrorFallback = 'saveTokenFailed') => {
-    setAuthFailure(cause === null ? null : { cause, fallback });
+  const [authFailure, setAuthFailure] = useState<{ cause: unknown } | null>(null);
+  const authError = authFailure ? reviewPlatformErrorMessage(authFailure.cause, t) : null;
+  const setAuthError = useCallback((cause: unknown) => {
+    setAuthFailure(cause === null ? null : { cause });
   }, []);
   const [reviewLaunching, setReviewLaunching] = useState(false);
   const { confirmDeepReviewLaunch, deepReviewConsentDialog } = useDeepReviewConsent();
@@ -1613,7 +1614,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
         prepared,
       });
       if (launched.launchStatus === 'uncertain') {
-        notificationService.warning(i18nService.t('common:reviewPlatform.messages.reviewUncertain'), {
+        notificationService.warning([i18nService.t('common:reviewPlatform.messages.reviewUncertain'), acpReviewErrorMessage(launched.launchError, i18nService.t.bind(i18nService))].filter(Boolean).join(' '), {
           duration: 8000,
         });
       }
@@ -1623,7 +1624,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
         error: reviewError,
       });
       notificationService.error(
-        reviewPlatformErrorMessage(reviewError, i18nService.t.bind(i18nService), 'reviewFailed'),
+        reviewPlatformErrorMessage(reviewError, i18nService.t.bind(i18nService)),
         { duration: 6000 },
       );
     } finally {
@@ -1730,7 +1731,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
       setAuthToken('');
       refreshAuthSnapshot(selectedRemote.id);
     } catch (err) {
-      setAuthError(err, 'saveTokenFailed');
+      setAuthError(err);
       log.error('Failed to save review platform token', { error: err, host: selectedRemote.host });
     } finally {
       setAuthSaving(false);
@@ -1750,7 +1751,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
         duration: 3500,
       });
     } catch (err) {
-      setAuthError(err, 'openAuthFailed');
+      setAuthError(err);
       log.error('Failed to prepare GitHub CLI authentication', { error: err, host: selectedRemote.host });
     } finally {
       setAuthSaving(false);
@@ -1764,7 +1765,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
       await systemAPI.setClipboard(`gh auth login --hostname ${selectedRemote.host}`);
       notificationService.success('GitHub CLI login command copied.', { duration: 2500 });
     } catch (err) {
-      setAuthError(err, 'copyAuthFailed');
+      setAuthError(err);
       log.error('Failed to copy GitHub CLI authentication command', { error: err, host: selectedRemote.host });
     }
   }, [selectedRemote]);
@@ -1780,7 +1781,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
       });
       refreshAuthSnapshot(selectedRemote.id);
     } catch (err) {
-      setAuthError(err, 'clearTokenFailed');
+      setAuthError(err);
       setAuthModalOpen(true);
       log.error('Failed to clear review platform token', { error: err, host: selectedRemote.host });
     } finally {
@@ -2397,7 +2398,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                         const ciLog = ciLogById[item.id];
                         const ciLogLoading = ciLogLoadingIds.has(item.id);
                         const ciLogFailure = ciLogErrorById[item.id];
-                        const ciLogError = ciLogFailure ? reviewPlatformErrorMessage(ciLogFailure.cause, t, 'ciLogFailed') : null;
+                        const ciLogError = ciLogFailure ? reviewPlatformErrorMessage(ciLogFailure.cause, t) : null;
                         const logAvailable = canLoadCiLog(selectedRemote, item);
                         const expandable = canExpandCiItem(selectedRemote, item);
                         return (

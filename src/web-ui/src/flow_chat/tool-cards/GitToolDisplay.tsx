@@ -1,3 +1,4 @@
+import { acpReviewErrorMessage } from '@/shared/ai-errors/acpReviewErrors';
 /**
  * Display component for the Git tool.
  */
@@ -122,7 +123,7 @@ export const GitToolDisplay: React.FC<ToolCardProps> = ({
 
   const getErrorMessage = () => {
     if (toolResult && 'error' in toolResult) {
-      return toolResult.error;
+      return acpReviewErrorMessage(toolResult.error, t);
     }
     if (resultData?.stderr) {
       return resultData.stderr;

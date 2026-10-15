@@ -1,3 +1,4 @@
+import { acpReviewErrorMessage, isAcpReviewAuthoredError } from '@/shared/ai-errors/acpReviewErrors';
 import React, { useCallback, useId, useMemo, useState } from 'react';
 import { AlertCircle, Check, ChevronDown, ChevronRight, Copy } from 'lucide-react';
 import { Tooltip } from '@/component-library';
@@ -24,6 +25,7 @@ export const TurnFailureNoticeItem: React.FC<TurnFailureNoticeItemProps> = ({ er
   );
   const presentation = useMemo(() => getAiErrorPresentation(detail), [detail]);
   const rawError = detail.rawMessage ?? error;
+  const localizedError = acpReviewErrorMessage(rawError, t);
   const detailsId = useId();
   const facts = [
     { label: t('turnFailure.provider'), value: detail.provider },
@@ -55,7 +57,7 @@ export const TurnFailureNoticeItem: React.FC<TurnFailureNoticeItemProps> = ({ er
         <div data-bf-component="turn-failure-notice" data-bf-part="header" className="turn-failure-notice__header">
           <div data-bf-component="turn-failure-notice" data-bf-part="summary" className="turn-failure-notice__summary">
             <div data-bf-component="turn-failure-notice" data-bf-part="title" className="turn-failure-notice__title">{t(presentation.titleKey)}</div>
-            <div data-bf-component="turn-failure-notice" data-bf-part="message" className="turn-failure-notice__message">{t(presentation.messageKey)}</div>
+            <div data-bf-component="turn-failure-notice" data-bf-part="message" className="turn-failure-notice__message">{isAcpReviewAuthoredError(rawError) ? localizedError : t(presentation.messageKey)}</div>
           </div>
 
           {(facts.length > 0 || rawError) && (
@@ -108,7 +110,7 @@ export const TurnFailureNoticeItem: React.FC<TurnFailureNoticeItemProps> = ({ er
                     </button>
                   </Tooltip>
                 </div>
-                <pre data-bf-component="turn-failure-notice" data-bf-part="code">{rawError}</pre>
+                <pre data-bf-component="turn-failure-notice" data-bf-part="code">{localizedError}</pre>
               </div>
             )}
           </div>

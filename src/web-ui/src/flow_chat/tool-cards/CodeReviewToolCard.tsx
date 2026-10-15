@@ -1,3 +1,4 @@
+import { acpReviewErrorMessage } from '@/shared/ai-errors/acpReviewErrors';
 /**
  * CodeReview tool display component
  * Displays structured code review results with collapsible/expandable details
@@ -539,7 +540,7 @@ export const CodeReviewToolCard: React.FC<ToolCardProps> = React.memo(({
     }
 
     if (status === 'error') {
-      return <>{t('toolCards.codeReview.reviewFailed', { error: toolResult?.error || t('toolCards.codeReview.unknownError') })}</>;
+      return <>{t('toolCards.codeReview.reviewFailed', { error: acpReviewErrorMessage(toolResult?.error, t) || t('toolCards.codeReview.unknownError') })}</>;
     }
 
     return null;

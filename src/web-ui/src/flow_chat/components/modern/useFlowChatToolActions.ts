@@ -1,3 +1,5 @@
+import { acpReviewErrorMessage } from '@/shared/ai-errors/acpReviewErrors';
+import { useTranslation } from 'react-i18next';
 /**
  * Tool confirmation/rejection actions for Modern FlowChat.
  */
@@ -56,6 +58,7 @@ function resolveToolContext(toolId: string): ResolvedToolContext {
 }
 
 export function useFlowChatToolActions() {
+  const { t } = useTranslation('errors');
   const handleToolConfirm = useCallback(async (
     toolId: string,
     permissionOptionId?: string,
@@ -65,7 +68,7 @@ export function useFlowChatToolActions() {
       const { sessionId, toolItem, turnId } = resolveToolContext(toolId);
 
       if (!sessionId || !toolItem || !turnId) {
-        notificationService.error(`Tool confirmation failed: tool item ${toolId} not found in current session`);
+        notificationService.error(t('acpReview.toolConfirmMissing', { toolId }));
         return;
       }
 
@@ -98,9 +101,9 @@ export function useFlowChatToolActions() {
       log.warn('Ignoring legacy BitFun tool confirmation without a permission request id', { toolId });
     } catch (error) {
       log.error('Tool confirmation failed', error);
-      notificationService.error(`Tool confirmation failed: ${error}`);
+      notificationService.error(t('acpReview.toolConfirmFailed', { detail: acpReviewErrorMessage(error, t) }));
     }
-  }, []);
+  }, [t]);
 
   const handleToolReject = useCallback(async (toolId: string, options?: ToolRejectOptions) => {
     try {
@@ -138,9 +141,9 @@ export function useFlowChatToolActions() {
       log.warn('Ignoring legacy BitFun tool rejection without a permission request id', { toolId });
     } catch (error) {
       log.error('Tool rejection failed', error);
-      notificationService.error(`Tool rejection failed: ${error}`);
+      notificationService.error(t('acpReview.toolRejectFailed', { detail: acpReviewErrorMessage(error, t) }));
     }
-  }, []);
+  }, [t]);
 
   return {
     handleToolConfirm,
