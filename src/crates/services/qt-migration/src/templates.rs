@@ -36,6 +36,11 @@ pub const QT_MIGRATION_QT6_TOOLCHAIN_NOTICE_KEY: &str =
 pub const QT_MIGRATION_QT6_TOOLCHAIN_GUIDE_URL: &str =
     "https://wiki.qt.io/Qt_for_HarmonyOS/development_with_6.12.0_Beta2_zh";
 
+/// The Qt6 toolchain guide only covers Windows and macOS hosts, so the
+/// manual-install notice is limited to those hosts; HarmonyOS builds never show it.
+const QT6_TOOLCHAIN_GUIDE_HOST_SUPPORTED: bool =
+    cfg!(any(target_os = "windows", target_os = "macos"));
+
 /// Resolve the question list for a template id. Returns `None` for unknown ids
 /// so callers can fail closed instead of showing an unexpected/empty dialog.
 pub fn resolve_question_template(template_id: &str) -> Option<Vec<Question>> {
@@ -230,8 +235,10 @@ pub fn qt_migration_intake_questions(
     let official_toolchain_download_allowed = context.official_toolchain_is_offerable();
     // With the download hidden for a Qt6-only project list, the toolchain field is
     // just the free-text input; tell the user to install the Qt6 toolchain with
-    // the Qt installer first, since BitFun cannot provision it.
-    let qt6_toolchain_must_be_installed_manually = !official_toolchain_download_allowed
+    // the Qt installer first, since BitFun cannot provision it. The guide only
+    // covers Windows and macOS hosts, so other hosts (HarmonyOS) get no notice.
+    let qt6_toolchain_must_be_installed_manually = QT6_TOOLCHAIN_GUIDE_HOST_SUPPORTED
+        && !official_toolchain_download_allowed
         && !project_versions.is_empty()
         && project_versions.iter().all(|(_, qt_major)| *qt_major == 6);
     let (toolchain_notice, toolchain_notice_url) = if qt6_toolchain_must_be_installed_manually {
@@ -616,6 +623,17 @@ mod tests {
         let toolchain = &qt6[2];
         assert_eq!(toolchain.field, "toolchain");
         assert!(toolchain.options.is_empty());
+        for (index, question) in qt6.iter().enumerate() {
+            if index != 2 {
+                assert!(question.notice.is_none() && question.notice_url.is_none());
+            }
+        }
+        // 提示只在 Windows / macOS 主机上出现；鸿蒙（及其他主机）没有该安装文档，
+        // 不提示。
+        if !QT6_TOOLCHAIN_GUIDE_HOST_SUPPORTED {
+            assert!(toolchain.notice.is_none() && toolchain.notice_url.is_none());
+            return;
+        }
         assert_eq!(
             toolchain.notice.as_deref(),
             Some(QT_MIGRATION_QT6_TOOLCHAIN_NOTICE_KEY)
@@ -624,11 +642,6 @@ mod tests {
             toolchain.notice_url.as_deref(),
             Some(QT_MIGRATION_QT6_TOOLCHAIN_GUIDE_URL)
         );
-        for (index, question) in qt6.iter().enumerate() {
-            if index != 2 {
-                assert!(question.notice.is_none() && question.notice_url.is_none());
-            }
-        }
 
         // 官方下载仍可用（Qt5 工程或版本未知）时不提示。
         let qt5 = resolve_with(vec![("D:/proj/qt6-app".to_string(), 5)], Some(true));
