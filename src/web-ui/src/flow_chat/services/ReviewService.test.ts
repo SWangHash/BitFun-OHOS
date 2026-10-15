@@ -1,4 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createInstance } from 'i18next';
+import { reviewPlatformErrorMessage } from '@/app/components/panels/review-platform/reviewErrors';
+import en from '@/locales/en-US/flow-chat.json';
+import zh from '@/locales/zh-CN/flow-chat.json';
+import tw from '@/locales/zh-TW/flow-chat.json';
 import { TauriCommandError } from '@/infrastructure/api/errors/TauriCommandError';
 import { resetGitTrustDecisions } from '@/shared/services/gitTrustService';
 import type { ReviewTeamRunManifest } from '@/shared/services/reviewTeamService';
@@ -494,8 +499,8 @@ describe('ReviewService', () => {
     expect(mocks.buildDeepReviewLaunchFromSlashCommand).not.toHaveBeenCalled();
   });
 
-  it('prepares a provider-bound pull request review without embedding the diff', async () => {
-    const prepared = await prepareReviewLaunchFromPullRequest({
+  it('prepares provider-bound reviews and displays the specific reason for an empty PR', async () => {
+    const params: Parameters<typeof prepareReviewLaunchFromPullRequest>[0] = {
       workspaceId: 'workspace-1', workspacePath: 'D:/workspace/project',
       remote: {
         id: 'origin|https://github.com/example/repo.git',
@@ -552,7 +557,8 @@ describe('ReviewService', () => {
         omittedFileCount: 0,
         limitations: [],
       },
-    });
+    };
+    const prepared = await prepareReviewLaunchFromPullRequest(params);
 
     expect(prepared.mode).toBe('standard');
     expect(prepared.targetEvidence.source).toBe('pull_request');
@@ -560,6 +566,39 @@ describe('ReviewService', () => {
     expect(prepared.prompt).not.toContain('@@');
     expect(prepared.prompt).not.toContain('Fix review target');
     expect(prepared.prompt).not.toContain('https://github.com/example/repo/pull/42');
+
+    const error = await prepareReviewLaunchFromPullRequest({
+      ...params,
+      reviewTarget: {
+        ...params.reviewTarget,
+        pullRequest: { ...params.reviewTarget.pullRequest, changedFiles: 0, additions: 0, deletions: 0 },
+        files: [],
+      },
+    }).catch((error: unknown) => error);
+    expect(error).toMatchObject({
+      message: 'The pull request contains no reviewable changed files.',
+      launchErrorMessageKey: 'deepReviewActionBar.launchError.emptyPullRequest',
+    });
+    const i18n = createInstance();
+    await i18n.init({
+      lng: 'en-US',
+      resources: {
+        'en-US': { 'flow-chat': en },
+        'zh-CN': { 'flow-chat': zh },
+        'zh-TW': { 'flow-chat': tw },
+      },
+    });
+    for (const [locale, expected] of [
+      ['en-US', 'This pull request has no changed files to review.'],
+      ['zh-CN', '此 PR 没有可审核的变更文件。'],
+      ['zh-TW', '此 PR 沒有可審核的變更檔案。'],
+    ]) {
+      await i18n.changeLanguage(locale);
+      expect(reviewPlatformErrorMessage(error, (key, options) => i18n.t(key, options), 'reviewFailed'))
+        .toBe(expected);
+    }
+    expect(mocks.createBtwChildSession).not.toHaveBeenCalled();
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
   });
 
   it('blocks remote workspace Review before spending reviewer capacity', async () => {

@@ -267,7 +267,10 @@ async function prepareFromResolvedTarget(params: {
     params.targetEvidence.source === 'pull_request' &&
     params.targetEvidence.files.length === 0
   ) {
-    throw reviewTargetError('The pull request contains no reviewable changed files.');
+    throw reviewTargetError(
+      'The pull request contains no reviewable changed files.',
+      'deepReviewActionBar.launchError.emptyPullRequest',
+    );
   }
   if (
     params.targetEvidence.source === 'pull_request' &&
