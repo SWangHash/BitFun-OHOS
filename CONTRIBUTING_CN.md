@@ -77,6 +77,26 @@ pnpm run e2e:test
 DevTools；`Cmd/Ctrl + Shift + I` 切换 BitFun 元素检查器，`Cmd/Ctrl + Shift + J`
 也可以打开原生 DevTools。面向最终用户的 `release` 构建不会启用这些工具。
 
+### 构建 HAP（鸿蒙）
+
+鸿蒙 PC 构建会把 Rust 动态库与 Web UI 产物放进 ArkTS 工程，再组装 HAP：
+
+```bash
+pnpm install
+pnpm run build:web
+cd src/apps/desktop && cargo tauri ohos init && cargo tauri ohos build
+cp target/aarch64-unknown-linux-ohos/release/libbitfun_desktop_lib.so \
+   src/apps/ohos/entry/libs/arm64-v8a/libbitfun_desktop_lib.so
+cp -r src/web-ui/dist src/apps/ohos/entry/src/main/resources/resfile/dist
+cd src/apps/ohos && ohpm install --all && cd entry && ohpm install --all && cd ..
+hvigorw --mode module -p product=default -p module=entry@default assembleHap --no-daemon
+```
+
+`ohpm` 与 `hvigorw` 随 DevEco Studio 提供。签名配置有意不入库：安装到真机时请在
+DevEco Studio 中配置本机签名身份。HAP 声明 `targetSdkVersion` /
+`compatibleSdkVersion` 为 `6.0.1(21)`，面向 `tablet` 与 `2in1` 设备类型发布。
+聚焦桥接测试与宿主本地规则见 [`src/apps/ohos/AGENTS.md`](src/apps/ohos/AGENTS.md)。
+
 ## 代码规范与架构约束
 
 架构敏感规则、模块边界和验证矩阵以 [`AGENTS.md`](AGENTS.md) 为准。面向贡献者只需把握：

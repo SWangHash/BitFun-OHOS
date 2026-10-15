@@ -81,6 +81,29 @@ webview DevTools. `Cmd/Ctrl + Shift + I` toggles the BitFun element inspector,
 and `Cmd/Ctrl + Shift + J` also opens native DevTools. These tools are disabled
 in end-user `release` builds.
 
+### Building a HAP (HarmonyOS)
+
+A HarmonyOS PC build stages a Rust shared library plus the Web UI bundle into
+the ArkTS project, then assembles the HAP:
+
+```bash
+pnpm install
+pnpm run build:web
+cd src/apps/desktop && cargo tauri ohos init && cargo tauri ohos build
+cp target/aarch64-unknown-linux-ohos/release/libbitfun_desktop_lib.so \
+   src/apps/ohos/entry/libs/arm64-v8a/libbitfun_desktop_lib.so
+cp -r src/web-ui/dist src/apps/ohos/entry/src/main/resources/resfile/dist
+cd src/apps/ohos && ohpm install --all && cd entry && ohpm install --all && cd ..
+hvigorw --mode module -p product=default -p module=entry@default assembleHap --no-daemon
+```
+
+`ohpm` and `hvigorw` ship with DevEco Studio. Signing is intentionally not
+stored in the repository: configure a local signing identity in DevEco Studio
+to install on a device. The HAP declares `targetSdkVersion` /
+`compatibleSdkVersion` `6.0.1(21)` and ships for the `tablet` and `2in1` device
+types. See [`src/apps/ohos/AGENTS.md`](src/apps/ohos/AGENTS.md) for the host's
+focused bridge tests and local rules.
+
 ## Code Standards and Architecture Constraints
 
 Use [`AGENTS.md`](AGENTS.md) as the canonical source for architecture-sensitive
