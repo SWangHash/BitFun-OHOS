@@ -9,6 +9,7 @@ fn context_profile_maps_long_running_agents_to_long_task_profile() {
         "DeepReview",
         "DeepResearch",
         "ComputerUse",
+        "QtMigration",
         "ReviewFrontend",
         "ReviewSecurity",
     ] {
@@ -150,6 +151,36 @@ fn context_profile_subagent_policy_inherits_parent_long_task_when_child_is_plain
         false,
         None,
         Some("DeepReview"),
+        false,
+        Some("gpt-5"),
+    );
+
+    assert_eq!(policy.profile, ContextProfile::LongTask);
+    assert_eq!(policy.subagent_concurrency_cap, 5);
+}
+
+#[test]
+fn context_profile_qt_migration_uses_the_long_task_fanout_budget() {
+    let policy = ContextProfilePolicy::for_agent_context(
+        "QtMigration",
+        false,
+        ModelCapabilityProfile::Standard,
+    );
+
+    assert_eq!(policy.profile, ContextProfile::LongTask);
+    assert_eq!(policy.subagent_concurrency_cap, 5);
+    assert_eq!(policy.compression_contract_limit, 8);
+    assert_eq!(policy.repeated_tool_signature_threshold, 3);
+    assert_eq!(policy.consecutive_failed_command_threshold, 2);
+}
+
+#[test]
+fn context_profile_qt_migration_subagents_inherit_the_parent_fanout_budget() {
+    let policy = ContextProfilePolicy::for_subagent_context_and_models(
+        "Explore",
+        false,
+        None,
+        Some("QtMigration"),
         false,
         Some("gpt-5"),
     );

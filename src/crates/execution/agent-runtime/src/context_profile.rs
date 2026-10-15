@@ -205,6 +205,9 @@ impl ContextProfilePolicy {
 }
 
 fn is_long_task_agent(agent_type: &str) -> bool {
+    // QtMigration runs a multi-stage migration (assess, migrate, build, deploy,
+    // verify) that fans out helper subagents, so it uses the long-task profile
+    // instead of the conversation one.
     matches!(
         agent_type,
         "Standard"
@@ -215,6 +218,7 @@ fn is_long_task_agent(agent_type: &str) -> bool {
             | "SwarmPlanner"
             | "SwarmWorker"
             | "SwarmReviewer"
+            | "QtMigration"
     ) || agent_type.starts_with("Review")
 }
 
