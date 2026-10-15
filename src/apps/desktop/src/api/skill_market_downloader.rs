@@ -26,18 +26,21 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use flate2::read::GzDecoder;
+use futures::StreamExt;
 use log::{info, warn};
 use reqwest::Client;
 use tar::Archive;
 use tokio::fs;
+use tokio::io::AsyncWriteExt;
 
 use bitfun_core::agentic::tools::implementations::skills::SkillLocation;
 use bitfun_core::infrastructure::get_path_manager_arc;
 use bitfun_core::service::config::types::ProxyConfig;
 
-/// Hard cap on downloaded tarball size. Skill repos are tiny (< 1 MiB typically);
-/// 50 MiB is a generous ceiling to reject runaway downloads.
-const MAX_SKILL_TARBALL_BYTES: usize = 50 * 1024 * 1024;
+/// Safety cap on downloaded tarball size (1 GiB). Skill repos are tiny (< 1 MiB
+/// typically); this is a generous ceiling to reject truly runaway downloads
+/// without blocking large multi-skill repos.
+const MAX_SKILL_TARBALL_BYTES: u64 = 1024 * 1024 * 1024;
 
 /// Result of a successful skill market install.
 pub struct InstallOutcome {
@@ -175,15 +178,20 @@ async fn install_to_staging(
     staging: &Path,
     proxy: Option<&ProxyConfig>,
 ) -> Result<(), String> {
-    // 5. HTTP download
+    // 5. Stream-download tarball to a temp file (no in-memory cap).
     let tarball_url = format!("https://api.github.com/repos/{}/tarball", org_repo);
     let client = build_download_client(proxy)?;
-    let bytes = download_tarball(&client, &tarball_url).await?;
+    let temp_tarball = staging
+        .parent()
+        .unwrap_or(staging)
+        .join(format!(".downloading-{}.tar.gz", uuid::Uuid::new_v4().simple()));
+    download_tarball_to_file(&client, &tarball_url, &temp_tarball).await?;
 
-    // 6. Extract subdir into staging (also verifies SKILL.md presence and
-    //    reports sample archive paths on failure for diagnostics).
-    extract_subdir_from_tarball(&bytes, subdir, staging)
-        .map_err(|e| format!("Failed to extract skill '{}': {}", package, e))?;
+    // 6. Extract subdir into staging from the temp file.
+    let extract_result = extract_subdir_from_tarball(&temp_tarball, subdir, staging)
+        .map_err(|e| format!("Failed to extract skill '{}': {}", package, e));
+    let _ = fs::remove_file(&temp_tarball).await;
+    extract_result?;
     Ok(())
 }
 
@@ -218,50 +226,152 @@ fn normalize_proxy_url(url: &str) -> String {
     }
 }
 
-async fn download_tarball(client: &Client, url: &str) -> Result<Vec<u8>, String> {
-    let response = client
-        .get(url)
-        .send()
-        .await
-        .map_err(|e| format!("Failed to download skill tarball from {}: {}", url, e))?;
-    if !response.status().is_success() {
-        return Err(format!(
-            "Failed to download skill tarball: HTTP {} from {}",
-            response.status(),
-            url
-        ));
+/// Stream-download a tarball to `dest`, retrying transport and body-decode
+/// errors. Uses a 300 s timeout (vs the 60 s global client timeout) suitable
+/// for large skill packages.
+async fn download_tarball_to_file(
+    client: &Client,
+    url: &str,
+    dest: &Path,
+) -> Result<u64, String> {
+    const DOWNLOAD_TIMEOUT_SECS: u64 = 300;
+    const MAX_DOWNLOAD_RETRIES: u32 = 2;
+    const RETRY_BACKOFF_MS: [u64; 2] = [300, 800];
+
+    for attempt in 0..=MAX_DOWNLOAD_RETRIES {
+        if attempt > 0 {
+            let backoff = RETRY_BACKOFF_MS[(attempt - 1) as usize];
+            warn!(
+                "Skill tarball download retry {}/{}: url={}, backoff={}ms",
+                attempt,
+                MAX_DOWNLOAD_RETRIES,
+                url,
+                backoff
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(backoff)).await;
+        }
+
+        let request = client
+            .get(url)
+            .timeout(std::time::Duration::from_secs(DOWNLOAD_TIMEOUT_SECS));
+
+        match request.send().await {
+            Ok(response) => {
+                let status = response.status();
+                if !status.is_success() {
+                    let _ = fs::remove_file(dest).await;
+                    if status.is_server_error() && attempt < MAX_DOWNLOAD_RETRIES {
+                        warn!(
+                            "Skill tarball download server error (will retry): url={}, status={}",
+                            url,
+                            status
+                        );
+                        continue;
+                    }
+                    return Err(format!(
+                        "Failed to download skill tarball: HTTP {} from {}",
+                        status,
+                        url
+                    ));
+                }
+
+                let mut file = tokio::fs::File::create(dest)
+                    .await
+                    .map_err(|e| format!("Failed to create tarball temp file: {}", e))?;
+                let mut stream = response.bytes_stream();
+                let mut total: u64 = 0;
+                let mut stream_error: Option<String> = None;
+
+                while let Some(chunk_result) = stream.next().await {
+                    match chunk_result {
+                        Ok(chunk) => {
+                            total += chunk.len() as u64;
+                            if total > MAX_SKILL_TARBALL_BYTES {
+                                let _ = fs::remove_file(dest).await;
+                                return Err(format!(
+                                    "Skill tarball too large: exceeds {} bytes",
+                                    MAX_SKILL_TARBALL_BYTES
+                                ));
+                            }
+                            if let Err(e) = file.write_all(&chunk).await {
+                                let _ = fs::remove_file(dest).await;
+                                return Err(format!(
+                                    "Failed to write tarball chunk to temp file: {}",
+                                    e
+                                ));
+                            }
+                        }
+                        Err(e) => {
+                            warn!(
+                                "Skill tarball stream error (will retry): url={}, attempt={}, error={}",
+                                url,
+                                attempt + 1,
+                                e
+                            );
+                            stream_error = Some(format!("Tarball stream error: {}", e));
+                            break;
+                        }
+                    }
+                }
+
+                if let Some(err) = stream_error {
+                    let _ = fs::remove_file(dest).await;
+                    if attempt < MAX_DOWNLOAD_RETRIES {
+                        continue;
+                    }
+                    return Err(err);
+                }
+
+                file.flush()
+                    .await
+                    .map_err(|e| format!("Failed to flush tarball temp file: {}", e))?;
+                info!(
+                    "Skill tarball stream download complete: url={}, bytes={}",
+                    url,
+                    total
+                );
+                return Ok(total);
+            }
+            Err(e) => {
+                let _ = fs::remove_file(dest).await;
+                let retryable = e.is_timeout() || e.is_connect() || e.is_request();
+                if retryable && attempt < MAX_DOWNLOAD_RETRIES {
+                    warn!(
+                        "Skill tarball download send error (will retry): url={}, attempt={}, error={}",
+                        url,
+                        attempt + 1,
+                        e
+                    );
+                    continue;
+                }
+                return Err(format!(
+                    "Failed to download skill tarball from {}: {}",
+                    url, e
+                ));
+            }
+        }
     }
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|e| format!("Failed to read skill tarball body: {}", e))?;
-    if bytes.len() > MAX_SKILL_TARBALL_BYTES {
-        return Err(format!(
-            "Skill tarball too large: {} bytes (max {})",
-            bytes.len(),
-            MAX_SKILL_TARBALL_BYTES
-        ));
-    }
-    Ok(bytes.to_vec())
+    unreachable!("download retry loop should have returned before exhausting attempts")
 }
 
-/// Walk the gzip+tar archive, locate the requested skill's folder, and extract
-/// only that folder's contents into `staging` (so `staging/SKILL.md` exists).
+/// Walk the gzip+tar archive at `tarball_path`, locate the requested skill's
+/// folder, and extract only that folder's contents into `staging` (so
+/// `staging/SKILL.md` exists).
 ///
 /// Locating the skill is necessary because the skills.sh slug (`subdir`) does
 /// NOT always equal the repo folder name — e.g. `vercel-labs/agent-skills`
 /// has folder `react-native-skills` but slug `vercel-react-native-skills`. The
 /// SKILL.md frontmatter `name` field IS the slug, so match on that first;
 /// fall back to a folder-name match, then a single SKILL.md if the repo has
-/// only one skill. The archive is read twice (it is in-memory); pass 1 finds
+/// only one skill. The archive is read twice from the file (pass 1 finds
 /// the skill folder, pass 2 extracts only its contents (clean staging, no
 /// sibling-skill junk).
 fn extract_subdir_from_tarball(
-    bytes: &[u8],
+    tarball_path: &Path,
     subdir: &str,
     staging: &Path,
 ) -> std::io::Result<()> {
-    let skill_folder = find_skill_folder_in_archive(bytes, subdir)?
+    let skill_folder = find_skill_folder_in_archive(tarball_path, subdir)?
         .ok_or_else(|| {
             std::io::Error::new(
                 std::io::ErrorKind::NotFound,
@@ -274,7 +384,7 @@ fn extract_subdir_from_tarball(
             )
         })?;
 
-    extract_skill_folder_contents(bytes, &skill_folder, staging)?;
+    extract_skill_folder_contents(tarball_path, &skill_folder, staging)?;
 
     if !staging.join("SKILL.md").exists() {
         return Err(std::io::Error::new(
@@ -291,8 +401,9 @@ fn extract_subdir_from_tarball(
 /// Pass 1: scan the archive and return the skill folder path relative to the
 /// top-level wrapper folder (e.g. `skills/react-native-skills`,
 /// `frontend-design`, or `""` for a SKILL.md at the repo root).
-fn find_skill_folder_in_archive(bytes: &[u8], subdir: &str) -> std::io::Result<Option<String>> {
-    let gz = GzDecoder::new(bytes);
+fn find_skill_folder_in_archive(tarball_path: &Path, subdir: &str) -> std::io::Result<Option<String>> {
+    let file = std::fs::File::open(tarball_path)?;
+    let gz = GzDecoder::new(file);
     let mut archive = Archive::new(gz);
 
     let mut folder_name_match: Option<String> = None;
@@ -391,11 +502,12 @@ fn parse_frontmatter_name(content: &str) -> Option<String> {
 /// Pass 2: extract entries under `{top-level}/{skill_folder}/` to `staging`
 /// root (so SKILL.md lands at `staging/SKILL.md`).
 fn extract_skill_folder_contents(
-    bytes: &[u8],
+    tarball_path: &Path,
     skill_folder: &str,
     staging: &Path,
 ) -> std::io::Result<()> {
-    let gz = GzDecoder::new(bytes);
+    let file = std::fs::File::open(tarball_path)?;
+    let gz = GzDecoder::new(file);
     let mut archive = Archive::new(gz);
     let folder_prefix = if skill_folder.is_empty() {
         String::new()
@@ -568,17 +680,19 @@ mod tests {
     #[test]
     fn extract_subdir_from_tarball_extracts_only_subdir() {
         // Top-level folder emulates GitHub's `<repo>-<ref>/` wrapper.
-        let tarball = build_tarball(&[
+        let tarball_bytes = build_tarball(&[
             ("repo-abc123/frontend-design/SKILL.md", "---\nname: x\n---\nbody"),
             ("repo-abc123/frontend-design/examples/app.ts", "// code"),
             ("repo-abc123/other-skill/SKILL.md", "should be skipped"),
             ("repo-abc123/README.md", "repo root, skipped"),
         ]);
         let tmp = tempfile::tempdir().expect("tempdir");
+        let tarball_path = tmp.path().join("test.tar.gz");
+        std::fs::write(&tarball_path, &tarball_bytes).unwrap();
         let staging = tmp.path().join("staging");
         std::fs::create_dir_all(&staging).unwrap();
 
-        extract_subdir_from_tarball(&tarball, "frontend-design", &staging).unwrap();
+        extract_subdir_from_tarball(&tarball_path, "frontend-design", &staging).unwrap();
 
         assert!(staging.join("SKILL.md").exists());
         assert!(staging.join("examples").join("app.ts").exists());
@@ -628,12 +742,14 @@ mod tests {
         }
         let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::none());
         std::io::Write::write_all(&mut gz, &tar_bytes).expect("write tar");
-        let tarball = gz.finish().expect("finish gzip");
+        let tarball_bytes = gz.finish().expect("finish gzip");
         let tmp = tempfile::tempdir().expect("tempdir");
+        let tarball_path = tmp.path().join("test.tar.gz");
+        std::fs::write(&tarball_path, &tarball_bytes).unwrap();
         let staging = tmp.path().join("staging");
         std::fs::create_dir_all(&staging).unwrap();
 
-        let err = extract_subdir_from_tarball(&tarball, "frontend-design", &staging)
+        let err = extract_subdir_from_tarball(&tarball_path, "frontend-design", &staging)
             .expect_err("traversal must be rejected");
         let msg = format!("{}", err);
         assert!(msg.contains("..") || msg.contains("traversal") || msg.contains("'..'"));
@@ -646,17 +762,19 @@ mod tests {
         // Mirrors the real vercel-labs/agent-skills layout.
         let skill_md = "---\nname: vercel-react-native-skills\ndescription: rn\n---\n# RN";
         let other_md = "---\nname: some-other-skill\ndescription: x\n---\n";
-        let tarball = build_tarball(&[
+        let tarball_bytes = build_tarball(&[
             ("repo-abc/skills/react-native-skills/SKILL.md", skill_md),
             ("repo-abc/skills/react-native-skills/rules/foo.md", "rule"),
             ("repo-abc/skills/other-skill/SKILL.md", other_md),
             ("repo-abc/README.md", "repo root"),
         ]);
         let tmp = tempfile::tempdir().expect("tempdir");
+        let tarball_path = tmp.path().join("test.tar.gz");
+        std::fs::write(&tarball_path, &tarball_bytes).unwrap();
         let staging = tmp.path().join("staging");
         std::fs::create_dir_all(&staging).unwrap();
 
-        extract_subdir_from_tarball(&tarball, "vercel-react-native-skills", &staging)
+        extract_subdir_from_tarball(&tarball_path, "vercel-react-native-skills", &staging)
             .expect("frontmatter match must resolve the skill");
 
         assert!(staging.join("SKILL.md").exists());

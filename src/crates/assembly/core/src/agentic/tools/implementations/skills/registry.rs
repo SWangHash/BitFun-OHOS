@@ -32,7 +32,7 @@ use bitfun_agent_runtime::skills::{
     resolve_user_config_skill_root, resolve_visible_skills, sort_skill_candidates_by_dir,
     sort_skills, ExplicitSkillInvocationResolution, SkillCandidate, BITFUN_SKILL_SOURCE_ID,
     BITFUN_SKILL_SOURCE_LABEL, BITFUN_SYSTEM_SKILL_DIR, BITFUN_SYSTEM_SKILL_SLOT,
-    BITFUN_USER_SKILL_SLOT, PROJECT_SKILL_KEY_PREFIX, PROJECT_SKILL_ROOTS,
+    BITFUN_USER_SKILL_SLOT, MATRIX_USER_SKILL_SLOT, PROJECT_SKILL_KEY_PREFIX, PROJECT_SKILL_ROOTS,
     USER_CONFIG_SKILL_ROOTS, USER_HOME_SKILL_ROOTS, USER_SKILL_KEY_PREFIX,
 };
 use bitfun_services_core::bounded_fs::is_symlink_or_reparse;

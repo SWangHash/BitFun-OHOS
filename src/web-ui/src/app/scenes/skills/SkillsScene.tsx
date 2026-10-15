@@ -28,7 +28,7 @@ import { useTranslation } from 'react-i18next';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 
 import type { SkillInfo, SkillLevel, SkillMarketItem } from '@/infrastructure/config/types';
-import { installedSkillMarketIds, isSkillMarketItemInstalled } from '@/infrastructure/config/skillMarketInstallation';
+import { installedSkillMarketIds, isGithubInstallSource, isSkillMarketItemInstalled } from '@/infrastructure/config/skillMarketInstallation';
 import {
   buildSkillCoverageSourceMap,
   canDeleteSkill,
@@ -179,6 +179,7 @@ const SkillsScene: React.FC = () => {
       const user = new Set<string>();
       const project = new Set<string>();
       for (const skill of installed.skills) {
+        if (skill.sourceId === 'matrix') continue;
         (skill.level === 'user' ? user : project).add(skill.dirName);
       }
       return { user, project };
@@ -796,6 +797,7 @@ const SkillsScene: React.FC = () => {
                     {market.marketSkills.map((skill, index) => {
                       const isInstalled = isSkillMarketItemInstalled(skill, installedMarketIds);
                       const isDownloading = market.downloadingPackage === skill.installId;
+                      const canInstall = isGithubInstallSource(skill.installId);
                       return (
                         <SkillCard
                           key={skill.installId}
@@ -829,11 +831,14 @@ const SkillsScene: React.FC = () => {
                                 ? t('market.item.downloading')
                                 : isInstalled
                                   ? t('market.item.installedTooltip')
-                                  : (!market.hasWorkspace || market.isAssistantWorkspace)
-                                    ? t('messages.noWorkspace')
-                                    : t('market.item.downloadProject'),
+                                  : !canInstall
+                                    ? t('market.item.cannotInstall')
+                                    : (!market.hasWorkspace || market.isAssistantWorkspace)
+                                      ? t('messages.noWorkspace')
+                                      : t('market.item.downloadProject'),
                               disabled:
                                 isDownloading
+                                || !canInstall
                                 || !market.hasWorkspace
                                 || market.isRemoteWorkspace
                                 || market.isAssistantWorkspace

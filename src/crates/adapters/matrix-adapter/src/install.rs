@@ -4,27 +4,28 @@
 //! Install flow (mirrors BitFun `builtin.rs` staging + atomic rename pattern,
 //! see `spec/matrix-skill-market/plan.md` RD-003 + RD-004):
 //!
-//! 1. Download ZIP bytes via `MatrixHttpClient::fetch_skill_zip` (bounded 16 MiB)
+//! 1. Stream-download ZIP to a temp file via `MatrixHttpClient::fetch_skill_zip_to_file`
+//!    (no size limit; 300 s timeout; retries transport and body-decode errors)
 //! 2. Fetch expected SHA-256 + size via `check_checksum` (AFTER download, per
 //!    Matrix's real-time-update note in `spec.md` US4 scenario 3)
-//! 3. Compute SHA-256 of downloaded bytes, reject on mismatch (`Integrity`)
+//! 3. Compute SHA-256 of the temp file (streamed read, not in-memory), reject on mismatch
 //! 4. Resolve `~/.bitfun/skills/matrix/` via cross-platform home dir lookup
 //! 5. Create staging dir `~/.bitfun/skills/matrix/.staging-{en_name}-{pid}-{nanos}/`
-//! 6. Unzip into staging dir with path traversal guard (reject `/`-prefix,
+//! 6. Unzip from the temp file into staging dir with path traversal guard (reject `/`-prefix,
 //!    `..` segments, out-of-tree resolution, and symlink entries)
 //! 7. Verify `SKILL.md` exists in extracted root
 //! 8. Atomic rename staging → final `~/.bitfun/skills/matrix/{en_name}/`
 //!    (remove existing target first, then rename — atomic on the same
 //!    filesystem)
-//! 9. Cleanup staging on every error path so half-completed installs never
-//!    pollute the SkillRegistry scan
+//! 9. Cleanup staging and temp file on every error path so half-completed
+//!    installs never pollute the SkillRegistry scan
 
 use crate::checksum::check_checksum;
 use crate::client::MatrixHttpClient;
 use crate::error::{MatrixApiError, MatrixApiErrorKind};
 use crate::models::MatrixSkillInstallResult;
 use sha2::{Digest, Sha256};
-use std::io::{self, Cursor, Write};
+use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::fs;
@@ -88,13 +89,23 @@ pub async fn install_skill_to_root(
         ));
     }
 
-    // Step 1: Download ZIP bytes (bounded to 16 MiB by the client helper).
+    // Clean up stale temp files from killed processes before starting.
+    cleanup_stale_temp_files(install_root, en_name).await;
+
+    // Step 1: Stream-download ZIP to a temp file (no size limit, 300 s timeout).
+    let temp_zip = install_root.join(temp_zip_name(en_name));
     log::info!(
         "Matrix install_skill_to_root step 1 download: en_name={}",
         en_name
     );
-    let zip_bytes = client.fetch_skill_zip(en_name).await?;
-    let size = zip_bytes.len() as u64;
+    let download_result = client.fetch_skill_zip_to_file(en_name, &temp_zip).await;
+    let size = match download_result {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            let _ = fs::remove_file(&temp_zip).await;
+            return Err(error);
+        }
+    };
     log::info!(
         "Matrix install_skill_to_root step 1 done: en_name={}, size_bytes={}",
         en_name,
@@ -108,7 +119,13 @@ pub async fn install_skill_to_root(
         "Matrix install_skill_to_root step 2 checksum: en_name={}",
         en_name
     );
-    let checksum = check_checksum(client, en_name).await?;
+    let checksum = match check_checksum(client, en_name).await {
+        Ok(c) => c,
+        Err(error) => {
+            let _ = fs::remove_file(&temp_zip).await;
+            return Err(error);
+        }
+    };
     log::info!(
         "Matrix install_skill_to_root step 2 done: en_name={}, expected_sha256={}, expected_size={}",
         en_name,
@@ -116,12 +133,18 @@ pub async fn install_skill_to_root(
         checksum.size
     );
 
-    // Step 3: Compute SHA-256 of downloaded bytes and compare.
+    // Step 3: Compute SHA-256 of the temp file (streamed read) and compare.
     log::info!(
         "Matrix install_skill_to_root step 3 verify: en_name={}",
         en_name
     );
-    let actual_sha256_hex = sha256_hex(&zip_bytes);
+    let actual_sha256_hex = match sha256_hex_of_file(&temp_zip) {
+        Ok(hash) => hash,
+        Err(error) => {
+            let _ = fs::remove_file(&temp_zip).await;
+            return Err(error);
+        }
+    };
     if actual_sha256_hex != checksum.sha256 {
         log::error!(
             "Matrix install_skill_to_root integrity mismatch: en_name={}, expected={}, actual={}",
@@ -129,6 +152,7 @@ pub async fn install_skill_to_root(
             checksum.sha256,
             actual_sha256_hex
         );
+        let _ = fs::remove_file(&temp_zip).await;
         return Err(MatrixApiError::new(
             MatrixApiErrorKind::Integrity {
                 expected: checksum.sha256.clone(),
@@ -177,8 +201,9 @@ pub async fn install_skill_to_root(
         staging_dir.display()
     );
     let staging_dir_for_unzip = staging_dir.clone();
+    let temp_zip_for_unzip = temp_zip.clone();
     let unzip_result = tokio::task::spawn_blocking(move || -> Result<(), MatrixApiError> {
-        unzip_with_path_guard(&zip_bytes, &staging_dir_for_unzip)?;
+        unzip_with_path_guard(&temp_zip_for_unzip, &staging_dir_for_unzip)?;
         let skill_md = staging_dir_for_unzip.join("SKILL.md");
         if !skill_md.exists() {
             return Err(MatrixApiError::new(
@@ -194,6 +219,7 @@ pub async fn install_skill_to_root(
         Ok(inner) => inner,
         Err(join_error) => {
             cleanup_staging(&staging_dir).await;
+            let _ = fs::remove_file(&temp_zip).await;
             log::error!(
                 "Matrix install_skill_to_root unzip task panicked: en_name={}, error={}",
                 en_name,
@@ -208,6 +234,7 @@ pub async fn install_skill_to_root(
 
     if let Err(error) = unzip_result {
         cleanup_staging(&staging_dir).await;
+        let _ = fs::remove_file(&temp_zip).await;
         log::error!(
             "Matrix install_skill_to_root unzip failed: en_name={}, error={:?}",
             en_name,
@@ -234,6 +261,7 @@ pub async fn install_skill_to_root(
     if final_dir.exists() {
         if let Err(error) = fs::remove_dir_all(&final_dir).await {
             cleanup_staging(&staging_dir).await;
+            let _ = fs::remove_file(&temp_zip).await;
             return Err(MatrixApiError::new(
                 MatrixApiErrorKind::Io,
                 format!(
@@ -246,6 +274,7 @@ pub async fn install_skill_to_root(
     }
     if let Err(error) = fs::rename(&staging_dir, &final_dir).await {
         cleanup_staging(&staging_dir).await;
+        let _ = fs::remove_file(&temp_zip).await;
         return Err(MatrixApiError::new(
             MatrixApiErrorKind::Io,
             format!(
@@ -255,6 +284,8 @@ pub async fn install_skill_to_root(
             ),
         ));
     }
+    // Clean up the temp ZIP file after successful install.
+    let _ = fs::remove_file(&temp_zip).await;
     log::info!(
         "Matrix install_skill_to_root step 8 done: en_name={}, final_dir={}",
         en_name,
@@ -320,15 +351,79 @@ async fn cleanup_staging(staging_dir: &Path) {
     }
 }
 
-/// Compute the SHA-256 hex digest of `bytes`.
-fn sha256_hex(bytes: &[u8]) -> String {
+/// Compute the SHA-256 hex digest of a file (streamed read, not in-memory).
+fn sha256_hex_of_file(path: &Path) -> Result<String, MatrixApiError> {
+    let mut file = std::fs::File::open(path).map_err(|error| {
+        MatrixApiError::new(
+            MatrixApiErrorKind::Io,
+            format!("Failed to open ZIP temp file for hashing: {}", error),
+        )
+    })?;
     let mut hasher = Sha256::new();
-    hasher.update(bytes);
+    let mut buffer = [0u8; 64 * 1024];
+    loop {
+        let n = file.read(&mut buffer).map_err(|error| {
+            MatrixApiError::new(
+                MatrixApiErrorKind::Io,
+                format!("Failed to read ZIP temp file for hashing: {}", error),
+            )
+        })?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buffer[..n]);
+    }
     let digest = hasher.finalize();
-    digest.iter().map(|byte| format!("{:02x}", byte)).collect()
+    Ok(digest.iter().map(|byte| format!("{:02x}", byte)).collect())
 }
 
-/// Unzip `zip_bytes` into `staging_dir` with a path-traversal guard.
+/// Build a unique temp ZIP file name for the given `en_name`.
+fn temp_zip_name(en_name: &str) -> String {
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    format!(".downloading-{}-{}-{}.zip", en_name, std::process::id(), timestamp)
+}
+
+/// Best-effort cleanup of stale `.downloading-*` temp files left by killed
+/// processes. Scans `install_root` for temp files matching the `en_name`
+/// prefix and removes any that are not the current process's.
+async fn cleanup_stale_temp_files(install_root: &Path, en_name: &str) {
+    let prefix = format!(".downloading-{}-", en_name);
+    let pid = std::process::id();
+    let mut read_dir = match fs::read_dir(install_root).await {
+        Ok(rd) => rd,
+        Err(_) => return,
+    };
+    while let Ok(Some(entry)) = read_dir.next_entry().await {
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+        if name_str.starts_with(&prefix) && name_str.ends_with(".zip") {
+            // Extract the PID segment to avoid removing the current process's file.
+            // Format: .downloading-{en_name}-{pid}-{nanos}.zip
+            let parts: Vec<&str> = name_str.split('-').collect();
+            if parts.len() >= 4 {
+                if let Ok(file_pid) = parts[parts.len() - 2].parse::<u32>() {
+                    if file_pid == pid {
+                        continue;
+                    }
+                }
+            }
+            if let Err(error) = fs::remove_file(entry.path()).await {
+                if error.kind() != std::io::ErrorKind::NotFound {
+                    log::warn!(
+                        "Failed to clean up stale Matrix ZIP temp file {}: {}",
+                        name_str,
+                        error
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// Unzip a ZIP file at `zip_path` into `staging_dir` with a path-traversal guard.
 ///
 /// Defense layers (per `spec.md` FR-007 and plan.md RD-004):
 /// 1. Reject entries whose name starts with `/` (absolute path).
@@ -336,9 +431,14 @@ fn sha256_hex(bytes: &[u8]) -> String {
 /// 3. Use `zip::ZipFile::enclosed_name()` for an additional sanitize pass.
 /// 4. Verify the resolved destination is still inside `staging_dir`.
 /// 5. Reject symlink entries (via Unix mode bits).
-fn unzip_with_path_guard(zip_bytes: &[u8], staging_dir: &Path) -> Result<(), MatrixApiError> {
-    let cursor = Cursor::new(zip_bytes);
-    let mut archive = zip::ZipArchive::new(cursor).map_err(|error| {
+fn unzip_with_path_guard(zip_path: &Path, staging_dir: &Path) -> Result<(), MatrixApiError> {
+    let file = std::fs::File::open(zip_path).map_err(|error| {
+        MatrixApiError::new(
+            MatrixApiErrorKind::Io,
+            format!("Failed to open ZIP temp file for extraction: {}", error),
+        )
+    })?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|error| {
         MatrixApiError::new(
             MatrixApiErrorKind::Parse,
             format!("Failed to read Matrix skill ZIP archive: {}", error),

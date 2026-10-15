@@ -546,6 +546,15 @@ impl SkillRegistry {
                     continue;
                 }
                 let child_path = format!("{path}/{}", child.name);
+                // Skip the Matrix subdirectory under the BitFun skill root: it
+                // has its own skill root entry and would be double-counted as a
+                // BitFun source skill if the scan descends into it.
+                if depth == 0
+                    && entry.slot == BITFUN_USER_SKILL_SLOT
+                    && child.name == MATRIX_USER_SKILL_SLOT
+                {
+                    continue;
+                }
                 let is_dir = if child.is_symlink {
                     match fs.is_dir(&child_path).await {
                         Ok(is_dir) => is_dir,
@@ -898,6 +907,15 @@ impl SkillRegistry {
                             .file_name()
                             .to_string_lossy()
                             .starts_with(BUILTIN_SKILLS_STAGING_PREFIX))
+                {
+                    continue;
+                }
+                // Skip the Matrix subdirectory under the BitFun skill root: it
+                // has its own skill root entry and would be double-counted as a
+                // BitFun source skill if the scan descends into it.
+                if depth == 0
+                    && entry.slot == BITFUN_USER_SKILL_SLOT
+                    && child.file_name() == MATRIX_USER_SKILL_SLOT
                 {
                     continue;
                 }

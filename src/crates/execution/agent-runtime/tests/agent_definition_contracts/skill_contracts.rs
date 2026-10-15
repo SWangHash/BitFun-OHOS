@@ -1119,6 +1119,47 @@ fn shadow_annotations_use_the_same_level_tiebreaker_as_runtime_resolution() {
 }
 
 #[test]
+fn matrix_and_skills_sh_same_name_skills_coexist_without_shadowing() {
+    let mut matrix_info = custom_user_skill("pdf");
+    matrix_info.key = "user::matrix::pdf".to_string();
+    matrix_info.source_slot = "matrix".to_string();
+    matrix_info.source_id = "matrix".to_string();
+    matrix_info.source_label = "Matrix".to_string();
+    matrix_info.path = "/home/.bitfun/skills/matrix/pdf".to_string();
+    let matrix_candidate = SkillCandidate {
+        info: matrix_info,
+        priority: 0,
+    };
+    let skills_sh_candidate = SkillCandidate {
+        info: custom_user_skill("pdf"),
+        priority: 0,
+    };
+
+    let annotated =
+        annotate_shadowed_skills(vec![matrix_candidate.clone(), skills_sh_candidate.clone()]);
+
+    let matrix_skill = annotated
+        .iter()
+        .find(|skill| skill.key == matrix_candidate.info.key)
+        .expect("matrix skill should be present");
+    assert!(
+        !matrix_skill.is_shadowed,
+        "matrix skill should not be shadowed by same-name skills.sh skill"
+    );
+    assert_eq!(matrix_skill.shadowed_by_key, None);
+
+    let skills_sh_skill = annotated
+        .iter()
+        .find(|skill| skill.key == skills_sh_candidate.info.key)
+        .expect("skills.sh skill should be present");
+    assert!(
+        !skills_sh_skill.is_shadowed,
+        "skills.sh skill should not be shadowed by same-name matrix skill"
+    );
+    assert_eq!(skills_sh_skill.shadowed_by_key, None);
+}
+
+#[test]
 fn mode_skill_candidate_filtering_and_info_are_runtime_owned() {
     let project_doc = SkillCandidate {
         info: project_skill("project-doc"),

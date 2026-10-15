@@ -86,6 +86,7 @@
       "downloadProject": "下載到項目",
       "installed": "已安裝",
       "installedTooltip": "該技能已安裝",
+      "cannotInstall": "無法安裝：請透過連結手動安裝",
       "downloading": "下載中...",
       "downloadUser": "下載到使用者"
     },

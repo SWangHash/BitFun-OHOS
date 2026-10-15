@@ -3,6 +3,7 @@ use super::keys::normalize_skill_keys as normalize_skill_key_list;
 use super::resolver::{
     resolve_skill_default_enabled_for_mode, resolve_skill_state_for_mode, UserModeSkillOverrides,
 };
+use super::roots::MATRIX_SKILL_SOURCE_ID;
 use super::types::{ModeSkillInfo, SkillData, SkillInfo, SkillLocation};
 use std::collections::{HashMap, HashSet};
 
@@ -192,10 +193,16 @@ pub fn filter_candidates_for_mode(
 /// Annotate each candidate with shadowing information.
 ///
 /// For every skill with a higher-priority skill of the same name, set the
-/// shadowed fields to point at the winner.
+/// shadowed fields to point at the winner. Matrix-market skills are excluded
+/// from shadowing because their install directory (`~/.bitfun/skills/matrix/`)
+/// does not intersect the BitFun skills root, so same-name Matrix and skills.sh
+/// skills coexist independently.
 pub fn annotate_shadowed_skills(candidates: Vec<SkillCandidate>) -> Vec<SkillInfo> {
     let mut by_name: HashMap<String, SkillCandidate> = HashMap::new();
     for candidate in &candidates {
+        if candidate.info.source_id == MATRIX_SKILL_SOURCE_ID {
+            continue;
+        }
         match by_name.get(&candidate.info.name) {
             Some(existing)
                 if skill_candidate_precedence(existing)
@@ -209,6 +216,9 @@ pub fn annotate_shadowed_skills(candidates: Vec<SkillCandidate>) -> Vec<SkillInf
     candidates
         .into_iter()
         .map(|mut candidate| {
+            if candidate.info.source_id == MATRIX_SKILL_SOURCE_ID {
+                return candidate.info;
+            }
             if let Some(winner) = by_name.get(&candidate.info.name) {
                 if winner.info.key != candidate.info.key {
                     candidate.info.is_shadowed = true;

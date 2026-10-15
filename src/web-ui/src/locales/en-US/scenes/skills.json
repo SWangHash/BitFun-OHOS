@@ -86,6 +86,7 @@
       "downloadProject": "Download to Project",
       "installed": "Installed",
       "installedTooltip": "This skill is already installed",
+      "cannotInstall": "Cannot install: use the link to install manually",
       "downloading": "Downloading...",
       "downloadUser": "Download to User"
     },
