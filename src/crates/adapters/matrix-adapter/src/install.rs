@@ -4,13 +4,15 @@
 //! Install flow (mirrors BitFun `builtin.rs` staging + atomic rename pattern,
 //! see `spec/matrix-skill-market/plan.md` RD-003 + RD-004):
 //!
-//! 1. Stream-download ZIP to a temp file via `MatrixHttpClient::fetch_skill_zip_to_file`
+//! 1. Ensure `install_root` exists (`fs::create_dir_all`) so the temp ZIP and
+//!    staging directory can be written
+//! 2. Stream-download ZIP to a temp file via `MatrixHttpClient::fetch_skill_zip_to_file`
 //!    (no size limit; 300 s timeout; retries transport and body-decode errors)
-//! 2. Fetch expected SHA-256 + size via `check_checksum` (AFTER download, per
+//! 3. Fetch expected SHA-256 + size via `check_checksum` (AFTER download, per
 //!    Matrix's real-time-update note in `spec.md` US4 scenario 3)
-//! 3. Compute SHA-256 of the temp file (streamed read, not in-memory), reject on mismatch
-//! 4. Resolve `~/.bitfun/skills/matrix/` via cross-platform home dir lookup
-//! 5. Create staging dir `~/.bitfun/skills/matrix/.staging-{en_name}-{pid}-{nanos}/`
+//! 4. Compute SHA-256 of the temp file (streamed read, not in-memory), reject on mismatch
+//! 5. Resolve `~/.bitfun/skills/matrix/` via cross-platform home dir lookup
+//! 6. Create staging dir `~/.bitfun/skills/matrix/.staging-{en_name}-{pid}-{nanos}/`
 //! 6. Unzip from the temp file into staging dir with path traversal guard (reject `/`-prefix,
 //!    `..` segments, out-of-tree resolution, and symlink entries)
 //! 7. Verify `SKILL.md` exists in extracted root
@@ -88,6 +90,11 @@ pub async fn install_skill_to_root(
             "Matrix skill en_name must not be empty",
         ));
     }
+
+    // Ensure the install root exists before downloading. The temp ZIP and
+    // staging directory are both written under `install_root`; without this,
+    // `File::create(temp_zip)` fails with "directory not found" on first install.
+    fs::create_dir_all(install_root).await?;
 
     // Clean up stale temp files from killed processes before starting.
     cleanup_stale_temp_files(install_root, en_name).await;
@@ -175,8 +182,7 @@ pub async fn install_skill_to_root(
         install_root.display()
     );
 
-    // Step 5: Create the install root and a unique staging directory.
-    fs::create_dir_all(install_root).await?;
+    // Step 5: Create a unique staging directory (install_root already exists).
     let staging_dir = staging_path(install_root, en_name);
     if let Err(error) = fs::create_dir_all(&staging_dir).await {
         log::warn!(
