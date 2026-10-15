@@ -1,0 +1,257 @@
+name: BitFun ADE OHOS Package
+
+# One-click signed OHOS packaging driven by the host-side script
+# /root/package-tools/package.sh (clones the target repo, injects signing
+# material from /root/package-tools, builds the frontend, produces the
+# OHOS .so via cargo tauri ohos build, and packages the HAP with
+# ohpm/hvigorw from the host Command Line Tools).
+#
+# Runs directly on the runner host: the script owns its own environment
+# contract, so no container is involved. Triggered manually.
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: '打包分支（默认 main）'
+        required: false
+        default: 'main'
+        type: string
+      repo:
+        description: '仓库地址（默认 OpenBitFun/bitfun_ade）'
+        required: false
+        type: string
+      so_only:
+        description: '只编 so（跳过 HAP 打包）'
+        required: false
+        default: false
+        type: boolean
+      build_app:
+        description: '打 .app 包（release 签名 + assembleApp，需主机已配置 cer-app.snippet）'
+        required: false
+        default: false
+        type: boolean
+      debug:
+        description: 'cargo tauri ohos build 使用 debug profile（so 输出在 target/.../debug）'
+        required: false
+        default: false
+        type: boolean
+      upload_to_release:
+        description: '把产物上传到 GitCode Release'
+        required: false
+        default: false
+        type: boolean
+      upload_artifact:
+        description: '附带上传 artifact（占命名空间 1G 配额且当前无删除接口，仅在需要时勾选）'
+        required: false
+        default: false
+        type: boolean
+      release_tag:
+        description: 'Release 标签（upload_to_release 为 true 时必填，如 v1.0.0）'
+        required: false
+        type: string
+
+permissions:
+  repository: read
+
+jobs:
+  package:
+    name: One-click signed package
+    runs-on: [self-hosted, os=ubuntu]
+    timeout-minutes: 120
+    env:
+      PKG_BRANCH: ${{ inputs.branch }}
+      PKG_REPO: ${{ inputs.repo }}
+      PKG_SO_ONLY: ${{ inputs.so_only }}
+      PKG_BUILD_APP: ${{ inputs.build_app }}
+      PKG_DEBUG: ${{ inputs.debug }}
+    steps:
+      - name: Checkout pipeline scripts
+        uses: checkout
+        with:
+          ref: ${{ atomgit.sha }}
+
+      - name: Run repo package script
+        run: |
+          # Load the host toolchain env (cargo, node, OHOS vars) the same
+          # way the container steps do: preset PS1/HOME so the interactive
+          # guard in /root/.bashrc lets the exports through. Enable strict
+          # mode only AFTER sourcing: .bashrc references unset variables
+          # (e.g. debian_chroot) that must not trip `set -u`.
+          export HOME=/root PS1="ci$ "
+          . /root/.bashrc
+          set -eu
+          args=''
+          if [ -n "$PKG_BRANCH" ]; then
+            args="$args --branch $PKG_BRANCH"
+          fi
+          if [ -n "$PKG_REPO" ]; then
+            args="$args --repo $PKG_REPO"
+          fi
+          if [ "$PKG_SO_ONLY" = "true" ]; then
+            args="$args --so-only"
+          fi
+          if [ "$PKG_BUILD_APP" = "true" ]; then
+            args="$args --app"
+          fi
+          if [ "$PKG_DEBUG" = "true" ]; then
+            args="$args --debug"
+          fi
+          echo "Packaging args:$args"
+          # Run the repo-versioned script straight from the checkout, so
+          # script changes ship with the workflow itself and no host-side
+          # copy needs syncing. Test phase name: package-new.sh; rename to
+          # package.sh after validation.
+          bash "$PWD/.gitcode/package.sh" $args
+
+      - name: Collect artifacts
+        id: collect
+        env:
+          PKG_BRANCH: ${{ inputs.branch }}
+          PKG_SO_ONLY: ${{ inputs.so_only }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          UPLOAD_TO_RELEASE: ${{ inputs.upload_to_release }}
+        run: |
+          set -eu
+          branch_dir="/root/workspace/$PKG_BRANCH"
+          workdir="$(ls -dt "$branch_dir"/*/ 2>/dev/null | head -n 1 || true)"
+          if [ -z "$workdir" ]; then
+            echo "No package workspace found under $branch_dir" >&2
+            exit 1
+          fi
+          workdir="${workdir%/}"
+          echo "Latest package workspace: $workdir"
+          repo_path="$(cat "$workdir/repo-path.txt" 2>/dev/null || true)"
+          if [ -z "$repo_path" ] || [ ! -d "$repo_path" ]; then
+            repo_path="$(ls -d "$workdir"/*/ 2>/dev/null | grep -vE '/(app-output|hap-output|so-output)/$' | head -n 1 || true)"
+            repo_path="${repo_path%/}"
+          fi
+          if [ -z "$repo_path" ] || [ ! -d "$repo_path" ]; then
+            echo "No cloned repo directory found under $workdir" >&2
+            exit 1
+          fi
+          echo "Repo directory: $repo_path"
+          out="$PWD/ohos-package-output"
+          mkdir -p "$out"
+          # The .app build re-signs and overwrites the outputs dir, so the
+          # script stages default-signed haps (hap-output/) and the .app
+          # (app-output/) before that happens; staged copies win.
+          HAP_SIGNED=entry-default-signed.hap
+          APP_SIGNED=ohos-default-signed.app
+          if [ -e "$workdir/hap-output/$HAP_SIGNED" ]; then
+            cp -v "$workdir/hap-output/$HAP_SIGNED" "$out/"
+          elif [ -e "$repo_path/src/apps/ohos/entry/build/default/outputs/default/$HAP_SIGNED" ]; then
+            cp -v "$repo_path/src/apps/ohos/entry/build/default/outputs/default/$HAP_SIGNED" "$out/"
+          elif [ "$PKG_SO_ONLY" != "true" ]; then
+            echo "HAP not found in workspace or staging" >&2
+            exit 1
+          fi
+          if [ -e "$workdir/app-output/$APP_SIGNED" ]; then
+            cp -v "$workdir/app-output/$APP_SIGNED" "$out/"
+          elif [ -e "$repo_path/src/apps/ohos/build/outputs/default/$APP_SIGNED" ]; then
+            cp -v "$repo_path/src/apps/ohos/build/outputs/default/$APP_SIGNED" "$out/"
+          fi
+          # Release 打包：产物按 tag 改名（如 v1.0.0.hap / v1.0.0.app）
+          if [ -n "$RELEASE_TAG" ]; then
+            if [ -e "$out/$HAP_SIGNED" ]; then
+              mv -v "$out/$HAP_SIGNED" "$out/$RELEASE_TAG.hap"
+            fi
+            if [ -e "$out/$APP_SIGNED" ]; then
+              mv -v "$out/$APP_SIGNED" "$out/$RELEASE_TAG.app"
+            fi
+          fi
+          # so/dist 仅在 so-only 模式或发版（upload_to_release）时收集；
+          # 默认模式产物只含 HAP（build_app 时另含 .app）
+          collect_extras=false
+          if [ "$PKG_SO_ONLY" = "true" ] || [ "$UPLOAD_TO_RELEASE" = "true" ]; then
+            collect_extras=true
+          fi
+          if [ "$collect_extras" = "true" ]; then
+            # so：优先取脚本暂存（--debug 时在 target/.../debug，暂存目录
+            # 与 profile 无关），回退 release 目录
+            if ls "$workdir/so-output"/lib*desktop_lib.so >/dev/null 2>&1; then
+              so_src="$workdir/so-output"
+            else
+              so_src="$repo_path/target/aarch64-unknown-linux-ohos/release"
+            fi
+            for so in "$so_src"/lib*desktop_lib.so; do
+              if [ -e "$so" ]; then cp -v "$so" "$out/"; fi
+            done
+            # mobile-web/dist 打包成压缩档（zip 优先，无 zip 回退 tar.gz），
+            # artifact 与 release 资产共用同一份文件
+            if [ -d "$repo_path/src/mobile-web/dist" ]; then
+              if command -v zip >/dev/null 2>&1; then
+                (cd "$repo_path/src/mobile-web" && zip -qr "$out/mobile-web-dist.zip" dist)
+              else
+                tar -czf "$out/mobile-web-dist.tar.gz" -C "$repo_path/src/mobile-web" dist
+              fi
+            fi
+          fi
+          # 传递实际打包提交，供 Release tag 精确指向
+          if [ -f "$workdir/packaged-commit.txt" ]; then
+            packaged_commit="$(cat "$workdir/packaged-commit.txt" 2>/dev/null || true)"
+            if echo "$packaged_commit" | grep -qE '^[0-9a-f]{40}$'; then
+              echo "commit=$packaged_commit" >> "$ATOMGIT_OUTPUT"
+            fi
+          fi
+          ls -lh "$out"
+
+      - name: Gate artifact upload
+        id: artifact_gate
+        env:
+          UPLOAD_FLAG: ${{ inputs.upload_artifact }}
+        run: |
+          case "$UPLOAD_FLAG" in
+            true|True|TRUE) echo 'upload=true' >> "$ATOMGIT_OUTPUT" ;;
+            *) echo 'upload=false' >> "$ATOMGIT_OUTPUT" ;;
+          esac
+
+      - name: Upload package artifacts
+        if: ${{ steps.artifact_gate.outputs.upload == 'true' }}
+        uses: upload-artifact
+        with:
+          name: bitfun-ohos-package
+          path: ohos-package-output/
+
+      - name: Upload to GitCode release
+        id: release
+        env:
+          GITCODE_TOKEN: ${{ secrets.GIT_TOKEN }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_BRANCH: ${{ inputs.branch }}
+          RELEASE_REPO_INPUT: ${{ inputs.repo }}
+          PACKAGED_COMMIT: ${{ steps.collect.outputs.commit }}
+          UPLOAD_FLAG: ${{ inputs.upload_to_release }}
+        run: |
+          # 主机 PATH（node 等）来自 /root/.bashrc，先加载再做判断
+          export HOME=/root PS1="ci$ "
+          . /root/.bashrc
+          set -eu
+          # GitCode 的 boolean 输入在表达式层可能与字符串比较不兼容，
+          # 在 shell 里做判断（env 渲染后必为字符串）
+          case "$UPLOAD_FLAG" in
+            true|True|TRUE) ;;
+            *)
+              echo "Skipped: upload_to_release is not enabled (UPLOAD_FLAG=$UPLOAD_FLAG)."
+              exit 0
+              ;;
+          esac
+          if [ -z "$RELEASE_TAG" ]; then
+            echo "upload_to_release is true but release_tag is empty." >&2
+            exit 1
+          fi
+          if [ -z "$GITCODE_TOKEN" ]; then
+            echo "Repository secret GIT_TOKEN is not configured (GitCode personal access token)." >&2
+            exit 1
+          fi
+          # Release 建在被打包的仓库上（tag 才能指向所选分支），从 repo
+          # 输入推导 owner/repo；未填时用默认仓库
+          release_repo="$RELEASE_REPO_INPUT"
+          if [ -z "$release_repo" ]; then
+            release_repo='https://gitcode.com/OpenBitFun/bitfun_ade.git'
+          fi
+          release_repo="${release_repo%.git}"
+          release_repo="$(printf '%s' "$release_repo" | awk -F/ '{print $(NF-1)"/"$NF}')"
+          echo "Release repository: $release_repo (target branch: $RELEASE_BRANCH)"
+          node scripts/ci/publish-gitcode-release.mjs "$RELEASE_TAG" "$release_repo" ohos-package-output "$RELEASE_BRANCH" "$PACKAGED_COMMIT"
+          echo 'uploaded=true' >> "$ATOMGIT_OUTPUT"

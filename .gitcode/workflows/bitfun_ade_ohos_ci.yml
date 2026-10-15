@@ -1,0 +1,163 @@
+name: BitFun ADE OHOS CI
+
+# OHOS (aarch64) build check for bitfun-desktop, running inside the
+# self-contained bitfun-ade-ohos-ci container on a self-hosted Linux
+# runner. The image carries everything (node + pnpm, Rust toolchain with
+# the aarch64-unknown-linux-ohos target, OHOS NDK and all required
+# environment variables baked in at image build time); no host toolchain
+# volumes are mapped and no env is exported at run time. Workflow syntax
+# follows bitfun_agent_kernel/.gitcode (GitCode Actions):
+# - pull_request types are open/update/reopen
+# - built-in actions are referenced without a registry prefix (`checkout`)
+# - step outputs are written to $ATOMGIT_OUTPUT
+# GitCode restricts expression keywords (e.g. the needs context) in some
+# positions, so this is a single job: the change gate runs as its first
+# step and gates every later step via a step output.
+
+on:
+  pull_request:
+    types:
+      - open
+      - update
+      - reopen
+    branches: [main, release/2.0.0]
+  push:
+    # Temporary: verifies the runner end-to-end via push events.
+    branches: [main]
+
+permissions:
+  repository: read
+
+jobs:
+  ohos-cargo-check:
+    name: OHOS Build Check (aarch64)
+    runs-on: [self-hosted, os=ubuntu]
+    timeout-minutes: 90
+    env:
+      IMAGE: swr.cn-north-4.myhuaweicloud.com/bitfun/bitfun-ade-ohos-ci:20260818
+      # Static name like the reference CI workflows; pre-cleaned per run.
+      CONTAINER_NAME: bitfun-ade-ohos-ci
+    steps:
+      - name: Checkout source
+        uses: checkout
+        with:
+          # GitCode may not expose a synthetic merge ref for pull requests;
+          # check out the actual PR head commit instead.
+          ref: ${{ atomgit.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      # Conservative gate: skip the container when no Rust build input
+      # changed (web-ui-only or documentation-only changes). Same host-side
+      # pattern as bitfun_agent_kernel/.gitcode (git cat-file guard plus
+      # `git diff --quiet` over pathspecs, no node on the runner host):
+      # everything outside root-level *.md, docs/**/*.md, png/ and
+      # src/web-ui/ counts as a Rust build input.
+      - name: Classify Rust and CLI impact
+        id: classify
+        env:
+          BASE_SHA: ${{ atomgit.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ atomgit.event.pull_request.head.sha }}
+        run: |
+          set -eu
+          run='true'
+          reason='invalid-range'
+          if [ -n "$BASE_SHA" ] && [ -n "$HEAD_SHA" ] \
+            && git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null \
+            && git cat-file -e "${HEAD_SHA}^{commit}" 2>/dev/null; then
+            reason='no-changes'
+            if ! git diff --quiet "$BASE_SHA...$HEAD_SHA" --; then
+              set +e
+              git diff --quiet "$BASE_SHA...$HEAD_SHA" -- \
+                ':(exclude,glob)*.md' \
+                ':(exclude)docs/*.md' \
+                ':(exclude)png' \
+                ':(exclude)src/web-ui'
+              diff_status=$?
+              set -e
+              case "$diff_status" in
+                0)
+                  run='false'
+                  reason='web-ui-or-docs-only'
+                  ;;
+                1)
+                  reason='rust-build-input'
+                  ;;
+                *)
+                  reason='unavailable-range'
+                  ;;
+              esac
+            fi
+          fi
+          echo "rust_required=$run reason=$reason"
+          if [ "$run" = 'false' ]; then
+            echo 'OHOS check skipped: no Rust build input changed.'
+          fi
+          echo "run=$run" >> "$ATOMGIT_OUTPUT"
+
+      - name: Guard runner disk space
+        if: ${{ steps.classify.outputs.run == 'true' }}
+        run: |
+          set -eu
+          cache_root='/opt/.gitcode-cache'
+          mkdir -p "$cache_root"
+          free_kb=$(df -Pk /opt | awk 'NR==2 {print $4}')
+          if [ -n "$free_kb" ] && [ "$free_kb" -lt 10485760 ]; then
+            echo "Free space below 10G; pruning cached target directories (cargo caches are kept)."
+            rm -rf "$cache_root"/target/*
+          fi
+
+      - name: Pull and start OHOS CI container
+        if: ${{ steps.classify.outputs.run == 'true' }}
+        run: |
+          set -eu
+          docker pull "$IMAGE"
+          cache_root='/opt/.gitcode-cache'
+          target_cache="$cache_root/target/ade-ohos"
+          mkdir -p "$target_cache"
+          docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+          docker run --detach \
+            --name "$CONTAINER_NAME" \
+            --user 0 \
+            --volume "$PWD:/workspace" \
+            --volume "$target_cache:/workspace/target" \
+            --workdir /workspace \
+            "$IMAGE" \
+            sh -c 'while :; do sleep 3600; done'
+
+      - name: Install frontend dependencies
+        if: ${{ steps.classify.outputs.run == 'true' }}
+        run: |
+          set -eu
+          # The image's env vars live in /root/.bashrc behind the standard
+          # "[ -z "$PS1" ] && return" interactive guard, so preset PS1 (and
+          # HOME for ~/.cargo/env) before sourcing it.
+          docker exec "$CONTAINER_NAME" bash -c 'export HOME=/root PS1="ci$ "; . /root/.bashrc; set -eu; cd /workspace && pnpm install'
+
+      - name: Install bun in container
+        if: ${{ steps.classify.outputs.run == 'true' }}
+        run: |
+          set -eu
+          # Temporary until bun is baked into the CI image: npm installs the
+          # bun binary into the node prefix already on PATH, so later docker
+          # exec steps (plugin-host:prepare) find it without touching .bashrc.
+          docker exec "$CONTAINER_NAME" bash -c 'export HOME=/root PS1="ci$ "; . /root/.bashrc; set -eu; npm install -g bun'
+
+      - name: Build web UI
+        if: ${{ steps.classify.outputs.run == 'true' }}
+        run: |
+          set -eu
+          # Same frontend chain as .gitcode/package.sh on this branch.
+          docker exec "$CONTAINER_NAME" bash -c 'export HOME=/root PS1="ci$ "; . /root/.bashrc; set -eu; cd /workspace && pnpm --dir design-system run build:packages && npm run build && pnpm run plugin-host:prepare && pnpm --dir src/mobile-web run build'
+
+      - name: Cargo check (OHOS aarch64)
+        if: ${{ steps.classify.outputs.run == 'true' }}
+        run: |
+          set -eu
+          docker exec \
+            --env CARGO_INCREMENTAL=0 \
+            "$CONTAINER_NAME" \
+            bash -c 'export HOME=/root PS1="ci$ "; . /root/.bashrc; set -eu; mkdir -p /workspace/dist /workspace/src/mobile-web/dist && cd /workspace/src/apps/desktop && exec cargo check --target aarch64-unknown-linux-ohos --release'
+
+      - name: Remove OHOS CI container
+        if: ${{ always() }}
+        run: docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
