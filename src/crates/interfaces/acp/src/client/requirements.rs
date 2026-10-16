@@ -9,7 +9,7 @@ use bitfun_core::util::errors::{BitFunError, BitFunResult};
 use tokio::process::Command;
 
 use super::builtin_clients::builtin_acp_client_preset;
-use super::config::{AcpClientConfig, AcpRequirementProbeItem};
+use super::config::{AcpClientConfig, AcpClientRequirementProbe, AcpRequirementProbeItem};
 use super::remote_shell::{remote_user_shell_command, render_remote_env_assignments, shell_escape};
 
 const REQUIREMENT_PROBE_TIMEOUT: Duration = Duration::from_secs(3);
@@ -134,6 +134,157 @@ pub(crate) async fn probe_executable_with_environment(
         working_directory,
     )
     .await
+}
+
+pub(crate) async fn probe_node_platform(
+    node: &str,
+    environment: Option<&HashMap<String, String>>,
+    working_directory: Option<&Path>,
+) -> Result<String, String> {
+    let output = run_command_with_timeout_in_context(
+        OsStr::new(node),
+        ["-p", "process.platform"],
+        REQUIREMENT_PROBE_TIMEOUT,
+        environment,
+        working_directory,
+    )
+    .await?;
+    if !output.status.success() {
+        return Err(command_error_summary(&output.stderr, &output.stdout));
+    }
+    parse_version_text(&output.stdout).ok_or_else(|| "Node returned no platform".to_string())
+}
+
+/// Check the installed release, not the presence of an ACP command in source.
+/// Node/npm and the development toolchain are informational: they are not
+/// prerequisites for an already installed native ACP executable.
+pub(crate) async fn check_deveco_requirements(
+    probe: &mut AcpClientRequirementProbe,
+    environment: &HashMap<String, String>,
+    working_directory: Option<&Path>,
+) {
+    probe.runnable = probe.tool.installed && probe.tool.error.is_none();
+    if probe.tool.installed && probe.tool.error.is_none() {
+        if let Some(path) = probe.tool.path.as_deref() {
+            let result = run_command_with_timeout_in_context(
+                OsStr::new(path),
+                ["acp", "--help"],
+                REQUIREMENT_PROBE_TIMEOUT,
+                Some(environment),
+                working_directory,
+            )
+            .await;
+            let error = match result {
+                Ok(output) if output.status.success()
+                    && (is_deveco_acp_help(&output.stdout) || is_deveco_acp_help(&output.stderr)) => None,
+                Ok(output) => Some(format!(
+                    "DevEco Code did not confirm an ACP subcommand. Check this installed release with `deveco acp --help`: {}",
+                    command_error_summary(&output.stderr, &output.stdout)
+                )),
+                Err(error) => Some(format!("Could not check DevEco Code ACP support: {error}")),
+            };
+            if let Some(error) = error {
+                probe.tool.error = Some(error.clone());
+                probe.notes.push(error);
+                probe.runnable = false;
+            }
+        }
+    }
+
+    let configured_path = configured_path_value(environment);
+    if let Some(command) = find_executable_with_path("deveco", configured_path.as_deref()) {
+        probe.notes.push(format!(
+            "deveco is on the ACP search path at {}",
+            command.display()
+        ));
+    } else if probe.tool.installed {
+        probe.notes.push(
+            "deveco is not on the ACP search path; the configured absolute executable is used."
+                .to_string(),
+        );
+    }
+
+    for name in ["node", "npm"] {
+        let item =
+            probe_executable_with_environment(name, Some(environment), working_directory).await;
+        if !item.installed || item.error.is_some() {
+            probe.notes.push(format!(
+                "{name} is not available for npm installation. An installed native DevEco Code does not require it to start.{}",
+                item.error.as_ref().map(|error| format!(" {error}")).unwrap_or_default()
+            ));
+        } else {
+            probe.notes.push(format!(
+                "{name}: {} ({})",
+                item.path.as_deref().unwrap_or(name),
+                item.version.as_deref().unwrap_or("version unknown")
+            ));
+            if name == "node" {
+                if let Some(path) = item.path.as_deref() {
+                    match probe_node_platform(path, Some(environment), working_directory).await {
+                        Ok(platform) => probe.notes.push(format!(
+                            "Detected Node process.platform={platform}. Managed npm installation requires HarmonyBrew Node reporting openharmony; this is not a native runtime requirement."
+                        )),
+                        Err(error) => probe.notes.push(format!("Could not check the detected Node platform: {error}")),
+                    }
+                }
+            }
+        }
+    }
+
+    let roots = deveco_toolchain_roots(Some(environment));
+    if roots.is_empty() {
+        probe.notes.push(
+            "DevEco Studio / Command Line Tools was not detected. HarmonyOS build and device tools may be unavailable; this does not prevent DevEco Code installation or ACP startup.".to_string()
+        );
+    } else {
+        probe.notes.push(format!(
+            "DevEco toolchain directories detected: {}. Build and device operations were not tested.",
+            roots.iter().map(|path| path.display().to_string()).collect::<Vec<_>>().join(", ")
+        ));
+    }
+}
+
+fn is_deveco_acp_help(output: &[u8]) -> bool {
+    // Root help also lists `deveco acp`. Require the subcommand's usage header,
+    // so a CLI that ignores the argument cannot be marked ACP-ready.
+    String::from_utf8_lossy(output)
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .map(|line| {
+            let mut words = line.split_whitespace();
+            matches!(words.next(), Some("deveco" | "deveco.exe")) && words.next() == Some("acp")
+        })
+        .unwrap_or(false)
+}
+
+pub(crate) fn deveco_native_executable() -> Option<PathBuf> {
+    let command = find_executable("deveco")?;
+    native_deveco_entry(&command)
+}
+
+fn native_deveco_entry(command: &Path) -> Option<PathBuf> {
+    let resolved = std::fs::canonicalize(command).unwrap_or_else(|_| command.to_path_buf());
+    let Some(parent) = resolved.parent() else {
+        return Some(resolved);
+    };
+    // Both layouts come from the npm packages: the portable launcher and the
+    // platform package's cli.js wrapper. Keep the native binary beside vendor.
+    let native = match resolved.file_name().and_then(OsStr::to_str) {
+        Some("cli.js")
+            if parent.file_name() == Some(OsStr::new("deveco-code-openharmony-arm64")) =>
+        {
+            parent.join("bin/deveco")
+        }
+        Some("deveco")
+            if parent.file_name() == Some(OsStr::new("bin"))
+                && parent.parent().and_then(Path::file_name) == Some(OsStr::new("deveco-code")) =>
+        {
+            parent.join("deveco.exe")
+        }
+        _ => return Some(resolved),
+    };
+    executable_file(&native).then_some(native)
 }
 
 async fn probe_executable_with_context(
@@ -532,7 +683,10 @@ where
     S: AsRef<OsStr>,
 {
     let mut command = bitfun_core::util::process_manager::create_tokio_command(program);
-    command.args(args);
+    command
+        .args(args)
+        .stdin(std::process::Stdio::null())
+        .kill_on_drop(true);
     apply_command_environment(&mut command, extra_env);
     if let Some(working_directory) = working_directory {
         command.current_dir(working_directory);
@@ -664,11 +818,18 @@ fn push_split_paths(paths: &mut Vec<PathBuf>, seen: &mut HashSet<OsString>, valu
 
 fn push_user_bin_paths(paths: &mut Vec<PathBuf>, seen: &mut HashSet<OsString>) {
     #[cfg(target_env = "ohos")]
-    push_existing_search_path(
-        paths,
-        seen,
-        PathBuf::from("/storage/Users/currentUser/.harmonybrew/bin"),
-    );
+    {
+        for path in [
+            "/storage/Users/currentUser/.harmonybrew/bin",
+            "/storage/Users/currentUser/npm/bin",
+            "/storage/Users/currentUser/npm",
+        ] {
+            push_existing_search_path(paths, seen, PathBuf::from(path));
+        }
+        for root in deveco_toolchain_roots(None) {
+            push_deveco_node_paths(paths, seen, &root);
+        }
+    }
 
     let Some(home) = env::var_os("HOME") else {
         return;
@@ -677,6 +838,64 @@ fn push_user_bin_paths(paths: &mut Vec<PathBuf>, seen: &mut HashSet<OsString>) {
     push_existing_search_path(paths, seen, home.join(".local/bin"));
     push_existing_search_path(paths, seen, home.join(".cargo/bin"));
     push_existing_search_path(paths, seen, home.join(".npm-global/bin"));
+}
+
+fn deveco_toolchain_roots(environment: Option<&HashMap<String, String>>) -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+    let mut seen = HashSet::new();
+    for key in [
+        "COMMAND_LINE_TOOL_PATH",
+        "DEVECO_HOME",
+        "DEVECO_CLI_STUDIO_PATH",
+        "DEVECO_CLI_CLT_PATH",
+    ] {
+        if let Some(value) = environment
+            .and_then(|env| env.get(key))
+            .cloned()
+            .or_else(|| env::var(key).ok())
+        {
+            if !value.trim().is_empty() {
+                push_existing_search_path(&mut roots, &mut seen, PathBuf::from(value));
+            }
+        }
+    }
+    #[cfg(target_env = "ohos")]
+    for package in child_directories(Path::new("/data/service/hnp")) {
+        let name = package
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_lowercase();
+        if name.contains("deveco") || name.contains("hmos-clt") {
+            for version in child_directories(&package) {
+                push_existing_search_path(&mut roots, &mut seen, version);
+            }
+        }
+    }
+    roots
+}
+
+fn child_directories(root: &Path) -> Vec<PathBuf> {
+    let mut paths = std::fs::read_dir(root)
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| path.is_dir())
+        .collect::<Vec<_>>();
+    paths.sort();
+    paths
+}
+
+fn push_deveco_node_paths(paths: &mut Vec<PathBuf>, seen: &mut HashSet<OsString>, root: &Path) {
+    for relative in ["node", "tools/node", "Contents/tools/node"] {
+        let node_root = root.join(relative);
+        push_existing_search_path(paths, seen, node_root.join("bin"));
+        // Some toolchains version the Node directory independently of the HNP.
+        for version in child_directories(&node_root) {
+            push_existing_search_path(paths, seen, version.join("bin"));
+        }
+    }
 }
 
 fn push_system_bin_paths(paths: &mut Vec<PathBuf>, seen: &mut HashSet<OsString>) {
@@ -761,6 +980,105 @@ fn executable_file(path: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[cfg(unix)]
+    fn deveco_probe_checks_acp_but_does_not_require_installation_tools() {
+        let root = env::temp_dir().join(format!("bitfun-deveco-probe-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).unwrap();
+        let cli = write_command_stub(&root, "deveco", "#!/bin/sh\nif [ \"$1\" = --version ]; then echo 0.2.3; else printf 'deveco acp\\nOptions:\\n'; fi\n");
+        write_command_stub(&root, "node", "#!/bin/sh\nexit 1\n");
+        write_command_stub(&root, "npm", "#!/bin/sh\nexit 1\n");
+        let environment = HashMap::from([("PATH".to_string(), root.to_string_lossy().to_string())]);
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let tool = runtime.block_on(probe_executable_with_environment(
+            cli.to_str().unwrap(),
+            Some(&environment),
+            Some(&root),
+        ));
+        let mut probe = AcpClientRequirementProbe {
+            id: "deveco-code".to_string(),
+            tool,
+            adapter: None,
+            runnable: true,
+            notes: Vec::new(),
+        };
+        runtime.block_on(check_deveco_requirements(
+            &mut probe,
+            &environment,
+            Some(&root),
+        ));
+        assert!(probe.runnable);
+        assert_eq!(probe.tool.version.as_deref(), Some("0.2.3"));
+        assert!(probe
+            .notes
+            .iter()
+            .any(|note| note.starts_with("node is not available")));
+        assert!(probe
+            .notes
+            .iter()
+            .any(|note| note.starts_with("npm is not available")));
+        // Some CLIs print root help and exit successfully for unknown commands.
+        write_command_stub(
+            &root,
+            "deveco",
+            "#!/bin/sh\nprintf 'deveco [project]\\nCommands:\\n deveco acp\\n'\n",
+        );
+        runtime.block_on(check_deveco_requirements(
+            &mut probe,
+            &environment,
+            Some(&root),
+        ));
+        assert!(!probe.runnable);
+        assert!(probe
+            .tool
+            .error
+            .as_deref()
+            .unwrap()
+            .contains("ACP subcommand"));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn deveco_help_requires_the_acp_usage_header() {
+        assert!(is_deveco_acp_help(
+            b"deveco acp\n\nstart ACP (Agent Client Protocol) server\nOptions:\n --cwd"
+        ));
+        assert!(is_deveco_acp_help(b"\ndeveco acp [options]\n"));
+        assert!(!is_deveco_acp_help(
+            b"deveco [project]\nCommands:\n deveco acp  start ACP server"
+        ));
+        assert!(!is_deveco_acp_help(b"Unknown command: acp"));
+        assert!(!is_deveco_acp_help(b""));
+    }
+
+    #[test]
+    fn deveco_discovery_preserves_explicit_paths_and_resolves_packaged_native_entries() {
+        let root = env::temp_dir().join(format!("bitfun-deveco-{}", uuid::Uuid::new_v4()));
+        let toolchain = root.join("hmos-clt_2.0.0");
+        let versioned_node = toolchain.join("node/node-v22/bin");
+        std::fs::create_dir_all(&versioned_node).unwrap();
+        let explicit = root.join("explicit");
+        let mut paths = vec![explicit.clone()];
+        let mut seen = HashSet::from([explicit.as_os_str().to_os_string()]);
+        push_deveco_node_paths(&mut paths, &mut seen, &toolchain);
+        push_deveco_node_paths(&mut paths, &mut seen, &root.join("missing"));
+        assert_eq!(paths, vec![explicit, versioned_node]);
+
+        let package = root.join("deveco-code/bin");
+        std::fs::create_dir_all(&package).unwrap();
+        let launcher = package.join("deveco");
+        let native = package.join("deveco.exe");
+        std::fs::write(&launcher, b"launcher").unwrap();
+        std::fs::write(&native, b"native fixture, never executed").unwrap();
+        assert_eq!(native_deveco_entry(&launcher), Some(native.clone()));
+        std::fs::remove_file(&native).unwrap();
+        assert_eq!(native_deveco_entry(&launcher), None);
+        let custom = root.join("custom-wrapper");
+        std::fs::write(&custom, b"custom").unwrap();
+        assert_eq!(native_deveco_entry(&custom), Some(custom));
+        std::fs::remove_dir_all(&root).unwrap();
+    }
 
     #[test]
     fn npm_adapter_argument_builders_preserve_cli_order() {

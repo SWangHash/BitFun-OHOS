@@ -29,22 +29,26 @@
   "presets": {
     "openCode": {
       "name": "OpenCode",
-      "description": "Native ACP coding agent available through HarmonyBrew."
+      "description": "Installed through HarmonyBrew."
     },
     "kimiCode": {
       "name": "Kimi Code",
-      "description": "Native ACP coding agent available through HarmonyBrew."
+      "description": "Installed through HarmonyBrew."
     },
     "qwenCode": {
       "name": "Qwen Code",
-      "description": "Native ACP coding agent available through HarmonyBrew."
+      "description": "Installed through HarmonyBrew."
     },
     "codeBuddyCode": {
       "name": "CodeBuddy Code",
-      "description": "Native ACP coding agent that runs on HarmonyBrew Node."
+      "description": "Installed with HarmonyBrew Node/npm."
+    },
+    "devecoCode": {
+      "name": "DevEco Code",
+      "description": "Installed with HarmonyBrew Node/npm."
     },
     "deepSeekHarness": {
-      "description": "DeepSeek Harness installed through HarmonyBrew and connected through BitFun's bundled ACP bridge."
+      "description": "Installed through HarmonyBrew, with automatic ACP bridge setup when needed."
     },
     "opencode": { "description": "Native ACP support." },
     "dsh": { "description": "Uses BitFun's bundled ACP bridge and the model settings from dsh." },
@@ -52,12 +56,12 @@
     "claudeCode": {
       "name": "Claude Code",
       "description": "Connects through the official ACP adapter.",
-      "ohosDescription": "Claude Code installed with HarmonyBrew Node/npm and connected through the ACP adapter."
+      "ohosDescription": "Installed with HarmonyBrew Node/npm, with automatic ACP adapter setup."
     },
     "codex": {
       "name": "Codex",
       "description": "Connects through the official ACP adapter.",
-      "ohosDescription": "Codex installed through HarmonyBrew and connected through the ACP adapter."
+      "ohosDescription": "Installed through HarmonyBrew, with automatic ACP adapter setup."
     }
   },
   "json": {
