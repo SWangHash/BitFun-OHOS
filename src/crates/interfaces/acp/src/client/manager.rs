@@ -386,10 +386,36 @@ impl AcpClientService {
                     .filter(|config| !uses_default_builtin_launch(&id, config))
                 {
                     let config = apply_local_runtime_override(config.clone(), true);
-                    probes.push(configured_client_probe(
-                        &id,
-                        probe_configured_executable(&config),
-                    ));
+                    if id == "deveco-code"
+                        && config.args == ["acp"]
+                        && matches!(
+                            Path::new(&config.command)
+                                .file_name()
+                                .and_then(|name| name.to_str()),
+                            Some("deveco" | "deveco.exe")
+                        )
+                    {
+                        let working_directory = config.env.get("HOME").map(Path::new);
+                        let tool = super::requirements::probe_executable_with_environment(
+                            &config.command,
+                            Some(&config.env),
+                            working_directory,
+                        )
+                        .await;
+                        let mut probe = configured_client_probe(&id, tool);
+                        super::requirements::check_deveco_requirements(
+                            &mut probe,
+                            &config.env,
+                            working_directory,
+                        )
+                        .await;
+                        probes.push(probe);
+                    } else {
+                        probes.push(configured_client_probe(
+                            &id,
+                            probe_configured_executable(&config),
+                        ));
+                    }
                 } else {
                     let (_, probe) = probe_existing_managed_client(&id, &self.path_manager).await?;
                     probes.push(probe);

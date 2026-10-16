@@ -29,22 +29,26 @@
   "presets": {
     "openCode": {
       "name": "OpenCode",
-      "description": "可通过 HarmonyBrew 安装的原生 ACP 编码 Agent。"
+      "description": "通过 HarmonyBrew 安装。"
     },
     "kimiCode": {
       "name": "Kimi Code",
-      "description": "可通过 HarmonyBrew 安装的原生 ACP 编码 Agent。"
+      "description": "通过 HarmonyBrew 安装。"
     },
     "qwenCode": {
       "name": "Qwen Code",
-      "description": "可通过 HarmonyBrew 安装的原生 ACP 编码 Agent。"
+      "description": "通过 HarmonyBrew 安装。"
     },
     "codeBuddyCode": {
       "name": "CodeBuddy Code",
-      "description": "使用 HarmonyBrew Node 运行的原生 ACP 编码 Agent。"
+      "description": "通过 HarmonyBrew 提供的 Node/npm 安装。"
+    },
+    "devecoCode": {
+      "name": "DevEco Code",
+      "description": "通过 HarmonyBrew 提供的 Node/npm 安装。"
     },
     "deepSeekHarness": {
-      "description": "通过 HarmonyBrew 安装，并由 BitFun 内置 ACP 桥接入的编码 Agent。"
+      "description": "通过 HarmonyBrew 安装，并按需配置 ACP 桥接。"
     },
     "opencode": { "description": "原生支持 ACP" },
     "dsh": { "description": "通过 BitFun 内置 ACP 桥接，沿用 dsh 的模型与 API 密钥" },
@@ -52,12 +56,12 @@
     "claudeCode": {
       "name": "Claude Code",
       "description": "通过官方 ACP 适配器连接",
-      "ohosDescription": "使用 HarmonyBrew Node/npm 安装，并通过 ACP 适配器接入的编码 Agent。"
+      "ohosDescription": "通过 HarmonyBrew 提供的 Node/npm 安装，并自动安装 ACP 适配器。"
     },
     "codex": {
       "name": "Codex",
       "description": "通过官方 ACP 适配器连接",
-      "ohosDescription": "通过 HarmonyBrew 安装，并由 ACP 适配器接入的编码 Agent。"
+      "ohosDescription": "通过 HarmonyBrew 安装，并自动安装 ACP 适配器。"
     }
   },
   "json": {

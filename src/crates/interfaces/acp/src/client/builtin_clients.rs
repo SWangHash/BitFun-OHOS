@@ -42,6 +42,8 @@ pub(crate) enum OhosAcpSupport {
     Unsupported,
     HarmonyBrewFormula(OhosHarmonyBrewFormulaPreset),
     HarmonyBrewNpm(OhosNpmManagedPreset),
+    /// npm distributes a native executable; Node is needed only for installation.
+    HarmonyBrewNativeNpm(OhosNpmManagedPreset),
 }
 
 impl OhosAcpSupport {
@@ -52,21 +54,21 @@ impl OhosAcpSupport {
     pub(crate) fn formula(self) -> Option<OhosHarmonyBrewFormulaPreset> {
         match self {
             Self::HarmonyBrewFormula(preset) => Some(preset),
-            Self::Unsupported | Self::HarmonyBrewNpm(_) => None,
+            Self::Unsupported | Self::HarmonyBrewNpm(_) | Self::HarmonyBrewNativeNpm(_) => None,
         }
     }
 
     pub(crate) fn allows_managed_install(self) -> bool {
         match self {
             Self::HarmonyBrewFormula(preset) => preset.auto_install,
-            Self::HarmonyBrewNpm(_) => true,
+            Self::HarmonyBrewNpm(_) | Self::HarmonyBrewNativeNpm(_) => true,
             Self::Unsupported => false,
         }
     }
 
     pub(crate) fn npm(self) -> Option<OhosNpmManagedPreset> {
         match self {
-            Self::HarmonyBrewNpm(npm) => Some(npm),
+            Self::HarmonyBrewNpm(npm) | Self::HarmonyBrewNativeNpm(npm) => Some(npm),
             Self::Unsupported | Self::HarmonyBrewFormula(_) => None,
         }
     }
@@ -178,6 +180,25 @@ const BUILTIN_ACP_CLIENT_PRESETS: &[BuiltinAcpClientPreset] = &[
             package: "@tencent-ai/codebuddy-code",
             install_version: "2.138.0",
             entry_relative_path: "lib/node_modules/@tencent-ai/codebuddy-code/bin/codebuddy",
+        }),
+        ohos_adapter: None,
+        adapter_package: None,
+        adapter_bin: None,
+        bundled_profile: None,
+    },
+    // The npm launcher copies the OHOS binary and vendor directory together.
+    // Launch that binary directly so installed ACP sessions do not require Node.
+    BuiltinAcpClientPreset {
+        id: "deveco-code",
+        command: "deveco",
+        args: &["acp"],
+        tool_command: "deveco",
+        // This delivery currently offers managed installation only on OHOS.
+        install_package: None,
+        ohos: OhosAcpSupport::HarmonyBrewNativeNpm(OhosNpmManagedPreset {
+            package: "@deveco/deveco-code",
+            install_version: "0.2.3",
+            entry_relative_path: "lib/node_modules/@deveco/deveco-code/bin/deveco.exe",
         }),
         ohos_adapter: None,
         adapter_package: None,
@@ -413,6 +434,7 @@ mod tests {
                 "kimi-code",
                 "qwen-code",
                 "codebuddy-code",
+                "deveco-code",
                 "dsh",
                 "claude-code",
                 "codex"

@@ -34,6 +34,7 @@ export const NATIVE_ACP_PRESET_IDS = new Set([
   'kimi-code',
   'qwen-code',
   'codebuddy-code',
+  'deveco-code',
   'dsh',
   'omp',
 ]);
@@ -47,6 +48,7 @@ const OHOS_MANAGED_INSTALL_PRESET_IDS = new Set([
   'kimi-code',
   'qwen-code',
   'codebuddy-code',
+  'deveco-code',
   'dsh',
   'claude-code',
   'codex',
@@ -66,6 +68,7 @@ const OHOS_ONLY_PRESET_IDS = new Set([
   'kimi-code',
   'qwen-code',
   'codebuddy-code',
+  'deveco-code',
 ]);
 
 export function isOhosOnlyAcpPreset(presetId: string): boolean {
@@ -76,30 +79,37 @@ export const ALL_ACP_CLIENT_PRESETS: AcpClientPreset[] = [
   {
     id: 'opencode',
     name: 'opencode',
-    description: 'Native ACP coding agent.',
+    description: 'Native ACP support.',
     command: 'opencode',
     args: ['acp'],
   },
   {
     id: 'kimi-code',
     name: 'Kimi Code',
-    description: 'Native ACP coding agent available through HarmonyBrew.',
+    description: 'Installed through HarmonyBrew.',
     command: 'kimi',
     args: ['acp'],
   },
   {
     id: 'qwen-code',
     name: 'Qwen Code',
-    description: 'Native ACP coding agent available through HarmonyBrew.',
+    description: 'Installed through HarmonyBrew.',
     command: 'qwen',
     args: ['--acp'],
   },
   {
     id: 'codebuddy-code',
     name: 'CodeBuddy Code',
-    description: 'Native ACP coding agent that runs on HarmonyBrew Node.',
+    description: 'Installed with HarmonyBrew Node/npm.',
     command: 'codebuddy',
     args: ['--acp'],
+  },
+  {
+    id: 'deveco-code',
+    name: 'DevEco Code',
+    description: 'Installed with HarmonyBrew Node/npm.',
+    command: 'deveco',
+    args: ['acp'],
   },
   // BitFun ships the ACP bridge for DeepSeek Harness and installs it into the
   // user's own dsh as a profile on first launch, so the only setup left is the
@@ -107,28 +117,28 @@ export const ALL_ACP_CLIENT_PRESETS: AcpClientPreset[] = [
   {
     id: 'dsh',
     name: 'DeepSeek Harness',
-    description: 'DeepSeek Harness through BitFun\'s bundled ACP bridge.',
+    description: 'Uses BitFun\'s bundled ACP bridge.',
     command: 'dsh',
     args: ['--profile', 'bitfun-acp'],
   },
   {
     id: 'omp',
     name: 'Oh My Pi',
-    description: 'Native ACP coding agent (omp acp).',
+    description: 'Native ACP support.',
     command: 'omp',
     args: ['acp'],
   },
   {
     id: 'claude-code',
     name: 'Claude Code',
-    description: 'Claude Code via the official ACP adapter.',
+    description: 'Connects through the official ACP adapter.',
     command: 'npx',
     args: ['--yes', '@agentclientprotocol/claude-agent-acp@latest'],
   },
   {
     id: 'codex',
     name: 'Codex',
-    description: 'OpenAI Codex via the official ACP adapter.',
+    description: 'Connects through the official ACP adapter.',
     command: 'npx',
     args: ['--yes', '@agentclientprotocol/codex-acp@latest'],
   },

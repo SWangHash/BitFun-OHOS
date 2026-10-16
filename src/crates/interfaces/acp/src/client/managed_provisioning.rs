@@ -12,15 +12,18 @@ use bitfun_core::util::errors::{BitFunError, BitFunResult};
 use serde::{Deserialize, Serialize};
 
 use super::builtin_clients::{
-    builtin_acp_client_preset, BuiltinAcpClientPreset, OhosHarmonyBrewFormulaPreset,
-    OhosNpmManagedAdapterPreset, OhosNpmManagedPreset,
+    builtin_acp_client_preset, BuiltinAcpClientPreset, OhosAcpSupport,
+    OhosHarmonyBrewFormulaPreset, OhosNpmManagedAdapterPreset, OhosNpmManagedPreset,
 };
 use super::config::{AcpClientRequirementProbe, AcpClientRuntimeOverride, AcpRequirementProbeItem};
 use super::dsh_profile::check_bundled_profile_requirement;
 use super::ohos_node_compat::{
     prepare_node_child_environment, prepare_node_command, sanitize_node_environment,
 };
-use super::requirements::probe_executable_with_environment;
+use super::requirements::{
+    check_deveco_requirements, deveco_native_executable, probe_executable_with_environment,
+    probe_node_platform,
+};
 
 const HARMONYBREW_PREFIX: &str = "/storage/Users/currentUser/.harmonybrew";
 const HARMONYBREW_BIN: &str = "/storage/Users/currentUser/.harmonybrew/bin";
@@ -109,6 +112,20 @@ impl AcpClientInstallOutcome {
 enum ManagedProvisioningRecipe {
     HarmonyBrewFormula(OhosHarmonyBrewFormulaPreset),
     HarmonyBrewNpm(OhosNpmManagedPreset),
+    HarmonyBrewNativeNpm(OhosNpmManagedPreset),
+}
+
+impl ManagedProvisioningRecipe {
+    fn is_npm(self) -> bool {
+        matches!(
+            self,
+            Self::HarmonyBrewNpm(_) | Self::HarmonyBrewNativeNpm(_)
+        )
+    }
+
+    fn is_native_npm(self) -> bool {
+        matches!(self, Self::HarmonyBrewNativeNpm(_))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -145,8 +162,7 @@ pub(crate) async fn build_managed_provisioning_plan(
     let plan = managed_plan_for_preset(preset, false, false, false, false);
     let environment = harmonybrew_process_environment();
     let working_directory = Path::new(HARMONYOS_USER_HOME);
-    let needs_node = matches!(plan.recipe, ManagedProvisioningRecipe::HarmonyBrewNpm(_))
-        || plan.adapter.is_some();
+    let needs_node = plan.recipe.is_npm() || plan.adapter.is_some();
     let (brew, node, npm_cli, tool, adapter) = tokio::join!(
         probe_executable_with_environment(
             HARMONYBREW_EXECUTABLE,
@@ -181,7 +197,8 @@ pub(crate) async fn build_managed_provisioning_plan(
         },
         async {
             match plan.recipe {
-                ManagedProvisioningRecipe::HarmonyBrewFormula(_) => {
+                ManagedProvisioningRecipe::HarmonyBrewFormula(_)
+                | ManagedProvisioningRecipe::HarmonyBrewNativeNpm(_) => {
                     probe_executable_with_environment(
                         &plan.tool_path.to_string_lossy(),
                         Some(&environment),
@@ -252,6 +269,13 @@ fn build_plan_from_environment(
         .map(|path| plan.node_was_runnable && requirement_is_exact_runnable(adapter, path))
         .unwrap_or(true);
 
+    if plan.recipe.is_native_npm() && tool.installed && !plan.tool_was_runnable {
+        return Err(BitFunError::service(format!(
+            "[ACP_PROVISIONING_PACKAGE_INCOMPATIBLE] The existing DevEco Code at '{}' could not run. No installation was attempted.{}",
+            plan.tool_path.display(), requirement_detail(tool)
+        )));
+    }
+
     if !plan.tool_was_runnable && !preset.ohos.allows_managed_install() {
         return Err(BitFunError::service(format!(
             "[ACP_PROVISIONING_CLIENT_NOT_DETECTED] ACP client '{}' is not runnable at '{}'. No installation was attempted.",
@@ -260,8 +284,7 @@ fn build_plan_from_environment(
         )));
     }
 
-    let needs_npm_install = (matches!(plan.recipe, ManagedProvisioningRecipe::HarmonyBrewNpm(_))
-        && !plan.tool_was_runnable)
+    let needs_npm_install = (plan.recipe.is_npm() && !plan.tool_was_runnable)
         || (plan.adapter.is_some() && !plan.adapter_was_runnable);
     let needs_formula_install = matches!(
         plan.recipe,
@@ -325,8 +348,7 @@ pub(crate) async fn install_managed_client(
 ) -> BitFunResult<ManagedInstallation> {
     ensure_not_cancelled(cancelled)?;
 
-    let needs_npm_install = (matches!(plan.recipe, ManagedProvisioningRecipe::HarmonyBrewNpm(_))
-        && !plan.tool_was_runnable)
+    let needs_npm_install = (plan.recipe.is_npm() && !plan.tool_was_runnable)
         || (plan.adapter.is_some() && !plan.adapter_was_runnable);
     if needs_npm_install && (!plan.node_was_runnable || !plan.npm_cli_was_runnable) {
         run_brew_install(plan, "node", cancelled).await?;
@@ -340,7 +362,8 @@ pub(crate) async fn install_managed_client(
             ManagedProvisioningRecipe::HarmonyBrewFormula(formula) => {
                 run_brew_install(plan, formula.formula, cancelled).await?;
             }
-            ManagedProvisioningRecipe::HarmonyBrewNpm(npm) => {
+            ManagedProvisioningRecipe::HarmonyBrewNpm(npm)
+            | ManagedProvisioningRecipe::HarmonyBrewNativeNpm(npm) => {
                 run_harmonybrew_npm_install(plan, npm, cancelled, path_manager).await?;
             }
         }
@@ -470,13 +493,25 @@ async fn run_harmonybrew_npm_install(
 ) -> BitFunResult<()> {
     let package = format!("{}@{}", npm.package, npm.install_version);
     let environment = harmonybrew_process_environment();
+    if plan.recipe.is_native_npm() {
+        let platform = probe_node_platform(
+            HARMONYBREW_NODE,
+            Some(&environment),
+            Some(Path::new(HARMONYOS_USER_HOME)),
+        )
+        .await
+        .map_err(|detail| BitFunError::service(format!(
+            "[ACP_PROVISIONING_PREREQUISITE_MISSING] Could not check the installation Node platform: {detail}"
+        )))?;
+        ensure_native_npm_platform(&platform)?;
+    }
     let mut args = vec![
         HARMONYBREW_NPM_CLI.to_string(),
         "install".to_string(),
         "--global".to_string(),
         "--prefix".to_string(),
         HARMONYBREW_PREFIX.to_string(),
-        "--omit=optional".to_string(),
+        npm_optional_dependencies_arg(plan.recipe).to_string(),
         "--no-audit".to_string(),
         "--no-fund".to_string(),
         package.clone(),
@@ -539,7 +574,8 @@ async fn probe_managed_installation(
     let environment = harmonybrew_process_environment();
     let working_directory = Path::new(HARMONYOS_USER_HOME);
     let mut tool = match plan.recipe {
-        ManagedProvisioningRecipe::HarmonyBrewFormula(_) => {
+        ManagedProvisioningRecipe::HarmonyBrewFormula(_)
+        | ManagedProvisioningRecipe::HarmonyBrewNativeNpm(_) => {
             probe_executable_with_environment(
                 &plan.tool_path.to_string_lossy(),
                 Some(&environment),
@@ -613,6 +649,9 @@ async fn probe_managed_installation(
         runnable,
         notes,
     };
+    if plan.recipe.is_native_npm() {
+        check_deveco_requirements(&mut probe, &environment, Some(working_directory)).await;
+    }
     #[cfg(target_env = "ohos")]
     let native_acp = plan.client_id == "dsh"
         && tool_runnable
@@ -715,6 +754,24 @@ fn harmonybrew_process_environment() -> HashMap<String, String> {
     ])
 }
 
+fn ensure_native_npm_platform(platform: &str) -> BitFunResult<()> {
+    if platform.trim() != "openharmony" {
+        return Err(BitFunError::service(format!(
+            "[ACP_PROVISIONING_PACKAGE_INCOMPATIBLE] DevEco Code installation requires Node process.platform=openharmony; the installation Node reports '{}'. No npm installation was attempted. Existing native installations can still be used.",
+            platform.trim()
+        )));
+    }
+    Ok(())
+}
+
+fn npm_optional_dependencies_arg(recipe: ManagedProvisioningRecipe) -> &'static str {
+    if recipe.is_native_npm() {
+        "--include=optional"
+    } else {
+        "--omit=optional"
+    }
+}
+
 fn managed_plan_for_preset(
     preset: &'static BuiltinAcpClientPreset,
     tool_was_runnable: bool,
@@ -738,14 +795,26 @@ fn managed_plan_for_preset(
     } else {
         let npm = preset.ohos.npm().expect("validated HarmonyBrew npm recipe");
         let tool_path = PathBuf::from(format!("{HARMONYBREW_PREFIX}/{}", npm.entry_relative_path));
-        let mut runtime_args = vec![tool_path.to_string_lossy().to_string()];
-        runtime_args.extend(preset.args.iter().map(|arg| (*arg).to_string()));
-        (
-            ManagedProvisioningRecipe::HarmonyBrewNpm(npm),
-            tool_path,
-            PathBuf::from(HARMONYBREW_NODE),
-            runtime_args,
-        )
+        if matches!(preset.ohos, OhosAcpSupport::HarmonyBrewNativeNpm(_)) {
+            // Reuse an existing user installation without moving it into the
+            // managed prefix. Resolve npm's wrapper to its native sibling.
+            let tool_path = deveco_native_executable().unwrap_or(tool_path);
+            (
+                ManagedProvisioningRecipe::HarmonyBrewNativeNpm(npm),
+                tool_path.clone(),
+                tool_path,
+                preset.args.iter().map(|arg| (*arg).to_string()).collect(),
+            )
+        } else {
+            let mut runtime_args = vec![tool_path.to_string_lossy().to_string()];
+            runtime_args.extend(preset.args.iter().map(|arg| (*arg).to_string()));
+            (
+                ManagedProvisioningRecipe::HarmonyBrewNpm(npm),
+                tool_path,
+                PathBuf::from(HARMONYBREW_NODE),
+                runtime_args,
+            )
+        }
     };
     let adapter_path = preset.ohos_adapter.map(|adapter| {
         PathBuf::from(format!(
@@ -1132,6 +1201,47 @@ mod tests {
     }
 
     #[test]
+    fn deveco_native_installation_needs_no_node_at_runtime() {
+        let preset = managed_ohos_preset("deveco-code").expect("DevEco preset");
+        let template = managed_plan_for_preset(preset, false, false, false, false);
+        let tool_path = template.tool_path.to_string_lossy();
+        let tool = probe("deveco", true, Some(&tool_path));
+        let plan = build_npm_plan_from_environment(
+            "deveco-code",
+            &probe("brew", false, None),
+            &probe("node", false, None),
+            &probe("npm", false, None),
+            &tool,
+        )
+        .expect("existing native installation is independent of Node/npm/brew");
+        assert!(plan.tool_was_runnable);
+        assert_eq!(plan.runtime_path, plan.tool_path);
+        assert_eq!(plan.runtime_args, vec!["acp"]);
+        assert!(plan.adapter.is_none());
+        assert_eq!(
+            npm_optional_dependencies_arg(plan.recipe),
+            "--include=optional"
+        );
+        assert!(ensure_native_npm_platform("openharmony\n").is_ok());
+        for platform in ["linux", "win32", "", "openharmony-linux"] {
+            assert!(ensure_native_npm_platform(platform).is_err());
+        }
+        let runtime = runtime_override_from_plan(
+            &plan,
+            &AcpClientRequirementProbe {
+                id: "deveco-code".to_string(),
+                tool,
+                adapter: None,
+                runnable: true,
+                notes: Vec::new(),
+            },
+        )
+        .expect("native runtime override");
+        assert_eq!(runtime.command, tool_path);
+        assert_eq!(runtime.args, vec!["acp"]);
+    }
+
+    #[test]
     fn codebuddy_plan_uses_exact_harmonybrew_node_and_pinned_package() {
         let tool_path =
             "/storage/Users/currentUser/.harmonybrew/lib/node_modules/@tencent-ai/codebuddy-code/bin/codebuddy";
@@ -1156,6 +1266,10 @@ mod tests {
         assert_eq!(plan.runtime_path, PathBuf::from(HARMONYBREW_NODE));
         assert_eq!(plan.runtime_args, vec![tool_path, "--acp"]);
         assert!(plan.tool_was_runnable);
+        assert_eq!(
+            npm_optional_dependencies_arg(plan.recipe),
+            "--omit=optional"
+        );
 
         let runtime = runtime_override_from_plan(
             &plan,

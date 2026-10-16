@@ -377,6 +377,22 @@ describe('AcpAgentsConfig', () => {
       issueKind: 'cli_missing',
       hasConfigEntry: false,
     })).toBe(true);
+    for (const status of ['not_installed', 'ready'] as const) {
+      expect(canInstallPresetCli({
+        isOhos: true,
+        presetId: 'deveco-code',
+        status,
+        issueKind: status === 'ready' ? 'none' : 'cli_missing',
+        hasConfigEntry: false,
+      })).toBe(true);
+    }
+    expect(canInstallPresetCli({
+      isOhos: true,
+      presetId: 'deveco-code',
+      status: 'partial',
+      issueKind: 'adapter_missing',
+      hasConfigEntry: false,
+    })).toBe(false);
     for (const presetId of ['claude-code', 'codex']) {
       expect(canInstallPresetCli({
         isOhos: true,
@@ -423,6 +439,7 @@ describe('AcpAgentsConfig', () => {
       'kimi-code',
       'qwen-code',
       'codebuddy-code',
+      'deveco-code',
       'dsh',
       'claude-code',
       'codex',
@@ -614,6 +631,7 @@ describe('AcpAgentsConfig', () => {
       'kimi-code',
       'qwen-code',
       'codebuddy-code',
+      'deveco-code',
       'dsh',
     ].map(id => ({
       id,

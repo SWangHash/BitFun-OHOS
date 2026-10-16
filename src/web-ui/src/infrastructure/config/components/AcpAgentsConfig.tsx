@@ -116,6 +116,7 @@ const CLI_INSTALL_PACKAGES: Record<string, string> = {
   'kimi-code': '@moonshot-ai/kimi-code',
   'qwen-code': '@qwen-code/qwen-code',
   'codebuddy-code': '@tencent-ai/codebuddy-code',
+  'deveco-code': '@deveco/deveco-code',
   dsh: '@deepseek-ai/dsh',
   'claude-code': '@anthropic-ai/claude-code',
   codex: '@openai/codex',
@@ -592,6 +593,8 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
         return t('presets.qwenCode.description');
       case 'codebuddy-code':
         return t('presets.codeBuddyCode.description');
+      case 'deveco-code':
+        return t('presets.devecoCode.description');
       case 'dsh':
         return t('presets.dsh.description');
       case 'omp':
@@ -1401,6 +1404,10 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
         'codebuddy-code': {
           name: t('presets.codeBuddyCode.name'),
           description: t('presets.codeBuddyCode.description'),
+        },
+        'deveco-code': {
+          name: t('presets.devecoCode.name'),
+          description: t('presets.devecoCode.description'),
         },
         dsh: {
           name: 'DeepSeek Harness',

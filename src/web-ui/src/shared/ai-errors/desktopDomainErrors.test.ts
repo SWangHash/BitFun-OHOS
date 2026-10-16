@@ -23,6 +23,15 @@ describe('desktop domain error presentation', () => {
     expect(timeout).toBe(t('errors:desktopDomains.acpRemoteCliInstallTimeout', { package: 'agent-code' }));
     expect(cancelled).toBe(t('errors:desktopDomains.acpRemoteCliInstallCancelled', { package: 'agent-code' }));
     expect(timeout).not.toBe(cancelled);
+    for (const language of ['zh-CN', 'zh-TW']) {
+      const translate = await translator(language);
+      const platform = en.desktopDomains.acpDevecoInstallPlatform.replace('{{platform}}', 'linux');
+      const missingAcp = en.desktopDomains.acpDevecoAcpMissing.replace('{{detail}}', 'Unknown command: acp');
+      expect(desktopDomainErrorMessage(platform, translate))
+        .toBe(translate('errors:desktopDomains.acpDevecoInstallPlatform', { platform: 'linux' }));
+      expect(desktopDomainErrorMessage(missingAcp, translate))
+        .toBe(translate('errors:desktopDomains.acpDevecoAcpMissing', { detail: 'Unknown command: acp' }));
+    }
   });
 
   it('translates BitFun wrappers without changing external diagnostics or path parameters', async () => {
