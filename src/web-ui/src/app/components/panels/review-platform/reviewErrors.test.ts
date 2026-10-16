@@ -53,6 +53,7 @@ describe('Pull Requests missing Git message', () => {
     for (const message of [
       'Invalid repository path: No such file or directory',
       'Failed to execute git command: Permission denied',
+      'Service error: diagnostic retained only in logs',
     ]) {
       expect(reviewPlatformErrorMessage(new Error(message), translate))
         .toBe('common:reviewPlatform.errors.loadFailed');

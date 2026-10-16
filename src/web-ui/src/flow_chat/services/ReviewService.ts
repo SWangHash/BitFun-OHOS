@@ -261,6 +261,7 @@ async function prepareFromResolvedTarget(params: {
   ) {
     throw reviewTargetError(
       'The provider did not return immutable base and head revisions for this pull request.',
+      'deepReviewActionBar.launchError.pullRequestRevisionsUnavailable',
     );
   }
   if (
@@ -278,6 +279,7 @@ async function prepareFromResolvedTarget(params: {
   ) {
     throw reviewTargetError(
       'The provider did not return an exact diff for any changed file in this pull request.',
+      'deepReviewActionBar.launchError.pullRequestDiffUnavailable',
     );
   }
   if (params.targetEvidence.limitations.includes('review_workspace_mismatch')) {
@@ -502,7 +504,10 @@ export async function prepareReviewLaunchFromPullRequest(params: {
   reviewTarget: ReviewPlatformPullRequestReviewTarget;
 }): Promise<PreparedReviewLaunch> {
   if (params.remote.platform === 'unknown') {
-    throw reviewTargetError('This pull request provider does not support Review.');
+    throw reviewTargetError(
+      'This pull request provider does not support Review.',
+      'deepReviewActionBar.launchError.unsupportedPullRequestProvider',
+    );
   }
   const pullRequest = params.reviewTarget.pullRequest;
   const classifiedTarget = classifyReviewTargetFromPathChanges(

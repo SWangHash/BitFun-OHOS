@@ -372,7 +372,7 @@ export const PortForwardDialog: React.FC<PortForwardDialogProps> = ({
                       {forward.lastError ? (
                         <span
                           className="port-forward-dialog__status port-forward-dialog__status--warn"
-                          title={forward.lastError}
+                          title={desktopDomainErrorMessage(forward.lastError, t)}
                         >
                           <AlertTriangle size={12} aria-hidden="true" />
                           {t('ssh.portForward.statusWarning')}

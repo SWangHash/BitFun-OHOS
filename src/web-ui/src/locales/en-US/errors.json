@@ -296,7 +296,6 @@
     "reviewRepositoryUntrusted": "Git will not read \"{{path}}\" because the folder is owned by another user. Trust the folder when prompted, or add it to safe.directory, then start Review again.",
     "reviewTeamMembersUnavailable": "Required strict Review coverage reviewers are unavailable: {{reviewers}}",
     "reviewWorkerDefinitionUnavailable": "Default ReviewWorker definition is unavailable",
-    "reviewImmutableIdsUnresolved": "Git range revisions could not be resolved to immutable commit ids",
     "reviewLaunchFailedWithoutDetail": "Review failed to start",
     "reviewCleanupPaneFailed": "Failed to close the Review pane during cleanup: {{detail}}",
     "reviewCleanupBackendFailed": "Failed to delete the backend Review session: {{detail}}",
@@ -324,7 +323,6 @@
     "remoteEncrypt": "encrypt: {{value1}}",
     "remoteDecrypt": "decrypt: {{value1}}",
     "sshSSHPasswordIsRequiredNoSavedPassword": "SSH password is required (no saved password for this connection)",
-    "remoteAccountContextChanged": "account context changed",
     "remoteConnectionMethodDoesNotUseARelay": "connection method does not use a relay",
     "remoteSignInWithGitHubAndConnectThis": "Sign in with GitHub and connect this device before creating an invitation",
     "remoteNoAuthenticatedRelayConnection": "No authenticated relay connection",
@@ -543,7 +541,14 @@
     "reviewParentWorkspaceIdUnavailable": "Parent session workspace ID is unavailable",
     "reviewNoGitWorkspace": "No Git repository was found in the current workspace. Review requires a Git repository with an existing commit. Open such a project and try again.",
     "reviewUnreadableTarget": "The files or code diff could not be read for Review. Check that the corresponding workspace is open and the target is valid, and see the logs for the specific error.",
-    "remoteControllerStateFailed": "peer_controller_set_active({{active}}) failed"
+    "remoteControllerStateFailed": "peer_controller_set_active({{active}}) failed",
+    "reviewEmptyPullRequest": "The pull request contains no reviewable changed files.",
+    "reviewPullRequestRevisionsUnavailable": "The provider did not return immutable base and head revisions for this pull request.",
+    "reviewPullRequestDiffUnavailable": "The provider did not return an exact diff for any changed file in this pull request.",
+    "reviewUnsupportedPullRequestProvider": "This pull request provider does not support Review.",
+    "toolConfirmationFailed": "Tool confirmation failed: {{detail}}",
+    "toolRejectionFailed": "Tool rejection failed: {{detail}}",
+    "javascriptError": "Error: {{detail}}"
   },
   "desktopDomainParameters": {
     "checkingCoverage": "checking review coverage",

@@ -4,6 +4,7 @@ import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createTestI18nT } from '@/test/i18nTestUtils';
 import { PortForwardDialog } from './PortForwardDialog';
 import type { PortForward } from './types';
 
@@ -26,7 +27,7 @@ vi.mock('@/infrastructure/i18n', () => ({
     // Interpolations are echoed so assertions can prove which values reached
     // the copy without depending on any locale's wording.
     t: (key: string, vars?: Record<string, unknown>) =>
-      vars ? `${key}:${JSON.stringify(vars)}` : key,
+      key.startsWith('errors:') ? createTestI18nT()(key, vars) : vars ? `${key}:${JSON.stringify(vars)}` : key,
   }),
 }));
 
