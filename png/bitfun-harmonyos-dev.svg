@@ -1,0 +1,180 @@
+<svg width="1600" height="640" viewBox="0 0 1600 640" xmlns="http://www.w3.org/2000/svg" role="img" font-family="'Segoe UI', -apple-system, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans', sans-serif">
+  <title>BitFun HarmonyOS development workflow: edit, build, run, debug, verify</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#f3f6fa"/>
+    </linearGradient>
+    <radialGradient id="glowBlue" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#2563eb" stop-opacity="0.09"/>
+      <stop offset="1" stop-color="#2563eb" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowPurple" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#8b5cf6" stop-opacity="0.07"/>
+      <stop offset="1" stop-color="#8b5cf6" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowCyan" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#22d3ee" stop-opacity="0.06"/>
+      <stop offset="1" stop-color="#22d3ee" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="agentGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <linearGradient id="flowLine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0ea5e9"/>
+      <stop offset="1" stop-color="#a855f7"/>
+    </linearGradient>
+    <filter id="cardShadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.06"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1600" height="640" fill="url(#bg)"/>
+  <circle cx="240" cy="80" r="280" fill="url(#glowBlue)"/>
+  <circle cx="1400" cy="580" r="300" fill="url(#glowPurple)"/>
+  <circle cx="1500" cy="110" r="190" fill="url(#glowCyan)"/>
+  <circle cx="36" cy="250" r="1.6" fill="#cbd5e1"/>
+  <circle cx="1564" cy="300" r="1.6" fill="#cbd5e1"/>
+  <circle cx="48" cy="480" r="1.6" fill="#cbd5e1"/>
+  <circle cx="1556" cy="462" r="1.6" fill="#cbd5e1"/>
+
+  <!-- Header -->
+  <text x="80" y="98" font-size="40" font-weight="700" fill="#0f172a">HarmonyOS development</text>
+  <text x="80" y="136" font-size="19" fill="#5b6b80">One agent-driven workflow: edit, build, run, debug, and verify, all in the same place</text>
+
+  <!-- Device silhouettes (top right) -->
+  <g>
+    <rect x="1252" y="56" width="200" height="124" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" filter="url(#softShadow)"/>
+    <rect x="1263" y="67" width="178" height="94" rx="5" fill="#0d1424"/>
+    <rect x="1271" y="73" width="162" height="12" rx="3" fill="#223154"/>
+    <rect x="1271" y="93" width="74" height="58" rx="5" fill="#1d2a45"/>
+    <rect x="1353" y="93" width="80" height="26" rx="5" fill="#2a3c68"/>
+    <rect x="1353" y="125" width="80" height="26" rx="5" fill="#1a2440"/>
+    <rect x="1348" y="174" width="8" height="8" fill="#94a3b8"/>
+    <rect x="1332" y="180" width="40" height="6" rx="2" fill="#94a3b8"/>
+    <rect x="1470" y="72" width="56" height="112" rx="11" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" filter="url(#softShadow)"/>
+    <rect x="1477" y="79" width="42" height="98" rx="6" fill="#0d1424"/>
+    <rect x="1481" y="83" width="34" height="10" rx="2" fill="#223154"/>
+    <rect x="1481" y="99" width="34" height="30" rx="4" fill="#1d2a45"/>
+    <rect x="1481" y="134" width="34" height="34" rx="4" fill="#1a2440"/>
+    <path d="M1452 148 L1470 138" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="3 4"/>
+  </g>
+
+  <!-- Agent instruction bubble -->
+  <rect x="430" y="176" width="740" height="64" rx="18" fill="#ffffff" stroke="#d8e0ea" stroke-width="1.5" filter="url(#softShadow)"/>
+  <rect x="452" y="192" width="32" height="32" rx="8" fill="url(#agentGrad)"/>
+  <rect x="457" y="197" width="10" height="10" rx="2" fill="#ffffff" opacity="0.9"/>
+  <rect x="470" y="197" width="10" height="10" rx="2" fill="#ffffff" opacity="0.55"/>
+  <rect x="457" y="210" width="10" height="10" rx="2" fill="#ffffff" opacity="0.55"/>
+  <rect x="470" y="210" width="10" height="10" rx="2" fill="#ffffff" opacity="0.9"/>
+  <text x="500" y="214" font-size="18" fill="#334155">Build, run, and verify this HarmonyOS app.</text>
+
+  <!-- Connector from bubble to pipeline -->
+  <path d="M800 240 V280" stroke="url(#flowLine)" stroke-width="2.5"/>
+  <path d="M792 278 L800 291 L808 278 Z" fill="#a855f7"/>
+
+  <!-- Stage cards -->
+  <g>
+    <!-- Card 1: Edit -->
+    <rect x="72" y="292" width="256" height="150" rx="18" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5" filter="url(#cardShadow)"/>
+    <circle cx="200" cy="336" r="30" fill="#0ea5e9" opacity="0.1"/>
+    <circle cx="200" cy="336" r="30" fill="none" stroke="#0ea5e9" stroke-opacity="0.4" stroke-width="1"/>
+    <g transform="translate(182,318) scale(1.5)" fill="none" stroke="#0ea5e9" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8.5 6.5 L3.5 12 L8.5 17.5"/>
+      <path d="M15.5 6.5 L20.5 12 L15.5 17.5"/>
+      <path d="M13.5 4.5 L10.5 19.5" opacity="0.65"/>
+    </g>
+    <text x="200" y="390" font-size="21" font-weight="700" fill="#1e293b" text-anchor="middle">Edit</text>
+    <text x="200" y="416" font-size="14" fill="#64748b" text-anchor="middle">ArkTS files &#183; LSP</text>
+
+    <!-- Card 2: Build -->
+    <rect x="372" y="292" width="256" height="150" rx="18" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5" filter="url(#cardShadow)"/>
+    <circle cx="500" cy="336" r="30" fill="#6366f1" opacity="0.1"/>
+    <circle cx="500" cy="336" r="30" fill="none" stroke="#6366f1" stroke-opacity="0.4" stroke-width="1"/>
+    <g transform="translate(482,318) scale(1.5)">
+      <rect x="9" y="3" width="6" height="6" rx="1" fill="#6366f1"/>
+      <rect x="2.5" y="14" width="6" height="6" rx="1" fill="#6366f1" opacity="0.5"/>
+      <rect x="15.5" y="14" width="6" height="6" rx="1" fill="#6366f1" opacity="0.75"/>
+    </g>
+    <text x="500" y="390" font-size="21" font-weight="700" fill="#1e293b" text-anchor="middle">Build</text>
+    <text x="500" y="416" font-size="14" fill="#64748b" text-anchor="middle">hvigor &#183; DevEco CLI</text>
+
+    <!-- Card 3: Run -->
+    <rect x="672" y="292" width="256" height="150" rx="18" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5" filter="url(#cardShadow)"/>
+    <circle cx="800" cy="336" r="30" fill="#10b981" opacity="0.1"/>
+    <circle cx="800" cy="336" r="30" fill="none" stroke="#10b981" stroke-opacity="0.4" stroke-width="1"/>
+    <g transform="translate(782,318) scale(1.5)">
+      <circle cx="12" cy="12" r="8.75" fill="none" stroke="#10b981" stroke-width="1.7"/>
+      <path d="M10 8.2 L16.4 12 L10 15.8 Z" fill="#10b981"/>
+    </g>
+    <text x="800" y="390" font-size="21" font-weight="700" fill="#1e293b" text-anchor="middle">Run</text>
+    <text x="800" y="416" font-size="14" fill="#64748b" text-anchor="middle">hdc &#183; device, emulator</text>
+
+    <!-- Card 4: Debug -->
+    <rect x="972" y="292" width="256" height="150" rx="18" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5" filter="url(#cardShadow)"/>
+    <circle cx="1100" cy="336" r="30" fill="#f59e0b" opacity="0.1"/>
+    <circle cx="1100" cy="336" r="30" fill="none" stroke="#f59e0b" stroke-opacity="0.4" stroke-width="1"/>
+    <g transform="translate(1082,318) scale(1.5)" fill="none" stroke="#f59e0b" stroke-width="1.7" stroke-linecap="round">
+      <path d="M9.8 4.8 L8.6 2.2"/>
+      <path d="M14.2 4.8 L15.4 2.2"/>
+      <circle cx="12" cy="6.6" r="2.4" fill="#f59e0b" stroke="none"/>
+      <ellipse cx="12" cy="14.6" rx="4.9" ry="5.6"/>
+      <path d="M12 10.4 V19" opacity="0.6"/>
+      <path d="M7.6 11.4 L4 9.8"/>
+      <path d="M7.4 14.6 L3.6 14.6"/>
+      <path d="M7.6 17.8 L4 19.4"/>
+      <path d="M16.4 11.4 L20 9.8"/>
+      <path d="M16.6 14.6 L20.4 14.6"/>
+      <path d="M16.4 17.8 L20 19.4"/>
+    </g>
+    <text x="1100" y="390" font-size="21" font-weight="700" fill="#1e293b" text-anchor="middle">Debug</text>
+    <text x="1100" y="416" font-size="14" fill="#64748b" text-anchor="middle">breakpoints &#183; logs</text>
+
+    <!-- Card 5: Verify -->
+    <rect x="1272" y="292" width="256" height="150" rx="18" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5" filter="url(#cardShadow)"/>
+    <circle cx="1400" cy="336" r="30" fill="#ec4899" opacity="0.1"/>
+    <circle cx="1400" cy="336" r="30" fill="none" stroke="#ec4899" stroke-opacity="0.4" stroke-width="1"/>
+    <g transform="translate(1382,318) scale(1.5)" fill="none" stroke="#ec4899" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3 L18.8 5.6 V10.8 C18.8 15.4 16 18.8 12 20.8 C8 18.8 5.2 15.4 5.2 10.8 V5.6 Z"/>
+      <path d="M8.8 11.8 L11.1 14.1 L15.4 9.6"/>
+    </g>
+    <text x="1400" y="390" font-size="21" font-weight="700" fill="#1e293b" text-anchor="middle">Verify</text>
+    <text x="1400" y="416" font-size="14" fill="#64748b" text-anchor="middle">arkts_check &#183; tests</text>
+  </g>
+
+  <!-- Arrows between cards -->
+  <g stroke="#94a3b8" stroke-width="2.5" fill="#94a3b8">
+    <path d="M334 367 H358" fill="none"/>
+    <path d="M358 361.5 L367 367 L358 372.5 Z" stroke="none"/>
+    <path d="M634 367 H658" fill="none"/>
+    <path d="M658 361.5 L667 367 L658 372.5 Z" stroke="none"/>
+    <path d="M934 367 H958" fill="none"/>
+    <path d="M958 361.5 L967 367 L958 372.5 Z" stroke="none"/>
+    <path d="M1234 367 H1258" fill="none"/>
+    <path d="M1258 361.5 L1267 367 L1258 372.5 Z" stroke="none"/>
+  </g>
+
+  <!-- Toolchain pills -->
+  <g font-family="'Cascadia Mono', 'SF Mono', Consolas, ui-monospace, monospace" font-size="14" text-anchor="middle">
+    <rect x="434" y="506" width="78" height="34" rx="17" fill="#f8fafc" stroke="#d5dde8" stroke-width="1.2"/>
+    <text x="473" y="528" fill="#475569">ArkTS</text>
+    <rect x="526" y="506" width="120" height="34" rx="17" fill="#f8fafc" stroke="#d5dde8" stroke-width="1.2"/>
+    <text x="586" y="528" fill="#475569">DevEco CLI</text>
+    <rect x="660" y="506" width="70" height="34" rx="17" fill="#f8fafc" stroke="#d5dde8" stroke-width="1.2"/>
+    <text x="695" y="528" fill="#475569">hdc</text>
+    <rect x="744" y="506" width="128" height="34" rx="17" fill="#f8fafc" stroke="#d5dde8" stroke-width="1.2"/>
+    <text x="808" y="528" fill="#475569">arkts_check</text>
+    <rect x="886" y="506" width="145" height="34" rx="17" fill="#f8fafc" stroke="#d5dde8" stroke-width="1.2"/>
+    <text x="958" y="528" fill="#475569">hmos-* Skills</text>
+    <rect x="1045" y="506" width="120" height="34" rx="17" fill="#f8fafc" stroke="#d5dde8" stroke-width="1.2"/>
+    <text x="1105" y="528" fill="#475569">deveco-cli</text>
+  </g>
+
+  <!-- Footer caption -->
+  <text x="800" y="588" font-size="15" fill="#8b98ac" text-anchor="middle">Built-in hmos-* and deveco-cli Skills carry the toolchain knowledge</text>
+</svg>
