@@ -729,20 +729,22 @@ export const ChatContextPicker: React.FC<ChatContextPickerProps> = ({
 
   useEffect(() => {
     let removeOverlayKeydown0: (() => void) | undefined;
-    if (!isOpen) return;
-    removeOverlayKeydown0 = subscribeOverlayInteraction(containerRef, 'keydown', handleKeyDown);
-    return () => removeOverlayKeydown0?.();
-  }, [handleKeyDown, isOpen]);
-
-  useEffect(() => {
+    let removeOverlayPointerdown0: (() => void) | undefined;
     let removeOverlayMousedown1: (() => void) | undefined;
     if (!isOpen) return;
-    const handleClickOutside = (event: MouseEvent) => {
+    removeOverlayKeydown0 = subscribeOverlayInteraction(containerRef, 'keydown', handleKeyDown);
+    removeOverlayPointerdown0 = subscribeOverlayInteraction(containerRef, 'pointerdown', (event) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) onClose();
+    });
+    removeOverlayMousedown1 = subscribeOverlayInteraction(containerRef, 'mousedown', (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) onClose();
+    });
+    return () => {
+      removeOverlayKeydown0?.();
+      removeOverlayPointerdown0?.();
+      removeOverlayMousedown1?.();
     };
-    removeOverlayMousedown1 = subscribeOverlayInteraction(containerRef, 'mousedown', handleClickOutside);
-    return () => removeOverlayMousedown1?.();
-  }, [isOpen, onClose]);
+  }, [handleKeyDown, isOpen, onClose]);
 
   useEffect(() => {
     if (!containerRef.current || displayItems.length === 0) return;

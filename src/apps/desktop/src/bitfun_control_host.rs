@@ -16,8 +16,8 @@ use bitfun_core::agentic::tools::bitfun_control_config::{
     exact_config_binding, read_config_backed_option, ProductConfigBinding,
 };
 use bitfun_core::agentic::tools::bitfun_control_host::{
-    set_bitfun_control_port, BitFunControlHostRequest, ProductControlAction,
-    ProductControlPort, ProductControlSource,
+    set_bitfun_control_port, BitFunControlHostRequest, ProductControlAction, ProductControlPort,
+    ProductControlSource,
 };
 use bitfun_core::infrastructure::events::{emit_global_event, BackendEvent};
 use bitfun_core::service::config::types::{AIExperienceConfig, AgentCompanionPetSelection};
@@ -100,9 +100,7 @@ async fn dispatch_surface_event(
 
     let Some(payload) = payload.as_object_mut() else {
         lock_pending_responses().remove(&request_id);
-        return Err(
-            "BitFunControl request serialization produced an invalid payload".to_string(),
-        );
+        return Err("BitFunControl request serialization produced an invalid payload".to_string());
     };
     payload.insert("requestId".to_string(), Value::String(request_id.clone()));
 
@@ -339,12 +337,52 @@ async fn synchronize_required_effect(
     .await
 }
 
+/// How a committed controlled write reaches the presentation surface.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PresentationCommit {
+    /// The writer is not the surface that has to apply the change, so the
+    /// transaction waits for that surface to acknowledge the effect.
+    Required,
+    /// The write came from the presentation surface itself. That surface has
+    /// already applied the change and restores its own previous state when this
+    /// call fails, so the effect is only announced. Waiting here deadlocks a host
+    /// whose webview exposes a single request channel (OHOS serializes
+    /// invoke/listen fetches): the surface's acknowledgement would need the same
+    /// channel that its still-pending write occupies, so it could only arrive
+    /// after the effect timeout had already failed the transaction.
+    SelfApplied,
+}
+
+async fn sync_presentation_effect(
+    commit: PresentationCommit,
+    capability_id: &str,
+    option_id: &str,
+    changed_path: &str,
+    value: &Value,
+    phase: &str,
+) -> Result<Value, String> {
+    match commit {
+        PresentationCommit::Required => {
+            synchronize_required_effect(capability_id, option_id, changed_path, value, phase).await
+        }
+        PresentationCommit::SelfApplied => Ok(emit_applied(
+            capability_id,
+            None,
+            Some(option_id),
+            &[changed_path],
+            Some(value),
+        )
+        .await),
+    }
+}
+
 async fn rollback_config_option(
     app: &AppHandle,
     state: &AppState,
     capability_id: &str,
     option: &ProductCapabilityOption,
     previous_value: &Value,
+    commit: PresentationCommit,
 ) -> Result<(), String> {
     if let Some(applied) =
         configure_config_backed_option(&state.config_service, option, previous_value).await?
@@ -353,7 +391,8 @@ async fn rollback_config_option(
             .await?;
 
         if option_requires_presentation_commit(option) {
-            synchronize_required_effect(
+            sync_presentation_effect(
+                commit,
                 capability_id,
                 &option.id,
                 &applied.changed_path,
@@ -385,8 +424,9 @@ async fn failed_option_transaction(
     option: &ProductCapabilityOption,
     previous_value: &Value,
     failure: String,
+    commit: PresentationCommit,
 ) -> String {
-    match rollback_config_option(app, state, capability_id, option, previous_value).await {
+    match rollback_config_option(app, state, capability_id, option, previous_value, commit).await {
         Ok(()) => format!("Product-control transaction failed and was rolled back: {failure}"),
         Err(rollback_error) => format!(
             "Product-control transaction failed: {failure}; rollback degraded: {rollback_error}"
@@ -399,6 +439,7 @@ async fn configure_option_transaction(
     capability_id: &str,
     option_id: &str,
     value: &Value,
+    commit: PresentationCommit,
 ) -> Result<Value, String> {
     let _transaction = product_control_transaction().lock().await;
     let capability = product_capability(capability_id)?;
@@ -429,6 +470,7 @@ async fn configure_option_transaction(
                 option,
                 &previous_value,
                 error,
+                commit,
             )
             .await);
         }
@@ -449,6 +491,7 @@ async fn configure_option_transaction(
                 option,
                 &previous_value,
                 error,
+                commit,
             )
             .await);
         }
@@ -462,6 +505,7 @@ async fn configure_option_transaction(
                     option,
                     &previous_value,
                     error,
+                    commit,
                 )
                 .await);
             }
@@ -473,7 +517,8 @@ async fn configure_option_transaction(
     if notify_settings {}
 
     let presentation_sync = if option_requires_presentation_commit(option) {
-        match synchronize_required_effect(
+        match sync_presentation_effect(
+            commit,
             capability_id,
             option_id,
             &changed_path,
@@ -491,6 +536,7 @@ async fn configure_option_transaction(
                     option,
                     &previous_value,
                     format!("Required presentation effect failed: {effect_error}"),
+                    commit,
                 )
                 .await);
             }
@@ -598,7 +644,14 @@ async fn configure_desktop(
         .value
         .as_ref()
         .ok_or_else(|| "value is required for configure".to_string())?;
-    configure_option_transaction(app, capability_id, option_id, value).await
+    configure_option_transaction(
+        app,
+        capability_id,
+        option_id,
+        value,
+        PresentationCommit::Required,
+    )
+    .await
 }
 
 fn binding_contract(
@@ -639,6 +692,7 @@ async fn synchronize_legacy_bindings(
     state: &AppState,
     bindings: &[ProductConfigBinding],
     phase: &str,
+    commit: PresentationCommit,
 ) -> Result<Vec<Value>, String> {
     let mut results = Vec::new();
     for binding in bindings {
@@ -649,8 +703,15 @@ async fn synchronize_legacy_bindings(
         let effective = current_option_value(app, state, option).await?;
         if option_requires_presentation_commit(option) {
             results.push(
-                synchronize_required_effect(capability_id, &option.id, path, &effective, phase)
-                    .await?,
+                sync_presentation_effect(
+                    commit,
+                    capability_id,
+                    &option.id,
+                    path,
+                    &effective,
+                    phase,
+                )
+                .await?,
             );
         } else {
             results.push(
@@ -673,15 +734,22 @@ async fn rollback_legacy_config_transaction(
     state: &AppState,
     path: &str,
     previous_value: Value,
+    commit: PresentationCommit,
 ) -> Result<(), String> {
     let rolled_back =
         apply_legacy_config_mutation(&state.config_service, path, previous_value).await?;
     apply_backend_config_effects(app, state, path, &rolled_back.effective_value).await?;
     apply_binding_backend_effects(app, state, &rolled_back.controlled_bindings).await?;
 
-    synchronize_legacy_bindings(app, state, &rolled_back.controlled_bindings, "rollback")
-        .await
-        .map(|_| ())
+    synchronize_legacy_bindings(
+        app,
+        state,
+        &rolled_back.controlled_bindings,
+        "rollback",
+        commit,
+    )
+    .await
+    .map(|_| ())
 }
 
 async fn failed_legacy_transaction(
@@ -690,10 +758,11 @@ async fn failed_legacy_transaction(
     path: &str,
     previous_value: Option<Value>,
     failure: String,
+    commit: PresentationCommit,
 ) -> String {
     let rollback = match previous_value {
         Some(previous_value) => {
-            rollback_legacy_config_transaction(app, state, path, previous_value).await
+            rollback_legacy_config_transaction(app, state, path, previous_value, commit).await
         }
         None => Err("The legacy path had no previous value to restore".to_string()),
     };
@@ -708,14 +777,26 @@ async fn failed_legacy_transaction(
 /// Compatibility adapter for existing GUI settings. Exact controlled paths
 /// become the same typed option command used by BitFunControl. Parent-object
 /// writes are schema-checked against every affected option, committed once,
-/// and produce the same backend and presentation effects.
+/// and produce the same backend effects. The presentation effect is announced
+/// instead of acknowledged because the caller is the presentation surface
+/// itself: it has already applied the change and restores its own previous
+/// state when this call fails. It cannot acknowledge a required effect while
+/// this same request is still pending, which is what OHOS's serialized
+/// invoke/listen channel makes impossible.
 pub(crate) async fn set_config_from_gui(
     app: &AppHandle,
     path: &str,
     value: Value,
 ) -> Result<Value, String> {
     if let Some((capability, option)) = exact_config_binding(path)? {
-        return configure_option_transaction(app, &capability.id, &option.id, &value).await;
+        return configure_option_transaction(
+            app,
+            &capability.id,
+            &option.id,
+            &value,
+            PresentationCommit::SelfApplied,
+        )
+        .await;
     }
 
     let _transaction = product_control_transaction().lock().await;
@@ -730,7 +811,15 @@ pub(crate) async fn set_config_from_gui(
             Err(error) => Err(error),
         };
     if let Err(error) = backend_effect_result {
-        return Err(failed_legacy_transaction(app, &state, path, previous_value, error).await);
+        return Err(failed_legacy_transaction(
+            app,
+            &state,
+            path,
+            previous_value,
+            error,
+            PresentationCommit::SelfApplied,
+        )
+        .await);
     }
 
     let presentation_sync = match synchronize_legacy_bindings(
@@ -738,6 +827,7 @@ pub(crate) async fn set_config_from_gui(
         &state,
         &applied.controlled_bindings,
         "commit",
+        PresentationCommit::SelfApplied,
     )
     .await
     {
@@ -749,6 +839,7 @@ pub(crate) async fn set_config_from_gui(
                 path,
                 previous_value,
                 format!("Required presentation effect failed: {effect_error}"),
+                PresentationCommit::SelfApplied,
             )
             .await);
         }
@@ -765,13 +856,23 @@ pub(crate) async fn set_config_from_gui(
     }))
 }
 
+/// Typed GUI adapter for controlled options the settings UI writes through
+/// their own command instead of the legacy config path. Same self-applied
+/// presentation contract as [`set_config_from_gui`].
 pub(crate) async fn configure_option_from_gui(
     app: &AppHandle,
     capability_id: &str,
     option_id: &str,
     value: Value,
 ) -> Result<Value, String> {
-    configure_option_transaction(app, capability_id, option_id, &value).await
+    configure_option_transaction(
+        app,
+        capability_id,
+        option_id,
+        &value,
+        PresentationCommit::SelfApplied,
+    )
+    .await
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -808,16 +909,19 @@ async fn configure_desktop_provider_option(
     match option {
         DesktopProviderOption::LaunchAtLogin => {
             #[cfg(target_env = "ohos")]
-            { let _ = (app, enabled); Err("Manage automatic startup in HarmonyOS Settings > Apps & services > App startup management".into()) }
+            {
+                let _ = (app, enabled);
+                Err("Manage automatic startup in HarmonyOS Settings > Apps & services > App startup management".into())
+            }
             #[cfg(not(target_env = "ohos"))]
             {
-            if enabled {
-                app.autolaunch().enable().map_err(|error| error.to_string())
-            } else {
-                app.autolaunch()
-                    .disable()
-                    .map_err(|error| error.to_string())
-            }
+                if enabled {
+                    app.autolaunch().enable().map_err(|error| error.to_string())
+                } else {
+                    app.autolaunch()
+                        .disable()
+                        .map_err(|error| error.to_string())
+                }
             }
         }
         DesktopProviderOption::PreventSleep => {
@@ -911,9 +1015,7 @@ async fn execute_desktop_provider_operation(
                 if id == "bitfun" {
                     AIExperienceConfig::default()
                         .agent_companion_pet
-                        .ok_or_else(|| {
-                            "The default BitFun companion is unavailable".to_string()
-                        })?
+                        .ok_or_else(|| "The default BitFun companion is unavailable".to_string())?
                 } else {
                     let installed = list_agent_companion_pets_impl(&state).await?;
                     let pet = installed

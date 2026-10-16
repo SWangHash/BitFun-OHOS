@@ -1,5 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
+import { flushSync } from 'react-dom';
 import { FontPreferencePanel } from '@/infrastructure/font-preference';
+import { createLogger } from '@/shared/utils/logger';
 import { useMouseGlowPreference } from '@/infrastructure/mouse-glow';
 import { useTranslation } from 'react-i18next';
 import { Switch } from '@/component-library';
@@ -22,17 +24,31 @@ import {
 } from './common';
 import './AppearanceConfig.scss';
 
+const log = createLogger('AppearanceConfig');
+
 function AppearanceSelectionSection() {
   const { t } = useTranslation('settings/basics');
   const {
     selectedAppearanceId,
-    pendingSelectionId,
     appearances,
     select,
     initialized,
-    status,
   } = useAppearance();
   const { currentLanguage, supportedLocales, selectLanguage, isChanging } = useLanguageSelector();
+  const [languageSelectOpen, setLanguageSelectOpen] = React.useState(false);
+  const [pendingLanguage, setPendingLanguage] = React.useState<LocaleId | null>(null);
+
+  const handleLanguageChange = (value: string | number) => {
+    const locale = String(value) as LocaleId;
+    flushSync(() => setLanguageSelectOpen(false));
+    if (locale === currentLanguage || pendingLanguage) return;
+    setPendingLanguage(locale);
+    void selectLanguage(locale)
+      .catch(error => {
+        log.error('Failed to change interface language', { locale, error });
+      })
+      .finally(() => setPendingLanguage(null));
+  };
 
   const handleAppearanceChange = async (nextAppearanceId: string) => {
     await select(nextAppearanceId);
@@ -94,9 +110,9 @@ function AppearanceSelectionSection() {
               <Select
                 size="sm"
                 value={currentLanguage}
-                onValueChange={(value) =>
-                  selectLanguage(String(value) as LocaleId)
-                }
+                open={languageSelectOpen}
+                onOpenChange={setLanguageSelectOpen}
+                onValueChange={handleLanguageChange}
                 options={supportedLocales.map((locale) => ({
                   value: locale.id,
                   label: locale.nativeName,
@@ -105,7 +121,7 @@ function AppearanceSelectionSection() {
                     'data-locale-id': locale.id,
                   },
                 }))}
-                disabled={isChanging}
+                disabled={isChanging || pendingLanguage !== null}
                 placeholder={t('appearance.language')}
                 data-testid="appearance-language-select"
               />
@@ -128,11 +144,9 @@ function AppearanceSelectionSection() {
               >
                 <Select
                   size="sm"
-                  value={status === 'applying' && pendingSelectionId
-                    ? pendingSelectionId
-                    : selectedAppearanceId}
+                  value={selectedAppearanceId}
                   onValueChange={(value) => handleAppearanceChange(String(value))}
-                  disabled={!initialized || status === 'applying'}
+                  disabled={!initialized}
                   options={appearanceOptions}
                   data-testid="appearance-palette-select"
                 />

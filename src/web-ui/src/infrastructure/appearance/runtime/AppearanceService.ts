@@ -503,12 +503,6 @@ export class AppearanceService {
       await this.refreshNativeSystemAppearance();
     } else if (selected !== SYSTEM_APPEARANCE_ID) {
       this.ohosSystemAppearanceId = null;
-      const selectedPackage = await this.resolvePackage(selected);
-      if (selectedPackage?.pkg.mode === 'light' || selectedPackage?.pkg.mode === 'dark') {
-        void workspaceAPI.setThemeMode(selectedPackage.pkg.mode).catch(error => {
-          log.debug('Native appearance mode sync is unavailable', { error });
-        });
-      }
     }
     const resolvedId = selected === SYSTEM_APPEARANCE_ID
       ? (this.ohosSystemAppearanceId ?? getSystemAppearanceId())
@@ -534,12 +528,16 @@ export class AppearanceService {
         ? await this.runtime.initialize(resolved.pkg, resolved.assets)
         : await this.runtime.applyPackage(resolved.pkg, resolved.assets);
       runtimeApplied = true;
-      if (options.persist) {
-        persistenceAttempted = true;
-        await configAPI.setConfig(APPEARANCE_SELECTION_CONFIG_PATH, selected);
-        this.persistedSelectionId = selected;
-      }
       this.activeSource = resolved;
+      // Publish the applied appearance before persisting it. The Desktop and
+      // HarmonyOS hosts persist `appearance.selection` through a ProductControl
+      // transaction that waits for this surface to acknowledge a required
+      // presentation effect — a round trip that is not part of applying a theme.
+      // Everything the user sees reads this snapshot (`current`, the
+      // design-system color scheme, the settings picker's state), so publishing
+      // the committed result first keeps the theme switch and the picker usable
+      // no matter how long that write takes. A rejected persist still rolls back
+      // below.
       this.setSnapshot({
         ...previousSnapshot,
         initialized: true,
@@ -551,6 +549,20 @@ export class AppearanceService {
         resolvedAppearanceId: resolvedId,
         current,
       });
+      // Only after the applied selection is visible: the HarmonyOS host answers
+      // a fixed-mode request by changing the whole application color mode, which
+      // is reported back as a system color-mode change. Publishing first keeps
+      // that report from being read as a "follow system" update and reverting
+      // the selection the user just made.
+      void this.syncNativeMode(selected);
+      if (options.persist) {
+        persistenceAttempted = true;
+        await configAPI.setConfig(APPEARANCE_SELECTION_CONFIG_PATH, selected);
+        this.persistedSelectionId = selected;
+        // Carry the committed selection into the published snapshot without
+        // re-reporting an unapplied state.
+        this.setSnapshot({ ...this.snapshot });
+      }
       if (options.publish) await this.publishSelection(selected);
     } catch (error) {
       const compensationErrors: string[] = [];
@@ -605,6 +617,24 @@ export class AppearanceService {
   ): Promise<ResolvedAppearance | null> {
     if (!source) return fallback;
     return this.runtime.applyPackage(source.pkg, source.assets);
+  }
+
+  /**
+   * Tell the native host which color mode the webview should adopt for a fixed
+   * light/dark selection. Never awaited by the selection transaction: the theme
+   * is already applied and persisted, and a slow host answer must not hold the
+   * switch open.
+   */
+  private async syncNativeMode(selected: AppearanceSelectionId): Promise<void> {
+    if (selected === SYSTEM_APPEARANCE_ID) return;
+    try {
+      const selectedPackage = await this.resolvePackage(selected);
+      const mode = selectedPackage?.pkg.mode;
+      if (mode !== 'light' && mode !== 'dark') return;
+      await workspaceAPI.setThemeMode(mode);
+    } catch (error) {
+      log.debug('Native appearance mode sync is unavailable', { error });
+    }
   }
 
   private async restoreStoredPackage(

@@ -598,13 +598,26 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
         setActiveProviderKey(null);
       }
     };
+    const handleOverlayKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      setDropdownOpen(false);
+      setKeyboardNavigationOpen(false);
+      setNativeSubmenu(null);
+      setActiveProviderKey(null);
+    };
 
     if (dropdownOpen) {
-      // Direct model lists have no summary menu. Route outside interactions
-      // through the painted flyout so the overlay coordinator can own them.
       const surfaceRef = nativeSubmenu ? nativeSubmenuRef : portalDropdownRef;
+      const removePointerdown = subscribeOverlayInteraction(surfaceRef, 'pointerdown', handleClickOutside);
       const removeMousedown = subscribeOverlayInteraction(surfaceRef, 'mousedown', handleClickOutside);
-      return () => removeMousedown();
+      const removeKeydown = subscribeOverlayInteraction(surfaceRef, 'keydown', handleOverlayKeyDown);
+      return () => {
+        removePointerdown();
+        removeMousedown();
+        removeKeydown();
+      };
     }
   }, [dropdownOpen, nativeSubmenu]);
 

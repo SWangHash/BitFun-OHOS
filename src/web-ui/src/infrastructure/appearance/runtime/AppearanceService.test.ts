@@ -144,7 +144,7 @@ describe('AppearanceService', () => {
     });
   });
 
-  it('reports a pending selection after its runtime apply while persistence is in flight', async () => {
+  it('reports the applied selection as ready before its persistence settles', async () => {
     configMocks.getConfig.mockResolvedValue('system');
     const pendingWrite = deferred<void>();
     configMocks.setConfig.mockReturnValueOnce(pendingWrite.promise);
@@ -154,16 +154,25 @@ describe('AppearanceService', () => {
     const selection = service.select('bitfun-dark');
     await vi.waitFor(() => expect(configMocks.setConfig).toHaveBeenCalledOnce());
 
+    // The visible theme, the design-system color scheme and the settings picker
+    // all read this snapshot, and the native write can wait on this surface's
+    // acknowledgement, so the applied selection must be published as committed
+    // while persistence is still in flight.
     expect(service.getSnapshot()).toMatchObject({
-      status: 'applying',
-      selectedAppearanceId: 'system',
-      pendingSelectionId: 'bitfun-dark',
+      status: 'ready',
+      selectedAppearanceId: 'bitfun-dark',
+      resolvedAppearanceId: 'bitfun-dark',
+      pendingSelectionId: undefined,
+      persistedSelectionId: 'system',
     });
-    expect(service.hasAppliedPendingSelection('bitfun-dark')).toBe(true);
-    expect(service.hasAppliedPendingSelection('bitfun-light')).toBe(false);
 
     pendingWrite.resolve(undefined);
     await selection;
+    expect(service.getSnapshot()).toMatchObject({
+      status: 'ready',
+      selectedAppearanceId: 'bitfun-dark',
+      persistedSelectionId: 'bitfun-dark',
+    });
     expect(service.hasAppliedPendingSelection('bitfun-dark')).toBe(false);
   });
 
