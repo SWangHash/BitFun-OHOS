@@ -25,9 +25,10 @@
 
   &__chrome-actions {
     min-width: 0;
-    height: 100%;
+    height: var(--bitfun-layout-toolbar-md-height);
     display: flex;
     align-items: center;
+    justify-content: flex-end;
     gap: var(--bitfun-space-1);
     max-width: 100%;
   }

@@ -78,34 +78,34 @@ const SceneTopBar: React.FC<SceneTopBarProps> = ({
       data-bitfun-part="topBar"
       leading={<SceneBar />}
       size="md"
-      trailing={<>
-      <SceneChromeHost
-        className="bitfun-scene-top-bar__actions"
-        data-bitfun-scene="workbench"
-        data-bitfun-part="sceneActions"
-      />
-      {showHostWindowChromePlaceholder ? (
-        <div
-          className="bitfun-scene-top-bar__window-controls bitfun-scene-top-bar__window-controls--host"
-          data-bitfun-component="scene-bar"
-          data-bitfun-part="hostControls"
-          aria-hidden="true"
-        />
-      ) : hasWindowControls ? (
-        <div
-          className="bitfun-scene-top-bar__window-controls"
-          data-bitfun-component="scene-bar"
-          data-bitfun-part="controls"
-        >
-          <WindowControls
-            onMinimize={onMinimize!}
-            onToggleMaximize={onMaximize!}
-            onClose={onClose!}
-            maximized={isMaximized}
+      trailing={<div className="bitfun-scene-top-bar__trailing">
+        {showHostWindowChromePlaceholder ? (
+          <div
+            className="bitfun-scene-top-bar__window-controls bitfun-scene-top-bar__window-controls--host"
+            data-bitfun-component="scene-bar"
+            data-bitfun-part="hostControls"
+            aria-hidden="true"
           />
-        </div>
-      ) : null}
-      </>}
+        ) : hasWindowControls ? (
+          <div
+            className="bitfun-scene-top-bar__window-controls"
+            data-bitfun-component="scene-bar"
+            data-bitfun-part="controls"
+          >
+            <WindowControls
+              onMinimize={onMinimize!}
+              onToggleMaximize={onMaximize!}
+              onClose={onClose!}
+              maximized={isMaximized}
+            />
+          </div>
+        ) : null}
+        <SceneChromeHost
+          className="bitfun-scene-top-bar__actions"
+          data-bitfun-scene="workbench"
+          data-bitfun-part="sceneActions"
+        />
+      </div>}
     />
   );
 };

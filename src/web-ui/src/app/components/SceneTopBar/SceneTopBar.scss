@@ -4,13 +4,13 @@
   align-items: center;
   // Tabs receive the remaining width; the toolbar gap is also draggable chrome.
   column-gap: var(--bitfun-space-2);
-  flex: 0 0 var(--bitfun-layout-toolbar-md-height);
+  flex: 0 0 calc(2 * var(--bitfun-layout-toolbar-md-height));
   // Reclaim the scene surface's left gutter so tabs share the vertical inset.
   width: calc(100% + var(--bitfun-space-4));
   margin-inline-start: calc(0px - var(--bitfun-space-4));
   min-width: 0;
-  height: var(--bitfun-layout-toolbar-md-height);
-  min-block-size: var(--bitfun-layout-toolbar-md-height);
+  height: calc(2 * var(--bitfun-layout-toolbar-md-height));
+  min-block-size: calc(2 * var(--bitfun-layout-toolbar-md-height));
   padding-block: 0;
   // Subtract the tab strip's own one-border-width inline padding.
   padding-inline-start: calc(
@@ -25,6 +25,13 @@
   container-name: scene-top-bar;
   container-type: inline-size;
   user-select: none;
+
+  // Keep the scene tabs in the first row while the right-side actions occupy
+  // the second row below the native window controls.
+  > [data-bitfun-part='leading'] {
+    align-self: flex-start;
+    height: var(--bitfun-layout-toolbar-md-height);
+  }
 
   &:has(.window-controls--windows) {
     // Extend through the scene surface's right gutter so Close reaches the edge.
@@ -52,12 +59,22 @@
     }
   }
 
+  &__trailing {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: flex-start;
+    align-self: stretch;
+    min-width: 0;
+    height: 100%;
+  }
+
   &__actions {
     display: flex;
     align-items: center;
-    flex: 0 1 auto;
+    flex: 0 0 var(--bitfun-layout-toolbar-md-height);
     min-width: 0;
-    height: 100%;
+    height: var(--bitfun-layout-toolbar-md-height);
 
     &:empty {
       display: none;
@@ -75,9 +92,11 @@
   &__window-controls {
     display: flex;
     align-items: center;
-    flex: 0 0 auto;
-    height: 100%;
-    margin-inline-start: var(--bitfun-space-2);
+    justify-content: flex-end;
+    flex: 0 0 var(--bitfun-layout-toolbar-md-height);
+    width: 100%;
+    height: var(--bitfun-layout-toolbar-md-height);
+    margin-inline-start: 0;
 
     // The host keeps its decor geometry compact (EntryAbility.ets
     // OHOS_DECOR_BUTTON_STYLE: 3 x 28vp buttons + 2 x 8vp spacing +
@@ -85,6 +104,7 @@
     // stay clear without leaving an oversized dead gap.
     &--host {
       width: 96px;
+      height: var(--bitfun-layout-toolbar-md-height);
     }
   }
 }
