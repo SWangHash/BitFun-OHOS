@@ -6,7 +6,7 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { FilePlus, SearchCheck, Zap, GitPullRequest } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { OverflowText, Icon, IconButton, Menu, MenuItem, MenuSeparator, Tooltip, createOverlayPortal, subscribeOverlayInteraction } from '@bitfun/ui';
+import { OverflowText, Icon, IconButton, Menu, MenuItem, MenuSeparator, Tooltip, createOverlayPortal } from '@bitfun/ui';
 import { useSnapshotState } from '../../../tools/snapshot_system/hooks/useSnapshotState';
 import { createDiffEditorTab } from '../../../shared/utils/tabUtils';
 import { snapshotAPI } from '../../../infrastructure/api';
@@ -364,10 +364,20 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
       }
     };
 
-    const removeOverlayMousedown0 = subscribeOverlayInteraction(badgeRef, 'mousedown', handleClickOutside);
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      setIsExpanded(false);
+      setIsReviewMenuOpen(false);
+    };
+
+    document.addEventListener('pointerdown', handleClickOutside, true);
+    document.addEventListener('keydown', handleEscape, true);
 
     return () => {
-      removeOverlayMousedown0();
+      document.removeEventListener('pointerdown', handleClickOutside, true);
+      document.removeEventListener('keydown', handleEscape, true);
     };
   }, [isExpanded, isReviewMenuOpen]);
 

@@ -1879,6 +1879,34 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   ]);
 
   useEffect(() => {
+    if (!slashCommandState.isActive) return;
+
+    const closeSlashCommandPicker = () => {
+      setSlashCommandState({ isActive: false, kind: 'all', query: '', selectedIndex: 0 });
+    };
+    const handlePointerOutside = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (target && slashCommandPickerRef.current?.contains(target)) return;
+      closeSlashCommandPicker();
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      closeSlashCommandPicker();
+    };
+
+    const removePointerdown = subscribeOverlayInteraction(slashCommandPickerRef, 'pointerdown', handlePointerOutside);
+    const removeMousedown = subscribeOverlayInteraction(slashCommandPickerRef, 'mousedown', handlePointerOutside);
+    const removeKeydown = subscribeOverlayInteraction(slashCommandPickerRef, 'keydown', handleKeyDown);
+    return () => {
+      removePointerdown();
+      removeMousedown();
+      removeKeydown();
+    };
+  }, [slashCommandState.isActive]);
+
+  useEffect(() => {
     const closeInlineSkillPicker = () => {
       setSlashCommandState(prev => (
         prev.isActive && prev.kind === 'skills'

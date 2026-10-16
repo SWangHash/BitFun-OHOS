@@ -598,7 +598,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
         setActiveProviderKey(null);
       }
     };
-
     if (dropdownOpen) {
       // Direct model lists have no summary menu. Route outside interactions
       // through the painted flyout so the overlay coordinator can own them.
