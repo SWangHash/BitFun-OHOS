@@ -4,6 +4,26 @@
 
 ---
 
+## v1.0.9 (2026-10-16) — 基于 BitFun 1.0.9
+
+### HarmonyOS PC 适配
+
+- **启动画面**:开屏体验对齐原生:webview 启动期间镜像原生启动窗口(StartWindow),在页面加载结束或接管帧准时释放镜像;跳过 OpenHarmony 主机上的静态启动页;开屏品牌与图标尺寸对齐原生绘制规则并固定启动窗口背景;webview 与开屏镜像跟随系统深浅色模式;窗口装饰在开屏镜像呈现前应用(保留延迟 40ms 应用)。
+- **构建**:注册 `ohos_rs_ability` 模块进 HarmonyOS 构建(补齐 `BuildProfile.ets`、`build-profile.json5`、`hvigorfile.ts` 与混淆规则,模块 `@ohos-rs/ability` 更名为 `ohos_rs_ability`)。
+- **ACP/HAP 打包**:HAP 组装期间经 Hvigor 入口插件准备并同步内置 bitfun-acp profile,签名前校验打包内容完整性。
+- **ACP OpenCode 供给**:OpenCode 改为经 HarmonyBrew core formula 托管安装,替换原第三方手动安装指引。
+- **内置技能**:`hmos-dev-env-setup` Step 1 拆分为"命令行工具 / DevEco Studio"两种方式选择。
+
+### 重要修复
+
+- 修复 Antigravity 连接与账号模型发现:使用有效平台元数据并经服务端 wire ID 拉取已认证账号的模型目录;按凭据与提供方隔离托管项目缓存,保留旧预览别名;发现失败按可重试错误呈现,不再回退静态预设模型。
+- 修复 Antigravity 请求与流式对齐:处理包装流事件与 pending 项目 onboarding,翻译模型特定推理设置,保持工具 schema 约束与多轮调用;仅在连接失败与选定 HTTP 错误时切换兼容 Code Assist 端点。
+- 修复 DeepReview:渲染前校验报告字段,缺失内容显示为不可用而不改变已持久化记录;保留可选摘要与既有字符串标签。
+- 修复错误信息本地化:ACP、Review、SSH、Remote Connect 等桌面模块的授权错误在展示层本地化并保留参数与外部诊断;保持执行错误分类、提供方过滤与原始诊断输出。
+- 修正 agentic mode 系统提示词中 BitFun 的角色描述。
+
+---
+
 ## v1.0.8 (2026-09-28) — 基于 BitFun 1.0.8
 
 ### HarmonyOS PC 适配
