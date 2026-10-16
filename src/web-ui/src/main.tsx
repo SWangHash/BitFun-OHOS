@@ -6,6 +6,7 @@ import App from "./app/App";
 import AgentCompanionDesktopPet from "./app/components/AgentCompanionDesktopPet/AgentCompanionDesktopPet";
 import AppErrorBoundary from "./app/components/AppErrorBoundary";
 import { PrivacyProvider, PrivacyGate } from "./app/components/Privacy";
+import { handOverHostWindowChromeToAppSurface } from "./app/startup/hostWindowChrome";
 import { STARTUP_OVERLAY_HIDDEN_EVENT } from "./app/startup/startupSignals";
 import { WorkspaceProvider } from "./infrastructure/contexts/WorkspaceProvider";
 import { PeerDeviceProvider } from "./infrastructure/peer-device/PeerDeviceContext";
@@ -221,6 +222,13 @@ document.addEventListener(
 );
 
 /** Logger, appearance, and minimal deps must finish before the first React paint. */
+// Start fetching the appearance chunk while the entry module is still
+// evaluating. The pre-render step below would otherwise pay its transfer
+// serially, and appearance must be applied before the first React paint, so
+// this transfer sits on the critical path of every launch.
+const appearanceModuleImport = import('./infrastructure/appearance');
+void appearanceModuleImport.catch(() => undefined);
+
 async function initializeBeforeRender(): Promise<void> {
   const phaseStartedAt = nowMs();
   startupTrace.markPhase('before_render_start');
@@ -234,7 +242,7 @@ async function initializeBeforeRender(): Promise<void> {
 
   await traceStartupStep('before_render_step', 'appearance_initialize', async () => {
     await measureAsyncAndLog(log, 'Startup step completed', async () => {
-      const { appearanceService } = await import('./infrastructure/appearance');
+      const { appearanceService } = await appearanceModuleImport;
       await appearanceService.initialize();
     }, {
       data: { step: 'appearanceService.initialize' },
@@ -407,6 +415,12 @@ async function startApplication(): Promise<void> {
   startupTrace.markPhase('react_render_scheduled', {
     sinceStartupMs: elapsedMs(appStartedAt),
   });
+  // Start the HarmonyOS window-chrome handover as soon as the first render is
+  // scheduled. The host serves the request on its UI thread while that thread is
+  // still painting the launch frames, and the launch surface only waits for the
+  // result at the very end of startup; kicking it off here makes its bounded
+  // round trip overlap the workspace bootstrap instead of extending it.
+  void handOverHostWindowChromeToAppSurface();
 
   startupTrace.markPhase('non_critical_init_scheduled', {
     signalName: STARTUP_OVERLAY_HIDDEN_EVENT,

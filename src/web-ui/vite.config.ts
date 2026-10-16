@@ -9,6 +9,7 @@ import { watchSourcePlugin } from "../../design-system/tooling/vite/watch-source
 import {
   APPLE_SYSTEM_FONT_PROFILE,
   HARMONY_BUNDLED_FONT_PROFILE,
+  OHOS_SYSTEM_FONT_PROFILE,
   WEB_FONT_PROFILE_ENV,
   assertWebFontProfileBundle,
   resolveWebFontProfile,
@@ -28,7 +29,10 @@ const fontAssetDirectory = path.resolve(__dirname, 'src/assets/fonts');
 const FONT_PROFILE_STYLESHEET_MARKER = '<!-- BITFUN_FONT_PROFILE_STYLESHEET -->';
 
 export function createWebFontProfilePlugin(
-  profile: typeof APPLE_SYSTEM_FONT_PROFILE | typeof HARMONY_BUNDLED_FONT_PROFILE,
+  profile:
+    | typeof APPLE_SYSTEM_FONT_PROFILE
+    | typeof HARMONY_BUNDLED_FONT_PROFILE
+    | typeof OHOS_SYSTEM_FONT_PROFILE,
   command: 'serve' | 'build',
 ): Plugin {
   const stylesheetPath = `/src/font-profiles/${profile}.css`;
@@ -57,22 +61,31 @@ export function createWebFontProfilePlugin(
       },
     },
     buildStart() {
-      if (command !== 'build' || profile !== HARMONY_BUNDLED_FONT_PROFILE) return;
+      if (command !== 'build') return;
 
-      for (const [fileName, sourcePath] of [
-        [
-          'third-party/fonts/harmonyos-sans/LICENSE.txt',
-          path.join(fontAssetDirectory, 'harmonyos-sans/LICENSE.txt'),
-        ],
-        [
-          'third-party/fonts/harmonyos-sans/NOTICE.txt',
-          path.join(fontAssetDirectory, 'harmonyos-sans/NOTICE.txt'),
-        ],
-        [
-          'third-party/fonts/fira-code/LICENSE.txt',
-          path.join(fontAssetDirectory, 'fira-code/LICENSE.txt'),
-        ],
-      ]) {
+      // The HarmonyOS system-font profile bundles only the Fira Code face, so it
+      // carries only that font's license instead of the full HarmonyOS set.
+      const legalAssets =
+        profile === OHOS_SYSTEM_FONT_PROFILE
+          ? [['third-party/fonts/fira-code/LICENSE.txt', path.join(fontAssetDirectory, 'fira-code/LICENSE.txt')]]
+          : profile === HARMONY_BUNDLED_FONT_PROFILE
+            ? [
+                [
+                  'third-party/fonts/harmonyos-sans/LICENSE.txt',
+                  path.join(fontAssetDirectory, 'harmonyos-sans/LICENSE.txt'),
+                ],
+                [
+                  'third-party/fonts/harmonyos-sans/NOTICE.txt',
+                  path.join(fontAssetDirectory, 'harmonyos-sans/NOTICE.txt'),
+                ],
+                [
+                  'third-party/fonts/fira-code/LICENSE.txt',
+                  path.join(fontAssetDirectory, 'fira-code/LICENSE.txt'),
+                ],
+              ]
+            : [];
+
+      for (const [fileName, sourcePath] of legalAssets) {
         this.emitFile({ type: 'asset', fileName, source: readFileSync(sourcePath) });
       }
     },
@@ -149,6 +162,7 @@ export default defineConfig(({ mode, command }) => {
     requested: process.env[WEB_FONT_PROFILE_ENV],
     command,
     platform: process.platform,
+    mode,
   });
 
   console.log(`[font-profile] ${fontProfile}`);
@@ -263,7 +277,13 @@ export default defineConfig(({ mode, command }) => {
     outDir: '../../dist',
     // Empty the output directory
     emptyOutDir: true,
-    minify: false,
+    // Every host parses the whole entry chunk before the first paint, and the
+    // packaged assets are embedded into the host binary, so an uncompressed
+    // bundle inflates both the download and the cold-start parse. A cold
+    // HarmonyOS launch has no warm ArkWeb code cache to offset it either.
+    // Vite's default esbuild pass is what the rest of the pipeline expects;
+    // React's minified-error detection already handles a compressed runtime.
+    minify: 'esbuild',
   }
   };
 });

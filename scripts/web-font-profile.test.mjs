@@ -5,6 +5,7 @@ import {
   APPLE_SYSTEM_FONT_PROFILE,
   HARMONY_BUNDLED_FONT_PROFILE,
   HARMONY_FONT_ASSETS,
+  OHOS_SYSTEM_FONT_PROFILE,
   assertWebFontProfileBundle,
   fontProfileForDesktopTarget,
   normalizeWebFontProfile,
@@ -30,6 +31,15 @@ const harmonyBundle = [
   'assets/KaTeX_Main-Regular-contenthash.woff2',
   'assets/codicon-contenthash.ttf',
 ];
+const ohosBundle = [
+  'assets/FiraCode-Regular-contenthash.woff2',
+  'assets/FiraCode-Medium-contenthash.woff2',
+  'assets/FiraCode-SemiBold-contenthash.woff2',
+  'assets/FiraCode-VF-contenthash.woff2',
+  'third-party/fonts/fira-code/LICENSE.txt',
+  'assets/KaTeX_Main-Regular-contenthash.woff2',
+  'assets/codicon-contenthash.ttf',
+];
 
 test('Web font profiles resolve explicitly and use safe platform defaults', () => {
   assert.equal(normalizeWebFontProfile(APPLE_SYSTEM_FONT_PROFILE), APPLE_SYSTEM_FONT_PROFILE);
@@ -37,9 +47,23 @@ test('Web font profiles resolve explicitly and use safe platform defaults', () =
     normalizeWebFontProfile(HARMONY_BUNDLED_FONT_PROFILE),
     HARMONY_BUNDLED_FONT_PROFILE,
   );
+  assert.equal(
+    normalizeWebFontProfile(OHOS_SYSTEM_FONT_PROFILE),
+    OHOS_SYSTEM_FONT_PROFILE,
+  );
   assert.throws(() => normalizeWebFontProfile('legacy-fonts'), /Unsupported/);
 
-  assert.equal(resolveWebFontProfile({ command: 'build', platform: 'darwin' }), HARMONY_BUNDLED_FONT_PROFILE);
+  // A plain production build is the HarmonyOS PC product build; explicit
+  // desktop/web targets and dev keep the bundled face.
+  assert.equal(resolveWebFontProfile({ command: 'build' }), OHOS_SYSTEM_FONT_PROFILE);
+  assert.equal(
+    resolveWebFontProfile({ command: 'build', mode: 'desktop' }),
+    HARMONY_BUNDLED_FONT_PROFILE,
+  );
+  assert.equal(
+    resolveWebFontProfile({ command: 'build', mode: 'web' }),
+    HARMONY_BUNDLED_FONT_PROFILE,
+  );
   assert.equal(resolveWebFontProfile({ command: 'serve', platform: 'darwin' }), APPLE_SYSTEM_FONT_PROFILE);
   assert.equal(resolveWebFontProfile({ command: 'serve', platform: 'win32' }), HARMONY_BUNDLED_FONT_PROFILE);
   assert.equal(
@@ -52,7 +76,7 @@ test('Web font profiles resolve explicitly and use safe platform defaults', () =
   );
 });
 
-test('Desktop targets select Apple system fonts only for Apple triples', () => {
+test('Desktop targets select system fonts for Apple and HarmonyOS triples', () => {
   assert.equal(
     fontProfileForDesktopTarget({ target: 'aarch64-apple-darwin', platform: 'win32' }),
     APPLE_SYSTEM_FONT_PROFILE,
@@ -64,6 +88,10 @@ test('Desktop targets select Apple system fonts only for Apple triples', () => {
   assert.equal(
     fontProfileForDesktopTarget({ target: 'x86_64-unknown-linux-gnu', platform: 'darwin' }),
     HARMONY_BUNDLED_FONT_PROFILE,
+  );
+  assert.equal(
+    fontProfileForDesktopTarget({ target: 'aarch64-unknown-linux-ohos', platform: 'linux' }),
+    OHOS_SYSTEM_FONT_PROFILE,
   );
   assert.equal(fontProfileForDesktopTarget({ platform: 'darwin' }), APPLE_SYSTEM_FONT_PROFILE);
   assert.equal(fontProfileForDesktopTarget({ platform: 'linux' }), HARMONY_BUNDLED_FONT_PROFILE);
@@ -138,6 +166,39 @@ test('Harmony bundles require the exact approved font and legal asset set', () =
     () => assertWebFontProfileBundle(
       HARMONY_BUNDLED_FONT_PROFILE,
       harmonyBundle.filter((name) => !name.endsWith('/NOTICE.txt')),
+    ),
+    /missing legal asset/,
+  );
+});
+
+test('HarmonyOS system-font bundles reject bundled text faces and keep Fira Code', () => {
+  assert.doesNotThrow(() => assertWebFontProfileBundle(OHOS_SYSTEM_FONT_PROFILE, ohosBundle));
+
+  // Any bundled text face would be transferred over the launch-path scheme
+  // handler on the first CJK paint, which is what this profile exists to avoid.
+  for (const forbidden of [
+    'assets/HarmonyOS_Sans_SC_Regular-contenthash.ttf',
+    'assets/HarmonyOS_Sans_Regular-contenthash.ttf',
+    'fonts/noto-sans-sc-latin-wght-normal.woff2',
+  ]) {
+    assert.throws(
+      () => assertWebFontProfileBundle(OHOS_SYSTEM_FONT_PROFILE, ['index.html', ...ohosBundle, forbidden]),
+      /contains product text fonts/,
+    );
+  }
+
+  assert.throws(
+    () => assertWebFontProfileBundle(
+      OHOS_SYSTEM_FONT_PROFILE,
+      ohosBundle.filter((name) => !name.includes('FiraCode-VF')),
+    ),
+    /missing font assets: FiraCode-VF/,
+  );
+
+  assert.throws(
+    () => assertWebFontProfileBundle(
+      OHOS_SYSTEM_FONT_PROFILE,
+      ohosBundle.filter((name) => !name.endsWith('fira-code/LICENSE.txt')),
     ),
     /missing legal asset/,
   );
