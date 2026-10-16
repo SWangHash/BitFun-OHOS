@@ -43,6 +43,12 @@ describe('desktop domain error presentation', () => {
     expect(nested).not.toContain('Service error:');
     expect(nested).not.toContain('start remote connect:');
     expect(nested).not.toContain('Relay connection failed:');
+    const permission = desktopDomainErrorMessage('Tool confirmation failed: Error: Service error: ACP client not found: missing-client', t);
+    expect(permission).toContain('missing-client');
+    expect(permission).not.toContain('Tool confirmation failed:');
+    expect(permission).not.toContain('Error:');
+    expect(permission).not.toContain('Service error:');
+    expect(permission).not.toContain('ACP client not found:');
     const path = 'C:/work/<project>&repo/There are no workspace changes to review.';
     const original = "Failed to open remote file '" + path + "': EACCES";
     const localized = desktopDomainErrorMessage(original, t);
@@ -72,9 +78,11 @@ describe('desktop domain error presentation', () => {
   it('preserves every retained message in English, including parameter values', async () => {
     const t = await translator('en-US');
     for (const template of Object.values(en.desktopDomains)) {
-      const original = template.replace(/\{\{(\w+)\}\}/g, (_, parameter: string) =>
-        parameter === 'step' ? 'creating the Review session' : 'external-value/<id>&path');
-      expect(desktopDomainErrorMessage(original, t)).toBe(original);
+      for (const diagnostic of ['external-value/<id>&path', 'external-value/<id>&path\n']) {
+        const original = template.replace(/\{\{(\w+)\}\}/g, (_, parameter: string) =>
+          parameter === 'step' ? 'creating the Review session' : diagnostic);
+        expect(desktopDomainErrorMessage(original, t)).toBe(original);
+      }
     }
     const traditional = await translator('zh-TW');
     expect(desktopDomainErrorMessage('There are no workspace changes to review.', traditional))

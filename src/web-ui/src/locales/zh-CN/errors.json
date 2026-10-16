@@ -296,7 +296,6 @@
     "reviewRepositoryUntrusted": "Git 不会读取“{{path}}”，因为该目录属于其他用户。请在提示时信任该目录，或将其加入 safe.directory 后重新启动审查。",
     "reviewTeamMembersUnavailable": "严格审查所需的覆盖检查智能体不可用：{{reviewers}}",
     "reviewWorkerDefinitionUnavailable": "默认的 ReviewWorker 定义不可用",
-    "reviewImmutableIdsUnresolved": "无法将 Git 范围的版本解析为不可变的提交 ID",
     "reviewLaunchFailedWithoutDetail": "审查未能启动",
     "reviewCleanupPaneFailed": "清理时关闭审查面板失败：{{detail}}",
     "reviewCleanupBackendFailed": "删除后端审查会话失败：{{detail}}",
@@ -324,7 +323,6 @@
     "remoteEncrypt": "加密失败：{{value1}}",
     "remoteDecrypt": "解密失败：{{value1}}",
     "sshSSHPasswordIsRequiredNoSavedPassword": "需要 SSH 密码（此连接没有保存的密码）",
-    "remoteAccountContextChanged": "账号上下文已变化",
     "remoteConnectionMethodDoesNotUseARelay": "此连接方式不使用中继",
     "remoteSignInWithGitHubAndConnectThis": "创建邀请前，请使用 GitHub 登录并连接此设备",
     "remoteNoAuthenticatedRelayConnection": "没有经过身份验证的中继连接",
@@ -543,7 +541,14 @@
     "reviewParentWorkspaceIdUnavailable": "父会话工作区 ID 不可用",
     "reviewNoGitWorkspace": "当前工作区中未找到 Git 仓库。审核需要一个已有提交的 Git 仓库。请打开这样的项目后重试。",
     "reviewUnreadableTarget": "无法为审核读取文件或代码差异。请检查对应工作区是否已打开、目标是否有效，并在日志中查看具体错误。",
-    "remoteControllerStateFailed": "设置对端控制模式状态（{{active}}）失败"
+    "remoteControllerStateFailed": "设置对端控制模式状态（{{active}}）失败",
+    "reviewEmptyPullRequest": "此 PR 没有可审核的变更文件。",
+    "reviewPullRequestRevisionsUnavailable": "提供方未返回此 PR 不可变的基准和目标修订号。",
+    "reviewPullRequestDiffUnavailable": "提供方未返回此 PR 中任何变更文件的精确差异。",
+    "reviewUnsupportedPullRequestProvider": "此 PR 的提供方不支持审核。",
+    "toolConfirmationFailed": "工具确认失败：{{detail}}",
+    "toolRejectionFailed": "工具拒绝失败：{{detail}}",
+    "javascriptError": "错误：{{detail}}"
   },
   "desktopDomainParameters": {
     "checkingCoverage": "检查审查覆盖范围",

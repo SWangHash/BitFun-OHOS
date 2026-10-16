@@ -10,13 +10,15 @@ describe('action bar formatting', () => {
   const translate = createTestI18nT('flow-chat');
 
   it('prefers structured launch copy and preserves the original backend reason', () => {
-    const error = Object.assign(new Error('Failed to start dialog turn: legacy wrapper'), {
-      launchErrorMessageKey: 'deepReviewActionBar.launchError.network',
-      originalMessage: 'Failed to start dialog turn: provider connection closed',
-    });
-    expect(getReviewActionErrorMessage(error, translate, 'fallback')).toBe(
-      'Network connection interrupted. Review failed to start.\nprovider connection closed',
-    );
+    for (const reason of ['provider connection closed', 'Default ReviewWorker definition is unavailable']) {
+      const error = Object.assign(new Error('Failed to start dialog turn: legacy wrapper'), {
+        launchErrorMessageKey: 'deepReviewActionBar.launchError.network',
+        originalMessage: `Failed to start dialog turn: ${reason}`,
+      });
+      expect(getReviewActionErrorMessage(error, translate, 'fallback')).toBe(
+        `Network connection interrupted. Review failed to start.\n${reason}`,
+      );
+    }
   });
 
   it('supports legacy stored strings, plain errors, and empty failure payloads', () => {

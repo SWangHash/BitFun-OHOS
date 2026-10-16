@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createTestI18nT } from '@/test/i18nTestUtils';
 import {
   buildLaunchCleanupError,
   createDeepReviewLaunchError,
@@ -41,6 +42,17 @@ describe('Deep Review launch errors', () => {
     expect(
       getDeepReviewLaunchErrorMessage(error, (key) => `translated:${key}`),
     ).toBe('translated:deepReviewActionBar.launchError.network');
+  });
+
+  it('translates an already visible message without overriding the structured launch key', () => {
+    const original = new Error('Default ReviewWorker definition is unavailable');
+    const error = createDeepReviewLaunchError('prepare_review_team', original);
+    const translate = createTestI18nT('flow-chat');
+    expect(getDeepReviewLaunchErrorMessage(error, translate))
+      .toBe(translate(error.launchErrorMessageKey!, { defaultValue: error.message }));
+    expect(getDeepReviewLaunchErrorMessage(original, translate)).toBe(original.message);
+    expect(error.originalMessage).toBe(original.message);
+    expect(isSessionMissingError(error)).toBe(false);
   });
 
   it('keeps original launch error when cleanup completed', () => {

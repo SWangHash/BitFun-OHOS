@@ -1,3 +1,5 @@
+import { i18nService } from '@/infrastructure/i18n';
+import { desktopDomainErrorMessage } from '@/shared/ai-errors/desktopDomainErrors';
 /**
  * Tool confirmation/rejection actions for Modern FlowChat.
  */
@@ -98,7 +100,9 @@ export function useFlowChatToolActions() {
       log.warn('Ignoring legacy BitFun tool confirmation without a permission request id', { toolId });
     } catch (error) {
       log.error('Tool confirmation failed', error);
-      notificationService.error(`Tool confirmation failed: ${error}`);
+      notificationService.error(i18nService.t('errors:desktopDomains.toolConfirmationFailed', {
+        detail: desktopDomainErrorMessage(`${error}`, (key, options) => i18nService.t(key, options)),
+      }));
     }
   }, []);
 
@@ -138,7 +142,9 @@ export function useFlowChatToolActions() {
       log.warn('Ignoring legacy BitFun tool rejection without a permission request id', { toolId });
     } catch (error) {
       log.error('Tool rejection failed', error);
-      notificationService.error(`Tool rejection failed: ${error}`);
+      notificationService.error(i18nService.t('errors:desktopDomains.toolRejectionFailed', {
+        detail: desktopDomainErrorMessage(`${error}`, (key, options) => i18nService.t(key, options)),
+      }));
     }
   }, []);
 

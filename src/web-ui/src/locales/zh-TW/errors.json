@@ -296,7 +296,6 @@
     "reviewRepositoryUntrusted": "Git 不會讀取「{{path}}」，因為該目錄屬於其他使用者。請在提示時信任該目錄，或將其加入 safe.directory 後重新啟動審查。",
     "reviewTeamMembersUnavailable": "嚴格審查所需的覆蓋檢查智慧體無法使用：{{reviewers}}",
     "reviewWorkerDefinitionUnavailable": "預設的 ReviewWorker 定義無法使用",
-    "reviewImmutableIdsUnresolved": "無法將 Git 範圍的版本解析為不可變的提交 ID",
     "reviewLaunchFailedWithoutDetail": "審查未能啟動",
     "reviewCleanupPaneFailed": "清理時關閉審查面板失敗：{{detail}}",
     "reviewCleanupBackendFailed": "刪除後端審查工作階段失敗：{{detail}}",
@@ -324,7 +323,6 @@
     "remoteEncrypt": "加密失敗：{{value1}}",
     "remoteDecrypt": "解密失敗：{{value1}}",
     "sshSSHPasswordIsRequiredNoSavedPassword": "需要 SSH 密碼（此連接沒有保存的密碼）",
-    "remoteAccountContextChanged": "賬號上下文已變化",
     "remoteConnectionMethodDoesNotUseARelay": "此連接方式不使用中繼",
     "remoteSignInWithGitHubAndConnectThis": "創建邀請前，請使用 GitHub 登錄并連接此設備",
     "remoteNoAuthenticatedRelayConnection": "沒有經過身份驗證的中繼連接",
@@ -543,7 +541,14 @@
     "reviewParentWorkspaceIdUnavailable": "父會話工作區 ID 無法使用",
     "reviewNoGitWorkspace": "目前工作區中找不到 Git 儲存庫。審核需要一個已有提交的 Git 儲存庫。請開啟這樣的專案後重試。",
     "reviewUnreadableTarget": "無法為審核讀取檔案或程式碼差異。請檢查對應工作區是否已開啟、目標是否有效，並在日誌中查看具體錯誤。",
-    "remoteControllerStateFailed": "設定對端控制模式狀態（{{active}}）失敗"
+    "remoteControllerStateFailed": "設定對端控制模式狀態（{{active}}）失敗",
+    "reviewEmptyPullRequest": "此 PR 沒有可審核的變更檔案。",
+    "reviewPullRequestRevisionsUnavailable": "提供方未回傳此 PR 不可變的基準與目標修訂版本。",
+    "reviewPullRequestDiffUnavailable": "提供方未回傳此 PR 中任何變更檔案的精確差異。",
+    "reviewUnsupportedPullRequestProvider": "此 PR 的提供方不支援審核。",
+    "toolConfirmationFailed": "工具確認失敗：{{detail}}",
+    "toolRejectionFailed": "工具拒絕失敗：{{detail}}",
+    "javascriptError": "錯誤：{{detail}}"
   },
   "desktopDomainParameters": {
     "checkingCoverage": "檢查審查涵蓋範圍",

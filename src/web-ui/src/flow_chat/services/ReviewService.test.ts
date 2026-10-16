@@ -499,7 +499,7 @@ describe('ReviewService', () => {
     expect(mocks.buildDeepReviewLaunchFromSlashCommand).not.toHaveBeenCalled();
   });
 
-  it('prepares provider-bound reviews and displays the specific reason for an empty PR', async () => {
+  it('prepares provider-bound reviews and preserves each rejected PR reason', async () => {
     const params: Parameters<typeof prepareReviewLaunchFromPullRequest>[0] = {
       workspaceId: 'workspace-1', workspacePath: 'D:/workspace/project',
       remote: {
@@ -596,6 +596,19 @@ describe('ReviewService', () => {
       await i18n.changeLanguage(locale);
       expect(reviewPlatformErrorMessage(error, (key, options) => i18n.t(key, options), 'reviewFailed'))
         .toBe(expected);
+    }
+    for (const [input, key, message] of [
+      [{ ...params, reviewTarget: { ...params.reviewTarget, pullRequest: { ...params.reviewTarget.pullRequest, baseRevision: undefined } } }, 'pullRequestRevisionsUnavailable', 'The provider did not return immutable base and head revisions for this pull request.'],
+      [{ ...params, reviewTarget: { ...params.reviewTarget, files: params.reviewTarget.files.map(file => ({ ...file, diffAvailable: false })) } }, 'pullRequestDiffUnavailable', 'The provider did not return an exact diff for any changed file in this pull request.'],
+      [{ ...params, remote: { ...params.remote, platform: 'unknown' as const } }, 'unsupportedPullRequestProvider', 'This pull request provider does not support Review.'],
+    ] as const) {
+      const rejected = await prepareReviewLaunchFromPullRequest(input).catch((error: unknown) => error);
+      expect(rejected).toMatchObject({ message, launchErrorMessageKey: `deepReviewActionBar.launchError.${key}` });
+      for (const [locale, resources] of [['en-US', en], ['zh-CN', zh], ['zh-TW', tw]] as const) {
+        await i18n.changeLanguage(locale);
+        expect(reviewPlatformErrorMessage(rejected, (key, options) => i18n.t(key, options), 'reviewFailed'))
+          .toBe(resources.deepReviewActionBar.launchError[key]);
+      }
     }
     expect(mocks.createBtwChildSession).not.toHaveBeenCalled();
     expect(mocks.sendMessage).not.toHaveBeenCalled();

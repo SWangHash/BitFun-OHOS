@@ -1427,7 +1427,7 @@ export const SSHConnectionDialog: React.FC<SSHConnectionDialogProps> = ({
                       ? <Icon name="check-circle" size="sm" />
                       : <Icon name="xmark" size="sm" />}
                     <OverflowText>{formatTestStageLabel(stage)}</OverflowText>
-                    {stage.error && <OverflowText title={stage.error}>{stage.error}</OverflowText>}
+                    {stage.error && <OverflowText title={desktopDomainErrorMessage(stage.error, t)}>{desktopDomainErrorMessage(stage.error, t)}</OverflowText>}
                   </div>
                 ))}
                 {connectionTest.resolvedContainerAccess && (
