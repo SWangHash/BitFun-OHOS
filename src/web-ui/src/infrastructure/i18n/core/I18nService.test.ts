@@ -67,7 +67,7 @@ describe('I18nService shared namespace contract', () => {
     vi.unstubAllGlobals();
   });
 
-  it('commits a user language change before applying the local presentation fallback', async () => {
+  it('applies the local presentation before committing a user language change', async () => {
     vi.stubGlobal('document', {
       documentElement: { setAttribute: vi.fn() },
     });
@@ -77,17 +77,18 @@ describe('I18nService shared namespace contract', () => {
       service as unknown as { saveCurrentLocale(locale: string): Promise<void> },
       'saveCurrentLocale',
     ).mockImplementation(async () => {
-      expect(service.getCurrentLocale()).toBe(initialLocale);
+      expect(service.getCurrentLocale()).toBe('zh-TW');
     });
 
     await service.changeLanguage('zh-TW');
 
     expect(saveCurrentLocale).toHaveBeenCalledWith('zh-TW');
     expect(service.getCurrentLocale()).toBe('zh-TW');
+    expect(initialLocale).not.toBe('zh-TW');
     vi.unstubAllGlobals();
   });
 
-  it('does not change the visible language when ProductControl persistence fails', async () => {
+  it('restores the visible language when ProductControl persistence fails', async () => {
     vi.stubGlobal('document', {
       documentElement: { setAttribute: vi.fn() },
     });

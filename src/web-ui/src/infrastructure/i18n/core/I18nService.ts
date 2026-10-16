@@ -323,13 +323,24 @@ export class I18nService {
       return;
     }
 
-    // Desktop ProductControl persists first, applies backend effects, asks the
-    // live Web UI to apply this locale, and only then acknowledges success.
-    // Web/server adapters without that effect channel still receive the same
-    // persistence result and apply locally below.
-    await this.saveCurrentLocale(locale);
-    if (this.currentLocaleId !== locale) {
-      await this.applyLanguage(locale);
+    // Apply the local presentation first so the Desktop ProductControl effect
+    // can acknowledge an already-applied GUI change instead of waiting for the
+    // same Web UI to finish the transaction. Persist only after the UI is live;
+    // restore the previous locale if persistence is rejected.
+    const previousLocale = this.currentLocaleId;
+    await this.applyLanguage(locale);
+    try {
+      await this.saveCurrentLocale(locale);
+    } catch (error) {
+      try {
+        await this.applyLanguage(previousLocale);
+      } catch (rollbackError) {
+        log.error('Failed to restore locale after persistence failure', {
+          locale: previousLocale,
+          error: rollbackError,
+        });
+      }
+      throw error;
     }
   }
 
