@@ -1,0 +1,46 @@
+/* HarmonyOS renders product text with the platform face, which is the same
+   HarmonyOS Sans the bundled profile ships, so no text font is bundled here.
+   The CJK faces are roughly 8 MB per weight and are fetched on the first paint
+   that contains CJK text, over an ArkWeb scheme handler that cannot serve
+   concurrent requests: they end up competing with the startup IPC that the
+   launch surface waits on, which is what this profile removes. The editor/tool
+   monospace face stays bundled because it is fetched on demand when an editor
+   opens, never during a launch. */
+@font-face {
+  font-family: "Fira Code";
+  src: url("../assets/fonts/fira-code/FiraCode-Regular.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Fira Code";
+  src: url("../assets/fonts/fira-code/FiraCode-Medium.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Fira Code";
+  src: url("../assets/fonts/fira-code/FiraCode-SemiBold.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Fira Code VF";
+  src: url("../assets/fonts/fira-code/FiraCode-VF.woff2") format("woff2-variations");
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+}
+
+@layer bitfun.tokens.system {
+  :where([data-bitfun-design-system-root]) {
+    --bitfun-font-family-sans: system-ui, "HarmonyOS Sans SC", "HarmonyOS Sans", sans-serif;
+    --bitfun-font-family-control: system-ui, "HarmonyOS Sans SC", "HarmonyOS Sans", sans-serif;
+  }
+}

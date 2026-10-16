@@ -17,20 +17,16 @@ async function revealChromeOnHarmonyOS(): Promise<void> {
 }
 
 /**
- * Hand the window chrome that the host draws outside the web view over to the
- * app surface.
+ * Reveal the host-drawn window chrome and wait (bounded) for the host to
+ * confirm it.
  *
  * HarmonyOS paints the system min/max/close cluster in its own window frame, so
  * the app shell cannot hide or show it with CSS. The host keeps that cluster
- * hidden from the launch window; this reveals it and waits (bounded) for the
- * host to confirm the update, so the caller can keep the launch surface up until
- * the buttons are really there instead of showing the interface first and the
- * buttons a beat later. Desktop platforms own the same buttons in the app shell
- * and have nothing to hand over.
+ * hidden from the launch window, and the caller keeps the launch surface up
+ * until the buttons are really there instead of showing the interface first and
+ * the buttons a beat later.
  */
-export async function handOverHostWindowChromeToAppSurface(): Promise<void> {
-  if (!isOpenHarmonyRuntime()) return;
-
+async function performHostWindowChromeHandover(): Promise<void> {
   let timeoutId: number | undefined;
   try {
     await Promise.race([
@@ -46,4 +42,27 @@ export async function handOverHostWindowChromeToAppSurface(): Promise<void> {
       window.clearTimeout(timeoutId);
     }
   }
+}
+
+// The HarmonyOS handover starts at most once: a caller can kick it off as soon
+// as the shell has painted and await the same promise at the launch-surface
+// handoff, so the host's bounded round trip — served on a UI thread that is
+// still painting the first frames — overlaps the workspace bootstrap instead of
+// adding to it. The bound covers the host's acknowledgement, not how long a
+// later caller waits to ask, so the timeout is armed once with the request.
+let handoverPromise: Promise<void> | null = null;
+
+/**
+ * Hand the window chrome that the host draws outside the web view over to the
+ * app surface.
+ *
+ * Desktop platforms own the same buttons inside the app shell and have nothing
+ * to hand over, so they resolve immediately and cache nothing.
+ */
+export function handOverHostWindowChromeToAppSurface(): Promise<void> {
+  if (!isOpenHarmonyRuntime()) {
+    return Promise.resolve();
+  }
+  handoverPromise ??= performHostWindowChromeHandover();
+  return handoverPromise;
 }

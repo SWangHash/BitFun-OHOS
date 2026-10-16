@@ -68,11 +68,12 @@ export async function hideStartupOverlay(): Promise<void> {
     return;
   }
 
-  // Hand the window chrome over before the exit animation starts. The host
-  // applies it on its own UI thread, which is still busy painting the app's
-  // first frames, so this waits (bounded) for the acknowledgement: the launch
-  // surface then gives way to an interface whose buttons are already there,
-  // instead of showing the interface first and the buttons a beat later.
+  // Make sure the host-drawn window chrome is in place before the exit
+  // animation starts: the launch surface should give way to an interface whose
+  // buttons are already there, instead of showing the interface first and the
+  // buttons a beat later. The request itself is started much earlier, at the
+  // first React render, so this usually resolves without waiting — see
+  // hostWindowChrome.ts.
   await handOverHostWindowChromeToAppSurface();
 
   overlay.classList.add(EXIT_CLASS);

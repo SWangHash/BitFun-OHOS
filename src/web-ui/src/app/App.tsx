@@ -50,10 +50,21 @@ interface AppLayoutStartupGateProps {
   onReady: () => void;
 }
 
+// Start fetching the app-shell chunk while the entry module is still
+// evaluating. The lazy boundary below would otherwise not request it until the
+// first commit, which puts the whole transfer on the post-render critical path
+// that the launch surface waits for. The workspace bootstrap IPC and the
+// launch-surface handoff cannot start until this chunk is mounted, so
+// overlapping its fetch with the entry-chunk evaluation is pure gain.
+const appLayoutChunkImport = import('./layout/AppLayout');
+// The lazy boundary attaches its own rejection handler later. Swallow the early
+// rejection so an eager failure cannot surface as an unhandled rejection.
+void appLayoutChunkImport.catch(() => undefined);
+
 const LazyAppLayout = lazy(async () => {
   startupTrace.markPhase('app_layout_import_start');
   try {
-    const module = await import('./layout/AppLayout');
+    const module = await appLayoutChunkImport;
     clearStartupModuleReloadAttempt();
     startupTrace.markPhase('app_layout_import_end');
     return {

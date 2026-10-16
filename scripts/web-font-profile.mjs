@@ -5,6 +5,15 @@ import { join } from 'node:path';
 export const WEB_FONT_PROFILE_ENV = 'BITFUN_WEB_FONT_PROFILE';
 export const APPLE_SYSTEM_FONT_PROFILE = 'apple-system';
 export const HARMONY_BUNDLED_FONT_PROFILE = 'harmony-bundled';
+// HarmonyOS PC renders product text with the platform face, which is the same
+// HarmonyOS Sans the bundled profile ships. Bundling it means the launch fetches
+// roughly 8 MB per weight over the ArkWeb scheme handler, which cannot serve
+// concurrent requests, so the CJK faces end up competing with the startup IPC
+// that the launch surface waits on. Only the editor/tool monospace face stays
+// bundled here: it loads on demand when an editor opens, never during a launch.
+export const OHOS_SYSTEM_FONT_PROFILE = 'ohos-system';
+
+const FIRA_CODE_LICENSE_FILE = 'third-party/fonts/fira-code/LICENSE.txt';
 
 export const HARMONY_FONT_ASSETS = Object.freeze([
   {
@@ -60,31 +69,60 @@ const FIRA_FONT_STEMS = Object.freeze([
 const PRODUCT_FONT_ASSET_PATTERN = /(?:HarmonyOS[_-]Sans|FiraCode-|Noto[_-]Sans[_-]SC)[^/]*\.(?:ttf|otf|woff2?)$/i;
 
 export function normalizeWebFontProfile(value) {
-  if (value === APPLE_SYSTEM_FONT_PROFILE || value === HARMONY_BUNDLED_FONT_PROFILE) {
+  if (
+    value === APPLE_SYSTEM_FONT_PROFILE
+    || value === HARMONY_BUNDLED_FONT_PROFILE
+    || value === OHOS_SYSTEM_FONT_PROFILE
+  ) {
     return value;
   }
   throw new Error(
     `Unsupported ${WEB_FONT_PROFILE_ENV} value: ${value}. `
-      + `Expected ${APPLE_SYSTEM_FONT_PROFILE} or ${HARMONY_BUNDLED_FONT_PROFILE}.`,
+      + `Expected ${APPLE_SYSTEM_FONT_PROFILE}, ${HARMONY_BUNDLED_FONT_PROFILE} `
+      + `or ${OHOS_SYSTEM_FONT_PROFILE}.`,
   );
 }
 
-export function resolveWebFontProfile({ requested, command = 'build', platform = process.platform } = {}) {
+/**
+ * Resolve the product font profile for a Vite command.
+ *
+ * The plain production build (no `--mode`) is the HarmonyOS PC product build,
+ * because that is the form the HAP flow runs: `pnpm --dir src/web-ui build`,
+ * and the same bare `vite build` inside `scripts/build-web-parallel.mjs`. That
+ * product renders its text with the platform face, so it must not carry the
+ * bundled CJK faces. Explicit `--mode desktop` / `--mode web` builds, desktop
+ * packaging (`fontProfileForDesktopTarget`) and `serve` keep the bundled face.
+ */
+export function resolveWebFontProfile({
+  requested,
+  command = 'build',
+  platform = process.platform,
+  mode = 'production',
+} = {}) {
   if (requested) return normalizeWebFontProfile(requested);
 
-  // A portable Web build must carry the non-Apple face. Development follows
-  // the host so macOS never downloads product font packages merely to run HMR.
-  if (command === 'serve' && platform === 'darwin') {
-    return APPLE_SYSTEM_FONT_PROFILE;
+  // Development follows the host so macOS never downloads product font packages
+  // merely to run HMR.
+  if (command === 'serve') {
+    return platform === 'darwin'
+      ? APPLE_SYSTEM_FONT_PROFILE
+      : HARMONY_BUNDLED_FONT_PROFILE;
   }
-  return HARMONY_BUNDLED_FONT_PROFILE;
+
+  // Desktop and web builds run on hosts whose platform font differs from the
+  // product face, and have no launch cost competing with the bundled faces.
+  if (mode === 'desktop' || mode === 'web') {
+    return HARMONY_BUNDLED_FONT_PROFILE;
+  }
+
+  return OHOS_SYSTEM_FONT_PROFILE;
 }
 
 export function fontProfileForDesktopTarget({ target, platform = process.platform } = {}) {
   if (target) {
-    return /apple/i.test(target)
-      ? APPLE_SYSTEM_FONT_PROFILE
-      : HARMONY_BUNDLED_FONT_PROFILE;
+    if (/apple/i.test(target)) return APPLE_SYSTEM_FONT_PROFILE;
+    if (/ohos|harmony/i.test(target)) return OHOS_SYSTEM_FONT_PROFILE;
+    return HARMONY_BUNDLED_FONT_PROFILE;
   }
   return platform === 'darwin'
     ? APPLE_SYSTEM_FONT_PROFILE
@@ -128,6 +166,33 @@ export function assertWebFontProfileBundle(profile, bundleFileNames) {
     if (productFonts.length > 0) {
       throw new Error(
         `Apple Web bundle contains product text fonts: ${productFonts.join(', ')}`,
+      );
+    }
+    return;
+  }
+
+  if (normalized === OHOS_SYSTEM_FONT_PROFILE) {
+    const textFonts = productFonts.filter(
+      (name) => !FIRA_FONT_STEMS.some((stem) => name.includes(stem)),
+    );
+    if (textFonts.length > 0) {
+      throw new Error(
+        `HarmonyOS system-font Web bundle contains product text fonts: ${textFonts.join(', ')}`,
+      );
+    }
+
+    const missingFira = FIRA_FONT_STEMS.filter(
+      (stem) => !productFonts.some((name) => name.includes(stem)),
+    );
+    if (missingFira.length > 0) {
+      throw new Error(
+        `HarmonyOS system-font Web bundle is missing font assets: ${missingFira.join(', ')}`,
+      );
+    }
+
+    if (!names.includes(FIRA_CODE_LICENSE_FILE)) {
+      throw new Error(
+        `HarmonyOS system-font Web bundle is missing legal asset: ${FIRA_CODE_LICENSE_FILE}`,
       );
     }
     return;
