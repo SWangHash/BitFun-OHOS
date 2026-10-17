@@ -21,9 +21,9 @@ on:
       - update
       - reopen
     branches: [main, release/2.0.0]
-  push:
-    # Temporary: verifies the runner end-to-end via push events.
-    branches: [main]
+  # Manual runs still allowed (e.g. first fetch warm-up or runner checks);
+  # push triggers are intentionally absent.
+  workflow_dispatch:
 
 permissions:
   repository: read
@@ -31,12 +31,15 @@ permissions:
 jobs:
   ohos-cargo-check:
     name: OHOS Build Check (aarch64)
-    runs-on: [self-hosted, os=ubuntu]
+    runs-on: [self-hosted, os=ubuntu, target=ohos]
     timeout-minutes: 90
     env:
       IMAGE: swr.cn-north-4.myhuaweicloud.com/bitfun/bitfun-ade-ohos-ci:20260818
-      # Static name like the reference CI workflows; pre-cleaned per run.
-      CONTAINER_NAME: bitfun-ade-ohos-ci
+      # Unique per run (same pattern as the agent-sdk job): two runners on
+      # the OHOS host can execute this job concurrently (frontend build
+      # makes runs long), so a static name would collide and docker rm -f
+      # would kill the other run's container.
+      CONTAINER_NAME: bitfun-ade-ohos-ci-${{ atomgit.workflow_run_id }}-${{ atomgit.run_attempt }}
     steps:
       - name: Checkout source
         uses: checkout
@@ -111,18 +114,60 @@ jobs:
         run: |
           set -eu
           docker pull "$IMAGE"
+          # The OHOS image keeps toolchain env in /root/.bashrc behind an
+          # interactive guard instead of real container env, so CARGO_HOME
+          # may only be visible after sourcing it; fall back to the cargo
+          # default $HOME/.cargo (root), where this image's baked git db
+          # lives (see /root/.cargo/git/db in past fetch failures).
+          cargo_home=$(docker run --rm "$IMAGE" bash -c 'export HOME=/root PS1="ci$ "; . /root/.bashrc >/dev/null 2>&1 || true; printf %s "${CARGO_HOME:-$HOME/.cargo}"')
+          case "$cargo_home" in
+            /*) ;;
+            *) echo "Resolved CARGO_HOME is not an absolute path: $cargo_home" >&2; exit 1 ;;
+          esac
           cache_root='/opt/.gitcode-cache'
           target_cache="$cache_root/target/ade-ohos"
-          mkdir -p "$target_cache"
+          mkdir -p "$cache_root/cargo/registry" "$cache_root/cargo/git" "$target_cache"
+          # Seed the host git cache from the image's baked copy when empty:
+          # the baked db predates some revs pinned by Cargo.lock (e.g.
+          # openharmony-ability), so git deps still need one online fetch —
+          # but it only has to succeed once, then it persists across runs.
+          if [ -z "$(ls -A "$cache_root/cargo/git/db" 2>/dev/null)" ]; then
+            echo "Seeding host cargo git cache from the image's baked db."
+            docker run --rm --user 0 "$IMAGE" tar -C "$cargo_home" -cf - git | tar -C "$cache_root/cargo" -xf -
+          fi
           docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
           docker run --detach \
             --name "$CONTAINER_NAME" \
             --user 0 \
             --volume "$PWD:/workspace" \
+            --volume "$cache_root/cargo/registry:$cargo_home/registry" \
+            --volume "$cache_root/cargo/git:$cargo_home/git" \
             --volume "$target_cache:/workspace/target" \
             --workdir /workspace \
             "$IMAGE" \
             sh -c 'while :; do sleep 3600; done'
+
+      # Warm all crate sources up front with retries: gen-types (inside the
+      # web build) resolves the same git deps and a mid-build GitHub hiccup
+      # aborts the whole job. Once fetched, the persistent git cache above
+      # serves every later run without network.
+      - name: Warm cargo caches (retried)
+        if: ${{ steps.classify.outputs.run == 'true' }}
+        run: |
+          set -eu
+          ok=''
+          for attempt in 1 2 3 4 5; do
+            echo "cargo fetch attempt $attempt/5"
+            if docker exec --env CARGO_NET_GIT_FETCH_WITH_CLI=true "$CONTAINER_NAME" bash -c 'export HOME=/root PS1="ci$ "; . /root/.bashrc; set -eu; cd /workspace && exec cargo fetch --locked'; then
+              ok=1
+              break
+            fi
+            sleep 20
+          done
+          if [ -z "$ok" ]; then
+            echo '::error::cargo fetch failed after 5 attempts (flaky GitHub access for git deps; the persistent /opt/.gitcode-cache/cargo/git cache keeps every success).' >&2
+            exit 1
+          fi
 
       - name: Install frontend dependencies
         if: ${{ steps.classify.outputs.run == 'true' }}
