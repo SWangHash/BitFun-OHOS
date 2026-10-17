@@ -112,10 +112,14 @@ jobs:
           # host-cache pattern as cargo/registry and cargo/git): the
           # sherpa-onnx-sys build script reads SHERPA_ONNX_ARCHIVE_DIR from
           # here instead of downloading from GitHub, which times out.
+          # $cache_root/xwin persists the cargo-xwin Windows SDK/CRT download
+          # (XWIN_CACHE_DIR), which otherwise re-downloads for minutes on
+          # every run.
           mkdir -p \
             "$cache_root/cargo/registry" \
             "$cache_root/cargo/git" \
             "$cache_root/sherpa-onnx" \
+            "$cache_root/xwin" \
             "$target_cache"
           docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
           docker run --detach \
@@ -124,6 +128,7 @@ jobs:
             --volume "$cache_root/cargo/registry:$cargo_home/registry" \
             --volume "$cache_root/cargo/git:$cargo_home/git" \
             --volume "$cache_root/sherpa-onnx:/opt/sherpa-onnx-cache" \
+            --volume "$cache_root/xwin:/opt/xwin-cache" \
             --volume "$target_cache:/workspace/target" \
             --workdir /workspace \
             "$IMAGE" \
@@ -184,7 +189,7 @@ jobs:
           # of hanging the job (the shared git cache makes this a fallback).
           # SHERPA_ONNX_ARCHIVE_DIR: resolve sherpa-onnx libs from the seeded
           # archive instead of downloading from GitHub (times out here).
-          docker exec --env CARGO_NET_GIT_FETCH_WITH_CLI=true --env SHERPA_ONNX_ARCHIVE_DIR=/opt/sherpa-onnx-cache --env GIT_CONFIG_GLOBAL=/tmp/gitconfig "$CONTAINER_NAME" sh -c 'mkdir -p /workspace/dist /workspace/src/mobile-web/dist /workspace/src/apps/extension-host/dist && touch /workspace/src/apps/extension-host/dist/extension-host.js && exec cargo xwin check --locked --release --target x86_64-pc-windows-msvc --manifest-path src/apps/desktop/Cargo.toml'
+          docker exec --env CARGO_NET_GIT_FETCH_WITH_CLI=true --env SHERPA_ONNX_ARCHIVE_DIR=/opt/sherpa-onnx-cache --env GIT_CONFIG_GLOBAL=/tmp/gitconfig --env XWIN_CACHE_DIR=/opt/xwin-cache "$CONTAINER_NAME" sh -c 'mkdir -p /workspace/dist /workspace/src/mobile-web/dist /workspace/src/apps/extension-host/dist && touch /workspace/src/apps/extension-host/dist/extension-host.js && exec cargo xwin check --locked --release --target x86_64-pc-windows-msvc --manifest-path src/apps/desktop/Cargo.toml'
 
       - name: Remove Windows CI container
         if: ${{ always() }}
