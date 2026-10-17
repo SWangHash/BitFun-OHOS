@@ -50,6 +50,14 @@ on:
         description: 'Release 标签（upload_to_release 为 true 时必填，如 v1.0.0）'
         required: false
         type: string
+      package_name:
+        description: '产物包名（HAP/.app 文件名主干，如 bitfun-ohos-v1.0.0；不填用 release_tag，都不填保持默认签名文件名）'
+        required: false
+        type: string
+      release_title:
+        description: 'Release 标题（不填默认为 tag；重跑不填则保留原标题）'
+        required: false
+        type: string
 
 permissions:
   repository: read
@@ -57,7 +65,10 @@ permissions:
 jobs:
   package:
     name: One-click signed package
-    runs-on: [self-hosted, os=ubuntu]
+    # Dedicated label so packaging does not share the runner pool with the
+    # OHOS CI jobs: the package host carries signing material and host-side
+    # tooling, and a long CI frontend build must not delay signed packaging.
+    runs-on: [self-hosted, os=ubuntu, target=ohos_package]
     timeout-minutes: 120
     env:
       PKG_BRANCH: ${{ inputs.branch }}
@@ -110,7 +121,9 @@ jobs:
           PKG_BRANCH: ${{ inputs.branch }}
           PKG_SO_ONLY: ${{ inputs.so_only }}
           RELEASE_TAG: ${{ inputs.release_tag }}
+          PKG_NAME: ${{ inputs.package_name }}
           UPLOAD_TO_RELEASE: ${{ inputs.upload_to_release }}
+          UPLOAD_ARTIFACT: ${{ inputs.upload_artifact }}
         run: |
           set -eu
           branch_dir="/root/workspace/$PKG_BRANCH"
@@ -151,19 +164,31 @@ jobs:
           elif [ -e "$repo_path/src/apps/ohos/build/outputs/default/$APP_SIGNED" ]; then
             cp -v "$repo_path/src/apps/ohos/build/outputs/default/$APP_SIGNED" "$out/"
           fi
-          # Release 打包：产物按 tag 改名（如 v1.0.0.hap / v1.0.0.app）
-          if [ -n "$RELEASE_TAG" ]; then
+          # 产物改名：优先用包名（package_name），未填回退 release_tag，
+          # 都不填保持默认签名文件名。包名不允许斜杠与空白。
+          asset_name="$PKG_NAME"
+          if [ -z "$asset_name" ] && [ -n "$RELEASE_TAG" ]; then
+            asset_name="$RELEASE_TAG"
+          fi
+          if [ -n "$asset_name" ]; then
+            case "$asset_name" in
+              */*|*\\*|*[[:space:]]*)
+                echo "Invalid package name (no slashes or whitespace): $asset_name" >&2
+                exit 1
+                ;;
+            esac
             if [ -e "$out/$HAP_SIGNED" ]; then
-              mv -v "$out/$HAP_SIGNED" "$out/$RELEASE_TAG.hap"
+              mv -v "$out/$HAP_SIGNED" "$out/$asset_name.hap"
             fi
             if [ -e "$out/$APP_SIGNED" ]; then
-              mv -v "$out/$APP_SIGNED" "$out/$RELEASE_TAG.app"
+              mv -v "$out/$APP_SIGNED" "$out/$asset_name.app"
             fi
           fi
-          # so/dist 仅在 so-only 模式或发版（upload_to_release）时收集；
-          # 默认模式产物只含 HAP（build_app 时另含 .app）
+          # so/dist 仅在 so-only 模式、artifact 上传或发版时收集；
+          # Release 资产现仅含 HAP/.app，so/dist 不上传 Release，
+          # 收集用途为 so-only 产物输出与 artifact 留档
           collect_extras=false
-          if [ "$PKG_SO_ONLY" = "true" ] || [ "$UPLOAD_TO_RELEASE" = "true" ]; then
+          if [ "$PKG_SO_ONLY" = "true" ] || [ "$UPLOAD_TO_RELEASE" = "true" ] || [ "$UPLOAD_ARTIFACT" = "true" ]; then
             collect_extras=true
           fi
           if [ "$collect_extras" = "true" ]; then
@@ -178,7 +203,7 @@ jobs:
               if [ -e "$so" ]; then cp -v "$so" "$out/"; fi
             done
             # mobile-web/dist 打包成压缩档（zip 优先，无 zip 回退 tar.gz），
-            # artifact 与 release 资产共用同一份文件
+            # 仅进入 artifact 输出目录（Release 资产不含 so/dist）
             if [ -d "$repo_path/src/mobile-web/dist" ]; then
               if command -v zip >/dev/null 2>&1; then
                 (cd "$repo_path/src/mobile-web" && zip -qr "$out/mobile-web-dist.zip" dist)
@@ -218,6 +243,7 @@ jobs:
         env:
           GITCODE_TOKEN: ${{ secrets.GIT_TOKEN }}
           RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_TITLE: ${{ inputs.release_title }}
           RELEASE_BRANCH: ${{ inputs.branch }}
           RELEASE_REPO_INPUT: ${{ inputs.repo }}
           PACKAGED_COMMIT: ${{ steps.collect.outputs.commit }}
@@ -253,5 +279,5 @@ jobs:
           release_repo="${release_repo%.git}"
           release_repo="$(printf '%s' "$release_repo" | awk -F/ '{print $(NF-1)"/"$NF}')"
           echo "Release repository: $release_repo (target branch: $RELEASE_BRANCH)"
-          node scripts/ci/publish-gitcode-release.mjs "$RELEASE_TAG" "$release_repo" ohos-package-output "$RELEASE_BRANCH" "$PACKAGED_COMMIT"
+          node scripts/ci/publish-gitcode-release.mjs "$RELEASE_TAG" "$release_repo" ohos-package-output "$RELEASE_BRANCH" "$PACKAGED_COMMIT" "$RELEASE_TITLE"
           echo 'uploaded=true' >> "$ATOMGIT_OUTPUT"

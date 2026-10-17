@@ -1,0 +1,303 @@
+name: BitFun ADE Windows macOS CI
+
+# Desktop app cross compile-checks for Windows (x86_64-pc-windows-msvc via
+# cargo-xwin) and macOS (aarch64-apple-darwin via cargo-zigbuild), running in
+# the shared self-contained cross-compile images from bitfun_agent_kernel on
+# self-hosted Ubuntu runners. Same conventions as bitfun_ade_ohos_ci.yml:
+# - pull_request types are open/update/reopen
+# - built-in actions are referenced without a registry prefix (`checkout`)
+# - step outputs are written to $ATOMGIT_OUTPUT
+# - repository context uses the atomgit.* prefix
+# Jobs are independent (no `needs`): each one starts with the same bash
+# classify gate and skips the container when no Rust build input changed.
+
+on:
+  pull_request:
+    types:
+      - open
+      - update
+      - reopen
+    branches: [main, release/2.0.0]
+  push:
+    # Temporary: verifies the runners end-to-end via push events.
+    branches: [main]
+
+permissions:
+  repository: read
+
+jobs:
+  ade-windows:
+    name: Desktop Build Check (x86_64-pc-windows-msvc)
+    runs-on: [self-hosted, os=ubuntu, target=windows]
+    timeout-minutes: 90
+    env:
+      IMAGE: swr.cn-north-4.myhuaweicloud.com/bitfun/rust-ci-windows:20260813
+      # Unique per run so concurrent runs on the same host never collide.
+      CONTAINER_NAME: bitfun-ade-rust-ci-windows-${{ atomgit.workflow_run_id }}-${{ atomgit.run_attempt }}
+    steps:
+      - name: Checkout source
+        uses: checkout
+        with:
+          # GitCode may not expose a synthetic merge ref for pull requests;
+          # check out the actual PR head commit instead.
+          ref: ${{ atomgit.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      # Same conservative gate as bitfun_ade_ohos_ci.yml: skip the container
+      # when only docs or web-ui changed.
+      - name: Classify Rust and CLI impact
+        id: classify
+        env:
+          BASE_SHA: ${{ atomgit.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ atomgit.event.pull_request.head.sha }}
+        run: |
+          set -eu
+          run='true'
+          reason='invalid-range'
+          if [ -n "$BASE_SHA" ] && [ -n "$HEAD_SHA" ] \
+            && git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null \
+            && git cat-file -e "${HEAD_SHA}^{commit}" 2>/dev/null; then
+            reason='no-changes'
+            if ! git diff --quiet "$BASE_SHA...$HEAD_SHA" --; then
+              set +e
+              git diff --quiet "$BASE_SHA...$HEAD_SHA" -- \
+                ':(exclude,glob)*.md' \
+                ':(exclude)docs/*.md' \
+                ':(exclude)png' \
+                ':(exclude)src/web-ui'
+              diff_status=$?
+              set -e
+              case "$diff_status" in
+                0)
+                  run='false'
+                  reason='web-ui-or-docs-only'
+                  ;;
+                1)
+                  reason='rust-build-input'
+                  ;;
+                *)
+                  reason='unavailable-range'
+                  ;;
+              esac
+            fi
+          fi
+          echo "rust_required=$run reason=$reason"
+          if [ "$run" = 'false' ]; then
+            echo 'Windows check skipped: no Rust build input changed.'
+          fi
+          echo "run=$run" >> "$ATOMGIT_OUTPUT"
+
+      - name: Guard runner disk space
+        if: ${{ steps.classify.outputs.run == 'true' }}
+        run: |
+          set -eu
+          cache_root='/opt/.gitcode-cache'
+          mkdir -p "$cache_root"
+          free_kb=$(df -Pk /opt | awk 'NR==2 {print $4}')
+          if [ -n "$free_kb" ] && [ "$free_kb" -lt 10485760 ]; then
+            echo "Free space below 10G; pruning cached target directories (cargo caches are kept)."
+            rm -rf "$cache_root"/target/*
+          fi
+
+      - name: Pull and start Windows cross-check container
+        if: ${{ steps.classify.outputs.run == 'true' }}
+        run: |
+          set -eu
+          docker pull "$IMAGE"
+          cargo_home=$(docker run --rm "$IMAGE" sh -c 'printf %s "$CARGO_HOME"')
+          case "$cargo_home" in
+            /*) ;;
+            *) echo "CARGO_HOME is not an absolute path: $cargo_home" >&2; exit 1 ;;
+          esac
+          cache_root='/opt/.gitcode-cache'
+          target_cache="$cache_root/target/ade-windows"
+          # Persistent seed dir for sherpa-onnx prebuilt archives (same
+          # host-cache pattern as cargo/registry and cargo/git): the
+          # sherpa-onnx-sys build script reads SHERPA_ONNX_ARCHIVE_DIR from
+          # here instead of downloading from GitHub, which times out.
+          mkdir -p \
+            "$cache_root/cargo/registry" \
+            "$cache_root/cargo/git" \
+            "$cache_root/sherpa-onnx" \
+            "$target_cache"
+          docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+          docker run --detach \
+            --name "$CONTAINER_NAME" \
+            --volume "$PWD:/workspace" \
+            --volume "$cache_root/cargo/registry:$cargo_home/registry" \
+            --volume "$cache_root/cargo/git:$cargo_home/git" \
+            --volume "$cache_root/sherpa-onnx:/opt/sherpa-onnx-cache" \
+            --volume "$target_cache:/workspace/target" \
+            --workdir /workspace \
+            "$IMAGE" \
+            sh -c 'while :; do sleep 3600; done'
+
+      # Fail fast with an actionable message instead of a deep build.rs
+      # panic when the seed archive has not been provisioned yet.
+      - name: Verify sherpa-onnx seed archive
+        if: ${{ steps.classify.outputs.run == 'true' }}
+        run: |
+          set -eu
+          archive='sherpa-onnx-v1.13.4-win-x64-static-MT-Release-lib.tar.bz2'
+          seed='/opt/.gitcode-cache/sherpa-onnx'
+          if [ ! -f "$seed/$archive" ]; then
+            echo "::error::$seed/$archive is missing." >&2
+            echo "Seed it with the pre-downloaded release archive (scp/upload once per runner):" >&2
+            echo "  $archive -> $seed/" >&2
+            exit 1
+          fi
+          echo "sherpa-onnx seed archive found: $seed/$archive"
+
+      - name: Cargo check (x86_64-pc-windows-msvc)
+        if: ${{ steps.classify.outputs.run == 'true' }}
+        run: |
+          set -eu
+          # tauri-build validates the generated frontend and plugin-host
+          # paths, so create the same placeholders as the GitHub CI gate
+          # (ci.yml) before checking; real artifacts are only needed for
+          # packaging.
+          # CARGO_NET_GIT_FETCH_WITH_CLI: fetch git deps through the git CLI
+          # instead of libgit2 so a stalled network fetch fails fast instead
+          # of hanging the job (the shared git cache makes this a fallback).
+          # SHERPA_ONNX_ARCHIVE_DIR: resolve sherpa-onnx libs from the seeded
+          # archive instead of downloading from GitHub (times out here).
+          docker exec --env CARGO_NET_GIT_FETCH_WITH_CLI=true --env SHERPA_ONNX_ARCHIVE_DIR=/opt/sherpa-onnx-cache "$CONTAINER_NAME" sh -c 'mkdir -p /workspace/dist /workspace/src/mobile-web/dist /workspace/src/apps/extension-host/dist && touch /workspace/src/apps/extension-host/dist/extension-host.js && exec cargo xwin check --locked --release --target x86_64-pc-windows-msvc --manifest-path src/apps/desktop/Cargo.toml'
+
+      - name: Remove Windows CI container
+        if: ${{ always() }}
+        run: docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+
+  ade-macos:
+    name: Desktop Build Check (aarch64-apple-darwin)
+    runs-on: [self-hosted, os=ubuntu, target=macos]
+    timeout-minutes: 90
+    env:
+      IMAGE: swr.cn-north-4.myhuaweicloud.com/bitfun/rust-ci-macos:20260813
+      # Unique per run so concurrent runs on the same host never collide.
+      CONTAINER_NAME: bitfun-ade-rust-ci-macos-${{ atomgit.workflow_run_id }}-${{ atomgit.run_attempt }}
+    steps:
+      - name: Checkout source
+        uses: checkout
+        with:
+          ref: ${{ atomgit.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Classify Rust and CLI impact
+        id: classify
+        env:
+          BASE_SHA: ${{ atomgit.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ atomgit.event.pull_request.head.sha }}
+        run: |
+          set -eu
+          run='true'
+          reason='invalid-range'
+          if [ -n "$BASE_SHA" ] && [ -n "$HEAD_SHA" ] \
+            && git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null \
+            && git cat-file -e "${HEAD_SHA}^{commit}" 2>/dev/null; then
+            reason='no-changes'
+            if ! git diff --quiet "$BASE_SHA...$HEAD_SHA" --; then
+              set +e
+              git diff --quiet "$BASE_SHA...$HEAD_SHA" -- \
+                ':(exclude,glob)*.md' \
+                ':(exclude)docs/*.md' \
+                ':(exclude)png' \
+                ':(exclude)src/web-ui'
+              diff_status=$?
+              set -e
+              case "$diff_status" in
+                0)
+                  run='false'
+                  reason='web-ui-or-docs-only'
+                  ;;
+                1)
+                  reason='rust-build-input'
+                  ;;
+                *)
+                  reason='unavailable-range'
+                  ;;
+              esac
+            fi
+          fi
+          echo "rust_required=$run reason=$reason"
+          if [ "$run" = 'false' ]; then
+            echo 'macOS check skipped: no Rust build input changed.'
+          fi
+          echo "run=$run" >> "$ATOMGIT_OUTPUT"
+
+      - name: Guard runner disk space
+        if: ${{ steps.classify.outputs.run == 'true' }}
+        run: |
+          set -eu
+          cache_root='/opt/.gitcode-cache'
+          mkdir -p "$cache_root"
+          free_kb=$(df -Pk /opt | awk 'NR==2 {print $4}')
+          if [ -n "$free_kb" ] && [ "$free_kb" -lt 10485760 ]; then
+            echo "Free space below 10G; pruning cached target directories (cargo caches are kept)."
+            rm -rf "$cache_root"/target/*
+          fi
+
+      - name: Pull and start macOS cross-check container
+        if: ${{ steps.classify.outputs.run == 'true' }}
+        run: |
+          set -eu
+          docker pull "$IMAGE"
+          cargo_home=$(docker run --rm "$IMAGE" sh -c 'printf %s "$CARGO_HOME"')
+          case "$cargo_home" in
+            /*) ;;
+            *) echo "CARGO_HOME is not an absolute path: $cargo_home" >&2; exit 1 ;;
+          esac
+          cache_root='/opt/.gitcode-cache'
+          target_cache="$cache_root/target/ade-macos"
+          # Same sherpa-onnx seed dir as the Windows job; the archive name
+          # differs per target so one shared dir serves both.
+          mkdir -p \
+            "$cache_root/cargo/registry" \
+            "$cache_root/cargo/git" \
+            "$cache_root/sherpa-onnx" \
+            "$target_cache"
+          docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+          docker run --detach \
+            --name "$CONTAINER_NAME" \
+            --volume "$PWD:/workspace" \
+            --volume "$cache_root/cargo/registry:$cargo_home/registry" \
+            --volume "$cache_root/cargo/git:$cargo_home/git" \
+            --volume "$cache_root/sherpa-onnx:/opt/sherpa-onnx-cache" \
+            --volume "$target_cache:/workspace/target" \
+            --workdir /workspace \
+            "$IMAGE" \
+            sh -c 'while :; do sleep 3600; done'
+
+      - name: Verify sherpa-onnx seed archive
+        if: ${{ steps.classify.outputs.run == 'true' }}
+        run: |
+          set -eu
+          archive='sherpa-onnx-v1.13.4-osx-arm64-static-lib.tar.bz2'
+          seed='/opt/.gitcode-cache/sherpa-onnx'
+          if [ ! -f "$seed/$archive" ]; then
+            echo "::error::$seed/$archive is missing." >&2
+            echo "Seed it with the pre-downloaded release archive (scp/upload once per runner):" >&2
+            echo "  $archive -> $seed/" >&2
+            exit 1
+          fi
+          echo "sherpa-onnx seed archive found: $seed/$archive"
+
+      - name: Cargo check (aarch64-apple-darwin)
+        if: ${{ steps.classify.outputs.run == 'true' }}
+        run: |
+          set -eu
+          # SHERPA_ONNX_ARCHIVE_DIR: resolve sherpa-onnx libs from the seeded
+          # archive instead of downloading from GitHub (times out here).
+          docker exec --env CARGO_NET_GIT_FETCH_WITH_CLI=true --env SHERPA_ONNX_ARCHIVE_DIR=/opt/sherpa-onnx-cache "$CONTAINER_NAME" bash -eu -c '
+            export SDKROOT=/opt/MacOSX.sdk
+            export PKG_CONFIG_SYSROOT_DIR="$SDKROOT"
+            export CC_aarch64_apple_darwin="cargo-zigbuild zig cc -- -target aarch64-macos-none"
+            export CXX_aarch64_apple_darwin="cargo-zigbuild zig c++ -- -target aarch64-macos-none"
+            export RANLIB_aarch64_apple_darwin="cargo-zigbuild zig ranlib --"
+            mkdir -p /workspace/dist /workspace/src/mobile-web/dist /workspace/src/apps/extension-host/dist
+            touch /workspace/src/apps/extension-host/dist/extension-host.js
+            exec cargo check --locked --release --target aarch64-apple-darwin --manifest-path src/apps/desktop/Cargo.toml
+          '
+
+      - name: Remove macOS CI container
+        if: ${{ always() }}
+        run: docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true

@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 
-// Upload package artifacts (.hap/.so) to a GitCode release.
+// Upload package artifacts (.hap/.app) to a GitCode release.
 // Usage: publish-gitcode-release.mjs <tag> <owner/repo> <assets-dir>
-//   [target-branch] [packaged-commit]
+//   [target-branch] [packaged-commit] [release-title]
 //   GITCODE_TOKEN env var is required (GitCode personal access token).
+// Release assets are restricted to .hap/.app; .so/.zip/.gz stay local-only.
+// The release title defaults to the tag; it only changes when an explicit
+// non-empty title is passed, so re-runs without one keep the current title.
 // Idempotent: an existing release is reused and already-present asset
 // names are skipped.
 
@@ -11,14 +14,24 @@ import { createReadStream, statSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 
-const ASSET_EXTENSIONS = new Set(['.hap', '.app', '.so', '.zip', '.gz']);
+const ASSET_EXTENSIONS = new Set(['.hap', '.app']);
 
-const [rawTag, repository, assetsDir, targetBranch, packagedCommit] = process.argv.slice(2);
+const [rawTag, repository, assetsDir, targetBranch, packagedCommit, rawTitle] = process.argv.slice(2);
 const token = process.env.GITCODE_TOKEN;
 
 if (!rawTag || !repository || !assetsDir) {
   console.error(
-    'Usage: publish-gitcode-release.mjs <tag> <owner/repo> <assets-dir> [target-branch] [packaged-commit] (GITCODE_TOKEN required)',
+    'Usage: publish-gitcode-release.mjs <tag> <owner/repo> <assets-dir> [target-branch] [packaged-commit] [release-title] (GITCODE_TOKEN required)',
+  );
+  process.exit(2);
+}
+
+// Use the tag exactly as provided; no automatic version prefixing.
+const tag = rawTag;
+// Light git-refname validation: tags must be valid git refs.
+if (/[\s~^:?*[\]\\]/.test(tag) || tag.startsWith('-') || tag.endsWith('.lock')) {
+  console.error(
+    `Invalid tag name: ${tag} (git refname rules: no spaces or ~^:?*[]\\ characters, no leading '-', no trailing '.lock')`,
   );
   process.exit(2);
 }
@@ -26,9 +39,6 @@ if (!token) {
   console.error('GITCODE_TOKEN is required to publish a GitCode release.');
   process.exit(2);
 }
-
-// Keep existing styles (oh_v1.0.0 / v1.0.0) as-is; prefix bare versions.
-const tag = /^(oh_)?v/.test(rawTag) ? rawTag : `v${rawTag}`;
 const repositoryParts = repository.split('/');
 if (repositoryParts.length !== 2 || repositoryParts.some((part) => !part)) {
   throw new Error(`Invalid GitCode repository: ${repository}`);
@@ -37,7 +47,9 @@ if (repositoryParts.length !== 2 || repositoryParts.some((part) => !part)) {
 const [owner, repo] = repositoryParts.map(encodeURIComponent);
 const apiRoot = `https://gitcode.com/api/v5/repos/${owner}/${repo}`;
 const releaseStatus = tag.includes('-') ? 'pre' : 'latest';
-const releaseName = tag;
+// Title is only sent when explicitly provided; the GitCode API then keeps
+// the existing title on updates and defaults to the tag on creation.
+const releaseName = typeof rawTitle === 'string' && rawTitle.trim() ? rawTitle.trim() : undefined;
 const releaseBody = `Release ${tag} package assets produced by the OHOS package workflow.`;
 
 function isUsableCommitSha(value) {
@@ -93,10 +105,12 @@ async function ensureRelease() {
   if (!release) {
     const payload = {
       tag_name: tag,
-      name: releaseName,
       body: releaseBody,
       release_status: releaseStatus,
     };
+    if (releaseName) {
+      payload.name = releaseName;
+    }
     // Point the new tag at the packaged commit (or branch) when provided.
     if (targetCommitish) {
       payload.target_commitish = targetCommitish;
@@ -112,10 +126,12 @@ async function ensureRelease() {
   }
 
   const payload = {
-    name: releaseName,
     body: releaseBody,
     release_status: releaseStatus,
   };
+  if (releaseName) {
+    payload.name = releaseName;
+  }
   if (targetCommitish) {
     payload.target_commitish = targetCommitish;
   }
@@ -162,7 +178,7 @@ const assets = (await readdir(assetsDir, { withFileTypes: true }))
   .map((entry) => entry.name)
   .sort();
 if (assets.length === 0) {
-  throw new Error(`No .hap/.so artifacts found in ${assetsDir}`);
+  throw new Error(`No .hap/.app artifacts found in ${assetsDir}`);
 }
 const existingNames = new Set(
   (release?.assets ?? []).map((asset) => asset.name).filter(Boolean),
