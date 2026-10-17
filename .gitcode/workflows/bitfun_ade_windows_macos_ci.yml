@@ -145,6 +145,32 @@ jobs:
           fi
           echo "sherpa-onnx seed archive found: $seed/$archive"
 
+      # Warm all crate sources with retries before the check: a stalled
+      # GitHub git fetch inside cargo check would hang the step with no
+      # output (observed as a 30-minute silent hang). GIT_CONFIG_GLOBAL
+      # bounds every git CLI fetch (low-speed abort + HTTP/1.1) and is also
+      # passed to the cargo check step below.
+      - name: Warm cargo caches (retried)
+        if: ${{ steps.classify.outputs.run == 'true' }}
+        run: |
+          set -eu
+          ok=''
+          for attempt in 1 2 3 4 5; do
+            echo "cargo fetch attempt $attempt/5"
+            if docker exec \
+              --env CARGO_NET_GIT_FETCH_WITH_CLI=true \
+              "$CONTAINER_NAME" \
+              sh -c 'printf "[http]\n\tlowSpeedLimit = 1000\n\tlowSpeedTime = 60\n\tversion = HTTP/1.1\n" > /tmp/gitconfig && cd /workspace && GIT_CONFIG_GLOBAL=/tmp/gitconfig exec cargo fetch --locked'; then
+              ok=1
+              break
+            fi
+            sleep 20
+          done
+          if [ -z "$ok" ]; then
+            echo '::error::cargo fetch failed after 5 attempts (flaky GitHub access for git deps; the persistent /opt/.gitcode-cache/cargo/git cache keeps every success).' >&2
+            exit 1
+          fi
+
       - name: Cargo check (x86_64-pc-windows-msvc)
         if: ${{ steps.classify.outputs.run == 'true' }}
         run: |
@@ -158,7 +184,7 @@ jobs:
           # of hanging the job (the shared git cache makes this a fallback).
           # SHERPA_ONNX_ARCHIVE_DIR: resolve sherpa-onnx libs from the seeded
           # archive instead of downloading from GitHub (times out here).
-          docker exec --env CARGO_NET_GIT_FETCH_WITH_CLI=true --env SHERPA_ONNX_ARCHIVE_DIR=/opt/sherpa-onnx-cache "$CONTAINER_NAME" sh -c 'mkdir -p /workspace/dist /workspace/src/mobile-web/dist /workspace/src/apps/extension-host/dist && touch /workspace/src/apps/extension-host/dist/extension-host.js && exec cargo xwin check --locked --release --target x86_64-pc-windows-msvc --manifest-path src/apps/desktop/Cargo.toml'
+          docker exec --env CARGO_NET_GIT_FETCH_WITH_CLI=true --env SHERPA_ONNX_ARCHIVE_DIR=/opt/sherpa-onnx-cache --env GIT_CONFIG_GLOBAL=/tmp/gitconfig "$CONTAINER_NAME" sh -c 'mkdir -p /workspace/dist /workspace/src/mobile-web/dist /workspace/src/apps/extension-host/dist && touch /workspace/src/apps/extension-host/dist/extension-host.js && exec cargo xwin check --locked --release --target x86_64-pc-windows-msvc --manifest-path src/apps/desktop/Cargo.toml'
 
       - name: Remove Windows CI container
         if: ${{ always() }}
@@ -278,13 +304,36 @@ jobs:
           fi
           echo "sherpa-onnx seed archive found: $seed/$archive"
 
+      # Same warm-up rationale as the Windows job: bound stalled GitHub
+      # fetches instead of hanging the cargo check step silently.
+      - name: Warm cargo caches (retried)
+        if: ${{ steps.classify.outputs.run == 'true' }}
+        run: |
+          set -eu
+          ok=''
+          for attempt in 1 2 3 4 5; do
+            echo "cargo fetch attempt $attempt/5"
+            if docker exec \
+              --env CARGO_NET_GIT_FETCH_WITH_CLI=true \
+              "$CONTAINER_NAME" \
+              sh -c 'printf "[http]\n\tlowSpeedLimit = 1000\n\tlowSpeedTime = 60\n\tversion = HTTP/1.1\n" > /tmp/gitconfig && cd /workspace && GIT_CONFIG_GLOBAL=/tmp/gitconfig exec cargo fetch --locked'; then
+              ok=1
+              break
+            fi
+            sleep 20
+          done
+          if [ -z "$ok" ]; then
+            echo '::error::cargo fetch failed after 5 attempts (flaky GitHub access for git deps; the persistent /opt/.gitcode-cache/cargo/git cache keeps every success).' >&2
+            exit 1
+          fi
+
       - name: Cargo check (aarch64-apple-darwin)
         if: ${{ steps.classify.outputs.run == 'true' }}
         run: |
           set -eu
           # SHERPA_ONNX_ARCHIVE_DIR: resolve sherpa-onnx libs from the seeded
           # archive instead of downloading from GitHub (times out here).
-          docker exec --env CARGO_NET_GIT_FETCH_WITH_CLI=true --env SHERPA_ONNX_ARCHIVE_DIR=/opt/sherpa-onnx-cache "$CONTAINER_NAME" bash -eu -c '
+          docker exec --env CARGO_NET_GIT_FETCH_WITH_CLI=true --env SHERPA_ONNX_ARCHIVE_DIR=/opt/sherpa-onnx-cache --env GIT_CONFIG_GLOBAL=/tmp/gitconfig "$CONTAINER_NAME" bash -eu -c '
             export SDKROOT=/opt/MacOSX.sdk
             export PKG_CONFIG_SYSROOT_DIR="$SDKROOT"
             export CC_aarch64_apple_darwin="cargo-zigbuild zig cc -- -target aarch64-macos-none"
