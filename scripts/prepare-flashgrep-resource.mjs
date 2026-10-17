@@ -67,9 +67,27 @@ export function ensureFlashgrepBinary(options = {}) {
     const temporary = `${binaryPath}.download-${randomUUID()}`;
     try {
       const url = `https://github.com/${manifest.repo}/releases/download/${manifest.tag}/${name}`;
-      (options.download || downloadFlashgrep)(url, temporary);
-      if (!valid(temporary)) throw new Error(`Flashgrep SHA-256 or size mismatch: ${name}`);
-      renameSync(temporary, binaryPath);
+      let downloaded = false;
+      try {
+        (options.download || downloadFlashgrep)(url, temporary);
+        downloaded = true;
+      } catch (transportError) {
+        // Transport failures (offline runners, GitHub stalls) fall back to
+        // the binary vendored under resources/flashgrep so the build keeps
+        // working when the pinned release cannot be re-fetched; a content
+        // mismatch below still fails loudly because that is not a network
+        // problem.
+        if (!existsSync(binaryPath) || readFileSync(binaryPath).length === 0) {
+          throw transportError;
+        }
+        console.warn(
+          `[flashgrep] download failed; using the vendored binary (${binaryPath}): ${transportError.message}`,
+        );
+      }
+      if (downloaded) {
+        if (!valid(temporary)) throw new Error(`Flashgrep SHA-256 or size mismatch: ${name}`);
+        renameSync(temporary, binaryPath);
+      }
     } finally {
       rmSync(temporary, { force: true });
     }

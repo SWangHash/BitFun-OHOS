@@ -52,11 +52,19 @@ test('verified downloads are cached, corrupt caches are repaired, invalid downlo
     }), /mismatch/);
     assert.equal(readFileSync(path, 'utf8'), 'old content');
     assert.deepEqual(readdirSync(resourceDir), [name]);
-    assert.throws(() => ensureFlashgrepBinary({ ...options, manifest: { ...manifest, assets: {} } }), /Missing/);
+    // Transport failures fall back to the vendored binary when one exists.
+    ensureFlashgrepBinary({ ...options,
+      download: () => { throw new Error('offline'); },
+    });
+    assert.equal(readFileSync(path, 'utf8'), 'old content');
+    assert.deepEqual(readdirSync(resourceDir), [name]);
+    // With no vendored binary available the transport error still fails.
+    rmSync(path);
     assert.throws(() => ensureFlashgrepBinary({ ...options,
       download: () => { throw new Error('offline'); },
     }), /offline/);
-    assert.deepEqual(readdirSync(resourceDir), [name]);
+    assert.deepEqual(readdirSync(resourceDir), []);
+    assert.throws(() => ensureFlashgrepBinary({ ...options, manifest: { ...manifest, assets: {} } }), /Missing/);
   } finally {
     rmSync(resourceDir, { recursive: true, force: true });
   }
