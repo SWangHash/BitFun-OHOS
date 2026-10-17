@@ -18,9 +18,6 @@ on:
       - update
       - reopen
     branches: [main, release/2.0.0]
-  push:
-    # Temporary: verifies the runners end-to-end via push events.
-    branches: [main]
 
 permissions:
   repository: read
