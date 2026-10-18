@@ -600,10 +600,13 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     };
 
     if (dropdownOpen) {
-      const removeMousedown = subscribeOverlayInteraction(portalDropdownRef, 'mousedown', handleClickOutside);
+      // Direct model lists have no summary menu. Route outside interactions
+      // through the painted flyout so the overlay coordinator can own them.
+      const surfaceRef = nativeSubmenu ? nativeSubmenuRef : portalDropdownRef;
+      const removeMousedown = subscribeOverlayInteraction(surfaceRef, 'mousedown', handleClickOutside);
       return () => removeMousedown();
     }
-  }, [dropdownOpen]);
+  }, [dropdownOpen, nativeSubmenu]);
 
   const acpAvailableModels = useMemo((): ModelInfo[] => {
     if (!isAcpSession || !acpOptions) return [];
@@ -1635,7 +1638,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     openNativeSubmenu(kind, true);
   }, [openNativeSubmenu]);
 
-  const handleDropdownKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+  const handleDropdownKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement> | KeyboardEvent) => {
     if (event.defaultPrevented) return;
 
     if (event.key === 'Escape') {
@@ -1670,7 +1673,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     openNativeSubmenu,
   ]);
 
-  const handleNativeSubmenuKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+  const handleNativeSubmenuKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement> | KeyboardEvent) => {
     if (event.defaultPrevented) return;
 
     if (event.key === 'Escape' || event.key === 'ArrowLeft') {
@@ -1704,6 +1707,18 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     nativeSubmenu,
     openProviderLevel,
   ]);
+
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    const surfaceRef = nativeSubmenu ? nativeSubmenuRef : portalDropdownRef;
+    return subscribeOverlayInteraction(surfaceRef, 'keydown', (event) => {
+      // Pointer opening keeps focus on the trigger. Let the painted menu own
+      // Escape there while its own key handler keeps in-menu navigation.
+      if (event.key !== 'Escape' || surfaceRef.current?.contains(event.target as Node)) return;
+      if (nativeSubmenu) handleNativeSubmenuKeyDown(event);
+      else handleDropdownKeyDown(event);
+    });
+  }, [dropdownOpen, handleDropdownKeyDown, handleNativeSubmenuKeyDown, nativeSubmenu]);
 
   useEffect(() => {
     if (!dropdownOpen || !keyboardNavigationOpen) return;

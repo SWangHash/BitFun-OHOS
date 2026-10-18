@@ -71,6 +71,7 @@ vi.mock('@/infrastructure/api/service-api/AgentAPI', () => ({
 vi.mock('@/infrastructure/api/service-api/ACPClientAPI', () => ({
   ACPClientAPI: {
     getSessionOptions: vi.fn(),
+    setSessionModel: vi.fn(),
     setSessionConfigOption: vi.fn(),
     onSessionOptionsChanged: vi.fn(() => () => undefined),
   },
@@ -270,6 +271,68 @@ describe('ModelSelector ACP mode picker', () => {
     expect(button).not.toBeNull();
     await act(async () => { button?.click(); });
   };
+
+  it('closes a direct ACP model list on outside navigation and Escape', async () => {
+    await renderWithOptions([], modelOptions);
+    await click('chat-model-selector-btn');
+    expect(document.body.querySelector('[data-testid="chat-model-selector-menu"]')).not.toBeNull();
+
+    const settingsNavigation = document.createElement('button');
+    container.appendChild(settingsNavigation);
+    await act(async () => {
+      settingsNavigation.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    });
+    expect(document.body.querySelector('[data-testid="chat-model-selector-menu"]')).toBeNull();
+    expect(container.querySelector('[data-testid="chat-model-selector-btn"]')?.getAttribute('aria-expanded')).toBe('false');
+
+    await click('chat-model-selector-btn');
+    const menu = document.body.querySelector('[data-testid="chat-model-selector-menu"]');
+    await act(async () => {
+      menu?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(document.body.querySelector('[data-testid="chat-model-selector-menu"]')).toBeNull();
+    expect(document.activeElement).toBe(container.querySelector('[data-testid="chat-model-selector-btn"]'));
+    expect(ACPClientAPI.setSessionModel).not.toHaveBeenCalled();
+  });
+
+  it.each(['trigger', 'document'] as const)('closes a pointer-opened ACP model list on Escape from the %s', async (target) => {
+    await renderWithOptions([], modelOptions);
+    const trigger = container.querySelector<HTMLButtonElement>('[data-testid="chat-model-selector-btn"]')!;
+    await act(async () => {
+      trigger.focus();
+      trigger.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+    });
+    expect(document.body.querySelector('[data-testid="chat-model-selector-menu"]')).not.toBeNull();
+    expect(document.activeElement).toBe(trigger);
+
+    await act(async () => {
+      (target === 'trigger' ? trigger : document).dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(document.body.querySelector('[data-testid="chat-model-selector-menu"]')).toBeNull();
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(trigger);
+    expect(ACPClientAPI.setSessionModel).not.toHaveBeenCalled();
+  });
+
+  it('closes the direct ACP model list before its model update completes', async () => {
+    await renderWithOptions([], modelOptions);
+    let resolveUpdate!: (options: typeof modelOptions) => void;
+    vi.mocked(ACPClientAPI.setSessionModel).mockReturnValue(new Promise(resolve => {
+      resolveUpdate = resolve;
+    }) as never);
+    await click('chat-model-selector-btn');
+    await act(async () => {
+      document.body.querySelector<HTMLButtonElement>('[data-model-id="remote-model"]')?.click();
+    });
+    expect(document.body.querySelector('[data-testid="chat-model-selector-menu"]')).toBeNull();
+    expect(ACPClientAPI.setSessionModel).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 'acp-session', clientId: 'dsh', modelId: 'remote-model',
+    }));
+    await act(async () => { resolveUpdate(modelOptions); });
+    expect(document.body.querySelector('[data-testid="chat-model-selector-menu"]')).toBeNull();
+  });
 
   it('shares model and reasoning settings and writes the selected value through the remote ACP adapter', async () => {
     Object.assign(flowChatStoreMocks.sessions.get('acp-session')!, {
