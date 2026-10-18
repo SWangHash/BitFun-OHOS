@@ -252,6 +252,12 @@
       "account_subscribe_session",
       "account_unsubscribe_session",
       "get_session_interaction_mailbox"
+    ],
+    "devecoAccountLogin": [
+      "deveco_account_cancel_login",
+      "deveco_account_logout",
+      "deveco_account_start_login",
+      "deveco_account_status"
     ]
   },
   "capabilities": [
@@ -9709,6 +9715,9 @@
     },
     "file_drop_preview": {
       "capabilityId": "feature.files-editor"
+    },
+    "deveco_account": {
+      "capabilityId": "feature.ecosystem-compatibility"
     }
   }
 }

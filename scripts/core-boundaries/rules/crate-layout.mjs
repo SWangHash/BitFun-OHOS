@@ -43,6 +43,7 @@ export const crateLayoutRules = [
   { crateName: 'agent-runtime-ipc', layer: 'adapters', path: 'src/crates/adapters/agent-runtime-ipc' },
   { crateName: 'ai-adapters', layer: 'adapters', path: 'src/crates/adapters/ai-adapters' },
   { crateName: 'claude-code-adapter', layer: 'adapters', path: 'src/crates/adapters/claude-code-adapter' },
+  { crateName: 'deveco-code-adapter', layer: 'adapters', path: 'src/crates/adapters/deveco-code-adapter' },
   { crateName: 'codex-adapter', layer: 'adapters', path: 'src/crates/adapters/codex-adapter' },
   { crateName: 'opencode-adapter', layer: 'adapters', path: 'src/crates/adapters/opencode-adapter' },
   { crateName: 'dsh-adapter', layer: 'adapters', path: 'src/crates/adapters/dsh-adapter' },

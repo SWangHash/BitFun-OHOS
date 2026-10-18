@@ -166,7 +166,7 @@ describe('compatibility discovery lifecycle', () => {
       .map((element) => element.getAttribute('data-product-id'));
     expect(products.includes('cursor')).toBe(!hidden);
     expect(products.includes('pi')).toBe(!hidden);
-    expect(products).toEqual(expect.arrayContaining(['claude-code', 'codex', 'dsh', 'opencode']));
+    expect(products).toEqual(expect.arrayContaining(['claude-code', 'deveco-code', 'codex', 'dsh', 'opencode']));
     expect(container.querySelector('.ecosystem-compatibility__product-header')?.textContent)
       .toContain(hidden ? 'Claude Code' : 'Cursor');
     if (target === 'ssh') {

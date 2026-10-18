@@ -68,6 +68,10 @@ use bitfun_claude_code_adapter::{
     ClaudeCodeCommandProvider, ClaudeCodeMcpProvider, ClaudeCodeSubagentProvider,
 };
 use bitfun_codex_adapter::{CodexMcpProvider, CodexSubagentProvider};
+use bitfun_deveco_code_adapter::{
+    DevEcoCodeCommandProvider, DevEcoCodeMcpProvider, DevEcoCodeSkillRootProvider,
+    DevEcoCodeSubagentProvider,
+};
 
 use bitfun_dsh_adapter::DshMcpProvider;
 use bitfun_external_sources::{
@@ -148,6 +152,7 @@ const SUBAGENT_CONFLICT_RESELECTION_REQUIRED: &str = "__bitfun_reselection_requi
 const OPENCODE_ECOSYSTEM_ID: &str = "opencode";
 const CLAUDE_CODE_ECOSYSTEM_ID: &str = "claude-code";
 const CODEX_ECOSYSTEM_ID: &str = "codex";
+const DEVECO_CODE_ECOSYSTEM_ID: &str = "deveco-code";
 pub const EXTERNAL_CAPABILITY_COMMAND: &str = "command";
 pub const EXTERNAL_CAPABILITY_TOOL: &str = "tool";
 pub const EXTERNAL_CAPABILITY_SUBAGENT: &str = "subagent";
@@ -604,6 +609,30 @@ pub(crate) fn pi_configured_skill_roots(
     (roots, report.diagnostics)
 }
 
+pub(crate) fn deveco_code_project_skill_sources_enabled() -> bool {
+    bitfun_deveco_code_adapter::DevEcoCodeSkillRootProviderOptions::from_environment()
+        .config
+        .project_config_enabled
+}
+
+pub(crate) fn deveco_code_configured_skill_roots(
+    workspace_root: Option<&Path>,
+) -> (
+    Vec<LocalConfiguredSkillRootContribution>,
+    Vec<(String, String)>,
+) {
+    let report = DevEcoCodeSkillRootProvider::default().discover_with_diagnostics(workspace_root);
+    (
+        report.roots.into_iter().map(|root| LocalConfiguredSkillRootContribution {
+            path: root.path,
+            scope: root.scope,
+            precedence: root.precedence,
+        }).collect(),
+        report.diagnostics.into_iter()
+            .map(|diagnostic| (diagnostic.location, diagnostic.message)).collect(),
+    )
+}
+
 fn opencode_configured_skill_roots_with_provider(
     workspace_root: Option<&Path>,
     provider: &OpenCodeSkillRootProvider,
@@ -811,6 +840,38 @@ impl ExternalEcosystemRegistration {
 
 fn default_external_integration_registry() -> Vec<ExternalEcosystemRegistration> {
     vec![
+        ExternalEcosystemRegistration {
+            descriptor: ExternalIntegrationEcosystemDescriptor {
+                ecosystem_id: EcosystemId::new(DEVECO_CODE_ECOSYSTEM_ID)
+                    .expect("DevEco Code ecosystem id is valid"),
+                display_name: "DevEco Code".to_string(),
+                adapter_revision: "1".to_string(),
+                capabilities: vec![
+                    external_capability_descriptor(
+                        EXTERNAL_CAPABILITY_COMMAND,
+                        ExternalIntegrationAccess::Auto,
+                        ExternalIntegrationAccess::Auto,
+                    ),
+                    external_capability_descriptor(
+                        EXTERNAL_CAPABILITY_SUBAGENT,
+                        ExternalIntegrationAccess::AskBeforeUse,
+                        ExternalIntegrationAccess::AskBeforeUse,
+                    ),
+                    external_capability_descriptor(
+                        EXTERNAL_CAPABILITY_MCP,
+                        ExternalIntegrationAccess::AskBeforeUse,
+                        ExternalIntegrationAccess::AskBeforeUse,
+                    ),
+                ],
+            },
+            contract_major: EXTERNAL_ADAPTER_CONTRACT_MAJOR,
+            upstream_format_revision: "deveco-cli-config-v1",
+            command_provider: Some(Arc::new(DevEcoCodeCommandProvider::default())),
+            tool_provider: None,
+            subagent_provider: Some(Arc::new(DevEcoCodeSubagentProvider::default())),
+            mcp_provider: Some(Arc::new(DevEcoCodeMcpProvider::default())),
+            workspace_reference_provider: None,
+        },
         ExternalEcosystemRegistration {
             descriptor: ExternalIntegrationEcosystemDescriptor {
                 ecosystem_id: EcosystemId::new(OPENCODE_ECOSYSTEM_ID)
@@ -8033,6 +8094,7 @@ mod tests {
             ("codex.mcp", "codex"),
             ("claude-code.mcp", "claude-code"),
             ("opencode.mcp", "opencode"),
+            ("deveco-code.mcp", "deveco-code"),
         ] {
             let id = SourceQualifiedMcpServerId::new(
                 SourceKey::new(provider, "removed-source").unwrap(),
@@ -10090,9 +10152,13 @@ mod tests {
     #[test]
     fn default_registry_exposes_only_each_ecosystems_supported_asset_kinds() {
         let registrations = default_external_integration_registry();
-        assert_eq!(registrations.len(), 4);
+        assert_eq!(registrations.len(), 5);
 
         let expected = BTreeMap::from([
+            (
+                "deveco-code",
+                BTreeSet::from([EXTERNAL_CAPABILITY_COMMAND, EXTERNAL_CAPABILITY_SUBAGENT, EXTERNAL_CAPABILITY_MCP]),
+            ),
             (
                 "deepseek-harness",
                 BTreeSet::from([EXTERNAL_CAPABILITY_MCP]),
@@ -10139,7 +10205,7 @@ mod tests {
                         capability.capability_id.as_str(),
                         EXTERNAL_CAPABILITY_COMMAND | EXTERNAL_CAPABILITY_REFERENCE
                     )
-                    || ecosystem == "claude-code"
+                    || matches!(ecosystem, "claude-code" | "deveco-code")
                         && capability.capability_id.as_str() == EXTERNAL_CAPABILITY_COMMAND
                 {
                     ExternalIntegrationAccess::Auto

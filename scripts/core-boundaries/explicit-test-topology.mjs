@@ -98,6 +98,10 @@ export const claudeCodeAdapterIntegrationTestTargets = [
   },
 ];
 
+export const devecoCodeAdapterIntegrationTestTargets = [
+  { name: 'deveco_code_source_contracts', path: 'tests/deveco_code_source_contracts.rs', forbidRequiredFeatures: true },
+];
+
 export const codexAdapterIntegrationTestTargets = [
   {
     name: 'codex_source_contracts',
@@ -907,6 +911,10 @@ export function checkExternalSourcesIntegrationTestTopology(root) {
 
 export function checkExternalSourceIntegrationTestTopologies(root) {
   return [
+    ...checkExplicitIntegrationTestTopology(root, {
+      cratePath: 'src/crates/adapters/deveco-code-adapter',
+      expectedTargets: devecoCodeAdapterIntegrationTestTargets,
+    }),
     ...checkOpencodeAdapterIntegrationTestTopology(root),
     ...checkClaudeCodeAdapterIntegrationTestTopology(root),
     ...checkCodexAdapterIntegrationTestTopology(root),

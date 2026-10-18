@@ -4,9 +4,10 @@ use bitfun_claude_code_adapter::{
     load_claude_code_user_instructions, ClaudeCodeInstructionSourceOptions,
 };
 use bitfun_codex_adapter::{load_codex_user_instructions, CodexInstructionSourceOptions};
-use bitfun_opencode_adapter::{
-    load_opencode_user_instructions, OpenCodeInstructionSourceOptions,
+use bitfun_deveco_code_adapter::{
+    load_deveco_user_instructions, DevEcoCodeInstructionSourceOptions,
 };
+use bitfun_opencode_adapter::{load_opencode_user_instructions, OpenCodeInstructionSourceOptions};
 use bitfun_services_core::local_instructions::{LocalInstructionFile, LocalInstructionFiles};
 use std::path::Path;
 
@@ -57,11 +58,14 @@ async fn load_user_sources(
         let mut failed_ecosystems = Vec::new();
         let mut opencode_options = OpenCodeInstructionSourceOptions::from_environment();
         opencode_options.workspace_root = workspace_root.clone();
+        let mut deveco_options = DevEcoCodeInstructionSourceOptions::from_environment();
+        deveco_options.workspace_root = workspace_root.clone();
         let canonical_workspace = workspace_root.as_deref().and_then(|root| std::fs::canonicalize(root).ok());
         for (ecosystem, result) in [
             ("opencode", load_opencode_user_instructions(&opencode_options)),
             ("codex", load_codex_user_instructions(&CodexInstructionSourceOptions::from_environment())),
             ("claude-code", load_claude_code_user_instructions(&ClaudeCodeInstructionSourceOptions::from_environment())),
+            ("deveco-code", load_deveco_user_instructions(&deveco_options)),
         ] {
             match result {
                 Ok(source_files) => {
@@ -97,7 +101,12 @@ async fn load_user_sources(
             InstructionSourceCatalog {
                 schema_version: 1,
                 entries: Vec::new(),
-                failed_ecosystems: vec!["opencode".into(), "codex".into(), "claude-code".into()],
+                failed_ecosystems: vec![
+                    "opencode".into(),
+                    "codex".into(),
+                    "claude-code".into(),
+                    "deveco-code".into(),
+                ],
             },
         )
     })
@@ -210,6 +219,7 @@ mod tests {
         let claude = temp.path().join("claude");
         for dir in [
             xdg.join("opencode"),
+            xdg.join("deveco"),
             codex.clone(),
             claude.clone(),
             workspace.join(".claude/rules"),
@@ -236,6 +246,12 @@ mod tests {
         )
         .unwrap();
         std::fs::write(workspace.join("guide.md"), "Configured instructions").unwrap();
+        std::fs::write(workspace.join("deveco-guide.md"), "DevEco instructions").unwrap();
+        std::fs::write(
+            workspace.join("deveco.json"),
+            r#"{"instructions":["guide.md","deveco-guide.md"]}"#,
+        )
+        .unwrap();
         let _guard = EnvironmentGuard::set(&[
             ("XDG_CONFIG_HOME", &xdg),
             ("CODEX_HOME", &codex),
@@ -274,6 +290,31 @@ mod tests {
             .any(|entry| entry.path.ends_with("guide.md")
                 && entry.ecosystem_id == "opencode"
                 && entry.scope == "project"));
+        let existing_ecosystems = catalog
+            .entries
+            .iter()
+            .filter(|entry| entry.ecosystem_id != "shared")
+            .map(|entry| entry.ecosystem_id.as_str())
+            .collect::<Vec<_>>();
+        let deveco_index = existing_ecosystems
+            .iter()
+            .position(|id| *id == "deveco-code")
+            .unwrap();
+        assert!(existing_ecosystems[..deveco_index].contains(&"opencode"));
+        assert!(existing_ecosystems[..deveco_index].contains(&"codex"));
+        assert!(existing_ecosystems[..deveco_index].contains(&"claude-code"));
+        assert!(existing_ecosystems[deveco_index..]
+            .iter()
+            .all(|id| *id == "deveco-code"));
+        assert_eq!(
+            catalog
+                .entries
+                .iter()
+                .filter(|entry| entry.path.ends_with("guide.md")
+                    && !entry.path.ends_with("deveco-guide.md"))
+                .count(),
+            1
+        );
         let serialized = serde_json::to_string(&catalog).unwrap();
         assert!(!serialized.contains("private override body"));
         assert!(!serialized.contains("Private rule body"));
@@ -291,6 +332,38 @@ mod tests {
             .entries
             .iter()
             .any(|entry| entry.ecosystem_id == "codex" && entry.path.ends_with("AGENTS.md")));
+
+        // Appending another ecosystem must not consume the existing sources'
+        // shared budget or change their canonical-path ownership.
+        for index in 0..256 {
+            std::fs::write(
+                workspace.join(format!("budget-{index:03}.md")),
+                "instruction",
+            )
+            .unwrap();
+        }
+        std::fs::write(
+            workspace.join("opencode.json"),
+            r#"{"instructions":["budget-*.md"]}"#,
+        )
+        .unwrap();
+        std::fs::write(workspace.join("deveco.json"), r#"{"instructions":[]}"#).unwrap();
+        let baseline = super::load_user_sources(Some(&workspace)).await.1;
+        std::fs::write(
+            workspace.join("deveco.json"),
+            r#"{"instructions":["budget-000.md","deveco-guide.md"]}"#,
+        )
+        .unwrap();
+        let extended = super::load_user_sources(Some(&workspace)).await.1;
+        assert_eq!(baseline.entries.len(), 256);
+        assert!(baseline
+            .entries
+            .iter()
+            .all(|entry| entry.ecosystem_id == "opencode"));
+        assert_eq!(
+            serde_json::to_value(&baseline).unwrap(),
+            serde_json::to_value(&extended).unwrap(),
+        );
     }
 
     #[test]

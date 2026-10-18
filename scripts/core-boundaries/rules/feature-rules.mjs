@@ -20,6 +20,7 @@ export const servicesReqwestOwnerFeatures = [
 
 export const guardedEmptyInternalDefaultManifestPaths = [
   'src/crates/assembly/core/Cargo.toml',
+  'src/crates/adapters/deveco-code-adapter/Cargo.toml',
   'src/crates/assembly/product-capabilities/Cargo.toml',
   'src/crates/contracts/product-domains/Cargo.toml',
   'src/crates/contracts/runtime-ports/Cargo.toml',
@@ -32,6 +33,16 @@ export const guardedEmptyInternalDefaultManifestPaths = [
 ];
 
 export const optionalDependencyFeatureOwnerRules = [
+  {
+    crateName: 'deveco-code-adapter',
+    reason: 'DevEco account runtime must remain separate from static source discovery',
+    dependencies: [
+      { depName: 'reqwest', ownerFeatures: ['auth'] },
+      { depName: 'tokio', ownerFeatures: ['auth'] },
+      { depName: 'uuid', ownerFeatures: ['auth'] },
+      { depName: 'tempfile', ownerFeatures: ['auth'] },
+    ],
+  },
   {
     crateName: 'app-server-protocol',
     reason:
@@ -174,6 +185,7 @@ export const optionalDependencyFeatureOwnerRules = [
       { depName: 'bitfun-agent-stream', ownerFeatures: ['agent-runtime'] },
       { depName: 'bitfun-agent-tools', ownerFeatures: ['agent-runtime', 'local-storage', 'mcp-runtime'] },
       { depName: 'bitfun-claude-code-adapter', ownerFeatures: ['external-sources'] },
+      { depName: 'bitfun-deveco-code-adapter', ownerFeatures: ['external-sources', 'deveco-account'] },
       { depName: 'bitfun-codex-adapter', ownerFeatures: ['external-sources'] },
       { depName: 'bitfun-external-sources', ownerFeatures: ['external-sources'] },
       { depName: 'bitfun-legacy-migration-adapters', ownerFeatures: ['legacy-migration'] },
@@ -1013,6 +1025,7 @@ export const coreClosedFeatureProfileRules = [
       'dep:bitfun-dsh-adapter',
       'dep:bitfun-pi-adapter',
       'dep:bitfun-claude-code-adapter',
+      'dep:bitfun-deveco-code-adapter',
       'dep:bitfun-codex-adapter',
       'dep:bitfun-external-sources',
       'bitfun-services-integrations/hook-import',
@@ -1042,6 +1055,30 @@ export const coreClosedFeatureProfileRules = [
     exact: true,
     reason:
       'bitfun-core external-sources must compose only the reviewed source adapters, watchers, and Core runtime owner',
+  },
+  {
+    manifestPath: 'src/crates/assembly/core/Cargo.toml',
+    featureName: 'deveco-account',
+    requiredFeatureRefs: ['dep:bitfun-deveco-code-adapter', 'bitfun-deveco-code-adapter/auth'],
+    exact: true,
+    reason: 'DevEco account transport is selected independently from read-only external source discovery',
+  },
+  {
+    manifestPath: 'src/crates/adapters/deveco-code-adapter/Cargo.toml',
+    featureName: 'default',
+    requiredFeatureRefs: [],
+    exact: true,
+    reason: 'DevEco static source discovery must not activate account networking or process runtime',
+  },
+  {
+    manifestPath: 'src/crates/adapters/deveco-code-adapter/Cargo.toml',
+    featureName: 'auth',
+    requiredFeatureRefs: [
+      'dep:reqwest', 'dep:tokio', 'dep:uuid', 'dep:tempfile',
+      'bitfun-services-core/process-runtime', 'bitfun-services-core/tls-provider',
+    ],
+    exact: true,
+    reason: 'DevEco account owns only the loopback HTTP client, supervised server process and temporary browser bridge',
   },
   {
     manifestPath: 'src/crates/assembly/core/Cargo.toml',

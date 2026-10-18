@@ -16,13 +16,11 @@ use super::types::{
 use crate::agentic::workspace::WorkspaceFileSystem;
 #[cfg(feature = "external-sources")]
 use crate::external_sources::{
-    opencode_configured_skill_roots, pi_configured_skill_roots,
-    LocalConfiguredSkillRootContribution,
+    deveco_code_configured_skill_roots, deveco_code_project_skill_sources_enabled,
+    opencode_configured_skill_roots, pi_configured_skill_roots, LocalConfiguredSkillRootContribution,
 };
 use crate::infrastructure::get_path_manager_arc;
 use crate::util::errors::{BitFunError, BitFunResult};
-use futures::{stream, StreamExt};
-use log::{debug, error, warn};
 #[cfg(feature = "external-sources")]
 use bitfun_agent_runtime::skills::normalize_local_skill_dir_name;
 use bitfun_agent_runtime::skills::{
@@ -37,13 +35,13 @@ use bitfun_agent_runtime::skills::{
 };
 use bitfun_services_core::bounded_fs::is_symlink_or_reparse;
 #[cfg(feature = "external-sources")]
-use bitfun_services_core::bounded_fs::{
-    collect_bounded_regular_files, BoundedDirectoryWalkLimits,
-};
+use bitfun_services_core::bounded_fs::{collect_bounded_regular_files, BoundedDirectoryWalkLimits};
 #[cfg(feature = "external-sources")]
 use bitfun_services_core::bounded_fs::{read_bounded_text, BoundedTextRead};
 #[cfg(feature = "external-sources")]
 use bitfun_services_core::workspace_text::read_workspace_relative_text_bounded;
+use futures::{stream, StreamExt};
+use log::{debug, error, warn};
 #[cfg(feature = "external-sources")]
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
@@ -71,6 +69,28 @@ const REMOTE_SKILL_SCAN_CONCURRENCY: usize = 4;
 
 const DEEP_RESEARCH_AGENT_ID: &str = "DeepResearch";
 const DEEP_RESEARCH_SKILL_NAME: &str = "deep-research";
+
+fn deveco_static_skill_sources_enabled() -> bool {
+    std::env::var("DEVECO_RUNTIME_MODE")
+        .map(|mode| matches!(mode.trim(), "" | "default"))
+        .unwrap_or(true)
+}
+
+fn user_config_skill_root(
+    spec: &bitfun_agent_runtime::skills::SkillRootSpec,
+    config_dir: &Path,
+    home_dir: Option<&Path>,
+) -> PathBuf {
+    if spec.parent == "deveco" {
+        if let Some(root) = std::env::var_os("XDG_CONFIG_HOME")
+            .map(PathBuf::from)
+            .filter(|path| path.is_absolute())
+        {
+            return root.join(spec.parent).join(spec.subdir);
+        }
+    }
+    resolve_user_config_skill_root(spec, config_dir, home_dir)
+}
 
 fn filter_implicitly_invocable_skills_for_agent(
     skills: Vec<SkillInfo>,
@@ -192,10 +212,64 @@ struct LocalSkillScan {
     cacheable: bool,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct SkillCandidateScan {
     candidates: Vec<SkillCandidate>,
     diagnostics: Vec<SkillScanDiagnostic>,
+}
+
+#[derive(Clone, Default)]
+struct WorkspaceSkillCandidateScan {
+    scan: SkillCandidateScan,
+    #[cfg(feature = "external-sources")]
+    static_deveco: Vec<SkillCandidate>,
+    #[cfg(feature = "external-sources")]
+    configured_deveco: Vec<SkillCandidate>,
+}
+
+impl WorkspaceSkillCandidateScan {
+    #[cfg(feature = "external-sources")]
+    fn with_deveco_sources(
+        scan: SkillCandidateScan,
+        mut static_deveco: Vec<SkillCandidate>,
+        mut configured_deveco: Vec<SkillCandidate>,
+    ) -> Self {
+        // Explicit invocation can filter disabled legacy candidates before the
+        // final merge. Discard their aliases now so a new key cannot revive them.
+        let existing_paths = scan
+            .candidates
+            .iter()
+            .map(canonical_candidate_path)
+            .collect::<HashSet<_>>();
+        static_deveco
+            .retain(|candidate| !existing_paths.contains(&canonical_candidate_path(candidate)));
+        configured_deveco
+            .retain(|candidate| !existing_paths.contains(&canonical_candidate_path(candidate)));
+        Self {
+            scan,
+            static_deveco,
+            configured_deveco,
+        }
+    }
+
+    fn into_scan(self) -> SkillCandidateScan {
+        #[cfg(feature = "external-sources")]
+        {
+            let mut scan = self.scan;
+            scan.candidates = SkillRegistry::merge_deferred_ecosystem_candidates(
+                scan.candidates,
+                self.static_deveco,
+                self.configured_deveco,
+            );
+            scan
+        }
+        #[cfg(not(feature = "external-sources"))]
+        self.scan
+    }
+
+    fn into_candidates(self) -> Vec<SkillCandidate> {
+        self.into_scan().into_candidates()
+    }
 }
 
 impl SkillCandidateScan {
@@ -569,11 +643,11 @@ fn sort_remote_dir_entries(entries: &mut [crate::agentic::workspace::WorkspaceDi
 }
 
 #[cfg(feature = "external-sources")]
-fn configured_opencode_source_slot(skill_dir: &Path) -> String {
+fn configured_ecosystem_source_slot(skill_dir: &Path, source_id: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(skill_dir.to_string_lossy().as_bytes());
     let digest = hex::encode(hasher.finalize());
-    format!("config.opencode.{}", &digest[..16])
+    format!("config.{source_id}.{}", &digest[..16])
 }
 
 #[cfg(feature = "external-sources")]
@@ -584,7 +658,7 @@ fn canonical_candidate_path(candidate: &SkillCandidate) -> PathBuf {
 
 #[cfg(feature = "external-sources")]
 fn is_configured_opencode_source_slot(source_slot: &str) -> bool {
-    source_slot.starts_with("config.opencode.")
+    source_slot.starts_with("config.opencode.") || source_slot.starts_with("config.deveco-code.")
 }
 
 #[cfg(feature = "external-sources")]
@@ -593,22 +667,27 @@ fn validate_configured_opencode_skill_root(
     expected_source_slot: &str,
 ) -> Result<PathBuf, String> {
     if !skill_dir.is_absolute() {
-        return Err("configured OpenCode skill root must be absolute".to_string());
+        return Err("configured external skill root must be absolute".to_string());
     }
     let metadata = std::fs::symlink_metadata(skill_dir)
-        .map_err(|error| format!("failed to inspect configured OpenCode skill root: {error}"))?;
+        .map_err(|error| format!("failed to inspect configured external skill root: {error}"))?;
     if is_symlink_or_reparse(&metadata) {
         return Err(
-            "configured OpenCode skill root must not be a symlink or reparse point".to_string(),
+            "configured external skill root must not be a symlink or reparse point".to_string(),
         );
     }
     if !metadata.is_dir() {
-        return Err("configured OpenCode skill root must be a directory".to_string());
+        return Err("configured external skill root must be a directory".to_string());
     }
     let canonical = dunce::canonicalize(skill_dir)
-        .map_err(|error| format!("failed to resolve configured OpenCode skill root: {error}"))?;
-    if configured_opencode_source_slot(&canonical) != expected_source_slot {
-        return Err("configured OpenCode skill root identity changed after discovery".to_string());
+        .map_err(|error| format!("failed to resolve configured external skill root: {error}"))?;
+    let source_id = if expected_source_slot.starts_with("config.deveco-code.") {
+        "deveco-code"
+    } else {
+        "opencode"
+    };
+    if configured_ecosystem_source_slot(&canonical, source_id) != expected_source_slot {
+        return Err("configured external skill root identity changed after discovery".to_string());
     }
     Ok(canonical)
 }
@@ -722,7 +801,7 @@ impl SkillRegistry {
             Ok(skill_dir) => skill_dir,
             Err(error) => {
                 warn!(
-                    "Ignoring configured OpenCode skill policy under {}: {}",
+                    "Ignoring configured external skill policy under {}: {}",
                     skill_dir.display(),
                     error
                 );
@@ -737,12 +816,10 @@ impl SkillRegistry {
         .await
         {
             Ok(file) => file.content,
-            Err(bitfun_services_core::workspace_text::WorkspaceTextReadError::NotFound) => {
-                return
-            }
+            Err(bitfun_services_core::workspace_text::WorkspaceTextReadError::NotFound) => return,
             Err(error) => {
                 warn!(
-                    "Ignoring configured OpenCode skill policy under {}: {}",
+                    "Ignoring configured external skill policy under {}: {}",
                     skill_dir.display(),
                     error
                 );
@@ -752,7 +829,7 @@ impl SkillRegistry {
 
         if let Err(error) = skill_data.apply_openai_yaml_policy(&content) {
             warn!(
-                "Ignoring invalid configured OpenCode skill policy under {}: {}",
+                "Ignoring invalid configured external skill policy under {}: {}",
                 skill_dir.display(),
                 error
             );
@@ -774,7 +851,7 @@ impl SkillRegistry {
             .map(|file| file.content)
             .map_err(|error| {
                 BitFunError::tool(format!(
-                    "Failed to read configured OpenCode skill file: {error}"
+                    "Failed to read configured external skill file: {error}"
                 ))
             });
         }
@@ -827,10 +904,27 @@ impl SkillRegistry {
     }
 
     fn get_project_skill_roots(workspace_path: &Path) -> Vec<SkillRootEntry> {
+        let deveco_sources_enabled = deveco_static_skill_sources_enabled();
+        #[cfg(feature = "external-sources")]
+        let deveco_sources_enabled =
+            deveco_sources_enabled && deveco_code_project_skill_sources_enabled();
+        Self::get_project_skill_roots_with_deveco_sources_enabled(
+            workspace_path,
+            deveco_sources_enabled,
+        )
+    }
+
+    fn get_project_skill_roots_with_deveco_sources_enabled(
+        workspace_path: &Path,
+        deveco_sources_enabled: bool,
+    ) -> Vec<SkillRootEntry> {
         let mut entries = Vec::new();
         let mut priority = 0usize;
 
         for spec in PROJECT_SKILL_ROOTS {
+            if spec.source_id == "deveco-code" && !deveco_sources_enabled {
+                continue;
+            }
             let path = workspace_path.join(spec.parent).join(spec.subdir);
             entries.push(SkillRootEntry {
                 path,
@@ -899,6 +993,9 @@ impl SkillRegistry {
 
         if let Some(home) = home_dir.as_deref() {
             for spec in USER_HOME_SKILL_ROOTS {
+                if spec.source_id == "deveco-code" && !deveco_static_skill_sources_enabled() {
+                    continue;
+                }
                 let path = Self::user_skill_root_path(spec, home);
                 if spec.parent == ".opencode" {
                     deferred_home_entries.push((
@@ -956,7 +1053,10 @@ impl SkillRegistry {
 
         if let Some(config_dir) = dirs::config_dir() {
             for spec in USER_CONFIG_SKILL_ROOTS {
-                let path = resolve_user_config_skill_root(spec, &config_dir, home_dir.as_deref());
+                if spec.source_id == "deveco-code" && !deveco_static_skill_sources_enabled() {
+                    continue;
+                }
+                let path = user_config_skill_root(spec, &config_dir, home_dir.as_deref());
                 entries.push(SkillRootEntry {
                     path,
                     level: SkillLocation::User,
@@ -992,6 +1092,9 @@ impl SkillRegistry {
         let home_dir = dirs::home_dir();
         if let Some(home) = home_dir.as_deref() {
             roots.extend(USER_HOME_SKILL_ROOTS.iter().filter_map(|spec| {
+                if spec.source_id == "deveco-code" && !deveco_static_skill_sources_enabled() {
+                    return None;
+                }
                 let path = Self::user_skill_root_path(spec, home);
                 (spec.slot != "home.claude" || path.is_absolute())
                     .then(|| LocalSkillWatchRoot::recursive(path))
@@ -1007,12 +1110,15 @@ impl SkillRegistry {
         ));
 
         if let Some(config_dir) = dirs::config_dir() {
-            roots.extend(USER_CONFIG_SKILL_ROOTS.iter().map(|spec| {
-                LocalSkillWatchRoot::recursive(resolve_user_config_skill_root(
+            roots.extend(USER_CONFIG_SKILL_ROOTS.iter().filter_map(|spec| {
+                if spec.source_id == "deveco-code" && !deveco_static_skill_sources_enabled() {
+                    return None;
+                }
+                Some(LocalSkillWatchRoot::recursive(user_config_skill_root(
                     spec,
                     &config_dir,
                     home_dir.as_deref(),
-                ))
+                )))
             }));
         }
         roots
@@ -1080,16 +1186,15 @@ impl SkillRegistry {
     async fn scan_skill_candidates_for_workspace(
         &self,
         workspace_root: Option<&Path>,
-    ) -> Vec<SkillCandidate> {
+    ) -> WorkspaceSkillCandidateScan {
         self.scan_skill_candidates_with_diagnostics_for_workspace(workspace_root)
             .await
-            .into_candidates()
     }
 
     async fn scan_skill_candidates_with_diagnostics_for_workspace(
         &self,
         workspace_root: Option<&Path>,
-    ) -> SkillCandidateScan {
+    ) -> WorkspaceSkillCandidateScan {
         let mut user_sources = self.user_skill_sources().await;
         let mut diagnostics = std::mem::take(&mut user_sources.diagnostics);
         let mut standard = Vec::new();
@@ -1109,6 +1214,11 @@ impl SkillRegistry {
 
         #[cfg(feature = "external-sources")]
         {
+            // New fixed roots must not take the physical identity of an existing
+            // configured or plugin Skill before those owners have been scanned.
+            let (static_deveco, mut standard): (Vec<_>, Vec<_>) = standard
+                .into_iter()
+                .partition(|candidate| candidate.info.source_id == "deveco-code");
             // Explicit Pi paths are re-read on every scan, including refresh and import
             // validation, so changes outside the standard watched roots cannot stay cached.
             let (pi_roots, pi_diagnostics) = pi_configured_skill_roots(workspace_root);
@@ -1149,20 +1259,42 @@ impl SkillRegistry {
                 let path = canonical_candidate_path(candidate);
                 !existing_paths.contains(&path) && configured_paths.insert(path)
             });
-            return SkillCandidateScan {
-                candidates: Self::merge_configured_opencode_candidates(
-                    standard,
-                    configured,
-                    workspace_root.is_some(),
-                ),
-                diagnostics,
-            };
+            let standard = Self::merge_configured_opencode_candidates(
+                standard,
+                configured,
+                workspace_root.is_some(),
+            );
+            let (roots, root_diagnostics) = deveco_code_configured_skill_roots(workspace_root);
+            diagnostics.extend(root_diagnostics.into_iter().map(|(path, message)| {
+                SkillScanDiagnostic {
+                    path,
+                    source_id: "deveco-code".into(),
+                    message,
+                }
+            }));
+            let mut scan = Self::scan_configured_ecosystem_candidates_with_diagnostics(
+                roots,
+                "deveco-code",
+                "DevEco Code",
+            )
+            .await;
+            diagnostics.append(&mut scan.diagnostics);
+            return WorkspaceSkillCandidateScan::with_deveco_sources(
+                SkillCandidateScan {
+                    candidates: standard,
+                    diagnostics,
+                },
+                static_deveco,
+                scan.candidates,
+            );
         }
 
         #[cfg(not(feature = "external-sources"))]
-        SkillCandidateScan {
-            candidates: standard,
-            diagnostics,
+        WorkspaceSkillCandidateScan {
+            scan: SkillCandidateScan {
+                candidates: standard,
+                diagnostics,
+            },
         }
     }
 
@@ -1237,6 +1369,126 @@ impl SkillRegistry {
     async fn scan_configured_opencode_candidates_with_diagnostics(
         roots: Vec<LocalConfiguredSkillRootContribution>,
     ) -> SkillCandidateScan {
+        Self::scan_configured_ecosystem_candidates_with_diagnostics(roots, "opencode", "OpenCode")
+            .await
+    }
+
+    #[cfg(feature = "external-sources")]
+    fn merge_deferred_ecosystem_candidates(
+        mut standard: Vec<SkillCandidate>,
+        mut fixed: Vec<SkillCandidate>,
+        mut configured: Vec<SkillCandidate>,
+    ) -> Vec<SkillCandidate> {
+        let mut existing_paths = standard
+            .iter()
+            .map(canonical_candidate_path)
+            .collect::<HashSet<_>>();
+        configured
+            .retain(|candidate| !existing_paths.contains(&canonical_candidate_path(candidate)));
+        fixed.retain(|candidate| existing_paths.insert(canonical_candidate_path(candidate)));
+        // Each location owns an independent band here, so this order carries no
+        // meaning; the re-anchoring pass below is where order decides precedence.
+        for location in [SkillLocation::Project, SkillLocation::User] {
+            let mut configured_priorities = HashMap::<PathBuf, usize>::new();
+            for candidate in configured
+                .iter()
+                .filter(|candidate| candidate.info.level == location)
+            {
+                configured_priorities
+                    .entry(canonical_candidate_path(candidate))
+                    .and_modify(|priority| *priority = (*priority).min(candidate.priority))
+                    .or_insert(candidate.priority);
+            }
+            let mut fixed_root_priorities = fixed
+                .iter()
+                .filter(|candidate| candidate.info.level == location)
+                .map(|candidate| candidate.priority)
+                .collect::<Vec<_>>();
+            fixed_root_priorities.sort_unstable();
+            fixed_root_priorities.dedup();
+            let configured_width = configured
+                .iter()
+                .filter(|candidate| candidate.info.level == location)
+                .map(|candidate| candidate.priority)
+                .max()
+                .map_or(0, |priority| priority.saturating_add(1));
+            for candidate in fixed
+                .iter_mut()
+                .filter(|candidate| candidate.info.level == location)
+            {
+                let root_rank = fixed_root_priorities
+                    .binary_search(&candidate.priority)
+                    .expect("fixed Skill root priority was collected");
+                // Keep the stable fixed-source key, while allowing a later
+                // configured scan of that file to supply its effective order.
+                candidate.priority = configured_priorities
+                    .get(&canonical_candidate_path(candidate))
+                    .copied()
+                    .unwrap_or_else(|| configured_width.saturating_add(root_rank));
+            }
+        }
+        configured.sort_by_key(|candidate| candidate.priority);
+        configured.retain(|candidate| existing_paths.insert(canonical_candidate_path(candidate)));
+        configured.extend(fixed);
+        if configured.is_empty() {
+            return standard;
+        }
+        // Allocate space only after every legacy root/band-based merge has
+        // finished. Keep each existing priority group and its reserved gaps;
+        // numbering individual skills would change later plugin precedence.
+        // User must be re-anchored before Project: Project's anchor is the
+        // lowest User priority, so the User band has to be final first.
+        for location in [SkillLocation::User, SkillLocation::Project] {
+            let (same_scope, remaining): (Vec<_>, Vec<_>) = configured
+                .into_iter()
+                .partition(|candidate| candidate.info.level == location);
+            configured = remaining;
+            let Some(width) = same_scope
+                .iter()
+                .map(|candidate| candidate.priority)
+                .max()
+                .map(|priority| priority.saturating_add(1))
+            else {
+                continue;
+            };
+            let anchor = match location {
+                SkillLocation::Project => standard
+                    .iter()
+                    .filter(|candidate| candidate.info.level == SkillLocation::User)
+                    .map(|candidate| candidate.priority)
+                    .min()
+                    .unwrap_or_else(|| {
+                        standard
+                            .iter()
+                            .map(|candidate| candidate.priority)
+                            .max()
+                            .map_or(0, |priority| priority.saturating_add(1))
+                    }),
+                SkillLocation::User => standard
+                    .iter()
+                    .map(|candidate| candidate.priority)
+                    .max()
+                    .map_or(0, |priority| priority.saturating_add(1)),
+            };
+            for candidate in &mut standard {
+                if candidate.priority >= anchor {
+                    candidate.priority = candidate.priority.saturating_add(width);
+                }
+            }
+            standard.extend(same_scope.into_iter().map(|mut candidate| {
+                candidate.priority = candidate.priority.saturating_add(anchor);
+                candidate
+            }));
+        }
+        standard
+    }
+
+    #[cfg(feature = "external-sources")]
+    async fn scan_configured_ecosystem_candidates_with_diagnostics(
+        roots: Vec<LocalConfiguredSkillRootContribution>,
+        source_id: &'static str,
+        source_label: &'static str,
+    ) -> SkillCandidateScan {
         let mut roots = roots;
         roots.sort_by_key(|root| root.precedence);
         let roots = roots
@@ -1289,11 +1541,11 @@ impl SkillRegistry {
                 Ok(Err(error)) => {
                     diagnostics.push(discovery::diagnostic(
                         root.path.to_string_lossy(),
-                        "opencode",
+                        source_id,
                         &error,
                     ));
                     warn!(
-                        "Skipping configured OpenCode skill root {}: {}",
+                        "Skipping configured {source_label} skill root {}: {}",
                         root.path.display(),
                         error
                     );
@@ -1302,11 +1554,11 @@ impl SkillRegistry {
                 Err(error) => {
                     diagnostics.push(discovery::diagnostic(
                         root.path.to_string_lossy(),
-                        "opencode",
+                        source_id,
                         &error,
                     ));
                     warn!(
-                        "Configured OpenCode skill scan failed for {}: {}",
+                        "Configured {source_label} skill scan failed for {}: {}",
                         root.path.display(),
                         error
                     );
@@ -1323,7 +1575,7 @@ impl SkillRegistry {
                 };
                 let canonical_skill_dir =
                     dunce::canonicalize(skill_dir).unwrap_or_else(|_| skill_dir.to_path_buf());
-                let source_slot = configured_opencode_source_slot(&canonical_skill_dir);
+                let source_slot = configured_ecosystem_source_slot(&canonical_skill_dir, source_id);
                 let read_path = skill_md_path.clone();
                 let content = match tokio::task::spawn_blocking(move || {
                     read_bounded_text(&read_path, MAX_OPENCODE_CONFIGURED_SKILL_BYTES)
@@ -1334,11 +1586,11 @@ impl SkillRegistry {
                     Ok(Ok(BoundedTextRead::TooLarge)) => {
                         diagnostics.push(discovery::diagnostic(
                             skill_md_path.to_string_lossy(),
-                            "opencode",
+                            source_id,
                             "SKILL.md exceeds the discovery size limit",
                         ));
                         warn!(
-                            "Skipping configured OpenCode skill file above the {} byte limit: {}",
+                            "Skipping configured {source_label} skill file above the {} byte limit: {}",
                             MAX_OPENCODE_CONFIGURED_SKILL_BYTES,
                             skill_md_path.display()
                         );
@@ -1347,11 +1599,11 @@ impl SkillRegistry {
                     Ok(Ok(BoundedTextRead::InvalidUtf8)) => {
                         diagnostics.push(discovery::diagnostic(
                             skill_md_path.to_string_lossy(),
-                            "opencode",
+                            source_id,
                             "SKILL.md is not valid UTF-8",
                         ));
                         warn!(
-                            "Skipping configured OpenCode skill file that is not valid UTF-8: {}",
+                            "Skipping configured {source_label} skill file that is not valid UTF-8: {}",
                             skill_md_path.display()
                         );
                         continue;
@@ -1359,7 +1611,7 @@ impl SkillRegistry {
                     Ok(Err(error)) => {
                         diagnostics.push(discovery::diagnostic(
                             skill_md_path.to_string_lossy(),
-                            "opencode",
+                            source_id,
                             &error,
                         ));
                         debug!("Failed to read {}: {}", skill_md_path.display(), error);
@@ -1368,11 +1620,11 @@ impl SkillRegistry {
                     Err(error) => {
                         diagnostics.push(discovery::diagnostic(
                             skill_md_path.to_string_lossy(),
-                            "opencode",
+                            source_id,
                             &error,
                         ));
                         warn!(
-                            "Configured OpenCode skill read failed for {}: {}",
+                            "Configured {source_label} skill read failed for {}: {}",
                             skill_md_path.display(),
                             error
                         );
@@ -1404,11 +1656,11 @@ impl SkillRegistry {
                     Err(error) => {
                         diagnostics.push(discovery::diagnostic(
                             skill_md_path.to_string_lossy(),
-                            "opencode",
+                            source_id,
                             &error,
                         ));
                         error!(
-                            "Failed to parse configured OpenCode SKILL.md in {}: {}",
+                            "Failed to parse configured {source_label} SKILL.md in {}: {}",
                             canonical_skill_dir.display(),
                             error
                         );
@@ -1434,8 +1686,8 @@ impl SkillRegistry {
                 candidates.push(SkillCandidate::from_data(
                     skill_data,
                     &source_slot,
-                    "opencode",
-                    "OpenCode",
+                    source_id,
+                    source_label,
                     key_prefix,
                     priority,
                     false,
@@ -1480,7 +1732,7 @@ impl SkillRegistry {
             self.scan_skill_candidates_with_diagnostics_for_workspace(None),
             Self::scan_remote_project_skills(fs, remote_root),
         );
-        Self::merge_remote_skill_scans(user, project)
+        Self::merge_remote_skill_scans(user.into_scan(), project)
     }
 
     fn merge_remote_skill_scans(
@@ -1497,7 +1749,7 @@ impl SkillRegistry {
 
     async fn apply_mode_filters_for_workspace(
         &self,
-        candidates: Vec<SkillCandidate>,
+        mut scan: WorkspaceSkillCandidateScan,
         workspace: Option<&crate::agentic::workspace::WorkspaceBinding>,
         agent_type: Option<&str>,
     ) -> Vec<SkillCandidate> {
@@ -1505,7 +1757,7 @@ impl SkillRegistry {
         // Static discovered Skills are directly usable; plugin contributions remain owner-controlled.
         #[cfg(feature = "opencode-plugin-host")]
         let candidates = {
-            let mut candidates = candidates;
+            let mut candidates = std::mem::take(&mut scan.scan.candidates);
             let plugin_roots = crate::plugin_capability_publication::skill_roots_for_agent(
                 workspace.and_then(|workspace| workspace.workspace_id.as_deref()),
                 agent_type,
@@ -1536,6 +1788,11 @@ impl SkillRegistry {
             }
             candidates
         };
+        #[cfg(feature = "opencode-plugin-host")]
+        {
+            scan.scan.candidates = candidates;
+        }
+        let candidates = scan.into_candidates();
         let globally_disabled_user_skills = Self::globally_disabled_skill_keys(
             workspace.and_then(SkillPolicyWorkspace::from_binding),
         )
@@ -1618,15 +1875,24 @@ impl SkillRegistry {
         agent_type: Option<&str>,
     ) -> BitFunResult<SkillInfo> {
         let workspace_root = workspace.map(|workspace| workspace.root_path());
-        let candidates = self
+        let mut candidates = self
             .scan_skill_candidates_for_workspace(workspace_root)
             .await;
         let globally_disabled_user_skills = Self::globally_disabled_skill_keys(
             workspace.and_then(SkillPolicyWorkspace::from_binding),
         )
         .await;
-        let candidates =
-            Self::filter_globally_disabled_candidates(candidates, &globally_disabled_user_skills);
+        candidates.scan.candidates = Self::filter_globally_disabled_candidates(
+            candidates.scan.candidates,
+            &globally_disabled_user_skills,
+        );
+        #[cfg(feature = "external-sources")]
+        {
+            candidates.configured_deveco = Self::filter_globally_disabled_candidates(
+                candidates.configured_deveco,
+                &globally_disabled_user_skills,
+            );
+        }
         let filtered = self
             .apply_mode_filters_for_workspace(candidates.clone(), workspace, agent_type)
             .await;
@@ -1638,7 +1904,9 @@ impl SkillRegistry {
         }
 
         Self::find_default_hidden_builtin_for_explicit_invocation(
-            skill_name, candidates, agent_type,
+            skill_name,
+            candidates.into_candidates(),
+            agent_type,
         )
     }
 
@@ -1694,7 +1962,8 @@ impl SkillRegistry {
     ) -> SkillScanReport {
         let scan = self
             .scan_skill_candidates_with_diagnostics_for_workspace(workspace_root)
-            .await;
+            .await
+            .into_scan();
         SkillScanReport {
             skills: sort_skills(annotate_shadowed_skills(scan.candidates)),
             diagnostics: scan.diagnostics,
@@ -1721,7 +1990,8 @@ impl SkillRegistry {
     ) -> Vec<SkillInfo> {
         sort_skills(annotate_shadowed_skills(
             self.scan_skill_candidates_for_workspace(workspace_root)
-                .await,
+                .await
+                .into_candidates(),
         ))
     }
 
@@ -1823,7 +2093,8 @@ impl SkillRegistry {
         let workspace_root = workspace.map(|workspace| workspace.root);
         let scan = self
             .scan_skill_candidates_with_diagnostics_for_workspace(workspace_root)
-            .await;
+            .await
+            .into_scan();
         let candidates = scan.candidates;
         let all_skills = sort_skills(annotate_shadowed_skills(candidates.clone()));
         let user_overrides = load_user_mode_skill_overrides(mode_id)
@@ -2091,8 +2362,9 @@ impl SkillRegistry {
         let scan = self
             .scan_skill_candidates_with_diagnostics_for_workspace(workspace_root)
             .await;
+        let diagnostics = scan.scan.diagnostics.clone();
         let filtered = self
-            .apply_mode_filters_for_workspace(scan.candidates, workspace, agent_type)
+            .apply_mode_filters_for_workspace(scan, workspace, agent_type)
             .await;
         let mut xml: Vec<_> = filter_implicitly_invocable_skills_for_agent(
             sort_skills(resolve_visible_skills(filtered)),
@@ -2101,7 +2373,7 @@ impl SkillRegistry {
         .into_iter()
         .map(|skill| skill.to_xml_desc())
         .collect();
-        xml.extend(scan.diagnostics.iter().map(SkillScanDiagnostic::to_xml));
+        xml.extend(diagnostics.iter().map(SkillScanDiagnostic::to_xml));
         xml
     }
 
@@ -2153,7 +2425,7 @@ impl SkillRegistry {
 
 #[cfg(all(test, feature = "external-sources"))]
 mod opencode_configured_skill_tests {
-    use super::{SkillRegistry, SkillRootEntry};
+    use super::{SkillCandidateScan, SkillRegistry, SkillRootEntry, WorkspaceSkillCandidateScan};
     use crate::external_sources::LocalConfiguredSkillRootContribution;
     use bitfun_agent_runtime::skills::{resolve_visible_skills, SkillLocation};
     use bitfun_product_domains::external_sources::ExternalSourceScope;
@@ -2180,6 +2452,427 @@ mod opencode_configured_skill_tests {
             scope,
             precedence,
         }
+    }
+
+    #[tokio::test]
+    async fn deveco_configured_skills_keep_identity_and_existing_scope_order() {
+        let temp = tempfile::tempdir().unwrap();
+        let project = temp.path().join("project");
+        let home = temp.path().join("home");
+        let project_roots =
+            SkillRegistry::get_project_skill_roots_with_deveco_sources_enabled(&project, true);
+        let disabled_project_roots =
+            SkillRegistry::get_project_skill_roots_with_deveco_sources_enabled(&project, false);
+        let existing_root_facts = |roots: &[SkillRootEntry]| {
+            roots
+                .iter()
+                .filter(|root| root.source_id != "deveco-code")
+                .map(|root| {
+                    (
+                        root.path.clone(),
+                        root.level,
+                        root.slot,
+                        root.source_id,
+                        root.source_label,
+                        root.priority,
+                        root.is_builtin,
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            existing_root_facts(&disabled_project_roots),
+            existing_root_facts(&project_roots)
+        );
+        assert_eq!(project_roots.len(), disabled_project_roots.len() + 2);
+        assert!(disabled_project_roots
+            .iter()
+            .all(|root| root.source_id != "deveco-code"));
+        for name in ["a", "b", "c", "d", "e", "shared-bitfun"] {
+            write(
+                project.join(format!("earlier/{name}/SKILL.md")),
+                &skill(name),
+            );
+        }
+        write(
+            project.join("existing/shared-opencode/SKILL.md"),
+            &skill("shared-opencode"),
+        );
+        write(
+            home.join("native/shared-user/SKILL.md"),
+            &skill("shared-user"),
+        );
+        write(home.join("existing/existing/SKILL.md"), &skill("existing"));
+        write(project.join("custom/review/SKILL.md"), &skill("review"));
+        write(home.join("custom/user/SKILL.md"), &skill("user"));
+        write(
+            home.join("custom/shared-user/SKILL.md"),
+            &skill("shared-user"),
+        );
+        for name in ["shared-bitfun", "shared-opencode", "shared-user"] {
+            write(
+                project.join(format!("plugins/{name}/SKILL.md")),
+                &skill(name),
+            );
+        }
+        for name in ["shared-bitfun", "shared-opencode"] {
+            write(
+                project.join(format!("custom/{name}/SKILL.md")),
+                &skill(name),
+            );
+        }
+        write(
+            project.join("opencode-configured/shared-opencode/SKILL.md"),
+            &skill("shared-opencode"),
+        );
+        write(
+            home.join("opencode-configured/shared-user/SKILL.md"),
+            &skill("shared-user"),
+        );
+        write(
+            project.join(".deveco/skills/legacy-configured/SKILL.md"),
+            &skill("legacy-configured"),
+        );
+        write(
+            project.join(".deveco/skill/legacy-plugin/SKILL.md"),
+            &skill("legacy-plugin"),
+        );
+        for root in ["skills", "skill"] {
+            write(
+                project.join(format!(".deveco/{root}/fixed-order/SKILL.md")),
+                &skill("fixed-order"),
+            );
+            write(
+                home.join(format!(".deveco/{root}/user-fixed-order/SKILL.md")),
+                &skill("user-fixed-order"),
+            );
+        }
+        write(
+            project.join(".deveco/skills/review/SKILL.md"),
+            &skill("review"),
+        );
+        for namespace in ["namespace-a", "namespace-b"] {
+            write(
+                project.join(format!(".deveco/skills/{namespace}/review/SKILL.md")),
+                &skill("namespaced"),
+            );
+        }
+        let mut standard = Vec::new();
+        for entry in [
+            SkillRootEntry {
+                path: project.join("earlier"),
+                level: SkillLocation::Project,
+                slot: "bitfun",
+                source_id: "bitfun",
+                source_label: "BitFun",
+                priority: 0,
+                is_builtin: false,
+            },
+            SkillRootEntry {
+                path: project.join("existing"),
+                level: SkillLocation::Project,
+                slot: "opencode",
+                source_id: "opencode",
+                source_label: "OpenCode",
+                priority: super::PROJECT_SKILL_ROOTS
+                    .iter()
+                    .position(|root| root.source_id == "opencode")
+                    .unwrap(),
+                is_builtin: false,
+            },
+            SkillRootEntry {
+                path: home.join("native"),
+                level: SkillLocation::User,
+                slot: "home.bitfun",
+                source_id: "bitfun",
+                source_label: "BitFun",
+                priority: super::PROJECT_SKILL_ROOTS.len(),
+                is_builtin: false,
+            },
+            SkillRootEntry {
+                path: home.join("existing"),
+                level: SkillLocation::User,
+                slot: "home.opencode",
+                source_id: "opencode",
+                source_label: "OpenCode",
+                priority: 100,
+                is_builtin: false,
+            },
+        ] {
+            standard.extend(SkillRegistry::scan_skills_in_dir(&entry).await.candidates);
+        }
+        let mut static_deveco = Vec::new();
+        for (specs, root, level) in [
+            (super::PROJECT_SKILL_ROOTS, &project, SkillLocation::Project),
+            (super::USER_HOME_SKILL_ROOTS, &home, SkillLocation::User),
+        ] {
+            for (priority, spec) in specs
+                .iter()
+                .enumerate()
+                .filter(|(_, spec)| spec.source_id == "deveco-code")
+            {
+                let entry = SkillRootEntry {
+                    path: root.join(spec.parent).join(spec.subdir),
+                    level,
+                    slot: spec.slot,
+                    source_id: spec.source_id,
+                    source_label: spec.source_label,
+                    priority,
+                    is_builtin: false,
+                };
+                static_deveco.extend(SkillRegistry::scan_skills_in_dir(&entry).await.candidates);
+            }
+        }
+        let configured = SkillRegistry::scan_configured_ecosystem_candidates_with_diagnostics(
+            vec![
+                configured_root(project.join("custom"), ExternalSourceScope::Project, 0),
+                configured_root(home.join("custom"), ExternalSourceScope::UserGlobal, 1),
+                configured_root(
+                    project.join(".deveco/skills"),
+                    ExternalSourceScope::Project,
+                    2,
+                ),
+                configured_root(
+                    project.join(".deveco/skill"),
+                    ExternalSourceScope::Project,
+                    3,
+                ),
+            ],
+            "deveco-code",
+            "DevEco Code",
+        )
+        .await;
+        assert!(configured.diagnostics.is_empty());
+        assert!(configured.candidates.iter().all(|candidate| {
+            candidate.info.source_id == "deveco-code"
+                && candidate.info.source_label == "DevEco Code"
+                && candidate
+                    .info
+                    .source_slot
+                    .starts_with("config.deveco-code.")
+        }));
+        let opencode = SkillRegistry::scan_configured_opencode_candidates(vec![
+            configured_root(
+                project.join("opencode-configured"),
+                ExternalSourceScope::Project,
+                0,
+            ),
+            configured_root(
+                home.join("opencode-configured"),
+                ExternalSourceScope::UserGlobal,
+                1,
+            ),
+            configured_root(
+                project.join(".deveco/skills/legacy-configured"),
+                ExternalSourceScope::Project,
+                2,
+            ),
+        ])
+        .await;
+        let standard =
+            SkillRegistry::merge_configured_opencode_candidates(standard, opencode, true);
+        let plugins = SkillRegistry::scan_configured_opencode_candidates(vec![
+            configured_root(
+                project.join("plugins"),
+                ExternalSourceScope::WorkspaceLocal,
+                0,
+            ),
+            configured_root(
+                project.join(".deveco/skill/legacy-plugin"),
+                ExternalSourceScope::WorkspaceLocal,
+                1,
+            ),
+        ])
+        .await;
+        let baseline = SkillRegistry::merge_configured_opencode_candidates(
+            standard.clone(),
+            plugins.clone(),
+            true,
+        );
+        let mut scan = WorkspaceSkillCandidateScan::with_deveco_sources(
+            SkillCandidateScan {
+                candidates: standard,
+                diagnostics: Vec::new(),
+            },
+            static_deveco,
+            configured.candidates,
+        );
+        let disabled_aliases = baseline
+            .iter()
+            .filter(|candidate| {
+                matches!(
+                    candidate.info.name.as_str(),
+                    "legacy-configured" | "legacy-plugin"
+                )
+            })
+            .map(|candidate| candidate.info.key.clone())
+            .collect::<std::collections::HashSet<_>>();
+        let mut explicit_scan = scan.clone();
+        explicit_scan.scan.candidates = SkillRegistry::filter_globally_disabled_candidates(
+            explicit_scan.scan.candidates,
+            &disabled_aliases,
+        );
+        explicit_scan.configured_deveco = SkillRegistry::filter_globally_disabled_candidates(
+            explicit_scan.configured_deveco,
+            &disabled_aliases,
+        );
+        explicit_scan.scan.candidates = SkillRegistry::merge_configured_opencode_candidates(
+            explicit_scan.scan.candidates,
+            plugins.clone(),
+            true,
+        );
+        let explicit_candidates = SkillRegistry::filter_globally_disabled_candidates(
+            explicit_scan.into_candidates(),
+            &disabled_aliases,
+        );
+        assert!(explicit_candidates.iter().all(|candidate| {
+            !matches!(
+                candidate.info.name.as_str(),
+                "legacy-configured" | "legacy-plugin"
+            )
+        }));
+        // The real runtime scans DevEco before the plugin publication is merged.
+        // Keep that contribution deferred so plugin anchors still see root/band coordinates.
+        scan.scan.candidates = SkillRegistry::merge_configured_opencode_candidates(
+            scan.scan.candidates,
+            plugins,
+            true,
+        );
+        let empty = WorkspaceSkillCandidateScan {
+            scan: SkillCandidateScan {
+                candidates: baseline.clone(),
+                diagnostics: Vec::new(),
+            },
+            static_deveco: Vec::new(),
+            configured_deveco: Vec::new(),
+        }
+        .into_candidates();
+        assert_eq!(
+            empty
+                .iter()
+                .map(|candidate| (&candidate.info.key, candidate.priority))
+                .collect::<Vec<_>>(),
+            baseline
+                .iter()
+                .map(|candidate| (&candidate.info.key, candidate.priority))
+                .collect::<Vec<_>>()
+        );
+
+        let merged = scan.into_candidates();
+        let legacy = merged
+            .iter()
+            .filter(|candidate| candidate.info.source_id != "deveco-code")
+            .collect::<Vec<_>>();
+        for left in &baseline {
+            for right in &baseline {
+                let actual_left = legacy
+                    .iter()
+                    .find(|candidate| candidate.info.key == left.info.key)
+                    .unwrap();
+                let actual_right = legacy
+                    .iter()
+                    .find(|candidate| candidate.info.key == right.info.key)
+                    .unwrap();
+                assert_eq!(
+                    actual_left.priority.cmp(&actual_right.priority),
+                    left.priority.cmp(&right.priority)
+                );
+            }
+        }
+        for name in ["legacy-configured", "legacy-plugin"] {
+            let original = baseline
+                .iter()
+                .find(|candidate| candidate.info.name == name)
+                .unwrap();
+            let actual = merged
+                .iter()
+                .filter(|candidate| candidate.info.name == name)
+                .collect::<Vec<_>>();
+            assert_eq!(actual.len(), 1, "physical alias duplicated for {name}");
+            assert_eq!(actual[0].info.key, original.info.key);
+            assert_eq!(actual[0].info.source_id, "opencode");
+            let disabled = std::collections::HashSet::from([original.info.key.clone()]);
+            assert!(
+                SkillRegistry::filter_globally_disabled_candidates(merged.clone(), &disabled)
+                    .iter()
+                    .all(|candidate| candidate.info.name != name)
+            );
+            assert!(super::filter_candidates_for_mode(
+                merged.clone(),
+                "Agent",
+                &super::UserModeSkillOverrides::default(),
+                &disabled,
+            )
+            .iter()
+            .all(|candidate| candidate.info.name != name));
+        }
+        let namespaced = merged
+            .iter()
+            .filter(|candidate| candidate.info.name == "namespaced")
+            .collect::<Vec<_>>();
+        assert_eq!(namespaced.len(), 2);
+        assert_ne!(namespaced[0].info.key, namespaced[1].info.key);
+        let fixed_order = merged
+            .iter()
+            .filter(|candidate| candidate.info.name == "fixed-order")
+            .collect::<Vec<_>>();
+        assert_eq!(fixed_order.len(), 2);
+        assert_ne!(fixed_order[0].info.key, fixed_order[1].info.key);
+        let fixed_override = fixed_order
+            .iter()
+            .find(|candidate| candidate.info.source_slot == "deveco-code.skill")
+            .unwrap();
+        let fixed_override_key = fixed_override.info.key.clone();
+        let disabled_override = std::collections::HashSet::from([fixed_override_key.clone()]);
+        let fallback = resolve_visible_skills(SkillRegistry::filter_globally_disabled_candidates(
+            merged.clone(),
+            &disabled_override,
+        ));
+        assert_eq!(
+            fallback
+                .iter()
+                .find(|skill| skill.name == "fixed-order")
+                .unwrap()
+                .source_slot,
+            "deveco-code"
+        );
+        let before = resolve_visible_skills(baseline);
+        let after = resolve_visible_skills(merged);
+        let namespaced = after
+            .iter()
+            .find(|skill| skill.name == "namespaced")
+            .unwrap();
+        assert_eq!(namespaced.source_slot, "deveco-code");
+        assert!(
+            Path::new(&namespaced.path).ends_with(Path::new(".deveco/skills/namespace-b/review"))
+        );
+        for name in ["shared-bitfun", "shared-opencode", "shared-user"] {
+            let original = before.iter().find(|skill| skill.name == name).unwrap();
+            let actual = after.iter().find(|skill| skill.name == name).unwrap();
+            assert_eq!(actual.key, original.key, "winner changed for {name}");
+        }
+        assert!(after
+            .iter()
+            .any(|skill| skill.name == "review" && skill.source_slot == "deveco-code"));
+        assert!(after
+            .iter()
+            .any(|skill| skill.name == "user" && skill.source_id == "deveco-code"));
+        assert_eq!(
+            after
+                .iter()
+                .find(|skill| skill.name == "fixed-order")
+                .unwrap()
+                .key,
+            fixed_override_key
+        );
+        assert_eq!(
+            after
+                .iter()
+                .find(|skill| skill.name == "user-fixed-order")
+                .unwrap()
+                .source_slot,
+            "home.deveco-code"
+        );
     }
 
     #[tokio::test]

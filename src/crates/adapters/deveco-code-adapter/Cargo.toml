@@ -1,0 +1,52 @@
+[package]
+name = "bitfun-deveco-code-adapter"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+description = "DevEco Code static source and account adapter for BitFun"
+autotests = false
+
+[lib]
+name = "bitfun_deveco_code_adapter"
+crate-type = ["rlib"]
+
+[features]
+default = []
+auth = [
+    "dep:reqwest",
+    "dep:tokio",
+    "dep:uuid",
+    "dep:tempfile",
+    "bitfun-services-core/process-runtime",
+    "bitfun-services-core/tls-provider",
+]
+
+[dependencies]
+bitfun-product-domains = { path = "../../contracts/product-domains", features = ["external-sources"] }
+bitfun-services-core = { path = "../../services/services-core", features = ["markdown"] }
+bitfun-static-hook-support = { path = "../static-hook-support" }
+dirs = { workspace = true }
+dunce = { workspace = true }
+globset = { workspace = true }
+hex = { workspace = true }
+log = { workspace = true }
+regex = { workspace = true }
+reqwest = { workspace = true, optional = true, features = ["json", "rustls-no-provider"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+sha2 = { workspace = true }
+tokio = { workspace = true, optional = true, features = ["rt", "sync", "time", "process", "io-util", "net", "macros"] }
+url = { workspace = true }
+uuid = { workspace = true, optional = true }
+tempfile = { workspace = true, optional = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[[test]]
+name = "deveco_code_source_contracts"
+path = "tests/deveco_code_source_contracts.rs"
+
+[lints]
+workspace = true

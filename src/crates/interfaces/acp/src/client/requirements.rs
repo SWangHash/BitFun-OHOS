@@ -263,7 +263,7 @@ pub(crate) fn deveco_native_executable() -> Option<PathBuf> {
     native_deveco_entry(&command)
 }
 
-fn native_deveco_entry(command: &Path) -> Option<PathBuf> {
+pub(crate) fn native_deveco_entry(command: &Path) -> Option<PathBuf> {
     let resolved = std::fs::canonicalize(command).unwrap_or_else(|_| command.to_path_buf());
     let Some(parent) = resolved.parent() else {
         return Some(resolved);

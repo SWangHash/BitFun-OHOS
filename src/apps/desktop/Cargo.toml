@@ -20,7 +20,7 @@ serde_json = { workspace = true }
 [dependencies]
 bitfun-services-core = { path = "../../crates/services/services-core", features = ["pet-packages", "screen-capture"] }
 # Internal crates
-bitfun-core = { path = "../../crates/assembly/core", features = ["product-full"] }
+bitfun-core = { path = "../../crates/assembly/core", features = ["product-full", "deveco-account"] }
 bitfun-relay-service = { path = "../../crates/services/relay-service" }
 bitfun-agent-runtime = { path = "../../crates/execution/agent-runtime", features = ["agent-runtime"] }
 bitfun-runtime-ports = { path = "../../crates/contracts/runtime-ports", features = ["agent-api", "permission", "workspace-ports"] }

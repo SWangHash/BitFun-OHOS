@@ -313,6 +313,13 @@ function reqwestDependencyFeatureReferences(references) {
 
 const REQWEST_PACKAGE_PROFILES = new Map([
   ['bitfun-core', { dependencyFeatures: [], optional: true }],
+  ['bitfun-deveco-code-adapter', {
+    dependencyFeatures: ['json', 'rustls-no-provider'],
+    optional: true,
+    requiredPackageFeatureRefs: new Map([
+      ['auth', new Set(['bitfun-services-core/tls-provider'])],
+    ]),
+  }],
   ['bitfun-services-integrations', {
     dependencyFeatures: ['http2'],
     optional: true,
@@ -1473,6 +1480,10 @@ export function findProductEntrypointCoreFeatureViolations(
     ['bitfun-sdk-host-app', coreCompatibilityReviewedFeatures],
   ]);
   const fullProductCoreEntrypoints = new Set(['bitfun-desktop', 'bitfun-server']);
+  const fullProductCoreFeatures = new Map([
+    ['bitfun-desktop', ['deveco-account', 'product-full']],
+    ['bitfun-server', ['product-full']],
+  ]);
   const fullProductCoreEntrypointsFound = new Set();
   const coreCompatibilityActiveFeatures = [
     'agent-runtime',
@@ -1715,11 +1726,15 @@ export function findProductEntrypointCoreFeatureViolations(
       if (fullProductCoreEntrypoints.has(sourcePackage.name)) {
         fullProductCoreEntrypointsFound.add(sourcePackage.name);
         const selectedFeatures = [...new Set(dependency.features ?? [])].sort();
-        if (selectedFeatures.length !== 1 || selectedFeatures[0] !== 'product-full') {
+        const expectedFeatures = dependency.kind === null && dependency.target === null
+          ? fullProductCoreFeatures.get(sourcePackage.name)
+          : ['product-full'];
+        if (selectedFeatures.length !== expectedFeatures.length
+          || selectedFeatures.some((feature, index) => feature !== expectedFeatures[index])) {
           violations.push({
             path: sourcePackage.manifest_path,
             line: 1,
-            message: `${sourcePackage.name} Core capability closure must select exactly product-full`,
+            message: `${sourcePackage.name} Core capability closure must select exactly ${expectedFeatures.join(', ')}`,
           });
         }
       }

@@ -23,6 +23,7 @@ members = [
     "src/crates/adapters/pi-adapter",
     "src/crates/adapters/opencode-plugin-host",
     "src/crates/adapters/claude-code-adapter",
+    "src/crates/adapters/deveco-code-adapter",
     "src/crates/adapters/codex-adapter",
     "src/crates/adapters/matrix-adapter",
     "src/crates/adapters/static-hook-support",

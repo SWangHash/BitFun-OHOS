@@ -53,6 +53,10 @@ pub enum RemoteWorkspacePolicy {
 
 /// Declared remote-workspace policy for every registered Tauri command.
 pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = &[
+    ("deveco_account_cancel_login", RemoteWorkspacePolicy::RemoteUnsupported),
+    ("deveco_account_logout", RemoteWorkspacePolicy::RemoteUnsupported),
+    ("deveco_account_start_login", RemoteWorkspacePolicy::RemoteUnsupported),
+    ("deveco_account_status", RemoteWorkspacePolicy::RemoteUnsupported),
     (
         "frontend_update_candidate_ready",
         RemoteWorkspacePolicy::LocalOnly,

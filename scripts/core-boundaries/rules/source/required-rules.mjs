@@ -3786,6 +3786,10 @@ export const requiredContentRules = [
         message: 'external subagent product assembly must stay behind external-sources',
       },
       {
+        regex: /#\[cfg\(feature = "deveco-account"\)\]\s*pub mod deveco_account\b/s,
+        message: 'DevEco account composition must stay behind its separately selected owner feature',
+      },
+      {
         regex: /#\[cfg\(feature = "function-agents"\)\]\s*pub mod function_agents\b/s,
         message: 'function-agent product domain facade must stay behind function-agents',
       },

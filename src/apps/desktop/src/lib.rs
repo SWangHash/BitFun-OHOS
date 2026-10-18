@@ -1519,6 +1519,10 @@ pub async fn _run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            api::deveco_account_api::deveco_account_status,
+            api::deveco_account_api::deveco_account_start_login,
+            api::deveco_account_api::deveco_account_cancel_login,
+            api::deveco_account_api::deveco_account_logout,
             appearance::show_main_window,
             frontend_workbench::frontend_update_candidate_ready,
             frontend_workbench::get_frontend_update_status,
@@ -2611,6 +2615,7 @@ pub(crate) async fn perform_process_exit_cleanup() -> bool {
     }
 
     log::info!("Desktop process graceful shutdown started");
+    api::deveco_account_api::shutdown_now();
     match bitfun_core::plugin_host::shutdown_configured_plugin_host().await {
         Ok(Some(report)) => log::info!(
             "Desktop plugin host shutdown completed: generation={}, disposition={:?}, rpc_completed={}, exit_code={:?}, duration_ms={}",
@@ -2660,6 +2665,7 @@ pub(crate) fn perform_process_exit_cleanup_emergency() -> bool {
         return false;
     }
     log::warn!("Desktop emergency process cleanup started");
+    api::deveco_account_api::shutdown_now();
     if let Some(search_service) = get_global_workspace_search_service() {
         search_service.shutdown_blocking();
     }

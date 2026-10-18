@@ -235,6 +235,8 @@
     "undoFailed": "撤銷未完成，副本或設定可能已變更。請重新整理後查看並確認。",
     "undoUnavailable": "無法確認該 Skill 的匯入副本，請在 BitFun Skill 管理頁查看並移除。",
     "viewCategory": "查看{{type}}",
+    "expandCategory": "展開{{type}}",
+    "collapseCategory": "收合{{type}}",
     "importAll": "一鍵匯入",
     "importCategory": "一鍵匯入",
     "batchTitle": "確認一鍵匯入",
@@ -311,10 +313,43 @@
       "partial": "部分指令來源讀取失敗，以下保留可讀取的來源。",
       "readOnly": "由指令讀取器套用"
     },
+    "devecoAccount": {
+      "description": "查看和管理 DevEco Code 的登入憑證。",
+      "note": "與相同儲存環境中的 DevEco Code 共用登入憑證，在此登入或登出也會影響 DevEco Code。僅檢查本機憑證，未進行線上有效性驗證。已連線的工作階段需重新連線以更新帳號和模型清單。",
+      "signIn": "登入",
+      "signInAgain": "重新登入",
+      "signOut": "登出",
+      "cancel": "取消登入",
+      "unavailable": "請檢查 DevEco Code 的安裝與帳號登入支援，然後重新整理。",
+      "unsupportedHost": "請在本機桌面工作區使用 DevEco Code 帳號登入。",
+      "unknown": "無法讀取 DevEco Code 的共用登入憑證狀態，請重新整理後重試。",
+      "states": {
+        "unsupportedHost": "目前環境不支援",
+        "loading": "正在讀取帳號狀態",
+        "failed": "帳號操作失敗",
+        "unavailable": "暫不可用",
+        "pending": "等待瀏覽器登入",
+        "credentialPresent": "已儲存登入憑證",
+        "unknown": "帳號狀態未知",
+        "signedOut": "未儲存登入憑證"
+      },
+      "errors": {
+        "timeout": "登入已逾時，請準備好後重新登入。",
+        "unsupported": "DevEco Code 帳號介面無法使用或不相容，請檢查安裝後重試。",
+        "invalidResponse": "DevEco Code 帳號介面回應格式異常，請重新整理後重試。",
+        "unavailable": "DevEco Code 帳號登入暫不可用，請檢查安裝後重試。",
+        "cancelFailed": "無法取消登入，請重新整理狀態後重試。",
+        "inProgress": "已有登入正在進行，請重新整理以查看狀態。",
+        "sessionChanged": "登入工作階段已變更，請重新整理後重試。",
+        "readOnly": "此憑證由 DevEco Code 管理，無法在此移除。",
+        "failed": "帳號操作未完成，請重新整理狀態後重試。"
+      }
+    },
     "accounts": {
       "description": "查看在 BitFun 中接入的訂閱帳號。",
       "providers": {
         "codex": "Codex / ChatGPT",
+        "deveco": "DevEco Code",
         "opencode": "OpenCode Console（Zen）"
       },
       "notes": {
