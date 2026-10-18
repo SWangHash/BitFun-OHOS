@@ -235,6 +235,8 @@
     "undoFailed": "Removal did not complete. The copy or configuration may have changed. Refresh, review, and confirm again.",
     "undoUnavailable": "This Skill’s imported copy could not be identified. Review and remove it in the BitFun Skill manager.",
     "viewCategory": "View {{type}}",
+    "expandCategory": "Expand {{type}}",
+    "collapseCategory": "Collapse {{type}}",
     "importAll": "Import all",
     "importCategory": "Import all",
     "batchTitle": "Confirm import",
@@ -311,10 +313,43 @@
       "partial": "Some instruction sources could not be read. The available sources are listed below.",
       "readOnly": "Read by the instruction reader"
     },
+    "devecoAccount": {
+      "description": "View and manage DevEco Code sign-in credentials.",
+      "note": "Credentials are shared with DevEco Code in the same storage environment. Signing in or out here also affects DevEco Code. Only local credentials are checked; their online validity is not verified. Reconnect an existing session to refresh its account and model list.",
+      "signIn": "Sign in",
+      "signInAgain": "Sign in again",
+      "signOut": "Sign out",
+      "cancel": "Cancel sign-in",
+      "unavailable": "Check the DevEco Code installation and account sign-in support, then refresh.",
+      "unsupportedHost": "DevEco Code account sign-in is available in a local desktop workspace.",
+      "unknown": "The shared DevEco Code credential status could not be read. Refresh and retry.",
+      "states": {
+        "unsupportedHost": "Unsupported here",
+        "loading": "Reading account status",
+        "failed": "Account operation failed",
+        "unavailable": "Unavailable",
+        "pending": "Waiting for browser sign-in",
+        "credentialPresent": "Credentials saved",
+        "unknown": "Account status unknown",
+        "signedOut": "No credentials saved"
+      },
+      "errors": {
+        "timeout": "Sign-in timed out. Start again when you are ready.",
+        "unsupported": "The DevEco Code account API is unavailable or incompatible. Check its installation and retry.",
+        "invalidResponse": "The DevEco Code account API returned an unexpected response format. Refresh and retry.",
+        "unavailable": "DevEco Code account sign-in is unavailable. Check its installation and retry.",
+        "cancelFailed": "Sign-in could not be cancelled. Refresh its status before retrying.",
+        "inProgress": "A sign-in is already in progress. Refresh to view its status.",
+        "sessionChanged": "The sign-in session changed. Refresh before retrying.",
+        "readOnly": "These credentials are managed by DevEco Code and cannot be removed here.",
+        "failed": "The account operation did not complete. Refresh the status and retry."
+      }
+    },
     "accounts": {
       "description": "View subscription accounts connected in BitFun.",
       "providers": {
         "codex": "Codex / ChatGPT",
+        "deveco": "DevEco Code",
         "opencode": "OpenCode Console (Zen)"
       },
       "notes": {

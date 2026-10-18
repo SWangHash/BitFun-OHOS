@@ -134,6 +134,7 @@ bitfun-pi-adapter = { path = "../../adapters/pi-adapter", optional = true }
 bitfun-dsh-adapter = { path = "../../adapters/dsh-adapter", optional = true }
 bitfun-opencode-plugin-host = { path = "../../adapters/opencode-plugin-host", optional = true }
 bitfun-claude-code-adapter = { path = "../../adapters/claude-code-adapter", optional = true }
+bitfun-deveco-code-adapter = { path = "../../adapters/deveco-code-adapter", optional = true }
 bitfun-codex-adapter = { path = "../../adapters/codex-adapter", optional = true }
 bitfun-plugin-runtime-client = { path = "../../execution/plugin-runtime-client", optional = true }
 
@@ -290,6 +291,7 @@ product-search = [
 # Backend Fluent translation state. Locale contracts and model-facing language
 # facts remain available without this runtime implementation.
 i18n-runtime = ["dep:fluent-bundle", "dep:unic-langid"]
+deveco-account = ["dep:bitfun-deveco-code-adapter", "bitfun-deveco-code-adapter/auth"]
 external-sources = [
     "agent-runtime",
     "model-catalog",
@@ -299,6 +301,7 @@ external-sources = [
     "dep:bitfun-dsh-adapter",
     "dep:bitfun-pi-adapter",
     "dep:bitfun-claude-code-adapter",
+    "dep:bitfun-deveco-code-adapter",
     "dep:bitfun-codex-adapter",
     "dep:bitfun-external-sources",
     "bitfun-services-integrations/hook-import",

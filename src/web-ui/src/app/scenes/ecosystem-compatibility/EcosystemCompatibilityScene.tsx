@@ -59,8 +59,9 @@ import './EcosystemCompatibilityScene.scss';
 const AcpAgentsConfig = lazy(
   () => import('@/infrastructure/config/components/AcpAgentsConfig'),
 );
-const PRODUCT_ICON_SOURCES: Record<EcosystemProductId, string> = {
+const PRODUCT_ICON_SOURCES: Record<EcosystemProductId, string | undefined> = {
   'claude-code': '/assets/ecosystem-compatibility/claude-code.svg',
+  'deveco-code': undefined,
   codex: '/assets/ecosystem-compatibility/codex.svg',
   pi: '/assets/ecosystem-compatibility/pi.svg',
   dsh: '/assets/ecosystem-compatibility/deepseek-harness.svg',
@@ -73,6 +74,7 @@ function EcosystemProductIcon({ productId, size }: {
   size: number;
 }) {
   const source = PRODUCT_ICON_SOURCES[productId];
+  if (!source) return <Icon name="terminal" size="md" style={{ width: size, height: size }} aria-hidden />;
   if (productId === 'cursor') return (
     <span
       className="ecosystem-compatibility__brand-image ecosystem-compatibility__brand-image--monochrome"

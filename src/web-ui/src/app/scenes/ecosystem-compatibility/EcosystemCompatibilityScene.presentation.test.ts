@@ -220,7 +220,7 @@ describe('ecosystem compatibility scene presentation contract', () => {
 
   it('uses product-specific compatibility instead of one shared capability set', () => {
     const runtimes = buildEcosystemProductRuntimes(null, []);
-    const support = (productId: 'claude-code' | 'codex' | 'pi' | 'dsh' | 'opencode') => (
+    const support = (productId: 'claude-code' | 'deveco-code' | 'codex' | 'pi' | 'dsh' | 'opencode') => (
       Object.fromEntries(buildEcosystemImportItems(
         null,
         runtimes.find((runtime) => runtime.spec.id === productId)!,
@@ -263,6 +263,11 @@ describe('ecosystem compatibility scene presentation contract', () => {
     });
     expect(piSupport).not.toHaveProperty('pet');
     expect(support('dsh')).toMatchObject({ skill: 'supported', hook: 'supported', mcp: 'supported' });
+    expect(support('deveco-code')).toMatchObject({
+      command: 'supported', subagent: 'supported', skill: 'supported', mcp: 'supported', instruction: 'supported',
+      tool: 'unsupported', plugin: 'unsupported', hook: 'unsupported',
+    });
+    expect(support('deveco-code')).not.toHaveProperty('pet');
   });
 
   it('keeps use and import in one page', () => {
@@ -324,6 +329,7 @@ describe('ecosystem compatibility scene presentation contract', () => {
 
     expect(runtimes.map((runtime) => runtime.spec.id)).toEqual([
       'claude-code',
+      'deveco-code',
       'codex',
       'pi',
       'dsh',
@@ -331,6 +337,20 @@ describe('ecosystem compatibility scene presentation contract', () => {
       'cursor',
     ]);
     expect(runtimes.flatMap((runtime) => runtime.acpClients)).toEqual([]);
+  });
+
+  it('connects DevEco Code to its existing ACP preset without treating the preset as an installation', () => {
+    const client = {
+      id: 'deveco-code', name: 'DevEco Code', command: 'deveco', args: ['acp'],
+      enabled: true, readonly: true, permissionMode: 'ask' as const,
+      status: 'configured' as const, toolName: 'deveco-code', sessionCount: 0,
+    };
+    const runtime = buildEcosystemProductRuntimes(null, [client], 'openharmony')
+      .find((entry) => entry.spec.id === 'deveco-code')!;
+    expect(runtime.spec.name).toBe('DevEco Code');
+    expect(runtime.acpClient).toEqual(client);
+    expect(runtime.capabilityIds).toContain('runtime');
+    expect(runtime.group).toBe('more');
   });
 
   it('uses locally cached official product marks instead of generic product glyphs', () => {

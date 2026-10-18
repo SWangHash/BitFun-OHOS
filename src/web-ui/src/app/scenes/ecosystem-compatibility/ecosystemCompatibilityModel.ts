@@ -5,6 +5,7 @@ import type { ExternalSourceCatalogSnapshot } from '@/infrastructure/api/service
 export type EcosystemProductId =
   | 'cursor'
   | 'claude-code'
+  | 'deveco-code'
   | 'codex'
   | 'pi'
   | 'dsh'
@@ -115,6 +116,7 @@ export const ECOSYSTEM_IMPORT_ITEM_KINDS: readonly EcosystemImportItemKind[] = [
 const PRODUCT_DISCOVERY_KINDS = {
   cursor: ['skill'],
   'claude-code': ['command', 'subagent', 'skill', 'mcp', 'hook'],
+  'deveco-code': ['command', 'subagent', 'skill', 'mcp'],
   codex: ['subagent', 'skill', 'mcp', 'hook', 'pet'],
   pi: ['skill', 'hook'],
   dsh: ['skill', 'hook', 'mcp'],
@@ -124,6 +126,7 @@ const PRODUCT_DISCOVERY_KINDS = {
 const PRODUCT_NOT_APPLICABLE_KINDS = {
   cursor: ECOSYSTEM_IMPORT_ITEM_KINDS.filter((kind) => kind !== 'skill'),
   'claude-code': ['tool', 'pet'],
+  'deveco-code': ['pet'],
   codex: ['command', 'tool'],
   pi: ['pet'],
   dsh: ['pet'],
@@ -156,6 +159,13 @@ export const ECOSYSTEM_PRODUCT_SPECS: readonly EcosystemProductSpec[] = [
     ecosystemId: 'claude-code',
     acpClientId: 'claude-code',
     searchTerms: ['claude', 'anthropic', 'agent', 'mcp', 'command', 'acp'],
+  },
+  {
+    id: 'deveco-code',
+    name: 'DevEco Code',
+    ecosystemId: 'deveco-code',
+    acpClientId: 'deveco-code',
+    searchTerms: ['deveco', 'harmonyos', 'openharmony', 'agent', 'command', 'mcp', 'acp'],
   },
   {
     id: 'codex',

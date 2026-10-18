@@ -6,6 +6,7 @@ const SOURCE_LABEL_BY_ID: Record<string, string> = {
   openbitfun: 'BitFun',
   'openbitfun-system': 'BitFun',
   'claude-code': 'Claude Code',
+  'deveco-code': 'DevEco Code',
   claude: 'Claude Code',
   codex: 'Codex',
   cursor: 'Cursor',

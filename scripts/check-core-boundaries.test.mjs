@@ -31,6 +31,7 @@ import {
   claudeCodeAdapterIntegrationTestTargets,
   cliIntegrationTestTargets,
   codexAdapterIntegrationTestTargets,
+  devecoCodeAdapterIntegrationTestTargets,
   externalSourcesIntegrationTestTargets,
   opencodeAdapterIntegrationTestTargets,
   validateExplicitIntegrationTestTopology,
@@ -1053,6 +1054,9 @@ test('contract and AI adapter tests keep reviewed feature and failure-domain top
 
 test('external source integration tests keep reviewed owner and process boundaries', () => {
   const repositoryRoot = fileURLToPath(new URL('..', import.meta.url));
+  assert.deepEqual(devecoCodeAdapterIntegrationTestTargets, [
+    { name: 'deveco_code_source_contracts', path: 'tests/deveco_code_source_contracts.rs', forbidRequiredFeatures: true },
+  ]);
 
   assert.deepEqual(opencodeAdapterIntegrationTestTargets, [
     { name: 'opencode_mcp_adapter', path: 'tests/opencode_mcp_adapter.rs' },
@@ -1455,8 +1459,14 @@ test('Desktop and Server must retain the full product Core capability closure', 
     ).map((violation) => violation.message);
 
     assert.deepEqual(messages, [
-      `${name} Core capability closure must select exactly product-full`,
+      `${name} Core capability closure must select exactly ${name === 'bitfun-desktop' ? 'deveco-account, product-full' : 'product-full'}`,
     ]);
+    product.dependencies[0].features = name === 'bitfun-desktop'
+      ? ['product-full', 'deveco-account']
+      : ['product-full'];
+    assert.deepEqual(findProductEntrypointCoreFeatureViolations(
+      [product, core], { root: TEST_ROOT, crateLayoutRules },
+    ), []);
   }
 });
 

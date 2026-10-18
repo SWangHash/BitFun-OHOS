@@ -620,6 +620,8 @@ fn skill_discovery_root_facts_are_runtime_owned() {
             (".agents", "agents", "agent-skills", "Agent Skills"),
             (".dsh", "dsh", "deepseek-harness", "DeepSeek Harness"),
             (".pi", "pi", "pi", "PI"),
+            (".deveco", "deveco-code", "deveco-code", "DevEco Code"),
+            (".deveco", "deveco-code.skill", "deveco-code", "DevEco Code"),
         ]
     );
 
@@ -638,6 +640,8 @@ fn skill_discovery_root_facts_are_runtime_owned() {
             (".dsh", "home.dsh", "deepseek-harness", "DeepSeek Harness"),
             (".pi/agent", "home.pi", "pi", "PI"),
             (".bitfun", "matrix", "matrix", "Matrix"),
+            (".deveco", "home.deveco-code", "deveco-code", "DevEco Code"),
+            (".deveco", "home.deveco-code.skill", "deveco-code", "DevEco Code"),
         ]
     );
     assert_eq!(
@@ -645,7 +649,11 @@ fn skill_discovery_root_facts_are_runtime_owned() {
             .iter()
             .map(|root| (root.parent, root.slot, root.source_id, root.source_label))
             .collect::<Vec<_>>(),
-        [("opencode", "config.opencode", "opencode", "OpenCode")]
+        [
+            ("opencode", "config.opencode", "opencode", "OpenCode"),
+            ("deveco", "config.deveco-code", "deveco-code", "DevEco Code"),
+            ("deveco", "config.deveco-code-singular", "deveco-code", "DevEco Code"),
+        ]
     );
     assert!(!USER_CONFIG_SKILL_ROOTS
         .iter()

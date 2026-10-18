@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   getSkillSettings: vi.fn(), setSkillDisabled: vi.fn(), petSettingsListener: vi.fn(), getAccounts: vi.fn(), getPets: vi.fn(), importPet: vi.fn(), getPetSettings: vi.fn(), savePetSettings: vi.fn(), getInstructions: vi.fn(), openScene: vi.fn(), openDestination: vi.fn(), openNativeSkills: vi.fn(),
   deleteSkill: vi.fn(), loadMcp: vi.fn(), saveMcp: vi.fn(), mutateHook: vi.fn(), getSkills: vi.fn(), validateSkill: vi.fn(), addSkill: vi.fn(), getHooks: vi.fn(), getHookCatalog: vi.fn(),
   planHook: vi.fn(), applyHook: vi.fn(), planMcp: vi.fn(), applyMcp: vi.fn(), refresh: vi.fn(),
+  getDevecoAccount: vi.fn(), startDevecoLogin: vi.fn(), cancelDevecoLogin: vi.fn(), logoutDeveco: vi.fn(),
   workspacePath: '/project', workspaceId: 'workspace-id', remote: false, peer: false, skillImportVersion: 0,
 }));
 vi.mock('@/app/stores/sceneStore', () => ({ useSceneStore: { getState: () => ({ openScene: mocks.openScene }) } }));
@@ -41,6 +42,10 @@ vi.mock('@/infrastructure/config/services/AIExperienceConfigService', () => ({ a
   saveSettings: mocks.savePetSettings, addChangeListener: mocks.petSettingsListener,
 } }));
 vi.mock('@/infrastructure/api/service-api/AIApi', () => ({ aiApi: { listSubscriptionAccounts: mocks.getAccounts } }));
+vi.mock('@/infrastructure/api/service-api/DevecoAccountAPI', () => ({ devecoAccountAPI: {
+  getStatus: mocks.getDevecoAccount, startLogin: mocks.startDevecoLogin,
+  cancelLogin: mocks.cancelDevecoLogin, logout: mocks.logoutDeveco,
+} }));
 vi.mock('@/infrastructure/api/service-api/InstructionSourcesAPI', () => ({ instructionSourcesAPI: { getCatalog: mocks.getInstructions } }));
 vi.mock('@/infrastructure/api/service-api/MCPAPI', () => ({ MCPAPI: { loadMCPJsonConfig: mocks.loadMcp, saveMCPJsonConfig: mocks.saveMcp } }));
 vi.mock('@bitfun/ui', async (importOriginal) => {
@@ -114,6 +119,10 @@ describe('external agent content and explicit import boundary', () => {
     mocks.getSkillSettings.mockResolvedValue({ directSkillManagementVersion: 1, globallyDisabledUserSkillKeys: [], globallyDisabledProjectSkillKeys: [] });
     mocks.setSkillDisabled.mockResolvedValue({ directSkillManagementVersion: 1, globallyDisabledUserSkillKeys: [], globallyDisabledProjectSkillKeys: [] });
     mocks.getAccounts.mockResolvedValue([]);
+    mocks.getDevecoAccount.mockResolvedValue({ available: true, credentialPresent: false });
+    mocks.startDevecoLogin.mockResolvedValue({ available: true, credentialPresent: false, login: { id: 'login-1', state: 'pending' } });
+    mocks.cancelDevecoLogin.mockResolvedValue({ available: true, credentialPresent: false, login: { id: 'login-1', state: 'cancelled' } });
+    mocks.logoutDeveco.mockResolvedValue({ available: true, credentialPresent: false });
     mocks.getPets.mockResolvedValue({ candidates: [], diagnostics: [] });
     mocks.getPetSettings.mockResolvedValue({ enable_agent_companion: false });
     mocks.savePetSettings.mockResolvedValue(undefined);
@@ -138,7 +147,7 @@ describe('external agent content and explicit import boundary', () => {
     mocks.refresh.mockResolvedValue(undefined);
     container = document.createElement('div'); document.body.append(container); root = createRoot(container);
   });
-  afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals(); });
+  afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.useRealTimers(); vi.unstubAllGlobals(); });
   async function render(product: EcosystemProductId = 'codex', catalogFailed = false, onCounts?: (counts: Record<string, number>) => void) {
     const runtime = buildEcosystemProductRuntimes(data.snapshot, []).find((entry) => entry.spec.id === product)!;
     await act(async () => root.render(<ExternalAgentContent key={`${product}:${mocks.workspacePath}`} runtime={runtime} snapshot={data.snapshot} catalogFailed={catalogFailed} onRefresh={mocks.refresh} onSupplementalCounts={onCounts} />));
@@ -158,6 +167,173 @@ describe('external agent content and explicit import boundary', () => {
     )!;
     if (trigger.getAttribute('aria-expanded') !== 'true') await act(async () => trigger.click());
   }
+
+  it.each([[false, true], [null, null], [false, false]] as const)('signs in through DevEco Code only on request with credential metadata %s becoming %s', async (credentialPresent, storedCredentialPresent) => {
+    vi.useFakeTimers();
+    mocks.getDevecoAccount.mockResolvedValue({ available: true, credentialPresent });
+    mocks.startDevecoLogin.mockResolvedValue({ available: true, credentialPresent: null, login: { id: 'login-1', state: 'pending' } });
+    await render('deveco-code');
+    await expand('account');
+    expect(mocks.getAccounts).not.toHaveBeenCalled();
+    expect(mocks.startDevecoLogin).not.toHaveBeenCalled();
+    expect(container.textContent).toContain(credentialPresent === null
+      ? 'content.devecoAccount.states.unknown' : 'content.devecoAccount.states.signedOut');
+    if (credentialPresent === null) {
+      expect(container.textContent).toContain('content.devecoAccount.unknown');
+      expect(container.textContent).not.toContain('content.devecoAccount.signOut');
+      expect(container.textContent).not.toContain('content.devecoAccount.states.signedOut');
+    }
+    await click('content.devecoAccount.signIn');
+    expect(mocks.startDevecoLogin).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain('content.devecoAccount.states.pending');
+    mocks.getDevecoAccount.mockResolvedValue({ available: true, credentialPresent: storedCredentialPresent, login: { id: 'login-1', state: 'succeeded' } });
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    expect(container.textContent).not.toContain('content.devecoAccount.states.succeeded');
+    if (storedCredentialPresent !== true) {
+      expect(container.textContent).toContain(storedCredentialPresent === null
+        ? 'content.devecoAccount.states.unknown' : 'content.devecoAccount.states.signedOut');
+      expect(container.textContent).not.toContain('content.devecoAccount.signOut');
+      expect(mocks.logoutDeveco).not.toHaveBeenCalled();
+    } else {
+      expect(container.textContent).toContain('content.devecoAccount.states.credentialPresent');
+      await click('content.devecoAccount.signOut');
+      expect(mocks.logoutDeveco).toHaveBeenCalledOnce();
+      expect(container.textContent).toContain('content.devecoAccount.states.signedOut');
+    }
+  });
+
+  it.each([
+    ['deveco_auth_unavailable', 'unavailable'],
+    ['deveco_auth_invalid_response', 'invalidResponse'],
+    ['deveco_auth_html_response', 'invalidResponse'],
+  ])('keeps explicit sign-in available after a %s status failure', async (error, message) => {
+    mocks.getDevecoAccount.mockRejectedValue(new Error(error));
+    await render('deveco-code');
+    await expand('account');
+    expect(container.textContent).toContain(`content.devecoAccount.errors.${message}`);
+    expect(mocks.startDevecoLogin).not.toHaveBeenCalled();
+    await click('content.devecoAccount.signIn');
+    expect(mocks.startDevecoLogin).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain('content.devecoAccount.states.pending');
+    expect(container.textContent).not.toContain(`content.devecoAccount.errors.${message}`);
+  });
+
+  it('keeps sign-in unavailable when DevEco Code is not installed', async () => {
+    mocks.getDevecoAccount.mockResolvedValue({ available: false, credentialPresent: false });
+    await render('deveco-code');
+    await expand('account');
+    expect(container.textContent).toContain('content.devecoAccount.states.unavailable');
+    expect(container.textContent).not.toContain('content.devecoAccount.signIn');
+    expect(mocks.startDevecoLogin).not.toHaveBeenCalled();
+  });
+
+  it.each(['bitfun:acp-clients-changed', 'bitfun:acp-requirements-changed'])('refreshes the collapsed DevEco Code account after %s', async (event) => {
+    mocks.getDevecoAccount.mockResolvedValue({ available: false, credentialPresent: false });
+    await render('deveco-code');
+    expect(container.textContent).toContain('content.devecoAccount.states.unavailable');
+    const reads = mocks.getDevecoAccount.mock.calls.length;
+    mocks.getDevecoAccount.mockResolvedValue({ available: true, credentialPresent: false });
+    await act(async () => window.dispatchEvent(new Event(event)));
+    expect(mocks.getDevecoAccount).toHaveBeenCalledTimes(reads + 1);
+    expect(container.textContent).toContain('content.devecoAccount.states.signedOut');
+    expect(container.textContent).not.toContain('content.devecoAccount.states.unavailable');
+    expect(mocks.startDevecoLogin).not.toHaveBeenCalled();
+  });
+
+  it('cancels the current DevEco Code login and ignores an older status response', async () => {
+    vi.useFakeTimers();
+    await render('deveco-code');
+    await expand('account');
+    await click('content.devecoAccount.signIn');
+    let resolveStatus!: (value: unknown) => void;
+    mocks.getDevecoAccount.mockImplementationOnce(() => new Promise((resolve) => { resolveStatus = resolve; }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    await click('content.devecoAccount.cancel');
+    expect(mocks.cancelDevecoLogin).toHaveBeenCalledWith('login-1');
+    await act(async () => resolveStatus({ available: true, credentialPresent: true, login: { id: 'login-1', state: 'succeeded' } }));
+    expect(container.textContent).toContain('content.devecoAccount.states.signedOut');
+    expect(container.textContent).not.toContain('content.devecoAccount.states.cancelled');
+    expect(container.textContent).not.toContain('content.devecoAccount.states.credentialPresent');
+  });
+
+  it.each(['focus', 'expand', 'bitfun:acp-clients-changed', 'bitfun:acp-requirements-changed'] as const)('keeps an accepted DevEco Code sign-in busy across a %s refresh', async (refresh) => {
+    let resolveLogin!: (value: unknown) => void;
+    mocks.startDevecoLogin.mockImplementationOnce(() => new Promise((resolve) => { resolveLogin = resolve; }));
+    await render('deveco-code');
+    await expand('account');
+    await click('content.devecoAccount.signIn');
+    const reads = mocks.getDevecoAccount.mock.calls.length;
+    if (refresh === 'expand') {
+      const toggle = container.querySelector<HTMLButtonElement>('[data-content-group="account"] button[aria-expanded]')!;
+      await act(async () => toggle.click());
+      await expand('account');
+    } else {
+      await act(async () => window.dispatchEvent(new Event(refresh)));
+    }
+    expect(mocks.getDevecoAccount).toHaveBeenCalledTimes(reads);
+    const signIn = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.textContent === 'content.devecoAccount.signIn')!;
+    expect(signIn.disabled).toBe(true);
+    await act(async () => resolveLogin({ available: true, credentialPresent: false, login: { id: 'login-1', state: 'pending' } }));
+    expect(container.textContent).toContain('content.devecoAccount.states.pending');
+    expect(container.textContent).toContain('content.devecoAccount.cancel');
+  });
+
+  it('keeps the DevEco Code sign-out result after returning focus while it is pending', async () => {
+    let resolveLogout!: (value: unknown) => void;
+    mocks.getDevecoAccount.mockResolvedValue({ available: true, credentialPresent: true });
+    mocks.logoutDeveco.mockImplementationOnce(() => new Promise((resolve) => { resolveLogout = resolve; }));
+    await render('deveco-code');
+    await expand('account');
+    await click('content.devecoAccount.signOut');
+    const reads = mocks.getDevecoAccount.mock.calls.length;
+    await act(async () => window.dispatchEvent(new Event('focus')));
+    expect(mocks.getDevecoAccount).toHaveBeenCalledTimes(reads);
+    const signOut = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.textContent === 'content.devecoAccount.signOut')!;
+    expect(signOut.disabled).toBe(true);
+    await act(async () => resolveLogout({ available: true, credentialPresent: false }));
+    expect(container.textContent).toContain('content.devecoAccount.states.signedOut');
+    expect(container.textContent).not.toContain('content.devecoAccount.states.credentialPresent');
+  });
+
+  it.each(['peer', 'remote'] as const)('does not read or log in to the local DevEco Code account in a %s workspace', async (environment) => {
+    mocks[environment] = true;
+    await render('deveco-code');
+    await expand('account');
+    await act(async () => {
+      window.dispatchEvent(new Event('bitfun:acp-clients-changed'));
+      window.dispatchEvent(new Event('bitfun:acp-requirements-changed'));
+    });
+    expect(mocks.getDevecoAccount).not.toHaveBeenCalled();
+    expect(mocks.startDevecoLogin).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('content.devecoAccount.states.unsupportedHost');
+    expect(container.textContent).not.toContain('content.devecoAccount.signIn');
+  });
+
+  it('ignores a pending DevEco Code status after switching to a peer', async () => {
+    let resolveStatus!: (value: unknown) => void;
+    mocks.getDevecoAccount.mockImplementation(() => new Promise((resolve) => { resolveStatus = resolve; }));
+    await render('deveco-code');
+    mocks.peer = true;
+    await render('deveco-code');
+    await act(async () => resolveStatus({ available: true, credentialPresent: true }));
+    await expand('account');
+    expect(container.textContent).toContain('content.devecoAccount.states.unsupportedHost');
+    expect(container.textContent).not.toContain('content.devecoAccount.states.credentialPresent');
+  });
+
+  it('shows a bounded DevEco Code sign-in error and explains unsupported login before a session exists', async () => {
+    mocks.startDevecoLogin.mockResolvedValue({ available: true, credentialPresent: false, login: { id: 'login-1', state: 'failed', error: 'unexpected-sensitive-details' } });
+    await render('deveco-code');
+    await expand('account');
+    await click('content.devecoAccount.signIn');
+    expect(container.textContent).toContain('content.devecoAccount.errors.failed');
+    expect(container.textContent).not.toContain('unexpected-sensitive-details');
+    mocks.startDevecoLogin.mockRejectedValueOnce(new Error('deveco_auth_unsupported'));
+    await click('content.devecoAccount.signIn');
+    expect(container.textContent).toContain('content.devecoAccount.errors.unsupported');
+  });
 
   it('shows native account status only for the matching provider and opens existing settings', async () => {
     mocks.getAccounts.mockResolvedValue([

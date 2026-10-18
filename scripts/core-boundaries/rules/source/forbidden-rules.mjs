@@ -4226,6 +4226,20 @@ export const forbiddenContentUnderRules = [
   },
   {
     path: 'src',
+    reason: 'DevEco Code source and account adapter imports are limited to its fixtures and composition roots',
+    patterns: [{
+      regex: /\b(?:use\s+bitfun_deveco_code_adapter\b|extern\s+crate\s+bitfun_deveco_code_adapter\b|bitfun_deveco_code_adapter::)/,
+      allowPaths: [
+        'src/crates/adapters/deveco-code-adapter/tests/deveco_code_source_contracts.rs',
+        'src/crates/assembly/core/src/external_sources.rs',
+        'src/crates/assembly/core/src/instruction_sources.rs',
+        'src/crates/assembly/core/src/deveco_account.rs',
+      ],
+      message: 'DevEco Code adapter may only be imported by its fixtures and reviewed composition roots',
+    }],
+  },
+  {
+    path: 'src',
     reason: 'Codex declarative source adapter imports are limited to its fixtures and composition roots',
     patterns: [{
       regex: /\b(?:use\s+bitfun_codex_adapter\b|extern\s+crate\s+bitfun_codex_adapter\b|bitfun_codex_adapter::)/,
@@ -4259,6 +4273,9 @@ export const forbiddenContentUnderRules = [
         'src/crates/adapters/claude-code-adapter/src/command_source.rs',
         'src/crates/adapters/claude-code-adapter/src/agent_source.rs',
         'src/crates/adapters/claude-code-adapter/src/mcp_source.rs',
+        'src/crates/adapters/deveco-code-adapter/src/command_source.rs',
+        'src/crates/adapters/deveco-code-adapter/src/agent_source.rs',
+        'src/crates/adapters/deveco-code-adapter/src/mcp_source.rs',
         'src/crates/adapters/codex-adapter/src/hook_source.rs',
         'src/crates/adapters/codex-adapter/src/agent_source.rs',
         'src/crates/adapters/codex-adapter/src/mcp_source.rs',

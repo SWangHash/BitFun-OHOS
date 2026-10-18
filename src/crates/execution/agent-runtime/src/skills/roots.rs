@@ -90,6 +90,20 @@ pub const PROJECT_SKILL_ROOTS: &[SkillRootSpec] = &[
         source_id: "pi",
         source_label: "PI",
     },
+    SkillRootSpec {
+        parent: ".deveco",
+        subdir: "skills",
+        slot: "deveco-code",
+        source_id: "deveco-code",
+        source_label: "DevEco Code",
+    },
+    SkillRootSpec {
+        parent: ".deveco",
+        subdir: "skill",
+        slot: "deveco-code.skill",
+        source_id: "deveco-code",
+        source_label: "DevEco Code",
+    },
 ];
 
 pub const USER_HOME_SKILL_ROOTS: &[SkillRootSpec] = &[
@@ -150,15 +164,45 @@ pub const USER_HOME_SKILL_ROOTS: &[SkillRootSpec] = &[
         source_id: MATRIX_SKILL_SOURCE_ID,
         source_label: MATRIX_SKILL_SOURCE_LABEL,
     },
+    SkillRootSpec {
+        parent: ".deveco",
+        subdir: "skills",
+        slot: "home.deveco-code",
+        source_id: "deveco-code",
+        source_label: "DevEco Code",
+    },
+    SkillRootSpec {
+        parent: ".deveco",
+        subdir: "skill",
+        slot: "home.deveco-code.skill",
+        source_id: "deveco-code",
+        source_label: "DevEco Code",
+    },
 ];
 
-pub const USER_CONFIG_SKILL_ROOTS: &[SkillRootSpec] = &[SkillRootSpec {
-    parent: "opencode",
-    subdir: "skills",
-    slot: "config.opencode",
-    source_id: "opencode",
-    source_label: "OpenCode",
-}];
+pub const USER_CONFIG_SKILL_ROOTS: &[SkillRootSpec] = &[
+    SkillRootSpec {
+        parent: "opencode",
+        subdir: "skills",
+        slot: "config.opencode",
+        source_id: "opencode",
+        source_label: "OpenCode",
+    },
+    SkillRootSpec {
+        parent: "deveco",
+        subdir: "skills",
+        slot: "config.deveco-code",
+        source_id: "deveco-code",
+        source_label: "DevEco Code",
+    },
+    SkillRootSpec {
+        parent: "deveco",
+        subdir: "skill",
+        slot: "config.deveco-code-singular",
+        source_id: "deveco-code",
+        source_label: "DevEco Code",
+    },
+];
 
 pub(crate) fn skill_source_dialect(source_slot: &str) -> SkillSourceDialect {
     match source_slot {
@@ -175,7 +219,7 @@ pub fn resolve_user_config_skill_root(
     config_dir: &Path,
     home_dir: Option<&Path>,
 ) -> PathBuf {
-    if cfg!(target_os = "windows") && spec.parent == "opencode" {
+    if cfg!(target_os = "windows") && matches!(spec.parent, "opencode" | "deveco") {
         if let Some(home_dir) = home_dir {
             return home_dir.join(".config").join(spec.parent).join(spec.subdir);
         }

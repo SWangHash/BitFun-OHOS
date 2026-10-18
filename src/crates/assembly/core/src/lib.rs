@@ -7,6 +7,8 @@
 
 #[cfg(feature = "agent-runtime")]
 pub mod agentic; // Agent system, tool system, and product runtime orchestration
+#[cfg(feature = "deveco-account")]
+pub mod deveco_account;
 #[cfg(feature = "external-sources")]
 pub mod external_hook_import;
 #[cfg(feature = "external-sources")]

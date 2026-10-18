@@ -4,6 +4,7 @@ import { EcosystemDialog as Dialog } from './EcosystemDialog';
 import { EcosystemBatchLayout } from './EcosystemBatchLayout';
 import EcosystemPets from './EcosystemPets';
 import EcosystemAccounts, { ecosystemAccountProvider } from './EcosystemAccounts';
+import DevecoAccount from './DevecoAccount';
 import { presentEcosystemContent } from './ecosystemContentPresentation';
 import { ecosystemDiscoveryCache, rememberEcosystemHooks, rememberEcosystemSkills } from './ecosystemDiscoveryCache';
 import { importErrorMessage } from './ecosystemSkillImport';
@@ -613,6 +614,7 @@ export default function ExternalAgentContent({ scopeKey, refreshControlRef, onRe
         </div>
       {Array.from(new Set(items.map((item) => item.kind))).map((group) => {
         if (group === 'pet' && runtime.spec.id === 'codex') return <EcosystemPets key="pet" onCountChange={setPetCount} supported={localImportSupported} refreshVersion={contentRefreshVersion} open={petDialogOpen} onOpenChange={(open) => { setPetDialogOpen(open); setAccountExpanded(false); setSearch(''); setSelected(new Set()); }} />;
+        if (group === 'account' && runtime.spec.id === 'deveco-code') return <DevecoAccount key="account:deveco-code" supported={localImportSupported} refreshVersion={contentRefreshVersion} expanded={accountExpanded} onToggle={() => { setAccountExpanded((expanded) => !expanded); setPetDialogOpen(false); setSearch(''); setSelected(new Set()); }} />;
         const accountProvider = ecosystemAccountProvider(runtime.spec.id);
         if (group === 'account' && accountProvider) return <EcosystemAccounts key={`${group}:${accountProvider}`} provider={accountProvider} supported={localImportSupported} refreshVersion={contentRefreshVersion} expanded={accountExpanded} onToggle={() => { setAccountExpanded((expanded) => !expanded); setPetDialogOpen(false); setSearch(''); setSelected(new Set()); }} />;
         const groupItems = items.filter((item) => item.kind === group);

@@ -9,6 +9,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
+use bitfun_product_domains::remote_surface::{peer_stance, PeerStance};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::{AppHandle, Emitter};
@@ -280,6 +281,7 @@ struct HostInvokeBridgeRequest {
 
 pub fn is_local_only_command(command: &str) -> bool {
     LOCAL_ONLY_COMMANDS.contains(&command)
+        || matches!(peer_stance(command), Some(PeerStance::OperatorOnly))
 }
 
 /// Commands kept as protocol tombstones after their runtime owner was removed.
@@ -776,6 +778,22 @@ mod tests {
     fn granting_git_ownership_trust_is_refused_on_the_peer() {
         assert!(is_local_only_command("git_trust_repository"));
         assert!(!is_local_only_command("git_get_repository_trust"));
+    }
+
+    #[tokio::test]
+    async fn deveco_account_commands_are_refused_before_the_webview_bridge() {
+        for command in [
+            "deveco_account_status",
+            "deveco_account_start_login",
+            "deveco_account_cancel_login",
+            "deveco_account_logout",
+        ] {
+            let result = dispatch(command, serde_json::json!({ "request": {} })).await;
+            assert!(!result.ok, "{command}");
+            assert!(result.value.is_none(), "{command}");
+            let expected = format!("command '{command}' is local-only and cannot run on peer");
+            assert_eq!(result.error.as_deref(), Some(expected.as_str()));
+        }
     }
 
     #[tokio::test]

@@ -42,11 +42,10 @@ use super::builtin_clients::{
     builtin_acp_client_preset, builtin_client_ids, default_config_for_builtin_client,
     migrate_legacy_builtin_client_configs,
 };
-#[cfg(test)]
-use super::config::AcpClientRuntimeOverride;
 use super::config::{
     AcpClientConfig, AcpClientConfigFile, AcpClientInfo, AcpClientPermissionMode,
-    AcpClientRequirementProbe, AcpClientStatus, RemoteAcpClientRequirementSnapshot,
+    AcpClientRequirementProbe, AcpClientRuntimeOverride, AcpClientStatus,
+    RemoteAcpClientRequirementSnapshot,
 };
 use super::dsh_profile::{
     check_bundled_profile_requirement, ensure_bundled_profile, ensure_bundled_profile_remote,
@@ -341,6 +340,32 @@ impl AcpClientService {
         }
         infos.sort_by(|a, b| a.id.cmp(&b.id));
         Ok(infos)
+    }
+
+    /// Host-private launch details for an installed local client. This does not
+    /// provision a client or forward controller paths to a remote host.
+    pub async fn local_client_launch(
+        &self,
+        client_id: &str,
+    ) -> BitFunResult<Option<AcpClientRuntimeOverride>> {
+        let config_file = self.load_config_file().await?;
+        let Some(config) = resolve_config_for_client(&config_file, client_id, None)
+            .or_else(|| default_config_for_builtin_client(client_id))
+        else {
+            return Ok(None);
+        };
+        let config = apply_local_runtime_override(config, cfg!(target_env = "ohos"));
+        let mut command = resolve_configured_command(&config.command, &config.env);
+        if client_id == "deveco-code" && config.args == ["acp"] {
+            if let Some(native) = super::requirements::native_deveco_entry(&command) {
+                command = native;
+            }
+        }
+        Ok(Some(AcpClientRuntimeOverride {
+            command: command.to_string_lossy().into_owned(),
+            args: config.args,
+            env: config.env,
+        }))
     }
 
     pub async fn probe_client_requirements(

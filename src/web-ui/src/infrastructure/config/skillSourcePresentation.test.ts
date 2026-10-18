@@ -68,6 +68,7 @@ describe('skill source presentation', () => {
   it('uses the stable source label and falls back to source identity facts', () => {
     expect(getSkillSourceLabel(skill())).toBe('BitFun');
     expect(getSkillSourceLabel(skill({ sourceLabel: '', sourceId: 'codex' }))).toBe('Codex');
+    expect(getSkillSourceLabel(skill({ sourceLabel: '', sourceId: 'deveco-code' }))).toBe('DevEco Code');
     expect(getSkillSourceLabel(skill({ sourceLabel: '', sourceId: 'deepseek-harness' }))).toBe('DeepSeek Harness');
     expect(getSkillSourceLabel(skill({ sourceLabel: '', sourceId: '', sourceSlot: 'home.pi' }))).toBe('PI');
     expect(getSkillSourceLabel(skill({ sourceLabel: '', sourceId: '', sourceSlot: 'home.codex' }))).toBe('Codex');

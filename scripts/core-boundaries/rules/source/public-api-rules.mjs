@@ -5,6 +5,7 @@ export const publicApiContractSlices = [
   'bitfun-plugin-extension-contract',
   'plugin-runtime-internal-abi',
   'opencode-adapter-boundary',
+  'deveco-code-adapter-boundary',
   'external-source-control-contract',
   'external-source-command-contract',
   'external-source-tool-contract',
@@ -64,6 +65,7 @@ const contractSlices = {
   bitfunPluginExtension: 'bitfun-plugin-extension-contract',
   pluginRuntimeInternalAbi: 'plugin-runtime-internal-abi',
   opencodeAdapterBoundary: 'opencode-adapter-boundary',
+  devecoCodeAdapterBoundary: 'deveco-code-adapter-boundary',
   externalSourceControlContract: 'external-source-control-contract',
   externalSourceCommandContract: 'external-source-command-contract',
   externalSourceToolContract: 'external-source-tool-contract',
@@ -520,6 +522,25 @@ export const claudeCodeAdapterPublicApiEntries = [
   'load_claude_code_user_instructions',
   'ClaudeCodeInstructionSourceOptions',
 ].map((symbol) => userInstructionSourceAdapterEntry(symbol, 'Claude Code')));
+
+export const devecoCodeAdapterPublicApiEntries = [
+  'DevEcoCodeCommandProvider', 'DevEcoCodeCommandProviderOptions',
+  'DevEcoCodeSubagentProvider', 'DevEcoCodeSubagentProviderOptions',
+  'DevEcoCodeMcpProvider', 'DevEcoCodeMcpProviderOptions',
+  'DevEcoCodeSkillRootProvider', 'DevEcoCodeSkillRootProviderOptions',
+  'DevEcoCodeConfiguredSkillRoot', 'DevEcoCodeSkillRootDiagnostic', 'DevEcoCodeSkillRootReport',
+  'DevEcoCodeInstructionSourceOptions', 'load_deveco_user_instructions', 'auth',
+].map((symbol) => ({
+  symbol,
+  owner: 'DevEco Code source and account adapter',
+  consumer: 'bitfun-core external_sources, instruction_sources and deveco_account composition roots',
+  verification: 'deveco_code_source_contracts and feature-gated auth module fixtures',
+  p0: 'bounded ordinary CLI V1 static discovery plus a separately selected account API boundary',
+  contractSlice: contractSlices.devecoCodeAdapterBoundary,
+  wireImpact: false,
+  rationale: 'Product Assembly selects typed source providers and account capabilities without exposing raw configuration or credentials',
+  exit: 'remove with the corresponding DevEco Code composition path',
+}));
 
 export const codexAdapterPublicApiEntries = [
   'CodexHookProvider',
@@ -1469,6 +1490,28 @@ export const publicApiAllowlistRules = [
     path: 'src/crates/adapters/claude-code-adapter/src/lib.rs',
     reason: 'Claude Code adapter public API is limited to reviewed declarative source providers',
     allowedSymbolEntries: claudeCodeAdapterPublicApiEntries,
+  },
+  {
+    path: 'src/crates/adapters/deveco-code-adapter/src/lib.rs',
+    reason: 'DevEco Code public API is limited to consumed static providers and its separately selected account boundary',
+    allowedSymbolEntries: devecoCodeAdapterPublicApiEntries,
+  },
+  {
+    path: 'src/crates/assembly/core/src/deveco_account.rs',
+    reason: 'DevEco account composition exposes only the consumed host options, service and credential-free snapshot',
+    allowedSymbolEntries: [
+      'DevEcoAccountOptions', 'DevEcoAccountService', 'DevEcoAccountSnapshot', 'DevEcoBrowserOpener',
+    ].map((symbol) => ({
+      symbol,
+      owner: 'DevEco Code account composition',
+      consumer: 'Desktop DevEco account API host',
+      verification: 'feature-gated account fixtures and Desktop account operation closure',
+      p0: 'explicit account runtime selection and redacted UI snapshots',
+      contractSlice: contractSlices.devecoCodeAdapterBoundary,
+      wireImpact: false,
+      rationale: 'Desktop consumes the selected account owner through the Core composition facade',
+      exit: 'remove with the DevEco account product capability',
+    })),
   },
   {
     path: 'src/crates/adapters/codex-adapter/src/lib.rs',

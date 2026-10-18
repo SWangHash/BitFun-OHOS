@@ -8,6 +8,7 @@ const agentRuntimeIpcForbiddenDeps = [
   'bitfun-agent-tools',
   'bitfun-ai-adapters',
   'bitfun-claude-code-adapter',
+  'bitfun-deveco-code-adapter',
   'bitfun-codex-adapter',
   'bitfun-core',
   'bitfun-core-types',
@@ -63,6 +64,7 @@ export const noCoreDependencyCrates = [
   'tool-packs',
   'product-domains',
   'claude-code-adapter',
+  'deveco-code-adapter',
   'codex-adapter',
   'dsh-adapter',
   'opencode-adapter',
@@ -149,6 +151,7 @@ export const forbiddenManifestDependencyRules = [
   },
   ...[
     ['bitfun-claude-code-adapter', 'claude-code-adapter'],
+    ['bitfun-deveco-code-adapter', 'deveco-code-adapter'],
     ['bitfun-codex-adapter', 'codex-adapter'],
     ['bitfun-pi-adapter', 'pi-adapter'],
   ].map(([dependencyName, crateName]) => ({
@@ -172,6 +175,7 @@ export const forbiddenManifestDependencyRules = [
       'src/crates/adapters/pi-adapter/Cargo.toml',
       'src/crates/adapters/opencode-adapter/Cargo.toml',
       'src/crates/adapters/claude-code-adapter/Cargo.toml',
+      'src/crates/adapters/deveco-code-adapter/Cargo.toml',
       'src/crates/adapters/codex-adapter/Cargo.toml',
     ],
     reason: 'static Hook parsing support is private to ecosystem source adapters',

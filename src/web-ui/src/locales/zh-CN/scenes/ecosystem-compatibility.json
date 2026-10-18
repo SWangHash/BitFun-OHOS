@@ -235,6 +235,8 @@
     "undoFailed": "撤销未完成，副本或配置可能已变化。请刷新后重新查看并确认。",
     "undoUnavailable": "无法确认该 Skill 的导入副本，请在 BitFun Skill 管理页查看并移除。",
     "viewCategory": "查看{{type}}",
+    "expandCategory": "展开{{type}}",
+    "collapseCategory": "收起{{type}}",
     "importAll": "一键导入",
     "importCategory": "一键导入",
     "batchTitle": "确认一键导入",
@@ -311,10 +313,43 @@
       "partial": "部分指令来源读取失败，以下保留可读取的来源。",
       "readOnly": "由指令读取器应用"
     },
+    "devecoAccount": {
+      "description": "查看和管理 DevEco Code 的登录凭据。",
+      "note": "与相同存储环境中的 DevEco Code 共用登录凭据，在此登录或退出也会影响 DevEco Code。仅检查本地凭据，未进行在线有效性验证。已连接的会话需重新连接以刷新账号和模型列表。",
+      "signIn": "登录",
+      "signInAgain": "重新登录",
+      "signOut": "退出登录",
+      "cancel": "取消登录",
+      "unavailable": "请检查 DevEco Code 的安装与账号登录支持，然后刷新。",
+      "unsupportedHost": "请在本机桌面工作区使用 DevEco Code 账号登录。",
+      "unknown": "无法读取 DevEco Code 的共享登录凭据状态，请刷新后重试。",
+      "states": {
+        "unsupportedHost": "当前环境不支持",
+        "loading": "正在读取账号状态",
+        "failed": "账号操作失败",
+        "unavailable": "暂不可用",
+        "pending": "等待浏览器登录",
+        "credentialPresent": "已保存登录凭据",
+        "unknown": "账号状态未知",
+        "signedOut": "未保存登录凭据"
+      },
+      "errors": {
+        "timeout": "登录已超时，请准备好后重新登录。",
+        "unsupported": "DevEco Code 账号接口不可用或不兼容，请检查安装后重试。",
+        "invalidResponse": "DevEco Code 账号接口响应格式异常，请刷新后重试。",
+        "unavailable": "DevEco Code 账号登录暂不可用，请检查安装后重试。",
+        "cancelFailed": "未能取消登录，请刷新状态后重试。",
+        "inProgress": "已有登录正在进行，请刷新查看状态。",
+        "sessionChanged": "登录会话已变化，请刷新后重试。",
+        "readOnly": "此凭据由 DevEco Code 管理，无法在此移除。",
+        "failed": "账号操作未完成，请刷新状态后重试。"
+      }
+    },
     "accounts": {
       "description": "查看在 BitFun 中接入的订阅账号。",
       "providers": {
         "codex": "Codex / ChatGPT",
+        "deveco": "DevEco Code",
         "opencode": "OpenCode Console（Zen）"
       },
       "notes": {
