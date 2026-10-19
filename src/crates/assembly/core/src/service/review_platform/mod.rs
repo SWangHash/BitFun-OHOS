@@ -16,9 +16,10 @@ pub use bitfun_services_integrations::review_platform::{
     ReviewPlatformCapabilities, ReviewPlatformCiItem, ReviewPlatformCiLog, ReviewPlatformCommit,
     ReviewPlatformCreatePullRequestRequest, ReviewPlatformDetailSection, ReviewPlatformError,
     ReviewPlatformFile, ReviewPlatformIssueComment, ReviewPlatformIssueEvidence,
-    ReviewPlatformKind, ReviewPlatformListState, ReviewPlatformPullRequest,
-    ReviewPlatformPullRequestDetail, ReviewPlatformPullRequestDetailPage,
-    ReviewPlatformPullRequestFileDiff, ReviewPlatformPullRequestReviewTarget, ReviewPlatformRemote,
+    ReviewPlatformKind, ReviewPlatformListSearch, ReviewPlatformListState,
+    ReviewPlatformPullRequest, ReviewPlatformPullRequestDetail,
+    ReviewPlatformPullRequestDetailPage, ReviewPlatformPullRequestFileDiff,
+    ReviewPlatformPullRequestReviewTarget, ReviewPlatformRemote,
     ReviewPlatformReplyToThreadRequest, ReviewPlatformRepositoryRef,
     ReviewPlatformRequestChangesRequest, ReviewPlatformResolveThreadRequest,
     ReviewPlatformSubmitReviewRequest, ReviewPlatformThread, ReviewPlatformThreadKind,
@@ -224,6 +225,19 @@ impl ReviewPlatformService {
     ) -> Result<ReviewPlatformWorkspaceSnapshot, ReviewPlatformError> {
         owner_service()?
             .workspace_snapshot_with_state(repository, remote_id, page, per_page, state)
+            .await
+    }
+
+    pub async fn workspace_snapshot_with_search(
+        repository: &ReviewRepositoryLocator,
+        remote_id: Option<&str>,
+        page: Option<u32>,
+        per_page: Option<u32>,
+        state: ReviewPlatformListState,
+        search: Option<&ReviewPlatformListSearch>,
+    ) -> Result<ReviewPlatformWorkspaceSnapshot, ReviewPlatformError> {
+        owner_service()?
+            .workspace_snapshot_with_search(repository, remote_id, page, per_page, state, search)
             .await
     }
 

@@ -1,14 +1,14 @@
 //! Review platform Tauri commands.
 
 use crate::api::app_state::AppState;
-use log::error;
 use bitfun_core::service::review_platform::{
     untrusted_repository_error_message, ReviewPlatformCiLog, ReviewPlatformDetailSection,
-    ReviewPlatformError, ReviewPlatformIssueEvidence, ReviewPlatformKind, ReviewPlatformListState,
-    ReviewPlatformPullRequestDetail, ReviewPlatformPullRequestDetailPage,
+    ReviewPlatformError, ReviewPlatformIssueEvidence, ReviewPlatformKind, ReviewPlatformListSearch,
+    ReviewPlatformListState, ReviewPlatformPullRequestDetail, ReviewPlatformPullRequestDetailPage,
     ReviewPlatformPullRequestReviewTarget, ReviewPlatformService, ReviewPlatformWorkspaceSnapshot,
     ReviewRepositoryLocator,
 };
+use log::error;
 use serde::Deserialize;
 use tauri::State;
 
@@ -24,6 +24,8 @@ pub struct ReviewPlatformWorkspaceSnapshotRequest {
     pub per_page: Option<u32>,
     #[serde(default)]
     pub state: ReviewPlatformListState,
+    #[serde(default)]
+    pub search: Option<ReviewPlatformListSearch>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -104,12 +106,13 @@ pub async fn review_platform_get_workspace_snapshot(
     _state: State<'_, AppState>,
     request: ReviewPlatformWorkspaceSnapshotRequest,
 ) -> Result<ReviewPlatformWorkspaceSnapshot, String> {
-    ReviewPlatformService::workspace_snapshot_with_state(
+    ReviewPlatformService::workspace_snapshot_with_search(
         &review_repository(&request.workspace_id, &request.repository_path),
         request.remote_id.as_deref(),
         request.page,
         request.per_page,
         request.state,
+        request.search.as_ref(),
     )
     .await
     .map_err(|error| {
@@ -414,6 +417,24 @@ pub struct ReviewPlatformPullRequestIdentityRequest {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn workspace_search_wire_preserves_legacy_requests_and_transient_progress() {
+        let mut payload =
+            json!({ "workspaceId": "ws-1", "repositoryPath": "/repo", "page": 2, "perPage": 10 });
+        let legacy: ReviewPlatformWorkspaceSnapshotRequest =
+            serde_json::from_value(payload.clone()).unwrap();
+        assert!(legacy.search.is_none());
+        payload["search"] =
+            json!({ "query": "fix", "continuation": { "nextPage": 12, "matchedCount": 3 } });
+        let request: ReviewPlatformWorkspaceSnapshotRequest =
+            serde_json::from_value(payload).unwrap();
+        assert_eq!(request.workspace_id.as_deref(), Some("ws-1"));
+        assert_eq!(request.page, Some(2));
+        let search = request.search.unwrap();
+        assert_eq!(search.query, "fix");
+        assert_eq!(search.continuation.unwrap().next_page, 12);
+    }
 
     #[test]
     fn review_platform_command_errors_preserve_the_repository_trust_code() {

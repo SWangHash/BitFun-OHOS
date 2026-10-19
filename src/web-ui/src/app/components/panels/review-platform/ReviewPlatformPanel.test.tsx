@@ -50,7 +50,17 @@ function snapshot(scope: { repositoryPath: string }, page = 1, state = 'all'): R
     pagination: { page, perPage: 10, total: state === 'merged' ? 269 : 376, hasNext: true },
     capabilities: { canCreateReview: true, canCreatePullRequest: false, canReplyToThread: false, canResolveThread: false,
       canApprove: false, canRevokeApproval: false, canRequestChanges: false, canMerge: false, supportsDraftReview: false,
-      supportedPullRequestStates: ['all', 'open', 'draft', 'merged', 'closed'] } };
+      supportedPullRequestStates: ['all', 'open', 'draft', 'merged', 'closed'], supportsPullRequestSearch: true } };
+}
+function githubSnapshot(scope: { repositoryPath: string }, numbers: number[], more = false): ReviewPlatformWorkspaceSnapshot {
+  const result = snapshot(scope);
+  result.remotes[0] = { ...result.remotes[0], platform: 'github', host: 'github.com', authState: 'connected', authSource: 'gh_cli' };
+  result.repository = { ...result.repository!, platform: 'github', host: 'github.com' };
+  result.pullRequests = numbers.map(number => ({ ...pull(number, 'open'), providerId: 'origin', title: `Needle ${number}` }));
+  result.pagination = { page: 1, perPage: 10, total: more ? null : numbers.length, hasNext: more };
+  result.searchContinuation = more ? { nextPage: 1, matchedCount: numbers.length,
+    githubRepositories: [{ remoteId: 'origin', after: 'cursor-100', exhausted: false }] } : null;
+  return result;
 }
 function detail(number: number, section: ReviewPlatformPullRequestDetailPage['section']): ReviewPlatformPullRequestDetailPage {
   return { ...pull(number, number >= 100 ? 'merged' : 'open'), section, body: '', ci: [], files: [], commits: [], threads: [],
@@ -91,6 +101,15 @@ async function mount() {
   return path;
 }
 
+async function enterSearch(value: string, wait = true) {
+  await act(async () => {
+    const input = host.querySelector<HTMLInputElement>('input[aria-label="Search pull requests"]')!;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  if (wait) await act(async () => { await new Promise(resolve => setTimeout(resolve, 330)); });
+}
+
 describe('Gitee panel state and asynchronous request ordering', () => {
   beforeEach(() => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -101,6 +120,228 @@ describe('Gitee panel state and asynchronous request ordering', () => {
     mocks.detail.mockReset().mockImplementation(() => new Promise(() => {}));
   });
   afterEach(async () => { await act(async () => root.unmount()); host.remove(); });
+
+  it('searches beyond the loaded page and merges batches before paginating matching results', async () => {
+    mocks.snapshot.mockImplementation((path, _remote, page, _size, state, search) => {
+      const result = snapshot(path, page, state);
+      if (search) {
+        result.pullRequests = search.continuation ? [{ ...pull(201, 'open'), title: 'Needle from a later page' }] : [];
+        result.pagination = { page, perPage: 10, total: search.continuation ? 1 : null, hasNext: false };
+        result.searchContinuation = search.continuation ? null : { nextPage: 2, matchedCount: 0 };
+      }
+      return Promise.resolve(result);
+    });
+    const path = await mount();
+    await click('review-platform-next-page');
+    await enterSearch('  NEEDLE  ');
+    expect(mocks.snapshot).toHaveBeenLastCalledWith({ workspaceId: path, repositoryPath: path }, 'origin', 1, 10, 'all', {
+      query: 'needle', continuation: { nextPage: 2, matchedCount: 0 },
+    });
+    expect([...host.querySelectorAll('[data-testid="review-platform-pr-row"]')].map(row => row.getAttribute('data-pr-number'))).toEqual(['201']);
+    expect(host.querySelector('[data-testid="review-platform-list-loading"]')).toBeNull();
+  });
+
+  it('keeps earlier batch matches and shows no empty state while later batches are pending', async () => {
+    const pending = deferred<ReviewPlatformWorkspaceSnapshot>();
+    let base: ReviewPlatformWorkspaceSnapshot;
+    mocks.snapshot.mockImplementation((path, _remote, page, _size, state, search) => {
+      base = snapshot(path, page, state);
+      if (!search) return Promise.resolve(base);
+      if (search.continuation) return pending.promise;
+      return Promise.resolve({ ...base, pullRequests: [{ ...pull(101, 'open'), title: 'needle one' }],
+        searchContinuation: { nextPage: 2, matchedCount: 1 }, pagination: { page: 1, perPage: 10, total: null, hasNext: false } });
+    });
+    await mount();
+    await enterSearch('needle');
+    expect(host.querySelector('[data-testid="review-platform-list-loading"]')).not.toBeNull();
+    expect(host.textContent).not.toContain('No pull requests match');
+    await act(async () => pending.resolve({ ...base!, pullRequests: [{ ...pull(102, 'open'), title: 'needle two' }],
+      pagination: { page: 1, perPage: 10, total: 2, hasNext: false } }));
+    expect([...host.querySelectorAll('[data-testid="review-platform-pr-row"]')].map(row => row.getAttribute('data-pr-number'))).toEqual(['101', '102']);
+  });
+
+  it('retains the keyword on result-page changes and keeps cached keywords separate', async () => {
+    mocks.snapshot.mockImplementation((path, _remote, page, _size, state, search) => {
+      const result = snapshot(path, page, state);
+      if (search) result.pullRequests = [{ ...pull(200 + page, 'open'), title: `${search.query} result` }];
+      return Promise.resolve(result);
+    });
+    const path = await mount();
+    await enterSearch('first');
+    await click('review-platform-next-page');
+    expect(mocks.snapshot).toHaveBeenLastCalledWith({ workspaceId: path, repositoryPath: path }, null, 2, 10, 'all', { query: 'first' });
+    await enterSearch('second');
+    expect(mocks.snapshot).toHaveBeenLastCalledWith({ workspaceId: path, repositoryPath: path }, null, 1, 10, 'all', { query: 'second' });
+    expect(host.textContent).toContain('second result');
+    await enterSearch('');
+    expect(host.querySelector('[data-testid="review-platform-pr-row"][data-pr-number="10"]')).not.toBeNull();
+  });
+
+  it('does not continue an obsolete search after a newer query has completed', async () => {
+    const old = deferred<ReviewPlatformWorkspaceSnapshot>();
+    let base: ReviewPlatformWorkspaceSnapshot;
+    mocks.snapshot.mockImplementation((path, _remote, page, _size, state, search) => {
+      base = snapshot(path, page, state);
+      if (search?.query === 'old') return old.promise;
+      return Promise.resolve(search ? { ...base, pullRequests: [{ ...pull(300, 'open'), title: 'new result' }] } : base);
+    });
+    await mount();
+    await enterSearch('old');
+    await enterSearch('new');
+    const count = mocks.snapshot.mock.calls.length;
+    await act(async () => old.resolve({ ...base!, pullRequests: [], searchContinuation: { nextPage: 2, matchedCount: 0 } }));
+    expect(mocks.snapshot).toHaveBeenCalledTimes(count);
+    expect(host.textContent).toContain('new result');
+  });
+
+  it('can clear a query before its debounce fires without leaving the list loading', async () => {
+    await mount();
+    await enterSearch('unused', false);
+    await enterSearch('');
+    expect(mocks.snapshot).toHaveBeenCalledTimes(1);
+    expect(host.querySelector('[data-testid="review-platform-list-loading"]')).toBeNull();
+    expect(host.querySelectorAll('[data-testid="review-platform-pr-row"]')).toHaveLength(10);
+  });
+
+  it('offers More after an empty GitHub search batch and fetches later candidates only on click', async () => {
+    mocks.snapshot.mockImplementation((path, _remote, _page, _size, _state, search) => Promise.resolve(
+      githubSnapshot(path, search?.continuation ? [201] : [], Boolean(search && !search.continuation)),
+    ));
+    const path = await mount();
+    await enterSearch('needle');
+    expect(mocks.snapshot).toHaveBeenCalledTimes(2);
+    expect(host.textContent).toContain('reviewPlatform.searchIncomplete');
+    expect(host.querySelector('[data-bitfun-product-part="emptyState"]')).toBeNull();
+    expect(host.querySelector('[data-testid="review-platform-pagination"]')).toBeNull();
+    await click('review-platform-search-more');
+    expect(mocks.snapshot).toHaveBeenLastCalledWith({ workspaceId: path, repositoryPath: path }, null, 1, 10, 'all', {
+      query: 'needle', continuation: { nextPage: 1, matchedCount: 0,
+        githubRepositories: [{ remoteId: 'origin', after: 'cursor-100', exhausted: false }] },
+    });
+    expect(host.querySelector('[data-pr-number="201"]')).toBeTruthy();
+    expect(host.querySelector('[data-testid="review-platform-search-more"]')).toBeNull();
+    expect(host.textContent).not.toContain('reviewPlatform.searchIncomplete');
+  });
+
+  it('appends GitHub search results without narrowing workspace scope or clearing the selection', async () => {
+    const pending = deferred<ReviewPlatformWorkspaceSnapshot>();
+    mocks.snapshot.mockImplementation((path, _remote, _page, _size, _state, search) => {
+      if (search?.continuation) return pending.promise;
+      const result = githubSnapshot(path, search ? [201] : [], Boolean(search));
+      result.remotes.push({ ...result.remotes[0], id: 'upstream', projectPath: 'example/upstream' });
+      result.selectedRemoteId = 'upstream';
+      if (search) result.pullRequests[0].providerId = 'upstream';
+      return Promise.resolve(result);
+    });
+    const path = await mount();
+    await enterSearch('needle');
+    const row = host.querySelector('[data-pr-number="201"]')!;
+    const more = host.querySelector('[data-testid="review-platform-search-more"]')!;
+    expect(row.compareDocumentPosition(more) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await click('review-platform-search-more');
+    expect(host.querySelector('[data-pr-number="201"]')).toBeTruthy();
+    expect(host.querySelector<HTMLButtonElement>('[data-testid="review-platform-search-more"]')?.disabled).toBe(true);
+    expect(mocks.snapshot.mock.calls.at(-1)?.[1]).toBeNull();
+    const next = githubSnapshot({ repositoryPath: path }, [202]);
+    await act(async () => { pending.resolve(next); });
+    expect([...host.querySelectorAll('[data-testid="review-platform-pr-row"]')].map(item => item.getAttribute('data-pr-number'))).toEqual(['201', '202']);
+    expect(host.querySelector('[data-pr-number="201"]')?.getAttribute('data-bitfun-state')).toBe('selected');
+    await enterSearch('');
+    await enterSearch('needle');
+    expect(mocks.snapshot).toHaveBeenCalledTimes(3);
+    expect(host.querySelectorAll('[data-testid="review-platform-pr-row"]')).toHaveLength(2);
+    expect(host.querySelector('[data-testid="review-platform-search-more"]')).toBeNull();
+  });
+
+  it('retains GitHub matches and retries the same cursor when More fails', async () => {
+    let attempts = 0;
+    mocks.snapshot.mockImplementation((path, _remote, _page, _size, _state, search) => {
+      if (search?.continuation && ++attempts === 1) return Promise.reject(new Error('HTTP 503'));
+      return Promise.resolve(githubSnapshot(path, search?.continuation ? [202] : search ? [201] : [], Boolean(search && !search.continuation)));
+    });
+    await mount();
+    await enterSearch('needle');
+    await click('review-platform-search-more');
+    const failedSearch = mocks.snapshot.mock.calls.at(-1)?.[5];
+    expect(host.querySelector('[role="alert"]')).toBeTruthy();
+    expect(host.querySelector('[data-pr-number="201"]')).toBeTruthy();
+    expect(host.querySelector('[data-testid="review-platform-search-more"]')?.textContent).toContain('common.retry');
+    await click('review-platform-search-more');
+    expect(mocks.snapshot.mock.calls.at(-1)?.[5]).toEqual(failedSearch);
+    expect(host.querySelectorAll('[data-testid="review-platform-pr-row"]')).toHaveLength(2);
+    expect(host.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it('restores the repository of the first late GitHub match from the search cache', async () => {
+    mocks.snapshot.mockImplementation((path, _remote, _page, _size, _state, search) => {
+      const result = githubSnapshot(path, search?.continuation ? [201] : [], Boolean(search && !search.continuation));
+      result.remotes.push({ ...result.remotes[0], id: 'upstream', projectPath: 'example/upstream' });
+      if (search?.continuation) {
+        result.selectedRemoteId = 'upstream';
+        result.pullRequests[0].providerId = 'upstream';
+      }
+      return Promise.resolve(result);
+    });
+    await mount();
+    await enterSearch('needle');
+    await click('review-platform-search-more');
+    await enterSearch('');
+    await enterSearch('needle');
+    expect(mocks.snapshot).toHaveBeenCalledTimes(3);
+    expect(host.querySelector('[data-pr-number="201"]')?.getAttribute('data-bitfun-state')).toBe('selected');
+    expect(mocks.detail.mock.calls.at(-1)?.[0]).toMatchObject({ remoteId: 'upstream', pullRequestId: '201' });
+  });
+
+  it.each(['other', ''])('discards pending GitHub More results after changing the query to %j', async value => {
+    const pending = deferred<ReviewPlatformWorkspaceSnapshot>();
+    mocks.snapshot.mockImplementation((path, _remote, _page, _size, _state, search) => {
+      if (search?.continuation) return pending.promise;
+      const result = githubSnapshot(path, search?.query === 'other' ? [301] : search ? [201] : [], search?.query === 'needle');
+      if (search?.query === 'other') result.pullRequests[0].title = 'Other match';
+      return Promise.resolve(result);
+    });
+    const path = await mount();
+    await enterSearch('needle');
+    await click('review-platform-search-more');
+    await enterSearch(value);
+    await act(async () => { pending.resolve(githubSnapshot({ repositoryPath: path }, [202])); });
+    expect(host.querySelector('[data-pr-number="202"]')).toBeNull();
+    expect(host.querySelector('[data-testid="review-platform-search-more"]')).toBeNull();
+    expect(host.querySelector('[data-testid="review-platform-list-loading"]')).toBeNull();
+    if (value) expect(host.querySelector('[data-pr-number="301"]')).toBeTruthy();
+    expect(mocks.snapshot.mock.calls.filter(call => call[5]?.continuation)).toHaveLength(1);
+  });
+
+  it('combines search and state filters on page one and preserves the keyword', async () => {
+    mocks.snapshot.mockImplementation((path, _remote, page, _size, state, search) => {
+      const result = snapshot(path, page, state);
+      if (search) result.pullRequests = [{ ...pull(state === 'merged' ? 301 : 201, state === 'merged' ? 'merged' : 'open'), title: 'needle' }];
+      return Promise.resolve(result);
+    });
+    const path = await mount();
+    await enterSearch('needle');
+    await click('review-platform-next-page');
+    await selectMerged();
+    expect(mocks.snapshot).toHaveBeenLastCalledWith({ workspaceId: path, repositoryPath: path }, null, 1, 10, 'merged', { query: 'needle' });
+    expect([...host.querySelectorAll('[data-testid="review-platform-pr-row"]')].map(row => row.getAttribute('data-pr-state'))).toEqual(['merged']);
+  });
+
+  it('shows an empty result only after the final source batch has completed', async () => {
+    const last = deferred<ReviewPlatformWorkspaceSnapshot>();
+    let base: ReviewPlatformWorkspaceSnapshot;
+    mocks.snapshot.mockImplementation((path, _remote, page, _size, state, search) => {
+      base = snapshot(path, page, state);
+      if (!search) return Promise.resolve(base);
+      if (search.continuation) return last.promise;
+      return Promise.resolve({ ...base, pullRequests: [], searchContinuation: { nextPage: 2, matchedCount: 0 } });
+    });
+    await mount();
+    await enterSearch('absent');
+    expect(host.textContent).not.toContain('No pull requests match');
+    await act(async () => last.resolve({ ...base!, pullRequests: [], pagination: { page: 1, perPage: 10, total: 0, hasNext: false } }));
+    expect(host.textContent).toContain('No pull requests match');
+    expect(host.querySelector('[data-testid="review-platform-list-loading"]')).toBeNull();
+  });
 
   it('renders statistics for every initial row while selected detail is still pending', async () => {
     mocks.snapshot.mockImplementation((path, _remote, page, _size, state) => {

@@ -1,5 +1,9 @@
 {
   "reviewPlatform": {
+    "searching": "正在搜索合并请求...",
+    "searchMore": "更多",
+    "searchIncomplete": "暂未找到匹配项，还有合并请求可继续搜索。",
+    "searchUnsupported": "当前主机不支持全仓库合并请求搜索。请更新所连接的主机后搜索所有页面。",
     "stateFilterUnsupported": "当前主机不支持 Gitee 全仓库状态筛选。请更新所连接的主机后使用这些页签。",
     "fileLimit": "Gitee 返回的文件列表可能已被截断，文件数和变更统计可能不完整。",
     "commitLimit": "Gitee 最多返回 250 条提交记录，提交历史可能不完整。",

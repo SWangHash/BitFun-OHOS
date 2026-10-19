@@ -1,5 +1,9 @@
 {
   "reviewPlatform": {
+    "searching": "正在搜尋合併請求...",
+    "searchMore": "更多",
+    "searchIncomplete": "暫未找到符合項目，還有合併請求可繼續搜尋。",
+    "searchUnsupported": "目前主機不支援全儲存庫合併請求搜尋。請更新所連線的主機後搜尋所有頁面。",
     "stateFilterUnsupported": "目前主機不支援 Gitee 全儲存庫狀態篩選。請更新所連線的主機後使用這些頁籤。",
     "fileLimit": "Gitee 回傳的檔案清單可能已被截斷，檔案數與變更統計可能不完整。",
     "commitLimit": "Gitee 最多回傳 250 條提交紀錄，提交歷史可能不完整。",
