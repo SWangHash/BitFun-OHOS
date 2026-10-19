@@ -4,24 +4,17 @@ import { storage } from '@/shared/utils/storageAdapter';
 
 export interface WorkspaceResourceLayout {
   filesCollapsed: boolean;
-  terminalsCollapsed: boolean;
-  terminalFraction: number;
   fileView: 'tree' | 'search';
 }
 
 export const DEFAULT_RESOURCE_LAYOUT: WorkspaceResourceLayout = {
   filesCollapsed: false,
-  terminalsCollapsed: false,
-  terminalFraction: 0.3,
   fileView: 'tree',
 };
 
 export function normalizeResourceLayout(input: Partial<WorkspaceResourceLayout> = {}): WorkspaceResourceLayout {
   return {
     filesCollapsed: input.filesCollapsed === true,
-    terminalsCollapsed: input.terminalsCollapsed === true,
-    terminalFraction: typeof input.terminalFraction === 'number' && Number.isFinite(input.terminalFraction)
-      ? Math.min(0.75, Math.max(0.15, input.terminalFraction)) : 0.3,
     fileView: input.fileView === 'search' ? 'search' : 'tree',
   };
 }

@@ -47,6 +47,10 @@ BitFun 桌面端在工具区提供一个**内置终端面板**，让用户在应
 
 - resize 去抖（`TerminalResizeDebouncer`）+ 重绘守卫（`resizeRepaintGuard`），避免逐 mousemove / 逐 resize 重排全工作区（吸取 F4 教训）；
 - 容器尺寸变化时按 PTY 列 / 行 resize。
+- 手动创建的终端会话先预留会话 ID（`prepareManualTerminalSession`），由面板
+  `onSizeSettled` 测得自身尺寸后再创建 PTY（`pendingTerminalSpawn`）：shell 的第一条提示符
+  必须在面板的最终宽度下排版，否则随后的尺寸变更（面板展开 / 拖拽 / 标签搬移）会把它留下的
+  行永久留在缓冲区。
 
 ### 5. 外观
 

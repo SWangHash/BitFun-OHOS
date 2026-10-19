@@ -4,6 +4,12 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getTerminalService, TerminalService } from '../services';
+import {
+  peekPendingTerminalSpawn,
+  registerPendingTerminalSpawn,
+  takePendingTerminalSpawn,
+} from '../services/pendingTerminalSpawn';
+import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 import { createLogger } from '@/shared/utils/logger';
 import type {
   SessionResponse,
@@ -39,6 +45,11 @@ export interface UseTerminalReturn {
   sendCtrlC: () => Promise<void>;
   close: () => Promise<void>;
   refresh: () => Promise<void>;
+  /**
+   * Create the PTY for a session that was opened before its panel could measure its own
+   * geometry. Safe to call repeatedly: only the first call creates the shell.
+   */
+  spawnPendingSession: (cols: number, rows: number) => Promise<void>;
 }
 
 export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
@@ -61,6 +72,8 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
 
   const serviceRef = useRef<TerminalService>(getTerminalService());
   const unsubscribeRef = useRef<(() => void) | null>(null);
+  const cancelledRef = useRef(false);
+  const spawnPromiseRef = useRef<Promise<void> | null>(null);
 
   // Use refs for callbacks to avoid re-creating handleEvent and re-triggering useEffect
   const onEventRef = useRef(onEvent);
@@ -108,9 +121,67 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
     }
   }, [sessionId]); // Only depend on sessionId, not the callbacks
 
+  /** Attach to a session that already exists on the host. */
+  const attachToSession = useCallback(async () => {
+    const service = serviceRef.current;
+
+    // Get session info
+    const sessionInfo = await service.getSession(sessionId);
+    if (cancelledRef.current) return;
+
+    setSession(sessionInfo);
+
+    // Replay output history BEFORE subscribing to live events.
+    // This prevents overlap: history covers [past → now], events cover [now → future].
+    // If we subscribed first, events arriving between subscribe and getHistory would
+    // appear in both the event stream and the history buffer, causing duplicate output.
+    try {
+      const historyResponse = await service.getHistory(sessionId);
+      if (!cancelledRef.current) {
+        const replayEvents = historyResponse.events?.length
+          ? historyResponse.events
+          : historyResponse.data
+            ? [{
+                cols: historyResponse.cols,
+                rows: historyResponse.rows,
+                data: historyResponse.data,
+              }]
+            : [];
+
+        if (replayEvents.length > 0) {
+          if (onReplayRef.current) {
+            onReplayRef.current(replayEvents);
+          } else {
+            replayEvents.forEach((event) => {
+              onHistoryDimsRef.current?.(event.cols, event.rows);
+              if (event.data) {
+                onOutputRef.current?.(event.data);
+              }
+            });
+          }
+        }
+      }
+    } catch (histErr) {
+      // History replay is optional — a failed fetch must not break the terminal.
+      log.warn('Failed to fetch terminal history', { sessionId, error: histErr });
+    }
+
+    if (cancelledRef.current) return;
+
+    // Subscribe to live events AFTER history replay to eliminate overlap.
+    const unsubscribe = service.onSessionEvent(sessionId, handleEvent);
+    if (cancelledRef.current) {
+      unsubscribe();
+      return;
+    }
+    unsubscribeRef.current = unsubscribe;
+
+    setIsLoading(false);
+  }, [sessionId, handleEvent]);
+
   useEffect(() => {
     const service = serviceRef.current;
-    let cancelled = false;
+    cancelledRef.current = false;
 
     const connect = async () => {
       try {
@@ -121,64 +192,18 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
           await service.connect();
         }
 
-        if (cancelled) return;
+        if (cancelledRef.current) return;
 
         setIsConnected(service.isConnected());
 
-        // Get session info
-        const sessionInfo = await service.getSession(sessionId);
-        if (cancelled) return;
+        // A manual terminal opens before its shell exists: its panel has to measure its
+        // own geometry first, and `spawnPendingSession` creates the PTY with that size.
+        // Resolving the session here would fail and start the shell at a guessed size.
+        if (peekPendingTerminalSpawn(sessionId)) return;
 
-        setSession(sessionInfo);
-
-        // Replay output history BEFORE subscribing to live events.
-        // This prevents overlap: history covers [past → now], events cover [now → future].
-        // If we subscribed first, events arriving between subscribe and getHistory would
-        // appear in both the event stream and the history buffer, causing duplicate output.
-        try {
-          const historyResponse = await service.getHistory(sessionId);
-          if (!cancelled) {
-            const replayEvents = historyResponse.events?.length
-              ? historyResponse.events
-              : historyResponse.data
-                ? [{
-                    cols: historyResponse.cols,
-                    rows: historyResponse.rows,
-                    data: historyResponse.data,
-                  }]
-                : [];
-
-            if (replayEvents.length > 0) {
-              if (onReplayRef.current) {
-                onReplayRef.current(replayEvents);
-              } else {
-                replayEvents.forEach((event) => {
-                  onHistoryDimsRef.current?.(event.cols, event.rows);
-                  if (event.data) {
-                    onOutputRef.current?.(event.data);
-                  }
-                });
-              }
-            }
-          }
-        } catch (histErr) {
-          // History replay is optional — a failed fetch must not break the terminal.
-          log.warn('Failed to fetch terminal history', { sessionId, error: histErr });
-        }
-
-        if (cancelled) return;
-
-        // Subscribe to live events AFTER history replay to eliminate overlap.
-        const unsubscribe = service.onSessionEvent(sessionId, handleEvent);
-        if (cancelled) {
-          unsubscribe();
-          return;
-        }
-        unsubscribeRef.current = unsubscribe;
-
-        setIsLoading(false);
+        await attachToSession();
       } catch (err) {
-        if (cancelled) return;
+        if (cancelledRef.current) return;
         const message = err instanceof Error ? err.message : 'Connection failed';
         setError(message);
         setIsLoading(false);
@@ -189,14 +214,58 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
     connect();
 
     return () => {
-      cancelled = true;
+      cancelledRef.current = true;
       // Clean up the subscription
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
         unsubscribeRef.current = null;
       }
     };
-  }, [sessionId, autoConnect, handleEvent]);
+  }, [sessionId, autoConnect, handleEvent, attachToSession]);
+
+  const spawnPendingSession = useCallback(async (cols: number, rows: number): Promise<void> => {
+    if (spawnPromiseRef.current) return spawnPromiseRef.current;
+
+    const spawn = takePendingTerminalSpawn(sessionId);
+    if (!spawn) return;
+
+    const task = (async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        // A shell must be created on the device that owns this panel. A surface switch
+        // while the panel was being measured must degrade instead of spawning elsewhere.
+        if (spawn.surfaceId !== getActiveSurfaceScope().surfaceId) {
+          throw new Error('Terminal device surface changed before the shell was created');
+        }
+
+        const service = serviceRef.current;
+        if (autoConnect && !service.isConnected()) {
+          await service.connect();
+        }
+
+        await service.createSession({ ...spawn.request, sessionId, cols, rows });
+        if (cancelledRef.current) return;
+
+        setIsConnected(service.isConnected());
+        await attachToSession();
+      } catch (err) {
+        // Let a retry claim the same intent instead of leaving the tab without a shell.
+        if (!cancelledRef.current) {
+          registerPendingTerminalSpawn(sessionId, spawn);
+          const message = err instanceof Error ? err.message : 'Terminal creation failed';
+          setError(message);
+          setIsLoading(false);
+          log.error('Failed to create terminal session', { sessionId, cols, rows, error: err });
+        }
+        spawnPromiseRef.current = null;
+      }
+    })();
+
+    spawnPromiseRef.current = task;
+    return task;
+  }, [attachToSession, autoConnect, sessionId]);
 
   const write = useCallback(async (data: string) => {
     try {
@@ -230,7 +299,7 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
       await serviceRef.current.closeSession(sessionId);
       setSession(null);
     } catch (err) {
-      log.error('Failed to close session', { sessionId, error: err });
+      log.error('Failed to close', { sessionId, error: err });
       throw err;
     }
   }, [sessionId]);
@@ -256,5 +325,6 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
     sendCtrlC,
     close,
     refresh,
+    spawnPendingSession,
   };
 }

@@ -9,6 +9,7 @@ import { useI18n } from '@/infrastructure/i18n';
 import { AlertCircle } from 'lucide-react';
 import Terminal, { TerminalRef, type TerminalOptions } from './Terminal';
 import { useTerminal } from '../hooks/useTerminal';
+import { peekPendingTerminalSpawn } from '../services/pendingTerminalSpawn';
 import { registerTerminalActions, unregisterTerminalActions } from '../services/TerminalActionManager';
 import {
   POWERSHELL_READLINE_PASTE_SEQUENCE,
@@ -33,6 +34,36 @@ const log = createLogger('ConnectedTerminal');
  */
 // eslint-disable-next-line no-control-regex -- ESC-based cursor reposition sequences are part of terminal protocol parsing.
 const CURSOR_POS_RE = /^\x1b\[(\d+);(\d+)H$/;
+
+/** Upper bound on waiting for the terminal font set before creating the shell. */
+const TERMINAL_FONT_WAIT_TIMEOUT_MS = 2_000;
+
+/**
+ * Resolve once the terminal font set has loaded.
+ *
+ * A session whose shell has not started yet must be created at the geometry the terminal
+ * will keep. xterm measures its cell size when the terminal opens and re-measures after
+ * the font set loads, so a shell created before that would be resized right after its
+ * first prompt had been laid out — the rows left behind stay in the buffer.
+ */
+function waitForTerminalFonts(): Promise<void> {
+  if (typeof document === 'undefined' || !('fonts' in document)) {
+    return Promise.resolve();
+  }
+
+  const fontSet = document.fonts as FontFaceSet;
+  if (fontSet.status === 'loaded') {
+    return Promise.resolve();
+  }
+
+  // A font that never resolves must not keep the terminal without a shell.
+  return Promise.race([
+    fontSet.ready.then(() => undefined),
+    new Promise<void>((resolve) => {
+      window.setTimeout(resolve, TERMINAL_FONT_WAIT_TIMEOUT_MS);
+    }),
+  ]);
+}
 
 type QueuedTerminalItem =
   | { type: 'write'; data: string; source: 'live' | 'replay' }
@@ -83,6 +114,16 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
 
   const lastSentSizeRef = useRef<{ cols: number; rows: number } | null>(null);
   const resizeRepaintGuardRef = useRef(new ResizeRepaintGuard());
+  // A reserved session creates its shell once, from the first measured panel size.
+  const spawnStartedRef = useRef(false);
+  const unmountedRef = useRef(false);
+
+  useEffect(() => {
+    unmountedRef.current = false;
+    return () => {
+      unmountedRef.current = true;
+    };
+  }, []);
 
   // Buffer output until the terminal is ready.
   // Use a ref (not state) to avoid stale closure issues with isTerminalReady.
@@ -281,6 +322,7 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
     sendCtrlC,
     close,
     refresh,
+    spawnPendingSession,
   } = useTerminal({
     sessionId,
     autoConnect: true,
@@ -318,6 +360,10 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
   }, [isExited]);
 
   const handleResize = useCallback((cols: number, rows: number) => {
+    // A reserved session has no shell yet: `spawnPendingSession` creates its PTY *with*
+    // this geometry, so the resize must not be sent before the session exists.
+    if (peekPendingTerminalSpawn(sessionId)) return;
+
     const lastSize = lastSentSizeRef.current;
     if (lastSize && lastSize.cols === cols && lastSize.rows === rows) {
       return;
@@ -372,6 +418,25 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
     flushOutputQueue();
   }, [flushOutputQueue]);
 
+  /**
+   * A reserved session has no shell until this panel has measured itself: creating the
+   * PTY earlier would start the shell at the backend default width and leave its first
+   * prompt behind after the panel's real size was applied.
+   */
+  const handleSizeSettled = useCallback((size: { cols: number; rows: number }) => {
+    if (spawnStartedRef.current) return;
+    if (!peekPendingTerminalSpawn(sessionId)) return;
+    spawnStartedRef.current = true;
+
+    void waitForTerminalFonts().then(() => {
+      if (unmountedRef.current) return;
+      // The panel may have settled on another size while fonts were loading; the shell
+      // must be created for the geometry the terminal holds when it actually starts.
+      const latest = terminalRef.current?.getSize?.() ?? size;
+      void spawnPendingSession(latest.cols, latest.rows);
+    });
+  }, [sessionId, spawnPendingSession]);
+
   const handlePasteShortcut = useCallback(async (): Promise<boolean> => {
     const shellType = session?.shellType ?? initialSession?.shellType;
     if (isExited || !shouldUsePowerShellReadlinePaste(shellType)) {
@@ -412,10 +477,20 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
   }, [close, closeBehavior, onClose, sessionId]);
 
   const handleRetry = useCallback(() => {
+    // A reserved session whose creation failed has no shell to look up: retry the
+    // creation with the size this panel already measured.
+    const pendingSpawn = peekPendingTerminalSpawn(sessionId);
+    const size = terminalRef.current?.getSize?.();
+    if (pendingSpawn && size) {
+      spawnStartedRef.current = false;
+      void spawnPendingSession(size.cols, size.rows);
+      return;
+    }
+
     refresh().catch(err => {
       log.error('Retry failed', { sessionId, error: err });
     });
-  }, [refresh, sessionId]);
+  }, [refresh, sessionId, spawnPendingSession]);
 
   useEffect(() => {
     if (session) {
@@ -542,6 +617,7 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
         onPaste={handlePaste}
         preventShrinkBelowColsRef={preventShrinkBelowColsRef}
         resizeSuspended={resizeSuspended}
+        onSizeSettled={handleSizeSettled}
         supportsCopyPaste={supportsCopyPaste}
       />
 

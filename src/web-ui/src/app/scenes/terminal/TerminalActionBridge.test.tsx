@@ -9,7 +9,7 @@ import { useNavSceneStore } from '@/app/stores/navSceneStore';
 import { TerminalActionBridge } from './TerminalActionBridge';
 
 const terminal = vi.hoisted(() => ({ create: vi.fn(), open: vi.fn() }));
-vi.mock('@/shared/services/createManualTerminalSession', () => ({ createManualTerminalSession: terminal.create }));
+vi.mock('@/shared/services/createManualTerminalSession', () => ({ prepareManualTerminalSession: terminal.create }));
 vi.mock('@/shared/services/openShellSessionTarget', () => ({ openShellSessionTarget: terminal.open }));
 
 describe('terminal creation from workspace resources', () => {
@@ -25,7 +25,7 @@ describe('terminal creation from workspace resources', () => {
     vi.spyOn(workspaceManager, 'getState').mockReturnValue(state);
     const activate = vi.spyOn(workspaceManager, 'setActiveWorkspace');
     const scope = { surfaceId: 'local', workspaceId: browsed.id, workspacePath: browsed.rootPath, remoteConnectionId: browsed.connectionId };
-    let complete!: (session: { id: string; name: string }) => void;
+    let complete!: (session: { sessionId: string; name: string }) => void;
     terminal.create.mockImplementation(() => new Promise(resolve => { complete = resolve; }));
     const container = document.createElement('div');
     const root = createRoot(container);
@@ -52,7 +52,7 @@ describe('terminal creation from workspace resources', () => {
           </WorkspaceContext.Provider>,
         ));
       }
-      await act(async () => { complete({ id: 'terminal-b', name: 'Shell B' }); });
+      await act(async () => { complete({ sessionId: 'terminal-b', name: 'Shell B' }); });
       if (change === 'resource-navigation') expect(terminal.open).not.toHaveBeenCalled();
       else expect(terminal.open).toHaveBeenCalledExactlyOnceWith({ sessionId: 'terminal-b', sessionName: 'Shell B', scope });
       expect(activate).not.toHaveBeenCalled();

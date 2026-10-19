@@ -1,6 +1,7 @@
 import { useEffect, useRef, type FC } from 'react';
 import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext';
-import { createManualTerminalSession } from '@/shared/services/createManualTerminalSession';
+import { prepareManualTerminalSession } from '@/shared/services/createManualTerminalSession';
+import { clearPendingTerminalSpawn } from '@/tools/terminal/services/pendingTerminalSpawn';
 import { openShellSessionTarget } from '@/shared/services/openShellSessionTarget';
 import { createLogger } from '@/shared/utils/logger';
 import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
@@ -58,13 +59,19 @@ export const TerminalActionBridge: FC = () => {
       if (creatingRef.current || !target) return;
       creatingRef.current = true;
 
-      void createManualTerminalSession({
+      // The shell is created by the terminal panel, which measures itself first, so the
+      // PTY is never started at a size the panel does not have.
+      void prepareManualTerminalSession({
         workspaceId: target.id,
         workspacePath: detail?.workingDirectory ?? targetPath,
       })
-        .then((session) => {
-          if (!isCurrent()) return;
-          openShellSessionTarget({ sessionId: session.id, sessionName: session.name, scope: origin ?? {
+        .then((prepared) => {
+          if (!isCurrent()) {
+            // The tab is never opened, so the reserved session must not spawn later.
+            clearPendingTerminalSpawn(prepared.sessionId);
+            return;
+          }
+          openShellSessionTarget({ sessionId: prepared.sessionId, sessionName: prepared.name, scope: origin ?? {
             surfaceId: scope.surfaceId, workspaceId: target?.id,
             workspacePath: targetPath, remoteConnectionId: target?.connectionId,
           } });
