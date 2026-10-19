@@ -116,6 +116,7 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
   const resizeRepaintGuardRef = useRef(new ResizeRepaintGuard());
   // A reserved session creates its shell once, from the first measured panel size.
   const spawnStartedRef = useRef(false);
+  const lastMeasuredSizeRef = useRef<{ cols: number; rows: number } | null>(null);
   const unmountedRef = useRef(false);
 
   useEffect(() => {
@@ -317,6 +318,7 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
     session,
     isLoading,
     error,
+    isAwaitingSpawn,
     write,
     resize,
     sendCtrlC,
@@ -424,8 +426,9 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
    * prompt behind after the panel's real size was applied.
    */
   const handleSizeSettled = useCallback((size: { cols: number; rows: number }) => {
+    lastMeasuredSizeRef.current = size;
+    if (!isAwaitingSpawn) return;
     if (spawnStartedRef.current) return;
-    if (!peekPendingTerminalSpawn(sessionId)) return;
     spawnStartedRef.current = true;
 
     void waitForTerminalFonts().then(() => {
@@ -435,7 +438,7 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
       const latest = terminalRef.current?.getSize?.() ?? size;
       void spawnPendingSession(latest.cols, latest.rows);
     });
-  }, [sessionId, spawnPendingSession]);
+  }, [isAwaitingSpawn, spawnPendingSession]);
 
   const handlePasteShortcut = useCallback(async (): Promise<boolean> => {
     const shellType = session?.shellType ?? initialSession?.shellType;
@@ -479,9 +482,8 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
   const handleRetry = useCallback(() => {
     // A reserved session whose creation failed has no shell to look up: retry the
     // creation with the size this panel already measured.
-    const pendingSpawn = peekPendingTerminalSpawn(sessionId);
-    const size = terminalRef.current?.getSize?.();
-    if (pendingSpawn && size) {
+    const size = terminalRef.current?.getSize?.() ?? lastMeasuredSizeRef.current;
+    if (isAwaitingSpawn && size) {
       spawnStartedRef.current = false;
       void spawnPendingSession(size.cols, size.rows);
       return;
@@ -490,7 +492,7 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
     refresh().catch(err => {
       log.error('Retry failed', { sessionId, error: err });
     });
-  }, [refresh, sessionId, spawnPendingSession]);
+  }, [isAwaitingSpawn, refresh, sessionId, spawnPendingSession]);
 
   useEffect(() => {
     if (session) {
@@ -530,7 +532,11 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
     };
   }, [terminalId, isExited, handlePasteShortcut]);
 
-  if (isLoading) {
+  // A reserved session renders the terminal before its shell exists: the panel has to be
+  // laid out and measure itself first, and `spawnPendingSession` needs that size. Showing
+  // the connecting state here would leave the terminal unmounted, so nothing would ever be
+  // measured and the PTY would never be created.
+  if (isLoading && !isAwaitingSpawn) {
     return (
       <div className={`bitfun-terminal ${className}`} data-testid="shell-command-list" data-bitfun-component="terminal-tool" data-bitfun-part="root" data-bitfun-state="loading">
         <div className="bitfun-terminal__loading" data-testid="shell-command-status" data-command-status="loading" data-bitfun-component="terminal-tool" data-bitfun-part="loading">

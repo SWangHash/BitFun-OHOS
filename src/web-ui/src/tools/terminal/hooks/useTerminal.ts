@@ -40,6 +40,14 @@ export interface UseTerminalReturn {
   isConnected: boolean;
   isLoading: boolean;
   error: string | null;
+  /**
+   * The session is reserved but its shell does not exist yet.
+   *
+   * The panel must stay mounted while this is set — it is the only place that can measure
+   * the geometry the shell has to start with — and `spawnPendingSession` creates the PTY
+   * once it reports that size.
+   */
+  isAwaitingSpawn: boolean;
   write: (data: string) => Promise<void>;
   resize: (cols: number, rows: number) => Promise<void>;
   sendCtrlC: () => Promise<void>;
@@ -69,11 +77,16 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isAwaitingSpawn, setIsAwaitingSpawn] = useState(
+    () => Boolean(peekPendingTerminalSpawn(sessionId)),
+  );
 
   const serviceRef = useRef<TerminalService>(getTerminalService());
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const cancelledRef = useRef(false);
   const spawnPromiseRef = useRef<Promise<void> | null>(null);
+  const isAwaitingSpawnRef = useRef(isAwaitingSpawn);
+  isAwaitingSpawnRef.current = isAwaitingSpawn;
 
   // Use refs for callbacks to avoid re-creating handleEvent and re-triggering useEffect
   const onEventRef = useRef(onEvent);
@@ -94,6 +107,11 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
     onReplayRef.current = onReplay;
     onHistoryDimsRef.current = onHistoryDims;
   });
+
+  useEffect(() => {
+    // A panel can be reused for another session; keep the reserved state in step with it.
+    setIsAwaitingSpawn(Boolean(peekPendingTerminalSpawn(sessionId)));
+  }, [sessionId]);
 
   // Stable event handler that uses refs
   const handleEvent = useCallback((event: TerminalEvent) => {
@@ -176,6 +194,7 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
     }
     unsubscribeRef.current = unsubscribe;
 
+    setIsAwaitingSpawn(false);
     setIsLoading(false);
   }, [sessionId, handleEvent]);
 
@@ -199,7 +218,7 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
         // A manual terminal opens before its shell exists: its panel has to measure its
         // own geometry first, and `spawnPendingSession` creates the PTY with that size.
         // Resolving the session here would fail and start the shell at a guessed size.
-        if (peekPendingTerminalSpawn(sessionId)) return;
+        if (isAwaitingSpawnRef.current) return;
 
         await attachToSession();
       } catch (err) {
@@ -227,7 +246,23 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
     if (spawnPromiseRef.current) return spawnPromiseRef.current;
 
     const spawn = takePendingTerminalSpawn(sessionId);
-    if (!spawn) return;
+    if (!spawn) {
+      // Nothing left to create: either this session is already attachable, or its
+      // reservation expired. Attaching makes the second case fail loudly instead of
+      // leaving the panel waiting for a shell that nothing will create any more.
+      if (isAwaitingSpawnRef.current) {
+        try {
+          await attachToSession();
+        } catch (err) {
+          if (!cancelledRef.current) {
+            setError(err instanceof Error ? err.message : 'Terminal session was not created');
+            setIsLoading(false);
+            log.error('Terminal reservation expired before the shell was created', { sessionId, error: err });
+          }
+        }
+      }
+      return;
+    }
 
     const task = (async () => {
       try {
@@ -252,6 +287,7 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
         await attachToSession();
       } catch (err) {
         // Let a retry claim the same intent instead of leaving the tab without a shell.
+        // `isAwaitingSpawn` stays set for the same reason: the shell still does not exist.
         if (!cancelledRef.current) {
           registerPendingTerminalSpawn(sessionId, spawn);
           const message = err instanceof Error ? err.message : 'Terminal creation failed';
@@ -320,6 +356,7 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
     isConnected,
     isLoading,
     error,
+    isAwaitingSpawn,
     write,
     resize,
     sendCtrlC,
