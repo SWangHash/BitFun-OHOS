@@ -89,7 +89,10 @@ export interface CodeEditorProps {
   readOnly?: boolean;
   /** Show line numbers */
   showLineNumbers?: boolean;
-  /** Show minimap */
+  /**
+   * Minimap override for this instance: `true` / `false` forces it on / off.
+   * Omit to follow the user setting (`editor.minimap.enabled`).
+   */
   showMinimap?: boolean;
   /** CSS class name */
   className?: string;
@@ -170,6 +173,24 @@ function isMacOSDesktop(): boolean {
   return isTauri && typeof navigator.platform === 'string' && navigator.platform.toUpperCase().includes('MAC');
 }
 
+/**
+ * Resolve the minimap state: an explicit instance override wins, otherwise the
+ * user setting `editor.minimap.enabled` decides. Large files always hide it.
+ */
+function resolveMinimapEnabled(
+  override: boolean | undefined,
+  configEnabled: boolean | undefined,
+  largeFileMode: boolean
+): boolean {
+  if (largeFileMode) {
+    return false;
+  }
+  if (override !== undefined) {
+    return override;
+  }
+  return configEnabled ?? DEFAULT_EDITOR_CONFIG.minimap.enabled;
+}
+
 const CodeEditor: React.FC<CodeEditorProps> = ({
   filePath: rawFilePath,
   initialContent,
@@ -180,7 +201,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   language = 'plaintext',
   readOnly = false,
   showLineNumbers = true,
-  showMinimap = true,
+  showMinimap,
   className = '',
   onContentChange,
   onSave,
@@ -261,7 +282,11 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     insert_spaces: true,
     word_wrap: 'off',
     line_numbers: 'on',
-    minimap: { enabled: showMinimap, side: 'right', size: 'proportional' }
+    minimap: {
+      enabled: showMinimap ?? DEFAULT_EDITOR_CONFIG.minimap.enabled,
+      side: 'right',
+      size: 'proportional'
+    }
   });
   const isMemoryContent = initialContent !== undefined;
   const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 });
@@ -532,7 +557,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       const newConfig: Partial<EditorConfigType> = {
         ...config,
         minimap: {
-          enabled: showMinimap,
+          enabled: resolveMinimapEnabled(showMinimap, config.minimap?.enabled, largeFileMode),
           side: config.minimap?.side || 'right',
           size: config.minimap?.size || 'proportional'
         }
@@ -555,13 +580,14 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           wordWrap: (config.word_wrap as any) || 'off',
           lineNumbers: config.line_numbers as any || 'on',
           minimap: { 
-            enabled: showMinimap && !largeFileMode,
+            enabled: resolveMinimapEnabled(showMinimap, config.minimap?.enabled, largeFileMode),
             side: (config.minimap?.side as any) || 'right',
             size: (config.minimap?.size as any) || 'proportional'
           },
           cursorStyle: config.cursor_style as any || 'line',
           cursorBlinking: config.cursor_blinking as any || 'blink',
           smoothScrolling: largeFileMode ? false : (config.smooth_scrolling ?? true),
+          scrollBeyondLastLine: config.scroll_beyond_last_line ?? false,
           renderWhitespace: config.render_whitespace as any || 'none',
           renderLineHighlight: config.render_line_highlight as any || 'line',
           bracketPairColorization: { enabled: largeFileMode ? false : (config.bracket_pair_colorization ?? true) },
@@ -740,7 +766,11 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           readOnly: readOnlyRuntimeRef.current,
           lineNumbers: showLineNumbersRuntimeRef.current ? 'on' : (editorConfigRuntimeRef.current.line_numbers as any) || 'on',
           minimap: { 
-            enabled: showMinimapRuntimeRef.current && !initialLargeFileMode,
+            enabled: resolveMinimapEnabled(
+              showMinimapRuntimeRef.current,
+              latestEditorConfigRef.current?.minimap?.enabled ?? editorConfigRuntimeRef.current.minimap?.enabled,
+              initialLargeFileMode
+            ),
             side: (editorConfigRuntimeRef.current.minimap?.side as any) || 'right',
             size: (editorConfigRuntimeRef.current.minimap?.size as any) || 'proportional'
           },
@@ -748,7 +778,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           fontFamily: createFontFamily,
           fontWeight: createFontWeight,
           lineHeight: createLineHeight || (editorConfigRuntimeRef.current.line_height ? Math.round(createFontSize * editorConfigRuntimeRef.current.line_height) : 0),
-          scrollBeyondLastLine: false,
+          scrollBeyondLastLine: editorConfigRuntimeRef.current.scroll_beyond_last_line ?? false,
           wordWrap: (editorConfigRuntimeRef.current.word_wrap as any) || 'off',
           contextmenu: false,
           links: true,
@@ -851,6 +881,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
             fontFamily: c.font_family || DEFAULT_EDITOR_FONT_FAMILY,
             fontWeight: c.font_weight || DEFAULT_EDITOR_FONT_WEIGHT,
             lineHeight: c.line_height ? Math.round(fs * c.line_height) : 0,
+            scrollBeyondLastLine: c.scroll_beyond_last_line ?? false,
           });
         };
         try {

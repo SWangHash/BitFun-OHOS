@@ -151,7 +151,8 @@ export function createCodeEditorTab(
       language: options?.language,
       readOnly: options?.readOnly ?? false,
       showLineNumbers: options?.showLineNumbers ?? true,
-      showMinimap: options?.showMinimap ?? true,
+      // Undefined lets the editor follow the user setting (editor.minimap.enabled).
+      showMinimap: options?.showMinimap,
       jumpToLine: options?.jumpToLine,
       jumpToColumn: options?.jumpToColumn
     },
@@ -258,7 +259,8 @@ export function createGitCodeEditorTab(
       language: options?.language,
       readOnly: options?.readOnly ?? false,
       showLineNumbers: options?.showLineNumbers ?? true,
-      showMinimap: options?.showMinimap ?? true,
+      // Undefined lets the editor follow the user setting (editor.minimap.enabled).
+      showMinimap: options?.showMinimap,
       jumpToLine: options?.jumpToLine,
       jumpToColumn: options?.jumpToColumn,
     },
