@@ -214,6 +214,9 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
   const storedDraft = useAskUserQuestionDraftStore((state) => (
     draftKey ? state.drafts[draftKey] : undefined
   ));
+  const submittedInputOrigins = useAskUserQuestionDraftStore((state) => (
+    draftKey ? state.inputOrigins[draftKey] : undefined
+  ));
   const [localDraft, setLocalDraft] = useState(createEmptyAskUserQuestionDraft);
   const draft = storedDraft ?? localDraft;
   const { answers, otherInputs, submissionPhase } = draft;
@@ -504,6 +507,14 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
         const answer = answers[index];
         const otherInput = otherInputs[index]?.trim() || '';
 
+        if (draftKey && question?.inputPlaceholder && !Array.isArray(answer)) {
+          askUserQuestionDraftStore.getState().setInputOrigin(
+            draftKey,
+            index,
+            otherInput.length > 0,
+          );
+        }
+
         if (Array.isArray(answer)) {
           processedAnswers[answerKey] = answer.flatMap((value) => (
             value === OTHER_OPTION_VALUE
@@ -593,14 +604,17 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
       const knownValues = new Set(question.options.map((option) => option.value));
       const selectedValues: string[] = [];
       const customValues: string[] = [];
+      const answerCameFromInput = answers[questionIndex] === undefined
+        && Boolean(question.inputPlaceholder)
+        && submittedInputOrigins?.[questionIndex] === true;
 
       answerValues.forEach((value) => {
         if (value === OTHER_OPTION_VALUE) {
           selectedValues.push(OTHER_OPTION_VALUE);
-        } else if (knownValues.has(value)) {
+        } else if (!answerCameFromInput && knownValues.has(value)) {
           selectedValues.push(value);
         } else if (value) {
-          if (!selectedValues.includes(OTHER_OPTION_VALUE)) {
+          if (!answerCameFromInput && !selectedValues.includes(OTHER_OPTION_VALUE)) {
             selectedValues.push(OTHER_OPTION_VALUE);
           }
           customValues.push(value);
@@ -616,7 +630,7 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
       answers: nextAnswers as AskUserAnswers,
       customAnswers: nextCustomAnswers,
     };
-  }, [getEffectiveAnswer, otherInputs, questions]);
+  }, [answers, getEffectiveAnswer, otherInputs, questions, submittedInputOrigins]);
 
   const designQuestions = useMemo<AskUserQuestion[]>(
     () => questions.map((question, questionIndex) => ({

@@ -18,6 +18,7 @@ export interface AskUserQuestionDraft {
 
 interface AskUserQuestionDraftState {
   drafts: Record<string, AskUserQuestionDraft>;
+  inputOrigins: Record<string, Record<number, boolean>>;
   setSingleAnswer: (key: string, questionIndex: number, value: string) => void;
   setMultiAnswer: (
     key: string,
@@ -31,6 +32,7 @@ interface AskUserQuestionDraftState {
     value: string,
     preserveOtherSelection?: boolean,
   ) => void;
+  setInputOrigin: (key: string, questionIndex: number, fromInput: boolean) => void;
   setSubmissionPhase: (key: string, phase: AskUserQuestionSubmissionPhase) => void;
   clearDraft: (key: string) => void;
   removeSessionDrafts: (sessionIds: Iterable<string>) => void;
@@ -116,23 +118,35 @@ function removeOtherAnswer(
   return nextAnswers;
 }
 
-function removeMatchingDrafts(
+function pruneKeys<T>(
+  map: Record<string, T>,
+  shouldRemove: (key: string) => boolean,
+): Record<string, T> | null {
+  let next: Record<string, T> | null = null;
+  for (const key of Object.keys(map)) {
+    if (!shouldRemove(key)) continue;
+    next = next ?? { ...map };
+    delete next[key];
+  }
+  return next;
+}
+
+function pruneKeyedState(
   state: AskUserQuestionDraftState,
   shouldRemove: (key: string) => boolean,
-): Pick<AskUserQuestionDraftState, 'drafts'> | AskUserQuestionDraftState {
-  const drafts = { ...state.drafts };
-  let changed = false;
-  for (const key of Object.keys(drafts)) {
-    if (shouldRemove(key)) {
-      delete drafts[key];
-      changed = true;
-    }
-  }
-  return changed ? { drafts } : state;
+): Pick<AskUserQuestionDraftState, 'drafts' | 'inputOrigins'> | AskUserQuestionDraftState {
+  const drafts = pruneKeys(state.drafts, shouldRemove);
+  const inputOrigins = pruneKeys(state.inputOrigins, shouldRemove);
+  if (!drafts && !inputOrigins) return state;
+  return {
+    drafts: drafts ?? state.drafts,
+    inputOrigins: inputOrigins ?? state.inputOrigins,
+  };
 }
 
 export const useAskUserQuestionDraftStore = create<AskUserQuestionDraftState>((set) => ({
   drafts: {},
+  inputOrigins: {},
 
   setSingleAnswer: (key, questionIndex, value) => {
     set(state => updateDraft(state, key, draft => ({
@@ -177,6 +191,19 @@ export const useAskUserQuestionDraftStore = create<AskUserQuestionDraftState>((s
     }));
   },
 
+  setInputOrigin: (key, questionIndex, fromInput) => {
+    set(state => {
+      const current = state.inputOrigins[key];
+      if (current?.[questionIndex] === fromInput) return state;
+      return {
+        inputOrigins: {
+          ...state.inputOrigins,
+          [key]: { ...(current ?? {}), [questionIndex]: fromInput },
+        },
+      };
+    });
+  },
+
   setSubmissionPhase: (key, submissionPhase) => {
     set(state => {
       if (!(key in state.drafts)) {
@@ -206,7 +233,7 @@ export const useAskUserQuestionDraftStore = create<AskUserQuestionDraftState>((s
     if (removedSessionIds.size === 0) {
       return;
     }
-    set(state => removeMatchingDrafts(state, key => {
+    set(state => pruneKeyedState(state, key => {
       const parsed = parseDraftKey(key);
       return parsed !== null
         && parsed[0] === activeSurfaceId
@@ -215,18 +242,23 @@ export const useAskUserQuestionDraftStore = create<AskUserQuestionDraftState>((s
   },
 
   removeSurfaceDrafts: (surfaceId) => {
-    set(state => removeMatchingDrafts(state, key => parseDraftKey(key)?.[0] === surfaceId));
+    set(state => pruneKeyedState(state, key => parseDraftKey(key)?.[0] === surfaceId));
   },
 
   reconcilePendingTools: (surfaceId, sessionId, pendingToolIds) => {
     const retainedToolIds = new Set(pendingToolIds);
-    set(state => removeMatchingDrafts(state, key => {
-      const parsed = parseDraftKey(key);
-      return parsed !== null
-        && parsed[0] === surfaceId
-        && parsed[1] === sessionId
-        && !retainedToolIds.has(parsed[2]);
-    }));
+    // Drafts of tools that are no longer waiting go stale; an input origin does
+    // not — the card it belongs to is exactly the one that stopped waiting.
+    set(state => {
+      const drafts = pruneKeys(state.drafts, key => {
+        const parsed = parseDraftKey(key);
+        return parsed !== null
+          && parsed[0] === surfaceId
+          && parsed[1] === sessionId
+          && !retainedToolIds.has(parsed[2]);
+      });
+      return drafts ? { drafts } : state;
+    });
   },
 }));
 
