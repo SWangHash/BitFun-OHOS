@@ -1,12 +1,14 @@
 /** @vitest-environment jsdom */
-import React, { act } from 'react';
+import React, { act, useSyncExternalStore } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { AccountPanel } from './AccountPanel';
 import { useUpdateInstallStore } from '@/infrastructure/update/updateInstallStore';
+import { AccountIdentityService } from '@/infrastructure/account-identity/AccountIdentityService';
 const mocks = vi.hoisted(() => ({
   identity: { resolved: true, status: 'signed-in', me: { user: { githubId: 42, login: 'alice' } } } as { resolved: boolean; status: string; me: { user: { githubId: number; login: string } } | null },
-  reopenSignIn: vi.fn(),
+  useAccountIdentity: vi.fn(), signIn: vi.fn(), logout: vi.fn(), reopenSignIn: vi.fn(),
+  confirmDanger: vi.fn(), accountDeleteDevice: vi.fn(),
   getDeviceInfo: vi.fn(), accountStatus: vi.fn(), accountLogin: vi.fn(),
   accountRelayCapabilities: vi.fn(), accountUpdateDevice: vi.fn(),
   accountConnectDevices: vi.fn(), accountListDevices: vi.fn(),
@@ -16,7 +18,10 @@ const mocks = vi.hoisted(() => ({
   t: (key: string) => key,
 }));
 const presenceListeners = vi.hoisted(() => [] as Array<(payload: { devices: Array<Record<string, unknown>> }) => void>);
-vi.mock('@/infrastructure/account-identity', () => ({ useAccountIdentity: () => mocks.identity, accountIdentityService: { reopenSignIn: mocks.reopenSignIn } }));
+vi.mock('@/infrastructure/account-identity', () => ({
+  useAccountIdentity: () => mocks.useAccountIdentity(),
+  accountIdentityService: { signIn: mocks.signIn, logout: mocks.logout, reopenSignIn: mocks.reopenSignIn },
+}));
 vi.mock('@/infrastructure/api/service-api/RemoteConnectAPI', async importOriginal => ({ ...await importOriginal<typeof import('@/infrastructure/api/service-api/RemoteConnectAPI')>(), remoteConnectAPI: mocks }));
 vi.mock('@/infrastructure/api/service-api/ApiClient', () => ({
   api: {
@@ -37,11 +42,11 @@ vi.mock('@/infrastructure/peer-device/peerDeviceContextState', () => ({
 vi.mock('@/infrastructure/api/service-api/SystemAPI', () => ({
   systemAPI: { checkForUpdates: mocks.checkForUpdates, installUpdate: mocks.installUpdate },
 }));
-vi.mock('@/infrastructure/confirm-dialog', () => ({ confirmDanger: vi.fn() }));
+vi.mock('@/infrastructure/confirm-dialog', () => ({ confirmDanger: mocks.confirmDanger }));
 vi.mock('@/shared/notification-system', () => ({ useNotification: () => ({ success: vi.fn() }) }));
 vi.mock('@bitfun/ui', () => {
   const Box = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>;
-  const Button = ({ children, onClick, disabled }: { children?: React.ReactNode; onClick?: React.MouseEventHandler<HTMLButtonElement>; disabled?: boolean }) => <button onClick={onClick} disabled={disabled}>{children}</button>;
+  const Button = ({ children, onClick, disabled, loading }: { children?: React.ReactNode; onClick?: React.MouseEventHandler<HTMLButtonElement>; disabled?: boolean; loading?: boolean }) => <button onClick={onClick} disabled={disabled || loading}>{children}</button>;
   const IconButton = ({ 'aria-label': ariaLabel, onClick, disabled }: { 'aria-label'?: string; onClick?: React.MouseEventHandler<HTMLButtonElement>; disabled?: boolean }) => <button aria-label={ariaLabel} onClick={onClick} disabled={disabled} />;
   const Input = ({ value, onChange, onKeyDown, placeholder, 'aria-label': ariaLabel }: { value?: string; onChange?: React.ChangeEventHandler<HTMLInputElement>; onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>; placeholder?: string; 'aria-label'?: string }) => (
     <input aria-label={ariaLabel} onChange={onChange} onKeyDown={onKeyDown} placeholder={placeholder} value={value} />
@@ -54,6 +59,7 @@ beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   vi.resetAllMocks();
   mocks.identity = { resolved: true, status: 'signed-in', me: { user: { githubId: 42, login: 'alice' } } };
+  mocks.useAccountIdentity.mockImplementation(() => mocks.identity);
   mocks.peerMode = { active: false };
   mocks.getDeviceInfo.mockResolvedValueOnce({ device_id: 'local', device_name: 'My computer' })
     .mockImplementation(() => new Promise(() => {}));
@@ -259,6 +265,128 @@ it('lets a pending login reopen its external sign-in page', async () => {
   expect(reopen!.disabled).toBe(false);
   await act(async () => { reopen!.click(); });
   expect(mocks.reopenSignIn).toHaveBeenCalledOnce();
+});
+
+it('signs out the shared identity when removing this device and completes a fresh login', async () => {
+  const profile = { user: { githubId: 42, login: 'alice', avatarUrl: '' }, isAdmin: false };
+  let finishLogout!: () => void;
+  let authorize!: (status: 'authorized') => void;
+  const identityApi = {
+    me: vi.fn().mockResolvedValue(profile),
+    logout: vi.fn(() => new Promise<void>(resolve => { finishLogout = resolve; })),
+    authStart: vi.fn().mockResolvedValue({
+      transactionId: 'new-login', authorizationUrl: 'https://example.com/sign-in',
+      expiresAt: 100, pollIntervalSeconds: 1,
+    }),
+    authPoll: vi.fn(() => new Promise<'authorized'>(resolve => { authorize = resolve; })),
+  };
+  const service = new AccountIdentityService({
+    api: identityApi,
+    openExternal: vi.fn().mockResolvedValue(undefined),
+    syncPort: { publish: () => undefined, subscribe: () => () => undefined },
+    now: () => 0,
+    sleep: () => Promise.resolve(),
+    sourceId: 'account-panel',
+  });
+  mocks.useAccountIdentity.mockImplementation(() => useSyncExternalStore(
+    listener => service.subscribe(listener),
+    () => service.getSnapshot(),
+  ));
+  mocks.logout.mockImplementation(() => service.logout());
+  mocks.signIn.mockImplementation(() => service.signIn());
+  mocks.reopenSignIn.mockImplementation(() => service.reopenSignIn());
+  mocks.confirmDanger.mockResolvedValue(true);
+  mocks.accountDeleteDevice.mockResolvedValue(undefined);
+  mocks.getDeviceInfo.mockReset().mockResolvedValue({ device_id: 'local' });
+  mocks.accountStatus.mockReset().mockResolvedValue({ logged_in: true, user_id: '42' });
+
+  try {
+    await act(async () => { root.render(<AccountPanel onCloseDialog={() => {}} />); });
+    const remove = container.querySelector<HTMLButtonElement>('button[aria-label="accountLogin.removeCurrentDevice: My computer"]');
+    expect(remove).not.toBeNull();
+    await act(async () => { remove!.click(); });
+    expect(mocks.accountDeleteDevice).toHaveBeenCalledWith('local');
+    expect(identityApi.logout).toHaveBeenCalledOnce();
+    expect(container.querySelector('[data-bitfun-view="login"]')).toBeNull();
+    expect(remove!.disabled).toBe(true);
+    await act(async () => { remove!.click(); });
+    expect(mocks.accountDeleteDevice).toHaveBeenCalledOnce();
+
+    identityApi.me.mockResolvedValue(null);
+    mocks.accountStatus.mockResolvedValue({ logged_in: false });
+    mocks.accountLogin.mockResolvedValue({ user_id: '42' });
+    await act(async () => { finishLogout(); });
+    expect(service.getSnapshot()).toMatchObject({ status: 'signed-out', me: null });
+    const login = [...container.querySelectorAll('button')].find(button => button.textContent === 'accountLogin.login');
+    expect(login).toBeDefined();
+    await act(async () => { login!.click(); });
+    expect(service.getSnapshot().status).toBe('authorizing');
+    const reopen = [...container.querySelectorAll('button')].find(button => button.textContent === 'accountLogin.reopen');
+    expect(reopen).toBeDefined();
+    await act(async () => { reopen!.click(); reopen!.click(); });
+    expect(identityApi.authStart).toHaveBeenCalledOnce();
+    expect(mocks.signIn).toHaveBeenCalledOnce();
+
+    identityApi.me.mockResolvedValue(profile);
+    await act(async () => { authorize('authorized'); });
+    expect(service.getSnapshot()).toMatchObject({ status: 'signed-in', me: profile });
+    expect(container.querySelector('[data-bitfun-view="devices"]')).not.toBeNull();
+    expect(container.textContent).toContain('My computer');
+    expect(mocks.accountLogin).toHaveBeenCalledOnce();
+    expect(mocks.accountConnectDevices).toHaveBeenCalledTimes(2);
+  } finally {
+    service.dispose();
+  }
+});
+
+it('retains the shared identity when removing another device', async () => {
+  mocks.confirmDanger.mockResolvedValue(true);
+  mocks.accountDeleteDevice.mockResolvedValue(undefined);
+  mocks.accountListDevices.mockResolvedValueOnce([
+    { device_id: 'local', device_name: 'My computer', online: true },
+    { device_id: 'peer', device_name: 'Other computer', online: true },
+  ]);
+  await act(async () => { root.render(<AccountPanel onCloseDialog={() => {}} />); });
+  const remove = container.querySelector<HTMLButtonElement>('button[aria-label="accountLogin.removeDevice: Other computer"]');
+  expect(remove).not.toBeNull();
+  await act(async () => { remove!.click(); });
+  expect(mocks.accountDeleteDevice).toHaveBeenCalledWith('peer');
+  expect(mocks.logout).not.toHaveBeenCalled();
+  expect(container.querySelector('[data-bitfun-view="devices"]')).not.toBeNull();
+  expect(container.textContent).not.toContain('Other computer');
+});
+
+it.each(['device removal', 'shared logout'])('keeps logout available when %s fails', async failure => {
+  mocks.confirmDanger.mockResolvedValue(true);
+  const message = `${failure} failed`;
+  if (failure === 'device removal') {
+    mocks.accountDeleteDevice.mockRejectedValue(new Error(message));
+  } else {
+    mocks.accountDeleteDevice.mockResolvedValue(undefined);
+    mocks.logout.mockRejectedValue(new Error(message));
+  }
+  await act(async () => { root.render(<AccountPanel onCloseDialog={() => {}} />); });
+  const remove = container.querySelector<HTMLButtonElement>('button[aria-label="accountLogin.removeCurrentDevice: My computer"]');
+  expect(remove).not.toBeNull();
+  await act(async () => { remove!.click(); });
+  expect(mocks.logout).toHaveBeenCalledTimes(failure === 'device removal' ? 0 : 1);
+  expect(container.textContent).toContain(message);
+  expect(container.querySelector('[data-bitfun-view="login"]')).toBeNull();
+  const logout = [...container.querySelectorAll('button')].find(button => button.textContent === 'accountLogin.logout');
+  expect(logout).toBeDefined();
+  expect(logout!.disabled).toBe(false);
+});
+
+it('keeps the current device and shared identity when removal is cancelled', async () => {
+  mocks.confirmDanger.mockResolvedValue(false);
+  await act(async () => { root.render(<AccountPanel onCloseDialog={() => {}} />); });
+  const remove = container.querySelector<HTMLButtonElement>('button[aria-label="accountLogin.removeCurrentDevice: My computer"]');
+  expect(remove).not.toBeNull();
+  await act(async () => { remove!.click(); });
+  expect(mocks.accountDeleteDevice).not.toHaveBeenCalled();
+  expect(mocks.logout).not.toHaveBeenCalled();
+  expect(container.textContent).toContain('alice');
+  expect(remove!.disabled).toBe(false);
 });
 
 it('shows explicit old Relay capability state before any mutation', async () => {
