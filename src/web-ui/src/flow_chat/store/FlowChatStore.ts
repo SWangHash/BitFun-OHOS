@@ -8444,6 +8444,22 @@ export class FlowChatStore {
               );
               notifyHydratingState();
               const restored = await restoredPromise;
+              // Skip heavy response processing if this session is no longer the
+              // active one (user switched to another session during the invoke).
+              // On OHOS, withOhosFetchLock serializes invokes, so the response
+              // may arrive long after the user has moved on. Processing the
+              // response (turn parsing, Map copies, React re-renders) would
+              // block the JS event loop for 1-2 seconds for nothing.
+              if (this.state.activeSessionId !== sessionId && !options?.deferFullHistoryUntilActive) {
+                startupTrace.markPhase('historical_session_restore_superseded', {
+                  remote,
+                  sessionId,
+                  sessionTraceId,
+                  activeSessionId: this.state.activeSessionId,
+                  durationMs: elapsedMs(restoreStartedAt),
+                });
+                return;
+              }
               restoredSessionInfo = restored.session;
               turns = restored.turns;
               contextRestoreState =

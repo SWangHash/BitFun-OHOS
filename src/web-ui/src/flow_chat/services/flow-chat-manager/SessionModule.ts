@@ -66,6 +66,16 @@ export const SESSION_ACTIVITY_TOUCH_DELAY_MS = 350;
 let latestSwitchRequestId = 0;
 let pendingActivityTouchTimer: ReturnType<typeof setTimeout> | null = null;
 
+// Debounce rapid session switches: on OHOS, withOhosFetchLock serializes all
+// invoke calls, so rapid clicks queue multiple restore_session_view invokes
+// that block the IPC chain even though most will be superseded. A 150ms
+// debounce ensures only the last click triggers the actual restore.
+const SWITCH_DEBOUNCE_MS = 50;
+let pendingSwitchTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingSwitchSessionId: string | null = null;
+let pendingSwitchResolve: (() => void) | null = null;
+let pendingSwitchReject: ((error: unknown) => void) | null = null;
+
 function scheduleSessionActivityTouch(scope: SurfaceScope, task: () => void): void {
   if (pendingActivityTouchTimer !== null) {
     clearTimeout(pendingActivityTouchTimer);
@@ -507,6 +517,46 @@ export async function switchChatSession(
   context: FlowChatContext,
   sessionId: string,
   isStillRelevant: () => boolean = () => true,
+): Promise<void> {
+  // Debounce rapid switches to avoid queuing multiple restore_session_view
+  // invokes that would be superseded anyway. Only the last switch within
+  // SWITCH_DEBOUNCE_MS is actually executed.
+  if (pendingSwitchTimer !== null) {
+    clearTimeout(pendingSwitchTimer);
+    pendingSwitchSessionId = null;
+    if (pendingSwitchResolve) {
+      pendingSwitchResolve();
+      pendingSwitchResolve = null;
+    }
+    if (pendingSwitchReject) {
+      pendingSwitchReject = null;
+    }
+  }
+  pendingSwitchSessionId = sessionId;
+  return new Promise<void>((resolve, reject) => {
+    pendingSwitchResolve = resolve;
+    pendingSwitchReject = reject;
+    pendingSwitchTimer = setTimeout(() => {
+      pendingSwitchTimer = null;
+      const targetSessionId = pendingSwitchSessionId;
+      pendingSwitchSessionId = null;
+      pendingSwitchResolve = null;
+      pendingSwitchReject = null;
+      if (!targetSessionId) {
+        resolve();
+        return;
+      }
+      switchChatSessionInternal(context, targetSessionId, isStillRelevant)
+        .then(resolve)
+        .catch(reject);
+    }, SWITCH_DEBOUNCE_MS);
+  });
+}
+
+async function switchChatSessionInternal(
+  context: FlowChatContext,
+  sessionId: string,
+  isStillRelevant: () => boolean,
 ): Promise<void> {
   const surfaceScope = getActiveSurfaceScope();
   try {
