@@ -1905,6 +1905,12 @@ pub async fn remote_connect_start(
 ) -> Result<ConnectionResult, String> {
     ensure_service().await?;
     let method = parse_connection_method(&request.method, request.lan_ip)?;
+    if matches!(method, ConnectionMethod::Lan { .. }) && detect_mobile_web_dir().is_none() {
+        return Err(
+            "Remote Connect web resources are unavailable. Reinstall a complete application package."
+                .to_string(),
+        );
+    }
     let _start_stop = RELAY_START_STOP_LOCK.lock().await;
     if matches!(
         method,

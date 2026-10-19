@@ -3,6 +3,26 @@
 This directory owns the ArkTS host and platform bridges. Follow the root
 `AGENTS.md` for shared product behavior and Windows/WSL build boundaries.
 
+## Remote Connect web resources
+
+The desktop frontend lives in `resources/resfile/dist`; the browser remote
+controller lives separately in `resources/resfile/mobile-web/dist`. The
+`remote-web` Hvigor plugin stages and verifies both existing frontend outputs for
+pipeline and staged local HAP assembly. Before PreBuild it replaces both resource
+directories from the repository's `dist` and `src/mobile-web/dist`, so packaging
+does not depend on an external script's resource-copy layout. Never serve the
+desktop frontend as the LAN pairing page or replace it with the controller bundle.
+
+Run `pnpm run prepare:mobile-web` before native HarmonyOS compilation: Tauri
+validates that resource directory before Hvigor runs. The packaging pipeline
+also builds it before compiling Rust. Build the desktop frontend before HAP
+assembly as well. The Hvigor plugin only stages these outputs; it does not build
+either frontend or require changes to the external packaging script.
+
+Run `node --test scripts/ohos-remote-web-resources.test.mjs` for resource isolation,
+stale asset replacement, and final HAP integrity. Use a HarmonyOS build to verify
+the Hvigor task integration and the native resource lookup.
+
 ## Secure credential bridge
 
 `SecureCredentialStore.ets` returns Base64 secret bytes to Rust. The legacy

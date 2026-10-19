@@ -934,7 +934,7 @@ export const RemoteConnectDialog: React.FC<RemoteConnectDialogProps> = ({
         value={selectedLanIp}
         onValueChange={(value) => setSelectedLanIp(String(value))}
         options={(lanNetworkInfo?.availableIps ?? []).map(entry => ({
-          label: `${entry.ip} ??${entry.interface_name}`, value: entry.ip,
+          label: `${entry.ip} (${entry.interface_name})`, value: entry.ip,
         }))}
       />}
       invitation={invitation}
