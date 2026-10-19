@@ -532,7 +532,13 @@ const AssistantDefaultsPage: React.FC = () => {
     setResetting(true);
     setSaveState('saving');
     try {
+      // Product defaults span two stores: the agent profile owns the tool
+      // selection, while Skill availability is stored as mode Skill overrides
+      // that the profile reset deliberately preserves. Resetting only the
+      // profile restored the tool switches and left every Skill switch
+      // untouched.
       await configAPI.resetAgentProfileConfig(ASSISTANT_MODE_ID);
+      await configAPI.resetModeSkillSelection({ modeId: ASSISTANT_MODE_ID });
       const [modeConf, skills] = await Promise.all([
         configAPI.getAgentProfileConfig(ASSISTANT_MODE_ID),
         configAPI.getModeSkillConfigs({ modeId: ASSISTANT_MODE_ID }),
