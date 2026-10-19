@@ -813,12 +813,14 @@ impl DesktopSessionApplication {
     where
         F: FnOnce(u64) + Send,
     {
+        let perf_start = Instant::now();
         let path_started_at = Instant::now();
         let scope = self.resolved_scope(request).await?;
         let storage_path = self.storage_path(&scope);
         let resolve_storage_path_duration_ms =
             path_started_at.elapsed().as_millis().min(u64::MAX as u128) as u64;
         on_storage_path_resolved(resolve_storage_path_duration_ms);
+        let restore_start = Instant::now();
         let (mut session, turns, total_turn_count, turn_catalog, mut timings) = self
             .compatibility
             .restore_session_view_from_storage_path(
@@ -829,6 +831,8 @@ impl DesktopSessionApplication {
             )
             .await
             .map_err(|error| DesktopSessionApplicationError::Core(error.to_string()))?;
+        let restore_ms = restore_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
+        let metadata_start = Instant::now();
         let live_session = self
             .compatibility
             .loaded_session_snapshot(session_id)
@@ -844,7 +848,13 @@ impl DesktopSessionApplication {
             .await
             .map_err(desktop_core_session_error)?
             .and_then(|metadata| metadata.current_context_usage);
+        let metadata_ms = metadata_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
         timings.resolve_storage_path_duration_ms = resolve_storage_path_duration_ms;
+        let total_ms = perf_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
+        log::info!(
+            "session_perf restore_session_view phase=resolve_scope duration_ms={} phase=restore_from_storage duration_ms={} phase=metadata_read duration_ms={} total_duration_ms={} session_id={}",
+            resolve_storage_path_duration_ms, restore_ms, metadata_ms, total_ms, session_id
+        );
         Ok(DesktopSessionViewRestore {
             session,
             turns,

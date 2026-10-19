@@ -25,6 +25,8 @@ impl PersistenceManager {
         workspace_path: &Path,
         request: &SessionBranchRequest,
     ) -> BitFunResult<SessionBranchResult> {
+        use std::time::Instant;
+        let perf_start = Instant::now();
         bitfun_core_types::validate_session_id(&request.source_session_id)
             .map_err(BitFunError::Validation)?;
         let branch_allocation_lock = self
@@ -259,6 +261,12 @@ impl PersistenceManager {
                 .await;
             return Err(error);
         }
+
+        let total_ms = perf_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
+        log::info!(
+            "session_perf fork_session total_duration_ms={} source_session_id={} target_session_id={}",
+            total_ms, request.source_session_id, target_session_id
+        );
 
         Ok(SessionBranchResult {
             session_id: target_session_id,

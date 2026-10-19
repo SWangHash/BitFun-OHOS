@@ -2736,10 +2736,14 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         created_by: Option<String>,
         transient: bool,
     ) -> BitFunResult<Session> {
+        let perf_start = Instant::now();
         // Persist the workspace binding inside the session config so execution can
         // consistently restore the correct workspace regardless of the entry point.
         config.workspace_path = Some(workspace_path.clone());
         crate::agentic::workspace::normalize_session_workspace(&mut config).await?;
+        let normalize_ms = perf_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
+        info!("session_perf create_session phase=normalize_workspace duration_ms={}", normalize_ms);
+        let resolve_agent_start = Instant::now();
         self.ensure_runtime_ownership(
             Path::new(&workspace_path),
             config.remote_connection_id.as_deref(),
@@ -2760,6 +2764,8 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             expected_route_key.as_deref(),
         )
         .await?;
+        let resolve_agent_ms = resolve_agent_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
+        info!("session_perf create_session phase=resolve_primary_agent duration_ms={}", resolve_agent_ms);
         config.agent_route_owner = primary_agent_binding.route_owner;
         config.agent_route_key = primary_agent_binding.route_key.clone();
         apply_primary_agent_model_default(
@@ -2768,6 +2774,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         );
         let defaults = Self::agent_model_defaults().await;
         snapshot_normal_session_model(&mut config, &defaults);
+        let session_create_start = Instant::now();
         let session = if transient {
             self.session_manager
                 .create_transient_session_with_id_and_details(
@@ -2790,7 +2797,10 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 )
                 .await?
         };
+        let session_create_ms = session_create_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
+        info!("session_perf create_session phase=session_manager_create duration_ms={}", session_create_ms);
 
+        let track_start = Instant::now();
         if !transient {
             Self::track_session_workspace_activity_best_effort(
                 &session.config,
@@ -2799,6 +2809,8 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             )
             .await;
         }
+        let track_ms = track_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
+        info!("session_perf create_session phase=track_workspace_activity duration_ms={}", track_ms);
 
         // SessionManager::create_session_with_id_and_creator already persists the
         // session into the effective workspace session storage path. Avoid writing
@@ -2818,7 +2830,12 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             remote_ssh_host: session.config.remote_ssh_host.clone(),
         })
         .await;
+        let hooks_start = Instant::now();
         Self::dispatch_session_start_hooks(&session, "startup").await;
+        let hooks_ms = hooks_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
+        info!("session_perf create_session phase=dispatch_session_start_hooks duration_ms={}", hooks_ms);
+        let total_ms = perf_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
+        info!("session_perf create_session total_duration_ms={} session_id={}", total_ms, session.session_id);
         Ok(session)
     }
 

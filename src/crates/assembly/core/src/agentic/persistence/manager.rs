@@ -2580,7 +2580,13 @@ impl PersistenceManager {
                 .clone()
                 .filter(|host| host != LOCAL_WORKSPACE_SSH_HOST && host != "_unresolved");
         }
-        crate::agentic::workspace::normalize_session_workspace(&mut config).await?;
+        // Only run workspace normalization for sessions that lack a resolved
+        // workspace_id (legacy sessions created before the workspace-id rework).
+        // Sessions created or already migrated have workspace_id set, making
+        // this call a pure no-op of 2-3 async workspace lookups every restore.
+        if config.workspace_id.is_none() && config.project_workspace_id.is_none() {
+            crate::agentic::workspace::normalize_session_workspace(&mut config).await?;
+        }
         if config.model_id.is_none() && !metadata.model_name.is_empty() {
             config.model_id = Some(metadata.model_name.clone());
         }
@@ -2667,6 +2673,17 @@ impl PersistenceManager {
         session_id: &str,
     ) -> BitFunResult<(Session, Vec<DialogTurnData>, SessionTurnLoadTiming)> {
         Self::validate_session_id(session_id)?;
+        self.load_session_with_turns_timed_internal(workspace_path, session_id, None)
+            .await
+    }
+
+    pub(crate) async fn load_session_with_turns_timed_internal(
+        &self,
+        workspace_path: &Path,
+        session_id: &str,
+        preloaded_metadata: Option<SessionMetadata>,
+    ) -> BitFunResult<(Session, Vec<DialogTurnData>, SessionTurnLoadTiming)> {
+        Self::validate_session_id(session_id)?;
         let request = SessionTurnLoadRequest {
             workspace_path: workspace_path.to_path_buf(),
             session_id: session_id.to_string(),
@@ -2674,18 +2691,19 @@ impl PersistenceManager {
         };
         let started_at = Instant::now();
         let metadata_started_at = Instant::now();
-        let metadata = self
-            .load_session_metadata(&request.workspace_path, &request.session_id)
-            .await?
-            .ok_or_else(|| {
-                BitFunError::NotFound(format!(
-                    "Session metadata not found: {}",
-                    request.session_id
-                ))
-            })?;
-        let metadata_duration_ms = elapsed_ms_u64(metadata_started_at);
-
-        let state_started_at = Instant::now();
+        let metadata = if let Some(metadata) = preloaded_metadata {
+            metadata
+        } else {
+            self.load_session_metadata(&request.workspace_path, &request.session_id)
+                .await?
+                .ok_or_else(|| {
+                    BitFunError::NotFound(format!(
+                        "Session metadata not found: {}",
+                        request.session_id
+                    ))
+                })?
+        };
+        let metadata_duration_ms = elapsed_ms_u64(metadata_started_at);        let state_started_at = Instant::now();
         let stored_state = self
             .load_stored_session_state(&request.workspace_path, &request.session_id)
             .await?;
@@ -2766,6 +2784,23 @@ impl PersistenceManager {
         tail_turn_count: usize,
     ) -> BitFunResult<(Session, Vec<DialogTurnData>, usize, SessionTurnLoadTiming)> {
         Self::validate_session_id(session_id)?;
+        self.load_session_with_tail_turns_timed_internal(
+            workspace_path,
+            session_id,
+            tail_turn_count,
+            None,
+        )
+        .await
+    }
+
+    pub(crate) async fn load_session_with_tail_turns_timed_internal(
+        &self,
+        workspace_path: &Path,
+        session_id: &str,
+        tail_turn_count: usize,
+        preloaded_metadata: Option<SessionMetadata>,
+    ) -> BitFunResult<(Session, Vec<DialogTurnData>, usize, SessionTurnLoadTiming)> {
+        Self::validate_session_id(session_id)?;
         let request = SessionTurnLoadRequest {
             workspace_path: workspace_path.to_path_buf(),
             session_id: session_id.to_string(),
@@ -2773,15 +2808,18 @@ impl PersistenceManager {
         };
         let started_at = Instant::now();
         let metadata_started_at = Instant::now();
-        let metadata = self
-            .load_session_metadata(&request.workspace_path, &request.session_id)
-            .await?
-            .ok_or_else(|| {
-                BitFunError::NotFound(format!(
-                    "Session metadata not found: {}",
-                    request.session_id
-                ))
-            })?;
+        let metadata = if let Some(metadata) = preloaded_metadata {
+            metadata
+        } else {
+            self.load_session_metadata(&request.workspace_path, &request.session_id)
+                .await?
+                .ok_or_else(|| {
+                    BitFunError::NotFound(format!(
+                        "Session metadata not found: {}",
+                        request.session_id
+                    ))
+                })?
+        };
         let metadata_duration = metadata_started_at.elapsed();
 
         let state_started_at = Instant::now();

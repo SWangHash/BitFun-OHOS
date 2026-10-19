@@ -88,10 +88,12 @@ impl AgentRegistry {
         roots: &CustomAgentDiscoveryRoots,
     ) {
         let mut state = self.custom_load_state.lock().await;
-        state.prepare(roots).await;
-        state.published = false;
-        self.scan_custom_agents(workspace_id, roots).await;
-        state.published = true;
+        let dirty = state.prepare(roots).await;
+        if dirty {
+            state.published = false;
+            self.scan_custom_agents(workspace_id, roots).await;
+            state.published = true;
+        }
     }
 
     async fn scan_custom_agents(

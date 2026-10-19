@@ -652,6 +652,14 @@ impl WorkspaceService {
             Some(tree) => Some(self.register_worktree_project(tree).await?),
             None => None,
         };
+        // Snapshot the structural activity data before touching. If only the
+        // last_activity_at timestamp changed (the common case when creating
+        // multiple sessions in the same workspace), skip the expensive full
+        // catalog clone + serialize + disk write.
+        let pre_recent = {
+            let manager = self.manager.read().await;
+            manager.get_recent_workspaces().clone()
+        };
         let result = self
             .manager
             .write()
@@ -663,11 +671,17 @@ impl WorkspaceService {
                 .await;
         }
         if result.is_ok() {
-            if let Err(e) = self.save_workspace_data().await {
-                warn!(
-                    "Failed to save workspace data after tracking activity: {}",
-                    e
-                );
+            let post_recent = {
+                let manager = self.manager.read().await;
+                manager.get_recent_workspaces().clone()
+            };
+            if pre_recent != post_recent {
+                if let Err(e) = self.save_workspace_data().await {
+                    warn!(
+                        "Failed to save workspace data after tracking activity: {}",
+                        e
+                    );
+                }
             }
         }
         result
