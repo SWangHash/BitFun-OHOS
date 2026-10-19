@@ -5,6 +5,7 @@ import {
   handleSessionHistoryChanged,
   handleSessionStateChanged,
   insertSteeringItemIfAbsent,
+  initializeEventListeners,
   isAppWindowFocused,
   projectDialogTurnRecovered,
   shouldProcessEvent,
@@ -22,6 +23,8 @@ import type { FlowChatContext } from './types';
 import { markOptimisticDispatchTurnMetadata } from '@/features/dispatch/optimisticDispatchTurn';
 import { interruptedTurnRecoveryGate } from '../interruptedTurnRecoveryGate';
 import { agentAPI } from '@/infrastructure/api/service-api/AgentAPI';
+import { api } from '@/infrastructure/api/service-api/ApiClient';
+import { agenticEventListener } from '../AgenticEventListener';
 import { localSessionDriver } from '../../session-drivers/local/LocalSessionDriver';
 import { chatInputSessionSubscriptionKey } from '../../utils/chatInputSessionSubscription';
 import { selectInterruptedTurnRecovery } from '../../utils/interruptedTurnRecovery';
@@ -40,6 +43,35 @@ vi.mock('../../../shared/notification-system/services/NotificationService', () =
     success: vi.fn(),
   },
 }));
+
+describe('FlowChat native listener readiness', () => {
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it('cleans up failed registrations before a successful retry', async () => {
+    const unlisteners: Array<ReturnType<typeof vi.fn>> = [];
+    vi.spyOn(api, 'listen').mockImplementation(() => {
+      const unlisten = vi.fn();
+      unlisteners.push(unlisten);
+      return unlisten;
+    });
+    vi.spyOn(agenticEventListener, 'startListening').mockResolvedValue();
+    const stopListening = vi.spyOn(agenticEventListener, 'stopListening').mockImplementation(() => {});
+    const failure = new Error('Native event registration failed');
+    vi.spyOn(api, 'waitForListenerRegistrations').mockRejectedValueOnce(failure).mockResolvedValue();
+
+    await expect(initializeEventListeners({} as FlowChatContext, vi.fn())).rejects.toBe(failure);
+    expect(unlisteners.length).toBeGreaterThan(0);
+    for (const unlisten of unlisteners) expect(unlisten).toHaveBeenCalledTimes(1);
+    expect(stopListening).toHaveBeenCalledTimes(1);
+
+    const failedCount = unlisteners.length;
+    const cleanup = await initializeEventListeners({} as FlowChatContext, vi.fn());
+    for (const unlisten of unlisteners.slice(failedCount)) expect(unlisten).not.toHaveBeenCalled();
+    cleanup();
+    for (const unlisten of unlisteners) expect(unlisten).toHaveBeenCalledTimes(1);
+    expect(stopListening).toHaveBeenCalledTimes(2);
+  });
+});
 
 describe('isAppWindowFocused', () => {
   it('returns true when no document is available', () => {

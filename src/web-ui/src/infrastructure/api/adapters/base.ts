@@ -14,6 +14,7 @@ export interface ITransportAdapter {
   /**
    * Resolves after listener registration requests already issued to the
    * transport have settled. Synchronous transports can keep the default no-op.
+   * Rejects if an active subscription could not be registered.
    */
   waitForListenerRegistrations?(): Promise<void>;
 

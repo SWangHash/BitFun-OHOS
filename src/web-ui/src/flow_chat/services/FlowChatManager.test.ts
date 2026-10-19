@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FlowChatManager } from './FlowChatManager';
 import {
   activateSurface,
@@ -9,7 +9,7 @@ import {
 } from '@/infrastructure/peer-device/deviceSurface';
 
 const storeMocks = vi.hoisted(() => ({
-  store: {} as any,
+  store: { registerPersistUnreadCompletionCallback: vi.fn() } as any,
   initializeEventListeners: vi.fn(),
   switchChatSession: vi.fn(),
   createAcpSession: vi.fn(),
@@ -31,7 +31,7 @@ vi.mock('./flow-chat-manager/PeerSessionRefreshModule', () => ({
   installPeerSessionRefresh: vi.fn(() => () => {}),
 }));
 
-vi.mock('@/features/dispatch/DispatchJobObserver', () => ({
+vi.mock('../session-drivers/dispatch/install', () => ({
   installDispatchJobObserver: vi.fn(() => () => {}),
 }));
 
@@ -109,6 +109,21 @@ vi.mock('./flow-chat-manager', () => ({
   updateSessionMetadata: vi.fn(),
 }));
 
+vi.mock('./sessionNavStatusService', () => ({
+  installSessionNavStatusService: vi.fn(() => () => {}),
+  sessionNavStatusService: { clearSurface: vi.fn() },
+}));
+
+vi.mock('@/infrastructure/api/service-api/CronAPI', () => ({
+  cronAPI: { notifyHostReady: vi.fn(async () => {}) },
+}));
+
+afterEach(() => { FlowChatManager.disposeInstance(); });
+
+function workspace(rootPath: string, connectionId?: string, sshHost?: string) {
+  return { id: connectionId ? `${connectionId}:${rootPath}` : rootPath, rootPath, connectionId, sshHost };
+}
+
 function createDeferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (reason?: unknown) => void;
@@ -126,7 +141,9 @@ async function flushAsyncWork(): Promise<void> {
 }
 
 function createHistoricalSession(overrides: Record<string, unknown> = {}) {
+  const rootPath = 'workspacePath' in overrides ? overrides.workspacePath : 'D:/workspace/BitFun';
   return {
+    workspaceId: rootPath ? workspace(rootPath as string, overrides.remoteConnectionId as string | undefined).id : undefined,
     sessionId: 'history-1',
     title: 'History 1',
     dialogTurns: [],
@@ -159,7 +176,7 @@ describe('FlowChatManager initialization', () => {
   });
 
   it('flushes and destroys the batcher when the singleton is disposed', () => {
-    storeMocks.store = {};
+    storeMocks.store = { registerPersistUnreadCompletionCallback: vi.fn() };
 
     const manager = FlowChatManager.getInstance();
     const batcher = storeMocks.eventBatchers[0];
@@ -184,7 +201,7 @@ describe('FlowChatManager initialization', () => {
     storeMocks.saveSessionMetadata.mockResolvedValue(undefined);
     const manager = FlowChatManager.getInstance();
     try {
-      await expect(manager.createAcpChatSession('test-client', { workspacePath: '/repo' })).resolves.toBe('acp-created');
+      await expect(manager.createAcpChatSession('test-client', { workspaceId: 'repo', workspacePath: '/repo' })).resolves.toBe('acp-created');
       expect(storeMocks.createAcpSession).toHaveBeenCalledTimes(1);
       const name = storeMocks.createAcpSession.mock.calls[0][0].sessionName;
       expect(storeMocks.store.createSession).toHaveBeenCalledWith(
@@ -199,6 +216,7 @@ describe('FlowChatManager initialization', () => {
 
   it('creates one empty Claw session when reinitializing a reset workspace', async () => {
     storeMocks.store = {
+      registerPersistUnreadCompletionCallback: vi.fn(),
       removeSessionsForWorkspace: vi.fn(() => []),
       getState: () => ({ activeSessionId: null, sessions: new Map() }),
     };
@@ -209,7 +227,7 @@ describe('FlowChatManager initialization', () => {
     await manager.resetWorkspaceSessions({ id: 'assistant', rootPath: '/assistants/default' }, {
       reinitialize: true, preferredMode: 'Claw',
     });
-    expect(initialize).toHaveBeenCalledWith('/assistants/default', 'Claw', undefined, undefined);
+    expect(initialize).toHaveBeenCalledWith({ id: 'assistant', rootPath: '/assistants/default' }, 'Claw');
     expect(create).toHaveBeenCalledExactlyOnceWith({ workspacePath: '/assistants/default', workspaceId: 'assistant' }, 'Claw');
     expect(send).not.toHaveBeenCalled();
     manager.destroy();
@@ -239,10 +257,10 @@ describe('FlowChatManager initialization', () => {
       };
       const manager = FlowChatManager.getInstance();
 
-      await expect(manager.initialize('/target', 'Claw',
+      await expect(manager.initialize(workspace('/target',
         kind === 'other-remote-host' ? 'ssh-user@target' : undefined,
         kind === 'other-remote-host' ? 'target' : undefined,
-      )).resolves.toBe(false);
+      ), 'Claw')).resolves.toBe(false);
 
       expect(state.activeSessionId).toBeNull();
       expect(state.sessions.get('previous')).toBe(previous);
@@ -265,7 +283,7 @@ describe('FlowChatManager initialization', () => {
     };
     const manager = FlowChatManager.getInstance();
 
-    await expect(manager.initialize(archived.workspacePath)).resolves.toBe(false);
+    await expect(manager.initialize(workspace(archived.workspacePath))).resolves.toBe(false);
 
     expect(state.activeSessionId).toBeNull();
     expect(state.sessions.get(archived.sessionId)).toBe(archived);
@@ -285,7 +303,7 @@ describe('FlowChatManager initialization', () => {
       loadSessionHistory: vi.fn(() => history.promise),
     };
     const manager = FlowChatManager.getInstance();
-    const initialization = manager.initialize(session.workspacePath);
+    const initialization = manager.initialize(workspace(session.workspacePath));
     await vi.waitFor(() => expect(storeMocks.store.loadSessionHistory).toHaveBeenCalled());
     if (mutation === 'deleted') {
       state.sessions.delete(session.sessionId);
@@ -302,6 +320,7 @@ describe('FlowChatManager initialization', () => {
   it('restores a worktree session through its project workspace scope', async () => {
     const session = createHistoricalSession({
       workspacePath: '/worktrees/task', projectWorkspacePath: '/project',
+      projectWorkspaceId: workspace('/project', 'ssh-user@server', 'server').id,
       workspaceHostname: 'server',
     });
     storeMocks.store = {
@@ -314,13 +333,13 @@ describe('FlowChatManager initialization', () => {
     };
     const manager = FlowChatManager.getInstance();
 
-    await expect(manager.initialize('/project', undefined, 'ssh-user@server', 'server')).resolves.toBe(true);
+    await expect(manager.initialize(workspace('/project', 'ssh-user@server', 'server'))).resolves.toBe(true);
     expect(storeMocks.store.switchSession).toHaveBeenCalledWith(session.sessionId);
     manager.destroy();
   });
 
   it('runs listener cleanup if disposal wins the initialization race', async () => {
-    storeMocks.store = {};
+    storeMocks.store = { registerPersistUnreadCompletionCallback: vi.fn() };
     const listenerInitialization = createDeferred<() => void>();
     const cleanup = vi.fn();
     storeMocks.initializeEventListeners.mockReturnValue(listenerInitialization.promise);
@@ -354,14 +373,14 @@ describe('FlowChatManager initialization', () => {
     };
 
     const manager = FlowChatManager.getInstance();
-    const initialize = manager.initialize('D:/workspace/BitFun');
+    const initialize = manager.initialize(workspace('D:/workspace/BitFun'));
 
     await flushAsyncWork();
     manager.destroy();
     listenerInitialization.resolve(vi.fn());
 
     await expect(initialize).resolves.toBe(false);
-    expect(storeMocks.store.registerPersistUnreadCompletionCallback).not.toHaveBeenCalled();
+    expect(storeMocks.store.registerPersistUnreadCompletionCallback).toHaveBeenCalledTimes(1);
     expect(storeMocks.store.loadSessionMetadataPage).not.toHaveBeenCalled();
   });
 
@@ -392,8 +411,8 @@ describe('FlowChatManager initialization', () => {
     };
 
     const manager = FlowChatManager.getInstance();
-    const firstInitialize = manager.initialize('D:/workspace/BitFun');
-    const secondInitialize = manager.initialize('D:/workspace/BitFun');
+    const firstInitialize = manager.initialize(workspace('D:/workspace/BitFun'));
+    const secondInitialize = manager.initialize(workspace('D:/workspace/BitFun'));
 
     await flushAsyncWork();
 
@@ -411,6 +430,42 @@ describe('FlowChatManager initialization', () => {
     expect(storeMocks.store.loadSessionHistory).toHaveBeenCalledTimes(1);
     expect(storeMocks.store.switchSession).toHaveBeenCalledTimes(1);
     expect(storeMocks.store.switchSession).toHaveBeenCalledWith('history-1');
+  });
+
+  it.each(['subscription', 'history'])('clears a failed %s initialization so the workspace can recover', async stage => {
+    const failure = new Error('Host not ready');
+    const loadSessionMetadataPage = vi.fn().mockResolvedValue({ sessions: [], hasMore: false });
+    storeMocks.store = {
+      registerPersistUnreadCompletionCallback: vi.fn(),
+      loadSessionMetadataPage,
+      getState: () => ({ sessions: new Map(), activeSessionId: null }),
+    };
+    if (stage === 'subscription') {
+      storeMocks.initializeEventListeners.mockRejectedValueOnce(failure);
+    } else {
+      loadSessionMetadataPage.mockRejectedValueOnce(failure);
+    }
+    const manager = FlowChatManager.getInstance();
+    await expect(manager.initialize(workspace('/project'))).rejects.toBe(failure);
+    expect((manager as any).initializationRequests.size).toBe(0);
+    await expect(manager.initialize(workspace('/project'))).resolves.toBe(false);
+    expect(storeMocks.initializeEventListeners).toHaveBeenCalledTimes(stage === 'subscription' ? 2 : 1);
+    expect((manager as any).context.currentWorkspacePath).toBe('/project');
+  });
+
+  it('does not start a history read on another device when listener setup was pending', async () => {
+    const listeners = createDeferred<() => void>();
+    storeMocks.initializeEventListeners.mockReturnValueOnce(listeners.promise);
+    storeMocks.store = {
+      registerPersistUnreadCompletionCallback: vi.fn(),
+      loadSessionMetadataPage: vi.fn(),
+    };
+    const manager = FlowChatManager.getInstance();
+    const initialization = manager.initialize(workspace('/project'));
+    activateSurface('other-device');
+    listeners.resolve(vi.fn());
+    await expect(initialization).rejects.toSatisfy(isSurfaceChangedError);
+    expect(storeMocks.store.loadSessionMetadataPage).not.toHaveBeenCalled();
   });
 
   it('does not overwrite a user-selected workspace session after initial history restore completes', async () => {
@@ -450,15 +505,11 @@ describe('FlowChatManager initialization', () => {
     };
 
     const manager = FlowChatManager.getInstance();
-    const initialize = manager.initialize('D:/workspace/BitFun');
+    const initialize = manager.initialize(workspace('D:/workspace/BitFun'));
 
     await flushAsyncWork();
     expect(storeMocks.store.loadSessionHistory).toHaveBeenCalledWith(
       'history-1',
-      'D:/workspace/BitFun',
-      undefined,
-      undefined,
-      undefined,
     );
 
     activeSessionId = 'history-2';
@@ -503,7 +554,7 @@ describe('FlowChatManager initialization', () => {
     };
 
     const manager = FlowChatManager.getInstance();
-    const initialize = manager.initialize('D:/workspace/BitFun');
+    const initialize = manager.initialize(workspace('D:/workspace/BitFun'));
 
     await flushAsyncWork();
     activeSessionId = 'other-1';
@@ -559,10 +610,10 @@ describe('FlowChatManager initialization', () => {
     };
 
     const manager = FlowChatManager.getInstance();
-    const bitfunInitialize = manager.initialize('D:/workspace/BitFun');
+    const bitfunInitialize = manager.initialize(workspace('D:/workspace/BitFun'));
 
     await flushAsyncWork();
-    await expect(manager.initialize('D:/workspace/Other')).resolves.toBe(true);
+    await expect(manager.initialize(workspace('D:/workspace/Other'))).resolves.toBe(true);
 
     bitfunHistoryRestore.resolve();
     await expect(bitfunInitialize).resolves.toBe(true);
@@ -619,7 +670,7 @@ describe('FlowChatManager initialization', () => {
     };
 
     const manager = FlowChatManager.getInstance();
-    await expect(manager.initialize('D:/workspace/BitFun')).resolves.toBe(true);
+    await expect(manager.initialize(workspace('D:/workspace/BitFun'))).resolves.toBe(true);
 
     expect(storeMocks.store.switchSession).toHaveBeenCalledTimes(1);
     expect(storeMocks.store.switchSession).toHaveBeenCalledWith('parent-1');
@@ -647,16 +698,15 @@ describe('FlowChatManager initialization', () => {
     };
 
     const manager = FlowChatManager.getInstance();
-    await expect(manager.initialize('D:/workspace/BitFun')).rejects.toSatisfy(isSurfaceChangedError);
+    await expect(manager.initialize(workspace('D:/workspace/BitFun'))).rejects.toSatisfy(isSurfaceChangedError);
 
     expect(storeMocks.store.loadSessionMetadataPage).toHaveBeenCalledTimes(1);
     expect(storeMocks.store.switchSession).not.toHaveBeenCalled();
   });
 
-  // The same repository is routinely open at the same path on two devices, so a
-  // request key without the surface handed device A's bootstrap the in-flight
-  // initialization of device B — and A then read back B's session list.
-  it('does not deduplicate initialization for the same path across devices', async () => {
+  // Both another device and a later activation of the same device need a fresh
+  // read; the previous activation's promise will reject as stale.
+  it.each(['device-b', 'local'])('does not reuse a stale initialization after activating %s', async surfaceId => {
     const metadataLoads = [
       createDeferred<Record<string, unknown>>(),
       createDeferred<Record<string, unknown>>(),
@@ -678,12 +728,12 @@ describe('FlowChatManager initialization', () => {
     };
 
     const manager = FlowChatManager.getInstance();
-    const localInitialize = manager.initialize('D:/workspace/BitFun');
+    const localInitialize = manager.initialize(workspace('D:/workspace/BitFun'));
     await flushAsyncWork();
     expect(storeMocks.store.loadSessionMetadataPage).toHaveBeenCalledTimes(1);
 
-    activateSurface('device-b');
-    const peerInitialize = manager.initialize('D:/workspace/BitFun');
+    activateSurface(surfaceId);
+    const peerInitialize = manager.initialize(workspace('D:/workspace/BitFun'));
     await flushAsyncWork();
     // A shared key would have handed this bootstrap the local device's request.
     expect(storeMocks.store.loadSessionMetadataPage).toHaveBeenCalledTimes(2);
@@ -726,16 +776,12 @@ describe('FlowChatManager initialization', () => {
     };
 
     const manager = FlowChatManager.getInstance();
-    await expect(manager.initialize('D:/workspace/BitFun')).resolves.toBe(true);
+    await expect(manager.initialize(workspace('D:/workspace/BitFun'))).resolves.toBe(true);
 
     // Without this the breadcrumb and turn rail render from the catalog while
     // the message area stays blank until the user clicks the session.
     expect(storeMocks.store.loadSessionHistory).toHaveBeenCalledWith(
       'active-1',
-      'D:/workspace/BitFun',
-      undefined,
-      undefined,
-      undefined,
     );
   });
 
@@ -758,7 +804,7 @@ describe('FlowChatManager initialization', () => {
     // `false` is the caller's signal to create a session against the live
     // workspace. Returning `true` here would leave the surface with no active
     // session and no new one.
-    await expect(manager.initialize('D:/workspace/BitFun')).resolves.toBe(false);
+    await expect(manager.initialize(workspace('D:/workspace/BitFun'))).resolves.toBe(false);
     expect(storeMocks.store.switchSession).not.toHaveBeenCalled();
   });
 });
@@ -769,7 +815,7 @@ describe('FlowChatManager live subscription self-healing', () => {
     (FlowChatManager as any).instance = undefined;
     vi.clearAllMocks();
     storeMocks.eventBatchers.length = 0;
-    storeMocks.store = {};
+    storeMocks.store = { registerPersistUnreadCompletionCallback: vi.fn() };
     storeMocks.initializeEventListeners.mockResolvedValue(() => {});
   });
 

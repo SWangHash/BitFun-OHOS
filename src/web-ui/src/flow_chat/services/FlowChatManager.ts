@@ -17,7 +17,6 @@ import { EventBatcher } from './EventBatcher';
 import { createLogger } from '@/shared/utils/logger';
 import { installSessionNavStatusService, sessionNavStatusService } from './sessionNavStatusService';
 import {
-  getActiveSurfaceId,
   getActiveSurfaceScope,
   isSurfaceChangedError,
   onSurfaceActivated,
@@ -184,7 +183,8 @@ export class FlowChatManager {
       return false;
     }
 
-    const requestKey = JSON.stringify([getActiveSurfaceId(), workspace.id, preferredMode ?? '']);
+    const scope = getActiveSurfaceScope();
+    const requestKey = JSON.stringify([scope.surfaceId, scope.epoch, workspace.id, preferredMode ?? '']);
     const existingRequest = this.initializationRequests.get(requestKey);
     this.latestInitializationRequestKey = requestKey;
     if (existingRequest) {
@@ -218,6 +218,7 @@ export class FlowChatManager {
         return false;
       }
 
+      scope.assertCurrent('initializeWorkspace');
       const initialMetadataPage = await this.context.flowChatStore.loadSessionMetadataPage(
         workspaceId, 5, undefined,
         'flow_chat_manager'

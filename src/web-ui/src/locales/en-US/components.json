@@ -528,6 +528,7 @@
     "projectRequestSent": "Project requirements sent to Xiaofang. Collaboration started.",
     "projectRequestSendFailed": "Failed to send project description. Please enter it manually.",
     "flowChatInitFailed": "Initialization failed. Please refresh the page.",
+    "flowChatInitRetrying": "Initialization failed. Retrying automatically…",
     "windowFullscreenEntered": "Entered window fullscreen",
     "windowFullscreenExited": "Exited window fullscreen",
     "windowFullscreenExitHint": "Press {{shortcut}} to exit.",
