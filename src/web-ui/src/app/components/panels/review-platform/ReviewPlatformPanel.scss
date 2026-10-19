@@ -376,14 +376,16 @@
   }
 
   &__pagination {
-    justify-content: space-between;
-    gap: 8px;
-    min-height: 34px;
-    padding: 6px 8px;
-    border-top: 1px solid var(--bitfun-color-border-default);
-    color: var(--bitfun-color-content-secondary);
-    background: color-mix(in srgb, var(--bitfun-color-surface-raised) 62%, transparent);
-    font-size: var(--bitfun-type-meta-font-size);
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: var(--bitfun-space-2);
+    // Keep the full Hello hover/focus width clear, including touch density.
+    padding-inline-end: calc(
+      max(
+        var(--bitfun-control-launcher-button-min-inline-size),
+        var(--bitfun-control-launcher-button-block-size)
+      ) + var(--bitfun-space-2)
+    );
     font-variant-numeric: tabular-nums;
   }
 
