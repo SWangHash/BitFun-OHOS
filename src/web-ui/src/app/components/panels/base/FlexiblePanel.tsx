@@ -387,7 +387,6 @@ const FlexiblePanel: React.FC<ExtendedFlexiblePanelProps> = memo(({
                 fileName={content.title}
                 readOnly={true}
                 showLineNumbers={true}
-                showMinimap={true}
                 className={fileViewerClass}
                 isActiveTab={isActive}
                 onFileMissingFromDiskChange={onFileMissingFromDiskChange}
@@ -453,7 +452,6 @@ const FlexiblePanel: React.FC<ExtendedFlexiblePanelProps> = memo(({
                   language={codeData.language || 'typescript'}
                   readOnly={codeData.readOnly !== false}
                   showLineNumbers={true}
-                  showMinimap={true}
                   onContentChange={codeData.onContentChange}
                   isActiveTab={isActive}
                   onFileMissingFromDiskChange={onFileMissingFromDiskChange}
@@ -544,7 +542,7 @@ const FlexiblePanel: React.FC<ExtendedFlexiblePanelProps> = memo(({
             autoSave={editorData.autoSave === true}
             autoSaveDelayMs={typeof editorData.autoSaveDelayMs === 'number' ? editorData.autoSaveDelayMs : undefined}
             showLineNumbers={editorData.showLineNumbers !== false}
-            showMinimap={editorData.showMinimap !== false}
+            showMinimap={editorData.showMinimap}
             jumpToLine={editorData.jumpToLine}
             jumpToColumn={editorData.jumpToColumn}
             jumpToRange={editorData.jumpToRange}

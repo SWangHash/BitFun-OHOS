@@ -4,7 +4,7 @@ import { registerSessionSceneNavigation, useSceneStore } from '../stores/sceneSt
 import { useContentResourceStore } from './contentResourceStore';
 import { registerContentCloseGuard } from './contentResourceLifecycle';
 import { fileTabManager } from '@/shared/services/FileTabManager';
-import { openFileInBestTarget, createTerminalTab, createGitCodeEditorTab, createTab } from '@/shared/utils/tabUtils';
+import { openFileInBestTarget, createTerminalTab, createGitCodeEditorTab, createCodeEditorTab, createTab } from '@/shared/utils/tabUtils';
 import { openContentInBestTarget, openWorkbenchContent } from '@/shared/services/workbenchContentService';
 import { clearAgentCanvasForPeerSwitch, switchAgentCanvasWorkspace, useAgentCanvasStore, useGitCanvasStore } from '../components/panels/content-canvas/stores';
 import { appManager } from '../services/AppManager';
@@ -244,6 +244,24 @@ describe('workbench content navigation', () => {
     expect(useAgentCanvasStore.getState().primaryGroup.tabs).toHaveLength(0);
     expect(useSceneStore.getState().activeTabId).toBe('git');
     expect(appManager.getState().layout.rightPanelCollapsed).toBe(true);
+  });
+
+  it('leaves the code editor minimap to the user setting unless a tab overrides it', () => {
+    openSession();
+    useSceneStore.getState().openScene('git');
+    createGitCodeEditorTab('/project/a.ts', 'a.ts');
+    createGitCodeEditorTab('/project/b.ts', 'b.ts', { showMinimap: false });
+    createCodeEditorTab('/project/c.ts', 'c.ts');
+
+    const gitTabs = useGitCanvasStore.getState().primaryGroup.tabs
+      .map(tab => ({ filePath: tab.content.data.filePath, showMinimap: tab.content.data.showMinimap }))
+      .sort((left, right) => left.filePath.localeCompare(right.filePath));
+    expect(gitTabs).toEqual([
+      { filePath: '/project/a.ts', showMinimap: undefined },
+      { filePath: '/project/b.ts', showMinimap: false },
+    ]);
+    const agentTabs = useAgentCanvasStore.getState().primaryGroup.tabs.map(tab => tab.content.data);
+    expect(agentTabs.map(data => data.showMinimap)).toEqual([undefined]);
   });
 
   it('keeps an explicit pop-out at the top and reuses its document on later opens', () => {
