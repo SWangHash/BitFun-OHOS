@@ -88,6 +88,9 @@ describe('useTerminal reserved sessions', () => {
     expect(mocks.getSession).not.toHaveBeenCalled();
     expect(mocks.createSession).not.toHaveBeenCalled();
     expect(api?.isLoading).toBe(true);
+    // The panel must know that the shell does not exist yet, otherwise it would render a
+    // connecting state instead of measuring itself.
+    expect(api?.isAwaitingSpawn).toBe(true);
 
     await act(async () => { await api!.spawnPendingSession(120, 30); });
     await flush();
@@ -99,6 +102,7 @@ describe('useTerminal reserved sessions', () => {
       rows: 30,
     });
     expect(mocks.getSession).toHaveBeenCalledWith(SESSION_ID);
+    expect(api?.isAwaitingSpawn).toBe(false);
     expect(peekPendingTerminalSpawn(SESSION_ID)).toBeNull();
   });
 
@@ -138,10 +142,30 @@ describe('useTerminal reserved sessions', () => {
     await act(async () => { root.render(<Probe />); });
     await flush();
 
+    expect(api?.isAwaitingSpawn).toBe(false);
     expect(mocks.getSession).toHaveBeenCalledWith(SESSION_ID);
     expect(mocks.createSession).not.toHaveBeenCalled();
 
     await act(async () => { await api!.spawnPendingSession(100, 20); });
     expect(mocks.createSession).not.toHaveBeenCalled();
+  });
+
+  it('reports an expired reservation instead of waiting for a shell forever', async () => {
+    reserveSpawn();
+
+    await act(async () => { root.render(<Probe />); });
+    await flush();
+    expect(api?.isAwaitingSpawn).toBe(true);
+
+    // The reservation can expire while its panel is still hidden; the panel then has to
+    // fail loudly instead of showing a connecting state with nothing behind it.
+    clearPendingTerminalSpawn(SESSION_ID);
+    mocks.getSession.mockRejectedValue(new Error('session not found'));
+
+    await act(async () => { await api!.spawnPendingSession(100, 20); });
+    await flush();
+
+    expect(mocks.createSession).not.toHaveBeenCalled();
+    expect(api?.error).toBeTruthy();
   });
 });
