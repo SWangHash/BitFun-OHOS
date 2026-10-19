@@ -1,8 +1,11 @@
 import {
   AbilityConstant,
+  abilityAccessCtrl,
   common,
   Configuration,
   ConfigurationConstant,
+  Context,
+  Permissions,
   Want,
   wantConstant
 } from '@kit.AbilityKit';
@@ -43,6 +46,13 @@ const DOMAIN = 0x0000;
 // Shared log tag of the HarmonyOS status bar (system tray) host, so the tray
 // service logs and the window actions it triggers filter as one component.
 const STATUS_BAR_TAG = 'BitFunStatusBar';
+// Log tag for the download-directory save bridge so permission denials and
+// fallbacks filter as one component.
+const SAVE_FILE_TAG = 'BitFunSaveFile';
+// Permission required by `save_file_to_downloads_ohos` to write into the user
+// Download directory. Declared in module.json5 but only granted on first
+// `requestPermissionsFromUser` — see `ensureDownloadDirPermission`.
+const DOWNLOAD_DIR_PERMISSION: Permissions = 'ohos.permission.READ_WRITE_DOWNLOAD_DIRECTORY';
 
 // Native decor button geometry. The web-ui SceneTopBar reserves this width for
 // the host chrome corner (`bitfun-scene-top-bar__window-controls--host`); keep
@@ -272,6 +282,63 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     } catch (e) {
       hilog.warn(DOMAIN, 'vnext', 'notifySystemColorMode failed: ' + JSON.stringify(e));
     }
+  }
+
+  /**
+   * Request `READ_WRITE_DOWNLOAD_DIRECTORY` from the user before writing into
+   * the Download dir. Mirrors `VoiceInputService.ensureMicrophonePermission`:
+   * checkAccessToken first, then `requestPermissionsFromUser`, then fall back to
+   * `requestPermissionOnSetting` when the pop-up can no longer be shown. Throws
+   * `Error('Download directory permission denied')` when the user denies, so the
+   * web-ui caller can distinguish permission errors from other failures and
+   * surface a clear failure instead of degrading to a browser download that
+   * would silently fail for the same reason.
+   */
+  private async ensureDownloadDirPermission(context: Context): Promise<void> {
+    const atManager = abilityAccessCtrl.createAtManager();
+    const tokenId = context.applicationInfo.accessTokenId;
+    let currentStatus: abilityAccessCtrl.GrantStatus | undefined;
+    try {
+      currentStatus = await atManager.checkAccessToken(tokenId, DOWNLOAD_DIR_PERMISSION);
+    } catch (err) {
+      // A failed status lookup must not prevent the user-facing permission request.
+      hilog.warn(DOMAIN, SAVE_FILE_TAG, 'download dir permission check failed: %{public}s', `${err}`);
+    }
+    if (currentStatus === abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED) {
+      return;
+    }
+    let needSettingFallback: boolean = false;
+    try {
+      const result = await atManager.requestPermissionsFromUser(context, [DOWNLOAD_DIR_PERMISSION]);
+      if (result.authResults.length > 0 &&
+        result.authResults[0] === abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED) {
+        return;
+      }
+      // dialogShownResults tells us whether the system actually showed a
+      // permission dialog. When it is true the user just denied in a visible
+      // dialog, so calling requestPermissionOnSetting immediately would pop a
+      // second, confusing dialog. When it is false the permission was already
+      // permanently denied (or cannot be prompted via pop-up), so we fall back
+      // to the settings sheet to give the user another chance.
+      const dialogShown: boolean = result.dialogShownResults !== undefined &&
+        result.dialogShownResults.length > 0 &&
+        result.dialogShownResults[0] === true;
+      needSettingFallback = !dialogShown;
+    } catch (err) {
+      hilog.warn(DOMAIN, SAVE_FILE_TAG, 'download dir permission prompt failed: %{public}s', `${err}`);
+    }
+    if (needSettingFallback) {
+      try {
+        const settingResult = await atManager.requestPermissionOnSetting(context, [DOWNLOAD_DIR_PERMISSION]);
+        if (settingResult.length > 0 &&
+          settingResult[0] === abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED) {
+          return;
+        }
+      } catch (err) {
+        hilog.warn(DOMAIN, SAVE_FILE_TAG, 'download dir permission settings failed: %{public}s', `${err}`);
+      }
+    }
+    throw new Error('Download directory permission denied');
   }
 
   /** Map a ConfigurationConstant.ColorMode value to 'light' | 'dark' (empty if unset). */
@@ -978,10 +1045,15 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     // Save a binary blob (base64) to <Download>/BitFun/<fileName> and return
     // the path. Mirrors the desktop `downloadDir` + `writeFile` save so the
     // web-ui can show the path and reveal it. `READ_WRITE_DOWNLOAD_DIRECTORY`
-    // is declared in module.json5. Download dir via `Environment.getUserDownloadDir()`
-    // (Core_File_Kit, 2-in-1/PC); base64 decode via `buffer.from` (ArkTS base lib).
+    // is declared in module.json5 and proactively requested here through
+    // `ensureDownloadDirPermission` (mirroring `ensureMicrophonePermission`),
+    // so the user sees the system permission dialog before the first write
+    // instead of catching a silent fs error. Download dir via
+    // `Environment.getUserDownloadDir()` (Core_File_Kit, 2-in-1/PC); base64
+    // decode via `buffer.from` (ArkTS base lib).
     RustModule.registerArktsFunction('save_file_to_downloads_ohos', async (err: Error, arg: string): Promise<string> => {
       const params: SaveFileToDownloadsArg = JSON.parse(arg);
+      await this.ensureDownloadDirPermission(this.context);
       const downloadDir = Environment.getUserDownloadDir();
       const bitfunDir = `${downloadDir}/BitFun`;
       if (!fileIo.accessSync(bitfunDir, fileIo.AccessModeType.EXIST)) {

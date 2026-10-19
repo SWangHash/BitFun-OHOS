@@ -63,6 +63,18 @@ export async function savePngBlob(blob: Blob, fileName: string): Promise<SavePng
       const filePath = await workspaceAPI.saveFileToDownloadsOhos(fileName, dataBase64);
       return { filePath, downloaded: false };
     } catch (error) {
+      // A permission denial must NOT degrade to a browser download: the
+      // HarmonyOS webview's anchor.download also needs
+      // `READ_WRITE_DOWNLOAD_DIRECTORY`, so the fallback would silently fail
+      // the same way and the success notification below would report
+      // "image downloaded" even though nothing was written. Re-throw so the
+      // caller surfaces a failure notification and the user can retry after
+      // granting the permission. Other errors (disk full, fs errors) keep
+      // the existing browser-download fallback.
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.toLowerCase().includes('permission denied')) {
+        throw error;
+      }
       log.warn('OHOS native save failed; falling back to browser download', { error });
     }
     downloadBlobInBrowser(blob, fileName);
