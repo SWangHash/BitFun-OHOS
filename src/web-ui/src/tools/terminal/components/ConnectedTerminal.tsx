@@ -35,8 +35,8 @@ const log = createLogger('ConnectedTerminal');
 // eslint-disable-next-line no-control-regex -- ESC-based cursor reposition sequences are part of terminal protocol parsing.
 const CURSOR_POS_RE = /^\x1b\[(\d+);(\d+)H$/;
 
-/** Upper bound on waiting for the terminal font set before creating the shell. */
-const TERMINAL_FONT_WAIT_TIMEOUT_MS = 2_000;
+/** Upper bound on waiting for the terminal typeface set before creating the shell. */
+const TERMINAL_TYPEFACE_WAIT_TIMEOUT_MS = 2_000;
 
 /**
  * Resolve once the terminal font set has loaded.
@@ -60,7 +60,7 @@ function waitForTerminalFonts(): Promise<void> {
   return Promise.race([
     fontSet.ready.then(() => undefined),
     new Promise<void>((resolve) => {
-      window.setTimeout(resolve, TERMINAL_FONT_WAIT_TIMEOUT_MS);
+      window.setTimeout(resolve, TERMINAL_TYPEFACE_WAIT_TIMEOUT_MS);
     }),
   ]);
 }
