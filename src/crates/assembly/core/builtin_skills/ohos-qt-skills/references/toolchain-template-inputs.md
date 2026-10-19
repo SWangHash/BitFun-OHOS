@@ -81,7 +81,13 @@ There are two distinct operations:
 1. **Acquire the template** from the Qt source tree or the standalone archive.
    `<skill>/scripts/bitfun-download-template.sh` is the canonical fallback when no
    Qt source checkout exists.
-2. **Materialize it into the application** as a whole directory. Preserve
+2. **Materialize it into the migration project** as a whole directory: the
+   template root is the migrated output container's `<app-name>-ohos`
+   subdirectory, never the container itself — a template root placed in the
+   container root is a layout error even when the container is the current
+   workspace root. `environment.tsv` (`category=layout`) records the container
+   and that project directory, and the pair recorded there is what the layout
+   gate checks. Preserve
    `AppScope/`, `entry/`, `qEmbeddedUiExtensionHost/`, `build-profile.json5`,
    `hvigorfile.ts`, `oh-package.json5`, and all nested resources. Then record
    the template source path, archive/source revision, complete-tree hash, and

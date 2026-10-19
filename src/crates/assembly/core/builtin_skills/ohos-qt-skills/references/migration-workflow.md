@@ -42,7 +42,12 @@ doing more source or build work.
    When the app targets a newer Qt than the SDK, record the
    `scan_qt_api_gap.py` result as one `qt-api-gap` capability row.
 3. **Migration plan contract (`contract`):** freeze Qt/SDK/ABI/template, platform boundaries,
-   dependency dispositions, target behavior, and accepted deviations. Show
+   dependency dispositions, target behavior, and accepted deviations. Resolve the
+   output layout first: the bound output container is not the project directory,
+   so record the container and its `<app-name>-ohos` project in
+   `environment.tsv` (`category=layout`, written by
+   `init_migration.py --output-project`) and state both in
+   `PORTING_CONTRACT.md`. Show
    the external-feature candidates (`feature_hooks.py candidates`), record
    the user's choice (default none) as an `external-features` decision, and
    activate it (`feature_hooks.py activate`); nothing runs yet.
@@ -51,6 +56,9 @@ doing more source or build work.
 4. **Pilot verification (`pilot`):** validate app envelope, entry point, linkage, package
    generation, and one risky runtime boundary before broad edits; persist the
    hypothesis and result in `pilot.tsv` (`batch_checks.py --phase pilot`).
+   The template tree is materialized into the container's `<app-name>-ohos`
+   subdirectory, never into the container root; the pilot HAP therefore lives
+   inside that project directory.
    The pilot's output is evidence for the envelope only. It must not be
    counted as the application target's final `.so` or HAP. Keep the pilot
    envelope buildable until the application `.so` has a receipt.

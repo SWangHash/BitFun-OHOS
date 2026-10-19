@@ -1929,7 +1929,7 @@
       "submitOutputArtifact": "The {{field}} path is a previous migration result and must not be overwritten: {{path}}. Choose a different output directory for this migration.",
       "fieldName": {
         "source_project": "Source project",
-        "output_project": "Output project",
+        "output_project": "Output container",
         "toolchain": "Migration toolchain",
         "template": "Project template"
       },
@@ -1939,13 +1939,13 @@
         "pathsHint": "💡 Add the four paths to your prompt to skip the setup.",
         "question": {
           "sourceProject": "Which source project do you want to migrate from?",
-          "outputProject": "Where should the migrated HarmonyOS project be output?",
+          "outputProject": "Which output container should hold the migrated HarmonyOS project? (the project is created in its `<app name>-ohos` subdirectory)",
           "toolchain": "Which QT migration toolchain should be used?",
           "template": "Which HarmonyOS template project should be used?"
         },
         "field": {
           "sourceProject": "Source project",
-          "outputProject": "Output path",
+          "outputProject": "Output container",
           "toolchain": "Migration toolchain",
           "template": "Template project"
         },
@@ -1980,7 +1980,7 @@
         },
         "placeholder": {
           "sourceProject": "Enter the source project path",
-          "outputProject": "Enter the output project path",
+          "outputProject": "Enter the output container path (the HarmonyOS project is created in its `<app name>-ohos` subdirectory)",
           "toolchain": "Enter the QT migration toolchain path",
           "template": "Enter the template project path"
         }

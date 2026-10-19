@@ -9,3 +9,4 @@ ENV-007	qt-template	Complete Qt HarmonyOS glue template tree	TODO	TODO	TODO	plan
 ENV-008	ohos-native	OHOS native clang/sysroot/toolchain file	TODO	TODO	TODO	planned	TODO	TODO
 ENV-009	build-host	Host CMake/Ninja/Perl/MinGW or equivalent	TODO	TODO	TODO	planned	TODO	TODO
 ENV-010	package-runtime	JDK/Node/Hvigor and DevEco CLI runtime	TODO	TODO	TODO	planned	TODO	TODO
+ENV-011	layout	Migration output container and the project inside it (value form: container=<path>; project=<container>/<app-name>-ohos)	container=TODO; project=TODO	TODO	TODO	planned	TODO	TODO

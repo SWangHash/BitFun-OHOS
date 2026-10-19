@@ -27,15 +27,33 @@ qmake, CMake, hvigor, hdc, or other build/deploy command, check that
 `<app>/migration/ohos/STATE.md` exists. If it does not, run this now:
 
 ```bash
-python <skill>/scripts/init_migration.py --target <app> --template-root <skill>/assets/templates/migration/ohos
+python <skill>/scripts/init_migration.py --target <app> \
+  --output-project <container> \
+  --template-root <skill>/assets/templates/migration/ohos
 ```
 
 `<app>` is the root of the Qt application being migrated (the directory with
 its `.pro`/`CMakeLists.txt`, or the repository root), never the HarmonyOS
 project directory that the user names for the converted output (for example
 `<repo>/project`). `init_migration.py` refuses a missing directory or a
-HarmonyOS project; record the output directory in `STATE.md` (Template/
-deployment/build/package route) instead.
+HarmonyOS project.
+
+`--output-project` is the bound output **container**, not the project directory
+(it is the `output_project` value a BitFun QtMigration session binds; a CLI run
+passes the container it uses instead). The migration project lives in that
+container's `<app-name>-ohos` subdirectory, so the two are never the same path.
+`init_migration.py --output-project` records the pair in `environment.tsv`
+(`category=layout`), refuses a container that already holds a HarmonyOS project,
+and refuses the Qt project root itself (the project would land inside the Qt
+sources).
+
+The recorded cell is the single authority for `<container>` and `<project>`:
+read them there rather than re-deriving the application name, and keep them
+current if the project directory is renamed. Omitting the flag leaves the binding
+unrecorded, and the layout gate then blocks the `pilot` phase until the row
+exists. Run the initializer again with `--output-project` to add it; never write
+the template or the migration artifacts into the container root, also when the
+container is the current workspace root.
 
 If it exists, resume from `STATE.md` instead. This step is never optional, also
 when the request sounds like "just build and deploy it": `migration/ohos/` is
@@ -61,11 +79,20 @@ command closes it:
 | 1 | Environment preparation (`baseline`) | `environment.tsv`, `baseline.tsv` | probe Qt, SDK/ABI, toolchain, hvigor/DevEco CLI, template tree, signing, device; host smoke | copying the template, build files, source edits, HarmonyOS builds |
 | 2 | Migration inventory (`inventory`) | `inventory.tsv` | scan build files and sources; `CAP-*`/`VAL-*`/queue rows | any edit outside `migration/ohos`, HarmonyOS builds |
 | 3 | Migration plan contract (`contract`) | `decisions.tsv` | freeze target, bundle name, deliverables, dispositions, feature selection; user approvals | copying the template, build files, source edits |
-| 4 | Pilot verification (`pilot`) | `pilot.tsv` | create the HarmonyOS project from the template; prove envelope, entry, Qt linkage, packaging, one risky boundary | porting or building the application target |
+| 4 | Pilot verification (`pilot`) | `pilot.tsv` | create the HarmonyOS project from the template inside the output container's `<app-name>-ohos` subdirectory; prove envelope, entry, Qt linkage, packaging, one risky boundary | porting or building the application target |
 | 5 | Capability migration (`implementation`) | `work-queue.tsv` | application build files and guarded source changes per `CAP-*` row | HarmonyOS-specific features |
 | 6 | HarmonyOS feature adaptation (`features`) | `feature-adoption.tsv` | run activated capability features one at a time through their entry/exit gates | — |
 | 7 | Build and diagnostics (`diagnostics`) | `diagnostics.tsv` | application build/package/install/device rounds, classified failures | — |
 | 8 | Acceptance and handoff (`handoff`) | `validation.tsv` | verify the real artifact and device behavior; run activated verification features; write `report.md` | — |
+
+The output layout is checked by every gate, not only by the phase that creates
+the project: the container root must never carry `AppScope/`, `hvigorfile.ts`,
+`build-profile.json5`, `oh-package.json5` or a packaged `.hap`, and from `pilot`
+on the project recorded in `environment.tsv` must exist as a `<app-name>-ohos`
+directory of the container (`<app-name>-ohos-2` and up only for a repeated
+migration of the same application). A gate failing on
+`output layout` means the recorded binding or the directory on disk is wrong —
+fix the path, never the gate.
 
 - Right after initialization, after every gate, after a context compaction,
   and whenever the next step is unclear, run

@@ -48,7 +48,7 @@ pub const CONFIRM_INSTRUCTION: &str = r#"## 迁移前置输入（系统约束，
 1. 调用 ExecCommand 工具执行 `command -v qmake`。这是四项输入绑定前唯一允许的 shell 命令，用于解析用户配置在环境变量中的工具链。
 2. 立即调用 AskUserQuestion 工具，参数传入 {"templateId": "qt-migration-paths", "candidates": {...}}，并按以下规则填充 candidates：
    - 第 1 步命中路径时，取其父目录放入 `candidates.toolchain_env`（专用字段——环境变量命中的工具链优先级最低，后端会排在输入/工作区/托管候选之后；不要放入 `candidates.toolchain`）。未命中则不传该字段（卡片会显示输入框）。
-   - 用户当前指定或明确指代的 Qt 工程：其工程目录或 `.pro` 文件路径放入 `candidates.source_project`，且置于数组第一项（Qt 工程判定标准见 ohos-qt-skills 阶段零预检：qmake `.pro` 工程，或含 `find_package(Qt…)` 的 CMakeLists.txt 工程）。用户在 prompt 中明确写出的其他路径（输出目录、模板工程）也必须分别放入对应的 `candidates.output_project` / `candidates.template`；这些路径即使位于当前工作区之外，也必须原样放入候选，不得丢弃或替换。
+   - 用户当前指定或明确指代的 Qt 工程：其工程目录或 `.pro` 文件路径放入 `candidates.source_project`，且置于数组第一项（Qt 工程判定标准见 ohos-qt-skills 阶段零预检：qmake `.pro` 工程，或含 `find_package(Qt…)` 的 CMakeLists.txt 工程）。用户在 prompt 中明确写出的其他路径（**输出容器**、模板工程）也必须分别放入对应的 `candidates.output_project` / `candidates.template`；这些路径即使位于当前工作区之外，也必须原样放入候选，不得丢弃或替换。注意 `output_project` 绑定的是**输出容器**，不是鸿蒙工程目录本身：鸿蒙工程创建在容器下的 `<app-name>-ohos` 子目录里，所以不要把一个已有的鸿蒙（DevEco）工程目录当作容器，也不要把容器路径当作最终工程目录。
    - 其他已探测候选也应按字段传入。不得只在分析文字中描述候选而省略 `candidates`。不要自行构造 questions，不要在工具调用前后输出说明文字，也不能用纯文本提示代替工具调用。
 
 除上述第 1 步外，四项输入绑定前禁止执行任何其他 shell 命令。调用 AskUserQuestion 后等待用户提交答案；答案返回的四项绑定值就是本次迁移的唯一输入事实，必须直接采用，不得重新询问或替换为其他路径。"#;
@@ -184,6 +184,41 @@ pub fn skill_gate_instruction(
     }
 }
 
+/// The HarmonyOS project directory derived from the bound inputs:
+/// `<output_project>/<app-name>-ohos`, where the application name comes from the
+/// bound Qt project (its `.pro` file stem or its directory name).
+///
+/// `output_project` is an output *container*, never the project directory itself,
+/// so the engine states the derived path on every migration turn instead of
+/// leaving it to be re-derived from the knowledge baseline.
+pub fn output_project_dir(output_project: &str, source_project: &str) -> String {
+    let container = output_project.trim_end_matches(|c: char| c == '/' || c == '\\');
+    // Bound paths may be remote POSIX paths or local Windows paths, so keep the
+    // separator the container already uses instead of the host's.
+    let windows = container.contains('\\') && !container.contains('/');
+    let separator = if windows { '\\' } else { '/' };
+    format!("{container}{separator}{}-ohos", app_name(source_project))
+}
+
+/// The Qt application name: the `.pro` file stem, the CMake project directory, or
+/// the last path segment of a directory.
+fn app_name(source_project: &str) -> String {
+    let mut segments = source_project
+        .split(|c: char| c == '/' || c == '\\')
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>();
+    if segments.last() == Some(&"CMakeLists.txt") {
+        segments.pop();
+    }
+    let last = segments.pop().unwrap_or_default();
+    let name = last.strip_suffix(".pro").unwrap_or(last);
+    if name.is_empty() {
+        "<app-name>".to_string()
+    } else {
+        name.to_string()
+    }
+}
+
 /// Snapshot instruction listing the four bound inputs once all of them are
 /// resolved. Returns `None` while any field is still unresolved.
 pub fn bound_inputs_instruction(
@@ -217,6 +252,14 @@ pub fn bound_inputs_instruction(
             text.push_str(&format!("- {field}：{value}\n"));
         }
     }
+    text.push_str(&format!(
+        "- 输出工程目录（由 `output_project` 推导，不是绑定值的原样）：{}\n\
+         \x20 `output_project` 绑定的是**输出容器**，不是鸿蒙工程目录本身。模板与迁移产物只能写进上面的\n\
+         \x20 子目录内，容器根目录不得出现模板文件或产物（即使容器就是当前工作区根）。\n\
+         \x20 同名冲突时为本次迁移追加序号 `<app-name>-ohos-2`、`-3`（取最小可用序号），并在结论中说明。\n\
+         \x20 工程目录名以迁移台账 `environment.tsv` 的 layout 行为准：两者不一致时按台账值落盘或更正台账。\n",
+        output_project_dir(values["output_project"], values["source_project"])
+    ));
     let toolchain_official = values["toolchain"] == QT_MIGRATION_OFFICIAL_VALUE;
     let template_official = values["template"] == QT_MIGRATION_OFFICIAL_VALUE;
     // A field the runtime already resolved (the installed kit root) is a plain path
@@ -575,6 +618,11 @@ mod tests {
         assert!(text.contains("output_project：D:/out/hm"));
         assert!(text.contains("toolchain：__official__"));
         assert!(text.contains("template：D:/tpl"));
+        // output_project 是输出容器：每轮都要给出推导出的工程目录，否则模型会把容器
+        // 直接当成鸿蒙工程目录（模板与产物就落到了容器根）。
+        assert!(text.contains("输出工程目录"));
+        assert!(text.contains("D:/out/hm/myqt-ohos"));
+        assert!(text.contains("输出容器"));
         // official 语义：工具链由运行时安装（不让模型跑下载脚本），BitFun 供给脚本只作为
         // 供给失败时的备份，并且必须按技能目录的绝对路径与 --platform 调用。
         assert!(text.contains("也不要再做存在性探索或检查"));
@@ -674,6 +722,36 @@ mod tests {
             "windows",
         )
         .is_none());
+    }
+
+    #[test]
+    fn output_project_dir_derives_the_ohos_subdirectory() {
+        // 绑定值是容器，工程目录是容器下的 <app-name>-ohos；分隔符跟随容器写法
+        // （远端 workspace 是 POSIX 路径，本地 Windows 路径用反斜杠）。
+        assert_eq!(
+            output_project_dir(
+                "/storage/Users/me/0901-one-test",
+                "/storage/Users/me/0901-one-test/calculator/calculator"
+            ),
+            "/storage/Users/me/0901-one-test/calculator-ohos"
+        );
+        assert_eq!(
+            output_project_dir(
+                "/storage/Users/me/0901-one-test/",
+                "/storage/Users/me/0901-one-test/calculator/calculator.pro"
+            ),
+            "/storage/Users/me/0901-one-test/calculator-ohos"
+        );
+        assert_eq!(
+            output_project_dir("D:\\work\\out", "D:/work/myqt/Calculator.pro"),
+            "D:\\work\\out\\Calculator-ohos"
+        );
+        // CMake 工程绑定的是 CMakeLists.txt 时，应用名取它所在的目录。
+        assert_eq!(
+            output_project_dir("/out", "/work/notepad/CMakeLists.txt"),
+            "/out/notepad-ohos"
+        );
+        assert_eq!(output_project_dir("/out", ""), "/out/<app-name>-ohos");
     }
 
     #[test]
