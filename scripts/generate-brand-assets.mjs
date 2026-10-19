@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { copyFile, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, rename, rm, unlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -96,7 +96,40 @@ async function writePng(filePath, buffer) {
   // Windows still has open (preview, indexer, or a previous build's handle).
   const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
   await writeFile(tmpPath, buffer);
-  await rename(tmpPath, filePath);
+  await safeRename(tmpPath, filePath);
+}
+
+async function safeRename(tmpPath, destPath) {
+  try {
+    await rename(tmpPath, destPath);
+    return;
+  } catch (error) {
+    if (error.code !== 'EPERM' && error.code !== 'EACCES') {
+      throw error;
+    }
+  }
+  // Windows may hold a lock on the destination (Explorer thumbnail cache,
+  // antivirus scan, or a file viewer). Retry a few times, then fall back to
+  // copy+unlink which tolerates a locked destination better than rename.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 200 * (attempt + 1)));
+    try {
+      await rename(tmpPath, destPath);
+      return;
+    } catch (error) {
+      if (error.code !== 'EPERM' && error.code !== 'EACCES') {
+        throw error;
+      }
+    }
+  }
+  try {
+    await copyFile(tmpPath, destPath);
+    await unlink(tmpPath).catch(() => {});
+  } catch {
+    // Last resort: leave the temp file and report the original error.
+    await unlink(tmpPath).catch(() => {});
+    throw new Error(`Cannot write ${destPath}: destination is locked by another process. Close any program that has the file open (Explorer preview, image viewer, antivirus) and retry.`);
+  }
 }
 
 function createReusableWebMark(svg) {
