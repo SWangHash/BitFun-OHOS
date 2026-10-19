@@ -44,8 +44,8 @@ import {
   type VirtualItemHeightEstimateContext,
 } from './virtualMessageListLayout';
 
-/** Item-count overscan. Roughly two Turns either side of the viewport. */
-const FLOW_CHAT_OVERSCAN_ITEMS = 6;
+/** Item-count overscan: enough to cover a scrollbar drag's jump. */
+const FLOW_CHAT_OVERSCAN_ITEMS = 20;
 
 /**
  * How long the library goes on re-aiming after an aim, mirrored from it.

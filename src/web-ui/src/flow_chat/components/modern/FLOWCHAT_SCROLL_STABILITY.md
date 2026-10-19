@@ -511,6 +511,16 @@ content such as history state and `RuntimeStatusSlot`.
   nothing either. There the drag can still fight the frame loop while output
   streams. Closing it means either a signal that does not depend on the bar
   having a box, or a scrollbar of our own.
+- **A scrollbar drag lands where nothing is rendered.** The rendered window
+  carried six items of overscan, which covers a wheel step and the few hundred
+  pixels an eased follow travels — not the several thousand a single thumb move
+  crosses on a long transcript. The viewport fell into the padding that stands
+  in for the rest, and what the reader saw until the window committed was a
+  blank transcript. `FLOW_CHAT_OVERSCAN_ITEMS` is 20 now, which covers the drags
+  measured on 2026-10-17 (small and large, and it is what turned that report
+  green). A jump past even that still lands outside the window, and closing it
+  for good means committing the window in the drag's own frame rather than
+  widening what it can fall inside.
 - A collapse larger than `tailHoldMaxGapPx` still moves the viewport, by the
   excess only.
 - **A reader who scrolls out of the blank and stops at the content end keeps no
