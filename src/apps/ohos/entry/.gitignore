@@ -8,3 +8,4 @@
 
 # Generated HAP resources, including vendored ACP dependencies.
 /src/main/resources/resfile/dsh-profile/
+/src/main/resources/resfile/mobile-web/

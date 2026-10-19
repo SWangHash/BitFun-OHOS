@@ -1183,24 +1183,30 @@ pub async fn _run() {
             // handle legacy or non-standard bundle layouts.
             {
                 let step_started = Instant::now();
-                let candidates = ["mobile-web/dist", "mobile-web", "dist"];
-                let mut found = false;
-                let path = PathBuf::from("/data/storage/el1/bundle/entry/resources/resfile/dist");
-                if path.join("index.html").exists() {
-                    log::info!("Found bundled mobile-web at: {}", path.display());
-                    api::remote_connect_api::set_mobile_web_resource_path(path);
-                    found = true;
-                }
+                #[cfg(target_env = "ohos")]
+                let candidates = ["resfile/mobile-web/dist", "mobile-web/dist", "mobile-web"];
+                #[cfg(not(target_env = "ohos"))]
+                let candidates = ["mobile-web/dist", "mobile-web", "dist", ""];
+                #[cfg(target_env = "ohos")]
+                let found = {
+                    let path = PathBuf::from(
+                        "/data/storage/el1/bundle/entry/resources/resfile/mobile-web/dist",
+                    );
+                    if path.join("index.html").is_file() && path.join("assets").is_dir() {
+                        log::info!("Found bundled mobile-web at: {}", path.display());
+                        api::remote_connect_api::set_mobile_web_resource_path(path);
+                        true
+                    } else {
+                        false
+                    }
+                };
+                #[cfg(not(target_env = "ohos"))]
+                let found = false;
                 if !found {
-                    // Last resort: scan the resource root for any index.html
                     if let Ok(res_dir) = app.path().resource_dir() {
-                        for sub in &["mobile-web/dist", "mobile-web", "dist", ""] {
-                            let p = if sub.is_empty() {
-                                res_dir.clone()
-                            } else {
-                                res_dir.join(sub)
-                            };
-                            if p.join("index.html").exists() {
+                        for sub in candidates {
+                            let p = res_dir.join(sub);
+                            if p.join("index.html").is_file() && p.join("assets").is_dir() {
                                 log::info!(
                                     "Found mobile-web via resource root scan: {}",
                                     p.display()
