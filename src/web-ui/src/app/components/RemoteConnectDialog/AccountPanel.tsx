@@ -504,9 +504,10 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
       await remoteConnectAPI.accountDeleteDevice(deviceId);
       if (!isAccountEpochCurrent(epoch)) return;
       if (isLocal) {
-        success(t('accountLogin.currentDeviceRemoved'));
-        resetState();
-        setView('login');
+        // Removing the Relay registration leaves the shared identity signed in.
+        // Complete logout and let its identity update drive the login view.
+        await accountIdentityService.logout();
+        if (mountedRef.current) success(t('accountLogin.currentDeviceRemoved'));
       } else {
         success(t('accountLogin.deviceRemoved', { name: deviceName }));
         void refreshDevices();
@@ -529,7 +530,6 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
     isAccountEpochCurrent,
     localDeviceId,
     refreshDevices,
-    resetState,
     success,
     t,
   ]);
