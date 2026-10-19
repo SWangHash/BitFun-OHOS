@@ -399,6 +399,8 @@ pub async fn ensure_configured_plugin_instance(
     workspace_id: &str,
 ) -> crate::BitFunResult<()> {
     use crate::service::config::{get_global_config_service, GlobalConfig};
+    use std::time::Instant;
+    let perf_start = Instant::now();
 
     let service = crate::service::workspace::get_global_workspace_service().ok_or_else(|| {
         crate::BitFunError::Validation("Workspace service is unavailable".into())
@@ -446,6 +448,8 @@ pub async fn ensure_configured_plugin_instance(
     if !global_config.has_configured_plugins() {
         withdraw_configured_plugin_workspace_locked(&comparable_directory).await;
         clear_configured_plugin_activation_failure(Some(workspace_id));
+        let duration_ms = perf_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
+        log::info!("session_perf ensure_plugin early_exit=no_plugins duration_ms={}", duration_ms);
         return Ok(());
     }
     initialize_configured_plugin_host_from_config(launch_policy, None, &global_config).await?;

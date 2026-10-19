@@ -2749,7 +2749,14 @@ impl SessionManager {
         transient: bool,
     ) -> BitFunResult<Session> {
         let mut config = config;
-        crate::agentic::workspace::normalize_session_workspace(&mut config).await?;
+        // Skip workspace normalization when the config already has a resolved
+        // workspace_id. The main creation path (coordinator) normalizes at
+        // create_session_with_workspace_and_creator_impl before reaching here,
+        // and subagent sessions inherit the parent's already-normalized config.
+        // Only legacy/unguarded callers without a prior normalize need this.
+        if config.workspace_id.is_none() && config.project_workspace_id.is_none() {
+            crate::agentic::workspace::normalize_session_workspace(&mut config).await?;
+        }
         let _workspace_path = Self::session_workspace_from_config(&config).ok_or_else(|| {
             BitFunError::Validation("Session workspace_path is required".to_string())
         })?;
@@ -5652,10 +5659,12 @@ impl SessionManager {
         );
 
         let metadata_started_at = Instant::now();
-        if self
+        let visibility_metadata = self
             .persistence_manager
             .load_session_metadata(session_storage_path, session_id)
-            .await?
+            .await?;
+        if visibility_metadata
+            .as_ref()
             .is_some_and(|metadata| !include_internal && metadata.should_hide_from_user_lists())
         {
             return Err(BitFunError::NotFound(format!(
@@ -5663,6 +5672,9 @@ impl SessionManager {
                 session_id
             )));
         }
+        let needs_workspace_migration = visibility_metadata
+            .as_ref()
+            .is_some_and(|metadata| metadata.workspace_id.is_none());
         let visibility_metadata_duration_ms = elapsed_ms_u64(metadata_started_at);
         debug!(
             "Session view restore phase completed: session_id={}, phase=load_metadata, duration_ms={}",
@@ -5681,16 +5693,21 @@ impl SessionManager {
         let (mut session, mut persisted_turns, mut total_turn_count, turn_load) =
             if let Some(tail_turn_count) = effective_tail_turn_count {
                 self.persistence_manager
-                    .load_session_with_tail_turns_timed(
+                    .load_session_with_tail_turns_timed_internal(
                         session_storage_path,
                         session_id,
                         tail_turn_count,
+                        visibility_metadata.clone(),
                     )
                     .await?
             } else {
                 let (session, turns, timing) = self
                     .persistence_manager
-                    .load_session_with_turns_timed(session_storage_path, session_id)
+                    .load_session_with_turns_timed_internal(
+                        session_storage_path,
+                        session_id,
+                        visibility_metadata.clone(),
+                    )
                     .await?;
                 let total_turn_count = turns.len();
                 (session, turns, total_turn_count, timing)
@@ -5708,6 +5725,40 @@ impl SessionManager {
             tail_turn_count,
             load_session_with_turns_duration_ms
         );
+
+        // Best-effort: persist the resolved workspace_id and project_workspace_id
+        // to the session metadata so the next restore skips the workspace
+        // normalization lookup chain entirely. This is a one-time migration for
+        // legacy sessions created before the workspace-id rework.
+        if needs_workspace_migration && session.config.workspace_id.is_some() {
+            let workspace_id = session.config.workspace_id.clone();
+            let project_workspace_id = session.config.project_workspace_id.clone();
+            let persistence = self.persistence_manager.clone();
+            let migration_storage_path = session_storage_path.to_path_buf();
+            let migration_session_id = session_id.to_string();
+            tokio::spawn(async move {
+                let result = persistence
+                    .update_session_metadata(
+                        &migration_storage_path,
+                        &migration_session_id,
+                        |metadata| {
+                            if metadata.workspace_id.is_none() {
+                                metadata.workspace_id = workspace_id.clone();
+                            }
+                            if metadata.project_workspace_id.is_none() {
+                                metadata.project_workspace_id = project_workspace_id.clone();
+                            }
+                        },
+                    )
+                    .await;
+                if let Err(error) = result {
+                    debug!(
+                        "Best-effort workspace migration persistence failed (non-fatal): session_id={}, error={}",
+                        migration_session_id, error
+                    );
+                }
+            });
+        }
 
         if !matches!(session.state, SessionState::Idle) {
             let old_state = session.state.clone();

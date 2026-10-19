@@ -1920,6 +1920,8 @@ pub async fn set_active_workspace(
     app: tauri::AppHandle,
     request: SetActiveWorkspaceRequest,
 ) -> Result<WorkspaceInfoDto, String> {
+    use std::time::Instant;
+    let perf_start = Instant::now();
     match state
         .workspace_service
         .set_active_workspace(&request.workspace_id)
@@ -1934,6 +1936,11 @@ pub async fn set_active_workspace(
 
             apply_active_workspace_context(&state, &app, &workspace_info, None).await;
 
+            let duration_ms = perf_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
+            info!(
+                "session_perf set_active_workspace workspace_id={} duration_ms={}",
+                workspace_info.id, duration_ms
+            );
             info!(
                 "Active workspace changed: workspace_id={}, path={}",
                 workspace_info.id,

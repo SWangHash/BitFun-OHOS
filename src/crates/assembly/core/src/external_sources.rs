@@ -7750,9 +7750,17 @@ pub(crate) fn external_integration_error_code(error: &str) -> String {
 pub async fn ensure_external_source_workspace_snapshot(
     workspace_id: Option<&str>,
 ) -> Result<(), String> {
-    ensure_initial_external_source_workspace_service(workspace_id)
+    use std::time::Instant;
+    let perf_start = Instant::now();
+    let result = ensure_initial_external_source_workspace_service(workspace_id)
         .await
-        .map(|_| ())
+        .map(|_| ());
+    let duration_ms = perf_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
+    log::info!(
+        "session_perf ensure_external_source workspace_id={:?} duration_ms={}",
+        workspace_id, duration_ms
+    );
+    result
 }
 
 async fn ensure_initial_external_source_workspace_service(
