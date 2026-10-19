@@ -1265,4 +1265,20 @@ describe('MessageModule device surface switch', () => {
 
     expect(mockNotificationError).toHaveBeenCalled();
   });
+
+  it('keeps the turn when only the client request budget ran out', async () => {
+    const { context } = switchingContext('session-timeout');
+    // The transport stopped waiting; the command is still running on the host, so
+    // the turn is not failed and the composer keeps the submitted text out.
+    mockStartDialogTurn.mockRejectedValue(
+      Object.assign(new Error('Request timeout'), { code: 'REQUEST_TIMEOUT' }),
+    );
+
+    await expect(
+      sendMessage(context, 'migrate my Qt project', 'session-timeout'),
+    ).resolves.toBeUndefined();
+
+    expect(context.flowChatStore.deleteDialogTurn).not.toHaveBeenCalled();
+    expect(mockNotificationError).not.toHaveBeenCalled();
+  });
 });
