@@ -2,7 +2,7 @@ import { getActiveSurfaceId } from '@/infrastructure/peer-device/deviceSurface';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getTerminalService } from '@/tools/terminal/services/TerminalService';
 import type { SessionResponse } from '@/tools/terminal/types/session';
-import { createManualTerminalSession } from '@/shared/services/createManualTerminalSession';
+import { createManualTerminalSession, prepareManualTerminalSession } from '@/shared/services/createManualTerminalSession';
 import type { SurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 import {
   terminalBelongsToWorkspace, type TerminalWorkspaceScope,
@@ -145,15 +145,15 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
 
   const createManualSession = useCallback(async (shellType?: string, directory?: string, shellId?: string) => {
     assertCurrent();
-    const session = await createManualTerminalSession({
+    const prepared = await prepareManualTerminalSession({
       workspaceId: workspaceId!,
       workspacePath: directory ?? workspacePath, shellType, shellId,
     });
     assertCurrent();
-    await refreshSessions();
-    assertCurrent();
-    return session;
-  }, [assertCurrent, refreshSessions, workspacePath, workspaceId]);
+    // The shell is created by the terminal panel once it has measured its own geometry;
+    // the entry list picks the session up when the backend reports it as ready.
+    return prepared;
+  }, [assertCurrent, workspacePath, workspaceId]);
   const stopEntrySession = useCallback(async (entry: ShellEntry) => {
     if (entry.isRunning) await closeSessionIfPresent(entry.sessionId);
   }, [closeSessionIfPresent]);

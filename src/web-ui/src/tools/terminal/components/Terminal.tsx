@@ -133,6 +133,12 @@ export interface TerminalProps {
    * should be ignored and replaced by one final fit when animation settles.
    */
   resizeSuspended?: boolean;
+  /**
+   * Called whenever a fit measured the container and the terminal settled on that size.
+   * Callers that must not act on a guessed size — creating a PTY for a session whose
+   * shell has not started yet — use this instead of xterm's default dimensions.
+   */
+  onSizeSettled?: (size: { cols: number; rows: number }) => void;
   supportsCopyPaste?: boolean;
 }
 
@@ -200,6 +206,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
   onPasteShortcut,
   onPaste,
   preventShrinkBelowColsRef,
+  onSizeSettled,
   supportsCopyPaste = true,
   resizeSuspended = false,
 }, ref) => {
@@ -223,6 +230,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
   const onReadyRef = useRef(onReady);
   const onPasteShortcutRef = useRef(onPasteShortcut);
   const onPasteRef = useRef(onPaste);
+  const onSizeSettledRef = useRef(onSizeSettled);
   const resizeSuspendedRef = useRef(resizeSuspended);
   const pendingFitAfterSuspendRef = useRef(false);
   // Track key-pressed state to mirror xterm's internal _keyDownSeen flag.
@@ -251,6 +259,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
   onReadyRef.current = onReady;
   onPasteShortcutRef.current = onPasteShortcut;
   onPasteRef.current = onPaste;
+  onSizeSettledRef.current = onSizeSettled;
   resizeSuspendedRef.current = resizeSuspended;
   mergedOptionsRef.current = mergedOptions;
 
@@ -272,6 +281,9 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
       }
 
       if (terminal.cols === cols && terminal.rows === rows) {
+        // Already at the measured size: still report it, so a caller waiting for a
+        // measured geometry is not left waiting for a resize that never happens.
+        onSizeSettledRef.current?.({ cols, rows });
         return true;
       }
 
@@ -289,6 +301,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
       }
 
       terminal.resize(cols, rows);
+      onSizeSettledRef.current?.({ cols, rows });
 
       return true;
     } catch (error) {

@@ -90,11 +90,11 @@ describe('persist stores survive a null localStorage WebView', () => {
   it('keeps workspace resource layouts in memory', () => {
     hideLocalStorageAsNull();
 
-    expect(() => useWorkspaceResourceState.getState().updateLayout('legacy', { terminalFraction: 0.5 })).not.toThrow();
-    expect(useWorkspaceResourceState.getState().layouts.legacy.terminalFraction).toBe(0.5);
+    expect(() => useWorkspaceResourceState.getState().updateLayout('legacy', { fileView: 'search' })).not.toThrow();
+    expect(useWorkspaceResourceState.getState().layouts.legacy.fileView).toBe('search');
 
     useWorkspaceResourceState.getState().migrateLayout('legacy', 'current');
-    expect(useWorkspaceResourceState.getState().layouts.current.terminalFraction).toBe(0.5);
+    expect(useWorkspaceResourceState.getState().layouts.current.fileView).toBe('search');
     expect(useWorkspaceResourceState.getState().layouts.legacy).toBeUndefined();
   });
 });

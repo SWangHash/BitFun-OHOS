@@ -68,7 +68,7 @@ describe('FileViewerNav surface ownership', () => {
     }
   });
 
-  it('insets the divider above both resource sections evenly', () => {
+  it('insets the divider above the resource sections evenly', () => {
     const sectionDivider = declarations(
       navRules,
       '.bitfun-file-viewer-nav__section::before',
@@ -79,9 +79,6 @@ describe('FileViewerNav surface ownership', () => {
     expect(sectionDivider.background).toBe('var(--bitfun-color-border-default)');
     expect(declarations(navRules, '.bitfun-file-viewer-nav__workspace').borderBottomWidth)
       .toBe('');
-    expect(navSource).toContain(
-      'className="bitfun-file-viewer-nav__section bitfun-file-viewer-nav__section--terminals"',
-    );
   });
 
   it('insets the divider above search main content at each panel width', () => {
@@ -101,7 +98,7 @@ describe('FileViewerNav surface ownership', () => {
     expect(searchContainer.borderBottomWidth).toBe('');
   });
 
-  it('uses the same divider treatment for search controls, results, and terminals', () => {
+  it('uses the same divider treatment for search controls and results', () => {
     const dividers = [
       declarations(filesPanelRules, '.bitfun-files-panel__main-content--search::before'),
       declarations(searchResultsRules, '.bitfun-search-results__header::after'),
@@ -115,14 +112,5 @@ describe('FileViewerNav surface ownership', () => {
       expect(divider.zIndex).toBe('var(--bitfun-layer-decoration)');
       expect(divider.pointerEvents).toBe('none');
     }
-  });
-
-  it('compensates the bottom-pinned terminal divider for fractional pixel scaling', () => {
-    const terminalDivider = declarations(
-      navRules,
-      '.bitfun-file-viewer-nav__section--terminals::before',
-    );
-
-    expect(terminalDivider.height).toBe('0.5px');
   });
 });

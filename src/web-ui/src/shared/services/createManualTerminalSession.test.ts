@@ -28,7 +28,11 @@ vi.mock('@/infrastructure/config/services/ConfigManager', () => ({
   configManager: { getConfig: mocks.getConfig },
 }));
 
-import { createManualTerminalSession } from './createManualTerminalSession';
+import {
+  clearPendingTerminalSpawn,
+  peekPendingTerminalSpawn,
+} from '@/tools/terminal/services/pendingTerminalSpawn';
+import { createManualTerminalSession, prepareManualTerminalSession } from './createManualTerminalSession';
 
 describe('createManualTerminalSession', () => {
   beforeEach(() => {
@@ -104,6 +108,45 @@ describe('createManualTerminalSession', () => {
       workingDirectory: '/workspace/project',
       name: 'Shell 2',
       source: 'manual',
+    });
+  });
+
+  describe('prepareManualTerminalSession', () => {
+    it('reserves a session identity without starting the shell', async () => {
+      const prepared = await prepareManualTerminalSession({
+        workspaceId: 'workspace-main',
+        workspacePath: '/workspace/project',
+      });
+
+      // The PTY is created by the terminal panel once it has measured its geometry.
+      expect(mocks.createSession).not.toHaveBeenCalled();
+      expect(prepared.name).toBe('Shell 2');
+      expect(prepared.sessionId).toBeTruthy();
+      expect(peekPendingTerminalSpawn(prepared.sessionId)?.request).toMatchObject({
+        workspaceId: 'workspace-main',
+        workingDirectory: '/workspace/project',
+        name: 'Shell 2',
+        sessionId: prepared.sessionId,
+        shellId: 'bash:c:/program files/git/bin/bash.exe',
+        shellType: 'Bash',
+        source: 'manual',
+      });
+      expect(peekPendingTerminalSpawn(prepared.sessionId)?.request.cols).toBeUndefined();
+
+      clearPendingTerminalSpawn(prepared.sessionId);
+    });
+
+    it('keeps a requested session id for restored terminals', async () => {
+      const prepared = await prepareManualTerminalSession({
+        workspaceId: 'workspace-main',
+        sessionId: 'terminal-kept',
+        name: 'Restored',
+      });
+
+      expect(prepared.sessionId).toBe('terminal-kept');
+      expect(peekPendingTerminalSpawn('terminal-kept')?.request.sessionId).toBe('terminal-kept');
+
+      clearPendingTerminalSpawn('terminal-kept');
     });
   });
 });

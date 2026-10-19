@@ -163,7 +163,7 @@ export function useShellEntries(targetWorkspace?: WorkspaceInfo | null): UseShel
   const createManualTerminal = useCallback(async (shellType?: string, directory?: string, shellId?: string) => {
     const session = await createManualSession(shellType, directory, shellId);
     if (session) {
-      openShellSession(session.id, session.name);
+      openShellSession(session.sessionId, session.name);
     }
   }, [createManualSession, openShellSession]);
 
