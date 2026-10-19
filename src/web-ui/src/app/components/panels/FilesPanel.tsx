@@ -26,7 +26,6 @@ import type { FileSystemNode, FileTreeRevealTarget } from '@/tools/file-system/t
 import { globalEventBus } from '@/infrastructure/event-bus';
 import { useNotification } from '@/shared/notification-system';
 import { LoadingState } from '@bitfun/ui';
-import { InputDialog } from '@/app/components/InputDialog';
 import { openFileInBestTarget } from '@/shared/utils/tabUtils';
 import { PanelHeader } from './base';
 import { createLogger } from '@/shared/utils/logger';
@@ -47,7 +46,6 @@ import type {
 } from '@/infrastructure/api/service-api/tauri-commands';
 import {
   downloadWorkspaceFileToDisk,
-  joinWorkspaceTargetPath,
   normalizeWorkspaceTargetDirectory,
   pasteClipboardFilesToWorkspaceDirectory,
   resolvePasteTargetDirectory,
@@ -195,15 +193,6 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
   const [transfers, setTransfers] = useState<Map<string, TransferProgressState>>(new Map());
   const dropTransferIdRef = useRef<string | null>(null);
   const [fileDropHighlight, setFileDropHighlight] = useState(false);
-  const [inputDialog, setInputDialog] = useState<{
-    isOpen: boolean;
-    type: 'newFile' | 'newFolder' | null;
-    parentPath: string;
-  }>({
-    isOpen: false,
-    type: null,
-    parentPath: '',
-  });
 
   const notification = useNotification();
   const cancelledTransferIdsRef = useRef<Set<string>>(new Set());
@@ -319,11 +308,6 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
       
       clearSearch();
       setRenamingPath(null);
-      setInputDialog({
-        isOpen: false,
-        type: null,
-        parentPath: '',
-      });
       if (onViewModeChange) {
         onViewModeChange('tree');
       } else {
@@ -388,74 +372,12 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
   }, [workspacePath, shouldOpenLargeFile, surface, resourceScope]);
 
   const handleNewFile = useCallback((data: { parentPath: string }) => {
-    setInputDialog({
-      isOpen: true,
-      type: 'newFile',
-      parentPath: data.parentPath,
-    });
+    globalEventBus.emit('file:new-file', { parentPath: data.parentPath });
   }, []);
-
-  const handleInputDialogClose = useCallback(() => {
-    setInputDialog({
-      isOpen: false,
-      type: null,
-      parentPath: '',
-    });
-  }, []);
-
-  const handleConfirmNewFile = useCallback(async (fileName: string) => {
-    const filePath = joinWorkspaceTargetPath(
-      inputDialog.parentPath,
-      fileName,
-      isRemoteWorkspace(currentWorkspace),
-    );
-    
-    try {
-      if (!currentWorkspaceId) throw new Error('Workspace ID is unavailable');
-      await workspaceAPI.createWorkspaceFile(currentWorkspaceId, filePath);
-      log.info('File created', { path: filePath });
-      handleInputDialogClose();
-      loadFileTree(workspacePath || '', true);
-    } catch (error) {
-      log.error('Failed to create file', error);
-      notification.error(t('notifications.createFileFailed', { error: String(error) }));
-    }
-  }, [inputDialog.parentPath, workspacePath, loadFileTree, notification, t, handleInputDialogClose, currentWorkspace, currentWorkspaceId]);
 
   const handleNewFolder = useCallback((data: { parentPath: string }) => {
-    setInputDialog({
-      isOpen: true,
-      type: 'newFolder',
-      parentPath: data.parentPath,
-    });
+    globalEventBus.emit('file:new-folder', { parentPath: data.parentPath });
   }, []);
-
-  const handleConfirmNewFolder = useCallback(async (folderName: string) => {
-    const folderPath = joinWorkspaceTargetPath(
-      inputDialog.parentPath,
-      folderName,
-      isRemoteWorkspace(currentWorkspace),
-    );
-    
-    try {
-      if (!currentWorkspaceId) throw new Error('Workspace ID is unavailable');
-      await workspaceAPI.createWorkspaceDirectory(currentWorkspaceId, folderPath);
-      log.info('Directory created', { path: folderPath });
-      handleInputDialogClose();
-      loadFileTree(workspacePath || '', true);
-    } catch (error) {
-      log.error('Failed to create directory', error);
-      notification.error(t('notifications.createFolderFailed', { error: String(error) }));
-    }
-  }, [inputDialog.parentPath, workspacePath, loadFileTree, notification, t, handleInputDialogClose, currentWorkspace, currentWorkspaceId]);
-
-  const handleInputDialogConfirm = useCallback((value: string) => {
-    if (inputDialog.type === 'newFile') {
-      handleConfirmNewFile(value);
-    } else if (inputDialog.type === 'newFolder') {
-      handleConfirmNewFolder(value);
-    }
-  }, [inputDialog.type, handleConfirmNewFile, handleConfirmNewFolder]);
 
   const handleStartRename = useCallback((data: { path: string; name: string }) => {
     setRenamingPath(normalizePathForCurrentWorkspace(data.path));
@@ -859,8 +781,10 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
 
   useEffect(() => {
     globalEventBus.on('file:open', handleOpenFile);
-    globalEventBus.on('file:new-file', handleNewFile);
-    globalEventBus.on('file:new-folder', handleNewFolder);
+    // 'file:new-file' and 'file:new-folder' are handled by the global
+    // FileCreationDialogHost in AppLayout, which stays mounted across scene
+    // switches. FilesPanel's InputDialog used to vanish when the session
+    // scene unmounted WorkspaceResourcePanel.
     globalEventBus.on('file:rename', handleStartRename);
     globalEventBus.on('file:delete', handleDelete);
     globalEventBus.on('file:download', handleFileDownload);
@@ -874,8 +798,6 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
 
     return () => {
       globalEventBus.off('file:open', handleOpenFile);
-      globalEventBus.off('file:new-file', handleNewFile);
-      globalEventBus.off('file:new-folder', handleNewFolder);
       globalEventBus.off('file:rename', handleStartRename);
       globalEventBus.off('file:delete', handleDelete);
       globalEventBus.off('file:download', handleFileDownload);
@@ -1026,16 +948,16 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
   const handleExplorerToolbarNewFile = useCallback(() => {
     const parentPath = getNewItemParentPath(workspacePath, selectedFile, fileTree);
     if (parentPath) {
-      handleNewFile({ parentPath });
+      globalEventBus.emit('file:new-file', { parentPath });
     }
-  }, [workspacePath, selectedFile, fileTree, handleNewFile]);
+  }, [workspacePath, selectedFile, fileTree]);
 
   const handleExplorerToolbarNewFolder = useCallback(() => {
     const parentPath = getNewItemParentPath(workspacePath, selectedFile, fileTree);
     if (parentPath) {
-      handleNewFolder({ parentPath });
+      globalEventBus.emit('file:new-folder', { parentPath });
     }
-  }, [workspacePath, selectedFile, fileTree, handleNewFolder]);
+  }, [workspacePath, selectedFile, fileTree]);
 
   const handleExplorerToolbarRefresh = useCallback(() => {
     loadFileTree(workspacePath || '', false);
@@ -1380,27 +1302,6 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
           ))}
         </ScrollArea>
       )}
-
-      <InputDialog
-        isOpen={inputDialog.isOpen}
-        onClose={handleInputDialogClose}
-        onConfirm={handleInputDialogConfirm}
-        title={inputDialog.type === 'newFile' ? t('dialog.newFile.title') : t('dialog.newFolder.title')}
-        placeholder={inputDialog.type === 'newFile' ? t('dialog.newFile.placeholder') : t('dialog.newFolder.placeholder')}
-        confirmText={inputDialog.type === 'newFile' ? t('dialog.newFile.confirm') : t('dialog.newFolder.confirm')}
-        cancelText={inputDialog.type === 'newFile' ? t('dialog.newFile.cancel') : t('dialog.newFolder.cancel')}
-        validator={(value) => {
-          const validPattern = isRemoteCurrentWorkspace
-            // eslint-disable-next-line no-control-regex -- filename rules explicitly forbid ASCII control characters.
-            ? /^[^/\x00-\x1F]+$/
-            // eslint-disable-next-line no-control-regex -- filename rules explicitly forbid ASCII control characters.
-            : /^[^<>:"/\\|?*\x00-\x1F]+$/;
-          if (!validPattern.test(value)) {
-            return t('validation.invalidFilename');
-          }
-          return null;
-        }}
-      />
     </div>
   );
 };

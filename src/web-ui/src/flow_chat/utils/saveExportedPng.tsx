@@ -100,9 +100,14 @@ export async function revealExportedFile(filePath: string): Promise<void> {
 /**
  * Share an exported local file with a nearby HarmonyOS device through the
  * system Share Kit. Surfaces a notification that matches the share outcome:
- * `dismissed`/`ok` → success, `pending_knock` → info ("tap your device…"),
- * `unsupported` → warning, anything else → error. No-op on non-OHOS hosts
- * (`shareLocalFile` returns `unsupported` there).
+ * `ok` → success, `dismissed` → info ("已取消"/"分享面板已关闭"), `pending_knock`
+ * → info ("tap your device…"), `unsupported` → warning, anything else → error.
+ * No-op on non-OHOS hosts (`shareLocalFile` returns `unsupported` there).
+ *
+ * `dismissed` is routed to an info toast (not success) because the HarmonyOS
+ * Share Kit `dismiss` callback fires for both a completed share and a user
+ * cancel/back, with no distinguishing signal from the ArkTS bridge. Surfacing
+ * it as success would show a contradictory "成功 / 分享面板已关闭" toast on cancel.
  *
  * Exported so the Markdown/session transcript export path can share the same
  * UX without duplicating the result-to-notification mapping.
@@ -114,8 +119,14 @@ export async function shareExportedFile(filePath: string, mode: FileShareMode): 
   }
   const result = await shareLocalFile(filePath, mode);
   const status = describeShareStatus(result);
-  if (status === 'ok' || status === 'dismissed') {
+  if (status === 'ok') {
     notificationService.success(i18nService.t('flow-chat:fileShare.dismissed'));
+    return;
+  }
+  if (status === 'dismissed') {
+    notificationService.info(i18nService.t('flow-chat:fileShare.dismissed'), {
+      title: i18nService.t('common:status.cancelled'),
+    });
     return;
   }
   if (status === 'pending_knock') {

@@ -40,7 +40,6 @@ import {
   subscribeHistorySessionOpenTransition,
 } from '@/flow_chat/services/sessionOpenIntent';
 import {
-  findReusableEmptySessionId,
   flowChatSessionConfigForWorkspace,
 } from '@/app/utils/projectSessionWorkspace';
 import type { AcpClientInfo } from '@/infrastructure/api/service-api/ACPClientAPI';
@@ -684,14 +683,6 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
     setMenuOpen(false);
     const resolvedMode = mode ?? (workspace.workspaceKind === WorkspaceKind.Assistant ? 'Claw' : undefined);
     try {
-      const reusableId = findReusableEmptySessionId(workspace, resolvedMode);
-      if (reusableId) {
-        await openMainSession(reusableId, {
-          workspaceId: workspace.id,
-          activateWorkspace: setActiveWorkspace,
-        });
-        return;
-      }
       const newSessionId = await flowChatManager.createChatSession(
         flowChatSessionConfigForWorkspace(workspace),
         resolvedMode
