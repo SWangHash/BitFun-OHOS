@@ -984,10 +984,7 @@ export async function initializeEventListeners(
     }
   };
 
-  await agenticEventListener.startListening(callbacks);
-  const cleanupAcpPlanState = initializeAcpPlanState();
-
-  return () => {
+  const cleanupListeners = () => {
     unlistenProgress();
     unlistenUserQuestion();
     unlistenTerminalReady();
@@ -996,9 +993,25 @@ export async function initializeEventListeners(
     unlistenMcpInteractionRequest();
     unlistenAcpPermissionRequest();
     unlistenQtToolchainProvision();
-    cleanupAcpPlanState();
     agenticEventListener.stopListening();
   };
+
+  let cleanupAcpPlanState: (() => void) | undefined;
+  try {
+    await agenticEventListener.startListening(callbacks);
+    cleanupAcpPlanState = initializeAcpPlanState();
+    await api.waitForListenerRegistrations();
+    return () => {
+      cleanupListeners();
+      cleanupAcpPlanState?.();
+    };
+  } catch (error) {
+    // Failed native registration must remain a failed initialization. Remove
+    // its logical subscriptions before the lifecycle owner retries them.
+    cleanupListeners();
+    cleanupAcpPlanState?.();
+    throw error;
+  }
 }
 
 async function handleMcpInteractionRequest(rawEvent: unknown): Promise<void> {

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { isExpectedTauriRequestError, TauriTransportAdapter } from './tauri-adapter';
 import {
   beginRuntimeSessionAttachment,
@@ -21,6 +21,10 @@ vi.mock('@tauri-apps/api/event', () => ({
 }));
 
 describe('Tauri adapter expected errors', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     resetRuntimeSessionEventGateForTest();
@@ -73,6 +77,43 @@ describe('Tauri adapter expected errors', () => {
     expect(timing.transportDurationMs).toEqual(expect.any(Number));
   });
 
+  it('keeps local startup reads and event subscriptions independent of a pending OHOS network command', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'OpenHarmony', platform: 'OpenHarmony' });
+    let finishNetwork!: (devices: unknown[]) => void;
+    const networkResponse = new Promise<unknown[]>(resolve => { finishNetwork = resolve; });
+    const page = { sessions: [], nextCursor: null };
+    invokeMock.mockImplementation((action: string) =>
+      action === 'account_list_devices' ? networkResponse : Promise.resolve(page));
+    listenMock.mockResolvedValue(vi.fn());
+    const accountAdapter = new TauriTransportAdapter();
+    const startupAdapter = new TauriTransportAdapter();
+    const pendingNetwork = accountAdapter.request('account_list_devices');
+    await vi.waitFor(() => expect(invokeMock).toHaveBeenCalledWith('account_list_devices'));
+
+    const pendingPage = startupAdapter.request('list_persisted_sessions_page', {
+      request: { limit: 5 },
+    });
+    const unlisten = startupAdapter.listen('agentic://text-chunk', vi.fn());
+    try {
+      await vi.waitFor(() => {
+        expect(invokeMock).toHaveBeenCalledWith('list_persisted_sessions_page', {
+          request: { limit: 5 },
+        });
+        expect(listenMock).toHaveBeenCalledWith('agentic://text-chunk', expect.any(Function));
+      });
+      await expect(pendingPage).resolves.toEqual(page);
+      await startupAdapter.waitForListenerRegistrations();
+    } finally {
+      finishNetwork([]);
+      await pendingNetwork;
+      await pendingPage;
+      await startupAdapter.waitForListenerRegistrations();
+      unlisten();
+      await accountAdapter.disconnect();
+      await startupAdapter.disconnect();
+    }
+  });
+
   it('records invoke timing when a request rejects', async () => {
     invokeMock.mockRejectedValueOnce(new Error("Config path not found: 'font'"));
     const adapter = new TauriTransportAdapter();
@@ -92,6 +133,51 @@ describe('Tauri adapter expected errors', () => {
     expect(timing.adapterInitDurationMs).toEqual(expect.any(Number));
     expect(timing.invokeDurationMs).toEqual(expect.any(Number));
     expect(timing.transportDurationMs).toEqual(expect.any(Number));
+  });
+
+  it('reports failed listener registration and permits a clean retry without duplicate subscriptions', async () => {
+    const failure = new Error('Native bridge not ready');
+    const nativeUnlisten = vi.fn();
+    listenMock.mockRejectedValueOnce(failure).mockResolvedValue(nativeUnlisten);
+    const adapter = new TauriTransportAdapter();
+    const stopFailed = adapter.listen('agentic://text-chunk', vi.fn());
+    await expect(adapter.waitForListenerRegistrations()).rejects.toBe(failure);
+    // The failure must remain observable even when registration settled before
+    // the initialization owner reached its readiness barrier.
+    await expect(adapter.waitForListenerRegistrations()).rejects.toBe(failure);
+    stopFailed();
+    const stopRetry = adapter.listen('agentic://text-chunk', vi.fn());
+    await adapter.waitForListenerRegistrations();
+    expect(listenMock).toHaveBeenCalledTimes(2);
+    stopRetry();
+    expect(nativeUnlisten).toHaveBeenCalledTimes(1);
+    await adapter.disconnect();
+  });
+
+  it('recovers a failed event shared by multiple owners with one native registration', async () => {
+    vi.useFakeTimers();
+    const firstAdapter = new TauriTransportAdapter();
+    const secondAdapter = new TauriTransportAdapter();
+    try {
+      const failure = new Error('Native bridge not ready');
+      const nativeUnlisten = vi.fn();
+      listenMock.mockRejectedValueOnce(failure).mockResolvedValue(nativeUnlisten);
+      const stopFirst = firstAdapter.listen('agentic://text-chunk', vi.fn());
+      const stopSecond = secondAdapter.listen('agentic://text-chunk', vi.fn());
+      await expect(firstAdapter.waitForListenerRegistrations()).rejects.toBe(failure);
+      await expect(secondAdapter.waitForListenerRegistrations()).rejects.toBe(failure);
+      await vi.advanceTimersByTimeAsync(1000);
+      await Promise.all([firstAdapter.waitForListenerRegistrations(), secondAdapter.waitForListenerRegistrations()]);
+      expect(listenMock).toHaveBeenCalledTimes(2);
+      stopFirst();
+      expect(nativeUnlisten).not.toHaveBeenCalled();
+      stopSecond();
+      expect(nativeUnlisten).toHaveBeenCalledTimes(1);
+    } finally {
+      await firstAdapter.disconnect();
+      await secondAdapter.disconnect();
+      vi.useRealTimers();
+    }
   });
 
   it('routes a positioned Tauri event once across adapter instances', async () => {

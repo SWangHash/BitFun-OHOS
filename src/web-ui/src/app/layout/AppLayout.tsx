@@ -9,7 +9,7 @@ import { OverflowText } from '@bitfun/ui';
  * TitleBar removed; window controls moved to NavBar, dialogs managed here.
  */
 
-import React, { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useContext, lazy, Suspense } from 'react';
+import React, { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useContext, useSyncExternalStore, lazy, Suspense } from 'react';
 import { useWorkspaceContext } from '../../infrastructure/contexts/WorkspaceContext';
 import { useWindowControls } from '../hooks/useWindowControls';
 import { isWindowFullscreenShortcut } from '../hooks/windowFullscreenShortcut';
@@ -19,7 +19,7 @@ import { useShortcut } from '@/infrastructure/hooks/useShortcut';
 import { useNavHistoryShortcuts } from '../hooks/useNavHistoryShortcuts';
 import { configManager } from '@/infrastructure/config/services/ConfigManager';
 import { FlowChatManager } from '../../flow_chat/services/FlowChatManager';
-import { isSurfaceChangedError } from '@/infrastructure/peer-device/deviceSurface';
+import { getActiveSurfaceScope, onSurfaceActivated } from '@/infrastructure/peer-device/deviceSurface';
 import WorkspaceBody from './WorkspaceBody';
 import { useToolbarModeContext } from '../../flow_chat/components/toolbar-mode/ToolbarModeContext';
 import { MCPInteractionDialog } from '../components/MCPInteractionDialog/MCPInteractionDialog';
@@ -42,6 +42,7 @@ import { shortcutManager, parseStoredKeybindings } from '@/infrastructure/servic
 import { isMacOSDesktopRuntime, isOpenHarmonyRuntime, usesHostWindowControls } from '@/infrastructure/runtime';
 import { flowChatSessionConfigForWorkspace } from '../utils/projectSessionWorkspace';
 import { startSessionSceneLifecycle } from '../services/sessionSceneLifecycle';
+import { startFlowChatInitialization } from '../services/flowChatInitialization';
 import { openMainSession } from '@/flow_chat/services/sessionActivation';
 import { notificationService } from '@/shared/notification-system';
 import { api } from '@/infrastructure/api/service-api/ApiClient';
@@ -105,6 +106,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
     loading,
   } = useWorkspaceContext();
   const sshContext = useContext(SSHContext);
+  const flowChatSurface = useSyncExternalStore(onSurfaceActivated, getActiveSurfaceScope, getActiveSurfaceScope);
+  // Metadata and locale renders must not restart a pending recovery or create.
+  const flowChatInitializationInputs = useRef({ currentWorkspace, t });
+  flowChatInitializationInputs.current = { currentWorkspace, t };
   /** When SSH finishes connecting, re-run FlowChat init (first run may have skipped while disconnected). */
   const remoteSshFlowChatKey =
     currentWorkspace?.workspaceKind === WorkspaceKind.Remote && currentWorkspace?.connectionId
@@ -310,34 +315,26 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
 
   // Initialize FlowChatManager
   React.useEffect(() => {
-    let cancelled = false;
-    const initializeFlowChat = async () => {
-      if (!currentWorkspace?.rootPath) return;
+    const { currentWorkspace } = flowChatInitializationInputs.current;
+    if (!currentWorkspace?.rootPath) return;
+    let notified = false;
+    const explicitPreferredMode = sessionStorage.getItem('bitfun:flowchat:preferredMode') || undefined;
+    if (explicitPreferredMode) {
+      sessionStorage.removeItem('bitfun:flowchat:preferredMode');
+    }
+    const initializationPreferredMode = currentWorkspace.workspaceKind === WorkspaceKind.Assistant
+      ? 'Claw'
+      : explicitPreferredMode;
+    const flowChatManager = FlowChatManager.getInstance();
 
-      // Remote session index and turns live under ~/.bitfun/remote_ssh/... (local disk).
-      // Always initialize FlowChat so historical sessions list even when SSH is not connected yet.
-      try {
-        const explicitPreferredMode =
-          sessionStorage.getItem('bitfun:flowchat:preferredMode') ||
-          undefined;
-        if (explicitPreferredMode) {
-          sessionStorage.removeItem('bitfun:flowchat:preferredMode');
-        }
-
-        const initializationPreferredMode =
-          currentWorkspace.workspaceKind === WorkspaceKind.Assistant
-            ? 'Claw'
-            : explicitPreferredMode;
-
-        const flowChatManager = FlowChatManager.getInstance();
-        const hasHistoricalSessions = await flowChatManager.initialize(currentWorkspace, initializationPreferredMode);
-        if (cancelled) {
-          return;
-        }
-
+    // SSH history remains host-owned and readable before the SSH workspace connects.
+    return startFlowChatInitialization({
+      initialize: () => flowChatManager.initialize(currentWorkspace, initializationPreferredMode),
+      onInitialized: async (hasHistoricalSessions, isCurrent) => {
+        const { t } = flowChatInitializationInputs.current;
         let sessionId: string | undefined;
         const { flowChatStore } = await import('@/flow_chat/store/FlowChatStore');
-        if (cancelled) {
+        if (!isCurrent()) {
           return;
         }
         if (!hasHistoricalSessions) {
@@ -349,7 +346,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
             flowChatSessionConfigForWorkspace(currentWorkspace),
             initialSessionMode,
           );
-          if (cancelled) {
+          if (!isCurrent()) {
             return;
           }
         }
@@ -359,7 +356,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
           sessionStorage.removeItem('pendingProjectDescription');
 
           setTimeout(async () => {
-            if (cancelled) {
+            if (!isCurrent()) {
               return;
             }
             try {
@@ -374,11 +371,14 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
               await flowChatManager.sendMessage(fullMessage, targetSessionId);
 
               import('@/shared/notification-system').then(({ notificationService }) => {
+                if (!isCurrent()) return;
                 notificationService.success(t('appLayout.projectRequestSent'), { duration: 3000 });
               });
             } catch (sendError) {
+              if (!isCurrent()) return;
               log.error('Failed to send project description', sendError);
               import('@/shared/notification-system').then(({ notificationService }) => {
+                if (!isCurrent()) return;
                 notificationService.error(t('appLayout.projectRequestSendFailed'), { duration: 5000 });
               });
             }
@@ -389,49 +389,39 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
         if (pendingSettings) {
           sessionStorage.removeItem('pendingOpenSettings');
           setTimeout(async () => {
-            if (cancelled) {
+            if (!isCurrent()) {
               return;
             }
             try {
               const { quickActions } = await import('@/shared/services/ide-control');
+              if (!isCurrent()) return;
               await quickActions.openSettings(pendingSettings);
             } catch (settingsError) {
               log.error('Failed to open pending settings', settingsError);
             }
           }, 500);
         }
-      } catch (error) {
-        if (cancelled) {
-          return;
+      },
+      onError: (error, retryDelayMs) => {
+        log.error('FlowChatManager initialization failed', { error, retryDelayMs });
+        if (!notified || retryDelayMs === null) {
+          notified = true;
+          const { t } = flowChatInitializationInputs.current;
+          const message = retryDelayMs === null
+            ? t('appLayout.flowChatInitFailed')
+            : t('appLayout.flowChatInitRetrying');
+          notificationService.error(message, { duration: 5000 });
         }
-        // A newer device surface superseded this bootstrap. The activation that
-        // replaced it runs its own, so this is ordinary control flow — not a
-        // failure the user should see, and not a reason to leave the window
-        // without a live subscription.
-        if (isSurfaceChangedError(error)) {
-          void FlowChatManager.getInstance().ensureEventListeners();
-          return;
-        }
-        log.error('FlowChatManager initialization failed', error);
-        import('@/shared/notification-system').then(({ notificationService }) => {
-          notificationService.error(t('appLayout.flowChatInitFailed'), { duration: 5000 });
-        });
-      }
-    };
-
-    initializeFlowChat();
-    return () => {
-      cancelled = true;
-    };
+      },
+    }, flowChatSurface);
   }, [
-    currentWorkspace,
     currentWorkspace?.id,
     currentWorkspace?.rootPath,
     currentWorkspace?.workspaceKind,
     currentWorkspace?.connectionId,
     currentWorkspace?.sshHost,
     remoteSshFlowChatKey,
-    t,
+    flowChatSurface,
   ]);
 
   // When the user hides the main window (tray / macOS dock), the app keeps running.

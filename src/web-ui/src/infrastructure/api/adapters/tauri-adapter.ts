@@ -8,31 +8,16 @@ import { getActiveSurfaceDeviceId, isSurfaceScopedEvent, routeSurfaceEvent } fro
 import { getActiveSurfaceScope, surfaceIdForDevice } from '@/infrastructure/peer-device/deviceSurface';
 import { markRuntimeSessionProjectionStale, routeRuntimeSessionEvent } from '@/infrastructure/peer-device/runtimeSessionEventGate';
 import { sanitizeErrorForLog } from '../logSanitizer';
-import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
 
 const log = createLogger('TauriAdapter');
-
-// OHOS's ArkWeb custom protocol cannot handle concurrent fetches — two
-// simultaneous invoke or listen fetches cause "Failed to fetch", after which
-// Tauri permanently switches to postMessage (unsupported on OHOS), white-
-// screening the app. Serialize all custom-protocol fetches through a single
-// promise chain so no two ever execute concurrently. Windows/Linux are
-// unaffected (full concurrency via WebView2).
-let ohosFetchChain: Promise<unknown> = Promise.resolve();
-
-function withOhosFetchLock<T>(fn: () => Promise<T>): Promise<T> {
-  if (!isOpenHarmonyRuntime()) {
-    return fn();
-  }
-  const result = ohosFetchChain.then(fn, fn);
-  ohosFetchChain = result.catch(() => undefined);
-  return result as Promise<T>;
-}
 
 interface SharedTauriEventListener {
   subscriptions: Set<TauriEventSubscription>;
   unlistenFn: UnlistenFn | null;
   registrationPromise: Promise<void> | null;
+  registrationError?: unknown;
+  retryTimer?: ReturnType<typeof setTimeout>;
+  retryDelayMs: number;
   closed: boolean;
 }
 
@@ -57,6 +42,7 @@ function closeSharedTauriEventListener(
     return;
   }
   shared.closed = true;
+  clearTimeout(shared.retryTimer);
   if (sharedTauriEventListeners.get(event) === shared) {
     sharedTauriEventListeners.delete(event);
   }
@@ -74,7 +60,7 @@ function registerSharedTauriEventListener(
   event: string,
   shared: SharedTauriEventListener,
 ): Promise<void> {
-  const registration = withOhosFetchLock(() => listen<unknown>(event, (e) => {
+  const registration = listen<unknown>(event, (e) => {
     if (shared.closed) {
       return;
     }
@@ -122,18 +108,25 @@ function registerSharedTauriEventListener(
         }
       },
     );
-  })).then(fn => {
+  }).then(fn => {
     if (shared.closed || sharedTauriEventListeners.get(event) !== shared) {
       fn();
     } else {
       shared.unlistenFn = fn;
+      delete shared.registrationError;
+      shared.retryDelayMs = 1000;
     }
   }).catch(error => {
     log.error('Failed to listen event', { event, error: sanitizeErrorForLog(error) });
-    if (sharedTauriEventListeners.get(event) === shared) {
-      sharedTauriEventListeners.delete(event);
-    }
-    shared.closed = true;
+    if (shared.closed) return;
+    shared.registrationError = error;
+    // Other owners can still need this shared event after FlowChat abandons
+    // its failed bootstrap. Recover their registration without duplicating it.
+    shared.retryTimer = setTimeout(() => {
+      shared.retryTimer = undefined;
+      void registerSharedTauriEventListener(event, shared);
+    }, shared.retryDelayMs);
+    shared.retryDelayMs = Math.min(shared.retryDelayMs * 2, 30_000);
   }).finally(() => {
     if (shared.registrationPromise === registration) {
       shared.registrationPromise = null;
@@ -166,7 +159,6 @@ export class TauriTransportAdapter implements ITransportAdapter {
   private connected: boolean = false;
   private invokeFn: ((action: string, params?: any) => Promise<any>) | null = null;
   private initPromise: Promise<void> | null = null;
-  private listenerRegistrationPromises = new Set<Promise<void>>();
   private eventSubscriptions = new Set<TauriEventSubscription>();
 
   supportsSearchStreamEvents(): boolean {
@@ -230,11 +222,11 @@ export class TauriTransportAdapter implements ITransportAdapter {
       }
       const invokeStartedAt = nowMs();
       try {
-        const result = await withOhosFetchLock(() =>
-          params !== undefined
-            ? this.invokeFn!(action, params)
-            : this.invokeFn!(action),
-        );
+        // A native command may wait on a network service or user input. Its
+        // response must not hold up unrelated requests or event registration.
+        const result = params !== undefined
+          ? await this.invokeFn(action, params)
+          : await this.invokeFn(action);
         if (timing) {
           timing.invokeDurationMs = elapsedMs(invokeStartedAt);
           timing.transportDurationMs = elapsedMs(transportStartedAt);
@@ -266,6 +258,7 @@ export class TauriTransportAdapter implements ITransportAdapter {
         subscriptions: new Set(),
         unlistenFn: null,
         registrationPromise: null,
+        retryDelayMs: 1000,
         closed: false,
       };
       sharedTauriEventListeners.set(event, shared);
@@ -282,21 +275,11 @@ export class TauriTransportAdapter implements ITransportAdapter {
     shared.subscriptions.add(subscription);
     this.eventSubscriptions.add(subscription);
 
-    const registration = needsRegistration
-      ? registerSharedTauriEventListener(event, shared)
-      : shared.registrationPromise;
-    if (registration) {
-      this.trackListenerRegistration(registration);
+    if (needsRegistration) {
+      void registerSharedTauriEventListener(event, shared);
     }
 
     return () => this.removeEventSubscription(subscription);
-  }
-
-  private trackListenerRegistration(registration: Promise<void>): void {
-    this.listenerRegistrationPromises.add(registration);
-    void registration.finally(() => {
-      this.listenerRegistrationPromises.delete(registration);
-    });
   }
 
   private removeEventSubscription(subscription: TauriEventSubscription): void {
@@ -323,10 +306,18 @@ export class TauriTransportAdapter implements ITransportAdapter {
   }
 
   async waitForListenerRegistrations(): Promise<void> {
-    while (this.listenerRegistrationPromises.size > 0) {
+    while (true) {
+      const pending = new Set(Array.from(this.eventSubscriptions, subscription =>
+        subscription.listener.registrationPromise).filter(promise => promise !== null));
+      if (pending.size === 0) break;
       // Listener registration is async, and settling one registration can reveal
       // another registration issued in the same initialization wave.
-      await Promise.allSettled(Array.from(this.listenerRegistrationPromises));
+      await Promise.allSettled(pending);
+    }
+    for (const subscription of this.eventSubscriptions) {
+      if ('registrationError' in subscription.listener) {
+        throw subscription.listener.registrationError;
+      }
     }
   }
 }
