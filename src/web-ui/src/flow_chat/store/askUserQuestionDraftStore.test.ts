@@ -12,7 +12,7 @@ import {
 describe('askUserQuestionDraftStore', () => {
   beforeEach(() => {
     activateSurface(LOCAL_SURFACE_ID);
-    askUserQuestionDraftStore.setState({ drafts: {} });
+    askUserQuestionDraftStore.setState({ drafts: {}, inputOrigins: {} });
   });
 
   it('keeps answers and custom input isolated by session and tool call', () => {
@@ -60,12 +60,16 @@ describe('askUserQuestionDraftStore', () => {
     store.setSingleAnswer(retainedKey, 0, 'Keep');
     store.setSingleAnswer(removedKey, 0, 'Remove');
     store.setSingleAnswer(otherSessionKey, 0, 'Other session');
+    store.setInputOrigin(removedKey, 0, true);
 
     store.reconcilePendingTools(LOCAL_SURFACE_ID, 'session-a', ['tool-retained']);
 
     expect(askUserQuestionDraftStore.getState().drafts[retainedKey]).toBeDefined();
     expect(askUserQuestionDraftStore.getState().drafts[removedKey]).toBeUndefined();
     expect(askUserQuestionDraftStore.getState().drafts[otherSessionKey]).toBeDefined();
+    // The origin outlives the draft it was recorded with: its card is the one
+    // that stopped waiting, which is exactly what it keeps rendering.
+    expect(askUserQuestionDraftStore.getState().inputOrigins[removedKey]).toEqual({ 0: true });
   });
 
   it('keeps submission phase across remounts without recreating a cleared draft', () => {
@@ -123,10 +127,12 @@ describe('askUserQuestionDraftStore', () => {
     let store = askUserQuestionDraftStore.getState();
     store.setSingleAnswer(removedSessionKey, 0, 'Remove session');
     store.setSingleAnswer(retainedSessionKey, 0, 'Keep session');
+    store.setInputOrigin(removedSessionKey, 0, true);
 
     activateSurface('peer-b');
     const peerKey = askUserQuestionDraftKey('session-a', 'tool-a');
     askUserQuestionDraftStore.getState().setSingleAnswer(peerKey, 0, 'Remove peer');
+    askUserQuestionDraftStore.getState().setInputOrigin(peerKey, 0, true);
 
     activateSurface(LOCAL_SURFACE_ID);
     store = askUserQuestionDraftStore.getState();
@@ -134,9 +140,11 @@ describe('askUserQuestionDraftStore', () => {
     expect(askUserQuestionDraftStore.getState().drafts[removedSessionKey]).toBeUndefined();
     expect(askUserQuestionDraftStore.getState().drafts[retainedSessionKey]).toBeDefined();
     expect(askUserQuestionDraftStore.getState().drafts[peerKey]).toBeDefined();
+    expect(askUserQuestionDraftStore.getState().inputOrigins[removedSessionKey]).toBeUndefined();
 
     store.removeSurfaceDrafts('peer-b');
     expect(askUserQuestionDraftStore.getState().drafts[peerKey]).toBeUndefined();
     expect(askUserQuestionDraftStore.getState().drafts[retainedSessionKey]).toBeDefined();
+    expect(askUserQuestionDraftStore.getState().inputOrigins[peerKey]).toBeUndefined();
   });
 });

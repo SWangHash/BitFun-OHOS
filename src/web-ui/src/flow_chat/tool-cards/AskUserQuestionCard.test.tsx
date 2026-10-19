@@ -34,8 +34,13 @@ vi.mock('@/infrastructure/api/service-api/SystemAPI', () => ({
   },
 }));
 
+vi.mock('@/infrastructure/peer-device/pickWorkspaceDirectory', () => ({
+  pickWorkspaceDirectory: vi.fn(),
+}));
+
 import { toolAPI } from '@/infrastructure/api/service-api/ToolAPI';
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
+import { pickWorkspaceDirectory } from '@/infrastructure/peer-device/pickWorkspaceDirectory';
 import { AskUserQuestionCard } from './AskUserQuestionCard';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -107,11 +112,13 @@ describe('AskUserQuestionCard', () => {
 
   beforeEach(() => {
     activateSurface(LOCAL_SURFACE_ID);
-    askUserQuestionDraftStore.setState({ drafts: {} });
+    askUserQuestionDraftStore.setState({ drafts: {}, inputOrigins: {} });
     vi.mocked(toolAPI.startUserQuestionInteraction).mockReset();
     vi.mocked(toolAPI.startUserQuestionInteraction).mockResolvedValue(undefined);
     vi.mocked(toolAPI.submitUserAnswers).mockReset();
     vi.mocked(toolAPI.submitUserAnswers).mockResolvedValue(undefined);
+    vi.mocked(pickWorkspaceDirectory).mockReset();
+    vi.mocked(pickWorkspaceDirectory).mockResolvedValue('D:/work/myqt');
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -871,6 +878,61 @@ describe('AskUserQuestionCard', () => {
     expect(container.textContent).toContain('D:/work/myqt');
     expect(container.textContent).toContain('D:/ohos/qt5-kit');
     expect(container.textContent).not.toContain('toolCards.askUser.notAnswered');
+  });
+
+  it('keeps an answer picked into a question input on that input once the card completes', async () => {
+    // 复现 #271：候选路径没被选中，而是通过目录选择器把同一条路径填进输入框，提交后
+    // 已完成卡片按持久化答案值回放，若不做区分就会改成"候选项选中 + 输入框清空"。
+    act(() => root.render(
+      <AskUserQuestionCard toolItem={qtMigrationTool()} config={config} sessionId="session-a" />,
+    ));
+
+    act(() => container.querySelectorAll<HTMLButtonElement>('[data-bitfun-part="browse"]')[0]?.click());
+    await act(async () => {});
+    expect(pickWorkspaceDirectory).toHaveBeenCalledWith({
+      title: 'toolCards.askUser.qtMigration.question.sourceProject',
+      defaultPath: undefined,
+    });
+
+    const sourceInput = container
+      .querySelectorAll<HTMLInputElement>('[data-bitfun-part="custom-input"] input')[0];
+    // 提交前：输入框持有该路径，同名候选项不再处于选中态。
+    expect(sourceInput?.value).toBe('D:/work/myqt');
+    expect(container.querySelector<HTMLInputElement>('input[value="D:/work/myqt"]')?.checked)
+      .toBe(false);
+
+    const submitButton = container.querySelector<HTMLButtonElement>('[data-bitfun-part="submit"] button');
+    await act(async () => submitButton?.click());
+    expect(toolAPI.submitUserAnswers).toHaveBeenCalledWith(
+      'question-tool-1',
+      { source_project: 'D:/work/myqt', toolchain: 'D:/ohos/qt5-kit', template: '__official__' },
+      'session-a',
+    );
+
+    const completed = qtMigrationTool();
+    completed.status = 'completed';
+    completed.toolResult = {
+      success: true,
+      result: {
+        answers: {
+          source_project: 'D:/work/myqt',
+          toolchain: 'D:/ohos/qt5-kit',
+          template: '__official__',
+        },
+      },
+    };
+    act(() => root.render(
+      <AskUserQuestionCard toolItem={completed} config={config} sessionId="session-a" />,
+    ));
+
+    // 提交后：形态与提交前一致；按候选项回答的问题仍显示为选中。
+    expect(container
+      .querySelectorAll<HTMLInputElement>('[data-bitfun-part="custom-input"] input')[0]?.value)
+      .toBe('D:/work/myqt');
+    expect(container.querySelector<HTMLInputElement>('input[value="D:/work/myqt"]')?.checked)
+      .toBe(false);
+    expect(container.querySelector<HTMLInputElement>('input[value="D:/ohos/qt5-kit"]')?.checked)
+      .toBe(true);
   });
 
   it('leaves a plain single-select question unanswered until the user picks', () => {
