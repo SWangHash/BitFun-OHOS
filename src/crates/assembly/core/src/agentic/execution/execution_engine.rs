@@ -3356,8 +3356,8 @@ impl ExecutionEngine {
             .cloned()
             .unwrap_or_default();
 
-        // LLM-backed analyzer with a deterministic fallback, cached so the
-        // coordinator and this engine share one verdict per turn.
+        // LLM-backed analyzer with a deterministic fallback, cached per
+        // (session, prompt).
         let mut initial_messages = initial_messages;
         if !original_user_input.trim().is_empty() {
             if let Some(decision) =

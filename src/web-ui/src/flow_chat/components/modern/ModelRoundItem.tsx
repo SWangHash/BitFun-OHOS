@@ -447,13 +447,16 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
       const visibleItems = isTurnComplete
         ? sortedItems.filter(item => !canvasArtifactReferenceFromToolItem(item))
         : sortedItems;
+      const groupedSource = visibleItems.length > 0 || isTurnComplete
+        ? visibleItems
+        : [{ id: `${round.id}-pending-thinking`, type: 'thinking' as const, content: '', isCollapsed: false, isStreaming: true, status: 'streaming' as const, timestamp: round.startTime }];
       return buildModelRoundItemGroups({
-        items: visibleItems,
+        items: groupedSource,
         isStreaming: round.isStreaming,
         disableExploreGrouping: round.renderHints?.disableExploreGrouping === true,
         isCollapsibleTool,
       });
-    }, [isTurnComplete, round.isStreaming, round.renderHints?.disableExploreGrouping, sortedItems]);
+    }, [isTurnComplete, isCollapsibleTool, round.id, round.isStreaming, round.renderHints?.disableExploreGrouping, round.startTime, sortedItems]);
 
     const groupSummary = useMemo(
       () => renderTraceEnabled ? summarizeModelRoundItemGroups(groupedItems) : null,
@@ -544,7 +547,9 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
     const hasContent = sortedItems.some(item =>
       (item.type === 'text' && (item as FlowTextItem).content.trim()) ||
       (item.type === 'tool' && (item as FlowToolItem).toolCall) ||
-      (item.type === 'thinking' && (item as FlowThinkingItem).content.trim())
+      (item.type === 'thinking' && (
+        (item as FlowThinkingItem).content.trim() || (item as FlowThinkingItem).isStreaming
+      ))
     );
 
     const completedAt = turnEndedAt ?? round.endTime;

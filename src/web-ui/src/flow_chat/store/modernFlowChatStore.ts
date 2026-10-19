@@ -370,6 +370,35 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
       return;
     }
 
+    if (!isTerminalTurnStatus(turn.status) && turn.modelRounds.length === 0) {
+      items.push({
+        type: 'model-round',
+        turnId: turn.id,
+        data: {
+          id: `${turn.id}-accepted`,
+          index: 0,
+          items: [{
+            id: `${turn.id}-accepted-thinking`,
+            type: 'thinking',
+            content: '',
+            isCollapsed: false,
+            isStreaming: true,
+            status: 'streaming',
+            timestamp: turn.startTime,
+          }],
+          isStreaming: true,
+          isComplete: false,
+          status: 'streaming',
+          startTime: turn.startTime,
+        },
+        isLastRound: true,
+        isTurnComplete: false,
+        layoutHints: { expandedThinkingItemIds: [] },
+        turnStartedAt: turn.startTime,
+      });
+      return;
+    }
+
     const renderEntries: Array<
       | { type: 'round'; round: ModelRound }
       | { type: 'steering'; item: FlowUserSteeringItem }

@@ -640,6 +640,55 @@ describe('sessionToVirtualItems explore grouping', () => {
     expect(modelRound?.layoutHints?.expandedThinkingItemIds).toEqual([]);
   });
 
+  it('opens the transcript thinking row as soon as a turn is accepted', () => {
+    // The session list shows the turn as running from the accepted event, and a
+    // first Qt migration turn spends the next stretch in its intent analysis. The
+    // transcript must show the same state instead of rendering nothing.
+    const accepted = sessionToVirtualItems(makeSession({
+      sessionId: 'accepted-session',
+      dialogTurns: [{
+        id: 'turn-accepted',
+        sessionId: 'accepted-session',
+        userMessage: {
+          id: 'user-1',
+          content: 'migrate my Qt project',
+          timestamp: 900,
+        },
+        modelRounds: [],
+        status: 'processing',
+        startTime: 900,
+      }],
+    }));
+
+    const userMessageIndex = accepted.findIndex(item => item.type === 'user-message');
+    const modelRoundIndex = accepted.findIndex(item => item.type === 'model-round');
+    const modelRound = accepted[modelRoundIndex] as ModelRoundVirtualItem | undefined;
+
+    expect(modelRoundIndex).toBe(userMessageIndex + 1);
+    expect(modelRound?.turnId).toBe('turn-accepted');
+    expect(modelRound?.isTurnComplete).toBe(false);
+    expect(modelRound?.data.items).toHaveLength(1);
+    expect(modelRound?.data.items[0]).toMatchObject({
+      type: 'thinking',
+      content: '',
+      isStreaming: true,
+    });
+
+    // A turn that already ended with no rounds keeps rendering nothing.
+    const finished = sessionToVirtualItems(makeSession({
+      sessionId: 'finished-session',
+      dialogTurns: [{
+        id: 'turn-finished',
+        sessionId: 'finished-session',
+        userMessage: { id: 'user-2', content: 'hi', timestamp: 901 },
+        modelRounds: [],
+        status: 'completed',
+        startTime: 901,
+      }],
+    }));
+    expect(finished.some(item => item.type === 'model-round')).toBe(false);
+  });
+
   it('appends a completion notice for abnormal completed turns', () => {
     const session = makeSession({
       dialogTurns: [{

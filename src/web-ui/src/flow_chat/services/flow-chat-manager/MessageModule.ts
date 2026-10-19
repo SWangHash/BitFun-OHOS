@@ -104,6 +104,11 @@ export function inFlightSubmissionCount(): number {
   return inFlightSubmissions;
 }
 
+function isRequestTimeoutError(error: unknown): boolean {
+  return error instanceof Error
+    && (error as Error & { code?: string }).code === 'REQUEST_TIMEOUT';
+}
+
 /**
  * Salvage a submission that lost the race against a device-surface switch.
  *
@@ -416,6 +421,17 @@ export async function sendMessage(
         displayMessage,
         agentType,
         options,
+      });
+      if (latestSendBySession.get(sendCoordinationKey) === sendAttempt) {
+        latestSendBySession.delete(sendCoordinationKey);
+      }
+      return;
+    }
+
+    if (isRequestTimeoutError(error)) {
+      log.warn('Send request outlived the client budget; the turn is still running', {
+        sessionId: sessionId,
+        error,
       });
       if (latestSendBySession.get(sendCoordinationKey) === sendAttempt) {
         latestSendBySession.delete(sendCoordinationKey);

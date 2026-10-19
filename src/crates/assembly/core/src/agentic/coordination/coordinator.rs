@@ -6283,22 +6283,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         );
 
         let turn_index = self.session_manager.get_turn_count(&session_id);
-        // LLM-backed turn-intent analysis with a deterministic fallback, cached
-        // per (session, prompt) and shared with the execution engine's turn gate.
-        let migration_enabled =
-            crate::agentic::tools::implementations::turn_intent_analyzer::analyze_turn_intent(
-                &session_id,
-                &effective_agent_type,
-                &original_user_input,
-            )
-            .await
-            .map(|decision| decision.flow_enabled)
-            .unwrap_or(false);
         let mut skill_agent_context_vars = HashMap::new();
-        skill_agent_context_vars.insert(
-            "qt_migration_enabled".to_string(),
-            migration_enabled.to_string(),
-        );
         if user_message_metadata
             .as_ref()
             .and_then(|metadata| metadata.get("acp_transport"))
@@ -6614,10 +6599,6 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         context_vars.insert(
             "original_user_input".to_string(),
             original_user_input.clone(),
-        );
-        context_vars.insert(
-            "qt_migration_enabled".to_string(),
-            migration_enabled.to_string(),
         );
         // Constraint revocation changes a user-authored safety boundary. Only
         // submissions from an external user surface can authorize that change;
