@@ -23,6 +23,7 @@ import { isSurfaceChangedError } from '@/infrastructure/peer-device/deviceSurfac
 import WorkspaceBody from './WorkspaceBody';
 import { useToolbarModeContext } from '../../flow_chat/components/toolbar-mode/ToolbarModeContext';
 import { MCPInteractionDialog } from '../components/MCPInteractionDialog/MCPInteractionDialog';
+import { FileCreationDialogHost } from '../components/FileCreationDialogHost';
 import { workspaceAPI } from '@/infrastructure/api';
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
 import type { CloseBehavior } from '@/infrastructure/api/service-api/SystemAPI';
@@ -814,6 +815,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
         </Suspense>
       </RetainedMountBoundary>
       <MCPInteractionDialog />
+      <FileCreationDialogHost />
       {isOpenHarmony && (
         <Suspense fallback={null}>
           <AgentCompanionInAppPet />

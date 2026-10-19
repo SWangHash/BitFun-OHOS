@@ -1,67 +1,20 @@
 import { WorkspaceKind, isRemoteWorkspace, type WorkspaceInfo } from '@/shared/types';
 import { workspaceManager } from '@/infrastructure/services/business/workspaceManager';
-import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
-import { sessionBelongsToWorkspaceNavRow } from '@/flow_chat/utils/sessionOrdering';
-import { normalizeDefaultSessionTitleMode } from '@/flow_chat/utils/sessionTitle';
 
 /**
- * Find an existing empty session in the workspace that can be reused instead
- * of creating a new one. An empty session has no dialog turns and is in the
- * fresh "new" lifecycle state (never sent a message).
+ * Always create a new session instead of reusing an existing empty one.
  *
- * Empty-session reuse is tracked per category (code / cowork / claw). An
- * existing empty code session does NOT block creating a new empty cowork
- * session, and vice versa: only sessions whose normalized mode matches the
- * requested mode are considered. When no same-category empty session exists,
- * null is returned so the caller creates a new session of the requested type.
+ * The reuse logic was removed to match the win version's behavior: every
+ * "+" click creates a fresh session. The previous implementation scanned
+ * the session store for empty same-category sessions and returned one to
+ * reuse, which blocked the user from creating a second empty session until
+ * the first one received a message.
  */
 export function findReusableEmptySessionId(
-  workspace: WorkspaceInfo,
-  requestedMode?: string
+  _workspace: WorkspaceInfo,
+  _requestedMode?: string
 ): string | null {
-  const { sessions } = flowChatStore.getState();
-
-  const targetMode = normalizeDefaultSessionTitleMode(requestedMode);
-
-  const candidates: Array<{ sessionId: string; createdAt: number }> = [];
-
-  for (const session of sessions.values()) {
-    if (session.isTransient) {
-      continue;
-    }
-    if (session.sessionKind === 'subagent') {
-      continue;
-    }
-    if (session.dialogTurns.length > 0) {
-      continue;
-    }
-    if (session.historyState !== 'new') {
-      continue;
-    }
-    if (!sessionBelongsToWorkspaceNavRow(session, workspace.id)) {
-      continue;
-    }
-
-    const sessionMode = normalizeDefaultSessionTitleMode(
-      session.mode || session.config.agentType
-    );
-    if (sessionMode !== targetMode) {
-      continue;
-    }
-
-    candidates.push({
-      sessionId: session.sessionId,
-      createdAt: session.createdAt,
-    });
-  }
-
-  if (candidates.length === 0) {
-    return null;
-  }
-
-  candidates.sort((a, b) => b.createdAt - a.createdAt);
-
-  return candidates[0].sessionId;
+  return null;
 }
 
 /**
