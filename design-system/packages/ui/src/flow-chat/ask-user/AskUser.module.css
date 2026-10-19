@@ -332,7 +332,6 @@
   .optionDescription {
     overflow: hidden;
     flex: 1 1 auto;
-    max-inline-size: var(--bitfun-control-ask-user-description-max-width);
     min-inline-size: 0;
     color: var(--bitfun-color-content-muted);
     font-weight: var(--bitfun-type-body-md-font-weight);
