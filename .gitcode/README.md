@@ -10,7 +10,7 @@ Windows / macOS 交叉编译检查；桌面打包 / 全量 CI 仍保留在 GitHu
 - `workflows/bitfun_ade_ohos_ci.yml`：PR（open/update/reopen，面向 main /
   release/2.0.0）触发，另保留 `workflow_dispatch` 手动触发；不设 push 触发器
   （2026-10 曾临时启用 push 验证 runner，验证完成后移除）。
-- `workflows/bitfun_ade_ohos_package.yml`：`workflow_dispatch` 手动触发的一键
+- `workflows/bitfun_ade_package.yml`：`workflow_dispatch` 手动触发的一键
   签名打包。流水线 checkout 本仓库后直接执行仓库内脚本
   `.gitcode/package.sh`，无需主机侧脚本副本。支持 `branch` / `repo` /
   `so_only` / `build_app` 输入：`build_app` 走 `assembleApp` 出 `.app` 包并使用
@@ -41,6 +41,38 @@ Windows / macOS 交叉编译检查；桌面打包 / 全量 CI 仍保留在 GitHu
   `/opt/.gitcode-cache/target/ade-windows`、`/opt/.gitcode-cache/target/ade-macos`，
   Cargo registry/git 缓存与其他流水线共享（首次运行前需用 OHOS 镜像的
   git db 播种，避免在线克隆 GitHub fork 依赖）。
+- `workflows/bitfun_ade_package.yml`：`workflow_dispatch` 手动触发的
+  统一打包流水线（OHOS / Windows / macOS 三平台开关，`package_ohos` 默认
+  开启，`package_win` / `package_mac` 默认关闭；多个开关可同时勾选，各
+  job 并行打同一 release 的不同资产）。
+  - **OHOS job**（`target=ohos_package`，默认开）：主机直跑
+    `.gitcode/package.sh` 一键签名打包（HAP/.app/so），支持 `so_only` /
+    `build_app` 输入：`build_app` 走 `assembleApp` 出 `.app` 包并使用主机
+    `/root/package-tools/cer-app.snippet`（release 签名材料）。
+  - **Windows job**（`target=windows_package`）：rust-ci-windows 镜像交叉
+    编译，`desktop-tauri-build.mjs --runner cargo-xwin --no-bundle` 后把
+    裸 exe 与相邻资源目录打成开发者预览 zip。NSIS 暂不可行：
+    `@tauri-apps/cli@2.10` 的 `--bundles` 按宿主平台过滤可选值（Linux 只
+    允许 deb/rpm/appimage）；出安装包需要 Windows 宿主或未来 CLI 放开
+    跨平台 NSIS。node/pnpm/bun/zip 在步骤内临时补装；xwin SDK 缓存持久
+    （`XWIN_CACHE_DIR=/opt/xwin-cache`），含 PathCch.lib 大小写修复步骤。
+    target 缓存独立于检查流水线（`ade-windows-package`）。
+  - **macOS job**（`target=macos_package`，与 agent_kernel CLI 流水线
+    同构）：rust-ci-macos 镜像 + `cargo zigbuild`（`--runner
+    cargo-zigbuild`，`SDKROOT=/opt/MacOSX.sdk`）交叉编译，
+    `--no-bundle` 组装相邻资源目录，链接后用缓存的 ldid 做 ad-hoc 签名
+    （`/opt/.gitcode-cache/bin/ldid`，一次性下载；wrapper 拒绝链接期
+    `-adhoc_codesign`），`LZMA_API_STATIC=1` 强制 vendored liblzma
+    （避免 SDK 老 ABI tbd 缺 MT 符号），产出开发者预览 zip。真正的
+    .app/DMG + Developer ID 签名/公证仍需 macOS（后续 rcodesign 或原生
+    mac runner）。target 缓存独立（`ade-macos-package`）。
+  - 公共约定：打包源码取 `inputs.branch`（win/mac 的 prepare_source fetch
+    + checkout；发布脚本用本 workflow ref 的副本 `.package-tools/`）；
+    Release 资产扩展名按 job 限定（OHOS 默认 `hap,app`，win/mac 传
+    `zip`）；发布脚本幂等，多 job 共享同一 release。
+  - **前置**：`GIT_TOKEN` secret（发 Release 时）；各 runner 主机
+    `/opt/.gitcode-cache/sherpa-onnx/` 按需播种对应归档（win-x64 /
+    osx-arm64；同机则放两个归档）。
 
 ### sherpa-onnx 预编译库种子缓存
 
@@ -108,7 +140,7 @@ OHOS CI 的 job 使用 `[self-hosted, os=ubuntu, target=ohos]`，标签必须与
 注册时的标签集合一致（当前 Runner `bitfun-ade-ohos` 注册为 `self-hosted` +
 `os=ubuntu` + `target=ohos`）；若注册标签变化，请同步修改所有 job 的 `runs-on`。
 
-打包流水线（`bitfun_ade_ohos_package.yml`）使用独立标签
+打包流水线（`bitfun_ade_package.yml`）使用独立标签
 `[self-hosted, os=ubuntu, target=ohos_package]`，与 OHOS CI 的 runner 池
 不共用：打包主机承载签名材料与主机侧打包工具，CI 的长前端构建不应
 挤占签名打包。需要注册一台带 `target=ohos_package` 标签的专用 runner。

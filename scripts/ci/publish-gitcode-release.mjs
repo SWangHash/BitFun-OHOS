@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 
-// Upload package artifacts (.hap/.app) to a GitCode release.
+// Upload package artifacts to a GitCode release.
 // Usage: publish-gitcode-release.mjs <tag> <owner/repo> <assets-dir>
-//   [target-branch] [packaged-commit] [release-title]
+//   [target-branch] [packaged-commit] [release-title] [asset-extensions]
 //   GITCODE_TOKEN env var is required (GitCode personal access token).
-// Release assets are restricted to .hap/.app; .so/.zip/.gz stay local-only.
-// The release title defaults to the tag; it only changes when an explicit
-// non-empty title is passed, so re-runs without one keep the current title.
+// The asset extension allowlist defaults to "hap,app"; desktop pipelines
+// pass e.g. "exe" (NSIS installer) or "dmg". The release title defaults
+// to the tag; it only changes when an explicit non-empty title is passed,
+// so re-runs without one keep the current title.
 // Idempotent: an existing release is reused and already-present asset
 // names are skipped.
 
@@ -14,14 +15,12 @@ import { createReadStream, statSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 
-const ASSET_EXTENSIONS = new Set(['.hap', '.app']);
-
-const [rawTag, repository, assetsDir, targetBranch, packagedCommit, rawTitle] = process.argv.slice(2);
+const [rawTag, repository, assetsDir, targetBranch, packagedCommit, rawTitle, rawExtensions] = process.argv.slice(2);
 const token = process.env.GITCODE_TOKEN;
 
 if (!rawTag || !repository || !assetsDir) {
   console.error(
-    'Usage: publish-gitcode-release.mjs <tag> <owner/repo> <assets-dir> [target-branch] [packaged-commit] [release-title] (GITCODE_TOKEN required)',
+    'Usage: publish-gitcode-release.mjs <tag> <owner/repo> <assets-dir> [target-branch] [packaged-commit] [release-title] [asset-extensions=hap,app] (GITCODE_TOKEN required)',
   );
   process.exit(2);
 }
@@ -37,6 +36,19 @@ if (/[\s~^:?*[\]\\]/.test(tag) || tag.startsWith('-') || tag.endsWith('.lock')) 
 }
 if (!token) {
   console.error('GITCODE_TOKEN is required to publish a GitCode release.');
+  process.exit(2);
+}
+
+// Asset extension allowlist (leading dots tolerated): "hap,app" default,
+// desktop pipelines pass e.g. "exe" or "dmg".
+const ASSET_EXTENSIONS = new Set(
+  (rawExtensions && rawExtensions.trim() ? rawExtensions.trim() : 'hap,app')
+    .split(/[,\s]+/)
+    .filter(Boolean)
+    .map((ext) => `.${ext.replace(/^\./, '').toLowerCase()}`),
+);
+if (ASSET_EXTENSIONS.size === 0 || [...ASSET_EXTENSIONS].some((ext) => !/^\.[a-z0-9]+$/.test(ext))) {
+  console.error(`Invalid asset extensions: ${rawExtensions} (expected comma-separated letters/digits, e.g. exe,dmg)`);
   process.exit(2);
 }
 const repositoryParts = repository.split('/');
@@ -105,12 +117,12 @@ async function ensureRelease() {
   if (!release) {
     const payload = {
       tag_name: tag,
+      // GitCode's create endpoint requires name (400 "name不能为空");
+      // default it to the tag when no explicit title was provided.
+      name: releaseName || tag,
       body: releaseBody,
       release_status: releaseStatus,
     };
-    if (releaseName) {
-      payload.name = releaseName;
-    }
     // Point the new tag at the packaged commit (or branch) when provided.
     if (targetCommitish) {
       payload.target_commitish = targetCommitish;
@@ -178,7 +190,7 @@ const assets = (await readdir(assetsDir, { withFileTypes: true }))
   .map((entry) => entry.name)
   .sort();
 if (assets.length === 0) {
-  throw new Error(`No .hap/.app artifacts found in ${assetsDir}`);
+  throw new Error(`No ${[...ASSET_EXTENSIONS].join('/')} artifacts found in ${assetsDir}`);
 }
 const existingNames = new Set(
   (release?.assets ?? []).map((asset) => asset.name).filter(Boolean),

@@ -3,8 +3,8 @@
   "tag": "v0.2.16",
   "assets": {
     "flashgrep-aarch64-apple-darwin": {
-      "sha256": "f35051821426b51409afdf13f927ce3e3270ef9eb938c5f60d6bbafa09cbc783",
-      "size": 8835776
+      "sha256": "c1550c7e11f5a9136cddfcdaad46a27b9e9147b7a551248b1543b75f3697d252",
+      "size": 8853920
     },
     "flashgrep-aarch64-pc-windows-msvc.exe": {
       "sha256": "a6dc3912f7fd65428a68a5a061179c7dd951531aa6db176dadfb651519e36cc6",
@@ -15,8 +15,8 @@
       "size": 9953280
     },
     "flashgrep-x86_64-apple-darwin": {
-      "sha256": "f81bf953eb8680ce896b66b997cff8ade25681b0f9b6c290b8130c57f035a14f",
-      "size": 9423968
+      "sha256": "1df06ae4e885292872c92c3ec2961314e294c84319c5ddfcd484465bb13b2fc7",
+      "size": 9515888
     },
     "flashgrep-x86_64-pc-windows-msvc.exe": {
       "sha256": "96684c3a946d90a42d3cfca3a7c511a41422eb7e0cb702801179ba363d9d6ed0",

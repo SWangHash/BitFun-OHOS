@@ -1,0 +1,831 @@
+# Unified desktop packaging pipeline for GitCode self-hosted runners.
+#
+# One manual dispatch, three independently togglable platform jobs:
+#   - OHOS (default on): one-click signed HAP/.app/so via the host-side
+#     script /root/package-tools/package.sh on the dedicated ohos_package
+#     runner (clones the target repo, injects signing material, builds the
+#     frontend, cargo tauri ohos build, ohpm/hvigorw HAP packaging).
+#   - Windows (opt-in): x86_64 cross-compile inside the shared
+#     rust-ci-windows image, dev-preview zip (raw exe + adjacent resource
+#     dirs). NSIS is NOT possible here: @tauri-apps/cli v2.10 filters the
+#     --bundles values by host platform, and GitHub CI bundles NSIS on a
+#     real Windows runner.
+#   - macOS (opt-in): aarch64 cross-compile inside the shared rust-ci-macos
+#     image (cargo-zigbuild + /opt/MacOSX.sdk, same shape as the
+#     agent_kernel CLI pipelines), ad-hoc signed post-link with a cached
+#     ldid; dev-preview zip. A real .app/DMG with Developer ID signing and
+#     notarization still needs macOS (rcodesign or a mac runner later).
+# Windows/macOS jobs build inputs.branch of THIS repository (prepare_source
+# fetches and checks it out; the release publisher runs from a copy of this
+# workflow ref's script so new CLI flags work regardless of the packaged
+# branch). Each enabled job uploads its own assets to the same idempotent
+# GitCode release (OHOS: hap/app, Windows/macOS: zip).
+
+name: BitFun ADE Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_ohos:
+        description: '打包 OHOS（HAP/.app/so，需 ohos_package runner）'
+        required: false
+        default: true
+        type: boolean
+      package_win:
+        description: '打包 Windows（x86_64 交叉编译，开发者预览 zip，需 windows_package runner）'
+        required: false
+        default: false
+        type: boolean
+      package_mac:
+        description: '打包 macOS（aarch64 交叉编译，开发者预览 zip，需 macos_package runner）'
+        required: false
+        default: false
+        type: boolean
+      branch:
+        description: '打包分支（默认 main）'
+        required: false
+        default: 'main'
+        type: string
+      repo:
+        description: 'OHOS 打包的仓库地址（默认 OpenBitFun/bitfun_ade）'
+        required: false
+        type: string
+      debug:
+        description: 'debug profile（OHOS so 输出在 target/.../debug；win/mac 产物在 target/.../debug[/bundle]）'
+        required: false
+        default: false
+        type: boolean
+      so_only:
+        description: 'OHOS：只编 so（跳过 HAP 打包）'
+        required: false
+        default: false
+        type: boolean
+      build_app:
+        description: 'OHOS：打 .app 包（release 签名 + assembleApp，需主机已配置 cer-app.snippet）'
+        required: false
+        default: false
+        type: boolean
+      upload_to_release:
+        description: '把产物上传到 GitCode Release'
+        required: false
+        default: false
+        type: boolean
+      upload_artifact:
+        description: '附带上传 artifact（占命名空间 1G 配额且当前无删除接口，仅在需要时勾选）'
+        required: false
+        default: false
+        type: boolean
+      release_tag:
+        description: 'Release 标签（upload_to_release 为 true 时必填，如 v1.0.0）'
+        required: false
+        type: string
+      package_name:
+        description: '产物包名（文件名主干，如 bitfun-v1.0.0；不填用 release_tag，都不填保持默认产物名）'
+        required: false
+        type: string
+      release_title:
+        description: 'Release 标题（不填默认为 tag；重跑不填则保留原标题）'
+        required: false
+        type: string
+
+permissions:
+  repository: read
+
+jobs:
+  package:
+    name: OHOS one-click signed package
+    if: ${{ inputs.package_ohos == true }}
+    # Dedicated label so packaging does not share the runner pool with the
+    # OHOS CI jobs: the package host carries signing material and host-side
+    # tooling, and a long CI frontend build must not delay signed packaging.
+    runs-on: [self-hosted, os=ubuntu, target=ohos_package]
+    timeout-minutes: 120
+    env:
+      PKG_BRANCH: ${{ inputs.branch }}
+      PKG_REPO: ${{ inputs.repo }}
+      PKG_SO_ONLY: ${{ inputs.so_only }}
+      PKG_BUILD_APP: ${{ inputs.build_app }}
+      PKG_DEBUG: ${{ inputs.debug }}
+    steps:
+      - name: Checkout pipeline scripts
+        uses: checkout
+        with:
+          ref: ${{ atomgit.sha }}
+
+      - name: Run repo package script
+        run: |
+          # Load the host toolchain env (cargo, node, OHOS vars) the same
+          # way the container steps do: preset PS1/HOME so the interactive
+          # guard in /root/.bashrc lets the exports through. Enable strict
+          # mode only AFTER sourcing: .bashrc references unset variables
+          # (e.g. debian_chroot) that must not trip `set -u`.
+          export HOME=/root PS1="ci$ "
+          . /root/.bashrc
+          set -eu
+          args=''
+          if [ -n "$PKG_BRANCH" ]; then
+            args="$args --branch $PKG_BRANCH"
+          fi
+          if [ -n "$PKG_REPO" ]; then
+            args="$args --repo $PKG_REPO"
+          fi
+          if [ "$PKG_SO_ONLY" = "true" ]; then
+            args="$args --so-only"
+          fi
+          if [ "$PKG_BUILD_APP" = "true" ]; then
+            args="$args --app"
+          fi
+          if [ "$PKG_DEBUG" = "true" ]; then
+            args="$args --debug"
+          fi
+          echo "Packaging args:$args"
+          # Run the repo-versioned script straight from the checkout, so
+          # script changes ship with the workflow itself and no host-side
+          # copy needs syncing. Test phase name: package-new.sh; rename to
+          # package.sh after validation.
+          bash "$PWD/.gitcode/package.sh" $args
+
+      - name: Collect artifacts
+        id: collect
+        env:
+          PKG_BRANCH: ${{ inputs.branch }}
+          PKG_SO_ONLY: ${{ inputs.so_only }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          PKG_NAME: ${{ inputs.package_name }}
+          UPLOAD_TO_RELEASE: ${{ inputs.upload_to_release }}
+          UPLOAD_ARTIFACT: ${{ inputs.upload_artifact }}
+        run: |
+          set -eu
+          branch_dir="/root/workspace/$PKG_BRANCH"
+          workdir="$(ls -dt "$branch_dir"/*/ 2>/dev/null | head -n 1 || true)"
+          if [ -z "$workdir" ]; then
+            echo "No package workspace found under $branch_dir" >&2
+            exit 1
+          fi
+          workdir="${workdir%/}"
+          echo "Latest package workspace: $workdir"
+          repo_path="$(cat "$workdir/repo-path.txt" 2>/dev/null || true)"
+          if [ -z "$repo_path" ] || [ ! -d "$repo_path" ]; then
+            repo_path="$(ls -d "$workdir"/*/ 2>/dev/null | grep -vE '/(app-output|hap-output|so-output)/$' | head -n 1 || true)"
+            repo_path="${repo_path%/}"
+          fi
+          if [ -z "$repo_path" ] || [ ! -d "$repo_path" ]; then
+            echo "No cloned repo directory found under $workdir" >&2
+            exit 1
+          fi
+          echo "Repo directory: $repo_path"
+          out="$PWD/ohos-package-output"
+          mkdir -p "$out"
+          # The .app build re-signs and overwrites the outputs dir, so the
+          # script stages default-signed haps (hap-output/) and the .app
+          # (app-output/) before that happens; staged copies win.
+          HAP_SIGNED=entry-default-signed.hap
+          APP_SIGNED=ohos-default-signed.app
+          if [ -e "$workdir/hap-output/$HAP_SIGNED" ]; then
+            cp -v "$workdir/hap-output/$HAP_SIGNED" "$out/"
+          elif [ -e "$repo_path/src/apps/ohos/entry/build/default/outputs/default/$HAP_SIGNED" ]; then
+            cp -v "$repo_path/src/apps/ohos/entry/build/default/outputs/default/$HAP_SIGNED" "$out/"
+          elif [ "$PKG_SO_ONLY" != "true" ]; then
+            echo "HAP not found in workspace or staging" >&2
+            exit 1
+          fi
+          if [ -e "$workdir/app-output/$APP_SIGNED" ]; then
+            cp -v "$workdir/app-output/$APP_SIGNED" "$out/"
+          elif [ -e "$repo_path/src/apps/ohos/build/outputs/default/$APP_SIGNED" ]; then
+            cp -v "$repo_path/src/apps/ohos/build/outputs/default/$APP_SIGNED" "$out/"
+          fi
+          # 产物改名：优先用包名（package_name），未填回退 release_tag，
+          # 都不填保持默认签名文件名。包名不允许斜杠与空白。
+          asset_name="$PKG_NAME"
+          if [ -z "$asset_name" ] && [ -n "$RELEASE_TAG" ]; then
+            asset_name="$RELEASE_TAG"
+          fi
+          if [ -n "$asset_name" ]; then
+            case "$asset_name" in
+              */*|*\\*|*[[:space:]]*)
+                echo "Invalid package name (no slashes or whitespace): $asset_name" >&2
+                exit 1
+                ;;
+            esac
+            if [ -e "$out/$HAP_SIGNED" ]; then
+              mv -v "$out/$HAP_SIGNED" "$out/$asset_name.hap"
+            fi
+            if [ -e "$out/$APP_SIGNED" ]; then
+              mv -v "$out/$APP_SIGNED" "$out/$asset_name.app"
+            fi
+          fi
+          # so/dist 仅在 so-only 模式、artifact 上传或发版时收集；
+          # Release 资产现仅含 HAP/.app，so/dist 不上传 Release，
+          # 收集用途为 so-only 产物输出与 artifact 留档
+          collect_extras=false
+          if [ "$PKG_SO_ONLY" = "true" ] || [ "$UPLOAD_TO_RELEASE" = "true" ] || [ "$UPLOAD_ARTIFACT" = "true" ]; then
+            collect_extras=true
+          fi
+          if [ "$collect_extras" = "true" ]; then
+            # so：优先取脚本暂存（--debug 时在 target/.../debug，暂存目录
+            # 与 profile 无关），回退 release 目录
+            if ls "$workdir/so-output"/lib*desktop_lib.so >/dev/null 2>&1; then
+              so_src="$workdir/so-output"
+            else
+              so_src="$repo_path/target/aarch64-unknown-linux-ohos/release"
+            fi
+            for so in "$so_src"/lib*desktop_lib.so; do
+              if [ -e "$so" ]; then cp -v "$so" "$out/"; fi
+            done
+            # mobile-web/dist 打包成压缩档（zip 优先，无 zip 回退 tar.gz），
+            # 仅进入 artifact 输出目录（Release 资产不含 so/dist）
+            if [ -d "$repo_path/src/mobile-web/dist" ]; then
+              if command -v zip >/dev/null 2>&1; then
+                (cd "$repo_path/src/mobile-web" && zip -qr "$out/mobile-web-dist.zip" dist)
+              else
+                tar -czf "$out/mobile-web-dist.tar.gz" -C "$repo_path/src/mobile-web" dist
+              fi
+            fi
+          fi
+          # 传递实际打包提交，供 Release tag 精确指向
+          if [ -f "$workdir/packaged-commit.txt" ]; then
+            packaged_commit="$(cat "$workdir/packaged-commit.txt" 2>/dev/null || true)"
+            if echo "$packaged_commit" | grep -qE '^[0-9a-f]{40}$'; then
+              echo "commit=$packaged_commit" >> "$ATOMGIT_OUTPUT"
+            fi
+          fi
+          ls -lh "$out"
+
+      - name: Gate artifact upload
+        id: artifact_gate
+        env:
+          UPLOAD_FLAG: ${{ inputs.upload_artifact }}
+        run: |
+          case "$UPLOAD_FLAG" in
+            true|True|TRUE) echo 'upload=true' >> "$ATOMGIT_OUTPUT" ;;
+            *) echo 'upload=false' >> "$ATOMGIT_OUTPUT" ;;
+          esac
+
+      - name: Upload package artifacts
+        if: ${{ steps.artifact_gate.outputs.upload == 'true' }}
+        uses: upload-artifact
+        with:
+          name: bitfun-ohos-package
+          path: ohos-package-output/
+
+      - name: Upload to GitCode release
+        id: release
+        env:
+          GITCODE_TOKEN: ${{ secrets.GIT_TOKEN }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_TITLE: ${{ inputs.release_title }}
+          RELEASE_BRANCH: ${{ inputs.branch }}
+          RELEASE_REPO_INPUT: ${{ inputs.repo }}
+          PACKAGED_COMMIT: ${{ steps.collect.outputs.commit }}
+          UPLOAD_FLAG: ${{ inputs.upload_to_release }}
+        run: |
+          # 主机 PATH（node 等）来自 /root/.bashrc，先加载再做判断
+          export HOME=/root PS1="ci$ "
+          . /root/.bashrc
+          set -eu
+          # GitCode 的 boolean 输入在表达式层可能与字符串比较不兼容，
+          # 在 shell 里做判断（env 渲染后必为字符串）
+          case "$UPLOAD_FLAG" in
+            true|True|TRUE) ;;
+            *)
+              echo "Skipped: upload_to_release is not enabled (UPLOAD_FLAG=$UPLOAD_FLAG)."
+              exit 0
+              ;;
+          esac
+          if [ -z "$RELEASE_TAG" ]; then
+            echo "upload_to_release is true but release_tag is empty." >&2
+            exit 1
+          fi
+          if [ -z "$GITCODE_TOKEN" ]; then
+            echo "Repository secret GIT_TOKEN is not configured (GitCode personal access token)." >&2
+            exit 1
+          fi
+          # Release 建在被打包的仓库上（tag 才能指向所选分支），从 repo
+          # 输入推导 owner/repo；未填时用默认仓库
+          release_repo="$RELEASE_REPO_INPUT"
+          if [ -z "$release_repo" ]; then
+            release_repo='https://gitcode.com/OpenBitFun/bitfun_ade.git'
+          fi
+          release_repo="${release_repo%.git}"
+          release_repo="$(printf '%s' "$release_repo" | awk -F/ '{print $(NF-1)"/"$NF}')"
+          echo "Release repository: $release_repo (target branch: $RELEASE_BRANCH)"
+          node scripts/ci/publish-gitcode-release.mjs "$RELEASE_TAG" "$release_repo" ohos-package-output "$RELEASE_BRANCH" "$PACKAGED_COMMIT" "$RELEASE_TITLE"
+          echo 'uploaded=true' >> "$ATOMGIT_OUTPUT"
+
+  windows:
+    name: Windows package (x86_64 cross, dev preview)
+    if: ${{ inputs.package_win == true }}
+    runs-on: [self-hosted, os=ubuntu, target=windows_package]
+    timeout-minutes: 240
+    env:
+      IMAGE: swr.cn-north-4.myhuaweicloud.com/bitfun/rust-ci-windows:20260813
+      CONTAINER_NAME: bitfun-ade-win-package-${{ atomgit.workflow_run_id }}-${{ atomgit.run_attempt }}
+    steps:
+      - name: Checkout workflow source
+        uses: checkout
+
+      - name: Prepare packaging source
+        id: prepare_source
+        env:
+          PKG_BRANCH: ${{ inputs.branch }}
+        run: |
+          set -eu
+          # Keep this workflow ref's publisher (it understands the
+          # asset-extensions flag) even after switching the worktree to the
+          # packaged branch below; untracked dirs survive checkout.
+          mkdir -p .package-tools
+          cp scripts/ci/publish-gitcode-release.mjs .package-tools/
+          git fetch --force origin "$PKG_BRANCH"
+          git checkout --force --detach FETCH_HEAD
+          echo "commit=$(git rev-parse HEAD)" >> "$ATOMGIT_OUTPUT"
+          echo "Packaging $(git log --oneline -1)"
+
+      - name: Pull and start Windows package container
+        run: |
+          set -eu
+          docker pull "$IMAGE"
+          cargo_home=$(docker run --rm "$IMAGE" sh -c 'printf %s "$CARGO_HOME"')
+          case "$cargo_home" in
+            /*) ;;
+            *) echo "CARGO_HOME is not an absolute path: $cargo_home" >&2; exit 1 ;;
+          esac
+          cache_root='/opt/.gitcode-cache'
+          # Separate from the check pipeline's ade-windows cache: a package
+          # build must never lose its target dir to the check workflow's
+          # disk-space guard mid-run.
+          target_cache="$cache_root/target/ade-windows-package"
+          # $cache_root/xwin persists the cargo-xwin Windows SDK/CRT download
+          # (XWIN_CACHE_DIR); shared with the check pipeline since both use
+          # the same image and xwin version.
+          mkdir -p \
+            "$cache_root/cargo/registry" \
+            "$cache_root/cargo/git" \
+            "$cache_root/sherpa-onnx" \
+            "$cache_root/xwin" \
+            "$target_cache"
+          docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+          docker run --detach \
+            --name "$CONTAINER_NAME" \
+            --volume "$PWD:/workspace" \
+            --volume "$cache_root/cargo/registry:$cargo_home/registry" \
+            --volume "$cache_root/cargo/git:$cargo_home/git" \
+            --volume "$cache_root/sherpa-onnx:/opt/sherpa-onnx-cache" \
+            --volume "$cache_root/xwin:/opt/xwin-cache" \
+            --volume "$target_cache:/workspace/target" \
+            --workdir /workspace \
+            "$IMAGE" \
+            sh -c 'while :; do sleep 3600; done'
+
+      - name: Verify sherpa-onnx seed archive
+        run: |
+          set -eu
+          archive='sherpa-onnx-v1.13.4-win-x64-static-MT-Release-lib.tar.bz2'
+          seed='/opt/.gitcode-cache/sherpa-onnx'
+          if [ ! -f "$seed/$archive" ]; then
+            echo "::error::$seed/$archive is missing." >&2
+            echo "Seed it with the pre-downloaded release archive (scp/upload once per runner):" >&2
+            echo "  $archive -> $seed/" >&2
+            exit 1
+          fi
+          echo "sherpa-onnx seed archive found: $seed/$archive"
+
+      # Bound stalled GitHub fetches (warm with retries) before the long
+      # build; GIT_CONFIG_GLOBAL also applies to the build step below.
+      # lld-link opens import libs case-sensitively on Linux: the windows
+      # crate family requests "PathCch.lib" while the extracted xwin SDK
+      # cache may name it with a different case. Link the cache-relative
+      # match in place; a wholly missing file means the SDK download was
+      # incomplete and needs a cache wipe.
+      - name: Fix up xwin SDK cache (PathCch case)
+        run: |
+          set -eu
+          sdk='/opt/.gitcode-cache/xwin/xwin/sdk/lib/um/x86_64'
+          if [ ! -d "$sdk" ]; then
+            echo "xwin SDK cache not populated yet; skipping fixup."
+            exit 0
+          fi
+          if [ -e "$sdk/PathCch.lib" ]; then
+            echo "PathCch.lib already present."
+            exit 0
+          fi
+          match=$(find "$sdk" -maxdepth 1 -iname 'pathcch.lib' -print -quit 2>/dev/null || true)
+          if [ -n "$match" ]; then
+            ln -s "$(basename "$match")" "$sdk/PathCch.lib"
+            echo "Symlinked $(basename "$match") -> PathCch.lib"
+          else
+            echo "::error::pathcch import lib missing from $sdk entirely." >&2
+            echo "The xwin SDK cache looks incomplete; wipe /opt/.gitcode-cache/xwin on the runner and re-run to re-download the SDK." >&2
+            exit 1
+          fi
+
+      - name: Warm cargo caches (retried)
+        run: |
+          set -eu
+          ok=''
+          for attempt in 1 2 3 4 5; do
+            echo "cargo fetch attempt $attempt/5"
+            if docker exec \
+              --env CARGO_NET_GIT_FETCH_WITH_CLI=true \
+              "$CONTAINER_NAME" \
+              sh -c 'printf "[http]\n\tlowSpeedLimit = 1000\n\tlowSpeedTime = 60\n\tversion = HTTP/1.1\n" > /tmp/gitconfig && cd /workspace && GIT_CONFIG_GLOBAL=/tmp/gitconfig exec cargo fetch --locked'; then
+              ok=1
+              break
+            fi
+            sleep 20
+          done
+          if [ -z "$ok" ]; then
+            echo '::error::cargo fetch failed after 5 attempts (flaky GitHub access for git deps; the persistent /opt/.gitcode-cache/cargo/git cache keeps every success).' >&2
+            exit 1
+          fi
+
+      - name: Ensure build tooling (node, pnpm, bun, zip)
+        run: |
+          set -eu
+          # Best-effort provisioning until node + pnpm + bun + zip are baked
+          # into the image; assumes a Debian-based image with apt.
+          docker exec --user 0 "$CONTAINER_NAME" sh -c '
+            set -eu
+            command -v node >/dev/null 2>&1 || { apt-get update -qq && apt-get install -y -qq nodejs npm; }
+            command -v pnpm >/dev/null 2>&1 || npm install -g pnpm@9
+            command -v bun >/dev/null 2>&1 || npm install -g bun
+            command -v zip >/dev/null 2>&1 || { apt-get update -qq && apt-get install -y -qq zip; }
+            node --version && pnpm --version && bun --version
+          '
+
+      - name: Build web UI
+        run: |
+          set -eu
+          docker exec "$CONTAINER_NAME" sh -c 'set -eu; cd /workspace && pnpm install && pnpm --dir design-system run build:packages && npm run build && pnpm run plugin-host:prepare && pnpm --dir src/mobile-web run build'
+
+      - name: Cross build desktop (x86_64-pc-windows-msvc)
+        run: |
+          set -eu
+          # --runner cargo-xwin: C dependencies (libz-sys, ring, ...) must be
+          # compiled with clang-cl against the xwin SDK; a plain cargo build
+          # picks the host GNU cc and fails on windows-msvc targets. This is
+          # the same toolchain path the check pipeline uses.
+          build_args='--runner cargo-xwin --no-bundle --target x86_64-pc-windows-msvc --verbose'
+          case "$DEBUG_FLAG" in
+            true|True|TRUE) build_args="$build_args --debug" ;;
+          esac
+          # SHERPA_ONNX_ARCHIVE_DIR: resolve sherpa-onnx libs from the seeded
+          # archive instead of downloading from GitHub (times out here).
+          # CARGO_TARGET_DIR: pin the bundle path to the mounted target cache.
+          docker exec \
+            --env CARGO_NET_GIT_FETCH_WITH_CLI=true \
+            --env SHERPA_ONNX_ARCHIVE_DIR=/opt/sherpa-onnx-cache \
+            --env CARGO_TARGET_DIR=/workspace/target \
+            --env GIT_CONFIG_GLOBAL=/tmp/gitconfig \
+            --env XWIN_CACHE_DIR=/opt/xwin-cache \
+            "$CONTAINER_NAME" \
+            sh -c "set -eu; cd /workspace && exec node scripts/desktop-tauri-build.mjs $build_args"
+        env:
+          DEBUG_FLAG: ${{ inputs.debug }}
+
+      - name: Collect dev-preview zip
+        env:
+          PKG_NAME: ${{ inputs.package_name }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          DEBUG_FLAG: ${{ inputs.debug }}
+        run: |
+          set -eu
+          docker exec \
+            --env PKG_NAME="$PKG_NAME" \
+            --env RELEASE_TAG="$RELEASE_TAG" \
+            --env DEBUG_FLAG="$DEBUG_FLAG" \
+            "$CONTAINER_NAME" \
+            sh -c '
+              set -eu
+              profile=release
+              case "$DEBUG_FLAG" in true|True|TRUE) profile=debug ;; esac
+              rel=/workspace/target/x86_64-pc-windows-msvc/$profile
+              binary="$rel/bitfun-desktop.exe"
+              if [ ! -f "$binary" ]; then
+                echo "::error::Windows binary not found at $binary." >&2
+                exit 1
+              fi
+              stage=/workspace/desktop-package-stage
+              rm -rf "$stage"
+              mkdir -p "$stage"
+              cp "$binary" "$stage/bitfun-desktop.exe"
+              for item in frontend resources mobile-web; do
+                if [ -e "$rel/$item" ]; then cp -r "$rel/$item" "$stage/"; fi
+              done
+              for sidecar in "$rel"/flashgrep*; do
+                if [ -e "$sidecar" ]; then cp -r "$sidecar" "$stage/"; fi
+              done
+              out=/workspace/desktop-package-output
+              mkdir -p "$out"
+              asset="$PKG_NAME"
+              if [ -z "$asset" ]; then asset="$RELEASE_TAG"; fi
+              if [ -n "$asset" ]; then
+                case "$asset" in
+                  */*|*\\*|*[[:space:]]*)
+                    echo "Invalid package name (no slashes or whitespace): $asset" >&2
+                    exit 1
+                    ;;
+                esac
+                zip_name="$asset-windows-x64.zip"
+              else
+                zip_name="bitfun-desktop-x64-dev.zip"
+              fi
+              (cd "$stage" && zip -qr "$out/$zip_name" .)
+              echo "Collected $zip_name"
+            '
+
+      - name: Artifact gate
+        id: artifact_gate
+        env:
+          UPLOAD_FLAG: ${{ inputs.upload_artifact }}
+        run: |
+          set -eu
+          case "$UPLOAD_FLAG" in
+            true|True|TRUE) echo 'upload=true' >> "$ATOMGIT_OUTPUT" ;;
+            *) echo 'upload=false' >> "$ATOMGIT_OUTPUT" ;;
+          esac
+
+      - name: Upload package artifacts
+        if: ${{ steps.artifact_gate.outputs.upload == 'true' }}
+        uses: upload-artifact
+        with:
+          name: bitfun-windows-package
+          path: desktop-package-output/
+
+      - name: Upload to GitCode release
+        if: ${{ inputs.upload_to_release == true }}
+        env:
+          GITCODE_TOKEN: ${{ secrets.GIT_TOKEN }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_TITLE: ${{ inputs.release_title }}
+          RELEASE_BRANCH: ${{ inputs.branch }}
+          PACKAGED_COMMIT: ${{ steps.prepare_source.outputs.commit }}
+        run: |
+          set -eu
+          if [ -z "$GITCODE_TOKEN" ]; then
+            echo "::error::Repository secret GIT_TOKEN is not configured (GitCode personal access token)." >&2
+            exit 1
+          fi
+          if [ -z "$RELEASE_TAG" ]; then
+            echo "::error::release_tag is required when upload_to_release is true." >&2
+            exit 1
+          fi
+          node .package-tools/publish-gitcode-release.mjs "$RELEASE_TAG" "qq_60134168/bitfun_ade" desktop-package-output "$RELEASE_BRANCH" "$PACKAGED_COMMIT" "$RELEASE_TITLE" "zip"
+
+      - name: Remove Windows package container
+        if: ${{ always() }}
+        run: docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+
+  macos:
+    name: macOS package (aarch64 cross, dev preview)
+    if: ${{ inputs.package_mac == true }}
+    runs-on: [self-hosted, os=ubuntu, target=macos_package]
+    timeout-minutes: 240
+    env:
+      IMAGE: swr.cn-north-4.myhuaweicloud.com/bitfun/rust-ci-macos:20260813
+      CONTAINER_NAME: bitfun-ade-mac-package-${{ atomgit.workflow_run_id }}-${{ atomgit.run_attempt }}
+    steps:
+      - name: Checkout workflow source
+        uses: checkout
+
+      - name: Prepare packaging source
+        id: prepare_source
+        env:
+          PKG_BRANCH: ${{ inputs.branch }}
+        run: |
+          set -eu
+          # Keep this workflow ref's publisher (it understands the
+          # asset-extensions flag) even after switching the worktree to the
+          # packaged branch below; untracked dirs survive checkout.
+          mkdir -p .package-tools
+          cp scripts/ci/publish-gitcode-release.mjs .package-tools/
+          git fetch --force origin "$PKG_BRANCH"
+          git checkout --force --detach FETCH_HEAD
+          echo "commit=$(git rev-parse HEAD)" >> "$ATOMGIT_OUTPUT"
+          echo "Packaging $(git log --oneline -1)"
+
+      - name: Pull and start macOS cross container
+        run: |
+          set -eu
+          docker pull "$IMAGE"
+          cargo_home=$(docker run --rm "$IMAGE" sh -c 'printf %s "$CARGO_HOME"')
+          case "$cargo_home" in
+            /*) ;;
+            *) echo "CARGO_HOME is not an absolute path: $cargo_home" >&2; exit 1 ;;
+          esac
+          cache_root='/opt/.gitcode-cache'
+          target_cache="$cache_root/target/ade-macos-package"
+          # $cache_root/bin persists one-off tool binaries (ldid) so the
+          # download only happens once per runner.
+          bin_cache="$cache_root/bin"
+          mkdir -p \
+            "$cache_root/cargo/registry" \
+            "$cache_root/cargo/git" \
+            "$cache_root/sherpa-onnx" \
+            "$bin_cache" \
+            "$target_cache"
+          docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+          docker run --detach \
+            --name "$CONTAINER_NAME" \
+            --volume "$PWD:/workspace" \
+            --volume "$cache_root/cargo/registry:$cargo_home/registry" \
+            --volume "$cache_root/cargo/git:$cargo_home/git" \
+            --volume "$cache_root/sherpa-onnx:/opt/sherpa-onnx-cache" \
+            --volume "$bin_cache:/opt/bitfun-bin" \
+            --volume "$target_cache:/workspace/target" \
+            --workdir /workspace \
+            "$IMAGE" \
+            sh -c 'while :; do sleep 3600; done'
+
+      - name: Verify sherpa-onnx seed archive
+        run: |
+          set -eu
+          archive='sherpa-onnx-v1.13.4-osx-arm64-static-lib.tar.bz2'
+          seed='/opt/.gitcode-cache/sherpa-onnx'
+          if [ ! -f "$seed/$archive" ]; then
+            echo "::error::$seed/$archive is missing." >&2
+            echo "Seed it with the pre-downloaded release archive (scp/upload once per runner):" >&2
+            echo "  $archive -> $seed/" >&2
+            exit 1
+          fi
+          echo "sherpa-onnx seed archive found: $seed/$archive"
+
+      # Bound stalled GitHub fetches (warm with retries) before the long
+      # build; GIT_CONFIG_GLOBAL also applies to the build step below.
+      - name: Warm cargo caches (retried)
+        run: |
+          set -eu
+          ok=''
+          for attempt in 1 2 3 4 5; do
+            echo "cargo fetch attempt $attempt/5"
+            if docker exec \
+              --env CARGO_NET_GIT_FETCH_WITH_CLI=true \
+              "$CONTAINER_NAME" \
+              sh -c 'printf "[http]\n\tlowSpeedLimit = 1000\n\tlowSpeedTime = 60\n\tversion = HTTP/1.1\n" > /tmp/gitconfig && cd /workspace && GIT_CONFIG_GLOBAL=/tmp/gitconfig exec cargo fetch --locked'; then
+              ok=1
+              break
+            fi
+            sleep 20
+          done
+          if [ -z "$ok" ]; then
+            echo '::error::cargo fetch failed after 5 attempts (flaky GitHub access for git deps; the persistent /opt/.gitcode-cache/cargo/git cache keeps every success).' >&2
+            exit 1
+          fi
+
+      - name: Ensure build tooling (node, pnpm, bun, zip, ldid)
+        run: |
+          set -eu
+          docker exec --user 0 "$CONTAINER_NAME" sh -c '
+            set -eu
+            command -v node >/dev/null 2>&1 || { apt-get update -qq && apt-get install -y -qq nodejs npm; }
+            command -v pnpm >/dev/null 2>&1 || npm install -g pnpm@9
+            command -v bun >/dev/null 2>&1 || npm install -g bun
+            command -v zip >/dev/null 2>&1 || { apt-get update -qq && apt-get install -y -qq zip; }
+            # ldid is not packaged for Debian 13; cache the ProcursusTeam
+            # prebuilt binary on the runner (one download, then offline).
+            if ! command -v ldid >/dev/null 2>&1 && [ ! -x /opt/bitfun-bin/ldid ]; then
+              curl --fail --location --silent --show-error --retry 3 \
+                --connect-timeout 20 --max-time 120 \
+                --output /opt/bitfun-bin/ldid \
+                https://github.com/ProcursusTeam/ldid/releases/latest/download/ldid_linux_x86_64
+              chmod 0755 /opt/bitfun-bin/ldid
+            fi
+            node --version && pnpm --version && bun --version
+            test -x /opt/bitfun-bin/ldid && /opt/bitfun-bin/ldid 2>&1 | head -n 1 || true
+          '
+
+      - name: Build web UI
+        run: |
+          set -eu
+          docker exec "$CONTAINER_NAME" sh -c 'set -eu; cd /workspace && pnpm install && pnpm --dir design-system run build:packages && npm run build && pnpm run plugin-host:prepare && pnpm --dir src/mobile-web run build'
+
+      - name: Cross build desktop (aarch64-apple-darwin)
+        run: |
+          set -eu
+          build_args='--runner cargo-zigbuild --no-bundle --target aarch64-apple-darwin --verbose'
+          case "$DEBUG_FLAG" in
+            true|True|TRUE) build_args="$build_args --debug" ;;
+          esac
+          # Same cross env as the agent_kernel CLI macOS pipelines: zig cc
+          # wrappers against the image's extracted macOS SDK. --runner
+          # cargo-zigbuild makes rustc link through zig (a plain cargo build
+          # would invoke the host cc with mac-specific flags and fail). The
+          # cargo-zigbuild wrapper rejects -adhoc_codesign, so the ad-hoc
+          # signature is applied post-link with ldid in the collect step.
+          # LZMA_API_STATIC: force lzma-sys to build its vendored liblzma;
+          # otherwise pkg-config finds the host liblzma and the SDK's tbd
+          # (old ABI) gets linked, leaving _lzma_stream_encoder_mt undefined.
+          docker exec \
+            --env CARGO_NET_GIT_FETCH_WITH_CLI=true \
+            --env SHERPA_ONNX_ARCHIVE_DIR=/opt/sherpa-onnx-cache \
+            --env CARGO_TARGET_DIR=/workspace/target \
+            --env SDKROOT=/opt/MacOSX.sdk \
+            --env CC_aarch64_apple_darwin='cargo-zigbuild zig cc -- -target aarch64-macos-none' \
+            --env CXX_aarch64_apple_darwin='cargo-zigbuild zig c++ -- -target aarch64-macos-none' \
+            --env GIT_CONFIG_GLOBAL=/tmp/gitconfig \
+            --env LZMA_API_STATIC=1 \
+            "$CONTAINER_NAME" \
+            sh -c "set -eu; cd /workspace && exec node scripts/desktop-tauri-build.mjs $build_args"
+        env:
+          DEBUG_FLAG: ${{ inputs.debug }}
+
+      - name: Collect dev-preview zip
+        env:
+          PKG_NAME: ${{ inputs.package_name }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          DEBUG_FLAG: ${{ inputs.debug }}
+        run: |
+          set -eu
+          docker exec \
+            --env PKG_NAME="$PKG_NAME" \
+            --env RELEASE_TAG="$RELEASE_TAG" \
+            --env DEBUG_FLAG="$DEBUG_FLAG" \
+            "$CONTAINER_NAME" \
+            sh -c '
+              set -eu
+              profile=release
+              case "$DEBUG_FLAG" in true|True|TRUE) profile=debug ;; esac
+              rel=/workspace/target/aarch64-apple-darwin/$profile
+              binary="$rel/bitfun-desktop"
+              if [ ! -f "$binary" ]; then
+                echo "::error::macOS binary not found at $binary." >&2
+                exit 1
+              fi
+              stage=/workspace/desktop-package-stage
+              rm -rf "$stage"
+              mkdir -p "$stage"
+              cp "$binary" "$stage/bitfun-desktop"
+              # Ad-hoc sign so Apple Silicon can execute the binary; the
+              # cached ProcursusTeam ldid is provisioned in the tooling step.
+              if [ -x /opt/bitfun-bin/ldid ]; then
+                /opt/bitfun-bin/ldid -S "$stage/bitfun-desktop"
+              elif command -v ldid >/dev/null 2>&1; then
+                ldid -S "$stage/bitfun-desktop"
+              else
+                echo "::warning::ldid unavailable; the macOS binary will not run on Apple Silicon without ad-hoc signing." >&2
+              fi
+              for item in frontend resources mobile-web; do
+                if [ -e "$rel/$item" ]; then cp -r "$rel/$item" "$stage/"; fi
+              done
+              for sidecar in "$rel"/flashgrep*; do
+                if [ -e "$sidecar" ]; then cp -r "$sidecar" "$stage/"; fi
+              done
+              out=/workspace/desktop-package-output
+              mkdir -p "$out"
+              asset="$PKG_NAME"
+              if [ -z "$asset" ]; then asset="$RELEASE_TAG"; fi
+              if [ -n "$asset" ]; then
+                case "$asset" in
+                  */*|*\\*|*[[:space:]]*)
+                    echo "Invalid package name (no slashes or whitespace): $asset" >&2
+                    exit 1
+                    ;;
+                esac
+                zip_name="$asset-macos-aarch64.zip"
+              else
+                zip_name="bitfun-desktop-aarch64-dev.zip"
+              fi
+              (cd "$stage" && zip -qr "$out/$zip_name" .)
+              echo "Collected $zip_name"
+            '
+
+      - name: Artifact gate
+        id: artifact_gate
+        env:
+          UPLOAD_FLAG: ${{ inputs.upload_artifact }}
+        run: |
+          set -eu
+          case "$UPLOAD_FLAG" in
+            true|True|TRUE) echo 'upload=true' >> "$ATOMGIT_OUTPUT" ;;
+            *) echo 'upload=false' >> "$ATOMGIT_OUTPUT" ;;
+          esac
+
+      - name: Upload package artifacts
+        if: ${{ steps.artifact_gate.outputs.upload == 'true' }}
+        uses: upload-artifact
+        with:
+          name: bitfun-macos-package
+          path: desktop-package-output/
+
+      - name: Upload to GitCode release
+        if: ${{ inputs.upload_to_release == true }}
+        env:
+          GITCODE_TOKEN: ${{ secrets.GIT_TOKEN }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_TITLE: ${{ inputs.release_title }}
+          RELEASE_BRANCH: ${{ inputs.branch }}
+          PACKAGED_COMMIT: ${{ steps.prepare_source.outputs.commit }}
+        run: |
+          set -eu
+          if [ -z "$GITCODE_TOKEN" ]; then
+            echo "::error::Repository secret GIT_TOKEN is not configured (GitCode personal access token)." >&2
+            exit 1
+          fi
+          if [ -z "$RELEASE_TAG" ]; then
+            echo "::error::release_tag is required when upload_to_release is true." >&2
+            exit 1
+          fi
+          node .package-tools/publish-gitcode-release.mjs "$RELEASE_TAG" "qq_60134168/bitfun_ade" desktop-package-output "$RELEASE_BRANCH" "$PACKAGED_COMMIT" "$RELEASE_TITLE" "zip"
+
+      - name: Remove macOS cross container
+        if: ${{ always() }}
+        run: docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
