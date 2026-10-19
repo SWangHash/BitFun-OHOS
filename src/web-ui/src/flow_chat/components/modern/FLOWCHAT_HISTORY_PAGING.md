@@ -686,6 +686,31 @@ Viewport* in `FLOWCHAT_VIEWPORT_REGISTER.md`, and in particular the pair of
 numbers that separates "the compensation overshot" from "the transcript
 re-measured".
 
+## A Restored Window Must Not Empty the Transcript
+
+Applying a page replaces the Turns the projection is cut from, and the arriving
+window has no rows of its own for the instant before that projection is built.
+The container used to read that instant as "nothing to render": it dropped
+`VirtualMessageList`, and the history placeholder — an opaque surface at scene
+colour — covered the region. Both read as the same blank, and the remount that
+followed cost the measure cache and the reading position.
+
+`ModernFlowChatContainer` now holds the rows already on screen for that instant
+(`isHoldingPreviousTranscript`) and suppresses the placeholder with them. A
+session change still starts clean. The projection stays authoritative for
+status: `hasRestoredTurnsPendingVirtualItems`, the paging decisions and the
+boundary questions read it, never the held rows.
+
+Measured on the fault this was found in (`flowchat.log`, 2026-10-17): a drag up
+past the loaded window applied ordinals 40-47, the transcript emptied while 46
+items were live, the list unmounted and remounted, the compensation then moved
+the reader by 8285px, and the anchor's Turn stayed outside the rendered window
+for 298ms (four `anchor.turnNotRendered` entries, then a -797.6px correction).
+The hold removes the unmount and the covered region. The 298ms of window lag
+after the compensation is its own fault — the commit that shifts still windows
+the position the reader has been moved off — and that log is where the next
+attempt should start.
+
 ## Related Files
 
 - `flowChatHistoryBoundary.ts`

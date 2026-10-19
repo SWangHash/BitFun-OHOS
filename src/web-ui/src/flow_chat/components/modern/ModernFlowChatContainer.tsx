@@ -468,6 +468,24 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
     renderedHistoryPresentation,
   ]);
 
+  const stickyTranscriptRef = useRef<{
+    items: typeof canonicalVirtualItems;
+    sessionId: string | null;
+  }>({ items: canonicalVirtualItems, sessionId: null });
+  const transcriptSessionId = activeSession?.sessionId ?? null;
+  if (virtualItems.length > 0 && stickyTranscriptRef.current.items !== virtualItems) {
+    stickyTranscriptRef.current = {
+      items: virtualItems,
+      sessionId: transcriptSessionId,
+    };
+  }
+  const isHoldingPreviousTranscript = virtualItems.length === 0
+    && stickyTranscriptRef.current.items.length > 0
+    && stickyTranscriptRef.current.sessionId === transcriptSessionId;
+  const renderedVirtualItems = isHoldingPreviousTranscript
+    ? stickyTranscriptRef.current.items
+    : virtualItems;
+
   // The transcript reads the pending list to mark the tool cards that are
   // waiting; answering them belongs to the composer, which reads the same
   // shared subscription.
@@ -621,7 +639,8 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
       });
     }
   }, [acceptViewportSnapshot]);
-  const showHistoryPlaceholder = virtualItems.length === 0 && (
+  const showHistoryPlaceholder = virtualItems.length === 0
+    && !isHoldingPreviousTranscript && (
     historyState === 'metadata-only' ||
     historyState === 'hydrating' ||
     historyState === 'failed' ||
@@ -2696,7 +2715,7 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
           data-context-restore-state={activeSession?.contextRestoreState ?? 'none'}
           data-is-partial={activeSession?.isPartial === true ? 'true' : 'false'}
           data-dialog-turn-count={activeSession?.dialogTurns.length ?? 0}
-          data-virtual-item-count={virtualItems.length}
+          data-virtual-item-count={renderedVirtualItems.length}
           data-show-history-placeholder={showHistoryPlaceholder ? 'true' : 'false'}
           data-show-history-transition-overlay={shouldBlockHistoryTransitionInteraction ? 'true' : 'false'}
           data-show-history-loading-layer={showHistoryLoadingLayer ? 'true' : 'false'}
@@ -2723,7 +2742,7 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
                 state="failed"
                 onRetry={handleRetryHistoryLoad}
               />
-            ) : virtualItems.length === 0 ? (
+            ) : renderedVirtualItems.length === 0 ? (
               showHistoryPlaceholder || showHistoryOpenIntentOverlay ? null : (
                 emptyState !== undefined ? emptyState : (
                   <WelcomePanel
@@ -2743,7 +2762,7 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
               <>
                 <VirtualMessageList
                   ref={virtualListRef}
-                  items={virtualItems}
+                  items={renderedVirtualItems}
                   isViewportActive={isViewportActive}
                   presentationMode={isRenderingHistoryProjection ? 'history-window' : 'tail'}
                   viewportMode={isViewportDetachedFromLiveTail ? 'history-reading' : 'live-tail'}
@@ -2759,7 +2778,7 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
                 />
               </>
             )}
-            {virtualItems.length > 0 ? (
+            {renderedVirtualItems.length > 0 ? (
               <FlowChatTurnRail
                 turns={turnRailItems}
                 currentTurnId={effectiveVisibleTurnInfo?.turnId ?? null}
