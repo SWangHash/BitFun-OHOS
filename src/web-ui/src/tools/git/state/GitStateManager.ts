@@ -40,6 +40,7 @@ import { startupTrace } from '@/shared/utils/startupTrace';
 import { elapsedMs, nowMs } from '@/shared/utils/timing';
 import { i18nService } from '@/infrastructure/i18n';
 import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
+import { workspaceManager } from '@/infrastructure/services/business/workspaceManager';
 
 const log = createLogger('GitStateManager');
 
@@ -1096,8 +1097,27 @@ export class GitStateManager {
       // on the transport's state sync instead of issuing local git calls.
       return;
     }
+    // On OHOS, withOhosFetchLock serializes all Tauri invokes into a single
+    // promise chain. Refreshing every subscribed repository (6+) every
+    // POLL_INTERVAL_MS saturates the IPC queue and blocks session-related
+    // invokes (restore_session_view, create_session). Limit the poll to the
+    // active workspace only — non-active workspaces refresh on visibility
+    // when the user switches to them.
+    const activeWorkspaceId = isOpenHarmonyRuntime()
+      ? workspaceManager.getState().activeWorkspaceId
+      : null;
     for (const repoKey of this.subscribers.keys()) {
       const scope = this.scopeForKey(repoKey);
+      if (activeWorkspaceId) {
+        // Only refresh the active workspace on OHOS. The scope is either a
+        // path string or { workspaceId } — match by workspaceId when present.
+        const scopeWorkspaceId = typeof scope === 'string'
+          ? null
+          : (scope as { workspaceId?: string }).workspaceId ?? null;
+        if (scopeWorkspaceId && scopeWorkspaceId !== activeWorkspaceId) {
+          continue;
+        }
+      }
       // Invalidate the basic-layer timestamp so the non-forced refresh below
       // bypasses the Infinity TTL and actually hits Git. We only invalidate
       // `basic` — status/detailed keep their longer TTLs and are refreshed
