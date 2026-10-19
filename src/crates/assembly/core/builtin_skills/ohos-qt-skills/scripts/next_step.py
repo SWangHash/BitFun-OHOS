@@ -37,7 +37,8 @@ PHASE_GUIDE = {
         "copying the template, writing build files, editing app sources, HarmonyOS builds"),
     "pilot": (
         "Pilot verification", "pilot.tsv",
-        "create the HarmonyOS project from the template and prove envelope, entry, Qt linkage, "
+        "create the HarmonyOS project from the template inside the output container's <app-name>-ohos "
+        "subdirectory (never in the container root) and prove envelope, entry, Qt linkage, "
         "packaging and one risky boundary with batch_checks.py --phase pilot",
         "porting the application sources or building the application target"),
     "implementation": (

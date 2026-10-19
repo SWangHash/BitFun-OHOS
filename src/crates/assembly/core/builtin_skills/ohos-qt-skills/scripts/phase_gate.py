@@ -55,6 +55,20 @@ QUEUE_DONE = {"passed", "accepted-limitation", "not-applicable"}
 # An inventory row's status is its capability's migration state: `planned`
 # while only recorded, closed once the linked queue work is done.
 INVENTORY_CLOSED = PASS_STATUSES | {"blocked"}
+# The output container is never the project directory: the migration project is
+# its `<app-name>-ohos` subdirectory. An `environment.tsv` row with this category
+# records the pair. Keep the markers in sync with OHOS_PROJECT_MARKERS in
+# init_migration.py.
+LAYOUT_CATEGORY = "layout"
+OHOS_PROJECT_MARKERS = (
+    "AppScope/app.json5",
+    "hvigorfile.ts",
+    "build-profile.json5",
+    "oh-package.json5",
+)
+# The migrated project directory inside its container: `<app-name>-ohos`, with a
+# numeric suffix only for a repeated migration of the same application.
+LAYOUT_PROJECT_NAME_RE = re.compile(r"^(.+)-ohos(?:-\d+)?$")
 
 
 def read_rows(path: Path) -> list[dict[str, str]]:
@@ -103,6 +117,95 @@ def user_approved(row: dict[str, str]) -> bool:
 def is_batch_receipt(row: dict[str, str]) -> bool:
     # batch_checks.py --diagnostics writes evidence as "batch <output-dir>: ...".
     return row.get("evidence", "").strip().lower().startswith("batch ")
+
+
+def has_layout_row(environment: list[dict[str, str]]) -> bool:
+    return any(row.get("category", "").strip().lower() == LAYOUT_CATEGORY for row in environment)
+
+
+def layout_binding(environment: list[dict[str, str]]) -> tuple[str, str]:
+    """The recorded output layout as ``(container, project)``.
+
+    The `layout` environment row carries both paths in one cell:
+    ``container=<path>; project=<container>/<app-name>-ohos``. An empty
+    container means the binding was never recorded, which the gate reports from
+    the phase that creates the project onward.
+    """
+    for row in environment:
+        if row.get("category", "").strip().lower() != LAYOUT_CATEGORY:
+            continue
+        container = project = ""
+        for part in row.get("value", "").split(";"):
+            key, _, raw = part.partition("=")
+            value = raw.strip().strip("`")
+            if not non_placeholder(value):
+                continue
+            if key.strip().lower() == "container":
+                container = value
+            elif key.strip().lower() == "project":
+                project = value
+        return container, project
+    return "", ""
+
+
+def has_ohos_project_markers(path: Path) -> bool:
+    """A HarmonyOS (hvigor) project directory: the template's own top-level files."""
+    return any((path / marker).is_file() for marker in OHOS_PROJECT_MARKERS)
+
+
+def layout_errors(environment: list[dict[str, str]], phase: str) -> list[str]:
+    """The output layout: the container holds the project, never the template or the artifacts.
+
+    The container is the bound output directory and the migration project is its
+    `<app-name>-ohos` subdirectory (`-2`/`-3` only for a repeated migration of the
+    same application). Both paths come from the recorded `layout` row: that row is
+    the single authority for the pair, so the gate checks the recorded shape
+    instead of re-deriving an application name from the ledger path (`--target` may
+    be a repository root, whose directory name is not the application name).
+    """
+    errors: list[str] = []
+    container_raw, project_raw = layout_binding(environment)
+    if not container_raw or not project_raw:
+        if PHASES.index(phase) >= PHASES.index("pilot"):
+            if has_layout_row(environment):
+                errors.append(
+                    "environment.tsv has an incomplete layout row: its value must read 'container=<output "
+                    "container>; project=<container>/<app-name>-ohos'; re-run init_migration.py "
+                    "--output-project <container> or fix that cell by hand")
+            else:
+                errors.append(
+                    "environment.tsv has no layout row: record the bound output container and the migration "
+                    "project inside it (category=layout, value 'container=<path>; project=<path>'), for example "
+                    "by re-running init_migration.py --output-project <container>; the container is never the "
+                    "project directory")
+        return errors
+    container = Path(container_raw)
+    project = Path(project_raw)
+    if project.parent != container or not LAYOUT_PROJECT_NAME_RE.match(project.name):
+        errors.append(
+            f"output layout: the migration project must be the container's <app-name>-ohos directory; the "
+            f"layout row records the container {container} with the project {project}")
+    if container.is_dir():
+        for marker in OHOS_PROJECT_MARKERS:
+            if (container / marker).is_file():
+                errors.append(
+                    f"output layout: {container / marker} exists; the template and the migration artifacts "
+                    f"belong in {project}, never in the output container root")
+        stray = sorted(entry.name for entry in container.glob("*.hap"))
+        if stray:
+            errors.append(
+                f"output layout: the output container root holds packaged artifacts ({', '.join(stray)}); "
+                f"they belong in {project}")
+    if PHASES.index(phase) >= PHASES.index("pilot"):
+        if not project.is_dir():
+            errors.append(
+                f"output layout: {project} does not exist; create the HarmonyOS project there, inside the "
+                f"output container {container}")
+        elif not has_ohos_project_markers(project):
+            errors.append(
+                f"output layout: {project} is not a DevEco project root (missing all of "
+                + ", ".join(OHOS_PROJECT_MARKERS) + ")")
+    return errors
 
 
 def report(phase: str, errors: list[str]) -> int:
@@ -346,6 +449,7 @@ def evaluate(root: Path, phase: str, features_root: Path | None = None) -> list[
             for row in baseline
         ):
             errors.append("baseline.tsv needs a completed host-smoke receipt with evidence")
+        errors.extend(layout_errors(environment, phase))
 
     if phase in {"inventory", "contract", "pilot", "implementation", "features", "diagnostics", "handoff"}:
         if not inventory:

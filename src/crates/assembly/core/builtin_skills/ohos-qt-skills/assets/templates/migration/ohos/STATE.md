@@ -5,6 +5,7 @@
 | Field | Value | Evidence |
 |---|---|---|
 | Project / repository | TODO | TODO |
+| Migration output (container / project inside it) | TODO | TODO |
 | Source revision / dirty baseline | TODO | TODO |
 | Qt distribution and version | TODO | TODO |
 | HarmonyOS SDK/API and ABI | TODO | TODO |

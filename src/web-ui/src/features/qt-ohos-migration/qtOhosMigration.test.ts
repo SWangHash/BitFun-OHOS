@@ -161,7 +161,7 @@ describe('deriveSnapshot', () => {
     expect(snapshot.diagnostics).toEqual([]);
     expect(snapshot.schemaWarnings).toEqual([]);
     const baseline = snapshot.phases.find((phase) => phase.id === 'baseline')!;
-    expect(baseline.total).toBe(10);
+    expect(baseline.total).toBe(11);
     expect(snapshot.phases.map((phase) => phase.ledger)).toEqual([
       'environment.tsv', 'inventory.tsv', 'decisions.tsv', 'pilot.tsv',
       'work-queue.tsv', 'feature-adoption.tsv', 'diagnostics.tsv', 'validation.tsv',

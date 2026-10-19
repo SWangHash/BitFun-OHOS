@@ -1924,7 +1924,7 @@
       "submitOutputArtifact": "{{field}}指向歷史遷移產物，禁止覆蓋：{{path}}。請為本次遷移改用其他輸出目錄。",
       "fieldName": {
         "source_project": "原始工程",
-        "output_project": "輸出工程",
+        "output_project": "輸出容器",
         "toolchain": "遷移工具鏈",
         "template": "模板工程"
       },
@@ -1934,13 +1934,13 @@
         "pathsHint": "💡在提示詞中寫明4項路徑即可跳過設定",
         "question": {
           "sourceProject": "你想從哪個原始工程開始遷移？",
-          "outputProject": "遷移後的鴻蒙工程輸出在哪裡？",
+          "outputProject": "遷移後的鴻蒙工程要放在哪個輸出容器下？（工程將建立為其下 `<應用名>-ohos` 子目錄）",
           "toolchain": "使用哪個QT遷移工具鏈？",
           "template": "使用哪個鴻蒙模板工程？"
         },
         "field": {
           "sourceProject": "原始工程",
-          "outputProject": "輸出路徑",
+          "outputProject": "輸出容器",
           "toolchain": "遷移工具鏈",
           "template": "模板工程"
         },
@@ -1975,7 +1975,7 @@
         },
         "placeholder": {
           "sourceProject": "請填寫您的原始工程路徑",
-          "outputProject": "請填寫輸出工程路徑",
+          "outputProject": "請填寫輸出容器路徑（鴻蒙工程將建立在其下 `<應用名>-ohos` 子目錄）",
           "toolchain": "請填寫QT遷移工具鏈路徑",
           "template": "請填寫模板工程路徑"
         }

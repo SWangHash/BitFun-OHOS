@@ -7,6 +7,7 @@ import csv
 import shutil
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -134,6 +135,11 @@ def write_bootstrap_rows(destination: Path) -> int:
 OHOS_PROJECT_MARKERS = ("AppScope/app.json5", "hvigorfile.ts", "build-profile.json5")
 QT_PROJECT_PATTERNS = ("*.pro", "CMakeLists.txt", "*.qbs")
 SKIP_DIRS = {".git", "migration", "build", "node_modules", "oh_modules"}
+# The output container is never the project directory: the migration project is
+# its `<app-name>-ohos` subdirectory. Keep in sync with phase_gate.py.
+LAYOUT_ROW_ID = "ENV-011"
+LAYOUT_CATEGORY = "layout"
+LAYOUT_ROW_NAME = "Migration output container and the project inside it"
 
 
 def is_ohos_project(path: Path) -> bool:
@@ -141,21 +147,50 @@ def is_ohos_project(path: Path) -> bool:
     return any((path / marker).is_file() for marker in OHOS_PROJECT_MARKERS)
 
 
-def has_qt_project(path: Path, depth: int = 3) -> bool:
-    """A qmake/CMake/qbs project file at most ``depth`` levels below ``path``."""
+def is_qt_source_root(path: Path) -> bool:
+    """The directory holds its own qmake/CMake/qbs project file."""
+    if not path.is_dir():
+        return False
+    return any(next(path.glob(pattern), None) is not None for pattern in QT_PROJECT_PATTERNS)
+
+
+def find_qt_project_file(path: Path, depth: int = 3) -> Path | None:
+    """The nearest qmake/CMake/qbs project file at most ``depth`` levels below ``path``."""
     level = [path]
     for _ in range(depth + 1):
         following = []
         for directory in level:
-            if any(next(directory.glob(pattern), None) for pattern in QT_PROJECT_PATTERNS):
-                return True
+            for pattern in QT_PROJECT_PATTERNS:
+                hit = next(directory.glob(pattern), None)
+                if hit is not None:
+                    return hit
             try:
                 following.extend(child for child in directory.iterdir()
                                  if child.is_dir() and child.name not in SKIP_DIRS and not is_ohos_project(child))
             except OSError:
                 continue
         level = following
-    return False
+    return None
+
+
+def has_qt_project(path: Path, depth: int = 3) -> bool:
+    """A qmake/CMake/qbs project file at most ``depth`` levels below ``path``."""
+    return find_qt_project_file(path, depth) is not None
+
+
+def output_app_name(target: Path) -> str:
+    """The application name for `<app-name>-ohos`: the Qt project file's, else the target's.
+
+    `--target` may be a repository root, whose directory name is not the
+    application name, so the Qt project file found under it names the project;
+    the engine derives the same name from the bound Qt project.
+    """
+    project_file = find_qt_project_file(target)
+    if project_file is None:
+        return target.name
+    if project_file.name == "CMakeLists.txt":
+        return project_file.parent.name
+    return project_file.stem
 
 
 def check_target(target: Path) -> None:
@@ -175,7 +210,73 @@ def check_target(target: Path) -> None:
               "Check that it is the root of the Qt application being migrated.")
 
 
-def fill_state(destination: Path, project: str, target: Path) -> None:
+def record_layout(destination: Path, container_raw: str, app_name: str) -> tuple[Path, Path] | None:
+    """Record the output container and the project inside it, idempotently.
+
+    The bound output directory is a container: the template and every migration
+    artifact go into its `<app-name>-ohos` subdirectory. Recording the pair here
+    is what lets `phase_gate.py` reject a template materialized into the
+    container root, so a container that is itself a HarmonyOS project is
+    refused instead of recorded.
+    """
+    if not container_raw.strip():
+        print("WARNING: --output-project was not given, so the output layout is unrecorded; "
+              "the layout gate blocks the pilot phase until it is (re-run this script with "
+              "--output-project <container>)")
+        return None
+    container = Path(container_raw.strip()).expanduser().resolve()
+    if is_ohos_project(container):
+        raise SystemExit(
+            f"BLOCKED: --output-project {container} already holds a HarmonyOS project "
+            f"({', '.join(OHOS_PROJECT_MARKERS)}). It must be the output container. Move the template tree "
+            f"into {container}/<app-name>-ohos (the container root never holds it) and re-run, or pass the "
+            f"container the user bound instead of the project directory.")
+    if is_qt_source_root(container):
+        raise SystemExit(
+            f"BLOCKED: --output-project {container} is the Qt project root itself "
+            f"({', '.join(QT_PROJECT_PATTERNS)}). Bind the directory that holds the Qt sources instead: the "
+            f"migration project would otherwise be created inside the Qt source tree.")
+    project = container / f"{app_name}-ohos"
+    path = destination / "environment.tsv"
+    if not path.is_file():
+        raise SystemExit(f"ledger is missing: {path}")
+    with path.open(newline="", encoding="utf-8") as stream:
+        reader = csv.DictReader(stream, delimiter="\t")
+        fields = reader.fieldnames or []
+        rows = list(reader)
+    if not fields:
+        raise SystemExit(f"ledger has no header: {path}")
+    exists = container.is_dir()
+    row = {
+        "id": LAYOUT_ROW_ID,
+        "category": LAYOUT_CATEGORY,
+        "name": LAYOUT_ROW_NAME,
+        "value": f"container={container.as_posix()}; project={project.as_posix()}",
+        "version_or_revision": app_name,
+        "source_or_path": container.as_posix(),
+        "status": "verified" if exists else "planned",
+        "last_verified_at": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "evidence": "init_migration.py --output-project: container recorded"
+                    + (" as an existing directory that is not a HarmonyOS project" if exists
+                       else " (the directory does not exist yet)"),
+    }
+    replaced = False
+    for index, existing in enumerate(rows):
+        if existing.get("id") == LAYOUT_ROW_ID:
+            rows[index] = row
+            replaced = True
+            break
+    if not replaced:
+        rows.append(row)
+    with path.open("w", newline="", encoding="utf-8") as stream:
+        writer = csv.DictWriter(stream, fieldnames=fields, delimiter="\t", lineterminator="\n")
+        writer.writeheader()
+        for existing in rows:
+            writer.writerow({field: existing.get(field, "") for field in fields})
+    return container, project
+
+
+def fill_state(destination: Path, project: str, target: Path, layout: tuple[Path, Path] | None = None) -> None:
     """Seed the project name and the first phase in a fresh STATE.md; never overwrite."""
     state = destination / "STATE.md"
     if not state.is_file():
@@ -186,6 +287,12 @@ def fill_state(destination: Path, project: str, target: Path) -> None:
     for index, line in enumerate(lines):
         if line.startswith("| Project / repository | TODO | TODO |"):
             lines[index] = line.replace("| TODO | TODO |", f"| {project} | {target.as_posix()} |", 1)
+            changed = True
+        elif layout and line.startswith("| Migration output (container / project inside it) | TODO | TODO |"):
+            container, project_dir = layout
+            lines[index] = line.replace(
+                "| TODO | TODO |",
+                f"| container {container.as_posix()} | project {project_dir.as_posix()} |", 1)
             changed = True
         elif line.startswith("- Current phase: `TODO`"):
             lines[index] = line.replace("`TODO`", "`baseline`", 1)
@@ -203,6 +310,10 @@ def main() -> int:
                         help="assets/templates/migration/ohos")
     parser.add_argument("--target", type=Path, required=True,
                         help="Qt application root (not the HarmonyOS output project)")
+    parser.add_argument("--output-project",
+                        help="bound output container (never the project directory): the migration "
+                             "project is created in its <app-name>-ohos subdirectory; recorded in "
+                             "environment.tsv as the layout binding")
     args = parser.parse_args()
     source = args.template_root.resolve()
     app_root = args.target.resolve()
@@ -226,7 +337,8 @@ def main() -> int:
         created += 1
 
     bootstrap_rows = write_bootstrap_rows(destination)
-    fill_state(destination, app_root.name, app_root)
+    layout = record_layout(destination, args.output_project or "", output_app_name(app_root))
+    fill_state(destination, app_root.name, app_root, layout)
     sync = Path(__file__).resolve().parent / "sync_knowledge.py"
     command = [sys.executable, str(sync), "--target", str(destination)]
     result = subprocess.run(command, check=False)
@@ -234,6 +346,10 @@ def main() -> int:
         print("knowledge provenance recording failed; review migration/ohos/knowledge-manifest.tsv")
         return result.returncode
     print(f"migration_root={destination}")
+    if layout:
+        container, project = layout
+        print(f"output_container={container.as_posix()}")
+        print(f"migration_project={project.as_posix()} (create the HarmonyOS project here, never in the container root)")
     print(f"created={created} skipped_existing={skipped}")
     print(f"bootstrap_rows={bootstrap_rows}")
     next_step = Path(__file__).resolve().parent / "next_step.py"

@@ -30,6 +30,9 @@ import phase_gate  # noqa: E402
 
 TEMPLATES = REPO / "assets" / "templates" / "migration" / "ohos"
 FEATURE_TEMPLATES = REPO / "features" / "_templates"
+# The Qt application directory name the fixtures use; the migration project is
+# the output container's `<app-name>-ohos` subdirectory.
+APP_NAME = "app"
 
 
 # --------------------------------------------------------------------------- fixtures
@@ -71,7 +74,7 @@ def run(module, *argv: str) -> tuple[int, str]:
 
 def make_app(base: Path) -> Path:
     """A minimal Qt app whose ledgers satisfy every gate when no feature is involved."""
-    app = base / "app"
+    app = base / APP_NAME
     (app / "src").mkdir(parents=True)
     (app / "CMakeLists.txt").write_text("project(demo)\n", encoding="utf-8")
     (app / "src" / "main.cpp").write_text("int main() { return 0; }\n", encoding="utf-8")
@@ -81,9 +84,19 @@ def make_app(base: Path) -> Path:
         "baseline_manifest_sha256\tsource_revision\tsource_path\tsource_sha256\tskill_snapshot_path\tskill_snapshot_sha256\t"
         "snapshot_path\tsnapshot_sha256\tused\tmodified\taction\tlast_synced_at\n", encoding="utf-8")
     ev = "log/receipt.txt sha256:abc"
+    # The output container holds the migration project in its `<app-name>-ohos`
+    # subdirectory; its own root never holds the template or the artifacts.
+    container = base / "output"
+    project = container / f"{APP_NAME}-ohos"
+    (project / "AppScope").mkdir(parents=True)
+    for marker in phase_gate.OHOS_PROJECT_MARKERS:
+        (project / marker).write_text("{}\n", encoding="utf-8")
     env = phase_gate.read_rows(root / "environment.tsv")
     for row in env:
         row.update(value="v1", version_or_revision="1", source_or_path="/opt", status="passed", last_verified_at="2026-10-12", evidence=ev)
+        if row.get("category") == phase_gate.LAYOUT_CATEGORY:
+            row.update(value=f"container={container.as_posix()}; project={project.as_posix()}",
+                       version_or_revision="app", source_or_path=container.as_posix())
     write_tsv(root / "environment.tsv", env)
     write_tsv(root / "baseline.tsv", [
         {"id": "BASE-001", "kind": "host-smoke", "platform": "host", "revision": "r1", "command_or_scenario": "run",
@@ -231,6 +244,84 @@ class FixtureTest(Base):
         self.assertTrue(any("selection is not recorded" in error for error in self.evaluate("contract")))
         user_decision(self.root, "DEC-900", "none")
         self.assertEqual(self.evaluate("handoff"), [])
+
+
+# --------------------------------------------------------------------------- layout
+
+class LayoutTest(Base):
+    """The output container holds the migration project, never the template or the artifacts."""
+
+    def layout(self) -> tuple[Path, Path]:
+        container, project = phase_gate.layout_binding(phase_gate.read_rows(self.root / "environment.tsv"))
+        return Path(container), Path(project)
+
+    def clear_layout(self) -> None:
+        rows = [row for row in phase_gate.read_rows(self.root / "environment.tsv")
+                if row.get("category") != phase_gate.LAYOUT_CATEGORY]
+        write_tsv(self.root / "environment.tsv", rows)
+
+    def test_layout_row_is_required_from_the_pilot_phase_on(self):
+        container, project = self.layout()
+        self.clear_layout()
+        for phase in phase_gate.PHASES[:3]:
+            self.assertEqual(self.evaluate(phase), [], phase)
+        for phase in phase_gate.PHASES[3:]:
+            self.assertTrue(any("has no layout row" in error for error in self.evaluate(phase)), phase)
+        # A row that exists but records prose instead of the binding paths is a
+        # different fix for the agent, so it is reported differently.
+        append_tsv(self.root / "environment.tsv", {
+            "id": "ENV-011", "category": phase_gate.LAYOUT_CATEGORY, "name": "Migration output layout",
+            "value": f"{container.as_posix()} container + {project.name} project", "version_or_revision": "app",
+            "source_or_path": project.as_posix(), "status": "verified", "last_verified_at": "2026-10-12",
+            "evidence": "layout_check.py"})
+        for phase in phase_gate.PHASES[3:]:
+            self.assertTrue(any("incomplete layout row" in error for error in self.evaluate(phase)), phase)
+
+    def test_template_materialized_into_the_container_root_is_rejected(self):
+        # The failure this gate exists for: the whole template tree copied into the
+        # bound output container instead of its <app-name>-ohos subdirectory.
+        container, _ = self.layout()
+        (container / "AppScope").mkdir(parents=True, exist_ok=True)
+        for marker in phase_gate.OHOS_PROJECT_MARKERS:
+            (container / marker).write_text("{}\n", encoding="utf-8")
+        for phase in phase_gate.PHASES:
+            self.assertTrue(any("output container root" in error for error in self.evaluate(phase)), phase)
+
+    def test_packaged_artifact_in_the_container_root_is_rejected(self):
+        container, _ = self.layout()
+        (container / "entry-default-unsigned.hap").write_text("hap\n", encoding="utf-8")
+        self.assertTrue(any("packaged artifacts" in error for error in self.evaluate("handoff")))
+
+    def test_project_must_be_the_container_ohos_subdirectory(self):
+        app_root = self.root.parent.parent
+        rows = phase_gate.read_rows(self.root / "environment.tsv")
+        for row in rows:
+            if row.get("category") == phase_gate.LAYOUT_CATEGORY:
+                row["value"] = f"container={app_root.as_posix()}; project={app_root.as_posix()}"
+        write_tsv(self.root / "environment.tsv", rows)
+        self.assertTrue(any("output layout: the migration project must be" in error
+                            for error in self.evaluate("pilot")))
+
+    def test_project_name_comes_from_the_recorded_row_not_the_ledger_path(self):
+        # `--target` may be a repository root, whose directory name is not the
+        # application name, so the gate never re-derives the name from the ledger
+        # path: the recorded layout row is the single authority for the pair.
+        container, project = self.layout()
+        renamed = container / "calculator-ohos"
+        project.rename(renamed)
+        rows = phase_gate.read_rows(self.root / "environment.tsv")
+        for row in rows:
+            if row.get("category") == phase_gate.LAYOUT_CATEGORY:
+                row["value"] = f"container={container.as_posix()}; project={renamed.as_posix()}"
+        write_tsv(self.root / "environment.tsv", rows)
+        for phase in phase_gate.PHASES:
+            self.assertEqual(self.evaluate(phase), [], phase)
+
+    def test_recorded_project_must_exist_before_the_pilot_gate(self):
+        _, project = self.layout()
+        shutil.rmtree(project)
+        self.assertEqual(self.evaluate("contract"), [])
+        self.assertTrue(any("does not exist" in error for error in self.evaluate("pilot")))
 
 
 # --------------------------------------------------------------------------- 1. lint
