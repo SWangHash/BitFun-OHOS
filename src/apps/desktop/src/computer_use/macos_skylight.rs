@@ -25,8 +25,6 @@ use std::ffi::{c_void, CStr};
 use std::os::raw::{c_char, c_int, c_uint};
 use std::sync::OnceLock;
 
-use bitfun_core::util::errors::BitFunResult;
-
 // ── Function-pointer typedefs ──────────────────────────────────────────────
 
 /// `void SLEventPostToPid(pid_t, CGEventRef)`
@@ -48,15 +46,6 @@ type SetIntFieldFn = unsafe extern "C" fn(*mut c_void, u32, i64);
 type ConnectionIDFn = unsafe extern "C" fn() -> u32;
 
 // ── NSMenu shortcut activation SPIs ──────────────────────────────────────────
-
-/// `OSStatus SLPSSetFrontProcessWithOptions(const void *psn, uint32_t windowID, uint32_t options)`
-type SetFrontProcessFn = unsafe extern "C" fn(*const c_void, u32, u32) -> i32;
-
-/// `OSStatus SLSGetWindowOwner(uint32_t cid, uint32_t wid, uint32_t *out_cid)`
-type GetWindowOwnerFn = unsafe extern "C" fn(u32, u32, *mut u32) -> i32;
-
-/// `OSStatus SLSGetConnectionPSN(uint32_t cid, void *psn)`
-type GetConnectionPSNFn = unsafe extern "C" fn(u32, *mut c_void) -> i32;
 
 // ── Focus-without-raise SPIs ──────────────────────────────────────────────────
 
@@ -149,21 +138,6 @@ fn factory_msg_send_fn() -> Option<FactoryMsgSendFn> {
     *SYM.get_or_init(|| find_sym(b"objc_msgSend\0").map(|p| unsafe { as_fn(p) }))
 }
 
-fn set_front_process_fn() -> Option<SetFrontProcessFn> {
-    static SYM: OnceLock<Option<SetFrontProcessFn>> = OnceLock::new();
-    *SYM.get_or_init(|| find_sym(b"SLPSSetFrontProcessWithOptions\0").map(|p| unsafe { as_fn(p) }))
-}
-
-fn get_window_owner_fn() -> Option<GetWindowOwnerFn> {
-    static SYM: OnceLock<Option<GetWindowOwnerFn>> = OnceLock::new();
-    *SYM.get_or_init(|| find_sym(b"SLSGetWindowOwner\0").map(|p| unsafe { as_fn(p) }))
-}
-
-fn get_connection_psn_fn() -> Option<GetConnectionPSNFn> {
-    static SYM: OnceLock<Option<GetConnectionPSNFn>> = OnceLock::new();
-    *SYM.get_or_init(|| find_sym(b"SLSGetConnectionPSN\0").map(|p| unsafe { as_fn(p) }))
-}
-
 fn post_event_record_to_fn() -> Option<PostEventRecordToFn> {
     static SYM: OnceLock<Option<PostEventRecordToFn>> = OnceLock::new();
     *SYM.get_or_init(|| find_sym(b"SLPSPostEventRecordTo\0").map(|p| unsafe { as_fn(p) }))
@@ -234,25 +208,21 @@ fn class_responds_to_selector(cls: *mut c_void, sel: *mut c_void) -> bool {
     }
 }
 
-// ── SLSEventRecord extraction ──────────────────────────────────────────────
-
-/// Extract the embedded `SLSEventRecord *` from a `CGEvent`.
-///
-/// Layout of `__CGEvent` (SkyLight ObjC type encodings):
-///   `{CFRuntimeBase, uint32_t, SLSEventRecord *}`
-/// On 64-bit: CFRuntimeBase=16, uint32=4, 4 bytes pad -> record pointer at offset 24.
-/// We probe offsets 24, 32, 16 for resilience across OS versions.
-unsafe fn extract_event_record(event_ptr: *mut c_void) -> *mut c_void {
-    unsafe {
-        for &offset in &[24usize, 32, 16] {
-            let slot = (event_ptr as *const u8).add(offset).cast::<*mut c_void>();
-            let p = std::ptr::read_unaligned(slot);
-            if !p.is_null() {
-                return p;
-            }
-        }
-        std::ptr::null_mut()
+// The SPI copies a record into caller-owned storage and validates the event.
+// Never probe opaque CGEvent object offsets: a different runtime layout can
+// turn a non-null integer into a pointer and crash the automation host.
+type CopyEventRecordFn = unsafe extern "C" fn(*mut c_void, *mut c_void, u32) -> i32;
+#[repr(C, align(16))]
+struct EventRecord([u8; 248]);
+fn copy_event_record(event: *mut c_void) -> Option<EventRecord> {
+    static COPY: OnceLock<Option<CopyEventRecordFn>> = OnceLock::new();
+    let copy =
+        (*COPY.get_or_init(|| find_sym(b"SLEventGetEventRecord\0").map(|p| unsafe { as_fn(p) })))?;
+    if event.is_null() {
+        return None;
     }
+    let mut record = EventRecord([0; 248]);
+    (unsafe { copy(event, record.0.as_mut_ptr().cast(), 248) } == 0).then_some(record)
 }
 
 // ── Public entry points ────────────────────────────────────────────────────
@@ -271,6 +241,13 @@ pub(super) fn post_to_pid(pid: i32, event_ptr: *mut c_void, attach_auth_message:
         None => return false,
     };
 
+    // Keep the owned record alive until event posting completes, even if a
+    // framework version retains its address while creating authentication.
+    let mut owned_record = if attach_auth_message {
+        copy_event_record(event_ptr)
+    } else {
+        None
+    };
     if attach_auth_message {
         let cls = objc_class(c"SLSEventAuthenticationMessage");
         let sel = sel_register(c"messageWithEventRecord:pid:version:");
@@ -278,9 +255,10 @@ pub(super) fn post_to_pid(pid: i32, event_ptr: *mut c_void, attach_auth_message:
 
         if class_responds_to_selector(cls, sel) {
             if let Some(factory_fn) = factory {
-                let record = unsafe { extract_event_record(event_ptr) };
-                if !record.is_null() {
-                    let msg = unsafe { factory_fn(cls, sel, record, pid as c_int, 0u32) };
+                if let Some(record) = owned_record.as_mut() {
+                    let msg = unsafe {
+                        factory_fn(cls, sel, record.0.as_mut_ptr().cast(), pid as c_int, 0u32)
+                    };
                     if !msg.is_null() {
                         if let Some(set_auth) = set_auth_msg_fn() {
                             unsafe { set_auth(event_ptr, msg) };
@@ -325,6 +303,32 @@ pub(super) fn main_connection_id() -> Option<u32> {
 }
 
 // ── Focus-without-raise ───────────────────────────────────────────────────────
+
+/// Change only the target process's AppKit activation state. This does not
+/// change WindowServer's front process, send a defocus event to the human's
+/// application, order any window, or change Spaces. The caller owns lifecycle
+/// cleanup and must validate the captured window before using this SPI.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct ProcessIdentity(pub(super) [u32; 2]);
+
+pub(super) fn process_identity(pid: i32) -> Option<ProcessIdentity> {
+    let get = get_process_for_pid_fn()?;
+    let mut psn = [0u32; 2];
+    (unsafe { get(pid, psn.as_mut_ptr().cast()) } == 0).then_some(ProcessIdentity(psn))
+}
+
+/// Post to the retained process identity, never to a newly resolved PID owner.
+pub(super) fn set_local_activation(identity: ProcessIdentity, window: u32, active: bool) -> bool {
+    let Some(post) = post_event_record_to_fn() else {
+        return false;
+    };
+    let mut record = [0u8; 248];
+    record[4] = 248;
+    record[8] = 13;
+    record[0x3c..0x40].copy_from_slice(&window.to_le_bytes());
+    record[0x8a] = if active { 1 } else { 2 };
+    unsafe { post(identity.0.as_ptr().cast(), record.as_ptr()) == 0 }
+}
 
 /// Activate `target_pid`'s window `target_wid` without raising any windows
 /// or triggering Space-follow. Ported from yabai's
@@ -382,75 +386,27 @@ pub(super) fn activate_without_raise(target_pid: i32, target_wid: u32) -> bool {
     defocus_ok && focus_ok
 }
 
-// ── NSMenu shortcut activation ────────────────────────────────────────────────
-
-/// Gets the PSN for the process that owns `window_id`.
-/// Uses `CGSMainConnectionID` + `SLSGetWindowOwner` + `SLSGetConnectionPSN`.
-/// Falls back to `GetProcessForPID(pid)` when the SkyLight path fails.
-pub(super) fn get_process_psn_for_window(window_id: u32, pid: i32, out_psn: &mut [u8; 8]) -> bool {
-    if let (Some(get_owner), Some(get_psn), Some(conn_id_fn)) = (
-        get_window_owner_fn(),
-        get_connection_psn_fn(),
-        connection_id_fn(),
-    ) {
-        let main_cid = unsafe { conn_id_fn() };
-        let mut owner_cid: u32 = 0;
-        let ok = unsafe { get_owner(main_cid, window_id, &mut owner_cid) } == 0;
-        if ok && owner_cid != 0 {
-            let psn_ok = unsafe { get_psn(owner_cid, out_psn.as_mut_ptr() as *mut c_void) == 0 };
-            if psn_ok {
-                return true;
-            }
+#[cfg(test)]
+mod event_record_tests {
+    use super::*;
+    use foreign_types::ForeignType;
+    #[test]
+    fn copy_owned_keyboard_record_without_posting_input() {
+        assert!(copy_event_record(std::ptr::null_mut()).is_none());
+        if find_sym(b"SLEventGetEventRecord\0").is_none() {
+            return;
         }
+        let event = core_graphics::event::CGEvent::new_keyboard_event(
+            core_graphics::event_source::CGEventSource::new(
+                core_graphics::event_source::CGEventSourceStateID::Private,
+            )
+            .unwrap(),
+            0,
+            true,
+        )
+        .unwrap();
+        let record =
+            copy_event_record(event.as_ptr().cast()).expect("valid local CGEvent must copy");
+        assert!(record.0.iter().any(|value| *value != 0));
     }
-    if let Some(get_pid_psn) = get_process_for_pid_fn() {
-        return unsafe { get_pid_psn(pid, out_psn.as_mut_ptr() as *mut c_void) == 0 };
-    }
-    false
-}
-
-/// Activate `target_pid`'s window `target_wid` for NSMenu key dispatch, run
-/// `action`, then immediately restore the prior frontmost process.
-///
-/// The entire activate -> action -> restore sequence is < 1 ms. NSMenu still
-/// fires because the key event is already enqueued in the target's run-loop
-/// queue before we restore.
-///
-/// Returns `Ok(true)` when activation succeeded, `Ok(false)` when SPIs
-/// unavailable (action still ran).
-pub(super) fn with_menu_shortcut_activation(
-    target_pid: i32,
-    target_wid: u32,
-    action: impl FnOnce() -> BitFunResult<()>,
-) -> BitFunResult<bool> {
-    let set_front = match set_front_process_fn() {
-        Some(f) => f,
-        None => {
-            action()?;
-            return Ok(false);
-        }
-    };
-
-    let mut prev_psn = [0u8; 8];
-    let prev_ok = get_front_process_fn()
-        .map(|f| unsafe { f(prev_psn.as_mut_ptr() as *mut c_void) } == 0)
-        .unwrap_or(false);
-
-    let mut target_psn = [0u8; 8];
-    let target_ok = get_process_psn_for_window(target_wid, target_pid, &mut target_psn);
-    if !target_ok {
-        action()?;
-        return Ok(false);
-    }
-
-    unsafe { set_front(target_psn.as_ptr() as *const c_void, target_wid, 0x400) };
-
-    let result = action();
-
-    if prev_ok {
-        unsafe { set_front(prev_psn.as_ptr() as *const c_void, 0, 0x400) };
-    }
-
-    result?;
-    Ok(true)
 }

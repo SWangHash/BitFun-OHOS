@@ -5,22 +5,20 @@
  * Renamed from panels/ContentPanel. All logic preserved.
  */
 
-import { forwardRef, useEffect, useRef, useImperativeHandle, useCallback } from 'react';
+import { forwardRef, useEffect, useRef, useImperativeHandle, useCallback, useSyncExternalStore } from 'react';
+import { Maximize2, Minimize2 } from 'lucide-react';
+import { Icon, IconButton, Tooltip } from '@bitfun/ui';
 import { ContentCanvas, useCanvasStore } from '../../components/panels/content-canvas';
 import { usePanelTabCoordinator } from '../../components/panels/content-canvas/hooks/usePanelTabCoordinator';
 import { TAB_EVENTS } from '../../components/panels/content-canvas/types';
 import { collapseSessionAuxPane, expandSessionAuxPane } from './sessionPanelLayout';
-import {
-  switchAgentCanvasWorkspace,
-  removeAgentCanvasSnapshot,
-} from '../../components/panels/content-canvas/stores';
-import { workspaceManager } from '@/infrastructure/services/business/workspaceManager';
-import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext';
+import { switchAgentCanvasScope } from '../../components/panels/content-canvas/stores';
 import { useI18n } from '@/infrastructure/i18n';
 import type { PanelContent as OldPanelContent } from '../../components/panels/base/types';
 import type { PanelContent } from '../../components/panels/content-canvas/types';
-import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
 import { createLogger } from '@/shared/utils/logger';
+import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
+import { isCanvasTabVisibleForSession } from '../../components/panels/content-canvas/types';
 import { useMigrationAutoOpen } from '@/features/qt-ohos-migration/hooks/useMigrationAutoOpen';
 
 import './AuxPane.scss';
@@ -37,15 +35,21 @@ export interface AuxPaneRef {
 
 interface AuxPaneProps {
   workspacePath?: string;
+  externalToolbar?: boolean;
   isSceneActive?: boolean;
   terminalResizeSuspended?: boolean;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
 }
 
 const AuxPane = forwardRef<AuxPaneRef, AuxPaneProps>(
-  ({ workspacePath, isSceneActive = true, terminalResizeSuspended = false }, ref) => {
+  ({ workspacePath, externalToolbar = false, isSceneActive = true, terminalResizeSuspended = false, isFullscreen = false, onToggleFullscreen }, ref) => {
     const { t } = useI18n('components');
-    const { workspace } = useCurrentWorkspace();
-    const workspaceId = workspace?.id;
+    const activeSessionId = useSyncExternalStore(
+      flowChatStore.subscribe.bind(flowChatStore),
+      () => flowChatStore.getState().activeSessionId,
+      () => flowChatStore.getState().activeSessionId,
+    );
 
     // Auto-open the Qt→HarmonyOS migration progress tab when a migration is detected.
     useMigrationAutoOpen();
@@ -56,15 +60,16 @@ const AuxPane = forwardRef<AuxPaneRef, AuxPaneProps>(
     const findTabByMetadata = useCanvasStore(state => state.findTabByMetadata);
     const updateTabContent = useCanvasStore(state => state.updateTabContent);
     const closeAllTabs = useCanvasStore(state => state.closeAllTabs);
-    const syncSessionOwnedBrowserTabs = useCanvasStore(state => state.syncSessionOwnedBrowserTabs);
     const primaryGroup = useCanvasStore(state => state.primaryGroup);
     const secondaryGroup = useCanvasStore(state => state.secondaryGroup);
     const tertiaryGroup = useCanvasStore(state => state.tertiaryGroup);
-    const canvasWorkspaceKey = useCanvasStore(state => state.workspaceKey);
-    const { expandPanel, collapsePanel } = usePanelTabCoordinator({
+    const canvasScopeKey = useCanvasStore(state => state.scopeKey);
+    const { expandPanel } = usePanelTabCoordinator({
       visibleTabCount: [primaryGroup, secondaryGroup, tertiaryGroup]
-        .reduce((count, group) => count + group.tabs.filter(tab => !tab.isHidden).length, 0),
-      scopeKey: canvasWorkspaceKey,
+        .reduce((count, group) => count + group.tabs.filter(tab =>
+          !tab.isHidden && isCanvasTabVisibleForSession(tab, activeSessionId),
+        ).length, 0),
+      scopeKey: canvasScopeKey,
       expandEventName: TAB_EVENTS.EXPAND_RIGHT_PANEL,
       onExpand: expandSessionAuxPane,
       onCollapse: collapseSessionAuxPane,
@@ -119,54 +124,29 @@ const AuxPane = forwardRef<AuxPaneRef, AuxPaneProps>(
       expandPanel,
     ]);
 
-    const prevWorkspaceIdRef = useRef<string | undefined>(undefined);
+    const prevScopeKeyRef = useRef<string | undefined>(undefined);
 
-    const syncAgentCanvasWorkspace = useCallback((next: string | undefined) => {
-      const prev = prevWorkspaceIdRef.current;
+    const syncAgentCanvasScope = useCallback((next: string | undefined) => {
+      const prev = prevScopeKeyRef.current;
       if (prev === next) return;
 
-      log.debug('Active workspace changed, swapping agent canvas snapshot', {
+      log.debug('Active session changed, swapping agent canvas snapshot', {
         from: prev ?? '(none)',
         to: next ?? '(none)',
       });
-      switchAgentCanvasWorkspace(prev ?? null, next ?? null);
-      syncSessionOwnedBrowserTabs(flowChatStore.getState().activeSessionId);
-      prevWorkspaceIdRef.current = next;
-    }, [syncSessionOwnedBrowserTabs]);
+      prevScopeKeyRef.current = next;
+      switchAgentCanvasScope(next ?? null);
+    }, []);
 
     useEffect(() => {
-      syncAgentCanvasWorkspace(workspaceId);
-    }, [syncAgentCanvasWorkspace, workspaceId]);
-
-    useEffect(() => {
-      let previousSessionId: string | null | undefined;
-      const sync = (sessionId: string | null) => {
-        if (sessionId === previousSessionId) return;
-        previousSessionId = sessionId;
-        syncSessionOwnedBrowserTabs(sessionId);
-      };
-
-      sync(flowChatStore.getState().activeSessionId);
-      return flowChatStore.subscribe(state => sync(state.activeSessionId));
-    }, [syncSessionOwnedBrowserTabs]);
-
-    useEffect(() => {
-      const removeListener = workspaceManager.addEventListener((event) => {
-        if (
-          event.type === 'workspace:switched'
-          || event.type === 'workspace:active-changed'
-        ) {
-          // WorkspaceManager emits these events synchronously while activation is
-          // still in progress. Swap the canvas before callers can open the target
-          // session's review tab; the context effect above remains a fallback.
-          syncAgentCanvasWorkspace(event.workspace?.id);
-        }
-        if (event.type === 'workspace:closed') {
-          removeAgentCanvasSnapshot(event.workspaceId);
-        }
+      syncAgentCanvasScope(flowChatStore.getState().activeSessionId ?? undefined);
+      // FlowChatStore notifies synchronously while a session switch is still in
+      // progress. Swap the canvas before callers can open content for the target
+      // session; the store itself ignores a swap to the scope already live.
+      return flowChatStore.subscribe(state => {
+        syncAgentCanvasScope(state.activeSessionId ?? undefined);
       });
-      return () => removeListener();
-    }, [syncAgentCanvasWorkspace]);
+    }, [syncAgentCanvasScope]);
 
     const handleInteraction = useCallback(async (itemId: string, userInput: string) => {
       log.debug('Panel interaction', { itemId, userInput });
@@ -179,11 +159,25 @@ const AuxPane = forwardRef<AuxPaneRef, AuxPaneProps>(
     return (
       <div data-bitfun-component="aux-pane" data-bitfun-part="root" className="bitfun-aux-pane">
         <ContentCanvas
+          externalToolbar={externalToolbar}
           workspacePath={workspacePath}
           mode="agent"
           isSceneActive={isSceneActive}
           onReveal={expandPanel}
-          onCollapsePanel={collapsePanel}
+          toolbarActions={onToggleFullscreen ? (
+            <Tooltip content={t(isFullscreen ? 'canvas.restorePanel' : 'canvas.maximizePanel')} placement="bottom">
+              <IconButton
+                size="sm"
+                aria-label={t(isFullscreen ? 'canvas.restorePanel' : 'canvas.maximizePanel')}
+                aria-pressed={isFullscreen}
+                icon={<Icon glyph={isFullscreen ? Minimize2 : Maximize2} size="sm" />}
+                onClick={event => {
+                  event.stopPropagation();
+                  onToggleFullscreen();
+                }}
+              />
+            </Tooltip>
+          ) : null}
           onInteraction={handleInteraction}
           onBeforeClose={handleBeforeClose}
           terminalResizeSuspended={terminalResizeSuspended}

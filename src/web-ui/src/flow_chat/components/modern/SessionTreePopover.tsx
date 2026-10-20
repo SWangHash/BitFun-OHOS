@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { MessageSquare, Square } from 'lucide-react';
+import { Square } from 'lucide-react';
 import { subscribeOverlayInteraction, createOverlayPortal, OverflowText, Spinner, Tooltip } from '@bitfun/ui';
 import { RetainedMountBoundary } from '@/shared/presence';
 import { sessionAPI, type SessionLineageSnapshot } from '@/infrastructure/api/service-api/SessionAPI';
@@ -197,9 +197,6 @@ export const SessionTreePopover: React.FC<SessionTreePopoverProps> = ({
   }, [isOpen, refreshSnapshot]);
 
   useEffect(() => {
-    let removeOverlayMousedown0: (() => void) | undefined;
-    let removeOverlayMousedown1: (() => void) | undefined;
-    let removeOverlayKeydown2: (() => void) | undefined;
     if (!isOpen) return;
     if (embedded) {
       const handleEmbeddedPointerDown = (event: MouseEvent) => {
@@ -213,7 +210,7 @@ export const SessionTreePopover: React.FC<SessionTreePopoverProps> = ({
           setActionMenuPosition(null);
         }
       };
-      removeOverlayMousedown0 = subscribeOverlayInteraction(actionMenuRef, 'mousedown', handleEmbeddedPointerDown);
+      const removeOverlayMousedown0 = subscribeOverlayInteraction(actionMenuRef, 'mousedown', handleEmbeddedPointerDown);
       return () => removeOverlayMousedown0?.();
     }
     const handlePointerDown = (event: MouseEvent) => {
@@ -231,8 +228,8 @@ export const SessionTreePopover: React.FC<SessionTreePopoverProps> = ({
         closePopover('keyboard');
       }
     };
-    removeOverlayMousedown1 = subscribeOverlayInteraction(panelRef, 'mousedown', handlePointerDown);
-    removeOverlayKeydown2 = subscribeOverlayInteraction(panelRef, 'keydown', handleKeyDown);
+    const removeOverlayMousedown1 = subscribeOverlayInteraction(panelRef, 'mousedown', handlePointerDown);
+    const removeOverlayKeydown2 = subscribeOverlayInteraction(panelRef, 'keydown', handleKeyDown);
     return () => {
       removeOverlayMousedown1?.();
       removeOverlayKeydown2?.();
@@ -471,7 +468,7 @@ export const SessionTreePopover: React.FC<SessionTreePopoverProps> = ({
                   .join(', ')}
           >
             {node.isRoot
-              ? <MessageSquare size={13} aria-hidden="true" />
+              ? <Icon name="message-square" size="sm" aria-hidden="true" />
               : (
                   <SubagentAvatar
                     sessionId={node.sessionId}
@@ -504,7 +501,7 @@ export const SessionTreePopover: React.FC<SessionTreePopoverProps> = ({
                   aria-haspopup="menu"
                   aria-expanded={openActionSessionId === node.sessionId}
                   disabled={isCancelling || deletingSessionId !== null}
-                  icon={<Icon name="more" size="lg" style={{ width: 13, height: 13 }} aria-hidden="true" />}
+                  icon={<Icon name="more" size="sm" aria-hidden="true" />}
                 />
               </Tooltip>
               {openActionSessionId === node.sessionId && actionMenuPosition ? createOverlayPortal(
@@ -614,7 +611,7 @@ export const SessionTreePopover: React.FC<SessionTreePopoverProps> = ({
               size="sm"
               onClick={() => void refreshSnapshot()}
               aria-label={t('flowChatHeader.agentTreeRetry')}
-              icon={<Icon name="refresh" size="lg" style={{ width: 13, height: 13 }} />}
+              icon={<Icon name="refresh" size="sm" />}
             />
           </Tooltip>
         </div>

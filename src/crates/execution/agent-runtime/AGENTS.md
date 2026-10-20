@@ -9,6 +9,9 @@ port-backed `sdk` / `AgentRuntime` facade that can be built and tested without
 
 ## Feature Boundaries
 
+- `definition-contracts` includes pure `native-hook-settings` validation for
+  skill frontmatter. Discovery does not select process execution or Tokio.
+
 - `native-hook-settings` exposes Codex-compatible hook settings parsing and
   validation without process execution.
 - `native-hook-runtime` extends settings with payload, output, and managed
@@ -111,6 +114,19 @@ implementation in the root file. The core-boundary check enforces this shape
 so `autotests = false` cannot silently omit a new contract.
 
 ## Verification
+
+For next-input suggestion eligibility, reasoning selection, plain-text output
+without text post-processing, and cancellation:
+
+```bash
+cargo test --locked -p bitfun-agent-runtime --no-default-features --features agent-runtime --lib prompt_suggestion::tests
+```
+
+Background report decisions and clean empty completion contracts:
+
+```bash
+cargo test --locked -p bitfun-agent-runtime --no-default-features --features agent-runtime --lib scheduler::result_delivery
+```
 
 Use the focused contract form by default. Run the package-wide form only when a
 change crosses several runtime targets:

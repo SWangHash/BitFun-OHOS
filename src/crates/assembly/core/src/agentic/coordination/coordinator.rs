@@ -12,9 +12,7 @@ use super::{
     turn_settlement::TurnSettlementTracker,
     BackgroundSubagentOutcomeStore, BackgroundSubagentWaitMode, BackgroundSubagentWaitResult,
 };
-use crate::agentic::agents::{
-    get_agent_registry, is_swarm_planner_agent_type, ExternalSubagentModelBinding,
-};
+use crate::agentic::agents::{get_agent_registry, ExternalSubagentModelBinding};
 use crate::agentic::context_profile::ContextProfilePolicy;
 use crate::agentic::core::{
     InternalReminderKind, Message, MessageContent, MessageSemanticKind, ProcessingPhase, Session,
@@ -85,16 +83,18 @@ use crate::service::session::{
     ToolItemIdentityExt, TurnStatus,
 };
 use crate::service::workspace::{
-    get_global_workspace_service, WorkspaceActivityMode, WorkspaceInfo, WorkspaceKind,
-    WorkspaceService,
+    get_global_workspace_service, RemoteConnectionRebind, WorkspaceActivityMode, WorkspaceInfo,
+    WorkspaceKind, WorkspaceService,
 };
 use crate::service_agent_runtime::CoreServiceAgentRuntime;
 use crate::util::errors::{BitFunError, BitFunResult};
 use bitfun_agent_runtime::deep_review::FocusedReviewAssignment;
-use bitfun_agent_runtime::output_surface::{
-    supports_inline_markdown_images_for_source, TOOL_CONTEXT_INLINE_MARKDOWN_IMAGE_DISPLAY_KEY,
+use bitfun_agent_runtime::permission::{
+    AUTO_APPROVE_ASK_CONTEXT_KEY, PERMISSION_MODE_CONTEXT_KEY,
 };
-use bitfun_agent_runtime::permission::{AUTO_APPROVE_ASK_CONTEXT_KEY, PERMISSION_MODE_CONTEXT_KEY};
+use bitfun_agent_runtime::prompt_suggestion::{
+    prompt_suggestion_source_eligible, PROMPT_SUGGESTION_ELIGIBLE_CONTEXT_KEY,
+};
 use bitfun_agent_runtime::remote_file_delivery::{
     needs_computer_links_for_source, remote_file_delivery_reminder,
     TOOL_CONTEXT_REMOTE_FILE_DELIVERY_KEY,
@@ -138,7 +138,7 @@ use tokio_util::sync::CancellationToken;
 
 const MANUAL_COMPACTION_COMMAND: &str = "/compact";
 const CONTEXT_COMPRESSION_TOOL_NAME: &str = "ContextCompression";
-const TASK_TOOL_NAME: &str = "Task";
+const AGENT_SPAWN_TOOL_NAME: &str = "AgentSpawn";
 const DEFAULT_SUBAGENT_MAX_CONCURRENCY: usize = 5;
 const DEFAULT_SWARM_MAX_CONCURRENCY: usize = 16;
 const MAX_SUBAGENT_MAX_CONCURRENCY: usize = 64;
@@ -578,6 +578,20 @@ impl SubagentResult {
 pub struct BackgroundSubagentStartResult {
     pub bg_task_id: String,
     pub agent_id: String,
+}
+
+/// User-facing admission must agree with delegated reuse. Fresh-only children
+/// execute their initial turn through the dedicated hidden-subagent route.
+pub(super) fn ensure_session_accepts_conversation(session: &Session) -> BitFunResult<()> {
+    if session.kind == SessionKind::Subagent
+        && session.config.continuation_policy == SessionContinuationPolicy::FreshOnly
+    {
+        return Err(BitFunError::Validation(
+            "subagent_follow_up_unsupported: this subagent session is fresh-only; start a new Task invocation"
+                .to_string(),
+        ));
+    }
+    Ok(())
 }
 
 fn build_subagent_session_relationship(
@@ -1266,7 +1280,8 @@ pub struct ConversationCoordinator {
     /// Recoverable stop intent observed by the spawned execution owner when
     /// cancellation reaches its terminal persistence boundary.
     interrupted_turn_intents: Arc<DashMap<String, InterruptedTurnIntentState>>,
-    thread_goal_runtime: Arc<ThreadGoalRuntime>,
+    thread_goal_runtimes: dashmap::DashMap<String, Arc<ThreadGoalRuntime>>,
+    thread_goal_operations: crate::agentic::keyed_lock::KeyedAsyncLock,
     terminal_port: OnceLock<Arc<dyn TerminalPort>>,
     remote_exec_port: OnceLock<Arc<dyn RemoteExecPort>>,
     /// Domain tool-admission registry assembled once at construction and
@@ -1543,11 +1558,37 @@ impl ConversationCoordinator {
             })
     }
 
-    async fn resolve_session_primary_agent(
+    async fn resolve_session_agent_for_turn(
         session: &Session,
         agent_type: &str,
         workspace: &Option<WorkspaceBinding>,
-    ) -> BitFunResult<crate::agentic::agents::ExternalPrimaryAgentTurnBinding> {
+) -> BitFunResult<crate::agentic::agents::ExternalPrimaryAgentTurnBinding> {
+        ensure_session_accepts_conversation(session)?;
+        if session.kind == SessionKind::Subagent
+            && Self::normalize_agent_type(agent_type)
+                .eq_ignore_ascii_case(&Self::normalize_agent_type(&session.agent_type))
+            && session.config.agent_route_owner == SessionAgentRouteOwner::Local
+        {
+            // An existing reusable child keeps its delegated identity. Resolving
+            // it as a new main-session mode rejects GeneralPurpose/Explore and
+            // may instead follow a newly installed same-name external route.
+            let registry = get_agent_registry();
+            registry
+                .load_custom_agents(session.config.workspace_id.as_deref())
+                .await;
+            return registry
+                .resolve_local_agent_for_subagent_turn(
+                    &session.agent_type,
+                    session.config.workspace_id.as_deref(),
+                    session.config.agent_route_key.as_deref(),
+                )
+                .ok_or_else(|| {
+                    BitFunError::Validation(format!(
+                        "candidate_unavailable: saved local subagent {} is unavailable or its source changed",
+                        session.agent_type
+                    ))
+                });
+        }
         let external_sources_supported = workspace
             .as_ref()
             .is_some_and(|workspace| !workspace.is_remote());
@@ -1582,6 +1623,25 @@ impl ConversationCoordinator {
         context: &mut HashMap<String, String>,
         metadata: Option<&serde_json::Value>,
     ) {
+        if let Some(run_id) = metadata
+            .and_then(|metadata| {
+                metadata.get(
+                    bitfun_core_types::background_delivery::BACKGROUND_DELIVERY_METADATA_KEY,
+                )
+            })
+            .and_then(|delivery| delivery.get("runId"))
+            .and_then(serde_json::Value::as_str)
+        {
+            if let Some(delivery) =
+                bitfun_core_types::background_delivery::BackgroundDelivery::from_metadata(
+                    metadata, run_id,
+                )
+            {
+                if let Ok(serialized) = serde_json::to_string(&delivery) {
+                    context.insert(crate::agentic::execution::background_delivery::BACKGROUND_DELIVERY_CONTEXT_KEY.to_owned(), serialized);
+                }
+            }
+        }
         if let Some(schema) = metadata
             .and_then(serde_json::Value::as_object)
             .and_then(|metadata| metadata.get(OUTPUT_SCHEMA_CONTEXT_KEY))
@@ -1881,30 +1941,13 @@ impl ConversationCoordinator {
         }
     }
 
-    async fn restore_path_for_existing_session(&self, session_id: &str) -> BitFunResult<PathBuf> {
-        if let Some(binding) = self
-            .session_manager
-            .resolve_session_workspace_binding(session_id)
+async fn restore_path_for_existing_session(
+        &self,
+        session_id: &str,
+    ) -> BitFunResult<PathBuf> {
+        self.session_manager
+            .require_session_storage_path(session_id)
             .await
-        {
-            return Ok(binding.session_storage_dir());
-        }
-
-        let session = self
-            .session_manager
-            .get_session(session_id)
-            .ok_or_else(|| BitFunError::NotFound(format!("Session not found: {}", session_id)))?;
-        session
-            .config
-            .workspace_path
-            .as_deref()
-            .map(PathBuf::from)
-            .ok_or_else(|| {
-                BitFunError::Validation(format!(
-                    "workspace_path is required when restoring session: {}",
-                    session_id
-                ))
-            })
     }
 
     async fn is_chinese_locale() -> bool {
@@ -2167,7 +2210,8 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             turn_settlements: Arc::new(TurnSettlementTracker::default()),
             manual_compaction_controls: Arc::new(DashMap::new()),
             interrupted_turn_intents: Arc::new(DashMap::new()),
-            thread_goal_runtime: Arc::new(ThreadGoalRuntime::new()),
+            thread_goal_runtimes: dashmap::DashMap::new(),
+            thread_goal_operations: crate::agentic::keyed_lock::KeyedAsyncLock::default(),
             terminal_port: OnceLock::new(),
             remote_exec_port: OnceLock::new(),
             admission_registry: Arc::new(
@@ -2430,6 +2474,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         path: &str,
         connection_id: &str,
         ssh_host: Option<&str>,
+remote_connection_rebind: RemoteConnectionRebind,
     ) -> BitFunResult<WorkspaceInfo> {
         let workspace = workspace_service
             .prepare_remote_workspace(path, connection_id, ssh_host)
@@ -2443,7 +2488,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 .and_then(|host| host.as_str()),
         )?;
         workspace_service
-            .open_known_remote_workspace(&workspace)
+            .open_known_remote_workspace_with_rebind(&workspace, remote_connection_rebind)
             .await
     }
 
@@ -2472,8 +2517,35 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         }
     }
 
-    pub fn thread_goal_runtime(&self) -> Arc<ThreadGoalRuntime> {
-        Arc::clone(&self.thread_goal_runtime)
+    pub fn thread_goal_runtime(&self, session_id: &str) -> Arc<ThreadGoalRuntime> {
+        Arc::clone(
+            self.thread_goal_runtimes
+                .entry(session_id.to_string())
+                .or_insert_with(|| Arc::new(ThreadGoalRuntime::new()))
+                .value(),
+        )
+    }
+
+    async fn lock_thread_goal_operation(
+        &self,
+        session_id: &str,
+    ) -> crate::agentic::keyed_lock::KeyedAsyncLockGuard {
+        self.thread_goal_operations.lock(session_id).await
+    }
+
+    fn mark_session_goal_active(&self, session_id: &str, goal: &ThreadGoal) {
+        let turn_id = self
+            .session_manager
+            .get_session(session_id)
+            .and_then(|session| match session.state {
+                SessionState::Processing {
+                    current_turn_id, ..
+                } => Some(current_turn_id),
+                _ => None,
+            })
+            .unwrap_or_default();
+        self.thread_goal_runtime(session_id)
+            .mark_turn_started(&turn_id, Some(goal));
     }
 
     pub fn set_terminal_port(&self, terminal_port: Arc<dyn TerminalPort>) {
@@ -2632,6 +2704,41 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         );
 
         Ok(())
+    }
+
+    /// A selector mutation can edit a historical header without admitting a
+    /// runtime session. Ownership is checked against the persisted binding
+    /// while the session mutation and writer permits are held.
+    pub(crate) async fn update_session_model_selection_from_storage_path(
+        &self,
+        storage_path: &Path,
+        session_id: &str,
+        model_id: &str,
+        reasoning_preset: Option<&str>,
+        include_internal: bool,
+    ) -> BitFunResult<Session> {
+        let model_id = normalize_model_selection(model_id).await?;
+        self.session_manager
+            .update_session_model_selection_in_storage(
+                Some(storage_path),
+                session_id,
+                &model_id,
+                reasoning_preset,
+                include_internal,
+                |session| {
+                    let workspace = session.config.workspace_path.as_deref().ok_or_else(|| {
+                        BitFunError::Validation(format!(
+                            "Session workspace_path is missing: {session_id}"
+                        ))
+                    })?;
+                    self.ensure_runtime_ownership(
+                        Path::new(workspace),
+                        session.config.remote_connection_id.as_deref(),
+                        session.config.remote_ssh_host.as_deref(),
+                    )
+                },
+            )
+            .await
     }
 
     /// Re-enable (or disable) the tool loop of an already persisted session.
@@ -3113,7 +3220,18 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         }
 
         if persistence_succeeded {
-            let status = if execution_result.success && execution_result.has_final_response {
+            let quiet_completion = execution_result.effective_finish_reason == "background_quiet"
+                && session_manager
+                    .background_delivery_for_turn(session_id, turn_id)
+                    .await
+                    .ok()
+                    .flatten()
+                    .is_some();
+            let status = if execution_result.success
+                && (execution_result.has_final_response
+                    || execution_result.effective_finish_reason == "user_steering"
+                    || quiet_completion)
+            {
                 AgentTurnSettlementStatus::Completed
             } else {
                 AgentTurnSettlementStatus::Failed
@@ -3123,7 +3241,8 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 turn_id,
                 AgentTurnSettlementResult {
                     status,
-                    final_response: (status == AgentTurnSettlementStatus::Completed)
+                    final_response: (status == AgentTurnSettlementStatus::Completed
+                        && execution_result.has_final_response)
                         .then_some(final_response.clone()),
                     finish_reason: Some(execution_result.effective_finish_reason.clone()),
                 },
@@ -3143,6 +3262,11 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                         success: Some(execution_result.success),
                         finish_reason: Some(execution_result.effective_finish_reason.clone()),
                         has_final_response: Some(execution_result.has_final_response),
+                        background_delivery: session_manager
+                            .background_delivery_for_turn(session_id, turn_id)
+                            .await
+                            .ok()
+                            .flatten(),
                     },
                     None,
                 )
@@ -3941,9 +4065,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             append_skill_agent_listing_diff_reminders(
                 &mut prepended_messages,
                 diff.render_skill_listing_update(),
-                (!is_swarm_planner_agent_type(agent_type))
-                    .then(|| diff.render_agent_listing_update())
-                    .flatten(),
+                diff.render_agent_listing_update(),
             );
             if diff.is_empty() {
                 SkillAgentSnapshotPersistence::None
@@ -4221,8 +4343,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 || (context_messages.len() == 1 && !session.dialog_turn_ids.is_empty()))
                 && !session.dialog_turn_ids.is_empty()
             {
-                let restore_path =
-                    Self::resolve_session_restore_path(&project_workspace_path, None, None).await?;
+                let restore_path = self.restore_path_for_existing_session(&session_id).await?;
                 self.restore_session_from_storage_path(&restore_path, &session_id)
                     .await?;
                 session = self
@@ -4235,7 +4356,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
 
             let effective_agent_type = Self::normalize_agent_type(agent_type.trim());
             let session_workspace = Self::build_workspace_binding(&session.config).await;
-            let primary_agent_binding = Self::resolve_session_primary_agent(
+            let primary_agent_binding = Self::resolve_session_agent_for_turn(
                 &session,
                 &effective_agent_type,
                 &session_workspace,
@@ -4376,7 +4497,10 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 attempt_id: None,
                 attempt_index: None,
                 tool_event: ToolEventData::Started {
-                    identity: ToolEventIdentity::direct(tool_call_id.clone(), TASK_TOOL_NAME),
+                    identity: ToolEventIdentity::direct(
+                        tool_call_id.clone(),
+                        AGENT_SPAWN_TOOL_NAME,
+                    ),
                     params: tool_params.clone(),
                     timeout_seconds: None,
                 },
@@ -4479,7 +4603,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                                 tool_event: ToolEventData::Completed {
                                     identity: ToolEventIdentity::direct(
                                         tool_call_id.clone(),
-                                        TASK_TOOL_NAME,
+                                        AGENT_SPAWN_TOOL_NAME,
                                     ),
                                     result: data.clone(),
                                     result_for_assistant: Some(assistant_text.clone()),
@@ -4501,7 +4625,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                             ToolEventData::Cancelled {
                                 identity: ToolEventIdentity::direct(
                                     tool_call_id.clone(),
-                                    TASK_TOOL_NAME,
+                                    AGENT_SPAWN_TOOL_NAME,
                                 ),
                                 reason: error_text.clone(),
                                 duration_ms: Some(duration_ms),
@@ -4514,7 +4638,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                             ToolEventData::Failed {
                                 identity: ToolEventIdentity::direct(
                                     tool_call_id.clone(),
-                                    TASK_TOOL_NAME,
+                                    AGENT_SPAWN_TOOL_NAME,
                                 ),
                                 error_detail: None,
                                 error: error_text.clone(),
@@ -4550,7 +4674,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     String::new(),
                     vec![ToolCall {
                         tool_id: tool_call_id.clone(),
-                        tool_name: TASK_TOOL_NAME.to_string(),
+                        tool_name: AGENT_SPAWN_TOOL_NAME.to_string(),
                         arguments: tool_params,
                         raw_arguments: None,
                         is_error: false,
@@ -4563,7 +4687,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 .with_round_id(round_id.clone());
                 let tool_result_message = Message::tool_result(ToolResult {
                     tool_id: tool_call_id.clone(),
-                    tool_name: TASK_TOOL_NAME.to_string(),
+                    tool_name: AGENT_SPAWN_TOOL_NAME.to_string(),
                     effective_tool_name: None,
                     result: result_data,
                     result_for_assistant: Some(result_for_assistant),
@@ -4581,7 +4705,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                         .await
                     {
                         error!(
-                        "Failed to append delegated command Task message: session_id={}, turn_id={}, error={}",
+                        "Failed to append delegated command AgentSpawn message: session_id={}, turn_id={}, error={}",
                         session_id, turn_id, error
                     );
                     }
@@ -4719,6 +4843,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                             success: Some(true),
                             finish_reason: Some("complete".to_string()),
                             has_final_response: Some(false),
+                            background_delivery: None,
                         })
                         .await;
                 }
@@ -4856,6 +4981,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
     }
 
     async fn resolve_session_restore_scope(
+        &self,
         workspace_path: &str,
         remote_connection_id: Option<&str>,
         remote_ssh_host: Option<&str>,
@@ -4866,18 +4992,19 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             remote_ssh_host: remote_ssh_host.map(ToOwned::to_owned),
         };
 
-        CoreSessionStorePort::default()
+        CoreSessionStorePort::with_path_manager(self.session_manager.path_manager())
             .resolve_session_storage_path(request)
             .await
             .map_err(|error| BitFunError::Session(error.to_string()))
     }
 
     async fn resolve_session_restore_path(
+        &self,
         workspace_path: &str,
         remote_connection_id: Option<&str>,
         remote_ssh_host: Option<&str>,
-    ) -> BitFunResult<PathBuf> {
-        Self::resolve_session_restore_scope(workspace_path, remote_connection_id, remote_ssh_host)
+) -> BitFunResult<PathBuf> {
+        self.resolve_session_restore_scope(workspace_path, remote_connection_id, remote_ssh_host)
             .await
             .map(|resolution| resolution.effective_storage_path)
     }
@@ -4909,9 +5036,8 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
     async fn require_main_session_storage_path(&self, session_id: &str) -> BitFunResult<PathBuf> {
         self.require_main_session_workspace(session_id)?;
         self.session_manager
-            .resolve_session_workspace_binding(session_id)
+            .effective_session_storage_path(session_id)
             .await
-            .map(|binding| binding.session_storage_dir())
             .ok_or_else(|| {
                 BitFunError::Validation(format!(
                     "Session storage path is unavailable: {session_id}"
@@ -4931,16 +5057,56 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         }
     }
 
+    async fn settle_thread_goal_usage(
+        &self,
+        session_id: &str,
+        storage_path: &Path,
+    ) -> BitFunResult<Option<ThreadGoal>> {
+        let Some(mut goal) = self
+            .thread_goal_store()
+            .get_thread_goal(session_id, storage_path)
+            .await?
+        else {
+            return Ok(None);
+        };
+        let Some(runtime) = self
+            .thread_goal_runtimes
+            .get(session_id)
+            .map(|entry| Arc::clone(entry.value()))
+        else {
+            return Ok(Some(goal));
+        };
+        if let Some((turn_id, tokens)) = runtime.current_turn_usage() {
+            let previous = goal.clone();
+            runtime.account_turn_tokens(
+                &turn_id,
+                tokens,
+                &mut goal,
+                crate::agentic::goal_mode::now_epoch_seconds(),
+            );
+            if previous != goal {
+                self.thread_goal_store()
+                    .persist_thread_goal(session_id, storage_path, Some(goal.clone()))
+                    .await?;
+                if previous.status != goal.status {
+                    self.emit_thread_goal_updated(session_id, Some(goal.clone()))
+                        .await;
+                }
+            }
+        }
+        Ok(Some(goal))
+    }
+
     pub async fn get_thread_goal(
         &self,
         session_id: &str,
         workspace_path: &Path,
-    ) -> BitFunResult<Option<ThreadGoal>> {
+) -> BitFunResult<Option<ThreadGoal>> {
+        let _goal_guard = self.lock_thread_goal_operation(session_id).await;
         let storage_path = self
             .resolve_thread_goal_storage_path(session_id, workspace_path)
             .await?;
-        self.thread_goal_store()
-            .get_thread_goal(session_id, storage_path.as_path())
+        self.settle_thread_goal_usage(session_id, storage_path.as_path())
             .await
     }
 
@@ -4948,15 +5114,23 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         &self,
         session_id: &str,
         workspace_path: &Path,
-    ) -> BitFunResult<()> {
+) -> BitFunResult<()> {
+        let goal_guard = self.lock_thread_goal_operation(session_id).await;
         let storage_path = self
             .resolve_thread_goal_storage_path(session_id, workspace_path)
             .await?;
-        self.thread_goal_runtime.clear_active_goal(None);
+        // Dropping the goal drops the work it started: capture its turn before the
+        // clear releases the goal-to-turn binding.
+        let goal_turn = self.goal_driven_turn_id(session_id);
         self.thread_goal_store()
             .clear_thread_goal(session_id, storage_path.as_path())
             .await?;
+        self.thread_goal_runtime(session_id).clear_active_goal(None);
         self.emit_thread_goal_updated(session_id, None).await;
+        drop(goal_guard);
+        if let Some(turn_id) = goal_turn {
+            self.stop_goal_driven_turn(session_id, &turn_id).await;
+        }
         Ok(())
     }
 
@@ -4966,13 +5140,14 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         _workspace_path: &Path,
         objective: String,
         token_budget: Option<i64>,
-    ) -> BitFunResult<ThreadGoal> {
+) -> BitFunResult<ThreadGoal> {
+        let _goal_guard = self.lock_thread_goal_operation(session_id).await;
         let storage_path = self.require_main_session_storage_path(session_id).await?;
         let goal = self
             .thread_goal_store()
             .create_thread_goal(session_id, storage_path.as_path(), objective, token_budget)
             .await?;
-        self.thread_goal_runtime.mark_turn_started("", Some(&goal));
+        self.mark_session_goal_active(session_id, &goal);
         self.emit_thread_goal_updated(session_id, Some(goal.clone()))
             .await;
         Ok(goal)
@@ -4984,6 +5159,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         _workspace_path: &Path,
         objective: String,
     ) -> BitFunResult<ThreadGoal> {
+        let goal_guard = self.lock_thread_goal_operation(session_id).await;
         let storage_path = self.require_main_session_storage_path(session_id).await?;
         let existing = self
             .thread_goal_store()
@@ -4994,33 +5170,47 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     "cannot edit goal for session {session_id}: no goal exists"
                 ))
             })?;
-        let status = match existing.status {
-            ThreadGoalStatus::BudgetLimited | ThreadGoalStatus::Complete => {
-                Some(ThreadGoalStatus::Active)
-            }
-            _ => None,
-        };
+        // Editing the objective is an explicit goal action, not a status edit: the
+        // user is telling the goal what to work on next, so it runs again instead
+        // of staying parked on the status the edit was made from. A goal that was
+        // paused, blocked or over quota therefore comes back as active.
+        let resuming = thread_goal_status_is_resumable(existing.status);
         let result = self
             .thread_goal_store()
             .set_thread_goal(
                 session_id,
                 storage_path.as_path(),
                 Some(objective),
-                status,
+                Some(ThreadGoalStatus::Active),
                 None,
                 false,
             )
             .await?;
         let objective_changed = existing.objective != result.goal.objective;
         if result.goal.is_active() {
-            self.thread_goal_runtime
-                .mark_turn_started("", Some(&result.goal));
+            self.mark_session_goal_active(session_id, &result.goal);
         }
         self.emit_thread_goal_updated(session_id, Some(result.goal.clone()))
             .await;
-        if objective_changed && result.goal.is_active() {
-            self.apply_objective_updated_steering(session_id, &result.goal)
-                .await;
+        drop(goal_guard);
+        // Saving the same text through the edit dialog is still the user asking for
+        // this goal to run, so a restarting edit delivers its steering either way.
+        if result.goal.is_active() && (objective_changed || resuming) {
+            if resuming {
+                // The edit restarts the goal, so it has to retire what stopped it:
+                // until the interrupted turn that paused the goal is abandoned, the
+                // objective steering below is parked and the active goal never moves.
+                self.release_superseded_interrupted_turn(session_id).await;
+                clear_thread_goal_continuation_abort(session_id);
+            }
+            // The restart is handed over in the background like resume: an idle
+            // session makes this steering admit the goal's next turn, and the user is
+            // waiting on the edit dialog, not on that turn being admitted.
+            self.schedule_thread_goal_steering(
+                session_id,
+                &result.goal,
+                AgentThreadGoalDeliveryKind::ObjectiveUpdated,
+            );
         }
         Ok(result.goal)
     }
@@ -5032,6 +5222,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         objective: String,
         replace_existing: bool,
     ) -> BitFunResult<ThreadGoal> {
+        let goal_guard = self.lock_thread_goal_operation(session_id).await;
         let storage_path = self.require_main_session_storage_path(session_id).await?;
         let previous = self
             .thread_goal_store()
@@ -5058,11 +5249,11 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .map(|goal| goal.objective != result.goal.objective)
             .unwrap_or(true);
         if result.goal.is_active() {
-            self.thread_goal_runtime
-                .mark_turn_started("", Some(&result.goal));
+            self.mark_session_goal_active(session_id, &result.goal);
         }
         self.emit_thread_goal_updated(session_id, Some(result.goal.clone()))
             .await;
+        drop(goal_guard);
         if objective_changed && result.goal.is_active() {
             self.apply_objective_updated_steering(session_id, &result.goal)
                 .await;
@@ -5173,15 +5364,22 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         _workspace_path: &Path,
         status: ThreadGoalStatus,
     ) -> BitFunResult<ThreadGoal> {
+        let goal_guard = self.lock_thread_goal_operation(session_id).await;
         let storage_path = self.require_main_session_storage_path(session_id).await?;
         let previous = self
-            .thread_goal_store()
-            .get_thread_goal(session_id, storage_path.as_path())
+            .settle_thread_goal_usage(session_id, storage_path.as_path())
             .await?;
         let resuming = status == ThreadGoalStatus::Active
             && previous
                 .as_ref()
                 .is_some_and(|goal| thread_goal_status_is_resumable(goal.status));
+        // Pausing has to stop the goal's turn. The status write below drops the
+        // goal-to-turn binding, so capture the turn it currently owns first.
+        let paused_goal_turn = if status == ThreadGoalStatus::Paused {
+            self.goal_driven_turn_id(session_id)
+        } else {
+            None
+        };
         let result = self
             .thread_goal_store()
             .set_thread_goal(
@@ -5194,16 +5392,26 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             )
             .await?;
         if !result.goal.is_active() {
-            self.thread_goal_runtime.clear_active_goal(None);
+            self.thread_goal_runtime(session_id).clear_active_goal(None);
         } else if resuming {
-            self.thread_goal_runtime
-                .mark_turn_started("", Some(&result.goal));
+            self.mark_session_goal_active(session_id, &result.goal);
         }
         self.emit_thread_goal_updated(session_id, Some(result.goal.clone()))
             .await;
+        drop(goal_guard);
+        if let Some(turn_id) = paused_goal_turn {
+            self.stop_goal_driven_turn(session_id, &turn_id).await;
+        }
         if resuming && result.goal.is_active() {
+            // Resuming is explicit too: the interruption that paused the goal must
+            // not keep parking the steering that starts its next turn.
+            self.release_superseded_interrupted_turn(session_id).await;
             clear_thread_goal_continuation_abort(session_id);
-            self.schedule_thread_goal_resumed_steering(session_id, &result.goal);
+            self.schedule_thread_goal_steering(
+                session_id,
+                &result.goal,
+                AgentThreadGoalDeliveryKind::Resumed,
+            );
         }
         Ok(result.goal)
     }
@@ -5246,10 +5454,117 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         }
     }
 
-    fn schedule_thread_goal_resumed_steering(&self, session_id: &str, goal: &ThreadGoal) {
+    /// The in-flight turn that is working toward the session's thread goal.
+    ///
+    /// The goal runtime only binds a goal to a turn while that goal is active, so
+    /// a bound turn that is also the session's current turn is exactly the work
+    /// the goal owns. Everything else in the session belongs to the user.
+    fn goal_driven_turn_id(&self, session_id: &str) -> Option<String> {
+        let (turn_id, _) = self.thread_goal_runtime(session_id).current_turn_usage()?;
+        if turn_id.is_empty() {
+            return None;
+        }
+        let session = self.session_manager.get_session(session_id)?;
+        match session.state {
+            SessionState::Processing {
+                current_turn_id, ..
+            } if current_turn_id == turn_id => Some(turn_id),
+            _ => None,
+        }
+    }
+
+    /// Stop the turn that is working toward a thread goal.
+    ///
+    /// Pausing or dropping a goal has to stop the work it started: the goal's own
+    /// turn keeps issuing rounds on the model and calling tools long after the
+    /// goal stopped being active, which reads as a paused or deleted goal that
+    /// keeps running. Only the goal's turn is stopped; an unrelated user turn in
+    /// the same session keeps running.
+    async fn stop_goal_driven_turn(&self, session_id: &str, turn_id: &str) {
+        info!(
+            "Stopping thread goal turn: session_id={}, turn_id={}",
+            session_id, turn_id
+        );
+        // `Cancelled` is the disposition for work the user stopped. It also ends
+        // the recoverable-interruption fence a goal turn would otherwise leave
+        // behind, which is what lets the next explicit goal activation start.
+        //
+        // Stopping a turn can pause the goal it belonged to, so this call reaches
+        // back into the goal status write. That cycle is real but shallow, so the
+        // future is boxed instead of letting the async state machine recurse.
+        let cancellation = Box::pin(self.cancel_dialog_turn(session_id, turn_id)).await;
+        if let Err(error) = cancellation {
+            warn!(
+                "Failed to stop thread goal turn: session_id={}, turn_id={}, error={}",
+                session_id, turn_id, error
+            );
+        }
+    }
+
+    /// Drop a dispatch hold an interrupted turn left on the session.
+    ///
+    /// An interrupted turn parks every submission that is not a user submission
+    /// until the user recovers or sends a new turn. A thread goal never submits a
+    /// user turn, so an explicit goal activation has to retire that fence first;
+    /// otherwise the goal is active with a kickoff that is parked forever.
+    async fn release_superseded_interrupted_turn(&self, session_id: &str) {
+        let holds_dispatch = match self
+            .session_manager
+            .latest_dialog_turn_holds_dispatch(session_id)
+            .await
+        {
+            Ok(holds_dispatch) => holds_dispatch,
+            Err(error) => {
+                warn!(
+                    "Failed to inspect the interrupted turn fence for a thread goal: session_id={}, error={}",
+                    session_id, error
+                );
+                return;
+            }
+        };
+        if !holds_dispatch {
+            return;
+        }
+        let interrupted_turn_id = self
+            .session_manager
+            .get_session(session_id)
+            .and_then(|session| session.dialog_turn_ids.last().cloned());
+        match self
+            .session_manager
+            .abandon_interrupted_dialog_turn(session_id, interrupted_turn_id.as_deref())
+            .await
+        {
+            Ok(Some(abandoned_turn_id)) => info!(
+                "Retired interrupted turn for thread goal activation: session_id={}, turn_id={}",
+                session_id, abandoned_turn_id
+            ),
+            Ok(None) => {}
+            Err(error) => warn!(
+                "Failed to retire interrupted turn for thread goal activation: session_id={}, error={}",
+                session_id, error
+            ),
+        }
+    }
+
+    /// Hand goal steering to the runtime without waiting for the delivery to finish.
+    ///
+    /// The runtime injects steering into a running turn, but an idle session makes
+    /// it admit the goal's next turn, which costs seconds on a large workspace. The
+    /// caller is an interactive command that already persisted the goal state, so it
+    /// must not block on turn admission; the delivery outcome is reported by log only.
+    fn schedule_thread_goal_steering(
+        &self,
+        session_id: &str,
+        goal: &ThreadGoal,
+        kind: AgentThreadGoalDeliveryKind,
+    ) {
         if !goal.is_active() {
             return;
         }
+        let kind_label = match kind {
+            AgentThreadGoalDeliveryKind::Resumed => "resumed",
+            AgentThreadGoalDeliveryKind::ObjectiveUpdated => "objective_updated",
+        };
         let agent_type = match self.session_manager.get_session(session_id) {
             Some(session) => {
                 let agent_type = session.agent_type.trim();
@@ -5283,8 +5598,8 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     Ok(runtime) => runtime,
                     Err(error) => {
                         warn!(
-                            "Agent runtime lifecycle delivery is not available; thread goal resume steering skipped: session_id={}, error={}",
-                            session_id, error
+                            "Agent runtime lifecycle delivery is not available; thread goal steering skipped: session_id={}, kind={}, error={}",
+                            session_id, kind_label, error
                         );
                         return;
                     }
@@ -5296,14 +5611,15 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     workspace_path,
                     remote_connection_id,
                     remote_ssh_host,
-                    kind: AgentThreadGoalDeliveryKind::Resumed,
+                    kind,
                     goal,
                 })
                 .await
             {
                 warn!(
-                    "Failed to deliver thread goal resume steering: session_id={}, error={}",
+                    "Failed to deliver thread goal steering: session_id={}, kind={}, error={}",
                     session_id,
+                    kind_label,
                     CoreServiceAgentRuntime::runtime_error_message(error)
                 );
             }
@@ -5316,11 +5632,22 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         workspace_path: &Path,
         status: ThreadGoalStatus,
         turn_id: Option<&str>,
-    ) -> BitFunResult<ThreadGoal> {
+) -> BitFunResult<ThreadGoal> {
+        if let Some(expected_turn_id) = turn_id {
+            let matches = self.session_manager.get_session(session_id).is_some_and(|session| {
+                matches!(session.state, SessionState::Processing { current_turn_id, .. } if current_turn_id == expected_turn_id)
+            });
+            if !matches {
+                return Err(BitFunError::Validation(
+                    "Cannot update a thread goal from a stale turn".to_string(),
+                ));
+            }
+        }
         let goal = self
             .set_thread_goal_status(session_id, workspace_path, status)
             .await?;
-        self.thread_goal_runtime.clear_active_goal(turn_id);
+        self.thread_goal_runtime(session_id)
+            .clear_active_goal(turn_id);
         Ok(goal)
     }
 
@@ -5342,6 +5669,52 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .filter(ThreadGoal::is_active))
     }
 
+    /// Activate a plain-prompt objective in the turn being admitted. Do not use
+    /// the UI mutation API here: its steering delivery would submit another turn.
+    pub(super) async fn prepare_prompt_thread_goal(
+        &self,
+        session_id: &str,
+        prompt: &str,
+    ) -> BitFunResult<Option<ThreadGoal>> {
+        let _goal_guard = self.lock_thread_goal_operation(session_id).await;
+        use bitfun_agent_runtime::thread_goal::goal_objective_from_prompt;
+        let Some(objective) = goal_objective_from_prompt(prompt) else {
+            return Ok(None);
+        };
+        bitfun_runtime_ports::validate_thread_goal_objective(objective)
+            .map_err(BitFunError::Validation)?;
+        if !self.session_manager.should_persist_session_id(session_id) {
+            return Err(BitFunError::Validation(
+                "Thread goals require a persistent session".to_string(),
+            ));
+        }
+        let storage_path = self.require_main_session_storage_path(session_id).await?;
+        let existing = self
+            .thread_goal_store()
+            .get_thread_goal(session_id, storage_path.as_path())
+            .await?;
+        // A retried submission must not reset the same active goal's accounting.
+        let goal = match existing {
+            Some(goal) if goal.is_active() && goal.objective == objective => goal,
+            _ => {
+                self.thread_goal_store()
+                    .set_thread_goal(
+                        session_id,
+                        storage_path.as_path(),
+                        Some(objective.to_string()),
+                        Some(ThreadGoalStatus::Active),
+                        None,
+                        true,
+                    )
+                    .await?
+                    .goal
+            }
+        };
+        self.emit_thread_goal_updated(session_id, Some(goal.clone()))
+            .await;
+        Ok(Some(goal))
+    }
+
     /// Set a thread goal from `/goal <objective>` (Codex-style direct objective).
     pub async fn activate_session_goal(
         &self,
@@ -5359,6 +5732,10 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .get_thread_goal(&session_id, storage_path.as_path())
             .await?;
         let replace_existing = existing.is_some();
+        // An explicit goal supersedes a recoverable interruption: the objective
+        // steering below is not a user turn, so as long as that interrupted turn
+        // fences dispatch the goal would stay active with a parked kickoff.
+        self.release_superseded_interrupted_turn(&session_id).await;
         let goal = self
             .set_thread_goal_objective(
                 &session_id,
@@ -5375,6 +5752,49 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         Ok(goal)
     }
 
+    pub(super) async fn thread_goal_continuation_is_current(
+        &self,
+        session_id: &str,
+        metadata: &serde_json::Value,
+    ) -> BitFunResult<bool> {
+        Ok(self
+            .load_active_thread_goal(session_id)
+            .await?
+            .is_some_and(|goal| {
+                bitfun_agent_runtime::thread_goal::goal_continuation_matches(&goal, metadata)
+            }))
+    }
+
+    pub(super) async fn block_failed_goal_continuation(
+        &self,
+        session_id: &str,
+        metadata: &serde_json::Value,
+    ) -> BitFunResult<()> {
+        let _goal_guard = self.lock_thread_goal_operation(session_id).await;
+        if !self
+            .thread_goal_continuation_is_current(session_id, metadata)
+            .await?
+        {
+            return Ok(());
+        }
+        let storage_path = self.require_main_session_storage_path(session_id).await?;
+        let result = self
+            .thread_goal_store()
+            .set_thread_goal(
+                session_id,
+                &storage_path,
+                None,
+                Some(ThreadGoalStatus::Blocked),
+                None,
+                false,
+            )
+            .await?;
+        self.thread_goal_runtime(session_id).clear_active_goal(None);
+        self.emit_thread_goal_updated(session_id, Some(result.goal))
+            .await;
+        Ok(())
+    }
+
     /// Continue an active thread goal after a dialog turn completes (Codex-style).
     pub async fn prepare_goal_continuation_after_turn(
         &self,
@@ -5383,7 +5803,8 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         user_input: &str,
         user_message_metadata: Option<&serde_json::Value>,
         turn_completed: bool,
-    ) -> BitFunResult<Option<ThreadGoalContinuationPlan>> {
+) -> BitFunResult<Option<ThreadGoalContinuationPlan>> {
+        let _goal_guard = self.lock_thread_goal_operation(session_id).await;
         if should_skip_goal_continuation_after_turn(user_input, user_message_metadata) {
             return Ok(None);
         }
@@ -5394,7 +5815,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         };
 
         let turn_tokens = self
-            .thread_goal_runtime
+            .thread_goal_runtime(session_id)
             .turn_cumulative_billable_tokens(source_turn_id);
 
         let goal_before = self
@@ -5404,7 +5825,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
 
         let plan = maybe_build_continuation_after_turn(
             &self.thread_goal_store(),
-            self.thread_goal_runtime.as_ref(),
+            self.thread_goal_runtime(session_id).as_ref(),
             session_id,
             storage_path.as_path(),
             source_turn_id,
@@ -5480,7 +5901,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         }
 
         let manual_workspace = Self::build_workspace_binding(&initial_session.config).await;
-        let primary_agent_binding = Self::resolve_session_primary_agent(
+        let primary_agent_binding = Self::resolve_session_agent_for_turn(
             &initial_session,
             &initial_session.agent_type,
             &manual_workspace,
@@ -5654,6 +6075,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     success: Some(true),
                     finish_reason: Some("complete".to_string()),
                     has_final_response: Some(true),
+                    background_delivery: None,
                 },
                 Some(EventPriority::Normal),
             )
@@ -5899,7 +6321,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         );
         let requested_restore = match storage_workspace_path.as_deref() {
             Some(workspace_path) => Some(
-                Self::resolve_session_restore_scope(
+                self.resolve_session_restore_scope(
                     workspace_path,
                     remote_connection_id.as_deref(),
                     remote_ssh_host.as_deref(),
@@ -5940,6 +6362,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     .await?
             }
         };
+        ensure_session_accepts_conversation(&session)?;
         self.ensure_session_runtime_ownership(&session_id, None)?;
         let session_workspace = Self::build_workspace_binding(&session.config).await;
 
@@ -5953,7 +6376,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             "Standard".to_string()
         };
         let effective_agent_type = Self::normalize_agent_type(&provisional_agent_type);
-        let primary_agent_binding = Self::resolve_session_primary_agent(
+        let primary_agent_binding = Self::resolve_session_agent_for_turn(
             &session,
             &effective_agent_type,
             &session_workspace,
@@ -6144,32 +6567,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 "Starting session history restore: session_id={}",
                 session_id
             );
-            let restore_workspace_path = session
-                .config
-                .project_workspace_path
-                .as_deref()
-                .or(session.config.workspace_path.as_deref())
-                .or(storage_workspace_path.as_deref())
-                .ok_or_else(|| {
-                    BitFunError::Validation(format!(
-                        "workspace_path is required when restoring session: {}",
-                        session_id
-                    ))
-                })?;
-            let restore_path = Self::resolve_session_restore_path(
-                restore_workspace_path,
-                session
-                    .config
-                    .remote_connection_id
-                    .as_deref()
-                    .or(remote_connection_id.as_deref()),
-                session
-                    .config
-                    .remote_ssh_host
-                    .as_deref()
-                    .or(remote_ssh_host.as_deref()),
-            )
-            .await?;
+let restore_path = self.restore_path_for_existing_session(&session_id).await?;
             match self
                 .restore_session_from_storage_path(&restore_path, &session_id)
                 .await
@@ -6339,11 +6737,6 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             )
             .await?;
         let effective_user_input = wrapped_user_input_payload.content.clone();
-        let prepended_messages = merge_prepended_messages_for_turn(
-            additional_prepended_messages,
-            wrapped_user_input_payload.prepended_messages.clone(),
-            needs_computer_links_for_source(submission_policy.trigger_source),
-        );
 
         if original_user_input != effective_user_input {
             let mut metadata =
@@ -6412,6 +6805,15 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             default_permission_mode_from_global_config().await,
         );
         let mut metadata = Self::ensure_user_message_metadata_object(user_message_metadata.take());
+        if submission_policy.trigger_source
+            != bitfun_runtime_ports::DialogTriggerSource::ScheduledJob
+        {
+            if let Some(object) = metadata.as_object_mut() {
+                object.remove(
+                    bitfun_core_types::background_delivery::BACKGROUND_DELIVERY_METADATA_KEY,
+                );
+            }
+        }
         if let Some(object) = metadata.as_object_mut() {
             object.insert(
                 INTERRUPTED_TURN_PERMISSION_MODE_METADATA_KEY.to_string(),
@@ -6445,6 +6847,41 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             );
         }
         user_message_metadata = Some(metadata);
+
+        // All sending surfaces converge here after restore and prompt hooks,
+        // including mobile/IM relay, peer hosts, CLI and detached dispatch.
+        if let Some(metadata) = user_message_metadata.as_ref().filter(|metadata| {
+            metadata
+                .get("threadGoalContinuation")
+                .and_then(serde_json::Value::as_bool)
+                == Some(true)
+        }) {
+            if !self
+                .thread_goal_continuation_is_current(&session_id, metadata)
+                .await?
+            {
+                return Err(BitFunError::Validation(
+                    "Thread goal continuation is no longer current".to_string(),
+                ));
+            }
+        }
+        if !should_skip_goal_for_turn(&original_user_input, user_message_metadata.as_ref()) {
+            if let Some(goal_context) = self
+                .prepare_prompt_thread_goal(&session_id, &original_user_input)
+                .await?
+            {
+                additional_prepended_messages.push(
+                    crate::agentic::goal_mode::goal_objective_updated_message(
+                        crate::agentic::goal_mode::objective_updated_prompt(&goal_context),
+                    ),
+                );
+            }
+        }
+        let prepended_messages = merge_prepended_messages_for_turn(
+            additional_prepended_messages,
+            wrapped_user_input_payload.prepended_messages.clone(),
+            needs_computer_links_for_source(submission_policy.trigger_source),
+        );
 
         // Start new dialog turn (sets state to Processing internally)
         // Pass frontend turnId, generate if not provided
@@ -6495,7 +6932,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         .await;
         if let Ok(Some(goal)) = self.load_active_thread_goal(&session_id).await {
             if !should_skip_goal_for_turn(&original_user_input, user_message_metadata.as_ref()) {
-                self.thread_goal_runtime
+                self.thread_goal_runtime(&session_id)
                     .mark_turn_started(&turn_id, Some(&goal));
             }
         }
@@ -6684,8 +7121,20 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 run_manifest.to_string(),
             );
         }
-        if metadata_bool(user_message_metadata.as_ref(), "acp_transport") == Some(true) {
+        let acp_transport =
+            metadata_bool(user_message_metadata.as_ref(), "acp_transport") == Some(true);
+        if acp_transport {
             context_vars.insert("acp_transport".to_string(), "true".to_string());
+        }
+        if prompt_suggestion_source_eligible(
+            submission_policy.trigger_source,
+            session.kind,
+            acp_transport,
+        ) {
+            context_vars.insert(
+                PROMPT_SUGGESTION_ELIGIBLE_CONTEXT_KEY.to_string(),
+                "true".to_string(),
+            );
         }
         if let Some(user_input_available) = metadata_bool(
             user_message_metadata.as_ref(),
@@ -6705,15 +7154,23 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             );
         }
         Self::copy_output_schema_context(&mut context_vars, user_message_metadata.as_ref());
+        if let Some(delivery) =
+            bitfun_core_types::background_delivery::BackgroundDelivery::from_metadata(
+                user_message_metadata.as_ref(),
+                &turn_id,
+            )
+        {
+            if let Ok(serialized) = serde_json::to_string(&delivery) {
+                context_vars.insert(
+                    crate::agentic::execution::background_delivery::BACKGROUND_DELIVERY_CONTEXT_KEY
+                        .to_owned(),
+                    serialized,
+                );
+            }
+        }
         if needs_computer_links_for_source(submission_policy.trigger_source) {
             context_vars.insert(
                 TOOL_CONTEXT_REMOTE_FILE_DELIVERY_KEY.to_string(),
-                "true".to_string(),
-            );
-        }
-        if supports_inline_markdown_images_for_source(submission_policy.trigger_source) {
-            context_vars.insert(
-                TOOL_CONTEXT_INLINE_MARKDOWN_IMAGE_DISPLAY_KEY.to_string(),
                 "true".to_string(),
             );
         }
@@ -7091,7 +7548,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             ));
         }
         let primary_agent_binding =
-            Self::resolve_session_primary_agent(&session, &session.agent_type, &session_workspace)
+            Self::resolve_session_agent_for_turn(&session, &session.agent_type, &session_workspace)
                 .await?;
         if primary_agent_binding.route_owner != SessionAgentRouteOwner::Local {
             return Err(BitFunError::Validation(
@@ -8131,7 +8588,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         let session_storage_path = self
             .session_manager
             .resolve_storage_path_for_workspace_path(workspace_path)
-            .await;
+            .await?;
         let has_revert_state = self
             .session_manager
             .persistence_manager()
@@ -8184,6 +8641,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         self.session_manager
             .delete_session_locked(workspace_path, session_id)
             .await?;
+        self.thread_goal_runtimes.remove(session_id);
         self.background_subagent_outcomes
             .delete_session_references(session_id)
             .await?;
@@ -8735,30 +9193,160 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         storage: &Path,
         session_id: &str,
         turn_id: Option<&str>,
-    ) -> BitFunResult<Vec<DialogTurnData>> {
+) -> BitFunResult<Vec<DialogTurnData>> {
+        self.load_relay_session_selection(storage, session_id, turn_id, None)
+            .await
+            .map(|page| page.0)
+    }
+
+    pub async fn load_relay_history_turn(
+        &self,
+        storage: &Path,
+        session_id: &str,
+        before: Option<usize>,
+    ) -> BitFunResult<(Vec<DialogTurnData>, Option<usize>)> {
+        self.load_relay_session_selection(storage, session_id, None, Some(before))
+            .await
+    }
+
+    async fn load_relay_session_selection(
+        &self,
+        storage: &Path,
+        session_id: &str,
+        turn_id: Option<&str>,
+        history: Option<Option<usize>>,
+    ) -> BitFunResult<(Vec<DialogTurnData>, Option<usize>)> {
         let _mutation = self
             .session_manager
             .acquire_session_mutation(session_id)
             .await?;
         self.prepare_persisted_session_read_locked(storage, session_id)
             .await?;
-        let mut turns = self
-            .session_manager
-            .persistence_manager()
-            .load_visible_session_turns(storage, session_id)
-            .await?;
-        if let Some(turn_id) = turn_id {
-            turns.retain(|turn| turn.turn_id == turn_id);
-            if turns.is_empty() {
-                return Err(BitFunError::NotFound(format!(
-                    "Session turn unavailable: {turn_id}"
-                )));
+        // Persisted InProgress is not proof of a live executor after restart.
+        // A loaded owner supplies runtime state; for an unloaded session an
+        // exclusive writer lease proves that no other process is executing it.
+        // Never infer interruption merely from absence in this process.
+        let loaded = self.session_manager.get_session(session_id);
+        let observer_lease = if loaded.is_none() {
+            match self
+                .session_manager
+                .persistence_manager()
+                .lock_session_writes(storage, session_id)
+            {
+                Ok(lease) => Some(lease),
+                Err(BitFunError::SessionInUse { .. }) => None,
+                Err(error) => return Err(error),
+            }
+        } else {
+            None
+        };
+        let execution_absent = loaded.as_ref().is_some_and(|session| {
+            matches!(
+                session.state,
+                SessionState::Idle | SessionState::Error { .. }
+            )
+        }) || observer_lease.is_some();
+
+        let (mut turns, next, read_mode) = if let Some(before) = history {
+            let (turns, next) = self
+                .session_manager
+                .persistence_manager()
+                .load_visible_history_turn(storage, session_id, before)
+                .await?;
+            (turns, next, "history")
+        } else if let Some(turn_id) = turn_id {
+            if let Some(turn) = self
+                .session_manager
+                .persistence_manager()
+                .load_visible_session_turn(storage, session_id, turn_id)
+                .await?
+            {
+                (vec![turn], None, "catalog")
+            } else {
+                let mut turns = self
+                    .session_manager
+                    .persistence_manager()
+                    .load_visible_session_turns(storage, session_id)
+                    .await?;
+                turns.retain(|turn| turn.turn_id == turn_id);
+                (turns, None, "full-fallback")
+            }
+        } else {
+            (
+                self.session_manager
+                    .persistence_manager()
+                    .load_visible_session_turns(storage, session_id)
+                    .await?,
+                None,
+                "full",
+            )
+        };
+        debug!(
+            "Loaded relay session turns: session_id={} requested_turn_id={} read_mode={} turn_count={}",
+            session_id,
+            turn_id.unwrap_or("<all>"),
+            read_mode,
+            turns.len()
+        );
+        if turn_id.is_some() && turns.is_empty() {
+            return Err(BitFunError::NotFound(format!(
+                "Session turn unavailable: {}",
+                turn_id.unwrap_or_default()
+            )));
+        }
+        if execution_absent {
+            for turn in &mut turns {
+                if turn.status != TurnStatus::InProgress {
+                    continue;
+                }
+                // Observer projection only: retain the original history and
+                // recovery checkpoints on disk. Terminal records stay intact.
+                turn.status = TurnStatus::Cancelled;
+                turn.finish_reason = Some("interrupted".to_string());
+                turn.error = Some(
+                    "Execution interrupted: the owning runtime is no longer running".to_string(),
+                );
+                for round in &mut turn.model_rounds {
+                    if matches!(round.status.as_str(), "inprogress" | "running" | "active") {
+                        round.status = "cancelled".to_string();
+                    }
+                    for item in &mut round.tool_items {
+                        if item.tool_result.is_none()
+                            && !matches!(
+                                item.status.as_deref(),
+                                Some(
+                                    "completed"
+                                        | "failed"
+                                        | "error"
+                                        | "cancelled"
+                                        | "rejected"
+                                        | "superseded"
+                                        | "retry_superseded"
+                                )
+                            )
+                        {
+                            item.status = Some("cancelled".to_string());
+                        }
+                    }
+                    for item in &mut round.text_items {
+                        item.is_streaming = false;
+                    }
+                    for item in &mut round.thinking_items {
+                        item.is_streaming = false;
+                    }
+                }
             }
         }
-        let context = self
-            .session_manager
-            .get_context_messages(session_id)
-            .await?;
+        let context = if turns
+            .iter()
+            .any(|turn| turn.status == TurnStatus::InProgress)
+        {
+            self.session_manager
+                .get_context_messages(session_id)
+                .await?
+        } else {
+            Vec::new()
+        };
         for turn in &mut turns {
             if turn.status == TurnStatus::InProgress {
                 let messages: Vec<_> = context
@@ -8773,7 +9361,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 SessionManager::append_generation_rounds(turn, &id, &messages, timestamp);
             }
         }
-        Ok(turns)
+        Ok((turns, next))
     }
 
     /// Export a transcript while retaining the same Session history boundary
@@ -10214,6 +10802,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                         .get_session(&session_id)
                         .and_then(|session| session.config.model_id.clone()),
                     focused_review_display_label: focused_review_display_label.clone(),
+                    continuation_policy: Some(continuation_policy),
                 })
                 .await;
             }
@@ -10982,7 +11571,20 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .ok_or_else(|| {
                 BitFunError::NotFound(format!("Parent session not found: {}", parent_session_id))
             })?;
-        let context_messages = self.load_session_context_messages(&parent_session).await?;
+        self.load_session_context_messages(&parent_session).await?;
+        // The restore path above may acquire the same lock, so take the
+        // snapshot lock only after restoration has completed.  This makes the
+        // final context read atomic with round-level context publication.
+        let _mutation_guard = self
+            .session_manager
+            .acquire_session_mutation(parent_session_id)
+            .await?;
+        let context_messages = self
+            .session_manager
+            .get_context_messages(parent_session_id)
+            .await?;
+        let context_messages =
+            crate::agentic::fork_agent::normalize_fork_context_messages(context_messages);
         ForkAgentContextSnapshot::from_parent_session(&parent_session, context_messages)
     }
 
@@ -11028,7 +11630,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 snapshot.parent_agent_type.clone(),
                 snapshot.build_child_session_config(None),
                 Some(format!("session-{}", snapshot.parent_session_id)),
-                SessionKind::Standard,
+                SessionKind::EphemeralChild,
             )
             .await?;
         self.session_manager
@@ -11501,6 +12103,49 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         )
     }
 
+    /// Follow structural session lineage, never assertions made inside a Task prompt.
+    async fn computer_use_original_user_context(
+        &self,
+        parent: &Session,
+    ) -> (Option<String>, Vec<Message>) {
+        let mut source = parent.clone();
+        let mut visited = std::collections::HashSet::new();
+        while source.kind == SessionKind::Subagent {
+            if !visited.insert(source.session_id.clone()) {
+                return (None, Vec::new());
+            }
+            let lineage = self
+                .load_persisted_subagent_continuation_context(&source)
+                .await;
+            let parent_id = lineage
+                .subagent_parent_info
+                .map(|info| info.session_id)
+                .or_else(|| {
+                    source
+                        .created_by
+                        .as_deref()
+                        .and_then(|value| value.strip_prefix("session-"))
+                        .map(str::to_owned)
+                });
+            let Some(parent) = parent_id.and_then(|id| self.session_manager.get_session(&id))
+            else {
+                return (None, Vec::new());
+            };
+            source = parent;
+        }
+        if self.load_session_context_messages(&source).await.is_err() {
+            return (None, Vec::new());
+        }
+        match self
+            .session_manager
+            .get_context_messages(&source.session_id)
+            .await
+        {
+            Ok(messages) => (Some(source.session_id), messages),
+            Err(_) => (None, Vec::new()),
+        }
+    }
+
     async fn resolve_hidden_subagent_execution_request(
         &self,
         request: SubagentExecutionRequest,
@@ -11538,6 +12183,40 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     request.subagent_parent_info.session_id
                 ))
             })?;
+        let delegated_agent_type = request
+            .subagent_type
+            .clone()
+            .or_else(|| {
+                request
+                    .target_session_id
+                    .as_ref()
+                    .and_then(|id| self.session_manager.get_session(id))
+                    .map(|session| session.agent_type)
+            })
+            .unwrap_or_else(|| {
+                if request.target_session_id.is_some() {
+                    String::new()
+                } else {
+                    parent_session.agent_type.clone()
+                }
+            });
+        let original_task_description = task_description.clone();
+        let mut task_message = if delegated_agent_type == "ComputerUse" {
+            let (source_id, source_messages) = self
+                .computer_use_original_user_context(&parent_session)
+                .await;
+            super::delegation_context::computer_use_handoff(
+                &task_description,
+                source_id.as_deref(),
+                &source_messages,
+            )
+        } else {
+            Message::user(task_description.clone())
+        };
+        let mut task_description = match &task_message.content {
+            MessageContent::Text(text) => text.clone(),
+            _ => task_description,
+        };
         let parent_transient = self
             .session_manager
             .is_transient_session(&request.subagent_parent_info.session_id);
@@ -11569,6 +12248,22 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                             &parent_session_id,
                         )
                         .await?;
+                    // Reused children may have been unloaded before this call.
+                    // Resolve provenance from the restored agent type, not the parent type.
+                    if session.agent_type == "ComputerUse" && delegated_agent_type != "ComputerUse"
+                    {
+                        let (source_id, source_messages) = self
+                            .computer_use_original_user_context(&parent_session)
+                            .await;
+                        task_message = super::delegation_context::computer_use_handoff(
+                            &original_task_description,
+                            source_id.as_deref(),
+                            &source_messages,
+                        );
+                        if let MessageContent::Text(text) = &task_message.content {
+                            task_description = text.clone();
+                        }
+                    }
                     let requested_model_id = if inherit_parent_model {
                         let defaults = Self::agent_model_defaults().await;
                         Some(
@@ -11600,7 +12295,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     let mut initial_messages = self
                         .load_reusable_subagent_context_messages(&session)
                         .await?;
-                    initial_messages.push(Message::user(task_description.clone()));
+                    initial_messages.push(task_message.clone());
 
                     let transient = self
                         .session_manager
@@ -11700,11 +12395,11 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     requested_agent_id: request.requested_agent_id,
                     target_session_id: None,
                     dialog_turn_id: None,
-                    session_name: format!("Subagent: {}", task_description),
+                    session_name: format!("Subagent: {}", original_task_description),
                     agent_type,
                     logical_agent_type,
                     session_config,
-                    initial_messages: vec![Message::user(task_description.clone())],
+                    initial_messages: vec![task_message.clone()],
                     user_input_text: task_description,
                     created_by,
                     subagent_parent_info: Some(request.subagent_parent_info),
@@ -11783,13 +12478,13 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     InternalReminderKind::ForkSubagent,
                     fork_subagent_system_reminder(),
                 ));
-                initial_messages.push(Message::user(task_description.clone()));
+                initial_messages.push(task_message.clone());
 
                 Ok(HiddenSubagentExecutionRequest {
                     requested_agent_id: request.requested_agent_id,
                     target_session_id: None,
                     dialog_turn_id: None,
-                    session_name: format!("Fork: {}", task_description),
+                    session_name: format!("Fork: {}", original_task_description),
                     agent_type: snapshot.parent_agent_type.clone(),
                     logical_agent_type: snapshot.parent_agent_type.clone(),
                     session_config,
@@ -12958,9 +13653,17 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             return Ok(());
         }
 
-        let user_message = Message::user(user_input_text.to_string())
-            .with_semantic_kind(MessageSemanticKind::ActualUserInput)
-            .with_turn_id(dialog_turn_id.to_string());
+        let is_computer_use = self
+            .session_manager
+            .get_session(session_id)
+            .is_some_and(|session| session.agent_type == "ComputerUse");
+        let user_message = if is_computer_use {
+            Message::internal_reminder(InternalReminderKind::Generic, user_input_text)
+        } else {
+            Message::user(user_input_text.to_string())
+                .with_semantic_kind(MessageSemanticKind::ActualUserInput)
+        }
+        .with_turn_id(dialog_turn_id.to_string());
         self.session_manager
             .add_message(session_id, user_message)
             .await
@@ -13229,10 +13932,34 @@ async fn create_agent_session_from_runtime_request(
         )
     })?;
     let created_by = resolve_agent_session_create_created_by(&request.metadata);
+    let uses_default_title = request.session_name.trim().is_empty()
+        || (request.metadata.get("titleSource").and_then(|v| v.as_str()) == Some("i18n")
+            && request.metadata.get("titleKey").and_then(|v| v.as_str())
+                == Some("flow-chat:session.new")
+            && request
+                .metadata
+                .get("titleParams")
+                .and_then(|v| v.get("defaultTitleText"))
+                .and_then(|v| v.as_str())
+                == Some(request.session_name.as_str()));
+    let explicit_remote_title = matches!(
+        request.metadata.get("source").and_then(|v| v.as_str()),
+        Some("remote_relay" | "bot")
+    );
+    let session_name = if uses_default_title {
+        crate::service::i18n::generated_locale_contract::generated_shared_term(
+            crate::service::config::app_language::get_app_language().await,
+            "sessions.new",
+        )
+        .unwrap_or("New Session")
+        .to_string()
+    } else {
+        request.session_name
+    };
     let session = coordinator
         .create_session_with_workspace_and_creator_internal(
             session_id,
-            request.session_name,
+            session_name,
             request.agent_type,
             SessionConfig {
                 agent_route_key: request.agent_route_key,
@@ -13252,6 +13979,30 @@ async fn create_agent_session_from_runtime_request(
         .await
         .map_err(map_core_error)?;
 
+    if !transient && (uses_default_title || explicit_remote_title) {
+        let title_metadata = if uses_default_title {
+            serde_json::json!({
+                "titleSource": "i18n", "titleKey": "flow-chat:session.new",
+                "titleParams": { "defaultTitleText": session.session_name }
+            })
+        } else {
+            // Explicit remote titles are user input. Desktop defaults use
+            // their explicit title descriptor through the existing creation API.
+            serde_json::json!({ "titleSource": "text", "titleUserEdited": true })
+        };
+        if let Err(error) = coordinator
+            .session_manager
+            .merge_session_custom_metadata(&session.session_id, title_metadata)
+            .await
+        {
+            // Session creation has committed; a projection failure must not
+            // report a failed create and encourage a duplicate retry.
+            warn!(
+                "Failed to persist created session title provenance: session_id={} error={}",
+                session.session_id, error
+            );
+        }
+    }
     Ok(session.into())
 }
 
@@ -14534,6 +15285,7 @@ impl ConversationCoordinator {
                             "tool_error".to_string()
                         }),
                         has_final_response: Some(false),
+                        background_delivery: None,
                     },
                     Some(EventPriority::Normal),
                 )
@@ -14956,7 +15708,7 @@ impl bitfun_runtime_ports::AgentThreadGoalManagementPort for ConversationCoordin
                 .await
                 .map_err(runtime_port_error_preserving_message)?
         } else {
-            Self::resolve_session_restore_path(
+            self.resolve_session_restore_path(
                 &request.workspace_path,
                 request.remote_connection_id.as_deref(),
                 request.remote_ssh_host.as_deref(),
@@ -15757,7 +16509,7 @@ mod tests {
             .expect("external command delegation boundary")
             .0;
 
-        assert!(delegation.contains("Self::resolve_session_primary_agent("));
+        assert!(delegation.contains("Self::resolve_session_agent_for_turn("));
         assert!(delegation.contains("Some(&primary_runtime_agent_key)"));
         assert!(delegation.contains(".update_session_agent_binding("));
         assert!(!delegation.contains(".update_session_agent_type("));
@@ -16220,7 +16972,7 @@ mod tests {
             .expect("session remains loaded");
         let workspace = ConversationCoordinator::build_workspace_binding(&session.config).await;
 
-        let binding = ConversationCoordinator::resolve_session_primary_agent(
+        let binding = ConversationCoordinator::resolve_session_agent_for_turn(
             &session, "Standard", &workspace,
         )
         .await
@@ -16241,7 +16993,7 @@ mod tests {
         let case_variant_session = session_manager
             .get_session(&session_id)
             .expect("case-variant session remains loaded");
-        let error = match ConversationCoordinator::resolve_session_primary_agent(
+        let error = match ConversationCoordinator::resolve_session_agent_for_turn(
             &case_variant_session,
             "Standard",
             &workspace,
@@ -16252,6 +17004,235 @@ mod tests {
             Err(error) => error,
         };
         assert!(error.to_string().contains("candidate_unavailable"));
+    }
+
+    #[tokio::test]
+    async fn subagent_conversation_resolves_legacy_children_on_local_and_remote_workspaces() {
+        for agent_type in ["GeneralPurpose", "Explore", "Standard"] {
+            let mut child = crate::agentic::core::Session::new(
+                "Legacy child".to_string(),
+                agent_type.to_string(),
+                SessionConfig::default(),
+            );
+            child.kind = SessionKind::Subagent;
+            let mut legacy = serde_json::to_value(&child).expect("serialize legacy child");
+            let config = legacy["config"].as_object_mut().expect("config object");
+            for key in [
+                "continuation_policy",
+                "agent_route_owner",
+                "agent_route_key",
+            ] {
+                config.remove(key);
+            }
+            let child: crate::agentic::core::Session =
+                serde_json::from_value(legacy).expect("read old child without route fields");
+            assert_eq!(
+                child.config.continuation_policy,
+                SessionContinuationPolicy::Reusable
+            );
+            assert_eq!(
+                child.config.agent_route_owner,
+                SessionAgentRouteOwner::Local
+            );
+
+            let remote = crate::agentic::workspace::WorkspaceBinding::new_remote(
+                None,
+                std::path::PathBuf::from("/remote/workspace"),
+                "remote-child-host".to_string(),
+                "Remote host".to_string(),
+                bitfun_services_core::workspace_identity::WorkspaceSessionIdentity {
+                    workspace_kind: bitfun_core_types::WorkspaceKind::Remote,
+                    hostname: "remote-host".to_string(),
+                    logical_workspace_path: "/remote/workspace".to_string(),
+                    remote_connection_id: Some("remote-child-host".to_string()),
+                },
+            );
+            for workspace in [None, Some(remote)] {
+                let binding = ConversationCoordinator::resolve_session_agent_for_turn(
+                    &child, agent_type, &workspace,
+                )
+                .await
+                .expect("legacy reusable child must resolve its existing local agent");
+                assert_eq!(binding.runtime_agent_key, agent_type);
+                assert_eq!(binding.route_owner, SessionAgentRouteOwner::Local);
+            }
+            let round_trip: crate::agentic::core::Session =
+                serde_json::from_value(serde_json::to_value(&child).expect("write upgraded child"))
+                    .expect("read upgraded child");
+            assert_eq!(round_trip.kind, child.kind);
+            assert_eq!(round_trip.agent_type, agent_type);
+            assert_eq!(
+                round_trip.config.continuation_policy,
+                child.config.continuation_policy
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn subagent_conversation_direct_turn_preserves_context_and_rejects_fresh_only() {
+        let (coordinator, session_manager) = test_coordinator();
+        let workspace = tempfile::tempdir().expect("child workspace");
+        crate::service::workspace::legacy_compat::register_local_fixture_blocking(workspace.path());
+        let workspace_path = workspace.path().to_string_lossy().into_owned();
+        let ai_config = AIConfig {
+            models: vec![AIModelConfig {
+                id: "child-model".to_string(),
+                name: "Child model".to_string(),
+                provider: "openai".to_string(),
+                model_name: "test-model".to_string(),
+                enabled: true,
+                ..AIModelConfig::default()
+            }],
+            ..AIConfig::default()
+        };
+        for agent_type in ["GeneralPurpose", "Explore"] {
+            for policy in [
+                SessionContinuationPolicy::Reusable,
+                SessionContinuationPolicy::FreshOnly,
+            ] {
+                let child = coordinator
+                    .create_hidden_subagent_session(
+                        None,
+                        "Delegated child".to_string(),
+                        agent_type.to_string(),
+                        SessionConfig {
+                            workspace_path: Some(workspace_path.clone()),
+                            model_id: Some("child-model".to_string()),
+                            continuation_policy: policy,
+                            ..Default::default()
+                        },
+                        Some("parent-session".to_string()),
+                    )
+                    .await
+                    .expect("create delegated child");
+                session_manager
+                    .add_message(
+                        &child.session_id,
+                        Message::user("Initial delegated task".to_string()),
+                    )
+                    .await
+                    .expect("seed delegated context");
+                let turn_id = format!("child-follow-up-{}", uuid::Uuid::new_v4());
+                let result = TEST_MODEL_RESOLUTION_AI_CONFIG
+                    .scope(
+                        ai_config.clone(),
+                        coordinator.start_dialog_turn(
+                            child.session_id.clone(),
+                            "Continue the task".to_string(),
+                            None,
+                            Some(turn_id.clone()),
+                            agent_type.to_string(),
+                            Some(workspace_path.clone()),
+                            None,
+                            None,
+                            DialogSubmissionPolicy::for_source(DialogTriggerSource::DesktopUi),
+                            None,
+                        ),
+                    )
+                    .await;
+                let updated = session_manager
+                    .get_session(&child.session_id)
+                    .expect("child remains loaded");
+                assert_eq!(updated.agent_type, agent_type);
+                assert_eq!(updated.kind, SessionKind::Subagent);
+                assert_eq!(updated.created_by, child.created_by);
+                assert_eq!(updated.config.model_id.as_deref(), Some("child-model"));
+                if policy == SessionContinuationPolicy::FreshOnly {
+                    assert!(result
+                        .expect_err("fresh-only follow-up must fail")
+                        .to_string()
+                        .contains("subagent_follow_up_unsupported"));
+                    assert!(updated.dialog_turn_ids.is_empty());
+                    assert_eq!(updated.config.agent_route_key, child.config.agent_route_key);
+                    assert!(matches!(updated.state, SessionState::Idle));
+                } else {
+                    result.expect("a reusable child must admit a direct user turn");
+                    assert_eq!(updated.dialog_turn_ids, vec![turn_id.clone()]);
+                    assert_eq!(
+                        updated.config.agent_route_owner,
+                        SessionAgentRouteOwner::Local
+                    );
+                    assert!(updated.config.agent_route_key.is_some());
+                    let messages = session_manager
+                        .get_context_messages(&child.session_id)
+                        .await
+                        .expect("child context");
+                    for expected in ["Initial delegated task", "Continue the task"] {
+                        assert!(messages.iter().any(|message| {
+                            matches!(&message.content, MessageContent::Text(text) if text == expected)
+                        }), "child context must contain {expected}");
+                    }
+                    let _ = coordinator
+                        .cancel_dialog_turn(&child.session_id, &turn_id)
+                        .await;
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn subagent_conversation_keeps_primary_fresh_only_and_route_guards() {
+        let mut child = crate::agentic::core::Session::new(
+            "Child".to_string(),
+            "GeneralPurpose".to_string(),
+            SessionConfig::default(),
+        );
+        child.kind = SessionKind::Subagent;
+        assert!(
+            ConversationCoordinator::resolve_session_agent_for_turn(&child, "Explore", &None)
+                .await
+                .is_err(),
+            "a different subagent must not be selected as a mode"
+        );
+
+        child.config.agent_route_key = Some("wrong-source".to_string());
+        let error = ConversationCoordinator::resolve_session_agent_for_turn(
+            &child,
+            "GeneralPurpose",
+            &None,
+        )
+        .await
+        .err()
+        .expect("a changed source must be rejected");
+        assert!(error.to_string().contains("candidate_unavailable"));
+        child.config.agent_route_key = None;
+        child.config.agent_route_owner = SessionAgentRouteOwner::External;
+        assert!(
+            ConversationCoordinator::resolve_session_agent_for_turn(
+                &child,
+                "GeneralPurpose",
+                &None,
+            )
+            .await
+            .is_err(),
+            "an external owner must not fall back to a local child"
+        );
+
+        child.config.agent_route_owner = SessionAgentRouteOwner::Local;
+        child.config.continuation_policy = SessionContinuationPolicy::FreshOnly;
+        let error = ConversationCoordinator::resolve_session_agent_for_turn(
+            &child,
+            "GeneralPurpose",
+            &None,
+        )
+        .await
+        .err()
+        .expect("fresh-only children must remain read-only");
+        assert!(error.to_string().contains("subagent_follow_up_unsupported"));
+
+        child.config.continuation_policy = SessionContinuationPolicy::Reusable;
+        child.kind = SessionKind::Standard;
+        let error = ConversationCoordinator::resolve_session_agent_for_turn(
+            &child,
+            "GeneralPurpose",
+            &None,
+        )
+        .await
+        .err()
+        .expect("subagents must not become main-session modes");
+        assert!(error
+            .to_string()
+            .contains("Unknown session mode: GeneralPurpose"));
     }
 
     #[test]
@@ -17500,6 +18481,87 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn steering_handoff_settles_without_fabricating_a_final_response() {
+        let workspace = tempfile::tempdir().expect("workspace");
+        crate::service::workspace::legacy_compat::register_local_fixture_blocking(workspace.path());
+        let (coordinator, session_manager) = test_persistent_coordinator();
+        let session = session_manager
+            .create_session(
+                "Durable completion".to_string(),
+                "Standard".to_string(),
+                SessionConfig {
+                    workspace_path: Some(workspace.path().to_string_lossy().into_owned()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect("create session");
+        let turn_id = session_manager
+            .start_dialog_turn(
+                &session.session_id,
+                "Standard".to_string(),
+                "finish".to_string(),
+                Some("turn-durable-fence".to_string()),
+                None,
+                None,
+            )
+            .await
+            .expect("start turn");
+        let message = Message::assistant("complete response".to_string())
+            .with_turn_id(turn_id.clone())
+            .with_round_id("round-final".to_string());
+
+        ConversationCoordinator::persist_completed_dialog_turn(
+            coordinator.event_queue.as_ref(),
+            session_manager.as_ref(),
+            None,
+            &session.session_id,
+            &turn_id,
+            &ExecutionResult {
+                final_message: message.clone(),
+                total_rounds: 1,
+                success: true,
+                new_messages: vec![message],
+                finish_reason: FinishReason::Complete,
+                total_tools: 0,
+                duration_ms: 1,
+                partial_recovery_reason: None,
+                effective_finish_reason: "user_steering".to_string(),
+                has_final_response: false,
+            },
+            None,
+        )
+        .await;
+
+        assert_eq!(
+            session_manager
+                .turn_settlement_result(&session.session_id, &turn_id)
+                .and_then(|result| result.final_response),
+            None
+        );
+
+        assert_eq!(
+            session_manager
+                .turn_settlement_result(&session.session_id, &turn_id)
+                .unwrap()
+                .status,
+            AgentTurnSettlementStatus::Completed
+        );
+        let events = coordinator.event_queue.dequeue_batch(10).await;
+        assert!(events.iter().any(|envelope| matches!(
+            &envelope.event,
+            AgenticEvent::SessionHistoryChanged {
+                session_id,
+                settled_turn_id: Some(settled_turn_id),
+            } if session_id == &session.session_id && settled_turn_id == &turn_id
+        )));
+        session_manager
+            .delete_session_by_id(&session.session_id)
+            .await
+            .expect("clean up persisted test session");
+    }
+
+    #[tokio::test]
     async fn load_relay_session_turns_reads_history_after_the_session_is_unloaded() {
         let workspace = tempfile::tempdir().expect("workspace");
         crate::service::workspace::legacy_compat::register_local_fixture_blocking(workspace.path());
@@ -17578,6 +18640,16 @@ mod tests {
             .expect("single-turn host-stream sync must not require an in-memory session");
         assert_eq!(one.len(), 1);
         assert_eq!(one[0].turn_id, turn_id);
+
+        let (page, next) = coordinator
+            .load_relay_history_turn(&storage, &session.session_id, None)
+            .await
+            .expect("paged history must not require an in-memory writer");
+        assert_eq!(
+            serde_json::to_value(&page).unwrap(),
+            serde_json::to_value(&one).unwrap()
+        );
+        assert_eq!(next, None);
 
         session_manager
             .restore_session(workspace.path(), &session.session_id)
@@ -20105,13 +21177,14 @@ mod tests {
                 ssh_host,
             )
             .await;
-            let storage_path = ConversationCoordinator::resolve_session_restore_path(
-                logical_workspace_path,
-                Some(connection_id),
-                Some(ssh_host),
-            )
-            .await
-            .expect("remote storage path should resolve");
+            let storage_path = coordinator
+                .resolve_session_restore_path(
+                    logical_workspace_path,
+                    Some(connection_id),
+                    Some(ssh_host),
+                )
+                .await
+                .expect("remote storage path should resolve");
             let goal = ThreadGoal {
                 goal_id: format!("goal-{index}"),
                 session_id: session_id.clone(),
@@ -20328,6 +21401,70 @@ mod tests {
 
         assert_eq!(created.session_id, session_id);
         assert_eq!(updated.status, ThreadGoalStatus::Complete);
+
+        assert!(coordinator
+            .prepare_prompt_thread_goal(&session_id, "/goal Repair remote login\nand verify")
+            .await
+            .expect("plain remote prompt must activate a goal")
+            .is_some());
+        let storage_path = coordinator
+            .require_main_session_storage_path(&session_id)
+            .await
+            .unwrap();
+        let activated = coordinator
+            .thread_goal_store()
+            .get_thread_goal(&session_id, &storage_path)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(activated.is_active());
+        assert_eq!(activated.objective, "Repair remote login\nand verify");
+        assert_ne!(activated.goal_id, created.goal_id);
+        coordinator
+            .prepare_prompt_thread_goal(&session_id, "/goal Repair remote login\nand verify")
+            .await
+            .unwrap();
+        let retried = coordinator
+            .thread_goal_store()
+            .get_thread_goal(&session_id, &storage_path)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(retried.goal_id, activated.goal_id);
+        let invalid = "x".repeat(bitfun_runtime_ports::MAX_THREAD_GOAL_OBJECTIVE_CHARS + 1);
+        assert!(coordinator
+            .thread_goal_store()
+            .set_thread_goal(
+                &session_id,
+                &storage_path,
+                Some(invalid),
+                Some(ThreadGoalStatus::Active),
+                None,
+                true,
+            )
+            .await
+            .is_err());
+        let after_invalid = coordinator
+            .thread_goal_store()
+            .get_thread_goal(&session_id, &storage_path)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(after_invalid.goal_id, activated.goal_id);
+        assert_eq!(after_invalid.objective, activated.objective);
+        assert!(coordinator
+            .prepare_prompt_thread_goal(&session_id, "ordinary prompt")
+            .await
+            .unwrap()
+            .is_none());
+        assert!(
+            session_manager
+                .get_session(&session_id)
+                .unwrap()
+                .dialog_turn_ids
+                .is_empty(),
+            "goal activation must not submit a duplicate dialog turn"
+        );
         if let Some(binding) = session_manager
             .resolve_session_workspace_binding(&session_id)
             .await
@@ -20424,6 +21561,86 @@ mod tests {
             .expect("explicit-model normal session should be created");
         assert_eq!(explicit.config.model_id.as_deref(), Some("explicit-model"));
 
+        let _ = std::fs::remove_dir_all(workspace_path);
+    }
+
+    #[tokio::test]
+    async fn runtime_default_title_is_shared_and_explicit_remote_titles_stay_literal() {
+        let (coordinator, session_manager) = test_persistent_coordinator();
+        let workspace_path = std::env::temp_dir().join(format!(
+            "bitfun-title-contract-{}",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&workspace_path).unwrap();
+        crate::service::workspace::legacy_compat::register_local_fixture_blocking(&workspace_path);
+        let expected = crate::service::i18n::generated_locale_contract::generated_shared_term(
+            crate::service::config::app_language::get_app_language().await,
+            "sessions.new",
+        )
+        .unwrap();
+        for (agent_type, title, descriptor) in [
+            ("Standard", "", false),
+            ("Cowork", "  ", false),
+            ("Claw", "", false),
+            ("Claw", "Remote Claw Session", false),
+            ("Standard", expected, false),
+            ("Standard", "New Session", true),
+        ] {
+            let created = AgentSubmissionPort::create_session(
+                &coordinator,
+                AgentSessionCreateRequest {
+                    session_name: title.into(),
+                    agent_type: agent_type.into(),
+                    agent_route_key: None,
+                    workspace_path: Some(workspace_path.to_string_lossy().into_owned()),
+                    project_workspace_path: None,
+                    execution_target: None,
+                    workspace_id: None,
+                    remote_connection_id: None,
+                    remote_ssh_host: None,
+                    model_id: None,
+                    metadata: serde_json::from_value(
+                        if descriptor {
+                            serde_json::json!({ "titleSource": "i18n", "titleKey": "flow-chat:session.new", "titleParams": { "defaultTitleText": title } })
+                        } else { serde_json::json!({ "source": "remote_relay" }) },
+                    )
+                    .unwrap(),
+                },
+            )
+            .await
+            .unwrap();
+            let path = session_manager
+                .resolve_session_workspace_binding(&created.session_id)
+                .await
+                .unwrap()
+                .session_storage_dir();
+            let metadata = session_manager
+                .persistence_manager()
+                .load_session_metadata(&path, &created.session_id)
+                .await
+                .unwrap()
+                .unwrap();
+            let is_default = descriptor || title.trim().is_empty();
+            assert_eq!(
+                created.session_name,
+                if is_default { expected } else { title }
+            );
+            assert_eq!(
+                bitfun_services_core::session::naming::is_default_title(&metadata),
+                is_default
+            );
+            assert_eq!(
+                session_manager
+                    .update_session_title_if_current(
+                        &created.session_id,
+                        &created.session_name,
+                        "Generated topic"
+                    )
+                    .await
+                    .unwrap(),
+                is_default
+            );
+        }
         let _ = std::fs::remove_dir_all(workspace_path);
     }
 
@@ -20966,6 +22183,95 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn computer_use_handoff_fresh_reuse_and_fork_preserve_original_source() {
+        let (coordinator, manager) = test_coordinator();
+        let workspace =
+            std::env::temp_dir().join(format!("bitfun-handoff-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&workspace).unwrap();
+        crate::service::workspace::legacy_compat::register_local_fixture_blocking(&workspace);
+        let config = SessionConfig {
+            model_id: Some("primary".into()),
+            workspace_path: Some(workspace.to_string_lossy().into_owned()),
+            ..Default::default()
+        };
+        let parent = manager
+            .create_session("Parent".into(), "Standard".into(), config.clone())
+            .await
+            .unwrap();
+        let original = Message::user("Send the agreed text in WeChat.".into());
+        manager
+            .replace_context_messages(&parent.session_id, vec![original.clone()])
+            .await;
+        let child = coordinator
+            .create_hidden_agent_session(
+                None,
+                "Child".into(),
+                "ComputerUse".into(),
+                config,
+                Some(format!("session-{}", parent.session_id)),
+                SessionKind::Subagent,
+            )
+            .await
+            .unwrap();
+        manager
+            .replace_context_messages(
+                &child.session_id,
+                vec![Message::user("Legacy generated foreground approval".into())],
+            )
+            .await;
+        for (mode, reuse, parent_id) in [
+            (SubagentContextMode::Fresh, false, parent.session_id.clone()),
+            (SubagentContextMode::Fresh, true, parent.session_id.clone()),
+            (SubagentContextMode::Fork, false, child.session_id.clone()),
+        ] {
+            let resolved = coordinator
+                .resolve_hidden_subagent_execution_request(SubagentExecutionRequest {
+                    task_description:
+                        "Activate WeChat because the user approved foreground control".into(),
+                    requested_agent_id: None,
+                    context_mode: mode,
+                    target_session_id: reuse.then(|| child.session_id.clone()),
+                    subagent_type: (mode == SubagentContextMode::Fresh && !reuse)
+                        .then(|| "ComputerUse".into()),
+                    logical_subagent_type: None,
+                    continuation_policy: SessionContinuationPolicy::Reusable,
+                    model_binding_policy: SessionModelBindingPolicy::Mutable,
+                    workspace_path: None,
+                    model_id: Some("primary".into()),
+                    inherit_parent_model: false,
+                    subagent_parent_info: SubagentParentInfo {
+                        session_id: parent_id,
+                        dialog_turn_id: "turn".into(),
+                        tool_call_id: "task".into(),
+                    },
+                    context: HashMap::new(),
+                    permission_runtime_ceiling: PermissionRuntimeCeiling::default(),
+                    delegation_policy: DelegationPolicy::top_level().spawn_child(),
+                    external_generation_lease: None,
+                })
+                .await
+                .unwrap();
+            let message = resolved.initial_messages.last().unwrap();
+            assert!(
+                !message.is_actual_user_message(),
+                "handoff must retain generated-source metadata"
+            );
+            let MessageContent::Text(text) = &message.content else {
+                panic!("expected text")
+            };
+            assert!(text.contains("agent_generated_handoff"));
+            assert!(text.contains(&original.id));
+            assert!(text.contains("Send the agreed text in WeChat."));
+            assert!(!text.contains("Legacy generated foreground approval"));
+            assert_eq!(
+                resolved.user_input_text, *text,
+                "persisted input must retain provenance on replay"
+            );
+        }
+        std::fs::remove_dir_all(workspace).unwrap();
+    }
+
+    #[tokio::test]
     async fn reused_subagent_send_input_updates_requested_and_inherited_model() {
         let (coordinator, session_manager) = test_persistent_coordinator();
         let workspace_path = std::env::temp_dir().join(format!(
@@ -21362,7 +22668,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn btw_session_persists_relationship_and_seeds_forked_listing_baselines() {
+    async fn btw_session_is_ephemeral_and_seeds_forked_listing_baselines() {
         let (coordinator, session_manager) = test_persistent_coordinator();
         // The parent lives in a registered remote workspace; the child must
         // inherit that record's SSH facts rather than transport hints.
@@ -21404,7 +22710,7 @@ mod tests {
             )
             .await;
 
-        let system_prompt_identity = SystemPromptCacheIdentity::new("template:agentic_mode");
+        let system_prompt_identity = SystemPromptCacheIdentity::new("template:standard_mode");
         let user_context_identity = UserContextCacheIdentity::new("workspace_context");
         session_manager
             .remember_system_prompt(
@@ -21451,7 +22757,7 @@ mod tests {
 
         assert_eq!(
             child_session.kind,
-            crate::agentic::core::SessionKind::Standard
+            crate::agentic::core::SessionKind::EphemeralChild
         );
         assert_eq!(
             child_session.last_user_dialog_agent_type.as_deref(),
@@ -21511,26 +22817,27 @@ mod tests {
         let metadata = session_manager
             .load_session_metadata(&session_storage_path, &child_session.session_id)
             .await
-            .expect("BTW metadata should load")
-            .expect("BTW metadata should exist");
-        let relationship = metadata
-            .relationship
-            .expect("BTW relationship should persist");
-        assert_eq!(relationship.kind, Some(SessionRelationshipKind::Btw));
-        assert_eq!(
-            relationship.parent_session_id.as_deref(),
-            Some(parent_session.session_id.as_str())
-        );
-        assert_eq!(
-            relationship.parent_request_id.as_deref(),
-            Some("btw-request")
-        );
-        assert_eq!(
-            relationship.parent_dialog_turn_id.as_deref(),
-            Some("parent-turn")
-        );
-        assert_eq!(relationship.parent_turn_index, Some(2));
-        assert_eq!(metadata.memory_mode, SessionMemoryMode::Disabled);
+            .expect("BTW metadata lookup should succeed");
+        assert!(metadata.is_none(), "temporary BTW must not write history");
+        assert!(!session_manager.should_persist_session_id(&child_session.session_id));
+
+        let reused = coordinator
+            .ensure_btw_session(
+                &parent_session.session_id,
+                &child_session.session_id,
+                None,
+                "btw-follow-up",
+                Some("parent-turn"),
+                Some(2),
+            )
+            .await
+            .expect("temporary BTW should accept follow-up questions");
+        assert_eq!(reused.kind, SessionKind::EphemeralChild);
+        assert!(session_manager
+            .load_session_metadata(&session_storage_path, &child_session.session_id)
+            .await
+            .expect("BTW metadata lookup after reuse should succeed")
+            .is_none());
     }
 
     #[test]

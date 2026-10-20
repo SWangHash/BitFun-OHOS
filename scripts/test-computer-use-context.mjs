@@ -26,8 +26,18 @@ sha1 = "0.10"
   // no replacement algorithms, fake screenshots, or native-host stubs here.
   await writeFile(join(dir, 'lib.rs'), `#![allow(dead_code)]
 extern crate self as bitfun_core;
+extern crate self as bitfun_agent_tools;
 #[path = ${source('src/crates/execution/tool-contracts/src/computer_use.rs')}]
 pub mod computer_use_contract;
+pub use computer_use_contract as computer_use;
+#[path = ${source('src/crates/execution/tool-contracts/src/computer_use_control.rs')}]
+pub mod computer_use_control;
+#[path = ${source('src/crates/execution/tool-contracts/src/computer_use_geometry.rs')}]
+pub mod computer_use_geometry;
+#[path = ${source('src/apps/desktop/src/computer_use/control_session/admission.rs')}]
+mod control_admission;
+#[path = ${source('src/apps/desktop/src/computer_use/observation_cache.rs')}]
+mod observation_cache;
 pub mod agentic { pub mod tools { pub mod computer_use_host {
     pub use crate::computer_use_contract::*;
 }}}

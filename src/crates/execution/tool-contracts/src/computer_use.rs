@@ -266,7 +266,7 @@ pub struct OcrRegionNative {
 
 /// A single OCR text match with global display coordinates.
 /// Returned by `ComputerUseHost::ocr_find_text_matches`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OcrTextMatch {
     pub text: String,
     pub confidence: f32,
@@ -620,6 +620,10 @@ fn normalize_windows_key(token: &str) -> String {
 /// `app_*` mutation so the model can verify changes in one round-trip.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AppStateSnapshot {
+    /// Opaque node address-space identity. Echo on subsequent input; unlike the
+    /// content digest this changes even when two observations look identical.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub observation_id: Option<String>,
     /// Identity of the captured application.
     pub app: AppInfo,
     /// Title of the focused window when `focus_window_only=true`, else
@@ -639,13 +643,10 @@ pub struct AppStateSnapshot {
     pub digest: String,
     /// Unix-epoch milliseconds when the snapshot was captured.
     pub captured_at_ms: u64,
-    /// **Auto-attached** focused-window screenshot (Codex parity). The host
-    /// captures the visible pixels of the target app's frontmost window
-    /// every time `get_app_state` (or any `app_*` mutation) returns, so
-    /// the model is never blind on canvas / WebView / WebGL surfaces that
-    /// the AX tree cannot describe (e.g. the Gobang board). `None` only
-    /// when the host explicitly opted out (e.g. inner `app_wait_for`
-    /// polls) or the capture itself failed.
+    /// Optional focused-window screenshot. Existing observations include pixels
+    /// by default; explicit AX-only reads and internal polling omit them. Capture
+    /// failure can also leave this absent. Canvas and visual decisions need a
+    /// fresh image-bearing observation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub screenshot: Option<ComputerScreenshot>,
     /// Optional per-snapshot warning emitted by the host when it detects
@@ -758,6 +759,9 @@ fn default_true() -> bool {
 /// `ComputerUseHost::build_interactive_view`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct InteractiveView {
+    /// Node/view address space from the underlying application observation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub observation_id: Option<String>,
     /// Identity of the captured application.
     pub app: AppInfo,
     /// Title of the focused window (or `None` when the host could not
@@ -946,6 +950,9 @@ pub struct VisualMark {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct VisualMarkView {
+    /// Node/view address space from the underlying application observation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub observation_id: Option<String>,
     pub app: AppInfo,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub window_title: Option<String>,
@@ -1072,6 +1079,209 @@ impl AppClickParams {
     }
     fn default_button() -> String {
         "left".to_string()
+    }
+}
+
+/// App-scoped input program. The target app is bound once outside the steps;
+/// a step cannot change the application, session mode or capture authorization.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "action", deny_unknown_fields)]
+pub enum AppInputAction {
+    #[serde(rename = "app_click")]
+    Click {
+        target: ClickTarget,
+        #[serde(default = "AppClickParams::default_click_count")]
+        click_count: u8,
+        #[serde(default = "AppClickParams::default_button")]
+        mouse_button: String,
+        #[serde(default)]
+        modifier_keys: Vec<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        wait_ms_after: Option<u32>,
+    },
+    #[serde(rename = "app_type_text")]
+    TypeText {
+        text: String,
+        #[serde(default)]
+        focus: Option<ClickTarget>,
+    },
+    #[serde(rename = "app_key_chord")]
+    KeyChord {
+        keys: Vec<String>,
+        #[serde(default)]
+        focus_idx: Option<u32>,
+    },
+    #[serde(rename = "app_scroll")]
+    Scroll {
+        #[serde(default)]
+        dx: i32,
+        #[serde(default)]
+        dy: i32,
+        #[serde(default)]
+        focus: Option<ClickTarget>,
+    },
+    #[serde(rename = "app_drag")]
+    Drag {
+        from: ClickTarget,
+        to: ClickTarget,
+        #[serde(default = "AppClickParams::default_button")]
+        mouse_button: String,
+        #[serde(default = "default_app_drag_ms")]
+        duration_ms: u64,
+    },
+    #[serde(rename = "wait")]
+    Wait { ms: u64 },
+}
+fn default_app_drag_ms() -> u64 {
+    400
+}
+impl AppInputAction {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Click { .. } => "app_click",
+            Self::TypeText { .. } => "app_type_text",
+            Self::KeyChord { .. } => "app_key_chord",
+            Self::Scroll { .. } => "app_scroll",
+            Self::Drag { .. } => "app_drag",
+            Self::Wait { .. } => "wait",
+        }
+    }
+    pub fn validate(&self) -> Result<(), String> {
+        match self {
+            Self::Click {
+                click_count,
+                mouse_button,
+                ..
+            } if !(1..=3).contains(click_count)
+                || !matches!(mouse_button.as_str(), "left" | "right" | "middle") =>
+            {
+                return Err(
+                    "click_count must be 1..3 and mouse_button must be left/right/middle".into(),
+                );
+            }
+            Self::KeyChord { keys, .. }
+                if keys.is_empty() || keys.iter().any(|key| key.trim().is_empty()) =>
+            {
+                return Err("keys must contain non-empty key names".into());
+            }
+            Self::Drag {
+                from,
+                to,
+                mouse_button,
+                duration_ms,
+            } => {
+                if !matches!((from, to), (
+                    ClickTarget::ImageXy { screenshot_id: Some(a), .. },
+                    ClickTarget::ImageXy { screenshot_id: Some(b), .. }
+                ) if a == b)
+                {
+                    return Err(
+                        "drag endpoints must use image_xy coordinates from the same screenshot_id"
+                            .into(),
+                    );
+                }
+                if !matches!(mouse_button.as_str(), "left" | "right" | "middle")
+                    || *duration_ms == 0
+                {
+                    return Err("drag requires a valid button and positive duration_ms".into());
+                }
+            }
+            _ => {}
+        }
+        match self {
+            Self::Click { target, .. } => target.validate(),
+            Self::TypeText {
+                focus: Some(target),
+                ..
+            }
+            | Self::Scroll {
+                focus: Some(target),
+                ..
+            } => target.validate(),
+            Self::Drag { from, to, .. } => {
+                from.validate()?;
+                to.validate()
+            }
+            _ => Ok(()),
+        }
+    }
+}
+
+impl ClickTarget {
+    pub fn validate(&self) -> Result<(), String> {
+        match self {
+            ClickTarget::ImageXy {
+                x,
+                y,
+                screenshot_id,
+            } => {
+                if *x < 0
+                    || *y < 0
+                    || screenshot_id
+                        .as_deref()
+                        .is_none_or(|id| id.trim().is_empty())
+                {
+                    return Err("image_xy requires nonnegative image coordinates and the observed screenshot_id".into());
+                }
+            }
+            ClickTarget::ImageGrid {
+                x0,
+                y0,
+                width,
+                height,
+                rows,
+                cols,
+                row,
+                col,
+                intersections,
+                screenshot_id,
+            } => {
+                if *x0 < 0
+                    || *y0 < 0
+                    || *width == 0
+                    || *height == 0
+                    || i64::from(*x0) + i64::from(*width) > i64::from(i32::MAX) + 1
+                    || i64::from(*y0) + i64::from(*height) > i64::from(i32::MAX) + 1
+                    || *rows == 0
+                    || *cols == 0
+                    || row >= rows
+                    || col >= cols
+                    || (*intersections && (*rows < 2 || *cols < 2))
+                    || screenshot_id
+                        .as_deref()
+                        .is_none_or(|id| id.trim().is_empty())
+                {
+                    return Err("image_grid requires a nonempty observed screenshot_id, positive rectangle/grid dimensions and an in-range row/col".into());
+                }
+            }
+            ClickTarget::VisualGrid {
+                rows,
+                cols,
+                row,
+                col,
+                intersections,
+                ..
+            } => {
+                if *rows == 0
+                    || *cols == 0
+                    || row >= rows
+                    || col >= cols
+                    || (*intersections && (*rows < 2 || *cols < 2))
+                {
+                    return Err(
+                        "visual_grid requires positive dimensions and an in-range row/col".into(),
+                    );
+                }
+            }
+            ClickTarget::OcrText { needle } if needle.trim().is_empty() => {
+                return Err("ocr_text requires non-empty observed text".into())
+            }
+            ClickTarget::ScreenXy { x, y } if !x.is_finite() || !y.is_finite() => {
+                return Err("screen_xy coordinates must be finite".into())
+            }
+            _ => {}
+        }
+        Ok(())
     }
 }
 
@@ -1749,5 +1959,84 @@ mod tool_body_tests {
         let restored: InteractiveView =
             serde_json::from_value(serde_json::to_value(&view).unwrap()).unwrap();
         assert_eq!(view, restored);
+    }
+}
+
+#[cfg(test)]
+mod app_input_program_tests {
+    #[test]
+    fn legacy_app_observation_omits_identity_without_losing_content() {
+        let old = serde_json::json!({"app":{"name":"Editor","pid":7,"running":true},"tree_text":"[0] Button","digest":"same-content","captured_at_ms":1});
+        let snapshot: super::AppStateSnapshot = serde_json::from_value(old).unwrap();
+        assert!(snapshot.observation_id.is_none());
+        let round: super::AppStateSnapshot =
+            serde_json::from_value(serde_json::to_value(&snapshot).unwrap()).unwrap();
+        assert_eq!(snapshot, round);
+    }
+
+    #[test]
+    fn all_program_targets_are_validated_before_native_dispatch() {
+        for value in [
+            serde_json::json!({"action":"app_click","target":{"kind":"image_xy","x":1,"y":1}}),
+            serde_json::json!({"action":"app_type_text","text":"x","focus":{"kind":"ocr_text","needle":" "}}),
+            serde_json::json!({"action":"app_scroll","dx":0,"dy":1,"focus":{"kind":"image_grid","x0":2147483647,"y0":0,"width":2,"height":1,"rows":1,"cols":1,"row":0,"col":0,"screenshot_id":"shot"}}),
+        ] {
+            let input: super::AppInputAction = serde_json::from_value(value).unwrap();
+            assert!(input.validate().is_err());
+        }
+    }
+
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn legacy_click_program_defaults_optional_wait_and_round_trips() {
+        let old = json!({"action":"app_click","target":{"kind":"node_idx","idx":17}});
+        let step: AppInputAction = serde_json::from_value(old).unwrap();
+        assert!(matches!(
+            &step,
+            AppInputAction::Click {
+                wait_ms_after: None,
+                ..
+            }
+        ));
+        let written = serde_json::to_value(&step).unwrap();
+        assert!(written.get("wait_ms_after").is_none());
+        assert_eq!(
+            serde_json::from_value::<AppInputAction>(written).unwrap(),
+            step
+        );
+    }
+
+    #[test]
+    fn steps_cannot_retarget_or_escalate_control() {
+        for step in [
+            json!({"action":"app_type_text","text":"test","app":{"pid":99}}),
+            json!({"action":"app_click","target":{"kind":"node_idx","idx":1},"mode":"foreground"}),
+            json!({"action":"start_control","mode":"foreground"}),
+        ] {
+            assert!(serde_json::from_value::<AppInputAction>(step).is_err());
+        }
+    }
+
+    #[test]
+    fn drag_requires_one_observed_coordinate_basis() {
+        let mut step = json!({"action":"app_drag",
+            "from":{"kind":"image_xy","x":10,"y":20,"screenshot_id":"frame-a"},
+            "to":{"kind":"image_xy","x":80,"y":90,"screenshot_id":"frame-a"}});
+        assert!(serde_json::from_value::<AppInputAction>(step.clone())
+            .unwrap()
+            .validate()
+            .is_ok());
+        step["to"]["screenshot_id"] = json!("frame-b");
+        assert!(serde_json::from_value::<AppInputAction>(step.clone())
+            .unwrap()
+            .validate()
+            .is_err());
+        step["to"].as_object_mut().unwrap().remove("screenshot_id");
+        assert!(serde_json::from_value::<AppInputAction>(step)
+            .unwrap()
+            .validate()
+            .is_err());
     }
 }

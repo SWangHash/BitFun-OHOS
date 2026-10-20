@@ -49,12 +49,11 @@
     "avatarPickerHint": "選擇一個標識，或輸入自訂符號",
     "avatarPickerClose": "關閉頭像選擇",
     "avatarPresets": "頭像選項",
-    "avatarOfficialPresets": "Claw 頭像",
+    "avatarOfficialPresets": "IP 頭像",
     "avatarEmojiPresets": "表情符號",
     "avatarUseOfficialPreset": "使用{{name}}頭像",
     "avatarFamilies": {
-      "claw": "標準造型",
-      "clawOrbit": "星軌造型"
+      "joystick": "黑色搖桿夥伴"
     },
     "avatarUsePreset": "使用 {{emoji}} 作為頭像",
     "avatarCustom": "自訂頭像符號",
@@ -142,11 +141,12 @@
     "sessionTitleDesc": "新會話自動生成標題"
   },
   "nursery": {
-    "backToGallery": "$t(shared:agents.Claw)",
+    "backToGallery": "$t(shared:agents.Claw)首頁",
     "gallery": {
       "title": "$t(shared:agents.Claw)",
-      "subtitle": "建立、設定助理，或隨時開始新會話",
+      "subtitle": "你的個人 AI 夥伴，結合你的偏好與脈絡，長期協助工作與日常事務。",
       "newAssistant": "建立助理",
+      "createConfirmMessage": "確定建立一個新助理嗎？建立後可設定它的身分、工具和個性。",
       "creating": "正在建立...",
       "createFailed": "無法建立助理，請稍後重試",
       "loadFailed": "無法載入助理",
@@ -306,9 +306,10 @@
       "unnamed": "未命名助理",
       "noVibe": "一個等待定義的助理",
       "configure": "設定助理",
-      "newSession": "新增會話",
-      "startingSession": "正在啟動...",
-      "newSessionFailed": "無法新增會話，請稍後重試",
+      "open": "開啟助理",
+      "openFailed": "開啟助理失敗",
+      "close": "關閉助理",
+      "closeFailed": "關閉助理失敗",
       "tokenTitle": "上下文佔用估算",
       "primaryBadge": "主助理",
       "setPrimary": "設為主助理",
@@ -326,6 +327,7 @@
       "inheritPrimary": "繼承模板（主力）",
       "inheritFast": "繼承模板（快速）",
       "personaDocsTitle": "關鍵文檔",
+      "newSessionTitle": "發起會話",
       "sessionsSectionTitle": "會話",
       "scheduledSessionsTitle": "定時會話",
       "scheduledSessionsNoWorkspace": "請先選擇助理工作區後再管理定時會話。",
@@ -335,7 +337,8 @@
         "USER": "用戶畫像"
       },
       "personaDocSaveFailed": "儲存文檔失敗",
-      "personaDocLoadFailed": "讀取文檔失敗"
+      "personaDocLoadFailed": "讀取文檔失敗",
+      "closeDetail": "關閉詳情"
     }
   }
 }

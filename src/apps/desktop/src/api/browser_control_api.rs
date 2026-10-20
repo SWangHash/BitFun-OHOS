@@ -313,8 +313,13 @@ pub async fn browser_control_get_status(
             _ => true,
         }
     });
+    // A listening debug port is ready, not connected on the user's behalf.
+    // Keep the UI's Connect action available until its grant exists, matching
+    // the Agent's access gate rather than showing a misleading Connected state.
+    let legacy_authorized =
+        CdpClient::authorized_browser_kind(port).await.as_ref() == Some(&configured_kind);
     let available = !browser_connection_suppressed
-        && (user_profile_connection.is_some() || legacy_matches_selection);
+        && (user_profile_connection.is_some() || (legacy_matches_selection && legacy_authorized));
     let browser_ready = available || user_profile_endpoint.is_some() || legacy_matches_selection;
 
     let (version, page_count, actual_kind) = if available {
@@ -492,7 +497,13 @@ async fn complete_launch(
                 fallback_from: None,
             })
         }
-        other => Ok(to_launch_response(kind, other)),
+        other => {
+            let response = to_launch_response(kind, other);
+            if response.success {
+                CdpClient::authorize_legacy_browser(logical_port, kind).await;
+            }
+            Ok(response)
+        }
     }
 }
 
@@ -553,6 +564,15 @@ pub async fn browser_control_launch(
     }
     let kind = BrowserLauncher::resolve_browser_kind(Some(&preference))
         .map_err(|error| error.to_string())?;
+    if CdpClient::authorized_browser_kind(port)
+        .await
+        .is_some_and(|connected| connected != kind)
+    {
+        // Switching the selected browser revokes its previous page bindings,
+        // even if the replacement connection subsequently fails.
+        disconnect_external_browser(port).await;
+    }
+    CdpClient::allow_browser_connection(port).await;
 
     if CdpClient::browser_connection_for_kind(port, &kind)
         .await
@@ -561,19 +581,11 @@ pub async fn browser_control_launch(
         return Ok(to_launch_response(&kind, LaunchResult::AlreadyConnected));
     }
 
-    // The logical port is shared across browser choices. Drop only the lookup
-    // entry when the user switches browsers; any already-attached page session
-    // keeps its transport alive, but new actions cannot accidentally reuse it.
-    if CdpClient::browser_connection(port).await.is_some() {
-        CdpClient::remove_browser_connection(port).await;
-    }
-
     let result = match BrowserLauncher::launch_with_cdp(&kind, port).await {
         Ok(result) => result,
         Err(error) => {
             #[cfg(target_env = "ohos")]
             return activate_builtin_fallback(&kind, error).await;
-
             #[cfg(not(target_env = "ohos"))]
             return Err(error.to_string());
         }
@@ -607,6 +619,12 @@ pub async fn browser_control_enable_default_cdp(
         return Ok(builtin_ready_response(None));
     }
     let kind = selected_browser_kind().await?;
+    if CdpClient::authorized_browser_kind(port)
+        .await
+        .is_some_and(|connected| connected != kind)
+    {
+        disconnect_external_browser(port).await;
+    }
     CdpClient::allow_browser_connection(port).await;
 
     if !BrowserLauncher::supports_default_cdp(&kind) {
@@ -629,10 +647,6 @@ pub async fn browser_control_enable_default_cdp(
     {
         return Ok(to_launch_response(&kind, LaunchResult::AlreadyConnected));
     }
-    if CdpClient::browser_connection(port).await.is_some() {
-        CdpClient::remove_browser_connection(port).await;
-    }
-
     let result = BrowserLauncher::enable_default_cdp(&kind, port)
         .await
         .map_err(|e| e.to_string())?;
@@ -650,6 +664,7 @@ pub async fn browser_control_restart_with_cdp(
         return Ok(builtin_ready_response(None));
     }
     let kind = selected_browser_kind().await?;
+    disconnect_external_browser(port).await;
     CdpClient::allow_browser_connection(port).await;
 
     let result = BrowserLauncher::restart_with_cdp(&kind, port)

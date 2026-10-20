@@ -42,7 +42,8 @@ where
     F: FnOnce() -> BitFunResult<T> + Send,
     T: Send,
 {
-    let work = move || catch_only(f);
+    let token = crate::computer_use::control_session::dispatch_token();
+    let work = move || crate::computer_use::control_session::with_token(token, || catch_only(f));
     unsafe {
         if pthread_main_np() != 0 {
             work()
@@ -76,12 +77,13 @@ where
     F: FnOnce() -> BitFunResult<T> + Send,
     T: Send,
 {
+    let token = crate::computer_use::control_session::dispatch_token();
+    let work = move || crate::computer_use::control_session::with_token(token, || catch_only(f));
     unsafe {
-        let on_main = pthread_main_np() != 0;
-        if on_main {
-            catch_only(f)
+        if pthread_main_np() != 0 {
+            work()
         } else {
-            Queue::main().exec_sync(move || catch_only(f))
+            Queue::main().exec_sync(work)
         }
     }
 }
@@ -123,7 +125,6 @@ unsafe extern "C" {
 
 #[link(name = "CoreGraphics", kind = "framework")]
 unsafe extern "C" {
-    fn CGPreflightScreenCaptureAccess() -> bool;
     fn CGRequestScreenCaptureAccess() -> bool;
     fn CGEventCreate(source: *const c_void) -> *const c_void;
     fn CGEventGetLocation(event: *const c_void) -> CGPoint;
@@ -148,10 +149,6 @@ pub(super) fn ax_trusted() -> bool {
     unsafe { AXIsProcessTrusted() }
 }
 
-pub(super) fn screen_capture_preflight() -> bool {
-    unsafe { CGPreflightScreenCaptureAccess() }
-}
-
 pub(super) fn request_ax_prompt() {
     let key = CFString::new("AXTrustedCheckOptionPrompt");
     let val = CFBoolean::true_value();
@@ -165,28 +162,16 @@ pub(super) fn request_screen_capture() -> bool {
     unsafe { CGRequestScreenCaptureAccess() }
 }
 
-/// Shared AX-first desktop guard: `get_app_state_inner` and
-/// `get_app_shortcuts_inner` both silently degrade (truncated tree / empty
-/// menu bar) instead of erroring when Accessibility trust is missing, which
-/// looks like "nothing here" rather than "BitFun lacks permission". Fail
-/// fast with a structured `[PERMISSION_DENIED]` error and re-trigger the
-/// system prompt so the user has a way back to the dialog without digging
-/// through System Settings manually.
-///
-/// `retry_hint` is the caller-specific closing sentence (e.g. `"After
-/// granting, retry \`desktop.get_app_state\` and the AX tree will include
-/// all WebView subtree nodes."`), so each call site keeps its own precise
-/// guidance while the shared boilerplate (check + prompt + explanation)
-/// cannot drift between call sites.
+/// Observation never invokes consent prompts. The user's permission action
+/// owns the explicit request and the OS owns its outcome.
 pub(super) fn require_ax_trust_for(retry_hint: &str) -> BitFunResult<()> {
     if ax_trusted() {
         return Ok(());
     }
-    request_ax_prompt();
     Err(BitFunError::tool(format!(
         "[PERMISSION_DENIED] macOS Accessibility permission not granted to BitFun. \
-         The system has been asked to surface the permission dialog (System Settings → \
-         Privacy & Security → Accessibility → enable BitFun). {}",
+         Use Computer Use permissions to request access, or open System Settings → \
+         Privacy & Security → Accessibility → enable BitFun. {}",
         retry_hint
     )))
 }

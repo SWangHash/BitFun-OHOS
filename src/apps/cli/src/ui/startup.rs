@@ -1109,6 +1109,7 @@ impl StartupPage {
             | ActionHandler::Status
             | ActionHandler::WorkspaceDiff
             | ActionHandler::CompactSession
+            | ActionHandler::GoalPrompt
             | ActionHandler::Editor
             | ActionHandler::PromptStash
             | ActionHandler::PromptStashPop
@@ -1287,7 +1288,9 @@ impl StartupPage {
         if trimmed == "exit" || trimmed == "quit" {
             return Some(StartupResult::Exit);
         }
-        if trimmed.starts_with('/') {
+        if trimmed.starts_with('/')
+            && bitfun_core::agentic::goal_mode::goal_objective_from_prompt(&trimmed).is_none()
+        {
             if !self.image_attachments.is_empty() {
                 self.status = Some(IMAGE_ATTACHMENTS_REQUIRE_MESSAGE.to_string());
                 return None;

@@ -77,6 +77,8 @@ export interface AppConfig {
   /** Controller-owned end-to-end realtime voice-call settings. */
   voice_call?: VoiceCallSettings;
   user_tool_groups?: UserToolGroupsConfig;
+  /** Absent on hosts that predate assistant entry-session preferences. */
+  assistant_default_sessions?: Record<string, string>;
   user_skill_groups?: UserSkillGroupsConfig;
 }
 
@@ -117,10 +119,12 @@ export interface AppLoggingConfig {
 }
 
 export interface AppFlowChatConfig {
+  send_during_turn?: 'immediate' | 'queue';
   default_mode_strategy?: 'follow_last' | 'fixed' | null;
   default_mode_id?: string | null;
   last_mode_id?: string | null;
   show_permission_mode_control?: boolean;
+  auto_show_selection_toolbar?: boolean;
 }
 
 export interface SidebarConfig {
@@ -141,15 +145,10 @@ export interface NotificationConfig {
   dialog_completion_notify: boolean;
   /** Whether to show a toast when an approval request arrives while the window is not focused. */
   permission_request_notify: boolean;
-  /** Whether to show built-in tip cards on each startup. Defaults to true. */
-  enable_startup_tips: boolean;
 }
 
 export interface AIExperienceConfig {
   enable_session_title_generation: boolean;
-
-  /** Whether to enable visual mode (use Mermaid diagrams to illustrate complex logic and flows). */
-  enable_visual_mode: boolean;
 
   /** Whether to show the desktop Agent companion. */
   enable_agent_companion: boolean;
@@ -174,6 +173,10 @@ export interface AIExperienceConfig {
   voice_input: VoiceInputSettings;
   /** User-defined quick actions shown in the post-coding actions menu. */
   quick_actions?: Array<{ id: string; label: string; prompt: string; enabled: boolean }>;
+  /** Absent on older hosts that do not support commit co-author preferences. */
+  enable_git_commit_coauthor?: boolean;
+  /** Absent on older hosts that do not offer next-input suggestions. */
+  enable_prompt_suggestion?: boolean;
 }
 
 export interface VoiceInputSettings {
@@ -239,6 +242,8 @@ export interface ReasoningPresetDescriptor {
   order: number;
   actions: ReasoningPresetAction[];
   source: ReasoningPresetSource;
+  /** Effective effort reported by the executing adapter; wire ids stay unchanged. */
+  effective_effort?: string;
 }
 
 export interface ReasoningCatalogProjection {
@@ -473,6 +478,8 @@ export interface SkillScanDiagnostic {
   path: string;
   sourceId: string;
   message: string;
+  /** Required declaration this host cannot honor; absent on older hosts. */
+  unsupportedField?: string | null;
 }
 
 export interface SkillScanReport<T = SkillInfo> {
@@ -484,7 +491,26 @@ export interface SkillScanReport<T = SkillInfo> {
   diagnosticsAvailable: boolean;
 }
 
+export interface SkillMarketSource {
+  id: string;
+  name: string;
+  provider: string;
+  url: string;
+  enabled: boolean;
+  api_token: string;
+}
+
+export interface SkillMarketConfig {
+  sources: SkillMarketSource[];
+}
+
+export interface SkillMarketResults {
+  skills: SkillMarketItem[];
+  sourceErrors: string[];
+}
+
 export interface SkillMarketItem {
+  marketName?: string;
   id: string;
   name: string;
   description: string;
@@ -627,6 +653,9 @@ export interface WorkspaceConfig {
 }
 
 export interface IConfigManager {
+  /** Trusted snapshots for synchronous UI seeding, scoped to the active device. */
+  hasCachedConfig(path: string): boolean;
+  getCachedConfig<T>(path: string): T | undefined;
   getConfig<T = any>(path?: string): Promise<T>;
   getOptionalConfig<T = any>(path: string): Promise<T | undefined>;
   getConfigs(paths: string[]): Promise<Record<string, unknown>>;
@@ -702,6 +731,8 @@ export type ConfigPath =
   | 'app.flow_chat.default_mode_id'
   | 'app.flow_chat.last_mode_id'
   | 'app.flow_chat.show_permission_mode_control'
+  | 'app.flow_chat.auto_show_selection_toolbar'
+  | 'app.flow_chat.send_during_turn'
   | 'app.sidebar'
   | 'app.sidebar.width'
   | 'app.sidebar.collapsed'

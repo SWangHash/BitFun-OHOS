@@ -401,6 +401,75 @@ async fn dependency_drop_reproduces_client_limit_with_zero_server_handles() {
 }
 
 #[tokio::test]
+async fn streamed_upload_reports_progress_and_stops_at_a_chunk_boundary() {
+    let f = Fixture::new().await;
+    let local = f._dir.path().join("upload");
+    let bytes: Vec<u8> = (0..600_000).map(|index| (index % 251) as u8).collect();
+    tokio::fs::write(&local, &bytes).await.unwrap();
+
+    let mut progress = Vec::new();
+    let written = f
+        .manager
+        .sftp_write_from_file_with_progress(
+            "sftp-test",
+            "/file",
+            &local,
+            u64::MAX,
+            &mut |written, total| {
+                progress.push((written, total));
+                true
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(written, bytes.len() as u64);
+    assert_eq!(
+        f.manager.sftp_read("sftp-test", "/file").await.unwrap(),
+        bytes
+    );
+    assert_eq!(
+        progress.last(),
+        Some(&(bytes.len() as u64, bytes.len() as u64))
+    );
+    assert!(progress.windows(2).all(|pair| pair[0].0 <= pair[1].0));
+
+    let cancelled = f
+        .manager
+        .sftp_write_from_file_with_progress(
+            "sftp-test",
+            "/file",
+            &local,
+            u64::MAX,
+            &mut |written, _| written < 262_144,
+        )
+        .await;
+    assert!(cancelled.is_err());
+    assert!(
+        f.manager
+            .sftp_read("sftp-test", "/file")
+            .await
+            .unwrap()
+            .len()
+            < bytes.len(),
+        "a cancelled stream must stop before the whole file reaches the remote"
+    );
+    assert_eq!(f.state.live.load(Ordering::SeqCst), 0);
+
+    // The cancelled stream must not poison the next upload on the same channel.
+    assert_eq!(
+        f.manager
+            .sftp_write_from_file("sftp-test", "/file", &local, u64::MAX)
+            .await
+            .unwrap(),
+        bytes.len() as u64
+    );
+    assert_eq!(
+        f.manager.sftp_read("sftp-test", "/file").await.unwrap(),
+        bytes
+    );
+}
+
+#[tokio::test]
 async fn repeated_manager_transfers_release_handles_and_preserve_bytes() {
     let f = Fixture::new().await;
     let local = f._dir.path().join("upload");
@@ -694,6 +763,74 @@ async fn openssh_real_files_over_loopback_ssh() {
         bytes
     );
     assert_eq!(f.state.channels.load(Ordering::SeqCst), 2);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+#[ignore = "Set BITFUN_TEST_SFTP_SERVER to the OpenSSH sftp-server executable"]
+async fn openssh_directory_symlink_browsing() {
+    use std::os::unix::fs::symlink;
+    let executable = std::env::var("BITFUN_TEST_SFTP_SERVER")
+        .expect("OpenSSH sftp-server executable required");
+    let f = Fixture::with_openssh(Some(executable)).await;
+    let service = crate::remote_ssh::RemoteFileService::new(Arc::new(tokio::sync::RwLock::new(
+        Some(f.manager.as_ref().clone()),
+    )));
+    let directory = f._dir.path().join("target directory");
+    std::fs::create_dir(&directory).unwrap();
+    std::fs::write(directory.join("sentinel.txt"), b"keep").unwrap();
+    symlink("..", directory.join("parent-link")).unwrap();
+    symlink(&directory, f._dir.path().join("absolute-link")).unwrap();
+    symlink("target directory", f._dir.path().join("relative-link")).unwrap();
+    symlink("relative-link", f._dir.path().join("chained-link")).unwrap();
+    symlink("missing", f._dir.path().join("broken-link")).unwrap();
+    symlink(
+        "target directory/sentinel.txt",
+        f._dir.path().join("file-link"),
+    )
+    .unwrap();
+    symlink("loop-link", f._dir.path().join("loop-link")).unwrap();
+
+    let entries = service
+        .read_dir("sftp-test", f._dir.path().to_str().unwrap())
+        .await
+        .unwrap();
+    for name in ["absolute-link", "relative-link", "chained-link"] {
+        let entry = entries.iter().find(|entry| entry.name == name).unwrap();
+        assert!(entry.is_symlink);
+        assert!(!entry.is_dir, "listing must retain no-follow metadata");
+        assert!(service.is_dir("sftp-test", &entry.path).await.unwrap());
+        let children = service.read_dir("sftp-test", &entry.path).await.unwrap();
+        assert_eq!(children.len(), 2);
+        let file = children
+            .iter()
+            .find(|child| child.name == "sentinel.txt")
+            .unwrap();
+        assert_eq!(file.path, format!("{}/sentinel.txt", entry.path));
+        let link = children
+            .iter()
+            .find(|child| child.name == "parent-link")
+            .unwrap();
+        assert!(link.is_symlink && !link.is_dir);
+    }
+    for name in ["file-link", "broken-link", "loop-link"] {
+        let path = f._dir.path().join(name);
+        assert!(service
+            .read_dir("sftp-test", path.to_str().unwrap())
+            .await
+            .is_err());
+    }
+    service
+        .remove_dir_all(
+            "sftp-test",
+            f._dir.path().join("relative-link").to_str().unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        std::fs::read(directory.join("sentinel.txt")).unwrap(),
+        b"keep"
+    );
 }
 
 #[tokio::test]

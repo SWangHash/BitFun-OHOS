@@ -1,0 +1,195 @@
+@layer bitfun.components {
+  .root {
+    box-sizing: border-box;
+    min-inline-size: 0;
+    inline-size: 100%;
+    max-inline-size: calc((var(--bitfun-control-flow-chat-transcript-max-width) - 2 * var(--bitfun-control-flow-chat-content-padding-inline) - 2 * var(--bitfun-control-flow-chat-card-gap)) / 3);
+    overflow: hidden;
+    border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-default);
+    border-radius: var(--bitfun-control-activity-item-surface-radius);
+    background: var(--bitfun-color-surface-panel);
+    color: var(--bitfun-color-content-primary);
+    font-family: var(--bitfun-type-body-sm-font-family);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    font-variant-numeric: proportional-nums;
+    font-weight: var(--bitfun-type-body-sm-font-weight);
+    line-height: var(--bitfun-type-body-sm-line-height);
+    transition: border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  .root:is(:hover, :focus-within) { border-color: var(--bitfun-color-border-strong); }
+  .root[data-bitfun-state~='confirmation'] { border-color: var(--bitfun-color-status-warning-border); }
+  .root:is([data-bitfun-status='cancelled'], [data-bitfun-status='rejected']) { opacity: var(--bitfun-opacity-muted); }
+
+  .surface {
+    position: relative;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: var(--bitfun-layout-card-gap-md);
+    inline-size: 100%;
+    max-inline-size: 100%;
+    min-block-size: calc(2 * var(--bitfun-control-activity-item-surface-height) - 2 * var(--bitfun-border-width-default));
+    padding: var(--bitfun-layout-card-padding-md);
+    border: 0;
+    border-radius: inherit;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    user-select: none;
+    transition: color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  button.surface { cursor: pointer; }
+  button.surface:is(:disabled, [aria-disabled='true']) { cursor: default; }
+  .surface:is(:hover, :focus-visible) .name { color: var(--_agent-accent-color); }
+  .surface:focus-visible {
+    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+    outline-offset: calc(-1 * var(--bitfun-focus-width));
+  }
+
+  .content {
+    display: flex;
+    align-items: center;
+    gap: inherit;
+    flex: 1 1 0;
+    min-inline-size: 0;
+  }
+
+  .avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 var(--bitfun-space-10);
+    inline-size: var(--bitfun-space-10);
+    block-size: var(--bitfun-space-10);
+    /* Canonical artwork fills 87.5% of its canvas; align its visible leading edge. */
+    margin-inline-start: calc(-1 * var(--bitfun-space-10) / 16);
+    pointer-events: none;
+  }
+
+  .avatar > :is(svg, [data-bitfun-component="icon"]) { inline-size: var(--bitfun-space-5); block-size: var(--bitfun-space-5); }
+  .details {
+    display: grid;
+    flex: 1 1 0;
+    min-inline-size: 0;
+    gap: var(--bitfun-layout-card-gap-sm);
+  }
+  .name {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--bitfun-space-2);
+    min-inline-size: 0;
+  }
+  .title { min-inline-size: 0; flex: 1 1 0; font-weight: var(--bitfun-type-label-lg-font-weight); }
+  .metadata {
+    display: flex;
+    align-items: center;
+    gap: var(--bitfun-space-2);
+    min-inline-size: 0;
+    color: var(--bitfun-color-content-muted);
+    font-family: var(--bitfun-type-label-sm-font-family);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
+    line-height: var(--bitfun-type-label-sm-line-height);
+  }
+  .agentType { flex: 0 1 auto; min-inline-size: 0; max-inline-size: 45%; }
+  .model { flex: 1 1 0; min-inline-size: 0; }
+  .model:not([data-overflow='true']) { text-align: end; }
+  .status,
+  .statusDot,
+  .name > [data-bitfun-part='statusSlot'] { align-self: center; }
+  .status {
+    flex: 0 1 auto;
+    min-inline-size: 0;
+    max-inline-size: 8em;
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-label-sm-font-size);
+  }
+  .status[data-tone='danger'] { color: var(--bitfun-color-status-danger-content); }
+  .status[data-tone='warning'] { color: var(--bitfun-color-status-warning-content); }
+  .runningStatus { flex: none; }
+  .statusDot {
+    flex: none;
+    inline-size: calc(var(--bitfun-space-1) * 1.5);
+    block-size: calc(var(--bitfun-space-1) * 1.5);
+    border-radius: var(--bitfun-radius-pill);
+    background: var(--bitfun-color-content-muted);
+  }
+  .statusDot:is([data-status='running'], [data-status='preparing'], [data-status='streaming'], [data-status='receiving'], [data-tone='success']) {
+    background: var(--bitfun-color-status-success-emphasis);
+  }
+  .statusDot:is([data-status='waiting'], [data-tone='warning']) { background: var(--bitfun-color-status-warning-emphasis); }
+  .statusDot[data-tone='danger'] { background: var(--bitfun-color-status-danger-emphasis); }
+  .openIcon {
+    position: absolute;
+    inset-inline-end: 0;
+    inset-block-start: 50%;
+    display: none;
+    inline-size: var(--bitfun-space-3);
+    block-size: var(--bitfun-space-3);
+    color: inherit;
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+
+  /* The action replaces the status in place; metadata never moves on hover. */
+  .surface:not(:disabled, [aria-disabled='true']):is(:hover, :focus-visible) .name > :is(.status, .statusDot, [data-bitfun-part='statusSlot']) {
+    visibility: hidden;
+  }
+  .surface:not(:disabled, [aria-disabled='true']):is(:hover, :focus-visible) .name:not(:has(> .status, > .statusDot, > [data-bitfun-part='statusSlot'])) {
+    padding-inline-end: var(--bitfun-space-5);
+  }
+  .surface:not(:disabled, [aria-disabled='true']):is(:hover, :focus-visible) .openIcon { display: block; }
+
+  .preview {
+    display: grid;
+    gap: var(--bitfun-space-3);
+    inline-size: var(--bitfun-overlay-tooltip-max-inline-size);
+    max-inline-size: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .previewHeader { display: flex; align-items: center; gap: var(--bitfun-space-3); }
+  .previewTitle { min-inline-size: 0; display: grid; gap: var(--bitfun-space-1); }
+  .previewAvatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 var(--bitfun-space-10);
+    inline-size: var(--bitfun-space-10);
+    block-size: var(--bitfun-space-10);
+  }
+  .previewName {
+    min-inline-size: 0;
+    font-family: var(--bitfun-type-label-lg-font-family);
+    font-size: var(--bitfun-type-label-lg-font-size);
+    font-weight: var(--bitfun-type-label-lg-font-weight);
+    line-height: var(--bitfun-type-label-lg-line-height);
+  }
+  .previewMetadata {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: var(--bitfun-space-2) var(--bitfun-space-3);
+    margin: 0;
+  }
+  .previewMetadata dt,
+  .previewCaption { color: var(--bitfun-color-content-muted); }
+  .previewMetadata dd { min-inline-size: 0; margin: 0; }
+  .previewTask {
+    display: grid;
+    gap: var(--bitfun-space-1);
+    padding-block-start: var(--bitfun-space-3);
+    border-block-start: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+  }
+  .previewDescription { margin: 0; white-space: pre-wrap; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .root, .surface { transition: none; }
+  }
+  @media (forced-colors: active) {
+    .root { border-color: ButtonText; }
+  }
+}

@@ -30,12 +30,82 @@ from the vector master, so regenerating either family cannot replace the other.
 mark, a light transparent mark, and the application icon. The mark is a filled
 silhouette, so every size renders from the same geometry without per-size stroke
 treatments. Application icons are resized from the preserved application artwork.
-Windows ICO frames, Linux icons, and macOS PNG representations use the matching
-size-specific application exports. Tauri encodes the legacy 16/32 px ICNS
-representations from the same artwork.
+Windows ICO frames and Linux icons use the matching size-specific application
+exports. macOS owns a separate native resource pipeline described below; the
+shared PNGs, Windows ICO, Linux, web, and mobile artwork are unchanged.
+
+## macOS icons
+
+`macos/openbitfun.icon` is the Icon Composer document for macOS 26 and newer,
+including macOS 27. Its background is an opaque, full-bleed black fill and its
+foreground is the transparent silver mark projected from the brand master.
+It has no baked outer mask, shadow, or Dock padding. macOS applies the enclosure
+and appearance treatment through `Assets.car`. The source uses Icon Composer 1.2
+features supported by Xcode 26.2; it does not require an Xcode 27-only document.
+No language or region-specific icon variants are needed.
+
+The committed ICNS is the static dev and older-macOS fallback. Its owner is the
+Composer export pipeline: Apple's `ictool` renders the Composer document on the
+authored `macos/legacy-canvas.json` layout and `iconutil` encodes the result.
+The committed file currently carries the project's earlier full-bleed artwork
+(eight representations covering 16–1024 px with no Dock padding), and
+`macos/generated.json` pins its digest so a mismatched export fails loudly;
+re-exporting it from the local mark requires Icon Composer 1.2 on macOS. There is
+no runtime OS-version scaling and no modification of ICNS chunks by the shared
+brand generator; canonicalization only orders the native chunks.
+
+Tauri CLI is pinned to **2.11.4** in both workspace apps. The macOS config overlay
+adds `.icon` alongside ICNS; base and Windows/Linux icon selections stay intact.
+Tauri dev reads ICNS through `NSApplication.applicationIconImage`. Bundled builds
+use `CFBundleIconName` with `Assets.car`, plus `CFBundleIconFile` for the legacy
+resource. `tauri.dev.conf.json` and the generated release config inherit the
+platform icon list instead of overwriting it. The minimum application OS version
+is unchanged; compiling the modern catalog for 26 does not raise that minimum.
+
+Normal installs, dev builds, and non-Apple builds use the committed ICNS and need
+no Icon Composer installation. After changing the application mark, Composer
+document, or legacy layout, regenerate on macOS with **Icon Composer 1.2**:
+
+```bash
+# ICON_COMPOSER_APP can point to an alternate location for Icon Composer.app.
+pnpm run generate:macos-icons
+pnpm run generate-brand-assets
+```
+
+The native export manifest records the renderer version and source/output
+hashes. Normal asset generation refuses stale native exports instead of silently
+shipping a mismatched dev icon. Commit the Composer layer, manifest, and all
+three generated ICNS copies together.
+
+Packaging requires **full Xcode 26 or newer**, with `actool` and `assetutil`
+selected by `DEVELOPER_DIR` or `xcode-select`. Command Line Tools alone are not
+enough. Stable/beta and nightly macOS runners select **Xcode 26.2** on both Intel
+and Apple Silicon. The pre-bundle check fails when modern tools are unavailable;
+the build wrapper verifies the resulting catalog, both Info.plist icon keys,
+and the exact fallback bytes before reporting success. No signed bundle is
+modified by verification.
+
+```bash
+node --test scripts/generate-brand-assets.test.mjs scripts/macos-icon-bundle.test.mjs scripts/desktop-tauri-build.test.mjs
+# Full Xcode: exercise actual Tauri + actool packaging in a disposable fixture.
+BITFUN_TEST_MACOS_BUNDLE=1 node --test scripts/macos-icon-bundle.test.mjs
+# Inspect an existing bundle without launching it.
+node scripts/macos-icon-bundle.mjs verify /path/to/BitFun.app
+```
+
+These checks validate resources, native decoding, and package metadata. They do
+not establish visual Dock equivalence on every supported OS or display. Remote
+workspace, remote control, Peer Device Mode, and detached dispatch are not
+exercised by these local packaging checks; their protocols and host logic are
+unchanged.
+
+References: [Apple app icon guidance](https://developer.apple.com/design/human-interface-guidelines/app-icons),
+[Icon Composer](https://developer.apple.com/documentation/xcode/creating-your-app-icon-using-icon-composer),
+[NSApplication.applicationIconImage](https://developer.apple.com/documentation/appkit/nsapplication/applicationiconimage),
+and [Tauri 2.11.4 macOS icon bundler](https://github.com/tauri-apps/tauri/blob/tauri-cli-v2.11.4/crates/tauri-bundler/src/bundle/macos/icon.rs).
 
 Browser entry points select explicit 16/32 px favicons. The system tray reuses
-the configured application/window icon on every desktop platform.
+the macOS template mark on macOS and the configured application icon elsewhere.
 
 The HarmonyOS PC (2in1) launch page uses a single launch appearance so it can
 never flip between color modes: the generator writes one light mark into the
@@ -48,11 +118,14 @@ The previous `bitfun_icon_light.png` is a retired legacy asset and is removed by
 the generator.
 
 Run `pnpm run generate-brand-assets` after changing either source master. The
-generator is the single owner of the derived desktop, mobile, installer, web,
-HarmonyOS, and market files.
+generator is the single owner of the shared desktop, web, installer, Android,
+iOS, HarmonyOS, and market projections. Native macOS exports have the separate
+owner described above.
 
-Verify generated dimensions, small-size mark readability, favicon references,
-and icon containers with `node --test scripts/generate-brand-assets.test.mjs`.
+Verify generated dimensions, small-size rim contrast, favicon references,
+platform selection, and icon containers with
+`node --test scripts/generate-brand-assets.test.mjs`. macOS export and native
+bundling checks also run `scripts/macos-icon-bundle.test.mjs`.
 
 ## Per-product icon targets
 
@@ -61,7 +134,7 @@ generator owns all of their launcher, container, and site icons:
 
 - `BitFun-Installer/src-tauri/icons/bitfun-app-icon.{png,ico,icns}` and
   `BitFun-Installer/src/assets/bitfun-app-icon{,-16,-32}.png`
-- `src/apps/data-migrator/icons/bitfun-app-icon.{png,ico,icns}`
+- `src/apps/data-tools/icons/bitfun-app-icon.{png,ico,icns}`
 - `src/apps/mobile/android/app/src/main/res/mipmap-*/ic_launcher*.png`
 - `src/apps/mobile/ios/BitFun/Resources.xcassets/AppIcon.appiconset/bitfun-app-icon.png`
 - `src/miniapp-market-web/public/{favicon.svg,favicon.ico,icon-192.png,icon-512.png,apple-touch-icon.png}`

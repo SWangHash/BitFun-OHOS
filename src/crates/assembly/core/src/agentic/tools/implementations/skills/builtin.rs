@@ -524,7 +524,7 @@ mod tests {
         }
     }
 
-    fn gstack_skill_texts() -> Vec<(String, &'static str)> {
+fn gstack_skill_texts() -> Vec<(String, &'static str)> {
         BUILTIN_SKILLS_DIR
             .dirs()
             .filter_map(|dir| {

@@ -4,15 +4,37 @@ import BitFunMobileCore
 import SwiftUI
 import UIKit
 
+private let timelinePerfLog = Logger(
+    subsystem: "com.bitfun.mobile.ios",
+    category: "performance"
+)
+
 struct ChatTimelineView: View {
     @ObservedObject var model: MobileAppModel
     var onLoadOlderMessages: (() -> Void)? = nil
-    @State private var expandedMailboxToolID: String?
+    /// Height of the floating bottom layer, so the jump-to-bottom button rides
+    /// above the composer instead of hiding behind it. The transcript's own
+    /// padding comes from `safeAreaInset`; an overlay does not get that, which
+    /// is why this one number still has to be passed in.
+    var bottomOverlayInset: CGFloat = 0
     @StateObject private var scrollController = TimelineScrollController()
-    @State private var historyAnchor: (id: String, top: CGFloat, firstID: String)?
 
-    var body: some View {
-        ScrollViewReader { proxy in
+    var body: some View { timelineContent() }
+
+    /// Temporary perf scaffolding: the transcript's view graph is built eagerly, so
+    /// one state update costs one full pass over the loaded rows.
+    private func timelineContent() -> some View {
+        #if DEBUG
+        let renderStartedAt = ProcessInfo.processInfo.systemUptime
+        defer {
+            let milliseconds = Int((ProcessInfo.processInfo.systemUptime - renderStartedAt) * 1_000)
+            let blocks = model.timelineRows.reduce(0) { $0 + $1.blocks.count }
+            timelinePerfLog.info(
+                "Timeline body render rows=\(model.timelineRows.count, privacy: .public) blocks=\(blocks, privacy: .public) ms=\(milliseconds, privacy: .public)"
+            )
+        }
+        #endif
+        return ScrollViewReader { _ in
             ScrollView(showsIndicators: false) {
                 VStack(spacing: MobileDesignGeometry.messageSpacing) {
                     // History is already paged by the session store. Measure the
@@ -20,49 +42,38 @@ struct ChatTimelineView: View {
                     // eager tail can repeatedly invalidate its own placement phases
                     // during keyboard dismissal and long streamed replies.
                     VStack(spacing: MobileDesignGeometry.messageSpacing) {
+                        if model.surface == .remote && model.remoteTranscriptUnconfirmed {
+                            // These rows are this device's stored copy, which stops
+                            // wherever its last write stopped — inside the turn that
+                            // was running when the app went away. Say the rest is on
+                            // its way instead of letting a half-finished turn read as
+                            // the session.
+                            HStack(spacing: 7) {
+                                ProgressView().controlSize(.small)
+                                Text(model.localized("正在同步"))
+                                    .font(MobileDesignTypography.labelSmall.font)
+                            }
+                            .foregroundStyle(BitFunTheme.muted)
+                            .frame(maxWidth: .infinity, minHeight: 38)
+                            .accessibilityIdentifier("timeline.syncing")
+                        }
                         if model.surface == .remote && model.remoteHasMoreMessages {
                             Button {
-                                #if DEBUG
-                                Logger(subsystem: "com.bitfun.mobile.ios", category: "timeline-scroll").info("History capture frames=\(scrollController.rowFrames.count)")
-                                #endif
-                                if let row = scrollController.rowFrames.filter({ $0.value.maxY > 0 })
-                                    .min(by: { $0.value.minY < $1.value.minY })
-                                {
-                                    historyAnchor = (row.key, row.value.minY, model.timelineRows.first?.id ?? "")
-                                    #if DEBUG
-                                    Logger(subsystem: "com.bitfun.mobile.ios", category: "timeline-scroll").info("History capture top=\(row.value.minY) height=\(row.value.height)")
-                                    #endif
-                                }
-                                scrollController.stopFollowing()
-                                if let onLoadOlderMessages {
-                                    onLoadOlderMessages()
-                                } else {
-                                    model.loadOlderRemoteMessages()
-                                }
+                                requestOlderHistoryPage()
                             } label: {
                                 HStack(spacing: 7) {
-                                    if model.busy { ProgressView().controlSize(.small) }
-                                    Text(model.localized(model.busy ? "正在加载" : "加载更早消息"))
+                                    if model.remoteHistoryLoading { ProgressView().controlSize(.small) }
+                                    Text(model.localized(model.remoteHistoryLoading ? "正在加载" : (model.remoteHistoryFailed ? "Could not load earlier messages. Tap to retry." : "加载更早消息")))
                                         .font(MobileDesignTypography.labelSmall.font)
                                 }
                                 .foregroundStyle(BitFunTheme.muted)
                                 .frame(maxWidth: .infinity, minHeight: 38)
                             }
                             .buttonStyle(.plain)
-                            .disabled(model.busy)
+                            .disabled(model.busy || model.remoteHistoryLoading)
                             .accessibilityIdentifier("timeline.loadOlder")
                         }
                         ForEach(historyRows) { row in timelineRow(row) }
-                    }
-                    if model.surface == .remote, let mailbox = model.permissionMailbox {
-                        if mailbox.failed { Text(model.localized("Permission request could not be completed. Retry to refresh pending requests.")); Button(model.localized("重试")) { model.refreshPermissionMailbox() } }
-                        ForEach(mailbox.questions, id: \.id) { question in
-                            ToolStatusList(tools: [MobileAppModel.mapTool(question)], model: model, expandedToolID: $expandedMailboxToolID)
-                                .simultaneousGesture(TapGesture().onEnded { model.startQuestionInteraction(question.id) })
-                        }
-                        ForEach(mailbox.requests, id: \.requestId) { request in
-                            PermissionMailboxRow(request: request, busy: mailbox.busy, model: model)
-                        }
                     }
                     // Keep the user's message and its reply in the same measured
                     // tail, including acknowledgement and completion transitions.
@@ -75,59 +86,41 @@ struct ChatTimelineView: View {
                     BitFunTheme.transparent.frame(height: 1).id("timeline-bottom")
                 }
                 .padding(.horizontal, MobileDesignGeometry.contentGutter)
-                .padding(.top, MobileDesignGeometry.timelineTopPadding)
-                .padding(.bottom, 14)
+                // No top padding of its own: the top overlay's inset already ends
+                // where the header's fade does, which is the same content start
+                // Android's contentPadding and HarmonyOS's contentStartOffset use.
+                .padding(.bottom, 14 + scrollController.historyBottomSpace)
                 .background(TimelineScrollProbe(controller: scrollController))
             }
             .coordinateSpace(name: "chat-timeline")
             .onPreferenceChange(TimelineRowFramesKey.self) { frames in
                 scrollController.rowFrames = frames
-                // Apply corrections from this measurement directly. Publishing
-                // frames into State adds a second, potentially stale layout pass.
-                guard let anchor = historyAnchor else { return }
-                if scrollController.isUserScrolling {
-                    historyAnchor = nil
-                } else if historyRestoreRequest != nil, model.timelineRows.first?.id != anchor.firstID,
-                    let frame = frames[anchor.id]
-                {
-                    // Preserve the actual visible row, including its partial offset,
-                    // rather than guessing from a lazy stack's total height.
-                    scrollController.preserveAnchor(displacement: frame.minY - anchor.top)
-                }
+                scrollController.restoreHistoryAnchor()
             }
-            .task(id: historyRestoreRequest) {
-                #if DEBUG
-                Logger(subsystem: "com.bitfun.mobile.ios", category: "timeline-scroll").info("History task available=\(historyRestoreRequest != nil)")
-                #endif
-                guard let request = historyRestoreRequest else { return }
-                await Task.yield()
-                guard !Task.isCancelled, !scrollController.isUserScrolling,
-                    historyRestoreRequest == request
-                else { return }
-                // Explicitly key restoration by both the captured anchor and the
-                // new transcript. State used only inside callbacks may otherwise
-                // arrive after the list's first layout notification.
-                proxy.scrollTo(scrollTargetID(request.id), anchor: .top)
-                await Task.yield()
-                guard !Task.isCancelled, historyRestoreRequest == request else { return }
-                if let frame = scrollController.rowFrames[request.id] {
-                    scrollController.preserveAnchor(displacement: frame.minY - request.top)
-                }
+            .onChange(of: model.remoteHistoryLoading) { loading in
+                scrollController.historyLoadingChanged(loading)
             }
             .scrollDismissesKeyboard(.interactively)
-            .onAppear { scrollController.open(session: model.selectedSessionID) }
+            .onAppear {
+                scrollController.open(session: model.selectedSessionID)
+                // Reaching the start of the loaded transcript asks for the next
+                // page by itself; the row stays as the loading and retry state.
+                // Layout changes and busy gestures do not queue another page.
+                scrollController.onHistoryStartReached = {
+                    guard canRequestOlderHistoryPage else { return false }
+                    requestOlderHistoryPage()
+                    return true
+                }
+            }
             .onChange(of: model.selectedSessionID) { session in
-                historyAnchor = nil
                 scrollController.open(session: session)
             }
             .onChange(of: model.composerSendGeneration) { _ in
-                historyAnchor = nil
                 scrollController.followBottom()
             }
             .overlay(alignment: .bottomTrailing) {
                 if !scrollController.followsBottom {
                     Button {
-                        historyAnchor = nil
                         scrollController.followBottom()
                     } label: {
                         Image(systemName: "chevron.down")
@@ -141,28 +134,13 @@ struct ChatTimelineView: View {
                     }
                     .buttonStyle(.plain)
                     .padding(18)
+                    .padding(.bottom, bottomOverlayInset)
                     .accessibilityIdentifier("timeline.scrollToBottom")
                     .accessibilityLabel(Text(model.localized("滚动到底部")))
                 }
             }
             .background(BitFunTheme.page)
         }
-    }
-
-    private struct HistoryRestoreRequest: Equatable {
-        let session: String
-        let firstID: String
-        let id: String
-        let top: CGFloat
-    }
-
-    private var historyRestoreRequest: HistoryRestoreRequest? {
-        guard let anchor = historyAnchor, let first = model.timelineRows.first?.id,
-            first != anchor.firstID
-        else { return nil }
-        return HistoryRestoreRequest(
-            session: model.selectedSessionID, firstID: first,
-            id: anchor.id, top: anchor.top)
     }
 
     private var currentTurnStart: Int {
@@ -198,6 +176,33 @@ struct ChatTimelineView: View {
 
     private var historyRows: ArraySlice<MobileConversationRow> {
         model.timelineRows.prefix(currentTurnStart)
+    }
+
+    /// Whether the store would accept another page right now.
+    ///
+    /// A failed page stays a tap on the row: an automatic retry would keep
+    /// asking a host that has already said no, and the row is on screen saying so.
+    private var canRequestOlderHistoryPage: Bool {
+        model.surface == .remote && (onLoadOlderMessages != nil || model.remoteConnected) && model.remoteHasMoreMessages
+            && !model.remoteHistoryLoading && !model.remoteHistoryFailed && !model.busy
+    }
+
+    /// The one place a history page is asked for, from the row and from arriving
+    /// at the start of the loaded transcript.
+    ///
+    /// The anchor is captured before the request so the page that lands above the
+    /// reader does not move what they were reading, and following the bottom is
+    /// dropped so a page arriving cannot drag the viewport away from it.
+    private func requestOlderHistoryPage() {
+        guard onLoadOlderMessages != nil || model.remoteConnected,
+              model.remoteHasMoreMessages, !model.busy, !model.remoteHistoryLoading,
+              scrollController.beginHistoryRequest() else { return }
+        if let onLoadOlderMessages {
+            onLoadOlderMessages()
+            scrollController.historyLoadingChanged(model.remoteHistoryLoading)
+        } else {
+            model.loadOlderRemoteMessages()
+        }
     }
 
     private func timelineRow(_ row: MobileConversationRow, identity: String? = nil) -> some View {
@@ -321,11 +326,6 @@ private struct ConversationRowView: View, Equatable {
                 .padding(.vertical, MobileDesignGeometry.messageBubbleVerticalPadding)
                 .background(BitFunTheme.soft)
                 .clipShape(RoundedRectangle(cornerRadius: MobileDesignGeometry.messageBubbleRadius))
-            }
-            if row.pending {
-                Text(model.localized("正在发送"))
-                    .font(MobileDesignTypography.labelSmall.font)
-                    .foregroundStyle(BitFunTheme.muted)
             }
             if row.showRetry {
                 Button { model.retryMessage(row.text, images: row.images) } label: {
@@ -769,6 +769,7 @@ private struct MarkdownBlockView: View {
                 .overlay(alignment: .leading) { Rectangle().fill(BitFunTheme.line).frame(width: 2) }
                 .textSelection(.enabled)
         case "list":
+            let markerWidth = listMarkerWidth
             VStack(alignment: .leading, spacing: 5) {
                 ForEach(block.items, id: \.id) { item in
                     HStack(alignment: .firstTextBaseline, spacing: 7) {
@@ -786,7 +787,8 @@ private struct MarkdownBlockView: View {
                             .padding(.horizontal, 2)
                         } else {
                             Text(item.marker).foregroundStyle(BitFunTheme.muted)
-                                .frame(width: 20, alignment: .trailing)
+                                .fixedSize(horizontal: true, vertical: false)
+                                .frame(width: markerWidth, alignment: .trailing)
                         }
                         Text(listItemInlineString(item)).foregroundStyle(BitFunTheme.ink)
                             .lineSpacing(MobileDesignTypography.bodyLarge.lineSpacing)
@@ -822,6 +824,16 @@ private struct MarkdownBlockView: View {
         if prefix == "[x]" { return true }
         if prefix == "[ ]" { return false }
         return nil
+    }
+
+    private var listMarkerWidth: CGFloat {
+        let token = MobileDesignTypography.bodyLarge
+        let font = UIFontMetrics(forTextStyle: token.textStyle).scaledFont(
+            for: UIFont.systemFont(ofSize: token.size, weight: token.weight)
+        )
+        return block.items.reduce(CGFloat(20)) { width, item in
+            max(width, ceil((item.marker as NSString).size(withAttributes: [.font: font]).width))
+        }
     }
 
     private func listItemInlineString(_ item: MarkdownListItem) -> AttributedString {
@@ -977,11 +989,15 @@ private func markdownInlineString(
     var result = AttributedString()
     for inline in inlines {
         var part = AttributedString(inline.text)
+        // Presentation intents inherit the enclosing Text's font, so an inline
+        // run keeps the role size (and Dynamic Type) of the paragraph it sits
+        // in — the same as the ArkUI and Compose renderers, which only change
+        // weight, slant, or family.
         switch inline.type {
-        case "strong": part.font = .system(size: 14, weight: .semibold)
-        case "emphasis": part.font = .system(size: 14).italic()
+        case "strong": part.inlinePresentationIntent = .stronglyEmphasized
+        case "emphasis": part.inlinePresentationIntent = .emphasized
         case "code":
-            part.font = .system(size: 13, design: .monospaced)
+            part.inlinePresentationIntent = .code
             part.backgroundColor = BitFunTheme.soft
         case "link":
             part.foregroundColor = MobileDesignColors.fileLink
@@ -1081,15 +1097,9 @@ private struct TimelineImageGrid: View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 7) {
             ForEach(images) { image in
                 Button { selected = image } label: {
-                    if let uiImage = image.uiImage {
-                        Image(uiImage: uiImage).resizable().scaledToFill()
-                            .frame(height: images.count == 1 ? 180 : 112).frame(maxWidth: .infinity)
-                            .clipped().clipShape(RoundedRectangle(cornerRadius: 14))
-                    } else {
-                        Image(systemName: "photo").foregroundStyle(BitFunTheme.muted)
-                            .frame(maxWidth: .infinity, minHeight: 112).background(BitFunTheme.soft)
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
-                    }
+                    AsyncDecodedImage(dataURL: image.dataURL, fill: true)
+                        .frame(height: images.count == 1 ? 180 : 112).frame(maxWidth: .infinity)
+                        .clipped().clipShape(RoundedRectangle(cornerRadius: 14))
                 }
                 .buttonStyle(.plain)
             }
@@ -1105,7 +1115,7 @@ private struct FullScreenTimelineImage: View {
     var body: some View {
         ZStack(alignment: .topTrailing) {
             BitFunTheme.mediaBackground.ignoresSafeArea()
-            if let uiImage = image.uiImage { Image(uiImage: uiImage).resizable().scaledToFit().ignoresSafeArea() }
+            AsyncDecodedImage(dataURL: image.dataURL).ignoresSafeArea()
             Button { dismiss() } label: {
                 Image(systemName: "xmark").font(.system(size: 15, weight: .semibold)).foregroundStyle(BitFunTheme.contentOnAction)
                     .frame(width: 44, height: 44).background(BitFunTheme.mediaControlBackground).clipShape(Circle())
@@ -1115,10 +1125,42 @@ private struct FullScreenTimelineImage: View {
     }
 }
 
-private extension MobileTimelineImage {
-    var uiImage: UIImage? {
-        guard let marker = dataURL.range(of: "base64,") else { return nil }
-        return Data(base64Encoded: String(dataURL[marker.upperBound...])).flatMap(UIImage.init(data:))
+/// Decode once off the UI executor, and discard results after source changes.
+struct AsyncDecodedImage: View {
+    var data: Data? = nil
+    var dataURL: String? = nil
+    var fill = false
+    @State private var image: UIImage?
+    @State private var loading = true
+    private struct Source: Equatable { let data: Data?; let url: String? }
+    var body: some View {
+        Group {
+            if let image {
+                Image(uiImage: image).resizable().aspectRatio(contentMode: fill ? .fill : .fit)
+            } else if loading {
+                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                Image(systemName: "photo").foregroundStyle(BitFunTheme.muted)
+            }
+        }
+        .task(id: Source(data: data, url: dataURL)) {
+            image = nil
+            loading = true
+            let bytes = data
+            let url = dataURL
+            let decoded = await Task.detached(priority: .userInitiated) {
+                let source: Data?
+                if let bytes { source = bytes }
+                else if let url, let marker = url.range(of: "base64,") {
+                    source = Data(base64Encoded: String(url[marker.upperBound...]))
+                } else { source = nil }
+                guard let source, let original = UIImage(data: source) else { return nil as UIImage? }
+                return original.preparingForDisplay() ?? original
+            }.value
+            guard !Task.isCancelled else { return }
+            image = decoded
+            loading = false
+        }
     }
 }
 
@@ -1218,6 +1260,85 @@ private struct CollapsedToolsRow: View {
     }
 }
 
+
+private struct MobileTodoItem: Identifiable {
+    let id: String
+    let content: String
+    let status: String
+}
+
+private struct TodoToolCard: View {
+    let tool: MobileTimelineTool
+    @ObservedObject var model: MobileAppModel
+    @Binding var expandedToolID: String?
+    private var expanded: Bool { expandedToolID == tool.id }
+
+    private var items: [MobileTodoItem] {
+        let values = [tool.input, tool.output]
+        for value in values {
+            guard let data = value.data(using: .utf8),
+                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let todos = object["todos"] as? [[String: Any]] else { continue }
+            let parsed = todos.enumerated().compactMap { index, raw -> MobileTodoItem? in
+                guard let content = raw["content"] as? String, !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+                return MobileTodoItem(id: "\(tool.id)-\(index)", content: content, status: raw["status"] as? String ?? "pending")
+            }
+            if !parsed.isEmpty { return parsed }
+        }
+        return []
+    }
+
+    var body: some View {
+        let done = items.filter { $0.status.lowercased() == "completed" }.count
+        let active = items.first(where: { $0.status.lowercased() == "in_progress" }) ?? items.first(where: { $0.status.lowercased() == "pending" })
+        let summary = items.isEmpty ? tool.target : (done == items.count ? model.localized("已完成") : active?.content ?? items[0].content)
+        VStack(alignment: .leading, spacing: 9) {
+            Button { withAnimation(.easeOut(duration: 0.18)) { expandedToolID = expanded ? nil : tool.id } } label: {
+                HStack(spacing: 9) {
+                    Image(systemName: "checklist").font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(BitFunTheme.statusSuccess).frame(width: 22, height: 22)
+                        .background(BitFunTheme.statusSuccess.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(model.localized("更新待办")).font(MobileDesignTypography.bodySmall.font.weight(.semibold))
+                        Text(summary).font(MobileDesignTypography.labelSmall.font)
+                            .foregroundStyle(BitFunTheme.muted).lineLimit(1)
+                    }
+                    Spacer(minLength: 4)
+                    if !items.isEmpty { Text("\(done)/\(items.count)").font(MobileDesignTypography.labelSmall.font).foregroundStyle(BitFunTheme.muted) }
+                    Image(systemName: expanded ? "chevron.down" : "chevron.right").font(MobileDesignTypography.labelSmall.font).foregroundStyle(BitFunTheme.muted)
+                }.frame(minHeight: 32).contentShape(Rectangle())
+            }.buttonStyle(.plain).accessibilityIdentifier("tool.toggle.\(tool.id)")
+            if expanded && !items.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(BitFunTheme.line)
+                            Capsule().fill(BitFunTheme.muted).frame(width: geometry.size.width * CGFloat(done) / CGFloat(max(items.count, 1)))
+                        }
+                    }.frame(height: 2)
+
+                    ForEach(items) { item in
+                        HStack(alignment: .top, spacing: 8) {
+                            Text(item.status.lowercased() == "completed" ? "✓" : item.status.lowercased() == "cancelled" ? "×" : item.status.lowercased() == "in_progress" ? "•" : "○")
+                                .foregroundStyle(BitFunTheme.muted)
+                            Text(item.content).font(MobileDesignTypography.bodySmall.font)
+                                .foregroundStyle(item.status.lowercased() == "in_progress" ? BitFunTheme.ink : BitFunTheme.muted)
+                        }
+                    }
+                }.padding(.leading, 31)
+            }
+            if expanded && items.isEmpty && !tool.output.isEmpty {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(model.localized("输出")).font(MobileDesignTypography.labelSmall.font).foregroundStyle(BitFunTheme.muted)
+                    Text(tool.output).font(.system(size: 12.5, design: .monospaced)).foregroundStyle(BitFunTheme.muted).lineLimit(5)
+                }
+            }
+        }
+        .padding(10).background(BitFunTheme.soft, in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(BitFunTheme.line, lineWidth: 1))
+    }
+}
+
 private struct ToolStatusRow: View {
     let tool: MobileTimelineTool
     @ObservedObject var model: MobileAppModel
@@ -1229,9 +1350,31 @@ private struct ToolStatusRow: View {
     @State private var selectedOptions: [Int: Set<String>] = [:]
     @State private var otherAnswers: [Int: String] = [:]
 
-    private var emphasized: Bool { !tool.actions.isEmpty || expanded || tool.phase == "FAILED" }
+    private var transcriptActions: Set<String> {
+        guard model.permissionMailbox?.ownsToolInteraction(toolId: tool.id) == true else { return tool.actions }
+        return tool.actions.subtracting(["ANSWER", "APPROVE", "REJECT"])
+            .subtracting(tool.actions.contains("ANSWER") ? ["CANCEL"] : [])
+    }
 
+    private var emphasized: Bool { !transcriptActions.isEmpty || expanded || tool.phase == "FAILED" }
+
+    var mailboxQuestion = false
+
+    @ViewBuilder
     var body: some View {
+        if mailboxQuestion {
+            if tool.questions.isEmpty { legacyAnswerPanel }
+            else { structuredAnswerPanel }
+        } else {
+            toolRow
+        }
+    }
+
+    @ViewBuilder
+    private var toolRow: some View {
+        if isTodoTool {
+            TodoToolCard(tool: tool, model: model, expandedToolID: $expandedToolID)
+        } else {
         VStack(alignment: .leading, spacing: 8) {
             Button {
                 if !tool.input.isEmpty || !tool.output.isEmpty || !tool.filePath.isEmpty {
@@ -1266,23 +1409,42 @@ private struct ToolStatusRow: View {
                 if !tool.output.isEmpty { detailText(model.localized("输出"), tool.output) }
             }
 
-            if tool.actions.contains("ANSWER") {
+            if transcriptActions.contains("ANSWER") {
                 if tool.questions.isEmpty {
                     legacyAnswerPanel
                 } else {
                     structuredAnswerPanel
                 }
-            } else if tool.actions.contains("APPROVE") || tool.actions.contains("REJECT") {
-                if tool.actions.contains("APPROVE") {
-                    Button(model.localized("编辑后批准")) { approvalInput = tool.input.isEmpty ? "{}" : tool.input; editingApproval.toggle() }
-                    if editingApproval { TextEditor(text: $approvalInput).frame(minHeight: 120) }
+            } else if transcriptActions.contains("APPROVE") || transcriptActions.contains("REJECT") {
+                if transcriptActions.contains("APPROVE") {
+                    HStack {
+                        Spacer(minLength: 0)
+                        Button(model.localized(editingApproval ? "收起参数" : "编辑参数")) {
+                            if !editingApproval && approvalInput.isEmpty { approvalInput = tool.input.isEmpty ? "{}" : tool.input }
+                            editingApproval.toggle()
+                        }
+                        .font(MobileDesignTypography.labelSmall.font).foregroundStyle(BitFunTheme.muted)
+                        .frame(minHeight: 32)
+                    }
+                    if editingApproval {
+                        TextEditor(text: $approvalInput).font(.system(size: MobileDesignTypography.labelSmall.size, design: .monospaced))
+                            .frame(height: 96).scrollContentBackground(.hidden)
+                            .padding(8).background(BitFunTheme.card, in: RoundedRectangle(cornerRadius: 8))
+                    }
                 }
-                HStack(spacing: 8) {
-                    if tool.actions.contains("REJECT") { toolAction(model.localized("拒绝"), primary: false) { model.rejectTool(tool.id) } }
-                    if tool.actions.contains("APPROVE") { toolAction(model.localized("允许"), primary: true) { model.approveTool(tool.id, updatedInput: editingApproval ? approvalInput : nil) }.disabled(editingApproval && ((try? JSONSerialization.jsonObject(with: Data(approvalInput.utf8))) as? [String: Any]) == nil) }
+                HStack(spacing: MobileDesignGeometry.approvalCardGap) {
+                    Spacer(minLength: 0)
+                    if transcriptActions.contains("REJECT") {
+                        compactApprovalAction(model.localized("拒绝"), primary: false) { model.rejectTool(tool.id) }
+                    }
+                    if transcriptActions.contains("APPROVE") {
+                        compactApprovalAction(model.localized("批准"), primary: true) {
+                            model.approveTool(tool.id, updatedInput: editingApproval ? approvalInput : nil)
+                        }.disabled(editingApproval && ((try? JSONSerialization.jsonObject(with: Data(approvalInput.utf8))) as? [String: Any]) == nil)
+                    }
                 }
             }
-            if tool.actions.contains("CANCEL") {
+            if transcriptActions.contains("CANCEL") {
                 Button { model.cancelTool(tool.id) } label: {
                     Text(model.localized("停止执行"))
                         .font(MobileDesignTypography.labelMedium.font).foregroundStyle(BitFunTheme.statusDanger)
@@ -1295,6 +1457,21 @@ private struct ToolStatusRow: View {
         .padding(emphasized ? 10 : 0).background(emphasized ? BitFunTheme.soft : BitFunTheme.transparent)
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay { if emphasized { RoundedRectangle(cornerRadius: 14).stroke(BitFunTheme.line, lineWidth: 1) } }
+        }
+    }
+
+    private var isTodoTool: Bool {
+        tool.kind == "TODO" || tool.operation == "UPDATE_TODOS" || tool.name.lowercased() == "todowrite"
+    }
+
+    private func compactApprovalAction(_ title: String, primary: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title).font(MobileDesignTypography.labelMedium.font).padding(.horizontal, 16)
+                .frame(height: MobileDesignGeometry.approvalActionHeight)
+                .foregroundStyle(primary ? BitFunTheme.contentOnAction : BitFunTheme.ink)
+                .background(primary ? MobileDesignColors.primaryAction : BitFunTheme.card,
+                    in: RoundedRectangle(cornerRadius: MobileDesignGeometry.approvalActionRadius))
+        }.buttonStyle(.plain)
     }
 
     private var legacyAnswerPanel: some View {
@@ -1305,7 +1482,7 @@ private struct ToolStatusRow: View {
                 .font(MobileDesignTypography.bodyLarge.font).lineLimit(2...5).padding(10)
                 .background(BitFunTheme.card).clipShape(RoundedRectangle(cornerRadius: 11))
                 .overlay(RoundedRectangle(cornerRadius: 11).stroke(BitFunTheme.line, lineWidth: 1))
-            Button { model.answerTool(tool.id, answer: answer); answer = "" } label: {
+            Button { model.answerTool(tool.id, answer: answer) } label: {
                 Text(model.localized("发送回复"))
                     .font(MobileDesignTypography.labelMedium.font).foregroundStyle(BitFunTheme.contentOnAction)
                     .frame(maxWidth: .infinity, minHeight: 40)
@@ -1341,6 +1518,7 @@ private struct ToolStatusRow: View {
                             .padding(.vertical, 5)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityIdentifier("question.option.\(tool.id).\(question.index).\(option.label)")
                         .disabled(model.busy)
                         if selected && isOther(option) {
                             TextField(model.localized("请输入回复"), text: Binding(
@@ -1365,7 +1543,7 @@ private struct ToolStatusRow: View {
                 .background(structuredAnswersValid && !model.busy ? BitFunTheme.accent : BitFunTheme.muted)
                 .clipShape(Capsule())
             }
-            .buttonStyle(.plain).disabled(!structuredAnswersValid || model.busy)
+            .buttonStyle(.plain).accessibilityIdentifier("question.submit.\(tool.id)").disabled(!structuredAnswersValid || model.busy)
         }
     }
 
@@ -1495,6 +1673,65 @@ private struct ToolStatusRow: View {
     }
 }
 
+private struct PermissionMailboxMaxHeightKey: EnvironmentKey {
+    static let defaultValue: CGFloat = 280
+}
+
+extension EnvironmentValues {
+    var permissionMailboxMaxHeight: CGFloat {
+        get { self[PermissionMailboxMaxHeightKey.self] }
+        set { self[PermissionMailboxMaxHeightKey.self] = newValue }
+    }
+}
+
+struct PermissionMailboxPanel: View {
+    @ObservedObject var model: MobileAppModel
+    @Environment(\.permissionMailboxMaxHeight) private var maxHeight
+    @State private var expandedMailboxToolID: String?
+    @State private var contentHeight: CGFloat = 1
+    var body: some View {
+        if model.surface == .remote, let mailbox = model.permissionMailbox,
+           mailbox.failed || !mailbox.requests.isEmpty || !mailbox.questions.isEmpty {
+            ScrollView {
+                VStack(alignment: .leading, spacing: MobileDesignGeometry.approvalCardGap) {
+                    if mailbox.failed {
+                        HStack {
+                            Text(model.localized("Permission request could not be completed. Retry to refresh pending requests."))
+                                .foregroundStyle(BitFunTheme.statusDanger)
+                            Button(model.localized("重试")) { model.refreshPermissionMailbox() }.disabled(mailbox.busy)
+                        }.font(MobileDesignTypography.bodySmall.font)
+                    }
+                    ForEach(mailbox.questions, id: \.id) { question in
+                        ToolStatusRow(tool: MobileAppModel.mapTool(question), model: model, expandedToolID: $expandedMailboxToolID, mailboxQuestion: true)
+                            .disabled(mailbox.busy)
+                            .simultaneousGesture(TapGesture().onEnded { model.startQuestionInteraction(question.id) })
+                    }
+                    ForEach(mailbox.requests, id: \.requestId) { request in
+                        PermissionMailboxRow(request: request, busy: mailbox.busy, model: model)
+                    }
+                }
+                .padding(.horizontal, MobileDesignGeometry.contentGutter).padding(.vertical, 8)
+                .background(GeometryReader { proxy in
+                    Color.clear.preference(key: PermissionMailboxHeightKey.self, value: proxy.size.height)
+                })
+            }
+            .frame(height: min(contentHeight, maxHeight))
+            .onPreferenceChange(PermissionMailboxHeightKey.self) { height in
+                contentHeight = height
+                #if DEBUG
+                Logger(subsystem: "com.bitfun.mobile.ios", category: "permission-mailbox").info("Mailbox layout height=\(height) limit=\(maxHeight) requests=\(mailbox.requests.count)")
+                #endif
+            }
+            .id(model.selectedSessionID)
+        }
+    }
+}
+
+private struct PermissionMailboxHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 1
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
 private struct PermissionMailboxRow: View {
     let request: PermissionMailboxRequest
     let busy: Bool
@@ -1507,16 +1744,52 @@ private struct PermissionMailboxRow: View {
         return object is [String: Any]
     }
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(request.source.isEmpty ? request.action : request.source)
-            Text(request.action)
-            Text(request.resources.joined(separator: "\n"))
-            if editing { TextEditor(text: $input).frame(minHeight: 90).disabled(busy) }
-            HStack {
-                Button(model.localized("编辑后批准")) { editing.toggle() }.disabled(busy)
-                Button(model.localized("批准")) { model.respondPermission(request.requestId, approve: true, updatedInput: editing ? input : nil) }.disabled(busy || !valid)
-                Button(model.localized("拒绝")) { model.respondPermission(request.requestId, approve: false, updatedInput: nil) }.disabled(busy)
+        VStack(alignment: .leading, spacing: MobileDesignGeometry.approvalCardGap) {
+            HStack(spacing: 8) {
+                Image("ApprovalShield").resizable().frame(width: 16, height: 16)
+                Text(request.source.isEmpty ? request.action : request.source)
+                    .font(MobileDesignTypography.bodySmall.font).foregroundStyle(BitFunTheme.ink)
+                Spacer(minLength: 8)
+                Button(model.localized(editing ? "收起参数" : "编辑参数")) { editing.toggle() }
+                    .font(MobileDesignTypography.labelSmall.font).foregroundStyle(BitFunTheme.muted)
+                    .frame(minHeight: 32).disabled(busy)
             }
-        }.padding(12)
+            if !request.source.isEmpty && request.source.lowercased() != request.action.lowercased() {
+                Text(request.action).font(MobileDesignTypography.bodySmall.font).foregroundStyle(BitFunTheme.muted)
+            }
+            if !request.resources.isEmpty {
+                Text(request.resources.joined(separator: "\n"))
+                    .font(.system(size: MobileDesignTypography.labelSmall.size, design: .monospaced))
+                    .foregroundStyle(BitFunTheme.ink).frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(10).background(BitFunTheme.soft, in: RoundedRectangle(cornerRadius: 8))
+                    .textSelection(.enabled)
+            }
+            if editing {
+                TextEditor(text: $input).font(.system(size: MobileDesignTypography.labelSmall.size, design: .monospaced))
+                    .frame(height: 96).disabled(busy).scrollContentBackground(.hidden)
+                    .padding(8).background(BitFunTheme.soft, in: RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(valid ? BitFunTheme.line : BitFunTheme.statusDanger, lineWidth: 1))
+            }
+            HStack(spacing: MobileDesignGeometry.approvalCardGap) {
+                Spacer(minLength: 0)
+                Button { model.respondPermission(request.requestId, approve: false, updatedInput: nil) } label: {
+                    Text(model.localized("拒绝")).padding(.horizontal, 16)
+                        .frame(height: MobileDesignGeometry.approvalActionHeight)
+                        .foregroundStyle(BitFunTheme.ink)
+                        .background(BitFunTheme.soft, in: RoundedRectangle(cornerRadius: MobileDesignGeometry.approvalActionRadius))
+                }.disabled(busy)
+                .accessibilityIdentifier("permission.reject.\(request.requestId)")
+                Button { model.respondPermission(request.requestId, approve: true, updatedInput: editing ? input : nil) } label: {
+                    Text(model.localized("批准")).padding(.horizontal, 16)
+                        .frame(height: MobileDesignGeometry.approvalActionHeight)
+                        .foregroundStyle(BitFunTheme.contentOnAction)
+                        .background(MobileDesignColors.primaryAction, in: RoundedRectangle(cornerRadius: MobileDesignGeometry.approvalActionRadius))
+                }.disabled(busy || !valid).opacity(busy || !valid ? 0.5 : 1)
+                .accessibilityIdentifier("permission.approve.\(request.requestId)")
+            }.font(MobileDesignTypography.labelMedium.font)
+        }
+        .buttonStyle(.plain).padding(MobileDesignGeometry.approvalCardPadding)
+        .background(BitFunTheme.card, in: RoundedRectangle(cornerRadius: MobileDesignGeometry.approvalCardRadius))
+        .overlay(RoundedRectangle(cornerRadius: MobileDesignGeometry.approvalCardRadius).stroke(BitFunTheme.line, lineWidth: 1))
     }
 }

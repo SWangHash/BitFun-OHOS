@@ -21,6 +21,7 @@ type AXValueRef = *const c_void;
 unsafe extern "C" {
     fn AXUIElementCreateSystemWide() -> AXUIElementRef;
     fn AXUIElementCreateApplication(pid: i32) -> AXUIElementRef;
+    fn AXUIElementGetPid(element: AXUIElementRef, pid: *mut i32) -> i32;
     fn AXUIElementCopyAttributeValue(
         element: AXUIElementRef,
         attribute: CFStringRef,
@@ -43,23 +44,11 @@ type CFTypeID = usize;
 unsafe extern "C" {
     fn CFRetain(cf: CFTypeRef) -> CFTypeRef;
     fn CFStringGetTypeID() -> CFTypeID;
+    fn CFEqual(a: CFTypeRef, b: CFTypeRef) -> u8;
 }
 
 const K_AX_VALUE_CGPOINT: u32 = 1;
 const K_AX_VALUE_CGSIZE: u32 = 2;
-
-/// Pid of the frontmost application, via `NSWorkspace.frontmostApplication`.
-///
-/// Reads in-process in microseconds. The previous implementation shelled out to
-/// `osascript` on every call — and this is on the hot path for
-/// `describe_screen` (which reaches it up to three times per call), so a single
-/// observation used to cost several hundred milliseconds of process spawns plus
-/// the risk of a System Events AppleEvent timeout.
-fn frontmost_pid() -> BitFunResult<i32> {
-    crate::computer_use::macos_bg_input::frontmost_pid_macos().ok_or_else(|| {
-        BitFunError::tool("NSWorkspace reported no frontmost application.".to_string())
-    })
-}
 
 unsafe fn ax_release(v: CFTypeRef) {
     unsafe {
@@ -538,9 +527,9 @@ fn element_short_desc(role: Option<&str>, title: Option<&str>) -> String {
 
 const MAX_CANDIDATES: usize = 10;
 
-/// Search the **frontmost** app's accessibility tree (BFS) for elements matching filters.
-/// Collects all matches, filters invisible/off-screen ones, ranks by relevance, returns the best.
-pub(super) fn locate_ui_element_center(
+/// Search only the explicitly selected application, even while another app is active.
+pub(super) fn locate_ui_element_center_for_pid(
+    pid: i32,
     query: &UiElementLocateQuery,
 ) -> BitFunResult<UiElementLocateResult> {
     ui_locate_common::validate_query(query)?;
@@ -551,7 +540,6 @@ pub(super) fn locate_ui_element_center(
     // cache and skip BFS entirely. `app_state_digest` (when supplied) guards
     // against stale snapshots; without it we fall back to a loose lookup.
     if let Some(idx) = query.node_idx {
-        let pid = frontmost_pid()?;
         let cached = match query.app_state_digest.as_deref() {
             Some(digest) => crate::computer_use::macos_ax_dump::cached_ref(pid, Some(digest), idx),
             None => crate::computer_use::macos_ax_dump::cached_ref_loose(pid, idx),
@@ -566,8 +554,8 @@ pub(super) fn locate_ui_element_center(
                 )));
             }
         };
-        let nt = unsafe { read_node_text(ax.0) };
-        let frame = unsafe { element_frame_global(ax.0) }.ok_or_else(|| {
+        let nt = unsafe { read_node_text(ax.reference().0) };
+        let frame = unsafe { element_frame_global(ax.reference().0) }.ok_or_else(|| {
             BitFunError::tool(format!(
                 "[AX_IDX_STALE] node_idx={} resolved but has no AXFrame (off-screen / minimised). \
                  Re-call `desktop.get_app_state`.",
@@ -599,7 +587,6 @@ pub(super) fn locate_ui_element_center(
     }
 
     let max_depth = query.max_depth.unwrap_or(48).clamp(1, 200);
-    let pid = frontmost_pid()?;
     let root = unsafe { AXUIElementCreateApplication(pid) };
     if root.is_null() {
         return Err(BitFunError::tool(
@@ -699,41 +686,26 @@ pub(super) fn locate_ui_element_center(
         // Build description for this node to pass as parent context to children
         let this_desc = element_short_desc(nt.role.as_deref(), nt.title.as_deref());
 
-        let children_ref = unsafe { ax_copy_attr(cur.ax, "AXChildren") };
+        let child_refs = unsafe { observation_children(cur.ax, cur.depth == 0) };
         let next_depth = cur.depth + 1;
         unsafe {
             ax_release(cur.ax as CFTypeRef);
         }
 
-        let Some(ch) = children_ref else {
-            continue;
-        };
-        unsafe {
-            let arr = CFArray::<*const c_void>::wrap_under_create_rule(ch as CFArrayRef);
-            let n = arr.len();
-            for i in 0..n {
-                let Some(child_ref) = arr.get(i) else {
-                    continue;
-                };
-                let child = *child_ref;
-                if child.is_null() {
-                    continue;
-                }
-                let retained = CFRetain(child as CFTypeRef) as AXUIElementRef;
-                if !retained.is_null() {
-                    bfs_queue.push_back(Queued {
-                        ax: retained,
-                        depth: next_depth,
-                        parent_desc: Some(this_desc.clone()),
-                    });
-                }
+        for retained in child_refs {
+            if !retained.is_null() {
+                bfs_queue.push_back(Queued {
+                    ax: retained,
+                    depth: next_depth,
+                    parent_desc: Some(this_desc.clone()),
+                });
             }
         }
     }
 
     if candidates.is_empty() {
         return Err(BitFunError::tool(
-            "No accessibility element matched in the frontmost app. Tips: `role_substring` **`TextArea`** also matches **`AXTextField`**; use `text_contains` for any visible label; use `filter_combine: \"any\"` for OR matching; match the UI language; ensure the target app is focused. If the AX tree is sparse, fall back to `move_to_text` (OCR) or `describe_screen` / `screenshot` to observe, or `key_chord` keyboard navigation."
+            "No accessibility element matched in the selected app. Tips: `role_substring` **`TextArea`** also matches **`AXTextField`**; use `text_contains` for any visible label; use `filter_combine: \"any\"` for OR matching; match the UI language; keep the same target app. If the AX tree is sparse, use `move_to_text` (OCR) or `describe_screen` / `screenshot` for target-scoped visual observation."
                 .to_string(),
         ));
     }
@@ -897,17 +869,15 @@ unsafe fn is_ax_interactive(elem: AXUIElementRef, role: &str) -> bool {
     }
 }
 
-/// Enumerate visible interactive elements in the frontmost app's AX tree
-/// and return a condensed text representation of the UI for context (no
-/// numbered labels rendered on the screenshot).
-pub(super) fn enumerate_ui_tree_text(max_elements: usize) -> Option<String> {
-    let pid = frontmost_pid().ok()?;
+/// Enumerate visible interactive elements in the selected app's AX tree
+/// and return a condensed text representation of the UI for context.
+pub(super) fn enumerate_ui_tree_text_for_pid(pid: i32, max_elements: usize) -> Option<String> {
     let root = unsafe { AXUIElementCreateApplication(pid) };
     if root.is_null() {
         return None;
     }
 
-    let win_bounds = frontmost_window_bounds_global().ok();
+    let win_bounds = window_bounds_global_for_pid(pid).ok();
 
     struct BfsItem {
         ax: AXUIElementRef,
@@ -999,33 +969,18 @@ pub(super) fn enumerate_ui_tree_text(max_elements: usize) -> Option<String> {
             }
         }
 
-        let children_ref = unsafe { ax_copy_attr(cur.ax, "AXChildren") };
+        let child_refs = unsafe { observation_children(cur.ax, cur.depth == 0) };
         let next_depth = cur.depth + 1;
         unsafe {
             ax_release(cur.ax as CFTypeRef);
         }
 
-        let Some(ch) = children_ref else {
-            continue;
-        };
-        unsafe {
-            let arr = CFArray::<*const c_void>::wrap_under_create_rule(ch as CFArrayRef);
-            let n = arr.len();
-            for i in 0..n {
-                let Some(child_ref) = arr.get(i) else {
-                    continue;
-                };
-                let child = *child_ref;
-                if child.is_null() {
-                    continue;
-                }
-                let retained = CFRetain(child as CFTypeRef) as AXUIElementRef;
-                if !retained.is_null() {
-                    queue.push_back(BfsItem {
-                        ax: retained,
-                        depth: next_depth,
-                    });
-                }
+        for retained in child_refs {
+            if !retained.is_null() {
+                queue.push_back(BfsItem {
+                    ax: retained,
+                    depth: next_depth,
+                });
             }
         }
     }
@@ -1074,9 +1029,21 @@ unsafe fn ax_parent_context_line(elem: AXUIElementRef) -> Option<String> {
 }
 
 /// Hit-test the accessibility element at global screen coordinates (OCR `move_to_text` disambiguation).
-pub(super) fn accessibility_hit_at_global_point(gx: f64, gy: f64) -> Option<OcrAccessibilityHit> {
+pub(super) fn accessibility_hit_at_global_point_for_pid(
+    pid: i32,
+    gx: f64,
+    gy: f64,
+) -> Option<OcrAccessibilityHit> {
+    unsafe { accessibility_hit_from_root(AXUIElementCreateApplication(pid), Some(pid), gx, gy) }
+}
+
+unsafe fn accessibility_hit_from_root(
+    sys: AXUIElementRef,
+    expected_pid: Option<i32>,
+    gx: f64,
+    gy: f64,
+) -> Option<OcrAccessibilityHit> {
     unsafe {
-        let sys = AXUIElementCreateSystemWide();
         if sys.is_null() {
             return None;
         }
@@ -1088,6 +1055,13 @@ pub(super) fn accessibility_hit_at_global_point(gx: f64, gy: f64) -> Option<OcrA
                 ax_release(elem as CFTypeRef);
             }
             return None;
+        }
+        if let Some(expected) = expected_pid {
+            let mut actual = 0;
+            if AXUIElementGetPid(elem, &mut actual) != 0 || actual != expected {
+                ax_release(elem as CFTypeRef);
+                return None;
+            }
         }
         let (role, title, ident) = read_role_title_id(elem);
         let parent_context = ax_parent_context_line(elem);
@@ -1107,15 +1081,6 @@ pub(super) fn accessibility_hit_at_global_point(gx: f64, gy: f64) -> Option<OcrA
             description: desc,
         })
     }
-}
-
-// ── Raw OCR: frontmost window bounds (separate from agent screenshot pipeline) ─────────────────
-
-/// Bounds of the foreground app's focused or main window in global screen coordinates (same space as pointer / screen capture).
-/// Used to crop **raw** pixels for Vision OCR without pointer overlays from the agent screenshot path.
-pub(super) fn frontmost_window_bounds_global() -> BitFunResult<(i32, i32, u32, u32)> {
-    let pid = frontmost_pid()?;
-    window_bounds_global_for_pid(pid)
 }
 
 /// Number of windows the app currently owns, per the AX `AXWindows` attribute.
@@ -1185,12 +1150,66 @@ pub(super) fn window_bounds_global_for_pid(pid: i32) -> BitFunResult<(i32, i32, 
     }
 }
 
-unsafe fn try_frontmost_window_element(app: AXUIElementRef) -> Option<AXUIElementRef> {
+/// Match the exact WindowServer identity retained by the capture session. The
+/// private lookup is optional: if unavailable, return no match rather than
+/// substituting another same-app window with similar bounds or title.
+pub(super) unsafe fn ax_window_id(element: AXUIElementRef) -> Option<u32> {
+    type GetWindow = unsafe extern "C" fn(AXUIElementRef, *mut u32) -> i32;
+    static LOOKUP: std::sync::OnceLock<Option<GetWindow>> = std::sync::OnceLock::new();
+    let lookup = (*LOOKUP.get_or_init(|| {
+        let symbol = unsafe { libc::dlsym(libc::RTLD_DEFAULT, c"_AXUIElementGetWindow".as_ptr()) };
+        if symbol.is_null() {
+            None
+        } else {
+            Some(unsafe { std::mem::transmute::<*mut c_void, GetWindow>(symbol) })
+        }
+    }))?;
+    let mut window_id = 0;
+    if unsafe { lookup(element, &mut window_id) } == 0 {
+        Some(window_id)
+    } else {
+        None
+    }
+}
+
+pub(super) unsafe fn try_window_element_by_id(
+    app: AXUIElementRef,
+    window_id: u32,
+) -> Option<AXUIElementRef> {
+    unsafe {
+        if let Some(raw) = ax_copy_attr(app, "AXWindows") {
+            let windows = CFArray::<*const c_void>::wrap_under_create_rule(raw as CFArrayRef);
+            for index in 0..windows.len() {
+                let Some(value) = windows.get(index) else {
+                    continue;
+                };
+                let element = *value as AXUIElementRef;
+                if !element.is_null() && ax_window_id(element) == Some(window_id) {
+                    return Some(CFRetain(element as CFTypeRef) as AXUIElementRef);
+                }
+            }
+        }
+        for name in ["AXFocusedWindow", "AXMainWindow"] {
+            if let Some(raw) = ax_copy_attr(app, name) {
+                if ax_window_id(raw as AXUIElementRef) == Some(window_id) {
+                    return Some(raw as AXUIElementRef);
+                }
+                ax_release(raw);
+            }
+        }
+    }
+    None
+}
+
+pub(super) unsafe fn try_frontmost_window_element(app: AXUIElementRef) -> Option<AXUIElementRef> {
     unsafe {
         for key in ["AXFocusedWindow", "AXMainWindow"] {
             if let Some(w) = ax_copy_attr(app, key) {
                 let elem = w as AXUIElementRef;
-                if !elem.is_null() && element_frame_global(elem).is_some() {
+                if !elem.is_null()
+                    && element_frame_global(elem).is_some()
+                    && !is_sharing_indicator_window(elem)
+                {
                     return Some(elem);
                 }
                 ax_release(w);
@@ -1271,12 +1290,65 @@ unsafe fn first_ax_window_from_ax_windows(app: AXUIElementRef) -> Option<AXUIEle
                 continue;
             }
             let (role, _, _) = read_role_title_id(retained);
-            if role.as_deref() == Some("AXWindow") && element_frame_global(retained).is_some() {
+            if role.as_deref() == Some("AXWindow")
+                && element_frame_global(retained).is_some()
+                && !is_sharing_indicator_window(retained)
+            {
                 return Some(retained);
             }
             ax_release(retained as CFTypeRef);
         }
         None
+    }
+}
+
+/// The system adds this auxiliary panel to AXWindows while sharing. It is
+/// sharing chrome, not an application dialog or an input destination.
+pub(super) unsafe fn is_sharing_indicator_window(elem: AXUIElementRef) -> bool {
+    unsafe {
+        let Some(value) = ax_copy_attr(elem, "AXChildren") else {
+            return false;
+        };
+        if CFGetTypeID(value) != core_foundation::array::CFArrayGetTypeID() {
+            ax_release(value);
+            return false;
+        }
+        let children = CFArray::<*const c_void>::wrap_under_create_rule(value as CFArrayRef);
+        let is_indicator = children.iter().any(|child| {
+            let (_, title, identifier) = read_role_title_id(*child);
+            title.as_deref() == Some("WindowSharingSessionButton")
+                || identifier.as_deref() == Some("WindowSharingSessionButton")
+        });
+        is_indicator
+    }
+}
+
+unsafe fn observation_children(elem: AXUIElementRef, app_root: bool) -> Vec<AXUIElementRef> {
+    unsafe {
+        let mut result = Vec::new();
+        let attrs: &[&str] = if app_root {
+            &["AXChildren", "AXWindows"]
+        } else {
+            &["AXChildren"]
+        };
+        for key in attrs {
+            let Some(value) = ax_copy_attr(elem, key) else {
+                continue;
+            };
+            if CFGetTypeID(value) != core_foundation::array::CFArrayGetTypeID() {
+                ax_release(value);
+                continue;
+            }
+            let children = CFArray::<*const c_void>::wrap_under_create_rule(value as CFArrayRef);
+            for child in children.iter() {
+                let child = *child;
+                if child.is_null() || result.iter().any(|known| CFEqual(*known, child) != 0) {
+                    continue;
+                }
+                result.push(CFRetain(child));
+            }
+        }
+        result
     }
 }
 
@@ -1345,7 +1417,7 @@ mod tests {
         let scope_end = src.find("#[cfg(test)]").unwrap_or(src.len());
         let scope = &src[..scope_end];
         let err_start = scope
-            .find("No accessibility element matched in the frontmost app")
+            .find("No accessibility element matched in the selected app")
             .expect("no-match error string present");
         let err_end = scope[err_start..]
             .find('\n')

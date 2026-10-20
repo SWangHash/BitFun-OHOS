@@ -56,6 +56,12 @@ cargo check --manifest-path BitFun-Installer/src-tauri/Cargo.toml      # Tauri/R
 cargo test --manifest-path BitFun-Installer/src-tauri/Cargo.toml --lib preview::tests
 ```
 
+修改 ZIP 依赖或解压逻辑时，验证旧版安装器载荷的兼容性：
+
+```bash
+cargo test --manifest-path BitFun-Installer/src-tauri/Cargo.toml --lib installer::extract::tests
+```
+
 只有修改打包、payload、native bundling、安装/卸载流程、注册表、快捷方式或解压逻辑时，才运行完整安装器构建：
 
 ```bash

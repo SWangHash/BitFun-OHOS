@@ -8,101 +8,18 @@ import { create, useStore } from 'zustand';
 import { createContext, useContext } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { immer } from 'zustand/middleware/immer';
-import type { Session, DialogTurn, ModelRound, ModelRoundAttempt, FlowItem, FlowThinkingItem, FlowToolItem, FlowUserSteeringItem, AnyFlowItem, TokenUsage } from '../types/flow-chat';
-import {
-  isCollapsibleTool,
-  READ_TOOL_NAMES,
-  SEARCH_TOOL_NAMES,
-  COMMAND_TOOL_NAMES,
-} from '../tool-cards/toolCardMetadata';
+import type { Session, DialogTurn, ModelRound, ModelRoundAttempt, FlowThinkingItem, FlowToolItem, FlowUserSteeringItem, AnyFlowItem } from '../types/flow-chat';
 import { flowChatStore } from './FlowChatStore';
-import { getEffectiveToolName } from '../utils/toolInvocationIdentity';
-import {
-  getTurnCompletionNotice,
-  type TurnCompletionNotice,
-} from '../utils/turnCompletionNotice';
+import { getTurnCompletionNotice } from '../utils/turnCompletionNotice';
 import { createAbsoluteSessionTurnIndexResolver } from '../utils/flowChatTurnOrdinal';
-import { parseDeepResearchContent } from '../deep-research/deepResearchProtocol';
 import { collectCanvasArtifactToolItems } from '../utils/canvasArtifactPresentation';
+import { projectAdjacentFlowGroups } from '../grouping/groupProjection';
+import { hasModelRoundNarrative } from '../grouping/roundGroups';
+import { isSuppressedBackgroundTurn } from '../utils/backgroundDelivery';
 
-/**
- * Explore group statistics (merged computed stats)
- */
-export interface ExploreGroupStats {
-  readCount: number;
-  searchCount: number;
-  commandCount: number;
-}
-
-/**
- * Explore group data (for explore-group type VirtualItem)
- * Merges consecutive explore-only rounds into a single render unit
- */
-export interface ExploreGroupData {
-  groupId: string;
-  rounds: ModelRound[];
-  allItems: FlowItem[];
-  stats: ExploreGroupStats;
-  isGroupStreaming: boolean;
-  isLastGroupInTurn: boolean;
-  /**
-   * True when this group is no longer the tail of the turn. Expansion no
-   * longer depends on this flag; it is retained for bounded tail presentation
-   * and projection diagnostics.
-   */
-  wasCutByCritical: boolean;
-}
-
-/**
- * Virtualized render unit
- * Used for virtual scrolling, flattens DialogTurn into renderable items
- */
-export type VirtualItem =
-  | {
-      type: 'user-message';
-      data: DialogTurn['userMessage'];
-      turnId: string;
-      absoluteTurnIndex?: number;
-      turnStatus?: DialogTurn['status'];
-    }
-  | {
-      type: 'user-steering-message';
-      data: NonNullable<DialogTurn['userMessage']>;
-      turnId: string;
-      steeringId: string;
-      steeringStatus: FlowUserSteeringItem['status'];
-    }
-  | {
-      type: 'model-round';
-      data: ModelRound;
-      turnId: string;
-      isLastRound: boolean;
-      isTurnComplete: boolean;
-      layoutHints?: {
-        expandedThinkingItemIds: string[];
-      };
-      turnStartedAt?: number;
-      turnEndedAt?: number;
-      turnDurationMs?: number;
-      turnTokenUsage?: TokenUsage;
-      canvasArtifactItems?: FlowToolItem[];
-    }
-  | { type: 'explore-group'; data: ExploreGroupData; turnId: string }
-  | { type: 'turn-completion-notice'; data: TurnCompletionNotice; turnId: string }
-  | {
-      type: 'turn-failure-notice';
-      data: {
-        error: string;
-        errorDetail?: DialogTurn['errorDetail'];
-      };
-      turnId: string;
-    }
-  | { type: 'image-analyzing'; turnId: string }
-  | {
-      type: 'qt-toolchain-provision';
-      data: NonNullable<FlowToolItem['qtToolchainProvision']>;
-      turnId: string;
-    };
+import type { VirtualItem } from '../types/flow-chat-projection';
+export type { VirtualItem } from '../types/flow-chat-projection';
+export type { ExploreGroupStats, ToolGroupData, ExploreGroupData, ContextLoadGroupData, CollapsibleToolGroupData } from '../grouping/types';
 
 /**
  * Currently visible turn information
@@ -124,101 +41,6 @@ export interface ModernFlowChatState {
   updateVirtualItems: () => void;
   setVisibleTurnInfo: (info: VisibleTurnInfo | null) => void;
   clear: () => void;
-}
-
-/**
- * Check if ModelRound is explore-only (contains only exploration tools)
- * Explore-only rounds can be collapsed
- * 
- * Key check: the round must be fully settled and contain at least one
- * collapsible tool. Active rounds stay as ordinary model-round items so a
- * running tool is never hidden inside a collapsed explore group.
- * Pure text rounds (like final replies) should not be collapsed.
- */
-function hasTrailingVisibleText(round: ModelRound): boolean {
-  for (let index = round.items.length - 1; index >= 0; index -= 1) {
-    const item = round.items[index];
-    if (!item || item.type === 'user-steering') {
-      continue;
-    }
-
-    if (item.type !== 'text') {
-      return false;
-    }
-
-    return typeof item.content === 'string' && item.content.trim().length > 0;
-  }
-
-  return false;
-}
-
-function isExploreOnlyRound(round: ModelRound): boolean {
-  if (!round.items || round.items.length === 0) return false;
-
-  if (
-    !isTerminalRoundStatus(round.status) ||
-    round.isStreaming ||
-    !round.isComplete ||
-    round.items.some(isActiveFlowItem)
-  ) {
-    return false;
-  }
-
-  if (round.renderHints?.disableExploreGrouping === true || round.renderHints?.continuedAfterInterruption) {
-    return false;
-  }
-
-  if (hasTrailingVisibleText(round)) {
-    return false;
-  }
-
-  // Deep Research markers are user-visible progress, not narrative attached to
-  // an exploration tool. Keep their round stable and outside collapsed explore
-  // groups after the tool settles. Check this after trailing text so ordinary
-  // final responses stay on the existing constant-time path.
-  if (round.items.some(item => (
-    item.type === 'text' && parseDeepResearchContent(item.content).hasProtocol
-  ))) {
-    return false;
-  }
-  
-  const hasCollapsibleTool = round.items.some(item => 
-    item.type === 'tool' && isCollapsibleTool(getEffectiveToolName(item as FlowToolItem))
-  );
-  
-  const hasAnyTool = round.items.some(item => item.type === 'tool');
-  if (!hasAnyTool) return false;
-  
-  if (!hasCollapsibleTool) return false;
-  
-  const allItemsCollapsible = round.items.every(item => {
-    if (item.type === 'tool') {
-      return isCollapsibleTool(getEffectiveToolName(item as FlowToolItem));
-    }
-    return item.type === 'text' || item.type === 'thinking';
-  });
-  
-  return allItemsCollapsible;
-}
-
-/**
- * Compute statistics for a single ModelRound
- */
-function computeRoundStats(round: ModelRound): ExploreGroupStats {
-  let readCount = 0;
-  let searchCount = 0;
-  let commandCount = 0;
-  
-  for (const item of round.items) {
-    if (item.type === 'tool') {
-      const toolName = getEffectiveToolName(item as FlowToolItem);
-      if (READ_TOOL_NAMES.has(toolName)) readCount++;
-      else if (SEARCH_TOOL_NAMES.has(toolName)) searchCount++;
-      else if (COMMAND_TOOL_NAMES.has(toolName)) commandCount++;
-    }
-  }
-  
-  return { readCount, searchCount, commandCount };
 }
 
 function steeringItemToUserMessage(item: FlowUserSteeringItem): NonNullable<DialogTurn['userMessage']> {
@@ -292,10 +114,11 @@ let cachedDialogTurnsRef: DialogTurn[] | null = null;
 let cachedTurnCatalogRef: Session['turnCatalog'] | undefined;
 let cachedIsPartial: boolean | undefined;
 let cachedTotalTurnCount: number | undefined;
+let cachedNeedsUserAttention: Session['needsUserAttention'];
 let cachedVirtualItems: VirtualItem[] = [];
 let cachedTurnItems = new WeakMap<
   DialogTurn,
-  { items: VirtualItem[]; hasNewerDialogTurn: boolean; absoluteTurnIndex: number }
+  { items: VirtualItem[]; hasNewerDialogTurn: boolean; absoluteTurnIndex: number; backgroundCollapsed?: boolean }
 >();
 
 /**
@@ -305,7 +128,7 @@ let cachedTurnItems = new WeakMap<
  * 1. Uses references directly, relies on FlowChatStore immutable updates to detect reference changes
  * 2. Memoization cache: only recalculates when dialogTurns reference changes
  * 
- * Explore group merging: consecutive explore-only rounds merged into single explore-group VirtualItem
+ * Stable model-round rows host category groups from first execution through completion.
  */
 export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
   if (!session) {
@@ -326,16 +149,17 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
     cachedDialogTurnsRef === session.dialogTurns &&
     cachedTurnCatalogRef === session.turnCatalog &&
     cachedIsPartial === session.isPartial &&
-    cachedTotalTurnCount === session.totalTurnCount
+    cachedTotalTurnCount === session.totalTurnCount && cachedNeedsUserAttention === session.needsUserAttention
   ) {
     return cachedVirtualItems;
   }
-
+  
   cachedSession = session;
   cachedDialogTurnsRef = session.dialogTurns;
   cachedTurnCatalogRef = session.turnCatalog;
   cachedIsPartial = session.isPartial;
   cachedTotalTurnCount = session.totalTurnCount;
+  cachedNeedsUserAttention = session.needsUserAttention;
 
   const items: VirtualItem[] = [];
   const resolveAbsoluteTurnIndex = createAbsoluteSessionTurnIndexResolver(session);
@@ -343,14 +167,20 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
   session.dialogTurns.forEach((turn, turnIndex) => {
     const hasNewerDialogTurn = turnIndex < session.dialogTurns.length - 1;
     const absoluteTurnIndex = resolveAbsoluteTurnIndex(turnIndex);
+    const backgroundCollapsed = isSuppressedBackgroundTurn(turn) && !session.needsUserAttention;
     const cachedItems = cachedTurnItems.get(turn);
     if (
       cachedItems &&
       cachedItems.hasNewerDialogTurn === hasNewerDialogTurn &&
-      cachedItems.absoluteTurnIndex === absoluteTurnIndex &&
-      isStableTurnProjection(turn)
+      cachedItems.absoluteTurnIndex === absoluteTurnIndex && Boolean(cachedItems.backgroundCollapsed) === Boolean(backgroundCollapsed)
     ) {
       items.push(...cachedItems.items);
+      return;
+    }
+    if (backgroundCollapsed) {
+      const backgroundItems: VirtualItem[] = [{ type: 'background-run', data: turn.userMessage, turn, turnId: turn.id, absoluteTurnIndex, turnStatus: turn.status }];
+      items.push(...backgroundItems);
+      if (isStableTurnProjection(turn)) cachedTurnItems.set(turn, { items: backgroundItems, hasNewerDialogTurn, absoluteTurnIndex, backgroundCollapsed: true });
       return;
     }
     const turnItemStart = items.length;
@@ -410,6 +240,9 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
           !continuedAfterInterruption &&
           lastRenderEntry?.type === 'round' &&
           !lastRenderEntry.round.renderHints?.continuedAfterInterruption &&
+          // A shared group id alone does not make earlier successful prose a
+          // superseded retry. Preserve its original place in the transcript.
+          (lastRenderEntry.round.status === 'error' || !hasModelRoundNarrative(lastRenderEntry.round)) &&
           lastRenderEntry.round.roundGroupId === normalizedRound.roundGroupId
         ) {
           lastRenderEntry.round = mergeRoundGroupForDisplay(lastRenderEntry.round, normalizedRound);
@@ -432,158 +265,44 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
     const canvasAttachmentHostRoundId = [...renderEntries]
       .reverse()
       .find((entry): entry is Extract<(typeof renderEntries)[number], { type: 'round' }> => (
-        entry.type === 'round' && !isExploreOnlyRound(entry.round)
+        entry.type === 'round'
       ))
       ?.round.id;
 
-    const flushRoundEntries = (
-      rounds: ModelRound[],
-      options: {
-        collapseTrailingExploreGroup: boolean;
-        /**
-         * False when a following row (a steering message, the provisioning row)
-         * cuts this slice before the turn's round tail. The turn-tail marks —
-         * `isLastRound`, the trailing thinking expansion, the trailing explore
-         * group's auto-scroll — belong to the real tail only, or the slice's last
-         * round would render the completion footer in the middle of the turn.
-         */
-        marksTurnTail: boolean;
-      },
-    ) => {
-      if (rounds.length === 0) return;
-
-      interface TempExploreGroup {
-        rounds: ModelRound[];
-        allItems: FlowItem[];
-        readCount: number;
-        searchCount: number;
-        commandCount: number;
-        startIndex: number;
-        endIndex: number;
-      }
-
-      const tempGroups: TempExploreGroup[] = [];
-      let currentGroup: TempExploreGroup | null = null;
-
-      rounds.forEach((round, index) => {
-        const exploreOnly = isExploreOnlyRound(round);
-        if (exploreOnly) {
-          const stats = computeRoundStats(round);
-          if (currentGroup) {
-            currentGroup.rounds.push(round);
-            currentGroup.allItems.push(...round.items);
-            currentGroup.readCount += stats.readCount;
-            currentGroup.searchCount += stats.searchCount;
-            currentGroup.commandCount += stats.commandCount;
-            currentGroup.endIndex = index;
-          } else {
-            currentGroup = {
-              rounds: [round],
-              allItems: [...round.items],
-              readCount: stats.readCount,
-              searchCount: stats.searchCount,
-              commandCount: stats.commandCount,
-              startIndex: index,
-              endIndex: index,
-            };
-          }
-        } else {
-          if (currentGroup) {
-            tempGroups.push(currentGroup);
-            currentGroup = null;
-          }
-        }
+    const flushRoundEntries = (rounds: ModelRound[]) => {
+      rounds.forEach((round, roundIndex) => {
+        // Keep the same owner row when a tool or model round completes.
+        const trailingItem = round.items.at(-1);
+        const shouldExpandTrailingThinking = roundIndex === rounds.length - 1
+          && trailingItem?.type === 'thinking'
+          && (trailingItem as FlowThinkingItem).reasoningKind !== 'summary'
+          && ((trailingItem as FlowThinkingItem).isStreaming || trailingItem.status === 'streaming');
+        items.push({
+          type: 'model-round',
+          data: round,
+          turnId: turn.id,
+          isLastRound: roundIndex === rounds.length - 1,
+          isTurnComplete,
+          layoutHints: {
+            expandedThinkingItemIds: shouldExpandTrailingThinking
+              ? [trailingItem.id]
+              : [],
+          },
+          turnStartedAt: turn.startTime,
+          turnEndedAt: turn.endTime,
+          turnDurationMs: typeof turn.endTime === 'number'
+            ? Math.max(0, turn.endTime - turn.startTime)
+            : undefined,
+          turnTokenUsage: turn.tokenUsage,
+          canvasArtifactItems: isTurnComplete && round.id === canvasAttachmentHostRoundId
+            ? canvasArtifactItems
+            : undefined,
+        });
       });
-
-      // Flush the trailing settled explore group. Active rounds never enter a
-      // group and remain visible as ordinary model-round items until terminal.
-      if (currentGroup) {
-        tempGroups.push(currentGroup);
-      }
-
-      let roundIndex = 0;
-      let groupIndex = 0;
-
-      while (roundIndex < rounds.length) {
-        const round = rounds[roundIndex];
-        const group = tempGroups[groupIndex];
-
-        if (group && group.startIndex === roundIndex) {
-          const isLastGroupInTurn =
-            options.marksTurnTail &&
-            group.endIndex === rounds.length - 1 &&
-            !options.collapseTrailingExploreGroup;
-          const isGroupStreaming = group.rounds.some(
-            r => r.isStreaming || r.items.some(isActiveFlowItem),
-          );
-          const wasCutByCritical =
-            !options.marksTurnTail ||
-            group.endIndex < rounds.length - 1 ||
-            options.collapseTrailingExploreGroup;
-
-          const groupId = group.rounds[0]?.id ?? `explore-group-${turn.id}-${group.startIndex}`;
-
-          items.push({
-            type: 'explore-group',
-            turnId: turn.id,
-            data: {
-              groupId,
-              rounds: group.rounds,
-              allItems: group.allItems,
-              stats: {
-                readCount: group.readCount,
-                searchCount: group.searchCount,
-                commandCount: group.commandCount,
-              },
-              isGroupStreaming,
-              isLastGroupInTurn,
-              wasCutByCritical,
-            },
-          });
-
-          roundIndex = group.endIndex + 1;
-          groupIndex++;
-        } else {
-          // One round is always exactly one virtual item. Splitting a completed
-          // round into segments swaps a single virtual-item key for N new keys,
-          // which remounts the visible assistant message and flashes the pane.
-          const trailingItem = round.items.at(-1);
-          const shouldExpandTrailingThinking = options.marksTurnTail
-            && roundIndex === rounds.length - 1
-            && trailingItem?.type === 'thinking'
-            && (trailingItem as FlowThinkingItem).reasoningKind !== 'summary';
-          items.push({
-            type: 'model-round',
-            data: round,
-            turnId: turn.id,
-            isLastRound: options.marksTurnTail && roundIndex === rounds.length - 1,
-            isTurnComplete,
-            layoutHints: {
-              expandedThinkingItemIds: shouldExpandTrailingThinking
-                ? [trailingItem.id]
-                : [],
-            },
-            turnStartedAt: turn.startTime,
-            turnEndedAt: turn.endTime,
-            turnDurationMs: typeof turn.endTime === 'number'
-              ? Math.max(0, turn.endTime - turn.startTime)
-              : undefined,
-            turnTokenUsage: turn.tokenUsage,
-            canvasArtifactItems: isTurnComplete && round.id === canvasAttachmentHostRoundId
-              ? canvasArtifactItems
-              : undefined,
-          });
-          roundIndex++;
-        }
-      }
     };
 
     const completionNotice = getTurnCompletionNotice(turn);
     const hasFailureNotice = turn.status === 'error' && Boolean(turn.error || turn.errorDetail);
-    const collapseTrailingExploreGroupForTurnTail =
-      hasNewerDialogTurn ||
-      completionNotice !== null ||
-      hasFailureNotice;
 
     // The runtime provisioning that follows an accepted `__official__` toolchain
     // answer gets a row of its own, placed right after the round that owns the
@@ -614,10 +333,6 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
     const provisioningRow = provisioning && provisioningEntryIndex >= 0
       ? { type: 'qt-toolchain-provision' as const, turnId: turn.id, data: provisioning }
       : null;
-    const provisioningIsTurnTail = provisioningRow !== null
-      && !renderEntries.some(
-        (entry, index) => index > provisioningEntryIndex && entry.type === 'round',
-      );
 
     let pendingRounds: ModelRound[] = [];
 
@@ -627,22 +342,14 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
         if (provisioningRow && entryIndex === provisioningEntryIndex) {
           // Later rounds must render below the install row so it is superseded by
           // the following output instead of being pinned to the turn tail.
-          flushRoundEntries(pendingRounds, {
-            collapseTrailingExploreGroup: provisioningIsTurnTail
-              ? collapseTrailingExploreGroupForTurnTail
-              : true,
-            marksTurnTail: provisioningIsTurnTail,
-          });
+          flushRoundEntries(pendingRounds);
           pendingRounds = [];
           items.push(provisioningRow);
         }
         return;
       }
 
-      flushRoundEntries(pendingRounds, {
-        collapseTrailingExploreGroup: true,
-        marksTurnTail: true,
-      });
+      flushRoundEntries(pendingRounds);
       pendingRounds = [];
 
       items.push({
@@ -654,10 +361,7 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
       });
     });
 
-    flushRoundEntries(pendingRounds, {
-      collapseTrailingExploreGroup: collapseTrailingExploreGroupForTurnTail,
-      marksTurnTail: true,
-    });
+    flushRoundEntries(pendingRounds);
 
     if (provisioning && !provisioningRow) {
       items.push({
@@ -685,6 +389,9 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
         },
       });
     }
+
+    const projectedTurnItems = projectAdjacentFlowGroups(items.slice(turnItemStart), { isTurnComplete });
+    items.splice(turnItemStart, items.length - turnItemStart, ...projectedTurnItems);
 
     if (isStableTurnProjection(turn)) {
       cachedTurnItems.set(turn, {

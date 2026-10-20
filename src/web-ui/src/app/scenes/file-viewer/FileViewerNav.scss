@@ -7,10 +7,6 @@
   max-inline-size: none;
   background: transparent;
 
-  &__panel-header {
-    padding: 0;
-  }
-
   &__body {
     padding: 0;
     overflow: hidden;
@@ -39,56 +35,16 @@
     align-items: center;
     flex-shrink: 0;
     gap: calc(var(--bitfun-space-1) / 2);
-  }
 
-  &__workspace {
-    display: flex;
-    align-items: center;
-    gap: var(--bitfun-space-1);
-    padding: var(--bitfun-space-1) var(--bitfun-space-2);
-    border-bottom: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
-    min-inline-size: 0;
-  }
+    @media (hover: hover) and (pointer: fine) {
+      opacity: 0;
+      pointer-events: none;
 
-  &__workspace-button {
-    display: flex;
-    align-items: center;
-    gap: var(--bitfun-space-2);
-    flex: 1;
-    min-inline-size: 0;
-    min-block-size: var(--bitfun-layout-navigation-panel-item-height);
-    padding: var(--bitfun-space-1) var(--bitfun-space-2);
-    border: 0;
-    border-radius: var(--bitfun-layout-navigation-panel-item-radius);
-    background: transparent;
-    color: var(--bitfun-color-content-primary);
-    font: inherit;
-    font-size: var(--bitfun-type-label-md-font-size);
-    font-weight: var(--bitfun-type-label-selected-font-weight);
-    line-height: var(--bitfun-type-label-md-line-height);
-    text-align: start;
-    cursor: pointer;
-
-    &:hover:not(:disabled) { background: var(--bitfun-color-action-quiet-hover); }
-    &:disabled { cursor: default; }
-    > [data-bitfun-component='icon'] { color: var(--bitfun-color-content-muted); }
-  }
-
-  &__workspace-name {
-    flex: 1;
-    min-inline-size: 0;
-  }
-
-  &__location {
-    display: flex;
-    align-items: center;
-    flex: 0 1 auto;
-    min-inline-size: 0;
-    max-inline-size: 40%;
-
-    > [data-bitfun-component='status-pill'] {
-      min-inline-size: 0;
-      max-inline-size: 100%;
+      .bitfun-file-viewer-nav__section:hover &,
+      &:has(:focus-visible) {
+        opacity: 1;
+        pointer-events: auto;
+      }
     }
   }
 
@@ -101,14 +57,25 @@
   }
 
   &__section {
+    position: relative;
     display: flex;
     flex-direction: column;
     min-block-size: var(--bitfun-control-height-sm);
     overflow: hidden;
   }
 
-  &__section--terminals {
-    border-top: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+  // This section is pinned to the bottom of a flexible split. At fractional
+  // desktop scale factors, its 1px top rule can rasterize across two device
+  // pixels. Use a hairline here so it matches the one-device-pixel rules above.
+  &__section--terminals::before {
+    position: absolute;
+    inset-inline: var(--bitfun-space-2);
+    top: 0;
+    z-index: var(--bitfun-layer-decoration);
+    height: 0.5px;
+    background: var(--bitfun-color-border-default);
+    content: '';
+    pointer-events: none;
   }
 
   &__section-toggle {
@@ -247,7 +214,7 @@
     font-size: var(--bitfun-type-label-sm-font-size);
     line-height: var(--bitfun-type-body-sm-line-height);
   }
-  &__workspace-button:focus-visible, &__section-toggle:focus-visible,
+  &__section-toggle:focus-visible,
   &__terminal-open:focus-visible, &__divider:focus-visible {
     outline: 2px solid var(--bitfun-color-focus-ring);
     outline-offset: -2px;

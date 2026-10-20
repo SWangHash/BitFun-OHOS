@@ -1,3 +1,4 @@
+import { lazyWithRecovery } from '@/shared/utils/lazyWithRecovery';
 import { OverflowText } from '@bitfun/ui';
 /**
  * Main application layout.
@@ -9,9 +10,10 @@ import { OverflowText } from '@bitfun/ui';
  * TitleBar removed; window controls moved to NavBar, dialogs managed here.
  */
 
-import React, { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useContext, lazy, Suspense } from 'react';
+import React, { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useContext, Suspense } from 'react';
 import { useWorkspaceContext } from '../../infrastructure/contexts/WorkspaceContext';
 import { useWindowControls } from '../hooks/useWindowControls';
+import { useFullscreenChrome } from '../hooks/useFullscreenChrome';
 import { isWindowFullscreenShortcut } from '../hooks/windowFullscreenShortcut';
 import { usePermissionRequestNotify } from '../hooks/usePermissionRequestNotify';
 import { useApp } from '../hooks/useApp';
@@ -23,7 +25,7 @@ import { isSurfaceChangedError } from '@/infrastructure/peer-device/deviceSurfac
 import WorkspaceBody from './WorkspaceBody';
 import { useToolbarModeContext } from '../../flow_chat/components/toolbar-mode/ToolbarModeContext';
 import { MCPInteractionDialog } from '../components/MCPInteractionDialog/MCPInteractionDialog';
-import { workspaceAPI } from '@/infrastructure/api';
+import { createProject } from '../services/createProject';
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
 import type { CloseBehavior } from '@/infrastructure/api/service-api/SystemAPI';
 import { RetainedMountBoundary } from '@/shared/presence';
@@ -51,22 +53,22 @@ import './AppLayout.scss';
 type TransitionDirection = 'entering' | 'returning' | null;
 
 const log = createLogger('AppLayout');
-const NewProjectDialog = lazy(() =>
+const NewProjectDialog = lazyWithRecovery(() =>
   import('../components/NewProjectDialog').then(module => ({ default: module.NewProjectDialog }))
 );
-const ToolbarMode = lazy(() =>
+const ToolbarMode = lazyWithRecovery(() =>
   import('../../flow_chat/components/toolbar-mode/ToolbarMode').then(module => ({
     default: module.ToolbarMode,
   }))
 );
-const FloatingMiniChat = lazy(() =>
+const FloatingMiniChat = lazyWithRecovery(() =>
   import('./FloatingMiniChat').then(module => ({ default: module.FloatingMiniChat }))
 );
-const AboutDialog = lazy(() =>
+const AboutDialog = lazyWithRecovery(() =>
   import('../components/AboutDialog').then(module => ({ default: module.AboutDialog }))
 );
-const WorkspaceManager = lazy(() => import('../../tools/workspace/components/WorkspaceManager'));
-const AgentCompanionInAppPet = lazy(() =>
+const WorkspaceManager = lazyWithRecovery(() => import('../../tools/workspace/components/WorkspaceManager'));
+const AgentCompanionInAppPet = lazyWithRecovery(() =>
   import('../components/AgentCompanionDesktopPet/AgentCompanionInAppPet')
 );
 
@@ -136,6 +138,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
     canUseNativeWindowControls,
   } =
     useWindowControls({ isToolbarMode });
+  const { isFullscreenChrome } = useFullscreenChrome(isFullscreen);
 
   const { state, switchLeftPanelTab, toggleLeftPanel, toggleRightPanel } = useApp();
   const [windowModeHint, setWindowModeHint] = useState<WindowModeHint | null>(null);
@@ -256,18 +259,6 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
   const handleNewProject = useCallback(() => setShowNewProjectDialog(true), []);
   const handleShowAbout = useCallback(() => setShowAboutDialog(true), []);
 
-  const handleConfirmNewProject = useCallback(async (parentPath: string, projectName: string) => {
-    const normalized = parentPath.replace(/\\/g, '/');
-    const newProjectPath = `${normalized}/${projectName}`;
-    try {
-      await workspaceAPI.createDirectory(newProjectPath);
-      await openWorkspace(newProjectPath);
-    } catch (error) {
-      log.error('Failed to create project', error);
-      throw error;
-    }
-  }, [openWorkspace]);
-
   // Listen for nav-panel events dispatched by the workspace area
   useEffect(() => {
     const onOpenProject = () => { void handleOpenProject(); };
@@ -344,7 +335,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
             currentWorkspace.workspaceKind === WorkspaceKind.Assistant
               ? 'Claw'
               : explicitPreferredMode;
-          sessionId = await flowChatManager.createChatSession(
+          sessionId = await flowChatManager.createChatDraft(
             flowChatSessionConfigForWorkspace(currentWorkspace),
             initialSessionMode,
           );
@@ -615,7 +606,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
       }
       const flowChatManager = FlowChatManager.getInstance();
       const sessionConfig = flowChatSessionConfigForWorkspace(currentWorkspace);
-      const sessionId = await flowChatManager.createChatSession(sessionConfig);
+      const sessionId = await flowChatManager.createChatDraft(sessionConfig);
       await openMainSession(sessionId);
     } catch (error) {
       log.error('Failed to create FlowChat session', error);
@@ -703,6 +694,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
     isMacOS ? 'bitfun-app-layout--macos' : '',
     className,
     isFullscreen ? 'bitfun-app-layout--window-fullscreen' : '',
+    isFullscreenChrome ? 'bitfun-app-layout--fullscreen-chrome' : '',
     isTransitioning ? 'bitfun-app-layout--transitioning' : '',
   ].filter(Boolean).join(' ');
 
@@ -798,8 +790,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
           <NewProjectDialog
             isOpen={showNewProjectDialog}
             onClose={() => setShowNewProjectDialog(false)}
-            onConfirm={handleConfirmNewProject}
-            defaultParentPath={hasWorkspace ? currentWorkspace?.rootPath : undefined}
+            onConfirm={createProject}
+            defaultParentPath={hasWorkspace && currentWorkspace?.workspaceKind !== WorkspaceKind.Remote ? currentWorkspace?.rootPath : undefined}
           />
         </Suspense>
       </RetainedMountBoundary>

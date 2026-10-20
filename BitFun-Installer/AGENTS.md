@@ -61,8 +61,14 @@ cargo test --manifest-path BitFun-Installer/src-tauri/Cargo.toml --lib preview::
 For installer payload validation and the independent Data Migrator boundary, run:
 
 ```bash
-node --test BitFun-Installer/scripts/build-installer.test.cjs scripts/data-migrator-tauri-build.test.mjs
+node --test BitFun-Installer/scripts/build-installer.test.cjs scripts/data-tools-tauri-build.test.mjs
 cargo test --manifest-path BitFun-Installer/src-tauri/Cargo.toml --lib installer::commands::tests
+```
+
+For ZIP dependency or extraction changes, verify compatibility with old installer payloads:
+
+```bash
+cargo test --manifest-path BitFun-Installer/src-tauri/Cargo.toml --lib installer::extract::tests
 ```
 
 Run the full installer build only for packaging, payload, native bundling,

@@ -1,5 +1,3 @@
-@use '../../markdown-typography' as markdownTypography;
-
 .bitfun-conversation-mode-surface {
   flex: 1;
   min-width: 0;
@@ -88,8 +86,6 @@
   width: 20px;
   height: 20px;
   background: currentColor;
-  mask: url('/brand/bitfun-mark.svg') center / contain no-repeat;
-  -webkit-mask: url('/brand/bitfun-mark.svg') center / contain no-repeat;
 }
 
 .bitfun-conversation-mode-surface--integrated {
@@ -194,10 +190,6 @@
 .bitfun-conversation-mode-surface__composer-content { min-height: 0; overflow: hidden; }
 .bitfun-conversation-mode-surface__transcript {
   .markdown-renderer { white-space: normal; }
-
-  &[data-bitfun-presentation='chat'] {
-    @include markdownTypography.apply;
-  }
 }
 
 .bitfun-conversation-mode-surface__transcript[data-bitfun-presentation='voice'] .markdown-renderer {

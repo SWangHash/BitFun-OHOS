@@ -67,11 +67,11 @@ pub(crate) fn clear() -> &'static str {
 }
 
 pub(crate) fn send_keys() -> &'static str {
-    "(id, text) => { const el = window.__bitfunWd.getElement(id); if (!el) { throw new Error('Element not found'); } window.__bitfunWd.insertText(el, text); return null; }"
+    "(id, text) => { const el = window.__bitfunWd.getElement(id); if (!el) { throw new Error('Element not found'); } if ('value' in el || el.isContentEditable) { window.__bitfunWd.scrollElementIntoView(el); window.__bitfunWd.focusWithoutScroll(el); } window.__bitfunWd.insertText(el, text); return null; }"
 }
 
 pub(crate) fn screenshot_metadata() -> &'static str {
-    "(id) => { const el = window.__bitfunWd.getElement(id); if (!el || !el.isConnected) { throw new Error('stale element reference'); } el.scrollIntoView({ block: 'center', inline: 'center' }); const rect = el.getBoundingClientRect(); return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, devicePixelRatio: window.devicePixelRatio || 1 }; }"
+    "(id) => { const el = window.__bitfunWd.getElement(id); if (!el || !el.isConnected) { throw new Error('stale element reference'); } window.__bitfunWd.scrollElementIntoView(el); const rect = el.getBoundingClientRect(); return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, devicePixelRatio: window.devicePixelRatio || 1 }; }"
 }
 
 pub(crate) fn get_shadow_root() -> &'static str {

@@ -5,6 +5,10 @@
     overscroll-behavior: contain;
   }
 
+  .root[data-bitfun-overscroll-behavior-y="auto"] {
+    overscroll-behavior-y: auto;
+  }
+
   .root[data-bitfun-orientation="vertical"] {
     overflow-x: hidden;
     overflow-y: auto;
@@ -29,5 +33,53 @@
 
   .root[data-bitfun-orientation="both"][data-bitfun-scrollbar-visibility="always"] {
     overflow: scroll;
+  }
+
+  .root[data-bitfun-edge-fade="vertical"] {
+    --_scroll-area-fade-top: 0px;
+    --_scroll-area-fade-bottom: 0px;
+    --_scroll-area-inline-gutter: 0px;
+    --_scroll-area-block-gutter: 0px;
+  }
+
+  .root[data-bitfun-fade-top="true"] {
+    --_scroll-area-fade-top: var(--bitfun-layout-scroll-area-fade-extent);
+  }
+
+  .root[data-bitfun-fade-bottom="true"] {
+    --_scroll-area-fade-bottom: var(--bitfun-layout-scroll-area-fade-extent);
+  }
+
+  .root[data-bitfun-edge-fade="vertical"]:where([data-bitfun-fade-top="true"], [data-bitfun-fade-bottom="true"]) {
+    /* Alpha masking works on every surface color. The other two mask layers
+       preserve native scrollbar tracks, including the horizontal diff bar. */
+    --_scroll-area-edge-mask: linear-gradient(
+      to bottom,
+      transparent,
+      var(--bitfun-color-content-on-light) min(var(--_scroll-area-fade-top), 25%),
+      var(--bitfun-color-content-on-light) calc(100% - min(var(--_scroll-area-fade-bottom), 25%)),
+      transparent
+    ), linear-gradient(var(--bitfun-color-content-on-light) 0 0), linear-gradient(var(--bitfun-color-content-on-light) 0 0);
+    -webkit-mask-image: var(--_scroll-area-edge-mask);
+    mask-image: var(--_scroll-area-edge-mask);
+    mask-mode: alpha;
+    -webkit-mask-size: calc(100% - var(--_scroll-area-inline-gutter)) calc(100% - var(--_scroll-area-block-gutter)), var(--_scroll-area-inline-gutter) 100%, 100% var(--_scroll-area-block-gutter);
+    mask-size: calc(100% - var(--_scroll-area-inline-gutter)) calc(100% - var(--_scroll-area-block-gutter)), var(--_scroll-area-inline-gutter) 100%, 100% var(--_scroll-area-block-gutter);
+    -webkit-mask-position: left top, right top, left bottom;
+    mask-position: left top, right top, left bottom;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+  }
+
+  .root[data-bitfun-edge-fade="vertical"]:dir(rtl) {
+    -webkit-mask-position: right top, left top, right bottom;
+    mask-position: right top, left top, right bottom;
+  }
+
+  @media (forced-colors: active) {
+    .root[data-bitfun-edge-fade="vertical"] {
+      -webkit-mask-image: none;
+      mask-image: none;
+    }
   }
 }

@@ -3,12 +3,13 @@ import { Alert, Button, Checkbox, DialogBody, DialogClose, DialogFooter, DialogH
 import { EcosystemDialog as Dialog } from './EcosystemDialog';
 import { EcosystemBatchLayout } from './EcosystemBatchLayout';
 import EcosystemPets from './EcosystemPets';
-import EcosystemAccounts, { ecosystemAccountProvider } from './EcosystemAccounts';
+import EcosystemAccounts from './EcosystemAccounts';
+import { ecosystemAccountProvider } from './ecosystemCompatibilityModel';
 import { presentEcosystemContent } from './ecosystemContentPresentation';
 import { ecosystemDiscoveryCache, rememberEcosystemHooks, rememberEcosystemSkills } from './ecosystemDiscoveryCache';
 import { importErrorMessage } from './ecosystemSkillImport';
 import { applyEcosystemBatchUndo, type BatchUndoEntry, type BatchUndoResult } from './ecosystemBatchUndo';
-import { CircleUserRound, FileText, Package, PawPrint, Server, Webhook, Wrench } from 'lucide-react';
+import { CircleUserRound, FileText, PawPrint, Server, Webhook, Wrench } from 'lucide-react';
 import { useSceneStore } from '@/app/stores/sceneStore';
 import { useSettingsStore } from '@/app/scenes/settings/settingsStore';
 import { useI18n } from '@/infrastructure/i18n';
@@ -42,7 +43,7 @@ const CONTENT_ICONS: Record<EcosystemImportItemKind, IconSource> = {
   command: { name: 'command-mac' },
   tool: { glyph: Wrench },
   subagent: { name: 'user' },
-  skill: { glyph: Package },
+  skill: { name: 'book-open' },
   mcp: { glyph: Server },
   hook: { glyph: Webhook },
   instruction: { glyph: FileText },
@@ -57,13 +58,22 @@ type Review =
 
 export interface ExternalAgentContentHandle {
   refresh: () => Promise<void>;
+  importAll: () => Promise<void>;
+  undoAll: () => Promise<void>;
+}
+
+export interface ExternalAgentContentActionState {
+  canImport: boolean;
+  importDisabled: boolean;
+  undoDisabled: boolean;
+  refreshDisabled: boolean;
 }
 
 interface Props {
   scopeKey?: string;
-  /** The scene owns placement; this catalog keeps the refresh lifecycle and disabled state. */
-  refreshControlRef?: Ref<ExternalAgentContentHandle>;
-  onRefreshDisabledChange?: (disabled: boolean) => void;
+  /** The scene places the actions; the catalog owns availability and review lifecycles. */
+  actionsRef?: Ref<ExternalAgentContentHandle>;
+  onActionStateChange?: (state: ExternalAgentContentActionState) => void;
   runtime: EcosystemProductRuntime;
   snapshot: ExternalSourceCatalogSnapshot | null;
   catalogFailed: boolean;
@@ -72,7 +82,7 @@ interface Props {
 }
 
 /** An external catalog, never an embedded native manager. Mount separately for each host/workspace/agent. */
-export default function ExternalAgentContent({ scopeKey, refreshControlRef, onRefreshDisabledChange, runtime, snapshot, catalogFailed, onRefresh, onSupplementalCounts }: Props) {
+export default function ExternalAgentContent({ scopeKey, actionsRef, onActionStateChange, runtime, snapshot, catalogFailed, onRefresh, onSupplementalCounts }: Props) {
   const contentId = useId();
   const { t, formatNumber } = useI18n('scenes/ecosystem-compatibility');
   const notification = useNotification();
@@ -587,28 +597,26 @@ export default function ExternalAgentContent({ scopeKey, refreshControlRef, onRe
     setRefreshing(false);
   };
 
-  useImperativeHandle(refreshControlRef, () => ({ refresh: refreshContent }));
+  const canImport = localImportSupported && items.some((item) => ['mcp', 'hook'].includes(item.kind));
+  const importDisabled = busy || loading || planLoading || refreshing;
+  const undoDisabled = busy || loading || refreshing || !items.some((item) => contentState(item) === 'imported');
+  const refreshDisabled = busy || loading || refreshing;
+  useImperativeHandle(actionsRef, () => ({
+    refresh: refreshContent,
+    importAll: async () => { if (canImport && !importDisabled) await prepareBatch(); },
+    undoAll: async () => { if (canImport && !undoDisabled) await prepareBatchUndo(); },
+  }));
   useLayoutEffect(() => {
-    onRefreshDisabledChange?.(busy || loading || refreshing);
-  }, [busy, loading, refreshing, onRefreshDisabledChange]);
+    onActionStateChange?.({ canImport, importDisabled, undoDisabled, refreshDisabled });
+  }, [canImport, importDisabled, undoDisabled, refreshDisabled, onActionStateChange]);
 
   return (
     <section className="ecosystem-compatibility__section" data-external-agent-content={runtime.spec.ecosystemId}>
-      <div className="ecosystem-compatibility__section-heading ecosystem-compatibility__section-heading--actions">
-        <div><h2>{t('content.title', { name: runtime.spec.name })}</h2><p>{t('content.description')}</p></div>
-        {localImportSupported && items.some((item) => ['mcp', 'hook'].includes(item.kind)) ? (
-          <div className="ecosystem-compatibility__import-action">
-            <Button size="sm" variant="primary" data-testid={`ecosystem-import-all-btn-${runtime.spec.ecosystemId}`} disabled={busy || loading || planLoading} onClick={() => void prepareBatch()}>{t('content.importAll')}</Button>
-            <Button size="sm" variant="outline" data-testid={`ecosystem-undo-all-btn-${runtime.spec.ecosystemId}`} disabled={busy || loading || !items.some((item) => contentState(item) === 'imported')} onClick={() => void prepareBatchUndo()}>{t('content.undoAll')}</Button>
-          </div>
-        ) : null}
-      </div>
-      {notice && !kind && !review && !undo && !batch && !batchUndo ? <Alert className="ecosystem-compatibility__notice ecosystem-compatibility__feedback" role="status" showIcon={false} message={notice} /> : null}
+{notice && !kind && !review && !undo && !batch && !batchUndo ? <Alert className="ecosystem-compatibility__notice ecosystem-compatibility__feedback" role="status" showIcon={false} message={notice} /> : null}
       {loading ? <LoadingState size="sm">{t('loading')}</LoadingState> : null}
       <div className="ecosystem-compatibility__content-overview" role="table" aria-label={t('content.title', { name: runtime.spec.name })}>
         <div className="ecosystem-compatibility__content-summary ecosystem-compatibility__content-summary--header" role="row">
           <span role="columnheader">{t('import.columns.item')}</span>
-          <span role="columnheader">{t('import.columns.source')}</span>
           <span role="columnheader">{t('import.columns.state')}</span>
         </div>
       {Array.from(new Set(items.map((item) => item.kind))).map((group) => {
@@ -620,21 +628,14 @@ export default function ExternalAgentContent({ scopeKey, refreshControlRef, onRe
         const count = groupItems.filter((item) => item.discovered).length;
         const discoverySupported = representative.discoverySupport === 'supported';
         const viewable = discoverySupported || count > 0;
-        const description = !discoverySupported
-          ? t('import.discoveryUnsupportedDescription', { name: runtime.spec.name, type: t(`capabilities.${group}`) })
-          : presentation(representative).descriptionKey === 'content.lastKnownResult' ? t('content.lastKnownResult')
-          : count > 0 ? t('content.groupSummary', { count: formatNumber(count) })
-            : stateDescription(representative, contentState(representative));
         return <div key={group} data-content-group={group} role="rowgroup" className="ecosystem-compatibility__content-group">
           <div className="ecosystem-compatibility__content-summary" role="row" data-discovery-support={representative.discoverySupport}>
             <span role="cell" className="ecosystem-compatibility__import-item">
               <span className="ecosystem-compatibility__import-item-icon"><Icon {...CONTENT_ICONS[group]} size="md" /></span>
               <span className="ecosystem-compatibility__import-item-copy">
                 <strong className="ecosystem-compatibility__content-title"><OverflowText>{t(`capabilities.${group}`)}</OverflowText></strong>
-                <small>{description}</small>
               </span>
             </span>
-            <span role="cell">{runtime.spec.name}</span>
             <span role="cell" className="ecosystem-compatibility__content-summary-state">
               {discoverySupported
                 ? <StatusPill tone="neutral" title={t('import.states.discoverySupported')}>
@@ -713,7 +714,7 @@ export default function ExternalAgentContent({ scopeKey, refreshControlRef, onRe
                 : <p>{kind === 'instruction' && emptyState === 'discoveryUnavailable' && categoryItems[0]
                   ? stateDescription(categoryItems[0], emptyState)
                   : t(emptyState ? `import.states.${emptyState}` : 'content.noMatches')}</p>}
-              {canScanEmptyCategory ? <Button size="sm" variant="outline" disabled={busy || emptyState === 'checking'} onClick={() => void refreshContent()}>{t('content.scan')}</Button> : null}
+              {canScanEmptyCategory ? <Button size="sm" variant="primary" disabled={busy || emptyState === 'checking'} onClick={() => void refreshContent()}>{t('content.scan')}</Button> : null}
             </div>}
             {kind === 'instruction' && instructions?.failedEcosystems.some((id) => id === 'shared' || id === runtime.spec.ecosystemId) ? <p role="status">{t('content.instructions.partial')}</p> : null}
             </ScrollArea>

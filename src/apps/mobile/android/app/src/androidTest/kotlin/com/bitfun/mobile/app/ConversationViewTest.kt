@@ -4,12 +4,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.captureToImage
@@ -17,18 +19,20 @@ import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
+import androidx.compose.ui.test.performScrollToIndex
+import com.bitfun.mobile.core.feature.session.HistoryLoadState
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import com.bitfun.mobile.app.ui.chat.CONVERSATION_LIST_TEST_TAG
 import com.bitfun.mobile.app.ui.chat.CONVERSATION_LOADING_TEST_TAG
-import com.bitfun.mobile.app.ui.chat.CHAT_STATUS_DOT_TEST_TAG
 import com.bitfun.mobile.app.ui.chat.CHAT_STATUS_BAR_TEST_TAG
-import com.bitfun.mobile.app.ui.chat.ChatStatusBar
 import com.bitfun.mobile.app.ui.chat.ConversationEmptyState
 import com.bitfun.mobile.app.ui.chat.ConversationTimelineView
 import com.bitfun.mobile.app.ui.chat.COMPOSER_INPUT_TEST_TAG
@@ -54,6 +58,84 @@ class ConversationViewTest {
     val composeRule = createComposeRule()
 
     @Test
+    fun permissionDraftSurvivesSavedStateRestoration() {
+        val restoration = androidx.compose.ui.test.junit4.StateRestorationTester(composeRule)
+        val intents = mutableListOf<RemoteSessionIntent>()
+        val mailbox = com.bitfun.mobile.core.feature.session.PermissionMailboxUiState(listOf(
+            com.bitfun.mobile.core.feature.session.PermissionMailboxRequest(
+                "request-1", "write", listOf("/workspace/readme.md"), null, "Write")
+        ), false, false)
+        restoration.setContent {
+            BitFunTheme(dark = false) {
+                com.bitfun.mobile.app.ui.chat.PermissionMailboxView(mailbox, "session", 600.dp, intents::add)
+            }
+        }
+        val draft = """{"content":"retained edit"}"""
+        composeRule.onNodeWithText(string(R.string.tool_edit_approval_input)).performClick()
+        composeRule.onNodeWithText("{}").performTextReplacement(draft)
+        restoration.emulateSavedInstanceStateRestore()
+        composeRule.onNodeWithText(draft).assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.tool_approve)).performClick()
+        val reply = intents.filterIsInstance<RemoteSessionIntent.RespondPermission>().single()
+        assertEquals("request-1", reply.requestId)
+        assertEquals(draft, reply.updatedInput)
+    }
+
+    @Test
+    fun permissionDraftDoesNotBlockRejectionAndMailboxStaysOutsideComposer() {
+        val intents = mutableListOf<RemoteSessionIntent>()
+        val state = readyState(sessionId = "session").copy(permissionMailbox =
+            com.bitfun.mobile.core.feature.session.PermissionMailboxUiState(listOf(
+                com.bitfun.mobile.core.feature.session.PermissionMailboxRequest(
+                    "request-1", "write", listOf("/workspace/readme.md"), null, "Write")
+            ), false, false))
+        val dark = androidx.test.platform.app.InstrumentationRegistry.getArguments().getString("mailboxDark") == "true"
+        setConversationContent(state = { state }, onIntent = intents::add, dark = dark)
+        composeRule.onNodeWithText("/workspace/readme.md").assertIsDisplayed()
+        val capture = composeRule.onRoot().captureToImage().asAndroidBitmap()
+        val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+        val values = android.content.ContentValues().apply {
+            put(android.provider.MediaStore.Downloads.DISPLAY_NAME, "bitfun-permission-mailbox-${if (dark) "dark" else "light"}.png")
+            put(android.provider.MediaStore.Downloads.MIME_TYPE, "image/png")
+        }
+        val uri = requireNotNull(context.contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values))
+        requireNotNull(context.contentResolver.openOutputStream(uri)).use {
+            capture.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+        }
+        val requestBounds = composeRule.onNodeWithText("/workspace/readme.md").getUnclippedBoundsInRoot()
+        val composerBounds = composeRule.onNodeWithTag(COMPOSER_INPUT_TEST_TAG).getUnclippedBoundsInRoot()
+        assertTrue(requestBounds.bottom < composerBounds.top)
+        composeRule.onNodeWithText(string(R.string.tool_edit_approval_input)).performClick()
+        composeRule.onNodeWithText("{}").performTextReplacement("{invalid")
+        composeRule.onNodeWithText(string(R.string.tool_approve)).assertIsNotEnabled()
+        composeRule.onNodeWithText(string(R.string.tool_reject)).performScrollTo().performClick()
+        val reply = intents.filterIsInstance<RemoteSessionIntent.RespondPermission>().single()
+        assertEquals("request-1", reply.requestId)
+        assertEquals(false, reply.approve)
+        assertEquals(null, reply.updatedInput)
+    }
+
+    @Test
+    fun multiplePermissionsScrollIndependentlyWithoutHidingComposer() {
+        val intents = mutableListOf<RemoteSessionIntent>()
+        val requests = (1..10).map { index ->
+            com.bitfun.mobile.core.feature.session.PermissionMailboxRequest(
+                "request-$index", "write", listOf("/workspace/file-$index.md"), null, "Write")
+        }
+        val state = readyState(sessionId = "session").copy(permissionMailbox =
+            com.bitfun.mobile.core.feature.session.PermissionMailboxUiState(requests, false, false))
+        setConversationContent(state = { state }, onIntent = intents::add)
+        composeRule.onNodeWithTag(COMPOSER_INPUT_TEST_TAG).assertIsDisplayed()
+        val composerBefore = composeRule.onNodeWithTag(COMPOSER_INPUT_TEST_TAG).getUnclippedBoundsInRoot()
+        composeRule.onAllNodesWithText(string(R.string.tool_reject))[9].performScrollTo().assertIsDisplayed().performClick()
+        composeRule.onNodeWithTag(COMPOSER_INPUT_TEST_TAG).assertIsDisplayed()
+        assertEquals(composerBefore, composeRule.onNodeWithTag(COMPOSER_INPUT_TEST_TAG).getUnclippedBoundsInRoot())
+        val reply = intents.filterIsInstance<RemoteSessionIntent.RespondPermission>().single()
+        assertEquals("request-10", reply.requestId)
+        assertEquals(false, reply.approve)
+    }
+
+    @Test
     fun openingATallLastMessageStartsAtTheActualTail() {
         val answer = List(500) { "A long answer line." }.joinToString(" ") + " tail-marker"
 
@@ -64,7 +146,7 @@ class ConversationViewTest {
                     hasMoreMessages = false,
                     onLoadOlder = {},
                     enabled = true,
-                    onApproveTool = {},
+                    onApproveTool = { _, _ -> },
                     onRejectTool = { _, _ -> },
                     onCancelTool = { _, _ -> },
                     onAnswerTool = { _, _ -> },
@@ -155,6 +237,38 @@ class ConversationViewTest {
     }
 
     @Test
+    fun historyPrependKeepsVisibleMessagesAndRepeatedDragsDoNotQueueRequests() {
+        val rows = mutableStateOf((0..5).map { assistantRow("history-$it", "history-$it") })
+        val loading = mutableStateOf(HistoryLoadState.IDLE)
+        var requests = 0
+        composeRule.setContent {
+            BitFunTheme(dark = false) {
+                TimelineForTest(rows.value, hasMoreMessages = true, historyLoadState = loading.value,
+                    onLoadOlder = { requests++; loading.value = HistoryLoadState.LOADING })
+            }
+        }
+        val list = composeRule.onNodeWithTag(CONVERSATION_LIST_TEST_TAG)
+        repeat(3) { list.performTouchInput { swipeDown() }; composeRule.waitForIdle() }
+        composeRule.runOnIdle { assertEquals(1, requests) }
+        val before = composeRule.onNodeWithText("history-0").getUnclippedBoundsInRoot().top
+        composeRule.runOnIdle {
+            rows.value = (-12..-1).map { assistantRow("history-$it", "history-$it") } + rows.value
+            loading.value = HistoryLoadState.IDLE
+        }
+        composeRule.waitForIdle()
+        val after = composeRule.onNodeWithText("history-0").getUnclippedBoundsInRoot().top
+        assertTrue("Prepending moved the visible row from $before to $after", kotlin.math.abs((after - before).value) < 4)
+        composeRule.runOnIdle { assertEquals(1, requests) }
+        // Moving the list without a gesture must not fetch another page.
+        list.performScrollToIndex(0)
+        composeRule.waitForIdle()
+        composeRule.runOnIdle { assertEquals(1, requests) }
+        list.performTouchInput { swipeDown() }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle { assertEquals(2, requests) }
+    }
+
+    @Test
     fun withLoadOlderHeaderStreamingGrowthStaysOnTheRealTail() {
         val rows = mutableStateOf(
             (1..40).map { index -> assistantRow("message-$index", id = "message-$index") },
@@ -209,6 +323,21 @@ class ConversationViewTest {
         composeRule.onNodeWithTag(CHAT_STATUS_BAR_TEST_TAG).assertDoesNotExist()
     }
 
+    /**
+     * A placeholder that outlives its subject reads as a hang, so the skeleton
+     * gives up on a transcript that never lands and lets the pane speak for
+     * itself. Matches HarmonyOS's `DeferredLoadingGate` cap.
+     */
+    @Test
+    fun loadingSkeletonStopsStandingForATranscriptThatNeverArrives() {
+        composeRule.mainClock.autoAdvance = false
+        setConversationContent(state = { readyState(sessionId = "pending") })
+        composeRule.mainClock.advanceTimeBy(200)
+        composeRule.onNodeWithTag(CONVERSATION_LOADING_TEST_TAG).assertIsDisplayed()
+        composeRule.mainClock.advanceTimeBy(20_000)
+        composeRule.onNodeWithTag(CONVERSATION_LOADING_TEST_TAG).assertDoesNotExist()
+    }
+
     @Test
     fun composerShowsTheStoreDraftAndTypingDispatchesUpdateDraft() {
         val intents = mutableListOf<RemoteSessionIntent>()
@@ -223,6 +352,17 @@ class ConversationViewTest {
             listOf<RemoteSessionIntent>(RemoteSessionIntent.UpdateDraft("replaced draft")),
             intents,
         )
+    }
+
+    @Test
+    fun composerRemainsEditableWhileNewSessionHydrates() {
+        val intents = mutableListOf<RemoteSessionIntent>()
+        val state = mutableStateOf(readyState(sessionId = "pending", draft = "").copy(busy = true, timeline = null))
+
+        setConversationContent(state = { state.value }, onIntent = { intents += it })
+
+        composeRule.onNodeWithTag(COMPOSER_INPUT_TEST_TAG).performTextReplacement("draft during load")
+        assertEquals(listOf(RemoteSessionIntent.UpdateDraft("draft during load")), intents)
     }
 
     @Test
@@ -275,6 +415,37 @@ class ConversationViewTest {
     }
 
     @Test
+    fun submittedDraftStaysClearedAcrossRecreationWhileAwaitingAck() {
+        val restoration = androidx.compose.ui.test.junit4.StateRestorationTester(composeRule)
+        val state = mutableStateOf(readyState(sessionId = "s-code", draft = "send me"))
+        restoration.setContent {
+            BitFunTheme(dark = false) {
+                ConversationView(
+                    state = state.value, phase = ConnectionPhase.CONNECTED,
+                    settingsPlacement = SettingsPlacement(SettingsPlacementMode.BOTTOM, 0, 0, 0),
+                    onBack = {}, onIntent = { intent ->
+                        state.value = when (intent) {
+                            is RemoteSessionIntent.UpdateDraft -> state.value.copy(draft = intent.text)
+                            else -> state.value.copy(busy = true)
+                        }
+                    }, contextTitle = "Test desktop", onOpenFile = { _, _ -> },
+                    previewingRemotePath = "", previewLoading = false,
+                    download = RemoteFileDownloadUiState.None, onDownloadFile = { _, _ -> },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+        composeRule.onNodeWithTag(COMPOSER_SEND_TEST_TAG).performClick()
+        restoration.emulateSavedInstanceStateRestore()
+        composeRule.onNodeWithTag(COMPOSER_INPUT_TEST_TAG).assert(
+            SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")),
+        )
+        composeRule.onNodeWithTag(COMPOSER_INPUT_TEST_TAG).performTextReplacement("next draft")
+        composeRule.runOnIdle { state.value = state.value.copy(busy = false) }
+        composeRule.onNodeWithTag(COMPOSER_INPUT_TEST_TAG).assertTextEquals("next draft")
+    }
+
+    @Test
     fun emptyStateShowsInvitationCopy() {
         composeRule.setContent {
             BitFunTheme(dark = false) {
@@ -286,65 +457,86 @@ class ConversationViewTest {
     }
 
     @Test
-    fun reconnectingStatusBarMatchesTheFixedHeightColorAndCopyContract() {
-        composeRule.setContent {
-            BitFunTheme(dark = false) {
-                ChatStatusBar(
-                    phase = ConnectionPhase.RECONNECTING,
-                    canStop = false,
-                    onStop = {},
-                )
-            }
-        }
-
-        val title = string(R.string.chat_status_restoring_connection)
-        val detail = string(R.string.connection_reconnecting_desktop)
-        composeRule.onNodeWithText("$title · $detail").assertExists()
-        val bounds = composeRule.onNodeWithTag(CHAT_STATUS_BAR_TEST_TAG).getUnclippedBoundsInRoot()
-        assertTrue(kotlin.math.abs((bounds.bottom - bounds.top).value - 48f) < 1f)
-        val dot = composeRule.onNodeWithTag(CHAT_STATUS_DOT_TEST_TAG).captureToImage()
-        assertEquals(0xFF706F6A.toInt(), dot.toPixelMap()[dot.width / 2, dot.height / 2].toArgb())
+    fun reconnectingKeepsConversationAndComposerWithoutHeaderBanner() {
+        setConversationContent(
+            state = { readyState() },
+            phase = ConnectionPhase.RECONNECTING,
+        )
+        composeRule.onNodeWithTag(CHAT_STATUS_BAR_TEST_TAG).assertDoesNotExist()
+        composeRule.onNodeWithTag(COMPOSER_INPUT_TEST_TAG).assertIsDisplayed()
+        composeRule.onNodeWithTag(COMPOSER_SEND_TEST_TAG).assertIsNotEnabled()
     }
 
+    /**
+     * The composer and the header float over the transcript rather than sitting
+     * above and below it in a column, so the list runs the full height of the
+     * pane and these insets are the only thing keeping the first and last
+     * message out from under them. The insets are measured from the live
+     * overlays, so growing one — a composer going multiline, an image strip
+     * appearing — has to push the transcript rather than cover it.
+     */
     @Test
-    fun executingStatusBarDoesNotAppendAConnectionDetail() {
+    fun insetsKeepTheEndsOfTheTranscriptClearOfTheFloatingOverlays() {
+        val bottomInset = mutableStateOf(96.dp)
         composeRule.setContent {
             BitFunTheme(dark = false) {
-                ChatStatusBar(
-                    phase = ConnectionPhase.RECONNECTING,
-                    canStop = true,
-                    onStop = {},
+                TimelineForTest(
+                    rows = listOf(assistantRow("inset-marker")),
+                    topInset = 72.dp,
+                    bottomInset = bottomInset.value,
                 )
             }
         }
+        composeRule.waitForIdle()
 
-        composeRule.onNodeWithText(string(R.string.chat_status_executing)).assertExists()
+        val listBounds = composeRule.onNodeWithTag(CONVERSATION_LIST_TEST_TAG)
+            .getUnclippedBoundsInRoot()
+        val resting = composeRule.onNodeWithText("inset-marker", substring = true)
+            .getUnclippedBoundsInRoot()
+        assertTrue(resting.bottom <= listBounds.bottom - 96.dp + 1.dp)
+        assertTrue(resting.top >= listBounds.top)
+
+        composeRule.runOnIdle { bottomInset.value = 180.dp }
+        composeRule.waitForIdle()
+
+        val lifted = composeRule.onNodeWithText("inset-marker", substring = true)
+            .getUnclippedBoundsInRoot()
+        assertTrue(lifted.bottom <= listBounds.bottom - 180.dp + 1.dp)
+        assertTrue(lifted.bottom < resting.bottom)
     }
 
     private fun setConversationContent(
         state: () -> RemoteSessionUiState.Ready,
         phase: ConnectionPhase = ConnectionPhase.CONNECTED,
         onIntent: (RemoteSessionIntent) -> Unit = {},
+        dark: Boolean = false,
     ) {
         composeRule.setContent {
-            BitFunTheme(dark = false) {
-                ConversationView(
-                    state = state(),
-                    phase = phase,
-                    settingsPlacement = SettingsPlacement(SettingsPlacementMode.BOTTOM, 0, 0, 0),
-                    onBack = {},
-                    onIntent = onIntent,
-                    contextTitle = "Test desktop",
-                    onOpenFile = { _, _ -> },
-                    previewingRemotePath = "",
-                    previewLoading = false,
-                    download = RemoteFileDownloadUiState.None,
-                    onDownloadFile = { _, _ -> },
+            BitFunTheme(dark = dark) {
+                androidx.compose.material3.Surface(
                     modifier = Modifier.fillMaxSize(),
-                )
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.background,
+                    contentColor = androidx.compose.material3.MaterialTheme.colorScheme.onBackground,
+                ) {
+                    ConversationView(
+                        state = state(),
+                        phase = phase,
+                        settingsPlacement = SettingsPlacement(SettingsPlacementMode.BOTTOM, 0, 0, 0),
+                        onBack = {},
+                        onIntent = onIntent,
+                        contextTitle = "Test desktop",
+                        onOpenFile = { _, _ -> },
+                        previewingRemotePath = "",
+                        previewLoading = false,
+                        download = RemoteFileDownloadUiState.None,
+                        onDownloadFile = { _, _ -> },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             }
         }
     }
+
 
     private fun readyState(
         sessionId: String = "",
@@ -366,13 +558,23 @@ class ConversationViewTest {
     )
 
     @Composable
-    private fun TimelineForTest(rows: List<ConversationRow>, hasMoreMessages: Boolean = false) {
+    private fun TimelineForTest(
+        rows: List<ConversationRow>,
+        hasMoreMessages: Boolean = false,
+        topInset: Dp = 0.dp,
+        bottomInset: Dp = 0.dp,
+        historyLoadState: HistoryLoadState = HistoryLoadState.IDLE,
+        onLoadOlder: () -> Unit = {},
+    ) {
         ConversationTimelineView(
             rows = rows,
             hasMoreMessages = hasMoreMessages,
-            onLoadOlder = {},
+            topInset = topInset,
+            bottomInset = bottomInset,
+            historyLoadState = historyLoadState,
+            onLoadOlder = onLoadOlder,
             enabled = true,
-            onApproveTool = {},
+            onApproveTool = { _, _ -> },
             onRejectTool = { _, _ -> },
             onCancelTool = { _, _ -> },
             onAnswerTool = { _, _ -> },
@@ -402,7 +604,6 @@ class ConversationViewTest {
         blocks = emptyList(),
         streaming = streaming,
         typing = false,
-        pending = false,
         showRetry = false,
         error = null,
         live = false,

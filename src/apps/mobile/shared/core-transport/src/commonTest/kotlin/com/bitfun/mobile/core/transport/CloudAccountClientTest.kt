@@ -19,6 +19,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.io.encoding.Base64
 import kotlin.test.Test
@@ -26,6 +27,7 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class CloudAccountClientTest {
@@ -75,20 +77,60 @@ class CloudAccountClientTest {
         assertFalse(bodies[0].containsKey("password"))
         assertFalse(bodies[0].containsKey("master_key"))
         assertFalse(first.toString().contains("token-1"))
+        // The Relay stores this build on the device row and gates control on it.
+        assertEquals(CLIENT_VERSION, bodies[0]["clientVersion"]?.jsonPrimitive?.content)
+        assertEquals(CLIENT_PROTOCOL_VERSION, bodies[0]["clientProtocol"]?.jsonPrimitive?.int)
+    }
+
+    @Test
+    fun deviceDirectoryCarriesTheRelayCompatibilityVerdict() = runTest {
+        val engine = MockEngine { _ ->
+            json("""[
+                {"device_id":"d-1","device_name":"Desktop 1","device_kind":"desktop","online":true,"compatible":true},
+                {"device_id":"d-2","device_name":"Desktop 2","device_kind":"desktop","online":true,"compatible":false},
+                {"device_id":"d-3","device_name":"Desktop 3","device_kind":"desktop","online":true}
+            ]""")
+        }
+        val client = CloudAccountClient(relayHttpClient(engine))
+        val session = CloudAccountSession("token-1", "123", ByteArray(32) { 7 })
+        val devices = client.listDevices(DEFAULT_CLOUD_RELAY_URL, session, "phone-1").associateBy { it.deviceId }
+        assertEquals(true, devices.getValue("d-1").compatible)
+        assertEquals(false, devices.getValue("d-2").compatible)
+        // An older Relay that does not gate reads as "unknown but usable".
+        assertEquals(null, devices.getValue("d-3").compatible)
+        assertEquals(listOf(true, false, true), listOf("d-1", "d-2", "d-3").map { devices.getValue(it).controllable })
+    }
+
+    @Test
+    fun relayRpcRejectionKeepsTheRelaysOwnWording() {
+        val outdated = relayRpcRejection("incompatible client build: remote control requires matching client versions")
+        val failure = assertIs<RelayTransportException>(outdated).failure
+        assertEquals(RelayFailure.ClientOutdated("incompatible client build: remote control requires matching client versions"), failure)
+        assertFalse(isRetryableStreamFailure(outdated))
+
+        val offline = assertIs<CloudAccountException>(relayRpcRejection("RPC target unavailable"))
+        assertEquals(CloudAccountFailure.RELAY_UNAVAILABLE, offline.failure)
+        assertEquals("RPC target unavailable", offline.detail)
+        assertTrue(offline.message!!.contains("RPC target unavailable"))
+        assertTrue(isRetryableStreamFailure(offline))
+
+        assertEquals("Relay RPC failed", assertIs<CloudAccountException>(relayRpcRejection(null)).detail)
     }
 
     /**
-     * Only desktops can be driven, so only desktops are offered. A row without a
-     * kind comes from a relay that predates them: this device's own row and the
-     * names our own builds register under are dropped anyway, and anything else
-     * is kept rather than risk hiding a real desktop.
+     * Only hosts can be driven, so only hosts are offered: a desktop and a CLI
+     * host both run the control plane, while a phone or a watch is a controller.
+     * A row without a kind comes from a relay that predates them: this device's
+     * own row and the names our own builds register under are dropped anyway, and
+     * anything else is kept rather than risk hiding a real host.
      */
     @Test
-    fun listDevicesOffersDesktopsAndDropsPhones() = runTest {
+    fun listDevicesOffersHostsAndDropsPhones() = runTest {
         val engine = MockEngine {
             json(
                 """[
                   {"device_id":"desktop-1","device_name":"Studio Mac","online":true,"device_kind":"desktop"},
+                  {"device_id":"cli-1","device_name":"Build host","online":true,"device_kind":"cli"},
                   {"device_id":"phone-2","device_name":"Pixel 8","online":true,"device_kind":"mobile"},
                   {"device_id":"watch-1","device_name":"Watch","online":false,"device_kind":"watch"},
                   {"device_id":"phone-1","device_name":"Pixel 8","online":true},
@@ -111,9 +153,10 @@ class CloudAccountClientTest {
             "phone-1",
         )
 
-        assertEquals(listOf("desktop-1", "legacy-1"), devices.map { it.deviceId })
+        assertEquals(listOf("desktop-1", "cli-1", "legacy-1"), devices.map { it.deviceId })
         assertEquals("desktop", devices[0].deviceKind)
-        assertEquals(null, devices[1].deviceKind)
+        assertEquals("cli", devices[1].deviceKind)
+        assertEquals(null, devices[2].deviceKind)
     }
 
     @Test
@@ -206,7 +249,7 @@ class CloudAccountClientTest {
             assertEquals("Bearer token-1", request.headers[HttpHeaders.Authorization])
             assertTrue(request.url.encodedPath.endsWith("/key"), "HTTP must only read the authenticated public key")
             json("""{"public_key":"${Base64.Default.encode(peerPublic)}"}""")
-        }), realtimeFactory = { _, _, token ->
+        }), processingDispatcher = kotlinx.coroutines.Dispatchers.Unconfined, realtimeFactory = { _, _, token ->
             assertEquals("token-1", token)
             FakeRpc(reply)
         })

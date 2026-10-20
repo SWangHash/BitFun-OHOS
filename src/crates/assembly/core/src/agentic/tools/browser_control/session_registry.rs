@@ -422,6 +422,8 @@ pub struct BrowserSession {
     pub session_id: String,
     pub port: u16,
     pub backend: BrowserSessionBackend,
+    /// Verified disposable headless endpoint, never the user-profile permission.
+    pub headless: bool,
     pub client: Arc<CdpClient>,
     pub state: Arc<BrowserSessionState>,
 }
@@ -456,6 +458,14 @@ impl std::fmt::Debug for BrowserSession {
 struct RegistryInner {
     sessions: HashMap<String, BrowserSession>,
     default_id: Option<String>,
+    /// Conversation-local selection; the browser page id is not a Runtime session id.
+    selections: HashMap<String, BrowserSelection>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BrowserSelection {
+    pub target: String,
+    pub session_id: String,
 }
 
 #[derive(Default)]
@@ -466,6 +476,25 @@ pub struct BrowserSessionRegistry {
 impl BrowserSessionRegistry {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub async fn selection(&self, owner: &str) -> Option<BrowserSelection> {
+        self.inner.read().await.selections.get(owner).cloned()
+    }
+
+    pub async fn select(&self, owner: &str, target: &str, session_id: &str) {
+        self.inner.write().await.selections.insert(
+            owner.to_string(),
+            BrowserSelection {
+                target: target.to_string(),
+                session_id: session_id.to_string(),
+            },
+        );
+    }
+
+    /// Forget only the Agent's selection, never close a user's browser page.
+    pub async fn release_selection(&self, owner: &str) {
+        self.inner.write().await.selections.remove(owner);
     }
 
     /// Insert or replace a session and mark it as the default.
@@ -534,7 +563,7 @@ impl BrowserSessionRegistry {
                 )
             })?,
         };
-        g.sessions.get(&id).cloned().ok_or_else(|| {
+g.sessions.get(&id).cloned().ok_or_else(|| {
             BitFunError::tool(
                 "Browser session is not connected. Use action 'connect' or 'switch_page'."
                     .to_string(),
@@ -604,6 +633,20 @@ impl BrowserSessionRegistry {
             g.default_id = None;
         }
         removed
+    }
+
+    /// Inventory is scoped to the authorized endpoint, not every browser in
+    /// the process (which may include unrelated headless testing endpoints).
+    pub async fn list_for_port(&self, port: u16) -> Vec<String> {
+        let g = self.inner.read().await;
+        let mut ids: Vec<_> = g
+            .sessions
+            .iter()
+            .filter(|(_, session)| session.port == port && session.client.is_connected())
+            .map(|(id, _)| id.clone())
+            .collect();
+        ids.sort();
+        ids
     }
 
     /// Snapshot of registered session ids — used by `list_sessions` actions.

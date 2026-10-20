@@ -1,0 +1,14 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "build": {
+    "beforeBundleCommand": "pnpm run check:macos-icons"
+  },
+  "bundle": {
+    "icon": [
+      "icons/bitfun-app-icon.icns",
+      "icons/bitfun-app-icon.ico",
+      "icons/bitfun-app-icon.png",
+      "../../../assets/brand/macos/openbitfun.icon"
+    ]
+  }
+}

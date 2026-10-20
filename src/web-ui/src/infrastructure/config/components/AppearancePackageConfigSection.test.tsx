@@ -104,6 +104,17 @@ describe('AppearancePackageConfigSection', () => {
     expect(html).not.toContain('.bitfun-skin');
   });
 
+  it('hides the Skin market and appearance package import entry points', () => {
+    const html = renderToStaticMarkup(<AppearancePackageConfigSection />);
+
+    expect(html).not.toContain('package.market.open');
+    expect(html).not.toContain('package.import');
+    expect(html).not.toContain('accept=".bitfun-appearance,.zip,application/zip"');
+    expect(html).not.toContain('appearance-package-config__file-input');
+    expect(html).toContain('aria-label="package.export"');
+    expect(html).toContain('aria-label="package.delete"');
+  });
+
   it('uses high-density artwork and a separate selection mark for the built-in package card', () => {
     appearanceStateMock.selectedAppearanceId = 'system';
 
@@ -127,7 +138,7 @@ describe('AppearancePackageConfigSection', () => {
 
   it('keeps cards borderless and the default package copy beside its theme selector', () => {
     const styles = readFileSync(
-      resolve(process.cwd(), 'src', 'infrastructure', 'config', 'components', 'AppearanceSettingsPage.scss'),
+      resolve(process.cwd(), 'src', 'app', 'scenes', 'settings', 'pages', 'application', 'AppearanceSettingsPage.scss'),
       'utf8',
     );
     const galleryRule = styles.match(/&__gallery \{([\s\S]*?)\n  \}/)?.[1] ?? '';

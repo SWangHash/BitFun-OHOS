@@ -13,7 +13,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.bitfun.mobile.app.R
-import com.bitfun.mobile.app.ui.chat.message.ChatCaption
 import com.bitfun.mobile.app.ui.chat.message.ChatMessageRetryAction
 import com.bitfun.mobile.app.ui.chat.message.ChatTypingDots
 import com.bitfun.mobile.app.ui.chat.message.ChatUserMessageBubble
@@ -90,8 +89,8 @@ internal fun ChatMessageBubble(
             MessageImageGallery(images = row.images, userStyle = false)
         }
 
-        // Three mutually exclusive footnotes about delivery, in the order they
-        // can happen: nothing has arrived yet, sent but unacknowledged, refused.
+        // Two mutually exclusive footnotes about delivery: nothing has arrived
+        // yet, or the send was refused.
         when {
             row.showRetry -> ChatMessageRetryAction(
                 fromUser = fromUser,
@@ -101,7 +100,6 @@ internal fun ChatMessageBubble(
             )
 
             row.typing -> ChatTypingDots(Modifier)
-            row.pending -> ChatCaption(stringResource(R.string.chat_pending), error = false)
         }
     }
 }

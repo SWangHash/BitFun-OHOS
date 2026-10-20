@@ -30,6 +30,10 @@ mod embedded_relay_host;
 pub mod frontend_workbench;
 pub mod logging;
 pub mod macos_menubar;
+#[cfg(target_os = "macos")]
+mod macos_window_chrome;
+#[cfg(target_os = "macos")]
+mod macos_window_close;
 pub mod runtime;
 pub mod sleep_prevention;
 pub mod startup_trace;
@@ -38,6 +42,8 @@ pub mod tray;
 mod webview_recovery;
 #[cfg(not(target_env = "ohos"))]
 mod window_state_support;
+#[cfg(target_os = "windows")]
+mod window_webview_geometry;
 
 use bitfun_agent_runtime::sdk::{attach_session_event_cursor, SessionEventJournal};
 use bitfun_core::agentic::tools::computer_use_capability::set_computer_use_desktop_available;
@@ -104,6 +110,7 @@ use api::review_platform_api::*;
 use api::runtime_api::*;
 use api::search_api::*;
 use api::session_api::*;
+use api::session_storage_directory::reveal_session_storage_directory;
 use api::skill_api::*;
 use api::snapshot_service::*;
 use api::speech_api::*;
@@ -198,8 +205,11 @@ pub(crate) fn mark_main_window_hidden_on_macos(hidden: bool) {
 }
 
 #[cfg(target_os = "macos")]
-pub(crate) fn cancel_main_window_close_request_on_macos() {
+pub(crate) fn cancel_main_window_close_request_on_macos(app: &tauri::AppHandle) {
     MAIN_WINDOW_CLOSE_PENDING_ON_MACOS.store(false, Ordering::SeqCst);
+    if let Err(error) = app.run_on_main_thread(macos_window_chrome::cancel_pending_hide) {
+        log::warn!("Failed to cancel deferred macOS main-window hide: {error}");
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -217,33 +227,29 @@ fn take_main_window_close_request_on_macos() -> bool {
 }
 
 #[cfg(target_os = "macos")]
-fn hide_main_window_on_macos(app: &tauri::AppHandle, reason: &str) -> Result<(), String> {
-    let Some(main_window) = app.get_webview_window("main") else {
-        mark_main_window_hidden_on_macos(false);
-        return Err("Main window not found".to_string());
-    };
-
-    main_window.hide().map_err(|error| {
-        mark_main_window_hidden_on_macos(false);
-        log::warn!(
-            "Failed to hide main window on macOS close request: reason={}, error={}",
-            reason,
-            error
-        );
-        format!("Failed to hide main window: {}", error)
-    })?;
-
-    mark_main_window_hidden_on_macos(true);
-    log::info!(
-        "Main window close requested on macOS; hid window instead of exiting: reason={}",
-        reason
-    );
-    Ok(())
+async fn hide_main_window_on_macos(
+    app: &tauri::AppHandle,
+    reason: &'static str,
+) -> Result<(), String> {
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    app.run_on_main_thread(move || {
+        // Claim on the AppKit thread so a reopen can cancel an enqueued hide.
+        let result = if take_main_window_close_request_on_macos() {
+            macos_window_chrome::request_hide(reason)
+        } else {
+            Ok(())
+        };
+        let _ = sender.send(result);
+    })
+    .map_err(|error| format!("Failed to schedule main-window hide: {error}"))?;
+    receiver
+        .await
+        .map_err(|error| format!("Main-window hide was canceled: {error}"))?
 }
 
 #[cfg(target_os = "macos")]
 fn show_main_window_on_macos(app: &tauri::AppHandle, reason: &str) {
-    cancel_main_window_close_request_on_macos();
+    cancel_main_window_close_request_on_macos(app);
 
     let Some(main_window) = app.get_webview_window("main") else {
         log::warn!(
@@ -278,9 +284,7 @@ fn show_main_window_on_macos(app: &tauri::AppHandle, reason: &str) {
 async fn hide_main_window_after_close_request(app: tauri::AppHandle) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        if take_main_window_close_request_on_macos() {
-            hide_main_window_on_macos(&app, "frontend_ack")?;
-        }
+        hide_main_window_on_macos(&app, "frontend_ack").await?;
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -303,7 +307,7 @@ fn show_main_window_for_secondary_launch(
 
         #[cfg(target_os = "macos")]
         {
-            cancel_main_window_close_request_on_macos();
+            cancel_main_window_close_request_on_macos(app);
             mark_main_window_hidden_on_macos(false);
         }
 
@@ -851,6 +855,10 @@ pub async fn _run() {
         Ok(state) => state,
         Err(e) => {
             log::error!("Failed to initialize AppState: {}", e);
+            show_fatal_startup_error(&format!(
+                "BitFun could not initialize its application state and cannot continue.\n\n{e}\n\nSee {} for details.",
+                logging::early_startup_log_path(&session_log_dir).display()
+            ));
             return;
         }
     };
@@ -1442,6 +1450,8 @@ pub async fn _run() {
         })
         .on_window_event({
             move |window, event| {
+                #[cfg(target_os = "windows")]
+                window_webview_geometry::handle_event(window, event);
                 #[cfg(not(target_env = "ohos"))]
                 if window.label() == "main"
                     && !MAIN_WINDOW_USES_TRANSIENT_GEOMETRY.load(Ordering::SeqCst)
@@ -1487,15 +1497,13 @@ pub async fn _run() {
                                 ))
                                 .await;
 
-                                if take_main_window_close_request_on_macos() {
-                                    if let Err(error) =
-                                        hide_main_window_on_macos(&app_handle, "frontend_timeout")
-                                    {
-                                        log::warn!(
-                                            "macOS close fallback hide failed after frontend timeout: {}",
-                                            error
-                                        );
-                                    }
+                                if let Err(error) =
+                                    hide_main_window_on_macos(&app_handle, "frontend_timeout").await
+                                {
+                                    log::warn!(
+                                        "macOS close fallback hide failed after frontend timeout: {}",
+                                        error
+                                    );
                                 }
                             });
                         }
@@ -1561,6 +1569,7 @@ pub async fn _run() {
             api::agentic_api::interrupt_dialog_turn,
             api::agentic_api::recover_interrupted_dialog_turn,
             api::agentic_api::steer_dialog_turn,
+            api::agentic_api::manage_dialog_queue,
             api::agentic_api::control_deep_review_queue,
             api::agentic_api::cancel_session,
             api::agentic_api::set_subagent_timeout,
@@ -1708,6 +1717,7 @@ pub async fn _run() {
             stop_file_watch,
             get_watched_paths,
             get_clipboard_files,
+            get_clipboard_image,
             api::browser_file_drop_api::resolve_browser_dropped_file_paths,
             api::file_drop_preview_api::set_file_drop_preview_target,
             paste_files,
@@ -1716,7 +1726,19 @@ pub async fn _run() {
             get_config,
             get_configs,
             computer_use_get_status,
+            computer_use_control_status,
+            computer_use_control_stop,
+            computer_use_control_preview,
             computer_use_request_permissions,
+            computer_use_request_permission,
+            computer_use_share_targets,
+            computer_use_share_observe,
+            computer_use_share_input,
+            computer_use_share_start,
+            computer_use_share_control,
+            computer_use_share_request,
+            computer_use_share_grants,
+            computer_use_share_forget_grant,
             computer_use_open_system_settings,
             set_config,
             save_cloud_speech_config,
@@ -1868,6 +1890,7 @@ pub async fn _run() {
             get_all_modified_files,
             get_baseline_snapshot_diff,
             // Session persistence API
+            reveal_session_storage_directory,
             list_persisted_sessions,
             search_session_content,
             search_referenceable_sessions,
@@ -1882,6 +1905,7 @@ pub async fn _run() {
             touch_session_activity,
             load_persisted_session_metadata,
             fork_session,
+            copy_session,
             archive_session,
             unarchive_session,
             archive_all_sessions,
@@ -1929,6 +1953,7 @@ pub async fn _run() {
             get_global_config_status,
             get_model_configs,
             get_ai_model_catalog,
+            get_local_models_dev_catalogs,
             project_ai_model_reasoning_catalog,
             get_models_dev_catalog_status,
             refresh_models_dev_catalog_now,
@@ -1937,6 +1962,7 @@ pub async fn _run() {
             remove_recent_workspace,
             cleanup_invalid_workspaces,
             get_opened_workspaces,
+            get_assistant_workspaces,
             open_workspace,
             open_remote_workspace,
             create_assistant_workspace,
@@ -2712,56 +2738,56 @@ async fn deliver_event_to_webview(
         attach_session_event_cursor(&mut projected.payload, cursor);
     }
 
-    if let (Some(hub), Some(session_id)) = (
-        api::remote_connect_api::host_stream_hub().await,
-        projected
+    for hub in api::remote_connect_api::host_stream_hubs().await {
+        if let Some(session_id) = projected
             .payload
             .get("sessionId")
             .or_else(|| projected.payload.get("session_id"))
-            .and_then(serde_json::Value::as_str),
-    ) {
-        let name = projected.event_name.as_str();
-        let policy =
-            bitfun_core::service::remote_connect::session_records::session_event_publication(
-                name,
-                &projected.payload,
-            );
-        if policy.synchronize_records {
-            if let Err(error) = async {
-                if let Some(turn) = projected
-                    .payload
-                    .get("turnId")
-                    .or_else(|| projected.payload.get("settledTurnId"))
-                    .and_then(serde_json::Value::as_str)
+            .and_then(serde_json::Value::as_str)
+        {
+            let name = projected.event_name.as_str();
+            let policy =
+                bitfun_core::service::remote_connect::session_records::session_event_publication(
+                    name,
+                    &projected.payload,
+                );
+            if policy.synchronize_records {
+                if let Err(error) = async {
+                    if let Some(turn) = projected
+                        .payload
+                        .get("turnId")
+                        .or_else(|| projected.payload.get("settledTurnId"))
+                        .and_then(serde_json::Value::as_str)
+                    {
+                        bitfun_core::service::remote_connect::synchronize_session_record_turn(
+                            &hub, session_id, turn,
+                        )
+                        .await
+                    } else if name == "agentic://session-history-changed" {
+                        bitfun_core::service::remote_connect::synchronize_session_records(
+                            &hub, session_id,
+                        )
+                        .await
+                    } else {
+                        Ok(())
+                    }
+                }
+                .await
                 {
-                    bitfun_core::service::remote_connect::synchronize_session_record_turn(
-                        &hub, session_id, turn,
-                    )
-                    .await
-                } else if name == "agentic://session-history-changed" {
-                    bitfun_core::service::remote_connect::synchronize_session_records(
-                        &hub, session_id,
-                    )
-                    .await
-                } else {
-                    Ok(())
+                    log::error!("Unable to synchronize host session records: {error}");
                 }
             }
-            .await
-            {
-                log::error!("Unable to synchronize host session records: {error}");
-            }
-        }
-        if policy.persist_control {
-            if let Err(error) = hub
-                .append(
-                    session_id.to_owned(),
-                    projected.event_name.clone(),
-                    projected.payload.clone(),
-                )
-                .await
-            {
-                log::error!("Unable to publish session control event: {error}");
+            if policy.persist_control {
+                if let Err(error) = hub
+                    .append(
+                        session_id.to_owned(),
+                        projected.event_name.clone(),
+                        projected.payload.clone(),
+                    )
+                    .await
+                {
+                    log::error!("Unable to publish session control event: {error}");
+                }
             }
         }
     }
@@ -3379,4 +3405,11 @@ mod event_loop_driver_tests {
         driver.abort();
         producer.abort();
     }
+}
+
+/// Opt-in native regression entry; requires a disposable fixture launched by
+/// scripts/test-macos-control-roundtrip.mjs and a pumping macOS main run loop.
+#[cfg(all(feature = "devtools", target_os = "macos"))]
+pub async fn run_native_computer_use_roundtrip_fixture() {
+    computer_use::native_control_roundtrip::run().await;
 }

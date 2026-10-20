@@ -94,6 +94,7 @@ export function BitFunDesignSystemProvider({ children }: PropsWithChildren) {
       contrast={contrast}
       density={DENSITY}
       locale={currentLanguage}
+      nativeTooltipPolicy="application"
       messages={{
         clearSelection: t('search.clear'),
         confirmAction: t('dialog.confirm.ok'),
@@ -105,6 +106,9 @@ export function BitFunDesignSystemProvider({ children }: PropsWithChildren) {
         searchOptions: t('select.search'),
         selectAll: t('select.selectAll'),
         selectPlaceholder: t('select.placeholder'),
+        toolCardOpenDetails: t('tooltip.openDetails'),
+        toolCardExpandDetails: t('tooltip.expand'),
+        toolCardCollapseDetails: t('tooltip.collapse'),
       }}
       portalHost={getAppearanceOverlayHost}
     >

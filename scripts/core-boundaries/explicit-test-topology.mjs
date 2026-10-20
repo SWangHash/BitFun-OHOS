@@ -41,6 +41,7 @@ export const servicesCoreIntegrationTestTargets = [
   { name: 'permission_store_contracts', path: 'tests/permission_store_contracts.rs' },
   { name: 'workspace_instruction_contracts', path: 'tests/workspace_instruction_contracts.rs' },
   { name: 'session_write_lock_contracts', path: 'tests/session_write_lock_contracts.rs' },
+  { name: 'exclusive_file_lease_contracts', path: 'tests/exclusive_file_lease_contracts.rs' },
   { name: 'process_runtime_contracts', path: 'tests/process_runtime_contracts.rs' },
   { name: 'service_contracts', path: 'tests/service_contracts.rs' },
   { name: 'storage_owner_contracts', path: 'tests/storage_owner_contracts.rs' },

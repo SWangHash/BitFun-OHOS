@@ -11,17 +11,18 @@ describe('design-system Vite integration', () => {
   it('resolves UI package entry points to source only while serving for HMR', () => {
     const serveAliases = createDesignSystemSourceAliases('serve');
 
-    expect(serveAliases).toHaveLength(4);
+    expect(serveAliases).toHaveLength(5);
     expect(serveAliases.map(alias => String(alias.find))).toEqual([
+      '/^@bitfun\\/ui\\/brand$/',
       '/^@bitfun\\/ui\\/flow-chat$/',
       '/^@bitfun\\/ui\\/registry$/',
       '/^@bitfun\\/ui\\/styles\\.css$/',
       '/^@bitfun\\/ui$/',
     ]);
-    expect(path.normalize(serveAliases[0].replacement)).toContain(
+    expect(path.normalize(serveAliases[1].replacement)).toContain(
       path.normalize('design-system/packages/ui/src/flow-chat.ts'),
     );
-    expect(path.normalize(serveAliases[3].replacement)).toContain(
+    expect(path.normalize(serveAliases[4].replacement)).toContain(
       path.normalize('design-system/packages/ui/src/index.ts'),
     );
     expect(createDesignSystemSourceAliases('build')).toEqual([]);
@@ -45,7 +46,7 @@ describe('design-system Vite integration', () => {
     const watched: string[] = [];
     watcher?.configureServer({ watcher: { add: directory => watched.push(directory) } });
     expect(watched).toEqual([
-      path.dirname(createDesignSystemSourceAliases('serve')[3].replacement),
+      path.dirname(createDesignSystemSourceAliases('serve')[4].replacement),
     ]);
   });
 
@@ -81,12 +82,18 @@ describe('design-system Vite integration', () => {
     const layerPreludeIndex = mainSource.indexOf(
       'import "@bitfun/ui/styles.css"',
     );
-    const productGraphIndex = mainSource.indexOf('import App from "./app/App"');
+    const productGraphImports = [
+      'import AppErrorBoundary from "./app/components/AppErrorBoundary"',
+      "import('./app/startup/MainApplicationRoot')",
+      "import('./app/components/AgentCompanionDesktopPet/AgentCompanionDesktopPet')",
+    ];
 
     expect(themeEntry).toContain('@import "@bitfun/theme-bitfun/default.css";');
     expect(mainSource).not.toContain('import "@bitfun/theme-bitfun/default.css"');
     expect(layerPreludeIndex).toBeGreaterThanOrEqual(0);
-    expect(productGraphIndex).toBeGreaterThan(layerPreludeIndex);
+    for (const productImport of productGraphImports) {
+      expect(mainSource.indexOf(productImport)).toBeGreaterThan(layerPreludeIndex);
+    }
 
     const bootstrapLayerOrder =
       '@layer bitfun.tokens.system, bitfun.tokens.theme, bitfun.reset, bitfun.base, bitfun.components, bitfun.overrides;';

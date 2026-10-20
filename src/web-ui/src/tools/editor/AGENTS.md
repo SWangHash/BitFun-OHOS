@@ -30,6 +30,32 @@ This directory follows `src/web-ui/AGENTS.md`.
 
 ## Focused verification
 
+Document-backed code editors may suspend inactive Monaco views after 30 seconds;
+at most three inactive views stay warm across hosts. Visible views and active IME
+composition are protected. Find/replace widgets and nonempty queries also keep
+their view: Monaco does not include this interaction in `saveViewState`, and a
+closed widget still owns the query used by F3. `EditorDocument` retains the exact
+model, undo/redo, dirty state and saved view state. Closing a suspended view must
+still support saving its model. Standalone, rich-text and Diff editors remain
+resident until their state has an independently tested owner; do not rebuild a
+document to save view memory.
+
+For view residency, also run:
+
+```bash
+pnpm --dir src/web-ui run test:run src/tools/editor/services/editorViewResidency.test.ts src/tools/editor/components/CodeEditor.test.tsx
+```
+
+For code editor disk synchronization, encoding reloads, and dirty-state changes:
+
+```bash
+pnpm --dir src/web-ui run test:run src/tools/editor/components/CodeEditor.test.tsx src/tools/editor/services/MonacoModelManager.test.ts src/tools/editor/services/EditorDocument.test.ts src/tools/editor/utils/diskFileVersion.test.ts
+```
+
+The component tests use the real document/model manager with fake Monaco rendering
+and host IO. They cover delayed reads, stale requests, surface changes, and view
+remounts; they do not establish live SSH or peer transport behavior.
+
 Run from the repository root after Markdown editor changes:
 
 ```bash

@@ -143,7 +143,7 @@ export function useComposerVoiceInput({
 
   const openVoiceInputSettings = useCallback(() => {
     useSettingsStore.getState().openDestination({
-      pageId: 'application.voice',
+      pageId: 'application.input', sectionId: 'voice',
     });
     useSceneStore.getState().openScene('settings');
   }, []);

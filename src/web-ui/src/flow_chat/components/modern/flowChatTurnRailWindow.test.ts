@@ -30,19 +30,19 @@ describe('flowChatTurnRailWindow', () => {
     expect(getFlowChatTurnRailScrollTopForOrdinal({
       ordinal: 1,
       currentScrollTop: 0,
-      clientHeight: 40,
+      clientHeight: 30,
       totalOrdinalCount: 4,
     })).toBe(0);
     expect(getFlowChatTurnRailScrollTopForOrdinal({
       ordinal: 3,
       currentScrollTop: 0,
-      clientHeight: 40,
+      clientHeight: 30,
       totalOrdinalCount: 4,
-    })).toBe(11);
+    })).toBe(9);
     expect(getFlowChatTurnRailScrollTopForOrdinal({
       ordinal: 0,
       currentScrollTop: 50,
-      clientHeight: 40,
+      clientHeight: 30,
       totalOrdinalCount: 4,
     })).toBe(FLOWCHAT_TURN_RAIL_VERTICAL_PADDING_PX);
   });
@@ -51,12 +51,12 @@ describe('flowChatTurnRailWindow', () => {
     expect(getFlowChatTurnRailScrollTopForOrdinal({
       ordinal: 999,
       currentScrollTop: 999,
-      clientHeight: 40,
+      clientHeight: 30,
       totalOrdinalCount: 4,
-    })).toBe(14);
+    })).toBe(12);
     expect(getFlowChatTurnRailWindowRange({
       scrollTop: 999,
-      clientHeight: 40,
+      clientHeight: 30,
       totalOrdinalCount: 4,
     })).toEqual({
       startOrdinal: 0,

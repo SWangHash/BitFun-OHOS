@@ -32,7 +32,7 @@ interface FrontendNavigationMarker {
 }
 
 type StartupTraceWindow = Window & typeof globalThis & {
-  __BITFUN_STARTUP_TRACE__?: {
+  __BitFun_STARTUP_TRACE__?: {
     snapshot?: () => unknown;
   };
 };
@@ -48,7 +48,7 @@ async function readFrontendNavigationMarker(): Promise<FrontendNavigationMarker 
   return browser.execute(() => {
     try {
       const startupTraceWindow = window as unknown as StartupTraceWindow;
-      const snapshot = startupTraceWindow.__BITFUN_STARTUP_TRACE__?.snapshot?.();
+      const snapshot = startupTraceWindow.__BitFun_STARTUP_TRACE__?.snapshot?.();
       const traceSnapshot = snapshot && typeof snapshot === 'object'
         ? snapshot as StartupTraceSnapshotLike
         : null;
@@ -88,7 +88,7 @@ async function waitForPostReloadShellReady(projectName: string, workspacePath: s
     try {
       return browser.execute((expectedProjectName: string) => {
         const startupTraceWindow = window as unknown as StartupTraceWindow;
-        const snapshot = startupTraceWindow.__BITFUN_STARTUP_TRACE__?.snapshot?.();
+        const snapshot = startupTraceWindow.__BitFun_STARTUP_TRACE__?.snapshot?.();
         const traceSnapshot = snapshot && typeof snapshot === 'object'
           ? snapshot as StartupTraceSnapshotLike
           : null;
@@ -248,6 +248,7 @@ export async function ensureCodeSessionOpen(): Promise<void> {
   }
 
   const selectors = [
+    '[data-testid="nav-workspace-new-session-btn"]',
     '.bitfun-nav-panel__workspace-create-main--split-left',
     '[data-testid="chat-input-send-btn"]',
   ];

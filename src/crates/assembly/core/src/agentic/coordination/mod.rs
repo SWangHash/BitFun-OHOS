@@ -11,6 +11,7 @@ mod coordination_store;
 // behaviour (the submitted answers are delivered immediately).
 #[cfg(feature = "qt-toolchain")]
 mod qt_toolchain_provisioning;
+mod delegation_context;
 pub use control_conversation::{
     ControlConversation, CreateControlConversationRequest, VoiceExchangeRequest,
 };

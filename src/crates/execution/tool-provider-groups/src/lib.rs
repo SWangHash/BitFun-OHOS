@@ -110,10 +110,10 @@ pub fn tool_feature_group(tool_name: &str) -> Option<ToolPackFeatureGroup> {
         "CreateCanvas" | "ReadCanvas" | "UpdateCanvas" | "PatchCanvas" => {
             Some(ToolPackFeatureGroup::Canvas)
         }
-        "Task" | "AgentSpawn" | "AgentSendInput" | "AgentInterrupt" | "AgentList"
-        | "AgentDelete" | "AgentWait" | "LaunchReviewAgent" | "Skill" | "AskUserQuestion"
-        | "TodoWrite" | "get_goal" | "create_goal" | "update_goal" | "submit_code_review"
-        | "GetToolSpec" | "CallDeferredTool" | "SessionControl" | "SessionMessage"
+        "Task" | "AgentSpawn" | "AgentSendInput" | "AgentControl" | "AgentList" | "AgentWait"
+        | "LaunchReviewAgent" | "Skill" | "AskUserQuestion" | "TodoWrite" | "get_goal"
+        | "create_goal" | "update_goal" | "submit_code_review" | "GetToolSpec"
+        | "CallDeferredTool" | "ListWorkspaces" | "SessionControl" | "SessionMessage"
         | "SessionHistory" | "Cron" | "PortForward" | "BitFunControl" => {
             Some(ToolPackFeatureGroup::AgentControl)
         }
@@ -201,9 +201,8 @@ const PRODUCT_TOOL_PROVIDER_GROUP_PLAN: &[ToolProviderGroupPlan] = &[
             "Task",
             "AgentSpawn",
             "AgentSendInput",
-            "AgentInterrupt",
+            "AgentControl",
             "AgentList",
-            "AgentDelete",
             "AgentWait",
             "Skill",
             "AskUserQuestion",
@@ -220,6 +219,7 @@ const PRODUCT_TOOL_PROVIDER_GROUP_PLAN: &[ToolProviderGroupPlan] = &[
         provider_id: "core.session",
         feature_groups: CORE_SESSION_FEATURE_GROUPS,
         tool_names: &[
+            "ListWorkspaces",
             "SessionControl",
             "SessionMessage",
             "SessionHistory",
@@ -560,9 +560,8 @@ mod tests {
                 "Task",
                 "AgentSpawn",
                 "AgentSendInput",
-                "AgentInterrupt",
+                "AgentControl",
                 "AgentList",
-                "AgentDelete",
                 "AgentWait",
                 "Skill",
                 "AskUserQuestion",
@@ -573,6 +572,7 @@ mod tests {
                 "GetToolSpec",
                 "CallDeferredTool",
                 "BitFunControl",
+                "ListWorkspaces",
                 "SessionControl",
                 "SessionMessage",
                 "SessionHistory",

@@ -36,7 +36,7 @@
 ### 变更与新特性(同步上游)
 
 - **Review Platform**:支持 Gitee Pull Requests。
-- **Relay**:信任改名后的 `openbitfun-relay-server` 镜像仓库(修复一键自部署在镜像改名后整体失效的问题)。
+- **Relay**:信任改名后的 `bitfun-relay-server` 镜像仓库(修复一键自部署在镜像改名后整体失效的问题)。
 - **Review 本地化**:错误与完整诊断本地化、动作启动失败本地化、缺失显式目标报告、未信任仓库错误、缺失 Git 场景区分。
 - **Review 流程**:PR Tab 内容滚动约束、拒绝不匹配的工作区目标、评审期间导出控件保持可见、审批模式继承与轮次准入保留、全选时保持计划可见、GitCode PR 文件单次有界加载。
 - **Skills/Matrix**:陈旧请求清理加载标志防止卡死;Matrix ZIP 下载改为流式落盘并对解码错误重试。

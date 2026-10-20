@@ -1,0 +1,39 @@
+@layer bitfun.components {
+  /* The group is the surface: options are flush rows inside it, so a surface group reads as one
+     card instead of a stack of separate controls. */
+  .root { display: flex; box-sizing: border-box; inline-size: 100%; min-inline-size: 0; flex-direction: column; overflow: hidden; gap: 0; border: var(--bitfun-border-width-default) solid transparent; border-radius: var(--bitfun-radius-md); background: transparent; }
+  .root[data-appearance="surface"] { border-color: var(--bitfun-color-border-subtle); background: var(--bitfun-color-surface-panel); box-shadow: var(--bitfun-shadow-xs); }
+  .root[data-appearance="surface"] .option + .option { border-block-start: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle); }
+
+  .option { display: flex; box-sizing: border-box; inline-size: 100%; min-inline-size: 0; min-block-size: 52px; align-items: center; gap: var(--bitfun-space-3); padding: var(--bitfun-space-2) var(--bitfun-space-3); color: var(--bitfun-color-content-primary); cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard); }
+  .root[data-appearance="surface"] .option { min-block-size: 64px; }
+  .option[data-disabled="true"] { color: var(--bitfun-color-content-disabled); cursor: not-allowed; }
+
+  @media (hover: hover) and (pointer: fine) {
+    .option:is(:hover, [data-bitfun-preview-state="hover"]):not([data-disabled="true"]),
+    .root[data-bitfun-preview-state="hover"] .option:not([data-disabled="true"]) { background: var(--bitfun-color-action-neutral-surface-hover); }
+  }
+  .option:is(:active, [data-bitfun-preview-state="active"]):not([data-disabled="true"]),
+  .root[data-bitfun-preview-state="active"] .option:not([data-disabled="true"]) { background: var(--bitfun-color-action-neutral-surface-pressed); }
+  .option:has(.input:focus-visible),
+  .root[data-bitfun-preview-state="focus-visible"] .option[data-checked="true"] { outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring); outline-offset: calc(var(--bitfun-focus-offset) * -1); }
+
+  .control { position: relative; display: inline-flex; inline-size: 20px; block-size: 20px; flex: 0 0 auto; }
+  .input { position: absolute; z-index: var(--bitfun-layer-content); inset: 0; inline-size: 100%; block-size: 100%; margin: 0; opacity: 0; cursor: inherit; }
+  .circle { display: grid; inline-size: 100%; block-size: 100%; place-items: center; border: var(--bitfun-border-width-default) solid var(--bitfun-color-field-border); border-radius: 50%; background: var(--bitfun-color-field-background); transition: background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard), border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard); }
+  /* The selected mark is a filled core, not a ring: the row already states the choice, so the
+     control only has to confirm it. */
+  .dot { inline-size: 60%; block-size: 60%; border-radius: 50%; background: var(--bitfun-color-content-inverse); opacity: 0; transition: opacity var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard); }
+  .option[data-checked="true"] .circle { border-color: var(--bitfun-color-control-highlight-background); background: var(--bitfun-color-control-highlight-background); }
+  .option[data-checked="true"] .dot { opacity: 1; }
+
+  .copy { display: flex; box-sizing: border-box; min-inline-size: 0; flex: 1 1 auto; flex-direction: column; gap: var(--bitfun-space-1); }
+  .label { font-size: var(--bitfun-type-body-md-font-size); font-weight: var(--bitfun-type-label-lg-font-weight); }
+  .description { color: var(--bitfun-color-content-muted); font-size: var(--bitfun-type-body-xs-font-size); }
+  .option[data-disabled="true"] .label, .option[data-disabled="true"] .description { color: inherit; }
+  .leading { display: grid; inline-size: 20px; block-size: 20px; flex: 0 0 20px; place-items: center; color: var(--bitfun-color-content-secondary); }
+  .leading > :where(svg, img) { inline-size: 100%; block-size: 100%; }
+
+  @media (prefers-reduced-motion: reduce) { .option, .circle, .dot { transition: none; } }
+  @media (forced-colors: active) { .root[data-appearance="surface"], .circle { border-color: ButtonText; } .option[data-checked="true"] .circle { border-color: Highlight; background: Highlight; } .option:has(.input:focus-visible), .root[data-bitfun-preview-state="focus-visible"] .option[data-checked="true"] { outline-color: Highlight; } }
+}

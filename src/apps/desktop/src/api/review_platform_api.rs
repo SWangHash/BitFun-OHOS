@@ -438,7 +438,7 @@ mod tests {
     }
 
     #[test]
-    fn review_platform_command_errors_keep_localizable_codes_for_other_failures() {
+    fn review_platform_command_errors_use_stable_codes_for_other_failures() {
         let error = ReviewPlatformError::RemoteNotFound("origin".to_string());
 
         assert_eq!(

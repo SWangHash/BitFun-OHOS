@@ -9,37 +9,41 @@
   "loading": "載入中…",
   "page": {
     "title": "智能體",
-    "subtitle": "配置四種智能體執行框架、面向任務的智能體與受委派的子智能體",
+    "subtitle": "執行模式體現預設智能體的工作風格，專用智能體獨立或協作完成任務。",
     "searchPlaceholder": "搜尋智能體名稱或描述…",
     "newAgent": "新增智能體"
   },
   "nav": {
-    "harness": "智能體執行框架",
+    "harness": "執行模式",
     "coreAgents": "已接入智能體",
     "agents": "智能體"
   },
   "harnessZone": {
-    "title": "智能體執行框架",
-    "subtitle": "定義會話如何執行任務，各自管理工具與協作策略",
+    "title": "執行模式",
     "flowCaption": "同一任務 · 四種策略 · 一個結果",
     "task": "任務",
     "result": "結果",
+    "replay": "重播動畫",
     "profiles": {
       "Minimal": {
         "name": "$t(shared:agents.Minimal)",
-        "purpose": "精簡流程，快速推進"
+        "purpose": "更少干預，更多自主",
+        "description": "側重自主推進，減少流程干預，讓模型自行判斷如何完成程式開發等任務。"
       },
       "Standard": {
         "name": "$t(shared:agents.Standard)",
-        "purpose": "平衡效率與品質"
+        "purpose": "工具齊備，支援程式設計與日常工作",
+        "description": "涵蓋程式開發與日常工作，以清晰的任務指引和完整工具處理開發、資料整理與內容寫作。"
       },
       "Ultimate": {
         "name": "$t(shared:agents.Ultimate)",
-        "purpose": "深度拆解與智能協同"
+        "purpose": "分工協作，完成複雜專案",
+        "description": "強調分工協作，透過多個智能體並行執行與獨立審查，推進複雜專案和大型改造。"
       },
       "Creative": {
         "name": "$t(shared:agents.Creative)",
-        "purpose": "BitFun 的定製與創造"
+        "purpose": "創作內容與應用，客製你的體驗",
+        "description": "用自然語言把想法變成成品：按需載入創意技能，製作動效影片、簡報、互動原型與網頁，也能建立小應用、客製 BitFun。"
       }
     }
   },
@@ -88,7 +92,7 @@
     }
   },
   "agentsZone": {
-    "title": "智能體",
+    "title": "專用智能體",
     "subtitle": "統一查看內置、用戶、項目和外部智能體，點擊卡片查看與設定能力",
     "empty": {
       "noAgents": "目前沒有可用的智能體",
@@ -148,6 +152,14 @@
     "filterProject": "項目級",
     "backToOverview": "返回總覽",
     "detail": {
+      "overview": "概覽",
+      "backToOverview": "返回概覽",
+      "cards": {
+        "tools": "查看與管理智能體可使用的工具",
+        "skills": "選擇智能體可使用的 Skills",
+        "subagents": "設定任務委派與協作成員",
+        "model": "選擇子智能體執行任務時使用的模型"
+      },
       "configuration": "配置",
       "basicInfo": "基本資訊",
       "basicInfoHint": "智能體的身份、用途與運行屬性",
@@ -186,8 +198,6 @@
     "selectAll": "全選",
     "selectionSaveHint": "儲存後生效",
     "capabilityEnabled": "已啟用",
-    "subagentsSelectedCount": "已選擇 {{count}} 個子智能體",
-    "subagentsEnabledCount": "已啟用 {{count}} 個子智能體",
     "noEnabledSubagents": "未啟用任何子智能體",
     "reset": "重設",
     "cancel": "取消",
@@ -238,9 +248,6 @@
       "builtin": "內置分組",
       "myGroups": "我的分組",
       "otherSkills": "其他 Skill",
-      "selectedCount": "已選擇 {{count}} 個技能",
-      "enabledCount": "已啟用 {{count}} 個技能",
-      "runtimeCount": "執行時採用 {{count}} 個",
       "unavailableCount": "{{count}} 個不可用",
       "enableGroupSkills": "選擇 {{name}} 中的所有技能",
       "clearGroupSkills": "取消選擇 {{name}} 中的技能",
@@ -265,7 +272,6 @@
       "extension": "擴展 · {{provider}}",
       "other": "其他",
       "selectedCount": "已選擇 {{count}} 個工具",
-      "enabledCount": "已啟用 {{count}} 個工具",
       "manageGroups": "管理分組",
       "manageTitle": "管理我的工具分組",
       "manageSubtitle": "整理可重複使用的個人工具選擇。",
@@ -300,7 +306,7 @@
     "editAgent": "編輯",
     "deleteAgent": "刪除",
     "externalActions": "外部智能體",
-    "manageExternalAgent": "前往生態兼容管理",
+    "manageExternalAgent": "前往外部匯入管理",
     "deleteConfirm": "確定刪除自定義智能體「{{name}}」？此操作不可恢復。",
     "deleteSuccess": "已刪除「{{name}}」",
     "deleteFailed": "刪除失敗：",
@@ -332,7 +338,7 @@
       "descPlaceholder": "簡要描述該智能體的用途",
       "descRequired": "描述不能為空",
       "prompt": "系統提示詞",
-      "promptPlaceholder": "輸入系統提示詞，定義智能體的行為...\n\n支援以下佔位符\n{PERSONA}: SOUL.md/USER.md/IDENTITY.md\n{LANGUAGE_PREFERENCE}: 語言偏好",
+      "promptPlaceholder": "輸入系統提示詞，定義智能體的行為...\n\n支援以下佔位符\n{PERSONA}: SOUL.md/USER.md/IDENTITY.md\n{LANGUAGE_PREFERENCE}: 語言偏好\n{FILE_REFERENCES}: 檔案和圖片引用規範",
       "promptRequired": "系統提示詞不能為空",
       "readonly": "只讀模式",
       "model": "模型",
@@ -397,26 +403,25 @@
     "Cowork": "辦公協作智能體：協助處理辦公與研究任務，在關鍵步驟與您確認。",
     "ComputerUse": "電腦操作子智能體：受委派操作瀏覽器、桌面應用程式與檔案系統。",
     "DeepResearch": "深度研究智能體：對複雜主題進行系統性調研和分析",
+    "ResearchSpecialist": "聚焦網路調研，檢索可靠資料並整理有來源依據的研究結論。",
+    "GeneralPurpose": "結合檢索、分析與程式設計能力，獨立完成多步驟任務。",
     "Explore": "探索子智能體：快速瀏覽程式碼庫，理解專案結構和關鍵檔案",
-    "GeneralPurpose": "通用子智能體：聚焦程式碼庫檢索、定點檔案編輯和多步驟實作或研究任務",
-    "ResearchSpecialist": "網路研究子智能體：專注執行網路搜尋與網頁擷取，回傳結構化研究結論，不污染主對話上下文",
     "CodeReview": "程式碼審查子智能體：對程式碼進行品質檢查和改進建議",
     "DeepReview": "嚴格審查相容子智能體：用於歷史會話或命令中的審查流程。",
-    "GenerateDoc": "檔案生成子智能體：自動生成程式碼檔案和說明",
     "Init": "初始化智能體：幫助設定專案結構和初始設定",
     "ReviewFixer": "審查修復子智能體：根據審查結果自動修復程式碼問題",
     "Claw": "個人助理：結合您的偏好與上下文，協助處理日常任務。",
-    "Standard": "透過規劃、工具與子智能體協作完成一般任務。",
-    "Ultimate": "拆解複雜任務，協調並行子智能體並審查結果。",
-    "Minimal": "使用精簡執行流程與固定的小型工具集。",
-    "Creative": "創造與客製 BitFun 體驗及能力。",
+    "Standard": "以清晰的任務指引和完整工具，支援程式設計，也能勝任資訊處理、內容創作等日常工作。",
+    "Ultimate": "多個智能體並行推進、獨立審查，適合複雜專案與大型改造。",
+    "Minimal": "精簡提示詞與工具，讓新一代旗艦模型充分發揮，適合程式開發等任務。",
+    "Creative": "借助創意技能製作影片、簡報、原型與網頁，或用自然語言建立小應用、客製介面。",
     "HarmonyReleaseAudit": "面向鴻蒙應用上架前的規則審查，識別潛在風險，提供整改建議，並支援按需修復與複檢。",
     "HarmonyFeature": "基於鴻蒙創新特性知識庫，協助匹配、規劃並實作平台特性增強。",
-    "QtMigration": "Qt 5.12/5.15 工程鴻蒙化遷移：評估->8步代碼遷移->編譯構建->部署驗證->問題修復閉環，全程可視化任務進度。"
-    ,"HarmonyBuild": "鴻蒙項目構建、部署、診斷與驗證專業智能體"
-    ,"HarmonyPlan": "只讀的鴻蒙項目規劃與工程分析 Sub-Agent"
-    ,"HarmonyGoal": "受限的鴻蒙目標驅動編排 Sub-Agent"
-    ,"HarmonySpecImplementation": "隱藏的已批准規格實施 Sub-Agent"
-    ,"HarmonySpecVerify": "隱藏的鴻蒙構建、部署與 UI 驗證 Sub-Agent"
+    "QtMigration": "Qt 5.12/5.15 工程鴻蒙化遷移：評估->8步代碼遷移->編譯構建->部署驗證->問題修復閉環，全程可視化任務進度。",
+    "HarmonyBuild": "鴻蒙項目構建、部署、診斷與驗證專業智能體",
+    "HarmonyPlan": "只讀的鴻蒙項目規劃與工程分析 Sub-Agent",
+    "HarmonyGoal": "受限的鴻蒙目標驅動編排 Sub-Agent",
+    "HarmonySpecImplementation": "隱藏的已批准規格實施 Sub-Agent",
+    "HarmonySpecVerify": "隱藏的鴻蒙構建、部署與 UI 驗證 Sub-Agent"
   }
 }

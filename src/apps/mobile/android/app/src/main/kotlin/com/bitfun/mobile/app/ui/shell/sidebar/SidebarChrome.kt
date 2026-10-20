@@ -27,9 +27,13 @@ import com.bitfun.mobile.core.feature.connection.ConnectionTone
  * The round carded button the sidebar's header and footer are built from,
  * ported from the 38x38 and 46x46 stacks in `AppSidebar.ets`.
  *
- * Carded rather than a bare `IconButton`: the drawer's own background is the
- * page colour, so an icon drawn straight onto it has no edge and reads as
- * decoration instead of as something to press.
+ * Carded rather than a bare `IconButton`: the drawer's own background is flat
+ * chrome, so an icon drawn straight onto it has no edge and reads as decoration
+ * instead of as something to press.
+ *
+ * The colours default to the sidebar's own chrome because that is where this
+ * shape belongs. The session-list header reuses the shape on a page surface, so
+ * it passes the page roles instead — same button, correct layer.
  */
 @Composable
 internal fun SidebarCircleButton(
@@ -38,21 +42,24 @@ internal fun SidebarCircleButton(
     diameter: Int,
     onClick: () -> Unit,
     modifier: Modifier,
+    background: Color = bitFunColors.sidebar.raised,
+    border: Color = bitFunColors.sidebar.line,
+    tint: Color = bitFunColors.sidebar.ink,
 ) {
     Box(
         modifier = modifier
             .size(diameter.dp)
             .shadow(2.dp, CircleShape)
             .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
+            .background(background)
+            .border(1.dp, border, CircleShape)
             .clickable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             painterResource(icon),
             contentDescription = contentDescription,
-            tint = MaterialTheme.colorScheme.onSurface,
+            tint = tint,
             modifier = Modifier.size((diameter * 0.46f).dp),
         )
     }
@@ -62,14 +69,12 @@ internal fun SidebarCircleButton(
 @Composable
 internal fun ConnectionDot(phase: ConnectionPhase) {
     val tone = ConnectionStatusPresenter.tone(phase)
-    // Same three colours `ConversationView.ets#connectionColor()` picks from;
-    // BUSY is the one addition, because a dot that only ever goes green or grey
-    // cannot say "connecting" while it is still trying.
+    // Keep automatic recovery quiet; color and accessibility state express reachability.
     val color: Color = when (tone) {
         ConnectionTone.OK -> bitFunColors.statusSuccess
         ConnectionTone.BUSY -> MaterialTheme.colorScheme.tertiary
         ConnectionTone.ERROR -> MaterialTheme.colorScheme.error
-        ConnectionTone.MUTED -> MaterialTheme.colorScheme.onSurfaceVariant
+        ConnectionTone.MUTED -> bitFunColors.sidebar.muted
     }
     Box(
         Modifier

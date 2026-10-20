@@ -12,7 +12,7 @@ during load. Let the Rust market store validate the credential payload; do not
 apply the legacy conversion to subscription chunks or other aliases.
 
 The 2.0.0 Rust account store (`account_identity/credentials.rs`) reads the
-current alias `openbitfun.market.credentials.v1` first and falls back to the
+current alias `bitfun.market.credentials.v1` first and falls back to the
 1.0.x alias above, so an in-place upgrade keeps the market sign-in. Sign-out
 deletes both aliases. Keep the two aliases in step with the bridge constant
 `LEGACY_MARKET_ASSET_ALIAS` when either side is renamed.

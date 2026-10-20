@@ -20,6 +20,46 @@ import {
 import { TauriTransportAdapter } from './tauri-adapter';
 import { isSurfaceChangedError } from '@/infrastructure/peer-device/deviceSurface';
 
+describe('whole-session copy capability', () => {
+  it('rejects copying before RPC on a host without the new request contract', async () => {
+    const deviceRpc = vi.fn();
+    const adapter = new PeerDeviceTransportAdapter('peer-1', deviceRpc);
+    await expect(adapter.request('copy_session', {
+      request: { source_session_id: 'source', workspace_id: 'workspace-1' },
+    })).rejects.toThrow('whole_session_copy_v1_unsupported');
+    expect(deviceRpc).not.toHaveBeenCalled();
+  });
+
+  it('preserves explicit-turn fork payloads for an older host', async () => {
+    const result = { sessionId: 'copy-1', sessionName: 'Source (1)', agentType: 'Standard' };
+    const deviceRpc = vi.fn().mockResolvedValue(JSON.stringify({
+      resp: 'host_invoke_result', ok: true, value: result,
+    }));
+    const adapter = new PeerDeviceTransportAdapter('peer-1', deviceRpc);
+    const params = { request: {
+      source_session_id: 'source', source_turn_id: 'turn-1', workspace_id: 'workspace-1',
+    } };
+    await expect(adapter.request('fork_session', params)).resolves.toEqual(result);
+    expect(JSON.parse(deviceRpc.mock.calls[0][1])).toMatchObject({ command: 'fork_session', args: params });
+  });
+
+  it('forwards the dedicated copy command once, then rejects it if the host downgrades', async () => {
+    const result = { sessionId: 'copy-1', sessionName: 'Source (1)', agentType: 'Standard' };
+    const deviceRpc = vi.fn().mockResolvedValue(JSON.stringify({
+      resp: 'host_invoke_result', ok: true, value: result,
+    }));
+    const adapter = new PeerDeviceTransportAdapter('peer-1', deviceRpc, {
+      supportsWholeSessionCopyV1: true,
+    });
+    const params = { request: { source_session_id: 'source', workspace_id: 'workspace-1' } };
+    await expect(adapter.request('copy_session', params)).resolves.toEqual(result);
+    expect(JSON.parse(deviceRpc.mock.calls[0][1])).toMatchObject({ command: 'copy_session', args: params });
+    adapter.setHostCapabilities({ supportsWholeSessionCopyV1: false });
+    await expect(adapter.request('copy_session', params)).rejects.toThrow('whole_session_copy_v1_unsupported');
+    expect(deviceRpc).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('isPeerLocalOnlyCommand', () => {
   it('keeps file-search streaming on the negotiated response path', () => {
     const adapter = new PeerDeviceTransportAdapter('peer-1', vi.fn());
@@ -216,6 +256,13 @@ describe('peerInvokePriorityFor', () => {
     expect(isPeerRetryableReadCommand('start_dialog_turn')).toBe(false);
     expect(isPeerRetryableReadCommand('delete_session')).toBe(false);
     expect(isPeerRetryableReadCommand('respond_permission')).toBe(false);
+    // Copying a session carries no host-side
+    // idempotency key, so a retry would create a second copy of the session.
+    expect(isPeerRetryableReadCommand('fork_session')).toBe(false);
+    expect(isPeerRetryableReadCommand('copy_session')).toBe(false);
+    expect(isPeerRetryableIdempotentMutation('copy_session', {
+      request: { workspace_id: 'workspace-1', source_session_id: 'session-1' },
+    })).toBe(false);
   });
 
   it('does not retry side-effecting announcement get_* commands', () => {
@@ -267,6 +314,26 @@ describe('peerInvokePriorityFor', () => {
 });
 
 describe('PeerDeviceTransportAdapter queue', () => {
+  it.each(['computer_use_share_targets', 'computer_use_share_input', 'computer_use_request_permission'])('rejects %s on old peers without sending an RPC or using the local host', async command => {
+    const rpc = vi.fn();
+    const local = vi.spyOn(TauriTransportAdapter.prototype, 'request');
+    const adapter = new PeerDeviceTransportAdapter('peer-1', rpc);
+    await adapter.connect();
+    await expect(adapter.request(command, {})).rejects.toThrow('computer_use_sharing_v1_unsupported');
+    expect(rpc).not.toHaveBeenCalled();
+    expect(local).not.toHaveBeenCalled();
+    local.mockRestore();
+  });
+  it('carries sharing scope unchanged to a capable executing peer', async () => {
+    const rpc = vi.fn().mockResolvedValue(JSON.stringify({ resp: 'host_invoke_result', ok: true, value: { state: 'active' } }));
+    const adapter = new PeerDeviceTransportAdapter('peer-1', rpc, { supportsComputerUseSharingV1: true });
+    await adapter.connect();
+    const request = { generation: 7, target_revision: 4, authorization_revision: 2, input: { action: 'app_type_text', text: 'hello' } };
+    await adapter.request('computer_use_share_input', { request });
+    const wire = JSON.parse(rpc.mock.calls[0][1]);
+    expect(wire.command).toBe('computer_use_share_input');
+    expect(wire.args).toEqual({ request });
+  });
   it('orders one dispatch burst with control first without capping in-flight data requests', async () => {
     const started: string[] = []; const gate = createDeferred<void>();
     const deviceRpc = vi.fn(async (_target: string, commandJson: string) => {

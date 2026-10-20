@@ -14,9 +14,29 @@ pub struct SkillScanDiagnostic {
     pub path: String,
     pub source_id: String,
     pub message: String,
+    /// A required declaration this runtime cannot honor. The skill stays unloaded.
+    /// Older hosts omit this field and retain ordinary scan-error presentation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unsupported_field: Option<String>,
 }
 
 impl SkillScanDiagnostic {
+    pub fn from_parse_error(
+        path: impl Into<String>,
+        source_id: impl Into<String>,
+        error: &SkillParseError,
+    ) -> Self {
+        Self {
+            path: path.into(),
+            source_id: source_id.into(),
+            message: error.to_string(),
+            unsupported_field: match error {
+                SkillParseError::UnsupportedClaudeField(field) => Some(field.clone()),
+                _ => None,
+            },
+        }
+    }
+
     pub fn to_xml(&self) -> String {
         let text = format!(
             "Skill discovery notice at {} ({}): {}",
@@ -52,6 +72,8 @@ pub(crate) enum SkillSourceDialect {
 pub enum SkillParseError {
     #[error("Invalid SKILL.md format: {0}")]
     InvalidFormat(String),
+    #[error("Claude skill requires unsupported field '{0}'; this skill was not loaded")]
+    UnsupportedClaudeField(String),
     #[error("Missing required field '{0}' in SKILL.md")]
     MissingField(&'static str),
     #[error("Invalid skill path: {0}")]
@@ -145,7 +167,7 @@ impl SkillInfo {
         matches!(
             source.to_lowercase().as_str(),
             "" | "bitfun" | "bitfun-system" | "bitfun-user"
-                | "openbitfun" | "openbitfun-system" | "openbitfun-user"
+                | "bitfun" | "bitfun-system" | "bitfun-user"
         )
     }
 
@@ -224,6 +246,8 @@ pub struct SkillData {
     pub market_install_id: Option<String>,
     /// Compatibility notices accompany both discovery and explicit loading.
     pub compatibility_warnings: Vec<String>,
+    /// Validated declarations, activated only when this skill is invoked.
+    pub hooks: Option<super::SkillHooks>,
 }
 
 fn default_allow_implicit_invocation() -> bool {
@@ -411,7 +435,6 @@ fn claude_compatibility_warnings(
     const UNSUPPORTED_FIELDS: &[&str] = &[
         "context",
         "agent",
-        "hooks",
         "paths",
         "shell",
         "runtime",
@@ -422,9 +445,9 @@ fn claude_compatibility_warnings(
         .iter()
         .find(|field| metadata.get(**field).is_some())
     {
-        return Err(SkillParseError::InvalidFormat(format!(
-            "Claude field '{field}' is not supported"
-        )));
+        return Err(SkillParseError::UnsupportedClaudeField(
+            (*field).to_string(),
+        ));
     }
 
     let mut warnings = Vec::new();
@@ -585,6 +608,14 @@ impl SkillData {
         let argument_hint = optional_string(&metadata, "argument-hint")?;
 
         let skill_content = if with_content { body } else { String::new() };
+        let hooks = if dialect == SkillSourceDialect::ClaudeCode {
+            metadata
+                .get("hooks")
+                .map(super::SkillHooks::from_yaml)
+                .transpose()?
+        } else {
+            None
+        };
         Ok(SkillData {
             key: String::new(),
             name,
@@ -603,6 +634,7 @@ impl SkillData {
             argument_names,
             market_install_id: None,
             compatibility_warnings,
+            hooks,
         })
     }
 

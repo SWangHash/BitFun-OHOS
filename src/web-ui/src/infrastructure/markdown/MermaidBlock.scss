@@ -181,7 +181,7 @@
       background: transparent;
       border: none;
       border-radius: 0;
-      font-family:var(--bitfun-type-code-md-font-family);
+      font-family: inherit;
       font-size: var(--bitfun-type-flow-code-font-size);
       line-height: var(--bitfun-type-flow-code-line-height);
       color: var(--bitfun-color-content-primary);
@@ -302,7 +302,7 @@
 
 .mermaid-block__diagram {
   svg {
-    font-family:var(--bitfun-type-body-sm-font-family);
+    font-family: var(--bitfun-type-flow-body-font-family);
 
     .node {
       rect, circle, ellipse, polygon {

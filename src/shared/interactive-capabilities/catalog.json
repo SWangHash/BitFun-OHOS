@@ -2,7 +2,7 @@
   "schemaVersion": 5,
   "product": "BitFun",
   "title": "BitFun Playbook",
-  "origin": "https://playbook.bitfun.com",
+  "origin": "https://playbook.openbitfun.com",
   "searchAcceptance": [
     {
       "id": "companion-pet-mixed",
@@ -147,8 +147,8 @@
     "automation": {
       "titleZh": "扩展与自动化",
       "titleEn": "Extensions & automation",
-      "descriptionZh": "Skills、Mini Apps、任务、Hooks 与生态兼容。",
-      "descriptionEn": "Skills, Mini Apps, tasks, hooks, and ecosystem compatibility."
+      "descriptionZh": "Skills、Mini Apps、任务、Hooks、外部导入。",
+      "descriptionEn": "Skills, Mini Apps, tasks, hooks, and External Import."
     },
     "connect": {
       "titleZh": "连接与发布",
@@ -170,6 +170,11 @@
     }
   },
   "agentToolExclusions": [
+    {
+      "tool": "Task",
+      "reasonZh": "兼容性委派原语，仅为显式配置的旧版智能体保留，不是独立的用户功能。",
+      "reasonEn": "Compatibility delegation primitive retained for explicitly configured legacy agents; it is not a standalone user feature."
+    },
     {
       "tool": "GetToolSpec",
       "reasonZh": "延迟工具的契约发现原语，只负责按需加载另一个工具的输入说明，不是独立的用户功能。",
@@ -209,7 +214,11 @@
     "genericConfigPrimitives": [
       "get_config",
       "get_configs",
-      "set_config"
+      "set_config",
+      "canonicalize_agent_profile_configs"
+    ],
+    "modelCatalogEnrichment": [
+      "get_local_models_dev_catalogs"
     ],
     "persistencePrimitives": [
       "save_session_metadata",
@@ -315,8 +324,8 @@
         },
         {
           "id": "session-lifecycle",
-          "titleZh": "重命名、归档、恢复、删除、分叉与导出会话",
-          "titleEn": "Rename, archive, restore, delete, fork, and export sessions",
+          "titleZh": "重命名、归档、恢复、删除、复制、分叉与导出会话",
+          "titleEn": "Rename, archive, restore, delete, copy, fork, and export sessions",
           "control": {
             "kind": "open",
             "reasonCode": "visualSelection",
@@ -328,6 +337,7 @@
             "command:archive_session",
             "command:restore_session",
             "command:delete_session",
+            "command:copy_session",
             "command:fork_session",
             "command:export_session_transcript",
             "command:archive_all_sessions",
@@ -399,6 +409,7 @@
           },
           "evidence": [
             "command:start_dialog_turn",
+            "command:manage_dialog_queue",
             "command:steer_dialog_turn",
             "command:interrupt_dialog_turn",
             "command:cancel_dialog_turn",
@@ -432,6 +443,7 @@
           "control": {
             "kind": "delegate",
             "tools": [
+              "ListWorkspaces",
               "SessionControl",
               "SessionHistory",
               "Read",
@@ -458,21 +470,36 @@
           ]
         },
         {
+          "id": "session-storage-directory",
+          "titleZh": "从工作区或会话菜单打开会话存储目录，用于备份与手动排障",
+          "titleEn": "Open session storage from workspace or session menus for backups and manual troubleshooting",
+          "control": {
+            "kind": "open",
+            "reasonCode": "visualSelection",
+            "reasonZh": "需要用户选择工作区或会话，并在本机桌面文件管理器中操作；远程工作区打开本机保存的会话镜像，对端设备和 Detached Dispatch 会话不支持此操作。打开目录不会修改会话归属。",
+            "reasonEn": "The user selects a workspace or session and works in the local desktop file manager; remote workspaces reveal their locally stored session mirror, while peer and detached-dispatch sessions are unsupported. Opening storage does not change session ownership."
+          },
+          "evidence": [
+            "command:reveal_session_storage_directory"
+          ]
+        },
+        {
           "id": "agent-session-coordination",
           "titleZh": "让智能体创建、列出、取消、删除会话或向另一会话发送消息",
           "titleEn": "Let an agent create, list, cancel, or delete sessions and send messages to another session",
           "control": {
             "kind": "delegate",
             "tools": [
+              "ListWorkspaces",
               "SessionControl",
               "SessionMessage"
             ],
             "workflowZh": [
-              "用 SessionControl 在明确工作区内创建或列出会话；取消只终止当前运行轮次，删除是独立动作",
+              "用 ListWorkspaces 获取运行主机登记的 workspace_id，再传给 SessionControl.workspace 创建或列出本地或远程会话；绝对路径仅在调用者执行环境中解析；取消只终止当前轮次，删除是独立动作",
               "需要让另一持久会话接手工作时用 SessionMessage，并保留异步返回；跨远程边界时沿用目标会话绑定，不得复用控制器路径"
             ],
             "workflowEn": [
-              "Use SessionControl to create or list sessions in an explicit workspace; cancel affects only the active turn and delete is separate",
+              "Use ListWorkspaces to discover runtime-host workspace IDs, then pass one as SessionControl.workspace to create or list local or remote sessions; absolute paths resolve in the caller environment; cancel affects only the active turn and delete is separate",
               "Use SessionMessage when another persisted session should take over work and retain its asynchronous result; preserve the target session binding across remote boundaries"
             ]
           },
@@ -781,7 +808,10 @@
             "command:get_available_tools",
             "command:get_tool_info",
             "command:get_readonly_tools_info",
-            "command:get_runtime_capabilities"
+            "command:get_runtime_capabilities",
+            "command:get_all_tools_info",
+            "command:get_agent_profile_config",
+            "command:get_agent_profile_configs"
           ]
         },
         {
@@ -797,7 +827,10 @@
           "evidence": [
             "command:list_agent_tool_names",
             "source:src/web-ui/src/app/scenes/agents/components/ToolGroupPicker.tsx#ToolGroupPicker",
-            "source:src/web-ui/src/app/scenes/agents/components/SkillGroupPicker.tsx#SkillGroupPicker"
+            "source:src/web-ui/src/app/scenes/agents/components/SkillGroupPicker.tsx#SkillGroupPicker",
+            "command:set_agent_profile_config",
+            "command:reset_agent_profile_config",
+            "source:src/web-ui/src/app/scenes/agents/hooks/useAgentsList.ts#useAgentsList"
           ]
         },
         {
@@ -807,20 +840,18 @@
           "control": {
             "kind": "delegate",
             "tools": [
-              "Task",
               "AgentSpawn",
               "AgentWait",
               "AgentSendInput",
-              "AgentInterrupt",
-              "AgentList",
-              "AgentDelete"
+              "AgentControl",
+              "AgentList"
             ],
             "workflowZh": [
-              "按任务形态使用 Task 或 AgentSpawn 启动有边界的子任务，并保留返回的 agent_id",
+              "使用 AgentSpawn 启动有边界的子任务，并保留返回的 agent_id",
               "用 AgentList/AgentWait 查看进度；需要调整时用 AgentSendInput，必要时再中断或删除，最终综合子智能体结果"
             ],
             "workflowEn": [
-              "Start a bounded subtask with Task or AgentSpawn and retain the returned agent_id",
+              "Start a bounded subtask with AgentSpawn and retain the returned agent_id",
               "Use AgentList or AgentWait for progress, AgentSendInput for corrections, and interrupt or delete only when necessary before synthesizing the results"
             ]
           },
@@ -859,8 +890,8 @@
       "categoryId": "assistant",
       "titleZh": "个人助理",
       "titleEn": "Personal assistants",
-      "summaryZh": "在助理空间中创建和管理自己的长期 AI 助理，定义身份与人设、配置默认能力，并从同一处开始会话或安排定时任务。",
-      "summaryEn": "Create and manage persistent AI assistants, define their identity and persona, configure default capabilities, and start chats or scheduled work from one place.",
+      "summaryZh": "在助理空间中创建和管理自己的长期 AI 助理，定义身份与人设，并从同一处开始会话或安排定时任务。",
+      "summaryEn": "Create and manage persistent AI assistants, define their identity and persona, and start chats or scheduled work from one place.",
       "keywordsZh": [
         "助理",
         "个人助理",
@@ -869,9 +900,7 @@
         "身份",
         "头像",
         "人设",
-        "Persona",
-        "默认工具",
-        "默认技能"
+        "Persona"
       ],
       "keywordsEn": [
         "assistant",
@@ -880,19 +909,17 @@
         "primary assistant",
         "identity",
         "avatar",
-        "persona",
-        "default tools",
-        "default skills"
+        "persona"
       ],
       "highlightsZh": [
         "创建、设为主助理或删除助理",
         "编辑身份、头像与 Persona 文档",
-        "配置默认 Skills、内置工具和 MCP 工具"
+        "创建时自动使用默认配置，随后开始会话或安排定时任务"
       ],
       "highlightsEn": [
         "Create, select a primary assistant, or delete assistants",
         "Edit identity, avatar, and persona documents",
-        "Configure default Skills, built-in tools, and MCP tools"
+        "Start with defaults at creation, then begin chats or schedule tasks"
       ],
       "items": [
         {
@@ -907,7 +934,25 @@
           },
           "evidence": [
             "command:create_assistant_workspace",
+            "command:get_assistant_workspaces",
             "source:src/web-ui/src/app/scenes/profile/views/NurseryGallery.tsx#NurseryGallery"
+          ]
+        },
+        {
+          "id": "assistant-open-close",
+          "titleZh": "关闭侧栏中的助理并取消正在运行的会话，保留配置和历史，之后从助理空间重新打开",
+          "titleEn": "Close sidebar assistants and cancel running sessions, preserve configuration and history, and reopen them from the assistant gallery",
+          "control": {
+            "kind": "open",
+            "reasonCode": "visualSelection",
+            "reasonZh": "关闭操作依赖用户选择的助理；助理空间保留完整目录，并提供重新打开入口。",
+            "reasonEn": "Closing depends on the assistant selected by the user; the gallery retains the complete catalog and provides a reopen action."
+          },
+          "evidence": [
+            "command:close_workspace",
+            "command:open_workspace",
+            "source:src/web-ui/src/app/components/NavPanel/sections/workspaces/WorkspaceItem.tsx#handleCloseWorkspace",
+            "source:src/web-ui/src/app/scenes/profile/views/NurseryGallery.tsx#handleOpenAssistant"
           ]
         },
         {
@@ -956,6 +1001,35 @@
             "source:src/web-ui/src/app/scenes/profile/views/AssistantConfigPage.tsx#PERSONA_DOC_FILES",
             "command:read_file_content",
             "command:write_file_content"
+          ]
+        },
+        {
+          "id": "assistant-sessions",
+          "titleZh": "在助理详情中选择模型、输入消息并查看该助理的历史会话",
+          "titleEn": "Choose a model, send a message, and browse an assistant's sessions from its detail page",
+          "control": {
+            "kind": "open",
+            "reasonCode": "unstructuredInteraction",
+            "reasonZh": "“在助理详情中选择模型、输入消息并查看该助理的历史会话”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；智能体会打开精确入口，并把后续交互保留在用户可见界面。",
+            "reasonEn": "“Choose a model, send a message, and browse an assistant's sessions from its detail page” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
+          },
+          "evidence": [
+            "source:src/web-ui/src/app/scenes/profile/views/AssistantQuickInput.tsx#handleSend",
+            "source:src/web-ui/src/app/scenes/profile/views/AssistantConfigPage.tsx#SessionsSection"
+          ]
+        },
+        {
+          "id": "assistant-schedules",
+          "titleZh": "查看和管理仅属于当前助理工作区的定时会话与自动任务",
+          "titleEn": "Review and manage scheduled sessions and automated jobs scoped to the current assistant workspace",
+          "control": {
+            "kind": "open",
+            "reasonCode": "unstructuredInteraction",
+            "reasonZh": "“查看和管理仅属于当前助理工作区的定时会话与自动任务”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；智能体会打开精确入口，并把后续交互保留在用户可见界面。",
+            "reasonEn": "“Review and manage scheduled sessions and automated jobs scoped to the current assistant workspace” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
+          },
+          "evidence": [
+            "source:src/web-ui/src/app/scenes/profile/views/AssistantConfigPage.tsx#ScheduledJobsView"
           ]
         },
         {
@@ -1024,56 +1098,26 @@
             "source:src/web-ui/src/app/scenes/profile/views/AssistantDefaultsPage.tsx#searchQuery",
             "command:canonicalize_agent_profile_configs"
           ]
-        },
-        {
-          "id": "assistant-sessions",
-          "titleZh": "从助理卡片新建会话，或在助理详情中选择模型、输入消息并查看该助理的历史会话",
-          "titleEn": "Start a session from an assistant card, or choose a model, send a message, and browse that assistant's sessions from its detail page",
-          "control": {
-            "kind": "open",
-            "reasonCode": "unstructuredInteraction",
-            "reasonZh": "“从助理卡片新建会话，或在助理详情中选择模型、输入消息并查看该助理的历史会话”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；智能体会打开精确入口，并把后续交互保留在用户可见界面。",
-            "reasonEn": "“Start a session from an assistant card, or choose a model, send a message, and browse that assistant's sessions from its detail page” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
-          },
-          "evidence": [
-            "source:src/web-ui/src/app/scenes/profile/views/NurseryGallery.tsx#handleNewAssistantSession",
-            "source:src/web-ui/src/app/scenes/profile/views/AssistantQuickInput.tsx#handleSend",
-            "source:src/web-ui/src/app/scenes/profile/views/AssistantConfigPage.tsx#SessionsSection"
-          ]
-        },
-        {
-          "id": "assistant-schedules",
-          "titleZh": "查看和管理仅属于当前助理工作区的定时会话与自动任务",
-          "titleEn": "Review and manage scheduled sessions and automated jobs scoped to the current assistant workspace",
-          "control": {
-            "kind": "open",
-            "reasonCode": "unstructuredInteraction",
-            "reasonZh": "“查看和管理仅属于当前助理工作区的定时会话与自动任务”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；智能体会打开精确入口，并把后续交互保留在用户可见界面。",
-            "reasonEn": "“Review and manage scheduled sessions and automated jobs scoped to the current assistant workspace” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
-          },
-          "evidence": [
-            "source:src/web-ui/src/app/scenes/profile/views/AssistantConfigPage.tsx#ScheduledJobsView"
-          ]
         }
       ],
       "stepsZh": [
         "打开“助理”",
         "创建助理或选择现有助理",
-        "编辑身份与人设，配置默认能力，然后开始会话或定时任务"
+        "编辑身份与人设，然后开始会话或定时任务"
       ],
       "stepsEn": [
         "Open Assistants",
         "Create an assistant or choose an existing one",
-        "Edit its identity and persona, configure defaults, then start a chat or scheduled task"
+        "Edit its identity and persona, then start a chat or scheduled task"
       ],
       "agentExamplesZh": [
         "打开我的个人助理",
-        "带我去育苗场配置助理的默认工具",
+        "帮我创建一个新的个人助理",
         "我想修改主助理的人设"
       ],
       "agentExamplesEn": [
         "Open my personal assistants",
-        "Take me to the nursery to configure default assistant tools",
+        "Help me create a new personal assistant",
         "I want to edit my primary assistant's persona"
       ],
       "destination": {
@@ -1539,6 +1583,7 @@
           },
           "evidence": [
             "command:get_clipboard_files",
+            "command:get_clipboard_image",
             "command:resolve_browser_dropped_file_paths",
             "command:set_file_drop_preview_target",
             "command:upload_image_contexts",
@@ -2527,14 +2572,14 @@
       "agentControl": {
         "tool": "ControlHub",
         "workflowZh": [
-          "用户给出网址时，用 browser.open_builtin 打开并取得内置页面的 session_id；用户只要求显示内置浏览器且没有网址时，改用 BitFunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
-          "对同一个 session_id 指定 target 为 builtin，也可用 target_url 或 target_title 定位；快照、点击、填写、滚动和截图等动作与外部 CDP 浏览器共用同一套契约",
-          "页面变化后重新快照并使用最新元素引用；只有网络追踪、原始 CDP 和文件输入等协议扩展才切换到 external"
+          "用户给出网址时，用 browser.navigate（target=builtin）直接打开，缺少页面时自动创建；需要读取或交互时附带 observe=article 或 snapshot，并复用返回的 session_id；用户只要求显示内置浏览器且没有网址时，改用 BitFunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
+          "对同一个 session_id 指定 target 为 builtin；选择已打开页面时，用 browser.connect 和唯一匹配的 target_url 或 target_title；快照、点击、填写、滚动和截图等动作与外部 CDP 浏览器共用同一套契约",
+          "复用 navigate 返回的观察结果，只在下一步需要新页面状态时重新快照；涉及用户账号登录态时，优先使用用户在设置中已授权连接的 external 浏览器，未授权时请用户连接，不得自行开启权限；CDP 协议扩展同样需要可用的外接连接"
         ],
         "workflowEn": [
-          "When the user supplies a URL, open it with browser.open_builtin and keep the returned built-in session_id; when they only want the built-in browser surface, open the feature.browser capability root with BitFunControl and never invent about:blank",
-          "Address that session_id with target set to builtin, or locate it by target_url or target_title; snapshots, clicks, fills, scrolling, screenshots, and other portable actions share the external CDP contract",
-          "Take a new snapshot after page changes and use fresh element refs; switch to external only for protocol extensions such as network tracing, raw CDP, or file-input injection"
+          "When the user supplies a URL, use browser.navigate with target=builtin (creates a page when needed), add observe=article or snapshot for reading/interaction, and keep the returned session_id; when they only want the built-in browser surface, open the feature.browser capability root with BitFunControl and never invent about:blank",
+          "Address that session_id with target set to builtin; to select an existing page, use browser.connect with a unique target_url or target_title match. Portable actions share the external CDP contract",
+          "Reuse the observation returned by navigate; refresh only when the next decision needs new page state. For account/login-dependent work, prefer the external browser the user authorized in Settings; if unavailable, ask the user to connect it and never enable permissions yourself. CDP extensions also require an available external connection"
         ]
       },
       "agentExamplesZh": [
@@ -2580,12 +2625,16 @@
       "highlightsZh": [
         "启用或停用 Computer Use",
         "连接或断开受支持的浏览器",
-        "检查并打开系统权限设置"
+        "检查并打开系统权限设置",
+        "查看当前控制目标与预览，并随时停止控制",
+        "先选择共享 App，再授权输入；可记住授权或随时撤销"
       ],
       "highlightsEn": [
         "Enable or disable Computer Use",
         "Connect or disconnect a supported browser",
-        "Inspect and open OS permission settings"
+        "Inspect and open OS permission settings",
+        "Inspect the current control target and preview, and stop control at any time",
+        "Select an App share before granting input; remember or revoke the grant"
       ],
       "items": [
         {
@@ -2613,7 +2662,8 @@
             "reasonEn": "“Request the operating-system permissions required for desktop control” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
           },
           "evidence": [
-            "command:computer_use_request_permissions"
+            "command:computer_use_request_permissions",
+            "command:computer_use_request_permission"
           ]
         },
         {
@@ -2695,6 +2745,92 @@
           },
           "evidence": [
             "source:src/web-ui/src/locales/zh-CN/settings/runtime.json#computerUse.sectionDescription"
+          ]
+        },
+        {
+          "id": "control-session-preview",
+          "titleZh": "在控制状态卡片查看当前目标、模式与授权画面预览",
+          "titleEn": "Inspect the current target, mode, and authorized capture preview in the control card",
+          "control": {
+            "kind": "open",
+            "reasonCode": "unstructuredInteraction",
+            "reasonZh": "“在控制状态卡片查看当前目标、模式与授权画面预览”需要活动会话及用户展开卡片；预览仅包含当前授权目标和虚拟指针。设置入口仅用于配置，不会启动控制。远程设备需要对应 Desktop 宿主支持，不可回退到本机画面。",
+            "reasonEn": "“Inspect the current target, mode, and authorized capture preview in the control card” requires an active session and expanding its card; the preview contains only the authorized target and virtual pointer. The settings entry only configures the feature and does not start control. Remote devices require a supporting Desktop host, without falling back to local capture."
+          },
+          "evidence": [
+            "command:computer_use_control_status",
+            "command:computer_use_control_preview",
+            "source:src/web-ui/src/app/components/ComputerUseControlCard.tsx#ComputerUseControlCard"
+          ]
+        },
+        {
+          "id": "stop-control-session",
+          "titleZh": "停止当前桌面控制会话并释放捕获与输入资源",
+          "titleEn": "Stop the current desktop-control session and release capture and input resources",
+          "control": {
+            "kind": "delegate",
+            "tools": [
+              "ComputerUse"
+            ],
+            "workflowZh": [
+              "通过 ComputerUse control_status 确认当前会话的目标、所有者与模式；没有活动会话时不要启动新会话",
+              "使用 ComputerUse stop_control 释放该工具拥有的会话；用户也可在执行端控制卡片点击停止，按钮只针对显示的会话代次，不停止后来创建的会话"
+            ],
+            "workflowEn": [
+              "Use ComputerUse control_status to inspect the current target, owner, and mode; do not start a session when none is active",
+              "Use ComputerUse stop_control to release the tool-owned session. Users can also stop from the executing Desktop control card; its button addresses the displayed generation rather than a subsequently created session."
+            ]
+          },
+          "evidence": [
+            "command:computer_use_control_stop",
+            "source:src/web-ui/src/app/components/ComputerUseControlCard.tsx#ComputerUseControlCard"
+          ]
+        },
+        {
+          "id": "app-sharing",
+          "titleZh": "选择 App 窗口并单独授权或撤销控制",
+          "titleEn": "Select an App window and separately grant or revoke control",
+          "control": {
+            "kind": "open",
+            "reasonCode": "visualSelection",
+            "reasonZh": "共享窗口及控制模式由用户明确选择；智能体只能请求共享，不能代替用户授权。",
+            "reasonEn": "Window selection and input mode require an explicit user choice; agents can request sharing but cannot grant themselves control."
+          },
+          "evidence": [
+            "command:computer_use_share_request",
+            "command:computer_use_share_targets",
+            "command:computer_use_share_start",
+            "command:computer_use_share_control"
+          ]
+        },
+        {
+          "id": "preview-input",
+          "titleZh": "在共享预览中点击、拖动、滚动及输入",
+          "titleEn": "Click, drag, scroll and type through the shared preview",
+          "control": {
+            "kind": "open",
+            "reasonCode": "visualSelection",
+            "reasonZh": "预览输入需要用户授权，并绑定共享窗口、图像坐标及授权版本。",
+            "reasonEn": "Preview input requires user authorization and is bound to the shared window, image coordinates and authorization revision."
+          },
+          "evidence": [
+            "command:computer_use_share_observe",
+            "command:computer_use_share_input"
+          ]
+        },
+        {
+          "id": "remembered-control",
+          "titleZh": "按应用执行文件和控制模式记住或忘记授权",
+          "titleEn": "Remember or forget control by application executable and input mode",
+          "control": {
+            "kind": "open",
+            "reasonCode": "visualSelection",
+            "reasonZh": "记住授权只在用户选定并共享同一应用后生效，应用文件或输入模式改变时需要重新授权。",
+            "reasonEn": "Remembered control applies only after the user shares the same application; changed executable contents or input modes require a new grant."
+          },
+          "evidence": [
+            "command:computer_use_share_grants",
+            "command:computer_use_share_forget_grant"
           ]
         }
       ],
@@ -3790,11 +3926,12 @@
       "id": "feature.ecosystem-compatibility",
       "kind": "feature",
       "categoryId": "automation",
-      "titleZh": "外部 AI 生态兼容",
-      "titleEn": "External AI ecosystem compatibility",
+      "titleZh": "外部导入",
+      "titleEn": "External Import",
       "summaryZh": "查看五类外部 AI 生态的内容与状态，导入受支持的 Skill、MCP 和 Hook 副本，并查看 Command、Tool、子智能体的兼容使用状态。",
       "summaryEn": "Inspect content and status from five external AI ecosystems, import supported Skill, MCP and Hook copies, and review compatibility usage for commands, tools and subagents.",
       "keywordsZh": [
+        "外部导入",
         "生态兼容",
         "外部 AI",
         "迁移配置",
@@ -3804,6 +3941,8 @@
         "导入"
       ],
       "keywordsEn": [
+        "external import",
+        "external imports",
         "ecosystem compatibility",
         "external AI",
         "configuration migration",
@@ -3976,25 +4115,25 @@
         }
       ],
       "stepsZh": [
-        "打开“生态兼容”并选择智能体",
+        "打开“外部导入”并选择应用",
         "在左侧导航搜索框上方切换自动发现，悬停查看说明；关闭后保留结果，也可手动刷新",
         "查看分类状态，打开分类弹窗浏览、搜索并选择内容",
         "审阅可导入项目并确认创建副本；Command、Tool、子智能体按已有兼容功能使用",
         "前往对应管理页确认副本启用或连接；当前页不将“已导入”视为可用"
       ],
       "stepsEn": [
-        "Open Ecosystem Compatibility and choose an agent",
+        "Open External Import and choose an app",
         "Toggle automatic discovery above the sidebar search and hover for details; pausing retains results and manual refresh remains available",
         "Inspect category status, then open a category dialog to browse, search, and select content",
         "Review importable items and confirm copies; use commands, tools and subagents through existing compatibility features",
         "Confirm copy activation or connection in the relevant settings; Imported does not mean available"
       ],
       "agentExamplesZh": [
-        "打开外部 AI 生态兼容",
+        "打开外部导入",
         "我想迁移 Claude Code 的配置"
       ],
       "agentExamplesEn": [
-        "Open external AI ecosystem compatibility",
+        "Open External Import",
         "I want to migrate my Claude Code configuration"
       ],
       "destination": {
@@ -5335,12 +5474,12 @@
       "highlightsZh": [
         "开机启动与自动更新",
         "窗口关闭和托盘行为",
-        "任务完成、权限请求与启动提示通知"
+        "任务完成与权限请求通知"
       ],
       "highlightsEn": [
         "Launch-at-login and automatic updates",
         "Window close and tray behavior",
-        "Completion, permission, and startup-tip notifications"
+        "Completion and permission notifications"
       ],
       "items": [
         {
@@ -5436,8 +5575,8 @@
         },
         {
           "id": "notifications",
-          "titleZh": "分别控制任务完成、权限请求和启动提示通知",
-          "titleEn": "Control completion, permission-request, and startup-tip notifications independently",
+          "titleZh": "分别控制任务完成和权限请求通知",
+          "titleEn": "Control completion and permission-request notifications independently",
           "control": {
             "kind": "direct",
             "operations": [],
@@ -5930,11 +6069,14 @@
       "id": "setting.application.input",
       "kind": "setting",
       "categoryId": "application",
-      "titleZh": "语音",
-      "titleEn": "Voice",
-      "summaryZh": "配置语音输入、麦克风、识别语言、本地模型与实时语音通话。",
-      "summaryEn": "Configure voice input, microphones, recognition language, local models, and realtime voice calls.",
+      "titleZh": "输入与交互",
+      "titleEn": "Input & interaction",
+      "summaryZh": "配置对话文本选择操作、语音输入、麦克风、识别语言与本地模型。",
+      "summaryEn": "Configure conversation text selection actions, voice input, microphones, recognition language, and local models.",
       "keywordsZh": [
+        "选中文字",
+        "批注",
+        "侧边提问",
         "语音设置",
         "语音",
         "麦克风",
@@ -5942,6 +6084,9 @@
         "语音识别"
       ],
       "keywordsEn": [
+        "text selection",
+        "annotation",
+        "selection toolbar",
         "voice settings",
         "voice",
         "microphone",
@@ -5949,16 +6094,41 @@
         "speech recognition"
       ],
       "highlightsZh": [
+        "选中文字操作栏的自动显示开关",
         "语音输入与本地模型",
         "识别语言和最长录音时间",
         "实时语音通话"
       ],
       "highlightsEn": [
+        "Automatic text selection toolbar preference",
         "Voice input and local models",
         "Recognition language and maximum recording time",
         "Realtime voice calls"
       ],
       "items": [
+        {
+          "id": "auto-show-selection-toolbar",
+          "titleZh": "开启或关闭选中对话文本后的自动操作栏",
+          "titleEn": "Enable or disable automatic actions after selecting conversation text",
+          "destination": {
+            "kind": "settings",
+            "pageId": "application.voice",
+            "sectionId": "text-selection"
+          },
+          "control": {
+            "kind": "direct",
+            "operations": [],
+            "options": [
+              {
+                "id": "auto-show-selection-toolbar"
+              }
+            ]
+          },
+          "evidence": [
+            "source:src/web-ui/src/app/scenes/settings/pages/application/TextSelectionSettingsSection.tsx#AUTO_SHOW_SELECTION_TOOLBAR_CONFIG_PATH",
+            "source:src/web-ui/src/locales/zh-CN/settings/application.json#textSelection.autoShowToolbar"
+          ]
+        },
         {
           "id": "voice-enabled",
           "titleZh": "在聊天输入框启用或停用语音输入",
@@ -6065,11 +6235,11 @@
       ],
       "stepsZh": [
         "打开设置",
-        "进入“应用与界面 > 语音”"
+        "进入“应用与界面 > 输入与交互”"
       ],
       "stepsEn": [
         "Open Settings",
-        "Go to App & Interface > Voice"
+        "Go to App & Interface > Input & Interaction"
       ],
       "agentExamplesZh": [
         "打开语音输入设置",
@@ -6085,6 +6255,13 @@
       },
       "operations": [],
       "options": [
+        {
+          "id": "auto-show-selection-toolbar",
+          "titleZh": "自动显示选中文字操作栏",
+          "titleEn": "Automatically show text selection actions",
+          "descriptionZh": "选中对话文本后自动显示批注和提问操作；关闭后仍可使用右键菜单和提问快捷键。",
+          "descriptionEn": "Automatically show annotation and question actions after selecting conversation text; right-click actions and the question shortcut remain available when disabled."
+        },
         {
           "id": "voice-enabled",
           "titleZh": "启用语音输入",
@@ -6154,7 +6331,7 @@
             "reasonEn": "“Search and browse all app, scene, editor, and terminal shortcuts” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
           },
           "evidence": [
-            "source:src/web-ui/src/app/scenes/settings/components/KeyboardShortcutsTab.tsx#lists every known shortcut"
+            "source:src/web-ui/src/app/scenes/settings/pages/application/KeyboardShortcutsSection.tsx#lists every known shortcut"
           ]
         },
         {
@@ -6172,8 +6349,8 @@
             "reasonEn": "“Record new shortcuts, detect conflicts, revert one binding, or reset all custom bindings” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
           },
           "evidence": [
-            "source:src/web-ui/src/app/scenes/settings/components/KeyboardShortcutsTab.tsx#buildFinalConflictMap",
-            "source:src/web-ui/src/app/scenes/settings/components/KeyboardShortcutsTab.tsx#buildStoredKeybindings({})"
+            "source:src/web-ui/src/app/scenes/settings/pages/application/KeyboardShortcutsSection.tsx#buildFinalConflictMap",
+            "source:src/web-ui/src/app/scenes/settings/pages/application/KeyboardShortcutsSection.tsx#buildStoredKeybindings({})"
           ]
         }
       ],
@@ -6783,9 +6960,9 @@
             "reasonEn": "Custom headers and request bodies may contain tokens or other secrets, so they must be edited in the protected model configuration flow and cannot enter Agent-readable discovery data."
           },
           "evidence": [
-            "source:src/web-ui/src/infrastructure/config/components/ModelSettingsPage.tsx#custom_headers",
-            "source:src/web-ui/src/infrastructure/config/components/ModelSettingsPage.tsx#custom_request_body",
-            "source:src/web-ui/src/infrastructure/config/components/ModelSettingsPage.tsx#skip_ssl_verify"
+            "source:src/web-ui/src/app/scenes/settings/pages/ai/ModelSettingsPage.tsx#custom_headers",
+            "source:src/web-ui/src/app/scenes/settings/pages/ai/ModelSettingsPage.tsx#custom_request_body",
+            "source:src/web-ui/src/app/scenes/settings/pages/ai/ModelSettingsPage.tsx#skip_ssl_verify"
           ]
         },
         {
@@ -7173,13 +7350,15 @@
         "跟随上次选择或固定默认执行框架",
         "自动生成会话标题",
         "本地工作区加速搜索",
-        "会话使用的标题模型"
+        "会话使用的标题模型",
+        "答复后的候选输入建议"
       ],
       "highlightsEn": [
         "Follow the last selection or fix a default Harness",
         "Automatic session titles",
         "Accelerated local-workspace search",
-        "Model used for session titles"
+        "Model used for session titles",
+        "Next input suggestion after a reply"
       ],
       "items": [
         {
@@ -7193,7 +7372,7 @@
             "reasonEn": "“Make regular new sessions follow the last ChatInput selection or use a fixed Harness” is managed by related controls on the session settings page and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the selection visible to the user."
           },
           "evidence": [
-            "source:src/web-ui/src/infrastructure/config/components/DefaultHarnessConfig.tsx#DefaultHarnessConfig",
+            "source:src/web-ui/src/app/scenes/settings/pages/ai/DefaultHarnessSection.tsx#DefaultHarnessSection",
             "source:src/web-ui/src/locales/zh-CN/settings/runtime.json#defaultHarness.title"
           ]
         },
@@ -7227,6 +7406,24 @@
           },
           "evidence": [
             "source:src/web-ui/src/locales/zh-CN/settings/models.json#sessionTitle.model.label"
+          ]
+        },
+        {
+          "id": "next-input-suggestion",
+          "titleZh": "启用或停用 Agent 答复后在输入框中显示的一句话候选输入",
+          "titleEn": "Enable or disable the one-sentence next input suggested in the input box after an Agent reply",
+          "control": {
+            "kind": "direct",
+            "operations": [],
+            "options": [
+              {
+                "id": "prompt-suggestion"
+              }
+            ]
+          },
+          "evidence": [
+            "source:src/web-ui/src/app/scenes/settings/pages/ai/PromptSuggestionSection.tsx#PromptSuggestionSection",
+            "source:src/web-ui/src/locales/zh-CN/settings/models.json#promptSuggestion.title"
           ]
         },
         {
@@ -7292,12 +7489,14 @@
         "让新会话跟随 ChatInput 上一次选择的执行框架",
         "把新会话固定为 Ultimate 执行框架",
         "关闭自动生成会话标题",
+        "关闭答复后的候选输入建议",
         "启用工作区加速搜索"
       ],
       "agentExamplesEn": [
         "Make new sessions follow the last Harness selected in ChatInput",
         "Fix Ultimate as the Harness for new sessions",
         "Turn off automatic session titles",
+        "Turn off next input suggestions after replies",
         "Enable accelerated workspace search"
       ],
       "destination": {
@@ -7312,6 +7511,13 @@
           "titleEn": "Automatic session titles",
           "descriptionZh": "根据会话内容生成易识别的标题。",
           "descriptionEn": "Generate a recognizable title from session content."
+        },
+        {
+          "id": "prompt-suggestion",
+          "titleZh": "候选输入建议",
+          "titleEn": "Next input suggestion",
+          "descriptionZh": "Agent 答复完成后，在输入框中给出一句话的下一步输入建议。",
+          "descriptionEn": "Suggest a one-sentence next message in the input box after the Agent replies."
         },
         {
           "id": "workspace-search",
@@ -9520,6 +9726,7 @@
     "git": "feature.git",
     "settings": "setting.application.general",
     "file-viewer": "feature.files-editor",
+    "personal-overview": "feature.personal-assistants",
     "profile": "feature.personal-assistants",
     "agents": "feature.agents",
     "skills": "feature.skills",
@@ -9569,6 +9776,9 @@
     "session": {
       "capabilityId": "feature.ai-assistant"
     },
+    "session_storage_directory": {
+      "capabilityId": "feature.ai-assistant"
+    },
     "dispatch": {
       "capabilityId": "feature.detached-dispatch"
     },
@@ -9616,9 +9826,6 @@
     },
     "html_preview": {
       "capabilityId": "feature.files-editor"
-    },
-    "announcement": {
-      "capabilityId": "setting.application.general"
     },
     "tool": {
       "capabilityId": "feature.ai-assistant"
@@ -9709,6 +9916,9 @@
     },
     "file_drop_preview": {
       "capabilityId": "feature.files-editor"
+    },
+    "announcement": {
+      "capabilityId": "setting.application.general"
     }
   }
 }

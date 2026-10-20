@@ -3,6 +3,7 @@ import {
   archiveChatSession,
   createChatSession,
   deleteChatSession,
+  duplicateChatSession,
   ensureBackendSession,
   forkChatSession,
   hydrateSessionHistoryForDetail,
@@ -26,6 +27,7 @@ import {
 } from '../sessionOpenIntent';
 import type { Session } from '../../types/flow-chat';
 import type { ReviewTeamRunManifest } from '@/shared/services/reviewTeamService';
+import { workspaceManager } from '@/infrastructure/services/business/workspaceManager';
 
 const agentApiMocks = vi.hoisted(() => ({
   ensureCoordinatorSession: vi.fn(),
@@ -44,6 +46,7 @@ const configManagerMocks = vi.hoisted(() => ({
 const sessionApiMocks = vi.hoisted(() => ({
   archiveSession: vi.fn(),
   forkSession: vi.fn(),
+  duplicateSession: vi.fn(),
   loadSessionMetadata: vi.fn(),
 }));
 
@@ -97,8 +100,9 @@ vi.mock('@/infrastructure/i18n', () => ({
 vi.mock('@/infrastructure/services/business/workspaceManager', () => ({
   workspaceManager: {
     getState: () => ({
-      currentWorkspace: null,
-      openedWorkspaces: new Map(),
+      currentWorkspace: { id: 'workspace-1', rootPath: '/home/wsp/projects/Test', workspaceKind: 'normal' },
+      openedWorkspaces: new Map([['workspace-1', { id: 'workspace-1', rootPath: '/home/wsp/projects/Test', workspaceKind: 'normal' }]]),
+      recentWorkspaces: [],
     }),
   },
 }));
@@ -221,6 +225,7 @@ function createContext(
       state = { ...state, activeSessionId: sessionId };
     }),
     loadSessionHistory: vi.fn(),
+    ensurePersistedSessionMetadata: vi.fn(async () => true),
     getCascadeSessionIds: vi.fn((sessionId: string) => (
       options?.getCascadeSessionIdsImpl?.(sessionId) ?? [sessionId]
     )),
@@ -615,6 +620,107 @@ describe('forkChatSession', () => {
   });
 });
 
+describe('duplicateChatSession', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('copies the source session without switching away from the active session', async () => {
+    const source = createSession({ sessionId: 'copy-source', title: 'Source' });
+    const other = createSession({ sessionId: 'other-session' });
+    const { context, flowChatStore } = createContext(source, {
+      additionalSessions: [other],
+      activeSessionId: other.sessionId,
+    });
+    sessionApiMocks.duplicateSession.mockResolvedValueOnce({
+      sessionId: 'copy-1',
+      sessionName: 'Source (1)',
+      agentType: 'Standard',
+    });
+
+    await expect(duplicateChatSession(context, source.sessionId)).resolves.toEqual({
+      sessionId: 'copy-1',
+      sessionName: 'Source (1)',
+      metadataProjected: true,
+    });
+
+    // The host resolves the copy boundary: no turn id leaves the controller.
+    expect(sessionApiMocks.duplicateSession).toHaveBeenCalledWith('copy-source', 'workspace-1');
+    // The copy is projected from its authoritative metadata record, so the
+    // navigation list can show it without the controller loading its history.
+    expect(flowChatStore.ensurePersistedSessionMetadata).toHaveBeenCalledWith('copy-1', 'workspace-1');
+    expect(flowChatStore.loadSessionHistory).not.toHaveBeenCalled();
+    // Delete/archive do not move the user either: the copy must not activate.
+    expect(flowChatStore.switchSession).not.toHaveBeenCalled();
+    expect(flowChatStore.getState().activeSessionId).toBe('other-session');
+    expect(flowChatStore.getState().sessions.has('copy-source')).toBe(true);
+  });
+
+  it.each(['missing', 'timeout'])('preserves copy success after a metadata %s', async failure => {
+    const source = createSession({ sessionId: 'copy-source', persistedTurnCount: 3 });
+    const { context, flowChatStore } = createContext(source);
+    sessionApiMocks.duplicateSession.mockResolvedValueOnce({
+      sessionId: 'copy-1', sessionName: 'Source (1)', agentType: 'Standard',
+    });
+    if (failure === 'missing') {
+      flowChatStore.ensurePersistedSessionMetadata.mockResolvedValueOnce(false);
+    } else {
+      flowChatStore.ensurePersistedSessionMetadata.mockRejectedValueOnce(new Error('metadata timed out'));
+    }
+    await expect(duplicateChatSession(context, source.sessionId)).resolves.toEqual({
+      sessionId: 'copy-1', sessionName: 'Source (1)', metadataProjected: false,
+    });
+    expect(sessionApiMocks.duplicateSession).toHaveBeenCalledTimes(1);
+    expect(flowChatStore.switchSession).not.toHaveBeenCalled();
+  });
+
+  it('does not read copied metadata on a device selected after the copy started', async () => {
+    const source = createSession({ sessionId: 'copy-source' });
+    const { context, flowChatStore } = createContext(source);
+    const pending = createDeferred<{ sessionId: string; sessionName: string; agentType: string }>();
+    sessionApiMocks.duplicateSession.mockReturnValueOnce(pending.promise);
+    const copy = duplicateChatSession(context, source.sessionId);
+    activateSurface('peer-other');
+    pending.resolve({ sessionId: 'copy-1', sessionName: 'Source (1)', agentType: 'Standard' });
+    await expect(copy).rejects.toMatchObject({ name: 'SurfaceChangedError' });
+    expect(flowChatStore.ensurePersistedSessionMetadata).not.toHaveBeenCalled();
+    activateSurface(LOCAL_SURFACE_ID);
+  });
+
+  it.each([
+    { historyState: 'new' as const },
+    { persistedTurnCount: 0 },
+  ])('rejects a known empty session before sending the copy mutation', async overrides => {
+    const source = createSession({ sessionId: 'copy-source', ...overrides });
+    const { context } = createContext(source);
+    await expect(duplicateChatSession(context, source.sessionId))
+      .rejects.toThrow('common:nav.sessions.duplicateEmpty');
+    expect(sessionApiMocks.duplicateSession).not.toHaveBeenCalled();
+  });
+
+  it('refuses a detached dispatch session before asking the host', async () => {
+    const dispatched = createSession({
+      sessionId: 'dispatch-source',
+      config: { agentType: 'Standard', dispatchJobId: 'job-1' },
+    });
+    const { context } = createContext(dispatched);
+
+    await expect(duplicateChatSession(context, dispatched.sessionId))
+      .rejects.toThrow('Copying a detached dispatch session is not supported');
+
+    expect(sessionApiMocks.duplicateSession).not.toHaveBeenCalled();
+  });
+
+  it('reports a missing session instead of calling the host', async () => {
+    const { context } = createContext(createSession({ sessionId: 'copy-source' }));
+
+    await expect(duplicateChatSession(context, 'missing-session'))
+      .rejects.toThrow('Session does not exist: missing-session');
+
+    expect(sessionApiMocks.duplicateSession).not.toHaveBeenCalled();
+  });
+});
+
 describe('reloadSessionTitle', () => {
   afterEach(() => {
     vi.clearAllMocks();
@@ -657,6 +763,8 @@ describe('SessionModule historical session coordination', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     dispatchStoreMocks.jobs = {};
+    agentApiMocks.ensureCoordinatorSession.mockReset();
+    agentApiMocks.createSession.mockReset();
   });
 
   afterEach(async () => {
@@ -1445,6 +1553,156 @@ describe('SessionModule historical session coordination', () => {
 
     expect(agentApiMocks.ensureCoordinatorSession).toHaveBeenCalledTimes(1);
     expect(agentApiMocks.createSession).not.toHaveBeenCalled();
+  });
+
+  it.each(['local', 'peer-worktree'])('prepares a worktree follow-up through its owning project on %s', async surfaceId => {
+    activateSurface(surfaceId);
+    const session = createSession({
+      isHistorical: false,
+      historyState: 'ready',
+      workspaceId: 'worktree-not-in-catalog',
+      workspacePath: '/worktrees/task',
+      projectWorkspaceId: 'workspace-1',
+      projectWorkspacePath: '/home/wsp/projects/Test',
+      config: {
+        workspaceId: 'worktree-not-in-catalog',
+        executionTarget: { kind: 'managedWorktree', worktreeId: 'worktree-1', rootPath: '/worktrees/task' },
+      },
+      dialogTurns: [{ id: 'turn-1', status: 'completed' } as any],
+    });
+    const { context } = createContext(session);
+    agentApiMocks.ensureCoordinatorSession.mockResolvedValueOnce(undefined);
+
+    try {
+      await expect(ensureBackendSession(context, session.sessionId)).resolves.toBeUndefined();
+      expect(agentApiMocks.ensureCoordinatorSession).toHaveBeenCalledWith({
+        sessionId: session.sessionId,
+        workspaceId: 'workspace-1',
+        includeInternal: false,
+      });
+      expect(agentApiMocks.createSession).not.toHaveBeenCalled();
+      expect(context.flowChatStore.getState().sessions.get(session.sessionId)).toMatchObject({
+        workspaceId: 'worktree-not-in-catalog',
+        workspacePath: '/worktrees/task',
+      });
+    } finally {
+      activateSurface(LOCAL_SURFACE_ID);
+    }
+  });
+
+  it.each(['ensure', 'retry'])('recreates an empty worktree session through its project during %s', async operation => {
+    const { context } = createContext(createSession({
+      isHistorical: false,
+      historyState: 'ready',
+      workspaceId: 'worktree-not-in-catalog',
+      workspacePath: '/worktrees/task',
+      projectWorkspaceId: 'workspace-1',
+      projectWorkspacePath: '/home/wsp/projects/Test',
+      config: {
+        executionTarget: { kind: 'managedWorktree', worktreeId: 'worktree-1', rootPath: '/worktrees/task' },
+      },
+    }));
+    agentApiMocks.ensureCoordinatorSession.mockRejectedValueOnce(new Error('Session metadata not found'));
+    agentApiMocks.createSession.mockResolvedValueOnce(undefined);
+
+    await (operation === 'ensure' ? ensureBackendSession : retryCreateBackendSession)(context, 'history-1');
+
+    expect(agentApiMocks.createSession).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 'history-1',
+      workspaceId: 'workspace-1',
+      projectWorkspacePath: '/home/wsp/projects/Test',
+      executionTarget: { kind: 'existingWorktree', worktreeId: 'worktree-1' },
+    }));
+  });
+
+  it('restores a worktree session whose project identity is only in legacy config', async () => {
+    const { context } = createContext(createSession({
+      workspaceId: undefined,
+      isHistorical: false,
+      historyState: 'ready',
+      contextRestoreState: 'pending',
+      config: {
+        workspaceId: 'worktree-not-in-catalog',
+        projectWorkspaceId: 'workspace-1',
+        executionTarget: { kind: 'managedWorktree', worktreeId: 'worktree-1', rootPath: '/worktrees/task' },
+      },
+      dialogTurns: [{ id: 'turn-1', status: 'completed' } as any],
+    }));
+    agentApiMocks.ensureCoordinatorSession.mockResolvedValueOnce(undefined);
+
+    await ensureBackendSession(context, 'history-1');
+
+    expect(agentApiMocks.ensureCoordinatorSession).toHaveBeenCalledWith({
+      sessionId: 'history-1', workspaceId: 'workspace-1', includeInternal: false,
+    });
+    expect(agentApiMocks.createSession).not.toHaveBeenCalled();
+    expect(context.flowChatStore.getState().sessions.get('history-1')?.contextRestoreState).toBe('ready');
+  });
+
+  it('keeps an ordinary linked-workspace session addressed to its own workspace', async () => {
+    const { context } = createContext(createSession({
+      isHistorical: false,
+      historyState: 'ready',
+      projectWorkspaceId: 'another-project',
+      config: { executionTarget: { kind: 'local', rootPath: '/home/wsp/projects/Test' } },
+      dialogTurns: [{ id: 'turn-1', status: 'completed' } as any],
+    }));
+    agentApiMocks.ensureCoordinatorSession.mockResolvedValueOnce(undefined);
+
+    await ensureBackendSession(context, 'history-1');
+
+    expect(agentApiMocks.ensureCoordinatorSession).toHaveBeenCalledWith({
+      sessionId: 'history-1', workspaceId: 'workspace-1', includeInternal: false,
+    });
+  });
+
+  it('does not fall back to the active local workspace when the owning project is unavailable', async () => {
+    const { context } = createContext(createSession({
+      isHistorical: false,
+      historyState: 'ready',
+      projectWorkspaceId: 'missing-project',
+      config: { executionTarget: { kind: 'managedWorktree', worktreeId: 'worktree-1', rootPath: '/worktrees/task' } },
+      dialogTurns: [{ id: 'turn-1', status: 'completed' } as any],
+    }));
+
+    await expect(ensureBackendSession(context, 'history-1')).rejects.toThrow('Workspace ID is unavailable: missing-project');
+    expect(agentApiMocks.ensureCoordinatorSession).not.toHaveBeenCalled();
+    expect(agentApiMocks.createSession).not.toHaveBeenCalled();
+  });
+
+  it('preserves SSH workspace identity and connection when recreating an empty session', async () => {
+    const remoteWorkspace = {
+      id: 'ssh-workspace', rootPath: '/remote/project', workspaceKind: 'remote',
+      connectionId: 'ssh-connection', sshHost: 'remote-host',
+    };
+    const catalog = workspaceManager.getState();
+    const getState = vi.spyOn(workspaceManager, 'getState').mockReturnValue({
+      ...catalog,
+      openedWorkspaces: new Map([[remoteWorkspace.id, remoteWorkspace]]),
+    } as ReturnType<typeof workspaceManager.getState>);
+    const { context } = createContext(createSession({
+      workspaceId: remoteWorkspace.id,
+      workspacePath: remoteWorkspace.rootPath,
+      isHistorical: false,
+      historyState: 'ready',
+    }));
+    agentApiMocks.ensureCoordinatorSession.mockRejectedValueOnce(new Error('Session metadata not found'));
+    agentApiMocks.createSession.mockResolvedValueOnce(undefined);
+
+    try {
+      await ensureBackendSession(context, 'history-1');
+      expect(agentApiMocks.ensureCoordinatorSession).toHaveBeenCalledWith({
+        sessionId: 'history-1', workspaceId: remoteWorkspace.id, includeInternal: false,
+      });
+      expect(agentApiMocks.createSession).toHaveBeenCalledWith(expect.objectContaining({
+        workspaceId: remoteWorkspace.id,
+        workspacePath: remoteWorkspace.rootPath,
+        remoteConnectionId: remoteWorkspace.connectionId,
+        remoteSshHost: remoteWorkspace.sshHost,
+      }));
+    } finally {
+      getState.mockRestore();
+    }
   });
 
   it('restores pending backend context for a view-restored session before send', async () => {

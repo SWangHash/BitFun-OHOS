@@ -79,10 +79,3 @@ export const LazyTerminalOutputRenderer = forwardRef<
     </Suspense>
   );
 });
-
-LazyTerminalOutputRenderer.displayName = 'LazyTerminalOutputRenderer';
-
-export type {
-  TerminalOutputRendererHandle,
-  TerminalOutputRendererProps,
-};

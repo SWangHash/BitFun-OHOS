@@ -144,10 +144,32 @@ export const ContextDropZone: React.FC<ContextDropZoneProps> = ({
   }, [dropTarget]);
   
    
+  /**
+   * Whether this zone should claim the drag as a DOM drop target.
+   *
+   * Claiming means calling preventDefault on dragenter/dragover, which turns
+   * the composer into a DOM drop target. On WebKitGTK (Linux) an OS file drag
+   * reports NO dataTransfer types, and a claimed DOM target makes WebKit stop
+   * forwarding the drop to the native window drag handler, silently swallowing
+   * the file. Empty-typed drags therefore stay unclaimed so the pane-level
+   * native drop path (wry drag events) owns them.
+   */
+  const shouldClaimDrag = useCallback((e: DropEvent): boolean => {
+    if (!e.dataTransfer) return false;
+    const types = Array.from(e.dataTransfer.types);
+    if (types.includes('Files')) {
+      return !disabled && Boolean(resolveExternalFiles || onExternalFilesDrop);
+    }
+    // Internal context drags and typed non-file drags keep the historical
+    // claiming behavior; only unidentifiable empty-typed drags step aside.
+    return types.length > 0 || Boolean(dragManager.getCurrentPayload());
+  }, [disabled, resolveExternalFiles, onExternalFilesDrop]);
+
   const handleDragEnter = useCallback((e: DropEvent) => {
+    if (!e.dataTransfer) return;
+    if (!shouldClaimDrag(e)) return;
     e.preventDefault();
     e.stopPropagation();
-    if (!e.dataTransfer) return;
 
     dragCounterRef.current++;
     
@@ -169,12 +191,13 @@ export const ContextDropZone: React.FC<ContextDropZoneProps> = ({
         dragManager.handleDragEnter(dropTargetRef.current, nativeDragEvent(e));
       }
     }
-  }, [disabled]);
-  
+}, [disabled, shouldClaimDrag]);
+
   const handleDragOver = useCallback((e: DropEvent) => {
+    if (!e.dataTransfer) return;
+    if (!shouldClaimDrag(e)) return;
     e.preventDefault();
     e.stopPropagation();
-    if (!e.dataTransfer) return;
 
     const hasExternalFiles = Array.from(e.dataTransfer.types).includes('Files');
     const hasResolver = Boolean(resolveExternalFilesRef.current || onExternalFilesDropRef.current);
@@ -183,7 +206,7 @@ export const ContextDropZone: React.FC<ContextDropZoneProps> = ({
       e.dataTransfer.dropEffect = disabled ? 'none' : 'copy';
       return;
     }
-    
+
     const payload = dragManager.getCurrentPayload();
     if (payload && dropTargetRef.current.canAccept(payload)) {
       e.dataTransfer.dropEffect = 'copy';
@@ -191,7 +214,7 @@ export const ContextDropZone: React.FC<ContextDropZoneProps> = ({
     } else {
       e.dataTransfer.dropEffect = 'none';
     }
-  }, [disabled]);
+  }, [disabled, shouldClaimDrag]);
   
   const handleDragLeave = useCallback((e: DropEvent) => {
     if (!e.dataTransfer) return;
@@ -211,9 +234,10 @@ export const ContextDropZone: React.FC<ContextDropZoneProps> = ({
   }, []);
   
   const handleDrop = useCallback(async (e: DropEvent) => {
+    if (!e.dataTransfer) return;
+    if (!shouldClaimDrag(e)) return;
     e.preventDefault();
     e.stopPropagation();
-    if (!e.dataTransfer) return;
     
     dragCounterRef.current = 0;
     setIsDragOver(false);
@@ -246,9 +270,8 @@ export const ContextDropZone: React.FC<ContextDropZoneProps> = ({
       onExternalFilesDropRef.current(Array.from(e.dataTransfer.files));
       return;
     }
-
     dragManager.handleDrop(dropTargetRef.current, nativeDragEvent(e));
-  }, [disabled, addContext, updateValidation]);
+  }, [disabled, addContext, updateValidation, shouldClaimDrag]);
 
   // Legacy extended-surface drop support
   useEffect(() => {

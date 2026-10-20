@@ -6,6 +6,11 @@ import { JSDOM } from 'jsdom';
 
 import { ExecProcessToolCardView, type ExecProcessCardModel } from './ExecProcessToolCardView';
 import type { FlowToolItem } from '../types/flow-chat';
+import { copyTextToClipboard } from '@/shared/utils/textSelection';
+
+vi.mock('@/shared/utils/textSelection', () => ({
+  copyTextToClipboard: vi.fn().mockResolvedValue(true),
+}));
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -38,12 +43,12 @@ vi.mock('@/tools/terminal/components/LazyTerminalOutputRenderer', () => ({
     { getVisibleText: () => string },
     { content: string; className?: string; maxRows?: number }
   >(({ content, className, maxRows }, ref) => {
-    React.useImperativeHandle(ref, () => ({ getVisibleText: () => content }), [content]);
+    React.useImperativeHandle(ref, () => ({ getVisibleText: () => content.slice(-3) }), [content]);
     return <pre className={className} data-max-rows={maxRows}>{content}</pre>;
   }),
 }));
 
-const model: ExecProcessCardModel = {
+const baseModel: ExecProcessCardModel = {
   kind: 'command',
   actionLabel: 'Run command:',
   primaryText: 'npm test',
@@ -54,7 +59,7 @@ const model: ExecProcessCardModel = {
   resultOutput: '',
 };
 
-function toolItem(status: FlowToolItem['status'], isParamsStreaming = false): FlowToolItem {
+function makeToolItem(status: FlowToolItem['status'], isParamsStreaming = false): FlowToolItem {
   return {
     id: 'tool-exec-1',
     type: 'tool',
@@ -69,7 +74,16 @@ function toolItem(status: FlowToolItem['status'], isParamsStreaming = false): Fl
   };
 }
 
-describe('ExecProcessToolCardView', () => {
+describe.each([
+  ['command', 'ExecCommand'],
+  ['stdin', 'WriteStdin'],
+  ['control', 'ExecControl'],
+] as const)('ExecProcessToolCardView (%s)', (kind, toolName) => {
+  const model: ExecProcessCardModel = { ...baseModel, kind };
+  const toolItem = (status: FlowToolItem['status'], isParamsStreaming = false): FlowToolItem => ({
+    ...makeToolItem(status, isParamsStreaming),
+    toolName,
+  });
   let dom: JSDOM;
   let container: HTMLDivElement;
   let root: Root;
@@ -99,6 +113,126 @@ describe('ExecProcessToolCardView', () => {
     vi.unstubAllGlobals();
   });
 
+  const expandedSurface = '[data-bitfun-part="surface"][data-bitfun-state~="expanded"]';
+
+  it('keeps Shell approval pending in its native ambient card', () => {
+    for (const status of ['completed', 'running', 'error', 'cancelled', 'pending_confirmation', 'rejected'] as const) {
+      act(() => root.render(
+        <ExecProcessToolCardView toolItem={toolItem(status)} model={model} />,
+      ));
+      const attention = status === 'rejected' ? 'prominent' : 'ambient';
+      expect(container.querySelector(`[data-bitfun-part="surface"][data-bitfun-attention="${attention}"]`)).not.toBeNull();
+      expect(container.querySelector('[data-tool-capsule="true"]')).toBeNull();
+      expect(container.textContent).toContain(model.primaryText);
+    }
+  });
+
+  it.each(['completed', 'running', 'cancelled'] as const)('copies the complete %s output beyond the terminal viewport', async (status) => {
+    const output = `${'long output '.repeat(30)}\nlast line\r\n`;
+    act(() => {
+      root.render(<ExecProcessToolCardView
+        toolItem={{ ...toolItem(status), _progressLogs: [output] } as FlowToolItem}
+        model={{ ...model, resultOutput: output }}
+      />);
+    });
+    if (!container.querySelector(expandedSurface)) {
+      act(() => {
+        container.querySelector<HTMLElement>('[data-bitfun-part="surface"][data-bitfun-attention="ambient"]')!.click();
+      });
+    }
+    vi.mocked(copyTextToClipboard).mockClear();
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('button[aria-label="toolCards.execProcess.copyOutput"]')!.click();
+    });
+    expect(copyTextToClipboard).toHaveBeenCalledExactlyOnceWith(output);
+  });
+
+  it.each(['_progressLogs', '_progressMessage'])('stays collapsed as live output arrives through %s and completes', (field) => {
+    for (const status of ['preparing', 'streaming', 'running', 'receiving'] as const) {
+      act(() => {
+        root.render(<ExecProcessToolCardView toolItem={toolItem(status)} model={model} />);
+      });
+      expect(container.querySelector(expandedSurface)).toBeNull();
+      expect(container.querySelector('[data-bitfun-part="icon"] [data-bitfun-part="processing"]')).not.toBeNull();
+    }
+
+    act(() => {
+      root.render(<ExecProcessToolCardView toolItem={{ ...toolItem('running'), [field]: field === '_progressLogs' ? [''] : '' } as FlowToolItem} model={model} />);
+    });
+    expect(container.querySelector(expandedSurface)).toBeNull();
+
+    act(() => {
+      root.render(<ExecProcessToolCardView toolItem={{ ...toolItem('running'), [field]: field === '_progressLogs' ? ['hello'] : 'hello' } as FlowToolItem} model={model} />);
+    });
+    expect(container.querySelector(expandedSurface)).toBeNull();
+    expect(container.querySelector('[data-bitfun-part="outputFrame"]')).toBeNull();
+
+    act(() => {
+      root.render(<ExecProcessToolCardView toolItem={toolItem('completed')} model={{ ...model, resultOutput: 'hello' }} />);
+    });
+    expect(container.querySelector(expandedSurface)).toBeNull();
+    expect(container.querySelector('[data-bitfun-part="processing"]')).toBeNull();
+  });
+
+  it('stays collapsed when buffered output arrives only on completion', () => {
+    act(() => {
+      root.render(<ExecProcessToolCardView toolItem={toolItem('running')} model={model} isLastItem />);
+    });
+    expect(container.querySelector(expandedSurface)).toBeNull();
+    act(() => {
+      root.render(<ExecProcessToolCardView toolItem={toolItem('completed')} model={{ ...model, resultOutput: 'buffered output' }} isLastItem />);
+    });
+    expect(container.querySelector(expandedSurface)).toBeNull();
+  });
+
+  it('respects manual collapse when more output arrives', () => {
+    act(() => {
+      root.render(<ExecProcessToolCardView toolItem={{ ...toolItem('running'), _progressLogs: ['hello'] } as FlowToolItem} model={model} />);
+    });
+    act(() => {
+      container.querySelector<HTMLElement>('[data-bitfun-part="surface"][data-bitfun-attention="ambient"]')!.click();
+    });
+    act(() => {
+      container.querySelector<HTMLElement>(expandedSurface)!.click();
+    });
+    act(() => {
+      root.render(<ExecProcessToolCardView toolItem={{ ...toolItem('running'), _progressLogs: ['hello', 'world'] } as FlowToolItem} model={model} />);
+    });
+    expect(container.querySelector(expandedSurface)).toBeNull();
+  });
+
+  it('stays collapsed when mounted with live output and when the tail changes', () => {
+    const render = (status: FlowToolItem['status'], output: string, tail: boolean) => {
+      root.render(<ExecProcessToolCardView
+        toolItem={{ ...toolItem(status), _progressLogs: [output] } as FlowToolItem}
+        model={{ ...model, resultOutput: output }}
+        isLastItem={tail}
+      />);
+    };
+    act(() => { render('running', 'first', true); });
+    expect(container.querySelector(expandedSurface)).toBeNull();
+    act(() => { render('running', 'first\nsecond', false); });
+    expect(container.querySelector(expandedSurface)).toBeNull();
+    act(() => { render('completed', 'first\nsecond', false); });
+    expect(container.querySelector(expandedSurface)).toBeNull();
+  });
+
+  it('preserves manual expansion after completion', () => {
+    vi.useFakeTimers();
+    act(() => {
+      root.render(<ExecProcessToolCardView toolItem={{ ...toolItem('running'), _progressLogs: ['hello'] } as FlowToolItem} model={model} />);
+    });
+    act(() => {
+      container.querySelector<HTMLElement>('[data-bitfun-part="surface"][data-bitfun-attention="ambient"]')!.click();
+    });
+    expect(container.querySelector(expandedSurface)).not.toBeNull();
+    act(() => {
+      root.render(<ExecProcessToolCardView toolItem={toolItem('completed')} model={{ ...model, resultOutput: 'hello' }} />);
+    });
+    act(() => { vi.advanceTimersByTime(1000); });
+    expect(container.querySelector(expandedSurface)).not.toBeNull();
+  });
+
   it('shows cancelled state instead of receiving params when a stale streaming flag remains', () => {
     act(() => {
       root.render(<ExecProcessToolCardView toolItem={toolItem('running', true)} model={model} />);
@@ -108,7 +242,7 @@ describe('ExecProcessToolCardView', () => {
       root.render(<ExecProcessToolCardView toolItem={toolItem('cancelled', true)} model={model} />);
     });
 
-    expect(container.textContent).toContain('Cancelled');
+    expect(container.querySelector('[data-bitfun-part="icon"] [aria-label]')?.getAttribute('aria-label')).toContain('Cancelled');
     expect(container.textContent).not.toContain('Receiving parameters...');
   });
 
@@ -134,7 +268,7 @@ describe('ExecProcessToolCardView', () => {
       );
     });
 
-    expect(container.textContent).toContain('Rejected');
+    expect(container.querySelector('[data-bitfun-part="icon"] [aria-label]')?.getAttribute('aria-label')).toContain('Rejected');
     expect(container.textContent).not.toContain('Receiving parameters...');
   });
 
@@ -157,24 +291,28 @@ describe('ExecProcessToolCardView', () => {
 
     act(() => {
       container
-        .querySelector<HTMLElement>('[data-bitfun-part="surface"][data-bitfun-attention="prominent"]')
+        .querySelector<HTMLElement>('[data-bitfun-part="surface"][data-bitfun-attention="ambient"]')
         ?.click();
     });
 
-    const exitCodeItem = Array.from(
-      container.querySelectorAll('[data-bitfun-part="footer"] > span'),
-    ).find((item) => item.textContent?.includes('Exit code: 2'));
+    const exitCodeItem = [...container.querySelectorAll('[data-bitfun-part="footer"] [data-tone]')]
+      .find((item) => item.textContent?.includes('Exit code: 2'));
+    expect(exitCodeItem?.textContent).toBe('Exit code: 2');
     expect(exitCodeItem?.getAttribute('data-tone')).toBe('neutral');
+    expect(exitCodeItem?.querySelector('.lucide-check')).toBeNull();
     expect(container.querySelector('.duration-text--completed-error')).toBeNull();
-    expect(container.querySelector('.duration-text--completed-success')).not.toBeNull();
+    expect(container.querySelector('[data-bitfun-part="footer"]')?.textContent).toContain('toolCards.execProcess.wallTime');
   });
 
   it('shows waiting confirmation instead of receiving params while confirmation is pending', () => {    act(() => {
       root.render(<ExecProcessToolCardView toolItem={toolItem('pending_confirmation', true)} model={model} />);
     });
 
-    expect(container.querySelector('[data-bitfun-part="surface"][data-bitfun-attention="prominent"]')).not.toBeNull();
-    expect(container.querySelector('[data-bitfun-part="surface"][data-bitfun-attention="ambient"]')).toBeNull();
+    expect(container.querySelector('[data-bitfun-part="surface"][data-bitfun-attention="prominent"]')).toBeNull();
+    const surface = container.querySelector<HTMLElement>('[data-bitfun-part="surface"][data-bitfun-attention="ambient"]');
+    expect(surface?.getAttribute('data-bitfun-state')).toBe('confirmation');
+    expect(container.querySelector(expandedSurface)).toBeNull();
+    act(() => surface!.click());
     expect(container.textContent).toContain('Waiting for confirmation');
     expect(container.textContent).not.toContain('Receiving parameters...');
     expect(container.querySelector('[data-bitfun-component="command-tool-card"] [data-bitfun-part="outputFrame"]')).not.toBeNull();
@@ -182,7 +320,7 @@ describe('ExecProcessToolCardView', () => {
     expect(container.querySelector('[data-bitfun-component="command-tool-card"] [data-bitfun-part="output"] pre')).toBeNull();
   });
 
-  it('retains a just-completed tail result during the grace period', () => {
+  it('keeps the completed result collapsed when it stops being the tail', () => {
     const resultModel: ExecProcessCardModel = {
       ...model,
       resultOutput: 'All tests passed',
@@ -191,15 +329,15 @@ describe('ExecProcessToolCardView', () => {
     act(() => {
       root.render(
         <ExecProcessToolCardView
-          toolItem={toolItem('running')}
+          toolItem={{ ...toolItem('running'), _progressLogs: ['All tests passed'] } as FlowToolItem}
           model={resultModel}
           isLastItem
         />,
       );
     });
 
-    expect(container.querySelector('[data-bitfun-part="surface"][data-bitfun-attention="prominent"]')).not.toBeNull();
-    expect(container.querySelector('[data-bitfun-part="surface"][data-bitfun-attention="ambient"]')).toBeNull();
+    expect(container.querySelector('[data-bitfun-part="surface"][data-bitfun-attention="ambient"]')).not.toBeNull();
+    expect(container.querySelector('[data-bitfun-part="surface"][data-bitfun-attention="prominent"]')).toBeNull();
 
     act(() => {
       root.render(
@@ -211,10 +349,10 @@ describe('ExecProcessToolCardView', () => {
       );
     });
 
-    expect(container.querySelector('[data-bitfun-part="surface"][data-bitfun-attention="prominent"]')).not.toBeNull();
-    expect(container.querySelector('[data-bitfun-part="surface"][data-bitfun-attention="ambient"]')).toBeNull();
-    expect(container.textContent).toContain('All tests passed');
-    expect(container.querySelector('[data-bitfun-part="output"] pre')?.getAttribute('data-max-rows')).toBe('4');
+    expect(container.querySelector('[data-bitfun-part="surface"][data-bitfun-attention="ambient"]')).not.toBeNull();
+    expect(container.querySelector('[data-bitfun-part="surface"][data-bitfun-attention="prominent"]')).toBeNull();
+    expect(container.querySelector(expandedSurface)).toBeNull();
+    expect(container.querySelector('[data-bitfun-part="outputFrame"]')).toBeNull();
 
     act(() => {
       root.render(
@@ -226,11 +364,10 @@ describe('ExecProcessToolCardView', () => {
       );
     });
 
-    // Collapsed cards keep the prominent framework shell and animate height closed.
-    expect(container.querySelector('[data-bitfun-part="surface"][data-bitfun-attention="prominent"]')).not.toBeNull();
-    expect(container.querySelector('[data-bitfun-part="surface"][data-bitfun-attention="prominent"][data-bitfun-state~="expanded"]')).toBeNull();
-    expect(container.querySelector('[data-bitfun-part="surface"][data-bitfun-attention="ambient"]')).toBeNull();
-    expect(container.querySelector('[data-bitfun-part="output"] pre')?.getAttribute('data-max-rows')).toBe('4');
+    expect(container.querySelector('[data-bitfun-part="surface"][data-bitfun-attention="ambient"]')).not.toBeNull();
+    expect(container.querySelector('[data-bitfun-part="surface"][data-bitfun-attention="ambient"][data-bitfun-state~="expanded"]')).toBeNull();
+    expect(container.querySelector('[data-bitfun-part="surface"][data-bitfun-attention="prominent"]')).toBeNull();
+    expect(container.querySelector('[data-bitfun-part="outputFrame"]')).toBeNull();
   });
 
   it('uses the expanded output preview after a completed card is manually expanded', () => {
@@ -250,7 +387,7 @@ describe('ExecProcessToolCardView', () => {
 
     act(() => {
       container
-        .querySelector<HTMLElement>('[data-bitfun-part="surface"][data-bitfun-attention="prominent"]')
+        .querySelector<HTMLElement>('[data-bitfun-part="surface"][data-bitfun-attention="ambient"]')
         ?.click();
     });
 
@@ -271,7 +408,7 @@ describe('ExecProcessToolCardView', () => {
 
     act(() => {
       container
-        .querySelector<HTMLElement>('[data-bitfun-part="surface"][data-bitfun-attention="prominent"]')
+        .querySelector<HTMLElement>('[data-bitfun-part="surface"][data-bitfun-attention="ambient"]')
         ?.click();
     });
 
@@ -280,10 +417,9 @@ describe('ExecProcessToolCardView', () => {
     expect(container.querySelector('[data-bitfun-part="outputFrame"]')?.getAttribute('data-sizing')).toBe('content');
   });
 
-  it('pushes WriteStdin session and execution metadata to the footer end', () => {
-    const stdinModel: ExecProcessCardModel = {
+  it('keeps the exit code next to duration at the footer end', () => {
+    const metadataModel: ExecProcessCardModel = {
       ...model,
-      kind: 'stdin',
       sessionId: 42,
       exitCode: 0,
       wallTimeSeconds: 1.25,
@@ -292,26 +428,27 @@ describe('ExecProcessToolCardView', () => {
     act(() => {
       root.render(
         <ExecProcessToolCardView
-          toolItem={{ ...toolItem('completed'), toolName: 'WriteStdin' }}
-          model={stdinModel}
+          toolItem={toolItem('completed')}
+          model={metadataModel}
         />,
       );
     });
 
     act(() => {
       container
-        .querySelector<HTMLElement>('[data-bitfun-part="surface"][data-bitfun-attention="prominent"]')
+        .querySelector<HTMLElement>('[data-bitfun-part="surface"][data-bitfun-attention="ambient"]')
         ?.click();
     });
 
-    const footerItems = Array.from(container.querySelectorAll('[data-bitfun-part="footer"] > span'));
+    expect(container.querySelector('[data-bitfun-part="surface"]')?.textContent).not.toContain('Exit code:');
+    const footerItems = Array.from(container.querySelectorAll('[data-bitfun-part="footer"] [data-push-to-end]'));
     expect(footerItems).toHaveLength(3);
     expect(footerItems[0]?.getAttribute('data-push-to-end')).toBe('true');
     expect(footerItems[0]?.textContent).toContain('#42');
     expect(footerItems[1]?.getAttribute('data-push-to-end')).toBe('false');
-    expect(footerItems[1]?.textContent).toContain('toolCards.execProcess.wallTime');
+    expect(footerItems[1]?.textContent).toContain(kind === 'stdin' ? 'toolCards.execProcess.wallTime' : 'Exit code: 0');
     expect(footerItems[2]?.getAttribute('data-push-to-end')).toBe('false');
-    expect(footerItems[2]?.textContent).toContain('Exit code: 0');
+    expect(footerItems[2]?.textContent).toContain(kind === 'stdin' ? 'Exit code: 0' : 'toolCards.execProcess.wallTime');
   });
 
   it('keeps the output frame and footer mounted while content changes', () => {
@@ -328,17 +465,20 @@ describe('ExecProcessToolCardView', () => {
     };
 
     act(() => {
-      root.render(<ExecProcessToolCardView toolItem={toolItem('running')} model={model} />);
+      root.render(<ExecProcessToolCardView toolItem={streamingItem} model={model} />);
+    });
+    act(() => {
+      container.querySelector<HTMLElement>('[data-bitfun-part="surface"][data-bitfun-attention="ambient"]')!.click();
     });
     const frameBeforeOutput = container.querySelector('[data-bitfun-component="command-tool-card"] [data-bitfun-part="outputFrame"]');
     const footerBeforeOutput = container.querySelector('[data-bitfun-component="command-tool-card"] [data-bitfun-part="footer"]');
-    expect(frameBeforeOutput?.getAttribute('data-density')).toBe('compact');
-    expect(frameBeforeOutput?.getAttribute('data-sizing')).toBe('fixed');
+    expect(frameBeforeOutput?.getAttribute('data-density')).toBe('expanded');
+    expect(frameBeforeOutput?.getAttribute('data-sizing')).toBe('content');
     expect(footerBeforeOutput?.textContent).toBe('');
-    expect(container.querySelector('[data-bitfun-part="output"] pre')).toBeNull();
+    expect(container.querySelector('[data-bitfun-part="output"] pre')).not.toBeNull();
 
     act(() => {
-      root.render(<ExecProcessToolCardView toolItem={streamingItem} model={model} />);
+      root.render(<ExecProcessToolCardView toolItem={{ ...streamingItem, _progressLogs: ['more output'] } as FlowToolItem} model={model} />);
     });
     expect(container.querySelector('[data-bitfun-component="command-tool-card"] [data-bitfun-part="outputFrame"]')).toBe(frameBeforeOutput);
     expect(container.querySelector('[data-bitfun-component="command-tool-card"] [data-bitfun-part="footer"]')).toBe(footerBeforeOutput);
@@ -356,10 +496,10 @@ describe('ExecProcessToolCardView', () => {
     expect(container.querySelector('[data-bitfun-component="command-tool-card"] [data-bitfun-part="outputFrame"]')).toBe(frameBeforeOutput);
     expect(container.querySelector('[data-bitfun-component="command-tool-card"] [data-bitfun-part="footer"]')).toBe(footerBeforeOutput);
     expect(footerBeforeOutput?.textContent).toContain('E:/workspace');
-    expect(container.querySelector('[data-bitfun-component="command-tool-card"] [data-bitfun-part="outputFrame"]')?.getAttribute('data-density')).toBe('compact');
+    expect(container.querySelector('[data-bitfun-component="command-tool-card"] [data-bitfun-part="outputFrame"]')?.getAttribute('data-density')).toBe('expanded');
   });
 
-  it('collapses a completed tail result when the grace period expires', () => {
+  it.each([true, false])('only closes manually expanded output on request and retains the collapse transition (tail=%s)', (isLastItem) => {
     vi.useFakeTimers();
     const resultModel: ExecProcessCardModel = {
       ...model,
@@ -369,33 +509,34 @@ describe('ExecProcessToolCardView', () => {
     act(() => {
       root.render(
         <ExecProcessToolCardView
-          toolItem={toolItem('running')}
+          toolItem={{ ...toolItem('running'), _progressLogs: ['All tests passed'] } as FlowToolItem}
           model={resultModel}
-          isLastItem
+          isLastItem={isLastItem}
         />,
       );
     });
 
+    act(() => {
+      container.querySelector<HTMLElement>('[data-bitfun-part="surface"][data-bitfun-attention="ambient"]')!.click();
+    });
     act(() => {
       root.render(
         <ExecProcessToolCardView
           toolItem={toolItem('completed')}
           model={resultModel}
-          isLastItem
+          isLastItem={isLastItem}
         />,
       );
     });
-    expect(vi.getTimerCount()).toBeGreaterThan(0);
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(container.querySelector('[data-bitfun-part="surface"][data-bitfun-attention="ambient"][data-bitfun-state~="expanded"]')).not.toBeNull();
 
     act(() => {
-      vi.advanceTimersByTime(799);
+      container.querySelector<HTMLElement>(expandedSurface)!.click();
     });
-    expect(container.querySelector('[data-bitfun-part="surface"][data-bitfun-attention="prominent"][data-bitfun-state~="expanded"]')).not.toBeNull();
-
-    act(() => {
-      vi.advanceTimersByTime(1);
-    });
-    expect(container.querySelector('[data-bitfun-part="surface"][data-bitfun-attention="prominent"][data-bitfun-state~="expanded"]')).toBeNull();
+    expect(container.querySelector('[data-bitfun-part="surface"][data-bitfun-attention="ambient"][data-bitfun-state~="expanded"]')).toBeNull();
     expect(container.querySelector('[data-bitfun-component="command-tool-card"] [data-bitfun-part="details"]')).not.toBeNull();
 
     act(() => {

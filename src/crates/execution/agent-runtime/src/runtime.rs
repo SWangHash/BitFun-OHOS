@@ -1605,6 +1605,26 @@ impl AgentRuntime {
             .map_err(RuntimeError::from)
     }
 
+    pub async fn manage_dialog_queue(
+        &self,
+        request: bitfun_runtime_ports::DialogQueueRequest,
+    ) -> Result<bitfun_runtime_ports::DialogQueueSnapshot, RuntimeError> {
+        let session_id = request.session_id.clone();
+        let result = self
+            .dialog_turn
+            .as_ref()
+            .ok_or(RuntimeError::MissingDialogTurnPort)?
+            .manage_dialog_queue(request)
+            .await
+            .map_err(RuntimeError::from)?;
+        if result.session_id != session_id {
+            return Err(
+                PortError::new(PortErrorKind::Backend, "Queue session identity mismatch").into(),
+            );
+        }
+        Ok(result)
+    }
+
     pub async fn submit_dialog_turn(
         &self,
         request: AgentDialogTurnRequest,

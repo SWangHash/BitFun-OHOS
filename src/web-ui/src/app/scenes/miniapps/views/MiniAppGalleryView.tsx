@@ -8,10 +8,6 @@ import {
   PackagePlus,
 } from 'lucide-react';
 import { useSceneManager } from '@/app/hooks/useSceneManager';
-import { openMainSession } from '@/flow_chat/services/sessionActivation';
-import { flowChatSessionConfigForCurrentWorkspace } from '@/app/utils/projectSessionWorkspace';
-import { flowChatManager } from '@/flow_chat/services/FlowChatManager';
-import { isRemoteWorkspace } from '@/shared/types';
 import { isImeOwnedKeyboardEvent } from '@/shared/utils/ime';
 import { workspaceAPI } from '@/infrastructure/api';
 import MiniAppCard from '../components/MiniAppCard';
@@ -41,11 +37,12 @@ import {
   GalleryPageHeader,
   GallerySkeleton,
   GalleryZone,
-} from '@/app/components';
+} from '@/app/components/GalleryLayout';
 import { loadInstalledMarketOrigins } from '../utils/loadInstalledMarketOrigins';
 import { pickLocalizedString, pickLocalizedTags } from '../utils/pickLocalizedString';
 import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext';
 import { useMiniAppStore } from '../miniAppStore';
+import { useMiniAppCreation } from '../hooks/useMiniAppCreation';
 import { useI18n } from '@/infrastructure/i18n';
 import { useGallerySceneAutoRefresh } from '@/app/hooks/useGallerySceneAutoRefresh';
 import { useNotification } from '@/shared/notification-system';
@@ -73,7 +70,7 @@ const MiniAppGalleryView: React.FC<MiniAppGalleryViewProps> = ({ tabs }) => {
   const setMarketOrigins = useMiniAppStore((state) => state.setMarketOrigins);
   const setRunningWorkerIds = useMiniAppStore((state) => state.setRunningWorkerIds);
   const markWorkerStopped = useMiniAppStore((state) => state.markWorkerStopped);
-  const { workspace, workspacePath } = useCurrentWorkspace();
+  const { workspacePath } = useCurrentWorkspace();
   const notification = useNotification();
   const { openScene, activateScene, closeScene, openTabs } = useSceneManager();
   const { t, currentLanguage } = useI18n('scenes/miniapp');
@@ -88,7 +85,7 @@ const MiniAppGalleryView: React.FC<MiniAppGalleryViewProps> = ({ tabs }) => {
     inspection: MarketPackageInspection;
   } | null>(null);
   const [importMenuOpen, setImportMenuOpen] = useState(false);
-  const [creatingWithCreative, setCreatingWithCreative] = useState(false);
+  const { creating: creatingWithCreative, createMiniApp } = useMiniAppCreation();
   const importTriggerRef = useRef<HTMLButtonElement>(null);
   const importMenuRef = useRef<HTMLDivElement>(null);
 
@@ -105,8 +102,6 @@ const MiniAppGalleryView: React.FC<MiniAppGalleryViewProps> = ({ tabs }) => {
   const closeImportMenu = useCallback(() => setImportMenuOpen(false), []);
 
   useEffect(() => {
-    let removeOverlayMousedown0: (() => void) | undefined;
-    let removeOverlayKeydown1: (() => void) | undefined;
     if (!importMenuOpen) return;
 
     const handlePointerDown = (event: MouseEvent) => {
@@ -125,8 +120,8 @@ const MiniAppGalleryView: React.FC<MiniAppGalleryViewProps> = ({ tabs }) => {
       requestAnimationFrame(() => importTriggerRef.current?.focus());
     };
 
-    removeOverlayMousedown0 = subscribeOverlayInteraction(importMenuRef, 'mousedown', handlePointerDown);
-    removeOverlayKeydown1 = subscribeOverlayInteraction(importMenuRef, 'keydown', handleEscape);
+    const removeOverlayMousedown0 = subscribeOverlayInteraction(importMenuRef, 'mousedown', handlePointerDown);
+    const removeOverlayKeydown1 = subscribeOverlayInteraction(importMenuRef, 'keydown', handleEscape);
     return () => {
       removeOverlayMousedown0?.();
       removeOverlayKeydown1?.();
@@ -343,39 +338,10 @@ const MiniAppGalleryView: React.FC<MiniAppGalleryViewProps> = ({ tabs }) => {
     }
   };
 
-  const handleCreateWithCreative = useCallback(async () => {
-    if (creatingWithCreative) return;
-    if (!workspace) {
-      notification.error(t('creationMode.noWorkspace'));
-      return;
-    }
-    if (isRemoteWorkspace(workspace)) {
-      notification.error(t('creationMode.remoteUnsupported'));
-      return;
-    }
-
-    setCreatingWithCreative(true);
+  const handleCreateWithCreative = useCallback(() => {
     closeImportMenu();
-    try {
-      const sessionId = await flowChatManager.createChatSession(
-        flowChatSessionConfigForCurrentWorkspace(workspace),
-        'Creative',
-      );
-      await openMainSession(sessionId);
-      notification.success(t('creationMode.started'));
-    } catch (error) {
-      log.error('Failed to start Creative MiniApp session', error);
-      notification.error(t('creationMode.startFailed'));
-    } finally {
-      setCreatingWithCreative(false);
-    }
-  }, [
-    closeImportMenu,
-    creatingWithCreative,
-    notification,
-    t,
-    workspace,
-  ]);
+    return createMiniApp();
+  }, [closeImportMenu, createMiniApp]);
 
   const renderGrid = () => {
     if (loading && apps.length === 0) {

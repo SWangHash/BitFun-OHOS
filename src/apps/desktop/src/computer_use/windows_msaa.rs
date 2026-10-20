@@ -265,15 +265,6 @@ unsafe fn walk(
     let has_content = name.is_some();
 
     if is_actionable || has_content {
-        // Retain the IAccessible pointer for a later click /
-        // accDoDefaultAction step — mirrors the UIA path: clone, take the raw
-        // pointer, forget the local so its Drop does not Release. A future
-        // ElementCache owns release; until then the pointers outlive the
-        // snapshot (acceptable for an unwired fallback path).
-        let retained: IAccessible = acc.clone();
-        let ptr = retained.as_raw() as usize;
-        std::mem::forget(retained);
-
         let (center_x, center_y) = rect
             .map(|(l, t, r, b)| ((l + r) / 2, (t + b) / 2))
             .unwrap_or((0, 0));
@@ -294,7 +285,7 @@ unsafe fn walk(
                 automation_id: None,
                 help_text: None,
                 actions: actions.clone(),
-                element_ptr: ptr,
+                element: acc.cast().ok(),
                 center_x,
                 center_y,
                 rect,
@@ -302,6 +293,9 @@ unsafe fn walk(
                 depth,
                 parent_element_index: parent_index,
                 enabled,
+                focused: false,
+                selected: None,
+                expanded: None,
             }
         } else {
             UiaNode {
@@ -312,7 +306,7 @@ unsafe fn walk(
                 automation_id: None,
                 help_text: None,
                 actions: Vec::new(),
-                element_ptr: ptr,
+                element: acc.cast().ok(),
                 center_x: 0,
                 center_y: 0,
                 rect,
@@ -320,6 +314,9 @@ unsafe fn walk(
                 depth,
                 parent_element_index: parent_index,
                 enabled,
+                focused: false,
+                selected: None,
+                expanded: None,
             }
         };
         // Track this node as the parent for its descendants only when it

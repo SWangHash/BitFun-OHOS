@@ -44,6 +44,7 @@ struct WorkspaceStateSnapshot {
     current_workspace: Option<WorkspaceInfoDto>,
     recent_workspaces: Vec<WorkspaceInfoDto>,
     opened_workspaces: Vec<WorkspaceInfoDto>,
+    assistant_workspaces: Vec<WorkspaceInfoDto>,
     primary_assistant_workspace_id: Option<String>,
     legacy_remote_workspace: Option<crate::api::RemoteWorkspace>,
 }
@@ -55,6 +56,7 @@ pub struct WorkspaceStartupStateSnapshotDto {
     pub current_workspace: Option<WorkspaceInfoDto>,
     pub recent_workspaces: Vec<WorkspaceInfoDto>,
     pub opened_workspaces: Vec<WorkspaceInfoDto>,
+    pub assistant_workspaces: Vec<WorkspaceInfoDto>,
     pub primary_assistant_workspace_id: Option<String>,
     pub legacy_remote_workspace: Option<crate::api::RemoteWorkspace>,
 }
@@ -380,6 +382,10 @@ pub struct OpenRemoteWorkspaceRequest {
     /// SSH config `host` (DNS or alias). When set, used for session mirror paths even if not connected.
     #[serde(default)]
     pub ssh_host: Option<String>,
+    /// The user confirmed moving an existing record owned by another saved
+    /// connection to `connection_id`.
+    #[serde(default)]
+    pub rebind_connection: bool,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -1321,7 +1327,10 @@ pub async fn open_remote_workspace(
 ) -> Result<WorkspaceInfoDto, String> {
     use bitfun_core::service::remote_ssh::normalize_remote_workspace_path;
     use bitfun_core::service::remote_ssh::workspace_state::remote_workspace_stable_id;
-    use bitfun_core::service::workspace::WorkspaceCreateOptions;
+    use bitfun_core::service::workspace::{
+        remote_workspace_connection_conflict_message, RemoteConnectionRebind,
+        WorkspaceCreateOptions,
+    };
 
     let ssh = state.get_ssh_manager_async().await?;
     let saved = ssh
@@ -1409,6 +1418,11 @@ pub async fn open_remote_workspace(
         remote_connection_id: Some(request.connection_id.clone()),
         remote_ssh_host: Some(ssh_host.clone()),
         stable_workspace_id: Some(stable_workspace_id),
+        remote_connection_rebind: if request.rebind_connection {
+            RemoteConnectionRebind::UserConfirmed
+        } else {
+            RemoteConnectionRebind::Reject
+        },
     };
 
     match state
@@ -1467,6 +1481,11 @@ pub async fn open_remote_workspace(
             Ok(WorkspaceInfoDto::from_workspace_info(&workspace_info))
         }
         Err(e) => {
+            let message = e.to_string();
+            if let Some(conflict) = remote_workspace_connection_conflict_message(&message) {
+                warn!("Remote workspace open needs a connection rebind decision: {conflict}");
+                return Err(conflict.to_string());
+            }
             error!("Failed to open remote workspace: {}", e);
             Err(format!("Failed to open remote workspace: {}", e))
         }
@@ -2078,6 +2097,12 @@ async fn collect_workspace_state_snapshot(state: &State<'_, AppState>) -> Worksp
         current_workspace,
         recent_workspaces,
         opened_workspaces,
+        assistant_workspaces: workspace_service
+            .get_assistant_workspaces()
+            .await
+            .iter()
+            .map(WorkspaceInfoDto::from_workspace_info)
+            .collect(),
         primary_assistant_workspace_id,
         legacy_remote_workspace,
     }
@@ -2195,6 +2220,7 @@ async fn initialize_workspace_startup_state_impl(
         current_workspace: snapshot.current_workspace,
         recent_workspaces: snapshot.recent_workspaces,
         opened_workspaces: snapshot.opened_workspaces,
+        assistant_workspaces: snapshot.assistant_workspaces,
         primary_assistant_workspace_id: snapshot.primary_assistant_workspace_id,
         legacy_remote_workspace: snapshot.legacy_remote_workspace,
     })
@@ -2346,6 +2372,19 @@ async fn prune_unrecoverable_remote_workspaces(state: &State<'_, AppState>) -> u
     }
 
     removed
+}
+
+#[tauri::command]
+pub async fn get_assistant_workspaces(
+    state: State<'_, AppState>,
+) -> Result<Vec<WorkspaceInfoDto>, String> {
+    Ok(state
+        .workspace_service
+        .get_assistant_workspaces()
+        .await
+        .iter()
+        .map(WorkspaceInfoDto::from_workspace_info)
+        .collect())
 }
 
 #[tauri::command]
@@ -5744,9 +5783,23 @@ pub async fn get_model_configs(
     }
 }
 
+/// Model catalog of the host that renders the current surface.
+///
+/// The models.dev bodies never travel: they describe the public models.dev
+/// catalog, which every host refreshes for itself, and only Model Settings reads
+/// them — through `get_local_models_dev_catalogs`, which stays on this machine.
 #[tauri::command]
 pub async fn get_ai_model_catalog() -> Result<bitfun_core::AIModelCatalog, String> {
-    bitfun_core::get_ai_model_catalog().await
+    bitfun_core::get_remote_model_catalog().await
+}
+
+/// This machine's own models.dev projections, for a controller rendering the
+/// Model Settings surface while a peer is selected. Declared controller-local in
+/// the Product Operation Registry, so it never reaches a peer host.
+#[tauri::command]
+pub async fn get_local_models_dev_catalogs(
+) -> Result<bitfun_core::LocalModelsDevCatalogs, String> {
+    bitfun_core::get_local_models_dev_catalogs().await
 }
 
 #[tauri::command]

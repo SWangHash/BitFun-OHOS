@@ -62,9 +62,9 @@ pnpm run desktop:preview:debug
 pnpm run prepare:dsh-profile   # optional: local DeepSeek Harness sessions
 ```
 
-Data Migrator runs independently. Desktop development launchers do not build,
-launch, or supervise the migrator; use its own development and release entry
-points under `src/apps/data-migrator`.
+Data Tools runs independently. Desktop development launchers do not build,
+launch, or supervise the tool; use its own development and release entry
+points under `src/apps/data-tools`.
 
 ## Fast builds
 
@@ -99,6 +99,17 @@ The `devtools` Cargo feature exists for debugging UI/UX in the desktop app. When
 
 ## Verification
 
+For application icon resources and packaging, run `pnpm run generate-brand-assets`
+and `node --test scripts/generate-brand-assets.test.mjs scripts/macos-icon-bundle.test.mjs scripts/desktop-tauri-build.test.mjs`.
+The [brand guide](../../../assets/brand/README.md#macos-icons) owns native exports.
+On a Mac with full Xcode 26+, also run
+`BITFUN_TEST_MACOS_BUNDLE=1 node --test scripts/macos-icon-bundle.test.mjs`;
+CI requires this on both macOS architectures. The fixture bundles a Mach-O
+without launching UI. Resource-only edits do not require the Rust suites below;
+packaging/startup code changes still require the desktop build. These checks do
+not establish visual Dock equivalence on an older OS. Keep modern `.icon`
+resources in the macOS config overlay and preserve the dev/legacy ICNS path.
+
 For macOS microphone signing metadata, run
 `plutil -lint src/apps/desktop/Info.plist src/apps/desktop/Entitlements.plist`
 and `node --test scripts/ci/verify-macos-microphone.test.mjs` on macOS.
@@ -111,9 +122,42 @@ and recording in the signed app on macOS. Ad-hoc fixture tests do not prove TCC 
 cargo check -p bitfun-desktop && cargo test -p bitfun-desktop
 ```
 
+For session storage directory access, run
+`cargo test -p bitfun-desktop --lib api::session_storage_directory::tests`
+for session storage directory resolution (these tests do not launch a file manager),
+and `cargo test -p bitfun-desktop --lib remote_workspace_policy` after registration changes.
+
+For whole-session copy routing, run
+`cargo test --locked -p bitfun-desktop --lib whole_session_copy_uses_the_latest_persisted_turn_fork`.
+After command registration changes, also run the `remote_workspace_policy` filter.
+
+For model selector request compatibility and configuration effect routing:
+
+```bash
+cargo test --locked -p bitfun-desktop --lib update_session_model_distinguishes_omitted_null_and_explicit_reasoning_presets
+cargo test --locked -p bitfun-desktop --lib backend_effect_routing_is_owned_by_the_control_transaction
+```
+
+Use the Core guide's session-model tests for cold persistence, no-op writes,
+rollback, and ownership; the Desktop adapter must not restore history for a
+model selection alone.
+
+For MiniApp Agent session and context changes, run
+`cargo test --locked -p bitfun-desktop --lib api::miniapp_agent_api::tests`.
+This covers legacy payloads, exact context paths, trust instructions, and snapshot cleanup.
+
 For tray unread synchronization, run
 `pnpm --dir src/web-ui run test:run src/flow_chat/services/trayUnreadService.test.ts src/flow_chat/services/sessionNavStatusService.test.ts`
 and `cargo test -p bitfun-desktop --lib remote_workspace_policy` after command changes.
+
+For independent official/LAN Relay routing and scoped teardown, run
+`cargo test --locked -p bitfun-desktop --lib api::remote_connect_api`
+and `cargo test --locked -p bitfun-desktop --lib api::peer_host_invoke::tests`.
+The dual-Relay test runs actual sockets and encrypted RPC in a child process with
+temporary product storage; it does not exercise physical LAN interfaces, SSH
+workspaces, or the production Relay. UI coverage lives in
+`remoteConnectionState.test.ts`, `RemoteConnectDialog.status.test.tsx` and
+`deviceInterconnectionOverview.test.ts` under the Web UI owner.
 
 For shared GitHub sign-in and token redaction, use
 `cargo test -p bitfun-desktop --lib api::account_identity_api::tests`.
@@ -149,6 +193,12 @@ covers the active chat target during an external file drag; do not enable Wry's
 window-wide Windows handler as a replacement. After command registration changes,
 also run `cargo test -p bitfun-desktop --lib remote_workspace_policy`.
 
+For macOS HTML versus native file drag routing, use the focused command in
+[`third_party/wry/BitFun-PATCH.md`](../../../third_party/wry/BitFun-PATCH.md)
+and `cargo build -p bitfun-desktop`. The host keeps the native file receiver
+enabled for Finder paths; the Wry adapter delegates non-file gestures to WebKit.
+Frontend HMR and synthetic DOM drag tests cannot verify that native boundary.
+
 The layered receiver requires the compatibility declaration in
 `windows-app.manifest`; keep it wired through `build.rs` for dev and release.
 After changes to that contract, run
@@ -170,6 +220,18 @@ For peer system-info response compatibility, run
 `cargo test -p bitfun-desktop --lib system_info_home_contract`.
 For window geometry recovery, legacy state compatibility, and snapshot persistence,
 run `cargo test -p bitfun-desktop --lib window_state_support::tests`.
+For macOS close-to-hide fullscreen sequencing, run
+`cargo check --locked -p bitfun-desktop` and
+`node scripts/test-macos-window-close.mjs` on a graphical macOS session.
+The latter compiles the production close lifecycle in isolation and checks real
+AppKit fullscreen entry/exit, duplicate requests, cancellation and reopen; it
+does not launch the complete Desktop frontend or exercise remote scenarios.
+For Windows main-WebView minimize/restore size filtering, run
+`cargo test -p bitfun-desktop --no-default-features --lib window_webview_geometry::tests`.
+The desktop host owns main-WebView resizing on Windows so minimized client bounds
+do not trigger page reflow; embedded browser WebViews keep their existing owners.
+After rebuilding, manually compare taskbar minimize/restore with tray hide/show
+while a session is open, and check normal resize, maximize, and monitor DPI changes.
 For the matching startup wiring contract, run
 `pnpm --dir src/web-ui run test:run src/app/startup/startupPerformanceContract.test.ts`.
 For native sidebar material and appearance bootstrap, run
@@ -212,3 +274,11 @@ For alternate dev-server ports and preview startup URL changes, run
 to the previous port. Desktop and Vite must use the same values. Development
 launchers reuse the locked Sherpa library/archive cache across Git worktrees,
 or download the archive through curl when absent; explicit SHERPA_ONNX overrides win.
+
+For the real macOS ComputerUse tool observation/input roundtrip, run
+`node scripts/test-macos-control-roundtrip.mjs`. This launches a disposable
+AppKit target and the `computer_use_native_roundtrip` test with `devtools`.
+The harness has its own main-thread CFRunLoop and exercises the production
+main-queue dispatcher; do not run this test through libtest or bypass that
+dispatcher. It requires local Accessibility and Screen Recording permission.
+To reuse the compiled harness, set `BITFUN_TEST_BINARY` to its absolute path.

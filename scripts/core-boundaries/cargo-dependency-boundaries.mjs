@@ -48,11 +48,16 @@ function repositoryPath(root, path) {
   return result;
 }
 
-// This crates.io source is patched only to select the product TLS provider.
-// It is an external dependency, not an BitFun runtime owner. Resolved
-// feature checks below still include it and its full dependency closure.
+// Reviewed crates.io copies remain external dependencies, not product owners.
+// Resolved feature checks still include them and their full dependency closure.
+const VENDORED_EXTERNAL_PACKAGES = new Map([
+  ['third_party/eioc/Cargo.toml', { name: 'eioc', version: '0.5.0' }],
+  ['third_party/tao/Cargo.toml', { name: 'tao', version: '0.36.0' }],
+  ['third_party/wry/Cargo.toml', { name: 'wry', version: '0.56.0' }],
+]);
+
 function isVendoredExternalManifest(root, manifestPath) {
-  return repositoryPath(root, manifestPath) === 'third_party/eioc/Cargo.toml';
+  return VENDORED_EXTERNAL_PACKAGES.has(repositoryPath(root, manifestPath));
 }
 
 function layerForManifest(manifestPath, { root, crateLayoutRules }) {
@@ -142,7 +147,8 @@ const SERVICES_INTEGRATIONS_TOKIO_FEATURES = new Map([
   ['account-identity', ['rt', 'sync']],
   ['anonymous-auth', ['sync']],
   ['announcement', ['fs', 'sync']],
-  ['models-dev', ['fs', 'sync', 'time']],
+  // Large catalog validation/hash work uses spawn_blocking, outside async IO workers.
+  ['models-dev', ['fs', 'rt', 'sync', 'time']],
   ['browser-control', ['time']],
   ['feedback', ['fs', 'sync']],
   ['canvas-runtime', ['fs']],
@@ -154,6 +160,7 @@ const SERVICES_INTEGRATIONS_TOKIO_FEATURES = new Map([
   ['miniapp-storage', ['fs', 'time']],
   ['miniapp-runtime', ['fs', 'io-util', 'net', 'process', 'rt', 'sync', 'time']],
   ['miniapp-market', ['fs', 'io-util', 'net', 'process', 'rt', 'sync', 'time']],
+  ['skillhub', ['fs', 'io-util']],
   ['plugin-source', ['fs', 'rt', 'sync', 'time']],
   ['qt-toolchain', ['fs', 'io-util', 'macros', 'rt']],
   ['hook-import', ['fs', 'sync']],
@@ -173,6 +180,8 @@ const SERVICES_CORE_TOKIO_FEATURES = new Map([
   ['filesystem', ['fs', 'rt', 'sync']],
   ['json-io', ['fs', 'rt', 'sync', 'time']],
   ['local-storage', ['fs', 'rt', 'sync', 'time']],
+  // Offline repair uses strict atomic storage writes; no processes or network.
+  ['session-recovery', ['fs', 'rt', 'sync', 'time']],
   ['permission', ['rt']],
   ['process-runtime', ['io-util', 'process', 'rt', 'time']],
   ['session-search', ['rt']],
@@ -201,7 +210,7 @@ const CORE_TOKIO_AGGREGATES = new Set([
   'tools-mcp',
 ]);
 const AGENT_RUNTIME_TOKIO_FEATURES = new Map([
-  ['native-hook-runtime', ['io-util', 'macros', 'process', 'rt', 'time']],
+  ['native-hook-runtime', ['io-util', 'macros', 'process', 'rt', 'sync', 'time']],
   ['agent-runtime', ['io-util', 'macros', 'process', 'rt', 'sync', 'time']],
 ]);
 
@@ -581,7 +590,8 @@ const THIRD_PARTY_CAPABILITY_PROFILES = new Map([
       ['bitfun-skin-market-service', dependencyProfile(['gif', 'jpeg', 'png', 'webp'], {
         useDefaultFeatures: false,
       })],
-      ['bitfun-webdriver', dependencyProfile(['png'], {
+      // The embedded bridge captures PNG and encodes JPEG previews itself.
+      ['bitfun-webdriver', dependencyProfile(['jpeg', 'png'], {
         useDefaultFeatures: false,
       })],
     ]),
@@ -1071,6 +1081,7 @@ export function findServicesIntegrationsReqwestFeatureViolations(pkg) {
     ['feedback', ['reqwest/json', 'reqwest/query']],
     ['mcp', ['reqwest/json', 'reqwest/stream']],
     ['miniapp-market', ['reqwest/json', 'reqwest/query', 'reqwest/stream']],
+    ['skillhub', ['reqwest/json', 'reqwest/query', 'reqwest/stream']],
     ['miniapp-runtime', ['reqwest/stream']],
     ['models-dev', ['reqwest/system-proxy']],
     ['qt-toolchain', ['reqwest/stream']],
@@ -2659,8 +2670,9 @@ export function collectCargoMetadataGraph({
         continue;
       }
       const packageManifestKey = normalizedPath(pkg.manifest_path);
-      if (isVendoredExternalManifest(root, pkg.manifest_path)
-        && pkg.name === 'eioc' && pkg.version === '0.5.0' && !workspaceMemberIds.has(pkg.id)) {
+      const vendor = VENDORED_EXTERNAL_PACKAGES.get(repositoryPath(root, pkg.manifest_path));
+      if (vendor && pkg.name === vendor.name && pkg.version === vendor.version
+        && !workspaceMemberIds.has(pkg.id)) {
         continue;
       }
       if (workspaceMemberIds.has(pkg.id)) {

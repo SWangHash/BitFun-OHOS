@@ -9,6 +9,26 @@ This directory contains BitFun’s **Web UI** (React + TypeScript). The same fro
 - **Desktop**: loaded via **Tauri**
 - **Server/Web**: built into static assets and served by the backend
 
+## Creating a project
+
+The sidebar's add button opens two clickable cards without footer actions.
+The assistant card creates an assistant immediately, then opens its identity,
+tool, and personality setup. The project card opens the folder form; Back returns to the
+choice while preserving the project draft. Closing the dialog resets the flow.
+Add one folder and leave
+its name empty to use the folder name, or add several folders and give the group
+one name. The first folder is the primary workspace; the others become associated
+folders. Reusing an existing workspace preserves its previous associations.
+Removing a folder from the draft never deletes it from disk.
+
+With no source folders, enter a name to create the empty project automatically in
+`~/BitFun/Projects/<project-name>`. The home directory belongs to the target
+host: the current device, controlled peer, or selected SSH host. SSH creation may
+ask for a connection, but never a save location. Hosts that do not provide their
+home directory report an error without falling back to the controller. The source selector supports the current device (including a
+controlled peer) and SSH. All folders in one project must belong to the same host.
+The form does not show recent projects.
+
 ## MCP configuration
 
 In Desktop, open **Settings → Tools → MCP** to add or edit a user-level server
@@ -28,6 +48,18 @@ are retained, unsupported form shapes stay editable in JSON, and concurrent
 configuration changes cannot silently overwrite one another. This management
 surface edits the local Desktop user's configuration; project-scoped editing,
 Peer Device management, and standalone Web management are not exposed by it.
+
+## Sending follow-up messages
+
+In **Settings → Input & interaction → Message sending**, choose how follow-up
+messages are sent during a native conversation. **Send immediately** is the
+default, including after upgrading: it delivers instructions to the running task
+through the existing send-now action. **Queue messages** waits for the current
+turn to finish. Buttons and keyboard submission share this preference.
+Already queued messages retain their individual send-now action. ACP sessions
+still wait for the current turn; Detached Dispatch sessions keep appending
+messages to the target task. In Peer Device Mode, the preference belongs to the
+active host, as do the other conversation settings.
 
 ## Floating conversations
 
@@ -71,6 +103,15 @@ and device. ACP and Detached Dispatch conversations retain text interaction;
 shared voice history requires a host advertising `control_conversation_v1`.
 The standalone web server does not yet expose this control-conversation contract;
 use Desktop or a capable peer host.
+
+## Personal assistants
+
+The left navigation shows each assistant as a static joystick avatar. Select it to open its default session, or its most recently active session when no default is set (starting one if it has none). Use the history button to browse sessions in a separate dialog, or the plus button to start a new session. Assistant sessions do not appear inline, including in the all-sessions view; assistant rows have no resource-area shortcut. In history, use the pin button to set or clear a default. Defaults are stored per assistant on the serving host; older hosts keep latest-session navigation and disable default selection. The assistant menu opens the selected assistant’s management page and hides assistants without deleting their data and omits project permissions, filesystem reveal, session storage, and batch session management.
+
+New assistants start with the existing default configuration. The assistant
+gallery provides creation, identity and persona editing, conversations, and
+scheduled tasks; it does not expose an editor for shared assistant defaults.
+Existing assistant data and saved configuration remain intact.
 
 ## Tech stack
 
@@ -245,9 +286,9 @@ preserve omitted source fields and existing app storage when updating.
 2. **Keep Web compatibility** in mind (some capabilities may not exist in browsers).
 3. **Prefer CSS variables** over hard-coded colors/sizes.
 
-## Ecosystem compatibility status checks
+## External Import status checks
 
-Open a disposable local workspace in Desktop and select an agent under Ecosystem Compatibility.
+Open a disposable local workspace in Desktop and select an app under External Import.
 Use test content or reversible imported copies. Category discovery coverage is independent of copy import and execution support.
 
 | Check | Action | Expected result |

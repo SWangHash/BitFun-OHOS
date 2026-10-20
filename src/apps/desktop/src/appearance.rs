@@ -545,14 +545,41 @@ let main_url = if use_development_frontend() || cfg!(target_env = "ohos") {
         _ => "other",
     };
 
+    #[cfg(target_os = "macos")]
+    let builder = {
+        // Configure the native window as well as its WebView. The WebView-only
+        // builder setter misses Tao's title/resize/fullscreen restoration path.
+        // Both framework paths receive one inset derived from AppKit metrics.
+        let config = tauri::utils::config::WindowConfig {
+            label: "main".into(),
+            url: main_url,
+            title_bar_style: tauri::TitleBarStyle::Overlay,
+            hidden_title: true,
+            traffic_light_position: crate::macos_window_chrome::traffic_light_position(),
+            ..Default::default()
+        };
+        match tauri::WebviewWindowBuilder::from_config(app_handle, &config) {
+            Ok(builder) => builder,
+            Err(error) => {
+                error!("Failed to configure main window: {}", error);
+                return;
+            }
+        }
+    };
+    #[cfg(not(target_os = "macos"))]
+    let builder = tauri::WebviewWindowBuilder::new(app_handle, "main", main_url);
     #[allow(unused_mut)]
-    let mut builder = tauri::WebviewWindowBuilder::new(app_handle, "main", main_url)
+    let mut builder = builder
         .background_color(bg_color)
         .accept_first_mouse(true)
         .initialization_script(&init_script)
         .on_page_load({
             let startup_trace_id = startup_trace_id.to_string();
             move |_window, payload| {
+                #[cfg(target_os = "macos")]
+                if matches!(payload.event(), PageLoadEvent::Started) {
+                    crate::macos_window_chrome::reset_renderer(_window.app_handle());
+                }
                 #[cfg(not(target_env = "ohos"))]
                 if matches!(payload.event(), PageLoadEvent::Finished) {
                     let _ = startup_page_ready.send(true);
@@ -603,26 +630,32 @@ let main_url = if use_development_frontend() || cfg!(target_env = "ohos") {
     #[cfg(debug_assertions)]
     if !use_development_frontend() {
         // Product-path isolation alone does not isolate WKWebView storage.
-        // This guarded test window keeps a private store across document
-        // reloads and never opens the daily client's browser data store.
-        builder = builder.incognito(true);
+        // Default to a private store. Windows persistence tests explicitly opt
+        // into a directory under the already validated isolated product root.
+        let persistent_test_store = cfg!(target_os = "windows")
+            && std::env::var("BITFUN_E2E_PERSISTENT_WEBVIEW").as_deref() == Ok("1");
+        #[cfg(target_os = "windows")]
+        if persistent_test_store {
+            builder = builder.data_directory(
+                bitfun_core::infrastructure::get_path_manager_arc()
+                    .user_data_dir()
+                    .join("e2e-webview"),
+            );
+        }
+        builder = builder.incognito(!persistent_test_store);
     }
 
     // On Windows, Tauri's native file-drop handler replaces WebView2's OLE drop
     // target and disables every HTML5 drag/drop interaction in the page. Keep
     // the browser handler there. The frontend keeps dropped File wrappers alive
     // briefly while the Desktop host resolves their original paths through
-    // WebView2, without copying file contents. WKWebView/WebKitGTK do not have
-    // that conflict, so their native handler remains enabled and supplies paths.
-    // Keep the native drag-drop handler enabled on the main window. External
-    // files are delivered through Webview::onDragDropEvent with real paths;
-    // disabling it makes browser File.path unavailable and drops appear inert.
-    // The Agent companion window still disables it (see below) to avoid OLE
-    // conflicts with its transparent overlay.
-    // #[cfg(target_os = "windows")]
-    // {
-    //     builder = builder.disable_drag_drop_handler();
-    // }
+    // WebView2, without copying file contents. The reviewed Wry macOS adapter
+    // delegates non-file drags to WebKit; its native file handler and WebKitGTK's
+    // remain enabled to supply original paths. See third_party/wry/BITFUN-PATCH.md.
+    #[cfg(target_os = "windows")]
+    {
+        builder = builder.disable_drag_drop_handler();
+    }
 
     // The Desktop host arms each exact Creative preview/rollback transition.
     // Page-driven navigations remain blocked, including in development where
@@ -639,6 +672,14 @@ let main_url = if use_development_frontend() || cfg!(target_env = "ohos") {
     let build_started_at = Instant::now();
     match builder.build() {
         Ok(window) => {
+            #[cfg(target_os = "macos")]
+            if let Err(error) = crate::macos_window_chrome::install(&window) {
+                error!("Failed to install native fullscreen chrome synchronization: {error}");
+            }
+            #[cfg(target_os = "windows")]
+            if let Err(error) = crate::window_webview_geometry::install(&window) {
+                error!("Failed to install main WebView geometry protection: {error}");
+            }
             #[cfg(not(target_env = "ohos"))]
             {
                 let reapply_maximized = crate::restore_main_window_state(&window);
@@ -1193,7 +1234,7 @@ pub async fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
 
             #[cfg(target_os = "macos")]
             {
-                crate::cancel_main_window_close_request_on_macos();
+                crate::cancel_main_window_close_request_on_macos(&app);
                 crate::mark_main_window_hidden_on_macos(false);
             }
 

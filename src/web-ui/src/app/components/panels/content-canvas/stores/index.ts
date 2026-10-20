@@ -12,6 +12,7 @@ export {
   useActiveTabId,
   useLayout,
   useDragging,
+switchAgentCanvasScope,
   switchAgentCanvasWorkspace,
   cacheAgentCanvasTabForWorkspace,
   removeAgentCanvasSnapshot,

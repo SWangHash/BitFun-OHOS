@@ -7,6 +7,7 @@
 
 import { OverflowText, Icon, Button, Combobox, Switch, IconButton, Input, Select, Textarea, Tooltip } from '@bitfun/ui';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePeerDeviceModeOptional } from '@/infrastructure/peer-device/peerDeviceContextState';
 import { confirmDanger } from '@/infrastructure/confirm-dialog';
 import {
   cronAPI,
@@ -111,17 +112,13 @@ function formatJobMetaSummary(
   formatDate: (date: Date | number, options?: Intl.DateTimeFormatOptions) => string,
   t: (key: string, params?: Record<string, unknown>) => string,
   options?: {
-    showTarget: boolean;
     resolveSessionLabel: (sessionId: string) => string | undefined;
   },
 ): string {
   const scheduleSummary = formatScheduleSummary(job.schedule, formatDate, t);
-  if (options?.showTarget) {
-    if (job.target.kind === 'session') {
-      const sessionLabel = options.resolveSessionLabel(job.target.sessionId) || job.target.sessionId;
-      return `${sessionLabel} · ${scheduleSummary}`;
-    }
-    return `${t('nav.scheduledJobs.targets.newSession')} · ${scheduleSummary}`;
+  if (job.target.kind === 'session') {
+    const sessionLabel = options?.resolveSessionLabel(job.target.sessionId) || job.target.sessionId;
+    return `${sessionLabel} · ${scheduleSummary}`;
   }
   if (job.target.kind === 'workspace') {
     return `${job.target.launch.agentType} · ${scheduleSummary}`;
@@ -197,6 +194,8 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
   assistantWorkspaceMode = false,
 }) => {
   const { t, formatDate } = useI18n('common');
+  const peer = usePeerDeviceModeOptional();
+  const supportsReportPolicy = !peer?.peerMode.active || peer.currentPeerCapabilities?.backgroundResultDeliveryV1 === true;
   const instanceIdRef = useRef(`scheduled-jobs-${Math.random().toString(36).slice(2)}`);
   const [flowChatState, setFlowChatState] = useState<FlowChatState>(() => flowChatStore.getState());
   const [jobs, setJobs] = useState<CronJob[]>([]);
@@ -282,10 +281,15 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
   const loadJobs = useCallback(async () => {
     if (!workspaceRef) { setJobs([]); return; }
     setLoading(true);
+    // Deliberately no `targetKind` filter: the agent's Cron tool creates
+    // session-targeted jobs, so a workspace-scoped list that asked for
+    // workspace-targeted jobs only would hide exactly the jobs the user just
+    // asked the agent to create.
     const request = {
       workspaceId: workspaceRef?.workspaceId ?? undefined,
-      sessionId: targetKind === 'session' && lockSessionId && !assistantWorkspaceMode ? sessionId || undefined : undefined,
-      targetKind: assistantWorkspaceMode ? undefined : targetKind,
+      sessionId: targetKind === 'session' && lockSessionId && !assistantWorkspaceMode
+        ? sessionId || undefined
+        : undefined,
     };
     try {
       const result = await cronAPI.listJobs(request);
@@ -465,6 +469,7 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
           name: draft.name.trim(),
           payload: { text: draft.text.trim() },
           enabled: draft.enabled,
+          ...(supportsReportPolicy ? { reportPolicy: draft.reportPolicy } : {}),
           schedule,
           target,
         };
@@ -477,6 +482,7 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
           name: draft.name.trim(),
           payload: { text: draft.text.trim() },
           enabled: draft.enabled,
+          ...(supportsReportPolicy ? { reportPolicy: draft.reportPolicy } : {}),
           schedule,
           target,
         };
@@ -505,6 +511,7 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
   }, [
     defaultAgentType,
     defaultSessionIdForWorkspace,
+    supportsReportPolicy,
     draft,
     draftTargetKind,
     loadJobs,
@@ -664,7 +671,6 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
                     <div className="asv__item-meta-row" data-bitfun-component="scheduled-jobs-view" data-bitfun-part="jobMeta">
                       <div className="asv__item-meta"><OverflowText>
                         {formatJobMetaSummary(job, formatDate, t, {
-                          showTarget: assistantWorkspaceMode,
                           resolveSessionLabel: sessionId => sessionLabelById.get(sessionId),
                         })}
                       </OverflowText></div>
@@ -973,6 +979,16 @@ const ScheduledJobsView: React.FC<ScheduledJobsViewProps> = ({
               maxLength={4000}
               placeholder={t('nav.scheduledJobs.placeholders.prompt')}
             />
+          </div>
+        </div>
+
+        <div className="asv__form-row asv__form-row--inline" data-bitfun-component="scheduled-jobs-view" data-bitfun-part="field">
+          <div className="asv__field-meta"><span className="asv__field-label">{t('nav.scheduledJobs.fields.reportPolicy')}</span></div>
+          <div className="asv__field-control">
+            <Select size="sm" value={draft.reportPolicy} disabled={!supportsReportPolicy}
+              options={(['inherit', 'always', 'conditional'] as const).map(value => ({ value, label: t(`nav.scheduledJobs.reportPolicies.${value}`) }))}
+              onValueChange={value => setDraft(current => ({ ...current, reportPolicy: value as JobDraft['reportPolicy'] }))} />
+            <span>{t(supportsReportPolicy ? 'nav.scheduledJobs.hints.reportPolicy' : 'nav.scheduledJobs.hints.reportPolicyUnsupported')}</span>
           </div>
         </div>
 

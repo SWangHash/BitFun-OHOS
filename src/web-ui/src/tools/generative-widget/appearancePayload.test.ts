@@ -61,6 +61,31 @@ const COMPOSER_THEME_VARIABLE_NAMES = [
   '--bitfun-color-composer-border',
   '--bitfun-color-composer-context-background',
 ] as const;
+// Read-only diffs need distinct line, gutter, marker, word, and syntax roles.
+// Generic added/removed colors cannot express those layered surfaces.
+const CODE_DIFF_THEME_VARIABLE_NAMES = [
+  '--bitfun-color-code-diff-added-gutter',
+  '--bitfun-color-code-diff-added-line',
+  '--bitfun-color-code-diff-added-marker',
+  '--bitfun-color-code-diff-added-word',
+  '--bitfun-color-code-diff-foreground',
+  '--bitfun-color-code-diff-gutter-border',
+  '--bitfun-color-code-diff-line-number',
+  '--bitfun-color-code-diff-removed-gutter',
+  '--bitfun-color-code-diff-removed-line',
+  '--bitfun-color-code-diff-removed-marker',
+  '--bitfun-color-code-diff-removed-word',
+  '--bitfun-color-code-diff-syntax-comment',
+  '--bitfun-color-code-diff-syntax-declaration',
+  '--bitfun-color-code-diff-syntax-function',
+  '--bitfun-color-code-diff-syntax-keyword',
+  '--bitfun-color-code-diff-syntax-number',
+  '--bitfun-color-code-diff-syntax-operator',
+  '--bitfun-color-code-diff-syntax-property',
+  '--bitfun-color-code-diff-syntax-punctuation',
+  '--bitfun-color-code-diff-syntax-string',
+  '--bitfun-color-code-diff-syntax-variable',
+] as const;
 const RETIRED_WIDGET_VARIABLE_NAMES = [
   '--background-primary',
   '--bg-primary',
@@ -107,6 +132,7 @@ describe('generated widget appearance payload contract', () => {
     const fieldStateNames = WIDGET_APPEARANCE_VAR_NAMES.filter(name => FIELD_STATE_THEME_VARIABLE_NAMES.some(fieldName => fieldName === name));
     const indicatorNames = WIDGET_APPEARANCE_VAR_NAMES.filter(name => INDICATOR_THEME_VARIABLE_NAMES.some(indicatorName => indicatorName === name));
     const composerNames = WIDGET_APPEARANCE_VAR_NAMES.filter(name => COMPOSER_THEME_VARIABLE_NAMES.some(composerName => composerName === name));
+    const codeDiffNames = WIDGET_APPEARANCE_VAR_NAMES.filter(name => name.startsWith('--bitfun-color-code-diff-'));
     const sharedNames = WIDGET_APPEARANCE_VAR_NAMES.filter(name => (
       !name.startsWith('--bitfun-component-button-')
       && !FIELD_STATE_THEME_VARIABLE_NAMES.some(fieldName => fieldName === name)
@@ -115,11 +141,13 @@ describe('generated widget appearance payload contract', () => {
       && name !== ACTION_CARD_THEME_VARIABLE_NAME
       && !INDICATOR_THEME_VARIABLE_NAMES.some(indicatorName => indicatorName === name)
       && !COMPOSER_THEME_VARIABLE_NAMES.some(composerName => composerName === name)
+      && !name.startsWith('--bitfun-color-code-diff-')
     ));
     expect(buttonNames).toEqual(BUTTON_THEME_VARIABLE_NAMES);
     expect(fieldStateNames).toEqual(FIELD_STATE_THEME_VARIABLE_NAMES);
     expect(indicatorNames).toEqual(INDICATOR_THEME_VARIABLE_NAMES);
     expect(composerNames).toEqual(COMPOSER_THEME_VARIABLE_NAMES);
+    expect(codeDiffNames.sort()).toEqual(CODE_DIFF_THEME_VARIABLE_NAMES);
     expect(WIDGET_APPEARANCE_VAR_NAMES).toContain(FIELD_GROUP_THEME_VARIABLE_NAME);
     expect(WIDGET_APPEARANCE_VAR_NAMES).toContain(CAPTION_THEME_VARIABLE_NAME);
     expect(WIDGET_APPEARANCE_VAR_NAMES).toContain(ACTION_CARD_THEME_VARIABLE_NAME);

@@ -85,7 +85,7 @@ const ACTION_ICONS: Record<ProductActionIcon, LucideIcon> = {
   terminal: catalogLucide('terminal'),
   files: FileText,
   users: Users,
-  puzzle: catalogLucide('extension'),
+  'book-open': catalogLucide('book-open'),
   blocks: Blocks,
   'check-square': CheckSquare2,
   chart: BarChart3,

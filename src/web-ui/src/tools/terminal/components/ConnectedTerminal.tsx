@@ -45,6 +45,7 @@ export interface ConnectedTerminalProps {
   sessionId: string;
   className?: string;
   autoFocus?: boolean;
+  renderingActive?: boolean;
   showToolbar?: boolean;
   showStatusBar?: boolean;
   /** Optional xterm options (e.g. smaller font in embedded dialogs). */
@@ -64,6 +65,7 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
   sessionId,
   className = '',
   autoFocus = true,
+  renderingActive = true,
   showToolbar = false,
   showStatusBar = false,
   options,
@@ -533,6 +535,7 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
         terminalId={terminalId}
         sessionId={sessionId}
         autoFocus={autoFocus}
+        renderingActive={renderingActive}
         options={options}
         onData={handleData}
         onResize={handleResize}

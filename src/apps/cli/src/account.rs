@@ -55,6 +55,7 @@ pub(crate) fn account_snapshot_projection(
             .map(|device| AccountDevice {
                 device_id: device.device_id,
                 device_name: device.device_name,
+                device_kind: device.device_kind,
                 device_alias: device.device_alias,
                 device_model: device.device_model,
                 device_os: device.device_os,
@@ -630,6 +631,10 @@ impl CliAccountRoutingHost {
 
 #[async_trait]
 impl AccountRuntimeHost for CliAccountRoutingHost {
+    fn is_cli_host(&self) -> bool {
+        true
+    }
+
     async fn retire_background_routing_owner(
         &self,
     ) -> std::result::Result<bool, BackgroundRoutingOwnerRetirementError> {

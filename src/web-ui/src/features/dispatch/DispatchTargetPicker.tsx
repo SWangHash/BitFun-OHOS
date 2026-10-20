@@ -1,5 +1,6 @@
+import { lazyWithRecovery } from '@/shared/utils/lazyWithRecovery';
+import { useDeviceDirectory, resolveDeviceName } from '@/infrastructure/account/deviceDirectory';
 import React, {
-  lazy,
   Suspense,
   useEffect,
   useMemo,
@@ -8,7 +9,7 @@ import React, {
 } from 'react';
 import { FolderGit2, Laptop, Loader2, MonitorSmartphone, Server } from 'lucide-react';
 
-import { OverflowText, Icon, Menu, MenuItem, MenuSection, MenuSeparator, Tooltip, createOverlayPortal, subscribeOverlayInteraction } from '@bitfun/ui';
+import { subscribeOverlayInteraction, createOverlayPortal, OverflowText, Icon, Menu, MenuItem, MenuSection, MenuSeparator, StatusPill, Tooltip } from '@bitfun/ui';
 import { SSHConnectionDialog } from '@/features/ssh-remote/SSHConnectionDialog';
 import { useAccountLoginState } from '@/infrastructure/account/useAccountLoginState';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
@@ -26,6 +27,7 @@ import './DispatchTargetPicker.scss';
 interface DispatchTargetPickerProps {
   target: DispatchTarget;
   sourceWorkspacePath?: string;
+  sourceWorkspaceId?: string;
   locked: boolean;
   disabled?: boolean;
   localWorktreeControl?: {
@@ -39,20 +41,23 @@ interface DispatchTargetPickerProps {
   onSelectTarget: (selection: DispatchSelection) => void;
 }
 
-const RemoteConnectDialog = lazy(
+const RemoteConnectDialog = lazyWithRecovery(
   () => import('@/app/components/RemoteConnectDialog'),
 );
 
 export const DispatchTargetPicker: React.FC<DispatchTargetPickerProps> = ({
   target,
   sourceWorkspacePath,
+  sourceWorkspaceId,
   locked,
   disabled = false,
   localWorktreeControl,
   onSelectLocal,
   onSelectTarget,
 }) => {
+  useDeviceDirectory();
   const { t } = useI18n('flow-chat');
+  const { t: tCommon } = useI18n('common');
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -77,14 +82,12 @@ export const DispatchTargetPicker: React.FC<DispatchTargetPickerProps> = ({
     : t('chatInput.dispatch.local');
   const displayLabel = target.kind === 'local'
     ? localDisplayLabel
-    : target.displayName;
+    : target.kind === 'device' ? resolveDeviceName(target.deviceId, target.displayName) : target.displayName;
   const tooltip = locked
     ? t('chatInput.dispatch.locked', { target: displayLabel })
     : t('chatInput.dispatch.current', { target: displayLabel });
 
   useEffect(() => {
-    let removeOverlayPointerdown0: (() => void) | undefined;
-    let removeOverlayKeydown1: (() => void) | undefined;
     if (!open) return;
     const handlePointerDown = (event: PointerEvent) => {
       const targetNode = event.target as Node;
@@ -98,8 +101,8 @@ export const DispatchTargetPicker: React.FC<DispatchTargetPickerProps> = ({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
     };
-    removeOverlayPointerdown0 = subscribeOverlayInteraction(menuRef, 'pointerdown', handlePointerDown);
-    removeOverlayKeydown1 = subscribeOverlayInteraction(menuRef, 'keydown', handleKeyDown);
+    const removeOverlayPointerdown0 = subscribeOverlayInteraction(menuRef, 'pointerdown', handlePointerDown);
+    const removeOverlayKeydown1 = subscribeOverlayInteraction(menuRef, 'keydown', handleKeyDown);
     return () => {
       removeOverlayPointerdown0?.();
       removeOverlayKeydown1?.();
@@ -153,42 +156,47 @@ export const DispatchTargetPicker: React.FC<DispatchTargetPickerProps> = ({
       data-testid="dispatch-target-menu"
       autoFocusFirstItem
     >
-      <MenuSection title={t('chatInput.dispatch.localSection')}>
-        <MenuItem data-overflow-trigger
-          role="menuitemradio"
-          checked={localDirectorySelected}
-          className="dispatch-target-picker__option-row"
-          data-bitfun-component="dispatch-target-picker"
-          data-bitfun-part="option"
-          data-testid="dispatch-target-local-option"
-          disabled={localWorktreeControl?.locked}
-          leading={<Laptop size={15} aria-hidden />}
-          metadata={localDirectorySelected ? <Icon name="check-line" size="sm" aria-hidden /> : null}
-          onClick={() => selectLocalMode(false)}
-        >
-          <span className="dispatch-target-picker__option-copy">
-            <strong><OverflowText>{t('chatInput.dispatch.local')}</OverflowText></strong>
-            <small><OverflowText>{t('chatInput.dispatch.localDescription')}</OverflowText></small>
-          </span>
-        </MenuItem>
-        {localWorktreeControl ? (
+      <MenuSection
+        className="dispatch-target-picker__local-section"
+        title={t('chatInput.dispatch.localSection')}
+      >
+        <Tooltip content={t('chatInput.dispatch.localDescription')} placement="right">
           <MenuItem data-overflow-trigger
             role="menuitemradio"
-            checked={localWorktreeSelected}
+            checked={localDirectorySelected}
             className="dispatch-target-picker__option-row"
             data-bitfun-component="dispatch-target-picker"
             data-bitfun-part="option"
-            data-testid="dispatch-target-new-worktree-option"
-            disabled={localWorktreeControl.locked}
-            leading={<FolderGit2 size={15} aria-hidden />}
-            metadata={localWorktreeSelected ? <Icon name="check-line" size="sm" aria-hidden /> : null}
-            onClick={() => selectLocalMode(true)}
+            data-testid="dispatch-target-local-option"
+            disabled={localWorktreeControl?.locked}
+            leading={<Laptop size={15} aria-hidden />}
+            metadata={localDirectorySelected ? <Icon name="check-line" size="sm" aria-hidden /> : null}
+            onClick={() => selectLocalMode(false)}
           >
             <span className="dispatch-target-picker__option-copy">
-              <strong><OverflowText>{localWorktreeControl.label}</OverflowText></strong>
-              <small><OverflowText>{localWorktreeControl.description}</OverflowText></small>
+              <strong><OverflowText>{t('chatInput.dispatch.local')}</OverflowText></strong>
             </span>
           </MenuItem>
+        </Tooltip>
+        {localWorktreeControl ? (
+          <Tooltip content={localWorktreeControl.description} placement="right">
+            <MenuItem data-overflow-trigger
+              role="menuitemradio"
+              checked={localWorktreeSelected}
+              className="dispatch-target-picker__option-row"
+              data-bitfun-component="dispatch-target-picker"
+              data-bitfun-part="option"
+              data-testid="dispatch-target-new-worktree-option"
+              disabled={localWorktreeControl.locked}
+              leading={<FolderGit2 size={15} aria-hidden />}
+              metadata={localWorktreeSelected ? <Icon name="check-line" size="sm" aria-hidden /> : null}
+              onClick={() => selectLocalMode(true)}
+            >
+              <span className="dispatch-target-picker__option-copy">
+                <strong><OverflowText>{localWorktreeControl.label}</OverflowText></strong>
+              </span>
+            </MenuItem>
+          </Tooltip>
         ) : null}
       </MenuSection>
 
@@ -213,27 +221,47 @@ export const DispatchTargetPicker: React.FC<DispatchTargetPickerProps> = ({
         {deviceTargets.map(option => {
           const selected = target.kind === 'device' && target.deviceId === option.deviceId;
           const online = option.online !== false;
+          // A confirmed-incompatible device stays listed so the reason is legible,
+          // but it is never offered as a selectable dispatch target.
+          const incompatible = option.incompatible === true;
           return (
             <MenuItem data-overflow-trigger
               key={option.deviceId}
               role="menuitemradio"
               checked={selected}
               className="dispatch-target-picker__option-row"
-              disabled={!online}
+              disabled={!online || incompatible}
+              labelBehavior="static"
               leading={<MonitorSmartphone size={15} aria-hidden />}
               metadata={selected ? <Icon name="check-line" size="sm" aria-hidden /> : null}
               onClick={() => {
+                if (incompatible) return;
                 setOpen(false);
                 setConfigureTarget(option);
               }}
             >
               <span className="dispatch-target-picker__option-copy">
-                <strong><OverflowText>{option.displayName}</OverflowText></strong>
-                <small><OverflowText>
-                  {online
-                    ? t('chatInput.dispatch.deviceDescription')
-                    : t('chatInput.dispatch.deviceOffline')}
-                </OverflowText></small>
+                <span className="dispatch-target-picker__option-title">
+                  <strong><OverflowText>{option.displayName}</OverflowText></strong>
+                  {incompatible ? (
+                    <Tooltip content={t('chatInput.dispatch.deviceIncompatible')} placement="right">
+                      <StatusPill
+                        className="dispatch-target-picker__device-status"
+                        tone="warning"
+                        aria-label={t('chatInput.dispatch.deviceIncompatible')}
+                      >
+                        {tCommon('accountLogin.deviceClientIncompatibleTag')}
+                      </StatusPill>
+                    </Tooltip>
+                  ) : !online ? (
+                    <StatusPill className="dispatch-target-picker__device-status" tone="neutral">
+                      {t('chatInput.dispatch.deviceOffline')}
+                    </StatusPill>
+                  ) : null}
+                </span>
+                {online && !incompatible ? (
+                  <small><OverflowText>{t('chatInput.dispatch.deviceDescription')}</OverflowText></small>
+                ) : null}
               </span>
             </MenuItem>
           );
@@ -340,7 +368,7 @@ export const DispatchTargetPicker: React.FC<DispatchTargetPickerProps> = ({
       <DispatchInstallDialog
         open={!!configureTarget}
         target={configureTarget}
-        sourceWorkspacePath={sourceWorkspacePath}
+        sourceWorkspaceId={sourceWorkspaceId} sourceWorkspacePath={sourceWorkspacePath}
         onClose={() => setConfigureTarget(null)}
         onReady={selection => {
           setConfigureTarget(null);

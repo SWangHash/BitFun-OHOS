@@ -3,14 +3,13 @@ import type { AppearanceSurfaceDescriptor } from '@/infrastructure/appearance/ty
 export const confirmDialogAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   id: 'confirm-dialog',
   parts: [
-    { id: 'root' },
-    { id: 'icon' },
     { id: 'content' },
-    { id: 'title' },
-    { id: 'message' },
     { id: 'messageRow' },
+    { id: 'icon' },
+    { id: 'message' },
     { id: 'preview' },
     { id: 'actions' },
+    { id: 'actionGroup' },
   ],
   facets: [{
     id: 'status',

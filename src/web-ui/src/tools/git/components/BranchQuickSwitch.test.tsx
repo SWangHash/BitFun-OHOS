@@ -74,6 +74,7 @@ vi.mock('@/infrastructure/i18n', () => ({
         'quickSwitch.conflict.retrySwitchAction': 'Retry switch',
         'quickSwitch.conflict.title': 'Commit changes to switch branch',
         'quickSwitch.menuLabel': 'Switch branch',
+        'quickSwitch.refresh': 'Refresh branches',
         'quickSwitch.searchLabel': 'Search branches',
       };
       return labels[key] ?? key;
@@ -115,12 +116,24 @@ const branches = [
   { name: 'feature', current: false, remote: false, ahead: 0, behind: 0 },
 ];
 
-function Harness({ onSwitchSuccess }: { onSwitchSuccess: (branch: string) => void }) {
-  const [open, setOpen] = useState(true);
+function Harness({ onSwitchSuccess, initiallyOpen = true, blockMessagePointer = false }: {
+  onSwitchSuccess?: (branch: string) => void;
+  initiallyOpen?: boolean;
+  blockMessagePointer?: boolean;
+}) {
+  const [open, setOpen] = useState(initiallyOpen);
   const anchorRef = useRef<HTMLButtonElement>(null);
   return (
     <>
-      <button ref={anchorRef} type="button">branch</button>
+      <button ref={anchorRef} type="button" data-testid="branch-trigger"
+        aria-expanded={open} onClick={() => setOpen(current => !current)}>branch</button>
+      <div data-testid="flowchat-messages" onPointerDownCapture={event => {
+        // FlowChat guards the message area during history transitions.
+        if (blockMessagePointer) event.stopPropagation();
+      }}>
+        <div data-testid="message-blank" />
+        <input aria-label="Outside input" />
+      </div>
       <BranchQuickSwitch
         isOpen={open}
         onClose={() => setOpen(false)}
@@ -150,6 +163,9 @@ describe('BranchQuickSwitch', () => {
     mocks.getDiff.mockResolvedValue('');
     mocks.addFiles.mockResolvedValue({ success: true });
     mocks.commit.mockResolvedValue({ success: true });
+    const media = new EventTarget();
+    Object.defineProperty(media, 'matches', { value: true });
+    vi.stubGlobal('matchMedia', () => media);
   });
 
   afterEach(() => {
@@ -157,6 +173,8 @@ describe('BranchQuickSwitch', () => {
     container.remove();
     document.querySelectorAll('[data-testid="branch-quick-switch"], [data-testid="branch-switch-conflict-dialog"], [data-testid="branch-switch-commit-dialog"]')
       .forEach(node => node.remove());
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it('keeps the design-system search field as one labeled visual surface', async () => {
@@ -188,6 +206,219 @@ describe('BranchQuickSwitch', () => {
     expect(currentBranch?.getAttribute('aria-selected')).toBe('true');
     expect(currentBranch?.dataset.bitfunState).toBe('current');
     expect(currentBranch?.disabled).toBe(false);
+  });
+
+  it('dismisses on the first message-area press even when FlowChat stops propagation', async () => {
+    await act(async () => root.render(<Harness blockMessagePointer />));
+    const blank = container.querySelector('[data-testid="message-blank"]')!;
+    act(() => blank.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true })));
+    expect(container.querySelector('[data-testid="branch-trigger"]')?.getAttribute('aria-expanded')).toBe('false');
+    expect(document.querySelector('[data-testid="branch-quick-switch"]')).toBeNull();
+  });
+
+  it('focuses search when positioned and leaves outside focus and clicks alone', async () => {
+    await act(async () => root.render(<Harness />));
+    const search = document.querySelector<HTMLInputElement>('input[type="search"]')!;
+    expect(document.activeElement).toBe(search);
+    act(() => search.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true })));
+    expect(container.querySelector('[data-testid="branch-trigger"]')?.getAttribute('aria-expanded')).toBe('true');
+
+    const trigger = container.querySelector<HTMLButtonElement>('[data-testid="branch-trigger"]')!;
+    const focusTrigger = vi.spyOn(trigger, 'focus');
+    const outside = container.querySelector('input')!;
+    const onClick = vi.fn();
+    outside.addEventListener('click', onClick);
+    act(() => {
+      outside.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+      outside.focus();
+      outside.click();
+    });
+    expect(document.activeElement).toBe(outside);
+    expect(focusTrigger).not.toHaveBeenCalled();
+    expect(onClick).toHaveBeenCalledOnce();
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('preserves IME Escape and restores the branch trigger on ordinary Escape', async () => {
+    await act(async () => root.render(<Harness />));
+    const search = document.querySelector<HTMLInputElement>('input[type="search"]')!;
+    const trigger = container.querySelector<HTMLButtonElement>('[data-testid="branch-trigger"]')!;
+    act(() => search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', isComposing: true, bubbles: true })));
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    act(() => search.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true })));
+    const composingEscape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+    act(() => search.dispatchEvent(composingEscape));
+    expect(composingEscape.defaultPrevented).toBe(false);
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+
+    act(() => search.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true })));
+    act(() => search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('tabs from search to refresh before resuming the page tab sequence', async () => {
+    await act(async () => root.render(<Harness />));
+    const search = document.querySelector<HTMLInputElement>('input[type="search"]')!;
+    const trigger = container.querySelector<HTMLButtonElement>('[data-testid="branch-trigger"]')!;
+    const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    act(() => search.dispatchEvent(event));
+    expect(event.defaultPrevented).toBe(false);
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    const refresh = document.querySelector<HTMLButtonElement>('button[aria-label="Refresh branches"]')!;
+    act(() => {
+      refresh.focus();
+      refresh.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+    });
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('refreshes the scoped branch list without closing or clearing search', async () => {
+    await act(async () => root.render(<Harness />));
+    const search = document.querySelector<HTMLInputElement>('input[type="search"]')!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(search, 'feature');
+      search.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    let resolve!: (value: typeof branches) => void;
+    mocks.getBranches.mockReturnValueOnce(new Promise<typeof branches>(done => { resolve = done; }));
+    const refresh = document.querySelector<HTMLButtonElement>('button[aria-label="Refresh branches"]')!;
+    act(() => refresh.click());
+    expect(refresh.disabled).toBe(true);
+    expect(refresh.getAttribute('aria-busy')).toBe('true');
+    expect(mocks.getBranches).toHaveBeenLastCalledWith(
+      { workspaceId: 'workspace-1' }, true, { throwOnError: true },
+    );
+    act(() => refresh.click());
+    expect(mocks.getBranches).toHaveBeenCalledTimes(2);
+    await act(async () => resolve([...branches, { ...branches[1], name: 'feature-new' }]));
+    expect(search.value).toBe('feature');
+    expect(document.querySelector('[data-testid="branch-quick-switch-option-feature-new"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="branch-quick-switch-option-main"]')).toBeNull();
+    expect(refresh.disabled).toBe(false);
+    expect(container.querySelector('[data-testid="branch-trigger"]')?.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('keeps the previous list on refresh failure and allows retry', async () => {
+    await act(async () => root.render(<Harness />));
+    mocks.getBranches.mockRejectedValueOnce(new Error('Host offline'));
+    const refresh = document.querySelector<HTMLButtonElement>('button[aria-label="Refresh branches"]')!;
+    await act(async () => refresh.click());
+    expect(document.querySelector('[data-testid="branch-quick-switch-option-feature"]')).not.toBeNull();
+    expect(document.querySelector('[role="status"]')?.textContent).toBe('quickSwitch.errors.refreshFailed');
+    expect(refresh.disabled).toBe(false);
+    await act(async () => refresh.click());
+    expect(document.querySelector('[role="status"]')).toBeNull();
+  });
+
+  it('reports initial load failure instead of presenting an empty repository', async () => {
+    mocks.getState.mockReturnValue(undefined);
+    mocks.getBranches.mockRejectedValueOnce(new Error('Host offline'));
+    await act(async () => root.render(<Harness />));
+    expect(document.querySelector('[role="status"]')?.textContent).toBe('quickSwitch.errors.loadFailed');
+    const refresh = document.querySelector<HTMLButtonElement>('button[aria-label="Refresh branches"]')!;
+    await act(async () => refresh.click());
+    expect(document.querySelector('[data-testid="branch-quick-switch-option-main"]')).not.toBeNull();
+  });
+
+  it('does not check out the keyboard-highlighted branch when Enter activates refresh', async () => {
+    await act(async () => root.render(<Harness />));
+    const search = document.querySelector<HTMLInputElement>('input[type="search"]')!;
+    const refresh = document.querySelector<HTMLButtonElement>('button[aria-label="Refresh branches"]')!;
+    act(() => search.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })));
+    await act(async () => {
+      refresh.focus();
+      refresh.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      refresh.click();
+    });
+    expect(mocks.checkoutBranch).not.toHaveBeenCalled();
+    expect(mocks.getBranches).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores a previous workspace request after switching workspaces', async () => {
+    const anchorRef = { current: document.createElement('button') };
+    let resolveOld!: (value: typeof branches) => void;
+    mocks.getBranches.mockReturnValueOnce(new Promise<typeof branches>(done => { resolveOld = done; }));
+    await act(async () => root.render(<BranchQuickSwitch isOpen onClose={vi.fn()}
+      repositoryPath={{ workspaceId: 'old', repositoryPath: '/remote/old' }} currentBranch="main" anchorRef={anchorRef} />));
+    mocks.getBranches.mockResolvedValueOnce([{ ...branches[0], name: 'new-main' }]);
+    await act(async () => root.render(<BranchQuickSwitch isOpen onClose={vi.fn()}
+      repositoryPath={{ workspaceId: 'new', repositoryPath: '/remote/new' }} currentBranch="new-main" anchorRef={anchorRef} />));
+    await act(async () => resolveOld(branches));
+    expect(document.querySelector('[data-testid="branch-quick-switch-option-new-main"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="branch-quick-switch-option-main"]')).toBeNull();
+    expect(mocks.getBranches).toHaveBeenLastCalledWith(
+      { workspaceId: 'new', repositoryPath: '/remote/new' }, true, { throwOnError: true },
+    );
+  });
+
+  describe('motion lifecycle', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      const media = new EventTarget();
+      Object.defineProperty(media, 'matches', { value: false });
+      vi.stubGlobal('matchMedia', () => media);
+      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function () {
+        const anchor = this.getAttribute('data-testid') === 'branch-trigger';
+        return { x: 100, y: anchor ? 460 : 100, left: 100, top: anchor ? 460 : 100,
+          width: anchor ? 80 : 280, height: anchor ? 18 : 326,
+          right: anchor ? 180 : 380, bottom: anchor ? 478 : 426, toJSON: () => ({}) } as DOMRect;
+      });
+    });
+    afterEach(() => vi.useRealTimers());
+
+    async function openPicker(blockMessagePointer = false) {
+      await act(async () => root.render(<Harness initiallyOpen={false} blockMessagePointer={blockMessagePointer} />));
+      const trigger = container.querySelector<HTMLButtonElement>('[data-testid="branch-trigger"]')!;
+      await act(async () => { trigger.focus(); trigger.click(); });
+      const panel = document.querySelector<HTMLElement>('[data-testid="branch-quick-switch"]')!;
+      const layer = panel.parentElement!;
+      expect(layer.dataset.state).toBe('entering');
+      act(() => vi.advanceTimersByTime(48));
+      expect(layer.dataset.state).toBe('entered');
+      return { trigger, panel, layer, search: panel.querySelector('input')! };
+    }
+
+    it('keeps exit geometry and filtered content until unmount, with no second press', async () => {
+      const { trigger, panel, layer, search } = await openPicker(true);
+      act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(search, 'feature');
+        search.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      const blank = container.querySelector('[data-testid="message-blank"]')!;
+      act(() => blank.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true })));
+      expect(trigger.getAttribute('aria-expanded')).toBe('false');
+      expect(layer.dataset.state).toBe('exiting');
+      expect(layer.hasAttribute('inert')).toBe(true);
+      expect(layer.getAttribute('aria-hidden')).toBe('true');
+      expect(layer.style.visibility).toBe('visible');
+      expect(layer.style.bottom).toBe('315px');
+      expect(search.value).toBe('feature');
+      expect(panel.querySelector('[data-testid="branch-quick-switch-option-main"]')).toBeNull();
+      act(() => vi.advanceTimersByTime(99));
+      expect(layer.isConnected).toBe(true);
+      act(() => vi.advanceTimersByTime(1));
+      expect(layer.isConnected).toBe(false);
+      await act(async () => trigger.click());
+      expect(document.querySelector<HTMLInputElement>('input[type="search"]')?.value).toBe('');
+    });
+
+    it('treats the trigger as inside and reverses an interrupted exit on the same surface', async () => {
+      const { trigger, panel, layer, search } = await openPicker();
+      act(() => trigger.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true })));
+      expect(trigger.getAttribute('aria-expanded')).toBe('true');
+      act(() => trigger.click());
+      expect(layer.dataset.state).toBe('exiting');
+      act(() => vi.advanceTimersByTime(50));
+      await act(async () => trigger.click());
+      expect(layer.dataset.state).toBe('entered');
+      expect(layer.hasAttribute('inert')).toBe(false);
+      expect(document.activeElement).toBe(search);
+      act(() => vi.advanceTimersByTime(150));
+      expect(document.querySelector('[data-testid="branch-quick-switch"]')).toBe(panel);
+      expect(layer.style.bottom).toBe('315px');
+    });
   });
 
   it('checks out a selected branch and publishes the shared branch-change event', async () => {

@@ -4,22 +4,25 @@
  * Uses modern-screenshot (fork of html-to-image with better CSS var / font / CORS handling).
  */
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { FlowChatStore } from '../../store/FlowChatStore';
 import { notificationService } from '@/shared/notification-system';
 import { FlowTextBlock } from '../FlowTextBlock';
 import { FlowToolCard } from '../FlowToolCard';
-import { Icon, IconButton, Menu, MenuItem, Tooltip, createOverlayPortal, subscribeOverlayInteraction } from '@bitfun/ui';
+import { Button, Card, CardBody, CardHeader, Checkbox, Dialog, DialogBody, DialogClose, DialogFooter, DialogHeader, DialogHeading, DialogTitle, Icon, IconButton, Tooltip } from '@bitfun/ui';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
-import { useAnchoredPopoverPosition } from '@/shared/utils/useAnchoredPopoverPosition';
 import type { DialogTurn, FlowTextItem, FlowToolItem, FlowThinkingItem } from '../../types/flow-chat';
 import { i18nService, useI18n } from '@/infrastructure/i18n';
+import { workspaceAPI } from '@/infrastructure/api';
 import { createLogger } from '@/shared/utils/logger';
 import { getBuiltinAppearanceThemeToken } from '@/infrastructure/appearance/builtins/catalog';
 import { withTimeout } from '@/shared/utils/timing';
-import { savePngBlob, notifyPngExportSuccess } from '@/flow_chat/utils/saveExportedPng';
+import { downloadDir, join } from '@tauri-apps/api/path';
+import { writeFile } from '@tauri-apps/plugin-fs';
 import { ModelThinkingDisplay } from '../../tool-cards/ModelThinkingDisplay';
+import { hasComposerPresentationReferences, parseComposerPresentation } from '../../utils/composerPresentation';
+import { UserMessagePresentationContent, UserMessageTextContent } from './UserMessagePresentationContent';
 import './ExportImageButton.scss';
 
 const log = createLogger('ExportImageButton');
@@ -69,6 +72,11 @@ function validateDataUrl(dataUrl: string): void {
 interface ExportImageButtonProps {
   turnId: string;
   className?: string;
+  triggerRef?: React.RefObject<HTMLButtonElement | null>;
+  renderTrigger?: (controls: {
+    isExporting: boolean;
+    onOpenDialog: () => void;
+  }) => React.ReactNode;
 }
 
 // Exported content renderer.
@@ -80,7 +88,61 @@ interface ExportContentProps {
 // Marker class on the logo placeholder so we can locate it for canvas compositing.
 const LOGO_PLACEHOLDER_CLASS = 'export-content__logo-placeholder';
 
-const ExportContent: React.FC<ExportContentProps> = ({ dialogTurn, expandThinking }) => {
+function ExportImagePreview({ expandThinking }: { expandThinking: boolean }) {
+  const answerY = expandThinking ? 88 : 55;
+
+  return (
+    <svg
+      className="export-image-preview"
+      data-bitfun-product-component="export-image"
+      data-bitfun-product-part="optionPreview"
+      data-preview-thinking={expandThinking ? 'expanded' : 'collapsed'}
+      viewBox="0 0 180 112"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <rect x="18" y="8" width="144" height="96" rx="8" fill="var(--bitfun-color-surface-scene)" stroke="var(--bitfun-color-border-default)" strokeWidth="var(--bitfun-border-width-default)" />
+      <g fill="currentColor">
+        <circle cx="34" cy="20" r="4" />
+        <rect x="43" y="18" width="44" height="3" rx="1.5" fill="var(--bitfun-color-content-primary)" />
+        <rect x="118" y="20" width="32" height="2" rx="1" fill="var(--bitfun-color-content-muted)" />
+        <rect x="91" y="35" width="59" height="12" rx="4" fill="var(--bitfun-color-action-quiet-hover)" />
+        <rect x="99" y="39" width="43" height="2" rx="1" />
+        <rect x="99" y="43" width="30" height="2" rx="1" fill="var(--bitfun-color-content-muted)" />
+        {expandThinking && (
+          <g>
+            <rect x="30" y="51" width="120" height="32" rx="4" fill="var(--bitfun-color-accent-surface)" stroke="var(--bitfun-color-accent-border)" strokeWidth="var(--bitfun-border-width-default)" />
+            <rect x="30" y="56" width="2" height="22" rx="1" fill="var(--bitfun-color-accent-default)" />
+            <g fill="var(--bitfun-color-accent-default)">
+              <circle cx="38" cy="57" r="1.5" />
+              <circle cx="43" cy="57" r="1.5" />
+              <circle cx="48" cy="57" r="1.5" />
+            </g>
+            <rect x="56" y="56" width="38" height="2" rx="1" fill="var(--bitfun-color-accent-default)" />
+            <g fill="var(--bitfun-color-content-secondary)">
+              <rect x="38" y="63" width="104" height="2" rx="1" />
+              <rect x="38" y="69" width="94" height="2" rx="1" />
+              <rect x="38" y="75" width="73" height="2" rx="1" />
+            </g>
+          </g>
+        )}
+        <g transform={`translate(0 ${answerY})`}>
+          <rect x="30" width="48" height="3" rx="1.5" fill="var(--bitfun-color-content-primary)" />
+          <rect x="30" y="6" width="120" height="2" rx="1" />
+          <rect x="30" y="11" width="96" height="2" rx="1" />
+          {!expandThinking && <g>
+            <rect x="30" y="22" width="112" height="2" rx="1" />
+            <rect x="30" y="27" width="82" height="2" rx="1" />
+          </g>}
+        </g>
+      </g>
+    </svg>
+  );
+}
+
+export const ExportContent: React.FC<ExportContentProps> = ({ dialogTurn, expandThinking }) => {
+  const presentation = parseComposerPresentation(dialogTurn.userMessage?.metadata?.composerPresentation);
+
   return (
     <div data-bitfun-product-component="export-image" data-bitfun-product-part="root" className="export-content">
       <div className="export-content__header" data-bitfun-product-component="export-image" data-bitfun-product-part="header">
@@ -93,10 +155,7 @@ const ExportContent: React.FC<ExportContentProps> = ({ dialogTurn, expandThinkin
           data-bitfun-product-part="logo"
           aria-label="BitFun"
         />
-        <div className="export-content__title-group" data-bitfun-product-component="export-image" data-bitfun-product-part="title">
-          <div className="export-content__title">BitFun</div>
-          <div className="export-content__subtitle">{i18nService.t('flow-chat:exportImage.subtitle').replace(/ /g, '\u00A0')}</div>
-        </div>
+        <div className="export-content__title" data-bitfun-product-component="export-image" data-bitfun-product-part="title">BitFun</div>
         <div className="export-content__timestamp" data-bitfun-product-component="export-image" data-bitfun-product-part="timestamp">
           {i18nService.formatDate(new Date())}
         </div>
@@ -105,7 +164,9 @@ const ExportContent: React.FC<ExportContentProps> = ({ dialogTurn, expandThinkin
       {dialogTurn.userMessage?.content && (
         <div className="export-content__user-section" data-bitfun-product-component="export-image" data-bitfun-product-part="user">
           <div className="export-content__user-bubble">
-            {dialogTurn.userMessage.content}
+            {hasComposerPresentationReferences(presentation)
+              ? <UserMessagePresentationContent presentation={presentation} />
+              : <UserMessageTextContent text={dialogTurn.userMessage.content} />}
           </div>
         </div>
       )}
@@ -132,16 +193,18 @@ const ExportContent: React.FC<ExportContentProps> = ({ dialogTurn, expandThinkin
                     );
                   }
                 } else if (item.type === 'thinking') {
+                  if (!expandThinking) return null;
                   const thinkingItem = item as FlowThinkingItem;
                   return (
-                    <div data-bitfun-product-component="export-image" data-bitfun-product-part="thinking" key={item.id} className={`export-content__thinking-item${expandThinking ? ' export-content__thinking-item--expanded' : ''}`}>
-                      <ModelThinkingDisplay 
+                    <div data-bitfun-product-component="export-image" data-bitfun-product-part="thinking" key={item.id} className="export-content__thinking-item export-content__thinking-item--expanded">
+                      <ModelThinkingDisplay
                         thinkingItem={{
                           ...thinkingItem,
                           isStreaming: false,
+                          status: 'completed',
                         }}
                         isLastItem={false}
-                        forceExpanded={expandThinking}
+                        forceExpanded
                       />
                     </div>
                   );
@@ -160,10 +223,8 @@ const ExportContent: React.FC<ExportContentProps> = ({ dialogTurn, expandThinkin
       </div>
 
       <div className="export-content__footer" data-bitfun-product-component="export-image" data-bitfun-product-part="footer">
-        <span>{i18nService.t('flow-chat:exportImage.poweredBy').replace(/ /g, '\u00A0')}</span>
+        <span>{i18nService.t('flow-chat:exportImage.poweredBy')}</span>
         <span className="export-content__footer-brand">BitFun</span>
-        <span>•</span>
-        <span>{i18nService.t('flow-chat:exportImage.aiAssistant').replace(/ /g, '\u00A0')}</span>
       </div>
     </div>
   );
@@ -171,42 +232,27 @@ const ExportContent: React.FC<ExportContentProps> = ({ dialogTurn, expandThinkin
 
 export const ExportImageButton: React.FC<ExportImageButtonProps> = ({
   turnId,
-  className = ''
+  className = '',
+  triggerRef,
+  renderTrigger,
 }) => {
   const { t } = useI18n('flow-chat');
   const [isExporting, setIsExporting] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [expandThinking, setExpandThinking] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const menuLayout = useAnchoredPopoverPosition({
-    open: isMenuOpen,
-    anchorRef: buttonRef,
-    popoverRef: menuRef,
-    preferredPlacement: 'top',
-    alignment: 'end',
-    gap: 4,
-  });
-
-  useEffect(() => {
-    if (!isMenuOpen) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (!buttonRef.current?.contains(target) && !menuRef.current?.contains(target)) {
-        setIsMenuOpen(false);
-      }
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsMenuOpen(false);
-    };
-    const removeMousedown = subscribeOverlayInteraction(menuRef, 'mousedown', handleClickOutside);
-    const removeKeyDown = subscribeOverlayInteraction(menuRef, 'keydown', handleKeyDown);
-    return () => {
-      removeMousedown();
-      removeKeyDown();
-    };
-  }, [isMenuOpen]);
+  const compactOptionRef = useRef<HTMLInputElement>(null);
+  const thinkingOptionRef = useRef<HTMLInputElement>(null);
   // Ref guard to prevent double-invocation while state update is pending.
   const isExportingRef = useRef(false);
+
+  const openExportDialog = useCallback(() => {
+    if (isExportingRef.current) return;
+    // Restore to the resident trigger rather than the menu item that is closing.
+    (triggerRef ?? buttonRef).current?.focus({ preventScroll: true });
+    setExpandThinking(false);
+    setIsDialogOpen(true);
+  }, [triggerRef]);
 
   // Resolve the DialogTurn and its session title by turn id.
   const getDialogTurn = useCallback((): { turn: DialogTurn; sessionTitle: string } | null => {
@@ -222,7 +268,7 @@ export const ExportImageButton: React.FC<ExportImageButtonProps> = ({
 
   const handleExport = useCallback(async (expandThinking: boolean) => {
     if (isExportingRef.current) return;
-    setIsMenuOpen(false);
+    setIsDialogOpen(false);
     isExportingRef.current = true;
     setIsExporting(true);
     
@@ -529,13 +575,44 @@ export const ExportImageButton: React.FC<ExportImageButtonProps> = ({
         .substring(0, 80);
       const namePrefix = safeTitle || i18nService.t('flow-chat:exportImage.fileNamePrefix');
       const fileName = `${namePrefix}_${timestampStr}.png`;
+      const downloadsPath = await downloadDir();
+      const filePath = await join(downloadsPath, fileName);
 
-      // Route through the shared platform-aware saver: on OpenHarmony the
-      // Tauri path/fs plugins are not wired, so the blob must go through the
-      // native `save_file_to_downloads_ohos` bridge (desktop uses plugin-fs,
-      // plain browsers use the anchor-download fallback).
-      const pngSaveResult = await savePngBlob(blob, fileName);
-      notifyPngExportSuccess(pngSaveResult);
+      const arrayBuffer = await blob.arrayBuffer();
+      await writeFile(filePath, new Uint8Array(arrayBuffer));
+
+      const plainSuccessMessage = i18nService.t('flow-chat:exportImage.exportSuccess', { filePath });
+      const successPrefix = i18nService.t('flow-chat:exportImage.exportSuccessPrefix');
+
+      const revealExportedFile = async () => {
+        if (typeof window === 'undefined' || !('__TAURI__' in window)) {
+          return;
+        }
+        try {
+          await workspaceAPI.revealInExplorer(filePath);
+        } catch (error) {
+          log.error('Failed to reveal export path in file manager', { filePath, error });
+        }
+      };
+
+      notificationService.success(plainSuccessMessage, {
+        messageNode: (
+          <>
+            {successPrefix}
+            <Button labelBehavior="static" variant="text"
+              type="button"
+              className="notification-item__path-link"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                void revealExportedFile();
+              }}
+            >
+              {filePath}
+            </Button>
+          </>
+        ),
+      });
     } catch (error) {
       // Ensure DOM is always cleaned up on error.
       cleanupDom();
@@ -549,45 +626,116 @@ export const ExportImageButton: React.FC<ExportImageButtonProps> = ({
 
   return (
     <>
-      <Tooltip content={isExporting ? i18nService.t('flow-chat:exportImage.exporting') : i18nService.t('flow-chat:exportImage.exportToImage')} placement="top">
-        <IconButton
-          ref={buttonRef}
-          className={`model-round-item__action-btn model-round-item__export-btn ${className}`}
-          data-bitfun-product-component="export-image"
-          data-bitfun-product-part="trigger"
-          data-bitfun-state={isExporting ? 'exporting' : undefined}
-          onClick={() => setIsMenuOpen(current => !current)}
-          disabled={isExporting}
-          aria-haspopup="menu"
-          aria-expanded={isMenuOpen}
-          aria-label={isExporting
-            ? i18nService.t('flow-chat:exportImage.exporting')
-            : i18nService.t('flow-chat:exportImage.exportToImage')}
-          icon={isExporting
-            ? <Icon name="progress-25" size="sm" className="spinning" />
-            : <Icon name="image" size="sm" />}
-        />
-      </Tooltip>
-      {isMenuOpen && createOverlayPortal(
-        <Menu
-          ref={menuRef}
-          className="export-image-menu"
-          data-bitfun-placement={menuLayout?.placement ?? 'top'}
-          style={{
-            top: `${menuLayout?.top ?? 0}px`,
-            left: `${menuLayout?.left ?? 0}px`,
-            visibility: menuLayout ? 'visible' : 'hidden',
-          }}
-        >
-          <MenuItem type="button" onClick={() => void handleExport(false)}>
-            {t('exportImage.collapsedThinking')}
-          </MenuItem>
-          <MenuItem type="button" onClick={() => void handleExport(true)}>
-            {t('exportImage.expandedThinking')}
-          </MenuItem>
-        </Menu>,
-        getAppearanceOverlayHost(),
+      {renderTrigger ? renderTrigger({ isExporting, onOpenDialog: openExportDialog }) : (
+        <Tooltip content={isExporting ? t('exportImage.exporting') : t('exportImage.exportToImage')} placement="top">
+          <IconButton
+            ref={buttonRef}
+            className={`model-round-item__action-btn model-round-item__export-btn ${className}`}
+            data-bitfun-product-component="export-image"
+            data-bitfun-product-part="trigger"
+            data-bitfun-state={isExporting ? 'exporting' : undefined}
+            onClick={openExportDialog}
+            loading={isExporting}
+            aria-haspopup="dialog"
+            aria-expanded={isDialogOpen}
+            aria-label={isExporting ? t('exportImage.exporting') : t('exportImage.exportToImage')}
+            icon={<Icon name="image" size="sm" />}
+          />
+        </Tooltip>
       )}
+      <Dialog
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        size="md"
+        initialFocusRef={compactOptionRef}
+        portalTarget={getAppearanceOverlayHost()}
+        data-testid="export-image-dialog"
+      >
+        <DialogHeader>
+          <DialogHeading>
+            <DialogTitle>{t('exportImage.exportToImage')}</DialogTitle>
+          </DialogHeading>
+          <DialogClose aria-label={t('common:actions.close')} />
+        </DialogHeader>
+        <DialogBody>
+          <div
+            className="export-image-options"
+            data-bitfun-product-component="export-image"
+            data-bitfun-product-part="options"
+            role="group"
+            aria-label={t('exportImage.exportToImage')}
+            onKeyDown={event => {
+              let next: boolean;
+              if (['ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown'].includes(event.key)) next = !expandThinking;
+              else if (event.key === 'Home') next = false;
+              else if (event.key === 'End') next = true;
+              else return;
+              event.preventDefault();
+              setExpandThinking(next);
+              (next ? thinkingOptionRef : compactOptionRef).current?.focus({ preventScroll: true });
+            }}
+          >
+            <Card
+              className="export-image-option-card"
+              appearance="neutral"
+              padding="sm"
+              data-bitfun-product-component="export-image"
+              data-bitfun-product-part="optionCard"
+              onClick={() => {
+                setExpandThinking(false);
+                compactOptionRef.current?.focus({ preventScroll: true });
+              }}
+            >
+              <CardHeader actions={(
+                <Checkbox
+                  ref={compactOptionRef}
+                  checked={!expandThinking}
+                  aria-label={t('exportImage.collapsedThinking')}
+                  onCheckedChange={() => setExpandThinking(false)}
+                  data-testid="export-image-compact"
+                />
+              )} />
+              <CardBody align="center" className="export-image-option-content" data-bitfun-product-component="export-image" data-bitfun-product-part="optionContent">
+                <ExportImagePreview expandThinking={false} />
+                <span className="export-image-option-label" data-bitfun-product-component="export-image" data-bitfun-product-part="optionLabel">{t('exportImage.collapsedThinking')}</span>
+              </CardBody>
+            </Card>
+            <Card
+              className="export-image-option-card"
+              appearance="neutral"
+              padding="sm"
+              data-bitfun-product-component="export-image"
+              data-bitfun-product-part="optionCard"
+              onClick={() => {
+                setExpandThinking(true);
+                thinkingOptionRef.current?.focus({ preventScroll: true });
+              }}
+            >
+              <CardHeader actions={(
+                <Checkbox
+                  ref={thinkingOptionRef}
+                  checked={expandThinking}
+                  aria-label={t('exportImage.expandedThinking')}
+                  onCheckedChange={() => setExpandThinking(true)}
+                  data-testid="export-image-thinking"
+                />
+              )} />
+              <CardBody align="center" className="export-image-option-content" data-bitfun-product-component="export-image" data-bitfun-product-part="optionContent">
+                <ExportImagePreview expandThinking />
+                <span className="export-image-option-label" data-bitfun-product-component="export-image" data-bitfun-product-part="optionLabel">{t('exportImage.expandedThinking')}</span>
+              </CardBody>
+            </Card>
+          </div>
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="fill" onClick={() => setIsDialogOpen(false)} data-testid="export-image-cancel">
+            {t('common:actions.cancel')}
+          </Button>
+          <Button variant="primary" onClick={() => void handleExport(expandThinking)} disabled={isExporting} data-testid="export-image-confirm">
+            {t('common:actions.export')}
+          </Button>
+        </DialogFooter>
+      </Dialog>
     </>
   );
 };

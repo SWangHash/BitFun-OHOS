@@ -15,7 +15,7 @@ mod tests {
         for removed in ["docx", "pdf", "pptx", "xlsx"] {
             assert_eq!(builtin_skill_group_key(removed), None);
         }
-        assert_eq!(builtin_skill_group_key("create-bitfun-skin"), Some("meta"));
+assert_eq!(builtin_skill_group_key("create-bitfun-skin"), Some("meta"));
         assert_eq!(builtin_skill_group_key("commit-push-pr"), Some("meta"));
         assert_eq!(builtin_skill_group_key("find-skills"), Some("meta"));
         assert_eq!(builtin_skill_group_key("debug"), Some("debugging"));
@@ -32,7 +32,7 @@ mod tests {
             Some("computer-use")
         );
         assert_eq!(builtin_skill_group_key("agent-eval-canvas"), Some("canvas"));
-        assert_eq!(builtin_skill_group_key("gstack-review"), Some("gstack"));
+assert_eq!(builtin_skill_group_key("gstack-review"), Some("gstack"));
         assert_eq!(
             builtin_skill_group_key("hmos-arkui-develop-skill"),
             Some("harmonyos")

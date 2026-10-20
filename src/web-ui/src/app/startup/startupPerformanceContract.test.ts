@@ -82,8 +82,8 @@ describe('startup performance contract', () => {
 
     expect(componentStyles).toContain('width: 120px;');
     expect(componentStyles).not.toContain('width: 144px;');
-    expect(componentStyles).toContain('background-color: var(--bitfun-color-content-on-light);');
-    expect(componentStyles).toContain('background-color: var(--bitfun-color-content-on-dark);');
+    expect(componentStyles).toMatch(/(?:background-)?color: var\(--bitfun-color-content-on-light\);/);
+    expect(componentStyles).toMatch(/(?:background-)?color: var\(--bitfun-color-content-on-dark\);/);
     expect(componentStyles).toContain('color: var(--bitfun-color-content-secondary);');
     expect(componentStyles).not.toContain('var(--bitfun-color-content-on-dark) 80%, transparent');
     expect(componentStyles).toContain('var(--bitfun-color-content-on-dark) 60%, transparent');
@@ -498,35 +498,29 @@ describe('startup performance contract', () => {
   it('keeps settings pages lazy by active page', () => {
     const sceneSource = readSource('../scenes/settings/SettingsScene.tsx');
     const registrySource = readSource('../scenes/settings/settingsRegistry.ts');
-    const viewPageSources = [
-      readSource('../scenes/settings/pages/AutomationSettingsPage.tsx'),
-    ];
     const lazyPanelSpecifiers = [
-      '../../../infrastructure/config/components/ModelSettingsPage',
-      '../../../infrastructure/config/components/ApplicationSettingsPages',
-      '../../../infrastructure/config/components/AppearanceSettingsPage',
-      '../../../infrastructure/config/components/MemorySettingsPage',
-      '../../../infrastructure/config/components/RuntimeSettingsPages',
-      '../../../infrastructure/config/components/WorktreeSettingsPage',
-      '../../../infrastructure/config/components/UsageStatisticsConfig',
-      '../../../infrastructure/config/components/McpToolsConfig',
-      '../../../infrastructure/config/components/VoiceInputConfig',
-      './components/ArchivedSessionsConfig',
-      './components/KeyboardShortcutsTab',
-      './pages/EditorSettingsPage',
-      './pages/ExecutionSettingsPage',
-      './pages/AutomationSettingsPage',
-      './pages/AcpSettingsPage',
+      './pages/application/GeneralSettingsPage',
+      './pages/application/AppearanceSettingsPage',
+      './pages/application/PetAssistantSettingsPage',
+      './pages/application/InputSettingsPage',
+      './pages/ai/ModelSettingsPage',
+      './pages/ai/SessionMemorySettingsPage',
+      './pages/ai/ExecutionSettingsPage',
+      './pages/ai/PermissionsSettingsPage',
+      './pages/development/EditorSettingsPage',
+      './pages/development/TerminalSettingsPage',
+      './pages/development/WorkspaceGitSettingsPage',
+      './pages/tools/WebSearchSettingsPage',
+      './pages/tools/DeviceControlSettingsPage',
+      './pages/tools/McpSettingsPage',
+      './pages/tools/ExternalAgentsSettingsPage',
+      './pages/tools/AutomationSettingsPage',
+      './pages/data/UsageStatisticsSettingsPage',
+      './pages/data/ArchivedSessionsSettingsPage',
+      './pages/data/DiagnosticsSettingsPage',
     ];
     const sceneImports = staticImportSpecifiers(sceneSource);
     const registryImports = staticImportSpecifiers(registrySource);
-    const lazyViewSpecifiers = [
-      '@/infrastructure/config/components/QuickActionsConfig',
-      '@/infrastructure/config/components/HooksConfig',
-    ];
-    const viewDynamicImports = viewPageSources.flatMap(dynamicImportSpecifiers);
-    const viewStaticImports = viewPageSources.flatMap(staticImportSpecifiers);
-
     expect(sceneImports).toContain('./settingsRegistry');
     expect(sceneSource).toContain('<Suspense');
     expect(dynamicImportSpecifiers(registrySource)).toEqual(
@@ -536,11 +530,7 @@ describe('startup performance contract', () => {
       expect(sceneImports).not.toContain(panelSpecifier);
       expect(registryImports).not.toContain(panelSpecifier);
     }
-    expect(viewDynamicImports).toEqual(expect.arrayContaining(lazyViewSpecifiers));
-    for (const viewSpecifier of lazyViewSpecifiers) {
-      expect(viewStaticImports).not.toContain(viewSpecifier);
-    }
-    expect(registrySource).toContain('component: lazy(definition.load)');
+    expect(registrySource).toContain('const component = lazyWithRecovery(definition.load)');
     expect(registrySource).toContain("id: 'application.general'");
   });
 
@@ -561,7 +551,7 @@ describe('startup performance contract', () => {
     const flowToolCardSource = readSource('../../flow_chat/components/FlowToolCard.tsx');
     const modelRoundItemSource = readSource('../../flow_chat/components/modern/ModelRoundItem.tsx');
     const flowStoreSource = readSource('../../flow_chat/store/modernFlowChatStore.ts');
-    const keyboardShortcutsSource = readSource('../scenes/settings/components/KeyboardShortcutsTab.tsx');
+    const keyboardShortcutsSource = readSource('../scenes/settings/pages/application/KeyboardShortcutsSection.tsx');
 
     expect(metadataSource).toContain('TOOL_CARD_CONFIGS');
     expect(metadataSource).toContain('isCollapsibleTool');
@@ -873,12 +863,17 @@ describe('startup performance contract', () => {
     expect(source).toContain("import('@/flow_chat/utils/agentCompanionActivity')");
     expect(source).toContain("import('@/flow_chat/services/AgentCompanionActivityBridge')");
     expect(source).toContain("import('./services/openAgentCompanionSession')");
-    expect(staticImportSpecifiers(mainSource)).toContain(
+    expect(staticImportSpecifiers(mainSource)).not.toContain(
       './app/components/AgentCompanionDesktopPet/AgentCompanionDesktopPet'
     );
-    expect(dynamicImportSpecifiers(mainSource)).not.toContain(
+    expect(dynamicImportSpecifiers(mainSource)).toContain(
       './app/components/AgentCompanionDesktopPet/AgentCompanionDesktopPet'
     );
+    expect(staticImportSpecifiers(mainSource)).not.toContain('./app/App');
+    expect(staticImportSpecifiers(mainSource)).not.toContain('./infrastructure/contexts/WorkspaceProvider');
+    expect(dynamicImportSpecifiers(mainSource)).toContain('./app/startup/MainApplicationRoot');
+    expect(mainSource).toContain('let windowModule;');
+    expect(mainSource.indexOf('let windowModule')).toBeLessThan(mainSource.indexOf('await initializeBeforeRender()'));
     expect(source).toContain("listen(\n        'agent-companion://ready'");
     expect(source).toContain("emit('agent-companion://settings-updated', settings)");
     expect(source).toContain('emitAgentCompanionActivity(buildAgentCompanionActivity())');

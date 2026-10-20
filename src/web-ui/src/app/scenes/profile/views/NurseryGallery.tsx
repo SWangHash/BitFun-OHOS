@@ -1,21 +1,20 @@
+import { resolveAssistantName } from '@/shared/utils/assistantName';
 import { Button, Card, Icon, NumberBadge, PageHeader, StatusPill } from '@bitfun/ui';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { CircleAlert, LoaderCircle, Wrench } from 'lucide-react';
+import { configAPI } from '@/infrastructure/api/service-api/ConfigAPI';
 import {
   GalleryEmpty,
   GalleryLayout,
   GalleryZone,
   GalleryGrid,
   GallerySkeleton,
-} from '@/app/components';
-import { confirmDanger } from '@/infrastructure/confirm-dialog';
+} from '@/app/components/GalleryLayout';
+import { confirmDanger, confirmDialog } from '@/infrastructure/confirm-dialog';
 import { useWorkspaceContext } from '@/infrastructure/contexts/WorkspaceContext';
-import { openMainSession } from '@/flow_chat/services/sessionActivation';
-import { flowChatManager } from '@/flow_chat/services/FlowChatManager';
-import { flowChatSessionConfigForWorkspace } from '@/app/utils/projectSessionWorkspace';
+import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 import type { WorkspaceInfo } from '@/shared/types';
-import { configAPI } from '@/infrastructure/api/service-api/ConfigAPI';
 import { useNotification } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
 import AssistantCard from './AssistantCard';
@@ -33,9 +32,12 @@ interface TemplateStats {
 type TemplateStatsStatus = 'loading' | 'ready' | 'error';
 
 const NurseryGallery: React.FC = () => {
-  const { t } = useTranslation('scenes/profile');
+  const { t } = useI18n('scenes/profile');
   const {
-    assistantWorkspacesList,
+    allAssistantWorkspacesList: assistantWorkspacesList,
+    openedWorkspaces,
+    assistantWorkspaces,
+    closeWorkspaceById,
     createAssistantWorkspace,
     deleteAssistantWorkspace,
     primaryAssistantWorkspaceId,
@@ -44,12 +46,14 @@ const NurseryGallery: React.FC = () => {
     setActiveWorkspace,
     setPrimaryAssistantWorkspace,
   } = useWorkspaceContext();
-  const { openDefaults, openAssistant } = useNurseryStore();
+  const { openAssistant, openDefaults } = useNurseryStore();
   const notification = useNotification();
   const [creating, setCreating] = useState(false);
+  const assistantCreationPending = useRef(false);
   const [deletingWorkspaceId, setDeletingWorkspaceId] = useState<string | null>(null);
   const [settingPrimaryWorkspaceId, setSettingPrimaryWorkspaceId] = useState<string | null>(null);
-  const [startingSessionWorkspaceId, setStartingSessionWorkspaceId] = useState<string | null>(null);
+  const [openingWorkspaceId, setOpeningWorkspaceId] = useState<string | null>(null);
+  const [closingWorkspaceId, setClosingWorkspaceId] = useState<string | null>(null);
   const [templateStats, setTemplateStats] = useState<TemplateStats | null>(null);
   const [templateStatsStatus, setTemplateStatsStatus] = useState<TemplateStatsStatus>('loading');
 
@@ -85,18 +89,32 @@ const NurseryGallery: React.FC = () => {
   }, []);
 
   const handleCreateAssistant = useCallback(async () => {
-    if (creating) return;
-    setCreating(true);
+    if (assistantCreationPending.current) return;
+    const scope = getActiveSurfaceScope();
+    assistantCreationPending.current = true;
     try {
+      const confirmed = await confirmDialog({
+        title: t('nursery.gallery.newAssistant'),
+        message: t('nursery.gallery.createConfirmMessage'),
+        confirmText: t('nursery.gallery.newAssistant'),
+        type: 'info',
+      });
+      if (!confirmed || !scope.isCurrent()) return;
+
+      setCreating(true);
       const newWorkspace = await createAssistantWorkspace();
+      scope.assertCurrent('open newly created assistant');
       openAssistant(newWorkspace.id);
     } catch (e) {
-      log.error('Failed to create assistant workspace', e);
-      notification.error(t('nursery.gallery.createFailed'));
+      if (scope.isCurrent()) {
+        log.error('Failed to create assistant workspace', e);
+        notification.error(t('nursery.gallery.createFailed'));
+      }
     } finally {
+      assistantCreationPending.current = false;
       setCreating(false);
     }
-  }, [creating, createAssistantWorkspace, notification, openAssistant, t]);
+  }, [createAssistantWorkspace, notification, openAssistant, t]);
 
   const sortedAssistantWorkspacesList = useMemo(
     () => {
@@ -129,8 +147,7 @@ const NurseryGallery: React.FC = () => {
 
   const handleDeleteRequest = useCallback(async (workspace: WorkspaceInfo) => {
     if (deletingWorkspaceId) return;
-    const identity = workspace.identity;
-    const name = identity?.name?.trim() || workspace.name || t('nursery.card.unnamed');
+    const name = resolveAssistantName(workspace, t('shared:agents.Claw'));
     const confirmed = await confirmDanger(
       t('nursery.card.deleteConfirmTitle'),
       t('nursery.card.deleteConfirmMessage', { name }),
@@ -152,30 +169,31 @@ const NurseryGallery: React.FC = () => {
     }
   }, [deleteAssistantWorkspace, deletingWorkspaceId, notification, t]);
 
-  const handleNewAssistantSession = useCallback(
-    async (workspace: WorkspaceInfo) => {
-      if (startingSessionWorkspaceId) return;
-      setStartingSessionWorkspaceId(workspace.id);
-      try {
-        const sessionId = await flowChatManager.createChatSession(flowChatSessionConfigForWorkspace(workspace), 'Claw');
-        await openMainSession(sessionId, {
-          workspaceId: workspace.id,
-          activateWorkspace: setActiveWorkspace,
-        });
-      } catch (e) {
-        log.error('Failed to create assistant session from gallery', e);
-        notification.error(t('nursery.card.newSessionFailed'));
-      } finally {
-        setStartingSessionWorkspaceId(null);
-      }
-    },
-    [
-      notification,
-      setActiveWorkspace,
-      startingSessionWorkspaceId,
-      t,
-    ],
-  );
+  const handleOpenAssistant = useCallback(async (workspace: WorkspaceInfo) => {
+    if (openingWorkspaceId) return;
+    setOpeningWorkspaceId(workspace.id);
+    try {
+      await setActiveWorkspace(workspace.id);
+    } catch (error) {
+      log.error('Failed to open assistant workspace', error);
+      notification.error(t('nursery.card.openFailed'));
+    } finally {
+      setOpeningWorkspaceId(null);
+    }
+  }, [notification, openingWorkspaceId, setActiveWorkspace, t]);
+
+  const handleCloseAssistant = useCallback(async (workspace: WorkspaceInfo) => {
+    if (closingWorkspaceId) return;
+    setClosingWorkspaceId(workspace.id);
+    try {
+      await closeWorkspaceById(workspace.id);
+    } catch (error) {
+      log.error('Failed to close assistant workspace', error);
+      notification.error(t('nursery.card.closeFailed'));
+    } finally {
+      setClosingWorkspaceId(null);
+    }
+  }, [closeWorkspaceById, closingWorkspaceId, notification, t]);
 
   return (
     <GalleryLayout
@@ -186,28 +204,10 @@ const NurseryGallery: React.FC = () => {
       <PageHeader
         className="nursery-gallery__header"
         level={2}
+        size="display"
+        align="center"
         title={t('nursery.gallery.title')}
         description={t('nursery.gallery.subtitle')}
-        action={(
-          <Button
-            type="button"
-            variant="primary"
-            size="sm"
-            data-testid="nursery-create-assistant-btn"
-            onClick={handleCreateAssistant}
-            disabled={creating}
-            aria-busy={creating}
-          >
-            {creating ? (
-              <LoaderCircle className="nursery-spinning" size={15} aria-hidden="true" />
-            ) : (
-              <Icon name="plus" size="sm" aria-hidden="true" />
-            )}
-            <span>
-              {t(creating ? 'nursery.gallery.creating' : 'nursery.gallery.newAssistant')}
-            </span>
-          </Button>
-        )}
       />
 
       <div className="gallery-zones" data-bitfun-component="nursery-gallery" data-bitfun-part="content">
@@ -273,15 +273,31 @@ const NurseryGallery: React.FC = () => {
           className="nursery-gallery__assistant-zone"
           title={t('nursery.gallery.assistantsTitle')}
           subtitle={t('nursery.gallery.assistantsSubtitle')}
+          titleAdornment={<NumberBadge value={sortedAssistantWorkspacesList.length} />}
           tools={(
-            <NumberBadge value={sortedAssistantWorkspacesList.length} />
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={handleCreateAssistant}
+              disabled={creating}
+              aria-busy={creating}
+            >
+              {creating ? (
+                <LoaderCircle className="nursery-spinning" size={15} aria-hidden="true" />
+              ) : (
+                <Icon name="plus" size="sm" aria-hidden="true" />
+              )}
+              <span>
+                {t(creating ? 'nursery.gallery.creating' : 'nursery.gallery.newAssistant')}
+              </span>
+            </Button>
           )}
         >
           {workspaceLoading && sortedAssistantWorkspacesList.length === 0 ? (
             <GallerySkeleton
               count={3}
-              cardHeight={168}
-              minCardWidth={340}
+              cardHeight={152}
               className="nursery-gallery__skeleton"
             />
           ) : workspaceError && sortedAssistantWorkspacesList.length === 0 ? (
@@ -319,28 +335,56 @@ const NurseryGallery: React.FC = () => {
             />
           ) : (
             <GalleryGrid
-              minCardWidth={340}
               className="nursery-gallery__assistant-grid"
               role="list"
             >
               {sortedAssistantWorkspacesList.map((workspace, i) => {
                 const isPrimary = workspace.id === primaryAssistantWorkspaceId;
+                const isOpened = openedWorkspaces.has(workspace.id);
                 return (
                   <AssistantCard
                     key={workspace.id}
                     workspace={workspace}
                     isPrimary={isPrimary}
                     isDeleting={deletingWorkspaceId === workspace.id}
-                    isStartingSession={startingSessionWorkspaceId === workspace.id}
                     isSettingPrimary={settingPrimaryWorkspaceId === workspace.id}
+                    isOpening={openingWorkspaceId === workspace.id}
+                    isClosing={closingWorkspaceId === workspace.id}
+                    onOpen={isOpened ? undefined : () => { void handleOpenAssistant(workspace); }}
+                    onClose={isOpened ? () => { void handleCloseAssistant(workspace); } : undefined}
+                    closeDisabledReason={assistantWorkspaces === null ? t('common:nav.workspaces.closeAssistantUnsupported') : undefined}
                     onClick={() => openAssistant(workspace.id)}
-                    onNewSession={() => { void handleNewAssistantSession(workspace); }}
                     onDelete={isPrimary ? undefined : () => { void handleDeleteRequest(workspace); }}
                     onSetPrimary={isPrimary ? undefined : () => { void handleSetPrimary(workspace); }}
                     style={{ '--surface-stagger-index': i } as React.CSSProperties}
                   />
                 );
               })}
+              {sortedAssistantWorkspacesList.length < 3 ? (
+                <div
+                  className={[
+                    'nursery-gallery__create-card',
+                    sortedAssistantWorkspacesList.length === 1
+                      && sortedAssistantWorkspacesList[0].id === primaryAssistantWorkspaceId
+                      && 'nursery-gallery__create-card--tall',
+                  ].filter(Boolean).join(' ')}
+                  role="listitem"
+                  data-bitfun-component="nursery-gallery"
+                  data-bitfun-part="createCard"
+                >
+                  <Button
+                    className="nursery-gallery__create-button"
+                    variant="fill"
+                    labelBehavior="static"
+                    leadingIcon={<Icon name="plus" size="lg" aria-hidden="true" />}
+                    onClick={handleCreateAssistant}
+                    loading={creating}
+                    disabled={creating}
+                  >
+                    {t(creating ? 'nursery.gallery.creating' : 'nursery.gallery.newAssistant')}
+                  </Button>
+                </div>
+              ) : null}
             </GalleryGrid>
           )}
         </GalleryZone>

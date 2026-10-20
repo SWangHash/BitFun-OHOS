@@ -678,6 +678,13 @@ impl AgentRuntime {
         self.inner.submit_turn(request).await
     }
 
+    pub async fn manage_dialog_queue(
+        &self,
+        request: bitfun_runtime_ports::DialogQueueRequest,
+    ) -> Result<bitfun_runtime_ports::DialogQueueSnapshot, RuntimeError> {
+        self.inner.manage_dialog_queue(request).await
+    }
+
     pub async fn submit_dialog_turn(
         &self,
         request: AgentDialogTurnRequest,

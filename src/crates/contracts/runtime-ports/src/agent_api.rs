@@ -84,6 +84,33 @@ pub struct AgentSessionListRequest {
     pub remote_ssh_host: Option<String>,
 }
 
+/// Read-only projection of one workspace registered on the runtime's owning host.
+/// Paths are display/IO facts; IDs are opaque selectors, scoped to that host.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentWorkspaceCatalogEntry {
+    pub workspace_id: String,
+    pub project_workspace_id: Option<String>,
+    pub name: String,
+    pub kind: bitfun_core_types::WorkspaceKind,
+    pub root_path: String,
+    /// Last recorded workspace access, as Unix milliseconds.
+    pub last_accessed_at_ms: i64,
+    pub remote: Option<AgentWorkspaceRemoteInfo>,
+    pub binding_error: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentWorkspaceRemoteInfo {
+    pub connection_id: Option<String>,
+    pub host: Option<String>,
+}
+
+/// Catalog discovery must not activate workspaces, inspect files, or connect SSH.
+#[async_trait::async_trait]
+pub trait AgentWorkspaceCatalogPort: Send + Sync {
+    async fn list_workspaces(&self) -> PortResult<Vec<AgentWorkspaceCatalogEntry>>;
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(rename_all = "camelCase")]
@@ -1041,6 +1068,13 @@ pub trait DialogRoundInjectionSource: Send + Sync {
     ) -> RoundInjectionToolPreemption;
     fn take_pending(&self, session_id: &str, turn_id: &str) -> Vec<RoundInjection>;
 
+    /// End the current execution at an atomic boundary so the scheduler can
+    /// start an accepted user message as a normal, persisted dialog turn.
+    /// Legacy providers retain their inline-injection behavior by default.
+    fn should_yield_to_user_turn(&self, _session_id: &str, _turn_id: &str) -> bool {
+        false
+    }
+
     fn acknowledge_consumed(
         &self,
         _session_id: &str,
@@ -1742,6 +1776,10 @@ pub struct AgentSessionRollbackToTurnRequest {
     pub workspace_hostname: Option<String>,
     pub session_id: String,
     pub target_turn_id: String,
+    /// Reject active or queued work under the host scheduling lock before any mutation.
+    /// Older callers retain the existing cancel-and-drain maintenance policy.
+    #[serde(default)]
+    pub require_idle: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expected_storage_turn_index: Option<usize>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1885,6 +1923,16 @@ pub trait AgentTurnSettlementPort: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait AgentDialogTurnPort: Send + Sync {
+    async fn manage_dialog_queue(
+        &self,
+        _request: crate::DialogQueueRequest,
+    ) -> PortResult<crate::DialogQueueSnapshot> {
+        Err(PortError::new(
+            PortErrorKind::NotAvailable,
+            "dialog_queue_v1 is not supported",
+        ))
+    }
+
     async fn submit_dialog_turn(
         &self,
         request: AgentDialogTurnRequest,
@@ -2221,6 +2269,7 @@ mod tests {
             workspace_hostname: Some("localhost".to_string()),
             session_id: "session-1".to_string(),
             target_turn_id: "turn-7".to_string(),
+            require_idle: true,
             expected_storage_turn_index: Some(7),
             expected_catalog_revision: Some("catalog-3".to_string()),
             remote_connection_id: None,
@@ -2246,6 +2295,7 @@ mod tests {
                 "targetTurnId": "turn-7"
             }))
             .expect("deserialize pre-workspace-identity rollback request");
+        assert!(!legacy_request.require_idle);
         assert_eq!(legacy_request.workspace_id, None);
         assert_eq!(legacy_request.workspace_hostname, None);
         // IDs are opaque. SSH metadata is an old projection, not type authority.
@@ -3408,6 +3458,7 @@ mod tests {
                 parent_tool_call_id: Some("tool_1".to_string()),
                 subagent_type: Some("explore".to_string()),
                 agent_id: Some("parser-review".to_string()),
+                workspace_id: None,
                 workspace_path: Some("/workspace/project".to_string()),
                 remote_connection_id: Some("conn-1".to_string()),
                 remote_ssh_host: Some("host-1".to_string()),

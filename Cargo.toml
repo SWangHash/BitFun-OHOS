@@ -3,7 +3,7 @@ members = [
     "src/apps/cli",
     "src/apps/sdk-host",
     "src/apps/desktop",
-    "src/apps/data-migrator",
+    "src/apps/data-tools",
     "src/apps/server",
     "src/apps/relay-server",
     "src/apps/miniapp-market-server",
@@ -60,13 +60,15 @@ members = [
 exclude = [
     "BitFun-Installer/src-tauri",
     "third_party/eioc",
+    "third_party/tao",
+    "third_party/wry",
 ]
 
 resolver = "2"
 
 # Shared package metadata 鈥?single source of truth for version
 [workspace.package]
-version = "2.0.0" # x-release-please-version
+version = "1.0.6" # x-release-please-version
 authors = ["BitFun Team"]
 edition = "2021"
 
@@ -103,7 +105,9 @@ serde_json = "1.0"
 serde_yaml = "0.9"
 
 # Document conversion
-anydoc = "=0.1.6"
+anydoc = "=0.2.4"
+pdf-inspector = { version = "1.17.0", default-features = false }
+roxmltree = { version = "0.21.1", default-features = false }
 
 # TypeScript binding generation (schema-first; gated by per-crate `ts` features)
 ts-rs = { version = "12", features = ["serde-json-impl", "no-serde-warnings"] }
@@ -248,6 +252,9 @@ screenshots = "0.8"
 enigo = "0.2"
 resvg = { version = "0.47", default-features = false }
 atspi = "0.29"
+gstreamer = { version = "0.24", default-features = false }
+gstreamer-app = { version = "0.24", default-features = false }
+cc = { version = "1", default-features = false }
 leptess = "0.14"
 core-foundation = "0.9"
 core-graphics = { version = "0.23", features = ["elcapitan", "highsierra"] }

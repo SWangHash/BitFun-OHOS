@@ -651,8 +651,8 @@ impl PersistenceManager {
     /// Resolve the on-disk sessions directory for `workspace_path`.
     ///
     /// Callers may pass either a logical workspace root or an already-resolved
-    /// managed sessions directory. Local workspace roots are slugified under
-    /// `~/.bitfun/projects/`; already-resolved local/remote sessions
+    /// managed sessions directory. Local workspace roots use compact runtime
+    /// keys under `~/.bitfun/projects/`; already-resolved local/remote sessions
     /// directories are used as-is.
     fn project_sessions_dir(&self, workspace_path: &Path) -> PathBuf {
         if self.is_resolved_sessions_dir(workspace_path) {
@@ -1124,7 +1124,7 @@ impl PersistenceManager {
         }
     }
 
-    async fn build_session_metadata(
+    pub(super) async fn build_session_metadata(
         &self,
         workspace_path: &Path,
         session: &Session,
@@ -1580,6 +1580,7 @@ impl PersistenceManager {
         session_id: &str,
         session_name: &str,
         last_active_at: u64,
+        user_edited: bool,
     ) -> BitFunResult<()> {
         Self::validate_session_id(session_id)?;
         let _session_write = self.lock_session_write_operation(workspace_path, session_id)?;
@@ -1596,6 +1597,7 @@ impl PersistenceManager {
             })?;
         let mut updated = original.clone();
         updated.session_name = session_name.to_string();
+        bitfun_services_core::session::naming::clear_default_title(&mut updated, user_edited);
         updated.last_active_at = last_active_at;
 
         let Err(write_error) = self
@@ -1795,7 +1797,7 @@ impl PersistenceManager {
         &self,
         workspace_path: &Path,
         session_id: &str,
-        state: &StoredSessionStateFile,
+        state: &(impl serde::Serialize + Sync),
     ) -> BitFunResult<()> {
         #[cfg(test)]
         {
@@ -2492,6 +2494,118 @@ impl PersistenceManager {
         Ok(())
     }
 
+    /// Persist only selector facts. Historical sessions need neither transcript
+    /// loading nor runtime restoration, and unknown future state fields survive.
+    pub(crate) async fn save_session_model_selection(
+        &self,
+        workspace_path: &Path,
+        session: &Session,
+    ) -> BitFunResult<()> {
+        let session_id = &session.session_id;
+        Self::validate_session_id(session_id)?;
+        let _writer = self.lock_session_write_operation(workspace_path, session_id)?;
+        self.ensure_runtime_for_write(workspace_path).await?;
+        let lock = self
+            .get_session_persistence_lock(workspace_path, session_id)
+            .await;
+        let _guard = lock.lock().await;
+        let original_metadata = self
+            .load_session_metadata(workspace_path, session_id)
+            .await?
+            .ok_or_else(|| BitFunError::NotFound(format!("Session not found: {session_id}")))?;
+        let state_path = self.state_path(workspace_path, session_id);
+        let original_state = self
+            .read_json_optional::<serde_json::Value>(&state_path)
+            .await?;
+        let mut state = match original_state.as_ref() {
+            Some(value) => value.clone(),
+            None => serde_json::to_value(StoredSessionStateFile {
+                schema_version: SESSION_STORAGE_SCHEMA_VERSION,
+                config: session.config.clone(),
+                snapshot_session_id: session.snapshot_session_id.clone(),
+                last_user_dialog_agent_type: session.last_user_dialog_agent_type.clone(),
+                last_submitted_agent_type: session.last_submitted_agent_type.clone(),
+                compression_state: session.compression_state.clone(),
+                runtime_state: sanitize_persisted_session_state(&session.state),
+            })?,
+        };
+        let object = state
+            .as_object_mut()
+            .ok_or_else(|| BitFunError::session("Invalid session state object"))?;
+        let config = object
+            .entry("config")
+            .or_insert_with(|| serde_json::json!({}))
+            .as_object_mut()
+            .ok_or_else(|| BitFunError::session("Invalid session config object"))?;
+        config.insert(
+            "model_id".into(),
+            serde_json::to_value(&session.config.model_id)?,
+        );
+        config.insert(
+            "reasoning_preset".into(),
+            serde_json::to_value(&session.config.reasoning_preset)?,
+        );
+        config.insert(
+            "max_context_tokens".into(),
+            serde_json::to_value(session.config.max_context_tokens)?,
+        );
+        let mut metadata = original_metadata.clone();
+        metadata.model_name = session.config.model_id.clone().unwrap_or_default();
+        metadata.last_active_at = Self::system_time_to_unix_ms(session.last_activity_at);
+        if original_state.as_ref() == Some(&state)
+            && original_metadata.model_name == metadata.model_name
+            && original_metadata.last_active_at == metadata.last_active_at
+        {
+            return Ok(());
+        }
+        let write_result = async {
+            self.save_stored_session_state(workspace_path, session_id, &state)
+                .await?;
+            self.save_session_metadata_locked(workspace_path, &metadata)
+                .await
+        }
+        .await;
+        if let Err(error) = write_result {
+            // An IO error can be reported before or after an atomic rename.
+            // Avoid unnecessary rollback writes when the original is intact.
+            if self
+                .read_json_optional::<serde_json::Value>(&state_path)
+                .await
+                .is_ok_and(|state| state == original_state)
+                && self
+                    .load_session_metadata(workspace_path, session_id)
+                    .await
+                    .is_ok_and(|value| {
+                        value.is_some_and(|value| {
+                            value.model_name == original_metadata.model_name
+                                && value.last_active_at == original_metadata.last_active_at
+                        })
+                    })
+            {
+                return Err(error);
+            }
+            let state_rollback = match original_state {
+                Some(state) => {
+                    self.save_stored_session_state(workspace_path, session_id, &state)
+                        .await
+                }
+                None => tokio::fs::remove_file(&state_path)
+                    .await
+                    .map_err(Into::into),
+            };
+            let metadata_rollback = self
+                .save_session_metadata_locked(workspace_path, &original_metadata)
+                .await;
+            if state_rollback.is_err() || metadata_rollback.is_err() {
+                return Err(BitFunError::OutcomeUnknown(format!(
+                    "Session model update rollback failed: session_id={session_id}, error={error}, state={state_rollback:?}, metadata={metadata_rollback:?}"
+                )));
+            }
+            return Err(error);
+        }
+        Ok(())
+    }
+
     /// Save session
     pub async fn save_session(
         &self,
@@ -2583,6 +2697,11 @@ impl PersistenceManager {
         crate::agentic::workspace::normalize_session_workspace(&mut config).await?;
         if config.model_id.is_none() && !metadata.model_name.is_empty() {
             config.model_id = Some(metadata.model_name.clone());
+        }
+        if let Some(model_id) = config.model_id.as_mut() {
+            if metadata.compatible_model_selector(model_id) != model_id.as_str() {
+                *model_id = "primary".to_string();
+            }
         }
 
         let compression_state = stored_state
@@ -3539,6 +3658,67 @@ impl PersistenceManager {
         self.invalidate_session_search(workspace_path, &turn.session_id)
             .await;
 
+        // An observer checkpoint may carry the initial pending descriptor even
+        // after the host resolved delivery. Preserve that host-owned decision
+        // while keeping every raw message and other projected field unchanged.
+        let mut committed_turn = turn.clone();
+        if let Some(delivery) = previous_turn
+            .as_ref()
+            .and_then(|previous| {
+                bitfun_core_types::background_delivery::BackgroundDelivery::from_metadata(
+                    previous.user_message.metadata.as_ref(),
+                    &previous.turn_id,
+                )
+            })
+            .filter(|delivery| {
+                delivery.resolved_at_ms.is_some()
+                    && delivery.execution_generation == turn.recovery_epoch.unwrap_or(0)
+            })
+        {
+            let incoming =
+                bitfun_core_types::background_delivery::BackgroundDelivery::from_metadata(
+                    turn.user_message.metadata.as_ref(),
+                    &turn.turn_id,
+                );
+            if incoming.as_ref().is_none_or(|incoming| {
+                incoming.resolved_at_ms.is_none()
+                    || incoming.execution_generation < delivery.execution_generation
+            }) {
+                let metadata = committed_turn
+                    .user_message
+                    .metadata
+                    .get_or_insert_with(|| serde_json::json!({}));
+                if let Some(object) = metadata.as_object_mut() {
+                    object.insert(bitfun_core_types::background_delivery::BACKGROUND_DELIVERY_METADATA_KEY.to_owned(), serde_json::to_value(delivery).map_err(BitFunError::Serialization)?);
+                }
+            }
+        }
+        if let Some(history) = previous_turn
+            .as_ref()
+            .and_then(|previous| previous.user_message.metadata.as_ref())
+            .and_then(|metadata| metadata.get("backgroundDeliveryHistory"))
+        {
+            let incoming = committed_turn
+                .user_message
+                .metadata
+                .as_ref()
+                .and_then(|metadata| metadata.get("backgroundDeliveryHistory"));
+            if incoming
+                .and_then(serde_json::Value::as_array)
+                .map_or(0, Vec::len)
+                < history.as_array().map_or(0, Vec::len)
+            {
+                if let Some(object) = committed_turn
+                    .user_message
+                    .metadata
+                    .get_or_insert_with(|| serde_json::json!({}))
+                    .as_object_mut()
+                {
+                    object.insert("backgroundDeliveryHistory".to_owned(), history.clone());
+                }
+            }
+        }
+        let turn = &committed_turn;
         let file = StoredDialogTurnFile::new(turn.clone());
         let write_started_at = Instant::now();
         self.write_json_atomic(
@@ -3783,6 +3963,103 @@ impl PersistenceManager {
         };
         self.project_visible_session_turns(workspace_path, session_id)
             .await
+    }
+
+    /// Read one historical turn by storage position without parsing unrelated bodies.
+    /// Filename indices remain authoritative even when a legacy sidecar is absent
+    /// or stale. `next` is exclusive, and respects the current undo boundary.
+    pub async fn load_visible_history_turn(
+        &self,
+        workspace_path: &Path,
+        session_id: &str,
+        before: Option<usize>,
+    ) -> BitFunResult<(Vec<DialogTurnData>, Option<usize>)> {
+        Self::validate_session_id(session_id)?;
+        let _writer = match self.lock_session_write_operation(workspace_path, session_id) {
+            Ok(lock) => Some(lock),
+            Err(BitFunError::SessionInUse { .. }) => None,
+            Err(error) => return Err(error),
+        };
+        let boundary = self
+            .load_session_revert_state(workspace_path, session_id)
+            .await?
+            .map(|state| state.boundary_turn)
+            .unwrap_or(usize::MAX);
+        let ceiling = before.unwrap_or(usize::MAX).min(boundary);
+        let mut paths = self
+            .list_indexed_turn_paths(workspace_path, session_id)
+            .await?;
+        paths.retain(|(index, _)| *index < ceiling);
+        paths.sort_by_key(|(index, _)| *index);
+        let Some((index, path)) = paths.pop() else {
+            return Ok((Vec::new(), None));
+        };
+        let file = self
+            .read_json_optional::<StoredDialogTurnFile>(&path)
+            .await?
+            .ok_or_else(|| BitFunError::NotFound("History changed during page read".into()))?;
+        if file.turn.session_id != session_id || file.turn.turn_index != index {
+            return Err(BitFunError::Validation(
+                "History turn identity mismatch".into(),
+            ));
+        }
+        Ok((vec![file.turn], (!paths.is_empty()).then_some(index)))
+    }
+
+    /// Load one visible turn through the derived catalog when its entry is available.
+    ///
+    /// A missing or stale catalog deliberately returns `None` so callers can
+    /// preserve the full transcript fallback. Persisted turn files and the
+    /// revert boundary remain authoritative.
+    pub async fn load_visible_session_turn(
+        &self,
+        workspace_path: &Path,
+        session_id: &str,
+        turn_id: &str,
+    ) -> BitFunResult<Option<DialogTurnData>> {
+        Self::validate_session_id(session_id)?;
+        let _session_write = match self.lock_session_write_operation(workspace_path, session_id) {
+            Ok(lock) => Some(lock),
+            Err(BitFunError::SessionInUse { .. }) => None,
+            Err(error) => return Err(error),
+        };
+        let boundary_turn = self
+            .load_session_revert_state(workspace_path, session_id)
+            .await?
+            .map(|state| state.boundary_turn);
+        let Some(catalog) = self
+            .read_session_turn_catalog_cache(workspace_path, session_id)
+            .await
+        else {
+            return Ok(None);
+        };
+        let Some(entry) = catalog
+            .entries
+            .iter()
+            .find(|entry| entry.turn_id.as_deref() == Some(turn_id))
+        else {
+            return Ok(None);
+        };
+        if boundary_turn.is_some_and(|boundary| entry.storage_turn_index >= boundary) {
+            return Ok(None);
+        }
+        let Some(file) = self
+            .read_json_optional::<StoredDialogTurnFile>(&self.turn_path(
+                workspace_path,
+                session_id,
+                entry.storage_turn_index,
+            ))
+            .await?
+        else {
+            return Ok(None);
+        };
+        if file.turn.session_id != session_id
+            || file.turn.turn_id != turn_id
+            || file.turn.turn_index != entry.storage_turn_index
+        {
+            return Ok(None);
+        }
+        Ok(Some(file.turn))
     }
 
     async fn project_visible_session_turns(
@@ -6276,6 +6553,183 @@ mod tests {
         assert_eq!(rebuilt.entries[2].preview.as_deref(), Some("prompt 2"));
     }
 
+    /// Opt-in measurement: real persisted files, identical first-page content,
+    /// and fresh stream hubs on each sample. No timing assertion in CI.
+    #[cfg(feature = "remote-connect")]
+    #[tokio::test]
+    #[ignore = "local first-page performance comparison"]
+    async fn history_page_benchmark_against_full_materialization() {
+        use bitfun_services_integrations::remote_connect::{
+            host_stream::{HistoryBatch, HostStreamHub, HostStreamNotifier, StreamReadRequest},
+            session_records::records_from_turns,
+        };
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
+        struct Quiet;
+        impl HostStreamNotifier for Quiet {
+            fn notify(&self, _: &str, _: serde_json::Value) {}
+        }
+        let workspace = TestWorkspace::new();
+        let manager = PersistenceManager::new(workspace.path_manager()).unwrap();
+        let id = Uuid::new_v4().to_string();
+        let session = Session::new_with_id(
+            id.clone(),
+            "History benchmark".into(),
+            "Standard".into(),
+            SessionConfig {
+                workspace_path: Some(workspace.path().to_string_lossy().into()),
+                ..Default::default()
+            },
+        );
+        manager
+            .save_session(workspace.path(), &session)
+            .await
+            .unwrap();
+        for index in 0..128 {
+            manager
+                .save_dialog_turn(
+                    workspace.path(),
+                    &DialogTurnData::new(
+                        format!("turn-{index}"),
+                        index,
+                        id.clone(),
+                        user_message(&"x".repeat(128 * 1024)),
+                    ),
+                )
+                .await
+                .unwrap();
+        }
+        let request = StreamReadRequest {
+            stream_id: id.clone(),
+            subscribe: true,
+            ..Default::default()
+        };
+        let mut old_times = Vec::new();
+        let mut new_times = Vec::new();
+        for _ in 0..5 {
+            let legacy = HostStreamHub::start(Arc::new(Quiet));
+            legacy.activate(&id);
+            let start = std::time::Instant::now();
+            legacy
+                .synchronize_records(id.clone(), true, || async {
+                    let turns = manager
+                        .load_visible_session_turns(workspace.path(), &id)
+                        .await?;
+                    records_from_turns(&turns, &|_| None)
+                })
+                .await
+                .unwrap();
+            let old_page = legacy.read("phone", &request).unwrap();
+            old_times.push(start.elapsed().as_micros());
+            let paged = HostStreamHub::start(Arc::new(Quiet));
+            let reads = AtomicUsize::new(0);
+            let start = std::time::Instant::now();
+            let new_page = paged
+                .read_history("phone", &request, |before| {
+                    reads.fetch_add(1, Ordering::SeqCst);
+                    let manager = &manager;
+                    let workspace = &workspace;
+                    let id = &id;
+                    async move {
+                        let (turns, before) = manager
+                            .load_visible_history_turn(workspace.path(), id, before)
+                            .await?;
+                        Ok(HistoryBatch {
+                            records: records_from_turns(&turns, &|_| None)?,
+                            before,
+                        })
+                    }
+                })
+                .await
+                .unwrap();
+            new_times.push(start.elapsed().as_micros());
+            let content = |events: Vec<
+                bitfun_services_integrations::remote_connect::host_stream::StreamEvent,
+            >| {
+                events
+                    .into_iter()
+                    .map(|event| {
+                        let mut payload = event.payload;
+                        payload.as_object_mut().unwrap().remove("revision");
+                        payload
+                    })
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(content(old_page.events), content(new_page.events));
+            assert_eq!(old_page.has_more, new_page.has_more);
+            assert!(reads.load(Ordering::SeqCst) < 128);
+            eprintln!(
+                "history comparison: full_us={} paged_us={} full_turns=128 paged_turns={}",
+                old_times.last().unwrap(),
+                new_times.last().unwrap(),
+                reads.load(Ordering::SeqCst)
+            );
+        }
+        old_times.sort_unstable();
+        new_times.sort_unstable();
+        eprintln!(
+            "history median: full_us={} paged_us={}",
+            old_times[2], new_times[2]
+        );
+    }
+
+    #[tokio::test]
+    async fn history_page_reads_only_selected_body_without_a_catalog() {
+        let workspace = TestWorkspace::new();
+        let manager = PersistenceManager::new(workspace.path_manager()).unwrap();
+        let id = Uuid::new_v4().to_string();
+        let session = Session::new_with_id(
+            id.clone(),
+            "Paged".into(),
+            "Standard".into(),
+            SessionConfig {
+                workspace_path: Some(workspace.path().to_string_lossy().into()),
+                ..Default::default()
+            },
+        );
+        manager
+            .save_session(workspace.path(), &session)
+            .await
+            .unwrap();
+        for index in [0, 3, 9] {
+            manager
+                .save_dialog_turn(
+                    workspace.path(),
+                    &DialogTurnData::new(
+                        format!("turn-{index}"),
+                        index,
+                        id.clone(),
+                        user_message("page"),
+                    ),
+                )
+                .await
+                .unwrap();
+        }
+        std::fs::remove_file(manager.turn_catalog_path(workspace.path(), &id)).unwrap();
+        std::fs::write(manager.turn_path(workspace.path(), &id, 0), "invalid json").unwrap();
+        let (latest, next) = manager
+            .load_visible_history_turn(workspace.path(), &id, None)
+            .await
+            .unwrap();
+        assert_eq!(latest[0].turn_index, 9);
+        assert_eq!(next, Some(9));
+        let (older, next) = manager
+            .load_visible_history_turn(workspace.path(), &id, next)
+            .await
+            .unwrap();
+        assert_eq!(older[0].turn_index, 3);
+        assert_eq!(next, Some(3));
+        assert!(
+            manager
+                .load_visible_history_turn(workspace.path(), &id, next)
+                .await
+                .is_err(),
+            "corrupt selected history must not silently disappear"
+        );
+    }
+
     #[tokio::test]
     async fn staged_revert_catalog_projection_hides_the_physical_suffix() {
         let workspace = TestWorkspace::new();
@@ -6329,6 +6783,37 @@ mod tests {
             )
             .await
             .expect("staged revert should save");
+
+        assert!(manager
+            .load_visible_session_turn(workspace.path(), &session_id, "turn-1")
+            .await
+            .expect("hidden lookup")
+            .is_none());
+        std::fs::write(
+            manager.turn_path(workspace.path(), &session_id, 1),
+            "invalid json",
+        )
+        .unwrap();
+        assert_eq!(
+            manager
+                .load_visible_session_turn(workspace.path(), &session_id, "turn-0")
+                .await
+                .expect("indexed lookup")
+                .expect("visible turn")
+                .turn_id,
+            "turn-0"
+        );
+        assert!(manager
+            .load_visible_session_turn(workspace.path(), &session_id, "unknown")
+            .await
+            .expect("missing lookup")
+            .is_none());
+        let (page, next) = manager
+            .load_visible_history_turn(workspace.path(), &session_id, None)
+            .await
+            .unwrap();
+        assert_eq!(page[0].turn_id, "turn-0");
+        assert_eq!(next, None);
 
         let projected = manager
             .load_session_turn_catalog(
@@ -7794,7 +8279,7 @@ mod tests {
         assert!(runtime.snapshot_by_hash_dir.exists());
         assert!(runtime.snapshot_metadata_dir.exists());
         assert!(runtime.snapshot_operations_dir.exists());
-        assert!(runtime.plans_dir.exists());
+        assert!(!runtime.runtime_root.join("plans").exists());
         assert!(runtime.layout_state_file.exists());
     }
 

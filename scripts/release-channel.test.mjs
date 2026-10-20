@@ -20,7 +20,7 @@ test('stable and beta channels resolve to isolated updater feeds', () => {
   const beta = resolveReleaseChannel('beta');
   assert.match(stable.primaryUpdaterEndpoint, /releases\/latest\/download/);
   assert.match(beta.primaryUpdaterEndpoint, /releases\/download\/channel-v1-beta/);
-  assert.equal(beta.fallbackUpdaterEndpoint, 'https://bitfun.com/release/beta/latest-v1.json');
+  assert.equal(beta.fallbackUpdaterEndpoint, 'https://openbitfun.com/release/beta/latest-v1.json');
   assert.notEqual(beta.primaryUpdaterEndpoint, stable.primaryUpdaterEndpoint);
   for (const config of [stable, beta]) {
     assert.ok(config.primaryUpdaterEndpoint.endsWith('/latest-v1.json'));
@@ -165,15 +165,15 @@ exclude = ["src/apps/relay-server", "BitFun-Installer/src-tauri"]
   );
   assert.match(
     readFileSync(path.join(root, 'src/apps/mobile/android/app/build.gradle.kts'), 'utf8'),
-    /versionName = "1\.1\.0-beta\.2"/,
+    /versionName = "1\.0\.0"/,
   );
   assert.match(
     readFileSync(path.join(root, 'src/apps/mobile/ios/BitFun/Info.plist'), 'utf8'),
-    /<string>1\.1\.0-beta\.2<\/string>/,
+    /<string>1\.0\.0<\/string>/,
   );
   assert.match(
     readFileSync(path.join(root, 'src/apps/mobile/harmonyos/AppScope/app.json5'), 'utf8'),
-    /"versionName": "1\.1\.0-beta\.2"/,
+    /"versionName": "1\.0\.0"/,
   );
   const desktopHarmonyBeta = readFileSync(
     path.join(root, 'src/apps/ohos/AppScope/app.json5'),
@@ -220,5 +220,5 @@ test('Desktop, CLI and SSH dispatch consume only the versioned stable feeds', ()
   }
   const cli = readFileSync(new URL('../src/apps/cli/src/self_update.rs', import.meta.url), 'utf8');
   assert.ok(cli.includes('https://github.com/GCWing/BitFun/releases/latest/download/linux-binaries-v1.json'));
-  assert.ok(cli.includes('https://bitfun.com/release/linux-binaries-v1.json'));
+  assert.ok(cli.includes('https://openbitfun.com/release/linux-binaries-v1.json'));
 });

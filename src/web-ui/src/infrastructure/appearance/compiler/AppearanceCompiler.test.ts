@@ -9,6 +9,23 @@ import { APPEARANCE_SCHEMA_VERSION, type AppearancePackage } from '../types';
 import { AppearanceCompiler } from './AppearanceCompiler';
 
 describe('AppearanceCompiler', () => {
+  it('applies saved Shell group styling to the unified work group without rewriting the package', () => {
+    const pkg: AppearancePackage = {
+      ...buildBuiltinAppearance(bitFunDarkPalette),
+      components: {
+        'shell-group': {
+          parts: { root: { base: { opacity: { kind: 'number', value: 0.9 } } } },
+        },
+      },
+    };
+    const serialized = JSON.stringify(pkg);
+    const restored = JSON.parse(serialized) as AppearancePackage;
+    const snapshot = new AppearanceCompiler(createDefaultAppearanceRegistry()).compile(restored, 1);
+    expect(snapshot.cssText).toContain('[data-bitfun-component="explore-group"][data-bitfun-part="root"]{opacity:0.9;}');
+    expect(snapshot.cssText).not.toContain('[data-bitfun-component="shell-group"]');
+    expect(JSON.stringify(restored)).toBe(serialized);
+  });
+
   it('preserves structured validation diagnostics when compilation is rejected', () => {
     const pkg = {
       ...buildBuiltinAppearance(bitFunDarkPalette),
@@ -899,11 +916,6 @@ describe('AppearanceCompiler', () => {
             persona: { states: { selected: { borderColor: accent } } },
           },
         },
-        'assistant-defaults-page': {
-          parts: {
-            skill: { states: { covered: { backgroundColor: accent } } },
-          },
-        },
         'task-detail-panel': {
           parts: {
             root: { states: { empty: { backgroundColor: accent } } },
@@ -1037,7 +1049,6 @@ describe('AppearanceCompiler', () => {
     expect(snapshot.cssText).toContain('[data-bitfun-product-component="skill-group-picker"][data-bitfun-product-part="token"][data-bitfun-state~="selected"]');
     expect(snapshot.cssText).toContain('[data-bitfun-component="working-copy-view"][data-bitfun-part="file"][data-bitfun-state~="selected"]');
     expect(snapshot.cssText).toContain('[data-bitfun-component="assistant-config-page"][data-bitfun-part="persona"][data-bitfun-state~="selected"]');
-    expect(snapshot.cssText).toContain('[data-bitfun-component="assistant-defaults-page"][data-bitfun-part="skill"][data-bitfun-state~="covered"]');
     expect(snapshot.cssText).toContain('[data-bitfun-product-component="task-detail-panel"][data-bitfun-product-part="root"][data-bitfun-state~="empty"]');
     expect(snapshot.cssText).toContain('[data-bitfun-product-component="toolbar-mode"][data-bitfun-product-part="root"][data-bitfun-state~="expanded"]');
     expect(snapshot.cssText).toContain('[data-bitfun-component="mcp-tool-display"][data-bitfun-part="expanded"][data-bitfun-state~="expanded"]');

@@ -11,7 +11,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { OverflowText, Menu, MenuItem, MenuSeparator, Tooltip, Icon, createOverlayPortal, subscribeOverlayInteraction } from '@bitfun/ui';
+import { subscribeOverlayInteraction, createOverlayPortal, OverflowText, Menu, MenuItem, MenuList, MenuSeparator } from '@bitfun/ui';
+import { Tooltip, Icon } from '@bitfun/ui';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { useAnchoredPopoverPosition } from '@/shared/utils/useAnchoredPopoverPosition';
 import { activateMainSession } from '../../services/sessionActivation';
@@ -62,6 +63,7 @@ export const SessionMenu: React.FC<SessionMenuProps> = ({ onOpenChange }) => {
   }, [setOpen]);
 
   useEffect(() => {
+    let removeOverlayMousedown0: (() => void) | undefined;
     if (!isMenuOpen) return;
 
     const handleClickOutside = (e: MouseEvent) => {
@@ -72,13 +74,12 @@ export const SessionMenu: React.FC<SessionMenuProps> = ({ onOpenChange }) => {
       setOpen(false);
     };
 
-    let removeMousedown: (() => void) | undefined;
     const timer = setTimeout(() => {
-      removeMousedown = subscribeOverlayInteraction(dropdownRef, 'mousedown', handleClickOutside);
+      removeOverlayMousedown0 = subscribeOverlayInteraction(dropdownRef, 'mousedown', handleClickOutside);
     }, 0);
     return () => {
       clearTimeout(timer);
-      removeMousedown?.();
+      removeOverlayMousedown0?.();
     };
   }, [isMenuOpen, setOpen]);
 
@@ -131,7 +132,7 @@ export const SessionMenu: React.FC<SessionMenuProps> = ({ onOpenChange }) => {
           }}
           onMouseDown={(e) => e.stopPropagation()}
         >
-          <div className="bitfun-session-menu__actions" data-bitfun-component="session-menu" data-bitfun-part="actions">
+          <MenuList className="bitfun-session-menu__actions" data-bitfun-component="session-menu" data-bitfun-part="actions">
             <MenuItem data-overflow-trigger
               type="button"
               className="bitfun-session-menu__item-row bitfun-session-menu__item-row--new bitfun-session-menu__item--new"
@@ -146,7 +147,7 @@ export const SessionMenu: React.FC<SessionMenuProps> = ({ onOpenChange }) => {
               }}
               leading={(
                 <span className="bitfun-session-menu__item-icon" data-bitfun-component="session-menu" data-bitfun-part="itemIcon">
-                  <Icon name="plus" size="lg" style={{ width: 13, height: 13 }} />
+                  <Icon name="plus" size="sm" />
                 </span>
               )}
             >
@@ -155,35 +156,44 @@ export const SessionMenu: React.FC<SessionMenuProps> = ({ onOpenChange }) => {
               </OverflowText>
             </MenuItem>
             <MenuSeparator className="bitfun-session-menu__divider" data-bitfun-component="session-menu" data-bitfun-part="divider" />
-          </div>
+          </MenuList>
 
-          <div
+          <MenuList
             className="bitfun-session-menu__scroll"
             data-bitfun-component="session-menu"
             data-bitfun-part="scroll"
             aria-label={t('session.switchSession')}
           >
-            {sessions.map((session) => (
-              <MenuItem
-                key={session.sessionId}
-                type="button"
-                role="menuitemradio"
-                checked={session.sessionId === activeSessionId}
-                className={[
-                  'bitfun-session-menu__item-row',
-                  session.sessionId === activeSessionId ? 'bitfun-session-menu__item-row--active' : '',
-                ].filter(Boolean).join(' ')}
-                data-bitfun-component="session-menu"
-                data-bitfun-part="item"
-                data-bitfun-item-kind="session"
-                data-bitfun-state={session.sessionId === activeSessionId ? 'active' : undefined}
-                onMouseDown={(e) => switchSession(e, session.sessionId)}
-              >
-                <OverflowText>{resolveSessionTitle(session, t)}</OverflowText>
-                <SessionTitleNumber number={titleNumbers?.get(session.sessionId)} />
-              </MenuItem>
-            ))}
-          </div>
+            {sessions.map((session) => {
+              const titleNumber = titleNumbers?.get(session.sessionId);
+              return (
+                <MenuItem
+                  key={session.sessionId}
+                  type="button"
+                  role="menuitemradio"
+                  checked={session.sessionId === activeSessionId}
+                  className={[
+                    'bitfun-session-menu__item-row',
+                    session.sessionId === activeSessionId ? 'bitfun-session-menu__item-row--active' : '',
+                  ].filter(Boolean).join(' ')}
+                  data-bitfun-component="session-menu"
+                  data-bitfun-part="item"
+                  data-bitfun-item-kind="session"
+                  data-bitfun-state={session.sessionId === activeSessionId ? 'active' : undefined}
+                  // Root cause: the index used to be a MenuItem child, which ActionItem
+                  // nests inside the label's own overflow slot. That slot is a block box,
+                  // so a wider index wrapped onto its own line and jammed against the row
+                  // edge instead of holding a trailing column. The metadata prop renders it
+                  // in ActionItem's dedicated trailing slot (flex: 0 0 auto, nowrap), so the
+                  // menu reserves and aligns that space without pushing the label.
+                  metadata={titleNumber ? <SessionTitleNumber number={titleNumber} /> : undefined}
+                  onMouseDown={(e) => switchSession(e, session.sessionId)}
+                >
+                  <OverflowText>{resolveSessionTitle(session, t)}</OverflowText>
+                </MenuItem>
+              );
+            })}
+          </MenuList>
         </Menu>,
         getAppearanceOverlayHost(),
       )}

@@ -1226,7 +1226,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
 
   useSettingsDraft({
     id: 'acp-agent-config',
-    pageId: 'tools.acp',
+    pageId: 'tools.external-agents',
     viewId: activeView === 'json' && jsonDirty ? 'json' : undefined,
     label: activeView === 'json' && jsonDirty ? t('json.title') : t('title'),
     dirty: dirty || jsonDirty,
@@ -1683,6 +1683,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
           <FormSection
             headingAs="h3"
             title={t('registry.title')}
+            description={t('registry.description')}
             actions={(
               <ConfigRefreshButton
                 tooltip={t('actions.refresh')}

@@ -358,6 +358,7 @@ mod tests {
         };
 
         let snap = AppStateSnapshot {
+            observation_id: None,
             app: AppInfo {
                 name: "TestApp".to_string(),
                 bundle_id: None,

@@ -96,6 +96,7 @@ cargo test -p bitfun-services-core --no-default-features --features workspace-ru
 cargo test -p bitfun-services-core --no-default-features --features local-storage --test session_contracts session_metadata_contracts::
 cargo test -p bitfun-services-core --no-default-features --features local-storage --lib session::metadata
 cargo test -p bitfun-services-core --no-default-features --features local-storage --test session_write_lock_contracts
+cargo test -p bitfun-services-core --no-default-features --features local-storage --test exclusive_file_lease_contracts
 cargo test -p bitfun-services-core --no-default-features --features memory-store --lib memory_store::tests::
 cargo test -p bitfun-services-core --no-default-features --features token-usage-statistics --lib token_usage::
 cargo test -p bitfun-services-core --no-default-features --features process-runtime --test process_runtime_contracts
@@ -107,7 +108,24 @@ pnpm run check:core-boundaries
 Other capability-specific target names remain in `Cargo.toml`; document a new
 command here only when it becomes a recurring owner workflow.
 
+For workspace instruction family selection, non-empty fallback, and local/port
+resolution parity:
+
+```bash
+cargo test --locked -p bitfun-services-core --no-default-features --features workspace-instructions --test declarative_workspace_instruction_contracts
+cargo test --locked -p bitfun-services-core --no-default-features --features workspace-instructions,workspace-runtime --test workspace_instruction_contracts
+```
+
 ## Offline-compatible storage formats
+
+`session-recovery` owns offline migration-damaged session scanning, verified
+full-session backup, resumable repair and rollback. It reuses workspace identity
+and session metadata/index owners and never starts runtime or SSH connections.
+App hosts must stop data writers before calling its mutation entry points.
+
+```bash
+cargo test -p bitfun-services-core --no-default-features --features session-recovery --lib session_recovery
+```
 
 workspace-persistence owns workspace records and registry validation;
 coordination-store owns the durable coordination SQLite schema;

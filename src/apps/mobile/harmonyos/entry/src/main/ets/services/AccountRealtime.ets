@@ -2,9 +2,10 @@ import { webSocket } from '@kit.NetworkKit';
 import { RpcPayload } from './RpcPayload';
 import { EncryptedPayload } from '../model/RemoteModels';
 import { normalizeAccountRelayUrl } from './AccountDeviceLink';
+import { CLIENT_PROTOCOL_VERSION, clientVersion } from './ClientBuild';
 
 interface EngineOpen { sid: string; pingInterval: number; pingTimeout: number; }
-interface Auth { token: string; clientType: string; }
+interface Auth { token: string; clientType: string; clientVersion: string; clientProtocol: number; }
 interface RpcCall { method: string; params: Object; timeoutMs: number; }
 interface RpcResult { ok: boolean; result?: Object; error?: string; }
 interface PendingCall {
@@ -130,7 +131,12 @@ export class AccountRealtime {
       this.opened = true;
       this.idleMs = open.pingInterval + open.pingTimeout;
       this.armIdle(epoch);
-      const auth: Auth = { token: this.token, clientType: 'user-scoped' };
+      // The Relay reads this build from the handshake, not from the login row,
+    // when it gates device RPC between two clients.
+    const auth: Auth = {
+      token: this.token, clientType: 'user-scoped',
+      clientVersion: clientVersion(), clientProtocol: CLIENT_PROTOCOL_VERSION
+    };
       this.write(socket, epoch, `40${JSON.stringify(auth)}`);
     } else if (frame.startsWith('2')) {
       this.write(socket, epoch, `3${frame.substring(1)}`);

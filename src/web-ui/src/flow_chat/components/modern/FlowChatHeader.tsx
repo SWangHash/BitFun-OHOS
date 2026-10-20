@@ -6,7 +6,7 @@
 
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Keyboard, Square } from 'lucide-react';
-import { subscribeOverlayInteraction, createOverlayPortal, OverflowText, Icon, IconButton, Menu, MenuItem, SearchField, Switch, Tooltip } from '@bitfun/ui';
+import { subscribeOverlayInteraction, createOverlayPortal, OverflowText, Icon, IconButton, Menu, MenuItem, SearchField, Switch, ToolbarSeparator, Tooltip } from '@bitfun/ui';
 import { SceneChromeContribution } from '@/app/components/SceneTopBar/SceneChrome';
 import { useSceneChromeContext } from '@/app/components/SceneTopBar/sceneChromeContext';
 import { useTranslation } from 'react-i18next';
@@ -21,8 +21,6 @@ import {
   createReviewPlatformPullRequestDetailTab,
   createReviewPlatformTab,
 } from '@/shared/utils/tabUtils';
-import { openMigrationProgressPanel } from '@/features/qt-ohos-migration/services/openMigrationProgress';
-import { useMigrationProgressStore } from '@/features/qt-ohos-migration/store/useMigrationProgressStore';
 import './FlowChatHeader.scss';
 
 const PULL_REQUEST_OVERVIEW_LIMIT = 3;
@@ -262,8 +260,6 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
   }, []);
 
   useEffect(() => {
-    let removeOverlayMousedown0: (() => void) | undefined;
-    let removeOverlayKeydown1: (() => void) | undefined;
     if (!isSessionOverviewOpen) return;
 
     const handlePointerDown = (event: MouseEvent) => {
@@ -286,8 +282,8 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
       }
     };
 
-    removeOverlayMousedown0 = subscribeOverlayInteraction(sessionOverviewPanelRef, 'mousedown', handlePointerDown);
-    removeOverlayKeydown1 = subscribeOverlayInteraction(sessionOverviewPanelRef, 'keydown', handleKeyDown);
+    const removeOverlayMousedown0 = subscribeOverlayInteraction(sessionOverviewPanelRef, 'mousedown', handlePointerDown);
+    const removeOverlayKeydown1 = subscribeOverlayInteraction(sessionOverviewPanelRef, 'keydown', handleKeyDown);
 
     return () => {
       removeOverlayMousedown0?.();
@@ -395,20 +391,6 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
     closeSessionOverview(false);
   }, [closeSessionOverview, currentWorkspaceId, currentWorkspaceRootPath]);
 
-  const currentWorkspaceConnectionId = currentWorkspace?.connectionId;
-  // The migration panel exists only for a workspace holding `migration/ohos/STATE.md`
-  // (tracked by useMigrationAutoOpen), so its entry is offered only there.
-  const migrationAvailable = useMigrationProgressStore((state) => (
-    !!currentWorkspaceRootPath && state.ledgerWorkspaces.includes(currentWorkspaceRootPath)
-  ));
-  const handleOpenMigrationProgress = useCallback(() => {
-    openMigrationProgressPanel({
-      workspacePath: currentWorkspaceRootPath,
-      remoteConnectionId: currentWorkspaceConnectionId,
-    });
-    closeSessionOverview(false);
-  }, [closeSessionOverview, currentWorkspaceConnectionId, currentWorkspaceRootPath]);
-
   const handleOpenPullRequest = useCallback((pullRequest: ReviewPlatformPullRequest) => {
     if (!currentWorkspaceId) return;
     createReviewPlatformPullRequestDetailTab({
@@ -509,7 +491,7 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
             aria-label={t('flowChatHeader.backgroundCommandActions')}
             aria-haspopup="menu"
             aria-expanded={openBackgroundCommandMenuId === command.execSessionKey}
-            icon={<Icon name="more" size="lg" style={{ width: 13, height: 13 }} aria-hidden="true" />}
+            icon={<Icon name="more" size="sm" aria-hidden="true" />}
           />
         </Tooltip>
         {openBackgroundCommandMenuId === command.execSessionKey && backgroundCommandMenuPosition ? createOverlayPortal(
@@ -611,7 +593,7 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
   );
   const rightActions = (
     <div
-      className={`flowchat-header__actions${isSearchOpen ? ' flowchat-header__actions--searching' : ''}`}
+      className={`flowchat-header__actions${isSearchMode ? ' flowchat-header__actions--searching' : ''}`}
       data-bitfun-component="flow-chat-header"
       data-bitfun-part="actions"
     >
@@ -851,7 +833,7 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
                             disabled={displayBackgroundCommands.every(command => (
                               command.status !== 'running' || command.isStopping === true
                             ))}
-                            icon={<Icon name="more" size="lg" style={{ width: 13, height: 13 }} aria-hidden="true" />}
+                            icon={<Icon name="more" size="sm" aria-hidden="true" />}
                           />
                         </Tooltip>
                       ) : null}
@@ -1005,58 +987,39 @@ export const FlowChatHeader: React.FC<FlowChatHeaderProps> = ({
                           data-testid="flowchat-header-pull-request-item"
                         >
                           <OverflowText>#{pullRequest.number} {pullRequest.title}</OverflowText>
-                          <Icon name="chevron-right" size="lg" style={{ width: 13, height: 13 }} aria-hidden="true" />
+                          <Icon name="chevron-right" size="sm" aria-hidden="true" />
                         </button>
                       ))}
                     </div>
                   )}
                 </div>
-
-                {migrationAvailable && (
-                <div
-                  className="flowchat-header__session-overview-section flowchat-header__session-overview-section--migration"
-                  data-bitfun-component="flow-chat-header"
-                  data-bitfun-part="sessionOverviewItem"
-                  data-bitfun-state={currentWorkspaceRootPath ? undefined : 'unavailable'}
-                >
-                  <button data-overflow-trigger
-                    type="button"
-                    className="flowchat-header__session-overview-section-header flowchat-header__session-overview-section-header--action"
-                    onClick={handleOpenMigrationProgress}
-                    aria-label={t('flowChatHeader.migrationProgress')}
-                    disabled={!currentWorkspaceRootPath}
-                    data-testid="flowchat-header-migration-progress"
-                  >
-                    <OverflowText className="flowchat-header__session-overview-section-title">
-                      {t('flowChatHeader.migrationProgress')}
-                    </OverflowText>
-                  </button>
-                </div>
-                )}
               </div>
             </div>,
             getAppearanceOverlayHost(),
           )}
           </div>
         ) : null}
-        {!isSearchMode && onToggleRightPanel ? (
-          <Tooltip content={rightPanelLabel}>
-            <IconButton
-              className={[
-                'flowchat-header__right-panel-trigger',
-                isRightPanelOpen && 'flowchat-header__right-panel-trigger--active',
-              ].filter(Boolean).join(' ')}
-              data-bitfun-component="flow-chat-header"
-              data-bitfun-part="rightPanelTrigger"
-              data-bitfun-state={isRightPanelOpen ? 'open' : 'collapsed'}
-              size="xs"
-              onClick={onToggleRightPanel}
-              aria-label={rightPanelLabel}
-              aria-pressed={isRightPanelOpen}
-              data-testid="flowchat-header-right-panel"
-              icon={<Icon name="sidebar-right" size="sm" />}
-            />
-          </Tooltip>
+        {!sceneChrome && !isSearchMode && onToggleRightPanel ? (
+          <>
+            <ToolbarSeparator data-testid="flowchat-header-right-panel-separator" />
+            <Tooltip content={rightPanelLabel}>
+              <IconButton
+                className={[
+                  'flowchat-header__right-panel-trigger',
+                  isRightPanelOpen && 'flowchat-header__right-panel-trigger--active',
+                ].filter(Boolean).join(' ')}
+                data-bitfun-component="flow-chat-header"
+                data-bitfun-part="rightPanelTrigger"
+                data-bitfun-state={isRightPanelOpen ? 'open' : 'collapsed'}
+                size="xs"
+                onClick={onToggleRightPanel}
+                aria-label={rightPanelLabel}
+                aria-pressed={isRightPanelOpen}
+                data-testid="flowchat-header-right-panel"
+                icon={<Icon name="sidebar-right" size="sm" />}
+              />
+            </Tooltip>
+          </>
         ) : null}
       </div>
   );

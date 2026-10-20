@@ -12,7 +12,8 @@ import {
   Square as LucideSquare,
   X as LucideX,
 } from 'lucide-react';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { backgroundDeliveryFromMetadata, readBackgroundDelivery, suppressesBackgroundPresentation } from '../../../shared/background-delivery';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { MobileButton, MobileCard, MobileDisclosure, MobileMessage } from '@bitfun/ui/mobile';
 import { useI18n } from '../i18n';
 import type { ActiveTurnSnapshot, ChatMessage, ChatMessageItem, RemoteToolStatus } from '../services/RemoteSessionManager';
@@ -135,6 +136,7 @@ const TOOL_TYPE_MAP: Record<string, string> = {
 const TodoCard: React.FC<{ tool: RemoteToolStatus }> = ({ tool }) => {
   const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
+  const listId = useId();
 
   const todos: { id?: string; content: string; status: string }[] = useMemo(() => {
     const src = tool.tool_input;
@@ -164,7 +166,7 @@ const TodoCard: React.FC<{ tool: RemoteToolStatus }> = ({ tool }) => {
 
   return (
     <MobileCard padding="none" className="chat-todo-card">
-      <MobileButton appearance="plain" block className="chat-todo-card__header" onClick={() => setExpanded(!expanded)}>
+      <MobileButton appearance="plain" block className="chat-todo-card__header" aria-expanded={expanded} aria-controls={expanded ? listId : undefined} onClick={() => setExpanded(!expanded)}>
         <span className="chat-todo-card__icon">
           <LucideListTodo width="14" height="14" stroke="currentColor" aria-hidden="true" />
         </span>
@@ -172,9 +174,11 @@ const TodoCard: React.FC<{ tool: RemoteToolStatus }> = ({ tool }) => {
           <span className="chat-todo-card__current chat-todo-card__current--done">{t('chat.allTasksCompleted')}</span>
         ) : inProgress && !expanded ? (
           <span className="chat-todo-card__current">{inProgress.content}</span>
-        ) : null}
+        ) : (
+          <span className="chat-todo-card__current">{t('shared.tools.todo')}</span>
+        )}
         <span className="chat-todo-card__right">
-          <span className="chat-todo-card__dots">
+          <span className="chat-todo-card__dots" aria-hidden="true">
             {todos.map((t, i) => (
               <span key={t.id || i} className={`chat-todo-card__dot chat-todo-card__dot--${t.status}`} />
             ))}
@@ -186,7 +190,7 @@ const TodoCard: React.FC<{ tool: RemoteToolStatus }> = ({ tool }) => {
         </span>
       </MobileButton>
       {expanded && (
-        <div className="chat-todo-card__list">
+        <div id={listId} className="chat-todo-card__list">
           {todos.map((t, i) => (
             <div key={t.id || i} className={`chat-todo-card__item chat-todo-card__item--${t.status}`}>
               {statusIcon(t.status)}
@@ -200,7 +204,7 @@ const TodoCard: React.FC<{ tool: RemoteToolStatus }> = ({ tool }) => {
 };
 
 /**
- * Extract task description and agent type from execute_subagent tool data.
+ * Extract agent prompt and type from an agent launch tool.
  * Prefers tool_input (full JSON from backend), falls back to input_preview (truncated).
  */
 function parseTaskInfo(tool: RemoteToolStatus): { description?: string; agentType?: string } | null {
@@ -209,8 +213,8 @@ function parseTaskInfo(tool: RemoteToolStatus): { description?: string; agentTyp
   })();
   if (!source) return null;
   return {
-    description: source.description,
-    agentType: source.subagent_type,
+    description: source.description || source.prompt,
+    agentType: source.subagent_type || source.agent_type,
   };
 }
 
@@ -727,17 +731,16 @@ export const isPendingAskUserQuestion = (tool?: RemoteToolStatus | null) => {
 };
 
 /**
- * Collect subagent internal items into the Task item's subItems field.
- * When a Task tool appears, all subsequent items until the next non-subagent
- * item (or a completed Task) are its internal output. We attach them as
- * subItems on the Task ChatMessageItem for nested rendering.
+ * Collect subagent internal items into the agent launch item's subItems field.
+ * When an AgentSpawn (or legacy Task) tool appears, subsequent subagent items
+ * are attached for nested rendering.
  */
 function filterSubagentItems(items: ChatMessageItem[]): ChatMessageItem[] {
   const result: ChatMessageItem[] = [];
   let currentTaskItem: ChatMessageItem | null = null;
 
   for (const item of items) {
-    if (item.type === 'tool' && item.tool?.name === 'Task') {
+    if (item.type === 'tool' && ['Task', 'AgentSpawn'].includes(item.tool?.name ?? '')) {
       const taskCopy: ChatMessageItem = { ...item, subItems: [] };
       result.push(taskCopy);
       currentTaskItem = taskCopy;
@@ -876,12 +879,12 @@ function renderStandardGroups(
       const flushAll = () => { flushRead(); flushRegular(); };
 
       for (const entry of g.entries) {
-        if (entry.tool && entry.tool.name !== 'Task' && isToolAwaitingApproval(entry.tool)) {
+        if (entry.tool && !['Task', 'AgentSpawn'].includes(entry.tool.name) && isToolAwaitingApproval(entry.tool)) {
           flushAll();
           rendered.push(
             <ToolCard key={`${keyPrefix}-approval-${gi}-${rendered.length}`} tool={entry.tool} now={now} onApproveTool={onApproveTool} onRejectTool={onRejectTool} />,
           );
-        } else if (entry.tool?.name === 'Task') {
+        } else if (entry.tool && ['Task', 'AgentSpawn'].includes(entry.tool.name)) {
           flushAll();
           rendered.push(
             <TaskToolCard key={`${keyPrefix}-task-${gi}-${rendered.length}`} tool={entry.tool!} now={now} subItems={entry.subItems} onCancelTool={onCancelTool} onApproveTool={onApproveTool} onRejectTool={onRejectTool} />,
@@ -1002,6 +1005,15 @@ interface OptimisticMessage {
   images: Array<{ name: string; data_url: string }>;
 }
 
+function BackgroundExecutionReceipt({ completed, children }: { completed: boolean; children: React.ReactNode }) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  return <MobileDisclosure className="chat-background-run" open={open} onToggle={() => setOpen(value => !value)}
+    title={t(completed ? 'backgroundDelivery.quiet' : 'backgroundDelivery.running')}>
+    {open ? children : null}
+  </MobileDisclosure>;
+}
+
 interface ChatTranscriptProps {
   activeTurn: ActiveTurnSnapshot | null;
   expandedMessageIds: ReadonlySet<string>;
@@ -1060,7 +1072,11 @@ const ChatTranscript: React.FC<ChatTranscriptProps> = ({
     <>
       {messages.map((message, index) => {
         if (message.role === 'system' || message.role === 'tool') return null;
-
+        const delivery = backgroundDeliveryFromMetadata(message.metadata, message.turn_id ?? '');
+        const suppressed = suppressesBackgroundPresentation(delivery, message.status);
+        if (suppressed && message.role === 'user' && (activeTurn?.turn_id === message.turn_id
+          || messages.some(candidate => candidate.role === 'assistant' && candidate.turn_id === message.turn_id))) return null;
+        const content = (() => {
         if (message.role === 'user') {
           return (
             <MobileMessage
@@ -1155,9 +1171,21 @@ const ChatTranscript: React.FC<ChatTranscriptProps> = ({
             )}
           </MobileMessage>
         );
+        })();
+        return suppressed ? <BackgroundExecutionReceipt key={message.id} completed={['done','completed'].includes(message.status ?? '')}>
+          {message.role === 'assistant' ? <MobileMessage roleType="user"><MarkdownContent content={messages.find(candidate => candidate.role === 'user' && candidate.turn_id === message.turn_id)?.content ?? ''} onFileDownload={onFileDownload} onGetFileInfo={onGetFileInfo} /></MobileMessage> : null}
+          {content}
+        </BackgroundExecutionReceipt> : content;
       })}
 
       {activeTurn && (() => {
+        const user = messages.find(message => message.role === 'user' && message.turn_id === activeTurn.turn_id);
+        const delivery = readBackgroundDelivery(activeTurn.backgroundDelivery, activeTurn.turn_id)
+          ?? backgroundDeliveryFromMetadata(user?.metadata, activeTurn.turn_id);
+        const interaction = activeTurn.tools.some(tool => tool.status === 'pending_confirmation'
+          || (tool.name === 'AskUserQuestion' && !['completed','error','cancelled','rejected'].includes(tool.status)));
+        const suppressed = !interaction && suppressesBackgroundPresentation(delivery, activeTurn.status);
+        const content = (() => {
         const turnIsActive = activeTurn.status === 'active';
         if (activeTurn.items?.length) {
           const reconciledItems = reconcileOrderedItemsWithTools(activeTurn.items, activeTurn.tools);
@@ -1182,13 +1210,13 @@ const ChatTranscript: React.FC<ChatTranscriptProps> = ({
           );
         }
 
-        const taskTools = activeTurn.tools.filter((tool) => tool.name === 'Task');
+        const taskTools = activeTurn.tools.filter((tool) => ['Task', 'AgentSpawn'].includes(tool.name));
         const hasRunningSubagent = taskTools.some((tool) => tool.status === 'running');
         const askTools = activeTurn.tools.filter(
           (tool) => tool.name === 'AskUserQuestion' && tool.status === 'running' && tool.tool_input,
         );
         const askToolIds = new Set(askTools.map((tool) => tool.id));
-        const regularTools = activeTurn.tools.filter((tool) => tool.name !== 'Task' && !askToolIds.has(tool.id));
+        const regularTools = activeTurn.tools.filter((tool) => !['Task', 'AgentSpawn'].includes(tool.name) && !askToolIds.has(tool.id));
         const subItemsForTask: ChatMessageItem[] = hasRunningSubagent
           ? [
               ...(activeTurn.thinking ? [{ type: 'thinking' as const, content: activeTurn.thinking }] : []),
@@ -1233,6 +1261,11 @@ const ChatTranscript: React.FC<ChatTranscriptProps> = ({
             ) : null}
           </MobileMessage>
         );
+        })();
+        return suppressed ? <BackgroundExecutionReceipt completed={false}>
+          {user?.content ? <MarkdownContent content={user.content} onFileDownload={onFileDownload} onGetFileInfo={onGetFileInfo} /> : null}
+          {content}
+        </BackgroundExecutionReceipt> : content;
       })()}
 
       {optimisticMessage && (

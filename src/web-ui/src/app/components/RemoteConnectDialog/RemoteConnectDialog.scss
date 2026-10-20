@@ -1,13 +1,15 @@
+@use './remote-connect-surface' as surface;
+
 .bitfun-remote-connect-dialog {
-  block-size: min(620px, calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - var(--bitfun-viewport-host-chrome-inset-block-start)));
-  min-block-size: min(620px, calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - var(--bitfun-viewport-host-chrome-inset-block-start)));
-  max-block-size: min(620px, calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - var(--bitfun-viewport-host-chrome-inset-block-start)));
+  block-size: min(620px, calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter)));
+  min-block-size: min(620px, calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter)));
+  max-block-size: min(620px, calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter)));
 }
 
 .bitfun-remote-connect-dialog__header {
   position: absolute;
-  inset-block-start: 20px;
-  inset-inline-end: 20px;
+  inset-block-start: surface.$page-block-start;
+  inset-inline-end: var(--bitfun-space-6);
   z-index: 12;
   min-block-size: 0;
   padding: 0;
@@ -33,313 +35,6 @@
   color: var(--bitfun-color-content-secondary);
 }
 
-// ==================== Persistent context column ====================
-
-.bitfun-remote-connect__sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: var(--bitfun-space-6);
-  min-width: 0;
-  padding: var(--bitfun-space-8) var(--bitfun-space-4) var(--bitfun-space-5);
-  border-right: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
-  background: var(--bitfun-color-surface-panel);
-}
-
-.bitfun-remote-connect__sidebar-brand {
-  display: flex;
-  flex-direction: column;
-  gap: var(--bitfun-space-3);
-  padding-inline: var(--bitfun-space-3);
-}
-
-.bitfun-remote-connect__sidebar-icon {
-  display: inline-flex;
-  align-items: center;
-  color: var(--bitfun-color-content-secondary);
-}
-
-.bitfun-remote-connect__sidebar-title {
-  margin: 0;
-  color: var(--bitfun-color-content-primary);
-  font-size: var(--bitfun-type-heading-section-font-size);
-  font-weight: var(--bitfun-type-heading-section-font-weight);
-  line-height: var(--bitfun-type-heading-section-line-height);
-}
-
-.bitfun-remote-connect__title-extra {
-  margin-top: auto;
-  padding-inline: var(--bitfun-space-2);
-
-  button { color: var(--bitfun-color-content-muted); }
-}
-
-
-
-.bitfun-remote-connect__navigation {
-  display: flex;
-  flex-direction: column;
-  gap: var(--bitfun-space-1);
-}
-
-.bitfun-remote-connect__navigation-item {
-  display: flex;
-  align-items: center;
-  gap: var(--bitfun-space-3);
-  min-width: 0;
-  min-height: 40px;
-  padding: var(--bitfun-space-2) var(--bitfun-space-3);
-  border: 0;
-  border-radius: var(--bitfun-radius-base);
-  background: transparent;
-  color: var(--bitfun-color-content-secondary);
-  font-family: var(--bitfun-type-body-sm-font-family);
-  font-size: var(--bitfun-type-body-sm-font-size);
-  line-height: var(--bitfun-type-body-sm-line-height);
-  text-align: left;
-  cursor: pointer;
-
-  > span:first-child {
-    display: inline-flex;
-    flex-shrink: 0;
-    align-items: center;
-    justify-content: center;
-    width: 18px;
-    height: 18px;
-  }
-  > span:last-child { min-width: 0; white-space: nowrap; }
-  &[aria-current] {
-    background: var(--bitfun-color-action-neutral-surface);
-    color: var(--bitfun-color-content-primary);
-    font-weight: var(--bitfun-type-label-selected-font-weight);
-  }
-  &:hover { background: var(--bitfun-color-action-neutral-surface); }
-  &:active { background: var(--bitfun-color-action-neutral-surface-pressed); }
-  &:focus-visible {
-    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
-    outline-offset: 2px;
-  }
-}
-
-// ==================== Main work surface ====================
-
-.bitfun-remote-connect__main {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-  background: var(--bitfun-color-surface-panel);
-}
-
-// ==================== Overview ====================
-
-.bitfun-remote-connect__overview {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  flex-direction: column;
-  gap: var(--bitfun-space-8);
-  padding: var(--bitfun-space-8);
-}
-
-.bitfun-remote-connect__overview-section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--bitfun-space-3);
-}
-
-.bitfun-remote-connect__overview-section-heading {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--bitfun-space-2);
-}
-
-.bitfun-remote-connect__overview-section-title {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--bitfun-space-3);
-  margin: 0;
-  color: var(--bitfun-color-content-primary);
-  font-size: var(--bitfun-type-heading-section-font-size);
-  font-weight: var(--bitfun-type-label-selected-font-weight);
-  line-height: var(--bitfun-type-modifier-leading-ui-line-height);
-}
-
-.bitfun-remote-connect__overview-section-description {
-  margin: 0;
-  color: var(--bitfun-color-content-muted);
-  font-size: var(--bitfun-type-body-sm-font-size);
-  line-height: var(--bitfun-type-body-sm-line-height);
-}
-
-.bitfun-remote-connect__overview-actions {
-  overflow: hidden;
-  border: 0;
-  border-radius: var(--bitfun-layout-field-group-radius);
-  background: var(--bitfun-color-surface-tertiary);
-}
-
-.bitfun-remote-connect__overview-action {
-  width: 100%;
-  min-height: 84px;
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) auto 16px;
-  align-items: center;
-  gap: var(--bitfun-space-3);
-  padding: var(--bitfun-space-4);
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
-
-  & + & {
-    border-top: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
-  }
-
-  &:hover:not(:disabled) {
-    background: var(--bitfun-color-action-neutral-surface);
-
-    .bitfun-remote-connect__overview-action-chevron {
-      color: var(--bitfun-color-content-primary);
-    }
-  }
-
-  &:active:not(:disabled) {
-    background: var(--bitfun-color-action-neutral-surface-pressed);
-  }
-
-  &:focus-visible {
-    position: relative;
-    z-index: 1;
-    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
-    outline-offset: calc(0px - var(--bitfun-focus-width));
-    border-radius: var(--bitfun-radius-lg);
-  }
-
-  &:disabled {
-    cursor: not-allowed;
-    opacity: var(--bitfun-opacity-disabled);
-  }
-
-}
-
-.bitfun-remote-connect__overview-action-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  color: var(--bitfun-color-content-secondary);
-}
-
-.bitfun-remote-connect__overview-action-copy {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.bitfun-remote-connect__overview-action-title {
-  color: var(--bitfun-color-content-primary);
-  font-size: var(--bitfun-type-label-selected-font-size);
-  font-weight: var(--bitfun-type-label-selected-font-weight);
-  line-height: var(--bitfun-type-meta-line-height);
-}
-
-.bitfun-remote-connect__overview-action-description {
-  max-width: 410px;
-  color: var(--bitfun-color-content-muted);
-  font-size: var(--bitfun-type-body-sm-font-size);
-  line-height: var(--bitfun-type-support-line-height);
-}
-
-.bitfun-remote-connect__overview-action-status {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
-}
-
-.bitfun-remote-connect__overview-action-status-detail {
-  max-width: 150px;
-  overflow: hidden;
-  color: var(--bitfun-color-content-muted);
-  font-size: var(--bitfun-type-body-sm-font-size);
-  white-space: nowrap;
-}
-
-.bitfun-remote-connect__overview-action-chevron {
-  color: var(--bitfun-color-content-muted);
-  transition: color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
-}
-
-// ==================== Detail heading ====================
-
-.bitfun-remote-connect__view-header {
-  display: flex;
-  flex-shrink: 0;
-  flex-direction: column;
-  gap: var(--bitfun-space-4);
-  padding: var(--bitfun-space-8) var(--bitfun-space-8) 0;
-}
-
-.bitfun-remote-connect__back {
-  display: none;
-  align-self: flex-start;
-}
-
-.bitfun-remote-connect__view-page-header {
-  max-width: 560px;
-  padding-inline-end: var(--bitfun-space-8);
-
-  [data-bitfun-part='heading'] {
-    font-size: var(--bitfun-type-heading-dialog-font-size);
-    line-height: var(--bitfun-type-heading-dialog-line-height);
-  }
-  [data-bitfun-part='description'] {
-    max-width: 56ch;
-    color: var(--bitfun-color-content-secondary);
-  }
-}
-
-// ==================== Method / provider selectors ====================
-
-.bitfun-remote-connect__subtabs {
-  flex-shrink: 0;
-  margin: var(--bitfun-space-5) var(--bitfun-space-8) 0;
-  max-width: 100%;
-}
-
-.bitfun-remote-connect__tab-group {
-  max-width: 100%;
-}
-
-.bitfun-remote-connect__tab-label {
-  display: inline-flex;
-  min-width: 0;
-  align-items: center;
-  gap: var(--bitfun-space-1);
-}
-
-.bitfun-remote-connect__tab-brand {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  color: currentColor;
-}
-
-.bitfun-remote-connect__dot-sm {
-  width: 5px;
-  height: 5px;
-  flex-shrink: 0;
-  border-radius: var(--bitfun-radius-pill);
-  background: var(--bitfun-color-status-success-content);
-}
-
 .bitfun-remote-connect__visually-hidden {
   position: absolute;
   width: 1px;
@@ -350,11 +45,191 @@
   white-space: nowrap;
 }
 
-// ==================== Detail panels ====================
+// ==================== Sidebar ====================
+
+.bitfun-remote-connect__sidebar {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--bitfun-space-5);
+  padding: surface.$page-block-start var(--bitfun-space-3) var(--bitfun-space-4);
+  border-inline-end: surface.$divider;
+  background: var(--bitfun-color-surface-panel);
+}
+
+.bitfun-remote-connect__sidebar-brand {
+  display: flex;
+  min-width: 0;
+  min-block-size: 30px;
+  align-items: center;
+  gap: var(--bitfun-space-2);
+  padding-inline: var(--bitfun-space-3);
+}
+
+.bitfun-remote-connect__sidebar-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--bitfun-color-content-primary);
+}
+
+.bitfun-remote-connect__sidebar-title {
+  @include surface.section-title;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.bitfun-remote-connect__navigation {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bitfun-space-1);
+}
+
+.bitfun-remote-connect__navigation-item {
+  display: flex;
+  min-width: 0;
+  min-height: 36px;
+  align-items: center;
+  gap: var(--bitfun-space-2);
+  padding: 0 var(--bitfun-space-3);
+  border: 0;
+  border-radius: var(--bitfun-radius-base);
+  background: transparent;
+  color: var(--bitfun-color-content-secondary);
+  font-family: var(--bitfun-type-body-sm-font-family);
+  font-size: var(--bitfun-type-body-sm-font-size);
+  font-weight: var(--bitfun-type-body-sm-font-weight);
+  line-height: var(--bitfun-type-modifier-leading-ui-line-height);
+  text-align: start;
+  cursor: pointer;
+  transition: background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+
+  &:hover {
+    background: var(--bitfun-color-action-neutral-surface);
+    color: var(--bitfun-color-content-primary);
+  }
+
+  &:active {
+    background: var(--bitfun-color-action-neutral-surface-pressed);
+  }
+
+  &:focus-visible {
+    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+    outline-offset: calc(0px - var(--bitfun-focus-width));
+  }
+
+  &[aria-current] {
+    background: var(--bitfun-color-action-neutral-surface);
+    color: var(--bitfun-color-content-primary);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+  }
+}
+
+.bitfun-remote-connect__navigation-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  inline-size: 16px;
+  block-size: 16px;
+}
+
+.bitfun-remote-connect__navigation-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bitfun-remote-connect__sidebar-footer {
+  margin-top: auto;
+  padding-inline: var(--bitfun-space-1);
+
+  .bitfun-remote-connect__disclaimer-trigger {
+    color: var(--bitfun-color-content-muted);
+
+    &:hover {
+      color: var(--bitfun-color-content-primary);
+    }
+  }
+}
+
+// ==================== Main surface ====================
+
+.bitfun-remote-connect__main {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bitfun-color-surface-panel);
+}
+
+.bitfun-remote-connect__view-header {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: var(--bitfun-space-3);
+  padding: surface.$page-block-start surface.$page-inline 0;
+}
+
+.bitfun-remote-connect__back {
+  display: none;
+  align-self: flex-start;
+}
+
+.bitfun-remote-connect__view-page-header {
+  max-width: 600px;
+  padding-inline-end: var(--bitfun-space-10);
+
+  [data-bitfun-part='heading'] {
+    @include surface.page-title;
+  }
+
+  [data-bitfun-part='description'] {
+    max-width: 60ch;
+    color: var(--bitfun-color-content-secondary);
+  }
+}
+
+.bitfun-remote-connect__subtabs {
+  display: flex;
+  flex-shrink: 0;
+  max-width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--bitfun-space-2);
+  margin: var(--bitfun-space-5) surface.$page-inline 0;
+}
+
+.bitfun-remote-connect__tab-group {
+  max-width: 100%;
+}
+
+.bitfun-remote-connect__subtabs-hint {
+  @include surface.supporting-text;
+}
+
+.bitfun-remote-connect__tab-marker {
+  display: inline-flex;
+  align-items: center;
+  margin-inline-start: var(--bitfun-space-1);
+}
+
+.bitfun-remote-connect__dot-sm {
+  inline-size: 6px;
+  block-size: 6px;
+  flex-shrink: 0;
+  border-radius: var(--bitfun-radius-pill);
+  background: var(--bitfun-color-status-success-content);
+}
 
 .bitfun-remote-connect [data-bitfun-part='panel'] {
   flex: 1;
   min-height: 0;
+}
+
+.bitfun-remote-connect [data-bitfun-part='panel'][data-bitfun-group='account'] {
+  display: flex;
 }
 
 .bitfun-remote-connect [data-bitfun-part='panel'] > [role='tabpanel'] {
@@ -366,143 +241,362 @@
 .bitfun-remote-connect__body {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
   gap: var(--bitfun-space-4);
-  padding: var(--bitfun-space-5) var(--bitfun-space-8) var(--bitfun-space-8);
+  padding: var(--bitfun-space-5) surface.$page-inline surface.$page-block-start;
 }
 
-.bitfun-remote-connect__network-card {
-  overflow: hidden;
-  border-radius: var(--bitfun-layout-field-group-radius);
-  background: var(--bitfun-color-surface-tertiary);
-}
+// ==================== Overview ====================
 
-.bitfun-remote-connect__network-heading {
+.bitfun-remote-connect__overview {
   display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: surface.$section-gap;
+  padding: surface.$page-content-gap surface.$page-inline surface.$page-block-start;
+
+  > * {
+    flex-shrink: 0;
+  }
+}
+
+.bitfun-remote-connect__overview-section {
+  @include surface.section;
+}
+
+.bitfun-remote-connect__overview-section-heading {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--bitfun-space-1);
+}
+
+.bitfun-remote-connect__overview-section-title {
+  @include surface.section-title;
+}
+
+.bitfun-remote-connect__overview-section-description {
+  @include surface.supporting-text;
+}
+
+.bitfun-remote-connect__overview-actions {
+  @include surface.card;
+}
+
+.bitfun-remote-connect__overview-action {
+  display: grid;
+  width: 100%;
+  min-height: 72px;
+  grid-template-columns: surface.$icon-slot minmax(0, 1fr) auto 16px;
   align-items: center;
-  gap: var(--bitfun-space-3);
-  padding: var(--bitfun-space-4);
-  color: var(--bitfun-color-content-secondary);
+  gap: surface.$row-gap;
+  padding: surface.$row-block surface.$row-inline;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
 
-  h3 {
-    margin: 0;
+  & + & {
+    @include surface.card-divider;
+  }
+
+  &:hover:not(:disabled) .bitfun-remote-connect__overview-action-chevron {
     color: var(--bitfun-color-content-primary);
-    font-size: var(--bitfun-type-body-md-font-size);
-    font-weight: var(--bitfun-type-label-selected-font-weight);
-    line-height: var(--bitfun-type-body-md-line-height);
   }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: var(--bitfun-opacity-disabled);
+  }
+
+  @include surface.interactive-row;
 }
 
-.bitfun-remote-connect__network-description {
-  padding: var(--bitfun-space-3) var(--bitfun-space-5) var(--bitfun-space-4);
+.bitfun-remote-connect__overview-action-icon {
+  @include surface.icon-slot;
 }
 
-.bitfun-remote-connect__network-settings {
+.bitfun-remote-connect__overview-action-copy {
+  @include surface.row-copy;
+}
+
+.bitfun-remote-connect__overview-action-title {
+  @include surface.row-title;
+}
+
+.bitfun-remote-connect__overview-action-description {
+  @include surface.supporting-text;
+  max-width: 420px;
+}
+
+.bitfun-remote-connect__overview-action-status {
+  @include surface.row-trailing;
+  justify-content: flex-end;
+}
+
+.bitfun-remote-connect__overview-action-status-detail {
+  @include surface.supporting-text;
+  max-width: 180px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.bitfun-remote-connect__overview-action-chevron {
+  @include surface.chevron;
+  transition: color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+}
+
+// ==================== Cards ====================
+
+.bitfun-remote-connect__network-card,
+.bitfun-remote-connect__bot-card {
+  @include surface.card;
+}
+
+.bitfun-remote-connect__card-header,
+.bitfun-remote-connect__bot-identity {
+  @include surface.card-row;
+}
+
+.bitfun-remote-connect__card-header-icon {
+  @include surface.icon-slot;
+}
+
+.bitfun-remote-connect__bot-identity-icon {
+  @include surface.icon-slot;
+  color: var(--bitfun-color-content-primary);
+}
+
+.bitfun-remote-connect__card-header-copy,
+.bitfun-remote-connect__bot-identity-copy {
+  @include surface.row-copy;
+}
+
+.bitfun-remote-connect__card-header-title,
+.bitfun-remote-connect__bot-identity-title {
+  @include surface.row-title;
+}
+
+.bitfun-remote-connect__card-header-description,
+.bitfun-remote-connect__bot-identity-description {
+  @include surface.supporting-text;
+  max-width: 480px;
+}
+
+.bitfun-remote-connect__status {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.bitfun-remote-connect__card-section {
   display: flex;
+  min-width: 0;
   flex-direction: column;
-  gap: var(--bitfun-space-3);
-  padding: var(--bitfun-space-4);
-  border-top: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
-
-  &:empty {
-    display: none;
-  }
-
-  .bitfun-remote-connect__info-meta-group {
-    margin: 0;
-    padding: 0;
-    border: 0;
-  }
-}
-
-.bitfun-remote-connect__network-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--bitfun-space-3);
-  padding: var(--bitfun-space-4);
-  border-top: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
-}
-
-.bitfun-remote-connect__primary-action {
-  align-self: flex-start;
-  max-width: 100%;
-}
-
-// ==================== QR / pairing ====================
-
-.bitfun-remote-connect__body--pairing {
   gap: var(--bitfun-space-4);
+  padding: surface.$row-block surface.$row-inline;
+  @include surface.card-divider;
 }
+
+.bitfun-remote-connect__card-actions {
+  @include surface.action-bar;
+}
+
+.bitfun-remote-connect__setting-row {
+  @include surface.card-row;
+  @include surface.card-divider;
+  justify-content: space-between;
+}
+
+.bitfun-remote-connect__setting-copy {
+  @include surface.row-copy;
+}
+
+.bitfun-remote-connect__setting-title {
+  @include surface.row-title;
+}
+
+.bitfun-remote-connect__setting-description {
+  @include surface.supporting-text;
+}
+
+.bitfun-remote-connect__notice {
+  @include surface.notice;
+
+  > p {
+    margin: 0;
+  }
+}
+
+.bitfun-remote-connect__error-group {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--bitfun-space-2);
+  padding: var(--bitfun-space-3) var(--bitfun-space-4);
+  border-radius: var(--bitfun-radius-base);
+  background: var(--bitfun-color-status-danger-surface);
+
+  > [data-bitfun-component='icon'] {
+    margin-top: 2px;
+  }
+}
+
+.bitfun-remote-connect__error {
+  margin: 0;
+  color: var(--bitfun-color-status-danger-content);
+  font-family: var(--bitfun-type-body-sm-font-family);
+  font-size: var(--bitfun-type-body-sm-font-size);
+  line-height: var(--bitfun-type-body-sm-line-height);
+  overflow-wrap: anywhere;
+}
+
+.bitfun-remote-connect__hint {
+  @include surface.supporting-text;
+}
+
+.bitfun-remote-connect__field {
+  width: 100%;
+  max-width: none;
+}
+
+.bitfun-remote-connect__field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--bitfun-space-3) var(--bitfun-space-4);
+}
+
+// ==================== Setup steps ====================
+
+.bitfun-remote-connect__setup {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--bitfun-space-3);
+}
+
+.bitfun-remote-connect__setup-heading {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--bitfun-space-2);
+}
+
+.bitfun-remote-connect__setup-title {
+  @include surface.label-text;
+  margin: 0;
+}
+
+.bitfun-remote-connect__steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bitfun-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bitfun-remote-connect__step {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--bitfun-space-3);
+  color: var(--bitfun-color-content-secondary);
+  font-family: var(--bitfun-type-body-sm-font-family);
+  font-size: var(--bitfun-type-body-sm-font-size);
+  line-height: var(--bitfun-type-body-sm-line-height);
+}
+
+.bitfun-remote-connect__step-index {
+  display: inline-flex;
+  inline-size: 20px;
+  block-size: 20px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--bitfun-radius-pill);
+  background: var(--bitfun-color-action-neutral-surface);
+  color: var(--bitfun-color-content-primary);
+  font-family: var(--bitfun-type-micro-font-family);
+  font-size: var(--bitfun-type-micro-font-size);
+  font-weight: var(--bitfun-type-label-selected-font-weight);
+  line-height: var(--bitfun-type-modifier-leading-none-line-height);
+  font-variant-numeric: tabular-nums;
+}
+
+.bitfun-remote-connect__step-text {
+  min-width: 0;
+  padding-top: 1px;
+  overflow-wrap: anywhere;
+}
+
+.bitfun-remote-connect__inline-link {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--bitfun-color-link-default);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--bitfun-color-link-hover);
+  }
+
+  &:focus-visible {
+    border-radius: var(--bitfun-radius-xs);
+    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+    outline-offset: 2px;
+  }
+}
+
+// ==================== Pairing ====================
 
 .bitfun-remote-connect__pairing-card {
   display: grid;
-  grid-template-columns: 204px minmax(0, 1fr);
-  gap: var(--bitfun-space-4);
   min-width: 0;
-  padding: var(--bitfun-space-4);
-  border-radius: var(--bitfun-layout-field-group-radius);
-  background: var(--bitfun-color-surface-tertiary);
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--bitfun-space-5);
 
   &--compact {
     grid-template-columns: minmax(0, 1fr);
-    justify-items: center;
-    gap: var(--bitfun-space-4);
-    padding: var(--bitfun-space-6);
-    text-align: center;
 
-    .bitfun-remote-connect__pairing-visual {
-      padding: 0;
-    }
-
-    .bitfun-remote-connect__pairing-details {
-      align-items: center;
-      gap: var(--bitfun-space-3);
-      padding: 0;
-    }
-
-    .bitfun-remote-connect__pairing-status {
-      align-self: center;
-      margin: 0;
-    }
-
-    .bitfun-remote-connect__hint {
-      max-width: 36ch;
-      color: var(--bitfun-color-content-secondary);
+    &:has(> .bitfun-remote-connect__pairing-visual) {
+      grid-template-columns: auto minmax(0, 1fr);
     }
   }
 }
 
 .bitfun-remote-connect__pairing-visual {
   display: flex;
-  flex-direction: column;
-  gap: var(--bitfun-space-3);
-  align-items: center;
-  justify-content: center;
   min-width: 0;
-  padding: var(--bitfun-space-2) 0;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--bitfun-space-3);
 }
 
 .bitfun-remote-connect__qr-box {
-  appearance: none;
-  width: 170px;
-  height: 170px;
   display: flex;
+  inline-size: 168px;
+  block-size: 168px;
+  appearance: none;
   align-items: center;
   justify-content: center;
   padding: 6px;
-  border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+  border: surface.$divider;
   border-radius: var(--bitfun-radius-lg);
   background: var(--bitfun-color-content-on-dark);
   cursor: pointer;
-  transition: border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard), transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  transition: border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
   &:hover {
-    border-color: color-mix(
-      in srgb,
-      var(--bitfun-color-accent-default) 40%,
-      var(--bitfun-color-border-subtle)
-    );
+    border-color: var(--bitfun-color-border-default);
   }
 
   &:focus-visible {
@@ -516,69 +610,15 @@
   }
 }
 
-.bitfun-remote-connect__pairing-details {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  justify-content: center;
-  padding: var(--bitfun-space-4);
-}
-
-.bitfun-remote-connect__pairing-status {
-  display: flex;
-  align-self: flex-start;
-  max-width: 100%;
-  margin-bottom: var(--bitfun-space-4);
-}
-
-.bitfun-remote-connect__pairing-label {
-  margin-bottom: var(--bitfun-space-1);
-  color: var(--bitfun-color-content-muted);
-  font-size: var(--bitfun-type-body-sm-font-size);
-  line-height: var(--bitfun-type-body-sm-line-height);
-}
-
-.bitfun-remote-connect__pairing-url-row {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--bitfun-space-2);
-  width: 100%;
-  min-width: 0;
-
-  > button { flex-shrink: 0; }
-}
-
-.bitfun-remote-connect__pairing-url {
-  flex: 1;
-  min-width: 0;
-  overflow-wrap: anywhere;
-  user-select: text;
-  color: var(--bitfun-color-content-primary);
-  font-size: var(--bitfun-type-body-sm-font-size);
-  line-height: var(--bitfun-type-body-sm-line-height);
-}
-
-.bitfun-remote-connect__pairing-instruction {
-  margin: var(--bitfun-space-4) 0 0;
-  color: var(--bitfun-color-content-secondary);
-  font-size: var(--bitfun-type-body-sm-font-size);
-  line-height: var(--bitfun-type-body-sm-line-height);
-}
-
-.bitfun-remote-connect__pairing-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
 .bitfun-remote-connect__pairing-code {
   max-width: 100%;
   padding: var(--bitfun-space-3) var(--bitfun-space-5);
-  border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+  border: surface.$divider;
   border-radius: var(--bitfun-radius-base);
   background: var(--bitfun-color-surface-canvas);
   color: var(--bitfun-color-content-primary);
   font-family: var(--bitfun-type-code-md-font-family);
-  font-size: var(--bitfun-type-flow-section-title-font-size);
+  font-size: var(--bitfun-type-heading-dialog-font-size);
   font-weight: var(--bitfun-type-label-selected-font-weight);
   line-height: var(--bitfun-type-heading-dialog-line-height);
   font-variant-numeric: tabular-nums;
@@ -586,574 +626,309 @@
   user-select: all;
 }
 
-// ==================== Bot setup card ====================
-
-.bitfun-remote-connect__body--bot {
-  padding-top: var(--bitfun-space-5);
-}
-
-.bitfun-remote-connect__bot-card {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border: 0;
-  border-radius: var(--bitfun-layout-field-group-radius);
-  background: var(--bitfun-color-surface-tertiary);
-}
-
-.bitfun-remote-connect__bot-identity {
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
-  align-items: center;
-  gap: var(--bitfun-space-2) var(--bitfun-space-3);
-  padding: var(--bitfun-space-4);
-  border-bottom: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
-}
-
-.bitfun-remote-connect__bot-identity-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  grid-row: 1 / 3;
-  color: var(--bitfun-color-content-secondary);
-}
-
-.bitfun-remote-connect__bot-identity-title {
-  margin: 0;
-  color: var(--bitfun-color-content-primary);
-  font-size: var(--bitfun-type-body-md-font-size);
-  font-weight: var(--bitfun-type-label-selected-font-weight);
-  line-height: var(--bitfun-type-body-md-line-height);
-}
-
-.bitfun-remote-connect__bot-identity-description {
-  margin: 0;
-  grid-column: 2;
-  color: var(--bitfun-color-content-muted);
-  font-size: var(--bitfun-type-body-sm-font-size);
-  line-height: var(--bitfun-type-body-lg-line-height);
-}
-
-.bitfun-remote-connect__bot-setup {
+.bitfun-remote-connect__pairing-details {
   display: flex;
   min-width: 0;
-  flex-direction: column;
-  gap: var(--bitfun-space-4);
-  padding: var(--bitfun-space-4);
-
-  > .bitfun-remote-connect__primary-action {
-    align-self: flex-start;
-  }
-}
-
-.bitfun-remote-connect__bot-guide {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--bitfun-space-4);
-
-  .bitfun-remote-connect__info-card {
-    max-width: none;
-    padding: 0;
-    border: 0;
-    background: transparent;
-  }
-
-  .bitfun-remote-connect__field {
-    max-width: none;
-  }
-
-  > .bitfun-remote-connect__primary-action {
-    align-self: flex-start;
-  }
-}
-
-.bitfun-remote-connect__info-text + .bitfun-remote-connect__steps {
-  margin-top: var(--bitfun-space-3);
-}
-
-.bitfun-remote-connect__steps {
-  display: flex;
-  width: 100%;
-  flex-direction: column;
-  gap: var(--bitfun-space-3);
-}
-
-.bitfun-remote-connect__step {
-  display: grid;
-  width: 100%;
-  grid-template-columns: 22px minmax(0, 1fr);
-  align-items: start;
-  gap: var(--bitfun-space-3);
-  margin: 0;
-  color: var(--bitfun-color-content-secondary);
-  font-size: var(--bitfun-type-body-sm-font-size);
-  line-height: var(--bitfun-type-body-lg-line-height);
-  text-align: left;
-}
-
-.bitfun-remote-connect__step-index {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: var(--bitfun-radius-pill);
-  background: var(--bitfun-color-action-neutral-surface);
-  color: var(--bitfun-color-content-secondary);
-  font-size: var(--bitfun-type-micro-font-size);
-  font-weight: var(--bitfun-type-heading-page-font-weight);
-  line-height: var(--bitfun-type-modifier-leading-none-line-height);
-}
-
-// ==================== Shared detail primitives ====================
-
-.bitfun-remote-connect__info-card {
-  width: 100%;
-  max-width: none;
-  margin: 0;
-  padding: var(--bitfun-space-4);
-  box-sizing: border-box;
-  border: 0;
-  border-radius: var(--bitfun-layout-field-group-radius);
-  background: var(--bitfun-color-surface-tertiary);
-}
-
-.bitfun-remote-connect__info-text,
-.bitfun-remote-connect__info-meta {
-  margin: 0;
-  color: var(--bitfun-color-content-muted);
-  font-size: var(--bitfun-type-body-sm-font-size);
-  line-height: var(--bitfun-type-body-lg-line-height);
-  text-align: left;
-}
-
-.bitfun-remote-connect__info-meta-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 12px;
-  padding-bottom: 12px;
-  border-bottom: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
-}
-
-.bitfun-remote-connect__lan-ip-select {
-  display: flex;
-  align-items: center;
-  gap: var(--bitfun-space-3);
-}
-
-.bitfun-remote-connect__info-meta-label {
-  color: var(--bitfun-color-content-muted);
-  font-size: var(--bitfun-type-body-sm-font-size);
-  white-space: nowrap;
-}
-
-.bitfun-remote-connect__lan-ip-dropdown {
-  flex: 1;
-  min-width: 0;
-}
-
-.bitfun-remote-connect__description-link,
-.bitfun-remote-connect__step-link {
-  color: var(--bitfun-color-content-secondary);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  cursor: pointer;
-  transition: color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
-
-  &:hover {
-    color: var(--bitfun-color-content-primary);
-  }
-
-  &:focus-visible {
-    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
-    outline-offset: 2px;
-    border-radius: var(--bitfun-radius-xs);
-  }
-}
-
-.bitfun-remote-connect__field {
-  width: 100%;
-  max-width: none;
-
-  &--inline {
-    max-width: none;
-  }
-}
-
-.bitfun-remote-connect__input {
-  width: 100%;
-}
-
-.bitfun-remote-connect__status {
-  display: flex;
-  align-items: center;
-  gap: var(--bitfun-space-3);
-}
-
-.bitfun-remote-connect__peer-username {
-  color: var(--bitfun-color-content-secondary);
-  font-size: var(--bitfun-type-body-sm-font-size);
-}
-
-.bitfun-remote-connect__connected {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--bitfun-space-4);
-  margin: 20px 32px 28px;
-  padding: var(--bitfun-space-5);
-  border: 0;
-  border-radius: var(--bitfun-layout-field-group-radius);
-  background: var(--bitfun-color-surface-tertiary);
-}
-
-.bitfun-remote-connect__connected > button {
-  align-self: flex-start;
-}
-
-.bitfun-remote-connect__connected > .bitfun-remote-connect__hint {
-  text-align: left;
-}
-
-.bitfun-remote-connect__connected--bot {
-  align-items: stretch;
-  gap: 0;
-  overflow: hidden;
-  padding: 0;
-  background: var(--bitfun-color-surface-tertiary);
-}
-
-.bitfun-remote-connect__connected-app {
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--bitfun-space-4);
-  padding: 20px;
-  border-bottom: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
-}
-
-.bitfun-remote-connect__connected-app-icon {
-  width: 32px;
-  height: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--bitfun-color-content-primary);
-}
-
-.bitfun-remote-connect__connected-app-copy {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--bitfun-space-1);
-
-  strong {
-    color: var(--bitfun-color-content-primary);
-    font-size: var(--bitfun-type-body-md-font-size);
-    font-weight: var(--bitfun-type-label-selected-font-weight);
-    line-height: var(--bitfun-type-modifier-leading-ui-line-height);
-  }
-
-  > span {
-    max-width: 470px;
-    color: var(--bitfun-color-content-muted);
-    font-size: var(--bitfun-type-body-sm-font-size);
-    line-height: var(--bitfun-type-body-sm-line-height);
-  }
-}
-
-.bitfun-remote-connect__connected-notice {
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr);
-  align-items: start;
-  gap: var(--bitfun-space-3);
-  margin: 16px 20px 0;
-  padding: 13px 14px;
-  border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
-  border-radius: var(--bitfun-radius-base);
-  background: var(--bitfun-color-surface-subtle);
-  color: var(--bitfun-color-content-muted);
-
-  svg {
-    margin-top: 2px;
-  }
-
-  p {
-    margin: 0;
-    font-size: var(--bitfun-type-body-sm-font-size);
-    line-height: var(--bitfun-type-body-lg-line-height);
-  }
-}
-
-.bitfun-remote-connect__connected-setting {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--bitfun-space-3);
-  padding: var(--bitfun-space-4);
-  border-bottom: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
-}
-
-.bitfun-remote-connect__connected-actions {
-  display: flex;
-  justify-content: flex-end;
-  padding: 14px 20px 20px;
-}
-
-.bitfun-remote-connect__hint,
-.bitfun-remote-connect__description {
-  width: 100%;
-  max-width: 480px;
-  margin: 0;
-  color: var(--bitfun-color-content-muted);
-  font-size: var(--bitfun-type-body-sm-font-size);
-  line-height: var(--bitfun-type-body-lg-line-height);
-}
-
-.bitfun-remote-connect__hint {
-  text-align: center;
-}
-
-.bitfun-remote-connect__description {
-  text-align: left;
-}
-
-.bitfun-remote-connect__error {
-  margin: 0;
-  color: var(--bitfun-color-status-danger-content);
-  font-size: var(--bitfun-type-body-sm-font-size);
-  line-height: var(--bitfun-type-body-sm-line-height);
-  overflow-wrap: anywhere;
-  text-align: left;
-}
-
-.bitfun-remote-connect__error-group {
-  display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: var(--bitfun-space-2);
-  padding: var(--bitfun-space-3) var(--bitfun-space-4);
-  border-radius: var(--bitfun-radius-base);
-  background: var(--bitfun-color-status-danger-surface);
 }
 
-.bitfun-remote-connect__mode-setting {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--bitfun-space-2);
-  color: var(--bitfun-color-content-muted);
-  font-family:var(--bitfun-type-body-sm-font-family);
-  font-size: var(--bitfun-type-body-sm-font-size);
+.bitfun-remote-connect__pairing-status {
+  display: flex;
+  max-width: 100%;
+  margin-bottom: var(--bitfun-space-2);
+}
 
-  > span[data-active='true'] {
-    color: var(--bitfun-color-content-primary);
-    font-weight: var(--bitfun-type-label-selected-font-weight);
+.bitfun-remote-connect__pairing-label {
+  @include surface.label-text;
+}
+
+.bitfun-remote-connect__pairing-url-row {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: flex-start;
+  gap: var(--bitfun-space-2);
+
+  > button {
+    flex-shrink: 0;
   }
 }
 
-.bitfun-remote-connect__mode-divider {
-  color: var(--bitfun-color-border-default);
+.bitfun-remote-connect__pairing-url {
+  flex: 1;
+  min-width: 0;
+  padding-top: var(--bitfun-space-1);
+  color: var(--bitfun-color-content-primary);
+  font-family: var(--bitfun-type-code-md-font-family);
+  font-size: var(--bitfun-type-code-md-font-size);
+  line-height: var(--bitfun-type-code-md-line-height);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.bitfun-remote-connect__pairing-instruction {
+  @include surface.supporting-text;
+}
+
+// ==================== Weixin login ====================
+
+.bitfun-remote-connect__weixin-login {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--bitfun-space-5);
+
+  &--progress {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .bitfun-remote-connect__weixin-qr {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: var(--bitfun-space-3);
-  margin-top: 4px;
-  text-align: center;
-}
-
-.bitfun-remote-connect__weixin-progress {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--bitfun-space-2);
-  max-width: 100%;
-
-  .bitfun-remote-connect__hint {
-    margin: 0;
-  }
-}
-
-.bitfun-remote-connect__weixin-verify {
-  display: flex;
-  width: 100%;
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--bitfun-space-3);
+  justify-content: center;
 }
 
 .bitfun-remote-connect__weixin-qr-img {
   display: block;
-  max-width: 180px;
+  max-width: 168px;
   height: auto;
-  margin: 0 auto;
-  border-radius: var(--bitfun-radius-base);
+  border-radius: var(--bitfun-radius-lg);
 }
 
 .bitfun-remote-connect__weixin-qr-svg-wrap {
-  display: inline-block;
-  margin: 0 auto;
-  padding: 8px;
-  border-radius: var(--bitfun-radius-base);
+  display: inline-flex;
+  padding: 2px;
+  border: surface.$divider;
+  border-radius: var(--bitfun-radius-lg);
   background: var(--bitfun-color-content-on-dark);
-  box-sizing: border-box;
 
   svg {
     display: block;
-    vertical-align: top;
   }
 }
 
-// ==================== Responsive containment ====================
-
-@media (max-width: 760px) {
-  .bitfun-remote-connect-dialog {
-    block-size: calc(100dvh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - var(--bitfun-viewport-host-chrome-inset-block-start));
-    min-block-size: calc(100dvh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - var(--bitfun-viewport-host-chrome-inset-block-start));
-    max-block-size: calc(100dvh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - var(--bitfun-viewport-host-chrome-inset-block-start));
-  }
-  .bitfun-remote-connect { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
-  .bitfun-remote-connect__sidebar {
-    flex-direction: row;
-    align-items: center;
-    gap: var(--bitfun-space-2);
-    padding: var(--bitfun-space-4) 56px var(--bitfun-space-4) var(--bitfun-space-5);
-    border-right: 0;
-    border-bottom: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
-  }
-  .bitfun-remote-connect__sidebar-brand { flex-direction: row; align-items: center; gap: var(--bitfun-space-2); padding: 0; }
-  .bitfun-remote-connect__sidebar-icon { display: none; }
-  .bitfun-remote-connect__sidebar-title { font-size: var(--bitfun-type-body-md-font-size); }
-  .bitfun-remote-connect__navigation { display: none; }
-  .bitfun-remote-connect__title-extra { margin: 0 0 0 auto; padding: 0; }
-  .bitfun-remote-connect__overview { padding: var(--bitfun-space-5); gap: var(--bitfun-space-6); }
-  .bitfun-remote-connect__overview-action { grid-template-columns: 24px minmax(0, 1fr) 16px; padding: var(--bitfun-space-4); }
-  .bitfun-remote-connect__overview-action-status { grid-column: 2; align-items: flex-start; flex-direction: row; flex-wrap: wrap; }
-  .bitfun-remote-connect__overview-action-chevron { grid-column: 3; grid-row: 1 / 3; }
-  .bitfun-remote-connect__view-header { padding: var(--bitfun-space-5) var(--bitfun-space-5) 0; }
-  .bitfun-remote-connect__back { display: inline-flex; }
-  .bitfun-remote-connect__view-page-header { padding: 0; }
-  .bitfun-remote-connect__subtabs { margin-inline: var(--bitfun-space-5); }
-  .bitfun-remote-connect__body { padding: var(--bitfun-space-5); }
-  .bitfun-remote-connect__pairing-card { grid-template-columns: minmax(0, 1fr); gap: var(--bitfun-space-3); }
-  .bitfun-remote-connect__pairing-visual { padding-top: var(--bitfun-space-3); }
-  .bitfun-remote-connect__connected { margin: var(--bitfun-space-5); }
-  .bitfun-remote-connect__connected-app { grid-template-columns: 24px minmax(0, 1fr); }
-  .bitfun-remote-connect__connected-app .bitfun-remote-connect__status { grid-column: 2; justify-self: start; }
+.bitfun-remote-connect__weixin-progress {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--bitfun-space-2);
 }
 
-@media (max-width: 380px) {
-  .bitfun-remote-connect__overview,
-  .bitfun-remote-connect__body { padding-inline: var(--bitfun-space-4); }
-  .bitfun-remote-connect__view-header { padding-inline: var(--bitfun-space-4); }
-  .bitfun-remote-connect__subtabs { margin-inline: var(--bitfun-space-4); }
-  .bitfun-remote-connect__tab-brand { display: none; }
-  .bitfun-remote-connect__sidebar { padding-inline-start: var(--bitfun-space-4); }
-}
+// ==================== Connected clients ====================
 
-@media (prefers-reduced-motion: reduce) {
-  .bitfun-remote-connect__overview-action,
-  .bitfun-remote-connect__overview-action-chevron,
-  .bitfun-remote-connect__qr-box {
-    transition: none;
-  }
-}
-
-.bitfun-remote-connect__relay-card > .bitfun-remote-connect__network-heading {
-  padding-bottom: var(--bitfun-space-4);
-}
-
-.bitfun-remote-connect__relay-settings {
-  padding: 0 var(--bitfun-space-4) var(--bitfun-space-4);
-}
-
-.bitfun-remote-connect__connections-content {
-  padding: var(--bitfun-space-4);
-  border-top: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+.bitfun-remote-connect__connections {
+  gap: var(--bitfun-space-2);
 }
 
 .bitfun-remote-connect__connections-heading {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-start;
   gap: var(--bitfun-space-2);
+}
 
-  h4 {
-    margin: 0;
-    color: var(--bitfun-color-content-secondary);
-    font-size: var(--bitfun-type-body-sm-font-size);
-    font-weight: var(--bitfun-type-label-selected-font-weight);
-    line-height: var(--bitfun-type-body-sm-line-height);
-  }
+.bitfun-remote-connect__connections-title {
+  @include surface.label-text;
+  margin: 0;
+}
+
+.bitfun-remote-connect__connections-count {
+  display: inline-flex;
+  min-inline-size: 20px;
+  block-size: 20px;
+  align-items: center;
+  justify-content: center;
+  padding-inline: var(--bitfun-space-1);
+  border-radius: var(--bitfun-radius-pill);
+  background: var(--bitfun-color-action-neutral-surface);
+  color: var(--bitfun-color-content-primary);
+  font-family: var(--bitfun-type-meta-font-family);
+  font-size: var(--bitfun-type-meta-font-size);
+  font-weight: var(--bitfun-type-label-selected-font-weight);
+  line-height: var(--bitfun-type-modifier-leading-none-line-height);
+  font-variant-numeric: tabular-nums;
 }
 
 .bitfun-remote-connect__connections-list {
-  list-style: none;
+  display: flex;
+  max-height: 168px;
+  flex-direction: column;
+  margin: 0;
   padding: 0;
-  margin: var(--bitfun-space-2) 0 0;
-  max-height: 132px;
   overflow-y: auto;
+  list-style: none;
+}
 
-  li {
-    display: flex;
-    align-items: center;
-    gap: var(--bitfun-space-3);
-    padding-block: var(--bitfun-space-2);
-    color: var(--bitfun-color-content-secondary);
-    font-size: var(--bitfun-type-body-sm-font-size);
-    line-height: var(--bitfun-type-body-sm-line-height);
-  }
+.bitfun-remote-connect__client {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: surface.$row-gap;
+  padding-block: var(--bitfun-space-2);
 
-  strong {
-    flex: 1;
-    min-width: 0;
-    overflow-wrap: anywhere;
-    color: var(--bitfun-color-content-primary);
-    font-weight: var(--bitfun-type-label-selected-font-weight);
+  & + & {
+    @include surface.card-divider;
   }
 }
 
-.bitfun-remote-connect__connections-note {
-  margin: var(--bitfun-space-2) 0 0;
-  color: var(--bitfun-color-content-secondary);
+.bitfun-remote-connect__client-icon {
+  @include surface.icon-slot;
+}
+
+.bitfun-remote-connect__client-name {
+  flex: 1;
+  min-width: 0;
+  color: var(--bitfun-color-content-primary);
+  font-family: var(--bitfun-type-body-sm-font-family);
   font-size: var(--bitfun-type-body-sm-font-size);
   line-height: var(--bitfun-type-body-sm-line-height);
+  overflow-wrap: anywhere;
 }
 
-.bitfun-remote-connect__relay-actions {
-  padding: var(--bitfun-space-4);
-  border-top: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+.bitfun-remote-connect__client-meta {
+  @include surface.supporting-text;
+  flex-shrink: 0;
 }
 
-.bitfun-remote-connect__relay-action-row {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--bitfun-space-3);
+.bitfun-remote-connect__connections-empty {
+  @include surface.supporting-text;
 }
 
-.bitfun-remote-connect__relay-invitation {
-  padding: var(--bitfun-space-4);
-  border-top: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+// ==================== Responsive ====================
 
-  .bitfun-remote-connect__pairing-card {
-    margin: 0;
+@media (max-width: 760px) {
+  .bitfun-remote-connect-dialog {
+    block-size: calc(100dvh - 2 * var(--bitfun-overlay-dialog-viewport-gutter));
+    min-block-size: calc(100dvh - 2 * var(--bitfun-overlay-dialog-viewport-gutter));
+    max-block-size: calc(100dvh - 2 * var(--bitfun-overlay-dialog-viewport-gutter));
+  }
+
+  .bitfun-remote-connect-dialog__header {
+    inset-block-start: var(--bitfun-space-3);
+    inset-inline-end: var(--bitfun-space-4);
+  }
+
+  .bitfun-remote-connect {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .bitfun-remote-connect__sidebar {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--bitfun-space-2);
+    padding: var(--bitfun-space-3) var(--bitfun-space-12) var(--bitfun-space-3) var(--bitfun-space-2);
+    border-inline-end: 0;
+    border-block-end: surface.$divider;
+  }
+
+  .bitfun-remote-connect__navigation {
+    display: none;
+  }
+
+  .bitfun-remote-connect__sidebar-footer {
+    margin: 0 0 0 auto;
     padding: 0;
-    background: transparent;
+  }
+
+  .bitfun-remote-connect__view-header {
+    padding: var(--bitfun-space-5) surface.$page-inline-compact 0;
+  }
+
+  .bitfun-remote-connect__back {
+    display: inline-flex;
+  }
+
+  .bitfun-remote-connect__view-page-header {
+    padding-inline-end: 0;
+  }
+
+  .bitfun-remote-connect__subtabs {
+    margin-inline: surface.$page-inline-compact;
+  }
+
+  .bitfun-remote-connect__overview {
+    padding: var(--bitfun-space-5) surface.$page-inline-compact;
+  }
+
+  .bitfun-remote-connect__body {
+    padding: var(--bitfun-space-5) surface.$page-inline-compact;
+  }
+
+  .bitfun-remote-connect__overview-action {
+    grid-template-columns: surface.$icon-slot minmax(0, 1fr) 16px;
+  }
+
+  .bitfun-remote-connect__overview-action-status {
+    flex-wrap: wrap;
+    grid-column: 2;
+    justify-content: flex-start;
+  }
+
+  .bitfun-remote-connect__overview-action-chevron {
+    grid-column: 3;
+    grid-row: 1 / 3;
+  }
+
+  .bitfun-remote-connect__card-header,
+  .bitfun-remote-connect__bot-identity {
+    flex-wrap: wrap;
+  }
+
+  .bitfun-remote-connect__card-header .bitfun-remote-connect__status,
+  .bitfun-remote-connect__bot-identity .bitfun-remote-connect__status {
+    margin-inline-start: calc(surface.$icon-slot + surface.$row-gap);
+  }
+
+  .bitfun-remote-connect__pairing-card,
+  .bitfun-remote-connect__pairing-card--compact:has(> .bitfun-remote-connect__pairing-visual),
+  .bitfun-remote-connect__weixin-login,
+  .bitfun-remote-connect__field-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .bitfun-remote-connect__pairing-visual,
+  .bitfun-remote-connect__weixin-qr {
+    align-items: flex-start;
+    justify-content: flex-start;
   }
 }
 
-.bitfun-remote-connect [data-bitfun-part='panel'][data-bitfun-group='account'] { display: flex; }
+@media (max-width: 380px) {
+  .bitfun-remote-connect__view-header {
+    padding-inline: surface.$page-inline-narrow;
+  }
 
-.bitfun-remote-connect__relay-invitation {
-  .bitfun-remote-connect__pairing-visual,
-  .bitfun-remote-connect__pairing-details { padding: 0; }
+  .bitfun-remote-connect__subtabs {
+    margin-inline: surface.$page-inline-narrow;
+  }
+
+  .bitfun-remote-connect__overview,
+  .bitfun-remote-connect__body {
+    padding-inline: surface.$page-inline-narrow;
+  }
+
+  .bitfun-remote-connect__overview-action,
+  .bitfun-remote-connect__card-header,
+  .bitfun-remote-connect__bot-identity,
+  .bitfun-remote-connect__card-section,
+  .bitfun-remote-connect__setting-row {
+    padding-inline: var(--bitfun-space-4);
+  }
+
+  .bitfun-remote-connect__card-actions {
+    padding-inline: var(--bitfun-space-4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bitfun-remote-connect__navigation-item,
+  .bitfun-remote-connect__overview-action-chevron,
+  .bitfun-remote-connect__qr-box {
+    transition: none;
+  }
 }

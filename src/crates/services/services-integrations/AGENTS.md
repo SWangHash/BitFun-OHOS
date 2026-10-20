@@ -28,6 +28,20 @@ slices that are outside pure product logic but still platform-neutral.
   orchestration ports, LAN endpoint helpers, IM bot provider clients,
   provider-private cursor caches, mobile-web relay upload, image-context adapter
   contracts, remote workspace helpers, and command/response assembly.
+- `remote_connect::host_stream` is the host-side owner of on-demand session,
+  terminal and catalog streams: an in-memory, byte-bounded per-stream log with
+  an epoch, `read_stream`/`unsubscribe_stream` handling, and `HostStreamNotifier`
+  hint leases. `remote_connect::host_stream_subscriber` is the Rust controller
+  reader. Neither the relay nor any client persists stream content; do not add
+  relay-stored history, `get_session_key`, or a durable stream cache here.
+- Session history reads use `HostStreamHub::read_history` with a Core-owned
+  source loader. Backfill allocates decreasing JS-safe sequences below the
+  live sequence range; it never advances the forward cursor. One source gate
+  orders backfill, live publication, and history invalidation. Undo/import and
+  cache misses across evicted pages require an epoch fence, never silent skips.
+  Only the requested page's bodies enter the bounded log; the pending source
+  batch is at most one persisted turn, which can itself be large. No wire or
+  persisted-format migration is required; all controllers retain `read_stream`.
 - The `remote-persistence` feature is the lightweight persisted-shape owner shared
   by Remote Connect, remote SSH, and offline migration. Keep it free of network,
   SSH transport, and runtime orchestration dependencies so owner readers and
@@ -117,6 +131,7 @@ streamable HTTP stay independent. Representative stable entry points are:
 
 ```bash
 cargo check -p bitfun-services-integrations --no-default-features
+cargo test -p bitfun-services-integrations --no-default-features --features browser-control --lib browser_control::cdp::tests::
 cargo test -p bitfun-services-integrations --no-default-features --features remote-persistence --lib remote_persistence::tests::
 cargo test -p bitfun-services-integrations --no-default-features --features mcp --test mcp_contracts
 cargo test -p bitfun-services-integrations --no-default-features --features mcp --test mcp_streamable_http_contracts
@@ -124,9 +139,10 @@ cargo test -p bitfun-services-integrations --no-default-features --features remo
 cargo test -p bitfun-services-integrations --no-default-features --features remote-ssh-concrete --lib remote_ssh::manager::tests::workspace_
 cargo test -p bitfun-services-integrations --no-default-features --features remote-ssh-concrete --lib remote_ssh::wsl::tests::
 cargo test --locked -p bitfun-services-integrations --no-default-features --features remote-ssh-concrete --lib remote_ssh::relay_deploy::tests::
+cargo test --locked -p bitfun-services-integrations --no-default-features --features remote-connect --lib remote_connect::account::tests
 cargo test --locked -p bitfun-services-integrations --no-default-features --features remote-connect --lib remote_connect::relay_client::tests::
-cargo test --locked -p bitfun-services-integrations --no-default-features --features remote-connect --lib remote_connect::session_log::tests::
-cargo test --locked -p bitfun-services-integrations --no-default-features --features remote-connect --lib remote_connect::session_subscriber::tests::
+cargo test --locked -p bitfun-services-integrations --no-default-features --features remote-connect --lib remote_connect::host_stream::tests::
+cargo test --locked -p bitfun-services-integrations --no-default-features --features remote-connect --lib remote_connect::host_stream_subscriber::tests::
 cargo test -p bitfun-services-integrations --no-default-features --features file-watch --test file_watch_contracts
 cargo test --locked -p bitfun-services-integrations --no-default-features --features workspace-search --test workspace_search_contracts
 cargo test --locked -p bitfun-services-integrations --no-default-features --features deep-research --lib deep_research::tests::
@@ -160,6 +176,12 @@ advertise a small handle limit and are included in the existing CI
 the same command with the filter ending in
 `workspace_sftp::openssh_real_files_over_loopback_ssh -- --ignored`.
 
+For directory symlink browsing and workspace-path validation, use the same
+package/features with `--lib directory_symlink_browsing -- --include-ignored`
+and `BITFUN_TEST_SFTP_SERVER` set. This runs real OpenSSH SFTP over loopback
+and the Docker command adapter against a local POSIX shell fixture; the latter
+does not establish real Docker-daemon or Windows WSL coverage.
+
 For the remote Flashgrep distribution gate and retained protocol helpers, use:
 
 ```bash
@@ -178,3 +200,18 @@ cargo test --locked -p bitfun-services-integrations --no-default-features --feat
 For HarmonyOS, add --target aarch64-unknown-linux-ohos and use a configured
 HarmonyOS runner. With no runner, --no-run verifies compilation and linking
 only; do not report that as executed regression tests.
+
+For SkillHub search, authentication, archive validation and installation, use:
+
+```bash
+cargo test --locked -p bitfun-services-integrations --no-default-features --features skillhub --lib skillhub::tests
+```
+
+These loopback protocol fixtures exercise the serving host's HTTP and filesystem
+behavior; they do not establish real SSH, relay, peer or dispatch support.
+
+For models.dev snapshot reuse, last-valid recovery, and background refresh:
+
+```bash
+cargo test --locked -p bitfun-services-integrations --no-default-features --features models-dev --lib models_dev::tests
+```

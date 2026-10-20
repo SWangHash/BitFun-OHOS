@@ -12,10 +12,11 @@ import { Icon, Tooltip } from '@bitfun/ui';
 
 export interface EmptyStateProps {
   onClose?: () => void;
+  toolbarActions?: React.ReactNode;
   children?: React.ReactNode;
 }
 
-export const EmptyState: React.FC<EmptyStateProps> = ({ onClose, children }) => {
+export const EmptyState: React.FC<EmptyStateProps> = ({ onClose, toolbarActions, children }) => {
   const { t } = useTranslation('components');
   const hasEmbeddedContent = children !== undefined && children !== null;
 
@@ -26,9 +27,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onClose, children }) => 
 
   return (
     <div data-bitfun-component="content-canvas" data-bitfun-part="empty" data-bitfun-state="empty" className="canvas-empty-state">
-      {onClose && (
+      {(toolbarActions !== undefined || onClose) && (
         <div className="canvas-empty-state__toolbar" data-bitfun-component="content-canvas" data-bitfun-part="emptyToolbar">
-          <Tooltip content={t('tabs.close')}>
+          {toolbarActions !== undefined ? toolbarActions : <Tooltip content={t('tabs.close')}>
             <button
               className="canvas-empty-state__close-btn"
               data-testid="canvas-empty-close-btn"
@@ -36,7 +37,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onClose, children }) => 
             >
               <Icon name="xmark" size="sm" />
             </button>
-          </Tooltip>
+          </Tooltip>}
         </div>
       )}
       <div

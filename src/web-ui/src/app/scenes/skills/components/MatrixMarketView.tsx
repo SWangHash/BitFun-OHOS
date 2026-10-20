@@ -1,6 +1,6 @@
 import React from 'react';
 import { ScrollArea } from '@bitfun/ui';
-import { CheckCircle2, ChevronDown, ChevronUp, Download, Loader2, Package, TrendingUp } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ChevronUp, Download, Loader2, Package } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type {
   MatrixCategoryItem,
@@ -408,11 +408,11 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
 
       <ScrollArea ref={setContentScrollRoot} className="skills-discover__content">
         {skillsLoading && (
-          <div className="skills-discover__grid" aria-busy="true" aria-label={t('list.loading')}>
+          <div className="skills-main__grid" aria-busy="true" aria-label={t('list.loading')}>
             {Array.from({ length: 12 }).map((_, i) => (
               <div
                 key={`mtx-sk-${i}`}
-                className="skills-discover__skeleton-card"
+                className="skills-card-skeleton"
                 style={{ '--surface-stagger-index': i } as React.CSSProperties}
               />
             ))}
@@ -420,14 +420,14 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
         )}
 
         {!skillsLoading && skillsError && (
-          <div className="skills-discover__empty skills-discover__empty--error">
+          <div className="skills-main__empty skills-main__empty--error">
             <Package size={28} strokeWidth={1.5} />
             <span>{t(skillsError)}</span>
           </div>
         )}
 
         {!skillsLoading && !skillsError && skills.length === 0 && (
-          <div className="skills-discover__empty" data-testid="matrix-skill-list-empty">
+          <div className="skills-main__empty" data-testid="matrix-skill-list-empty">
             <Package size={28} strokeWidth={1.5} />
             <span>{t('matrix.empty.noSkills')}</span>
           </div>
@@ -435,7 +435,7 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
 
         {!skillsLoading && !skillsError && skills.length > 0 && (
           <>
-            <div className="skills-discover__grid" data-testid="matrix-skill-list">
+            <div className="skills-main__grid" data-testid="matrix-skill-list">
               {skills.map((skill) => {
                 const isInstalled = installedEnNames.has(skill.enName);
                 const isInstalling = installingEnName === skill.enName;
@@ -449,16 +449,9 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
                     name={skill.name || skill.enName}
                     description={skill.description ?? ''}
                     iconKind="market"
-                    meta={(
-                      <span className="skills-card__count">
-                        <TrendingUp size={12} />
-                        {skill.download ?? 0}
-                      </span>
-                    )}
-                    actions={[{
-                      id: 'install',
+                    action={{
                       icon: isInstalled ? <CheckCircle2 size={13} /> : <Download size={13} />,
-                      ariaLabel: isInstalled ? t('matrix.item.installed') : t('market.item.downloadProject'),
+                      label: isInstalled ? t('matrix.item.installed') : t('market.item.downloadProject'),
                       title: isInstalling
                         ? t('matrix.item.installing')
                         : isInstalled
@@ -466,15 +459,15 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
                           : (!hasWorkspace || isAssistantWorkspace)
                             ? t('messages.noWorkspace')
                             : t('market.item.downloadProject'),
+                      loading: isInstalling,
                       disabled:
                         isInstalling
                         || isInstalled
                         || !hasWorkspace
                         || isRemoteWorkspace
                         || isAssistantWorkspace,
-                      tone: isInstalled ? 'success' : 'primary',
                       onClick: () => void onInstall(skill, 'project'),
-                    }]}
+                    }}
                     onOpenDetails={() => onOpenDetails(skill)}
                   />
                 );

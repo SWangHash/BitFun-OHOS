@@ -1,26 +1,78 @@
 /* Export image styling aligned with FlowChat theme variables. */
+@use '../../transcript-layout' as transcriptLayout;
 
 // Export wrapper
 .export-image-wrapper {
   overflow: visible;
 }
 
-.export-image-menu {
-  position: fixed;
-  z-index: var(--bitfun-layer-popover);
+.export-image-options {
+  display: grid;
+  inline-size: calc(448px + var(--bitfun-space-3));
+  max-inline-size: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 168px;
+  gap: var(--bitfun-space-3);
+  margin-inline: auto;
+}
+
+.export-image-option-content {
+  justify-content: center;
+  gap: var(--bitfun-space-1);
+}
+
+.export-image-option-card {
+  min-block-size: 0;
+  cursor: pointer;
+  transition: background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+
+  @media (hover: hover) {
+    &:hover {
+      background: var(--bitfun-color-action-neutral-surface-hover);
+    }
+  }
+
+  &:has(:focus-visible) {
+    background: var(--bitfun-color-action-neutral-surface-hover);
+  }
+
+  &:active {
+    background: var(--bitfun-color-action-neutral-surface-pressed);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}
+
+.export-image-preview {
+  display: block;
+  inline-size: 100%;
+  block-size: 104px;
+  flex-shrink: 0;
+  color: var(--bitfun-color-content-secondary);
+}
+
+.export-image-option-label {
+  color: var(--bitfun-color-content-primary);
+  font-family: var(--bitfun-type-label-md-font-family);
+  font-size: var(--bitfun-type-label-md-font-size);
+  font-weight: var(--bitfun-type-label-md-font-weight);
+  line-height: var(--bitfun-type-label-md-line-height);
+  letter-spacing: var(--bitfun-type-label-md-letter-spacing);
+  text-align: center;
 }
 
 // Export content container
 .export-content {
-  /* Width is set dynamically in JS to match the live chat pane width.
-     Padding matches ModelRoundItem (3rem ≈ 48px each side) so the
-     effective content width is identical to the live chat. */
-  padding: 24px 48px;
+  @include transcriptLayout.content-column;
+
+  // Preserve the transcript inset while adding quiet framing above/below.
+  padding-block: var(--bitfun-space-6);
   background: var(--bitfun-color-surface-scene);
   box-sizing: border-box;
-  font-family:var(--bitfun-type-body-sm-font-family);
-  /* Use a fixed 800px layout context so text wraps at exactly the same
-     width regardless of the wrapper's position or viewport. */
+  font-family: var(--bitfun-type-body-sm-font-family);
+  // The capture wrapper sets the live pane width for container-aware text layout.
   container-type: inline-size;
 
   /* Prevent unwanted wrapping of short inline text */
@@ -30,7 +82,6 @@
   [data-bitfun-component='flow-chat-tool-card'][data-bitfun-part='content'],
   [data-bitfun-component='flow-chat-tool-card'][data-bitfun-part='extra'],
   .export-content__title,
-  .export-content__subtitle,
   .export-content__timestamp,
   .export-content__footer span,
   .export-content__footer-brand {
@@ -64,17 +115,13 @@
   &__header {
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin-bottom: 20px;
-    padding-bottom: 16px;
-    border-bottom: 1px solid var(--bitfun-color-border-default);
+    gap: var(--bitfun-space-2);
+    margin-block-end: var(--bitfun-space-8);
   }
 
   &__logo {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    object-fit: contain;
+    inline-size: var(--bitfun-space-6);
+    block-size: var(--bitfun-space-6);
     flex-shrink: 0;
   }
 
@@ -87,29 +134,24 @@
     display: block;
   }
 
-  &__title-group {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    flex-shrink: 0;
-  }
-
   &__title {
-    font-size: var(--bitfun-type-flow-title-font-size);
+    font-family: var(--bitfun-type-label-md-font-family);
+    font-size: var(--bitfun-type-label-md-font-size);
     font-weight: var(--bitfun-type-label-selected-font-weight);
+    line-height: var(--bitfun-type-label-md-line-height);
+    letter-spacing: var(--bitfun-type-label-md-letter-spacing);
     color: var(--bitfun-color-content-primary);
     display: inline-block;
   }
 
-  &__subtitle {
-    font-size: var(--bitfun-type-flow-support-font-size);
-    color: var(--bitfun-color-content-muted);
-    display: inline-block;
-  }
-
   &__timestamp {
-    margin-left: auto;
-    font-size: var(--bitfun-type-flow-support-font-size);
+    margin-inline-start: auto;
+    font-family: var(--bitfun-type-flow-meta-font-family);
+    font-size: var(--bitfun-type-flow-meta-font-size);
+    font-weight: var(--bitfun-type-flow-meta-font-weight);
+    line-height: var(--bitfun-type-flow-meta-line-height);
+    letter-spacing: var(--bitfun-type-flow-meta-letter-spacing);
+    font-variant-numeric: tabular-nums;
     color: var(--bitfun-color-content-muted);
     display: inline-block;
     flex-shrink: 0;
@@ -117,26 +159,32 @@
 
   // ===== User message =====
   &__user-section {
-    margin-bottom: 16px;
+    margin-block-end: var(--bitfun-space-6);
   }
 
   &__user-bubble {
-    background: var(--bitfun-color-action-neutral-surface-hover);
-    border: 1px solid var(--bitfun-color-border-default);
-    border-radius: 12px;
-    padding: 14px 16px;
-    font-size: var(--bitfun-type-body-md-font-size);
+    inline-size: fit-content;
+    max-inline-size: var(--bitfun-control-flow-chat-user-message-max-width);
+    margin-inline: auto 0;
+    padding: var(--bitfun-control-flow-chat-user-message-padding-block) var(--bitfun-control-flow-chat-user-message-radius);
+    border: none;
+    border-radius: var(--bitfun-control-flow-chat-user-message-radius);
+    background: var(--bitfun-color-action-quiet-hover);
+    font-family: var(--bitfun-type-flow-control-font-family);
+    font-size: var(--bitfun-type-flow-control-font-size);
+    font-weight: var(--bitfun-type-flow-control-font-weight);
     line-height: var(--bitfun-type-flow-body-line-height);
+    letter-spacing: var(--bitfun-type-flow-control-letter-spacing);
     color: var(--bitfun-color-content-primary);
     white-space: pre-wrap !important;
     word-break: break-word;
-    word-wrap: break-word;
     overflow-wrap: break-word;
+    box-sizing: border-box;
   }
 
   // ===== AI response =====
   &__ai-section {
-    margin-bottom: 16px;
+    min-inline-size: 0;
   }
 
   &__model-round {
@@ -189,14 +237,18 @@
 
   // ===== Footer =====
   &__footer {
-    margin-top: 20px;
-    padding-top: 14px;
-    border-top: 1px solid var(--bitfun-color-border-default);
+    margin-block-start: var(--bitfun-space-8);
+    padding-block-start: var(--bitfun-space-4);
+    border-block-start: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    font-size: var(--bitfun-type-flow-support-font-size);
+    gap: var(--bitfun-space-1);
+    font-family: var(--bitfun-type-flow-meta-font-family);
+    font-size: var(--bitfun-type-flow-meta-font-size);
+    font-weight: var(--bitfun-type-flow-meta-font-weight);
+    line-height: var(--bitfun-type-flow-meta-line-height);
+    letter-spacing: var(--bitfun-type-flow-meta-letter-spacing);
     color: var(--bitfun-color-content-muted);
     white-space: nowrap;
     
@@ -208,8 +260,7 @@
   }
 
   &__footer-brand {
-    font-weight: var(--bitfun-type-label-selected-font-weight);
-    color: var(--bitfun-color-content-secondary);
+    color: inherit;
     white-space: nowrap;
   }
 }

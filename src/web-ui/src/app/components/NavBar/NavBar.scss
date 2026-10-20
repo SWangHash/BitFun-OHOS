@@ -1,6 +1,6 @@
 /**
- * Compact navigation chrome. Buttons share one geometry and only animate the
- * press response; panel and history changes themselves remain immediate.
+ * Compact navigation chrome. Fullscreen moves the controls as one group;
+ * panel and history changes themselves remain immediate.
  */
 @use '../../styles/workspace-shell-surfaces' as shell-surfaces;
 
@@ -27,6 +27,12 @@
   &--macos {
     padding-left: 78px;
     padding-right: 2px;
+    transition: padding-left var(--bitfun-motion-duration-content-swap) var(--bitfun-motion-easing-standard);
+
+    // AppKit drives this independently of resize/command completion.
+    .bitfun-app-layout--fullscreen-chrome & {
+      padding-left: var(--bitfun-space-2);
+    }
   }
 
   &--macos#{&}--collapsed {
@@ -118,6 +124,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .bitfun-nav-bar--macos {
+    transition: none;
+  }
+
   .bitfun-nav-bar__btn,
   .bitfun-nav-bar__panel-toggle {
     transition: none;

@@ -7,8 +7,11 @@ import com.bitfun.mobile.core.transport.CloudAccountException
 import com.bitfun.mobile.core.transport.CloudAccountFailure
 import com.bitfun.mobile.core.transport.RemoteCommandTransport
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.DeserializationStrategy
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -21,6 +24,173 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AccountStoreTest {
+    /**
+     * The sign-in poll runs for the minutes the user spends in a browser and a
+     * mail app, which is where a phone most reliably drops a connection. A
+     * single failure there used to end the sign-in and send them back to the
+     * start, so the loop keeps asking until the window closes and stops early
+     * only for a refusal the relay actually meant.
+     */
+    @Test fun signInPollOutlastsNetworkFailuresButNotARefusal() = runTest {
+        val start = GitHubAuthorization("txn", "secret", "https://auth.openbitfun.com/sign-in#ticket=t", 9_999_999_999L, 3)
+
+        var attempts = 0
+        val token = AuthorizationPoll.awaitAccessToken(start, TransportLog.None, nowSeconds = { 0 }) {
+            attempts++
+            when (attempts) {
+                1 -> throw CloudAccountException(CloudAccountFailure.MALFORMED_RESPONSE)
+                2 -> throw CloudAccountException(CloudAccountFailure.NETWORK)
+                3 -> throw CloudAccountException(CloudAccountFailure.TIMEOUT)
+                4 -> throw CloudAccountException(CloudAccountFailure.RATE_LIMITED, 429)
+                5 -> GitHubAuthorizationPoll("pending")
+                else -> GitHubAuthorizationPoll("authorized", GitHubTokens("granted"))
+            }
+        }
+        assertEquals("granted", token)
+        assertEquals(6, attempts)
+
+        assertFailsWith<CloudAccountException> {
+            AuthorizationPoll.awaitAccessToken(start, TransportLog.None, nowSeconds = { 0 }) {
+                throw CloudAccountException(CloudAccountFailure.MALFORMED_RESPONSE, 400)
+            }
+        }
+
+        var refusals = 0
+        assertFailsWith<CloudAccountException> {
+            AuthorizationPoll.awaitAccessToken(start, TransportLog.None, nowSeconds = { 0 }) {
+                refusals++
+                throw CloudAccountException(CloudAccountFailure.AUTHENTICATION, 401)
+            }
+        }
+        assertEquals(1, refusals)
+
+        // A window that closed while every poll was failing is a network
+        // problem, and saying "authentication" would send the user looking in
+        // the wrong place.
+        var elapsed = 0L
+        val expired = assertFailsWith<CloudAccountException> {
+            AuthorizationPoll.awaitAccessToken(start.copy(expiresAt = 9L), TransportLog.None, nowSeconds = { elapsed }) {
+                elapsed += 3
+                throw CloudAccountException(CloudAccountFailure.NETWORK)
+            }
+        }
+        assertEquals(CloudAccountFailure.NETWORK, expired.failure)
+    }
+
+    @Test fun signInPollChecksImmediatelyAfterBrowserHandoff() = runTest {
+        val start = GitHubAuthorization("txn", "secret", "https://auth.openbitfun.com/sign-in#ticket=t", 100L, 30)
+        var firstPollAt = -1L
+        val token = AuthorizationPoll.awaitAccessToken(
+            start,
+            TransportLog.None,
+            nowSeconds = { testScheduler.currentTime / 1000L },
+        ) {
+            firstPollAt = testScheduler.currentTime
+            GitHubAuthorizationPoll("authorized", GitHubTokens("granted"))
+        }
+        assertEquals("granted", token)
+        assertEquals(0L, firstPollAt)
+    }
+
+    @Test fun signInPollWaitsInBackgroundAndResumesWhenForegroundReturns() = runTest {
+        val start = GitHubAuthorization("txn", "secret", "https://auth.openbitfun.com/sign-in#ticket=t", 100L, 30)
+        val foreground = MutableStateFlow(true)
+        var attempts = 0
+        val token = async {
+            AuthorizationPoll.awaitAccessToken(
+                start,
+                TransportLog.None,
+                nowSeconds = { 0 },
+                foreground = foreground,
+            ) {
+                attempts++
+                if (attempts == 1) GitHubAuthorizationPoll("pending")
+                else GitHubAuthorizationPoll("authorized", GitHubTokens("granted"))
+            }
+        }
+
+        runCurrent()
+        assertEquals(1, attempts)
+        foreground.value = false
+        advanceTimeBy(120_000)
+        runCurrent()
+        assertEquals(1, attempts)
+        foreground.value = true
+        advanceUntilIdle()
+        assertEquals("granted", token.await())
+        assertEquals(2, attempts)
+    }
+
+    @Test fun cancelledLoginDirectoryCannotReviveAccountOrPersistSelectedDevice() = runTest {
+        for (failure in listOf<Throwable?>(null, CloudAccountException(CloudAccountFailure.NETWORK),
+            CloudAccountException(CloudAccountFailure.AUTHENTICATION), IllegalStateException("Late failure"))) {
+            val secure = MemorySecureStore(); val backend = FakeAccountBackend()
+            var pending: kotlin.coroutines.Continuation<Unit>? = null
+            backend.beforeList = { kotlin.coroutines.suspendCoroutine<Unit> { pending = it } }
+            val store = AccountStore.create(this, backend, secure, "phone-1", "Android")
+            store.dispatch(AccountIntent.Login); advanceUntilIdle()
+            store.dispatch(AccountIntent.Logout)
+            pending!!.resumeWith(if (failure == null) Result.success(Unit) else Result.failure(failure))
+            advanceUntilIdle()
+            assertIs<AccountUiState.SignedOut>(store.state.value)
+            assertNull(secure.read("github_device_session_v1"))
+            assertNull(store.createSessionStore(this))
+            store.stop()
+        }
+    }
+
+    @Test fun cancelledRestoreCannotReplaceSignedOutState() = runTest {
+        for (failure in listOf<Throwable?>(null, CloudAccountException(CloudAccountFailure.NETWORK),
+            CloudAccountException(CloudAccountFailure.AUTHENTICATION))) {
+            val secure = MemorySecureStore(); val backend = FakeAccountBackend()
+            val first = AccountStore.create(this, backend, secure, "phone-1", "Android")
+            first.dispatch(AccountIntent.Login); advanceUntilIdle(); first.stop()
+            var pending: kotlin.coroutines.Continuation<Unit>? = null
+            backend.beforeList = { kotlin.coroutines.suspendCoroutine<Unit> { pending = it } }
+            val restored = AccountStore.create(this, backend, secure, "phone-1", "Android")
+            restored.dispatch(AccountIntent.Restore); advanceUntilIdle()
+            restored.dispatch(AccountIntent.Logout)
+            pending!!.resumeWith(if (failure == null) Result.success(Unit) else Result.failure(failure))
+            advanceUntilIdle()
+            assertIs<AccountUiState.SignedOut>(restored.state.value)
+            restored.stop()
+        }
+    }
+
+    @Test fun cancelledRefreshFailureCannotRestoreSignedOutAccount() = runTest {
+        for (failure in listOf(CloudAccountException(CloudAccountFailure.NETWORK),
+            CloudAccountException(CloudAccountFailure.AUTHENTICATION), IllegalStateException("Late failure"))) {
+            val backend = FakeAccountBackend()
+            val store = AccountStore.create(this, backend, MemorySecureStore(), "phone-1", "Android")
+            store.dispatch(AccountIntent.Login); advanceUntilIdle()
+            var pending: kotlin.coroutines.Continuation<Unit>? = null
+            backend.beforeList = { kotlin.coroutines.suspendCoroutine<Unit> { pending = it } }
+            store.dispatch(AccountIntent.RefreshDevices); advanceUntilIdle()
+            store.dispatch(AccountIntent.Logout)
+            pending!!.resumeWith(Result.failure(failure)); advanceUntilIdle()
+            assertIs<AccountUiState.SignedOut>(store.state.value)
+            store.stop()
+        }
+    }
+
+    @Test fun cancelledAuthenticationFailureCannotExpireReplacementLoginWithSameToken() = runTest {
+        val backend = FakeAccountBackend()
+        val store = AccountStore.create(this, backend, MemorySecureStore(), "phone-1", "Android")
+        store.dispatch(AccountIntent.Login); advanceUntilIdle()
+        var pending: kotlin.coroutines.Continuation<Unit>? = null
+        backend.beforeList = { kotlin.coroutines.suspendCoroutine<Unit> { pending = it } }
+        store.dispatch(AccountIntent.RefreshDevices); advanceUntilIdle()
+        store.dispatch(AccountIntent.Logout)
+        backend.beforeList = null
+        backend.userId = "replacement-user"
+        store.dispatch(AccountIntent.Login); advanceUntilIdle()
+        val replacement = assertIs<AccountUiState.Ready>(store.state.value)
+        pending!!.resumeWith(Result.failure(CloudAccountException(CloudAccountFailure.AUTHENTICATION)))
+        advanceUntilIdle()
+        assertEquals(replacement, store.state.value)
+        store.stop()
+    }
+
     @Test fun directoryNotificationsRefreshMembershipWithoutAPeriodicPoll() = runTest {
         val changes = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 4)
         val backend = FakeAccountBackend().apply { directoryEvents = changes }
@@ -40,7 +210,7 @@ class AccountStoreTest {
         val secure = MemorySecureStore(); val backend = FakeAccountBackend()
         val first = AccountStore.create(this, backend, secure, "phone-1", "Android")
         first.dispatch(AccountIntent.Login); advanceUntilIdle()
-        val old = secure.read("github_device_session_v1")!!.decodeToString().replace(AccountDefaults.CLOUD_RELAY_URL, "https://remote.bitfun.com/v/retired")
+        val old = secure.read("github_device_session_v1")!!.decodeToString().replace(AccountDefaults.CLOUD_RELAY_URL, "https://remote.openbitfun.com/v/retired")
         secure.write("github_device_session_v1", old.encodeToByteArray())
         val requests = backend.listRequests
         val restored = AccountStore.create(this, backend, secure, "phone-1", "Android")
@@ -578,7 +748,7 @@ private class FakeAccountBackend : AccountBackend {
         loginThrowable?.let { throw it }
         failure?.let { throw CloudAccountException(it) }
         return AccountSessionData(
-            "https://remote.bitfun.com/v/1.0.1",
+            "https://remote.openbitfun.com/v/1.0.1",
             "user",
             "token",
             userId,

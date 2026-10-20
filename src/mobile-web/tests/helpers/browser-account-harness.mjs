@@ -23,7 +23,7 @@ const hostPublicKey = x25519.getPublicKey(hostPrivateKey);
 function messageKey(publicKey) {
   const shared = x25519.getSharedSecret(hostPrivateKey, publicKey);
   const sorted = [hostPublicKey, publicKey].sort((a, b) => Buffer.compare(a, b));
-  return hkdf(sha256, shared, new TextEncoder().encode('OpenBitFun Relay v1.0.0 device key'),
+  return hkdf(sha256, shared, new TextEncoder().encode('BitFun Relay v1.0.0 device key'),
     Buffer.concat(sorted.map(key => Buffer.from(key))), 32);
 }
 

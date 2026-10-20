@@ -85,12 +85,18 @@ pub struct CdpPageInfo {
 /// Version info returned by `/json/version`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CdpVersionInfo {
+    /// Modern headless Chrome reports a regular product name; its UA retains
+    /// the HeadlessChrome token. Older endpoints may omit this field.
+    #[serde(
+        rename = "User-Agent",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub user_agent: Option<String>,
     #[serde(rename = "Browser")]
     pub browser: Option<String>,
     #[serde(rename = "Protocol-Version")]
     pub protocol_version: Option<String>,
-    #[serde(rename = "User-Agent")]
-    pub user_agent: Option<String>,
     #[serde(rename = "webSocketDebuggerUrl")]
     pub web_socket_debugger_url: Option<String>,
 }
@@ -476,24 +482,24 @@ mod tests {
     }
 
     #[test]
-    fn cdp_version_info_preserves_browser_protocol_user_agent_and_websocket_fields() {
+    fn cdp_version_info_preserves_browser_and_protocol_fields() {
         let version: CdpVersionInfo = serde_json::from_value(serde_json::json!({
-            "Browser": "Chrome/132.0.6834.161",
+            "Browser": "Chrome/130",
             "Protocol-Version": "1.3",
-            "User-Agent": "Mozilla/5.0 htbrowser/2.0.22",
-            "webSocketDebuggerUrl": "ws://127.0.0.1:9222/devtools/browser/test"
+            "webSocketDebuggerUrl": "ws://127.0.0.1/devtools/browser"
         }))
         .expect("version info should deserialize");
 
-        assert_eq!(version.browser.as_deref(), Some("Chrome/132.0.6834.161"));
+        assert!(version.user_agent.is_none());
+        let roundtrip = serde_json::to_value(&version).unwrap();
+        assert!(roundtrip.get("User-Agent").is_none());
+        let old_again: CdpVersionInfo = serde_json::from_value(roundtrip).unwrap();
+        assert_eq!(old_again.browser, version.browser);
+        assert_eq!(version.browser.as_deref(), Some("Chrome/130"));
         assert_eq!(version.protocol_version.as_deref(), Some("1.3"));
         assert_eq!(
-            version.user_agent.as_deref(),
-            Some("Mozilla/5.0 htbrowser/2.0.22")
-        );
-        assert_eq!(
             version.web_socket_debugger_url.as_deref(),
-            Some("ws://127.0.0.1:9222/devtools/browser/test")
+            Some("ws://127.0.0.1/devtools/browser")
         );
     }
 

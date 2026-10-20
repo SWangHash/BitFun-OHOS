@@ -1,4 +1,5 @@
 import { api } from './ApiClient';
+import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 import type { ImageContextData as ImageInputContextData } from './ImageContextTypes';
 
 /** Upper bound for one managed install (two host steps of up to 10 minutes, plus verification). */
@@ -264,6 +265,8 @@ const requirementProbeCache = new Map<string, AcpClientRequirementProbe[]>();
 const requirementProbeInFlight = new Map<string, Promise<AcpClientRequirementProbe[]>>();
 
 export class ACPClientAPI {
+  private static cacheScope = getActiveSurfaceScope();
+
   private static clientListCache: {
     clients: AcpClientInfo[];
     expiresAt: number;
@@ -281,14 +284,27 @@ export class ACPClientAPI {
     requirementProbeInFlight.clear();
   }
 
+  private static prepareCacheScope() {
+    const scope = getActiveSurfaceScope();
+    if (ACPClientAPI.cacheScope.epoch !== scope.epoch) {
+      ACPClientAPI.invalidateClientListCache();
+      ACPClientAPI.invalidateRequirementProbeCache();
+      ACPClientAPI.cacheScope = scope;
+    }
+    return scope;
+  }
+
   static async initializeClients(): Promise<void> {
+    const scope = getActiveSurfaceScope();
     await api.invoke('initialize_acp_clients');
+    scope.assertCurrent('publish ACP client changes');
     ACPClientAPI.invalidateClientListCache();
     ACPClientAPI.invalidateRequirementProbeCache();
     window.dispatchEvent(new Event('bitfun:acp-clients-changed'));
   }
 
   static async getClients(): Promise<AcpClientInfo[]> {
+    const scope = ACPClientAPI.prepareCacheScope();
     const now = Date.now();
     if (ACPClientAPI.clientListCache && ACPClientAPI.clientListCache.expiresAt > now) {
       return ACPClientAPI.clientListCache.clients;
@@ -299,6 +315,7 @@ export class ACPClientAPI {
 
     const inFlight = api.invoke<AcpClientInfo[]>('get_acp_clients')
       .then((clients) => {
+        scope.assertCurrent('cache ACP clients');
         ACPClientAPI.clientListCache = {
           clients,
           expiresAt: Date.now() + CLIENT_LIST_CACHE_TTL_MS,
@@ -306,7 +323,9 @@ export class ACPClientAPI {
         return clients;
       })
       .finally(() => {
-        ACPClientAPI.clientListInFlight = null;
+        if (ACPClientAPI.clientListInFlight === inFlight) {
+          ACPClientAPI.clientListInFlight = null;
+        }
       });
 
     ACPClientAPI.clientListInFlight = inFlight;
@@ -316,6 +335,7 @@ export class ACPClientAPI {
   static async probeClientRequirements(
     options: { force?: boolean; remoteConnectionId?: string } = {}
   ): Promise<AcpClientRequirementProbe[]> {
+    const scope = ACPClientAPI.prepareCacheScope();
     const cacheKey = options.remoteConnectionId || LOCAL_REQUIREMENT_CACHE_KEY;
     if (!options.force && requirementProbeCache.has(cacheKey)) {
       return requirementProbeCache.get(cacheKey) ?? [];
@@ -330,12 +350,15 @@ export class ACPClientAPI {
 
     const inFlight = api.invoke<AcpClientRequirementProbe[]>('probe_acp_client_requirements', { request })
       .then((probes) => {
+        scope.assertCurrent('cache ACP client requirements');
         requirementProbeCache.set(cacheKey, probes);
         window.dispatchEvent(new Event('bitfun:acp-requirements-changed'));
         return probes;
       })
       .finally(() => {
-        requirementProbeInFlight.delete(cacheKey);
+        if (requirementProbeInFlight.get(cacheKey) === inFlight) {
+          requirementProbeInFlight.delete(cacheKey);
+        }
       });
 
     requirementProbeInFlight.set(cacheKey, inFlight);
@@ -343,7 +366,9 @@ export class ACPClientAPI {
   }
 
   static async predownloadClientAdapter(request: AcpClientIdRequest): Promise<void> {
+    const scope = getActiveSurfaceScope();
     await api.invoke('predownload_acp_client_adapter', { request });
+    scope.assertCurrent('publish ACP client requirements');
     ACPClientAPI.invalidateClientListCache();
     ACPClientAPI.invalidateRequirementProbeCache();
     window.dispatchEvent(new Event('bitfun:acp-requirements-changed'));
@@ -352,11 +377,13 @@ export class ACPClientAPI {
   static async installClientCli(request: AcpClientIdRequest): Promise<AcpClientInstallOutcome> {
     // Setup downloads packages and verifies the launch; the host bounds each step at
     // 10 minutes. The default 30 s request timeout would abandon a healthy install.
+    const scope = getActiveSurfaceScope();
     const response = await api.invoke<AcpClientInstallOutcome | null | undefined>(
       'install_acp_client_cli',
       { request },
       { timeout: ACP_INSTALL_REQUEST_TIMEOUT_MS },
     );
+    scope.assertCurrent('publish ACP client requirements');
     // Older hosts return no payload after successfully installing the CLI.
     const outcome: AcpClientInstallOutcome = response ?? {
       clientId: request.clientId,
@@ -378,7 +405,9 @@ export class ACPClientAPI {
   }
 
   static async stopClient(request: AcpClientIdRequest): Promise<void> {
+    const scope = getActiveSurfaceScope();
     await api.invoke('stop_acp_client', { request });
+    scope.assertCurrent('publish ACP client changes');
     ACPClientAPI.invalidateClientListCache();
     window.dispatchEvent(new Event('bitfun:acp-clients-changed'));
   }
@@ -388,7 +417,9 @@ export class ACPClientAPI {
   }
 
   static async saveJsonConfig(jsonConfig: string): Promise<void> {
+    const scope = getActiveSurfaceScope();
     await api.invoke('save_acp_json_config', { jsonConfig });
+    scope.assertCurrent('publish ACP client changes');
     ACPClientAPI.invalidateClientListCache();
     ACPClientAPI.invalidateRequirementProbeCache();
     window.dispatchEvent(new Event('bitfun:acp-clients-changed'));
@@ -397,7 +428,10 @@ export class ACPClientAPI {
   static async updateClientSubagentConfig(
     request: UpdateAcpClientSubagentConfigRequest
   ): Promise<void> {
-    const rawConfig = JSON.parse(await ACPClientAPI.loadJsonConfig()) as unknown;
+    const scope = getActiveSurfaceScope();
+    const jsonConfig = await ACPClientAPI.loadJsonConfig();
+    scope.assertCurrent('update ACP client configuration');
+    const rawConfig = JSON.parse(jsonConfig) as unknown;
     if (!rawConfig || typeof rawConfig !== 'object' || Array.isArray(rawConfig)) {
       throw new Error('ACP client configuration is invalid');
     }
@@ -435,7 +469,9 @@ export class ACPClientAPI {
   static async createFlowSession(
     request: CreateAcpFlowSessionRequest
   ): Promise<CreateAcpFlowSessionResponse> {
+    const scope = getActiveSurfaceScope();
     const response = await api.invoke<CreateAcpFlowSessionResponse>('create_acp_flow_session', { request });
+    scope.assertCurrent('publish ACP client changes');
     ACPClientAPI.invalidateClientListCache();
     window.dispatchEvent(new Event('bitfun:acp-clients-changed'));
     return response;

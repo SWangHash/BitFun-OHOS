@@ -162,6 +162,11 @@
   "core": {
     "initializationFailed": "核心系统初始化失败"
   },
+  "moduleLoad": {
+    "title": "此视图暂时无法加载",
+    "description": "可以重试；若仍无法加载，请先保存未完成的编辑，再重新加载应用。",
+    "retry": "重试"
+  },
   "boundary": {
     "title": "应用错误",
     "reload": "重新加载",

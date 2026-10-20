@@ -29,6 +29,9 @@ pub struct WorkspacePersistenceData {
     pub recent_assistant_workspaces: Vec<String>,
     #[serde(default)]
     pub primary_assistant_key: Option<PrimaryAssistantKey>,
+    /// High-water mark: deleting an assistant must not recycle its name number.
+    #[serde(default)]
+    pub assistant_name_sequence: u64,
     pub saved_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -94,7 +97,7 @@ pub fn current_workspace_storage_id(workspace: &WorkspaceInfo) -> BitFunResult<S
 
 pub fn validate_workspace_persistence_data(
     data: &WorkspacePersistenceData,
-    miniapps_root: &Path,
+    _miniapps_root: &Path,
 ) -> BitFunResult<()> {
     if data.format_version != WORKSPACE_PERSISTENCE_FORMAT_VERSION {
         return Err(unsupported_workspace_persistence(format!(
@@ -147,11 +150,9 @@ pub fn validate_workspace_persistence_data(
                 "recent_workspaces contains assistant workspace '{id}'"
             )));
         }
-        if workspace.root_path.starts_with(miniapps_root) {
-            return Err(unsupported_workspace_persistence(format!(
-                "recent_workspaces contains MiniApp-owned workspace '{id}'"
-            )));
-        }
+        // Older current-format catalogs included MiniApp directories in recent
+        // history. This is a presentation concern, not an invalid record: the
+        // runtime filters that history while preserving the workspace identity.
     }
     for id in &data.recent_assistant_workspaces {
         if data.workspaces[id].workspace_kind != WorkspaceKind::Assistant {
@@ -227,4 +228,88 @@ pub fn unsupported_workspace_persistence(detail: impl AsRef<str>) -> BitFunError
         "Unsupported workspace persistence format: {}. The persisted file was left unchanged; explicit data migration is required",
         detail.as_ref()
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn legacy_catalog() -> WorkspacePersistenceData {
+        // Existing 1.0.0 record shape: no new identity or availability fields.
+        serde_json::from_value(serde_json::json!({
+            "format_version": 1, "product_id": product_id(),
+            "workspaces": {
+                "saved-id": {
+                    "id": "saved-id", "name": "Offline workspace", "rootPath": "/offline/repo",
+                    "workspaceType": "Other", "workspaceKind": "remote", "status": "Inactive",
+                    "languages": [], "openedAt": "2026-09-16T00:00:00Z", "lastAccessed": "2026-09-16T00:00:00Z",
+                    "description": null, "tags": [], "statistics": null, "metadata": {}
+                }
+            },
+            "opened_workspace_ids": [], "current_workspace_id": null,
+            "recent_workspaces": ["saved-id"], "saved_at": "2026-09-16T00:00:00Z"
+        })).unwrap()
+    }
+
+    #[test]
+    fn old_remote_record_without_credentials_survives_registry_round_trip() {
+        let data = legacy_catalog();
+        assert_eq!(data.assistant_name_sequence, 0);
+        validate_workspace_persistence_data(&data, Path::new("/miniapps")).unwrap();
+        let round_trip: WorkspacePersistenceData =
+            serde_json::from_value(serde_json::to_value(&data).unwrap()).unwrap();
+        let record = &round_trip.workspaces["saved-id"];
+        assert_eq!(record.workspace_kind, WorkspaceKind::Remote);
+        assert!(
+            record.filesystem_connection_id().is_err(),
+            "activation must remain unavailable, never local"
+        );
+        assert_eq!(record.id, "saved-id");
+        assert_eq!(round_trip.recent_workspaces, vec!["saved-id"]);
+        assert_eq!(round_trip.assistant_name_sequence, 0);
+    }
+
+    #[test]
+    fn persisted_id_does_not_depend_on_path_or_stale_ssh_metadata() {
+        let mut data = legacy_catalog();
+        let record = data.workspaces.get_mut("saved-id").unwrap();
+        record.workspace_kind = WorkspaceKind::Normal;
+        record.root_path = "/moved/repo".into();
+        record
+            .metadata
+            .insert("connectionId".into(), serde_json::json!("stale-ssh"));
+        validate_workspace_persistence_data(&data, Path::new("/miniapps")).unwrap();
+        assert_eq!(
+            data.workspaces["saved-id"]
+                .filesystem_connection_id()
+                .unwrap(),
+            None
+        );
+        assert_eq!(data.workspaces["saved-id"].id, "saved-id");
+    }
+
+    #[test]
+    fn legacy_miniapp_recent_record_survives_round_trip() {
+        let mut payload = serde_json::to_value(legacy_catalog()).unwrap();
+        payload["workspaces"]["saved-id"]["workspaceKind"] = "normal".into();
+        payload["workspaces"]["saved-id"]["rootPath"] = "/miniapps/deck/appdata".into();
+        let data: WorkspacePersistenceData = serde_json::from_value(payload).unwrap();
+        validate_workspace_persistence_data(&data, Path::new("/miniapps")).unwrap();
+        let round_trip: WorkspacePersistenceData =
+            serde_json::from_value(serde_json::to_value(&data).unwrap()).unwrap();
+        assert_eq!(
+            serde_json::to_value(&round_trip).unwrap(),
+            serde_json::to_value(&data).unwrap()
+        );
+        assert_eq!(round_trip.recent_workspaces, vec!["saved-id"]);
+    }
+
+    #[test]
+    fn mismatched_record_id_is_rejected_without_modifying_input() {
+        let mut data = legacy_catalog();
+        data.workspaces.get_mut("saved-id").unwrap().id = "another-id".into();
+        let before = serde_json::to_value(&data).unwrap();
+        assert!(validate_workspace_persistence_data(&data, Path::new("/miniapps")).is_err());
+        assert_eq!(serde_json::to_value(&data).unwrap(), before);
+    }
 }

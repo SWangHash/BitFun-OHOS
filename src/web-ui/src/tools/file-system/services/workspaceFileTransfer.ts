@@ -36,12 +36,21 @@ export interface TransferProgressState {
   bytesTotal?: number;
   /** Transfer speed in bytes per second (smoothed) */
   speed?: number;
+  /**
+   * Transfer id this progress belongs to.
+   *
+   * A path that can be stopped must report the same id it registered, so a
+   * progress card's stop action reaches the operation it displays.
+   */
+  transferId?: string;
 }
 
 export interface WorkspaceTransferResult {
   successCount: number;
   directoryCount: number;
   failedFiles: Array<{ path: string; error: string }>;
+  /** A user stopped the remaining items; completed items still count. */
+  cancelled?: boolean;
 }
 
 export interface UploadToWorkspaceOptions {
@@ -107,6 +116,45 @@ function currentPeerAdapter(): PeerDeviceTransportAdapter | null {
   return adapter instanceof PeerDeviceTransportAdapter ? adapter : null;
 }
 
+/**
+ * Controller-side stop requests for transfers the controller executes itself.
+ *
+ * A peer download reads chunks through this process, so its stop signal has to
+ * live here: `cancel_transfer` only reaches the host that runs the SSH
+ * connection, and in Peer Device Mode no such command is in flight.
+ */
+const cancelledWorkspaceTransfers = new Set<string>();
+
+/**
+ * Stop a transfer started by this module. Returns whether an id was stopped
+ * locally; the remote host still has to be told separately for hosted
+ * transfers.
+ */
+export function cancelWorkspaceTransfer(transferId: string): boolean {
+  if (!transferId) {
+    return false;
+  }
+  cancelledWorkspaceTransfers.add(transferId);
+  return true;
+}
+
+/** Unregister a finished transfer so its stop mark cannot leak into a later id. */
+export function completeWorkspaceTransfer(transferId: string | undefined): void {
+  if (transferId) {
+    cancelledWorkspaceTransfers.delete(transferId);
+  }
+}
+
+function isWorkspaceTransferCancelled(transferId: string | undefined): boolean {
+  return Boolean(transferId && cancelledWorkspaceTransfers.has(transferId));
+}
+
+function throwIfCancelled(transferId: string | undefined): void {
+  if (isWorkspaceTransferCancelled(transferId)) {
+    throw new Error(i18nService.t("panels/files:transfer.cancelled"));
+  }
+}
+
 export async function writeAllToLocalFile(
   destinationPath: string,
   chunks: AsyncIterable<Uint8Array>,
@@ -142,7 +190,9 @@ export async function* readPeerFileChunks(
   sourcePath: string,
   onFileSize: (size: number) => void,
   identity: PeerFileWorkspaceIdentity,
+  transferId?: string,
 ): AsyncGenerator<Uint8Array, number> {
+  throwIfCancelled(transferId);
   const info = await adapter.requestPeerCommand<PeerFileInfoResponse>({
     cmd: "get_file_info",
     path: sourcePath,
@@ -157,6 +207,8 @@ export async function* readPeerFileChunks(
   let offset = 0;
   let revision: string | undefined;
   while (offset < info.size) {
+    // A stop request must end the chunk loop instead of reading the whole file.
+    throwIfCancelled(transferId);
     const response = await adapter.requestPeerCommand<PeerFileChunkResponse>({
       cmd: "read_file_chunk",
       path: sourcePath,
@@ -191,6 +243,9 @@ export async function* readPeerFileChunks(
     offset += bytes.byteLength;
     yield bytes;
   }
+  // The sink resumes this generator before publishing the staged file. A stop
+  // during the last chunk (or an empty file's info request) must still abort.
+  throwIfCancelled(transferId);
   return info.size;
 }
 
@@ -198,15 +253,18 @@ async function collectPeerDirectoryEntries(
   sourceDirectory: string,
   destinationDirectory: string,
   remoteConnectionId?: string,
+  transferId?: string,
 ): Promise<PeerDownloadEntry[]> {
   const { mkdir } = await import("@tauri-apps/plugin-fs");
   const pending = [{ source: sourceDirectory, destination: destinationDirectory }];
   const files: PeerDownloadEntry[] = [];
 
   while (pending.length > 0) {
+    throwIfCancelled(transferId);
     const current = pending.shift()!;
     await mkdir(current.destination, { recursive: true });
     const children = await workspaceAPI.getDirectoryChildren(current.source, remoteConnectionId ?? '');
+    throwIfCancelled(transferId);
     for (const child of children) {
       if (!isSafePeerTransferEntryName(child.name)) {
         throw new Error(`Unsafe peer file name: '${child.name}'`);
@@ -239,6 +297,7 @@ async function downloadPeerWorkspacePathToDisk(
   workspace: WorkspaceInfo | null,
   isDirectory: boolean,
   onProgress: (state: TransferProgressState | null) => void,
+  transferId?: string,
 ): Promise<void> {
   if (!workspace?.id) throw new Error("A fixed peer workspace is required for download");
   if (isRemoteWorkspace(workspace) && !workspace.connectionId) {
@@ -252,7 +311,7 @@ async function downloadPeerWorkspacePathToDisk(
     remote_connection_id: isRemoteWorkspace(workspace) ? workspace.connectionId : undefined,
   };
   const entries = isDirectory
-    ? await collectPeerDirectoryEntries(sourcePath, destinationPath, identity.remote_connection_id)
+    ? await collectPeerDirectoryEntries(sourcePath, destinationPath, identity.remote_connection_id, transferId)
     : [{
         sourcePath,
         destinationPath,
@@ -266,6 +325,7 @@ async function downloadPeerWorkspacePathToDisk(
   let smoothedSpeed = 0;
 
   for (const entry of entries) {
+    throwIfCancelled(transferId);
     const entryStart = bytesTransferred;
     let entryWritten = 0;
     let expectedEntrySize = entry.size;
@@ -273,7 +333,13 @@ async function downloadPeerWorkspacePathToDisk(
       bytesTotal += size - expectedEntrySize;
       expectedEntrySize = size;
     };
-    const chunks = readPeerFileChunks(adapter, entry.sourcePath, updateExpectedEntrySize, identity);
+    const chunks = readPeerFileChunks(
+      adapter,
+      entry.sourcePath,
+      updateExpectedEntrySize,
+      identity,
+      transferId,
+    );
     await writeAllToLocalFile(entry.destinationPath, chunks, (written) => {
       entryWritten += written;
       bytesTransferred = entryStart + entryWritten;
@@ -300,11 +366,13 @@ async function downloadPeerWorkspacePathToDisk(
         bytesTransferred,
         bytesTotal: Math.max(bytesTotal, bytesTransferred),
         speed: smoothedSpeed,
+        ...(transferId ? { transferId } : {}),
       });
     });
     bytesTransferred = entryStart + entryWritten;
   }
 
+  throwIfCancelled(transferId);
   onProgress({
     phase: "download",
     current: Math.max(bytesTransferred, 1),
@@ -314,6 +382,7 @@ async function downloadPeerWorkspacePathToDisk(
     bytesTransferred,
     bytesTotal: bytesTransferred,
     speed: smoothedSpeed,
+    ...(transferId ? { transferId } : {}),
   });
 }
 
@@ -613,6 +682,7 @@ export async function downloadWorkspaceFileToDisk(
     indeterminate: true,
   });
   try {
+    throwIfCancelled(transferId);
     const peerAdapter = currentPeerAdapter();
     if (peerAdapter) {
       await downloadPeerWorkspacePathToDisk(
@@ -622,6 +692,7 @@ export async function downloadWorkspaceFileToDisk(
         workspace,
         Boolean(isDirectory),
         onProgress,
+        transferId,
       );
     } else if (isRemoteWorkspace(workspace)) {
       const cid = workspace?.connectionId;
@@ -668,7 +739,7 @@ export async function downloadWorkspaceFileToDisk(
             speed: smoothedSpeed,
           });
         }
-      }, transferId);
+      }, transferId, () => isWorkspaceTransferCancelled(transferId));
     } else {
       await workspaceAPI.exportLocalFileToPath(filePath, dest, workspace?.id);
     }
@@ -678,8 +749,12 @@ export async function downloadWorkspaceFileToDisk(
       total: 1,
       label: baseName,
       indeterminate: false,
+      ...(transferId ? { transferId } : {}),
     });
   } finally {
+    // The id is only meaningful while this download runs; a later transfer
+    // must not inherit its stop mark.
+    completeWorkspaceTransfer(transferId);
     window.setTimeout(() => onProgress(null), 450);
   }
 }
@@ -720,6 +795,11 @@ export async function uploadLocalPathsToWorkspaceDirectory(
     const total = normalizedLocalPaths.length;
 
     for (let i = 0; i < total; i++) {
+      // A stop ends the whole drop session: the remaining items must not start
+      // a fresh backend transfer that no card is watching any more.
+      if (isWorkspaceTransferCancelled(transferId)) {
+        break;
+      }
       const localPath = normalizedLocalPaths[i]!;
       const name = localPath.split(/[/\\]/).pop();
       if (!name) {
@@ -742,7 +822,11 @@ export async function uploadLocalPathsToWorkspaceDirectory(
         total,
         label: singleItem ? name : `${name} (${i + 1}/${total})`,
         indeterminate: singleItem,
+        ...(transferId ? { transferId } : {}),
       });
+      if (isWorkspaceTransferCancelled(transferId)) {
+        break;
+      }
 
       try {
         if (singleItem) {
@@ -784,23 +868,37 @@ export async function uploadLocalPathsToWorkspaceDirectory(
                   bytesTransferred: uploaded,
                   bytesTotal: totalBytes,
                   speed: smoothedSpeed,
+                  ...(transferId ? { transferId } : {}),
                 });
               }
             },
             transferId,
+            () => isWorkspaceTransferCancelled(transferId),
           );
           successCount += 1;
           if (uploadResult.wasDirectory) {
             directoryCount += 1;
           }
         } else {
-          const uploadResult = await sshApi.uploadFromLocalPath(cid, localPath, destPath);
+          // Multi-item uploads share one transfer id, so the visible stop
+          // action reaches whichever item is currently being sent.
+          const uploadResult = await sshApi.uploadFromLocalPath(
+            cid,
+            localPath,
+            destPath,
+            undefined,
+            transferId,
+            () => isWorkspaceTransferCancelled(transferId),
+          );
           successCount += 1;
           if (uploadResult.wasDirectory) {
             directoryCount += 1;
           }
         }
       } catch (error) {
+        if (isWorkspaceTransferCancelled(transferId)) {
+          break;
+        }
         failedFiles.push({
           path: localPath,
           error: error instanceof Error ? error.message : String(error),
@@ -808,18 +906,33 @@ export async function uploadLocalPathsToWorkspaceDirectory(
       }
     }
 
-    onProgress({
-      phase: "upload",
-      current: total,
-      total,
-      label: "",
-      indeterminate: false,
-    });
+    const wasCancelled = isWorkspaceTransferCancelled(transferId);
+    if (!wasCancelled) {
+      onProgress({
+        phase: "upload",
+        current: total,
+        total,
+        label: "",
+        indeterminate: false,
+        ...(transferId ? { transferId } : {}),
+      });
+    }
+    completeWorkspaceTransfer(transferId);
     window.setTimeout(() => onProgress(null), 450);
 
-    return { successCount, directoryCount, failedFiles };
+    if (successCount === 0 && failedFiles.length > 0) {
+      const details = failedFiles
+        .map((entry) => `${entry.path}: ${entry.error}`)
+        .join("; ");
+      throw new Error(details);
+    }
+
+    return { successCount, directoryCount, failedFiles, cancelled: wasCancelled };
   }
 
+  // A local paste is not cancellable: the clipboard helper owns it, and no
+  // stop mark may linger for an id this module never registered.
+  completeWorkspaceTransfer(transferId);
   onProgress({
     phase: "upload",
     current: 0,

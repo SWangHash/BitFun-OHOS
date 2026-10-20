@@ -126,6 +126,7 @@ const AssistantQuickInput: React.FC<AssistantQuickInputProps> = ({
               <IconButton
                 type="button"
                 variant="primary"
+                shape="circle"
                 size="sm"
                 loading={sending}
                 disabled={!value.trim() || sending}

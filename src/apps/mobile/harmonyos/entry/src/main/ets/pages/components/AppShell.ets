@@ -12,6 +12,7 @@ import {
   PAGE_BG,
   SCRIM,
   SHELL_SCRIM,
+  SIDEBAR_BG,
   TRANSPARENT,
 } from './Theme';
 
@@ -47,6 +48,36 @@ export struct AppShell {
               action.dismiss();
             }
           })
+
+      // The open drawer's fill is a floor under the whole shell, not a panel
+      // the width of the sidebar. The content card's rounded corners have to
+      // curve onto something: when the fill stopped at the card's left edge
+      // they curved onto the page white instead, so a square-cornered grey
+      // block sat against a rounded card with a white wedge between them.
+      Column()
+        .width('100%')
+        .height('100%')
+        .backgroundColor(SIDEBAR_BG)
+        // The cutout is an avoid area of its own, so the floor claims it too: a
+        // notch the framework would otherwise leave bare has to end up under the
+        // same fill the rest of the window is. The floor is the window itself —
+        // full width and full height — so it names all four edges.
+        // `expandSafeArea` is per edge and takes effect only where this
+        // component's boundary meets that edge's safe-area boundary, so claiming
+        // the top strip with `TOP` says nothing about the side strip a rotated
+        // cutout lands on: without `START`/`END` the fill stops at the inset and
+        // the page colour shows beside it.
+        .expandSafeArea([SafeAreaType.SYSTEM, SafeAreaType.CUTOUT],
+          [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM, SafeAreaEdge.START, SafeAreaEdge.END])
+        .hitTestBehavior(HitTestMode.None)
+        .opacity((this.allowSidebar && this.shellState.showSidebar) ? 1 : 0)
+        // Matched to the content card rather than to the sidebar panel: the
+        // card must never finish moving before the floor it curves onto has
+        // finished fading, in either direction.
+        .animation({
+          duration: (this.allowSidebar && this.shellState.showSidebar) ? 320 : 250,
+          curve: Curve.EaseOut
+        })
 
       Column() {
         // The drawer is a compact affordance. Wide layouts put the same session
@@ -127,7 +158,13 @@ export struct AppShell {
   private CompactLoginCover() {
     Stack({ alignContent: Alignment.Bottom }) {
       Column().width('100%').height('100%').backgroundColor(SCRIM)
-        .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+        // The scrim is the cover's own background over the whole shell, so a bare
+        // notch would read as a hole in the dimming: it claims the cutout too.
+        // Like the floor it is the whole shell, so it names the same four edges:
+        // a rotated cutout sits on a side edge, and the scrim has to reach it or
+        // the dimming has a hole in it.
+        .expandSafeArea([SafeAreaType.SYSTEM, SafeAreaType.CUTOUT],
+          [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM, SafeAreaEdge.START, SafeAreaEdge.END])
         .onClick(() => { this.shellState.showSettings = false; })
       Scroll() {
         Column() { this.settings() }
@@ -139,6 +176,9 @@ export struct AppShell {
       .backgroundColor(PAGE_BG)
       .borderRadius(MobileDesignGeometry.sheetTopRadius)
       .clip(true)
+      // The cover is bound with `enableSafeArea: true`, so the framework already
+      // ends its page above the navigation bar and this stays the design's own
+      // float above that edge.
       .margin({ bottom: MobileDesignGeometry.loginSheetOuterMargin })
     }
     .width('100%')

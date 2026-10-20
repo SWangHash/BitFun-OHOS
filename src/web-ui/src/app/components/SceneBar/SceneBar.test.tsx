@@ -2,6 +2,8 @@
 
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { InteractionMotion } from '@/shared/utils/motionPreference';
 import type { SceneTab, SceneTabId } from './types';
@@ -9,10 +11,15 @@ import SceneBar from './SceneBar';
 import { useSceneStore } from '../../stores/sceneStore';
 import { useContentResourceStore } from '../../workbench/contentResourceStore';
 import { writeSessionTabDrag } from '../../workbench/canvasTabTransfer';
-import { clearAgentCanvasForPeerSwitch, switchAgentCanvasWorkspace, useAgentCanvasStore } from '../panels/content-canvas/stores';
+import { clearAgentCanvasForPeerSwitch, switchAgentCanvasScope, useAgentCanvasStore } from '../panels/content-canvas/stores';
 import { activateSurface } from '@/infrastructure/peer-device/deviceSurface';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+
+const sceneBarStyles = readFileSync(
+  resolve(process.cwd(), 'src/app/components/SceneBar/SceneBar.scss'),
+  'utf8',
+);
 
 const sceneHarness = vi.hoisted(() => ({
   state: {
@@ -149,21 +156,24 @@ describe('SceneBar overflow navigation', () => {
     expect(useAgentCanvasStore.getState().primaryGroup.tabs).toHaveLength(1);
   });
 
-  it('clears its offer when another drop target stops event bubbling', () => {
+  it('clears its offer after another drop target stops event bubbling', async () => {
     renderSceneBar();
     let transfer!: DataTransfer;
     act(() => { transfer = startSessionTabDrag(); });
     const elsewhere = document.createElement('div');
     document.body.appendChild(elsewhere);
     elsewhere.addEventListener('drop', event => event.stopPropagation());
-    act(() => elsewhere.dispatchEvent(dragEvent('drop', transfer)));
+    await act(async () => {
+      elsewhere.dispatchEvent(dragEvent('drop', transfer));
+      await new Promise(resolve => setTimeout(resolve, 0));
+    });
     expect(container.querySelector('[data-bitfun-part="dropHint"]')).toBeNull();
     expect(useAgentCanvasStore.getState().primaryGroup.tabs).toHaveLength(1);
     expect(useContentResourceStore.getState().resources).toEqual({});
     elsewhere.remove();
   });
 
-  it.each(['end', 'remove', 'workspace-switch', 'device-switch'])('withdraws availability when the source is invalidated: %s', action => {
+  it.each(['end', 'remove', 'scope-switch', 'device-switch'])('withdraws availability when the source is invalidated: %s', action => {
     renderSceneBar();
     act(() => { startSessionTabDrag(); });
     expect(container.querySelector('[data-bitfun-part="dropHint"]')).not.toBeNull();
@@ -171,7 +181,7 @@ describe('SceneBar overflow navigation', () => {
       const store = useAgentCanvasStore.getState();
       if (action === 'end') store.endDrag();
       if (action === 'remove') store.detachTab(store.draggingTabId!, 'primary');
-      if (action === 'workspace-switch') switchAgentCanvasWorkspace(undefined, 'another-workspace');
+      if (action === 'scope-switch') switchAgentCanvasScope('another-session');
       if (action === 'device-switch') activateSurface('peer');
     });
     expect(container.querySelector('[data-bitfun-part="dropHint"]')).toBeNull();
@@ -342,6 +352,13 @@ describe('SceneBar overflow navigation', () => {
 
     expect(tabs.scrollLeft).toBe(72);
     expect(container.querySelector<HTMLButtonElement>('[data-bitfun-part="scrollPrevious"]')?.disabled).toBe(false);
+  });
+
+  it('removes unavailable edge controls from layout and paints the overflow fade directly', () => {
+    expect(sceneBarStyles).toMatch(/&:disabled\s*\{\s*display:\s*none;/);
+    expect(sceneBarStyles).toContain('background: linear-gradient(');
+    expect(sceneBarStyles).not.toContain('mask-image: linear-gradient(');
+    expect(sceneBarStyles).not.toContain('backdrop-filter: var(--bitfun-effect-blur-subtle)');
   });
 
   it('scrolls a newly active off-screen tab into view', () => {

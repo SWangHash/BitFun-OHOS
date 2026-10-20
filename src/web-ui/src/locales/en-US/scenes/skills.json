@@ -39,8 +39,7 @@
   },
   "toolbar": {
     "searchPlaceholder": "Search skills...",
-    "addTooltip": "Add Skill",
-    "hideDuplicates": "Hide duplicates"
+    "addTooltip": "Add Skill"
   },
   "filters": {
     "source": "{{source}}",
@@ -257,6 +256,8 @@
       "globalToggleLabel": "Toggle global availability for {{name}}"
     },
     "scanIncomplete": "Some skills could not be scanned. Available skills are still listed.",
+    "unsupportedSkills": "Some skills require unsupported capabilities and were not loaded.",
+    "unsupportedField": "This host does not support the skill's {{field}} declaration. The skill was not loaded.",
     "diagnosticsUnavailable": "This host does not report skill scan diagnostics.",
     "noMore": "No more results",
     "loadMoreFailed": "Load failed. Please retry."
@@ -283,7 +284,7 @@
     "disabled": "disabled",
     "revealPathFailed": "Could not open in file explorer: {{error}}",
     "nameConflict": "A skill named \"{{name}}\" is already installed. Uninstall the existing one before installing this.",
-"copyPathFailed": "Failed to copy path: {{error}}"
+    "copyPathFailed": "Failed to copy path: {{error}}"
   },
   "skillsCenter": "Skills Center",
   "searchSkills": "Search skills...",
@@ -406,5 +407,11 @@
       "planning": "Planning",
       "gstack": "gstack"
     }
+  },
+  "pagination": {
+    "label": "Skills pages",
+    "page": "Page {{page}}",
+    "range": "{{start}}–{{end}} of {{total}} skills",
+    "rangeMore": "{{start}}–{{end}} · {{total}} skills loaded"
   }
 }

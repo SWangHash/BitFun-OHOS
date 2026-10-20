@@ -1,0 +1,21 @@
+@layer bitfun.components {
+  .root { box-sizing: border-box; display: inline-flex; min-block-size: 44px; align-items: center; justify-content: center; gap: var(--bitfun-space-2); margin: 0; padding: 0 var(--bitfun-space-4); border: 0; border-radius: var(--bitfun-radius-pill); color: var(--bitfun-color-content-secondary); background: var(--bitfun-color-action-neutral-surface); cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; font: inherit; font-size: var(--bitfun-type-label-md-font-size); font-weight: var(--bitfun-type-label-md-font-weight); transition: background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard); }
+  .root[data-size="sm"] { min-block-size: 36px; padding-inline: var(--bitfun-space-3); font-size: var(--bitfun-type-label-sm-font-size); }
+  .root[data-appearance="accent"] { color: var(--bitfun-color-accent-default); background: var(--bitfun-color-accent-surface); }
+  /* Selection is a filled block, the same signal the rest of the mobile set uses for state. */
+  .root[data-selected="true"] { color: var(--bitfun-color-content-primary); background: var(--bitfun-color-selection-surface); font-weight: var(--bitfun-font-weight-semibold); }
+  .root[data-selected="true"][data-appearance="accent"] { color: var(--bitfun-color-action-primary-content); background: var(--bitfun-color-accent-default); }
+
+  @media (hover: hover) and (pointer: fine) {
+    .root:is(:hover, [data-bitfun-preview-state="hover"]):not(:disabled) { background: var(--bitfun-color-action-neutral-surface-hover); }
+  }
+  .root:is(:active, [data-bitfun-preview-state="active"]):not(:disabled) { background: var(--bitfun-color-action-neutral-surface-pressed); }
+  .root:is(:focus-visible, [data-bitfun-preview-state="focus-visible"]) { outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring); outline-offset: var(--bitfun-focus-offset); }
+  .root:disabled { color: var(--bitfun-color-content-disabled); cursor: not-allowed; }
+
+  .label { display: block; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .leading, .trailing { display: grid; inline-size: 16px; block-size: 16px; flex: 0 0 16px; place-items: center; }
+  .leading > :where(svg, img), .trailing > :where(svg, img) { inline-size: 100%; block-size: 100%; }
+
+  @media (prefers-reduced-motion: reduce) { .root { transition: none; } }
+}

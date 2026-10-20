@@ -1,6 +1,6 @@
 {
   "name": "bitfun-mobile-web",
-  "version": "1.0.0",
+  "version": "1.0.6",
   "private": true,
   "type": "module",
   "scripts": {
@@ -17,6 +17,9 @@
     "type-check": "tsc --noEmit",
     "build": "vite build",
     "preview": "vite preview",
+    "test:host-queue": "node --test tests/host-dialog-queue.test.mjs tests/host-dialog-queue-browser.test.mjs",
+    "test:host-stream": "node --test tests/host-stream.test.mjs tests/host-catalog-subscription.test.mjs tests/prompt-suggestion.test.mjs",
+    "test:prompt-suggestion-browser": "node --test tests/prompt-suggestion-browser.test.mjs",
     "test:realtime-sync": "node --test tests/realtime-sync.test.mjs",
     "test:session-stream-browser": "node --test tests/session-stream-browser.test.mjs",
     "test:runtime-files": "node --test tests/runtime-file-upload.test.mjs tests/runtime-file-download.test.mjs",
@@ -31,7 +34,7 @@
     "@bitfun/ui": "workspace:^",
     "@xterm/addon-fit": "0.12.0-beta.141",
     "@xterm/xterm": "6.1.0-beta.141",
-    "lucide-react": "^0.541.0",
+    "lucide-react": "^0.560.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-markdown": "^10.1.0",

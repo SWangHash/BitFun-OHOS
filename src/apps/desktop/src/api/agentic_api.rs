@@ -2100,16 +2100,28 @@ pub async fn update_session_model(
     if session_id.is_empty() {
         return Err("session_id is required".to_string());
     }
-    ensure_session_loaded_for_selector_update(
-        runtime.inner(),
-        &session_id,
-        request.workspace_id,
-        request.workspace_path,
-        request.remote_connection_id,
-        request.remote_ssh_host,
-        request.include_internal,
-    )
-    .await?;
+    if runtime
+        .session_application()
+        .update_unloaded_session_model(
+            DesktopSessionScopeRequest {
+                workspace_id: request.workspace_id,
+                workspace_path: request.workspace_path.unwrap_or_default(),
+                remote_connection_id: request.remote_connection_id,
+                remote_ssh_host: request.remote_ssh_host,
+            },
+            &session_id,
+            &request.model_name,
+            request
+                .reasoning_preset
+                .as_ref()
+                .and_then(|value| value.as_deref()),
+            request.include_internal,
+        )
+        .await
+        .map_err(|error| error.to_string())?
+    {
+        return Ok(());
+    }
     let update_result = match request.reasoning_preset {
         Some(reasoning_preset) => {
             let reasoning_preset = reasoning_preset
@@ -2468,6 +2480,18 @@ pub async fn ensure_coordinator_session(
         )
         .await
         .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn manage_dialog_queue(
+    runtime: State<'_, DesktopRuntimeContext>,
+    request: bitfun_runtime_ports::DialogQueueRequest,
+) -> Result<bitfun_runtime_ports::DialogQueueSnapshot, String> {
+    runtime
+        .agent_runtime()
+        .manage_dialog_queue(request)
+        .await
+        .map_err(|e| e.into_message())
 }
 
 #[tauri::command]

@@ -21,6 +21,7 @@ impl Default for CreativeHarness {
 impl CreativeHarness {
     pub fn new() -> Self {
         let mut default_tools = standard_harness_tools();
+        default_tools.push("ComputerUse".to_string());
         default_tools.extend(
             [
                 "InitMiniApp",
@@ -50,7 +51,7 @@ impl Agent for CreativeHarness {
     }
 
     fn description(&self) -> &str {
-        "Creative Harness for building MiniApps and customizing the BitFun interface"
+        "Creative Harness for videos, decks, prototypes, and web design with on-demand creative skills, building MiniApps, and customizing the BitFun interface"
     }
 
     fn prompt_template_name(&self, _model_name: Option<&str>) -> &str {
@@ -100,5 +101,22 @@ mod tests {
             .join(" ")
             .contains("installed client"));
         assert!(prompt.contains("FrontendWorkbench"));
+    }
+
+    #[test]
+    fn creative_prompt_routes_remote_creative_skills_without_bundling_them() {
+        let prompt = crate::agentic::agents::get_embedded_prompt("creative_mode").unwrap();
+        for repository in [
+            "https://github.com/feitangyuan/onetake",
+            "https://github.com/heygen-com/hyperframes",
+            "https://github.com/alchaincyf/huashu-design",
+            "https://github.com/leonxlnx/taste-skill",
+            "https://github.com/emilkowalski/skills",
+        ] {
+            assert!(prompt.contains(repository), "missing {repository}");
+        }
+        assert!(prompt.contains("not bundled"));
+        assert!(prompt.contains("`WebFetch`"));
+        assert!(prompt.contains("`ExecCommand`"));
     }
 }

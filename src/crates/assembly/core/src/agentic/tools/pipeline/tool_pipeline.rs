@@ -790,6 +790,7 @@ pub struct ToolPipeline {
     /// interactive permission prompt only; policy denials still apply.
     hook_preapprovals: Arc<TokioMutex<HashSet<String>>>,
     telemetry: Telemetry,
+    hook_asks: Arc<TokioMutex<HashMap<String, String>>>,
 }
 
 impl ToolPipeline {
@@ -807,6 +808,7 @@ impl ToolPipeline {
             permission_plans: Arc::new(TokioMutex::new(HashMap::new())),
             hook_preapprovals: Arc::new(TokioMutex::new(HashSet::new())),
             telemetry: Telemetry::noop(),
+            hook_asks: Arc::new(TokioMutex::new(HashMap::new())),
         }
     }
 
@@ -919,9 +921,23 @@ impl ToolPipeline {
         intents: Vec<PermissionIntent>,
         context: ToolUseContext,
     ) -> BitFunResult<PermissionPlanDraft> {
+        let hook_ask = self
+            .hook_asks
+            .lock()
+            .await
+            .get(&task.tool_call.tool_id)
+            .cloned();
+        let mut intents = intents;
         if intents.is_empty() {
-            return Ok(PermissionPlanDraft::Allowed);
+            if hook_ask.is_none() {
+                return Ok(PermissionPlanDraft::Allowed);
+            }
+            intents.push(PermissionIntent::new(
+                "custom_tool",
+                vec![tool_name.clone()],
+            ));
         }
+        let forced_intents = hook_ask.as_ref().map(|_| intents.clone());
 
         let (project_id, project_path) = permission_scope(&context, &intents)?;
         let permission_policy = task.options.permission_policy.clone();
@@ -946,7 +962,10 @@ impl ToolPipeline {
         };
         let asks =
             match plan_permission_intents(intents, &permission_policy, &grants, case_sensitivity) {
-                PermissionIntentPlan::Allowed => return Ok(PermissionPlanDraft::Allowed),
+                PermissionIntentPlan::Allowed => match forced_intents {
+                    Some(intents) => intents,
+                    None => return Ok(PermissionPlanDraft::Allowed),
+                },
                 PermissionIntentPlan::Denied(intent) => {
                     return Ok(PermissionPlanDraft::Rejected {
                         reason: format!(
@@ -962,13 +981,12 @@ impl ToolPipeline {
         // A PreToolUse hook already approved this call. The approval reaches
         // here — after policy evaluation — precisely so that it waives only
         // the interactive prompt: a policy Deny above has already returned.
-        if self.hook_preapprovals.lock().await.contains(&tool_call_id) {
+        if hook_ask.is_none() && self.hook_preapprovals.lock().await.contains(&tool_call_id) {
             return Ok(PermissionPlanDraft::Allowed);
         }
 
-        // The tool call would prompt the user: give PermissionRequest hooks
-        // a chance to decide first. An explicit hook decision replaces the
-        // interactive prompt for this invocation.
+        // PermissionRequest denials remain authoritative even when a skill
+        // requires a fresh user reply. An allow cannot waive that explicit ask.
         if let Some(hook_decision) = native_hooks::dispatch_permission_request(
             native_hook_session_facts(&task.context, &task.options),
             &tool_name,
@@ -977,20 +995,15 @@ impl ToolPipeline {
         .await
         {
             if hook_decision.allow {
-                info!(
-                    "PermissionRequest hook allowed tool call without prompting: tool_name={}",
-                    tool_name
-                );
-                return Ok(PermissionPlanDraft::Allowed);
+                if hook_ask.is_none() {
+                    return Ok(PermissionPlanDraft::Allowed);
+                }
+            } else {
+                let reason = hook_decision.message.unwrap_or_else(|| {
+                    format!("A PermissionRequest hook denied the '{tool_name}' tool call.")
+                });
+                return Ok(PermissionPlanDraft::Rejected { reason });
             }
-            let reason = hook_decision.message.unwrap_or_else(|| {
-                format!("A PermissionRequest hook denied the '{tool_name}' tool call.")
-            });
-            info!(
-                "PermissionRequest hook denied tool call: tool_name={}",
-                tool_name
-            );
-            return Ok(PermissionPlanDraft::Rejected { reason });
         }
 
         if manager.is_none() {
@@ -1018,7 +1031,20 @@ impl ToolPipeline {
                     identity: tool_name.clone(),
                 },
                 delegation: permission_delegation.clone(),
-                display_metadata: intent.display_metadata,
+                display_metadata: {
+                    let mut metadata = intent.display_metadata;
+                    if let Some(reason) = &hook_ask {
+                        metadata.insert(
+                            "riskDescription".into(),
+                            serde_json::Value::String(reason.clone()),
+                        );
+                        metadata.insert(
+                            "requiresFreshApproval".into(),
+                            serde_json::Value::Bool(true),
+                        );
+                    }
+                    metadata
+                },
             })
             .collect();
 
@@ -1217,6 +1243,8 @@ impl ToolPipeline {
                     task_id.clone(),
                     PermissionExecutionPlan::Rejected { reason },
                 );
+            } else if let Some(reason) = decision.ask_reason {
+                self.hook_asks.lock().await.insert(task_id.clone(), reason);
             } else if decision.allow {
                 // A hook approval only waives the interactive prompt. It is
                 // recorded for the planner rather than short-circuiting it,
@@ -1481,9 +1509,47 @@ impl ToolPipeline {
                         "Permission batch lost its owning Dialog Turn".to_string(),
                     )
                 })?;
-            let receivers = self
-                .register_permission_requests(batch_requests, &dialog_turn_id, auto_approve)
-                .await?;
+            // A skill's explicit ask must survive bypass mode. Keep other
+            // requests' existing auto-approval policy and original ordering.
+            let forced = self.hook_asks.lock().await.clone();
+            let mut receivers = Vec::with_capacity(batch_requests.len());
+            let mut groups: Vec<(bool, Vec<PermissionRequest>)> = Vec::new();
+            for request in batch_requests {
+                let approve = auto_approve
+                    && !request
+                        .tool_call_id
+                        .as_ref()
+                        .is_some_and(|id| forced.contains_key(id));
+                if let Some((_, requests)) = groups
+                    .last_mut()
+                    .filter(|(previous, _)| *previous == approve)
+                {
+                    requests.push(request);
+                } else {
+                    groups.push((approve, vec![request]));
+                }
+            }
+            for (approve, requests) in groups {
+                match self
+                    .register_permission_requests(requests, &dialog_turn_id, approve)
+                    .await
+                {
+                    Ok(group) => receivers.extend(group),
+                    Err(error) => {
+                        self.cancel_permission_request_ids(
+                            receivers
+                                .into_iter()
+                                .map(|pending: PendingPermissionReceiver| {
+                                    pending.request_id().to_string()
+                                })
+                                .collect(),
+                            "Permission registration failed".into(),
+                        )
+                        .await;
+                        return Err(error);
+                    }
+                }
+            }
 
             let mut receivers_by_task = HashMap::<String, Vec<PendingPermissionReceiver>>::new();
             for ((task_id, _), receiver) in ordered_requests.into_iter().zip(receivers) {
@@ -1757,6 +1823,12 @@ impl ToolPipeline {
                 preapprovals.remove(task_id);
             }
         }
+        {
+            let mut asks = self.hook_asks.lock().await;
+            for task_id in task_ids {
+                asks.remove(task_id);
+            }
+        }
         for task_id in task_ids {
             let Some(plan) = self.permission_plans.lock().await.remove(task_id) else {
                 continue;
@@ -1799,7 +1871,12 @@ impl ToolPipeline {
                 self.register_permission_requests(
                     requests,
                     &task.context.dialog_turn_id,
-                    task.options.auto_approve_ask,
+                    task.options.auto_approve_ask
+                        && !self
+                            .hook_asks
+                            .lock()
+                            .await
+                            .contains_key(&task.tool_call.tool_id),
                 )
                 .await?,
             ),
@@ -1984,6 +2061,63 @@ impl ToolPipeline {
             task_ids.push(tool_id);
         }
 
+        // A policy-changing call closes the preflight segment. Later tools
+        // are validated only after its new session hooks become visible.
+        let mut segments = Vec::new();
+        let mut segment = Vec::new();
+        {
+            let registry = self.tool_registry.read().await;
+            for (task_id, name) in task_ids.iter().zip(&tool_names) {
+                segment.push(task_id.clone());
+                if registry
+                    .get_tool(name)
+                    .is_some_and(|tool| tool.invalidates_tool_preflight())
+                {
+                    segments.push(std::mem::take(&mut segment));
+                }
+            }
+        }
+        if !segment.is_empty() {
+            segments.push(segment);
+        }
+        let mut results = Vec::with_capacity(task_ids.len());
+        let mut segments = segments.into_iter();
+        while let Some(segment) = segments.next() {
+            if self.should_interrupt_for_round_injection(&context) {
+                results.extend(
+                    self.build_steering_interrupted_results(
+                        segment.into_iter().chain(segments.flatten()),
+                    )
+                    .await,
+                );
+                break;
+            }
+            match self
+                .execute_preflight_segment(segment, &options, subagent_call_count)
+                .await
+            {
+                Ok(segment_results) => results.extend(segment_results),
+                Err(error) => {
+                    self.cleanup_permission_plans(&task_ids, "Tool execution failed".into())
+                        .await;
+                    return Err(error);
+                }
+            }
+        }
+        Ok(results)
+    }
+
+    async fn execute_preflight_segment(
+        &self,
+        task_ids: Vec<String>,
+        options: &ToolExecutionOptions,
+        subagent_call_count: usize,
+    ) -> BitFunResult<Vec<ToolExecutionResult>> {
+        let tool_names = task_ids
+            .iter()
+            .filter_map(|id| self.state_manager.get_task(id))
+            .map(|task| task.invocation.effective_tool_name)
+            .collect::<Vec<_>>();
         // PreToolUse hooks run before permission planning so a hook decision
         // (deny / pre-approve / rewritten input) is visible to the planner
         // and no permission prompt is raised for calls a hook already decided.
@@ -3463,7 +3597,7 @@ mod tests {
         DialogRoundInjectionInterrupt, SessionRoundInjectionBuffer,
     };
     use crate::agentic::tools::framework::{Tool, ToolResult, ValidationResult};
-    use crate::agentic::tools::implementations::task::TaskTool;
+    use crate::agentic::tools::implementations::task::AgentExecutionTool;
     use crate::agentic::tools::tool_context_runtime::ToolUseContext;
     use crate::agentic::tools::ToolRuntimeRestrictions;
     use crate::agentic::WorkspaceBinding;
@@ -3717,6 +3851,248 @@ mod tests {
         delay_ms: u64,
         readonly: bool,
         round_injection_yieldable: bool,
+    }
+
+    #[cfg(unix)]
+    struct HookActivatingTestTool {
+        skill: bitfun_agent_runtime::skills::SkillData,
+    }
+
+    #[cfg(unix)]
+    #[async_trait]
+    impl Tool for HookActivatingTestTool {
+        fn name(&self) -> &str {
+            "ActivateSkillHooks"
+        }
+        async fn description(&self) -> BitFunResult<String> {
+            Ok("Activate test skill".into())
+        }
+        fn short_description(&self) -> String {
+            "Activate test skill".into()
+        }
+        fn input_schema(&self) -> serde_json::Value {
+            json!({"type":"object"})
+        }
+        fn is_readonly(&self) -> bool {
+            true
+        }
+        fn is_concurrency_safe(&self, _: Option<&serde_json::Value>) -> bool {
+            false
+        }
+        fn invalidates_tool_preflight(&self) -> bool {
+            true
+        }
+        async fn call_impl(
+            &self,
+            _: &serde_json::Value,
+            context: &ToolUseContext,
+        ) -> BitFunResult<Vec<ToolResult>> {
+            native_hooks::activate_skill_hooks(&self.skill, context).await?;
+            Ok(vec![ToolResult::Result {
+                data: json!({"loaded":true}),
+                result_for_assistant: None,
+                image_attachments: None,
+            }])
+        }
+    }
+
+    #[cfg(unix)]
+    fn test_skill_hooks(command: &str) -> bitfun_agent_runtime::skills::SkillData {
+        use bitfun_agent_runtime::skills::{SkillData, SkillLocation};
+        let mut skill = SkillData::from_markdown_for_source_slot(
+            "/skills/test".into(),
+            "---\nname: test\ndescription: Test skill\n---\nTest",
+            SkillLocation::User,
+            true,
+            "claude",
+        )
+        .unwrap();
+        skill.key = "user::claude::test".into();
+        skill.hooks=Some(bitfun_agent_runtime::skills::SkillHooks::from_yaml(&serde_yaml::to_value(json!({"PreToolUse":[{"matcher":"Capture","hooks":[{"type":"command","command":command}]}]})).unwrap()).unwrap());
+        skill
+    }
+
+    #[cfg(unix)]
+    struct ClearTestHooks(String);
+    #[cfg(unix)]
+    impl Drop for ClearTestHooks {
+        fn drop(&mut self) {
+            native_hooks::clear_session_hook_state(&self.0);
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn skill_hooks_apply_to_later_tools_in_the_same_round_and_persist() {
+        for parallel in [false, true] {
+            let temp = tempfile::tempdir().unwrap();
+            let mut context = permission_test_context();
+            context.workspace = Some(WorkspaceBinding::new(None, temp.path().into()));
+            context.session_id = uuid::Uuid::new_v4().to_string();
+            let _clear = ClearTestHooks(context.session_id.clone());
+            let pipeline = test_tool_pipeline();
+            let captured = Arc::new(Mutex::new(None));
+            register_capturing_test_tool(&pipeline, "Capture", captured.clone()).await;
+            pipeline
+                .tool_registry
+                .write()
+                .await
+                .register_tool(Arc::new(HookActivatingTestTool {
+                    skill: test_skill_hooks("echo skill-blocked >&2; exit 2"),
+                }));
+            let mut capture = test_tool_call("after", "Capture");
+            capture.arguments = json!({"city":"safe"});
+            let mut before = capture.clone();
+            before.tool_id = "before".into();
+            let mut options = ToolExecutionOptions::default();
+            options.allow_parallel = parallel;
+            let result = pipeline
+                .execute_tools(
+                    vec![
+                        before,
+                        test_tool_call("activate", "ActivateSkillHooks"),
+                        capture.clone(),
+                    ],
+                    context.clone(),
+                    options.clone(),
+                )
+                .await
+                .unwrap();
+            assert!(!result[0].result.is_error);
+            assert!(!result[1].result.is_error, "{:?}", result[1]);
+            assert_eq!(result[2].result.result["category"], "permission_denied");
+            assert!(result[2]
+                .result
+                .result
+                .to_string()
+                .contains("skill-blocked"));
+            *captured.lock().unwrap() = None;
+            capture.tool_id = "next-round".into();
+            assert_eq!(
+                pipeline
+                    .execute_tools(vec![capture.clone()], context.clone(), options.clone())
+                    .await
+                    .unwrap()[0]
+                    .result
+                    .result["category"],
+                "permission_denied"
+            );
+            assert!(captured.lock().unwrap().is_none());
+            native_hooks::clear_session_hook_state(&context.session_id);
+            capture.tool_id = "after-close".into();
+            assert!(
+                !pipeline
+                    .execute_tools(vec![capture], context, options)
+                    .await
+                    .unwrap()[0]
+                    .result
+                    .is_error
+            );
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn skill_hook_ask_requires_user_reply_even_with_allow_and_bypass() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut context = permission_test_context();
+        context.workspace = Some(WorkspaceBinding::new(None, temp.path().into()));
+        context.session_id = uuid::Uuid::new_v4().to_string();
+        let _clear = ClearTestHooks(context.session_id.clone());
+        let store = Arc::new(MemoryPermissionStore::default());
+        let manager = permission_test_manager(store);
+        let pipeline = test_tool_pipeline().with_permission_request_manager(manager.clone());
+        let captured = Arc::new(Mutex::new(None));
+        register_capturing_test_tool(&pipeline, "Capture", captured.clone()).await;
+        let skill = test_skill_hooks(
+            r#"printf '%s' '{"hookSpecificOutput":{"permissionDecision":"ask","permissionDecisionReason":"review this call"}}'"#,
+        );
+        let task = ToolTask::new(
+            test_tool_call("activation", "Capture"),
+            context.clone(),
+            ToolExecutionOptions::default(),
+        );
+        native_hooks::activate_skill_hooks(
+            &skill,
+            &pipeline.build_tool_use_context(&task, CancellationToken::new()),
+        )
+        .await
+        .unwrap();
+        let mut call = test_tool_call("asked", "Capture");
+        call.arguments = json!({"city":"safe"});
+        let mut options = ToolExecutionOptions::default();
+        options.auto_approve_ask = true;
+        options.permission_policy = ResolvedPermissionPolicy::new(
+            vec![PermissionRule::new(
+                "custom_tool",
+                "*",
+                PermissionEffect::Allow,
+            )],
+            Vec::new(),
+        );
+        let running = pipeline.clone();
+        let run_context = context.clone();
+        let execution = tokio::spawn(async move {
+            running
+                .execute_tools(vec![call], run_context, options)
+                .await
+        });
+        let request = wait_for_permission_request(&manager).await;
+        assert_eq!(request.session_id, context.session_id);
+        assert_eq!(
+            request.display_metadata["riskDescription"],
+            "review this call"
+        );
+        assert!(captured.lock().unwrap().is_none());
+        pipeline
+            .reply_to_tool("asked", PermissionReply::Reject { feedback: None })
+            .await
+            .unwrap();
+        assert_eq!(
+            execution.await.unwrap().unwrap()[0].result.result["category"],
+            "user_rejected"
+        );
+        assert!(captured.lock().unwrap().is_none());
+        assert!(pipeline.hook_asks.lock().await.is_empty());
+        // A deny remains stronger than a hook's request for approval.
+        let mut denied = test_tool_call("policy-denied", "Capture");
+        denied.arguments = json!({"city":"safe"});
+        let mut options = ToolExecutionOptions::default();
+        options.permission_policy = ResolvedPermissionPolicy::new(
+            vec![PermissionRule::new(
+                "custom_tool",
+                "*",
+                PermissionEffect::Deny,
+            )],
+            Vec::new(),
+        );
+        assert_eq!(
+            pipeline
+                .execute_tools(vec![denied], context.clone(), options)
+                .await
+                .unwrap()[0]
+                .result
+                .result["category"],
+            "permission_denied"
+        );
+        assert!(manager.pending_requests().is_empty());
+        let veto = bitfun_agent_runtime::skills::SkillHooks::from_yaml(&serde_yaml::from_str("PermissionRequest: [{matcher: Capture, hooks: [{type: command, command: 'echo approval-veto >&2; exit 2'}]}]").unwrap()).unwrap();
+        native_hooks::runtime_hook_registry()
+            .register_session_skill(
+                &context.session_id,
+                "veto",
+                veto.fingerprint(),
+                veto.registrations(&context.session_id, "veto", "/", None, "/"),
+            )
+            .unwrap();
+        let mut vetoed = test_tool_call("vetoed", "Capture");
+        vetoed.arguments = json!({"city":"safe"});
+        let result = pipeline
+            .execute_tools(vec![vetoed], context, ToolExecutionOptions::default())
+            .await
+            .unwrap();
+        assert_eq!(result[0].result.result["reason"], "approval-veto");
+        assert!(manager.pending_requests().is_empty());
     }
 
     struct CapturingTestTool {
@@ -5764,7 +6140,7 @@ mod tests {
             .result_for_assistant
             .as_deref()
             .unwrap_or_default()
-            .contains("Call GetToolSpec first"));
+            .contains("Call GetToolSpec with {\"tool_name\":\"get_weather\"}"));
     }
 
     #[tokio::test]
@@ -6012,7 +6388,7 @@ mod tests {
         assert_failed_task_contains(
             &pipeline,
             "tool_1",
-            "Call GetToolSpec first with {\"tool_name\":\"WebFetch\"}",
+            "Call GetToolSpec with {\"tool_name\":\"WebFetch\"}",
         );
     }
 
@@ -6251,6 +6627,70 @@ mod tests {
         assert!(!assistant_text.contains("completed with error"));
     }
 
+    #[cfg(feature = "tools-computer-use")]
+    #[test]
+    fn computer_use_observations_reach_provider_messages_with_images_and_references() {
+        use crate::agentic::core::message::Message;
+        use crate::agentic::tools::implementations::computer_use_presentation::complete_model_results;
+        use crate::util::types::Message as AIMessage;
+        use bitfun_agent_tools::ToolImageAttachment;
+
+        // These deliberately have the brief summaries that previously hid the
+        // entire app list and AX tree from the model. Check the final provider
+        // message, not merely ToolResult::content() (the UI-only data path).
+        let cases = [
+            (
+                json!({"action":"list_apps", "apps":[{"pid":421,"name":"WeChat","bundle_id":"com.tencent.xinWeChat"}]}),
+                "1 app(s) listed",
+                vec!["WeChat", "com.tencent.xinWeChat", "421"],
+            ),
+            (
+                json!({"action":"get_app_state", "tree_text":"[7] AXTextField Search", "nodes":[{"idx":7,"role":"AXTextField","title":"Search"}], "screenshot_id":"capture-2", "image_width":800, "image_height":600}),
+                "34 nodes",
+                vec!["[7] AXTextField Search", "capture-2", "image_width"],
+            ),
+            (
+                json!({"action":"describe_screen", "ax_tree_text":"[9] AXButton Confirm", "truncation_note":"tree limited to visible nodes"}),
+                "Screen described",
+                vec!["[9] AXButton Confirm", "tree limited to visible nodes"],
+            ),
+            (
+                json!({"action":"move_to_text", "disambiguation_required":true, "candidates":[{"match_index":2,"ocr_text":"Search","preview_image_attachment_index":0}], "instruction":"Choose a match_index; pointer was not moved."}),
+                "Several OCR matches",
+                vec![
+                    "match_index",
+                    "preview_image_attachment_index",
+                    "pointer was not moved",
+                ],
+            ),
+        ];
+        for (data, summary, expected) in cases {
+            let mut results = vec![FrameworkToolResult::ok_with_images(
+                data.clone(),
+                Some(summary.into()),
+                vec![ToolImageAttachment {
+                    mime_type: "image/jpeg".into(),
+                    data_base64: "image-bytes-stay-out-of-text".into(),
+                }],
+            )];
+            complete_model_results(&mut results);
+            let converted =
+                convert_tool_result(results.remove(0), "call-1", "ComputerUse", "ComputerUse");
+            assert_eq!(converted.result, data, "stored/UI result must be unchanged");
+            let message = AIMessage::from(Message::tool_result(converted));
+            let content = message.content.unwrap();
+            assert!(content.contains(summary));
+            for field in expected {
+                assert!(content.contains(field), "missing {field} in {content}");
+            }
+            assert!(!content.contains("image-bytes-stay-out-of-text"));
+            assert_eq!(message.tool_call_id.as_deref(), Some("call-1"));
+            let images = message.tool_image_attachments.unwrap();
+            assert_eq!(images.len(), 1);
+            assert_eq!(images[0].data_base64, "image-bytes-stay-out-of-text");
+        }
+    }
+
     #[test]
     fn typed_ok_false_result_is_a_semantic_tool_error() {
         let result = convert_tool_result(
@@ -6373,7 +6813,7 @@ mod tests {
 
         assert!(err
             .to_string()
-            .contains("Call GetToolSpec first with {\"tool_name\":\"WebFetch\"}"));
+            .contains("Call GetToolSpec with {\"tool_name\":\"WebFetch\"}"));
     }
 
     #[test]
@@ -6400,7 +6840,7 @@ mod tests {
 
     #[test]
     fn task_tool_manages_its_own_execution_timeout() {
-        let task_tool = TaskTool::new();
+        let task_tool = AgentExecutionTool::new();
         assert!(task_tool.manages_own_execution_timeout());
     }
 

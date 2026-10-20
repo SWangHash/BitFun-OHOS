@@ -923,12 +923,13 @@ describe('AcpAgentsConfig', () => {
     });
 
     expect(container.querySelector('header')?.textContent).toContain('actions.learnMore');
+    expect(container.querySelector('header')?.textContent).not.toContain('registry.description');
     const registryHeading = Array.from(container.querySelectorAll('h3'))
       .find(heading => heading.textContent === 'registry.title');
     const registrySection = registryHeading?.closest('section');
     expect(registrySection?.textContent).toContain('actions.refresh');
     expect(registrySection?.textContent).toContain('presets.opencode.description');
-    expect(registrySection?.textContent).not.toContain('registry.description');
+    expect(registrySection?.textContent).toContain('registry.description');
     expect(registrySection?.textContent).not.toContain('Native ACP coding agent');
   });
 
@@ -981,8 +982,8 @@ describe('AcpAgentsConfig', () => {
 
     const commit = vi.fn();
     expect(requestSettingsNavigation(
-      { pageId: 'tools.acp', viewId: 'json' },
-      { kind: 'settings', pageId: 'tools.acp', viewId: 'local' },
+      { pageId: 'tools.external-agents', viewId: 'json' },
+      { kind: 'settings', pageId: 'tools.external-agents', viewId: 'local' },
       commit,
     )).toBe(false);
     expect(getSettingsDraftSnapshot().pendingNavigation?.resourceLabels).toEqual([
@@ -1021,8 +1022,8 @@ describe('AcpAgentsConfig', () => {
 
     const commit = vi.fn();
     expect(requestSettingsNavigation(
-      { pageId: 'tools.acp', viewId: 'json' },
-      { kind: 'settings', pageId: 'tools.acp', viewId: 'local' },
+      { pageId: 'tools.external-agents', viewId: 'json' },
+      { kind: 'settings', pageId: 'tools.external-agents', viewId: 'local' },
       commit,
     )).toBe(true);
     expect(commit).toHaveBeenCalledOnce();

@@ -50,6 +50,11 @@ export const useDialogCompletionNotify = () => {
       }
     };
 
+    // Track the last notification receipt per session so a single settled turn
+    // does not notify twice when both the live completion event and the
+    // background report delivery carry the same execution generation.
+    const notified = new Map<string, string>();
+
     const notify = async (
       event: AgenticEvent,
       outcome: { success?: boolean; cancelled?: boolean; finishReason?: string | null },
@@ -104,13 +109,29 @@ export const useDialogCompletionNotify = () => {
         t,
       });
 
+      const turnId = event.turnId ?? event.turn_id;
+      const turn = session?.dialogTurns?.find(turn => turn.id === turnId);
+      const outcomeKey = outcome.cancelled
+        ? 'cancelled'
+        : outcome.success === false
+          ? 'failed'
+          : 'completed';
+      const receipt = `${turnId}:${turn?.recovery?.executionGeneration ?? turn?.recoveryEpoch ?? 0}:${outcomeKey}`;
+      if (notified.get(sessionId) === receipt) return;
+      notified.set(sessionId, receipt);
+
       if (isOpenHarmonyRuntime()) {
         log.info('Sending dialog completion notification', { title: notificationCopy.title });
       }
-      await systemAPI.sendSystemNotification(
-        notificationCopy.title,
-        notificationCopy.body,
-      );
+      try {
+        await systemAPI.sendSystemNotification(
+          notificationCopy.title,
+          notificationCopy.body,
+        );
+      } catch (error) {
+        if (notified.get(sessionId) === receipt) notified.delete(sessionId);
+        log.warn('Failed to send dialog result notification', { sessionId, turnId, error });
+      }
     };
 
     // A completed turn may itself be unsuccessful (success === false). A

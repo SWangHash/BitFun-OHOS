@@ -385,6 +385,9 @@ async fn start_switch_model(state: &mut BotChatState, s: &'static BotStrings) ->
         }
     };
 
+    // A bot menu reads the configured models and the session selection only: the
+    // models.dev bodies belong to the host's own settings surface, and a chat
+    // controller never offers provider or reasoning-catalog editing.
     let catalog = match CoreServiceAgentRuntime::load_remote_model_catalog(Some(&session_id)).await
     {
         Ok(c) => c,
@@ -2260,29 +2263,7 @@ async fn create_session(state: &mut BotChatState, agent_type: &str) -> HandleRes
         state.current_workspace.clone()
     };
 
-    let session_name = match agent_type {
-        "Cowork" => {
-            if language.is_chinese() {
-                "远程协作会话"
-            } else {
-                "Remote Cowork Session"
-            }
-        }
-        "Claw" => {
-            if language.is_chinese() {
-                "远程助理会话"
-            } else {
-                "Remote Claw Session"
-            }
-        }
-        _ => {
-            if language.is_chinese() {
-                "远程编码会话"
-            } else {
-                "Remote Code Session"
-            }
-        }
-    };
+    let session_name = ""; // The owning runtime chooses the localized default title.
 
     let Some(workspace_ref) = workspace_ref else {
         let view = if is_claw {

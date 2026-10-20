@@ -2,7 +2,7 @@
 # 用法:
 #   ./package.sh                                  # 打包上游仓库 main 分支（HAP）
 #   ./package.sh -b release/2.0.0                 # 指定分支（上游仓库）
-#   ./package.sh -b release/2.0.0 -r https://gitcode.com/OpenBitFun/bitfun_ade.git   # 指定分支 + 指定仓库
+#   ./package.sh -b release/2.0.0 -r https://gitcode.com/BitFun/bitfun_ade.git   # 指定分支 + 指定仓库
 #   ./package.sh -s -b release/2.0.0              # 只到 cargo tauri ohos build 编出 so（发布包在本地打 app 时用）
 #   ./package.sh -a -b main                       # HAP 之后追加打 .app 包（cer.snippet 签 HAP，cer-app.snippet 签 .app）
 #   ./package.sh --debug -s -b main               # cargo tauri ohos build 使用 debug profile（so 在 target/.../debug，签名不变）
@@ -11,7 +11,7 @@
 set -e
 
 BRANCH=main
-REPO_URL=https://gitcode.com/OpenBitFun/bitfun_ade.git
+REPO_URL=https://gitcode.com/BitFun/bitfun_ade.git
 SO_ONLY=0
 WITH_APP=0
 DEBUG_BUILD=0
@@ -98,7 +98,7 @@ fi
 cargo tauri ohos build $TAURI_BUILD_ARGS || echo "==> cargo tauri ohos build 非零退出（打包阶段失败可忽略），继续执行"
 
 # so 名按分支自动适配：main 分支为 libbitfun_desktop_lib.so，
-# 2.0.0 分支已改名为 libopenbitfun_desktop_lib.so，这里用通配探测，无需写死；
+# 2.0.0 分支已改名为 libbitfun_desktop_lib.so，这里用通配探测，无需写死；
 # so 所在 profile 目录跟随 --debug：release 或 debug
 if [ "$DEBUG_BUILD" = "1" ]; then
   SO_DIR=$workpath/$repo_dir/target/aarch64-unknown-linux-ohos/debug

@@ -72,6 +72,53 @@ const MODULES = [
 
 const TEST_ROOT = join('C:', 'repo');
 
+test('workspace instruction owner requires family priority and non-empty fallback regressions', async () => {
+  const rule = requiredContentRules.find(
+    rule => rule.path === 'src/crates/services/services-core/tests/declarative_workspace_instruction_contracts.rs',
+  );
+  assert.ok(rule);
+  const source = await readFile(new URL(`../${rule.path}`, import.meta.url), 'utf8');
+  const accepts = text => rule.patterns.every(({ regex }) => regex.test(text));
+  assert.ok(accepts(source));
+
+  for (const name of [
+    'workspace_instruction_families_select_agents_then_claude_then_opencode',
+    'workspace_instruction_override_skips_empty_files_and_suppresses_claude',
+    'opencode_project_instructions_support_local_files_and_globs_only',
+  ]) {
+    assert.ok(!accepts(source.replace(name, 'removed_regression')), `must require ${name}`);
+  }
+  assert.ok(!accepts(source.replace(
+    'workspace_instruction_families_select_agents_then_claude_then_opencode',
+    'workspace_instruction_files_reads_agents_then_claude_and_skips_empty_files',
+  )));
+});
+
+test('builtin agent catalog requires the GeneralPurpose fast model default', () => {
+  const rule = requiredContentRules.find(
+    rule => rule.path === 'src/crates/execution/agent-runtime/src/agents.rs'
+      && rule.patterns.some(pattern => pattern.message.includes('GeneralPurpose')),
+  );
+  assert.ok(rule);
+  const mapping = `builtin_agent_spec(
+    "GeneralPurpose",
+    SubAgent,
+    "fast",
+    SubagentVisibilityPolicy::public(),
+  )`;
+  const catalog = `fn builtin_agent_definition_specs() {
+    ${mapping};
+    SubagentVisibilityPolicy::restricted(["Claw"]);
+  }`;
+  const accepts = text => rule.patterns.every(({ regex }) => regex.test(text));
+  assert.ok(accepts(catalog));
+  assert.ok(!accepts(catalog.replace(mapping, '')));
+  assert.ok(!accepts(catalog.replace('"fast"', '"primary"')));
+  assert.ok(!accepts(catalog.replace('SubAgent,', 'Mode,')));
+  assert.ok(!accepts(catalog.replace('"GeneralPurpose"', '"Explore"')));
+  assert.ok(!accepts(catalog.replace('SubagentVisibilityPolicy::restricted(["Claw"]);', '')));
+});
+
 test('tool-runtime search regex stays available without enabling HTML extractors', () => {
   const rule = requiredContentRules.find(
     rule => rule.path === 'src/crates/execution/tool-execution/Cargo.toml',
@@ -3098,6 +3145,10 @@ test('third-party capability profiles reject ambient feature unions and unreview
       uses_default_features: false,
       features: ['vendored-libgit2'],
     }]),
+    packageAt('bitfun-webdriver', 'src/crates/adapters/webdriver/Cargo.toml', [{
+      name: 'image', kind: null, optional: false, uses_default_features: false,
+      features: ['jpeg', 'png'],
+    }]),
   ];
 
   assert.deepEqual(findThirdPartyCapabilityFeatureViolations(validPackages), []);
@@ -3108,6 +3159,7 @@ test('third-party capability profiles reject ambient feature unions and unreview
   mutatedPackages[2].dependencies[0].features.push('rustls-tls-native-roots');
   mutatedPackages[3].dependencies[0].features.push('https');
   mutatedPackages[3].dependencies[0].rename = 'private-git2';
+  mutatedPackages[4].dependencies[0].features = ['png', 'webp'];
   mutatedPackages.push(packageAt('future-image-owner', 'src/apps/future/Cargo.toml', [{
     name: 'image',
     kind: null,
@@ -3124,6 +3176,8 @@ test('third-party capability profiles reject ambient feature unions and unreview
   assert.match(messages, /bitfun-core Tokio Tungstenite dependency has unexpected features: rustls-tls-native-roots/);
   assert.match(messages, /bitfun-services-core Git2 dependency has unexpected features: https/);
   assert.match(messages, /bitfun-services-core Git2 dependency does not match its reviewed owner shape/);
+  assert.match(messages, /bitfun-webdriver Image dependency missing features: jpeg/);
+  assert.match(messages, /bitfun-webdriver Image dependency has unexpected features: webp/);
   assert.match(messages, /future-image-owner Image dependency is missing a reviewed owner profile/);
 });
 
@@ -3830,6 +3884,7 @@ test('desktop preview rebuild inputs use the current crate layout', async () => 
     devScript,
     /'src', 'crates', '(?:core|transport|events|ai-adapters|webdriver|api-layer|assembly|adapters|contracts|execution|interfaces|services)'/,
   );
+  assert.match(devScript, /prompts\$\{path\.sep\}/);
   assert.match(
     devScript,
     /service\$\{path\.sep\}announcement\$\{path\.sep\}content/,
@@ -4142,6 +4197,7 @@ test('Services Core accepts only the reviewed feature-owned Tokio runtime graph'
         'tokio/sync',
         'tokio/time',
       ],
+      'session-recovery': ['local-storage', 'workspace-persistence', 'dep:anyhow'],
       permission: ['dep:tokio', 'tokio/rt'],
       'session-search': ['dep:tokio', 'tokio/rt'],
       'process-runtime': [
@@ -4858,6 +4914,44 @@ test('vendored Engine.IO remains in resolved feature audits without becoming a p
   assert.ok(graph.resolvedPackageFeatures.some(record => record.name === 'eioc'));
   assert.ok(collect([owner.id, vendor.id]).packages.some(pkg => pkg.name === 'eioc'),
     'a product workspace member cannot bypass ownership checks through a vendor path');
+});
+
+test('vendored Tao is external only at its reviewed version and stays in feature audits', () => {
+  const owner = packageAt('owner', 'src/apps/example/Cargo.toml');
+  const vendor = { ...packageAt('tao', 'third_party/tao/Cargo.toml'), version: '0.36.0' };
+  const collect = (pkg = vendor, members = [owner.id]) => collectCargoMetadataGraph({
+    root: TEST_ROOT,
+    manifestPaths: [join(TEST_ROOT, 'Cargo.toml')],
+    loadMetadata: () => ({
+      packages: [owner, pkg], workspace_members: members,
+      resolve: { nodes: [{ id: pkg.id, features: ['rwh_06'], deps: [] }] },
+    }),
+  });
+  const graph = collect();
+  assert.deepEqual(graph.packages.map(pkg => pkg.name), ['owner']);
+  assert.ok(graph.resolvedPackageFeatures.some(record => record.name === 'tao'));
+  assert.ok(collect(vendor, [owner.id, vendor.id]).packages.some(pkg => pkg.name === 'tao'));
+  assert.ok(collect({ ...vendor, version: '0.37.0' }).packages.some(pkg => pkg.name === 'tao'));
+  assert.ok(collect({ ...vendor, name: 'product-owner' }).packages.some(pkg => pkg.name === 'product-owner'));
+});
+
+test('vendored Wry is external only at its reviewed version and stays in feature audits', () => {
+  const owner = packageAt('owner', 'src/apps/example/Cargo.toml');
+  const vendor = { ...packageAt('wry', 'third_party/wry/Cargo.toml'), version: '0.56.0' };
+  const collect = (pkg = vendor, members = [owner.id]) => collectCargoMetadataGraph({
+    root: TEST_ROOT,
+    manifestPaths: [join(TEST_ROOT, 'Cargo.toml')],
+    loadMetadata: () => ({
+      packages: [owner, pkg], workspace_members: members,
+      resolve: { nodes: [{ id: pkg.id, features: ['os-webview'], deps: [] }] },
+    }),
+  });
+  const graph = collect();
+  assert.deepEqual(graph.packages.map(pkg => pkg.name), ['owner']);
+  assert.ok(graph.resolvedPackageFeatures.some(record => record.name === 'wry'));
+  assert.ok(collect(vendor, [owner.id, vendor.id]).packages.some(pkg => pkg.name === 'wry'));
+  assert.ok(collect({ ...vendor, version: '0.57.0' }).packages.some(pkg => pkg.name === 'wry'));
+  assert.ok(collect({ ...vendor, name: 'product-owner' }).packages.some(pkg => pkg.name === 'product-owner'));
 });
 
 

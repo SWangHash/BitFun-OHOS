@@ -482,6 +482,10 @@ export const AgentCompanionPet: React.FC<AgentCompanionPetProps> = ({
           data-pet-action={spriteAction ?? undefined}
           className={`bitfun-agent-companion-pet__petdex bitfun-agent-companion-pet__petdex--${mood}`}
           style={{
+            imageRendering: pet.source === 'preset' && pet.id === 'bitblob' ? 'auto' : undefined,
+            // BitBlob's atlas already contains breathing, squash and movement.
+            // Extra mood transforms change its apparent size when a session changes state.
+            animationName: pet.source === 'preset' && pet.id === 'bitblob' ? 'bitfun-petdex-walk' : undefined,
             '--bitfun-petdex-src': `url("${petSrc}")`,
             '--bitfun-petdex-row': row,
             '--bitfun-petdex-frames': frames,

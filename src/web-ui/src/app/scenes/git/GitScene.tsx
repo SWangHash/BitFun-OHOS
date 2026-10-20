@@ -14,6 +14,7 @@ import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext'
 import { LoadingState } from '@bitfun/ui';
 import { globalEventBus } from '@/infrastructure/event-bus';
 import { requestGitRepositoryTrust } from '@/shared/services/gitTrustService';
+import { isSurfaceChangedError } from '@/infrastructure/peer-device/deviceSurface';
 import './GitScene.scss';
 
 interface GitSceneProps {
@@ -88,6 +89,8 @@ const GitScene: React.FC<GitSceneProps> = ({
       if (trusted) {
         await refresh({ force: true, layers: ['basic', 'status'], reason: 'manual' });
       }
+    } catch (error) {
+      if (!isSurfaceChangedError(error)) throw error;
     } finally {
       setIsTrusting(false);
     }

@@ -1,154 +1,87 @@
 import React from 'react';
-import { Button, Card, CardBody, CardFooter, CardHeader, Icon, OverflowText } from '@bitfun/ui';
-import { Package } from 'lucide-react';
+import { Icon, IconButton, OverflowText } from '@bitfun/ui';
+import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import './SkillCard.scss';
 
-type SkillCardActionTone = 'primary' | 'danger' | 'success' | 'muted';
-
-export interface SkillCardAction {
-  id: string;
+interface SkillCardAction {
   icon: React.ReactNode;
-  ariaLabel: string;
-  label?: string;
-  loading?: boolean;
+  label: string;
   title?: string;
+  loading?: boolean;
   disabled?: boolean;
-  tone?: SkillCardActionTone;
   onClick: () => void;
 }
 
 interface SkillCardProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'children'> {
   name: string;
   description?: string;
-  source?: string;
-  index?: number;
-  accentSeed?: string;
+  ariaLabel?: string;
   iconKind?: 'skill' | 'market';
-  badges?: React.ReactNode;
-  meta?: React.ReactNode;
-  actions?: SkillCardAction[];
-  toggleSlot?: React.ReactNode;
-  onOpenDetails?: () => void;
+  level?: 'user' | 'project';
+  shadowed?: boolean;
+  builtin?: boolean;
+  globallyDisabled?: boolean;
+  action?: SkillCardAction;
+  onOpenDetails: () => void;
 }
 
 const SkillCard: React.FC<SkillCardProps> = ({
-  name,
-  description,
-  source,
-  index = 0,
-  accentSeed: _accentSeed,
-  iconKind = 'skill',
-  badges,
-  meta,
-  actions = [],
-  toggleSlot,
-  onOpenDetails,
-  className,
-  style,
-  ...rootProps
+  name, description, ariaLabel, iconKind = 'skill', level, shadowed, builtin, globallyDisabled,
+  action, onOpenDetails, className, ...rootProps
 }) => {
-  const glyph = iconKind === 'market'
-    ? <Icon glyph={Package} size="md" />
-    : <Icon name="extension" size="md" />;
-  const skillId = (rootProps as { 'data-skill-id'?: string })['data-skill-id'];
-
+  const { t } = useI18n('scenes/skills');
   return (
-    <div data-bitfun-component="skill-card" data-bitfun-part="root"
+    <div
       {...rootProps}
-      className={['skill-card', className].filter(Boolean).join(' ')}
-      style={{
-        ...style,
-        '--surface-stagger-index': index,
-      } as React.CSSProperties}
+      className={['skills-card', shadowed && 'is-shadowed', globallyDisabled && 'is-globally-disabled', className].filter(Boolean).join(' ')}
+      role="listitem"
+      data-bitfun-component="skill-card"
+      data-bitfun-part="root"
       data-bitfun-variant={iconKind}
+      data-bitfun-level={level}
+      data-bitfun-state={[shadowed && 'shadowed', builtin && 'builtin'].filter(Boolean).join(' ') || undefined}
       data-overflow-trigger
     >
-      <Card appearance="subtle" padding="md" gap="md" className="skill-card__surface">
-        {onOpenDetails && (
-          <button
-            type="button"
-            className="skill-card__open"
-            aria-label={name}
-            data-testid={skillId ? `skill-card-open-${skillId}` : 'skill-card-open'}
-            onClick={onOpenDetails}
-          />
-        )}
-        <CardHeader
-          align="center"
-          className="skill-card__header"
-          leading={(
-            <div className="skill-card__icon-area" data-bitfun-component="skill-card" data-bitfun-part="iconArea">
-              <div className="skill-card__icon" data-bitfun-component="skill-card" data-bitfun-part="icon">
-                {glyph}
-              </div>
-            </div>
-          )}
-          title={(
-            <div className="skill-card__title-row" data-bitfun-component="skill-card" data-bitfun-part="titleRow">
-              <span className="skill-card__name" data-bitfun-component="skill-card" data-bitfun-part="name">
-                <OverflowText>{name}</OverflowText>
-              </span>
-              {badges && <div className="skill-card__badges" data-bitfun-component="skill-card" data-bitfun-part="badges">{badges}</div>}
-            </div>
-          )}
-          description={source?.trim() ? (
-            <span className="skill-card__source" data-bitfun-component="skill-card" data-bitfun-part="source">
-              <OverflowText>{source.trim()}</OverflowText>
-            </span>
-          ) : undefined}
+      <div className="skills-card__top" data-bitfun-component="skill-card" data-bitfun-part="header">
+        <button
+          type="button"
+          className="skills-card__open"
+          aria-label={ariaLabel ?? name}
+          onClick={onOpenDetails}
           data-bitfun-component="skill-card"
-          data-bitfun-part="header"
+          data-bitfun-part="open"
         />
-
-        <CardBody data-bitfun-component="skill-card" data-bitfun-part="body">
-          {description?.trim() && (
-            <OverflowText as="p" lines={2} className="skill-card__desc" data-bitfun-component="skill-card" data-bitfun-part="description">{description.trim()}</OverflowText>
-          )}
-        </CardBody>
-
-        {(meta || toggleSlot || actions.length > 0) && (
-          <CardFooter align="between" className="skill-card__footer" data-bitfun-component="skill-card" data-bitfun-part="footer">
-            {meta && (
-              <div className="skill-card__meta" data-bitfun-component="skill-card" data-bitfun-part="meta">
-                {meta}
-              </div>
-            )}
-            {toggleSlot && (
-              <div className="skill-card__toggle-slot" data-bitfun-component="skill-card" data-bitfun-part="toggleSlot">
-                {toggleSlot}
-              </div>
-            )}
-            <div className="skill-card__actions" data-bitfun-component="skill-card" data-bitfun-part="actions">
-              {actions.map((action) => (
-                <span
-                  key={action.id}
-                  className="skill-card__action"
-                  data-bitfun-component="skill-card"
-                  data-bitfun-part="action"
-                  data-bitfun-tone={action.tone}
-                  data-bitfun-state={action.disabled || action.loading ? 'disabled' : undefined}
-                >
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    tone={action.tone === 'danger' ? 'danger' : 'neutral'}
-                    leadingIcon={action.icon}
-                    onClick={action.onClick}
-                    disabled={action.disabled}
-                    loading={action.loading}
-                    aria-label={action.ariaLabel}
-                    title={action.title ?? action.ariaLabel}
-                    data-testid="skills-card-action"
-                    data-skill-action={action.id}
-                  >
-                    {action.label ?? action.ariaLabel}
-                  </Button>
-                </span>
-              ))}
-            </div>
-          </CardFooter>
-        )}
-      </Card>
+        <div className="skills-card__icon" aria-hidden="true" data-bitfun-component="skill-card" data-bitfun-part="icon">
+          <Icon name="book-open" size="sm" />
+        </div>
+        <div className="skills-card__info" data-bitfun-component="skill-card" data-bitfun-part="body">
+          <div className="skills-card__title-row" data-bitfun-component="skill-card" data-bitfun-part="titleRow">
+            <span className="skills-card__name" data-testid="skill-list-item-title" data-bitfun-component="skill-card" data-bitfun-part="name">
+              <OverflowText behavior="marquee" title="">{name}</OverflowText>
+            </span>
+          </div>
+          <OverflowText title="" className="skills-card__desc" data-testid="skill-list-item-description" data-bitfun-component="skill-card" data-bitfun-part="description">
+            {description?.trim() || t('market.item.noDescription')}
+          </OverflowText>
+        </div>
+      </div>
+      <div className="skills-card__actions" data-bitfun-component="skill-card" data-bitfun-part="actions">
+        <IconButton
+          size="sm"
+          variant="quiet"
+          tabIndex={action ? undefined : -1}
+          onClick={action?.onClick ?? onOpenDetails}
+          aria-label={action?.label ?? t('list.item.detail')}
+          title={action?.title ?? action?.label ?? t('list.item.detail')}
+          disabled={action?.disabled}
+          loading={action?.loading}
+          icon={action?.icon ?? <Icon name="arrow-right" size="sm" />}
+          data-testid={action ? 'skills-card-action' : undefined}
+          data-skill-action={action ? 'download' : undefined}
+          data-bitfun-component="skill-card"
+          data-bitfun-part="action"
+        />
+      </div>
     </div>
   );
 };

@@ -3,13 +3,12 @@
 //!
 //! The dispatch layer's contract:
 //!   1. Resolve `(pid, idx)` to a live `AxRef` via `macos_ax_dump::cached_ref`.
-//!   2. Try the AX path here. On success: zero foreground impact, no event
-//!      taps fired, accessibility services see a real semantic action.
+//!   2. Try the AX path here without activating the target. The target owns
+//!      the semantic action's effects; dispatch alone does not verify them.
 //!   3. On failure (`Err(AxWriteUnavailable)`): the dispatch layer falls back
 //!      to `macos_bg_input` (background `CGEvent` injection to the pid).
 //!
-//! This mirrors Codex: AX-first for correctness + speed, event-fallback for
-//! pathological apps that refuse `AXPress` / `AXSetValue`.
+//! Target applications decide which semantic operations they accept.
 
 #![allow(dead_code)]
 
@@ -22,6 +21,12 @@ type AXUIElementRef = *const std::ffi::c_void;
 
 #[link(name = "ApplicationServices", kind = "framework")]
 unsafe extern "C" {
+    fn AXUIElementGetPid(element: AXUIElementRef, pid: *mut i32) -> i32;
+    fn AXUIElementIsAttributeSettable(
+        element: AXUIElementRef,
+        attribute: CFStringRef,
+        settable: *mut u8,
+    ) -> i32;
     fn AXUIElementPerformAction(element: AXUIElementRef, action: CFStringRef) -> i32;
     fn AXUIElementSetAttributeValue(
         element: AXUIElementRef,
@@ -40,15 +45,44 @@ pub(super) enum AxWriteOutcome {
     Unavailable(i32),
 }
 
+fn can_write(target: AxRef) -> bool {
+    if target.0.is_null() || super::control_session::input_allowed().is_err() {
+        return false;
+    }
+    let mut pid = 0;
+    if unsafe { AXUIElementGetPid(target.0, &mut pid) } != 0 {
+        return false;
+    }
+    let Ok(window) = super::macos_capture::bound_window_id(pid) else {
+        return false;
+    };
+    let same_window = match super::macos_ax_dump::element_window_id(target) {
+        Some(actual) => actual == window,
+        // Menu-bar actions have application scope and no window. Arbitrary
+        // controls with an unknown owning window cannot inherit that exception.
+        None => super::macos_ax_dump::is_application_menu_item(target),
+    };
+    same_window
+        && super::control_session::target_allowed(&format!("pid:{pid}/window:{window}")).is_ok()
+}
+
+fn note_dispatched_input(target: AxRef) {
+    let mut pid = 0;
+    if unsafe { AXUIElementGetPid(target.0, &mut pid) } == 0 {
+        super::macos_capture::note_input(pid);
+    }
+}
+
 /// Try to "click" via AXPress. Most controls (NSButton, links, menu items)
 /// implement this; many text fields and webviews do not.
 pub(super) fn try_ax_press(target: AxRef) -> AxWriteOutcome {
-    if target.0.is_null() {
+    if !can_write(target) {
         return AxWriteOutcome::Unavailable(-1);
     }
     let action = CFString::new("AXPress");
     let st = unsafe { AXUIElementPerformAction(target.0, action.as_concrete_TypeRef()) };
     if st == 0 {
+        note_dispatched_input(target);
         AxWriteOutcome::Ok
     } else {
         AxWriteOutcome::Unavailable(st)
@@ -58,7 +92,7 @@ pub(super) fn try_ax_press(target: AxRef) -> AxWriteOutcome {
 /// Try to set the AXValue of a text field. `value` is sent as a CFString.
 /// Caller is responsible for any subsequent focus / commit (Tab, Return).
 pub(super) fn try_ax_set_value(target: AxRef, value: &str) -> AxWriteOutcome {
-    if target.0.is_null() {
+    if !can_write(target) {
         return AxWriteOutcome::Unavailable(-1);
     }
     let attr = CFString::new("AXValue");
@@ -71,20 +105,66 @@ pub(super) fn try_ax_set_value(target: AxRef, value: &str) -> AxWriteOutcome {
         )
     };
     if st == 0 {
+        note_dispatched_input(target);
         AxWriteOutcome::Ok
     } else {
         AxWriteOutcome::Unavailable(st)
     }
 }
 
+/// Replace the selection (or insert at the caret) in one native operation.
+/// `false` is returned only before mutation when this attribute is unsupported.
+/// A failed write has an unknown outcome and must never fall back to key events.
+pub(super) fn insert_selected_text(
+    target: AxRef,
+    text: &str,
+) -> bitfun_core::util::errors::BitFunResult<bool> {
+    use bitfun_core::util::errors::BitFunError;
+    if !can_write(target) {
+        return Err(BitFunError::tool(
+            "[CONTROL_TARGET_CHANGED] Text target is outside the active capture",
+        ));
+    }
+    let attr = CFString::new("AXSelectedText");
+    let mut settable = 0u8;
+    let status = unsafe {
+        AXUIElementIsAttributeSettable(target.0, attr.as_concrete_TypeRef(), &mut settable)
+    };
+    if matches!(status, -25205 | -25208 | -25212) || (status == 0 && settable == 0) {
+        return Ok(false);
+    }
+    if status != 0 {
+        return Err(BitFunError::tool(format!("[AX_TEXT_PREFLIGHT_FAILED] Cannot inspect selected-text support (status={status}); no text was submitted")));
+    }
+    if !can_write(target) {
+        return Err(BitFunError::tool(
+            "[CONTROL_TARGET_CHANGED] Text target changed before insertion",
+        ));
+    }
+    let value = CFString::new(text);
+    let status = unsafe {
+        AXUIElementSetAttributeValue(
+            target.0,
+            attr.as_concrete_TypeRef(),
+            value.as_concrete_TypeRef() as CFTypeRef,
+        )
+    };
+    note_dispatched_input(target);
+    if status != 0 {
+        return Err(BitFunError::tool(format!("[INPUT_OUTCOME_UNKNOWN] AXSelectedText returned {status}; do not repeat the insertion or send fallback keys")));
+    }
+    Ok(true)
+}
+
 /// Try a generic AX action by name (e.g. `"AXShowMenu"`, `"AXIncrement"`).
 pub(super) fn try_ax_action(target: AxRef, action_name: &str) -> AxWriteOutcome {
-    if target.0.is_null() {
+    if !can_write(target) {
         return AxWriteOutcome::Unavailable(-1);
     }
     let a = CFString::new(action_name);
     let st = unsafe { AXUIElementPerformAction(target.0, a.as_concrete_TypeRef()) };
     if st == 0 {
+        note_dispatched_input(target);
         AxWriteOutcome::Ok
     } else {
         AxWriteOutcome::Unavailable(st)
@@ -95,11 +175,10 @@ pub(super) fn try_ax_action(target: AxRef, action_name: &str) -> AxWriteOutcome 
 /// pre-focus primitive: focusing a control before sending a key event ensures
 /// reliable key delivery to the right field.
 ///
-/// Returns `Ok` even when the AX call fails — focus errors are treated as
-/// benign because the subsequent key event may still land in the right place
-/// via pid-scoped delivery. (Ported from cua-driver-rs `ax_actions.rs:32-43`.)
+/// Reports rejected focus changes as unavailable. A failed focus request is
+/// never evidence that subsequent text input has the intended destination.
 pub(super) fn try_ax_focus(target: AxRef) -> AxWriteOutcome {
-    if target.0.is_null() {
+    if !can_write(target) {
         return AxWriteOutcome::Unavailable(-1);
     }
     let attr = CFString::new("AXFocused");
@@ -112,11 +191,10 @@ pub(super) fn try_ax_focus(target: AxRef) -> AxWriteOutcome {
         )
     };
     if st == 0 {
+        note_dispatched_input(target);
         AxWriteOutcome::Ok
     } else {
-        // Focus failures are non-fatal — treat as Ok so the caller doesn't
-        // fall back to event injection just because AX focus was rejected.
-        AxWriteOutcome::Ok
+        AxWriteOutcome::Unavailable(st)
     }
 }
 

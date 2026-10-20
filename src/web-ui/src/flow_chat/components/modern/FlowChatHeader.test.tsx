@@ -172,9 +172,8 @@ describe('FlowChatHeader', () => {
     expect(host?.querySelector('[data-testid="session-files-badge"]')).not.toBeNull();
     expect(host?.querySelector('[data-testid="flowchat-header-search"]')).toBeNull();
     expect(host?.querySelector('[data-testid="flowchat-header-session-overview"]')).not.toBeNull();
-    expect(host?.querySelector('[data-testid="flowchat-header-right-panel"]')).not.toBeNull();
+    expect(host?.querySelector('[data-testid="flowchat-header-right-panel"]')).toBeNull();
     expect(host?.querySelector('[data-testid="flowchat-header-session-overview"] [data-bitfun-name="settings"]')).not.toBeNull();
-    expect(host?.querySelector('[data-testid="flowchat-header-right-panel"] [data-bitfun-name="sidebar-right"]')).not.toBeNull();
 
     act(() => renderInScene('settings'));
     expect(host?.childElementCount).toBe(0);
@@ -184,7 +183,6 @@ describe('FlowChatHeader', () => {
     expect(host?.querySelector('[data-testid="flowchat-header-search"] [data-bitfun-name="search"]')).not.toBeNull();
     expect(host?.querySelector('[data-testid="flowchat-header-search"]')?.getAttribute('data-size')).toBe('xs');
     expect(host?.querySelector('[data-testid="flowchat-header-session-overview"]')?.getAttribute('data-size')).toBe('xs');
-    expect(host?.querySelector('[data-testid="flowchat-header-right-panel"]')?.getAttribute('data-size')).toBe('xs');
   });
 
   it('omits the list, previous-turn, and next-turn navigation controls', () => {
@@ -222,6 +220,7 @@ describe('FlowChatHeader', () => {
     expect(actionTestIds()).toEqual([
       'flowchat-header-search',
       'flowchat-header-session-overview',
+      'flowchat-header-right-panel-separator',
       'flowchat-header-right-panel',
     ]);
     expect(getRightActions()?.lastElementChild).toBe(trigger);
@@ -255,6 +254,7 @@ describe('FlowChatHeader', () => {
     expect(actionTestIds()).toEqual([
       'flowchat-header-search',
       'flowchat-header-session-overview',
+      'flowchat-header-right-panel-separator',
       'flowchat-header-right-panel',
     ]);
 

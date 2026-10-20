@@ -10,7 +10,7 @@ use x25519_dalek::{PublicKey, StaticSecret};
 
 // Wire contract shared with older installs; renaming this salt breaks
 // end-to-end pairing across versions. Keep in sync with mobile-web E2EEncryption.
-pub const KDF_SALT: &[u8] = b"OpenBitFun Relay v1.0.0 device key";
+pub const KDF_SALT: &[u8] = b"BitFun Relay v1.0.0 device key";
 
 pub fn generate_secret() -> [u8; 32] {
     StaticSecret::random_from_rng(rand::rngs::OsRng).to_bytes()

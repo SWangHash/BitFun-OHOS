@@ -2,31 +2,6 @@
 
 @include capability.capability-group-layout('skill');
 
-.skill-group-summary {
-  &__count {
-    color: var(--bitfun-color-content-muted);
-    font-size: var(--bitfun-type-meta-font-size);
-    line-height: var(--bitfun-type-meta-line-height);
-    font-variant-numeric: tabular-nums;
-  }
-
-  &__skills {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
-    gap: var(--bitfun-space-3);
-  }
-
-  &__item {
-    display: flex;
-    min-inline-size: 0;
-    align-items: flex-start;
-    flex-direction: column;
-    gap: var(--bitfun-space-1);
-    font-size: var(--bitfun-type-label-md-font-size);
-    line-height: var(--bitfun-type-label-md-line-height);
-  }
-}
-
 .skill-group-picker__unavailable {
   color: var(--bitfun-color-content-muted);
   font-size: var(--bitfun-type-meta-font-size);

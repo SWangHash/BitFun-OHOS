@@ -1,6 +1,8 @@
 //! Agentic Events Definition
 pub use bitfun_core_types::errors::{AiErrorDetail, ErrorCategory};
-use bitfun_core_types::{ReasoningContentKind, SessionExecutionTarget, ToolImageAttachment};
+use bitfun_core_types::{
+    ReasoningContentKind, SessionContinuationPolicy, SessionExecutionTarget, ToolImageAttachment,
+};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::time::SystemTime;
 
@@ -139,6 +141,14 @@ pub enum AgenticEvent {
         title: String,
         method: String,
     },
+
+    /// One-sentence next-input suggestion offered after a completed turn.
+    /// Session-scoped hint: it is not part of the turn lifecycle or journal.
+    PromptSuggestionGenerated {
+        session_id: String,
+        turn_id: String,
+        suggestion: String,
+    },
     ImageAnalysisStarted {
         session_id: String,
         image_count: usize,
@@ -180,6 +190,9 @@ pub enum AgenticEvent {
         /// Runtime-admitted public label for a focused Review child.
         #[serde(skip_serializing_if = "Option::is_none")]
         focused_review_display_label: Option<String>,
+        /// Runtime-owned admission policy for subsequent child turns.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        continuation_policy: Option<SessionContinuationPolicy>,
     },
 
     DialogTurnCompleted {
@@ -201,6 +214,8 @@ pub enum AgenticEvent {
         /// Whether the turn produced a user-visible final response.
         #[serde(skip_serializing_if = "Option::is_none")]
         has_final_response: Option<bool>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        background_delivery: Option<bitfun_core_types::background_delivery::BackgroundDelivery>,
     },
 
     DialogTurnCancelled {
@@ -657,6 +672,7 @@ impl AgenticEvent {
             | Self::SessionHistoryChanged { session_id, .. }
             | Self::SessionDeleted { session_id }
             | Self::SessionTitleGenerated { session_id, .. }
+            | Self::PromptSuggestionGenerated { session_id, .. }
             | Self::ImageAnalysisStarted { session_id, .. }
             | Self::ImageAnalysisCompleted { session_id, .. }
             | Self::DialogTurnStarted { session_id, .. }
@@ -742,6 +758,7 @@ impl AgenticEvent {
             | Self::ContextCompressionStarted { .. }
             | Self::ThreadGoalUpdated { .. }
             | Self::UserSteeringInjected { .. }
+            | Self::PromptSuggestionGenerated { .. }
             | Self::ContextCompressionCompleted { .. } => AgenticEventPriority::Normal,
 
             Self::ToolEvent { tool_event, .. } => tool_event.default_priority(),
@@ -1110,6 +1127,7 @@ mod tests {
             agent_type: Some("GeneralPurpose".to_string()),
             model_id: Some("fast".to_string()),
             focused_review_display_label: Some("Authentication boundary".to_string()),
+            continuation_policy: Some(SessionContinuationPolicy::FreshOnly),
         };
 
         assert_eq!(event.session_id(), Some("child-session"));
@@ -1124,10 +1142,31 @@ mod tests {
         assert_eq!(serialized["parent_tool_call_id"], "tool-1");
         assert_eq!(serialized["agent_type"], "GeneralPurpose");
         assert_eq!(serialized["model_id"], "fast");
+        assert_eq!(serialized["continuation_policy"], "fresh_only");
         assert_eq!(
             serialized["focused_review_display_label"],
             "Authentication boundary"
         );
+    }
+
+    #[test]
+    fn subagent_session_linked_accepts_legacy_payload_without_continuation_policy() {
+        let event: AgenticEvent = serde_json::from_value(json!({
+            "type": "SubagentSessionLinked",
+            "session_id": "child",
+            "subagent_dialog_turn_id": "turn",
+            "parent_session_id": "parent",
+            "parent_dialog_turn_id": "parent-turn",
+            "parent_tool_call_id": "tool"
+        }))
+        .expect("legacy linked event");
+        assert!(matches!(
+            event,
+            AgenticEvent::SubagentSessionLinked {
+                continuation_policy: None,
+                ..
+            }
+        ));
     }
 
     #[test]

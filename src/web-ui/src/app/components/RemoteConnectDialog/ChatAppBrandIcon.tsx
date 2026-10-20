@@ -1,9 +1,19 @@
+import type { IconSize } from '@bitfun/ui';
+
 export type ChatAppBrand = 'telegram' | 'feishu' | 'weixin';
 
 interface ChatAppBrandIconProps {
   app: ChatAppBrand;
-  size?: number;
+  size?: number | IconSize;
 }
+
+const ICON_TOKEN_SIZE: Record<IconSize, string> = {
+  '2xs': 'var(--bitfun-control-icon-size2xs)',
+  xs: 'var(--bitfun-control-icon-size-xs)',
+  sm: 'var(--bitfun-control-icon-size-sm)',
+  md: 'var(--bitfun-control-icon-size-md)',
+  lg: 'var(--bitfun-control-icon-size-lg)',
+};
 
 /**
  * Monochrome contours of the actual chat-app marks. The SVGs intentionally
@@ -12,15 +22,17 @@ interface ChatAppBrandIconProps {
  * References: telegram.org/tour/screenshots, feishu.cn, and the CC0
  * simple-icons WeChat/Telegram vectors.
  */
-export const ChatAppBrandIcon = ({ app, size = 24 }: ChatAppBrandIconProps) => {
+export const ChatAppBrandIcon = ({ app, size = 'lg' }: ChatAppBrandIconProps) => {
+  const resolvedSize = typeof size === 'number' ? size : ICON_TOKEN_SIZE[size];
+
   if (app === 'telegram') {
     return (
       <svg
         aria-hidden="true"
         focusable="false"
-        height={size}
+        height={resolvedSize}
         viewBox="0 0 24 24"
-        width={size}
+        width={resolvedSize}
         xmlns="http://www.w3.org/2000/svg"
       >
         <path
@@ -36,9 +48,9 @@ export const ChatAppBrandIcon = ({ app, size = 24 }: ChatAppBrandIconProps) => {
       <svg
         aria-hidden="true"
         focusable="false"
-        height={size}
+        height={resolvedSize}
         viewBox="0 0 24 24"
-        width={size}
+        width={resolvedSize}
         xmlns="http://www.w3.org/2000/svg"
       >
         <path
@@ -61,9 +73,9 @@ export const ChatAppBrandIcon = ({ app, size = 24 }: ChatAppBrandIconProps) => {
     <svg
       aria-hidden="true"
       focusable="false"
-      height={size}
+      height={resolvedSize}
       viewBox="0 0 24 24"
-      width={size}
+      width={resolvedSize}
       xmlns="http://www.w3.org/2000/svg"
     >
       <path

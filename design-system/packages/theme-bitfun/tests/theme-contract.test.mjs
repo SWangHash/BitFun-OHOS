@@ -116,6 +116,27 @@ test("code-change semantics retain the requested addition and removal accents", 
   }
 });
 
+test("read-only diffs own reference colors without changing status semantics", () => {
+  const light = themes.light;
+  assert.equal(light["color.codeDiff.added.marker"], "#00cab1");
+  assert.equal(light["color.codeDiff.removed.marker"], "#ff2e3f");
+  assert.equal(light["color.codeDiff.added.line"], "#eaf9f5");
+  assert.equal(light["color.codeDiff.removed.line"], "#ffeae6");
+  assert.equal(light["color.codeDiff.added.word"], "#c7f2eb");
+  assert.equal(light["color.codeDiff.removed.word"], "#ffcecd");
+  assert.equal(light["color.codeDiff.syntax.keyword"], "#fc2b73");
+  assert.equal(light["color.codeDiff.syntax.declaration"], "#c635e4");
+  assert.equal(light["color.codeDiff.syntax.function"], "#7b43f8");
+  for (const mode of themeModes) {
+    const values = themes[mode];
+    for (const side of ["added", "removed"]) {
+      assert.notEqual(values[`color.codeDiff.${side}.marker`], values[`color.codeChange.${side}`]);
+      assert.notEqual(values[`color.codeDiff.${side}.gutter`], values[`color.codeDiff.${side}.line`]);
+      assert.notEqual(values[`color.codeDiff.${side}.word`], values[`color.codeDiff.${side}.line`]);
+    }
+  }
+});
+
 test("status families derive from the code-change and product emphasis anchors", async () => {
   for (const mode of themeModes) {
     const values = themes[mode];
@@ -250,7 +271,10 @@ test("text, action, and field focus pairs meet their contrast requirements", () 
 test("Button states have a mode-complete palette independent from shared actions", () => {
   const light = themes.light;
   assert.equal(light["component.button.outlineBorder"], "rgba(0, 0, 0, 0.08)");
-  assert.equal(light["component.button.outlineBorderInteractive"], "transparent");
+  assert.equal(
+    light["component.button.outlineBorderInteractive"],
+    light["component.button.outlineBorder"],
+  );
   for (const suffix of ["", "Hover", "Pressed"]) {
     assert.equal(light[`component.button.fillBackground${suffix}`], "rgba(0, 0, 0, 0.08)");
   }

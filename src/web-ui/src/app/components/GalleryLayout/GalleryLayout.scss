@@ -35,6 +35,12 @@ $content-max: 936px;
   z-index: 10;
   background: var(--bitfun-color-surface-scene);
 
+  &__leading {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+  }
+
   &__identity {
     flex: 1;
     min-width: 0;

@@ -40,7 +40,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bitfun.mobile.app.R
-import com.bitfun.mobile.app.ui.chat.decodeInlineImage
+import com.bitfun.mobile.app.ui.chat.rememberInlineImage
 import com.bitfun.mobile.app.ui.chat.tool.PillButton
 import com.bitfun.mobile.core.feature.session.ConversationImage
 
@@ -198,7 +198,7 @@ internal fun MessageImageGallery(
 internal fun ChatAttachedImage(image: ConversationImage, userStyle: Boolean = false) {
     // Anything the relay did not carry inline shows as a name rather than a
     // broken frame; see [decodeInlineImage].
-    val bitmap = remember(image.dataUrl) { decodeInlineImage(image.dataUrl) }
+    val bitmap = rememberInlineImage(image.dataUrl)
     val imageSize = if (userStyle) 112.dp else 92.dp
     val shape = RoundedCornerShape(if (userStyle) 12.dp else 14.dp)
     if (bitmap != null) {

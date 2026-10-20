@@ -237,7 +237,7 @@ describeWithJsdom('RemediationSelectionPanel interactions', () => {
     mount(<Panel />);
     const header = container.querySelector<HTMLElement>('.deep-review-action-bar__remediation-toggle')!;
     const checkbox = header.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
-    const box = header.querySelector<HTMLElement>('[data-bitfun-part="box"]')!;
+const box = header.querySelector<HTMLElement>('[data-bitfun-part="box"]')!;
 
     for (const target of [checkbox, box]) {
       act(() => { target.click(); });

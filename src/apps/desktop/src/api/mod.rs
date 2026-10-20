@@ -59,6 +59,7 @@ pub mod runtime_api;
 pub mod screen_capture;
 pub mod search_api;
 pub mod session_api;
+pub mod session_storage_directory;
 pub mod session_storage_path;
 pub mod skill_api;
 pub mod skill_market_downloader;

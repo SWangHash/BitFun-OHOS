@@ -2,75 +2,102 @@
   position: relative;
   z-index: 10;
   align-items: center;
-  // Tabs receive the remaining width; the toolbar gap is also draggable chrome.
-  column-gap: var(--bitfun-space-2);
   flex: 0 0 var(--bitfun-layout-toolbar-md-height);
-  // Reclaim the scene surface's left gutter so tabs share the vertical inset.
-  width: calc(100% + var(--bitfun-space-4));
-  margin-inline-start: calc(0px - var(--bitfun-space-4));
+  width: 100%;
   min-width: 0;
   height: var(--bitfun-layout-toolbar-md-height);
   min-block-size: var(--bitfun-layout-toolbar-md-height);
-  padding-block: 0;
-  // Subtract the tab strip's own one-border-width inline padding.
-  padding-inline-start: calc(
-    (
-      var(--bitfun-layout-toolbar-md-height)
-      - var(--bitfun-control-tab-group-item-height-sm)
-      - var(--bitfun-border-width-default)
-    ) / 2 - var(--bitfun-border-width-default)
-  );
+  padding: 0;
+  column-gap: 0;
   overflow: visible;
   background: var(--bitfun-color-surface-scene);
   container-name: scene-top-bar;
   container-type: inline-size;
   user-select: none;
 
-  &:has(.window-controls--windows) {
-    // Extend through the scene surface's right gutter so Close reaches the edge.
-    width: calc(100% + 2 * var(--bitfun-space-4));
-    padding-inline-end: 0;
+  // Header and body inherit the same resolved/live-drag width from SplitView.
+  &[data-panel-open='true'] {
+    > [data-bitfun-part='trailing'] { position: relative; grid-column: 3; justify-self: stretch; }
+  }
 
+  &[data-panel-maximized='true'] {
+    grid-template-columns: minmax(0, 1fr);
     > [data-bitfun-part='trailing'] {
-      align-self: stretch;
+      grid-column: 1;
+      border-start-start-radius: var(--bitfun-layout-split-view-content-panel-radius);
     }
   }
 
-  &[data-bordered='true'] {
-    &::after {
-      content: '';
-      position: absolute;
-      inset-block-end: calc(0px - var(--bitfun-border-width-default));
-      width: var(--bitfun-space-4);
-      height: var(--bitfun-border-width-default);
-      background: var(--bitfun-color-border-subtle);
-      pointer-events: none;
+  > [data-bitfun-part='leading'],
+  > [data-bitfun-part='trailing'] {
+    box-sizing: border-box;
+    padding-inline: var(--bitfun-space-2);
+    min-width: 0;
+    height: 100%;
+    gap: var(--bitfun-space-2);
+
+  }
+
+  // Tint the existing slots themselves, keeping their exact hit bounds and the
+  // shared body divider. Only the two outer top corners are rounded.
+  &[data-tab-drag-active='true'] {
+    .bitfun-scene-top-bar__panel-divider { visibility: hidden; }
+
+    > [data-bitfun-part='leading'],
+    > [data-bitfun-part='trailing'] {
+      background: var(--bitfun-color-action-neutral-surface);
     }
 
-    &::after {
-      inset-inline-start: 100%;
+    > [data-bitfun-part='leading'] {
+      border-start-start-radius: var(--bitfun-layout-split-view-content-panel-radius);
     }
+    > [data-bitfun-part='trailing'] {
+      border-start-end-radius: var(--bitfun-layout-split-view-content-panel-radius);
+    }
+
+    &[data-tab-drop-target='leading'] > [data-bitfun-part='leading'],
+    &[data-tab-drop-target='trailing'] > [data-bitfun-part='trailing'] {
+      background: var(--bitfun-color-action-neutral-surface-hover);
+    }
+  }
+
+  &__panel-region,
+  &__panel-tabs {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    gap: var(--bitfun-space-2);
+  }
+
+  &__panel-divider {
+    position: absolute;
+    inset-inline-start: calc(0px - var(--bitfun-border-width-default));
+    margin: 0;
+  }
+
+  &:not([data-panel-open='true']) &__panel-divider { display: none; }
+  &:not([data-panel-open='true']):has(.bitfun-scene-top-bar__actions button, .bitfun-scene-top-bar__actions [role='button']) &__panel-divider {
+    display: block;
+    position: static;
+  }
+
+  &:has(.window-controls--windows) > [data-bitfun-part='trailing'] {
+    align-self: stretch;
+    padding-inline-end: 0;
   }
 
   &__actions {
     display: flex;
     align-items: center;
-    flex: 0 1 auto;
+    flex: 0 0 auto;
     min-width: 0;
     height: 100%;
-
-    &:empty {
-      display: none;
-    }
+    &:empty { display: none; }
   }
 
-  &__actions-divider {
-    margin-inline-start: var(--bitfun-space-2);
-  }
-
-  &__actions:empty + &__actions-divider {
-    display: none;
-  }
+  &__actions-divider { margin-inline-start: var(--bitfun-space-2); }
 
   &__window-controls {
     display: flex;
@@ -78,19 +105,5 @@
     flex: 0 0 auto;
     height: 100%;
     margin-inline-start: var(--bitfun-space-2);
-
-    // The host keeps its decor geometry compact (EntryAbility.ets
-    // OHOS_DECOR_BUTTON_STYLE: 3 x 28vp buttons + 2 x 8vp spacing +
-    // 6vp right margin); reserve roughly that footprint so in-app actions
-    // stay clear without leaving an oversized dead gap.
-    &--host {
-      width: 96px;
-    }
-  }
-}
-
-@media (forced-colors: active) {
-  .bitfun-scene-top-bar[data-bordered='true']::after {
-    background: ButtonText;
   }
 }

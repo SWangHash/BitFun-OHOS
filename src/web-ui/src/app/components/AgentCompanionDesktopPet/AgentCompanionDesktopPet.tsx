@@ -193,6 +193,8 @@ export const AgentCompanionDesktopPet: React.FC = () => {
     () => tasks.filter(task => dismissedBubbles[task.sessionId] !== bubbleDismissBucket(task.state)),
     [dismissedBubbles, tasks],
   );
+  // Task activity and explicit dismissals own visibility. Depending on the
+  // main window's focus made new tasks appear only after touching the pet.
   const displayTasks = [...visibleTasks].reverse();
   const activePetSize = pet && petFrameSize
     ? petFrameSize
@@ -418,6 +420,8 @@ export const AgentCompanionDesktopPet: React.FC = () => {
   }, [typedOutputBySessionId]);
 
   const visibleTaskCountRef = useRef(0);
+  // Only the inline composer changes bubble layout; floating menus do not.
+  const composingSessionId = overlay?.kind === 'composer' ? overlay.sessionId : null;
 
   useLayoutEffect(() => {
     // Written here (not during render) so an abandoned/double render cannot
@@ -468,7 +472,7 @@ export const AgentCompanionDesktopPet: React.FC = () => {
       .catch(error => {
         log.warn('Failed to resize Agent companion window', error);
       });
-  }, [activePetSize.height, activePetSize.width, overlay, visibleTasks]);
+  }, [activePetSize.height, activePetSize.width, composingSessionId, visibleTasks]);
 
   useEffect(() => {
     if (IS_WINDOWS_WEBVIEW && !trackPetLook) {

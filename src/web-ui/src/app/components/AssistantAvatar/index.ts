@@ -1,5 +1,9 @@
 export { default as AssistantAvatar } from './AssistantAvatar';
-export type { AssistantAvatarProps, AssistantAvatarStatus } from './AssistantAvatar';
+export type {
+  AssistantAvatarProps,
+  AssistantAvatarSize,
+  AssistantAvatarStatus,
+} from './AssistantAvatar';
 export {
   ASSISTANT_AVATAR_PRESETS,
   getAssistantAvatarPreset,

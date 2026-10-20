@@ -3,20 +3,21 @@
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SkillInfo } from '@/infrastructure/config/types';
+import type { SkillInfo, SkillScanDiagnostic } from '@/infrastructure/config/types';
 import { globalEventBus } from '@/infrastructure/event-bus';
 import { useInstalledSkills } from './useInstalledSkills';
 import type { InstalledFilter } from '../skillsSceneStore';
 
 const getSkillConfigsMock = vi.hoisted(() => vi.fn());
-const translateMock = vi.hoisted(() => (key: string) => key);
+const translateMock = vi.hoisted(() => (key: string, options?: { field?: string }) => options?.field ? `${key}:${options.field}` : key);
 const diagnosticsMock = vi.hoisted(() => ({
-  items: [] as Array<{path: string; sourceId: string; message: string}>,
+  items: [] as SkillScanDiagnostic[],
   available: true,
 }));
 const getGlobalSkillSettingsMock = vi.hoisted(() => vi.fn());
 const setGlobalSkillDisabledMock = vi.hoisted(() => vi.fn());
 const deleteSkillMock = vi.hoisted(() => vi.fn());
+const addSkillMock = vi.hoisted(() => vi.fn());
 const validateSkillPathMock = vi.hoisted(() => vi.fn());
 const notificationMocks = vi.hoisted(() => ({
   success: vi.fn(),
@@ -35,7 +36,7 @@ vi.mock('@/infrastructure/api', () => ({
     getGlobalSkillSettings: getGlobalSkillSettingsMock,
     setGlobalSkillDisabled: setGlobalSkillDisabledMock,
     validateSkillPath: validateSkillPathMock,
-    addSkill: vi.fn(),
+    addSkill: addSkillMock,
     deleteSkill: deleteSkillMock,
   },
 }));
@@ -83,6 +84,7 @@ describe('useInstalledSkills', () => {
       globallyDisabledUserSkillKeys: [],
     });
     deleteSkillMock.mockReset().mockResolvedValue(undefined);
+    addSkillMock.mockReset().mockResolvedValue(undefined);
     validateSkillPathMock.mockReset().mockResolvedValue({ valid: true, name: 'test' });
     notificationMocks.success.mockReset();
     notificationMocks.warning.mockReset();
@@ -111,6 +113,43 @@ describe('useInstalledSkills', () => {
       title: 'nav.title',
       metadata: { diagnostics: '/skills/bad/SKILL.md: missing description' },
     });
+  });
+
+  it('reports unsupported skill capabilities without claiming a scan failure', async () => {
+    diagnosticsMock.items = [{
+      path: '/skills/guard/SKILL.md', sourceId: 'claude-code',
+      message: 'unsupported hooks', unsupportedField: 'hooks',
+    }];
+    await act(async () => root.render(<Harness enabled />));
+    expect(currentInstalled?.skills).toEqual([]);
+    expect(currentInstalled?.diagnostics).toEqual(diagnosticsMock.items);
+    expect(notificationMocks.warning).not.toHaveBeenCalled();
+    expect(notificationMocks.info).toHaveBeenCalledExactlyOnceWith('list.unsupportedSkills', {
+      title: 'nav.title',
+      metadata: { diagnostics: '/skills/guard/SKILL.md: list.unsupportedField:hooks' },
+    });
+    await act(async () => { await currentInstalled?.loadSkills(true); });
+    expect(notificationMocks.info).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps read failures separate from unsupported skill capabilities', async () => {
+    const skill: SkillInfo = {
+      key: 'user::bitfun::good', name: 'good', description: '', path: '/skills/good',
+      level: 'user', sourceId: 'bitfun', sourceSlot: 'bitfun', dirName: 'good', isBuiltin: false,
+    };
+    getSkillConfigsMock.mockResolvedValue([skill]);
+    diagnosticsMock.items = [
+      { path: '/skills/missing', sourceId: 'claude-code', message: 'missing target' },
+      { path: '/skills/guard/SKILL.md', sourceId: 'claude-code', message: 'unsupported hooks', unsupportedField: 'hooks' },
+    ];
+    await act(async () => root.render(<Harness enabled />));
+    expect(notificationMocks.warning).toHaveBeenCalledExactlyOnceWith('list.scanIncomplete', {
+      title: 'nav.title', metadata: { diagnostics: '/skills/missing: missing target' },
+    });
+    expect(notificationMocks.info).toHaveBeenCalledExactlyOnceWith('list.unsupportedSkills', {
+      title: 'nav.title', metadata: { diagnostics: '/skills/guard/SKILL.md: list.unsupportedField:hooks' },
+    });
+    expect(currentInstalled?.skills).toEqual([skill]);
   });
 
   it('does not repeat unchanged scan warnings on refresh, but reports changes and recurrence', async () => {
@@ -329,6 +368,23 @@ describe('useInstalledSkills', () => {
     expect(notificationMocks.success).not.toHaveBeenCalled();
     expect(notificationMocks.error).not.toHaveBeenCalled();
     expect(getSkillConfigsMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not notify or reload when a standalone form closes during installation', async () => {
+    vi.useFakeTimers();
+    let finish!: () => void;
+    addSkillMock.mockReturnValue(new Promise<void>(resolve => { finish = resolve; }));
+    await act(async () => { root.render(<Harness enabled />); });
+    await act(async () => { currentInstalled?.setFormPath('D:/skills/test'); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+    let addition: Promise<boolean> | undefined;
+    await act(async () => { addition = currentInstalled?.handleAdd(); });
+    expect(addSkillMock).toHaveBeenCalledOnce();
+    await act(async () => { root.render(null); });
+    await act(async () => { finish(); expect(await addition).toBe(false); });
+    expect(notificationMocks.success).not.toHaveBeenCalled();
+    expect(notificationMocks.error).not.toHaveBeenCalled();
+    expect(getSkillConfigsMock).toHaveBeenCalledOnce();
   });
 
   it('ignores path validation that finishes after switching away', async () => {

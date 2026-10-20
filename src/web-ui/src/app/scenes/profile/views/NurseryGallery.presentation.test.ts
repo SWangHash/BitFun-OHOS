@@ -39,6 +39,15 @@ describe('Nursery gallery presentation', () => {
     expect(gallerySection).not.toContain('--bitfun-color-overlay-scrim');
   });
 
+  it('keeps assistant identity metadata close to its title', () => {
+    const stylesheet = readSibling('./NurseryView.scss');
+    const headerStart = stylesheet.indexOf('.acp-identity {');
+    const headerEnd = stylesheet.indexOf('.acp-avatar-picker {', headerStart);
+    const headerSection = stylesheet.slice(headerStart, headerEnd);
+
+    expect(headerSection).toMatch(/&__info\s*\{[^}]*gap:\s*0;/s);
+  });
+
   it('uses the shared button for default configuration', () => {
     const source = readSibling('./NurseryGallery.tsx');
     const end = source.indexOf('className="nursery-defaults__action"');
@@ -56,9 +65,10 @@ describe('Nursery gallery presentation', () => {
     const cardSection = stylesheet.slice(cardStart, cardEnd);
 
     expect(cardSection).toContain('&__main {');
-    expect(cardSection).toContain('min-height: 148px;');
+    expect(cardSection).toContain('align-self: stretch;');
+    expect(cardSection).not.toContain('min-height: 148px;');
     expect(cardSection).toContain('background: var(--bitfun-color-action-neutral-surface-hover);');
-    expect(cardSection).toContain('&__session-actions {');
+    expect(cardSection).toContain('&__workspace-actions {');
     expect(cardSection).not.toContain('border-color: var(--bitfun-color-border-subtle);');
     expect(cardSection).not.toContain('border-top: 1px solid var(--bitfun-color-border-subtle);');
     expect(cardSection).not.toContain('min-height: clamp(310px, 23.8vw, 366px);');
@@ -67,12 +77,11 @@ describe('Nursery gallery presentation', () => {
     expect(cardSection).not.toContain('&__new-session-btn {');
     expect(cardSection).not.toContain('&__set-primary-btn {');
     expect(cardSection).not.toContain('&__delete-btn {');
-    expect(source).toMatch(/import \{[^}]*\bButton\b[^}]*} from '@bitfun\/ui';/);
+    expect(source).toMatch(/import \{[^}]*\bIconButton\b[^}]*} from '@bitfun\/ui';/);
     expect(source).toContain('<CardHeader');
     expect(source).toContain('<CardFooter');
-    expect(source).toContain('leadingIcon={<Icon name="side-chat" size="sm" />}');
     expect(source).not.toContain('className="assistant-card__configure"');
-    expect(source).toContain('className="assistant-card__session-actions"');
+    expect(source).toContain('className="assistant-card__workspace-actions"');
     expect(source).not.toContain('className="assistant-card__body"');
   });
 });

@@ -54,6 +54,13 @@ workspace connections remain independent of Relay sign-in.
   namespace coverage.
 - Follow `src/web-ui/LOGGING.md`: English only, no emojis, structured logs
 
+## CSS invalidation in dynamic views
+
+- For component-owned sibling styles in frequently changing DOM, prefer dedicated classes over tag-only or universal sibling selectors. CSS Modules and an ancestor scope do not isolate browser invalidation work.
+- Use flex/grid `gap` when the existing layout and spacing semantics permit it. Do not mechanically replace same-tag adjacency with `:not(:first-child)` or change layout mode.
+- Generated content may retain semantic tag selectors. For measured hotspots, add renderer-owned classes; `:where(.owned-class)` can narrow a compound selector without increasing specificity. Preserve raw HTML, nested lists, mixed table cells, and math rendering behavior.
+- Check matching and cascade equivalence when rewriting selectors. Use short Selector Stats captures to identify invalidation causes and ordinary traces to measure speedups; invalidation counts alone do not establish user-visible gains. Do not impose a blanket ban on sibling selectors.
+
 ## Commands
 
 Keep development/build entry points here. Verification commands are maintained
@@ -106,8 +113,38 @@ also run the focused state contracts:
 pnpm --dir src/web-ui run test:run src/app/services/sessionSceneLifecycle.test.ts src/flow_chat/services/sessionActivation.test.ts src/flow_chat/services/storeSync.test.ts src/app/stores/sceneStore.test.ts
 ```
 
+For cross-device undo/redo/rollback history invalidation and settled-Turn fences,
+run `pnpm --dir src/web-ui run test:run src/flow_chat/services/flow-chat-manager/EventHandlerModule.test.ts`.
+Missing fence identities (including legacy payloads) must reload authoritative
+history; an explicit settled-Turn identity must preserve newer live Turns.
+
+For text-entry guards, composer sanitization, or keyboard focus routing, run
+`pnpm --dir src/web-ui run test:run src/shared/utils/textInputGuard.test.tsx src/flow_chat/components/RichTextInput.test.tsx src/flow_chat/hooks/useComposerDefaultFocus.test.tsx src/flow_chat/utils/chatInputKeyOwnership.test.ts`.
+These cover DOM event ownership, controlled fields, IME and selection preservation;
+they do not establish native OS keyboard or remote transport behavior.
+
 For ecosystem discovery, import, or compatibility status presentation changes:
 
 ```bash
 pnpm --dir src/web-ui run test:run src/app/scenes/ecosystem-compatibility
+```
+For application update discovery, skip persistence, notification timing, and
+download/install transitions, run the focused behavior tests (these do not
+establish visual fidelity):
+
+```bash
+pnpm --dir src/web-ui run test:run src/infrastructure/update src/infrastructure/api/service-api/SystemAPI.test.ts src/shared/notification-system/components/NotificationContainer.test.tsx
+```
+
+For Markdown parse prewarming or dependency resolution, run
+`pnpm --dir src/web-ui run test:run src/infrastructure/markdown/markdownParse.worker.test.ts src/infrastructure/markdown/markdownParseCache.test.ts`.
+This builds the real Worker entry with the product aliases, checks parsing without
+a DOM, and covers failure fallback. Build configuration changes also need `pnpm run build:web`.
+
+For shared overlay ordering, dismissal, focus or presence changes, run the
+focused DOM and ownership contracts in addition to `check:web` (these do not
+establish visual or remote transport behavior):
+
+```bash
+pnpm --dir src/web-ui run test:run src/shared/ui/OverlayStack.test.tsx src/shared/ui/OverlayOwnership.contract.test.ts src/shared/ui/Dialog.test.tsx src/shared/ui/MenuPopover.test.tsx src/infrastructure/appearance/runtime/AppearanceOverlayHost.test.ts src/shared/notification-system/components/NotificationContainer.test.tsx src/shared/context-menu-system/components/ui/ContextMenu.test.tsx
 ```

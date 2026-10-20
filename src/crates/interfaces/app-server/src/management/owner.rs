@@ -1732,6 +1732,7 @@ fn project_account_snapshot(
             .map(|device| AccountDevice {
                 device_id: device.device_id,
                 device_name: device.device_name,
+                device_kind: device.device_kind,
                 device_alias: device.device_alias,
                 device_model: device.device_model,
                 device_os: device.device_os,

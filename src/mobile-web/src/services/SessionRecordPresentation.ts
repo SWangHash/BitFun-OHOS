@@ -25,7 +25,7 @@ export function presentSessionTurn(turn: MobileStoredTurn): ChatMessage[] {
     });
   });
   return [
-    {id:turn.userMessage.id,turn_id:turn.turnId,role:'user',content:turn.userMessage.content,timestamp:String(turn.userMessage.timestamp),metadata:turn.userMessage.metadata},
+    {id:turn.userMessage.id,turn_id:turn.turnId,turn_index:turn.turnIndex,role:'user',content:turn.userMessage.content,timestamp:String(turn.userMessage.timestamp),metadata:turn.userMessage.metadata},
     {id:`${turn.turnId}_assistant`,turn_id:turn.turnId,role:'assistant',content:items.filter(i=>i.type==='text').map(i=>i.content??'').join(''),thinking:items.filter(i=>i.type==='thinking').map(i=>i.content??'').join(''),items,tools:items.flatMap(i=>i.tool?[i.tool]:[]),status:turn.status==='inprogress'?'streaming':turn.status,error:turn.error,timestamp:String(turn.timestamp)},
   ];
 }

@@ -103,7 +103,10 @@ pub fn shared_coding_mode_user_context_policy() -> UserContextPolicy {
 
 pub fn standard_harness_tools() -> Vec<String> {
     vec![
-        "Task".to_string(),
+        "AgentSpawn".to_string(),
+        "AgentSendInput".to_string(),
+        "AgentControl".to_string(),
+        "AgentList".to_string(),
         "ListModels".to_string(),
         "AgentWait".to_string(),
         "Read".to_string(),
@@ -124,7 +127,6 @@ pub fn standard_harness_tools() -> Vec<String> {
         "Glob".to_string(),
         "WebSearch".to_string(),
         "WebFetch".to_string(),
-        "TodoWrite".to_string(),
         "get_goal".to_string(),
         "create_goal".to_string(),
         "update_goal".to_string(),
@@ -286,8 +288,8 @@ mod tests {
     #[test]
     fn embedded_prompt_catalog_compatibility_export_matches_lookup() {
         assert_eq!(
-            EMBEDDED_PROMPTS.get("agentic_mode").copied(),
-            get_embedded_prompt("agentic_mode")
+            EMBEDDED_PROMPTS.get("standard_mode").copied(),
+            get_embedded_prompt("standard_mode")
         );
     }
 
@@ -303,6 +305,19 @@ mod tests {
     fn standard_harness_tools_exclude_create_plan_and_include_goal_tools() {
         let tools = standard_harness_tools();
 
+        for collaboration_tool in [
+            "AgentSpawn",
+            "AgentSendInput",
+            "AgentControl",
+            "AgentList",
+            "AgentWait",
+        ] {
+            assert!(
+                tools.contains(&collaboration_tool.to_string()),
+                "missing standard collaboration tool {collaboration_tool}"
+            );
+        }
+        assert!(!tools.contains(&"Task".to_string()));
         assert!(tools.contains(&"ListModels".to_string()));
         assert!(!tools.contains(&"CreatePlan".to_string()));
         assert!(tools.contains(&"get_goal".to_string()));
@@ -327,16 +342,70 @@ mod tests {
     }
 
     #[test]
-    fn agentic_mode_uses_shared_coding_tools() {
+    fn standard_mode_uses_shared_coding_tools() {
         let shared_tools = standard_harness_tools();
 
-        assert_eq!(StandardHarness::new().default_tools(), shared_tools);
+        let mut expected = shared_tools;
+        expected.push("ComputerUse".to_string());
+        assert_eq!(StandardHarness::new().default_tools(), expected);
     }
 
     #[test]
-    fn agentic_mode_uses_shared_coding_user_context_policy() {
+    fn standard_mode_uses_shared_coding_user_context_policy() {
         let shared_policy = standard_harness_user_context_policy();
 
         assert_eq!(StandardHarness::new().user_context_policy(), shared_policy);
+    }
+}
+
+#[cfg(test)]
+mod desktop_tool_tests {
+    use super::*;
+    #[test]
+    fn main_desktop_modes_include_computer_use() {
+        let modes: Vec<Box<dyn Agent>> = vec![
+            Box::new(ClawMode::new()),
+            Box::new(CoworkMode::new()),
+            Box::new(StandardHarness::new()),
+            Box::new(CreativeHarness::new()),
+        ];
+        for mode in modes {
+            assert!(
+                mode.default_tools()
+                    .iter()
+                    .any(|name| name == "ComputerUse"),
+                "{}",
+                mode.id()
+            );
+        }
+        let config = crate::service::config::types::AgentProfileConfig {
+            removed_tools: vec!["ComputerUse".to_string()],
+            ..Default::default()
+        };
+        let defaults = ClawMode::new().default_tools();
+        let registered = defaults.iter().cloned().collect();
+        let resolved = crate::service::config::mode_config_canonicalizer::resolve_effective_tools(
+            &defaults,
+            Some(&config),
+            &registered,
+        );
+        assert!(
+            !resolved.iter().any(|name| name == "ComputerUse"),
+            "explicit user exclusion wins over the new default"
+        );
+        assert!(!ExploreAgent::new()
+            .default_tools()
+            .iter()
+            .any(|name| name == "ComputerUse"));
+        assert!(!MinimalHarness::new()
+            .default_tools()
+            .iter()
+            .any(|name| name == "ComputerUse"));
+        assert!(
+            !standard_harness_tools()
+                .iter()
+                .any(|name| name == "ComputerUse"),
+            "external/plugin baseline stays opt-in"
+        );
     }
 }

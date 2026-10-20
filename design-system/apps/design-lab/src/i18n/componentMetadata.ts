@@ -4,6 +4,7 @@ import type { TranslateParams } from "./core.mjs";
 type Translate = (key: MessageKey, params?: TranslateParams) => string;
 
 const categoryKeys: Readonly<Record<string, MessageKey>> = {
+  brand: "nav.brand",
   action: "meta.category.action",
   feedback: "meta.category.feedback",
   "flow-chat": "meta.category.flowChat",
@@ -14,6 +15,29 @@ const categoryKeys: Readonly<Record<string, MessageKey>> = {
 };
 
 const descriptionKeys: Readonly<Record<string, MessageKey>> = {
+  MobileAvatar: "component.MobileAvatar.description",
+  MobileCheckbox: "component.MobileCheckbox.description",
+  MobileRadioGroup: "component.MobileRadioGroup.description",
+  MobileSelect: "component.MobileSelect.description",
+  MobileStepper: "component.MobileStepper.description",
+  MobileSwitch: "component.MobileSwitch.description",
+  MobileTabBar: "component.MobileTabBar.description",
+  MobileTag: "component.MobileTag.description",
+  MobileToolbar: "component.MobileToolbar.description",
+  SplitView: "component.SplitView.description",
+  ListModelsToolCard: "component.ListModelsToolCard.description",
+  ControlHubToolCard: "component.ControlHubToolCard.description",
+  ThinkingBlock: "component.ThinkingBlock.description",
+  FlowGroup: "component.FlowGroup.description",
+  ExploreGroup: "component.ExploreGroup.description",
+  ContextLoadGroup: "component.ContextLoadGroup.description",
+  FlowChatRuntimeStatus: "component.FlowChatRuntimeStatus.description",
+  FlowChatTurnMetrics: "component.FlowChatTurnMetrics.description",
+  BitFunSolidMark: "component.BitFunSolidMark.description",
+  BitFunAppIcon: "component.BitFunAppIcon.description",
+  BitFunMark: "component.BitFunMark.description",
+  BitFunBrandMotion: "component.BitFunBrandMotion.description",
+  SubagentHatch: "component.SubagentHatch.description",
   ActionCard: "component.ActionCard.description",
   ActionItem: "component.ActionItem.description",
   ActivityItem: "component.ActivityItem.description",
@@ -38,6 +62,7 @@ const descriptionKeys: Readonly<Record<string, MessageKey>> = {
   GlobSearchToolCard: "component.GlobSearchToolCard.description",
   GrepSearchToolCard: "component.GrepSearchToolCard.description",
   Icon: "component.Icon.description",
+  ThinkingIndicator: "component.ThinkingIndicator.description",
   IconButton: "component.IconButton.description",
   Input: "component.Input.description",
   KeyHint: "component.KeyHint.description",
@@ -79,6 +104,7 @@ const descriptionKeys: Readonly<Record<string, MessageKey>> = {
   ReadFileToolCard: "component.ReadFileToolCard.description",
   ReviewSummaryToolCard: "component.ReviewSummaryToolCard.description",
   RollingText: "component.RollingText.description",
+  ShimmerText: "component.ShimmerText.description",
   RunCodeToolCard: "component.RunCodeToolCard.description",
   SearchField: "component.SearchField.description",
   SegmentedControl: "component.SegmentedControl.description",

@@ -23,18 +23,18 @@ describe('ModelSelector portal layer', () => {
     expect(dropdownBlock).not.toContain('z-index: var(--bitfun-layer-dropdown);');
   });
 
-  it('keeps every model and reasoning menu in the shared overlay host', () => {
+  it('uses one shared overlay surface for summary, model and reasoning views', () => {
     const component = readSource('./ModelSelector.tsx');
 
-    expect(component).toContain("'chat-model-selector-submenu'");
-    expect(component.match(/getAppearanceOverlayHost\(\)/g)).toHaveLength(2);
+    expect(component).toContain('data-testid="chat-model-selector-options"');
+    expect(component.match(/getAppearanceOverlayHost\(\)/g)).toHaveLength(1);
+    expect(component).not.toContain('chat-model-selector-submenu');
   });
 
   it('keeps model settings reachable from the native model list', () => {
     const component = readSource('./ModelSelector.tsx');
 
-    expect(component).toContain('data-testid="chat-model-selector-settings"');
-    expect(component).toContain('data-bitfun-part="settingsButton"');
-    expect(component).toContain("openModelSettings()");
+    expect(component).toContain('data-testid="chat-model-selector-open-settings"');
+    expect(component).toContain("quickActions.openSettings({ pageId: 'ai.models' })");
   });
 });

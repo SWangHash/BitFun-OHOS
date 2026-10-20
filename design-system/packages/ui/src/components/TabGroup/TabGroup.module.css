@@ -5,11 +5,6 @@
     --_tab-group-item-padding-inline: var(--bitfun-control-tab-group-item-padding-inline);
     --_tab-group-item-gap: var(--bitfun-control-tab-group-item-gap);
     --_tab-group-item-icon-size: var(--bitfun-control-tab-group-item-icon-size);
-    --_tab-group-item-action-reserve: calc(
-      var(--bitfun-control-tab-group-item-action-size)
-      + var(--bitfun-control-tab-group-item-action-inset)
-      + var(--_tab-group-item-gap)
-    );
 
     display: inline-flex;
     align-items: center;
@@ -25,6 +20,8 @@
   }
 
   .item {
+    --_floating-action-host-height: var(--_tab-group-item-height);
+    --_floating-action-size: var(--bitfun-control-tab-group-item-action-size);
     position: relative;
     display: inline-flex;
     flex: 0 0 auto;
@@ -62,16 +59,6 @@
       background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
       border-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
       color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
-  }
-
-  .item[data-has-end-action="true"] .tab {
-    padding-inline-end: var(--_tab-group-item-action-reserve);
-  }
-
-  .item[data-has-end-action="true"][data-has-icon="false"] .tab {
-    /* Mirror the trailing action reserve so a text-only label remains centered
-       within the complete tab while the overlaid action fades in and out. */
-    padding-inline-start: var(--_tab-group-item-action-reserve);
   }
 
   .tab[aria-selected="true"] {
@@ -132,17 +119,7 @@
   }
 
   .endAction {
-    position: absolute;
-    inset-block-start: 50%;
-    inset-inline-end: var(--bitfun-control-tab-group-item-action-inset);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    inline-size: var(--bitfun-control-tab-group-item-action-size);
-    block-size: var(--bitfun-control-tab-group-item-action-size);
     color: var(--bitfun-color-action-neutral-content);
-    transform: translateY(-50%);
-    transition: opacity var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
   }
 
   .labelSuffix {
@@ -151,7 +128,8 @@
     align-items: center;
   }
 
-  .endAction > :where(button, [role="button"]) {
+  /* Native tab actions share the glass material; IconButtons keep their tone and states. */
+  .endAction > :where(button, [role="button"]):where(:not([data-bitfun-component="icon-button"])) {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -162,7 +140,6 @@
     border: 0;
     border-radius: var(--bitfun-radius-pill);
     color: inherit;
-    background: transparent;
     font: inherit;
     cursor: pointer;
     transition:
@@ -170,41 +147,24 @@
       color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
   }
 
-  .endAction > :where(button, [role="button"]):hover {
+  .endAction > :where(button, [role="button"]):where(:not([data-bitfun-component="icon-button"])):hover {
     color: var(--bitfun-color-action-neutral-content);
-    background: var(--bitfun-color-action-neutral-surface-hover);
   }
 
-  .endAction > :where(button, [role="button"]):active {
-    background: var(--bitfun-color-action-neutral-surface-pressed);
-  }
-
-  .endAction > :where(button, [role="button"]):focus-visible {
+  .endAction > :where(button, [role="button"]):where(:not([data-bitfun-component="icon-button"])):focus-visible {
     outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
     outline-offset: var(--bitfun-focus-offset);
   }
 
-  .endAction > :where(button, [role="button"]):disabled {
+  .endAction > :where(button, [role="button"]):where(:not([data-bitfun-component="icon-button"])):disabled {
     color: var(--bitfun-color-action-neutral-content-disabled);
     cursor: not-allowed;
-  }
-
-  @media (hover: hover) and (pointer: fine) {
-    .endAction {
-      opacity: 0;
-      pointer-events: none;
-    }
-
-    .item:is(:hover, :focus-within) .endAction {
-      opacity: 1;
-      pointer-events: auto;
-    }
   }
 
   @media (prefers-reduced-motion: reduce) {
     .tab,
     .endAction,
-    .endAction > :where(button, [role="button"]) {
+    .endAction > :where(button, [role="button"]):where(:not([data-bitfun-component="icon-button"])) {
       transition: none;
     }
   }
@@ -224,7 +184,7 @@
       outline-color: Highlight;
     }
 
-    .endAction > :where(button, [role="button"]):focus-visible {
+    .endAction > :where(button, [role="button"]):where(:not([data-bitfun-component="icon-button"])):focus-visible {
       outline-color: Highlight;
     }
 

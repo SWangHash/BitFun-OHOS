@@ -75,7 +75,6 @@ fn builtin_agent_factory(id: &str) -> fn() -> Arc<dyn Agent> {
         "ReviewFixer" => || Arc::new(ReviewFixerAgent::new()),
         "CodeReview" => || Arc::new(CodeReviewAgent::new()),
         "DeepReview" => || Arc::new(DeepReviewAgent::new()),
-        "GenerateDoc" => || Arc::new(GenerateDocAgent::new()),
         "MemoryPhase2" => || Arc::new(MemoryPhase2Agent::new()),
         _ => panic!("missing legacy Agent factory for builtin agent {id}"),
     }

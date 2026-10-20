@@ -15,6 +15,7 @@ export const servicesReqwestOwnerFeatures = [
   'remote-ssh-concrete',
   'review-platform',
   'speech',
+  'skillhub',
   'web-tools',
 ];
 
@@ -42,7 +43,8 @@ export const optionalDependencyFeatureOwnerRules = [
   },
   {
     crateName: 'services-core',
-    reviewedAggregateFeatures: ['workspace-persistence'],
+    // Offline recovery composes only existing storage/identity contracts.
+    reviewedAggregateFeatures: ['workspace-persistence', 'session-recovery'],
     reason:
       'services-core optional implementation dependencies must stay behind their exact owner capability',
     dependencies: [
@@ -50,7 +52,7 @@ export const optionalDependencyFeatureOwnerRules = [
       { depName: 'zip', ownerFeatures: ['pet-packages'] },
       { depName: 'uuid', ownerFeatures: ['pet-packages'] },
       { depName: 'aes-gcm', ownerFeatures: ['credential-vault'] },
-      { depName: 'anyhow', ownerFeatures: ['credential-vault', 'dispatch-workspace', 'workspace-runtime', 'workspace-transfer'] },
+      { depName: 'anyhow', ownerFeatures: ['credential-vault', 'dispatch-workspace', 'workspace-runtime', 'workspace-transfer', 'session-recovery'] },
       { depName: 'async-trait', ownerFeatures: ['permission', 'workspace-runtime'] },
       { depName: 'base64', ownerFeatures: ['pet-packages', 'credential-vault', 'filesystem'] },
       {
@@ -149,7 +151,7 @@ export const optionalDependencyFeatureOwnerRules = [
       { depName: 'log', ownerFeatures: ['agent-runtime', 'native-hook-runtime'] },
       { depName: 'regex', ownerFeatures: ['agent-runtime', 'definition-contracts', 'native-hook-settings'] },
       { depName: 'serde', ownerFeatures: ['agent-runtime', 'definition-contracts', 'native-hook-runtime'] },
-      { depName: 'serde_json', ownerFeatures: ['agent-runtime', 'native-hook-runtime', 'native-hook-settings'] },
+      { depName: 'serde_json', ownerFeatures: ['agent-runtime', 'definition-contracts', 'native-hook-runtime', 'native-hook-settings'] },
       { depName: 'serde_yaml', ownerFeatures: ['agent-runtime', 'definition-contracts'] },
       { depName: 'sha2', ownerFeatures: ['agent-runtime'] },
       { depName: 'thiserror', ownerFeatures: ['agent-runtime', 'definition-contracts', 'native-hook-runtime'] },
@@ -313,6 +315,7 @@ export const optionalDependencyFeatureOwnerRules = [
           'remote-ssh-concrete',
           'review-platform',
           'speech',
+          'skillhub',
           'web-tools',
           'workspace-search',
         ],
@@ -530,6 +533,7 @@ export const capabilityContractDependencyRules = [
           capabilityForwarder('workspace-transfer', 'workspace-ports'),
         ],
         ['permission', 'workspace-runtime', 'workspace-persistence', 'workspace-transfer'],
+        ['session-recovery'],
       )],
       ['bitfun-services-integrations', capabilityConsumer(
         [capabilityEdge([], { optional: true })],
@@ -606,7 +610,8 @@ export const capabilityContractDependencyRules = [
         ],
       )],
       ['bitfun-desktop', capabilityConsumer([
-        capabilityEdge(['element-token']),
+        // Desktop owns native control resources and consumes portable control DTOs.
+        capabilityEdge(['computer-use-contract', 'element-token']),
       ])],
       ['bitfun-services-integrations', capabilityConsumer(
         [capabilityEdge([], { optional: true })],
@@ -623,9 +628,12 @@ export const capabilityContractDependencyRules = [
     featureProfiles: {
       default: [],
       'definition-contracts': [
+        // Skill declarations reuse pure hook validation without process support.
+        'native-hook-settings',
         'dep:bitfun-core-types',
         'dep:regex',
         'dep:serde',
+        'dep:serde_json',
         'dep:serde_yaml',
         'dep:thiserror',
       ],
@@ -642,6 +650,8 @@ export const capabilityContractDependencyRules = [
         'tokio/macros',
         'tokio/process',
         'tokio/rt',
+        // Session hook once guards and cancellation watchers.
+        'tokio/sync',
         'tokio/time',
       ],
       'agent-runtime': [

@@ -3,8 +3,8 @@ import type { ModeSkillInfo, SkillInfo } from './types';
 const SOURCE_LABEL_BY_ID: Record<string, string> = {
   bitfun: 'BitFun',
   'bitfun-system': 'BitFun',
-  openbitfun: 'BitFun',
-  'openbitfun-system': 'BitFun',
+  bitfun: 'BitFun',
+  'bitfun-system': 'BitFun',
   'claude-code': 'Claude Code',
   claude: 'Claude Code',
   codex: 'Codex',
@@ -65,9 +65,9 @@ export function getSkillSourceId(skill: SkillInfo): string {
   if (identity === 'dsh') return 'deepseek-harness';
   if (identity === 'agents') return 'agent-skills';
   if (identity === 'bitfun-system' || identity === 'bitfun-user') return 'bitfun';
-  // Handle the legacy OpenBitFun brand identifiers so skills scanned by an
+  // Handle the legacy BitFun brand identifiers so skills scanned by an
   // older binary (or cached from before the brand rename) are still recognized.
-  if (identity === 'openbitfun' || identity === 'openbitfun-system' || identity === 'openbitfun-user') return 'bitfun';
+  if (identity === 'bitfun' || identity === 'bitfun-system' || identity === 'bitfun-user') return 'bitfun';
   if (identity.startsWith('opencode.')) return 'opencode';
   return identity;
 }

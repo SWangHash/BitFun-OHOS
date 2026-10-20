@@ -3,11 +3,26 @@
  * Shows current model info at the bottom when ChatInput is expanded,
  * with quick switching support.
  *
- * Design guidelines:
- * - Radius: 4px (button/badge), 6px (dropdown)
- * - Border: light gray; blue-purple gradient on hover/active
- * - Shadow: layered soft shadows, avoid harsh glow
+ * Model information and reasoning share one compact, navigable surface.
+ * All color, geometry and type follow the public design-system tokens.
  */
+@use 'sass:list';
+@use 'sass:math';
+
+// Match the reasoning sky's fine dust while preserving each mode's own palette.
+$model-mode-dust: ();
+$model-mode-dust-sizes: ();
+@for $dust-index from 1 through 72 {
+  $dust-x: math.div(($dust-index * 31 + $dust-index * $dust-index * 7) % 137, 137) * 100%;
+  $dust-y: math.div(($dust-index * 47 + $dust-index * $dust-index * 13) % 139, 139) * 100%;
+  $model-mode-dust: list.append(
+    $model-mode-dust,
+    radial-gradient(circle at $dust-x $dust-y, var(--_model-mode-star-soft) 0 0.45px, transparent 1.05px),
+    comma
+  );
+  $model-mode-dust-sizes: list.append($model-mode-dust-sizes, auto, comma);
+}
+
 .bitfun-model-selector {
   position: relative;
   display: inline-flex;
@@ -18,10 +33,10 @@
   &__trigger {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    height: 20px;
-    padding: 0 8px;
-    border-radius: 10px;
+    gap: var(--bitfun-space-1);
+    height: var(--bitfun-space-5);
+    padding: 0 var(--bitfun-space-2);
+    border-radius: var(--bitfun-radius-pill);
     border: none;
     background: transparent;
     color: var(--bitfun-color-content-secondary);
@@ -35,7 +50,7 @@
       opacity 140ms ease,
       transform 120ms cubic-bezier(0.23, 1, 0.32, 1);
     outline: none;
-    opacity: 0.72;
+    opacity: var(--bitfun-control-flow-chat-model-idle-opacity);
     white-space: nowrap;
     letter-spacing: var(--bitfun-type-modifier-tracking-wide-letter-spacing);
 
@@ -69,19 +84,16 @@
   }
 
   &__name {
-    max-width: 100px;
+    max-width: var(--bitfun-control-flow-chat-model-name-max-width);
   }
 
   &__trigger-reasoning {
-    display: inline-flex;
-    align-items: center;
-    min-width: 0;
-    max-width: 72px;
+    // Keep the current intensity in the accessible name without repeating it in the composer.
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
     overflow: hidden;
-    color: var(--bitfun-color-content-muted);
-    font-size: var(--bitfun-type-flow-control-font-size);
-    font-weight: var(--bitfun-type-body-sm-font-weight);
-    line-height: var(--bitfun-type-modifier-leading-none-line-height);
+    clip-path: inset(50%);
     white-space: nowrap;
   }
 
@@ -150,10 +162,22 @@
 
   &__dropdown {
     --bitfun-model-dropdown-offset: -4px;
+    --bitfun-overlay-menu-inline-size: min(280px, calc(100vw - 16px));
+    // One geometry owner for manual, smart, pool and their loading state.
+    --_model-selector-card-height: calc(var(--bitfun-space-16) * 2 + var(--bitfun-space-2));
+
+    // Non-row content uses the same typography as MenuItem's shared label slot.
+    font-family: var(--bitfun-type-label-md-font-family);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-md-font-weight);
+    line-height: var(--bitfun-type-action-row-line-height);
+    letter-spacing: var(--bitfun-type-label-md-letter-spacing);
 
     position: fixed;
-    min-width: clamp(0px, 220px, calc(100vw - 16px));
-    max-width: clamp(0px, 280px, calc(100vw - 16px));
+    inline-size: var(--bitfun-overlay-menu-inline-size);
+    max-width: calc(100vw - 16px);
+    border: 0;
+    border-radius: var(--bitfun-radius-xl);
     z-index: var(--bitfun-layer-popover);
     transform-origin: center top;
     transition:
@@ -174,7 +198,9 @@
 
     &[data-open='false'] {
       opacity: 0;
-      transform: translateY(var(--bitfun-model-dropdown-offset)) scale(0.98);
+      // Fade the stable surface in one step; retention uses the same duration.
+      transform: none;
+      transition: opacity var(--_model-selector-exit-duration) linear;
       pointer-events: none;
     }
 
@@ -182,47 +208,241 @@
       transition: none;
     }
 
-  }
+    &[data-menu-level='settings'] {
+      // All mode summaries share a borderless surface. Detail menus retain their insets.
+      --bitfun-overlay-menu-surface-padding: 0px;
+      --bitfun-overlay-menu-scrollbar-gap: 0px;
 
-  &__submenu {
-    position: fixed;
-    min-width: clamp(0px, 220px, calc(100vw - 16px));
-    max-width: clamp(0px, 280px, calc(100vw - 16px));
-    overflow-y: auto;
-    z-index: var(--bitfun-layer-popover);
-    transform-origin: left bottom;
-    transition:
-      opacity 100ms ease,
-      transform 120ms cubic-bezier(0.23, 1, 0.32, 1);
+      overflow: hidden;
+      border: 0;
+      border-radius: var(--bitfun-radius-lg);
+      background: var(--bitfun-color-surface-raised);
+      box-shadow: var(--bitfun-shadow-menu);
 
-    &[data-placement='left'] {
-      transform-origin: right bottom;
-    }
+      @supports (backdrop-filter: none) or (-webkit-backdrop-filter: none) {
+        // Leave room for the nebula layers without hiding the blurred backdrop.
+        background: color-mix(in srgb, var(--bitfun-color-surface-raised) 40%, transparent);
+        -webkit-backdrop-filter: var(--bitfun-effect-blur-base);
+        backdrop-filter: var(--bitfun-effect-blur-base);
+      }
 
-    @starting-style {
-      opacity: 0;
-      transform: translateX(-4px) scale(0.98);
-    }
+      @media (prefers-reduced-transparency: reduce) {
+        background: var(--bitfun-color-surface-raised);
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+      }
 
-    &[data-placement='left'] {
-      @starting-style {
-        transform: translateX(4px) scale(0.98);
+      > [data-bitfun-component='scroll-area'] {
+        // Summary cards are fixed compositions, not vertically scrollable lists.
+        overflow: clip;
       }
     }
 
-    &--direct {
-      transform-origin: center bottom;
+    &[data-model-mode='smart'][data-menu-level='settings'] {
+      --_model-mode-tint: color-mix(in oklch, var(--bitfun-color-accent-secondary) 80%, var(--bitfun-color-link-default));
+      --_model-mode-sky: color-mix(
+        in srgb,
+        var(--bitfun-color-link-default) calc(12% * var(--_model-mode-sky-strength)),
+        var(--bitfun-color-surface-raised)
+      );
 
-      @starting-style {
-        transform: translateY(4px) scale(0.98);
+      @supports (color: oklch(from currentColor l c h)) {
+        // Preserve the former peak reasoning sky's luminous blue-violet mixture.
+        --_model-mode-tint: oklch(
+          from color-mix(in oklch, var(--bitfun-color-accent-secondary) 80%, var(--bitfun-color-link-default))
+          max(l, 0.65) max(c, 0.18) h
+        );
+      }
+    }
+
+    &[data-model-mode='pool'][data-menu-level='settings'] {
+      --_model-mode-tint: color-mix(in oklch, var(--bitfun-color-status-success-emphasis) 72%, var(--bitfun-color-link-default));
+      --_model-mode-sky: color-mix(
+        in srgb,
+        var(--_model-mode-tint) calc(14% * var(--_model-mode-sky-strength)),
+        var(--bitfun-color-surface-raised)
+      );
+    }
+
+    &[data-menu-level='settings']:is([data-model-mode='smart'], [data-model-mode='pool']) {
+      --_model-mode-sky-strength: 1;
+      --_model-mode-material-opacity: 40%;
+      --_model-mode-star: color-mix(in srgb, var(--bitfun-color-content-on-dark) 94%, var(--_model-mode-sky));
+      --_model-mode-star-soft: color-mix(in srgb, var(--bitfun-color-content-on-dark) 72%, transparent);
+
+      :where([data-color-scheme='dark']) & {
+        --_model-mode-sky-strength: 0.38;
       }
 
-      &[data-placement='bottom'] {
-        transform-origin: center top;
+      isolation: isolate;
+      overflow: hidden;
+      border-radius: var(--bitfun-radius-lg);
+      background-color: var(--_model-mode-sky);
+      background-image:
+        #{$model-mode-dust},
+        radial-gradient(ellipse at 18% 12%, color-mix(in srgb, var(--bitfun-color-surface-panel) 18%, transparent), transparent 72%),
+        radial-gradient(ellipse at 86% 88%, color-mix(in srgb, var(--_model-mode-tint) calc(14% * var(--_model-mode-sky-strength)), transparent), transparent 76%),
+        linear-gradient(145deg, color-mix(in srgb, var(--bitfun-color-surface-panel) 14%, transparent), transparent 48%, color-mix(in srgb, var(--_model-mode-tint) calc(10% * var(--_model-mode-sky-strength)), transparent));
+      background-size: #{$model-mode-dust-sizes}, auto, auto, auto;
+      // The shared settings surface owns the soft menu shadow.
 
-        @starting-style {
-          transform: translateY(-4px) scale(0.98);
-        }
+      @supports (backdrop-filter: none) or (-webkit-backdrop-filter: none) {
+        // Surface opacity and cloud light are independent material layers.
+        background-color: color-mix(in srgb, var(--_model-mode-sky) var(--_model-mode-material-opacity), transparent);
+      }
+
+      @media (prefers-reduced-transparency: reduce) {
+        background-color: var(--_model-mode-sky);
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+      }
+
+      // Two transparent star layers drift independently above the full-card sky.
+      // Only transform and opacity animate; the centered text stays on its own plane.
+      &::before,
+      &::after {
+        content: '';
+        position: absolute;
+        inset: calc(-1 * var(--bitfun-space-6));
+        z-index: 0;
+        pointer-events: none;
+        background-repeat: no-repeat;
+        opacity: 0.7;
+      }
+
+      &::before {
+        background-image:
+          radial-gradient(circle at 9% 21%, var(--_model-mode-star) 0 0.65px, transparent 1.35px),
+          radial-gradient(circle at 21% 68%, var(--_model-mode-star-soft) 0 0.45px, transparent 1px),
+          radial-gradient(circle at 30% 34%, var(--_model-mode-star) 0 0.75px, transparent 1.65px),
+          radial-gradient(circle at 41% 15%, var(--_model-mode-star-soft) 0 0.45px, transparent 1px),
+          radial-gradient(circle at 53% 73%, var(--_model-mode-star) 0 0.6px, transparent 1.4px),
+          radial-gradient(circle at 65% 27%, var(--_model-mode-star-soft) 0 0.5px, transparent 1.1px),
+          radial-gradient(circle at 73% 62%, var(--_model-mode-star) 0 0.75px, transparent 1.7px),
+          radial-gradient(circle at 87% 39%, var(--_model-mode-star-soft) 0 0.5px, transparent 1.1px),
+          radial-gradient(circle at 94% 78%, var(--_model-mode-star) 0 0.6px, transparent 1.35px),
+          radial-gradient(circle at 16% 87%, var(--_model-mode-star-soft) 0 0.45px, transparent 1px),
+          radial-gradient(circle at 61% 91%, var(--_model-mode-star-soft) 0 0.45px, transparent 1px),
+          radial-gradient(circle at 81% 12%, var(--_model-mode-star) 0 0.55px, transparent 1.2px),
+          radial-gradient(ellipse at 24% 36%, color-mix(in srgb, var(--bitfun-color-surface-panel) 16%, transparent), transparent 72%);
+        animation:
+          bitfun-model-mode-drift 6s ease-in-out -0.6s infinite alternate,
+          bitfun-model-mode-twinkle 2.4s ease-in-out -0.25s infinite;
+      }
+
+      &::after {
+        background-image:
+          radial-gradient(circle at 15% 43%, var(--_model-mode-star-soft) 0 0.5px, transparent 1.1px),
+          radial-gradient(circle at 26% 12%, var(--_model-mode-star) 0 0.55px, transparent 1.2px),
+          radial-gradient(circle at 35% 82%, var(--_model-mode-star-soft) 0 0.45px, transparent 1px),
+          radial-gradient(circle at 45% 61%, var(--_model-mode-star) 0 0.6px, transparent 1.35px),
+          radial-gradient(circle at 57% 23%, var(--_model-mode-star-soft) 0 0.45px, transparent 1px),
+          radial-gradient(circle at 68% 80%, var(--_model-mode-star) 0 0.6px, transparent 1.35px),
+          radial-gradient(circle at 78% 46%, var(--_model-mode-star-soft) 0 0.5px, transparent 1.15px),
+          radial-gradient(circle at 89% 66%, var(--_model-mode-star) 0 0.55px, transparent 1.2px),
+          radial-gradient(circle at 8% 74%, var(--_model-mode-star-soft) 0 0.45px, transparent 1px),
+          radial-gradient(circle at 48% 89%, var(--_model-mode-star-soft) 0 0.45px, transparent 1px),
+          radial-gradient(circle at 93% 19%, var(--_model-mode-star) 0 0.6px, transparent 1.3px),
+          radial-gradient(circle at 33% 52%, var(--_model-mode-star-soft) 0 0.4px, transparent 0.9px),
+          radial-gradient(ellipse at 78% 68%, color-mix(in srgb, var(--_model-mode-tint) calc(14% * var(--_model-mode-sky-strength)), transparent), transparent 72%);
+        animation:
+          bitfun-model-mode-drift 8s ease-in-out -1.2s infinite alternate-reverse,
+          bitfun-model-mode-twinkle 3.2s ease-in-out -0.5s infinite reverse;
+      }
+    }
+
+    &[data-model-mode='smart'][data-menu-level='settings'] {
+      --_model-mode-sky-strength: 0.76;
+      --_model-mode-cloud-min-opacity: 0.14;
+      --_model-mode-cloud-max-opacity: 0.9;
+
+      :where([data-color-scheme='light']) & {
+        // A luminous tinted base keeps the gray backdrop from dulling the moving clouds.
+        --_model-mode-material-opacity: 84%;
+        --_model-mode-sky: color-mix(in oklch, var(--_model-mode-tint) 12%, var(--bitfun-color-content-on-dark));
+      }
+
+      :where([data-color-scheme='dark']) & {
+        // Give the moving color its own luminous base instead of a charcoal wash.
+        --_model-mode-material-opacity: 78%;
+        --_model-mode-sky: color-mix(in oklch, var(--_model-mode-tint) 22%, var(--bitfun-color-surface-raised));
+        --_model-mode-sky-strength: 0.52;
+        --_model-mode-cloud-min-opacity: 0.2;
+        --_model-mode-cloud-max-opacity: 0.62;
+      }
+
+      // Multicolor clouds now identify Smart; reasoning uses one blue sky family.
+      background-image:
+        #{$model-mode-dust},
+        radial-gradient(ellipse 46% 70% at 50% 42%, color-mix(in srgb, var(--bitfun-color-content-on-dark) calc(6% * var(--_model-mode-sky-strength)), transparent), transparent 80%),
+        radial-gradient(ellipse 58% 78% at 15% 100%, color-mix(in srgb, var(--bitfun-color-link-default) calc(24% * var(--_model-mode-sky-strength)), transparent), transparent 76%),
+        linear-gradient(120deg,
+          color-mix(in srgb, var(--_model-mode-tint) calc(56% * var(--_model-mode-sky-strength)), transparent),
+          color-mix(in srgb, var(--bitfun-color-link-default) calc(44% * var(--_model-mode-sky-strength)), transparent) 48%,
+          color-mix(in srgb, var(--_model-mode-tint) calc(60% * var(--_model-mode-sky-strength)), transparent));
+
+      &::before,
+      &::after {
+        inset: -26% -18%;
+        filter: var(--bitfun-effect-blur-base);
+        mask-image: radial-gradient(ellipse 42% 58% at 50% 44%,
+          transparent, var(--bitfun-color-content-on-dark) 86%);
+        opacity: calc(0.65 * var(--_model-mode-sky-strength));
+        transform-origin: center;
+        animation: bitfun-model-smart-cloud 9s ease-in-out -3s infinite alternate;
+      }
+
+      &::before {
+        background-image:
+          radial-gradient(ellipse 44% 58% at 24% 62%, color-mix(in srgb, var(--bitfun-color-link-default) 60%, transparent), transparent 76%),
+          radial-gradient(ellipse 36% 48% at 82% 22%, color-mix(in srgb, var(--bitfun-color-link-default) 42%, transparent), transparent 78%);
+      }
+
+      &::after {
+        background-image:
+          radial-gradient(ellipse 42% 58% at 76% 70%, color-mix(in srgb, var(--_model-mode-tint) 58%, transparent), transparent 76%),
+          radial-gradient(ellipse 34% 50% at 14% 18%, color-mix(in srgb, var(--_model-mode-tint) 40%, transparent), transparent 78%);
+        animation-duration: 12s;
+        animation-delay: -7s;
+        animation-direction: alternate-reverse;
+      }
+    }
+
+    &[data-model-mode='pool'][data-menu-level='settings'] {
+      // A light jade surface leaves translucency between the local clouds and cell reflections.
+      --_model-mode-material-opacity: 64%;
+      --_model-mode-sky-strength: 1;
+      --_model-mode-star: color-mix(in srgb, var(--_model-mode-tint) 72%, var(--bitfun-color-content-on-dark));
+      --_model-mode-star-soft: color-mix(in srgb, var(--_model-mode-tint) 42%, transparent);
+
+      :where([data-color-scheme='dark']) & {
+        --_model-mode-sky-strength: 0.5;
+        --_model-mode-star: color-mix(in srgb, var(--bitfun-color-content-on-dark) 88%, var(--_model-mode-tint));
+        --_model-mode-star-soft: color-mix(in srgb, var(--bitfun-color-content-on-dark) 48%, transparent);
+      }
+
+      // Broad color stays present between the cells; offset clouds keep the center quiet.
+      background-image:
+        #{$model-mode-dust},
+        radial-gradient(ellipse 66% 92% at 86% 14%, color-mix(in srgb, var(--_model-mode-tint) calc(26% * var(--_model-mode-sky-strength)), transparent), transparent 78%),
+        radial-gradient(ellipse 62% 90% at 10% 94%, color-mix(in srgb, var(--_model-mode-tint) calc(20% * var(--_model-mode-sky-strength)), transparent), transparent 80%),
+        linear-gradient(120deg,
+          color-mix(in srgb, var(--_model-mode-tint) calc(14% * var(--_model-mode-sky-strength)), transparent),
+          color-mix(in srgb, var(--_model-mode-tint) calc(6% * var(--_model-mode-sky-strength)), transparent) 50%,
+          color-mix(in srgb, var(--_model-mode-tint) calc(16% * var(--_model-mode-sky-strength)), transparent));
+
+      &::before,
+      &::after {
+        // Distant stars shimmer in place; only the cell particles travel.
+        animation: bitfun-model-mode-twinkle 4.8s ease-in-out -1.1s infinite;
+        opacity: 0.68;
+      }
+
+      &::after {
+        animation-duration: 6.4s;
+        animation-delay: -3.1s;
+        animation-direction: reverse;
+        opacity: 0.56;
       }
     }
   }
@@ -250,47 +470,309 @@
     }
   }
 
-  &__settings-value {
-    display: block;
-    max-width: 112px;
-    overflow: hidden;
-    white-space: nowrap;
+  &__selection-back [data-bitfun-part='metadata'] {
+    min-inline-size: 0;
+    max-inline-size: 60%;
+  }
+
+  &__settings-card {
+    position: relative;
+    z-index: 2;
+    box-sizing: border-box;
+    block-size: auto;
+    min-block-size: var(--_model-selector-card-height);
+    justify-content: space-between;
+    padding: 0;
+
+    &:not([data-model-mode]) {
+      padding-block-start: var(--bitfun-space-1);
+    }
+
+    // Keep one layout while the reasoning control animates its content height in both directions.
+    &:not([data-model-mode])[data-has-model='true'] {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      padding-block-start: 0;
+
+      .bitfun-model-selector__model-summary {
+        grid-area: 1 / 1;
+        padding-block: 0;
+      }
+
+      .bitfun-model-selector__mode-footer {
+        grid-area: 1 / 1;
+        align-self: end;
+      }
+    }
+
+    &[data-selecting-mode='true'] {
+      .bitfun-model-selector__model-field,
+      .bitfun-model-selector__mode-footer,
+      .bitfun-model-selector__mode-summary,
+      .bitfun-reasoning-control__value {
+        visibility: hidden;
+      }
+    }
+
+    &[data-has-reasoning='true'] {
+      .bitfun-model-selector__mode-footer,
+      .bitfun-model-selector__model-field {
+        position: relative;
+        z-index: 1;
+        pointer-events: none;
+      }
+
+      .bitfun-model-selector__model-control,
+      .bitfun-model-selector__mode-control,
+      .bitfun-model-selector__provider-control {
+        pointer-events: auto;
+      }
+
+    }
+  }
+
+  &__loading {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    min-block-size: var(--_model-selector-card-height);
+
+    [data-bitfun-component='loading-state'] {
+      color: inherit;
+    }
+
+    [data-bitfun-part='label'] {
+      color: inherit;
+      font: inherit;
+      letter-spacing: inherit;
+    }
+  }
+
+  &__mode-choices {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: grid;
+    align-items: center;
+    padding-inline: var(--bitfun-space-3);
+    transition: opacity 160ms var(--bitfun-motion-easing-standard), transform 160ms var(--bitfun-motion-easing-standard);
+
+    @starting-style {
+      opacity: 0;
+      transform: scaleX(0.86);
+    }
+
+    [data-bitfun-component='segmented-control'] {
+      gap: var(--bitfun-space-1);
+      padding: 0;
+      background: transparent;
+    }
+
+    [data-bitfun-part='segment'] {
+      block-size: var(--bitfun-space-8);
+      padding-inline: var(--bitfun-space-1);
+      color: var(--bitfun-color-content-secondary);
+      font-weight: var(--bitfun-type-label-md-font-weight);
+
+      &:is(:hover, :focus-visible):not(:disabled),
+      &[aria-pressed='true'] {
+        color: var(--bitfun-color-content-primary);
+        background: var(--bitfun-color-action-neutral-surface-hover);
+      }
+
+      &:disabled {
+        color: var(--bitfun-color-action-neutral-content-disabled);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      transition: none;
+    }
+  }
+
+  &__model-control,
+  &__mode-summary .bitfun-model-selector__mode-control {
+    flex: 0 1 auto;
+    inline-size: fit-content;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    min-block-size: calc(var(--bitfun-space-6) + var(--bitfun-space-1));
+    padding-inline: var(--bitfun-space-2);
+    color: var(--bitfun-color-content-primary);
+
+    [data-bitfun-part='label'] {
+      font-family: var(--bitfun-type-heading-section-font-family);
+      font-size: var(--bitfun-type-heading-section-font-size);
+      font-weight: var(--bitfun-type-heading-section-font-weight);
+      line-height: var(--bitfun-type-heading-section-line-height);
+      letter-spacing: var(--bitfun-type-heading-section-letter-spacing);
+    }
+  }
+
+  &__model-summary {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    // Identity and its secondary control form one compact information group.
+    gap: calc(var(--bitfun-space-1) / 2);
+    min-inline-size: 0;
+    min-block-size: 0;
+    padding: var(--bitfun-space-2) var(--bitfun-space-3) 0;
+  }
+
+  &__model-field {
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    min-inline-size: 0;
+    min-block-size: 0;
+    text-align: center;
+  }
+
+  &__provider-control {
+    flex: 0 1 auto;
+    inline-size: fit-content;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    min-block-size: var(--bitfun-space-5);
+    padding-inline: var(--bitfun-space-1);
+    color: var(--bitfun-color-content-secondary);
+
+    [data-bitfun-part='trigger'],
+    [data-bitfun-part='label'] {
+      text-align: start;
+    }
+  }
+
+  &__model-control {
+    // The centered name uses its text height instead of reserving a full menu row.
+    min-block-size: 0;
+
+    [data-bitfun-part='trigger'],
+    [data-bitfun-part='label'] {
+      justify-content: center;
+      text-align: center;
+    }
+  }
+
+  &__model-provider,
+  &__model-name {
+    min-inline-size: 0;
+  }
+
+  &__reasoning-control {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    justify-content: flex-start;
+    inline-size: 100%;
+    min-inline-size: 0;
+    min-block-size: 0;
+
+    .bitfun-reasoning-control {
+      // Anchor the sky to the card while the inline choices follow the model.
+      position: static;
+      isolation: auto;
+      overflow: visible;
+    }
+
+    .bitfun-reasoning-control__value {
+      color: var(--bitfun-color-content-secondary);
+    }
+
+    .bitfun-reasoning-control {
+      // Let the retained content own height throughout expansion and collapse.
+      &,
+      .bitfun-reasoning-control__value,
+      .bitfun-reasoning-control__trigger {
+        min-block-size: 0;
+      }
+    }
+
+    .bitfun-reasoning-control__backdrop {
+      z-index: 0;
+    }
+  }
+
+  &__mode-footer {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    flex: 0 0 auto;
+    padding-block-end: var(--bitfun-space-1);
+    padding-inline: var(--bitfun-space-2);
+
+    .bitfun-model-selector__mode-control,
+    .bitfun-model-selector__provider-control {
+      min-block-size: var(--bitfun-space-5);
+      margin-inline-start: 0;
+      color: var(--bitfun-color-content-secondary);
+
+      [data-bitfun-part='label'] {
+        font-family: var(--bitfun-type-label-sm-font-family);
+        font-size: var(--bitfun-type-label-sm-font-size);
+        font-weight: var(--bitfun-type-label-md-font-weight);
+        line-height: var(--bitfun-type-label-sm-line-height);
+        letter-spacing: var(--bitfun-type-label-sm-letter-spacing);
+      }
+    }
+
+    .bitfun-model-selector__mode-control {
+      flex-shrink: 0;
+      max-inline-size: 60%;
+    }
+
+    .bitfun-model-selector__provider-control {
+      margin-inline-start: auto;
+    }
+  }
+
+  &__mode-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    place-items: center;
+    flex: 1;
+    block-size: 100%;
+    min-block-size: 0;
+    text-align: center;
+
+    .bitfun-model-selector__mode-control {
+      margin-inline-start: 0;
+
+      [data-bitfun-part='trigger'] {
+        justify-content: center;
+        text-align: center;
+      }
+    }
+  }
+
+  &__mode-control {
+    flex: 0 1 auto;
+    inline-size: fit-content;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    min-block-size: var(--bitfun-overlay-menu-item-height);
+    margin-inline-start: calc(-1 * var(--bitfun-space-1));
+    padding-inline: var(--bitfun-space-1);
   }
 
   &__option-main {
     display: flex;
-    flex-direction: column;
-    gap: 2px;
+    align-items: center;
+    gap: var(--bitfun-space-1);
     min-width: 0;
     flex: 1;
   }
 
   &__option-name {
     display: flex;
+    min-inline-size: 0;
     align-items: center;
     gap: 4px;
-    font-size: var(--bitfun-type-flow-control-font-size);
-    font-weight: var(--bitfun-type-label-sm-font-weight);
-    color: var(--bitfun-color-content-secondary);
     white-space: nowrap;
-    overflow: hidden;
-  }
-
-  &__option-desc {
-    font-size: var(--bitfun-type-flow-support-font-size);
-    color: var(--bitfun-color-content-muted);
-    white-space: nowrap;
-    overflow: hidden;
-
-    &--selected-model {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-  }
-
-  &__option-desc-label {
-    min-width: 0;
     overflow: hidden;
   }
 
@@ -319,15 +801,77 @@
 
 }
 
+@keyframes bitfun-model-smart-cloud {
+  from {
+    transform: translate3d(-10%, 6%, 0) rotate(-5deg) scale(1.04);
+    opacity: var(--_model-mode-cloud-min-opacity);
+  }
+
+  to {
+    transform: translate3d(10%, -6%, 0) rotate(5deg) scale(1.12);
+    opacity: var(--_model-mode-cloud-max-opacity);
+  }
+}
+
+@keyframes bitfun-model-mode-drift {
+  from {
+    transform: translate3d(calc(-1 * var(--bitfun-space-2)), var(--bitfun-space-1), 0);
+  }
+
+  to {
+    transform: translate3d(var(--bitfun-space-2), calc(-1 * var(--bitfun-space-1)), 0);
+  }
+}
+
+@keyframes bitfun-model-mode-twinkle {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+
+  42% {
+    opacity: 0.9;
+  }
+
+  72% {
+    opacity: 0.68;
+  }
+}
+
+@media (forced-colors: active) {
+  .bitfun-model-selector__dropdown[data-menu-level='settings'],
+  .bitfun-model-selector__dropdown[data-menu-level='settings']:is([data-model-mode='smart'], [data-model-mode='pool']) {
+    background-image: none;
+    background-color: Canvas;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: none;
+
+    &::before,
+    &::after {
+      display: none;
+      animation: none;
+    }
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .bitfun-model-selector__dropdown,
   .bitfun-model-selector__trigger,
   .bitfun-model-selector__chevron,
-  .bitfun-model-selector__submenu,
   .bitfun-model-selector__level {
     transition-duration: 0ms;
   }
 
   .bitfun-model-selector__dropdown {
     animation: none;
+
+    &[data-menu-level='settings']:is([data-model-mode='smart'], [data-model-mode='pool']) {
+      &::before,
+      &::after {
+        animation: none;
+        transform: none;
+      }
+    }
   }
 }

@@ -51,7 +51,6 @@ export const PEER_CONTROLLER_LOCAL_COMMANDS: ReadonlySet<string> = new Set([
   "debug_devtools_available",
   "debug_open_devtools",
   "delete_agent_companion_pet_package",
-  "dismiss_announcement",
   "dispatch_answer",
   "dispatch_append",
   "dispatch_cancel",
@@ -74,10 +73,9 @@ export const PEER_CONTROLLER_LOCAL_COMMANDS: ReadonlySet<string> = new Set([
   "frontend_update_candidate_failed",
   "frontend_update_candidate_ready",
   "generate_insights",
-  "get_announcement_tips",
   "get_frontend_update_status",
   "get_latest_insights",
-  "get_pending_announcements",
+  "get_local_models_dev_catalogs",
   "get_pending_update",
   "get_prevent_sleep_enabled",
   "has_insights_data",
@@ -107,7 +105,6 @@ export const PEER_CONTROLLER_LOCAL_COMMANDS: ReadonlySet<string> = new Set([
   "mark_bitfun_control_surface_unready",
   "market_image_load",
   "minimize_to_tray",
-  "never_show_announcement",
   "peer_control_attach",
   "peer_control_detach",
   "peer_controller_set_active",
@@ -168,6 +165,8 @@ export const PEER_CONTROLLER_LOCAL_COMMANDS: ReadonlySet<string> = new Set([
 
 /** Every capability id a peer host may advertise in `peer_mode_ping`. */
 export const PEER_HOST_CAPABILITY_IDS = [
+  "background_result_delivery_v1",
+  "dialog_queue_v1",
   "idempotent_dialog_submit",
   "inline_image_attachments_v1",
   "btw_initial_model_selection_v1",
@@ -176,6 +175,8 @@ export const PEER_HOST_CAPABILITY_IDS = [
   "targeted_session_rollback",
   "token_usage_statistics",
   "miniapp_agent_context_files_v1",
+  "wsl_workspaces_v1",
+  "computer_use_sharing_v1",
   "product_control_v1",
   "product_control_native_v1",
   "product_control_presentation_v1",
@@ -183,6 +184,7 @@ export const PEER_HOST_CAPABILITY_IDS = [
   "tool_catalog",
   "chat_mcp_catalog_v1",
   "workspace_id_references_v1",
+  "whole_session_copy_v1",
   "user_question_response",
   "user_question_interaction_v1",
 ] as const;
@@ -194,6 +196,8 @@ export const PEER_HOST_ADVERTISED_CAPABILITIES: Readonly<
   Record<'desktop' | 'cli', readonly PeerHostCapabilityId[]>
 > = {
   desktop: [
+    "background_result_delivery_v1",
+    "dialog_queue_v1",
     "idempotent_dialog_submit",
     "inline_image_attachments_v1",
     "btw_initial_model_selection_v1",
@@ -202,6 +206,8 @@ export const PEER_HOST_ADVERTISED_CAPABILITIES: Readonly<
     "targeted_session_rollback",
     "token_usage_statistics",
     "miniapp_agent_context_files_v1",
+    "wsl_workspaces_v1",
+    "computer_use_sharing_v1",
     "product_control_v1",
     "product_control_native_v1",
     "product_control_presentation_v1",
@@ -209,10 +215,13 @@ export const PEER_HOST_ADVERTISED_CAPABILITIES: Readonly<
     "tool_catalog",
     "chat_mcp_catalog_v1",
     "workspace_id_references_v1",
+    "whole_session_copy_v1",
     "user_question_response",
     "user_question_interaction_v1",
   ],
   cli: [
+    "background_result_delivery_v1",
+    "dialog_queue_v1",
     "control_conversation_v1",
     "control_conversation_reset_v1",
     "idempotent_dialog_submit",

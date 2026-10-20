@@ -9,7 +9,7 @@ import { sendDebugProbe } from '@/shared/utils/debugProbe';
 import { nowMs } from '@/shared/utils/timing';
 import { useI18n } from '@/infrastructure/i18n';
 import {workspaceAPI} from "@/infrastructure";
-import { isMacOSDesktopRuntime, isOpenHarmonyRuntime, supportsNativeWindowControls } from '@/infrastructure/runtime';
+import { isOpenHarmonyRuntime, supportsNativeWindowControls } from '@/infrastructure/runtime';
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
 import { aiExperienceConfigService } from '@/infrastructure/config/services/AIExperienceConfigService';
 import { enterPetOnlyMode } from '../services/agentCompanionPetOnlyMode';
@@ -64,17 +64,6 @@ export const useWindowControls = (options?: { isToolbarMode?: boolean }) => {
 
   // Skip state updates during manual operations
   const shouldSkipStateUpdate = useRef(false);
-
-  const restoreMacOSOverlayTitlebar = useCallback(async (appWindow: any) => {
-    if (!isMacOSDesktopRuntime() || isToolbarMode) return;
-    try {
-      if (typeof appWindow.setTitleBarStyle === 'function') {
-        await appWindow.setTitleBarStyle('overlay');
-      }
-    } catch {
-      // Ignore failures during window animation/state changes.
-    }
-  }, [isToolbarMode]);
 
   const updateWindowState = useCallback(async (appWindow: any, skipVisibilityCheck = false) => {
     if (shouldSkipStateUpdate.current) {
@@ -133,7 +122,6 @@ export const useWindowControls = (options?: { isToolbarMode?: boolean }) => {
             const startedAt = nowMs();
             try {
               await updateWindowState(appWindow);
-              await restoreMacOSOverlayTitlebar(appWindow);
               sendDebugProbe(
                 'useWindowControls.ts:handleVisibilityChange',
                 'Window restore sync completed',
@@ -173,7 +161,6 @@ export const useWindowControls = (options?: { isToolbarMode?: boolean }) => {
         // Get initial state (skip visibility check so we still sync
         // when the window is maximized before it becomes visible)
         await updateWindowState(appWindow, true);
-        await restoreMacOSOverlayTitlebar(appWindow);
         
         // Listen for resize (with debounce and visibility checks)
         const resolvedUnlistenResized = await appWindow.onResized(async () => {
@@ -190,7 +177,6 @@ export const useWindowControls = (options?: { isToolbarMode?: boolean }) => {
           // Debounce: delay to avoid frequent calls (300ms covers maximize/restore/fullscreen)
           resizeTimer = setTimeout(async () => {
             await updateWindowState(appWindow);
-            await restoreMacOSOverlayTitlebar(appWindow);
           }, 300); // 300ms debounce covers window change duration
         });
 
@@ -223,7 +209,7 @@ export const useWindowControls = (options?: { isToolbarMode?: boolean }) => {
       // Remove page visibility listener
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [canUseNativeWindowControls, isToolbarMode, restoreMacOSOverlayTitlebar, updateWindowState]);
+  }, [canUseNativeWindowControls, isToolbarMode, updateWindowState]);
 
   // Window control handlers
   const handleMinimize = useCallback(async () => {
@@ -333,11 +319,10 @@ export const useWindowControls = (options?: { isToolbarMode?: boolean }) => {
         shouldSkipStateUpdate.current = false;
         if (appWindow) {
           void updateWindowState(appWindow, true);
-          void restoreMacOSOverlayTitlebar(appWindow);
         }
       }, 200);
     }
-  }, [canUseNativeWindowControls, restoreMacOSOverlayTitlebar, t, updateWindowState]);
+  }, [canUseNativeWindowControls, t, updateWindowState]);
 
   const handleToggleFullscreen = useCallback(async () => {
     if (!canUseNativeWindowControls) return;
@@ -381,11 +366,10 @@ export const useWindowControls = (options?: { isToolbarMode?: boolean }) => {
         shouldSkipStateUpdate.current = false;
         if (appWindow) {
           void updateWindowState(appWindow, true);
-          void restoreMacOSOverlayTitlebar(appWindow);
         }
       }, 300);
     }
-  }, [canUseNativeWindowControls, restoreMacOSOverlayTitlebar, t, updateWindowState]);
+  }, [canUseNativeWindowControls, t, updateWindowState]);
 
   const handleClose = useCallback(async () => {
     if (!canUseNativeWindowControls) return;

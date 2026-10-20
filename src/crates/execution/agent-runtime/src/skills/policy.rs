@@ -77,11 +77,6 @@ const DISABLE_OFFICE: SkillPolicyRule = SkillPolicyRule {
     effect: PolicyEffect::Disable,
 };
 
-const DISABLE_GSTACK: SkillPolicyRule = SkillPolicyRule {
-    selector: SkillSelector::Group(BuiltinSkillGroup::Gstack),
-    effect: PolicyEffect::Disable,
-};
-
 const DISABLE_MINIAPP: SkillPolicyRule = SkillPolicyRule {
     selector: SkillSelector::Group(BuiltinSkillGroup::MiniApp),
     effect: PolicyEffect::Disable,
@@ -192,7 +187,6 @@ const AGENTIC_POLICY: ModeSkillPolicy = ModeSkillPolicy {
     builtin_default: PolicyEffect::Enable,
     rules: &[
         DISABLE_OFFICE,
-        DISABLE_GSTACK,
         DISABLE_COMPUTER_USE,
         DISABLE_MINIAPP,
         DISABLE_CREATION,
@@ -205,7 +199,6 @@ const CLAW_POLICY: ModeSkillPolicy = ModeSkillPolicy {
     builtin_default: PolicyEffect::Enable,
     rules: &[
         DISABLE_OFFICE,
-        DISABLE_GSTACK,
         DISABLE_COMPUTER_USE,
         DISABLE_MINIAPP,
         DISABLE_CREATION,
@@ -219,7 +212,6 @@ const CREATIVE_POLICY: ModeSkillPolicy = ModeSkillPolicy {
     builtin_default: PolicyEffect::Enable,
     rules: &[
         DISABLE_OFFICE,
-        DISABLE_GSTACK,
         DISABLE_COMPUTER_USE,
         DISABLE_DEBUGGING,
         DISABLE_CANVAS,

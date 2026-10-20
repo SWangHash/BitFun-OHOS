@@ -8,7 +8,7 @@ import { canonicalizeIcns } from './icns-container.mjs';
 const GENERATED_ICNS_FILES = [
   'src/apps/desktop/icons/bitfun-app-icon.icns',
   'BitFun-Installer/src-tauri/icons/bitfun-app-icon.icns',
-  'src/apps/data-migrator/icons/bitfun-app-icon.icns',
+  'src/apps/data-tools/icons/bitfun-app-icon.icns',
 ];
 
 const ANDROID_LAUNCHER_SIZES = { mdpi: 48, hdpi: 72, xhdpi: 96, xxhdpi: 144, xxxhdpi: 192 };
@@ -37,6 +37,17 @@ function createIcns(chunks) {
   return Buffer.concat([header, ...chunks], length);
 }
 
+test('design-system brand masters and packaged icons agree with native projections', () => {
+  const componentAssets = 'design-system/packages/ui/src/brand/assets';
+  for (const master of ['bitfun-mark.svg', 'bitfun-app-mark.png']) {
+    assert.deepEqual(readFileSync(`${componentAssets}/${master}`), readFileSync(`assets/brand/source/${master}`));
+  }
+  for (const size of [16, 32, 128, 256, 512]) {
+    const name = `bitfun-app-icon-${size}.png`;
+    assert.deepEqual(readFileSync(`${componentAssets}/${name}`), readFileSync(`assets/brand/exports/${name}`));
+  }
+});
+
 test('ICNS canonicalization is independent of Tauri chunk order', () => {
   const chunks = [
     createChunk('ic10', Buffer.from('large')),
@@ -51,7 +62,7 @@ test('ICNS canonicalization is independent of Tauri chunk order', () => {
 });
 
 test('application ICNS files use the canonical ICNS layout', () => {
-  // Every bundled product (desktop, installer, data migrator) ships one icon
+  // Every bundled product (desktop, installer, data tools) ships one icon
   // family, so the three containers must stay byte-identical and canonical.
   const [desktop, ...rest] = GENERATED_ICNS_FILES.map(filePath => readFileSync(filePath));
 
@@ -59,6 +70,24 @@ test('application ICNS files use the canonical ICNS layout', () => {
   for (const [index, container] of rest.entries()) {
     assert.ok(container.equals(canonicalizeIcns(container)), `${GENERATED_ICNS_FILES[index + 1]} is not canonical`);
     assert.deepEqual(container, desktop, `${GENERATED_ICNS_FILES[index + 1]} drifted from the shared artwork`);
+  }
+  assert.deepEqual(desktop, readFileSync('assets/brand/exports/bitfun-app-icon.icns'));
+});
+
+test('desktop and installer retain independent Windows/Linux icons alongside the macOS fallback', () => {
+  for (const configPath of ['src/apps/desktop/tauri.conf.json', 'BitFun-Installer/src-tauri/tauri.conf.json']) {
+    const { bundle } = JSON.parse(readFileSync(configPath, 'utf8'));
+    assert.equal(bundle.icon.find(icon => icon.endsWith('.icns')), 'icons/bitfun-app-icon.icns');
+    assert.equal(bundle.icon.find(icon => icon.endsWith('.png')), 'icons/bitfun-app-icon.png');
+    assert.equal(bundle.icon.find(icon => icon.endsWith('.ico')), 'icons/bitfun-app-icon.ico');
+  }
+  for (const iconDir of ['src/apps/desktop/icons', 'BitFun-Installer/src-tauri/icons']) {
+    assert.deepEqual(readFileSync(`${iconDir}/bitfun-app-icon.png`),
+      readFileSync('assets/brand/exports/bitfun-app-icon-1024.png'));
+  }
+  for (const size of [16, 32, 48, 64, 96, 128, 256, 512]) {
+    assert.deepEqual(readFileSync(`src/apps/desktop/icons/hicolor/${size}x${size}/apps/bitfun-desktop.png`),
+      readFileSync(`assets/brand/exports/bitfun-app-icon-${size}.png`));
   }
 });
 
@@ -213,14 +242,14 @@ test('browser entry points reference generated application favicons', () => {
   }
 });
 
-test('installer, data migrator, and Mini App Market icons reuse the application exports', () => {
+test('installer, data tools, and Mini App Market icons reuse the application exports', () => {
   const exportedPng = size => readFileSync(`assets/brand/exports/bitfun-app-icon-${size}.png`);
   const exportedIco = readFileSync('assets/brand/exports/bitfun-app-icon.ico');
   const exportedIcns = readFileSync('assets/brand/exports/bitfun-app-icon.icns');
 
   for (const directory of [
     'BitFun-Installer/src-tauri/icons',
-    'src/apps/data-migrator/icons',
+    'src/apps/data-tools/icons',
   ]) {
     assert.deepEqual(readFileSync(`${directory}/bitfun-app-icon.png`), exportedPng(1024), directory);
     assert.deepEqual(readFileSync(`${directory}/bitfun-app-icon.ico`), exportedIco, directory);

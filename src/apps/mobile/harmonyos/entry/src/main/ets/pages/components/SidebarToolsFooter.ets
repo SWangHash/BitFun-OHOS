@@ -1,6 +1,6 @@
 import { MobileDesignTypography } from '../../generated/MobileDesignTokens';
 import { RemoteI18n } from '../../i18n/RemoteI18n';
-import { CARD, INK, LINE } from './Theme';
+import { SIDEBAR_INK, SIDEBAR_LINE, SIDEBAR_RAISED } from './Theme';
 
 /** Pure navigation controls reused in compact and wide sidebars. */
 @ComponentV2
@@ -16,20 +16,20 @@ export struct SidebarToolsFooter {
           Stack() {
             SymbolGlyph($r('sys.symbol.wrench_and_screwdriver'))
               .fontSize(20)
-              .fontColor([INK])
+              .fontColor([SIDEBAR_INK])
           }.width(24).height(24)
           Text(RemoteI18n.t('workspaceTools.title'))
             .fontSize(MobileDesignTypography.labelLarge.size)
             .fontWeight(FontWeight.Medium)
-            .fontColor(INK)
+            .fontColor(SIDEBAR_INK)
             .maxLines(1)
         }
       }
       .constraintSize({ minWidth: 104 })
       .height(48)
       .padding({ left: 14, right: 14 })
-      .backgroundColor(CARD)
-      .border({ width: 0.5, color: LINE })
+      .backgroundColor(SIDEBAR_RAISED)
+      .border({ width: 0.5, color: SIDEBAR_LINE })
       .borderRadius(24)
       .enabled(this.toolsEnabled)
       .opacity(this.toolsEnabled ? 1 : 0.45)
@@ -40,12 +40,12 @@ export struct SidebarToolsFooter {
       Button() {
         SymbolGlyph($r('sys.symbol.gearshape'))
           .fontSize(20)
-          .fontColor([INK])
+          .fontColor([SIDEBAR_INK])
       }
       .width(48)
       .height(48)
       .padding(0)
-      .backgroundColor(CARD)
+      .backgroundColor(SIDEBAR_RAISED)
       .borderRadius(24)
       .accessibilityText(RemoteI18n.t('settings.title'))
       .stateEffect(true)

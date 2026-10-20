@@ -41,6 +41,7 @@ extern "system" {
 
 /// One visible top-level window discovered during enumeration.
 struct WindowEntry {
+    hwnd: usize,
     pid: u32,
     title: String,
 }
@@ -80,6 +81,29 @@ pub(super) fn list_running_apps(_include_hidden: bool) -> BitFunResult<Vec<AppIn
 
     sort_apps_by_name(&mut apps);
     Ok(apps)
+}
+
+pub(super) fn list_share_targets() -> Vec<bitfun_agent_tools::computer_use_control::ShareTarget>
+{
+    enumerate_windows()
+        .into_iter()
+        .map(
+            |window| bitfun_agent_tools::computer_use_control::ShareTarget {
+                selection_id: String::new(),
+                unavailable_reason: None,
+                id: format!("pid:{}/window:{}", window.pid, window.hwnd),
+                pid: Some(window.pid as i32),
+                window_id: Some(window.hwnd as u64),
+                application: exe_basename_for_pid(window.pid)
+                    .unwrap_or_else(|| window.title.clone()),
+                title: window.title,
+                bundle_id: None,
+                background_pointer: true,
+                background_semantic: true,
+                selection_required: false,
+            },
+        )
+        .collect()
 }
 
 fn sort_apps_by_name(apps: &mut [AppInfo]) {
@@ -163,7 +187,11 @@ unsafe extern "system" fn enum_windows_cb(hwnd: HWND, lparam: LPARAM) -> BOOL {
     }
 
     if let Ok(mut s) = state.lock() {
-        s.windows.push(WindowEntry { pid, title });
+        s.windows.push(WindowEntry {
+            hwnd: hwnd.0 as usize,
+            pid,
+            title,
+        });
     }
     TRUE
 }

@@ -241,6 +241,11 @@ jobs:
             pkg-config \
             libglib2.0-dev \
             libgtk-3-dev \
+            libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev \
+            gstreamer1.0-pipewire \
+            gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good \
             libxdo-dev \
             "$WEBKIT_PKG" \
             "$APPINDICATOR_PKG" \
@@ -654,6 +659,10 @@ jobs:
       - name: Type-check mobile web
         if: needs.build-impact.outputs.frontend_required != 'false'
         run: pnpm --dir src/mobile-web run type-check
+
+      - name: Validate mobile-web build cache contract
+        if: needs.build-impact.outputs.frontend_required != 'false'
+        run: node --test scripts/mobile-web-build.test.mjs
 
       - name: Test mobile web account login and reload
         if: needs.build-impact.outputs.frontend_required != 'false'

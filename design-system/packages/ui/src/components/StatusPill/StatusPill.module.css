@@ -32,6 +32,10 @@
     block-size: var(--bitfun-control-status-pill-icon-size);
   }
 
+  .root[data-shape="rounded"] {
+    border-radius: var(--bitfun-radius-sm);
+  }
+
   .leading > :where(svg, img),
   .leading > [data-bitfun-component="icon"] {
     display: block;

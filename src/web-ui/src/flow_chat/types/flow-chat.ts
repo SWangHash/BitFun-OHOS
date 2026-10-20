@@ -6,6 +6,7 @@
 import type {
   DialogTurnKind,
   SessionKind,
+  SessionContinuationPolicy,
   SessionContextUsageSource,
   SessionTitleSource,
   SessionTurnCatalog,
@@ -217,6 +218,8 @@ export interface ModelRoundRenderHints {
    * collapsible tools and adjacent narrative into an explore group.
    */
   disableExploreGrouping?: boolean;
+  /** Explicit host policy; absent on older retry-derived hints. */
+  disableExploreGroupingSource?: 'host';
 }
 
 export interface ModelRoundAttempt {
@@ -259,6 +262,8 @@ export interface ModelRound {
 export interface TokenUsage {
   inputTokens: number;
   outputTokens?: number;
+  /** Cache-read tokens; absent when any request in the turn did not report them. */
+  cachedTokens?: number;
   totalTokens: number;
   timestamp: number;
   /** Persisted source turn used to invalidate usage after history rewrites. */
@@ -469,6 +474,8 @@ export interface Session {
    * - 'failed': hydrate failed and the UI should offer retry instead of showing a new session.
    */
   historyState?: SessionHistoryState;
+  /** Last authoritative metadata count; absent on legacy projections. */
+  persistedTurnCount?: number;
 
   /**
    * Backend runtime-context lifecycle for sessions restored through the fast
@@ -510,6 +517,9 @@ export interface Session {
    */
   lastSubmittedMode?: string;
 
+  /** Frontend-only new-conversation preparation; never serialized as session metadata. */
+  draft?: import('../utils/sessionDraft').SessionDraft;
+
   // Workspace this session belongs to. Used for sidebar display filtering.
   // Sessions are always kept in store for event processing; only display is filtered.
   workspacePath?: string;
@@ -547,6 +557,9 @@ export interface Session {
 
   /** Logical subagent id / type used to launch this hidden subagent session. */
   subagentType?: string;
+
+  /** Runtime-owned continuation policy. Undefined until child metadata is known. */
+  continuationPolicy?: SessionContinuationPolicy;
 
   /** Whether `/goal` mode is active for this session. */
   goalModeActive?: boolean;
@@ -752,7 +765,7 @@ export interface ParsedChunk {
 
 export interface ToolCardConfig {
   attention: 'ambient' | 'prominent';
-  presentation: 'standard' | 'dedicated';
+  presentation: 'standard' | 'dedicated' | 'relation';
   toolName: string;
   displayName: string;
   icon: string;

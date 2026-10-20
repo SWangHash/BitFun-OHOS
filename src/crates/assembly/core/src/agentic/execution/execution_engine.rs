@@ -6,13 +6,13 @@ use super::super::observability::{completion_from_error, finish_reason_class, tu
 use super::model_exchange_trace::{
     prepare_model_exchange_trace_for_workspace, ModelExchangeTraceOperation,
 };
+use super::prompt_suggestion::{spawn_prompt_suggestion, PromptSuggestionRequest};
 use super::round_executor::{ModelRoundLifecycle, RoundExecutor};
 use super::types::{ExecutionContext, ExecutionResult, RoundContext, RoundResult};
 use crate::agentic::agents::{
     build_prompt_context_for_workspace, get_agent_registry, get_embedded_prompt,
-    is_swarm_planner_agent_type, render_direct_tool_listing_body, PrependedPromptReminders,
-    PromptBuilder, PromptBuilderContext, RuntimeContextNeeds, ToolListingSections,
-    UserContextPolicy, UserContextSection,
+    render_direct_tool_listing_body, PrependedPromptReminders, PromptBuilder, PromptBuilderContext,
+    RuntimeContextNeeds, ToolListingSections, UserContextPolicy, UserContextSection,
 };
 use crate::agentic::context_profile::{ContextProfilePolicy, ModelCapabilityProfile};
 use crate::agentic::coordination::scheduler::agent_dialog_turn_image_contexts;
@@ -42,7 +42,7 @@ use crate::agentic::session::{
 };
 use crate::agentic::skill_agent_snapshot::build_skill_agent_tool_listing_sections_from_snapshot;
 use crate::agentic::tools::framework::ToolUseContext;
-use crate::agentic::tools::implementations::{SkillTool, TaskTool};
+use crate::agentic::tools::implementations::{AgentExecutionTool, SkillTool};
 use crate::agentic::tools::product_runtime::{
     collect_product_loaded_deferred_tool_specs, GetToolSpecTool,
 };
@@ -86,6 +86,10 @@ use bitfun_runtime_ports::{
 };
 use dashmap::DashMap;
 use log::{debug, error, info, trace, warn};
+use bitfun_agent_runtime::prompt_suggestion::{
+    turn_outcome_allows_prompt_suggestion, PromptSuggestionRuntime, PromptSuggestionTurnOutcome,
+    PROMPT_SUGGESTION_ELIGIBLE_CONTEXT_KEY,
+};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -648,10 +652,11 @@ pub struct ExecutionEngine {
     context_compressor: Arc<ContextCompressor>,
     config: ExecutionEngineConfig,
     generation_messages: DashMap<(String, String), Vec<Message>>,
-    telemetry: Telemetry,
+telemetry: Telemetry,
     /// Turn-instruction contributions assembled at construction. Built-ins only:
     /// registration order is the splice order.
     turn_instruction_registry: TurnInstructionRegistry,
+    prompt_suggestions: PromptSuggestionRuntime,
 }
 
 impl ExecutionEngine {
@@ -732,9 +737,10 @@ impl ExecutionEngine {
             context_compressor,
             config,
             generation_messages: DashMap::new(),
-            telemetry: Telemetry::noop(),
+telemetry: Telemetry::noop(),
             turn_instruction_registry:
                 crate::agentic::tools::tool_admission::assemble_turn_instruction_registry(),
+            prompt_suggestions: PromptSuggestionRuntime::new(),
         }
     }
 
@@ -1519,7 +1525,7 @@ impl ExecutionEngine {
                 None
             },
             agent_listing: if has_tool_definition("Task") || has_tool_definition("AgentSpawn") {
-                TaskTool::build_available_agents_context_section(Some(tool_context)).await
+                AgentExecutionTool::build_available_agents_context_section(Some(tool_context)).await
             } else {
                 None
             },
@@ -1547,6 +1553,7 @@ impl ExecutionEngine {
         supports_image_understanding: bool,
         tool_listing_sections: ToolListingSections,
         runtime_context_needs: RuntimeContextNeeds,
+        user_context_policy: &UserContextPolicy,
     ) -> Option<PromptBuilderContext> {
         let workspace = context.workspace.as_ref()?;
         let remote_file_delivery_channel = context
@@ -1554,12 +1561,6 @@ impl ExecutionEngine {
             .get(TOOL_CONTEXT_REMOTE_FILE_DELIVERY_KEY)
             .and_then(|value| value.parse::<bool>().ok())
             .unwrap_or(false);
-        let inline_markdown_image_display = context
-            .context
-            .get(TOOL_CONTEXT_INLINE_MARKDOWN_IMAGE_DISPLAY_KEY)
-            .and_then(|value| value.parse::<bool>().ok())
-            .unwrap_or(false);
-
         build_prompt_context_for_workspace(
             workspace,
             workspace.workspace_id.as_deref(),
@@ -1568,12 +1569,11 @@ impl ExecutionEngine {
             Some(supports_image_understanding),
             tool_listing_sections,
             runtime_context_needs,
+            user_context_policy,
         )
         .await
         .map(|prompt_context| {
-            prompt_context
-                .with_remote_file_delivery_channel(remote_file_delivery_channel)
-                .with_inline_markdown_image_display(inline_markdown_image_display)
+            prompt_context.with_remote_file_delivery_channel(remote_file_delivery_channel)
         })
     }
 
@@ -1756,11 +1756,8 @@ impl ExecutionEngine {
             built_user_context
         };
         let runtime_context = prompt_builder.build_runtime_context_reminder().await;
-        let (skill_listing, mut agent_listing) =
+        let (skill_listing, agent_listing) =
             skill_agent_listing_reminders(baseline_tool_sections.as_ref());
-        if is_swarm_planner_agent_type(current_agent.id()) {
-            agent_listing = None;
-        }
 
         PrependedPromptReminders {
             deferred_tool_listing: prompt_builder.build_deferred_tool_listing_reminder(),
@@ -1841,6 +1838,7 @@ impl ExecutionEngine {
             input.supports_image_understanding,
             input.tool_listing_sections,
             input.runtime_context_needs,
+            &input.current_agent.user_context_policy(),
         )
         .await;
         let prepended_prompt_reminders = self
@@ -2171,7 +2169,7 @@ impl ExecutionEngine {
             .await
     }
 
-    async fn build_ai_messages_for_send(
+    pub(super) async fn build_ai_messages_for_send(
         messages: &[Message],
         provider: &str,
         workspace: Option<&WorkspaceBinding>,
@@ -2308,7 +2306,15 @@ impl ExecutionEngine {
                 }
                 MessageContent::ToolResult { .. } => {
                     if !attach_images {
-                        result.push(AIMessage::from(msg));
+                        let mut ai = AIMessage::from(msg);
+                        if ai
+                            .tool_image_attachments
+                            .take()
+                            .is_some_and(|images| !images.is_empty())
+                        {
+                            ai.content = Some(format!("{}\n\n[Tool image pixels were not sent: the resolved model does not support image inputs.]", ai.content.as_deref().unwrap_or("")));
+                        }
+                        result.push(ai);
                         continue;
                     }
                     let mut ai = AIMessage::from(msg.clone());
@@ -3079,6 +3085,7 @@ impl ExecutionEngine {
     ) -> BitFunResult<ExecutionResult> {
         let start_time = std::time::Instant::now();
         let dialog_turn_id = context.dialog_turn_id.clone();
+        let control_owner = context.session_id.clone();
         self.generation_messages
             .remove(&(context.session_id.clone(), dialog_turn_id.clone()));
         let is_subagent = context.subagent_parent_info.is_some();
@@ -3189,6 +3196,12 @@ impl ExecutionEngine {
                 turn_context.clone(),
             );
         }
+        if self.prompt_suggestions.cancel_session(&context.session_id) {
+            debug!(
+                "Cancelled pending prompt suggestion for new dialog turn: session_id={}, dialog_turn_id={}",
+                context.session_id, dialog_turn_id
+            );
+        }
 
         info!("Starting dialog turn: dialog_turn_id={}", dialog_turn_id);
 
@@ -3202,6 +3215,21 @@ impl ExecutionEngine {
                 turn_context.clone(),
             )
             .await;
+
+        // GUI capture/input is a turn-owned host resource. Release it on normal
+        // completion and errors as well as cancellation; never stop another task.
+        if let Some(host) = self.round_executor.computer_use_host() {
+            let control = host.control_snapshot();
+            if control.owner.as_deref() == Some(control_owner.as_str()) && control.state == "active"
+            {
+                if let Err(error) = host
+                    .stop_control_generation(&control_owner, control.generation)
+                    .await
+                {
+                    debug!("Computer use resource cleanup: {}", error);
+                }
+            }
+        }
 
         // Cleanup cancellation token
         self.round_executor
@@ -4524,15 +4552,12 @@ impl ExecutionEngine {
                 &round_result.assistant_message,
             );
 
+            // Publish the assistant message and all tool results as one context
+            // mutation.  A fork must never observe the assistant tool calls
+            // without their corresponding results.
+            let mut committed_round_messages = Vec::new();
             if !round_result.assistant_message_committed {
-                // Update the in-memory message caches immediately so subsequent rounds see it.
-                if let Err(e) = self
-                    .session_manager
-                    .add_message(&context.session_id, round_result.assistant_message.clone())
-                    .await
-                {
-                    warn!("Failed to update assistant message in memory: {}", e);
-                }
+                committed_round_messages.push(round_result.assistant_message.clone());
             }
 
             // Add tool result messages to history
@@ -4543,15 +4568,14 @@ impl ExecutionEngine {
                     &context.dialog_turn_id,
                     tool_result_msg,
                 );
-
-                // Update the in-memory message caches immediately so subsequent rounds see it.
-                if let Err(e) = self
-                    .session_manager
-                    .add_message(&context.session_id, tool_result_msg.clone())
-                    .await
-                {
-                    warn!("Failed to update tool result message in memory: {}", e);
-                }
+                committed_round_messages.push(tool_result_msg.clone());
+            }
+            if let Err(e) = self
+                .session_manager
+                .add_messages(&context.session_id, committed_round_messages)
+                .await
+            {
+                warn!("Failed to update round messages in memory: {}", e);
             }
 
             #[cfg(feature = "agent-runtime")]
@@ -4743,11 +4767,8 @@ impl ExecutionEngine {
                 }
             }
 
-            // User-steering messages submitted while this turn is running: drain and inject
-            // them as user messages into the working history before starting the next round
-            // (Codex-style mid-turn injection). This does NOT end the current turn: if the
-            // model wanted to finish but the user steered, we keep the turn running so the
-            // steering message gets a response.
+            // Human steering becomes the next persisted user turn. Runtime
+            // reminders still enter this turn through the injection channel.
             let mut injection_applied = false;
             if let Some(source) = context.round_injection.as_ref() {
                 let pending = source.take_pending(&context.session_id, &context.dialog_turn_id);
@@ -4843,6 +4864,17 @@ impl ExecutionEngine {
                         injection_applied = true;
                     }
                 }
+                if source.should_yield_to_user_turn(&context.session_id, &context.dialog_turn_id)
+                    && !self
+                        .round_executor
+                        .is_dialog_turn_cancelled(&dialog_turn_id)
+                {
+                    // Persist runtime reminders before handing off, so background
+                    // results arriving at this boundary stay in session context.
+                    // Already-started tools and results keep their original turn.
+                    finalization_reason = Some("user_steering");
+                    break;
+                }
             }
 
             // P0-1: Decide whether to end the turn here.
@@ -4861,10 +4893,34 @@ impl ExecutionEngine {
             //   (write the answer), and continue.
             // - Model emitted nothing at all     -> partial recovery / truncation.
             //   Retrying without new context will not help, so end the turn.
+            let quiet_model_end = if context
+                .context
+                .contains_key(super::background_delivery::BACKGROUND_DELIVERY_CONTEXT_KEY)
+                && !round_result.has_more_rounds
+                && !round_result.had_assistant_text
+                && !round_result.had_thinking_content
+                && round_result.partial_recovery_reason.is_none()
+            {
+                let delivery = self
+                    .session_manager
+                    .background_delivery_for_turn(&context.session_id, &context.dialog_turn_id)
+                    .await
+                    .ok()
+                    .flatten();
+                bitfun_agent_runtime::scheduler::result_delivery::accepts_quiet_model_end(
+                    delivery.as_ref(),
+                    false,
+                    false,
+                    false,
+                    false,
+                )
+            } else {
+                false
+            };
             if injection_applied {
                 // fall through to next round so the model can respond to the steering
             } else if !round_result.has_more_rounds {
-                if round_result.had_assistant_text {
+                if round_result.had_assistant_text || quiet_model_end {
                     if let Some(ref reason) = round_result.partial_recovery_reason {
                         if Self::should_continue_after_partial_response(reason) {
                             partial_continuation_attempts += 1;
@@ -4977,6 +5033,9 @@ impl ExecutionEngine {
                             // Continue into the next round so the agent can act
                             // on the hook feedback.
                         } else {
+                            if quiet_model_end {
+                                finalization_reason = Some("background_quiet");
+                            }
                             break;
                         }
                     }
@@ -5271,9 +5330,10 @@ impl ExecutionEngine {
         // so the UI can explain the termination cause inline even when the turn
         // ended without a final assistant reply.
         let success = has_final_response
+            || effective_finish_reason == "background_quiet"
             || matches!(
                 effective_finish_reason,
-                "max_rounds" | "repeated_tool_failures"
+                "max_rounds" | "repeated_tool_failures" | "user_steering"
             );
 
         // Post-processing hook: when a DeepResearch dialog turn finishes
@@ -5284,7 +5344,7 @@ impl ExecutionEngine {
         {
             if bitfun_agent_workflows::deep_research::should_post_process_research_report(
                 &agent_type,
-                success,
+                success && effective_finish_reason != "user_steering",
             ) {
                 if let Some(workspace) = context.workspace.as_ref() {
                     if let Some(workspace_services) = context.workspace_services.as_ref() {
@@ -5305,6 +5365,40 @@ impl ExecutionEngine {
             }
         }
 
+        let background_delivery = if let Some(initial) = context
+            .context
+            .get(super::background_delivery::BACKGROUND_DELIVERY_CONTEXT_KEY)
+            .and_then(|value| {
+                serde_json::from_str::<
+                        bitfun_core_types::background_delivery::BackgroundDelivery,
+                    >(value)
+                    .ok()
+            })
+            .filter(|delivery| delivery.run_id == context.dialog_turn_id)
+        {
+            let final_message = messages
+                .iter()
+                .rev()
+                .find(|message| message.role == MessageRole::Assistant)
+                .cloned()
+                .unwrap_or_else(|| Message::assistant(String::new()));
+            Some(
+                super::background_delivery::finalize_background_delivery(
+                    self.session_manager.as_ref(),
+                    &context.session_id,
+                    &context.dialog_turn_id,
+                    initial,
+                    success && last_partial_recovery_reason.is_none(),
+                    effective_finish_reason,
+                    &final_message,
+                    &messages,
+                )
+                .await,
+            )
+        } else {
+            None
+        };
+
         if context.emit_lifecycle_events {
             debug!("Preparing to send DialogTurnCompleted event");
 
@@ -5321,12 +5415,55 @@ impl ExecutionEngine {
                         success: Some(success),
                         finish_reason: Some(effective_finish_reason.to_string()),
                         has_final_response: Some(has_final_response),
+                        background_delivery: background_delivery.clone(),
                     },
                     None,
                 )
                 .await;
 
             debug!("DialogTurnCompleted event sent");
+        }
+
+        let prompt_suggestion_eligible = context
+            .context
+            .get(PROMPT_SUGGESTION_ELIGIBLE_CONTEXT_KEY)
+            .is_some_and(|value| value == "true");
+        if prompt_suggestion_eligible
+            && last_partial_recovery_reason.is_none()
+            && turn_outcome_allows_prompt_suggestion(PromptSuggestionTurnOutcome {
+                finish_reason: effective_finish_reason,
+                has_final_response,
+                used_local_final_response_synthesis,
+                emits_lifecycle_events: context.emit_lifecycle_events,
+                is_subagent: context.subagent_parent_info.is_some(),
+            })
+            && !self
+                .round_executor
+                .is_dialog_turn_cancelled(&dialog_turn_id)
+        {
+            spawn_prompt_suggestion(
+                &self.prompt_suggestions,
+                self.event_queue.clone(),
+                self.session_manager.clone(),
+                PromptSuggestionRequest {
+                    session_id: context.session_id.clone(),
+                    turn_id: context.dialog_turn_id.clone(),
+                    messages: messages.clone(),
+                    model_id: resolved_primary_model_id.clone(),
+                    ai_client: ai_client.clone(),
+                    tool_definitions: tool_definitions.clone(),
+                    model_request_context: model_request_context.clone(),
+                    prepended_reminders: turn_prompt_scaffold
+                        .prepended_prompt_reminders
+                        .ordered_reminders()
+                        .into_iter()
+                        .map(str::to_string)
+                        .collect(),
+                    workspace: context.workspace.clone(),
+                    workspace_services: context.workspace_services.clone(),
+                    attach_images: primary_supports_image_understanding,
+                },
+            );
         }
 
         // Print dialog turn token statistics (from model's last returned usage)
@@ -5473,6 +5610,140 @@ mod tests {
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::sync::Arc;
     use std::time::Duration;
+
+    #[tokio::test]
+    async fn computer_use_pixels_and_geometry_reach_real_provider_wire() {
+        use base64::Engine;
+        use bitfun_ai_adapters::providers::{
+            anthropic::AnthropicMessageConverter, gemini::GeminiMessageConverter,
+            openai::OpenAIMessageConverter,
+        };
+        let mut png = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::new_rgb8(6, 4)
+            .write_to(&mut png, image::ImageFormat::Png)
+            .unwrap();
+        let pixels = base64::engine::general_purpose::STANDARD.encode(png.into_inner());
+        let observation = json!({ "screenshot_id": "frame-visual", "image_width": 6, "image_height": 4,
+            "image_global_bounds": { "left": 200, "top": 100, "width": 60, "height": 40 }, "has_screenshot": true });
+        let source = Message::tool_result(ToolResult {
+            tool_id: "observe-visual".into(),
+            tool_name: "ComputerUse".into(),
+            effective_tool_name: None,
+            result: observation.clone(),
+            result_for_assistant: Some(observation.to_string()),
+            is_error: false,
+            duration_ms: Some(1),
+            image_attachments: Some(vec![crate::util::types::ToolImageAttachment {
+                mime_type: "image/png".into(),
+                data_base64: pixels.clone(),
+            }]),
+        })
+        .with_turn_id("visual-turn".into());
+        fn image_values(value: &serde_json::Value, output: &mut Vec<String>) {
+            match value {
+                serde_json::Value::Object(map) => {
+                    for (key, value) in map {
+                        if key == "data" {
+                            if let Some(text) = value.as_str() {
+                                output.push(text.into());
+                            }
+                        } else {
+                            image_values(value, output);
+                        }
+                    }
+                }
+                serde_json::Value::Array(values) => {
+                    for value in values {
+                        image_values(value, output);
+                    }
+                }
+                serde_json::Value::String(text) => {
+                    if let Some(bytes) = text.strip_prefix("data:image/png;base64,") {
+                        output.push(bytes.into());
+                    }
+                }
+                _ => {}
+            }
+        }
+        fn find_geometry(value: &serde_json::Value) -> Option<serde_json::Value> {
+            if value
+                .get("screenshot_id")
+                .and_then(serde_json::Value::as_str)
+                == Some("frame-visual")
+            {
+                return Some(value.clone());
+            }
+            match value {
+                serde_json::Value::Object(map) => map.values().find_map(find_geometry),
+                serde_json::Value::Array(values) => values.iter().find_map(find_geometry),
+                serde_json::Value::String(text) => serde_json::from_str::<serde_json::Value>(text)
+                    .ok()
+                    .as_ref()
+                    .and_then(find_geometry),
+                _ => None,
+            }
+        }
+        for provider in ["openai", "responses", "anthropic", "gemini"] {
+            let messages = ExecutionEngine::build_ai_messages_for_send(
+                &[source.clone()],
+                provider,
+                None,
+                None,
+                "visual-turn",
+                true,
+                &[],
+            )
+            .await
+            .unwrap();
+            assert_eq!(
+                messages[0].content.as_deref(),
+                Some(observation.to_string().as_str())
+            );
+            let wire = match provider {
+                "openai" => json!(OpenAIMessageConverter::convert_messages(messages)),
+                "responses" => {
+                    json!(OpenAIMessageConverter::convert_messages_to_responses_input(messages).1)
+                }
+                "anthropic" => json!(AnthropicMessageConverter::convert_messages(messages).1),
+                _ => json!(GeminiMessageConverter::convert_messages(messages, "gemini-3-pro").1),
+            };
+            let mut encoded_images = Vec::new();
+            image_values(&wire, &mut encoded_images);
+            assert_eq!(
+                encoded_images,
+                vec![pixels.clone()],
+                "{provider}: exact image bytes must reach the wire"
+            );
+            let decoded = image::load_from_memory(
+                &base64::engine::general_purpose::STANDARD
+                    .decode(&encoded_images[0])
+                    .unwrap(),
+            )
+            .unwrap();
+            assert_eq!((decoded.width(), decoded.height()), (6, 4));
+            assert_eq!(find_geometry(&wire), Some(observation.clone()), "{provider}: screenshot ref and projection geometry must remain attached to these pixels");
+        }
+        let text_only = ExecutionEngine::build_ai_messages_for_send(
+            &[source.clone()],
+            "openai",
+            None,
+            None,
+            "visual-turn",
+            false,
+            &[],
+        )
+        .await
+        .unwrap();
+        assert!(text_only[0].tool_image_attachments.is_none());
+        // Provider projection must not strip pixels from immutable stored history.
+        let crate::agentic::core::MessageContent::ToolResult {
+            image_attachments, ..
+        } = source.content
+        else {
+            panic!("tool result")
+        };
+        assert_eq!(image_attachments.unwrap()[0].data_base64, pixels);
+    }
 
     #[tokio::test]
     async fn image_inputs_keep_pixels_for_native_models_and_tool_paths_for_text_models() {

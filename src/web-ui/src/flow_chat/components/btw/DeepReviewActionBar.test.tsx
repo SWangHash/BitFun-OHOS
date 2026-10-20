@@ -32,12 +32,13 @@ const persistReviewActionStateMock = vi.hoisted(() => vi.fn());
 const openBtwSessionInAuxPaneMock = vi.hoisted(() => vi.fn());
 const notificationWarningMock = vi.hoisted(() => vi.fn());
 
-vi.mock('@/infrastructure/i18n', async () => {
+vi.mock('@/infrastructure/i18n', async (importOriginal) => {
   const { default: errors } = await import('@/locales/zh-CN/errors.json');
-  const t = (key: string) => key.replace(/^errors:/, '').split('.').reduce<any>((value, part) => value?.[part], errors) ?? key;
   return {
-    useI18n: () => ({ t }),
-    i18nService: { t, getT: () => t },
+    ...await importOriginal<typeof import('@/infrastructure/i18n')>(),
+    useI18n: () => ({
+      t: (key: string) => key.replace(/^errors:/, '').split('.').reduce<any>((value, part) => value?.[part], errors) ?? key,
+    }),
   };
 });
 
@@ -709,7 +710,7 @@ describeWithJsdom('DeepReviewActionBar', () => {
     });
 
     const { useSettingsStore } = await import('@/app/scenes/settings/settingsStore');
-    expect(useSettingsStore.getState().activePageId).toBe('tools.execution');
+    expect(useSettingsStore.getState().activePageId).toBe('ai.execution');
     expect(useSettingsStore.getState().activeViewId).toBeNull();
   });
 

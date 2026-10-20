@@ -26,6 +26,8 @@ import {
 } from '@/infrastructure/peer-device/deviceSurface';
 import { describeFileAccessError } from './fileAccessErrorPresentation';
 import { readSourceDeviceId } from '@/infrastructure/peer-device/deviceSurfaceRouting';
+import { isRemoteWorkspaceConnectionConflictError } from '@/infrastructure/api/errors/TauriCommandError';
+import type { OpenRemoteWorkspaceOptions } from '@/infrastructure/api/service-api/GlobalAPI';
 
 const log = createLogger('WorkspaceManager');
 
@@ -53,6 +55,7 @@ interface WorkspaceIdentityChangedEvent {
   name: string;
   identity: WorkspaceInfo['identity'];
   changedFields: string[];
+  defaultNameNumber?: number | null;
 }
 
 export type WorkspaceEvent =
@@ -72,6 +75,8 @@ export type WorkspaceEventListener = (event: WorkspaceEvent) => void;
 export interface WorkspaceState {
   currentWorkspace: WorkspaceInfo | null;
   openedWorkspaces: Map<string, WorkspaceInfo>;
+  /** null means the host does not advertise the complete assistant catalog. */
+  assistantWorkspaces: WorkspaceInfo[] | null;
   activeWorkspaceId: string | null;
   lastUsedWorkspaceId: string | null;
   recentWorkspaces: WorkspaceInfo[];
@@ -116,6 +121,7 @@ function createWorkspaceSurfaceContainer(): WorkspaceSurfaceContainer {
     state: {
       currentWorkspace: null,
       openedWorkspaces: new Map(),
+      assistantWorkspaces: null,
       activeWorkspaceId: null,
       lastUsedWorkspaceId: null,
       recentWorkspaces: [],
@@ -229,6 +235,7 @@ class WorkspaceManager {
     return {
       ...this.state,
       openedWorkspaces: new Map(this.state.openedWorkspaces),
+      assistantWorkspaces: this.state.assistantWorkspaces ? [...this.state.assistantWorkspaces] : null,
     };
   }
 
@@ -269,9 +276,23 @@ class WorkspaceManager {
   }
 
   private updateState(updates: Partial<WorkspaceState>, event?: WorkspaceEvent): void {
+    const assistantWorkspaces = updates.assistantWorkspaces === undefined
+      ? this.state.assistantWorkspaces
+      : updates.assistantWorkspaces;
+    const assistantsById = assistantWorkspaces === null
+      ? null
+      : new Map(assistantWorkspaces.map(workspace => [workspace.id, workspace]));
+    for (const workspace of updates.openedWorkspaces?.values() ?? []) {
+      if (workspace.workspaceKind === WorkspaceKind.Assistant) assistantsById?.set(workspace.id, workspace);
+    }
+    if (event?.type === 'workspace:updated' && event.workspace.workspaceKind === WorkspaceKind.Assistant) {
+      assistantsById?.set(event.workspace.id, event.workspace);
+    }
+    if (event?.type === 'workspace:removed') assistantsById?.delete(event.workspaceId);
     this.state = {
       ...this.state,
       ...updates,
+      assistantWorkspaces: assistantsById ? Array.from(assistantsById.values()) : null,
       openedWorkspaces: updates.openedWorkspaces
         ? new Map(updates.openedWorkspaces)
         : this.state.openedWorkspaces,
@@ -671,6 +692,7 @@ class WorkspaceManager {
       return {
         ...workspace,
         name: update.name,
+        defaultNameNumber: update.defaultNameNumber ?? null,
         identity: update.identity ?? null,
       };
     };
@@ -685,12 +707,16 @@ class WorkspaceManager {
     const recentWorkspaces = state.recentWorkspaces.map(
       workspace => updateWorkspace(workspace) ?? workspace
     );
+    const assistantWorkspaces = state.assistantWorkspaces?.map(
+      workspace => updateWorkspace(workspace) ?? workspace
+    ) ?? null;
 
     const updatedWorkspace =
       currentWorkspace?.id === update.workspaceId
         ? currentWorkspace
         : openedWorkspaces.get(update.workspaceId) ||
           recentWorkspaces.find(workspace => workspace.id === update.workspaceId) ||
+          assistantWorkspaces?.find(workspace => workspace.id === update.workspaceId) ||
           null;
 
     if (!updatedWorkspace) {
@@ -705,11 +731,13 @@ class WorkspaceManager {
       currentWorkspace,
       openedWorkspaces,
       recentWorkspaces,
+      assistantWorkspaces,
     };
     if (getActiveSurfaceId() === LOCAL_SURFACE_ID) {
       this.emit({ type: 'workspace:updated', workspace: updatedWorkspace });
     }
   }
+
 
   private captureSurface(): SurfaceCapture {
     return { scope: getActiveSurfaceScope(), generation: this.switchGeneration };
@@ -783,6 +811,7 @@ class WorkspaceManager {
         recentWorkspaces,
         openedWorkspaces,
         currentWorkspace,
+        assistantWorkspaces,
         primaryAssistantWorkspaceId,
         legacyRemoteWorkspace,
       } = await globalStateAPI.initializeWorkspaceStartupState();
@@ -812,7 +841,7 @@ class WorkspaceManager {
       });
 
       const updateStateStartedAt = markWorkspaceStartupStepStart('update_workspace_state');
-      this.updateState({ primaryAssistantWorkspaceId });
+      this.updateState({ primaryAssistantWorkspaceId, assistantWorkspaces: assistantWorkspaces ?? null });
       this.updateWorkspaceState(
         currentWorkspace,
         recentWorkspaces,
@@ -966,7 +995,7 @@ class WorkspaceManager {
     connectionName: string;
     remotePath: string;
     sshHost?: string;
-  }): Promise<WorkspaceInfo> {
+  }, options: OpenRemoteWorkspaceOptions = {}): Promise<WorkspaceInfo> {
     const surface = this.captureSurface();
     try {
       this.setLoading(true);
@@ -981,6 +1010,7 @@ class WorkspaceManager {
         remoteWorkspace.connectionId,
         remoteWorkspace.connectionName,
         remoteWorkspace.sshHost,
+        options,
       );
 
       const [recentWorkspaces, openedWorkspaces] = await Promise.all([
@@ -1003,6 +1033,12 @@ class WorkspaceManager {
       if (!this.isSurfaceUnchanged(surface)) {
         throw error;
       }
+      if (isRemoteWorkspaceConnectionConflictError(error)) {
+        // The caller owns the decision; the record is unchanged on the host.
+        log.warn('Remote workspace is bound to another SSH connection', { remoteWorkspace });
+        this.setLoading(false);
+        throw error;
+      }
       log.error('Failed to open remote workspace', { remoteWorkspace, error });
       const errorMessage = describeFileAccessError(error);
       this.updateState({ loading: false, error: errorMessage }, { type: 'workspace:error', error: errorMessage });
@@ -1018,7 +1054,8 @@ class WorkspaceManager {
         return;
       }
 
-      await this.cancelRunningSessionsForWorkspace(workspace);
+      await this.cancelRunningSessionsForWorkspace(workspace, surface);
+      this.assertSurfaceUnchanged(surface, 'remove remote workspace');
       await globalStateAPI.closeWorkspace(workspace.id);
       await globalStateAPI.removeWorkspaceFromRecent(workspace.id).catch(error => {
         if (isSurfaceChangedError(error)) {
@@ -1132,8 +1169,10 @@ class WorkspaceManager {
 
       const closingWorkspace = this.state.openedWorkspaces.get(workspaceId);
       if (closingWorkspace) {
-        await this.cancelRunningSessionsForWorkspace(closingWorkspace);
+        await this.cancelRunningSessionsForWorkspace(closingWorkspace, surface);
       }
+
+      this.assertSurfaceUnchanged(surface, 'close workspace');
 
       await globalStateAPI.closeWorkspace(workspaceId);
 
@@ -1165,9 +1204,10 @@ class WorkspaceManager {
     }
   }
 
-  private async cancelRunningSessionsForWorkspace(workspace: WorkspaceInfo): Promise<void> {
+  private async cancelRunningSessionsForWorkspace(workspace: WorkspaceInfo, surface: SurfaceCapture): Promise<void> {
     try {
       const { flowChatStore } = await import('@/flow_chat/store/FlowChatStore');
+      this.assertSurfaceUnchanged(surface, 'cancel workspace sessions');
       const cancelledSessionIds = await flowChatStore.cancelRunningSessionsForWorkspace(workspace);
       if (cancelledSessionIds.length > 0) {
         log.info('Cancelled running sessions before closing workspace', {
@@ -1176,6 +1216,7 @@ class WorkspaceManager {
         });
       }
     } catch (error) {
+      if (isSurfaceChangedError(error)) throw error;
       log.warn('Failed to cancel running sessions before closing workspace', {
         workspaceId: workspace.id,
         error,
@@ -1191,11 +1232,14 @@ class WorkspaceManager {
 
       log.info('Deleting assistant workspace', { workspaceId });
 
-      const removedWorkspace = this.state.openedWorkspaces.get(workspaceId);
+      const removedWorkspace = this.state.openedWorkspaces.get(workspaceId)
+        ?? this.state.assistantWorkspaces?.find(workspace => workspace.id === workspaceId);
       await globalStateAPI.deleteAssistantWorkspace(workspaceId);
+      this.assertSurfaceUnchanged(surface, 'delete assistant workspace');
 
       if (removedWorkspace) {
         const { flowChatStore } = await import('@/flow_chat/store/FlowChatStore');
+        this.assertSurfaceUnchanged(surface, 'delete assistant sessions');
         flowChatStore.removeSessionsForWorkspace(removedWorkspace);
       }
 
@@ -1355,7 +1399,12 @@ class WorkspaceManager {
       this.setLoading(true);
       this.setError(null);
 
-      const workspace = await globalStateAPI.setActiveWorkspace(workspaceId);
+      const isClosedAssistant = !this.state.openedWorkspaces.has(workspaceId)
+        && this.state.assistantWorkspaces?.some(workspace => workspace.id === workspaceId);
+      const workspace = isClosedAssistant
+        ? await globalStateAPI.openWorkspaceById(workspaceId)
+        : await globalStateAPI.setActiveWorkspace(workspaceId);
+      this.assertSurfaceUnchanged(surface, 'set active workspace');
       const [recentWorkspaces, openedWorkspaces] = await Promise.all([
         globalStateAPI.getRecentWorkspaces(),
         globalStateAPI.getOpenedWorkspaces(),
@@ -1555,53 +1604,37 @@ class WorkspaceManager {
     await this.refreshRecentWorkspaces();
   }
 
-  public async updateWorkspaceRelatedPaths(
+  public async updateWorkspaceInfo(
     workspaceId: string,
-    relatedPaths: WorkspaceInfo['relatedPaths']
+    updates: { name?: string; relatedPaths?: WorkspaceInfo['relatedPaths'] }
   ): Promise<WorkspaceInfo> {
     const surface = this.captureSurface();
     try {
       this.setError(null);
-
-      const updatedWorkspace = await globalStateAPI.updateWorkspaceInfo(workspaceId, {
-        relatedPaths,
-      });
-      this.assertSurfaceUnchanged(surface, 'update workspace related paths');
-
+      const updatedWorkspace = await globalStateAPI.updateWorkspaceInfo(workspaceId, updates);
+      this.assertSurfaceUnchanged(surface, 'update workspace info');
       this.applyWorkspaceRecordUpdate(updatedWorkspace);
       return updatedWorkspace;
     } catch (error) {
       if (!this.isSurfaceUnchanged(surface)) {
         throw error;
       }
-      log.error('Failed to update workspace related paths', { workspaceId, error });
+      log.error('Failed to update workspace info', { workspaceId, error });
       const errorMessage = describeFileAccessError(error);
       this.updateState({ error: errorMessage }, { type: 'workspace:error', error: errorMessage });
       throw error;
     }
   }
 
+  public async updateWorkspaceRelatedPaths(
+    workspaceId: string,
+    relatedPaths: WorkspaceInfo['relatedPaths']
+  ): Promise<WorkspaceInfo> {
+    return this.updateWorkspaceInfo(workspaceId, { relatedPaths });
+  }
+
   public async renameWorkspace(workspaceId: string, name: string): Promise<WorkspaceInfo> {
-    const surface = this.captureSurface();
-    try {
-      this.setError(null);
-
-      const updatedWorkspace = await globalStateAPI.updateWorkspaceInfo(workspaceId, {
-        name: name.trim(),
-      });
-      this.assertSurfaceUnchanged(surface, 'rename workspace');
-
-      this.applyWorkspaceRecordUpdate(updatedWorkspace);
-      return updatedWorkspace;
-    } catch (error) {
-      if (!this.isSurfaceUnchanged(surface)) {
-        throw error;
-      }
-      log.error('Failed to rename workspace', { workspaceId, error });
-      const errorMessage = describeFileAccessError(error);
-      this.updateState({ error: errorMessage }, { type: 'workspace:error', error: errorMessage });
-      throw error;
-    }
+    return this.updateWorkspaceInfo(workspaceId, { name: name.trim() });
   }
 
   public async cleanupInvalidWorkspaces(): Promise<number> {

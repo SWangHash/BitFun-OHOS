@@ -51,6 +51,10 @@
     gap: var(--bitfun-layout-card-gap-lg);
   }
 
+  .root[data-radius="none"] {
+    border-radius: 0;
+  }
+
   .root[data-radius="sm"] {
     border-radius: var(--bitfun-layout-card-radius-sm);
   }

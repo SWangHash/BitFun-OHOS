@@ -68,7 +68,7 @@ MCP 副本的连接状态不借用外部来源 activation，页面明确“尚�
 
 状态投影与交互回归见 Web UI 的 `ecosystemContentPresentation.test.ts`、`ExternalAgentContent.test.tsx`。
 其中远程工作区和 Peer 为前端能力门禁模拟，不是 SSH、IM、Peer 或 Detached Dispatch 端到端证据；手工步骤见
-[Web UI 使用说明](../../../src/web-ui/README.zh-CN.md#生态兼容状态检查)。
+[Web UI 使用说明](../../../src/web-ui/README.zh-CN.md#外部导入状态检查)。
 
 ## 0. 当前 MCP 快照导入契约（C0a）
 
@@ -121,7 +121,7 @@ native ID 优先使用外部 logical name，再使用稳定生态后缀和最小
 写入口、导入 journal、tombstone、外部应用回写或插件安装/激活策略；Desktop 可审阅并撤销选定原生副本，仍由既有 MCP manager 完成复核、编辑、
 启用和删除。
 
-Desktop 的生态兼容页按所选 Agent 隔离外部内容。查看不会创建原生条目；用户可单项导入、导入当前类别或一键导入该 Agent 的全部可用项，审阅来源、目标 ID
+Desktop 的“外部导入”页按所选 Agent 隔离外部内容。查看不会创建原生条目；用户可单项导入、导入当前类别或一键导入该 Agent 的全部可用项，审阅来源、目标 ID
 和默认禁用状态后确认。MCP 选择集合一次提交；Skill/Hook 保留逐项成功、跳过和失败结果。Hook 在批量执行期间仅刷新目标 revision，源行为和精确命令必须与审阅内容相同。
 其他 Agent 的 candidate 不进入此次选择。来源或目标变化导致 plan
 stale 时，保留同一 candidate 的更新预览并要求重新确认；不自动加入新条目，也不隐式重试写入。切换 Agent、工作区、
@@ -129,10 +129,10 @@ Peer 主机或取消操作会清空详情与确认状态，迟到的旧请求不
 
 ### 0.1 外部内容与原生管理的界面边界
 
-生态兼容页独立展示所选 Agent 的 Skill、MCP、Hook 和其他已发现目录项，不嵌入原生 Skill/MCP/Hook 管理页。主列表只保留分类概览；查看分类使用设计系统 Dialog，标题与操作固定在顶部，搜索和批量操作位于列表上方，内容通过有界 ScrollArea 滚动。关闭单项查看或导入确认后保留分类列表；前往原生副本管理页时关闭分类弹窗。
+“外部导入”页独立展示所选 Agent 的 Skill、MCP、Hook 和其他已发现目录项，不嵌入原生 Skill/MCP/Hook 管理页。主列表只保留分类概览；查看分类使用设计系统 Dialog，标题与操作固定在顶部，搜索和批量操作位于列表上方，内容通过有界 ScrollArea 滚动。关闭单项查看或导入确认后保留分类列表；前往原生副本管理页时关闭分类弹窗。
 左侧按“已识别 / 更多应用”组织产品：成功读取的来源、实际内容或用户配置可计入已识别；内置 ACP 预置模板不作为识别证据。读取中或失败保留上次结果，成功空扫描才能撤销过期识别。具体的连接和授权状态留在运行区域，内容类别显示数量、未扫描、未发现内容或读取失败；“可发现”仅表达此页具备发现能力。“更多应用”标题使用设计系统次级文字色，悬停、聚焦和选中时恢复主文字色；“暂未支持”保持无边框、无底色文字。
 
-左侧导航顶部在搜索框上方整合页面标题、“自动发现”开关及当前工作区、主机范围。详细说明仅在悬停或键盘聚焦时通过设计系统 Tooltip 展示，旧发现设置入口统一定位到该开关。开关更新独立的持久化字段 `automaticDiscovery`，工作区覆盖独立继承用户偏好；缺失字段沿用原有范围的 `enabled` 选择，首次显式更改后与运行策略分开。运行策略 `enabled`、各生态模式、来源抑制、授权记录和已有运行实例不因发现开关改变。
+左侧导航顶部在搜索框上方仅显示页面标题，不重复展示工作区和主机名称。“自动发现”开关的详细说明仅在悬停或键盘聚焦时通过设计系统 Tooltip 展示，旧发现设置入口统一定位到该开关。开关更新独立的持久化字段 `automaticDiscovery`，工作区覆盖独立继承用户偏好；缺失字段沿用原有范围的 `enabled` 选择，首次显式更改后与运行策略分开。运行策略 `enabled`、各生态模式、来源抑制、授权记录和已有运行实例不因发现开关改变。
 
 `get_external_source_discovery_snapshot` 返回版本化发现包装，声明是否允许修改、是否已有扫描和本次可扫描类别。既有严格策略与目录 DTO 不加字段，旧主机降级读取原目录、开关只读；无法识别的响应不能伪装成空目录。DiscoveryCatalog 使用独立的静态发现协调器和只读投影，扫描时仅在内存派生策略中跨过运行总开关，仍遵守各生态的禁用设置，绝不调用或撤销执行路由。开启后恢复查找，关闭后暂停该目录的新自动扫描，已有扫描可完成；手动刷新和导入预览可以显式读取。已有运行功能自身的刷新、执行校验仍由原 owner 负责。
 
@@ -479,9 +479,14 @@ Plugin Host Runtime、已退役的 LSP Runtime，以及通用动态模型路由�
   Claude runtime 变量与动态 shell 表达式保留为未展开、未执行的文本，加载说明明确它们不是实际值或命令结果；
   如任务需要这些数据，Agent 必须通过当前工作区的正常工具与权限流程获取。行内 shell 表达式的识别要求行首或空白边界及闭合
   反引号；普通 Markdown 中的感叹号、Excel `Sheet1!A1` 和错误值不会触发兼容性警告。
-  `context`（包括 `fork`）、`agent`、`hooks`、`paths`、`shell`、`runtime`、`background`、`disallowed-tools`
+  `context`（包括 `fork`）、`agent`、`paths`、`shell`、`runtime`、`background`、`disallowed-tools`
   涉及未实现的执行方式或约束，仍阻止加载；格式损坏及无效调用控制字段也仍返回错误。本地与 Remote、名称与稳定键加载共享
   同一兼容性判断和模型说明。此切片不增加插件 Skill、祖先活动目录、文件 watcher、URL 来源或另一条 reload 命令。
+- Claude Skill 的同步 command `hooks` 在显式 Skill 调用时注册到会话的共享 HookRegistry，扫描与导入不执行。
+  Skill 调用形成工具预检边界，同轮后续工具也接受新增 Hook；Bash/ExecCommand 与 Write 参数由方言适配转换，
+  ask 进入现有权限邮箱，deny/exit 2 阻断，updatedInput 继续接受原参数约束和最终校验。
+  once、会话隔离、幂等注册与退出取消由现有 portable Hook 引擎持有；配置 gating 与生命周期清理在 Core owner。
+  Remote 工作区激活明确不支持，其他控制面复用目标 runtime；详见 [Agent Hooks](../../features/agent-hooks.zh-CN.md)。
 - Claude Subagent 扫描用户与逐层项目 `.claude/agents/**/*.md`，近工作目录定义整项覆盖；Claude MCP 保留
   `local > project > user` 的整项覆盖，local 只读取与规范化当前工作区严格匹配的项目项。
 - Codex Subagent 从用户与逐层项目 `[agents]`、角色文件合并，缺失字段按 Codex 层级继承；`enabled`、默认模型、角色级

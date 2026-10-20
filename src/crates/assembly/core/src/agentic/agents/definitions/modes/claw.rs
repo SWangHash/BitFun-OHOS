@@ -16,7 +16,10 @@ impl ClawMode {
     pub fn new() -> Self {
         Self {
             default_tools: vec![
-                "Task".to_string(),
+                "AgentSpawn".to_string(),
+                "AgentSendInput".to_string(),
+                "AgentControl".to_string(),
+                "AgentList".to_string(),
                 "ListModels".to_string(),
                 "AgentWait".to_string(),
                 "Read".to_string(),
@@ -40,14 +43,15 @@ impl ClawMode {
                 "create_goal".to_string(),
                 "update_goal".to_string(),
                 "Skill".to_string(),
+                "ListWorkspaces".to_string(),
                 "SessionControl".to_string(),
                 "SessionMessage".to_string(),
                 "SessionHistory".to_string(),
                 "Cron".to_string(),
                 // Browser, terminal, and routing metadata live under ControlHub.
-                // Local desktop/system control is delegated to the ComputerUse
-                // agent/tool instead of being surfaced as a ControlHub domain.
+                // Desktop control runs directly through its own native tool.
                 "ControlHub".to_string(),
+                "ComputerUse".to_string(),
                 "BitFunControl".to_string(),
                 "PublishAppearance".to_string(),
                 "PageDeploy".to_string(),
@@ -109,6 +113,7 @@ mod tests {
         assert!(!tools.contains(&"PublishMiniApp".to_string()));
         assert!(!tools.contains(&"FrontendWorkbench".to_string()));
         assert!(tools.contains(&"ListModels".to_string()));
+        assert!(tools.contains(&"ListWorkspaces".to_string()));
     }
 
     #[test]
@@ -125,7 +130,8 @@ mod tests {
             .await
             .expect("Claw prompt");
 
-        assert!(prompt.contains("only when it appears in your current tool list"));
+        assert!(prompt.contains("Use only tools in the current tool list"));
+        assert!(prompt.contains("only when ControlHub reports an authorized connection"));
         assert!(prompt.contains("only when both tools appear in your current tool list"));
     }
 }

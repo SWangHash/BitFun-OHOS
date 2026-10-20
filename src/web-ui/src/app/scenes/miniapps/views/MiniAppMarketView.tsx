@@ -23,7 +23,7 @@ import {
   GalleryPageHeader,
   GallerySkeleton,
   GalleryZone,
-} from '@/app/components';
+} from '@/app/components/GalleryLayout';
 import { useSceneManager } from '@/app/hooks/useSceneManager';
 import type { SceneTabId } from '@/app/components/SceneBar/types';
 import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext';
@@ -545,7 +545,9 @@ const MiniAppMarketView: React.FC<MiniAppMarketViewProps> = ({ tabs }) => {
                     icon={<Icon name="star" size="lg" />}
                   />
                 ))}
-                <span>{detail.ratingAverage.toFixed(1)} · {formatNumber(detail.ratingCount)}</span>
+                <span className="miniapp-market-detail__rating-summary">
+                  {detail.ratingAverage.toFixed(1)} · {formatNumber(detail.ratingCount)}
+                </span>
               </div>
             </section>
             <section>

@@ -18,7 +18,7 @@ on:
         default: 'main'
         type: string
       repo:
-        description: '仓库地址（默认 OpenBitFun/bitfun_ade）'
+        description: '仓库地址（默认 BitFun/bitfun_ade）'
         required: false
         type: string
       so_only:
@@ -274,7 +274,7 @@ jobs:
           # 输入推导 owner/repo；未填时用默认仓库
           release_repo="$RELEASE_REPO_INPUT"
           if [ -z "$release_repo" ]; then
-            release_repo='https://gitcode.com/OpenBitFun/bitfun_ade.git'
+            release_repo='https://gitcode.com/BitFun/bitfun_ade.git'
           fi
           release_repo="${release_repo%.git}"
           release_repo="$(printf '%s' "$release_repo" | awk -F/ '{print $(NF-1)"/"$NF}')"

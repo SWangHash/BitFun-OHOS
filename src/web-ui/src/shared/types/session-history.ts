@@ -12,6 +12,7 @@ export type SessionKind = 'normal' | 'btw' | 'review' | 'deep_review' | 'miniapp
 export type PersistedSessionKind = 'standard' | 'subagent';
 export type SessionTitleSource = 'text' | 'i18n';
 export type SessionRelationshipKind = 'btw' | 'review' | 'deep_review' | 'miniapp' | 'subagent';
+export type SessionContinuationPolicy = 'reusable' | 'fresh_only';
 
 export interface SessionRelationship {
   kind?: SessionRelationshipKind;
@@ -21,6 +22,7 @@ export interface SessionRelationship {
   parentTurnIndex?: number | null;
   parentToolCallId?: string | null;
   subagentType?: string | null;
+  continuationPolicy?: SessionContinuationPolicy | null;
 }
 
 export interface SessionCustomMetadata extends Record<string, unknown> {
@@ -31,6 +33,7 @@ export interface SessionCustomMetadata extends Record<string, unknown> {
   parentTurnIndex?: number | null;
   parentToolCallId?: string | null;
   subagentType?: string | null;
+  continuationPolicy?: SessionContinuationPolicy | null;
   forkOrigin?: {
     sessionId?: string | null;
     turnId?: string | null;
@@ -39,6 +42,7 @@ export interface SessionCustomMetadata extends Record<string, unknown> {
   } | null;
   lastFinishedAt?: number | null;
   titleSource?: SessionTitleSource | null;
+  titleUserEdited?: boolean;
   titleKey?: string | null;
   titleParams?: Record<string, unknown> | null;
   workspaceSessionNumber?: number;
@@ -145,6 +149,8 @@ export interface SessionActivitySummary {
   pendingQuestions: number;
   lastTurn?: SessionLastTurn;
   unreadCompletion?: 'completed' | 'error' | 'interrupted';
+  /** A quiet run can be newer than the unread user-facing result. */
+  unreadTurn?: SessionLastTurn;
 }
 
 export interface ReviewActionPersistedState {
@@ -308,6 +314,8 @@ export interface ModelRoundAttemptToolDiagnostic {
 
 export interface ModelRoundRenderHints {
   disableExploreGrouping?: boolean;
+  /** Explicit host policy; absent on older retry-derived hints. */
+  disableExploreGroupingSource?: 'host';
 }
 
 export interface TextItemData {

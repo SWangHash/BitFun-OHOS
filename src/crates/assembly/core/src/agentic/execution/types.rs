@@ -45,7 +45,7 @@ pub struct ExecutionContext {
     pub terminal_port: Option<Arc<dyn TerminalPort>>,
     /// Remote execution provider injected by product assembly.
     pub remote_exec_port: Option<Arc<dyn RemoteExecPort>>,
-    /// Domain admission registry consulted at dispatch time. `None`/empty
+/// Domain admission registry consulted at dispatch time. `None`/empty
     /// means "do not gate".
     pub admission_registry: Option<Arc<ToolAdmissionRegistry>>,
     /// Session-bound domain state store the admission policies and domain
@@ -53,8 +53,8 @@ pub struct ExecutionContext {
     /// gate; contributions see empty slots).
     pub domain_state_store:
         Option<Arc<crate::agentic::tools::tool_admission::SessionDomainStateStore>>,
-    /// When set, engine drains pending round injections at each round boundary
-    /// and injects them into the dialog history without ending the turn.
+    /// At round boundaries, yield to a queued user turn when requested; other
+    /// pending runtime injections remain within this execution.
     pub round_injection: Option<Arc<dyn DialogRoundInjectionSource>>,
     /// When false, the execution loop suppresses user-facing turn lifecycle events.
     pub emit_lifecycle_events: bool,

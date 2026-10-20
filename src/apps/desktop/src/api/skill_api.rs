@@ -36,6 +36,8 @@ use bitfun_core::infrastructure::get_path_manager_arc;
 use bitfun_core::service::config::agent_profile_project_store::{
     deserialize_project_agent_profiles_document, serialize_project_agent_profiles_document,
 };
+use bitfun_core::service::config::types::{SkillMarketConfig, SkillMarketSource};
+use bitfun_services_integrations::skillhub::{self, SkillHubClient};
 
 const SKILLS_SEARCH_API_BASE: &str = "https://skills.sh";
 const DEFAULT_MARKET_QUERY: &str = "skill";
@@ -94,16 +96,16 @@ fn can_delete_owned_skill(source_id: &str, source_slot: &str, is_builtin: bool) 
 
     let source_id = source_id.trim().to_ascii_lowercase();
     if !source_id.is_empty() {
-        // Accept both the current "bitfun" brand and the legacy "openbitfun" brand,
+        // Accept both the current "bitfun" brand and the legacy "bitfun" brand,
         // plus "matrix" for Matrix market downloads.
         return matches!(
             source_id.as_str(),
-            "bitfun" | "bitfun-system" | "openbitfun" | "openbitfun-system" | "matrix"
+            "bitfun" | "bitfun-system" | "bitfun" | "bitfun-system" | "matrix"
         );
     }
 
     let source_slot = source_slot.trim().to_ascii_lowercase();
-    source_slot.starts_with("bitfun") || source_slot.starts_with("openbitfun")
+    source_slot.starts_with("bitfun") || source_slot.starts_with("bitfun")
 }
 
 fn ensure_skill_can_be_deleted(skill: &SkillInfo) -> Result<(), String> {
@@ -134,7 +136,7 @@ pub struct SkillMarketListRequest {
     pub query: Option<String>,
     pub limit: Option<u32>,
     #[serde(default)]
-    pub offset: Option<u32>,
+    pub include_diagnostics: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -143,7 +145,7 @@ pub struct SkillMarketSearchRequest {
     pub query: String,
     pub limit: Option<u32>,
     #[serde(default)]
-    pub offset: Option<u32>,
+    pub include_diagnostics: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -222,6 +224,35 @@ pub struct SkillMarketItem {
     pub installs: u64,
     pub url: String,
     pub install_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub market_name: Option<String>,
+}
+
+/// Legacy clients continue to receive an array unless diagnostics are requested.
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
+pub enum SkillMarketResponse {
+    Legacy(Vec<SkillMarketItem>),
+    Diagnostics(SkillMarketResults),
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillMarketResults {
+    pub skills: Vec<SkillMarketItem>,
+    pub source_errors: Vec<String>,
+}
+
+impl SkillMarketResults {
+    fn response(self, diagnostics: bool) -> Result<SkillMarketResponse, String> {
+        if diagnostics {
+            Ok(SkillMarketResponse::Diagnostics(self))
+        } else if self.source_errors.is_empty() {
+            Ok(SkillMarketResponse::Legacy(self.skills))
+        } else {
+            Err(self.source_errors.join("\n"))
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -277,7 +308,9 @@ async fn get_skill_scan_report_for_workspace_input(
     registry: &SkillRegistry,
     workspace: Option<&WorkspaceInfo>,
 ) -> Result<SkillScanReport, String> {
-    if let Some((remote_root, entry)) = resolve_remote_workspace(workspace).await? {
+    let remote = resolve_remote_workspace(workspace).await?;
+    let is_remote = remote.is_some();
+    let mut report = if let Some((remote_root, entry)) = remote {
         await_remote_skill_discovery(
             async {
                 let remote_fs = state
@@ -296,7 +329,16 @@ async fn get_skill_scan_report_for_workspace_input(
         Ok(registry
             .get_skill_scan_report_for_workspace(workspace_root_from_input(workspace).as_deref())
             .await)
+    }?;
+    for skill in &mut report.skills {
+        // User skills belong to this serving host even when its workspace is remote.
+        if !is_remote || skill.level == SkillLocation::User {
+            if let Some(source) = skillhub::read_installation_source(Path::new(&skill.path)).await {
+                skill.installation_source = Some(source);
+            }
+        }
     }
+    Ok(report)
 }
 
 async fn get_mode_skill_scan_report_for_workspace_input(
@@ -1338,6 +1380,138 @@ mod tests {
     use std::future;
     use tokio::time::Duration;
 
+    async fn market_fixture(
+        body: &'static str,
+        expected_path: &'static str,
+        barrier: Option<std::sync::Arc<tokio::sync::Barrier>>,
+    ) -> String {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut bytes = Vec::new();
+            while !bytes.ends_with(b"\r\n\r\n") {
+                let mut byte = [0];
+                socket.read_exact(&mut byte).await.unwrap();
+                bytes.push(byte[0]);
+            }
+            let request = String::from_utf8(bytes).unwrap();
+            assert!(request.starts_with(expected_path), "{request}");
+            assert!(request
+                .to_lowercase()
+                .contains("authorization: bearer test-key"));
+            if let Some(barrier) = barrier {
+                barrier.wait().await;
+            }
+            let response = format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
+            socket.write_all(response.as_bytes()).await.unwrap();
+        });
+        format!("http://{address}/hub")
+    }
+
+    #[tokio::test]
+    async fn markets_search_both_api_formats_concurrently_and_keep_partial_results() {
+        use super::*;
+        let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(2));
+        let sh = market_fixture(r#"{"skills":[{"id":"team/skills/review","name":"review","source":"team/skills","description":"Review code"}]}"#, "GET /hub/api/search?", Some(barrier.clone())).await;
+        let hub = market_fixture(r#"{"results":[{"slug":"team--review","displayName":"Review","summary":"Review code"}]}"#, "GET /hub/api/v1/search?", Some(barrier)).await;
+        let sources = vec![
+            SkillMarketSource {
+                id: "custom-sh".into(),
+                name: "Internal".into(),
+                url: sh.clone(),
+                api_token: "test-key".into(),
+                ..Default::default()
+            },
+            SkillMarketSource {
+                id: "private".into(),
+                name: "Private".into(),
+                provider: "skillhub".into(),
+                url: hub.clone(),
+                api_token: "test-key".into(),
+                ..Default::default()
+            },
+            SkillMarketSource {
+                name: "Future".into(),
+                provider: "future".into(),
+                ..Default::default()
+            },
+            SkillMarketSource {
+                name: "Disabled".into(),
+                provider: "future".into(),
+                enabled: false,
+                ..Default::default()
+            },
+        ];
+        let market = SkillMarketConfig { sources };
+        let results = tokio::time::timeout(
+            Duration::from_secs(5),
+            fetch_configured_skill_markets(&market, Some("review"), 2),
+        )
+        .await
+        .unwrap();
+        assert_eq!(results.skills.len(), 2);
+        assert_eq!(results.skills[0].market_name.as_deref(), Some("Internal"));
+        assert_eq!(results.skills[1].market_name.as_deref(), Some("Private"));
+        assert_eq!(
+            results.skills[0].install_id,
+            format!("skills-sh:{sh}#team/skills@review")
+        );
+        assert_eq!(
+            results.skills[1].install_id,
+            format!("skillhub:{hub}#team--review")
+        );
+        assert_eq!(
+            results.source_errors,
+            vec!["Future: Unsupported marketplace API format"]
+        );
+        assert!(!results.source_errors.join("").contains("test-key"));
+        assert!(matches!(
+            results.response(true).unwrap(),
+            SkillMarketResponse::Diagnostics(_)
+        ));
+        assert!(resolve_market_installation(
+            &market,
+            &format!("skills-sh:{sh}#team/skills@review")
+        )
+        .is_ok());
+        assert!(resolve_market_installation(
+            &SkillMarketConfig { sources: vec![] },
+            &format!("skillhub:{hub}#team--review")
+        )
+        .is_err());
+    }
+
+    #[tokio::test]
+    async fn markets_preserve_legacy_wire_shapes_and_explicitly_disabled_sources() {
+        use super::*;
+        let legacy: SkillMarketListRequest =
+            serde_json::from_value(serde_json::json!({ "limit": 20 })).unwrap();
+        assert!(!legacy.include_diagnostics);
+        let empty =
+            fetch_configured_skill_markets(&SkillMarketConfig { sources: vec![] }, None, 20).await;
+        assert_eq!(
+            serde_json::to_value(empty.response(false).unwrap()).unwrap(),
+            serde_json::json!([])
+        );
+        let disabled = SkillMarketConfig {
+            sources: vec![SkillMarketSource {
+                enabled: false,
+                url: "invalid".into(),
+                ..Default::default()
+            }],
+        };
+        let results = fetch_configured_skill_markets(&disabled, None, 20).await;
+        assert!(results.skills.is_empty());
+        assert!(results.source_errors.is_empty());
+        let failed = SkillMarketResults {
+            skills: vec![],
+            source_errors: vec!["Private: offline".into()],
+        };
+        assert_eq!(failed.response(false).unwrap_err(), "Private: offline");
+    }
+
     #[test]
     fn skill_availability_accepts_legacy_and_workspace_scoped_requests() {
         let legacy =
@@ -1457,6 +1631,7 @@ mod tests {
                     path: "/remote/denied".into(),
                     source_id: "codex".into(),
                     message: "permission denied".into(),
+                    unsupported_field: None,
                 },
             ],
         };
@@ -1534,6 +1709,7 @@ mod tests {
                 installs: 0,
                 url: format!("https://example.com/skill-{}", i),
                 install_id: format!("test@skill-{}", i),
+                market_name: None,
             })
             .collect();
 
@@ -1606,6 +1782,7 @@ mod tests {
                         installs: 0,
                         url: "https://example.com/fresh".into(),
                         install_id: "test@fresh".into(),
+                        market_name: None,
                     }],
                     fetched_at: std::time::Instant::now(),
                 },
@@ -1629,6 +1806,7 @@ mod tests {
                         installs: 0,
                         url: "https://example.com/stale".into(),
                         install_id: "test@stale".into(),
+                        market_name: None,
                     }],
                     fetched_at: stale,
                 },
@@ -1677,32 +1855,48 @@ mod tests {
 
 #[tauri::command]
 pub async fn list_skill_market(
-    _state: State<'_, AppState>,
+    state: State<'_, AppState>,
     request: SkillMarketListRequest,
-) -> Result<Vec<SkillMarketItem>, String> {
+) -> Result<SkillMarketResponse, String> {
+    let market: SkillMarketConfig = state
+        .config_service
+        .get_config(Some("app.skill_market"))
+        .await
+        .map_err(|e| e.to_string())?;
     let query = request
         .query
         .as_deref()
         .map(str::trim)
-        .filter(|v| !v.is_empty())
-        .unwrap_or(DEFAULT_MARKET_QUERY);
-    let limit = normalize_market_limit(request.limit);
-    let offset = normalize_market_offset(request.offset);
-    fetch_skill_market(query, limit, offset).await
+        .filter(|v| !v.is_empty());
+    fetch_configured_skill_markets(&market, query, normalize_market_limit(request.limit))
+        .await
+        .response(request.include_diagnostics)
 }
 
 #[tauri::command]
 pub async fn search_skill_market(
-    _state: State<'_, AppState>,
+    state: State<'_, AppState>,
     request: SkillMarketSearchRequest,
-) -> Result<Vec<SkillMarketItem>, String> {
-    let query = request.query.trim();
-    if query.is_empty() {
-        return Ok(Vec::new());
+) -> Result<SkillMarketResponse, String> {
+    if request.query.trim().is_empty() {
+        return SkillMarketResults {
+            skills: vec![],
+            source_errors: vec![],
+        }
+        .response(request.include_diagnostics);
     }
-    let limit = normalize_market_limit(request.limit);
-    let offset = normalize_market_offset(request.offset);
-    fetch_skill_market(query, limit, offset).await
+    let market: SkillMarketConfig = state
+        .config_service
+        .get_config(Some("app.skill_market"))
+        .await
+        .map_err(|e| e.to_string())?;
+    fetch_configured_skill_markets(
+        &market,
+        Some(request.query.trim()),
+        normalize_market_limit(request.limit),
+    )
+    .await
+    .response(request.include_diagnostics)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1769,6 +1963,51 @@ pub async fn download_skill_market(
     } else {
         None
     };
+
+    let market: SkillMarketConfig = state
+        .config_service
+        .get_config(Some("app.skill_market"))
+        .await
+        .map_err(|e| e.to_string())?;
+    let selected = resolve_market_installation(&market, &package)?;
+    if selected.provider == "skillhub" {
+        let client = SkillHubClient::new(&selected.url, &selected.api_token)?;
+        let slug = client.slug_from_installation_id(&package)?.to_string();
+        let bytes = client.download(&slug).await?;
+        let files = tokio::task::spawn_blocking(move || skillhub::unpack_package(&bytes))
+            .await
+            .map_err(|e| format!("SkillHub package validation failed: {e}"))??;
+        let content = files.markdown()?;
+        let data = SkillData::from_markdown(slug.clone(), content, level, false)
+            .map_err(|e| format!("Invalid SkillHub skill: {e}"))?;
+        let name = data.name.clone();
+        let paths = get_path_manager_arc();
+        let root = if let Some(path) = &workspace_path {
+            paths.project_root(path).join("skills")
+        } else {
+            paths.user_skills_dir()
+        };
+        let origin = package.clone();
+        tokio::task::spawn_blocking(move || {
+            skillhub::install_package(&root, &slug, &files, &origin)
+        })
+        .await
+        .map_err(|e| format!("SkillHub installation failed: {e}"))??;
+        SkillRegistry::global()
+            .refresh_for_workspace(workspace_path.as_deref())
+            .await;
+        return Ok(SkillMarketDownloadResponse {
+            package,
+            level,
+            installed_skills: vec![name],
+            output: "Skill downloaded successfully.".into(),
+        });
+    }
+    // Discovery endpoints do not change the existing repository-based skills installer.
+    let package = package
+        .strip_prefix(&format!("skills-sh:{}#", source_base_url(&selected)?))
+        .unwrap_or(&package)
+        .to_string();
 
     let registry = SkillRegistry::global();
     let before_names: HashSet<String> = registry
@@ -1842,10 +2081,6 @@ fn normalize_market_limit(value: Option<u32>) -> u32 {
         .clamp(1, MAX_MARKET_LIMIT)
 }
 
-fn normalize_market_offset(value: Option<u32>) -> u32 {
-    value.unwrap_or(0)
-}
-
 /// Build the skills.sh page URL for a skill id.
 ///
 /// GitHub sources (e.g. `anthropics/skills/pdf`) use the standard path
@@ -1861,39 +2096,6 @@ fn skill_page_url(base_url: &str, skill_id: &str) -> String {
     } else {
         format!("{}/{}", base_url, id)
     }
-}
-
-async fn fetch_skill_market(query: &str, limit: u32, offset: u32) -> Result<Vec<SkillMarketItem>, String> {
-    // The upstream skills.sh `/api/search` endpoint is an Algolia fuzzy search
-    // that (a) ignores `offset`/`page` and (b) re-ranks results differently
-    // per `limit` value. That made the previous over-fetch+slice strategy
-    // (request `offset + limit`, slice locally) unstable: page windows were
-    // drawn from a differently-ranked list, so dedup on the client collapsed
-    // subsequent pages into duplicates and surfaced "no more" after ~40 skills
-    // even though the catalog holds ~134.
-    //
-    // Fix: always request the full catalog with a stable `limit =
-    // MAX_MARKET_LIMIT`, cache it briefly (MARKET_LIST_CACHE_TTL), and slice
-    // the requested page locally. The ranking is now stable across pages, so
-    // local `offset..offset+limit` windows are correct and non-overlapping.
-    let items = load_or_fetch_all_skills(query).await?;
-    let start = (offset as usize).min(items.len());
-    let end = start.saturating_add(limit as usize).min(items.len());
-    let mut page: Vec<SkillMarketItem> = items[start..end].to_vec();
-
-    // Fill descriptions only for the returned page (cheap and matches the
-    // pre-fix behavior). Descriptions have their own process cache, so
-    // repeated slices of the same query do not re-scrape.
-    if !page.is_empty() {
-        let api_base =
-            std::env::var("SKILLS_API_URL").unwrap_or_else(|_| SKILLS_SEARCH_API_BASE.into());
-        let base_url = api_base.trim_end_matches('/');
-        crate::ensure_rustls_crypto_provider();
-        let client = Client::new();
-        fill_market_descriptions(&client, base_url, &mut page).await;
-    }
-
-    Ok(page)
 }
 
 /// Return the full skill market listing for `query`, using the process-local
@@ -1967,6 +2169,252 @@ async fn load_or_fetch_all_skills(query: &str) -> Result<Vec<SkillMarketItem>, S
             installs: raw.installs,
             url: skill_page_url(base_url, &raw.id),
             install_id,
+            market_name: None,
+        });
+    }
+
+    // 3) Write the full listing back into the cache for subsequent pages.
+    {
+        let cache = market_list_cache();
+        let mut writer = cache.write().await;
+        writer.insert(
+            query.to_string(),
+            CachedMarketList {
+                items: items.clone(),
+                fetched_at: std::time::Instant::now(),
+            },
+        );
+    }
+
+    Ok(items)
+}
+
+fn source_base_url(source: &SkillMarketSource) -> Result<String, String> {
+    let configured = if source.id == "skills-sh"
+        && source.provider == "skills-sh"
+        && source.url.trim().trim_end_matches('/') == SKILLS_SEARCH_API_BASE
+    {
+        std::env::var("SKILLS_API_URL").unwrap_or_else(|_| source.url.clone())
+    } else {
+        source.url.clone()
+    };
+    let url = reqwest::Url::parse(configured.trim()).map_err(|_| "Invalid marketplace URL")?;
+    if !matches!(url.scheme(), "http" | "https")
+        || url.host_str().is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return Err("Marketplace URL must be an HTTP(S) deployment root without credentials, query or fragment".into());
+    }
+    Ok(url.as_str().trim_end_matches('/').into())
+}
+
+fn resolve_market_installation(
+    market: &SkillMarketConfig,
+    package: &str,
+) -> Result<SkillMarketSource, String> {
+    for source in market.sources.iter().filter(|s| s.enabled) {
+        let Ok(base) = source_base_url(source) else {
+            continue;
+        };
+        let prefix = format!("{}:{}#", source.provider, base);
+        if matches!(source.provider.as_str(), "skillhub" | "skills-sh")
+            && package.starts_with(&prefix)
+        {
+            return Ok(SkillMarketSource {
+                url: base,
+                ..source.clone()
+            });
+        }
+        // Older clients send an unqualified repository coordinate.
+        if source.provider == "skills-sh"
+            && !package.starts_with("skillhub:")
+            && !package.starts_with("skills-sh:")
+        {
+            return Ok(SkillMarketSource {
+                url: base,
+                ..source.clone()
+            });
+        }
+    }
+    Err("Marketplace changed or is disabled. Refresh marketplace results and retry.".into())
+}
+
+async fn fetch_configured_skill_markets(
+    market: &SkillMarketConfig,
+    query: Option<&str>,
+    limit: u32,
+) -> SkillMarketResults {
+    let mut tasks = JoinSet::new();
+    for (index, source) in market
+        .sources
+        .iter()
+        .filter(|s| s.enabled)
+        .cloned()
+        .enumerate()
+    {
+        let query = query.map(str::to_owned);
+        tasks.spawn(async move {
+            let result = fetch_market_source(&source, query.as_deref(), limit).await;
+            (index, source.name, result)
+        });
+    }
+    let mut responses = Vec::new();
+    let mut source_errors = Vec::new();
+    while let Some(result) = tasks.join_next().await {
+        match result {
+            Ok((index, _, Ok(items))) => {
+                responses.push((index, items.into_iter()));
+            }
+            Ok((_, name, Err(error))) => source_errors.push(format!("{name}: {error}")),
+            Err(_) => source_errors.push("Marketplace request task failed".into()),
+        }
+    }
+    responses.sort_by_key(|(index, _)| *index);
+    // Interleave sources so the first configured market cannot consume the whole page.
+    let mut skills = Vec::new();
+    let mut seen = HashSet::new();
+    loop {
+        let mut received = false;
+        for (_, items) in &mut responses {
+            if let Some(item) = items.next() {
+                received = true;
+                if seen.insert(item.install_id.clone()) {
+                    skills.push(item);
+                }
+                if skills.len() >= limit as usize {
+                    return SkillMarketResults {
+                        skills,
+                        source_errors,
+                    };
+                }
+            }
+        }
+        if !received {
+            break;
+        }
+    }
+    SkillMarketResults {
+        skills,
+        source_errors,
+    }
+}
+
+async fn fetch_market_source(
+    source: &SkillMarketSource,
+    query: Option<&str>,
+    limit: u32,
+) -> Result<Vec<SkillMarketItem>, String> {
+    let base = source_base_url(source)?;
+    let mut items = match source.provider.as_str() {
+        "skills-sh" => {
+            fetch_skill_market(
+                &base,
+                &source.api_token,
+                query.unwrap_or(DEFAULT_MARKET_QUERY),
+                limit,
+            )
+            .await?
+        }
+        "skillhub" => {
+            let client = SkillHubClient::new(&base, &source.api_token)?;
+            client
+                .search(query.unwrap_or(""), limit)
+                .await?
+                .into_iter()
+                .map(|item| {
+                    Ok(SkillMarketItem {
+                        url: client.detail_url(&item.slug)?,
+                        install_id: client.installation_id(&item.slug)?,
+                        id: item.slug,
+                        name: item.display_name,
+                        description: item.summary.unwrap_or_default(),
+                        source: base.clone(),
+                        installs: 0,
+                        market_name: None,
+                    })
+                })
+                .collect::<Result<Vec<_>, String>>()?
+        }
+        _ => return Err("Unsupported marketplace API format".into()),
+    };
+    for item in &mut items {
+        item.market_name = Some(source.name.clone());
+        if source.provider == "skills-sh" {
+            item.install_id = format!("skills-sh:{base}#{}", item.install_id);
+        }
+        item.id = format!("{}:{}#{}", source.provider, base, item.id);
+    }
+    Ok(items)
+}
+
+async fn fetch_skill_market(
+    api_base: &str,
+    api_token: &str,
+    query: &str,
+    limit: u32,
+) -> Result<Vec<SkillMarketItem>, String> {
+    let base_url = api_base.trim_end_matches('/');
+    let endpoint = format!("{}/api/search", base_url);
+
+    crate::ensure_rustls_crypto_provider();
+    let client = Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|_| "Failed to initialize marketplace client")?;
+    let mut request = client
+        .get(&endpoint)
+        .query(&[("q", query), ("limit", &limit.to_string())]);
+    if !api_token.trim().is_empty() {
+        request = request.bearer_auth(api_token.trim());
+    }
+    let response = request
+        .send()
+        .await
+        .map_err(|_| "Could not reach marketplace. Check the URL and network connection.")?;
+
+    if !response.status().is_success() {
+        return Err(format!(
+            "Skill market request failed with status {}",
+            response.status()
+        ));
+    }
+
+    let payload: SkillSearchApiResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to decode skill market response: {}", e))?;
+
+    let mut seen_install_ids: HashSet<String> = HashSet::new();
+    let mut items = Vec::new();
+
+    for raw in payload.skills {
+        let source = raw.source.trim().to_string();
+        let install_id = if source.is_empty() {
+            if raw.id.contains('@') {
+                raw.id.clone()
+            } else {
+                format!("{}@{}", raw.id, raw.name)
+            }
+        } else {
+            format!("{}@{}", source, raw.name)
+        };
+
+        if !seen_install_ids.insert(install_id.clone()) {
+            continue;
+        }
+
+        items.push(SkillMarketItem {
+            id: raw.id.clone(),
+            name: raw.name,
+            description: raw.description,
+            source,
+            installs: raw.installs,
+            url: skill_page_url(base_url, &raw.id),
+            install_id,
+            market_name: None,
         });
     }
 
@@ -2017,7 +2465,7 @@ async fn fetch_descriptions_for_ids(
     {
         let reader = cache.read().await;
         for id in ids {
-            if let Some(cached) = reader.get(id) {
+            if let Some(cached) = reader.get(&format!("{base_url}#{}", id)) {
                 result.insert(id.clone(), cached.clone());
             }
         }
@@ -2061,7 +2509,7 @@ async fn fetch_descriptions_for_ids(
     if !fetched.is_empty() {
         let mut writer = cache.write().await;
         for (skill_id, desc) in &fetched {
-            writer.insert(skill_id.clone(), desc.clone());
+            writer.insert(format!("{base_url}#{skill_id}"), desc.clone());
         }
     }
     for (id, desc) in fetched {

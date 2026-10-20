@@ -3,10 +3,12 @@
  * Tab bar container that manages visibility and overflow.
  */
 
-import React, { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect, useContext } from 'react';
 import { Split } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import { dropSceneTab, isSceneTabDrag } from '@/app/workbench/sceneTabTransfer';
+import { CanvasStoreModeContext } from '../stores';
 import { Tab } from './Tab';
 import { TabOverflowMenu } from './TabOverflowMenu';
 import type { CanvasTab, EditorGroupId, TabDragPayload } from '../types';
@@ -27,6 +29,7 @@ export interface TabBarProps {
   activeTabId: string | null;
   /** Whether this group is active */
   isActiveGroup: boolean;
+  isSelected?: boolean;
   /** Click tab */
   onTabClick: (tabId: string) => void;
   /** Double-click tab */
@@ -49,6 +52,8 @@ export interface TabBarProps {
   onCloseAllTabs?: () => Promise<void> | void;
   /** Pop out tab as independent scene */
   onTabPopOut?: (tabId: string) => void;
+  /** undefined keeps default actions; null omits them in non-owning split groups. */
+  toolbarActions?: React.ReactNode;
 }
 
 export const TabBar: React.FC<TabBarProps> = ({
@@ -56,6 +61,7 @@ export const TabBar: React.FC<TabBarProps> = ({
   groupId,
   activeTabId,
   isActiveGroup,
+  isSelected = true,
   onTabClick,
   onTabDoubleClick,
   onTabClose,
@@ -67,14 +73,17 @@ export const TabBar: React.FC<TabBarProps> = ({
   onOpenMissionControl,
   onCloseAllTabs,
   onTabPopOut,
+  toolbarActions,
 }) => {
   const { t } = useTranslation('components');
+  const mode = useContext(CanvasStoreModeContext);
   const [overflowTabIds, setOverflowTabIds] = useState<string[]>([]);
+  const [overflowInset, setOverflowInset] = useState(0);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const tabsListRef = useRef<HTMLDivElement>(null);
-  const actionsRef = useRef<HTMLDivElement>(null);
+  const overflowRef = useRef<HTMLDivElement>(null);
   const tabWrapperRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const pendingReorderRectsRef = useRef<Map<string, DOMRect> | null>(null);
   const reorderAnimationsRef = useRef<Map<string, Animation>>(new Map());
@@ -85,23 +94,20 @@ export const TabBar: React.FC<TabBarProps> = ({
   // beyond the viewport. Overflow follows rendered geometry, never text estimates.
   const updateOverflow = useCallback(() => {
     const list = tabsListRef.current;
-    const toolbar = containerRef.current;
-    if (!list || !toolbar || list.clientWidth === 0) return;
+    if (!list || list.clientWidth === 0) return;
 
-    const toolbarStyle = getComputedStyle(toolbar);
-    const closeWidth = actionsRef.current
-      ?.querySelector<HTMLElement>('.canvas-tab-bar__close-all')?.offsetWidth ?? 0;
-    const availableWithoutOverflow = toolbar.clientWidth
-      - (parseFloat(toolbarStyle.paddingLeft) || 0)
-      - (parseFloat(toolbarStyle.paddingRight) || 0)
-      - (parseFloat(toolbarStyle.columnGap) || 0)
-      - closeWidth;
-    const canFitWithoutMenu = !onOpenMissionControl
-      && list.scrollWidth <= availableWithoutOverflow;
     const viewport = list.getBoundingClientRect();
+    const lastTab = visibleTabs[visibleTabs.length - 1];
+    const contentEnd = lastTab && tabWrapperRefs.current.get(lastTab.id)?.getBoundingClientRect().right;
+    // Measure actual tab content, excluding the scroll-end inset. The capsule
+    // must disappear when the tabs fit, even while its old inset is still present.
+    const canFitWithoutMenu = !onOpenMissionControl && (contentEnd === undefined
+      || contentEnd - viewport.left + list.scrollLeft <= list.clientWidth + 1);
+    const inset = canFitWithoutMenu ? 0 : overflowRef.current?.offsetWidth ?? 0;
+    setOverflowInset(inset);
     const nextIds = canFitWithoutMenu ? [] : visibleTabs.filter(tab => {
       const bounds = tabWrapperRefs.current.get(tab.id)?.getBoundingClientRect();
-      return bounds && (bounds.left < viewport.left - 1 || bounds.right > viewport.right + 1);
+      return bounds && (bounds.left < viewport.left - 1 || bounds.right > viewport.right - inset + 1);
     }).map(tab => tab.id);
 
     setOverflowTabIds(previous => previous.length === nextIds.length
@@ -117,7 +123,9 @@ export const TabBar: React.FC<TabBarProps> = ({
   useLayoutEffect(() => {
     revealActiveTab();
     updateOverflow();
-  }, [revealActiveTab, updateOverflow]);
+  }, [overflowInset, revealActiveTab, updateOverflow]);
+
+  useLayoutEffect(updateOverflow, [updateOverflow, overflowTabIds.length]);
 
   useEffect(() => {
     let frameId: number | undefined;
@@ -128,7 +136,7 @@ export const TabBar: React.FC<TabBarProps> = ({
         updateOverflow();
       });
     });
-    for (const element of [containerRef.current, tabsListRef.current, actionsRef.current, ...tabWrapperRefs.current.values()]) {
+    for (const element of [containerRef.current, tabsListRef.current, overflowRef.current, ...tabWrapperRefs.current.values()]) {
       if (element) observer.observe(element);
     }
     return () => {
@@ -207,6 +215,10 @@ export const TabBar: React.FC<TabBarProps> = ({
     e.stopPropagation();
     setDragOverIndex(null);
 
+    if (mode === 'agent' && isSceneTabDrag(e.dataTransfer)) {
+      void dropSceneTab(e.dataTransfer, 'secondary');
+      return;
+    }
     if (!draggingTabId) return;
 
     try {
@@ -227,7 +239,7 @@ export const TabBar: React.FC<TabBarProps> = ({
     } catch (err) {
       log.error('Failed to parse drag data', err);
     }
-  }, [draggingTabId, groupId, visibleTabs, onReorderTab]);
+  }, [draggingTabId, groupId, visibleTabs, onReorderTab, mode]);
 
   const draggingIndex = draggingTabId
     ? visibleTabs.findIndex(tab => tab.id === draggingTabId)
@@ -286,7 +298,9 @@ export const TabBar: React.FC<TabBarProps> = ({
         data-bitfun-product-part="action"
         className="canvas-tab__action-btn"
         data-motion="none"
+        shape="circle"
         size="xs"
+        variant={tab.state === 'pinned' ? 'quiet' : 'outline'}
         aria-label={`${t(tab.state === 'pinned' ? 'tabs.unpin' : 'tabs.close')} ${tab.title}`}
         title={t(tab.state === 'pinned' ? 'tabs.unpin' : 'tabs.close')}
         icon={<Icon name={tab.state === 'pinned' ? 'pin' : 'xmark'} size="xs" />}
@@ -302,87 +316,101 @@ export const TabBar: React.FC<TabBarProps> = ({
 
   return (
     <Toolbar data-bitfun-product-component="canvas-tab-bar" data-bitfun-product-part="root" data-bitfun-group={groupId} data-bitfun-state={isActiveGroup ? 'active' : ''}
+      onDragOver={event => {
+        if (mode !== 'agent' || !isSceneTabDrag(event.dataTransfer)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+      }}
+      onDrop={event => {
+        if (mode !== 'agent' || !isSceneTabDrag(event.dataTransfer)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        void dropSceneTab(event.dataTransfer, 'secondary');
+      }}
       ref={containerRef}
       className={`canvas-tab-bar ${isActiveGroup ? 'is-active-group' : ''}`}
       size="sm"
       leading={(
-        <TabGroup
-          ref={tabsListRef}
-          className="canvas-tab-bar__tabs"
-          data-bitfun-product-component="canvas-tab-bar"
-          data-bitfun-product-part="list"
-          data-bitfun-group={groupId}
-          aria-label={t(groupId === 'primary' ? 'canvas.groupPrimaryFull' : groupId === 'secondary' ? 'canvas.groupSecondaryFull' : 'canvas.groupTertiaryFull')}
-          size="sm"
-          value={activeTabId ?? undefined}
-          items={tabItems}
-          onValueChange={onTabClick}
-          onScroll={updateOverflow}
-          renderItem={(item, node, index) => {
-            const tab = visibleTabs[index];
-            return (
-              <div
-                data-bitfun-product-component="canvas-tab-bar"
-                data-bitfun-product-part="tabWrapper"
-                data-tab-id={tab.id}
-                key={item.value}
-                className="canvas-tab-bar__tab-wrapper"
-                ref={(element) => {
-                  if (element) tabWrapperRefs.current.set(tab.id, element);
-                  else tabWrapperRefs.current.delete(tab.id);
-                }}
-                style={{
-                  transform: getDragShift(index) === 0
-                    ? undefined
-                    : `translateX(${getDragShift(index)}px)`,
-                }}
-                onDragOver={(e) => handleDragOver(e, index)}
-                onDragLeave={handleDragLeave}
-                onDrop={(e) => handleDrop(e, index)}
-              >
-                {/* Drop indicator */}
-                {dragOverIndex === index && draggingTabId && (
-                  <div data-bitfun-product-component="canvas-tab-bar" data-bitfun-product-part="dropIndicator" className="canvas-tab-drop-indicator" />
-                )}
-
-                <Tab
-                  tab={tab}
-                  groupId={groupId}
-                  isActive={(activeTabId ?? visibleTabs[0]?.id) === tab.id}
-                  onClick={() => onTabClick(tab.id)}
-                  onDoubleClick={() => onTabDoubleClick(tab.id)}
-                  onClose={() => onTabClose(tab.id)}
-                  onPin={() => onTabPin(tab.id)}
-                  onDragStart={handleTabDragStart(tab)}
-                  onDragEnd={onDragEnd}
-                  isDragging={draggingTabId === tab.id}
-                  onPopOut={onTabPopOut ? () => onTabPopOut(tab.id) : undefined}
-                  onCloseOthers={visibleTabs.length > 1 ? handleCloseOtherTabs(tab.id) : undefined}
-                  onCloseAll={onCloseAllTabs}
+        <div className="canvas-tab-bar__strip">
+          <TabGroup
+            ref={tabsListRef}
+            className="canvas-tab-bar__tabs"
+            style={{ '--_canvas-tabs-overflow-inset': `${overflowInset}px` } as React.CSSProperties}
+            data-bitfun-product-component="canvas-tab-bar"
+            data-bitfun-product-part="list"
+            data-bitfun-group={groupId}
+            aria-label={t(groupId === 'primary' ? 'canvas.groupPrimaryFull' : groupId === 'secondary' ? 'canvas.groupSecondaryFull' : 'canvas.groupTertiaryFull')}
+            size="sm"
+            value={isSelected ? activeTabId ?? undefined : ''}
+            items={tabItems}
+            onValueChange={onTabClick}
+            onScroll={updateOverflow}
+            renderItem={(item, node, index) => {
+              const tab = visibleTabs[index];
+              return (
+                <div
+                  data-bitfun-product-component="canvas-tab-bar"
+                  data-bitfun-product-part="tabWrapper"
+                  data-tab-id={tab.id}
+                  key={item.value}
+                  className="canvas-tab-bar__tab-wrapper"
+                  ref={(element) => {
+                    if (element) tabWrapperRefs.current.set(tab.id, element);
+                    else tabWrapperRefs.current.delete(tab.id);
+                  }}
+                  style={{
+                    transform: getDragShift(index) === 0
+                      ? undefined
+                      : `translateX(${getDragShift(index)}px)`,
+                  }}
+                  onDragOver={(e) => handleDragOver(e, index)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, index)}
                 >
-                  {node}
-                </Tab>
-              </div>
-            );
-          }}
-        />
+                  {/* Drop indicator */}
+                  {dragOverIndex === index && draggingTabId && (
+                    <div data-bitfun-product-component="canvas-tab-bar" data-bitfun-product-part="dropIndicator" className="canvas-tab-drop-indicator" />
+                  )}
+
+                  <Tab
+                    tab={tab}
+                    groupId={groupId}
+                    isActive={isSelected && (activeTabId ?? visibleTabs[0]?.id) === tab.id}
+                    onClick={() => onTabClick(tab.id)}
+                    onDoubleClick={() => onTabDoubleClick(tab.id)}
+                    onClose={() => onTabClose(tab.id)}
+                    onPin={() => onTabPin(tab.id)}
+                    onDragStart={handleTabDragStart(tab)}
+                    onDragEnd={onDragEnd}
+                    isDragging={draggingTabId === tab.id}
+                    onPopOut={onTabPopOut ? () => onTabPopOut(tab.id) : undefined}
+                    onCloseOthers={visibleTabs.length > 1 ? handleCloseOtherTabs(tab.id) : undefined}
+                    onCloseAll={onCloseAllTabs}
+                  >
+                    {node}
+                  </Tab>
+                </div>
+              );
+            }}
+          />
+          <div ref={overflowRef} className="canvas-tab-bar__overflow">
+            {visibleTabs.length > 0 && (
+              <TabOverflowMenu
+                overflowTabs={overflowTabs}
+                activeTabId={activeTabId}
+                onTabClick={onTabClick}
+                onTabClose={onTabClose}
+                onReorderTab={onReorderTab}
+                onOpenMissionControl={onOpenMissionControl}
+              />
+            )}
+          </div>
+        </div>
       )}
       trailing={(
-        <div ref={actionsRef} className="canvas-tab-bar__actions" data-bitfun-product-component="canvas-tab-bar" data-bitfun-product-part="actions" data-bitfun-group={groupId}>
-          {/* Overflow menu (all groups; mission control only in primary) */}
-          {visibleTabs.length > 0 && (
-            <TabOverflowMenu
-              overflowTabs={overflowTabs}
-              activeTabId={activeTabId}
-              onTabClick={onTabClick}
-              onTabClose={onTabClose}
-              onReorderTab={onReorderTab}
-              onOpenMissionControl={onOpenMissionControl}
-            />
-          )}
-
-          {/* Close all tabs button */}
-          {onCloseAllTabs && visibleTabs.length > 0 && (
+        <div className="canvas-tab-bar__actions" data-bitfun-product-component="canvas-tab-bar" data-bitfun-product-part="actions" data-bitfun-group={groupId}>
+          {/* Hosts own layout actions; close-all remains available in tab menus. */}
+          {toolbarActions !== undefined ? toolbarActions : onCloseAllTabs && visibleTabs.length > 0 && (
             <Tooltip content={t('tabs.closeAll')} placement="bottom">
               <IconButton
                 data-bitfun-product-component="canvas-tab-bar"

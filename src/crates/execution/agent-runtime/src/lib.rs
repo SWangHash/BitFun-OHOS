@@ -34,8 +34,6 @@ pub mod evidence_ledger;
 #[cfg(feature = "native-hook-settings")]
 pub mod native_hooks;
 #[cfg(feature = "agent-runtime")]
-pub mod output_surface;
-#[cfg(feature = "agent-runtime")]
 pub mod permission;
 #[cfg(feature = "agent-runtime")]
 pub mod post_call_hooks;
@@ -45,6 +43,8 @@ pub mod prompt;
 pub mod prompt_cache;
 #[cfg(feature = "agent-runtime")]
 pub mod prompt_markup;
+#[cfg(feature = "agent-runtime")]
+pub mod prompt_suggestion;
 #[cfg(feature = "agent-runtime")]
 pub mod remote_file_delivery;
 #[cfg(feature = "agent-runtime")]

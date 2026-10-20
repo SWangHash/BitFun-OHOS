@@ -7,11 +7,11 @@ use std::sync::{Mutex, OnceLock};
 // Legacy service names: credentials were saved before the BitFun rename, and
 // the system keyring has no cross-name migration.
 #[cfg(not(any(target_os = "macos", target_env = "ohos")))]
-const KEYRING_SERVICE: &str = "openbitfun.miniapp-market.v1";
+const KEYRING_SERVICE: &str = "bitfun.miniapp-market.v1";
 const CREDENTIAL_ENTRY: &str = "github-oauth";
 
 #[cfg(any(target_env = "ohos", test))]
-const OHOS_MARKET_ALIAS: &str = "openbitfun.market.credentials.v1";
+const OHOS_MARKET_ALIAS: &str = "bitfun.market.credentials.v1";
 // 1.0.x HarmonyOS builds kept the same credentials under this alias. It is read
 // as a fallback so an in-place upgrade keeps the market sign-in.
 #[cfg(any(target_env = "ohos", test))]

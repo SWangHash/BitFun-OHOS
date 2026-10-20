@@ -17,6 +17,12 @@ This file applies to `design-system/**`. Repository-wide rules in the root `AGEN
 - Design Lab may alias `@bitfun/ui` to source only during Vite development for HMR. Its production build must consume package exports.
 - `@bitfun/ui/registry` is the source of truth for published components. Design Lab derives navigation, counts, token scopes, and detail routes from that registry; Lab-only previews or copy must never add, retain, or remove a package component.
 
+## CSS invalidation
+
+- Prefer component-owned classes for sibling rules in dynamic views; tag-only or universal sibling selectors can invalidate unrelated elements even under a scoped ancestor or CSS Module.
+- Use layout `gap` only where spacing semantics remain equivalent. Preserve adjacency, specificity, and state overrides when narrowing selectors; `:where()` can add class constraints without raising specificity.
+- Use Selector Stats for cause analysis and ordinary traces for performance comparisons. Invalidation records alone do not prove a scrolling speedup. See `src/web-ui/AGENTS.md` for generated-content guidance; do not blanket-ban sibling selectors.
+
 ## Publication boundary
 
 - Public manifests expose only `dist/`, README, and package metadata.
@@ -35,5 +41,11 @@ pnpm run design-system:check
 ```
 
 Run `pnpm run design-system:check` for cross-package or release-boundary changes. Token and theme changes must also run the repository-level `pnpm run theme:color-audit:all`.
+
+For shared icon rendering or geometry changes, use the focused package checks:
+
+```bash
+pnpm --dir design-system run build:ui && node --test design-system/packages/ui/tests/icon.test.mjs design-system/packages/ui/tests/icon-slots.test.mjs
+```
 
 Do not use browser automation or mock screenshots as visual proof. Design Lab is the manual authoring surface; source, build, HTTP, and package checks do not establish final visual fidelity.

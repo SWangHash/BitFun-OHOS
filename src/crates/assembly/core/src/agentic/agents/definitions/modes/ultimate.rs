@@ -18,9 +18,8 @@ impl UltimateHarness {
             default_tools: [
                 "AgentSpawn",
                 "AgentSendInput",
-                "AgentInterrupt",
+                "AgentControl",
                 "AgentList",
-                "AgentDelete",
                 "AgentWait",
                 "Read",
                 "Edit",
@@ -56,7 +55,7 @@ impl Agent for UltimateHarness {
         "Ultimate Harness for decomposing complex work into coordinated worker and review tasks. It may issue many model requests concurrently, increasing API cost and provider rate-limit pressure."
     }
     fn prompt_template_name(&self, _model_name: Option<&str>) -> &str {
-        "ultra_mode"
+        "ultimate_mode"
     }
     fn default_tools(&self) -> Vec<String> {
         self.default_tools.clone()
@@ -65,7 +64,6 @@ impl Agent for UltimateHarness {
         UserContextPolicy::empty()
             .with_workspace_context()
             .with_workspace_instructions()
-            .with_project_layout()
     }
     fn is_readonly(&self) -> bool {
         false

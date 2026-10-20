@@ -5,7 +5,7 @@ import { validateUrl } from './browserUrlCheck';
 import { BrowserPreviewCache, prepareBrowserPreview, type BrowserPreviewResponse } from './browserPreviewCache';
 import { alignBrowserViewport, type BrowserViewportBounds } from './browserViewportGeometry';
 import { api } from '@/infrastructure/api/service-api/ApiClient';
-import { createNativeWebviewVisibility, hasNativeWebviewOccluder, NATIVE_WEBVIEW_OCCLUSION_SELECTOR } from './nativeWebviewVisibility';
+import { createNativeWebviewVisibility, hasNativeWebviewOccluder } from './nativeWebviewVisibility';
 export { NATIVE_WEBVIEW_OCCLUSION_SELECTOR, rectanglesIntersect } from './nativeWebviewVisibility';
 
 const WEBVIEW_RESIZE_DEBOUNCE_MS = 160;
@@ -262,8 +262,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
     const bounds = rect.width > 1 && rect.height > 1 ? rect : nativeBounds;
     // Bounds updates are debounced; the native view may still occupy its old
     // rectangle after the DOM container has moved.
-    return !!bounds && !hasNativeWebviewOccluder(viewport, bounds)
-      && (!nativeBounds || !hasNativeWebviewOccluder(viewport, nativeBounds));
+    return !!bounds && !hasNativeWebviewOccluder(viewport, bounds, nativeBounds ?? undefined);
   }, (target, visible) => {
     if (target !== webviewRef.current) return;
     nativeVisibleRef.current = visible;

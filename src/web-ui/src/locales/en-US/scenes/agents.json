@@ -9,37 +9,41 @@
   "loading": "Loading…",
   "page": {
     "title": "Agents",
-    "subtitle": "Configure four Agent Harnesses, task-focused Agents, and delegated SubAgents",
+    "subtitle": "Execution modes reflect how default agents work, while specialized agents complete tasks independently or together.",
     "searchPlaceholder": "Search agents by name or description…",
     "newAgent": "New Agent"
   },
   "nav": {
-    "harness": "Agent Harness",
+    "harness": "Execution modes",
     "coreAgents": "Connected Agents",
     "agents": "Agents"
   },
   "harnessZone": {
-    "title": "Agent Harness",
-    "subtitle": "Choose how a session executes work; each Harness owns its tool and collaboration policy",
+    "title": "Execution modes",
     "flowCaption": "One task · Four strategies · One result",
     "task": "Task",
     "result": "Result",
+    "replay": "Replay animation",
     "profiles": {
       "Minimal": {
         "name": "$t(shared:agents.Minimal)",
-        "purpose": "Lean flow, fast progress"
+        "purpose": "Less intervention, more autonomy",
+        "description": "Emphasizes autonomy, with less prescribed process so the model can decide how to complete coding and other tasks."
       },
       "Standard": {
         "name": "$t(shared:agents.Standard)",
-        "purpose": "Balance speed and quality"
+        "purpose": "A complete toolkit for coding and everyday work",
+        "description": "Covers coding and everyday work, using clear task guidance and a complete toolkit for development, organizing information, and writing."
       },
       "Ultimate": {
         "name": "$t(shared:agents.Ultimate)",
-        "purpose": "Deep planning and collaboration"
+        "purpose": "Work together on complex projects",
+        "description": "Emphasizes teamwork, with agents working in parallel and independent review supporting complex projects and large-scale changes."
       },
       "Creative": {
         "name": "$t(shared:agents.Creative)",
-        "purpose": "Customize and build on BitFun"
+        "purpose": "Create content and apps, shape your experience",
+        "description": "Turns ideas into finished work in natural language: motion videos, slide decks, prototypes, and web pages crafted with creative skills loaded on demand, plus MiniApps and a customized BitFun."
       }
     }
   },
@@ -88,7 +92,7 @@
     }
   },
   "agentsZone": {
-    "title": "Agents",
+    "title": "Specialized agents",
     "subtitle": "Browse built-in, user, project, and external Agents in one place, then open a card to review or configure it.",
     "empty": {
       "noAgents": "No agents are available right now",
@@ -148,6 +152,14 @@
     "filterProject": "Project",
     "backToOverview": "Back to Overview",
     "detail": {
+      "overview": "Overview",
+      "backToOverview": "Back to overview",
+      "cards": {
+        "tools": "View and manage the tools this agent can use",
+        "skills": "Choose the Skills available to this agent",
+        "subagents": "Configure delegation and collaborating agents",
+        "model": "Choose the model used by this subagent"
+      },
       "configuration": "Configuration",
       "basicInfo": "Basic information",
       "basicInfoHint": "Identity, purpose, and runtime properties",
@@ -186,8 +198,6 @@
     "selectAll": "Select all",
     "selectionSaveHint": "Takes effect after saving",
     "capabilityEnabled": "Enabled",
-    "subagentsSelectedCount": "{{count}} SubAgents selected",
-    "subagentsEnabledCount": "{{count}} SubAgents enabled",
     "noEnabledSubagents": "No SubAgents enabled",
     "reset": "Reset",
     "cancel": "Cancel",
@@ -230,7 +240,7 @@
       "debugging": "Debugging",
       "coordination": "Coordination",
       "planning": "Planning",
-      "gstack": "gstack",
+"gstack": "gstack",
       "harmonyos": "HarmonyOS",
       "other": "Other"
     },
@@ -238,9 +248,6 @@
       "builtin": "Built-in groups",
       "myGroups": "My groups",
       "otherSkills": "Other skills",
-      "selectedCount": "{{count}} skills selected",
-      "enabledCount": "{{count}} skills enabled",
-      "runtimeCount": "{{count}} used at runtime",
       "unavailableCount": "{{count}} unavailable",
       "enableGroupSkills": "Select all skills in {{name}}",
       "clearGroupSkills": "Deselect skills in {{name}}",
@@ -265,7 +272,6 @@
       "extension": "Extension · {{provider}}",
       "other": "Other",
       "selectedCount": "{{count}} tools selected",
-      "enabledCount": "{{count}} tools enabled",
       "manageGroups": "Manage groups",
       "manageTitle": "Manage my tool groups",
       "manageSubtitle": "Organize reusable personal tool selections.",
@@ -300,7 +306,7 @@
     "editAgent": "Edit",
     "deleteAgent": "Delete",
     "externalActions": "External agent",
-    "manageExternalAgent": "Manage in Ecosystem Compatibility",
+    "manageExternalAgent": "Manage in External Import",
     "deleteConfirm": "Delete custom agent \"{{name}}\"? This cannot be undone.",
     "deleteSuccess": "Deleted \"{{name}}\"",
     "deleteFailed": "Delete failed: ",
@@ -332,7 +338,7 @@
       "descPlaceholder": "Briefly describe what this agent does",
       "descRequired": "Description is required",
       "prompt": "System Prompt",
-      "promptPlaceholder": "Enter the system prompt that defines this agent's behavior...\n\nSupported placeholders\n{PERSONA}: SOUL.md/USER.md/IDENTITY.md\n{LANGUAGE_PREFERENCE}: Language preference",
+      "promptPlaceholder": "Enter the system prompt that defines this agent's behavior...\n\nSupported placeholders\n{PERSONA}: SOUL.md/USER.md/IDENTITY.md\n{LANGUAGE_PREFERENCE}: Language preference\n{FILE_REFERENCES}: File and image reference guidance",
       "promptRequired": "System prompt is required",
       "readonly": "Readonly mode",
       "model": "Model",
@@ -397,26 +403,25 @@
     "Cowork": "Office collaboration Agent: help with office and research tasks, confirming key steps with you.",
     "ComputerUse": "Computer use SubAgent: perform delegated work in browsers, desktop apps, and file systems.",
     "DeepResearch": "Deep research agent: conduct systematic investigation and analysis on complex topics",
+    "ResearchSpecialist": "Finds and evaluates web sources to deliver focused research with clear supporting evidence.",
+    "GeneralPurpose": "Combines search, analysis, and coding to complete multi-step tasks independently.",
     "Explore": "Explore SubAgent: quickly browse the codebase to understand project structure and key files",
-    "GeneralPurpose": "General-purpose subagent: focused codebase search, targeted file edits, and multi-step implementation or research tasks",
-    "ResearchSpecialist": "Web research specialist: runs focused web searches and page fetches, returning structured findings without polluting the parent context",
     "CodeReview": "Code review SubAgent: perform quality checks and provide improvement suggestions",
     "DeepReview": "Strict Review compatibility SubAgent: supports review workflows in historical sessions and commands.",
-    "GenerateDoc": "Documentation SubAgent: automatically generate code documentation and explanations",
     "Init": "Init agent: help set up project structure and initial configuration",
     "ReviewFixer": "Review fixer SubAgent: automatically fix code issues based on review results",
     "Claw": "Personal assistant: help with daily tasks using your preferences and context.",
-    "Standard": "General task execution with planning, tools, and delegated work.",
-    "Ultimate": "Decompose complex tasks, coordinate parallel SubAgents, and review their results.",
-    "Minimal": "A compact execution loop with a fixed, small tool set.",
-    "Creative": "Create and customize BitFun experiences and capabilities.",
+    "Standard": "Clear guidance and a complete toolkit support coding as well as everyday work such as handling information and creating content.",
+    "Ultimate": "Multiple agents work in parallel, with independent review for complex projects and large-scale changes.",
+    "Minimal": "Minimal prompting and a focused tool set give next-generation flagship models room to excel at coding and other tasks.",
+    "Creative": "Create videos, decks, prototypes, and web pages with creative skills, or build MiniApps and customize the interface in natural language.",
     "HarmonyReleaseAudit": "Review HarmonyOS apps against pre-release submission rules, identify potential risks, and provide remediation guidance with optional fixes and rechecks.",
     "HarmonyFeature": "Matches, plans, and implements HarmonyOS platform feature enhancements from the built-in feature guide.",
-    "QtMigration": "Qt 5.12/5.15 to HarmonyOS migration: assess -> 8-step code migration -> build -> deploy -> verify -> issue-fixing loop, with fully visualized task progress."
-    ,"HarmonyBuild": "HarmonyOS build, deployment, diagnosis, and verification specialist"
-    ,"HarmonyPlan": "Read-only HarmonyOS planning and project analysis specialist"
-    ,"HarmonyGoal": "Constrained goal-driven HarmonyOS orchestration subagent"
-    ,"HarmonySpecImplementation": "Hidden approved-spec implementation subagent"
-    ,"HarmonySpecVerify": "Hidden HarmonyOS build, deployment, and UI verification subagent"
+    "QtMigration": "Qt 5.12/5.15 to HarmonyOS migration: assess -> 8-step code migration -> build -> deploy -> verify -> issue-fixing loop, with fully visualized task progress.",
+    "HarmonyBuild": "HarmonyOS build, deployment, diagnosis, and verification specialist",
+    "HarmonyPlan": "Read-only HarmonyOS planning and project analysis specialist",
+    "HarmonyGoal": "Constrained goal-driven HarmonyOS orchestration subagent",
+    "HarmonySpecImplementation": "Hidden approved-spec implementation subagent",
+    "HarmonySpecVerify": "Hidden HarmonyOS build, deployment, and UI verification subagent"
   }
 }

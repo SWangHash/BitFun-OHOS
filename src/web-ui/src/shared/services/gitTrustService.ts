@@ -4,7 +4,7 @@
  * Git refuses to read a repository whose directory is owned by another user
  * until the path is listed in the protected `safe.directory` configuration.
  * Callers that hit that wall hand the failure here: the service explains the
- * state, asks the user once, and ??only after they agree ??grants trust and
+ * state, asks the user once, and — only after they agree — grants trust and
  * replays the operation.
  *
  * Trust is never granted implicitly. Listing a directory in `safe.directory`
@@ -20,15 +20,31 @@ import {
   isGitRepositoryUntrustedError,
 } from '@/infrastructure/api/errors/TauriCommandError';
 import { i18nService } from '@/infrastructure/i18n';
-import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
-import { isPeerDeviceModeActive } from '@/infrastructure/peer-device/peerModeFlag';
 import { notificationService } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
 import { GitWorkspaceScope, gitWorkspaceKey } from '@/infrastructure/api/service-api/GitAPI';
+import {
+  getActiveSurfaceScope,
+  isSurfaceChangedError,
+  type SurfaceScope,
+} from '@/infrastructure/peer-device/deviceSurface';
 
 const log = createLogger('GitTrustService');
 
+/**
+ * How long a settled decision keeps later prompts quiet.
+ *
+ * One user action (launching Review, refreshing a panel) fans out into many
+ * Git reads. Without this, every remaining call in the same burst would ask
+ * again — after a decline, and just as much after a grant that failed (a
+ * read-only configuration, a refusing peer host): confirming into the same
+ * wall is not a fresh decision. The window is deliberately short: a fresh
+ * attempt later is a fresh decision.
+ */
+const PROMPT_QUIET_PERIOD_MS = 30_000;
+
 const inFlightRequests = new Map<string, { promise: Promise<boolean>; isCurrent: () => boolean }>();
+const promptQuietUntil = new Map<string, number>();
 
 /** Trust decisions belong to the owning surface and workspace ID. */
 const promptKey = gitWorkspaceKey;
@@ -41,9 +57,10 @@ export function describeGitTrustFailure(failure: unknown): string | undefined {
     : undefined;
 }
 
-/** Test seam: forgets in-flight prompts. */
+/** Test seam: forgets in-flight prompts and remembered decisions. */
 export function resetGitTrustDecisions(): void {
   inFlightRequests.clear();
+  promptQuietUntil.clear();
 }
 
 /**
@@ -60,6 +77,7 @@ async function readTrustReport(repositoryPath: GitWorkspaceScope): Promise<GitTr
   try {
     return await gitAPI.getRepositoryTrust(repositoryPath);
   } catch (error) {
+    if (isSurfaceChangedError(error)) throw error;
     log.warn('Could not read Git repository trust for manual guidance', {
       repositoryPath,
       error,
@@ -72,8 +90,8 @@ async function readTrustReport(repositoryPath: GitWorkspaceScope): Promise<GitTr
  * Settles a grant that did not take, and reports whether the wall is still up.
  *
  * The re-read is not bookkeeping. The manual command exists to be run, and the
- * whole point of the paths that cannot grant ??a remote workspace, a peer host,
- * a read-only configuration ??is that the user (or the repository's owner)
+ * whole point of the paths that cannot grant — a remote workspace, a peer host,
+ * a read-only configuration — is that the user (or the repository's owner)
  * fixes it elsewhere and comes back. By then Git accepts the repository, and
  * announcing "could not be granted" while answering the caller `false` strands
  * a repository that works: no refresh, no replay, and a warning about a wall
@@ -92,6 +110,7 @@ async function settleUngrantedTrust(
   const report = await readTrustReport(repositoryPath);
   if (!isCurrent()) return false;
   if (report?.state === 'trusted') {
+    promptQuietUntil.delete(promptKey(repositoryPath));
     log.info('Git repository trust was resolved outside the product', { repositoryPath });
     notificationService.success(
       i18nService.t('panels/git:trust.alreadyTrusted', { path: repositoryPath.repositoryPath ?? repositoryPath.workspaceId }),
@@ -99,6 +118,11 @@ async function settleUngrantedTrust(
     return true;
   }
 
+  // Like a decline, an unresolved failure settles the current burst: confirming
+  // into the same wall is not a fresh decision, so no re-prompt until the quiet
+  // period ends. Keyed on the caller's path — the key the next call arrives
+  // under — while the message names the path Git actually rejected.
+  promptQuietUntil.set(promptKey(repositoryPath), Date.now() + PROMPT_QUIET_PERIOD_MS);
   reportManualPath(reportedPath, manualCommand ?? report?.manualCommand ?? null);
   return false;
 }
@@ -118,34 +142,9 @@ function reportManualPath(repositoryPath: string, manualCommand: string | null):
 
 async function promptAndTrust(
   repositoryPath: GitWorkspaceScope,
+  scope: SurfaceScope,
   isCurrent: () => boolean,
 ): Promise<boolean> {
-  const report = await readTrustReport(repositoryPath);
-  if (!isCurrent()) return false;
-  if (report?.state === 'trusted') {
-    notificationService.success(
-      i18nService.t('panels/git:trust.alreadyTrusted', { path: repositoryPath.repositoryPath ?? repositoryPath.workspaceId }),
-    );
-    return true;
-  }
-  if (
-    report?.state === 'trust_required' &&
-    (report.grantSupported === false || isPeerDeviceModeActive())
-  ) {
-    const reportedPath = report.repositoryPath ?? repositoryPath.repositoryPath ?? repositoryPath.workspaceId;
-    log.info('Git repository trust must be granted on the repository host', {
-      repositoryPath,
-      reportedPath,
-    });
-    reportManualPath(reportedPath, report.manualCommand);
-    return false;
-  }
-
-  if (report?.state !== 'trust_required') {
-    if (!report) reportManualPath(repositoryPath.repositoryPath ?? repositoryPath.workspaceId, null);
-    return false;
-  }
-
   const confirmed = await confirmWarning(
     i18nService.t('panels/git:trust.title'),
     i18nService.t('panels/git:trust.message', { path: repositoryPath.repositoryPath ?? repositoryPath.workspaceId }),
@@ -154,9 +153,13 @@ async function promptAndTrust(
       cancelText: i18nService.t('panels/git:trust.cancel'),
     },
   );
+  // Same-path local workspaces share an ID across devices, so an answer given
+  // for the departed device must not grant trust on the one rendered now.
+  scope.assertCurrent('grant Git repository trust');
 
   if (!isCurrent()) return false;
   if (!confirmed) {
+    promptQuietUntil.set(promptKey(repositoryPath), Date.now() + PROMPT_QUIET_PERIOD_MS);
     log.info('Git repository trust declined by user', { repositoryPath });
     return false;
   }
@@ -165,13 +168,15 @@ async function promptAndTrust(
     const outcome = await gitAPI.trustRepository(repositoryPath);
     if (!isCurrent()) return false;
     if (outcome.state === 'trusted') {
+      promptQuietUntil.delete(promptKey(repositoryPath));
       notificationService.success(
         i18nService.t('panels/git:trust.granted', { path: repositoryPath.repositoryPath ?? repositoryPath.workspaceId }),
       );
       return true;
     }
 
-    // The backend reached the repository but could not make Git accept it ??    // a remote workspace, a read-only configuration, an unexpected path shape.
+    // The backend reached the repository but could not make Git accept it —
+    // a remote workspace, a read-only configuration, an unexpected path shape.
     // Re-read before deciding: the user may have run the command themselves.
     log.warn('Git repository trust could not be applied', {
       repositoryPath,
@@ -181,6 +186,7 @@ async function promptAndTrust(
     const reportedPath = outcome.repositoryPath ?? repositoryPath.repositoryPath ?? repositoryPath.workspaceId;
     return await settleUngrantedTrust(repositoryPath, reportedPath, outcome.manualCommand, isCurrent);
   } catch (error) {
+    if (isSurfaceChangedError(error)) throw error;
     // Includes the hosts that refuse to grant at all: a peer host denies
     // `git_trust_repository` on purpose, and an older host does not know it.
     if (!isCurrent()) return false;
@@ -190,7 +196,16 @@ async function promptAndTrust(
 }
 
 export interface GitRepositoryTrustRequestOptions {
-  /** Accepted for existing callers; all settled requests can be retried immediately. */
+  /**
+   * The user asked for this directly (the Trust button), rather than a Git read
+   * tripping over the wall.
+   *
+   * A direct ask is always answered: the quiet period exists to keep one user
+   * action from prompting once per Git call in the burst, not to make a visible
+   * button do nothing. Silently returning `false` to a click reads as a broken
+   * button, and it strands the user who just fixed `safe.directory` in a
+   * terminal or reconnected a remote host.
+   */
   userInitiated?: boolean;
   /** Cancel automatic recovery when its workspace activation is no longer current. */
   isCurrent?: () => boolean;
@@ -206,17 +221,25 @@ export function requestGitRepositoryTrust(
   repositoryPath: GitWorkspaceScope,
   options: GitRepositoryTrustRequestOptions = {},
 ): Promise<boolean> {
-  const surface = getActiveSurfaceScope();
-  const isCurrent = () => surface.isCurrent() && (options.isCurrent?.() ?? true);
+  const scope = getActiveSurfaceScope();
+  const isCurrent = () => scope.isCurrent() && (options.isCurrent?.() ?? true);
   if (!isCurrent()) return Promise.resolve(false);
   const key = promptKey(repositoryPath);
-  const flightKey = JSON.stringify([surface.epoch, key]);
+  const flightKey = scope.key(scope.epoch, key);
   const pending = inFlightRequests.get(flightKey);
   if (pending?.isCurrent()) {
     return pending.promise;
   }
 
-  const request = promptAndTrust(repositoryPath, isCurrent).finally(() => {
+  const quietUntil = promptQuietUntil.get(key);
+  if (quietUntil !== undefined) {
+    if (quietUntil > Date.now() && !options.userInitiated) {
+      return Promise.resolve(false);
+    }
+    promptQuietUntil.delete(key);
+  }
+
+  const request = promptAndTrust(repositoryPath, scope, isCurrent).finally(() => {
     if (inFlightRequests.get(flightKey)?.promise === request) inFlightRequests.delete(flightKey);
   });
   inFlightRequests.set(flightKey, { promise: request, isCurrent });
@@ -227,11 +250,15 @@ export function requestGitRepositoryTrust(
  * Runs a read-only Git operation, recovering once from an ownership rejection.
  *
  * Anything other than an ownership rejection propagates untouched, and the
- * replay happens at most once ??so a repository that stays untrusted fails with
+ * replay happens at most once — so a repository that stays untrusted fails with
  * its original error instead of looping.
  *
  * Only for operations that are safe to run twice. Do not wrap mutations.
  *
+ * Pass `userInitiated` when the operation is one discrete thing the user asked
+ * for (launching Review), rather than one call inside an automatic burst: the
+ * quiet period would otherwise answer a deliberate action with a silent `false`
+ * and an error telling them to trust the folder "when prompted".
  */
 export async function withGitRepositoryTrustRecovery<T>(
   operation: () => Promise<T>,

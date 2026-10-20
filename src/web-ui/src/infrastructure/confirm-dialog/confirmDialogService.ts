@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { create } from 'zustand';
-import type { ConfirmDialogType } from '@bitfun/ui';
+import type { ConfirmDialogProps, ConfirmDialogType } from '@bitfun/ui';
 
 // A button press is a decision; dismissing the surface (mask, Escape, close
 // button) is not. Callers that treat "dismissed" as "cancel" must say so.
@@ -12,6 +12,7 @@ export interface ConfirmDialogOptions {
   confirmText?: ReactNode;
   message?: ReactNode;
   preview?: ReactNode;
+  secondaryActionPlacement?: ConfirmDialogProps['secondaryActionPlacement'];
   secondaryText?: ReactNode;
   showCancel?: boolean;
   title: ReactNode;

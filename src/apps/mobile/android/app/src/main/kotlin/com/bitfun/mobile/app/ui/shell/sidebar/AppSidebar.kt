@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,9 +14,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,14 +38,17 @@ import com.bitfun.mobile.app.R
 import com.bitfun.mobile.app.ui.remote.SessionActionPopup
 import com.bitfun.mobile.app.ui.remote.SessionActionSheet
 import com.bitfun.mobile.app.ui.remote.SessionDetailsSheet
+import com.bitfun.mobile.app.ui.theme.bitFunColors
 import com.bitfun.mobile.core.feature.account.AccountDeviceUi
 import com.bitfun.mobile.core.feature.connection.ConnectionPhase
 import com.bitfun.mobile.core.feature.connection.RemoteControlSource
 import com.bitfun.mobile.core.feature.session.SessionActionPolicy
 import com.bitfun.mobile.core.feature.session.SessionActionScope
 import com.bitfun.mobile.core.feature.session.RemoteSessionUiState
+import com.bitfun.mobile.core.feature.session.WorkspaceSessionDirectoryUiState
 import com.bitfun.mobile.core.feature.layout.SettingsPlacement
 import com.bitfun.mobile.core.feature.shell.RemoteSidebarSessionRow
+import com.bitfun.mobile.core.feature.shell.RemoteSidebarWorkspaceRow
 import com.bitfun.mobile.core.feature.workspace.RemoteWorkspaceUiState
 
 internal const val SIDEBAR_TEST_TAG: String = "app-sidebar"
@@ -76,109 +80,111 @@ internal fun AppSidebar(
     remoteDeviceName: String,
     remoteState: RemoteSessionUiState,
     workspaceState: RemoteWorkspaceUiState,
+    workspaceDirectory: WorkspaceSessionDirectoryUiState,
     remoteActive: Boolean,
     remoteSelectedSessionId: String?,
     query: String,
     searchOpen: Boolean,
     onQueryChange: (String) -> Unit,
     onToggleSearch: () -> Unit,
-    onScanDesktop: () -> Unit,
+    onConnectDesktop: () -> Unit,
     onRetryRemoteDevice: () -> Unit,
+    onRefreshRemoteDevices: () -> Unit,
+    refreshingRemoteDevices: Boolean,
+    directoryRefreshError: String? = null,
     onSelectRemoteDevice: (String) -> Unit,
     onOpenRemoteSession: (String) -> Unit,
-    onCreateRemoteInWorkspace: (String, String?, String) -> Unit,
-    onOpenRemoteWorkspace: (String) -> Unit,
+    onCreateRemoteInWorkspace: (RemoteSidebarWorkspaceRow, String) -> Unit,
+    onOpenRemoteWorkspace: (RemoteSidebarWorkspaceRow) -> Unit,
+    onExpandRemoteWorkspace: (RemoteSidebarWorkspaceRow) -> Unit,
+    onRetryRemoteWorkspaceSessions: (RemoteSidebarWorkspaceRow) -> Unit,
+    onAddRemoteWorkspace: (() -> Unit)? = null,
     onWorkspaceTool: (String, String?, Boolean) -> Unit,
     onDeleteRemoteSession: (String) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenAccount: () -> Unit,
     modifier: Modifier,
 ) {
-    var toolsPicker by remember { mutableStateOf(false) }
-    var toolsPositionSelected by remember { mutableStateOf(false) }
-    var toolsConnection by remember { mutableStateOf<String?>(null) }
-    androidx.compose.runtime.LaunchedEffect(remoteSelectedDeviceId) { toolsPicker = false; toolsPositionSelected = false; toolsConnection = null }
-    if (toolsPicker) androidx.compose.material3.AlertDialog(
-        onDismissRequest = { toolsPicker = false; toolsPositionSelected = false; toolsConnection = null },
-        title = { Text(stringResource(R.string.device_tools)) },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
-                if (!toolsPositionSelected) {
-                    androidx.compose.material3.TextButton(onClick = { toolsConnection = null; toolsPositionSelected = true }) { Text(stringResource(R.string.workspace_target_device)) }
-                    (workspaceState as? RemoteWorkspaceUiState.Ready)?.savedConnections.orEmpty().forEach { connection ->
-                        androidx.compose.material3.TextButton(onClick = { toolsConnection = connection.id; toolsPositionSelected = true }) { Text(connection.name) }
-                    }
-                } else {
-                    androidx.compose.material3.TextButton(onClick = { toolsPicker = false; onWorkspaceTool("", toolsConnection, false) }) { Text(stringResource(R.string.workspace_browse_files)) }
-                    androidx.compose.material3.TextButton(onClick = { toolsPicker = false; onWorkspaceTool("", toolsConnection, true) }) { Text(stringResource(R.string.workspace_terminal)) }
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = { androidx.compose.material3.TextButton(onClick = { if (toolsPositionSelected) { toolsPositionSelected = false; toolsConnection = null } else toolsPicker = false }) { Text(stringResource(R.string.common_back)) } },
-    )
-
     val signedIn = !accountUserId.isNullOrBlank()
     var remoteActionSession by remember { mutableStateOf<RemoteSidebarSessionRow?>(null) }
     var remoteActionAnchor by remember { mutableStateOf(IntRect.Zero) }
     var remoteDetailsSessionId by rememberSaveable { mutableStateOf<String?>(null) }
 
-    Box(modifier = modifier.fillMaxSize().testTag(SIDEBAR_TEST_TAG)) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            if (signedIn) {
-                SidebarAuthenticatedHeader(searchOpen, query, onQueryChange, onToggleSearch)
-            } else {
-                Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge)
-            }
-
-            com.bitfun.mobile.app.ui.miniapps.MiniAppsButton(sidebar = true)
-
-            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(bottom = 142.dp)) {
-                    SidebarRemoteWorkspaceSection(
-                        connectionPhase = connectionPhase,
-                        controlSource = remoteControlSource,
-                        devices = remoteDevices,
-                        selectedDeviceId = remoteSelectedDeviceId,
-                        deviceName = remoteDeviceName,
-                        remoteState = remoteState,
-                        workspaceState = workspaceState,
-                        selectedSessionId = remoteSelectedSessionId.takeIf { remoteActive },
-                        onConnect = onScanDesktop,
-                        onRetryActive = onRetryRemoteDevice,
-                        onSelectDevice = onSelectRemoteDevice,
-                        onOpenSession = onOpenRemoteSession,
-                        onOpenActions = { row, anchor ->
-                            remoteActionAnchor = anchor
-                            remoteActionSession = row
-                        },
-                        onCreateInWorkspace = onCreateRemoteInWorkspace,
-                        onOpenWorkspace = onOpenRemoteWorkspace,
-                        onWorkspaceTool = onWorkspaceTool,
-                    )
-            }
-        }
-
-        // Over the list, not after it: the 84dp tail the list reserves is what
-        // keeps the last conversation from ending up underneath this.
+    // The rail is chrome, not another page: it paints the desktop client's
+    // `surface.chrome` itself and hands every unstyled descendant the matching
+    // ink, so nothing inside has to remember which layer it is on.
+    CompositionLocalProvider(LocalContentColor provides bitFunColors.sidebar.ink) {
         Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
+            modifier = modifier
+                .fillMaxSize()
+                .background(bitFunColors.sidebar.background)
+                .testTag(SIDEBAR_TEST_TAG),
         ) {
-            if (signedIn) {
-                SidebarAuthenticatedFooter({ toolsPicker = true }, onOpenSettings)
-            } else {
-                SidebarSignedOutFooter(
-                    showScan = connectionPhase != ConnectionPhase.CONNECTED,
-                    onScanDesktop = onScanDesktop,
-                    onOpenAccount = onOpenAccount,
-                )
+            // No spacedBy: the MiniApps row carries its own 4dp/8dp rhythm, and a
+            // column-level gap on top of it would push the section header away.
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(start = 20.dp, end = 20.dp, top = 0.dp, bottom = 16.dp),
+            ) {
+                if (signedIn) {
+                    SidebarAuthenticatedHeader(searchOpen, query, onQueryChange, onToggleSearch)
+                } else {
+                    Text(
+                        stringResource(R.string.app_name),
+                        style = MaterialTheme.typography.titleLarge,
+                        color = bitFunColors.sidebar.ink,
+                    )
+                }
+
+                com.bitfun.mobile.app.ui.miniapps.MiniAppsButton(sidebar = true)
+
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(bottom = 142.dp)) {
+                        SidebarRemoteWorkspaceSection(
+                            connectionPhase = connectionPhase,
+                            controlSource = remoteControlSource,
+                            devices = remoteDevices,
+                            selectedDeviceId = remoteSelectedDeviceId,
+                            deviceName = remoteDeviceName,
+                            remoteState = remoteState,
+                            workspaceState = workspaceState,
+                            workspaceDirectory = workspaceDirectory,
+                            selectedSessionId = remoteSelectedSessionId.takeIf { remoteActive },
+                            onConnect = onConnectDesktop,
+                            onRetryActive = onRetryRemoteDevice,
+                            onRefreshDevices = onRefreshRemoteDevices,
+                            refreshingDevices = refreshingRemoteDevices,
+                            directoryRefreshError = directoryRefreshError,
+                            onSelectDevice = onSelectRemoteDevice,
+                            onOpenSession = onOpenRemoteSession,
+                            onOpenActions = { row, anchor ->
+                                remoteActionAnchor = anchor
+                                remoteActionSession = row
+                            },
+                            onCreateInWorkspace = onCreateRemoteInWorkspace,
+                            onOpenWorkspace = onOpenRemoteWorkspace,
+                            onExpandWorkspace = onExpandRemoteWorkspace,
+                            onRetryWorkspaceSessions = onRetryRemoteWorkspaceSessions,
+                            onAddWorkspace = onAddRemoteWorkspace,
+                            onWorkspaceTool = onWorkspaceTool,
+                        )
+                }
+
+            }
+
+            // Over the list, not after it: the 84dp tail the list reserves is what
+            // keeps the last conversation from ending up underneath this.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
+            ) {
+                if (signedIn) {
+                    SidebarAuthenticatedFooter({ onWorkspaceTool("", null, false) }, onOpenSettings)
+                } else {
+                    SidebarSignedOutFooter(onOpenAccount = onOpenAccount)
+                }
             }
         }
     }

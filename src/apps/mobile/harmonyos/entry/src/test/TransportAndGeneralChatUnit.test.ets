@@ -97,7 +97,9 @@ import {
   CloudAccountDevice,
   CloudProvisionedDevice,
   CloudAccountRequestError,
-  CloudAccountSession
+  CloudAccountSession,
+  CloudAccountTransportError,
+  retryableAuthorizationPollError
 } from '../main/ets/services/CloudAccountClient';
 import {
   CloudAccountSessionStore,
@@ -587,21 +589,37 @@ class AccountDeviceSwitchHarness {
 
 export default function transportAndGeneralChatUnitTest() {
   describe('Account device links', () => {
+    /**
+     * The sign-in poll runs for the minutes the user spends in a browser and a
+     * mail app, which is where a phone most reliably drops a connection. A
+     * single failure there used to end the sign-in and send them back to the
+     * start, so a transport failure or a relay that is briefly unwilling has to
+     * cost one interval, while a refusal the relay meant still stops the loop.
+     */
+    it('keeps polling for sign-in through transport failures but not refusals', 0, () => {
+      expect(retryableAuthorizationPollError(new CloudAccountTransportError(2300007))).assertTrue();
+      expect(retryableAuthorizationPollError(new CloudAccountRequestError('too many polls', 429))).assertTrue();
+      expect(retryableAuthorizationPollError(new CloudAccountRequestError('relay down', 503))).assertTrue();
+      expect(retryableAuthorizationPollError(new CloudAccountRequestError('denied', 401))).assertFalse();
+      expect(retryableAuthorizationPollError(new CloudAccountRequestError('bad request', 400))).assertFalse();
+      expect(retryableAuthorizationPollError(new Error('unparseable relay response'))).assertFalse();
+    });
+
     it('uses the same device selector for official and LAN endpoints', 0, () => {
-      for (const endpoint of ['https://remote.bitfun.com/v/1.0.1', 'http://192.168.1.10:9700']) {
+      for (const endpoint of ['https://remote.openbitfun.com/v/1.0.2', 'http://192.168.1.10:9700']) {
         const parsed = accountDeviceLink(`${endpoint}/#/pair?did=desktop-1`);
         expect(parsed?.deviceId).assertEqual('desktop-1');
         expect(parsed?.relayUrl).assertEqual(endpoint);
       }
     });
     it('rejects credentials, legacy rooms, duplicate targets and public lookalikes', 0, () => {
-      const prefix = 'https://remote.bitfun.com/v/1.0.1/#/pair?';
+      const prefix = 'https://remote.openbitfun.com/v/1.0.2/#/pair?';
       for (const suffix of ['did=desktop-1&pk=untrusted', 'did=desktop-1&relay=evil',
         'did=desktop-1&did=desktop-2', 'did=%00', 'did=%ZZ', 'room=old&pk=old']) {
         expect(accountDeviceLink(prefix + suffix)).assertUndefined();
       }
       expect(accountDeviceLink('https://evil.test/v/1.0.0/#/pair?did=desktop-1')).assertUndefined();
-      expect(accountDeviceLink('https://remote.bitfun.com@evil.test/v/1.0.0/#/pair?did=desktop-1')).assertUndefined();
+      expect(accountDeviceLink('https://remote.openbitfun.com@evil.test/v/1.0.0/#/pair?did=desktop-1')).assertUndefined();
     });
   });
 
@@ -638,7 +656,7 @@ export default function transportAndGeneralChatUnitTest() {
   describe('RemoteSessionManager account connection', () => {
     it('loads account device sessions through either relay endpoint', 0, async () => {
       const manager = new RemoteSessionManager();
-      for (const endpoint of ['https://remote.bitfun.com/v/1.0.1', 'http://192.168.1.10:9700']) {
+      for (const endpoint of ['https://remote.openbitfun.com/v/1.0.2', 'http://192.168.1.10:9700']) {
         const result = await manager.connectAccountDevice(new RecordingAccountDeviceClient(), endpoint,
           { token: 'token', userId: 'account-user', masterKey: new Uint8Array(32) }, 'desktop-device');
         expect(result.workspace.path).assertEqual('/account-workspace');
@@ -1053,7 +1071,7 @@ export default function transportAndGeneralChatUnitTest() {
     it('still gates Remote chat when the desktop connection is unavailable', 0, () => {
       expect(ChatComposerPolicy.canSend('运行任务', 0, false, true, 'failed')).assertEqual(false);
       expect(ChatComposerPolicy.canSend('运行任务', 0, false, true, 'connected')).assertEqual(true);
-      expect(ChatComposerPolicy.canSend('运行任务', 0, false, true, 'reconnecting')).assertEqual(true);
+      expect(ChatComposerPolicy.canSend('运行任务', 0, false, true, 'reconnecting')).assertEqual(false);
     });
 
     it('lets a draft outrank a running turn where the message can be handed over', 0, () => {
@@ -1538,15 +1556,15 @@ export default function transportAndGeneralChatUnitTest() {
 
   describe('ModelProviderGeneralChatAdapter', () => {
     it('infers provider protocol and request URL without a protocol setting', 0, () => {
-      const bitFunProtocol = ModelProviderGeneralChatAdapter.resolveProtocol('https://api.bitfun.com');
+      const bitFunProtocol = ModelProviderGeneralChatAdapter.resolveProtocol('https://api.openbitfun.com');
       const customProtocol = ModelProviderGeneralChatAdapter.resolveProtocol('https://llm.example.com/v1');
 
       expect(bitFunProtocol).assertEqual(ModelProviderProtocol.Anthropic);
       expect(customProtocol).assertEqual(ModelProviderProtocol.OpenAi);
       expect(ModelProviderGeneralChatAdapter.resolveRequestUrl(
-        'https://api.bitfun.com/',
+        'https://api.openbitfun.com/',
         bitFunProtocol
-      )).assertEqual('https://api.bitfun.com/v1/messages');
+      )).assertEqual('https://api.openbitfun.com/v1/messages');
       expect(ModelProviderGeneralChatAdapter.resolveRequestUrl(
         'https://llm.example.com/v1',
         customProtocol
@@ -1561,14 +1579,14 @@ export default function transportAndGeneralChatUnitTest() {
       ));
 
       await ModelProviderGeneralChatAdapter.probeConfiguration(
-        'https://api.bitfun.com/',
+        'https://api.openbitfun.com/',
         'sk-test-token',
         'deepseek-v4-flash',
         transport
       );
 
       expect(transport.requests.length).assertEqual(1);
-      expect(transport.requests[0].url).assertEqual('https://api.bitfun.com/v1/messages');
+      expect(transport.requests[0].url).assertEqual('https://api.openbitfun.com/v1/messages');
       expect(transport.requests[0].apiKey).assertEqual('sk-test-token');
       expect(transport.requests[0].protocol).assertEqual(ModelProviderProtocol.Anthropic);
       expect(transport.requests[0].body.indexOf('"max_tokens":1')).assertLarger(-1);
@@ -1582,7 +1600,7 @@ export default function transportAndGeneralChatUnitTest() {
       let message = '';
       try {
         await ModelProviderGeneralChatAdapter.probeConfiguration(
-          'https://api.bitfun.com',
+          'https://api.openbitfun.com',
           'sk-test-token',
           'deepseek-v4-flash',
           transport
@@ -1630,7 +1648,7 @@ export default function transportAndGeneralChatUnitTest() {
     it('sends attached images on the Anthropic-compatible local chat path', 0, async () => {
       const config = new InMemorySettingsConfigStore();
       config.snapshotResult = {
-        apiUrl: 'https://api.bitfun.com',
+        apiUrl: 'https://api.openbitfun.com',
         modelName: 'vision-model',
         hasApiKey: true
       };
@@ -1685,7 +1703,7 @@ export default function transportAndGeneralChatUnitTest() {
     it('replays prior local-chat images when continuing a conversation', 0, async () => {
       const config = new InMemorySettingsConfigStore();
       config.snapshotResult = {
-        apiUrl: 'https://api.bitfun.com',
+        apiUrl: 'https://api.openbitfun.com',
         modelName: 'vision-model',
         hasApiKey: true
       };
@@ -1882,22 +1900,35 @@ export default function transportAndGeneralChatUnitTest() {
     it('builds workspace and assistant commands', 0, () => {
       expectCommandJson(RemoteCommandFactory.getWorkspaceInfo(), '{"cmd":"get_workspace_info"}');
       expectCommandJson(RemoteCommandFactory.listRecentWorkspaces(), '{"cmd":"list_recent_workspaces"}');
+      // Pre-ID references keep the legacy path projection.
       expectCommandJson(RemoteCommandFactory.setWorkspace('/repo'), '{"cmd":"set_workspace","path":"/repo"}');
+      expectCommandJson(
+        RemoteCommandFactory.setWorkspace('/repo', undefined, 'saved', 'host'),
+        '{"cmd":"set_workspace","path":"/repo","remote_connection_id":"saved","remote_ssh_host":"host"}'
+      );
       expectCommandJson(RemoteCommandFactory.listAssistants(), '{"cmd":"list_assistants"}');
       expectCommandJson(RemoteCommandFactory.setAssistant('/assistant'), '{"cmd":"set_assistant","path":"/assistant"}');
+      // An identified reference sends only its ID so the host cannot fall back to the path.
+      expectCommandJson(RemoteCommandFactory.setWorkspace('/repo', 'ws-1', 'saved', 'host'), '{"cmd":"set_workspace","workspace_id":"ws-1"}');
+      expectCommandJson(RemoteCommandFactory.setAssistant('/assistant', 'ws-2'), '{"cmd":"set_assistant","workspace_id":"ws-2"}');
     });
 
     it('builds session list and creation commands without unsupported fields', 0, () => {
-      const listCommand = RemoteCommandFactory.listSessions('/repo', 8, 16, '  auth  ');
+      const listCommand = RemoteCommandFactory.listSessions({ path: '/repo' }, 8, 16, '  auth  ');
       expectCommandJson(listCommand, '{"cmd":"list_sessions","workspace_path":"/repo","limit":8,"offset":16,"query":"auth"}');
       expect(JSON.stringify(listCommand).indexOf('agent_type')).assertEqual(-1);
+      const sshList = RemoteCommandFactory.listSessions({ path: '/repo', remoteConnectionId: 'saved', remoteSshHost: 'host' }, 8, 0, '');
+      expectCommandJson(sshList, '{"cmd":"list_sessions","workspace_path":"/repo","limit":8,"offset":0,"remote_connection_id":"saved","remote_ssh_host":"host"}');
+      const identifiedList = RemoteCommandFactory.listSessions(
+        { workspaceId: 'ws-1', path: '/repo', remoteConnectionId: 'saved', remoteSshHost: 'host' }, 8, 16, 'auth');
+      expectCommandJson(identifiedList, '{"cmd":"list_sessions","workspace_id":"ws-1","limit":8,"offset":16,"query":"auth"}');
 
       const createCommand = RemoteCommandFactory.createSession({
         agentType: 'cowork',
         title: '',
         instruction: 'hello'
       }, '/repo');
-      expectCommandJson(createCommand, '{"cmd":"create_session","agent_type":"cowork","session_name":"Remote Cowork Session","workspace_path":"/repo","remote_connection_id":""}');
+      expectCommandJson(createCommand, '{"cmd":"create_session","agent_type":"cowork","session_name":"","workspace_path":"/repo","remote_connection_id":""}');
       expect(JSON.stringify(createCommand).indexOf('run_mode')).assertEqual(-1);
 
       const minimal = RemoteCommandFactory.createSession({
@@ -1908,6 +1939,11 @@ export default function transportAndGeneralChatUnitTest() {
       }, '/repo');
       expect(minimal.agent_type || '').assertEqual('minimal');
       expect(ultimate.agent_type || '').assertEqual('Ultra');
+
+      const identified = RemoteCommandFactory.createSession({
+        agentType: 'code', title: '', instruction: '', workspaceId: 'ws-1', remoteConnectionId: 'saved', remoteSshHost: 'host'
+      }, '/repo');
+      expectCommandJson(identified, '{"cmd":"create_session","agent_type":"code","session_name":"","workspace_id":"ws-1"}');
     });
 
     it('builds message and polling commands', 0, () => {
@@ -2009,6 +2045,27 @@ export default function transportAndGeneralChatUnitTest() {
       expect(visible.length).assertEqual(1);
       expect(visible[0].id).assertEqual('native-session');
       expect(raw.length).assertEqual(3);
+    });
+
+    it('hides child sessions so Desktop side questions are not standalone rows', 0, () => {
+      const items: SessionItemResponse[] = [{
+        session_id: 'parent-session',
+        name: 'iOS sidebar spacing'
+      }, {
+        session_id: 'btw-session',
+        name: 'why did it grep with bash',
+        parent_session_id: 'parent-session',
+        relationship_kind: 'btw'
+      }];
+
+      const visible = RemoteResponseMapper.sessions(items);
+      const raw = RemoteResponseMapper.allSessions(items);
+
+      expect(visible.length).assertEqual(1);
+      expect(visible[0].id).assertEqual('parent-session');
+      expect(raw.length).assertEqual(2);
+      expect(raw[1].parentSessionId).assertEqual('parent-session');
+      expect(raw[1].relationshipKind).assertEqual('btw');
     });
 
     it('maps alternate session time fields', 0, () => {

@@ -800,6 +800,7 @@ mod tests {
             order: 0,
             actions,
             source: bitfun_core_types::ReasoningPresetSource::ModelConfig,
+            effective_effort: None,
             execution_provider: None,
             execution_model: None,
         }
@@ -817,6 +818,7 @@ mod tests {
             order: 0,
             actions,
             source: bitfun_core_types::ReasoningPresetSource::ModelsDev,
+            effective_effort: None,
             execution_provider: Some(execution_provider.to_string()),
             execution_model: Some(execution_model.to_string()),
         }
@@ -832,6 +834,7 @@ mod tests {
             order: 0,
             actions,
             source: bitfun_core_types::ReasoningPresetSource::AdapterFallback,
+            effective_effort: None,
             execution_provider: Some(GENERIC_REASONING_PROVIDER_ID.to_string()),
             execution_model: Some("unlisted-model".to_string()),
         }
@@ -1507,8 +1510,8 @@ mod tests {
     fn build_bitfun_openai_request_body_adds_glm_52_reasoning_effort() {
         let mut client = make_test_client("openai", None);
         client.config.name = "bitfun".to_string();
-        client.config.base_url = "https://api.bitfun.com/v1".to_string();
-        client.config.request_url = "https://api.bitfun.com/v1/chat/completions".to_string();
+        client.config.base_url = "https://api.openbitfun.com/v1".to_string();
+        client.config.request_url = "https://api.openbitfun.com/v1/chat/completions".to_string();
         client.config.model = "glm-5.2".to_string();
         client.config.context_window = 1_000_000;
         let client = client.with_reasoning_preset(&relayed_reasoning_preset(
@@ -1536,8 +1539,8 @@ mod tests {
     fn build_bitfun_openai_request_body_disables_glm_52_reasoning() {
         let mut client = make_test_client("openai", None);
         client.config.name = "bitfun".to_string();
-        client.config.base_url = "https://api.bitfun.com/v1".to_string();
-        client.config.request_url = "https://api.bitfun.com/v1/chat/completions".to_string();
+        client.config.base_url = "https://api.openbitfun.com/v1".to_string();
+        client.config.request_url = "https://api.openbitfun.com/v1/chat/completions".to_string();
         client.config.model = "glm-5.2".to_string();
         client.config.context_window = 1_000_000;
         let client = client.with_reasoning_preset(&relayed_reasoning_preset(
@@ -1563,8 +1566,8 @@ mod tests {
     fn build_bitfun_openai_request_body_preserves_deepseek_flash_low_effort() {
         let mut client = make_test_client("openai", None);
         client.config.name = "bitfun".to_string();
-        client.config.base_url = "https://api.bitfun.com/v1".to_string();
-        client.config.request_url = "https://api.bitfun.com/v1/chat/completions".to_string();
+        client.config.base_url = "https://api.openbitfun.com/v1".to_string();
+        client.config.request_url = "https://api.openbitfun.com/v1/chat/completions".to_string();
         client.config.model = "deepseek-v4-flash".to_string();
         let client = client.with_reasoning_preset(&relayed_reasoning_preset(
             "low",
@@ -1591,8 +1594,8 @@ mod tests {
     fn build_bitfun_openai_request_body_maps_deepseek_pro_xhigh_to_max() {
         let mut client = make_test_client("openai", None);
         client.config.name = "bitfun".to_string();
-        client.config.base_url = "https://api.bitfun.com/v1".to_string();
-        client.config.request_url = "https://api.bitfun.com/v1/chat/completions".to_string();
+        client.config.base_url = "https://api.openbitfun.com/v1".to_string();
+        client.config.request_url = "https://api.openbitfun.com/v1/chat/completions".to_string();
         client.config.model = "deepseek-v4-pro".to_string();
         let client = client.with_reasoning_preset(&relayed_reasoning_preset(
             "max",
@@ -1619,8 +1622,8 @@ mod tests {
     fn build_bitfun_openai_request_body_disables_deepseek_reasoning() {
         let mut client = make_test_client("openai", None);
         client.config.name = "bitfun".to_string();
-        client.config.base_url = "https://api.bitfun.com/v1".to_string();
-        client.config.request_url = "https://api.bitfun.com/v1/chat/completions".to_string();
+        client.config.base_url = "https://api.openbitfun.com/v1".to_string();
+        client.config.request_url = "https://api.openbitfun.com/v1/chat/completions".to_string();
         client.config.model = "deepseek-v4-pro".to_string();
         let client = client.with_reasoning_preset(&relayed_reasoning_preset(
             "off",
@@ -1996,8 +1999,8 @@ mod tests {
     fn build_bitfun_anthropic_request_body_adds_glm_52_reasoning_effort() {
         let client = AIClient::new(AIConfig {
             name: "bitfun".to_string(),
-            base_url: "https://api.bitfun.com".to_string(),
-            request_url: "https://api.bitfun.com/v1/messages".to_string(),
+            base_url: "https://api.openbitfun.com".to_string(),
+            request_url: "https://api.openbitfun.com/v1/messages".to_string(),
             api_key: "test-key".to_string(),
             model: "glm-5.2".to_string(),
             format: "anthropic".to_string(),
@@ -2038,8 +2041,8 @@ mod tests {
     fn build_bitfun_anthropic_request_body_disables_glm_52_reasoning() {
         let client = AIClient::new(AIConfig {
             name: "bitfun".to_string(),
-            base_url: "https://api.bitfun.com".to_string(),
-            request_url: "https://api.bitfun.com/v1/messages".to_string(),
+            base_url: "https://api.openbitfun.com".to_string(),
+            request_url: "https://api.openbitfun.com/v1/messages".to_string(),
             api_key: "test-key".to_string(),
             model: "glm-5.2".to_string(),
             format: "anthropic".to_string(),
@@ -2156,8 +2159,8 @@ mod tests {
     fn build_bitfun_anthropic_request_body_preserves_deepseek_flash_low_effort() {
         let client = AIClient::new(AIConfig {
             name: "bitfun".to_string(),
-            base_url: "https://api.bitfun.com".to_string(),
-            request_url: "https://api.bitfun.com/v1/messages".to_string(),
+            base_url: "https://api.openbitfun.com".to_string(),
+            request_url: "https://api.openbitfun.com/v1/messages".to_string(),
             api_key: "test-key".to_string(),
             model: "deepseek-v4-flash".to_string(),
             format: "anthropic".to_string(),

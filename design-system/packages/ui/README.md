@@ -18,6 +18,43 @@ export function Example() {
 
 The package owns component anatomy, behavior, accessibility, and stable variants. It does not own theme selection persistence, product state, routes, locale resources, or platform APIs.
 
+## Pane layouts
+
+`SplitView` retains its primary and secondary content hosts across placement,
+visibility and `layout="split" | "overlay"` changes. Split layout is the default:
+`rightSize` controls the physical right slot. In overlay layout, `rightSize`
+controls the secondary pane on `secondarySide`, while the primary pane fills the
+container. `minLeftSize` reserves uncovered space in overlay layout; use zero
+when the secondary pane may cover the full width. The resize handle follows the
+secondary pane's inner edge and keeps keyboard and pointer directions aligned.
+
+This is a persistent, non-modal pane layout inside the component's isolated
+stacking context. It does not add a backdrop, focus trap or outside-click
+dismissal. Floating menus and dialogs within either pane continue to use the
+document overlay coordinator. Owners control visibility with `mode` and persist
+split and overlay sizes independently when those preferences differ.
+
+For movable tab hosts, pass a flat keyed deck through `surfaces` and render each
+view inside `SplitViewSurface pane="primary" | "secondary"`. Changing `pane` keeps
+the same React/DOM host. Inactive surfaces stay mounted but are inert and hidden
+from accessibility; F6 navigates visible surfaces. Do not reparent portals between
+pane containers to simulate a move.
+
+Use the `header` render function for chrome aligned with the divider. Its
+`columnClassName` supplies layout-owned columns tied to live resizing and clamping,
+not a second stored width. Apply it to a three-column header (primary, separator,
+secondary); keep padding inside those columns. Header layout works without CSS
+subgrid. The primitive remains independent of product tabs and stores.
+
+Place `SplitViewPrimaryDock` inside the primary content's positioned container
+for an absolute input or toolbar that must avoid the secondary overlay. Its
+width and placement follow the displayed pane size, including pointer drags and
+container clamping, without resizing the primary pane. The dock passes pointer
+events through; interactive children must enable pointer events. Keep
+`minLeftSize` large enough for the dock's controls; on narrow containers this
+reservation shrinks to half the available width. Dock contents stay mounted
+when visibility or placement changes.
+
 Floating dialog/sheet overlays, menu popovers, select/combobox popups and tooltips declare
 `data-bitfun-native-webview-occlusion` on their rendered floating surface.
 Native hosts use its visible bounds to temporarily hide overlapping child views;
@@ -105,6 +142,17 @@ do not add press scaling in components or host-wide semantic selectors.
 Explicit content zoom, loading indicators, and enter/exit motion remain owned
 by the component that needs them.
 
+## Icons
+
+Use `Icon` for shared size, tone and accessible labels. General-purpose symbols
+use Lucide. The named `edit` icon uses the simple `Pen` outline without Pencil's
+cap divider, keeping compact action groups visually light.
+Automatic reasoning uses the authored `reasoning-auto` SVG mark with
+a `currentColor` mask so it follows the active theme. Manual reasoning levels use
+the product slider and text labels.
+Product consumers own capability filtering, translated names and
+availability; the icon catalog does not imply runtime support for these modes.
+
 ## Native scrollbars
 
 `styles.css` owns scrollbar presentation inside `ThemeRoot` (or
@@ -188,6 +236,18 @@ labels use their complete rendered text in the tooltip. A supplied `title`
 overrides that text; `title=""` opts out when a surrounding native title owns the
 content. An explicit enclosing `Tooltip` suppresses automatic nested tooltips.
 Do not use marquee as the sole way to access information on touch surfaces.
+
+Overflow measurement is deferred to a shared animation-frame queue per window.
+Mount, content, resize, and font notifications coalesce; all queued labels read
+geometry before publishing state. Unmounted labels cancel their pending work.
+Overflow indicators and automatic tooltips become available after that frame,
+while the complete accessible text is present immediately. This avoids forcing
+layout separately inside each label's React mount effect.
+Requests made during a batch survive for the next frame; cancellation also
+discards unpublished results. A failing label does not abort other labels,
+and its error is reported asynchronously. This scheduling contract does not
+claim an overall scrolling speedup; first-frame visual behavior requires
+browser validation.
 
 Multi-line descriptions should normally wrap. Editable fields, source code,
 structured paths that need to preserve their suffix, and native controls keep
@@ -309,7 +369,14 @@ routing, and device or session operations stay in the consuming application.
 
 `Checkbox appearance="native"` uses the visible browser checkbox, retaining its
 native focus, disabled, checked, indeterminate, and form semantics. The default
-`custom` presentation remains unchanged. Both presentations share sm/md/lg
+`custom` presentation uses `color.control.highlight.background` for checked and
+indeterminate boxes and reuses `color.control.switch.thumb` for their marks.
+This matches the Switch's filled highlight and indicator pairing: white marks
+in ordinary light/dark themes, with a dark mark on the high-contrast dark theme's
+light highlight. `color.control.highlight.content` belongs to content on a
+highlighted surface and has a dark value in ordinary themes. Select and Combobox
+instead use the highlight color for a standalone check on a neutral surface.
+Forced colors use the system Highlight/HighlightText pair. Both presentations share sm/md/lg
 sizing and the same label and description slots; native colors belong to the
 browser, with optional consumer `accent-color` styling.
 
@@ -346,7 +413,55 @@ focus ring. Use it for toolbar, dialog, and row utilities. `fill` and `primary`
 keep an opaque backing surface for persistent emphasis. Disabled quiet actions
 remain transparent and do not show hover or pressed feedback.
 
-Use `size="xs"` for 22px square controls with 14px glyphs and a 4px radius.
+`Button variant="glass"` and `IconButton variant="glass"` share a translucent, blurred action over existing
+content. It uses a low-opacity tint of the shared raised surface, a softened
+subtle border and subtle blur, without an outer shadow. Hover and pressed states
+retain translucency. Unsupported blur, increased contrast and reduced transparency
+use a solid surface.
+The button itself owns the glass material and its reveal transition so an opaque
+backing or fading parent cannot prevent it from sampling the content behind it.
+
+### Capsule actions
+
+Wrap a pill-shaped `Button`, inline `Input`, or tag label in `Capsule`, matching
+its `size` to the child. Pass one `IconButton` (optionally inside `Tooltip`) to
+`action`. The slot selects circular glass presentation and compact geometry;
+the consumer keeps the action's accessible label, tone, disabled/loading state,
+and callbacks. The action is a sibling of the primary control, never a nested
+button. Pointer hover or focus within the capsule reveals it; touch keeps it
+available. Its right inset equals the top and bottom clearance at every density.
+
+```tsx
+<Capsule size="sm" action={
+  <IconButton aria-label="Remove provider" icon={<Icon name="delete" />}
+    tone="danger" onClick={requestRemoval} />
+}>
+  <Button size="sm" variant="outline" onClick={editProvider}>Provider name</Button>
+</Capsule>
+```
+
+The action floats over the intact label: do not clip, mask, hide, resize, or add
+action padding to its text when revealing the icon. Normal constrained-width
+`OverflowText` behavior remains available. `TabGroup.endAction` and removable
+`MultiSelect` tags share this contract, including existing native tab buttons.
+Leading identity icons stay in their label layout; this contract governs the
+independent trailing actions. Product CSS owns placement of capsules, not their
+action offsets, backgrounds, or visibility.
+
+For supplemental label annotations, compose `Tooltip trigger="hover-focus"
+openOnClick` with `IconButton variant="annotation" size="xs"` and an `info`
+icon. The annotation uses `color.content.muted` at rest and
+`color.content.secondary` on hover or keyboard focus, without a resting fill or
+border. Its glyph uses `control.icon.sizeXs` (12px); the existing xs hit area
+(22px), focus ring, disabled behavior, and shared icon stroke remain intact.
+Do not reduce opacity, stroke weight, or hit geometry in product CSS. Place the
+annotation beside the label, using `Field.labelAction` for form fields, and
+supply a localized accessible label. Hover/focus previews the explanation;
+click or keyboard activation pins it until dismissal, so touch users can read
+it too. Keep required instructions and validation messages visible in the
+field; annotations are for supplemental explanations.
+
+Use `size="xs"` for 22px square controls with 14px glyphs (12px for annotations) and a 4px radius.
 `size="standard" shape="circle" variant="outline"` provides the 30px outlined
 circle with a 16px glyph. Quiet and outline controls use the shared neutral
 hover surface for both hover and pressed states; outline keeps its border when
@@ -385,7 +500,10 @@ and ref interface, using the same Lucide MessageCircle glyph.
 ## Advanced selection and menus
 
 Use `Select` for simple options; its hidden native control preserves form
-participation. `Combobox` adds searchable single
+participation. `width="content"` fits the collapsed control to the selected label;
+`popupWidth="content"` independently fits the expanded surface to its options,
+within the viewport. The defaults remain a full-width control and a popup that
+matches the trigger. `Combobox` adds searchable single
 selection, grouped options, explicit custom-value creation and async loading
 states. `MultiSelect` owns multiple selection, removable tags and select-all.
 Controlled values are authoritative; option discovery remains host-owned.
@@ -412,10 +530,14 @@ padding uses `space.component.inline` and icon-to-text spacing uses `space.1`.
 An absolute-positioned search host must reserve that same search-row height.
 The built-in clear action uses the shared square xs quiet-button hover feedback.
 
+Use `Input size="xs" shape="pill"` for inline capsule editing. Its height,
+padding, and metadata type match compact `Button size="xs"` capsules; keep
+capsule placement and input width in the consumer layout.
+
 Choose `size` explicitly when composing form rows: selectors default to `md`,
-while `Input` defaults to `sm`. Except for SearchField's dedicated row contract,
-the shared `control.height.sm/md/lg` tokens and
-active density own the actual heights; consumers must not replace them with
+while `Input` defaults to `sm`. For ordinary `sm/md/lg` fields, apart from
+SearchField's dedicated row contract, the shared `control.height.sm/md/lg`
+tokens and active density own the actual heights; consumers must not replace them with
 page-level heights or padding overrides. Picker bodies stay single-line and
 token-sized, with labels and validation messages outside that height. Select
 keeps its in-flow anchor mounted when the unified popup covers it, so opening
@@ -427,6 +549,8 @@ inside one border and shadow. Flipping above the field keeps the search header
 beside the anchor. Labels, validation, and the field id follow the active input;
 Escape or selection restores the trigger, and Tab continues from its position
 in the form. Search, typed values, and multiple selection remain component-owned.
+Joined picker surfaces use the default neutral border on focus, matching the
+quiet search treatment while preserving validation and forced-color states.
 `SearchField variant="embedded"` removes its standalone pill surface for these
 compositions; its container must supply padding, height, and visible focus
 treatment. Standalone SearchField pills use a subtle neutral border, increasing
@@ -555,6 +679,14 @@ dynamic metadata, and `actions` contains controls revealed on hover or keyboard
 focus. Use `ToolCardChangeSummary` for added/removed counts; domain icons and
 interaction affordances belong in `actions`, not in the summary.
 
+The summary row insets both ends with one value (`--_tool-card-summary-inset`),
+so trailing metadata keeps the same distance to the card edge as the leading
+icon or label. The reveal gutter of `actions` belongs to the action region
+itself: while hidden it occupies no row space, and while revealed it compensates
+for its own corner gutter instead of shrinking the row inset. A consumer slot
+that renders empty (a fragment whose conditions are all false) stays inert: it
+adds no row gap and no divider for the trailing status icon.
+
 Concrete tool-card views compose those frameworks without importing product
 state. The published families cover file and command execution, search and web
 results, agent and session activity, Git and review summaries, page lifecycle,
@@ -574,6 +706,11 @@ leading roles scale with user typography. FieldGroup uses the form group tint,
 retaining its existing row padding, dividers, and radius. The Patterns form
 specimen shows both orientations and long values over a tinted container.
 
+FormSection keeps descriptions below the title by default. Use
+`descriptionLayout="inline"` for compact summaries that share one line with
+the title. The description uses OverflowText while the heading and actions
+remain independent.
+
 Menu and Listbox row surfaces are separated by `overlay.menu.rowGap` (2px),
 including grouped options and the Listbox used by Select, Combobox and MultiSelect.
 This is distinct from `itemGap` (icon-to-label spacing) and `sectionGap` (8px).
@@ -590,6 +727,12 @@ Product code owns positioning and viewport limits, and must not patch private
 list/section-items/group-options gaps. A deliberate density variation belongs
 on the owning surface via `--bitfun-overlay-menu-row-gap`.
 
+Menus use `overlay.menu.inlineSize` by default. `Menu` / `MenuPopover` accept
+`inlineSize="content"` for short, product-owned surfaces such as a context menu:
+the surface then hugs its widest row, stays at or above
+`overlay.menu.minInlineSize`, and never exceeds the fixed token. Long menus that
+share a column with the same triggering control keep the fixed width.
+
 ActionItem hover and pressed surfaces use the semantic neutral hover fill;
 pressed text remains semibold. Menu and navigation captions consume the final
 caption color directly, avoiding a second opacity multiplier. The nested-menu
@@ -599,9 +742,11 @@ Compact tabs use `size="sm"` (30px, 14px icons, 4px icon gap); standard tabs ret
 
 Dialog titles use 24px bold type with their own 29px line box and normal tracking. `DialogHeader` and `DialogFooter` omit separators by default; pass `separator` for a deliberate divider. A direct `DialogBody` sibling of `DialogFooter appearance="floating"` owns the trailing scroll inset automatically. The floating footer provides the 68px centered action area and a masked blur/gradient using the current theme surface; reduced transparency and forced colors use an opaque fallback. Keep scrollable form content inside `DialogBody` instead of adding a second viewport with independent footer spacing.
 
+`ConfirmDialog secondaryActionPlacement="start"` presents an alternative action as a text button at the start of the footer, with cancel and confirm grouped at the end. The groups wrap when space is limited, keeping cancel and confirm together. The default `inline` placement retains the standard action order and outline secondary button.
+
 Extra-large (`xl`) dialogs have an 800px maximum width and continue shrinking within the viewport gutter. Provider editing uses the floating footer; small workspace creation retains its attached footer and existing button/input sizes. The Lab workspace pattern uses local sample paths and callbacks only.
 
-Keep `Dialog` and `Sheet` mounted and set `open={false}` to close them. They retain the last committed children during the exit animation, with interaction disabled, so clearing an owner selection does not collapse the surface. Reopening uses the latest children and cancels the pending exit. Owners that conditionally mount an editor can remove it in `onExitComplete`, which runs once after the surface unmounts.
+Keep `Dialog` and `Sheet` mounted and set `open={false}` to close them. They retain the last committed children, size, placement, classes, and styles during the exit animation, with interaction disabled, so clearing an owner selection does not resize the surface. Reopening uses the latest presentation and cancels the pending exit. Owners that conditionally mount an editor can remove it in `onExitComplete`, which runs once after the surface unmounts.
 
 PageHeader `md` uses the settings title with a primary 15px description; `display` uses the welcome heading and medium 17px introduction with a 12px gap. ActionCard uses 12px padding, section-heading typography (15px semibold), and a primary 13px single-line action description. Its inset outline does not inflate the 62px medium minimum height; longer content keeps the independent sibling actions and OverflowText behavior.
 
@@ -631,3 +776,28 @@ Collapsed ambient tool runs use their 22px minimum line boxes without extra
 spacing between adjacent rows; expanded/prominent cards retain the section gap.
 The enclosing composition owns those gaps, and card bodies own their internal
 padding. The Lab tool sequence demonstrates both arrangements with real cards.
+
+`FlowChatTurnMetrics` pairs total usage with an input-cache ring and a four-level
+output-speed glyph. It uses `Icon` with Lucide `Circle` and `Signal` variants,
+the shared FlowChat metadata typography, and semantic colors. Total usage and the
+cache ring form one unit, hidden only when both values are missing. An unknown
+cache ratio retains a neutral dashed ring; a missing total adds no placeholder.
+Other unavailable metrics and detail rows are omitted; reported zero remains
+visible. The host owns measurements, speed thresholds and localized descriptions. `FlowChatMetric` and
+`FlowChatMetricDetails` provide the same capsule trigger and independent details
+card for elapsed time. Native button triggers support hover, focus, click and
+keyboard activation without resizing the row. `Tooltip openOnClick` opens
+immediately and keeps the card open until another trigger click, an outside
+press, Escape, or scrolling; ordinary action tooltips still dismiss on click.
+All shared Tooltips dismiss immediately on window or container scrolling,
+including click-open and cursor-following cards. Scrolling also cancels pending
+opening and clears click persistence; scrolling back does not reopen the card.
+Viewport-exit observation additionally closes cards when their trigger is clipped
+without a scroll event.
+Cards share the selected-text capsule's 80% raised surface, subtle
+half-width border, small shadow and base blur, using the existing Tooltip
+portal, positioning, dismissal and keyboard behavior.
+The outer animated surface owns both paint and backdrop blur; its content is
+transparent and unfiltered. An opaque fallback covers unsupported filters and
+reduced-transparency preferences. Tooltip declares ownership of its entrance
+motion to avoid the product's additional popup animation.

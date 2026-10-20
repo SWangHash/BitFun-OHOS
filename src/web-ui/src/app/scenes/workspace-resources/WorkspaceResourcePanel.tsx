@@ -2,10 +2,10 @@ import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore }
 import { ChevronsDownUp, FilePlus, FolderPlus, List, RotateCw } from 'lucide-react';
 import {
   Icon, IconButton, NavigationPanel, NavigationPanelBody, NavigationPanelContent,
-  NavigationPanelHeader, OverflowText, StatusPill, Tooltip,
+  OverflowText, Tooltip,
 } from '@bitfun/ui';
 import { useI18n } from '@/infrastructure/i18n';
-import { getWorkspaceDisplayName, useWorkspaceContext } from '@/infrastructure/contexts/WorkspaceContext';
+import { useWorkspaceContext } from '@/infrastructure/contexts/WorkspaceContext';
 import { getActiveSurfaceScope, onSurfaceActivated } from '@/infrastructure/peer-device/deviceSurface';
 import { globalEventBus } from '@/infrastructure/event-bus';
 import type { FileExplorerToolbarHandlers } from '@/tools/file-system';
@@ -45,8 +45,6 @@ function WorkspaceResourceContent({ resourceKey, workspace }: { resourceKey: str
   const { t, formatNumber } = useI18n('common');
   const { t: tFiles } = useI18n('panels/files');
   const { t: tTools } = useI18n('tools');
-  const { openedWorkspacesList } = useWorkspaceContext();
-  const openWorkspaceResources = useNavSceneStore(state => state.openWorkspaceResources);
   const scope = getActiveSurfaceScope();
   const terminals = useShellEntries(workspace);
   const layout = useWorkspaceResourceState(state => state.layouts[resourceKey] ?? DEFAULT_RESOURCE_LAYOUT);
@@ -106,9 +104,6 @@ function WorkspaceResourceContent({ resourceKey, workspace }: { resourceKey: str
     setPendingReveal(null);
   }, [pendingReveal, layout.filesCollapsed, layout.fileView]);
 
-  const workspaceName = getWorkspaceDisplayName(workspace);
-  const location = isRemote ? workspace?.connectionName || workspace?.sshHost || t('nav.resources.remote')
-    : scope.surfaceId === 'local' ? t('nav.resources.local') : t('nav.resources.peer');
   const error = actionError || terminals.error;
   const createTerminal = (shellType?: string, shellId?: string) => run(async () => {
     updateLayout(resourceKey, { terminalsCollapsed: false });
@@ -118,26 +113,6 @@ function WorkspaceResourceContent({ resourceKey, workspace }: { resourceKey: str
   return (
     <NavigationPanel className="bitfun-file-viewer-nav" aria-label={t('nav.resources.title')}
       data-bitfun-component="file-viewer-nav" data-bitfun-part="root" data-testid="workspace-resources">
-      <NavigationPanelHeader className="bitfun-file-viewer-nav__panel-header">
-        <div className="bitfun-file-viewer-nav__workspace" data-bitfun-component="file-viewer-nav" data-bitfun-part="workspace">
-          <button type="button" data-overflow-trigger className="bitfun-file-viewer-nav__workspace-button"
-            data-bitfun-component="file-viewer-nav" data-bitfun-part="workspaceButton"
-            disabled={openedWorkspacesList.length < 2 || busy} aria-haspopup="menu"
-            aria-label={t('nav.resources.switchWorkspace')}
-            onClick={event => showResourceMenu(event, openedWorkspacesList.map(item => ({
-              id: item.id, label: getWorkspaceDisplayName(item), icon: item.id === workspace?.id ? 'Check' : 'Folder',
-              onClick: () => openWorkspaceResources(item.id),
-            })))}>
-            <Icon name="folder" size="sm" />
-            <OverflowText className="bitfun-file-viewer-nav__workspace-name">{workspaceName || t('nav.resources.title')}</OverflowText>
-            {openedWorkspacesList.length > 1 && <Icon name="chevron-down" size="xs" />}
-          </button>
-          {workspace && <span className="bitfun-file-viewer-nav__location" data-overflow-trigger title={location}
-            data-bitfun-component="file-viewer-nav" data-bitfun-part="location">
-            <StatusPill tone="neutral">{location}</StatusPill>
-          </span>}
-        </div>
-      </NavigationPanelHeader>
       <NavigationPanelBody className="bitfun-file-viewer-nav__body">
         <NavigationPanelContent className="bitfun-file-viewer-nav__content">
           {!workspace || (isRemote && !workspace.connectionId)

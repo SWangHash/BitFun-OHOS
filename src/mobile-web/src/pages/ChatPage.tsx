@@ -1,9 +1,10 @@
+import { MobileHostQueue } from '../components/MobileHostQueue';
 import { downloadRuntimeFile } from '../services/RuntimeFileDownload';
 import { PermissionMailbox } from '../components/PermissionMailbox';
 import { QuestionInteractionContext } from "../components/ChatAskQuestionCard";
 import { ChevronDown as LucideChevronDown } from 'lucide-react';
 import React, { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { MobileIconButton } from '@bitfun/ui/mobile';
+import { MobileConfirmSheet, MobileIconButton, MobileStatus, MobileTextarea } from '@bitfun/ui/mobile';
 import { useI18n } from '../i18n';
 import { useControlTargetEpoch } from '../hooks/useControlTargetEpoch';
 import {
@@ -88,11 +89,13 @@ const ChatPage: React.FC<ChatPageProps> = ({
     currentWorkspace,
     authenticatedUserId,
     controlTarget,
+    connectionHealth,
     updateSessionName,
   } = useMobileStore();
 
   const messages = getMessages(sessionId);
   const [input, setInput] = useState('');
+  const [promptSuggestion, setPromptSuggestion] = useState<string | null>(null);
   const [liveTitle, setLiveTitle] = useState(sessionName);
   const [modelCatalog, setModelCatalog] = useState<RemoteModelCatalog | null>(null);
   const [selectedModelId, setSelectedModelId] = useState<string>('auto');
@@ -138,9 +141,13 @@ const ChatPage: React.FC<ChatPageProps> = ({
   const messagesRequestSeqRef = useRef(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+  const [transcriptHydrating, setTranscriptHydrating] = useState(true);
   const isLoadingMoreRef = useRef(false);
   const hasMoreRef = useRef(true);
   const controlTargetEpoch = useControlTargetEpoch(sessionMgr);
+  const queueSupported = sessionMgr.supportsHostCapability('dialog_queue_v1');
+  const hostQueue = useMemo(() => queueSupported ? sessionMgr.dialogQueue(sessionId) : null,
+    [sessionMgr, sessionId, controlTargetEpoch, queueSupported]);
   const cacheScope = useMemo(() => createRemoteCacheScope(
     authenticatedUserId,
     controlTarget?.deviceId ?? sessionMgr.controlTargetDeviceId,
@@ -198,6 +205,12 @@ const ChatPage: React.FC<ChatPageProps> = ({
   const [menuMessage, setMenuMessage] = useState<ChatMessage | null>(null);
   const [actionToast, setActionToast] = useState<string | null>(null);
   const [deletingMsg, setDeletingMsg] = useState(false);
+  const [rollbackTarget, setRollbackTarget] = useState<{
+    message: ChatMessage;
+    mode: 'rollback' | 'edit';
+  } | null>(null);
+  const [rollbackDraft, setRollbackDraft] = useState('');
+  const [rollbackBusy, setRollbackBusy] = useState(false);
   const msgLongPressTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const msgLongPressPosRef = useRef({ x: 0, y: 0 });
   const msgToastTimerRef = useRef<ReturnType<typeof setTimeout>>();
@@ -232,6 +245,9 @@ const ChatPage: React.FC<ChatPageProps> = ({
       setMessages(sessionId, []);
       setMenuMessage(null);
       setDeletingMsg(false);
+      setRollbackTarget(null);
+      setRollbackDraft('');
+      setRollbackBusy(false);
       setActionToast(null);
       setInfoToast(null);
       setExpandedMsgIds(new Set());
@@ -627,6 +643,112 @@ const ChatPage: React.FC<ChatPageProps> = ({
     }
   }, [cacheScope, menuMessage, sessionId, showMsgToast, t]);
 
+  const openRollbackSheet = useCallback((mode: 'rollback' | 'edit') => {
+    if (!menuMessage?.turn_id) return;
+    setRollbackDraft(mode === 'edit' ? sanitizeMessageText(menuMessage.content) : '');
+    setRollbackTarget({ message: menuMessage, mode });
+    setMenuMessage(null);
+  }, [menuMessage]);
+
+  const closeRollbackSheet = useCallback(() => {
+    if (rollbackBusy) return;
+    setRollbackTarget(null);
+    setRollbackDraft('');
+  }, [rollbackBusy]);
+
+  // Rollback is the host-side mutation: it retires the later turns and restores
+  // the files they wrote. Editing is that same rollback followed by a normal
+  // send, which is how the desktop reruns an edited user message.
+  const handleConfirmRollback = useCallback(async () => {
+    if (!rollbackTarget || rollbackBusy) return;
+    // The host independently checks idle under its scheduling lock; this
+    // presentation guard only avoids a request while this view is already busy.
+    if (isStreaming) return;
+    const { message, mode } = rollbackTarget;
+    const turnId = message.turn_id;
+    if (!turnId) return;
+    const editedText = mode === 'edit' ? rollbackDraft.trim() : '';
+    if (mode === 'edit' && !editedText) return;
+    const targetEpoch = captureChatTargetEpoch();
+    if (targetEpoch === null) return;
+
+    setRollbackBusy(true);
+    try {
+      const result = await sessionMgr.rollbackSessionToTurn(sessionId, turnId, message.turn_index);
+      if (!isChatTargetCurrent(targetEpoch)) return;
+      setRollbackTarget(null);
+      setRollbackDraft('');
+      // History changed on the host. Pull the authoritative snapshot now, before
+      // the follow-up send can fail, or the transcript keeps showing turns that
+      // no longer exist until the next idle poll.
+      streamRef.current?.nudge();
+
+      if (mode === 'edit') {
+        const imageContexts = message.images?.length
+          ? message.images.map((img, idx) => ({
+              id: `mobile_edit_${Date.now()}_${idx}`,
+              data_url: img.data_url,
+              mime_type: img.data_url.split(';')[0]?.replace('data:', '') || 'image/png',
+              metadata: { name: img.name, source: 'remote' },
+            }))
+          : undefined;
+        try {
+          await sessionMgr.sendMessage(sessionId, editedText, sessionAgentType, imageContexts);
+        } catch (sendError) {
+          // The rollback already retired the turn this text came from, so the
+          // draft has nowhere to fall back to. Hand it to the composer instead
+          // of dropping it when the send is what failed.
+          if (isChatTargetCurrent(targetEpoch)) {
+            setInput(editedText);
+            setPendingImages((message.images ?? []).map(img => ({ name: img.name, dataUrl: img.data_url })));
+            setInputExpanded(true);
+          }
+          throw sendError;
+        }
+        if (!isChatTargetCurrent(targetEpoch)) return;
+      } else if (result.composer_text) {
+        setInput(result.composer_text);
+        setInputExpanded(true);
+      }
+
+      showMsgToast(
+        mode === 'edit'
+          ? t('chat.editDone')
+          : result.restored_files.length > 0
+            ? t('chat.rollbackDoneRestored', { count: result.restored_files.length })
+            : t('chat.rollbackDone'),
+      );
+      streamRef.current?.nudge();
+    } catch (e: any) {
+      // A failed rollback can still have mutated host history (a
+      // recovery-required outcome restores files before it reports the
+      // conflict), so pull the authoritative snapshot instead of leaving the
+      // transcript stale until the next idle poll. The stream ref belongs to
+      // the current chat, so guard against a session switch mid-flight.
+      if (isChatTargetCurrent(targetEpoch)) {
+        streamRef.current?.nudge();
+      }
+      if (isChatTargetCurrent(targetEpoch)) reportRemoteSessionError(e, setError);
+    } finally {
+      if (isChatTargetCurrent(targetEpoch)) {
+        setRollbackBusy(false);
+      }
+    }
+  }, [
+    captureChatTargetEpoch,
+    isChatTargetCurrent,
+    isStreaming,
+    rollbackBusy,
+    rollbackDraft,
+    rollbackTarget,
+    sessionAgentType,
+    sessionId,
+    sessionMgr,
+    setError,
+    showMsgToast,
+    t,
+  ]);
+
   // Cleanup timers on unmount
   useEffect(() => {
     return () => {
@@ -684,6 +806,7 @@ const ChatPage: React.FC<ChatPageProps> = ({
     setIsLoadingMore(false);
     setModelCatalog(null);
     setSelectedModelId('auto');
+    setTranscriptHydrating(true);
   }, [sessionId]);
 
   useEffect(() => {
@@ -699,64 +822,81 @@ const ChatPage: React.FC<ChatPageProps> = ({
       && isChatTargetCurrent(targetEpoch)
     );
     const initialize = async () => {
-      const catalogPromise = loadModelCatalog();
-      const cached = await remoteCache.loadTranscript(cacheScope, sessionId);
-      if (!isInitCurrent()) return;
-      if (cached) {
-        setMessages(sessionId, cached.messages);
-        setHasMore(cached.hasMore);
-        hasMoreRef.current = cached.hasMore;
-        pendingInitialScroll.current = true;
-      }
-
-      // Always reconcile with the authoritative host. The cached transcript is
-      // only an immediate paint and remains isolated to this account/device.
-      // Durable records reconcile the cached view through the same stream.
-      const initialCatalog = await catalogPromise;
-      if (!isInitCurrent()) return;
-      const initialMsgCount = useMobileStore.getState().getMessages(sessionId).length;
-      pendingInitialScroll.current = true;
-
-      const synchronizer = new SessionSynchronizer(sessionMgr, sessionId, (resp: PollResponse) => {
+      const markTranscriptReady = () => {
+        if (isInitCurrent()) setTranscriptHydrating(false);
+      };
+      try {
+        const catalogPromise = loadModelCatalog();
+        const cached = await remoteCache.loadTranscript(cacheScope, sessionId);
         if (!isInitCurrent()) return;
-        if (resp.message_snapshot) {
-          // Completion can grow the content of an already-counted assistant
-          // message. Replace from the host's durable transcript; message count
-          // alone cannot detect that repair.
-          setMessages(sessionId, resp.message_snapshot);
-          remoteCache.saveTranscript(
-            cacheScope,
-            sessionId,
-            resp.message_snapshot,
-            hasMoreRef.current,
-          );
-        } else if (resp.new_messages && resp.new_messages.length > 0) {
-          appendNewMessages(sessionId, resp.new_messages);
-          remoteCache.saveTranscript(
-            cacheScope,
-            sessionId,
-            useMobileStore.getState().getMessages(sessionId),
-            hasMoreRef.current,
-          );
+        if (cached) {
+          setMessages(sessionId, cached.messages);
+          setHasMore(cached.hasMore);
+          hasMoreRef.current = cached.hasMore;
+          pendingInitialScroll.current = true;
+          if (cached.messages.length > 0) markTranscriptReady();
         }
 
-        if (resp.title) {
-          setLiveTitle(resp.title);
-          updateSessionName(sessionId, resp.title);
-          remoteCache.renameSession(cacheScope, sessionId, resp.title);
-        }
-        if (resp.model_catalog) {
-          setModelCatalog(resp.model_catalog);
-          setSelectedModelId(normalizeSelectedModelId(
-            resp.model_catalog.session_model_id || 'auto',
-            resp.model_catalog,
-          ));
-        }
-        setActiveTurn(resp.active_turn ?? null);
-      }, initialCatalog?.version || 0, history => { if(isInitCurrent()){setHasMore(history.hasMore);hasMoreRef.current=history.hasMore;} }, () => { if(isInitCurrent())setMailboxInvalidation(value=>value+1); });
+        // Always reconcile with the authoritative host. The cached transcript is
+        // only an immediate paint and remains isolated to this account/device.
+        // Durable records reconcile the cached view through the same stream.
+        const initialCatalog = await catalogPromise;
+        if (!isInitCurrent()) return;
+        const initialMsgCount = useMobileStore.getState().getMessages(sessionId).length;
+        pendingInitialScroll.current = true;
 
-      synchronizer.start(initialMsgCount);
-      streamRef.current = synchronizer;
+        const synchronizer = new SessionSynchronizer(sessionMgr, sessionId, (resp: PollResponse) => {
+          if (!isInitCurrent()) return;
+          if (resp.message_snapshot) {
+            // Completion can grow the content of an already-counted assistant
+            // message. Replace from the host's durable transcript; message count
+            // alone cannot detect that repair.
+            setMessages(sessionId, resp.message_snapshot);
+            remoteCache.saveTranscript(
+              cacheScope,
+              sessionId,
+              resp.message_snapshot,
+              hasMoreRef.current,
+            );
+            markTranscriptReady();
+          } else if (resp.new_messages && resp.new_messages.length > 0) {
+            appendNewMessages(sessionId, resp.new_messages);
+            remoteCache.saveTranscript(
+              cacheScope,
+              sessionId,
+              useMobileStore.getState().getMessages(sessionId),
+              hasMoreRef.current,
+            );
+            markTranscriptReady();
+          }
+
+          if (resp.title) {
+            setLiveTitle(resp.title);
+            updateSessionName(sessionId, resp.title);
+            remoteCache.renameSession(cacheScope, sessionId, resp.title);
+          }
+          if (resp.model_catalog) {
+            setModelCatalog(resp.model_catalog);
+            setSelectedModelId(normalizeSelectedModelId(
+              resp.model_catalog.session_model_id || 'auto',
+              resp.model_catalog,
+            ));
+          }
+          if (resp.prompt_suggestion !== undefined) setPromptSuggestion(resp.prompt_suggestion);
+          setActiveTurn(resp.active_turn ?? null);
+        }, initialCatalog?.version || 0, history => { if(isInitCurrent()){setHasMore(history.hasMore);hasMoreRef.current=history.hasMore;} }, () => { if(isInitCurrent())setMailboxInvalidation(value=>value+1); },
+        // Stream failures are stated, not hidden: an older host or a lost
+        // connection shows up in the same banner as any other remote error.
+        error => { if (isInitCurrent()) { reportRemoteSessionError(error, setError); setTranscriptHydrating(false); } });
+
+        synchronizer.start(initialMsgCount);
+        streamRef.current = synchronizer;
+      } catch (error) {
+        if (isInitCurrent()) {
+          reportRemoteSessionError(error, setError);
+          setTranscriptHydrating(false);
+        }
+      }
     };
     void initialize();
 
@@ -766,6 +906,7 @@ const ChatPage: React.FC<ChatPageProps> = ({
       streamRef.current?.stop();
       streamRef.current = null;
       setActiveTurn(null);
+      setPromptSuggestion(null);
     };
   }, [
     appendNewMessages,
@@ -839,6 +980,7 @@ const ChatPage: React.FC<ChatPageProps> = ({
   }, [isStreaming]);
 
   const handleSend = useCallback(async () => {
+    if (useMobileStore.getState().connectionHealth === 'unreachable') return;
     const text = input.trim();
     const imgs = pendingImages;
     if ((!text && imgs.length === 0) || imageAnalyzing || sendInFlightRef.current) return;
@@ -884,11 +1026,14 @@ const ChatPage: React.FC<ChatPageProps> = ({
       // remain retryable, and an acknowledgement must not erase newer typing.
       const draftUnchanged = inputRef.current?.value === input;
       setInput(current => current === input ? '' : current);
+      setPromptSuggestion(null);
       setPendingImages(current => current.filter(image => !imgs.includes(image)));
       if (!wasStreaming && draftUnchanged) setInputExpanded(false);
       streamRef.current?.nudge();
-      if (wasStreaming) {
+      if (hostQueue?.getSnapshot().snapshot?.receipt?.status === 'queued') {
         setInfoToast(t('chat.messageQueued'));
+      } else if (!hostQueue && wasStreaming) {
+        setInfoToast(t('common.submitted'));
       }
     } catch (e: any) {
       if (!isChatTargetCurrent(targetEpoch)) return;
@@ -901,7 +1046,7 @@ const ChatPage: React.FC<ChatPageProps> = ({
         setOptimisticMsg(null);
       }
     }
-  }, [captureChatTargetEpoch, imageAnalyzing, input, isChatTargetCurrent, isStreaming, pendingImages, sessionAgentType, sessionId, sessionMgr, setError, t]);
+  }, [captureChatTargetEpoch, hostQueue, imageAnalyzing, input, isChatTargetCurrent, isStreaming, pendingImages, sessionAgentType, sessionId, sessionMgr, setError, t]);
 
   const handleImageSelect = useCallback(() => {
     fileInputRef.current?.click();
@@ -934,6 +1079,17 @@ const ChatPage: React.FC<ChatPageProps> = ({
   const expandInput = useCallback(() => {
     setInputExpanded(true);
     requestAnimationFrame(() => inputRef.current?.focus());
+  }, []);
+
+  const acceptPromptSuggestion = useCallback((suggestion: string) => {
+    setInput(suggestion);
+    setInputExpanded(true);
+    requestAnimationFrame(() => {
+      const editor = inputRef.current;
+      if (!editor) return;
+      editor.focus();
+      editor.setSelectionRange(editor.value.length, editor.value.length);
+    });
   }, []);
 
   useEffect(() => {
@@ -1012,6 +1168,10 @@ const ChatPage: React.FC<ChatPageProps> = ({
       <PermissionMailbox key={`${sessionId}:${controlTargetEpoch}`} manager={sessionMgr} sessionId={sessionId} invalidation={mailboxInvalidation} />
       {/* Messages */}
       <div className="chat-page__messages" ref={messagesContainerRef} onScroll={handleScroll}>
+        {transcriptHydrating && messages.length === 0 ? (
+          <MobileStatus className="chat-page__hydrate" loading title={t('chat.loadingSession')} />
+        ) : (
+          <>
         {isLoadingMore && (
           <div className="chat-page__load-more-indicator">{t('chat.loadingOlderMessages')}</div>
         )}
@@ -1052,6 +1212,8 @@ const ChatPage: React.FC<ChatPageProps> = ({
           />
         </ArtifactImageReader.Provider>
         </QuestionInteractionContext.Provider>
+          </>
+        )}
 
         <div ref={messagesEndRef} />
 
@@ -1070,13 +1232,55 @@ const ChatPage: React.FC<ChatPageProps> = ({
       <ChatMessageActions
         deleting={deletingMsg}
         message={menuMessage}
+        streaming={isStreaming}
+        rollbackSupported={sessionMgr.supportsHostCapability('session_rollback_v1')}
         onClose={() => setMenuMessage(null)}
         onCopy={() => void handleCopyMessage()}
         onDelete={() => void handleDeleteMessage()}
         onResend={() => void handleResendMessage()}
+        onEdit={() => openRollbackSheet('edit')}
+        onRollback={() => openRollbackSheet('rollback')}
       />
 
-      {/* Floating Input Bar — two-stage (matches desktop ChatInput) */}
+{/* Rollback / edit confirmation sheet */}
+      <MobileConfirmSheet
+        cancelLabel={t('common.cancel')}
+        confirmDisabled={rollbackBusy || isStreaming || (rollbackTarget?.mode === 'edit' && !rollbackDraft.trim())}
+        confirmLabel={rollbackTarget?.mode === 'edit' ? t('chat.editAction') : t('chat.rollbackAction')}
+        confirmTone="danger"
+        description={rollbackTarget?.mode === 'edit' ? t('chat.editSheetHint') : t('chat.rollbackSheetHint')}
+        onConfirm={handleConfirmRollback}
+        onOpenChange={(open) => {
+          if (!open) closeRollbackSheet();
+        }}
+        open={rollbackTarget !== null}
+        pending={rollbackBusy}
+        showHandle
+        title={rollbackTarget?.mode === 'edit' ? t('chat.editSheetTitle') : t('chat.rollbackSheetTitle')}
+      >
+        {rollbackTarget && (
+          <div className="chat-msg__rollback">
+            {rollbackTarget.mode === 'edit' ? (
+              <MobileTextarea
+                autoFocus
+                className="chat-msg__rollback-input"
+                disabled={rollbackBusy}
+                onChange={(e) => setRollbackDraft(e.target.value)}
+                placeholder={t('chat.editPlaceholder')}
+                rows={4}
+                value={rollbackDraft}
+              />
+            ) : (
+              <p className="chat-msg__rollback-quote">{sanitizeMessageText(rollbackTarget.message.content)}</p>
+            )}
+            {isStreaming && (
+              <p className="chat-msg__menu-note">{t('chat.rollbackBlockedWhileBusy')}</p>
+            )}
+          </div>
+        )}
+      </MobileConfirmSheet>
+
+      {/* Floating composer with compact and expanded touch layouts. */}
       <input
         ref={fileInputRef}
         type="file"
@@ -1086,6 +1290,8 @@ const ChatPage: React.FC<ChatPageProps> = ({
         onChange={handleFileChange}
       />
       <ChatComposerBar
+        queueContent={hostQueue && <MobileHostQueue key={`${sessionId}:${controlTargetEpoch}`} queue={hostQueue}
+          onRestore={content => { setInput(current => current ? `${current}\n\n${content}` : content); setInputExpanded(true); }} />}
         cancelling={isCancelling}
         containerRef={inputBarRef}
         expanded={inputExpanded}
@@ -1095,8 +1301,8 @@ const ChatPage: React.FC<ChatPageProps> = ({
         inputRef={inputRef}
         modelControls={(
           <>
-            <ModelSelectorPill catalog={modelCatalog} selectedModelId={selectedModelId} disabled={imageAnalyzing || isStreaming || modelUpdating} onSelect={handleSelectModel} />
-            <ReasoningPresetPill catalog={modelCatalog} selectedModelId={selectedModelId} disabled={imageAnalyzing || isStreaming || modelUpdating} onSelect={handleSelectReasoningPreset} />
+            <ModelSelectorPill catalog={modelCatalog} selectedModelId={selectedModelId} disabled={connectionHealth === 'unreachable' || imageAnalyzing || isStreaming || modelUpdating} onSelect={handleSelectModel} />
+            <ReasoningPresetPill catalog={modelCatalog} selectedModelId={selectedModelId} disabled={connectionHealth === 'unreachable' || imageAnalyzing || isStreaming || modelUpdating} onSelect={handleSelectReasoningPreset} />
           </>
         )}
         onActivate={expandInput}
@@ -1109,6 +1315,9 @@ const ChatPage: React.FC<ChatPageProps> = ({
         onRemoveImage={removeImage}
         onSend={handleSend}
         pendingImages={pendingImages}
+        promptSuggestion={promptSuggestion}
+        onAcceptPromptSuggestion={acceptPromptSuggestion}
+        remoteUnavailable={connectionHealth === 'unreachable'}
         streaming={isStreaming}
       />
 

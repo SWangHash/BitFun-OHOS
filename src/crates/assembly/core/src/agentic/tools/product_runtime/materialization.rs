@@ -42,9 +42,8 @@ const PRODUCT_TOOL_REGISTRATION_ORDER: &[&str] = &[
     "Task",
     "AgentSpawn",
     "AgentSendInput",
-    "AgentInterrupt",
+    "AgentControl",
     "AgentList",
-    "AgentDelete",
     "AgentWait",
     "LaunchReviewAgent",
     "Skill",
@@ -62,6 +61,7 @@ const PRODUCT_TOOL_REGISTRATION_ORDER: &[&str] = &[
     "ReadCanvas",
     "UpdateCanvas",
     "PatchCanvas",
+    "ListWorkspaces",
     "SessionControl",
     "SessionMessage",
     "SessionHistory",
@@ -144,9 +144,8 @@ impl StaticToolProviderFactory<dyn Tool> for ProductConcreteToolFactory {
             "Task" => Some(Arc::new(TaskTool::new())),
             "AgentSpawn" => Some(Arc::new(AgentSpawnTool::new())),
             "AgentSendInput" => Some(Arc::new(AgentSendInputTool::new())),
-            "AgentInterrupt" => Some(Arc::new(AgentInterruptTool::new())),
+            "AgentControl" => Some(Arc::new(AgentControlTool::new())),
             "AgentList" => Some(Arc::new(AgentListTool::new())),
-            "AgentDelete" => Some(Arc::new(AgentDeleteTool::new())),
             "AgentWait" => Some(Arc::new(AgentWaitTool::new())),
             "LaunchReviewAgent" => Some(Arc::new(LaunchReviewAgentTool::new())),
             "Skill" => Some(Arc::new(SkillTool::new())),
@@ -169,6 +168,7 @@ impl StaticToolProviderFactory<dyn Tool> for ProductConcreteToolFactory {
             "CallDeferredTool" => Some(Arc::new(CallDeferredTool::new())),
             #[cfg(feature = "tools-git")]
             "GetFileDiff" => Some(Arc::new(GetFileDiffTool::new())),
+            "ListWorkspaces" => Some(Arc::new(ListWorkspacesTool::new())),
             "SessionControl" => Some(Arc::new(SessionControlTool::new())),
             "SessionMessage" => Some(Arc::new(SessionMessageTool::new())),
             "SessionHistory" => Some(Arc::new(SessionHistoryTool::new())),
@@ -301,7 +301,7 @@ mod tests {
         }
     }
 
-    /// Every tool name the provider plan advertises must have a registry order.
+/// Every tool name the provider plan advertises must have a registry order.
     ///
     /// `materialize` drops planned tools that are absent from
     /// [`PRODUCT_TOOL_REGISTRATION_ORDER`] and fails the whole assembly. That
@@ -319,6 +319,15 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn list_workspaces_materializes_as_readonly_deferred_discovery() {
+        let tool = ProductConcreteToolFactory
+            .materialize_tool("ListWorkspaces")
+            .expect("workspace catalog belongs to the session tool provider");
+        assert!(tool.is_readonly());
+        assert!(matches!(tool.default_exposure(), ToolExposure::Deferred));
     }
 
     #[cfg(all(feature = "tools-agent-control", feature = "remote-workspace"))]

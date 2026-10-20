@@ -1,7 +1,10 @@
 /**
  * Pending queue module
  *
- * Frontend-side message queue used while a session's current dialog turn is
+ * Legacy/fallback frontend queue and explicit recovery drafts. Native hosts
+ * advertising dialog_queue_v1 use HostDialogQueue for new submissions.
+ *
+ * This frontend queue is used while a session's current dialog turn is
  * still running. Items are kept here (NOT submitted to the backend scheduler)
  * until the session returns to IDLE, at which point the head item is drained
  * via the regular `sendMessage` path. Users may also pop an item early through

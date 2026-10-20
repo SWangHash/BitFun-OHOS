@@ -48,7 +48,8 @@ use bitfun_services_integrations::remote_connect::{
     RemoteTerminalPrewarmRequest, RemoteToolStatus, RemoteWorkspaceFacts, RemoteWorkspaceFileChunk,
     RemoteWorkspaceFileContent, RemoteWorkspaceFileInfo, RemoteWorkspaceFileRuntimeHost,
     RemoteWorkspaceKind, RemoteWorkspaceUpdate, TrackerEvent, REMOTE_CAPABILITY_DIALOG_STEER_V1,
-    REMOTE_CAPABILITY_HARNESS_PROFILES_V1, REMOTE_CAPABILITY_PLAN_BUILD_V1,
+    REMOTE_CAPABILITY_HARNESS_PROFILES_V1, REMOTE_CAPABILITY_HOST_STREAM_V1,
+    REMOTE_CAPABILITY_PLAN_BUILD_V1, REMOTE_CAPABILITY_SESSION_ROLLBACK_V1,
     REMOTE_FILE_MAX_CHUNK_BYTES, REMOTE_FILE_MAX_READ_BYTES,
 };
 use std::path::PathBuf;
@@ -57,7 +58,7 @@ use std::sync::{Arc, Mutex};
 #[test]
 fn relay_invitations_and_authentication_use_the_same_protocol_for_all_endpoints() {
     for endpoint in [
-        "https://remote.bitfun.com/v/1.0.1",
+        "https://remote.openbitfun.com/v/1.0.1",
         "http://192.168.1.8:9700",
     ] {
         assert_eq!(
@@ -358,6 +359,8 @@ fn remote_chat_history_assembly_preserves_message_shape_and_item_order() {
     assert_eq!(messages[0].role, "user");
     assert_eq!(messages[0].content, "original question");
     assert_eq!(messages[0].timestamp, "1");
+    assert_eq!(messages[0].turn_id.as_deref(), Some("turn-1"));
+    assert_eq!(messages[0].turn_index, Some(4));
     assert_eq!(
         messages[0].images.as_ref().unwrap()[0],
         ChatImageAttachment {
@@ -368,6 +371,7 @@ fn remote_chat_history_assembly_preserves_message_shape_and_item_order() {
 
     assert_eq!(messages[1].id, "turn-1_assistant");
     assert_eq!(messages[1].role, "assistant");
+    assert_eq!(messages[1].turn_index, None);
     assert_eq!(messages[1].content, "visible text");
     assert_eq!(messages[1].timestamp, "1");
     assert_eq!(messages[1].thinking.as_deref(), Some("visible thought"));
@@ -385,6 +389,39 @@ fn remote_chat_history_assembly_preserves_message_shape_and_item_order() {
         Some(r#"{"question":"confirm?"}"#)
     );
     assert_eq!(tool.tool_input.as_ref().unwrap()["question"], "confirm?");
+}
+
+#[test]
+fn background_delivery_crosses_remote_history_without_rewriting_the_execution() {
+    use bitfun_core_types::background_delivery::{
+        BackgroundDelivery, BackgroundReportDisposition, BackgroundReportPolicy,
+    };
+    let mut turn = remote_history_contract_turn(false);
+    let mut delivery = BackgroundDelivery::pending(
+        "monitor".into(),
+        turn.turn_id.clone(),
+        BackgroundReportPolicy::Conditional,
+    );
+    delivery.disposition = BackgroundReportDisposition::Quiet;
+    delivery.resolved_at_ms = Some(2);
+    turn.background_delivery = Some(delivery.clone());
+    let messages = build_remote_chat_messages(vec![turn.clone()]);
+    assert_eq!(messages[1].content, "visible text");
+    for message in &messages {
+        assert_eq!(
+            message.metadata.as_ref().unwrap()["backgroundDelivery"]["disposition"],
+            "quiet"
+        );
+        assert_eq!(message.turn_id.as_deref(), Some("turn-1"));
+    }
+    turn.rounds.clear();
+    let empty = build_remote_chat_messages(vec![turn]);
+    assert_eq!(empty.len(), 1);
+    assert_eq!(empty[0].status.as_deref(), Some("done"));
+    assert_eq!(
+        empty[0].metadata.as_ref().unwrap()["backgroundDelivery"]["runId"],
+        "turn-1"
+    );
 }
 
 #[test]
@@ -479,7 +516,9 @@ fn remote_connect_cancel_and_restore_policy_preserve_runtime_decisions() {
 
 fn remote_history_contract_turn(is_in_progress: bool) -> RemoteChatHistoryTurn {
     RemoteChatHistoryTurn {
+        background_delivery: None,
         turn_id: "turn-1".to_string(),
+        turn_index: 4,
         user_message_id: "user-1".to_string(),
         user_display_content: "original question".to_string(),
         user_timestamp_ms: 1_000,
@@ -1174,6 +1213,25 @@ async fn remote_connect_command_owner_preserves_cancel_and_group_routing() {
             requested_turn_id: Some("turn-1".to_string()),
         }
     );
+}
+
+#[tokio::test]
+async fn remote_connect_command_owner_routes_rollback_to_the_session_group() {
+    let host = RecordingCommandHost::default();
+
+    let response = handle_remote_command(
+        &host,
+        &RemoteCommand::RollbackSessionToTurn {
+            session_id: "session-1".to_string(),
+            target_turn_id: "turn-7".to_string(),
+            expected_storage_turn_index: Some(6),
+        },
+        RemoteConnectSubmissionSource::Relay,
+    )
+    .await;
+
+    assert!(matches!(response, RemoteResponse::SessionCreated { .. }));
+    assert_eq!(host.events(), vec!["session"]);
 }
 
 #[tokio::test]
@@ -1944,8 +2002,12 @@ fn remote_connect_workspace_response_helpers_own_wire_shape() {
         serde_json::json!([
             REMOTE_CAPABILITY_HARNESS_PROFILES_V1,
             REMOTE_CAPABILITY_DIALOG_STEER_V1,
+            "dialog_queue_v1",
             REMOTE_CAPABILITY_PLAN_BUILD_V1,
-            "user_question_interaction_v1"
+            REMOTE_CAPABILITY_SESSION_ROLLBACK_V1,
+            "user_question_interaction_v1",
+            "background_result_delivery_v1",
+            REMOTE_CAPABILITY_HOST_STREAM_V1
         ])
     );
     let mut legacy_info_json = info_json.clone();
@@ -2112,8 +2174,12 @@ fn remote_connect_session_response_helpers_own_pagination_and_timestamps() {
         serde_json::json!([
             REMOTE_CAPABILITY_HARNESS_PROFILES_V1,
             REMOTE_CAPABILITY_DIALOG_STEER_V1,
+            "dialog_queue_v1",
             REMOTE_CAPABILITY_PLAN_BUILD_V1,
-            "user_question_interaction_v1"
+            REMOTE_CAPABILITY_SESSION_ROLLBACK_V1,
+            "user_question_interaction_v1",
+            "background_result_delivery_v1",
+            REMOTE_CAPABILITY_HOST_STREAM_V1
         ])
     );
     let mut legacy_initial_json = initial_json;
@@ -2221,6 +2287,7 @@ fn remote_connect_message_dtos_keep_current_wire_shape() {
         timestamp: "1".to_string(),
         metadata: None,
         turn_id: Some("turn-1".to_string()),
+        turn_index: None,
         status: Some("done".to_string()),
         error: None,
         tools: Some(vec![RemoteToolStatus {
@@ -2467,6 +2534,82 @@ fn remote_connect_response_wire_shape_lives_in_owner_contract() {
     assert_eq!(title_updated["title"], "Renamed session");
 }
 
+#[test]
+fn remote_connect_rollback_wire_shape_lives_in_owner_contract() {
+    let with_guard: RemoteCommand = serde_json::from_value(serde_json::json!({
+        "cmd": "rollback_session_to_turn",
+        "session_id": "session-1",
+        "target_turn_id": "turn-7",
+        "expected_storage_turn_index": 6
+    }))
+    .expect("deserialize rollback command with guard");
+    let without_guard: RemoteCommand = serde_json::from_value(serde_json::json!({
+        "cmd": "rollback_session_to_turn",
+        "session_id": "session-1",
+        "target_turn_id": "turn-7"
+    }))
+    .expect("deserialize rollback command without guard");
+
+    assert!(matches!(
+        with_guard,
+        RemoteCommand::RollbackSessionToTurn {
+            expected_storage_turn_index: Some(6),
+            ref target_turn_id,
+            ..
+        } if target_turn_id == "turn-7"
+    ));
+    assert!(matches!(
+        without_guard,
+        RemoteCommand::RollbackSessionToTurn {
+            expected_storage_turn_index: None,
+            ..
+        }
+    ));
+
+    let rolled_back = serde_json::to_value(RemoteResponse::SessionRolledBack {
+        session_id: "session-1".to_string(),
+        retired_turn_ids: vec!["turn-8".to_string(), "turn-9".to_string()],
+        restored_files: vec!["src/main.rs".to_string()],
+        composer_text: Some("original question".to_string()),
+        changed: true,
+    })
+    .expect("serialize rollback response");
+
+    assert_eq!(rolled_back["resp"], "session_rolled_back");
+    assert_eq!(rolled_back["retired_turn_ids"][1], "turn-9");
+    assert_eq!(rolled_back["restored_files"][0], "src/main.rs");
+    assert_eq!(rolled_back["composer_text"], "original question");
+    assert_eq!(rolled_back["changed"], true);
+
+    let without_composer = serde_json::to_value(RemoteResponse::SessionRolledBack {
+        session_id: "session-1".to_string(),
+        retired_turn_ids: Vec::new(),
+        restored_files: Vec::new(),
+        composer_text: None,
+        changed: false,
+    })
+    .expect("serialize rollback response without composer text");
+    assert!(without_composer.get("composer_text").is_none());
+}
+
+#[test]
+fn remote_connect_user_message_carries_rollback_turn_identity_on_the_wire() {
+    let messages = build_remote_chat_messages(vec![remote_history_contract_turn(false)]);
+    let user = serde_json::to_value(&messages[0]).expect("serialize user message");
+    let assistant = serde_json::to_value(&messages[1]).expect("serialize assistant message");
+
+    assert_eq!(user["turn_id"], "turn-1");
+    assert_eq!(user["turn_index"], 4);
+    assert!(assistant.get("turn_index").is_none());
+
+    // Existing hosts and saved messages omit the additive storage index.
+    let mut legacy = user;
+    legacy.as_object_mut().unwrap().remove("turn_index");
+    let decoded: ChatMessage = serde_json::from_value(legacy.clone()).unwrap();
+    assert_eq!(decoded.turn_index, None);
+    assert_eq!(serde_json::to_value(decoded).unwrap(), legacy);
+}
+
 fn sample_remote_model_catalog(version: u64) -> RemoteModelCatalog {
     RemoteModelCatalog {
         version,
@@ -2522,6 +2665,7 @@ fn remote_connect_model_catalog_builder_preserves_config_shape() {
                         value: "high".to_string(),
                     }],
                     source: ReasoningPresetSource::ModelsDev,
+                    effective_effort: None,
                     execution_provider: None,
                     execution_model: None,
                 }],
@@ -2830,6 +2974,7 @@ fn remote_connect_tracker_keeps_subagent_items_out_of_parent_accumulators() {
         agent_type: None,
         model_id: None,
         focused_review_display_label: None,
+        continuation_policy: None,
     });
     tracker.handle_agentic_event(&AgenticEvent::TextChunk {
         session_id: "child-session".to_string(),
@@ -2936,6 +3081,7 @@ fn remote_connect_tracker_keeps_finished_turn_snapshot_until_persistence_finaliz
         success: Some(true),
         finish_reason: Some("stop".to_string()),
         has_final_response: Some(true),
+        background_delivery: None,
     });
 
     assert_eq!(tracker.session_state(), "idle");
@@ -3092,6 +3238,7 @@ fn remote_connect_poll_helpers_preserve_delta_and_completion_policy() {
         success: Some(true),
         finish_reason: Some("stop".to_string()),
         has_final_response: Some(true),
+        background_delivery: None,
     });
 
     let waiting_for_persistence = serde_json::to_value(remote_persisted_poll_response(
@@ -3117,6 +3264,7 @@ fn remote_connect_poll_helpers_preserve_delta_and_completion_policy() {
         timestamp: "2".to_string(),
         metadata: None,
         turn_id: Some("turn-1".to_string()),
+        turn_index: None,
         status: Some("done".to_string()),
         error: None,
         tools: None,
@@ -3225,4 +3373,22 @@ fn file_chunk_revision_is_additive_for_legacy_peers() {
     current["revision"] = serde_json::json!("1:123");
     let response: RemoteResponse = serde_json::from_value(current.clone()).unwrap();
     assert_eq!(serde_json::to_value(response).unwrap(), current);
+}
+
+#[test]
+fn dialog_queue_wire_keeps_legacy_send_messages_readable() {
+    let legacy: RemoteCommand = serde_json::from_value(serde_json::json!({
+        "cmd": "send_message", "session_id": "session", "content": "hello"
+    }))
+    .unwrap();
+    assert!(matches!(
+        legacy,
+        RemoteCommand::SendMessage { turn_id: None, .. }
+    ));
+    let queue = serde_json::json!({"cmd":"dialog_queue", "request":{
+        "sessionId":"session", "queueEpoch":"epoch", "action":"cancel",
+        "turnId":"queued", "operationId":"cancel-1"
+    }});
+    let command: RemoteCommand = serde_json::from_value(queue.clone()).unwrap();
+    assert_eq!(serde_json::to_value(command).unwrap(), queue);
 }
