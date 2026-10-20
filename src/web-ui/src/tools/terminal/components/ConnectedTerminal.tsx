@@ -23,9 +23,26 @@ import {
 import { createLogger } from '@/shared/utils/logger';
 import type { SessionResponse, TerminalReplayEvent } from '../types';
 import type { TerminalPasteDecision } from '../utils';
+// #region agent log
+import {
+  describeVisibleBuffer,
+  detectZshPromptEolMark,
+  escapeTerminalChunk,
+  logTerminalResize,
+} from '../utils/debugResizeProbe';
+// #endregion
 import './Terminal.scss';
 
 const log = createLogger('ConnectedTerminal');
+
+// #region agent log
+/** How long PTY chunks keep being recorded after a resize was sent to the PTY. */
+const DEBUG_RESIZE_WINDOW_MS = 4000;
+
+function debugNowMs(): number {
+  return typeof performance !== 'undefined' ? performance.now() : Date.now();
+}
+// #endregion
 
 /**
  * Matches a standalone absolute cursor position command: ESC [ R ; C H
@@ -114,6 +131,10 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
 
   const lastSentSizeRef = useRef<{ cols: number; rows: number } | null>(null);
   const resizeRepaintGuardRef = useRef(new ResizeRepaintGuard());
+  // #region agent log
+  const debugResizeWindowUntilRef = useRef(0);
+  const debugResizeWindowIdRef = useRef(0);
+  // #endregion
   // A reserved session creates its shell once, from the first measured panel size.
   const spawnStartedRef = useRef(false);
   const lastMeasuredSizeRef = useRef<{ cols: number; rows: number } | null>(null);
@@ -184,6 +205,37 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
 
   const handleOutput = useCallback((data: string) => {
     const repaintDecision = resizeRepaintGuardRef.current.inspect(data);
+
+    // #region agent log
+    // zsh's PROMPT_SP writes PROMPT_EOL_MARK (default "%B%S%#%s%b", an inverted
+    // "%") whenever a prompt is repainted while the line is still partial.
+    if (detectZshPromptEolMark(data)) {
+      const probed = terminalRef.current?.getTerminal?.() ?? null;
+      logTerminalResize('E', 'ConnectedTerminal.handleOutput', 'zsh-prompt-eol-mark-detected', {
+        windowId: debugResizeWindowIdRef.current,
+        insideResizeWindow: debugNowMs() <= debugResizeWindowUntilRef.current,
+        escaped: escapeTerminalChunk(data),
+        suppress: repaintDecision.suppress,
+        reason: repaintDecision.suppress ? repaintDecision.details.reason : repaintDecision.reason,
+        xtermCols: probed?.cols ?? null,
+        xtermRows: probed?.rows ?? null,
+      });
+    }
+
+    if (debugNowMs() <= debugResizeWindowUntilRef.current) {
+      const probed = terminalRef.current?.getTerminal?.() ?? null;
+      logTerminalResize('A', 'ConnectedTerminal.handleOutput', 'pty-chunk-in-resize-window', {
+        windowId: debugResizeWindowIdRef.current,
+        escaped: escapeTerminalChunk(data),
+        suppress: repaintDecision.suppress,
+        reason: repaintDecision.suppress ? repaintDecision.details.reason : repaintDecision.reason,
+        xtermCols: probed?.cols ?? null,
+        xtermRows: probed?.rows ?? null,
+        baseY: probed?.buffer.active.baseY ?? null,
+      });
+    }
+    // #endregion
+
     if (repaintDecision.suppress) {
       return;
     }
@@ -289,6 +341,19 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
     const maxReplayCols = hasReplayScreenText
       ? events.reduce((max, event) => Math.max(max, event.cols), 0)
       : 0;
+
+    // #region agent log
+    logTerminalResize('B', 'ConnectedTerminal.handleReplay', 'replay-applied', {
+      windowId: debugResizeWindowIdRef.current,
+      eventCount: events.length,
+      hasReplayScreenText,
+      maxReplayCols,
+      xtermCols: terminalRef.current?.getTerminal?.()?.cols ?? null,
+      xtermRows: terminalRef.current?.getTerminal?.()?.rows ?? null,
+      lastEventEscaped: escapeTerminalChunk(events[events.length - 1]?.data ?? ''),
+    });
+    // #endregion
+
     if (maxReplayCols > 0) {
       setReplayColumnGuard(maxReplayCols);
     }
@@ -371,8 +436,37 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
       return;
     }
 
+    // #region agent log
+    debugResizeWindowIdRef.current += 1;
+    const debugWindowId = debugResizeWindowIdRef.current;
+    debugResizeWindowUntilRef.current = debugNowMs() + DEBUG_RESIZE_WINDOW_MS;
+    // #endregion
+
     const xterm = terminalRef.current?.getTerminal?.() ?? null;
     const screen = createResizeRepaintScreenSnapshot(xterm);
+
+    // #region agent log
+    logTerminalResize('D', 'ConnectedTerminal.handleResize', 'pty-resize-requested', {
+      windowId: debugWindowId,
+      cols,
+      rows,
+      previousCols: lastSize?.cols ?? null,
+      previousRows: lastSize?.rows ?? null,
+      xtermCols: xterm?.cols ?? null,
+      xtermRows: xterm?.rows ?? null,
+      shellType: session?.shellType ?? initialSession?.shellType ?? null,
+      preventShrinkBelowCols: preventShrinkBelowColsRef.current,
+      postHistoryCursor: postHistoryCursorRef.current,
+      buffer: describeVisibleBuffer(xterm),
+    });
+    window.setTimeout(() => {
+      logTerminalResize('C', 'ConnectedTerminal.handleResize', 'buffer-after-resize', {
+        windowId: debugWindowId,
+        buffer: describeVisibleBuffer(terminalRef.current?.getTerminal?.() ?? null),
+      });
+    }, 900);
+    // #endregion
+
     if (screen) {
       resizeRepaintGuardRef.current.markResize({
         cols,

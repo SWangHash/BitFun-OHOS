@@ -25,6 +25,9 @@ import {
 } from '@/infrastructure/design-system/typographyRuntime';
 import '@xterm/xterm/css/xterm.css';
 import { readTextFromClipboard } from '@/shared/utils/textSelection';
+// #region agent log
+import { describeVisibleBuffer, logTerminalResize } from '../utils/debugResizeProbe';
+// #endregion
 import './Terminal.scss';
 
 const log = createLogger('Terminal');
@@ -274,8 +277,19 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
     const terminal = terminalRef.current;
     if (!terminal) return false;
 
+    // #region agent log
+    const debugBufferBefore = describeVisibleBuffer(terminal);
+    // #endregion
+
     try {
       if (resizeSuspendedRef.current) {
+        // #region agent log
+        logTerminalResize('D', 'Terminal.doXtermResize', 'local-resize-skipped-suspended', {
+          cols,
+          rows,
+          before: debugBufferBefore,
+        });
+        // #endregion
         pendingFitAfterSuspendRef.current = true;
         return false;
       }
@@ -297,10 +311,28 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
       // terminal leaves xterm at 80x24 while the PTY moves to the panel size,
       // which creates blank scrollback during shell startup repaints.
       if (minCols > 0 && cols < minCols && hasBufferedScreenText) {
+        // #region agent log
+        logTerminalResize('D', 'Terminal.doXtermResize', 'local-resize-skipped-replay-column-guard', {
+          cols,
+          rows,
+          minCols,
+          before: debugBufferBefore,
+        });
+        // #endregion
         return false;
       }
 
       terminal.resize(cols, rows);
+
+      // #region agent log
+      logTerminalResize('C', 'Terminal.doXtermResize', 'local-resize-applied', {
+        cols,
+        rows,
+        before: debugBufferBefore,
+        after: describeVisibleBuffer(terminal),
+      });
+      // #endregion
+
       onSizeSettledRef.current?.({ cols, rows });
 
       return true;
@@ -313,6 +345,9 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
   // Notify backend PTY with deduping.
   const doBackendResize = useCallback((cols: number, rows: number) => {
     if (resizeSuspendedRef.current) {
+      // #region agent log
+      logTerminalResize('D', 'Terminal.doBackendResize', 'pty-resize-skipped-suspended', { cols, rows });
+      // #endregion
       pendingFitAfterSuspendRef.current = true;
       return;
     }
@@ -322,6 +357,14 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
     // because of replay protection or panel suspension, sending it to the PTY
     // would make subsequent shell repaint output land in the wrong geometry.
     if (terminal && (terminal.cols !== cols || terminal.rows !== rows)) {
+      // #region agent log
+      logTerminalResize('D', 'Terminal.doBackendResize', 'pty-resize-skipped-geometry-mismatch', {
+        cols,
+        rows,
+        xtermCols: terminal.cols,
+        xtermRows: terminal.rows,
+      });
+      // #endregion
       return;
     }
 
@@ -331,6 +374,10 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
     }
     
     lastBackendSizeRef.current = { cols, rows };
+
+    // #region agent log
+    logTerminalResize('D', 'Terminal.doBackendResize', 'pty-resize-sent', { cols, rows });
+    // #endregion
     
     onResizeRef.current?.(cols, rows);
   }, []);
@@ -367,6 +414,17 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
       if (!dims || dims.cols <= 0 || dims.rows <= 0) {
         return;
       }
+
+      // #region agent log
+      logTerminalResize('D', 'Terminal.fit', 'fit-proposed', {
+        proposedCols: dims.cols,
+        proposedRows: dims.rows,
+        xtermCols: terminalRef.current.cols,
+        xtermRows: terminalRef.current.rows,
+        immediate,
+        hadPendingDebounce: resizeDebouncerRef.current?.hasPendingResize() ?? null,
+      });
+      // #endregion
 
       // Skip only unusably tiny dimensions. Panel animation and drag resizes are
       // suspended by the parent; the final compact bottom panel still needs to
@@ -767,6 +825,16 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
       const isVisible = entry.isIntersecting;
       
       isVisibleRef.current = isVisible;
+
+      // #region agent log
+      logTerminalResize('D', 'Terminal.intersectionObserver', 'visibility-changed', {
+        isVisible,
+        wasVisible: wasVisibleRef.current,
+        xtermCols: terminalRef.current?.cols ?? null,
+        xtermRows: terminalRef.current?.rows ?? null,
+        buffer: describeVisibleBuffer(terminalRef.current),
+      });
+      // #endregion
 
       if (isVisible && !wasVisibleRef.current) {
         const startedAt = nowMs();
