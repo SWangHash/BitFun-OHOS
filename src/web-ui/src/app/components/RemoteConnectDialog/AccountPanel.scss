@@ -201,6 +201,48 @@
     line-height: var(--bitfun-type-body-sm-line-height);
   }
 
+  &__device-incompatible {
+    color: var(--bitfun-color-status-warning-content);
+    font-family: var(--bitfun-type-body-sm-font-family);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    line-height: var(--bitfun-type-body-sm-line-height);
+    overflow-wrap: break-word;
+  }
+
+  &__device-actions {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: var(--bitfun-space-1);
+  }
+
+  &__device-chevron {
+    flex-shrink: 0;
+    display: inline-flex;
+    inline-size: 16px;
+    justify-content: center;
+  }
+
+  &__device-alias-editor {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: var(--bitfun-space-2);
+
+    > [data-bitfun-component='icon-button'] {
+      flex-shrink: 0;
+    }
+  }
+
+  &__device-alias-input {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+  }
+
   &__loading-overlay {
     position: absolute;
     inset: 0;

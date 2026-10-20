@@ -72,6 +72,8 @@ describe('remote surface generated bindings', () => {
       'account_github_poll',
       'account_github_info',
       'account_logout',
+      'account_relay_capabilities',
+      'account_update_device_alias',
       'peer_mode_ping',
       'dispatch_submit',
       'mark_bitfun_control_surface_ready',

@@ -405,6 +405,26 @@ it('accepts the negotiated alias capability and displays only alias plus metadat
   expect(container.textContent).toContain('Model');
 });
 
+it('keeps aliases readable without flashing unsupported while the capability answer is pending', async () => {
+  mocks.accountRelayCapabilities.mockImplementation(() => new Promise(() => {}));
+  mocks.accountListDevices.mockResolvedValue([{ device_id: 'local', device_name: 'My computer', device_alias: 'Studio', online: true }]);
+  await act(async () => { root.render(<AccountPanel onCloseDialog={() => {}} />); });
+  expect(container.textContent).toContain('Studio');
+  expect(container.textContent).not.toContain('accountLogin.deviceAliasUnsupported');
+  expect(container.querySelector<HTMLButtonElement>('button[aria-label="accountLogin.editDeviceAlias"]')?.disabled).toBe(true);
+  expect(mocks.accountUpdateDevice).not.toHaveBeenCalled();
+});
+
+it('keeps aliases readable when the capability read fails without declaring the Relay unsupported', async () => {
+  mocks.accountRelayCapabilities.mockRejectedValue(new Error('network unavailable'));
+  mocks.accountListDevices.mockResolvedValue([{ device_id: 'local', device_name: 'My computer', device_alias: 'Studio', online: true }]);
+  await act(async () => { root.render(<AccountPanel onCloseDialog={() => {}} />); });
+  expect(container.textContent).toContain('Studio');
+  expect(container.textContent).not.toContain('accountLogin.deviceAliasUnsupported');
+  expect(container.querySelector<HTMLButtonElement>('button[aria-label="accountLogin.editDeviceAlias"]')?.disabled).toBe(true);
+  expect(mocks.accountUpdateDevice).not.toHaveBeenCalled();
+});
+
 /** Emit a presence signal to every listener the panel registered for this epoch. */
 async function emitPresence(devices: Array<Record<string, unknown>>) {
   expect(presenceListeners.length).toBeGreaterThan(0);
@@ -496,6 +516,62 @@ it('merges presence metadata without clearing fields an older relay omits', asyn
   expect(container.textContent).toContain('Model');
   expect(container.textContent).toContain('Linux');
   expect(container.textContent).toContain('accountLogin.online');
+});
+
+it('clears an alias from explicit null presence while the directory refresh is pending', async () => {
+  mocks.accountListDevices.mockReset()
+    .mockResolvedValueOnce([{ device_id: 'local', device_name: 'My computer', device_alias: 'Studio', device_model: 'Model', online: true }])
+    .mockImplementation(() => new Promise(() => {}));
+  await act(async () => { root.render(<AccountPanel onCloseDialog={() => {}} />); });
+  expect(container.textContent).toContain('Studio');
+  await emitPresence([{ device_id: 'local', device_name: 'My computer', device_alias: null }]);
+  expect(container.textContent).not.toContain('Studio');
+  expect(container.textContent).toContain('My computer');
+  expect(container.textContent).toContain('Model');
+  expect(mocks.accountListDevices).toHaveBeenCalledTimes(2);
+});
+
+it('refreshes again after presence arrives during an older directory request', async () => {
+  let finishOldSnapshot!: (devices: Array<{ device_id: string; device_name: string; device_alias: string; online: boolean }>) => void;
+  const oldDevice = { device_id: 'local', device_name: 'My computer', device_alias: 'Studio', online: true };
+  mocks.accountListDevices.mockReset()
+    .mockResolvedValueOnce([oldDevice])
+    .mockReturnValueOnce(new Promise(resolve => { finishOldSnapshot = resolve; }))
+    .mockResolvedValue([{ ...oldDevice, device_alias: 'Workshop' }]);
+  await act(async () => { root.render(<AccountPanel onCloseDialog={() => {}} />); });
+  const refresh = [...container.querySelectorAll('button')].find(button => button.textContent === 'accountLogin.refreshDevices');
+  expect(refresh).toBeDefined();
+  await act(async () => { refresh!.click(); });
+  await emitPresence([{ device_id: 'local', device_name: 'My computer', device_alias: 'Workshop' }]);
+  expect(container.textContent).toContain('Workshop');
+  expect(mocks.accountListDevices).toHaveBeenCalledTimes(2);
+  await act(async () => { finishOldSnapshot([oldDevice]); });
+  expect(mocks.accountListDevices).toHaveBeenCalledTimes(3);
+  expect(container.textContent).toContain('Workshop');
+  expect(container.textContent).not.toContain('Studio');
+});
+
+it('refreshes again after saving an alias during an older directory request', async () => {
+  let finishOldSnapshot!: (devices: Array<{ device_id: string; device_name: string; device_alias: string; online: boolean }>) => void;
+  const oldDevice = { device_id: 'local', device_name: 'My computer', device_alias: 'Studio', online: true };
+  mocks.accountRelayCapabilities.mockResolvedValue(['device_alias_v1']);
+  mocks.accountListDevices.mockReset()
+    .mockResolvedValueOnce([oldDevice])
+    .mockReturnValueOnce(new Promise(resolve => { finishOldSnapshot = resolve; }))
+    .mockResolvedValue([{ ...oldDevice, device_alias: 'Workshop' }]);
+  await act(async () => { root.render(<AccountPanel onCloseDialog={() => {}} />); });
+  const refresh = [...container.querySelectorAll('button')].find(button => button.textContent === 'accountLogin.refreshDevices');
+  expect(refresh).toBeDefined();
+  await act(async () => { refresh!.click(); });
+  const input = await openAliasEditor();
+  await act(async () => { setInputValue(input, 'Workshop'); });
+  await act(async () => { input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
+  expect(mocks.accountUpdateDevice).toHaveBeenCalledWith('local', 'Workshop');
+  expect(mocks.accountListDevices).toHaveBeenCalledTimes(2);
+  await act(async () => { finishOldSnapshot([oldDevice]); });
+  expect(mocks.accountListDevices).toHaveBeenCalledTimes(3);
+  expect(container.textContent).toContain('Workshop');
+  expect(container.textContent).not.toContain('Studio');
 });
 
 it('keeps an incompatible device listed with a reason and never targets it', async () => {

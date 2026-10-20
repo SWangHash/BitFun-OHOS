@@ -951,7 +951,10 @@
     "connectOtherDevices": "Connect another device",
     "backToThisDevice": "Return to this device",
     "returningToThisDevice": "Returning to this device…",
-    "returnedToThisDevice": "Returned to this device"
+    "returnedToThisDevice": "Returned to this device",
+    "deviceClientIncompatible": "Incompatible client — mutual control is unavailable.",
+    "deviceClientIncompatibleWithVersion": "Incompatible client ({{version}}) — mutual control is unavailable.",
+    "thisHarmonyOS": "This HarmonyOS device"
   },
   "accountLogin": {
     "signedInAccount": "Signed-in account",
@@ -1058,7 +1061,16 @@
     "copyServerFailed": "Could not copy the server address. Check clipboard permission and try again.",
     "reopen": "Reopen sign-in page",
     "loginValueProp": "Sign in to connect your devices and control them remotely.",
-    "linkedDevices": "Linked devices"
+    "linkedDevices": "Linked devices",
+    "deviceAlias": "Device alias",
+    "deviceAliasPlaceholder": "Optional display name (empty restores technical name)",
+    "editDeviceAlias": "Edit name",
+    "saveDeviceAlias": "Save name",
+    "deviceAliasUpdated": "Device name updated",
+    "deviceAliasUnsupported": "Device aliases are unsupported by this host or Relay. Update it and retry.",
+    "deviceClientIncompatible": "This device runs an incompatible BitFun build; mutual control is unavailable.",
+    "deviceClientIncompatibleWithVersion": "This device runs BitFun {{version}}, an incompatible build; mutual control is unavailable.",
+    "deviceClientIncompatibleTag": "Incompatible client"
   },
   "relayDeploy": {
     "entryHint": "No relay server yet?",

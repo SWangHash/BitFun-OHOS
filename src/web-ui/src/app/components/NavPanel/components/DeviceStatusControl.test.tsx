@@ -8,6 +8,7 @@ import {
   type DeviceInterconnectionOverview,
   type DeviceInterconnectionOverviewInput,
 } from '../deviceInterconnectionOverview';
+import { useDeviceDirectory } from '@/infrastructure/account/deviceDirectory';
 import { getDeviceArtworkKind } from './deviceArtworkKind';
 import DeviceStatusControl from './DeviceStatusControl';
 
@@ -98,6 +99,7 @@ function element(testId: string) {
 beforeEach(() => {
   vi.clearAllMocks();
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  useDeviceDirectory.setState({ devices: [], localId: null });
   state.identity = { status: 'signed-out', me: null };
   state.getDeviceInfo.mockReset();
   state.accountListDevices.mockReset();
@@ -210,6 +212,40 @@ describe('device status card', () => {
     expect(element('nav-device-status-summary').querySelector('.bitfun-device-overview__device-name')?.textContent).toBe(name);
     expect(element('nav-device-status-summary').querySelector('[title]')?.getAttribute('title')).toBe(name);
     expect(element('nav-footer-device-status').getAttribute('aria-label')).toContain(name);
+  });
+
+  it('uses live directory aliases for preview and switching while keeping older Relays usable', async () => {
+    state.identity = { status: 'signed-in', me: { user: { accountId: 'acct', githubId: 42 } } };
+    state.getDeviceInfo.mockResolvedValue({ device_id: 'local', device_name: 'Original local name' });
+    const devices = [
+      { device_id: 'local', device_name: 'Original local name', device_alias: 'Local alias', online: true, last_seen_at: null },
+      { device_id: 'peer', device_name: 'Original peer name', device_alias: 'Peer alias', device_os: 'HarmonyOS', device_os_version: '6.0', online: true, last_seen_at: null },
+    ];
+    state.accountListDevices.mockResolvedValue(devices);
+    await act(async () => render());
+    const visibleName = () => document.querySelector(
+      '.bitfun-device-overview__carousel-slide[aria-hidden="false"] .bitfun-device-overview__device-name',
+    )?.textContent;
+    expect(visibleName()).toBe('Local alias');
+    await act(async () => {
+      document.querySelector<HTMLButtonElement>('[aria-label="deviceOverview.nextDevice"]')!.click();
+    });
+    expect(visibleName()).toBe('Peer alias');
+    expect(document.querySelector('.bitfun-device-overview__carousel-slide[aria-hidden="false"] .bitfun-device-overview__activity')?.textContent)
+      .toBe('HarmonyOS 6.0');
+
+    act(() => useDeviceDirectory.setState({ devices: [
+      devices[0], { ...devices[1], device_alias: 'Updated alias' },
+    ], localId: 'local' }));
+    expect(visibleName()).toBe('Updated alias');
+    act(() => useDeviceDirectory.setState({ devices: [
+      devices[0], { ...devices[1], device_alias: null },
+    ], localId: 'local' }));
+    expect(visibleName()).toBe('Original peer name');
+
+    // No compatibility field means an older Relay, not a confirmed mismatch.
+    await act(async () => element('nav-device-status-connect').click());
+    expect(state.switchToDevice).toHaveBeenCalledWith('peer', 'Original peer name');
   });
 
   it('keeps an incompatible peer in the switch list but never connects to it', async () => {
