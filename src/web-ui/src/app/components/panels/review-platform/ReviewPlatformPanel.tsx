@@ -2095,30 +2095,32 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
               </NavigationPanelContent>
             </NavigationPanelBody>
             {!loading && !error && (totalPages > 1 || pagination.hasNext) && (
-              <NavigationPanelFooter data-testid="review-platform-pagination" data-bitfun-product-component="review-platform" data-bitfun-product-part="pagination">
-                <Tooltip content="Previous page">
-                  <IconButton
-                    aria-label="Previous page"
-                    data-testid="review-platform-previous-page"
-                    size="sm"
-                    disabled={currentPageIndex === 0}
-                    onClick={() => handlePageChange(currentPageIndex - 1)}
-                    icon={<Icon name="chevron-left" size="sm" />}
-                  />
-                </Tooltip>
+              <NavigationPanelFooter className="review-platform__pagination" data-testid="review-platform-pagination" data-bitfun-product-component="review-platform" data-bitfun-product-part="pagination">
+                <ToolbarGroup>
+                  <Tooltip content="Previous page">
+                    <IconButton
+                      aria-label="Previous page"
+                      data-testid="review-platform-previous-page"
+                      size="sm"
+                      disabled={currentPageIndex === 0}
+                      onClick={() => handlePageChange(currentPageIndex - 1)}
+                      icon={<Icon name="chevron-left" size="sm" />}
+                    />
+                  </Tooltip>
+                  <Tooltip content="Next page">
+                    <IconButton
+                      aria-label="Next page"
+                      data-testid="review-platform-next-page"
+                      size="sm"
+                      disabled={!pagination.hasNext && currentPageIndex >= totalPages - 1}
+                      onClick={() => handlePageChange(currentPageIndex + 1)}
+                      icon={<Icon name="chevron-right" size="sm" />}
+                    />
+                  </Tooltip>
+                </ToolbarGroup>
                 <span>
                   {pageStart}-{pageEnd} of {totalCount ?? `${pageEnd}+`}
                 </span>
-                <Tooltip content="Next page">
-                  <IconButton
-                    aria-label="Next page"
-                    data-testid="review-platform-next-page"
-                    size="sm"
-                    disabled={!pagination.hasNext && currentPageIndex >= totalPages - 1}
-                    onClick={() => handlePageChange(currentPageIndex + 1)}
-                    icon={<Icon name="chevron-right" size="sm" />}
-                  />
-                </Tooltip>
               </NavigationPanelFooter>
             )}
           </NavigationPanel>
