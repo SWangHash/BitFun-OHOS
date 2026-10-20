@@ -534,7 +534,7 @@ pub(crate) async fn send_stream(
         || {
             shared::apply_affinity_headers(
                 client,
-                apply_headers(client, client.client.post(&url), &url),
+                apply_headers(client, client.client().post(&url), &url),
                 &url,
                 request_context.as_ref(),
             )

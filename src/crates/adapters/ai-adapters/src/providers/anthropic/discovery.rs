@@ -43,7 +43,7 @@ pub(crate) fn resolve_models_url(client: &AIClient) -> String {
 
 pub(crate) async fn list_models(client: &AIClient) -> Result<Vec<RemoteModelInfo>> {
     let url = resolve_models_url(client);
-    let response = apply_headers(client, client.client.get(&url), &url)
+    let response = apply_headers(client, client.client().get(&url), &url)
         .send()
         .await?
         .error_for_status()?;

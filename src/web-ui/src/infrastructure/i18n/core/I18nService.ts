@@ -41,15 +41,20 @@ const lazyLocaleModules = import.meta.glob('../../../locales/**/*.json', {
 
 // Keep the bootstrap set explicit because these namespaces are used by
 // synchronous i18nService.t(...) call sites during module initialization.
+// Only the default locale is bundled eagerly so non-default locales do not
+// pay startup bytes for catalogs they never render; they load through the
+// lazy backend in loadNamespacesForLocale. Keep zh-CN in sync with
+// DEFAULT_LOCALE in generatedLocaleContract.ts (import.meta.glob needs a
+// literal path and cannot reference it).
 const bootstrapLocaleModules = import.meta.glob([
-  '../../../locales/*/common.json',
-  '../../../locales/*/components.json',
-  '../../../locales/*/errors.json',
-  '../../../locales/*/flow-chat.json',
-  '../../../locales/*/panels/files.json',
-  '../../../locales/*/panels/git.json',
-  '../../../locales/*/settings/models.json',
-  '../../../locales/*/tools.json',
+  '../../../locales/zh-CN/common.json',
+  '../../../locales/zh-CN/components.json',
+  '../../../locales/zh-CN/errors.json',
+  '../../../locales/zh-CN/flow-chat.json',
+  '../../../locales/zh-CN/panels/files.json',
+  '../../../locales/zh-CN/panels/git.json',
+  '../../../locales/zh-CN/settings/models.json',
+  '../../../locales/zh-CN/tools.json',
 ], {
   eager: true,
   import: 'default',

@@ -66,7 +66,7 @@ impl RemoteFetcher {
             return "en-US".to_string();
         };
         service
-            .get_config::<String>(Some("general.language"))
+            .get_config::<String>(Some("app.language"))
             .await
             .unwrap_or_else(|_| "en-US".to_string())
     }

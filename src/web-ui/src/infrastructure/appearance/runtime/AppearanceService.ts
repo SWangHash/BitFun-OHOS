@@ -447,7 +447,12 @@ export class AppearanceService {
 
   private async initializeInternal(): Promise<void> {
     this.attachSyncListener();
-    this.setSnapshot({ ...this.snapshot, appearances: await this.loadCatalog() });
+    // The catalog only backs the settings picker; nothing before the first
+    // paint reads it. Loading it used to serialize IndexedDB access in front
+    // of the selection transaction, which sits on the first-paint critical
+    // path of every launch. Fetch it alongside the apply and merge it into
+    // the published snapshot before initialize resolves.
+    const catalogPromise = this.loadCatalog();
     const bootstrap = consumeBootstrapAppearance();
     const configuredSelection = bootstrap.selection
       ?? await configAPI.getConfig(APPEARANCE_SELECTION_CONFIG_PATH, { skipRetryOnNotFound: true });
@@ -489,6 +494,13 @@ export class AppearanceService {
         unavailableSelectionId: selected === SYSTEM_APPEARANCE_ID ? undefined : selected,
         lastError: errorMessage(error),
       });
+    }
+    const appearances = await catalogPromise.catch(error => {
+      log.warn('Failed to load the appearance catalog during startup', { error });
+      return null;
+    });
+    if (appearances && !appearanceCatalogsEqual(this.snapshot.appearances, appearances)) {
+      this.setSnapshot({ ...this.snapshot, appearances });
     }
     this.attachSystemListener();
     this.attachNativeSystemListener();

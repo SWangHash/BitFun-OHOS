@@ -149,6 +149,23 @@ pub(crate) async fn refresh_models_dev_catalog_now() -> Result<ModelsDevRefreshR
     }
 }
 
+/// The parsed models.dev catalog when it is already resident in this process,
+/// without loading it.
+///
+/// Startup config validation uses this instead of the loader below. The catalog
+/// document is several hundred kilobytes and parsing it costs seconds on a
+/// slower device, which put that parse on the first-frame path and starved the
+/// host UI thread; the load now happens on the model-resolution path instead,
+/// which still enforces the result.
+#[cfg(feature = "model-catalog")]
+pub(crate) fn cached_models_dev_reasoning_catalog() -> Option<ModelsDevReasoningCatalogSnapshot> {
+    let cache = parsed_catalog_cache().read().ok()?;
+    cache
+        .as_ref()
+        .filter(|cached| cached.loaded_at.elapsed() < CATALOG_RELOAD_INTERVAL)
+        .map(|cached| cached.snapshot.clone())
+}
+
 #[cfg(feature = "model-catalog")]
 pub(crate) async fn load_models_dev_reasoning_catalog_without_refresh(
 ) -> ModelsDevReasoningCatalogSnapshot {
@@ -286,6 +303,11 @@ async fn emit_models_dev_catalog_updated(snapshot: &ModelsDevSnapshot) {
 #[cfg(not(feature = "model-catalog"))]
 pub(crate) async fn load_models_dev_reasoning_catalog() -> ModelsDevReasoningCatalogSnapshot {
     ModelsDevReasoningCatalogSnapshot { catalog: None }
+}
+
+#[cfg(not(feature = "model-catalog"))]
+pub(crate) fn cached_models_dev_reasoning_catalog() -> Option<ModelsDevReasoningCatalogSnapshot> {
+    None
 }
 
 #[cfg(not(feature = "model-catalog"))]

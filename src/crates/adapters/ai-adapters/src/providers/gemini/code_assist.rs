@@ -250,7 +250,7 @@ async fn complete_onboarding(
         .extend(name.split('/'));
     while !operation.done.unwrap_or(false) {
         tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-        let response = apply_headers(client, client.client.get(operation_url.clone()))
+        let response = apply_headers(client, client.client().get(operation_url.clone()))
             .send()
             .await?;
         let status = response.status();
@@ -422,7 +422,7 @@ async fn stream_from_urls(
             max_tries,
             client.stream_options.ttft_timeout,
             trace.clone(),
-            || apply_headers(client, client.client.post(url)),
+            || apply_headers(client, client.client().post(url)),
             |response, tx, tx_raw, remaining_ttft_timeout| {
                 handle_gemini_stream_with_empty_tools(
                     response,
@@ -456,7 +456,7 @@ async fn post_code_assist(
 ) -> Result<reqwest::Response> {
     let urls = endpoint_urls(&format!("{base_url}{endpoint}"), is_antigravity(client));
     for (index, url) in urls.iter().enumerate() {
-        let mut request = apply_headers(client, client.client.post(url)).json(body);
+        let mut request = apply_headers(client, client.client().post(url)).json(body);
         if let Some(timeout) = timeout {
             request = request.timeout(timeout);
         }

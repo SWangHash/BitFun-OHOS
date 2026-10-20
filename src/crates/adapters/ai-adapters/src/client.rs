@@ -21,10 +21,11 @@ use crate::trace::{
 use crate::types::ProxyConfig;
 use crate::types::*;
 use anyhow::Result;
+use bitfun_core_types::errors::AiProviderError;
 use format::ApiFormat;
 use log::warn;
-use bitfun_core_types::errors::AiProviderError;
 use reqwest::Client;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 use tokio::sync::mpsc;
 
@@ -53,9 +54,13 @@ pub struct StreamOptions {
 
 #[derive(Debug, Clone)]
 pub struct AIClient {
-    pub(crate) client: Client,
+    /// Transport, built on first use rather than at construction -- see
+    /// [`AIClient::client`].
+    pub(crate) client: Arc<OnceLock<Client>>,
     pub config: AIConfig,
     pub(crate) stream_options: StreamOptions,
+    /// Kept so the deferred transport can be built with the same proxy policy.
+    pub(crate) proxy_config: Option<ProxyConfig>,
     pub(crate) model_reasoning_preset: Option<ReasoningPresetDescriptor>,
     pub(crate) selected_reasoning_preset: Option<ReasoningPresetDescriptor>,
     #[cfg(feature = "subscription-auth")]
@@ -86,16 +91,30 @@ impl AIClient {
         proxy_config: Option<ProxyConfig>,
         stream_options: StreamOptions,
     ) -> Self {
-        let client = http::create_http_client(proxy_config, config.skip_ssl_verify);
         Self {
-            client,
+            client: Arc::new(OnceLock::new()),
             config,
             stream_options,
+            proxy_config,
             model_reasoning_preset: None,
             selected_reasoning_preset: None,
             #[cfg(feature = "subscription-auth")]
             subscription_provider: None,
         }
+    }
+
+    /// The HTTP transport, built on the first call that actually needs it.
+    ///
+    /// Building it initializes the process network stack, which on HarmonyOS
+    /// means the first call in the process enumerates the platform trust store
+    /// (measured around two seconds; see `http::create_http_client`). Callers
+    /// construct `AIClient` values for request-body compilation too -- startup
+    /// config validation does exactly that for reasoning presets -- and those
+    /// never issue a request, so the transport must not be part of construction.
+    pub(crate) fn client(&self) -> &Client {
+        self.client.get_or_init(|| {
+            http::create_http_client(self.proxy_config.clone(), self.config.skip_ssl_verify)
+        })
     }
 
     /// Enable provider policy only after resolving an explicit subscription login.
@@ -574,7 +593,7 @@ impl AIClient {
 
     pub async fn list_models(&self) -> Result<Vec<RemoteModelInfo>> {
         if let Some(plan) = crate::opencode_catalog::api_key_plan(&self.config.base_url) {
-            return crate::opencode_catalog::api_key_models(&self.client, plan).await;
+            return crate::opencode_catalog::api_key_models(self.client(), plan).await;
         }
         match ApiFormat::parse(&self.config.format)? {
             ApiFormat::OpenAIChat | ApiFormat::OpenAIResponses => {
@@ -2527,7 +2546,7 @@ mod tests {
     fn streaming_http_client_does_not_apply_global_request_timeout() {
         let client = make_test_client("openai", None);
         let request = client
-            .client
+            .client()
             .get("https://example.com/stream")
             .build()
             .expect("request should build");

@@ -638,7 +638,7 @@ mod tests {
                         context
                     );
                     let original =
-                        super::apply_header_policy(&client, client.client.post(url), |builder| {
+                        super::apply_header_policy(&client, client.client().post(url), |builder| {
                             builder.bearer_auth("synthetic")
                         });
                     let before = original.try_clone().unwrap().build().unwrap();
@@ -651,7 +651,7 @@ mod tests {
                 }
                 let empty = super::apply_affinity_headers(
                     &client,
-                    client.client.post(url),
+                    client.client().post(url),
                     url,
                     Some(&ModelRequestContext {
                         prompt_cache_route_key: Some("runtime-lineage".into()),
@@ -715,7 +715,7 @@ mod tests {
                         for _ in 0..3 {
                             let retry = prepare_request_context(&client, Some(context.clone()));
                             let builder =
-                                apply_header_policy(&client, client.client.post(&url), |builder| {
+                                apply_header_policy(&client, client.client().post(&url), |builder| {
                                     builder.bearer_auth("synthetic")
                                 });
                             let before = builder.try_clone().unwrap().build().unwrap();
@@ -767,7 +767,7 @@ mod tests {
             };
             let request = super::apply_affinity_headers(
                 &client,
-                client.client.post(url),
+                client.client().post(url),
                 url,
                 Some(&context),
             )
@@ -812,7 +812,7 @@ mod tests {
             }
             .apply_to(&mut client.config);
             let context = prepare_request_context(&client, None);
-            let builder = apply_header_policy(&client, client.client.post(url), |builder| {
+            let builder = apply_header_policy(&client, client.client().post(url), |builder| {
                 builder.bearer_auth(&client.config.api_key)
             });
             let request = apply_affinity_headers(&client, builder, url, context.as_ref())
@@ -867,7 +867,7 @@ mod tests {
                             let retry = prepare_request_context(&client, Some(call.clone()));
                             let request = apply_affinity_headers(
                                 &client,
-                                client.client.post(&url),
+                                client.client().post(&url),
                                 &url,
                                 retry.as_ref(),
                             )
@@ -933,7 +933,7 @@ mod tests {
                         prompt_cache_route_key: Some(scope.into()),
                         ..Default::default()
                     };
-                    let mut builder = client.client.post(url);
+                    let mut builder = client.client().post(url);
                     for name in &names {
                         builder = builder.header(name.to_ascii_uppercase(), "stale");
                     }
@@ -955,7 +955,7 @@ mod tests {
                 };
                 assert!(apply_affinity_headers(
                     &mismatch,
-                    mismatch.client.post(url),
+                    mismatch.client().post(url),
                     url,
                     Some(&context)
                 )
@@ -989,7 +989,7 @@ mod tests {
                     assert!(
                         apply_affinity_headers(
                             &client,
-                            client.client.post(url),
+                            client.client().post(url),
                             url,
                             Some(&context)
                         )
