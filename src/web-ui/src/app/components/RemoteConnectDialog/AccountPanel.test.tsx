@@ -48,8 +48,8 @@ vi.mock('@bitfun/ui', () => {
   const Box = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>;
   const Button = ({ children, onClick, disabled, loading }: { children?: React.ReactNode; onClick?: React.MouseEventHandler<HTMLButtonElement>; disabled?: boolean; loading?: boolean }) => <button onClick={onClick} disabled={disabled || loading}>{children}</button>;
   const IconButton = ({ 'aria-label': ariaLabel, onClick, disabled }: { 'aria-label'?: string; onClick?: React.MouseEventHandler<HTMLButtonElement>; disabled?: boolean }) => <button aria-label={ariaLabel} onClick={onClick} disabled={disabled} />;
-  const Input = ({ value, onChange, onKeyDown, placeholder, 'aria-label': ariaLabel }: { value?: string; onChange?: React.ChangeEventHandler<HTMLInputElement>; onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>; placeholder?: string; 'aria-label'?: string }) => (
-    <input aria-label={ariaLabel} onChange={onChange} onKeyDown={onKeyDown} placeholder={placeholder} value={value} />
+  const Input = ({ value, onChange, onKeyDown, placeholder, disabled, 'aria-label': ariaLabel }: { value?: string; onChange?: React.ChangeEventHandler<HTMLInputElement>; onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>; placeholder?: string; disabled?: boolean; 'aria-label'?: string }) => (
+    <input aria-label={ariaLabel} disabled={disabled} onChange={onChange} onKeyDown={onKeyDown} placeholder={placeholder} value={value} />
   );
   return { Avatar: ({ src, alt }: { src?: string; alt?: string }) => <img src={src} alt={alt} />, OverflowText: Box, Alert: ({ message }: { message: string }) => <div>{message}</div>, Button, Icon: () => null, IconButton, Input, ScrollArea: Box, StatusPill: Box };
 });
@@ -425,6 +425,19 @@ it('keeps aliases readable when the capability read fails without declaring the 
   expect(mocks.accountUpdateDevice).not.toHaveBeenCalled();
 });
 
+it('accepts a pending capability answer after another directory refresh finishes', async () => {
+  let finishCapability!: (capabilities: string[]) => void;
+  mocks.accountRelayCapabilities
+    .mockReturnValueOnce(new Promise<string[]>(resolve => { finishCapability = resolve; }))
+    .mockRejectedValue(new Error('network unavailable'));
+  await act(async () => { root.render(<AccountPanel onCloseDialog={() => {}} />); });
+  const refresh = [...container.querySelectorAll('button')].find(button => button.textContent === 'accountLogin.refreshDevices');
+  await act(async () => { refresh!.click(); });
+  await act(async () => { finishCapability(['device_alias_v1']); });
+  expect(container.querySelector<HTMLButtonElement>('button[aria-label="accountLogin.editDeviceAlias"]')?.disabled).toBe(false);
+  expect(container.textContent).not.toContain('accountLogin.deviceAliasUnsupported');
+});
+
 /** Emit a presence signal to every listener the panel registered for this epoch. */
 async function emitPresence(devices: Array<Record<string, unknown>>) {
   expect(presenceListeners.length).toBeGreaterThan(0);
@@ -657,4 +670,66 @@ it('keeps a new account alias save independent of an old account response', asyn
   expect(mocks.accountUpdateDevice).toHaveBeenCalledTimes(2);
   await act(async () => { finishNew(); });
   expect(container.querySelector('[aria-label="accountLogin.deviceAlias"]')).toBeNull();
+});
+
+it('keeps alias editing available after logout fails during a pending save', async () => {
+  mocks.accountRelayCapabilities.mockResolvedValue(['device_alias_v1']);
+  let finishSave!: () => void;
+  mocks.accountUpdateDevice
+    .mockReturnValueOnce(new Promise<void>(resolve => { finishSave = resolve; }))
+    .mockResolvedValue(undefined);
+  mocks.logout.mockRejectedValue(new Error('logout failed'));
+  await act(async () => { root.render(<AccountPanel onCloseDialog={() => {}} />); });
+  const input = await openAliasEditor();
+  await act(async () => { setInputValue(input, 'Studio'); });
+  await act(async () => { input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
+  const logout = [...container.querySelectorAll('button')].find(button => button.textContent === 'accountLogin.logout');
+  expect(logout?.disabled).toBe(false);
+  await act(async () => { logout!.click(); });
+  expect(container.textContent).toContain('logout failed');
+  await act(async () => { finishSave(); });
+  const editor = container.querySelector<HTMLInputElement>('input[aria-label="accountLogin.deviceAlias"]') ?? await openAliasEditor();
+  expect(editor.disabled).toBe(false);
+  await act(async () => { setInputValue(editor, 'Workshop'); });
+  await act(async () => { editor.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
+  expect(mocks.accountUpdateDevice).toHaveBeenLastCalledWith('local', 'Workshop');
+});
+
+it('cannot reopen a pre-save alias while its older snapshot is still pending', async () => {
+  const oldDevice = { device_id: 'local', device_name: 'My computer', device_alias: 'Studio', online: true };
+  let finishOldSnapshot!: (devices: typeof oldDevice[]) => void;
+  let finishSuccessor!: (devices: typeof oldDevice[]) => void;
+  mocks.accountRelayCapabilities.mockResolvedValue(['device_alias_v1']);
+  mocks.accountListDevices.mockReset()
+    .mockResolvedValueOnce([oldDevice])
+    .mockReturnValueOnce(new Promise(resolve => { finishOldSnapshot = resolve; }))
+    .mockReturnValueOnce(new Promise(resolve => { finishSuccessor = resolve; }))
+    .mockResolvedValue([{ ...oldDevice, device_alias: 'Workshop' }]);
+  await act(async () => { root.render(<AccountPanel onCloseDialog={() => {}} />); });
+  const refresh = [...container.querySelectorAll('button')].find(button => button.textContent === 'accountLogin.refreshDevices');
+  await act(async () => { refresh!.click(); });
+  const input = await openAliasEditor();
+  await act(async () => { setInputValue(input, 'Workshop'); });
+  await act(async () => { input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
+  expect(mocks.accountUpdateDevice).toHaveBeenCalledWith('local', 'Workshop');
+  const edit = container.querySelector<HTMLButtonElement>('button[aria-label="accountLogin.editDeviceAlias"]');
+  await act(async () => { edit?.click(); });
+  // The row may wait for the post-save read, or expose the saved alias immediately.
+  const reopened = container.querySelector<HTMLInputElement>('input[aria-label="accountLogin.deviceAlias"]');
+  if (reopened) {
+    expect(reopened.value).toBe('Workshop');
+    await act(async () => { reopened.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
+  }
+  await act(async () => { finishOldSnapshot([oldDevice]); });
+  expect(mocks.accountListDevices).toHaveBeenCalledTimes(3);
+  expect(container.textContent).not.toContain('Studio');
+  const pendingEdit = container.querySelector<HTMLButtonElement>('button[aria-label="accountLogin.editDeviceAlias"]');
+  await act(async () => { pendingEdit?.click(); });
+  const pendingEditor = container.querySelector<HTMLInputElement>('input[aria-label="accountLogin.deviceAlias"]');
+  if (pendingEditor) expect(pendingEditor.value).toBe('Workshop');
+  await act(async () => { finishSuccessor([{ ...oldDevice, device_alias: 'Workshop' }]); });
+  const editor = container.querySelector<HTMLInputElement>('input[aria-label="accountLogin.deviceAlias"]') ?? await openAliasEditor();
+  expect(editor.value).toBe('Workshop');
+  await act(async () => { editor.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
+  expect(mocks.accountUpdateDevice.mock.calls.every(([, alias]) => alias === 'Workshop')).toBe(true);
 });

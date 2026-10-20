@@ -129,6 +129,7 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
   const mountedRef = useRef(false);
   const accountEpochRef = useRef(0);
   const refreshRequestRef = useRef(0);
+  const capabilityReadRef = useRef<{ epoch: number } | null>(null);
   /** Allow at most one list_devices request per account epoch. */
   const refreshInFlightRef = useRef<{ epoch: number; requestId: number } | null>(null);
   const refreshDirtyRef = useRef(false);
@@ -144,6 +145,8 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
     refreshInFlightRef.current = null;
     refreshDirtyRef.current = false;
     aliasSaveInFlightRef.current = null;
+    capabilityReadRef.current = null;
+    setSavingAliasId(null);
     deviceRoutingReadyRef.current = false;
     deviceListFailureCountRef.current = 0;
     setActiveAccountEpoch(null);
@@ -223,13 +226,19 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
       isAccountEpochCurrent(epoch) && refreshRequestRef.current === requestId
     );
     try {
-      void remoteConnectAPI.accountRelayCapabilities().then(capabilities => {
-        if (isCurrent()) {
-          setAliasCapability(capabilities.includes('device_alias_v1') ? 'supported' : 'unsupported');
-        }
-      }).catch(error => {
-        if (isCurrent()) log.debug('Relay capabilities unavailable', error);
-      });
+      if (capabilityReadRef.current?.epoch !== epoch) {
+        const capabilityRead = { epoch };
+        capabilityReadRef.current = capabilityRead;
+        void remoteConnectAPI.accountRelayCapabilities().then(capabilities => {
+          if (isAccountEpochCurrent(epoch)) {
+            setAliasCapability(capabilities.includes('device_alias_v1') ? 'supported' : 'unsupported');
+          }
+        }).catch(error => {
+          if (isAccountEpochCurrent(epoch)) log.debug('Relay capabilities unavailable', error);
+        }).finally(() => {
+          if (capabilityReadRef.current === capabilityRead) capabilityReadRef.current = null;
+        });
+      }
       let list = await remoteConnectAPI.accountListDevices();
       if (!isCurrent()) return;
       const currentLocalDeviceId = localDeviceIdRef.current;
@@ -591,6 +600,13 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
     try {
       await remoteConnectAPI.accountUpdateDevice(device.device_id, alias);
       if (!isAccountEpochCurrent(epoch)) return;
+      refreshRequestRef.current += 1;
+      // The successful mutation confirms this value even while a directory
+      // read from before the save is still finishing. Reopening the row must
+      // not offer the superseded alias as a new draft.
+      setDevices(current => current.map(entry => entry.device_id === device.device_id
+        ? { ...entry, device_alias: alias }
+        : entry));
       setEditingDeviceId(null);
       void refreshDeviceDirectory();
       await refreshDevices();
