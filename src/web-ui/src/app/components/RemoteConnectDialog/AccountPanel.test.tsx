@@ -607,3 +607,54 @@ it('still allows switching to a device whose compatibility flag is absent', asyn
   await act(async () => { peer!.click(); });
   expect(mocks.switchToDevice).toHaveBeenCalledWith('peer', 'Peer build');
 });
+
+it('submits an alias save once while Enter and save actions are pending', async () => {
+  mocks.accountRelayCapabilities.mockResolvedValue(['device_alias_v1']);
+  let finishSave!: () => void;
+  mocks.accountUpdateDevice.mockReturnValue(new Promise<void>(resolve => { finishSave = resolve; }));
+  await act(async () => { root.render(<AccountPanel onCloseDialog={() => {}} />); });
+  const input = await openAliasEditor();
+  await act(async () => { setInputValue(input, 'Studio'); });
+  await act(async () => {
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    container.querySelector<HTMLButtonElement>('[aria-label="accountLogin.saveDeviceAlias"]')!.click();
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  });
+  expect(mocks.accountUpdateDevice).toHaveBeenCalledTimes(1);
+  await act(async () => { finishSave(); });
+  expect(container.querySelector('[aria-label="accountLogin.deviceAlias"]')).toBeNull();
+});
+
+it('keeps a new account alias save independent of an old account response', async () => {
+  mocks.accountRelayCapabilities.mockResolvedValue(['device_alias_v1']);
+  let finishOld!: () => void;
+  let finishNew!: () => void;
+  mocks.accountUpdateDevice
+    .mockReturnValueOnce(new Promise<void>(resolve => { finishOld = resolve; }))
+    .mockReturnValueOnce(new Promise<void>(resolve => { finishNew = resolve; }));
+  await act(async () => { root.render(<AccountPanel onCloseDialog={() => {}} />); });
+  const oldInput = await openAliasEditor();
+  await act(async () => {
+    setInputValue(oldInput, 'Old account alias');
+    oldInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  });
+  mocks.identity = { resolved: true, status: 'signed-in', me: { user: { githubId: 7, login: 'bob' } } };
+  mocks.accountStatus.mockResolvedValue({ logged_in: true, user_id: '7' });
+  mocks.getDeviceInfo.mockResolvedValue({ device_id: 'local', device_name: 'New account computer' });
+  mocks.accountListDevices.mockResolvedValue([{ device_id: 'local', device_name: 'New account computer', online: true }]);
+  await act(async () => { root.render(<AccountPanel onCloseDialog={() => {}} />); });
+  const newInput = await openAliasEditor();
+  await act(async () => {
+    setInputValue(newInput, 'New account alias');
+    newInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  });
+  expect(mocks.accountUpdateDevice).toHaveBeenCalledTimes(2);
+  const readsBeforeOldResponse = mocks.accountListDevices.mock.calls.length;
+  await act(async () => { finishOld(); });
+  expect(container.querySelector('[aria-label="accountLogin.deviceAlias"]')).toBe(newInput);
+  expect(mocks.accountListDevices).toHaveBeenCalledTimes(readsBeforeOldResponse);
+  await act(async () => { newInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
+  expect(mocks.accountUpdateDevice).toHaveBeenCalledTimes(2);
+  await act(async () => { finishNew(); });
+  expect(container.querySelector('[aria-label="accountLogin.deviceAlias"]')).toBeNull();
+});

@@ -85,11 +85,17 @@ pub async fn local_device_metadata() -> serde_json::Value {
         let value = String::from_utf8(output.stdout).ok()?.trim().to_string();
         (!value.is_empty()).then_some(value)
     }
-    let os = match std::env::consts::OS {
-        "macos" => "macOS",
-        "windows" => "Windows",
-        "linux" => "Linux",
-        other => other,
+    // HarmonyOS targets report `linux` as the OS; the target environment
+    // distinguishes their display metadata from a Linux distribution.
+    let os = if cfg!(target_env = "ohos") {
+        "HarmonyOS"
+    } else {
+        match std::env::consts::OS {
+            "macos" => "macOS",
+            "windows" => "Windows",
+            "linux" => "Linux",
+            other => other,
+        }
     };
     #[cfg(target_os = "macos")]
     let (model, version) = (
@@ -107,13 +113,18 @@ pub async fn local_device_metadata() -> serde_json::Value {
                     .to_string()
             })
             .filter(|v| !v.is_empty()),
-        match tokio::fs::read_to_string("/etc/os-release")
-            .await
-            .ok()
-            .and_then(|text| linux_distribution_version(&text))
-        {
-            Some(version) => Some(version),
-            None => probe("uname", &["-r"]).await,
+        if cfg!(target_env = "ohos") {
+            // A Linux kernel version is not a HarmonyOS product version.
+            None
+        } else {
+            match tokio::fs::read_to_string("/etc/os-release")
+                .await
+                .ok()
+                .and_then(|text| linux_distribution_version(&text))
+            {
+                Some(version) => Some(version),
+                None => probe("uname", &["-r"]).await,
+            }
         },
     );
     #[cfg(target_os = "windows")]
@@ -339,13 +350,20 @@ mod tests {
     #[tokio::test]
     async fn local_metadata_has_display_os_and_only_non_destructive_valid_fields() {
         let metadata = local_device_metadata().await;
-        let expected = match std::env::consts::OS {
-            "macos" => "macOS",
-            "windows" => "Windows",
-            "linux" => "Linux",
-            other => other,
+        let expected = if cfg!(target_env = "ohos") {
+            "HarmonyOS"
+        } else {
+            match std::env::consts::OS {
+                "macos" => "macOS",
+                "windows" => "Windows",
+                "linux" => "Linux",
+                other => other,
+            }
         };
         assert_eq!(metadata["device_os"], expected);
+        if cfg!(target_env = "ohos") {
+            assert!(metadata.get("device_os_version").is_none());
+        }
         for (key, value) in metadata.as_object().unwrap() {
             assert!(["device_os", "device_model", "device_os_version"].contains(&key.as_str()));
             let value = value.as_str().unwrap();

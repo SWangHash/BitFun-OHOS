@@ -113,6 +113,7 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
   const [editingDeviceId, setEditingDeviceId] = useState<string | null>(null);
   const [aliasDraft, setAliasDraft] = useState('');
   const [savingAliasId, setSavingAliasId] = useState<string | null>(null);
+  const aliasSaveInFlightRef = useRef<{ epoch: number; deviceId: string } | null>(null);
   // Device discovery updates presentation, not the account lifecycle. Keep
   // refresh callbacks stable so adopting an ID cannot restart initialization.
   const deviceInfoRequestRef = useRef(0);
@@ -142,6 +143,7 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
     refreshRequestRef.current += 1;
     refreshInFlightRef.current = null;
     refreshDirtyRef.current = false;
+    aliasSaveInFlightRef.current = null;
     deviceRoutingReadyRef.current = false;
     deviceListFailureCountRef.current = 0;
     setActiveAccountEpoch(null);
@@ -577,8 +579,11 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
 
   const handleUpdateAlias = useCallback(async (device: AccountDeviceInfo) => {
     const epoch = accountEpochRef.current;
+    if (!isAccountEpochCurrent(epoch) || aliasSaveInFlightRef.current?.epoch === epoch) return;
     if (!aliasSupported) { setError(t('accountLogin.deviceAliasUnsupported')); return; }
     const alias = aliasDraft.trim() || null;
+    const save = { epoch, deviceId: device.device_id };
+    aliasSaveInFlightRef.current = save;
     // Renaming one device must not cover the directory with the panel-wide
     // blocking overlay; the editor row shows its own progress instead.
     setSavingAliasId(device.device_id);
@@ -598,7 +603,10 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
         ? t('accountLogin.deviceAliasUnsupported')
         : desktopDomainErrorMessage(raw, t));
     } finally {
-      if (isAccountEpochCurrent(epoch)) setSavingAliasId(null);
+      if (aliasSaveInFlightRef.current === save) {
+        aliasSaveInFlightRef.current = null;
+        if (isAccountEpochCurrent(epoch)) setSavingAliasId(null);
+      }
     }
   }, [aliasDraft, aliasSupported, refreshDevices, isAccountEpochCurrent, success, t]);
 

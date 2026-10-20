@@ -248,6 +248,27 @@ describe('device status card', () => {
     expect(state.switchToDevice).toHaveBeenCalledWith('peer', 'Original peer name');
   });
 
+  it.each([false, true])('uses fresh control compatibility %s instead of a stale display directory', async compatible => {
+    state.identity = { status: 'signed-in', me: { user: { accountId: 'acct', githubId: 42 } } };
+    state.getDeviceInfo.mockResolvedValue({ device_id: 'local', device_name: 'This computer' });
+    state.accountListDevices.mockResolvedValue([
+      { device_id: 'local', device_name: 'This computer', online: true },
+      { device_id: 'peer', device_name: 'Peer', online: true, compatible },
+    ]);
+    useDeviceDirectory.setState({ devices: [
+      { device_id: 'peer', device_name: 'Peer', device_alias: 'Saved alias', online: true, compatible: !compatible, last_seen_at: null },
+    ] });
+    await act(async () => render());
+    await act(async () => {
+      document.querySelector<HTMLButtonElement>('[aria-label="deviceOverview.nextDevice"]')!.click();
+    });
+    const action = element(compatible ? 'nav-device-status-connect' : 'nav-device-status-incompatible');
+    expect((action as HTMLButtonElement).disabled).toBe(!compatible);
+    await act(async () => action.click());
+    if (compatible) expect(state.switchToDevice).toHaveBeenCalledWith('peer', 'Saved alias');
+    else expect(state.switchToDevice).not.toHaveBeenCalled();
+  });
+
   it('keeps an incompatible peer in the switch list but never connects to it', async () => {
     state.identity = { status: 'signed-in', me: { user: { accountId: 'acct', githubId: 42 } } };
     state.getDeviceInfo.mockResolvedValue({ device_id: 'local', device_name: 'This computer' });

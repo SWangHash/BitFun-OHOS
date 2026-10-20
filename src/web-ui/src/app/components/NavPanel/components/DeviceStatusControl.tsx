@@ -114,11 +114,9 @@ const DeviceStatusControl: React.FC<DeviceStatusControlProps> = ({
 
   const availableTargets = switchTargets?.accountId === accountId ? switchTargets : null;
   const currentId = peerContext?.peerMode.active ? peerContext.peerMode.deviceId : availableTargets?.localId;
-  const previewTargetRecord = availableTargets?.devices.find(device => device.device_id === previewId);
-  const previewTarget = previewTargetRecord ? {
-    ...previewTargetRecord,
-    ...directory.devices.find(device => device.device_id === previewTargetRecord.device_id),
-  } : undefined;
+  // The live query owns control eligibility. The shared directory also retains
+  // older display metadata during outages, so it must not override this verdict.
+  const previewTarget = availableTargets?.devices.find(device => device.device_id === previewId);
   const isPreviewing = Boolean(previewTarget && previewTarget.device_id !== currentId);
   const browseDevice = (direction: -1 | 1) => {
     if (!availableTargets || switchingRef.current || returningLocal) return;
