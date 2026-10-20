@@ -25,6 +25,7 @@ import type { SessionResponse, TerminalReplayEvent } from '../types';
 import type { TerminalPasteDecision } from '../utils';
 // #region agent log
 import {
+  MAX_CAPTURED_CHUNKS_PER_WINDOW,
   describeVisibleBuffer,
   detectZshPromptEolMark,
   escapeTerminalChunk,
@@ -134,6 +135,7 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
   // #region agent log
   const debugResizeWindowUntilRef = useRef(0);
   const debugResizeWindowIdRef = useRef(0);
+  const debugCapturedChunksRef = useRef(0);
   // #endregion
   // A reserved session creates its shell once, from the first measured panel size.
   const spawnStartedRef = useRef(false);
@@ -222,10 +224,15 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
       });
     }
 
-    if (debugNowMs() <= debugResizeWindowUntilRef.current) {
+    if (
+      debugNowMs() <= debugResizeWindowUntilRef.current &&
+      debugCapturedChunksRef.current < MAX_CAPTURED_CHUNKS_PER_WINDOW
+    ) {
+      debugCapturedChunksRef.current += 1;
       const probed = terminalRef.current?.getTerminal?.() ?? null;
       logTerminalResize('A', 'ConnectedTerminal.handleOutput', 'pty-chunk-in-resize-window', {
         windowId: debugResizeWindowIdRef.current,
+        chunkIndex: debugCapturedChunksRef.current,
         escaped: escapeTerminalChunk(data),
         suppress: repaintDecision.suppress,
         reason: repaintDecision.suppress ? repaintDecision.details.reason : repaintDecision.reason,
@@ -440,6 +447,7 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
     debugResizeWindowIdRef.current += 1;
     const debugWindowId = debugResizeWindowIdRef.current;
     debugResizeWindowUntilRef.current = debugNowMs() + DEBUG_RESIZE_WINDOW_MS;
+    debugCapturedChunksRef.current = 0;
     // #endregion
 
     const xterm = terminalRef.current?.getTerminal?.() ?? null;

@@ -66,17 +66,43 @@ export function escapeTerminalChunk(value: string, maxLength = 900): string {
 }
 
 /**
+ * Detection only samples the head and the tail of a chunk. The mark is written
+ * next to the prompt, so it sits at a chunk edge, and sampling keeps a
+ * multi-megabyte chunk from being rescanned on the render path.
+ */
+const DETECTION_SAMPLE_LENGTH = 4096;
+/** Cap the chunks captured per resize window so large output cannot flood the log. */
+export const MAX_CAPTURED_CHUNKS_PER_WINDOW = 80;
+
+/**
  * Detect zsh's PROMPT_EOL_MARK (default `%B%S%#%s%b`, rendered as an inverted
  * "%") in a raw PTY chunk. Either an SGR-wrapped "%" or a "%" that starts a
  * line matches; both shapes are what a resize-triggered prompt repaint leaves
  * behind.
  */
 export function detectZshPromptEolMark(data: string): boolean {
-  if (ZSH_MARK_SGR_RE.test(data)) {
+  if (data.length === 0) {
+    return false;
+  }
+
+  const head = data.slice(0, DETECTION_SAMPLE_LENGTH);
+  if (sampleHasEolMark(head)) {
     return true;
   }
 
-  const printable = data.replace(OSC_RE, '').replace(CSI_RE, '').replace(ESC_RE, '');
+  if (data.length <= DETECTION_SAMPLE_LENGTH) {
+    return false;
+  }
+
+  return sampleHasEolMark(data.slice(-DETECTION_SAMPLE_LENGTH));
+}
+
+function sampleHasEolMark(sample: string): boolean {
+  if (ZSH_MARK_SGR_RE.test(sample)) {
+    return true;
+  }
+
+  const printable = sample.replace(OSC_RE, '').replace(CSI_RE, '').replace(ESC_RE, '');
   return printable.split(/\r\n|\r|\n/).some(line => line.trim() === '%');
 }
 
