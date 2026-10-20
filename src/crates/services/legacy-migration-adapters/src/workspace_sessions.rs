@@ -20,15 +20,15 @@ use bitfun_services_core::session::{
 use bitfun_services_core::session_projection_format::validate_runtime_event_log;
 use bitfun_services_core::workspace_identity::build_project_runtime_slug;
 use bitfun_services_core::workspace_identity::{
-    canonicalize_local_workspace_root, normalize_remote_workspace_path, LOCAL_WORKSPACE_SSH_HOST,
+    canonicalize_local_workspace_root_allowing_missing, normalize_remote_workspace_path,
+    LOCAL_WORKSPACE_SSH_HOST,
 };
 use bitfun_services_core::workspace_persistence::{
-    current_workspace_storage_id, validate_workspace_persistence_data, WorkspacePersistenceData,
+    current_workspace_storage_id, repair_local_workspace_identities,
+    validate_workspace_persistence_data, RepairedLocalWorkspaceIdentity, WorkspacePersistenceData,
     WORKSPACE_PERSISTENCE_FORMAT_VERSION,
 };
-use bitfun_services_core::workspace_records::{
-    PrimaryAssistantKey, WorkspaceInfo, WorkspaceKind,
-};
+use bitfun_services_core::workspace_records::{PrimaryAssistantKey, WorkspaceInfo, WorkspaceKind};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
@@ -711,6 +711,32 @@ fn skipped_workspace(id: &str) -> MigrationConflict {
     }
 }
 
+/// Report workspace records whose persisted root or id had to be reconciled with
+/// their canonical root, so the remap stays visible in the migration report
+/// instead of silently changing a workspace identity.
+fn workspace_identity_repair_conflicts(
+    repairs: Vec<RepairedLocalWorkspaceIdentity>,
+) -> Vec<MigrationConflict> {
+    repairs
+        .into_iter()
+        .map(|repair| MigrationConflict {
+            domain: MigrationDomainId::WorkspaceSessions,
+            code: "workspace_identity_remapped".to_string(),
+            source_summary: format!(
+                "Workspace {} at {}",
+                repair.previous_id,
+                repair.previous_root.display()
+            ),
+            target_summary: format!(
+                "Workspace {} at {}",
+                repair.canonical_id,
+                repair.canonical_root.display()
+            ),
+            resolution: ConflictResolution::SourceRemapped,
+        })
+        .collect()
+}
+
 fn repair_workspace_lists(data: &mut WorkspacePersistenceData, miniapps_root: &Path) {
     for list in [
         &mut data.opened_workspace_ids,
@@ -827,6 +853,9 @@ fn plan_workspace_sessions(roots: &MigrationRoots) -> LegacyMigrationResult<Work
         &target_workspace_path,
     )?;
     if let Some(target) = &mut target {
+        conflicts.extend(workspace_identity_repair_conflicts(
+            repair_local_workspace_identities(target),
+        ));
         repair_workspace_lists(target, &roots.target_user_root.join("data/miniapps"));
         validate_workspace_persistence_data(target, &roots.target_user_root.join("data/miniapps"))
             .map_err(|error| owner_error("read current Workspace registry", error))?;
@@ -956,6 +985,9 @@ fn plan_workspace_sessions(roots: &MigrationRoots) -> LegacyMigrationResult<Work
         &mut workspace_data,
         &roots.target_user_root.join("data/miniapps"),
     );
+    conflicts.extend(workspace_identity_repair_conflicts(
+        repair_local_workspace_identities(&mut workspace_data),
+    ));
     validate_workspace_persistence_data(
         &workspace_data,
         &roots.target_user_root.join("data/miniapps"),
@@ -1026,11 +1058,14 @@ fn normalize_legacy_workspace_for_current(
             "sshHost".to_string(),
             serde_json::Value::String(LOCAL_WORKSPACE_SSH_HOST.to_string()),
         );
-        if workspace.root_path.exists() {
-            let (canonical, _) = canonicalize_local_workspace_root(&workspace.root_path)
+        // The target root may not exist yet: a relocated assistant tree is only
+        // installed at commit time. Resolve the longest existing ancestor so the
+        // persisted root, and the id derived from it, are the canonical forms
+        // Desktop derives once that tree exists.
+        let (canonical, _) =
+            canonicalize_local_workspace_root_allowing_missing(&workspace.root_path)
                 .map_err(|error| owner_error("canonicalize legacy Workspace root", error))?;
-            workspace.root_path = canonical;
-        }
+        workspace.root_path = canonical;
     }
     Ok(())
 }
@@ -2363,6 +2398,45 @@ mod tests {
         assert_eq!(planned, assistant_session_runtime_relative(target));
     }
 
+    /// Commit installs the relocated assistant tree after planning, so the
+    /// persisted workspace root and id must not depend on whether it exists yet.
+    #[test]
+    fn assistant_workspace_identity_is_stable_before_and_after_the_target_tree_is_installed() {
+        let temp = test_tempdir("assistant-identity");
+        let mut workspace: WorkspaceInfo = serde_json::from_value(serde_json::json!({
+            "id": "assistant-legacy",
+            "name": "Personal assistant",
+            "rootPath": temp.path().join("target-home/personal_assistant/workspace-assistant"),
+            "workspaceType": "Other",
+            "workspaceKind": "assistant",
+            "status": "Inactive",
+            "languages": [],
+            "openedAt": "2026-01-01T00:00:00Z",
+            "lastAccessed": "2026-01-01T00:00:00Z",
+            "description": null,
+            "tags": [],
+            "relatedPaths": [],
+            "metadata": { "sshHost": "localhost" }
+        }))
+        .unwrap();
+
+        normalize_legacy_workspace_for_current(&mut workspace).unwrap();
+        let planned_id = current_workspace_storage_id(&workspace).unwrap();
+        assert_eq!(
+            workspace.root_path,
+            dunce::canonicalize(temp.path())
+                .unwrap()
+                .join("target-home/personal_assistant/workspace-assistant"),
+            "the planned root must already be the canonical form Desktop derives after commit"
+        );
+
+        fs::create_dir_all(&workspace.root_path).unwrap();
+        assert_eq!(
+            current_workspace_storage_id(&workspace).unwrap(),
+            planned_id
+        );
+    }
+
     #[test]
     fn personal_assistant_tree_and_session_paths_are_rehomed_together() {
         let temp = test_tempdir("personal-assistant");
@@ -2459,7 +2533,12 @@ mod tests {
             .values()
             .find(|workspace| workspace.workspace_kind == WorkspaceKind::Assistant)
             .unwrap();
-        assert_eq!(assistant.root_path, target_assistant);
+        // The relocated tree is installed at commit time, so the persisted root
+        // must already be the canonical form Desktop derives once it exists.
+        let expected_assistant_root = dunce::canonicalize(temp.path())
+            .expect("temp root should exist")
+            .join("target-home/personal_assistant/workspace-assistant");
+        assert_eq!(assistant.root_path, expected_assistant_root);
         assert!(!plan.requires_relocation.contains(&assistant.id));
 
         let session = plan

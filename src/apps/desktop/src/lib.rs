@@ -851,6 +851,11 @@ pub async fn _run() {
         Ok(state) => state,
         Err(e) => {
             log::error!("Failed to initialize AppState: {}", e);
+            // Without the Tauri app the process stays alive on its launch
+            // surface, so an unreported failure here reads as a hang.
+            show_fatal_startup_error(&format!(
+                "BitFun could not initialize its workspace state and cannot continue.\n\n{e}\n\nSee early-startup.log for details."
+            ));
             return;
         }
     };

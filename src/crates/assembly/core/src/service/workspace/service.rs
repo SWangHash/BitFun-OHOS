@@ -9,8 +9,9 @@ use super::manager::{
 };
 use super::manager::{WorkspaceIdentityRuntimeExt, WorkspaceInfoRuntimeExt};
 use super::persistence::{
-    unsupported_workspace_persistence, validate_workspace_persistence_data,
-    WorkspacePersistenceData, WORKSPACE_PERSISTENCE_FORMAT_VERSION,
+    repair_local_workspace_identities, unsupported_workspace_persistence,
+    validate_workspace_persistence_data, WorkspacePersistenceData,
+    WORKSPACE_PERSISTENCE_FORMAT_VERSION,
 };
 use super::WorktreeTopologyFreshness;
 use crate::infrastructure::storage::{PersistenceService, StorageOptions};
@@ -1897,6 +1898,15 @@ impl WorkspaceService {
                 &self.path_manager,
             )
             .await;
+            for repaired in repair_local_workspace_identities(&mut data) {
+                warn!(
+                    "Reconciled local workspace identity: previous_id={}, canonical_id={}, root={}, duplicate_record_removed={}",
+                    repaired.previous_id,
+                    repaired.canonical_id,
+                    repaired.canonical_root.display(),
+                    repaired.duplicate_record_removed
+                );
+            }
             validate_workspace_persistence_data(&data, &self.path_manager.miniapps_dir())?;
 
             let mut manager = self.manager.write().await;
