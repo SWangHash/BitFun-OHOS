@@ -203,8 +203,8 @@ function detailPageInfo(pagination: ReviewPlatformPagination, itemCount: number)
 
 // Caches are keyed by the owning workspace ID, never by path: two workspaces
 // (for example a local checkout and a remote one) may share a root path.
-function snapshotCacheKey(workspaceId: string, remoteId: string | null, page: number, perPage: number, mode: 'list' | 'context', state: ListStateFilter): string {
-  return `${workspaceId}::${remoteId ?? 'default'}::${page}::${perPage}::${mode}::${state}`;
+function snapshotCacheKey(workspaceId: string, remoteId: string | null, page: number, perPage: number, mode: 'list' | 'context', state: ListStateFilter, query: string): string {
+  return JSON.stringify([workspaceId, remoteId ?? 'default', page, perPage, mode, state, query]);
 }
 
 function detailCacheKey(workspaceId: string, remoteId: string, pullRequestId: string): string {
@@ -730,6 +730,8 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
   const detailSectionRequestSeq = useRef(0);
   const reviewLaunchInFlight = useRef(false);
   const [snapshot, setSnapshot] = useState<ReviewPlatformWorkspaceSnapshot>(emptySnapshot);
+  const snapshotRef = useRef(snapshot);
+  snapshotRef.current = snapshot;
   const [selectedRemoteId, setSelectedRemoteId] = useState<string | null>(null);
   const [listRemoteId, setListRemoteId] = useState<string | null>(null);
   const [selectedPrId, setSelectedPrId] = useState<string | null>(null);
@@ -738,6 +740,9 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
   const [flowState, setFlowState] = useState(() => flowChatStore.getState());
   const [activeTab, setActiveTab] = useState<DetailTab>('overview');
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const moreInFlight = useRef(false);
+  const [moreError, setMoreError] = useState<unknown>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailFailure, setDetailFailure] = useState<{ cause: unknown; fallback: ReviewErrorFallback } | null>(null);
   const detailError = detailFailure ? reviewPanelErrorMessage(detailFailure.cause, t, detailFailure.fallback) : null;
@@ -749,8 +754,14 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
   // `error` is localized text, so the host-capability case is detected on the cause.
   const stateFilterUnsupported = snapshotError?.cause instanceof Error
     && snapshotError.cause.message.includes('review_platform_state_filter_unsupported');
+  const searchUnsupported = snapshotError?.cause instanceof Error
+    && snapshotError.cause.message.includes('review_platform_search_unsupported');
   const [query, setQuery] = useState('');
+  const serverQuery = useRef('');
+  const searchPending = useRef(false);
   const [stateFilter, setStateFilter] = useState<ListStateFilter>('all');
+  const searchStateFilter = useRef(stateFilter);
+  searchStateFilter.current = stateFilter;
   const serverStateFilter = useRef<ListStateFilter>('all');
   const [pageIndex, setPageIndex] = useState(0);
   const [ciPageIndex, setCiPageIndex] = useState(0);
@@ -846,9 +857,12 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
 
   const loadSnapshot = useCallback(async (
     nextRemoteId?: string | null,
-    options?: { force?: boolean; page?: number; state?: ListStateFilter; userInitiated?: boolean },
+    options?: { force?: boolean; page?: number; state?: ListStateFilter; query?: string; userInitiated?: boolean },
   ) => {
     const requestSeq = ++snapshotRequestSeq.current;
+    moreInFlight.current = false;
+    setLoadingMore(false);
+    setMoreError(null);
     detailRequestSeq.current += 1;
     detailSectionRequestSeq.current += 1;
     if (!workspacePath) {
@@ -870,10 +884,12 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
         ? readRememberedRemote(workspaceId, workspacePath)
         : null;
     const requestedPage = Math.max(1, options?.page ?? 1);
-    const requestedState = detailOnly ? 'all' : options?.state ?? serverStateFilter.current;
+    const requestedQuery = detailOnly ? '' : options?.query ?? serverQuery.current;
+    const requestedState = detailOnly ? 'all' : options?.state
+      ?? (requestedQuery ? searchStateFilter.current : serverStateFilter.current);
     const snapshotMode = detailOnly ? 'context' : 'list';
     setListRemoteId(requestedRemoteId ?? null);
-    const requestedCacheKey = snapshotCacheKey(workspaceId, requestedRemoteId ?? null, requestedPage, PR_PAGE_SIZE, snapshotMode, requestedState);
+    const requestedCacheKey = snapshotCacheKey(workspaceId, requestedRemoteId ?? null, requestedPage, PR_PAGE_SIZE, snapshotMode, requestedState, requestedQuery);
     const cached = snapshotCache.get(requestedCacheKey);
     const force = options?.force === true;
 
@@ -901,15 +917,30 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
     setSnapshotError(null);
     try {
       const repository = { workspaceId, repositoryPath: workspacePath };
-      const fetchSnapshot = () => detailOnly
-        ? reviewPlatformAPI.getWorkspaceContext(repository, requestedRemoteId ?? null)
-        : reviewPlatformAPI.getWorkspaceSnapshot(
-            repository,
-            requestedRemoteId ?? null,
-            requestedPage,
-            PR_PAGE_SIZE,
-            requestedState,
-          );
+      const fetchSnapshot = async () => {
+        if (detailOnly) return reviewPlatformAPI.getWorkspaceContext(repository, requestedRemoteId ?? null);
+        let continuation: ReviewPlatformWorkspaceSnapshot['searchContinuation'];
+        let remoteId = requestedRemoteId ?? null;
+        const matches: ReviewPlatformPullRequest[] = [];
+        let next: ReviewPlatformWorkspaceSnapshot;
+        do {
+          const args = [repository, remoteId, requestedPage, PR_PAGE_SIZE, requestedState] as const;
+          next = requestedQuery
+            ? await reviewPlatformAPI.getWorkspaceSnapshot(...args, { query: requestedQuery, ...(continuation ? { continuation } : {}) })
+            : await reviewPlatformAPI.getWorkspaceSnapshot(...args);
+          if (snapshotRequestSeq.current !== requestSeq) return next;
+          if (!requestedQuery || next.authChallenge || !next.repository) return next;
+          matches.push(...next.pullRequests);
+          next = { ...next, pullRequests: [...matches] };
+          continuation = next.searchContinuation;
+          // GitHub search advances only when the user asks for more. Keep
+          // requestedRemoteId as the list scope, independently of row selection.
+          if (next.repository?.platform === 'github') return next;
+          remoteId = next.selectedRemoteId ?? remoteId;
+          if (continuation) setSnapshot(next);
+        } while (continuation);
+        return next;
+      };
       const next = options?.userInitiated
         ? await withGitRepositoryTrustRecovery(fetchSnapshot, { workspaceId, repositoryPath: workspacePath }, { userInitiated: true })
         : await fetchSnapshot();
@@ -925,8 +956,8 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
       setDetailError(null);
       const entry = { snapshot: next, fetchedAt: Date.now() };
       snapshotCache.set(requestedCacheKey, entry);
-      if (remoteId) {
-        snapshotCache.set(snapshotCacheKey(workspaceId, remoteId, requestedPage, PR_PAGE_SIZE, snapshotMode, requestedState), entry);
+      if (remoteId && !(requestedRemoteId === null && next.repository?.platform === 'github')) {
+        snapshotCache.set(snapshotCacheKey(workspaceId, remoteId, requestedPage, PR_PAGE_SIZE, snapshotMode, requestedState, requestedQuery), entry);
       }
     } catch (err) {
       if (snapshotRequestSeq.current !== requestSeq) return;
@@ -938,6 +969,79 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
       }
     }
   }, [detailOnly, workspacePath, workspaceId]);
+
+  const loadMoreSearch = useCallback(async () => {
+    const currentQuery = serverQuery.current;
+    const continuation = snapshotRef.current.searchContinuation;
+    if (!workspacePath || !currentQuery || !continuation || loading || moreInFlight.current) return;
+    const requestSeq = ++snapshotRequestSeq.current;
+    moreInFlight.current = true;
+    setLoadingMore(true);
+    setMoreError(null);
+    try {
+      const next = await reviewPlatformAPI.getWorkspaceSnapshot(
+        { workspaceId, repositoryPath: workspacePath }, listRemoteId, 1, PR_PAGE_SIZE, 'all',
+        { query: currentQuery, continuation },
+      );
+      if (snapshotRequestSeq.current !== requestSeq) return;
+      const current = snapshotRef.current;
+      if (next.authChallenge || !next.repository) {
+        setSnapshot({ ...next, pullRequests: current.pullRequests });
+        return;
+      }
+      const matches = new Map(current.pullRequests.map(pr => [pr.webUrl || `${pr.providerId}:${pr.id}`, pr]));
+      for (const pr of next.pullRequests) matches.set(pr.webUrl || `${pr.providerId}:${pr.id}`, pr);
+      const combined = {
+        ...(current.pullRequests.length ? current : next),
+        pullRequests: [...matches.values()],
+        pagination: next.pagination,
+        searchContinuation: next.searchContinuation,
+      };
+      setSnapshot(combined);
+      snapshotCache.set(snapshotCacheKey(workspaceId, listRemoteId, 1, PR_PAGE_SIZE, 'list', 'all', currentQuery), {
+        snapshot: combined, fetchedAt: Date.now(),
+      });
+      if (!current.pullRequests.length && combined.pullRequests.length) {
+        const first = combined.pullRequests[0];
+        setSelectedPrId(first.id);
+        if (first.providerId) setSelectedRemoteId(first.providerId);
+      }
+    } catch (err) {
+      if (snapshotRequestSeq.current !== requestSeq) return;
+      setMoreError(err);
+      log.error('Failed to continue pull request search', { workspacePath, error: err });
+    } finally {
+      if (snapshotRequestSeq.current === requestSeq) {
+        moreInFlight.current = false;
+        setLoadingMore(false);
+      }
+    }
+  }, [listRemoteId, loading, workspaceId, workspacePath]);
+
+  const supportsRepositorySearch = !detailOnly
+    && (selectedRemote ? ['github', 'gitcode', 'gitlab', 'gitee'].includes(selectedRemote.platform) : Boolean(serverQuery.current));
+  useEffect(() => {
+    const nextQuery = supportsRepositorySearch ? query.trim().toLowerCase() : '';
+    if (nextQuery === serverQuery.current && !searchPending.current) return;
+    // Invalidate the current batch immediately; its response cannot schedule
+    // another scan while a new search is waiting for the debounce timer.
+    snapshotRequestSeq.current += 1;
+    moreInFlight.current = false;
+    setLoadingMore(false);
+    setMoreError(null);
+    searchPending.current = true;
+    setLoading(true);
+    const timer = setTimeout(() => {
+      serverQuery.current = nextQuery;
+      searchPending.current = false;
+      setPanelView('list');
+      setPageIndex(0);
+      void loadSnapshot(listRemoteId, { page: 1, query: nextQuery });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query, supportsRepositorySearch, listRemoteId, loadSnapshot]);
+
+  useEffect(() => () => { snapshotRequestSeq.current += 1; }, []);
 
   const loadDetail = useCallback(async (repo: ReviewPlatformRepositoryRef | null, remoteId: string, pullRequestId: string, options?: { force?: boolean }) => {
     const requestSeq = ++detailRequestSeq.current;
@@ -1070,10 +1174,12 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
 
   useEffect(() => {
     serverStateFilter.current = 'all';
+    serverQuery.current = '';
+    searchPending.current = false;
     setPanelView('list');
     setStateFilter('all');
     setSnapshot(emptySnapshot());
-    void loadSnapshot(detailOnly && initialRemoteId ? initialRemoteId : undefined, { state: 'all' });
+    void loadSnapshot(detailOnly && initialRemoteId ? initialRemoteId : undefined, { state: 'all', query: '' });
   }, [detailOnly, initialRemoteId, loadSnapshot]);
 
   useEffect(() => flowChatStore.subscribe(setFlowState), []);
@@ -1351,9 +1457,15 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
     : currentPageIndex * pagination.perPage + snapshot.pullRequests.length;
 
   const isGithubUserList = !detailOnly && selectedRemote?.platform === 'github';
+  const isGithubSearch = isGithubUserList && Boolean(serverQuery.current);
+  const canSearchMore = isGithubSearch && Boolean(snapshot.searchContinuation);
 
   const handleRemoteChange = useCallback((value: string | number | (string | number)[]) => {
     const remoteId = Array.isArray(value) ? String(value[0] ?? '') : String(value);
+    const remote = snapshot.remotes.find(candidate => candidate.id === remoteId);
+    const nextQuery = remote && ['github', 'gitcode', 'gitlab', 'gitee'].includes(remote.platform) ? query.trim().toLowerCase() : '';
+    serverQuery.current = nextQuery;
+    searchPending.current = false;
     setPanelView('list');
     setSelectedRemoteId(remoteId || null);
     setSelectedPrId(null);
@@ -1364,14 +1476,14 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
     setPageIndex(0);
     rememberRemote(workspaceId, remoteId || null);
     setSnapshot(emptySnapshot());
-    void loadSnapshot(remoteId || null, { page: 1, state: 'all' });
-  }, [loadSnapshot, workspaceId]);
+    void loadSnapshot(remoteId || null, { page: 1, state: 'all', query: nextQuery });
+  }, [loadSnapshot, workspaceId, snapshot.remotes, query]);
 
   const handleStateChange = useCallback((state: ListStateFilter) => {
     setPanelView('list');
     setStateFilter(state);
-    if (snapshot.capabilities.supportedPullRequestStates?.includes(state)) {
-      serverStateFilter.current = state;
+    if (serverQuery.current || snapshot.capabilities.supportedPullRequestStates?.includes(state)) {
+      if (snapshot.capabilities.supportedPullRequestStates?.includes(state)) serverStateFilter.current = state;
       setPageIndex(0);
       void loadSnapshot(listRemoteId, { page: 1, state });
     }
@@ -2042,11 +2154,11 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
             <NavigationPanelBody data-bitfun-product-component="review-platform" data-bitfun-product-part="listScroll">
               <NavigationPanelContent>
                 {loading && (
-                  <LoadingState size="sm" role="status" data-testid="review-platform-list-loading" data-bitfun-product-component="review-platform" data-bitfun-product-part="loadingState">Loading pull requests...</LoadingState>
+                  <LoadingState size="sm" role="status" data-testid="review-platform-list-loading" data-bitfun-product-component="review-platform" data-bitfun-product-part="loadingState">{serverQuery.current ? t('reviewPlatform.searching') : 'Loading pull requests...'}</LoadingState>
                 )}
                 {error && (
                   <Alert tone="error" data-bitfun-product-component="review-platform" data-bitfun-product-part="errorState"
-                    message={stateFilterUnsupported ? t('reviewPlatform.stateFilterUnsupported') : error}
+                    message={searchUnsupported ? t('reviewPlatform.searchUnsupported') : stateFilterUnsupported ? t('reviewPlatform.stateFilterUnsupported') : error}
                     description={
                       <Button size="sm" variant="outline" onClick={() => void loadSnapshot(listRemoteId, { force: true, page: currentPageIndex + 1, userInitiated: true })}>
                         Retry
@@ -2054,7 +2166,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                     }
                   />
                 )}
-                {!loading && !error && !authChallenge && !visiblePullRequests.length && (
+                {!loading && !error && !authChallenge && !visiblePullRequests.length && !canSearchMore && (
                   <Empty icon={<GitPullRequest />} description={emptyStateMessage} data-bitfun-product-component="review-platform" data-bitfun-product-part="emptyState" />
                 )}
                 {!loading && !error && visiblePullRequests.map(pr => {
@@ -2092,9 +2204,29 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                     </NavigationPanelItem>
                   );
                 })}
+                {!loading && !error && !authChallenge && canSearchMore && (
+                  <Stack gap="2" data-bitfun-product-component="review-platform" data-bitfun-product-part="searchMore">
+                    {!visiblePullRequests.length && (
+                      <Empty icon={<GitPullRequest />} description={t('reviewPlatform.searchIncomplete')} />
+                    )}
+                    {moreError !== null && (
+                      <Alert tone="error" role="alert" message={reviewPanelErrorMessage(moreError, t)} />
+                    )}
+                    <Button
+                      size="sm"
+                      variant="text"
+                      data-testid="review-platform-search-more"
+                      loading={loadingMore}
+                      disabled={loadingMore}
+                      onClick={() => void loadMoreSearch()}
+                    >
+                      {loadingMore ? t('reviewPlatform.searching') : moreError !== null ? t('common.retry') : t('reviewPlatform.searchMore')}
+                    </Button>
+                  </Stack>
+                )}
               </NavigationPanelContent>
             </NavigationPanelBody>
-            {!loading && !error && (totalPages > 1 || pagination.hasNext) && (
+            {!loading && !error && !isGithubSearch && (totalPages > 1 || pagination.hasNext) && (
               <NavigationPanelFooter className="review-platform__pagination" data-testid="review-platform-pagination" data-bitfun-product-component="review-platform" data-bitfun-product-part="pagination">
                 <ToolbarGroup>
                   <Tooltip content="Previous page">

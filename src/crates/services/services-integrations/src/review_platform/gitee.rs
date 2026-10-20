@@ -547,6 +547,22 @@ async fn enrich_pull_request_counts(
 
 #[async_trait::async_trait]
 impl ReviewProvider for GiteeProvider {
+    async fn list_search_candidates(
+        &self,
+        ctx: &ProviderContext,
+        requested: PullRequestPagination,
+    ) -> Result<ReviewPlatformPullRequestPage, ReviewPlatformError> {
+        list_page(ctx, requested, "all").await
+    }
+
+    async fn enrich_pull_request_list(
+        &self,
+        ctx: &ProviderContext,
+        items: Vec<ReviewPlatformPullRequest>,
+    ) -> Vec<ReviewPlatformPullRequest> {
+        enrich_pull_request_counts(ctx, items).await
+    }
+
     async fn list_pull_requests(
         &self,
         ctx: &ProviderContext,

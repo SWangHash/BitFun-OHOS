@@ -13,8 +13,8 @@ use crate::review_platform_http::{
     send_text_bounded as send_review_text_bounded, ReviewHttpClient, ReviewHttpError,
     ReviewHttpHeaders, ReviewHttpRequest, ReviewJsonResponse, ReviewTextResponse,
 };
-use futures::{stream, StreamExt};
 use bitfun_services_core::process_manager;
+use futures::{stream, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -26,6 +26,8 @@ use tokio::io::AsyncWriteExt;
 use tokio::sync::Mutex as AsyncMutex;
 
 mod gitee;
+mod github_search;
+mod list_search;
 
 pub const REVIEW_PLATFORM_TOKEN_FILE_NAME: &str = "review-platform-tokens.json";
 const REVIEW_PLATFORM_TOKEN_SCHEMA_VERSION: u16 = 1;
@@ -486,6 +488,35 @@ pub struct ReviewPlatformCapabilities {
     /// field on an older host must not be treated as server-side filtering.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub supported_pull_request_states: Vec<ReviewPlatformListState>,
+    /// Whether keyword filtering runs before repository list pagination.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub supports_pull_request_search: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewPlatformListSearch {
+    pub query: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub continuation: Option<ReviewPlatformSearchContinuation>,
+}
+
+/// Transient list search progress. No provider data is persisted.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewPlatformSearchContinuation {
+    pub next_page: u32,
+    pub matched_count: u64,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub github_repositories: Vec<ReviewPlatformGithubSearchCursor>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewPlatformGithubSearchCursor {
+    pub remote_id: String,
+    pub after: Option<String>,
+    pub exhausted: bool,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -663,6 +694,8 @@ pub struct ReviewPlatformWorkspaceSnapshot {
     pub capabilities: ReviewPlatformCapabilities,
     pub message: Option<String>,
     pub auth_challenge: Option<ReviewPlatformAuthChallenge>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub search_continuation: Option<ReviewPlatformSearchContinuation>,
 }
 
 /// Product-level workspace runtime access for review-platform Git probing.
@@ -1093,7 +1126,20 @@ impl ReviewPlatformService {
         per_page: Option<u32>,
         state: ReviewPlatformListState,
     ) -> Result<ReviewPlatformWorkspaceSnapshot, ReviewPlatformError> {
-        self.workspace_snapshot_internal(repository, remote_id, page, per_page, true, state)
+        self.workspace_snapshot_with_search(repository, remote_id, page, per_page, state, None)
+            .await
+    }
+
+    pub async fn workspace_snapshot_with_search(
+        &self,
+        repository: &ReviewRepositoryLocator,
+        remote_id: Option<&str>,
+        page: Option<u32>,
+        per_page: Option<u32>,
+        state: ReviewPlatformListState,
+        search: Option<&ReviewPlatformListSearch>,
+    ) -> Result<ReviewPlatformWorkspaceSnapshot, ReviewPlatformError> {
+        self.workspace_snapshot_internal(repository, remote_id, page, per_page, true, state, search)
             .await
     }
 
@@ -1109,6 +1155,7 @@ impl ReviewPlatformService {
             None,
             false,
             ReviewPlatformListState::All,
+            None,
         )
         .await
     }
@@ -1121,7 +1168,9 @@ impl ReviewPlatformService {
         per_page: Option<u32>,
         include_pull_requests: bool,
         state: ReviewPlatformListState,
+        search: Option<&ReviewPlatformListSearch>,
     ) -> Result<ReviewPlatformWorkspaceSnapshot, ReviewPlatformError> {
+        let search = search.filter(|value| !value.query.trim().is_empty());
         let pagination_request = PullRequestPagination::new(page, per_page);
         let auth_tokens = self.load_stored_tokens().await?;
         let scope = self.workspace_git_scope(repository).await?;
@@ -1150,7 +1199,14 @@ impl ReviewPlatformService {
             ));
         }
 
-        if state != ReviewPlatformListState::All
+        if search.is_some() && !capabilities_for_remote(&remote).supports_pull_request_search {
+            return Err(ReviewPlatformError::UnsupportedPlatform(format!(
+                "{} repository-wide pull request search",
+                platform_label(remote.platform)
+            )));
+        }
+        if (search.is_none() || remote.platform == ReviewPlatformKind::Github)
+            && state != ReviewPlatformListState::All
             && !capabilities_for_remote(&remote)
                 .supported_pull_request_states
                 .contains(&state)
@@ -1190,15 +1246,30 @@ impl ReviewPlatformService {
         }
 
         if include_pull_requests
-            && remote_id.is_none()
             && remote.platform == ReviewPlatformKind::Github
+            && (search.is_some() || remote_id.is_none())
         {
-            let page = github_current_user_open_pull_requests_for_remotes(
-                &remotes,
-                &auth_tokens,
-                pagination_request,
-            )
-            .await?;
+            let result = if let Some(search) = search {
+                github_search::search_batch(
+                    &remotes,
+                    remote_id,
+                    &auth_tokens,
+                    pagination_request,
+                    search,
+                )
+                .await?
+            } else {
+                list_search::SearchPage {
+                    page: github_current_user_open_pull_requests_for_remotes(
+                        &remotes,
+                        &auth_tokens,
+                        pagination_request,
+                    )
+                    .await?,
+                    continuation: None,
+                }
+            };
+            let page = result.page;
             let selected_remote_id = page
                 .items
                 .first()
@@ -1219,6 +1290,7 @@ impl ReviewPlatformService {
                 capabilities: capabilities_for_remote(&selected_remote),
                 message: None,
                 auth_challenge: None,
+                search_continuation: result.continuation,
             });
         }
 
@@ -1243,22 +1315,32 @@ impl ReviewPlatformService {
                 capabilities,
                 message: None,
                 auth_challenge: None,
+                search_continuation: None,
             });
         }
-        match provider
-            .list_pull_requests_with_state(&ctx, pagination_request, state)
-            .await
-        {
-            Ok(page) => Ok(ReviewPlatformWorkspaceSnapshot {
+        let result = if let Some(search) = search {
+            list_search::search_page(provider, &ctx, pagination_request, state, search).await
+        } else {
+            provider
+                .list_pull_requests_with_state(&ctx, pagination_request, state)
+                .await
+                .map(|page| list_search::SearchPage {
+                    page,
+                    continuation: None,
+                })
+        };
+        match result {
+            Ok(result) => Ok(ReviewPlatformWorkspaceSnapshot {
                 remotes,
                 selected_remote_id: Some(remote.id.clone()),
                 accounts: vec![account],
                 repository,
-                pull_requests: page.items,
-                pagination: page.pagination,
+                pull_requests: result.page.items,
+                pagination: result.page.pagination,
                 capabilities,
                 message: None,
                 auth_challenge: None,
+                search_continuation: result.continuation,
             }),
             Err(error) if is_auth_http_error(&error) => {
                 let challenge = auth_challenge_for_remote(
@@ -1730,6 +1812,26 @@ impl ReviewPlatformService {
 
 #[async_trait::async_trait]
 trait ReviewProvider: Sync {
+    /// A provider list page without per-PR file/statistics enrichment.
+    async fn list_search_candidates(
+        &self,
+        ctx: &ProviderContext,
+        _pagination: PullRequestPagination,
+    ) -> Result<ReviewPlatformPullRequestPage, ReviewPlatformError> {
+        Err(ReviewPlatformError::UnsupportedPlatform(format!(
+            "{} repository-wide pull request search",
+            platform_label(ctx.remote.platform)
+        )))
+    }
+
+    async fn enrich_pull_request_list(
+        &self,
+        _ctx: &ProviderContext,
+        items: Vec<ReviewPlatformPullRequest>,
+    ) -> Vec<ReviewPlatformPullRequest> {
+        items
+    }
+
     async fn list_pull_requests(
         &self,
         ctx: &ProviderContext,
@@ -2532,12 +2634,30 @@ async fn github_pull_request_detail_page(
 
 #[async_trait::async_trait]
 impl ReviewProvider for GitlabProvider {
+    async fn list_search_candidates(
+        &self,
+        ctx: &ProviderContext,
+        pagination: PullRequestPagination,
+    ) -> Result<ReviewPlatformPullRequestPage, ReviewPlatformError> {
+        gitlab_list_candidates(ctx, pagination).await
+    }
+
+    async fn enrich_pull_request_list(
+        &self,
+        ctx: &ProviderContext,
+        items: Vec<ReviewPlatformPullRequest>,
+    ) -> Vec<ReviewPlatformPullRequest> {
+        enrich_gitlab_pull_request_counts(ctx, items).await
+    }
+
     async fn list_pull_requests(
         &self,
         ctx: &ProviderContext,
         pagination: PullRequestPagination,
     ) -> Result<ReviewPlatformPullRequestPage, ReviewPlatformError> {
-        gitlab_list_pull_requests(ctx, pagination).await
+        let mut page = gitlab_list_candidates(ctx, pagination).await?;
+        page.items = self.enrich_pull_request_list(ctx, page.items).await;
+        Ok(page)
     }
 
     async fn pull_request_detail(
@@ -2658,7 +2778,7 @@ impl ReviewProvider for GitlabProvider {
     }
 }
 
-async fn gitlab_list_pull_requests(
+async fn gitlab_list_candidates(
     ctx: &ProviderContext,
     pagination: PullRequestPagination,
 ) -> Result<ReviewPlatformPullRequestPage, ReviewPlatformError> {
@@ -2682,13 +2802,12 @@ async fn gitlab_list_pull_requests(
         .is_some_and(|value| !value.trim().is_empty())
         || total
             .map(|total| u64::from(pagination.page) * u64::from(pagination.per_page) < total)
-            .unwrap_or(false);
+            .unwrap_or(items.len() == pagination.per_page as usize);
 
     let pull_requests = items
         .iter()
         .map(gitlab_pull_request_from_value)
         .collect::<Vec<_>>();
-    let pull_requests = enrich_gitlab_pull_request_counts(ctx, pull_requests).await;
 
     Ok(ReviewPlatformPullRequestPage {
         items: pull_requests,
@@ -3212,60 +3331,84 @@ async fn gitcode_pull_request_detail_page(
     })
 }
 
+async fn gitcode_list_candidates(
+    ctx: &ProviderContext,
+    pagination: PullRequestPagination,
+) -> Result<ReviewPlatformPullRequestPage, ReviewPlatformError> {
+    let url = format!(
+        "{}/repos/{}/{}/pulls",
+        ctx.api_base_url, ctx.remote.owner, ctx.remote.repository_name
+    );
+    let per_page = pagination.per_page.to_string();
+    let page = pagination.page.to_string();
+    let response = send_json_response(
+        gitcode_request(http_client()?, &url, ctx.token.as_deref()).query(&[
+            ("state", "all"),
+            ("per_page", &per_page),
+            ("page", &page),
+        ]),
+    )
+    .await?;
+    let items = response.value.as_array().ok_or_else(|| {
+        ReviewPlatformError::Parse("GitCode pull response was not an array".to_string())
+    })?;
+    let total = header_u64(&response.headers, "x-total").or_else(|| {
+        link_header_last_page(&response.headers).map(|last_page| {
+            if last_page == pagination.page {
+                (u64::from(last_page.saturating_sub(1)) * u64::from(pagination.per_page))
+                    + items.len() as u64
+            } else {
+                u64::from(last_page) * u64::from(pagination.per_page)
+            }
+        })
+    });
+    let has_next = link_header_has_rel(&response.headers, "next")
+        || total
+            .map(|total| u64::from(pagination.page) * u64::from(pagination.per_page) < total)
+            .unwrap_or(items.len() == pagination.per_page as usize);
+
+    let pull_requests = items
+        .iter()
+        .map(gitcode_pull_request_from_value)
+        .collect::<Vec<_>>();
+
+    Ok(ReviewPlatformPullRequestPage {
+        items: pull_requests,
+        pagination: ReviewPlatformPagination {
+            page: pagination.page,
+            per_page: pagination.per_page,
+            total,
+            has_next,
+        },
+    })
+}
+
 #[async_trait::async_trait]
 impl ReviewProvider for GitcodeProvider {
+    async fn list_search_candidates(
+        &self,
+        ctx: &ProviderContext,
+        pagination: PullRequestPagination,
+    ) -> Result<ReviewPlatformPullRequestPage, ReviewPlatformError> {
+        gitcode_list_candidates(ctx, pagination).await
+    }
+
+    async fn enrich_pull_request_list(
+        &self,
+        ctx: &ProviderContext,
+        items: Vec<ReviewPlatformPullRequest>,
+    ) -> Vec<ReviewPlatformPullRequest> {
+        enrich_gitcode_pull_request_change_stats(ctx, items).await
+    }
+
     async fn list_pull_requests(
         &self,
         ctx: &ProviderContext,
         pagination: PullRequestPagination,
     ) -> Result<ReviewPlatformPullRequestPage, ReviewPlatformError> {
-        let url = format!(
-            "{}/repos/{}/{}/pulls",
-            ctx.api_base_url, ctx.remote.owner, ctx.remote.repository_name
-        );
-        let per_page = pagination.per_page.to_string();
-        let page = pagination.page.to_string();
-        let response = send_json_response(
-            gitcode_request(http_client()?, &url, ctx.token.as_deref()).query(&[
-                ("state", "all"),
-                ("per_page", &per_page),
-                ("page", &page),
-            ]),
-        )
-        .await?;
-        let items = response.value.as_array().ok_or_else(|| {
-            ReviewPlatformError::Parse("GitCode pull response was not an array".to_string())
-        })?;
-        let total = header_u64(&response.headers, "x-total").or_else(|| {
-            link_header_last_page(&response.headers).map(|last_page| {
-                if last_page == pagination.page {
-                    (u64::from(last_page.saturating_sub(1)) * u64::from(pagination.per_page))
-                        + items.len() as u64
-                } else {
-                    u64::from(last_page) * u64::from(pagination.per_page)
-                }
-            })
-        });
-        let has_next = link_header_has_rel(&response.headers, "next")
-            || total
-                .map(|total| u64::from(pagination.page) * u64::from(pagination.per_page) < total)
-                .unwrap_or(items.len() == pagination.per_page as usize);
-
-        let pull_requests = items
-            .iter()
-            .map(gitcode_pull_request_from_value)
-            .collect::<Vec<_>>();
-        let pull_requests = enrich_gitcode_pull_request_change_stats(ctx, pull_requests).await;
-
-        Ok(ReviewPlatformPullRequestPage {
-            items: pull_requests,
-            pagination: ReviewPlatformPagination {
-                page: pagination.page,
-                per_page: pagination.per_page,
-                total,
-                has_next,
-            },
-        })
+        let mut page = gitcode_list_candidates(ctx, pagination).await?;
+        page.items = self.enrich_pull_request_list(ctx, page.items).await;
+        Ok(page)
     }
 
     async fn pull_request_detail(
@@ -4675,10 +4818,7 @@ async fn resolve_git_program(current_dir: &Path) -> PathBuf {
     {
         let home = harmony_user_home(current_dir);
         let candidates = [
-            (
-                "zsh",
-                ["-lic", "command -v git"].as_slice(),
-            ),
+            ("zsh", ["-lic", "command -v git"].as_slice()),
             (
                 "sh",
                 [
@@ -5064,6 +5204,12 @@ fn github_pull_request_from_gh_cli_value(
             .get("comments")
             .and_then(Value::as_array)
             .map(Vec::len)
+            .or_else(|| {
+                value
+                    .pointer("/comments/totalCount")
+                    .and_then(Value::as_u64)
+                    .map(|count| count as usize)
+            })
             .unwrap_or_default() as i32,
         review_decision,
         checks: github_checks_from_gh_cli_value(value),
@@ -5084,19 +5230,41 @@ fn github_checks_from_gh_cli_value(value: &Value) -> ReviewChecks {
             value_string(item, "status"),
         ])
         .to_ascii_lowercase();
-        if matches!(outcome.as_str(), "success" | "neutral" | "skipped") {
-            checks.passed += 1;
-        } else if matches!(
-            outcome.as_str(),
-            "failure" | "failed" | "error" | "cancelled" | "timed_out" | "action_required"
-        ) {
-            checks.failed += 1;
-        } else {
-            checks.pending += 1;
+        add_github_check_outcome(&mut checks, &outcome, 1);
+    }
+    // Search reads counts, rather than every check node, for each candidate.
+    if let Some(summary) = value.pointer("/checkSummary/nodes/0/commit/statusCheckRollup/contexts")
+    {
+        for field in ["checkRunCountsByState", "statusContextCountsByState"] {
+            for item in summary
+                .get(field)
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+            {
+                add_github_check_outcome(
+                    &mut checks,
+                    &value_string(item, "state").to_ascii_lowercase(),
+                    value_i64(item, "count") as i32,
+                );
+            }
         }
     }
     checks.total = checks.passed + checks.failed + checks.pending;
     checks
+}
+
+fn add_github_check_outcome(checks: &mut ReviewChecks, outcome: &str, count: i32) {
+    if matches!(outcome, "success" | "neutral" | "skipped") {
+        checks.passed += count;
+    } else if matches!(
+        outcome,
+        "failure" | "failed" | "error" | "cancelled" | "timed_out" | "action_required"
+    ) {
+        checks.failed += count;
+    } else {
+        checks.pending += count;
+    }
 }
 
 async fn github_api_array_page(
@@ -5670,6 +5838,7 @@ fn empty_snapshot(
             can_merge: false,
             supports_draft_review: false,
             supported_pull_request_states: Vec::new(),
+            supports_pull_request_search: false,
         },
         message: if message.trim().is_empty() {
             None
@@ -5677,6 +5846,7 @@ fn empty_snapshot(
             Some(message.to_string())
         },
         auth_challenge: None,
+        search_continuation: None,
     }
 }
 
@@ -5703,6 +5873,7 @@ fn auth_required_snapshot(
         capabilities,
         message: Some(challenge.message.clone()),
         auth_challenge: Some(challenge),
+        search_continuation: None,
     }
 }
 
@@ -5785,6 +5956,13 @@ fn capabilities_for_remote(_remote: &ReviewPlatformRemote) -> ReviewPlatformCapa
         can_request_changes: matches!(platform, ReviewPlatformKind::Github),
         can_merge: false,
         supports_draft_review: matches!(platform, ReviewPlatformKind::Github),
+        supports_pull_request_search: matches!(
+            platform,
+            ReviewPlatformKind::Github
+                | ReviewPlatformKind::Gitcode
+                | ReviewPlatformKind::Gitlab
+                | ReviewPlatformKind::Gitee
+        ),
         supported_pull_request_states: if platform == ReviewPlatformKind::Gitee {
             vec![
                 ReviewPlatformListState::All,

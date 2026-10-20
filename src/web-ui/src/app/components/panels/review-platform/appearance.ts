@@ -17,6 +17,7 @@ export const reviewPlatformAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'listItemTitle' },
     { id: 'listItemMeta' },
     { id: 'pagination' },
+    { id: 'searchMore' },
     { id: 'emptyState' },
     { id: 'errorState' },
     { id: 'loadingState' },

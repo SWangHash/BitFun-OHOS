@@ -116,4 +116,32 @@ describe('ReviewPlatformAPI identity evidence wire', () => {
     await expect(reviewPlatformAPI.getWorkspaceSnapshot(repo, 'origin', 1, 10, 'merged'))
       .rejects.toThrow('review_platform_state_filter_unsupported');
   });
+
+  it('sends search progress with the result page and preserves combined state filtering', async () => {
+    const result = { repository: {}, capabilities: { supportsPullRequestSearch: true } };
+    invokeMock.mockResolvedValue(result);
+    const search = { query: 'fix', continuation: { nextPage: 12, matchedCount: 4 } };
+    await expect(reviewPlatformAPI.getWorkspaceSnapshot(repo, 'origin', 2, 10, 'merged', search)).resolves.toBe(result);
+    expect(invokeMock).toHaveBeenCalledWith('review_platform_get_workspace_snapshot', {
+      request: { ...repo, remoteId: 'origin', page: 2, perPage: 10, state: 'merged', search },
+    });
+    const githubSearch = { query: 'fix', continuation: { nextPage: 1, matchedCount: 2,
+      githubRepositories: [{ remoteId: 'origin', after: 'cursor-100', exhausted: false }] } };
+    await reviewPlatformAPI.getWorkspaceSnapshot(repo, null, 1, 10, 'all', githubSearch);
+    expect(invokeMock).toHaveBeenLastCalledWith('review_platform_get_workspace_snapshot', {
+      request: { ...repo, remoteId: null, page: 1, perPage: 10, search: githubSearch },
+    });
+  });
+
+  it('rejects an older host that silently ignores a repository search', async () => {
+    invokeMock.mockResolvedValue({ repository: {}, capabilities: {}, pullRequests: [] });
+    await expect(reviewPlatformAPI.getWorkspaceSnapshot(repo, 'origin', 1, 10, 'all', { query: 'fix' }))
+      .rejects.toThrow('review_platform_search_unsupported');
+  });
+
+  it('keeps authentication challenges visible during a search', async () => {
+    const challenge = { repository: {}, capabilities: {}, authChallenge: { state: 'missing' } };
+    invokeMock.mockResolvedValue(challenge);
+    await expect(reviewPlatformAPI.getWorkspaceSnapshot(repo, 'origin', 1, 10, 'all', { query: 'fix' })).resolves.toBe(challenge);
+  });
 });

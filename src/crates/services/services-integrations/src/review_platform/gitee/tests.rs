@@ -857,9 +857,118 @@ fn legacy_capabilities_round_trip_without_requiring_state_filters() {
         .as_object_mut()
         .unwrap()
         .remove("supportedPullRequestStates");
+    legacy
+        .as_object_mut()
+        .unwrap()
+        .remove("supportsPullRequestSearch");
     let decoded: ReviewPlatformCapabilities = serde_json::from_value(legacy.clone()).unwrap();
     assert!(decoded.supported_pull_request_states.is_empty());
+    assert!(!decoded.supports_pull_request_search);
     assert_eq!(serde_json::to_value(decoded).unwrap(), legacy);
+}
+
+#[tokio::test]
+async fn repository_search_uses_the_same_cross_page_filter_for_gitcode_gitlab_and_gitee() {
+    let list_response = |values, total| {
+        let mut response = counted_page(values, total);
+        response.headers.push(("x-total", total.to_string()));
+        response
+    };
+    for platform in [
+        ReviewPlatformKind::Gitcode,
+        ReviewPlatformKind::Gitlab,
+        ReviewPlatformKind::Gitee,
+    ] {
+        let candidate = |number: u32, title: &str, author: &str| {
+            let mut value = numbered_pr(number, "open", false);
+            value["iid"] = json!(number);
+            value["title"] = json!(title);
+            value["user"]["login"] = json!(author);
+            value["author"] = json!({ "username": author });
+            value
+        };
+        let files = if platform == ReviewPlatformKind::Gitlab {
+            json!({ "changes": [] })
+        } else {
+            json!([])
+        };
+        let (mut ctx, receiver) = server(vec![
+            list_response(
+                (1..=100)
+                    .map(|number| candidate(number, "other", "author"))
+                    .collect(),
+                103,
+            ),
+            list_response(
+                vec![
+                    candidate(101, "Needle title", "author"),
+                    candidate(102, "other", "NEEDLE-author"),
+                    candidate(103, "other", "author"),
+                ],
+                103,
+            ),
+            ok(files.clone()),
+            ok(files),
+        ]);
+        ctx.remote.platform = platform;
+        let provider = provider_for(platform);
+        let pagination = PullRequestPagination {
+            page: 1,
+            per_page: 10,
+        };
+        let mut search = ReviewPlatformListSearch {
+            query: "  needle  ".into(),
+            continuation: None,
+        };
+        let first = list_search::search_page(
+            provider,
+            &ctx,
+            pagination,
+            ReviewPlatformListState::All,
+            &search,
+        )
+        .await
+        .unwrap();
+        assert!(first.page.items.is_empty());
+        assert_eq!(first.page.pagination.total, None);
+        search.continuation = first.continuation;
+        assert_eq!(search.continuation.as_ref().unwrap().next_page, 2);
+        let second = list_search::search_page(
+            provider,
+            &ctx,
+            pagination,
+            ReviewPlatformListState::All,
+            &search,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            second
+                .page
+                .items
+                .iter()
+                .map(|pr| pr.number)
+                .collect::<Vec<_>>(),
+            [101, 102]
+        );
+        assert_eq!(second.page.pagination.total, Some(2));
+        assert!(!second.page.pagination.has_next);
+        assert!(second.continuation.is_none());
+        let requests = requests(receiver);
+        assert_eq!(requests.len(), 4, "only matching rows need statistics");
+        assert!(requests[0]
+            .url
+            .query_pairs()
+            .any(|(key, value)| key == "page" && value == "1"));
+        assert!(requests[1]
+            .url
+            .query_pairs()
+            .any(|(key, value)| key == "page" && value == "2"));
+        assert!(requests[2..].iter().all(|request| {
+            let path = request.url.path();
+            path.contains("/101/") || path.contains("/102/")
+        }));
+    }
 }
 
 #[tokio::test]

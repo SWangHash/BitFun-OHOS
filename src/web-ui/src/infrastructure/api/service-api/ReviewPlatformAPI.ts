@@ -219,6 +219,22 @@ export interface ReviewPlatformCapabilities {
   canMerge: boolean;
   supportsDraftReview: boolean;
   supportedPullRequestStates?: ReviewPlatformListState[];
+  supportsPullRequestSearch?: boolean;
+}
+
+export interface ReviewPlatformSearchContinuation {
+  nextPage: number;
+  matchedCount: number;
+  githubRepositories?: {
+    remoteId: string;
+    after: string | null;
+    exhausted: boolean;
+  }[];
+}
+
+export interface ReviewPlatformListSearch {
+  query: string;
+  continuation?: ReviewPlatformSearchContinuation | null;
 }
 
 export interface ReviewPlatformPagination {
@@ -238,6 +254,7 @@ export interface ReviewPlatformWorkspaceSnapshot {
   capabilities: ReviewPlatformCapabilities;
   message?: string | null;
   authChallenge?: ReviewPlatformAuthChallenge | null;
+  searchContinuation?: ReviewPlatformSearchContinuation | null;
 }
 
 /**
@@ -315,15 +332,19 @@ export class ReviewPlatformAPI {
     page?: number,
     perPage?: number,
     state?: ReviewPlatformListState,
+    search?: ReviewPlatformListSearch,
   ): Promise<ReviewPlatformWorkspaceSnapshot> {
     const { workspaceId, repositoryPath } = repository;
     try {
       const snapshot = await api.invoke<ReviewPlatformWorkspaceSnapshot>('review_platform_get_workspace_snapshot', {
-        request: { workspaceId, repositoryPath, remoteId, page, perPage, ...(state && state !== 'all' ? { state } : {}) },
+        request: { workspaceId, repositoryPath, remoteId, page, perPage, ...(state && state !== 'all' ? { state } : {}), ...(search ? { search } : {}) },
       });
       // Older hosts may ignore a new optional request field. Require their
       // advertised capability before accepting the returned page as filtered.
-      if (state && state !== 'all' && !snapshot.capabilities.supportedPullRequestStates?.includes(state)) {
+      if (search && !snapshot.authChallenge && snapshot.repository && !snapshot.capabilities.supportsPullRequestSearch) {
+        throw new Error('review_platform_search_unsupported');
+      }
+      if (state && state !== 'all' && !search && !snapshot.capabilities.supportedPullRequestStates?.includes(state)) {
         throw new Error('review_platform_state_filter_unsupported');
       }
       return snapshot;
