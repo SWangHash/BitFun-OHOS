@@ -169,7 +169,7 @@ pub(crate) async fn list_models(client: &AIClient) -> Result<Vec<RemoteModelInfo
         return list_codex_chatgpt_models(client, &url).await;
     }
 
-    let response = apply_headers(client, client.client.get(&url))
+    let response = apply_headers(client, client.client().get(&url))
         .send()
         .await?
         .error_for_status()?;
@@ -311,7 +311,7 @@ async fn fetch_codex_chatgpt_models(
     client: &AIClient,
     url: &str,
 ) -> Result<Vec<RemoteModelInfo>> {
-    let response = apply_headers(client, client.client.get(url))
+    let response = apply_headers(client, client.client().get(url))
         .send()
         .await
         .context("fetch Codex subscription models")?

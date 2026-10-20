@@ -264,7 +264,7 @@ pub(crate) async fn send_stream(
         || {
             shared::apply_affinity_headers(
                 client,
-                common::apply_headers(client, client.client.post(&url)),
+                common::apply_headers(client, client.client().post(&url)),
                 &url,
                 request_context.as_ref(),
             )
@@ -321,7 +321,7 @@ mod tests {
         }
         let request = shared::apply_affinity_headers(
             &client,
-            common::apply_headers(&client, client.client.post(&client.config.request_url)),
+            common::apply_headers(&client, client.client().post(&client.config.request_url)),
             &client.config.request_url,
             Some(&context),
         )
@@ -360,7 +360,7 @@ mod tests {
         }
         let request = shared::apply_affinity_headers(
             &client,
-            common::apply_headers(&client, client.client.post(&client.config.request_url)),
+            common::apply_headers(&client, client.client().post(&client.config.request_url)),
             &client.config.request_url,
             Some(&context),
         )

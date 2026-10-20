@@ -248,14 +248,16 @@ impl ModelsDevCatalog {
             if provider_id.is_empty() {
                 continue;
             }
-            let Ok(raw_provider) = serde_json::from_value::<RawProvider>(provider_value.clone())
-            else {
+            // Deserialize straight from the borrowed node. Cloning each provider
+            // and model value first duplicated the whole parsed document before
+            // parsing it a second time, and that duplication dominated the
+            // models.dev catalog load on the startup path.
+            let Ok(raw_provider) = RawProvider::deserialize(provider_value) else {
                 continue;
             };
             let mut models = BTreeMap::new();
-            for (model_key, raw_model_value) in raw_provider.models {
-                let Ok(raw_model) = serde_json::from_value::<RawModel>(raw_model_value.clone())
-                else {
+            for (model_key, raw_model_value) in &raw_provider.models {
+                let Ok(raw_model) = RawModel::deserialize(raw_model_value) else {
                     continue;
                 };
                 let model_id = if raw_model.id.trim().is_empty() {
@@ -267,9 +269,9 @@ impl ModelsDevCatalog {
                     continue;
                 }
                 let (reasoning_options, has_unknown_options) =
-                    parse_reasoning_options(&raw_model_value);
+                    parse_reasoning_options(raw_model_value);
                 models.insert(
-                    model_key,
+                    model_key.clone(),
                     ModelsDevModel {
                         id: model_id,
                         name: raw_model.name.and_then(non_empty),

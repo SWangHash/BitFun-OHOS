@@ -1231,6 +1231,41 @@ pub async fn _run() {
 
             let app_handle = app.handle().clone();
 
+            // HarmonyOS cannot prepare the bootstrap snapshot inline the way the
+            // desktop path below does: setup runs on the main thread with no
+            // entered tokio runtime (`block_in_place` is unavailable) and blocking
+            // here would stall the launch surface. This must sit outside the
+            // `#[cfg(not(target_env = "ohos"))]` block that owns window creation --
+            // that whole region is compiled out on HarmonyOS. The frontend asks for
+            // the same snapshot shortly after the window exists, so publish it from
+            // a task that overlaps the frontend's own boot.
+            #[cfg(target_env = "ohos")]
+            {
+                let prefetch_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    let app_state: tauri::State<'_, api::app_state::AppState> =
+                        prefetch_handle.state();
+                    let prefetch_trace: tauri::State<'_, startup_trace::DesktopStartupTrace> =
+                        prefetch_handle.state();
+                    match prepare_workspace_startup_bootstrap_snapshot(
+                        &app_state,
+                        &prefetch_handle,
+                        &prefetch_trace,
+                    )
+                    .await
+                    {
+                        Some(snapshot) => {
+                            api::commands::publish_prefetched_workspace_startup_state(snapshot);
+                        }
+                        None => {
+                            log::warn!(
+                                "Workspace startup snapshot prefetch failed; the frontend will compute it through the startup command"
+                            );
+                        }
+                    }
+                });
+            }
+
             #[cfg(not(target_env = "ohos"))]
             {
                 let workspace_startup_bootstrap_snapshot = {
@@ -1320,6 +1355,39 @@ pub async fn _run() {
                 window_phase_duration_ms,
                 since_process_start_ms
             );
+            }
+
+            // HarmonyOS creates the main window through the same builder as the
+            // desktop path above, so the webview receives the bootstrap
+            // `initialization_script`. Without that script every startup value the
+            // frontend needs before its first paint (appearance, locale, log level,
+            // keybindings, workspace state) is fetched over the invoke bridge, and
+            // each call costs 100-300ms while the ArkUI main thread is still
+            // inflating the page -- that bridge latency is the whole launch-time
+            // gap to the desktop host.
+            //
+            // There is no inline snapshot to inject here: HarmonyOS has no entered
+            // tokio runtime in setup for the desktop `block_in_place` prefetch, so
+            // the task above publishes one and `initialize_workspace_startup_state`
+            // serves it from that prefetch.
+            #[cfg(target_env = "ohos")]
+            {
+                let window_started = Instant::now();
+                startup_trace.record_phase("main_window_create_start", "native_window");
+                appearance::create_main_window(
+                    &app_handle,
+                    &startup_trace_id,
+                    &startup_trace,
+                    None,
+                    Arc::clone(&frontend_workbench),
+                );
+                let window_duration_ms = elapsed_ms(window_started);
+                startup_trace.record_step(
+                    "native_step_end",
+                    "native_window",
+                    "create_main_window",
+                    window_duration_ms,
+                );
             }
 
             #[cfg(target_os = "macos")]
