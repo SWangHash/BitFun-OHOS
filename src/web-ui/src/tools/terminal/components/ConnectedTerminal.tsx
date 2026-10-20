@@ -17,6 +17,7 @@ import {
   ResizeRepaintGuard,
   TerminalInputQueue,
   createResizeRepaintScreenSnapshot,
+  dropShellOwnedPromptRegion,
   resolveTerminalPaste,
   shouldUsePowerShellReadlinePaste,
   terminalReplayHasScreenText,
@@ -299,15 +300,31 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
       setReplayColumnGuard(maxReplayCols);
     }
 
-    events.forEach((event) => {
+    // The prompt at the end of a replay is the one the shell still owns: the
+    // reattachment resizes the PTY, the shell repaints that prompt for it, and a
+    // replayed copy is laid out for a width the shell does not expect — which is
+    // what left a stray prompt character and stacked prompt rows behind. Drop it
+    // when that repaint is coming. A reattachment at the same geometry draws no
+    // SIGWINCH, so there the replayed prompt is the only one the screen will get.
+    const xterm = terminalRef.current?.getTerminal?.() ?? null;
+    const recordedDims = events[events.length - 1];
+    const shellWillRepaint = Boolean(
+      xterm && (xterm.cols !== recordedDims.cols || xterm.rows !== recordedDims.rows),
+    );
+    const replayData = shellWillRepaint
+      ? dropShellOwnedPromptRegion(events.map((event) => event.data))
+      : events.map((event) => event.data);
+
+    events.forEach((event, index) => {
       outputQueueRef.current.push({
         type: 'replayResize',
         cols: event.cols,
         rows: event.rows,
         protectScreenText: hasReplayScreenText,
       });
-      if (event.data) {
-        queueWrite(event.data, 'replay');
+      const data = replayData[index] ?? event.data;
+      if (data) {
+        queueWrite(data, 'replay');
       }
     });
     if (hasReplayScreenText) {
