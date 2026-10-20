@@ -4802,6 +4802,25 @@ impl ExecutionEngine {
                         crate::agentic::image_analysis::attachments::prepare_inline_image_attachments(
                             &mut images, &attachment_context,
                         ).await?;
+                        // Capture display-shape images before they are moved
+                        // into the multimodal message below. The UserSteeringInjected
+                        // event echoes these back so the frontend can render the
+                        // images the user attached to the steering message.
+                        let steering_images: Vec<bitfun_events::agentic::UserSteeringImage> = images
+                            .iter()
+                            .map(|img| bitfun_events::agentic::UserSteeringImage {
+                                id: img.id.clone(),
+                                name: img
+                                    .metadata
+                                    .as_ref()
+                                    .and_then(|m| m.get("name"))
+                                    .and_then(|v| v.as_str())
+                                    .map(String::from),
+                                data_url: img.data_url.clone(),
+                                image_path: img.image_path.clone(),
+                                mime_type: Some(img.mime_type.clone()),
+                            })
+                            .collect();
                         let user_msg = if images.is_empty() {
                             Message::internal_reminder(reminder_kind, wrapped)
                         } else {
@@ -4830,6 +4849,7 @@ impl ExecutionEngine {
                                 steering_id: injection.id,
                                 content: injection.content,
                                 display_content: injection.display_content,
+                                images: steering_images,
                             },
                             EventPriority::Normal,
                         )

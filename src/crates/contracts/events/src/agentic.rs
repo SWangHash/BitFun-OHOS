@@ -82,6 +82,26 @@ pub struct DeepReviewQueueState {
     pub session_concurrency_high: bool,
 }
 
+/// Display-shape image carried by `UserSteeringInjected` so the frontend can
+/// render the images the user attached to a mid-turn steering message.
+///
+/// This DTO lives in the events crate (which must stay dependency-free) so it
+/// cannot reuse `bitfun_core_types::ToolImageAttachment` or assembly-layer
+/// image types. It mirrors the frontend `SteeringImage` TypeScript type.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserSteeringImage {
+    pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum AgenticEvent {
@@ -395,6 +415,10 @@ pub enum AgenticEvent {
         steering_id: String,
         content: String,
         display_content: String,
+        /// Images attached to the steering message, in display shape. Older
+        /// peers/relays that don't send this field deserialize as an empty vec.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        images: Vec<UserSteeringImage>,
     },
 
     /// A mutable session's bound model fell back because the previous model

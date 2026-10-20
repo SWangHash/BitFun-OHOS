@@ -504,6 +504,7 @@ pub fn project_agentic_frontend_event(event: AgenticEvent) -> Option<AgenticFron
             steering_id,
             content,
             display_content,
+            images,
         } => Some(AgenticFrontendEvent::new(
             "agentic://user-steering-injected",
             json!({
@@ -513,6 +514,7 @@ pub fn project_agentic_frontend_event(event: AgenticEvent) -> Option<AgenticFron
                 "steeringId": steering_id,
                 "content": content,
                 "displayContent": display_content,
+                "images": images,
             }),
         )),
         AgenticEvent::SystemError { .. } => None,

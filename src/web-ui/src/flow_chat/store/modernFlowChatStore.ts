@@ -226,6 +226,7 @@ function steeringItemToUserMessage(item: FlowUserSteeringItem): NonNullable<Dial
     id: `user_steering_${item.steeringId}`,
     content: item.content,
     timestamp: item.timestamp,
+    ...(item.images && item.images.length > 0 ? { images: item.images } : {}),
   };
 }
 

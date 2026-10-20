@@ -1558,6 +1558,10 @@ function handleUserSteeringInjected(_context: FlowChatContext, event: any): void
   const content: string | undefined = event?.displayContent ?? event?.content;
   const roundIndex: number =
     typeof event?.roundIndex === 'number' ? event.roundIndex : 0;
+  const images: SteeringImage[] | undefined =
+    Array.isArray(event?.images) && event.images.length > 0
+      ? event.images as SteeringImage[]
+      : undefined;
 
   if (!sessionId || !turnId || !steeringId || !content) {
     log.warn('UserSteeringInjected: missing fields', { event });
@@ -1569,6 +1573,7 @@ function handleUserSteeringInjected(_context: FlowChatContext, event: any): void
     turnId,
     steeringId,
     content,
+    images,
     roundIndex,
   });
 }

@@ -177,7 +177,7 @@ export interface FlowImageAnalysisItem extends FlowItem {
 /** One image attached to a steering message, in display shape. */
 export interface SteeringImage {
   id: string;
-  name?: string;
+  name: string;
   dataUrl?: string;
   imagePath?: string;
   mimeType?: string;
