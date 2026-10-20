@@ -12,7 +12,7 @@ import {
   TerminalResizeDebouncer,
   DEFAULT_XTERM_MINIMUM_CONTRAST_RATIO,
 } from '../utils';
-import type { TerminalPasteDecision } from '../utils';
+import type { ReplayColumnGuard, TerminalPasteDecision } from '../utils';
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
 import { xtermAppearanceAdapter } from '@/infrastructure/appearance/adapters/XtermAppearanceAdapter';
 import { createLogger } from '@/shared/utils/logger';
@@ -121,12 +121,12 @@ export interface TerminalProps {
     context: { terminal: XTerm; bracketedPasteMode: boolean },
   ) => Promise<boolean | TerminalPasteDecision> | boolean | TerminalPasteDecision;
   /**
-   * When set to a positive value, doXtermResize skips any resize that would
-   * shrink the terminal below this column count. Used during history replay to
-   * prevent CSS-animation intermediate sizes from permanently truncating buffered
-   * content. Set back to 0 (or leave unset) to restore normal resize behaviour.
+   * When set, doXtermResize refuses to shrink the terminal below the column
+   * count this guard protects. Used during history replay to prevent
+   * CSS-animation intermediate sizes from permanently truncating buffered
+   * content. The guard expires on its own.
    */
-  preventShrinkBelowColsRef?: React.MutableRefObject<number>;
+  replayColumnGuardRef?: React.MutableRefObject<ReplayColumnGuard>;
   /**
    * Suspend layout-driven resize while the containing panel is animating.
    * xterm.js reflows its buffer on resize, so intermediate transition sizes
@@ -139,6 +139,13 @@ export interface TerminalProps {
    * shell has not started yet — use this instead of xterm's default dimensions.
    */
   onSizeSettled?: (size: { cols: number; rows: number }) => void;
+  /**
+   * Called when a suspended layout finished and the panel's size became
+   * authoritative. Whatever protected the previous geometry — a replay column
+   * guard, for example — has to let go here, otherwise the terminal keeps a
+   * column count that no longer belongs to its container.
+   */
+  onLayoutSettled?: () => void;
   supportsCopyPaste?: boolean;
 }
 
@@ -205,8 +212,9 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
   onReady,
   onPasteShortcut,
   onPaste,
-  preventShrinkBelowColsRef,
+  replayColumnGuardRef,
   onSizeSettled,
+  onLayoutSettled,
   supportsCopyPaste = true,
   resizeSuspended = false,
 }, ref) => {
@@ -231,6 +239,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
   const onPasteShortcutRef = useRef(onPasteShortcut);
   const onPasteRef = useRef(onPaste);
   const onSizeSettledRef = useRef(onSizeSettled);
+  const onLayoutSettledRef = useRef(onLayoutSettled);
   const resizeSuspendedRef = useRef(resizeSuspended);
   const pendingFitAfterSuspendRef = useRef(false);
   // Track key-pressed state to mirror xterm's internal _keyDownSeen flag.
@@ -260,6 +269,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
   onPasteShortcutRef.current = onPasteShortcut;
   onPasteRef.current = onPaste;
   onSizeSettledRef.current = onSizeSettled;
+  onLayoutSettledRef.current = onLayoutSettled;
   resizeSuspendedRef.current = resizeSuspended;
   mergedOptionsRef.current = mergedOptions;
 
@@ -287,11 +297,12 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
         return true;
       }
 
-      // While the caller has set a minimum column guard (e.g., during history
-      // replay), skip any resize that would shrink below that value.  This
+      // While the caller's replay column guard still protects a width from
+      // history replay, skip any resize that would shrink below it. This
       // prevents CSS open-animation intermediate widths from permanently
       // truncating buffered content that was written at a wider column count.
-      const minCols = preventShrinkBelowColsRef?.current ?? 0;
+      // The guard expires on its own, so a settled layout always wins.
+      const minCols = replayColumnGuardRef?.current?.protectedCols() ?? 0;
       const hasBufferedScreenText = minCols > 0 ? terminalHasBufferedScreenText(terminal) : false;
       // The guard only protects actual screen text. Applying it to an empty new
       // terminal leaves xterm at 80x24 while the PTY moves to the panel size,
@@ -308,7 +319,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
       log.warn('Xterm resize error', { cols, rows, error });
       return false;
     }
-  }, [preventShrinkBelowColsRef]);
+  }, [replayColumnGuardRef]);
 
   // Notify backend PTY with deduping.
   const doBackendResize = useCallback((cols: number, rows: number) => {
@@ -424,6 +435,11 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
     }
 
     pendingFitAfterSuspendRef.current = false;
+    // The transition that suspended resizing is over, so this size is the panel's
+    // real one. Anything still protecting the previous geometry — a replay column
+    // guard armed before the panel moved — has to release it now, or the fit below
+    // is refused and the terminal keeps a column count its container no longer has.
+    onLayoutSettledRef.current?.();
     requestAnimationFrame(() => {
       resizeDebouncerRef.current?.flush();
       fitRef.current(true);

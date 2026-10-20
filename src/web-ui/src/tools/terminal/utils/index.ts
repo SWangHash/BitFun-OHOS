@@ -6,6 +6,7 @@ export { TerminalInputQueue } from './TerminalInputQueue';
 export { TerminalResizeDebouncer } from './TerminalResizeDebouncer';
 export type { ResizeCallback, ResizeDebounceOptions } from './TerminalResizeDebouncer';
 export { ResizeRepaintGuard, createResizeRepaintScreenSnapshot } from './resizeRepaintGuard';
+export { ReplayColumnGuard } from './replayColumnGuard';
 export { terminalReplayHasScreenText } from './terminalReplay';
 export {
   POWERSHELL_READLINE_PASTE_SEQUENCE,
