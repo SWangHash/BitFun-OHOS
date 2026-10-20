@@ -68,6 +68,9 @@ function waitForTerminalFonts(): Promise<void> {
 
 type QueuedTerminalItem =
   | { type: 'write'; data: string; source: 'live' | 'replay' }
+  // Replay resize entries may be pure geometry snapshots. Only protect column
+  // width when the same replay batch contains visible screen text.
+  | { type: 'replayResize'; cols: number; rows: number; protectScreenText: boolean }
   | { type: 'replayComplete' };
 
 export interface ConnectedTerminalProps {
@@ -136,42 +139,40 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
   const postHistoryCursorRef = useRef<{ row: number; col: number; ignoreCount: number } | null>(null);
 
   // While armed, Terminal's doXtermResize refuses to shrink the column count
-  // below the width it protects. Armed while history replay is written, at the
-  // width that replay is written at, so a CSS open-animation narrow enough to
-  // reflow that content cannot truncate it. It also has to end on its own: an
-  // idle shell produces no live output to clear it, which used to leave the
-  // terminal pinned to the previous dock's width.
+  // below the width it protects. Armed during history replay so that the CSS
+  // open-animation (which drives the terminal through many narrow intermediate
+  // widths) cannot permanently truncate content written at the historical width.
+  // It also has to end on its own: an idle shell produces no live output to clear
+  // it, which used to leave the terminal pinned to the previous dock's width.
   const replayColumnGuardRef = useRef(new ReplayColumnGuard());
 
   const queueWrite = useCallback((data: string, source: 'live' | 'replay' = 'live') => {
     outputQueueRef.current.push({ type: 'write', data, source });
   }, []);
 
+  const setReplayColumnGuard = useCallback((cols: number) => {
+    replayColumnGuardRef.current.arm(cols);
+  }, []);
+
   const clearReplayColumnGuard = useCallback(() => {
     replayColumnGuardRef.current.clear();
   }, []);
 
-  /**
-   * Replay writes the recorded output at the size the panel measured, never at
-   * the geometries the output was recorded at.
-   *
-   * Driving the terminal through those historical widths rebuilt the screen for
-   * a size the panel does not have, and the fit that followed reflowed that
-   * screen into the real one. A second layout pass over rows a shell wrote with
-   * cursor moves is what splits and duplicates them: a panel move left a stray
-   * prompt character and stacked copies of the prompt behind, because the screen
-   * had been laid out for the previous dock's width first.
-   *
-   * Writing at the measured size has the same content laid out once, at the width
-   * the terminal keeps, which is the rule manual sessions already follow when
-   * their PTY is created from the panel's measured geometry.
-   */
-  const armReplayColumnGuard = useCallback(() => {
-    const cols = terminalRef.current?.getTerminal?.()?.cols ?? 0;
-    if (cols > 0) {
-      replayColumnGuardRef.current.arm(cols);
+  const applyReplayResize = useCallback((cols: number, rows: number, protectScreenText: boolean) => {
+    const xterm = terminalRef.current?.getTerminal?.();
+    if (!xterm) return;
+
+    if (protectScreenText) {
+      setReplayColumnGuard(cols);
     }
-  }, []);
+    try {
+      if (xterm.cols !== cols || xterm.rows !== rows) {
+        xterm.resize(cols, rows);
+      }
+    } catch (error) {
+      log.warn('Replay resize failed', { sessionId, cols, rows, error });
+    }
+  }, [sessionId, setReplayColumnGuard]);
 
   const capturePostReplayCursor = useCallback(() => {
     const xterm = terminalRef.current?.getTerminal?.();
@@ -243,6 +244,9 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
 
     queue.forEach((item, index) => {
       switch (item.type) {
+        case 'replayResize':
+          applyReplayResize(item.cols, item.rows, item.protectScreenText);
+          break;
         case 'write':
           if (item.source === 'live') {
             postHistoryCursorRef.current = null;
@@ -262,7 +266,7 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
           break;
       }
     });
-  }, [capturePostReplayCursor, clearReplayColumnGuard]);
+  }, [applyReplayResize, capturePostReplayCursor, clearReplayColumnGuard]);
 
   const handleReady = useCallback(() => {
     // Backend ready event - terminal UI is already ready via handleTerminalReady
@@ -288,11 +292,20 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
     // protected history would lock the initial 80-column xterm size and let the
     // backend resize first, which produced blank scrollback on right terminals.
     const hasReplayScreenText = terminalReplayHasScreenText(events);
-    if (hasReplayScreenText) {
-      armReplayColumnGuard();
+    const maxReplayCols = hasReplayScreenText
+      ? events.reduce((max, event) => Math.max(max, event.cols), 0)
+      : 0;
+    if (maxReplayCols > 0) {
+      setReplayColumnGuard(maxReplayCols);
     }
 
     events.forEach((event) => {
+      outputQueueRef.current.push({
+        type: 'replayResize',
+        cols: event.cols,
+        rows: event.rows,
+        protectScreenText: hasReplayScreenText,
+      });
       if (event.data) {
         queueWrite(event.data, 'replay');
       }
@@ -305,7 +318,7 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
       terminalRef.current.flushResize();
       flushOutputQueue();
     }
-  }, [armReplayColumnGuard, flushOutputQueue, queueWrite]);
+  }, [flushOutputQueue, queueWrite, setReplayColumnGuard]);
 
   const {
     session,
