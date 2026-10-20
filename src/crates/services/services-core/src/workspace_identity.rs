@@ -210,6 +210,51 @@ pub fn canonicalize_local_workspace_root(path: &Path) -> Result<(PathBuf, String
     Ok((canonical, stable))
 }
 
+/// Canonical local root [`PathBuf`] plus stable slash-normalized string form,
+/// resolved even when the leaf directory does not exist yet.
+///
+/// This is the identity form a persisted local workspace root must use. A
+/// record can be written before its directory exists: the legacy data migrator
+/// plans a relocated assistant workspace whose tree is only installed at commit
+/// time. Canonicalizing "what exists right now" would give the same workspace
+/// two different ids before and after that install, so resolve the longest
+/// existing ancestor and append the remaining components instead.
+pub fn canonicalize_local_workspace_root_allowing_missing(
+    path: &Path,
+) -> Result<(PathBuf, String), String> {
+    if path.exists() {
+        return canonicalize_local_workspace_root(path);
+    }
+    if !path.is_absolute() {
+        return Err(format!(
+            "Local workspace path is not absolute: {}",
+            path.display()
+        ));
+    }
+
+    let mut missing: Vec<std::ffi::OsString> = Vec::new();
+    let mut cursor = path;
+    loop {
+        let (Some(name), Some(parent)) = (cursor.file_name(), cursor.parent()) else {
+            return Err(format!(
+                "Failed to canonicalize local workspace path '{}': no existing ancestor",
+                path.display()
+            ));
+        };
+        missing.push(name.to_os_string());
+        if parent.exists() {
+            let (canonical_parent, _) = canonicalize_local_workspace_root(parent)?;
+            let mut canonical = canonical_parent;
+            for name in missing.iter().rev() {
+                canonical.push(name);
+            }
+            let stable = path_buf_to_stable_local_root_string(&canonical);
+            return Ok((canonical, stable));
+        }
+        cursor = parent;
+    }
+}
+
 /// Canonical absolute local path as a stable UTF-8 string.
 pub fn normalize_local_workspace_root_for_stable_id(path: &Path) -> Result<String, String> {
     Ok(canonicalize_local_workspace_root(path)?.1)
