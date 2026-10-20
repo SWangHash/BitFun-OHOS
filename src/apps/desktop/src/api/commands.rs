@@ -2120,12 +2120,48 @@ pub async fn cleanup_invalid_workspaces(
     .await
 }
 
+/// Startup snapshot published by a host that can prepare it before the frontend
+/// asks for it. HarmonyOS publishes from a task (its setup callback runs on the
+/// main thread with no entered tokio runtime, so it cannot prepare the snapshot
+/// inline the way desktop does). Consumed on the first read, so every later call
+/// recomputes from live state.
+static PREFETCHED_WORKSPACE_STARTUP_STATE: std::sync::Mutex<
+    Option<WorkspaceStartupStateSnapshotDto>,
+> = std::sync::Mutex::new(None);
+
+/// Publishes a prepared startup snapshot for the next `initialize_workspace_startup_state`.
+pub fn publish_prefetched_workspace_startup_state(snapshot: WorkspaceStartupStateSnapshotDto) {
+    match PREFETCHED_WORKSPACE_STARTUP_STATE.lock() {
+        Ok(mut cached) => *cached = Some(snapshot),
+        Err(_) => log::warn!("Prefetched workspace startup snapshot lock is poisoned"),
+    }
+}
+
+fn take_prefetched_workspace_startup_state() -> Option<WorkspaceStartupStateSnapshotDto> {
+    PREFETCHED_WORKSPACE_STARTUP_STATE
+        .lock()
+        .ok()
+        .and_then(|mut cached| cached.take())
+}
+
 #[tauri::command]
 pub async fn initialize_workspace_startup_state(
     state: State<'_, AppState>,
     app: tauri::AppHandle,
     startup_trace: State<'_, DesktopStartupTrace>,
 ) -> Result<WorkspaceStartupStateSnapshotDto, String> {
+    // The frontend's splash gate waits on this command, so a snapshot that
+    // startup already prepared answers it without repeating the workspace scan.
+    if let Some(snapshot) = take_prefetched_workspace_startup_state() {
+        startup_trace.record_tauri_command_elapsed(
+            "initialize_workspace_startup_state",
+            Some("prefetched"),
+            Instant::now(),
+        );
+        log::info!("Served initialize_workspace_startup_state from the startup prefetch");
+        return Ok(snapshot);
+    }
+
     let command_started = Instant::now();
     let result =
         initialize_workspace_startup_state_impl(&state, &app, &startup_trace, command_started)

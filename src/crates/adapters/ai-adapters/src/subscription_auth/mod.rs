@@ -1268,7 +1268,7 @@ mod tests {
             assert_eq!(config.custom_headers_mode.as_deref(), Some("merge"));
             let client = AIClient::new(config);
             for method in [reqwest::Method::GET, reqwest::Method::POST] {
-                let builder = client.client.request(method, url);
+                let builder = client.client().request(method, url);
                 let request = match format {
                     "anthropic" => anthropic::request::apply_headers(&client, builder, url),
                     "gemini-code-assist" => gemini::code_assist::apply_headers(&client, builder),

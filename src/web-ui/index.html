@@ -447,6 +447,15 @@
           ohosMarkPreload.onload = signalOverlayPresented;
           ohosMarkPreload.onerror = signalOverlayPresented;
           ohosMarkPreload.src = '/brand/bitfun-mark.svg';
+          // Host-visible mark for the end of the launch surface, mirroring the
+          // presented token above. The shell matches it in its onConsole handler
+          // and logs it under BitFunStartup, so a single device log capture
+          // carries the whole launch timeline: the native start window, the
+          // ArkUI mirror, the frontend page load, and the frame the interface
+          // actually replaced the splash.
+          window.addEventListener('bitfun:startup-overlay-hidden', function () {
+            console.info('bitfun-startup-overlay-hidden');
+          }, { once: true });
           return;
         }
 

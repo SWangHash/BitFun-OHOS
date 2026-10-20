@@ -678,6 +678,8 @@ pub async fn _run() {
     let path_manager = get_path_manager_arc();
 
     #[cfg(target_env = "ohos")]
+    let observability_prepared_at = Instant::now();
+    #[cfg(target_env = "ohos")]
     let (feedback_service_state, telemetry_runtime, telemetry_controller) = {
         use bitfun_services_integrations::anonymous_auth::{
             bitfun_ingress_base_url, AnonymousAuthService, AnonymousCredentialStore,
@@ -725,6 +727,15 @@ pub async fn _run() {
         ));
         (feedback, runtime, controller)
     };
+
+    // The trust store and OAuth clients behind these services are built here,
+    // before the window exists. Timed so a slow launch can tell this step apart
+    // from the pre-Tauri steps logged next to it.
+    #[cfg(target_env = "ohos")]
+    log::debug!(
+        "Desktop startup: OHOS observability services prepared: duration_ms={}",
+        elapsed_ms(observability_prepared_at)
+    );
 
     #[cfg(not(target_env = "ohos"))]
     let (feedback_service_state, telemetry_runtime, telemetry_controller) = {
@@ -906,6 +917,15 @@ pub async fn _run() {
     let frontend_workbench = Arc::new(frontend_workbench::FrontendWorkbenchManager::new(
         &path_manager.user_data_dir(),
     ));
+
+    // Everything above runs before the main window exists, so it is time the
+    // user spends looking at the launch surface. Logged at info level together
+    // with the per-step breakdown emitted from `setup` below, so a single device
+    // log can localize a slow launch without reading the startup trace file.
+    log::info!(
+        "Desktop startup: pre-Tauri initialization completed: duration_ms={}",
+        elapsed_ms(startup_started)
+    );
 
     let mut builder = tauri::Builder::default();
     let frontend_protocol_manager = Arc::clone(&frontend_workbench);
@@ -1118,7 +1138,7 @@ pub async fn _run() {
                 );
             }
             for step in startup_timings.steps() {
-                log::debug!(
+                log::info!(
                     "Desktop startup step completed: step={}, duration_ms={}",
                     step.name,
                     step.duration_ms
@@ -1272,8 +1292,45 @@ pub async fn _run() {
                         .ok()
                 })
             };
+            #[cfg(target_env = "ohos")]
+            {
+                // HarmonyOS cannot prepare the bootstrap snapshot inline the way
+                // desktop does below: setup runs on the main thread with no
+                // entered tokio runtime (`block_in_place` is unavailable) and
+                // blocking here would stall the launch surface. The frontend asks
+                // for the same snapshot shortly after the window exists, so
+                // publish it from a task that overlaps the frontend's own boot.
+                let prefetch_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    let app_state: tauri::State<'_, api::app_state::AppState> =
+                        prefetch_handle.state();
+                    let prefetch_trace: tauri::State<'_, startup_trace::DesktopStartupTrace> =
+                        prefetch_handle.state();
+                    match prepare_workspace_startup_bootstrap_snapshot(
+                        &app_state,
+                        &prefetch_handle,
+                        &prefetch_trace,
+                    )
+                    .await
+                    {
+                        Some(snapshot) => {
+                            api::commands::publish_prefetched_workspace_startup_state(snapshot);
+                        }
+                        None => {
+                            log::warn!(
+                                "Workspace startup snapshot prefetch failed; the frontend will compute it through the startup command"
+                            );
+                        }
+                    }
+                });
+            }
+
             let window_started = Instant::now();
             startup_trace.record_phase("main_window_create_start", "native_window");
+            log::info!(
+                "Desktop startup: creating the main window: since_process_start_ms={}",
+                elapsed_ms(startup_started)
+            );
             appearance::create_main_window(
                 &app_handle,
                 &startup_trace_id,
@@ -1288,7 +1345,7 @@ pub async fn _run() {
                 "create_main_window",
                 window_duration_ms,
             );
-            log::debug!(
+            log::info!(
                 "Desktop startup step completed: step=create_main_window, duration_ms={}",
                 window_duration_ms
             );

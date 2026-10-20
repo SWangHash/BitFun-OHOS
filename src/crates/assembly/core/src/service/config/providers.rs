@@ -6,7 +6,7 @@
 use super::types::*;
 #[cfg(feature = "ai-adapter-runtime")]
 use crate::infrastructure::ai::reasoning_catalog::{
-    load_models_dev_reasoning_catalog_without_refresh, project_model_reasoning_catalog,
+    cached_models_dev_reasoning_catalog, project_model_reasoning_catalog,
 };
 #[cfg(feature = "ai-adapter-runtime")]
 use crate::infrastructure::ai::AIClient;
@@ -153,16 +153,31 @@ impl ConfigProvider for AIConfigProvider {
         let mut warnings = Vec::new();
 
         if let Ok(ai_config) = serde_json::from_value::<AIConfig>(config.clone()) {
+            // A catalog-bound model needs the upstream models.dev catalog to
+            // confirm that its declared reasoning presets exist. That document is
+            // several hundred kilobytes and parsing it costs seconds on a slower
+            // device, so startup validation only uses the catalog when it is
+            // already resident and leaves loading it to the model-resolution path,
+            // which still fails closed on an unsupported preset. Loading it here
+            // put the parse on the first-frame path and starved the host UI thread.
             #[cfg(feature = "ai-adapter-runtime")]
-            let models_dev = if ai_config.models.iter().any(|model| {
+            let catalog_bound_model_present = ai_config.models.iter().any(|model| {
                 model.reasoning.as_ref().is_some_and(|reasoning| {
                     !matches!(reasoning.catalog, ReasoningCatalogBinding::Disabled)
                 })
-            }) {
-                Some(load_models_dev_reasoning_catalog_without_refresh().await)
+            });
+            #[cfg(feature = "ai-adapter-runtime")]
+            let models_dev = if catalog_bound_model_present {
+                cached_models_dev_reasoning_catalog()
             } else {
                 None
             };
+            #[cfg(feature = "ai-adapter-runtime")]
+            if catalog_bound_model_present && models_dev.is_none() {
+                log::debug!(
+                    "AI config validation: models.dev catalog is not resident; catalog-backed reasoning checks are deferred to model resolution"
+                );
+            }
 
             if let Some(stream_idle_timeout_secs) = ai_config.stream_idle_timeout_secs {
                 if stream_idle_timeout_secs == 0 {
@@ -201,17 +216,29 @@ impl ConfigProvider for AIConfigProvider {
                 }
                 #[cfg(feature = "ai-adapter-runtime")]
                 if let Some(reasoning) = model.reasoning.as_ref() {
-                    #[cfg(feature = "ai-adapter-runtime")]
+                    let runtime_config =
+                        <crate::util::types::AIConfig as TryFrom<AIModelConfig>>::try_from(
+                            model.clone(),
+                        )
+                        .map_err(|message| {
+                            BitFunError::validation(format!(
+                                "Model '{}' reasoning target is invalid at index {}: {}",
+                                model.name, index, message
+                            ))
+                        })?;
+                    let client = AIClient::new(runtime_config);
+                    let catalog = models_dev
+                        .as_ref()
+                        .and_then(|snapshot| snapshot.catalog.as_deref());
+                    let projection = project_model_reasoning_catalog(model, catalog);
+
                     if let Some(default_preset) = reasoning.default_preset.as_deref() {
-                        #[cfg(feature = "ai-adapter-runtime")]
-                        {
-                            let projection = project_model_reasoning_catalog(
-                                model,
-                                models_dev
-                                    .as_ref()
-                                    .and_then(|snapshot| snapshot.catalog.as_deref()),
-                            );
-                            if projection.default_preset.as_deref() != Some(default_preset) {
+                        if projection.default_preset.as_deref() != Some(default_preset) {
+                            // Only the upstream catalog can decide which presets
+                            // exist there, so without it a mismatch is not an error
+                            // yet: the model-resolution path loads the catalog and
+                            // fails closed on it.
+                            if catalog.is_some() {
                                 return Err(BitFunError::validation(format!(
                                     "Model '{}' reasoning default preset '{}' is not available at index {}",
                                     model.name, default_preset, index
@@ -220,47 +247,38 @@ impl ConfigProvider for AIConfigProvider {
                         }
                     }
 
-                    #[cfg(feature = "ai-adapter-runtime")]
+                    // Target-specific action support compiles the request body and
+                    // does not depend on the catalog, so it is still checked here.
+                    // Only the "the upstream catalog does not list this preset"
+                    // verdict waits for the catalog.
+                    for preset in reasoning
+                        .presets
+                        .iter()
+                        .filter(|preset| !preset.disabled && !preset.actions.is_empty())
                     {
-                        let runtime_config = <crate::util::types::AIConfig as TryFrom<
-                            AIModelConfig,
-                        >>::try_from(model.clone())
-                        .map_err(|message| {
-                            BitFunError::validation(format!(
-                                "Model '{}' reasoning target is invalid at index {}: {}",
-                                model.name, index, message
-                            ))
-                        })?;
-                        let client = AIClient::new(runtime_config);
-                        let projection = project_model_reasoning_catalog(
-                            model,
-                            models_dev
-                                .as_ref()
-                                .and_then(|snapshot| snapshot.catalog.as_deref()),
-                        );
-                        for preset in reasoning
+                        let preset_id = preset.id.trim();
+                        let descriptor = match projection
                             .presets
                             .iter()
-                            .filter(|preset| !preset.disabled && !preset.actions.is_empty())
+                            .find(|descriptor| descriptor.id == preset_id)
                         {
-                            let preset_id = preset.id.trim();
-                            let descriptor = projection
-                                .presets
-                                .iter()
-                                .find(|descriptor| descriptor.id == preset_id)
-                                .ok_or_else(|| {
-                                    BitFunError::validation(format!(
-                                        "Model '{}' reasoning preset '{}' is not available at index {}",
-                                        model.name, preset_id, index
-                                    ))
-                                })?;
-                            client.validate_reasoning_preset(descriptor).map_err(|error| {
+                            Some(descriptor) => descriptor,
+                            None if catalog.is_none() => continue,
+                            None => {
+                                return Err(BitFunError::validation(format!(
+                                    "Model '{}' reasoning preset '{}' is not available at index {}",
+                                    model.name, preset_id, index
+                                )));
+                            }
+                        };
+                        client
+                            .validate_reasoning_preset(descriptor)
+                            .map_err(|error| {
                                 BitFunError::validation(format!(
                                     "Model '{}' reasoning preset '{}' is unsupported at index {}: {}",
                                     model.name, preset_id, index, error
                                 ))
                             })?;
-                        }
                     }
                 }
             }

@@ -54,8 +54,18 @@ pub(crate) fn create_http_client(
 
     builder = super::ohos_dns::apply_platform_resolver(builder);
 
+    let build_started_at = std::time::Instant::now();
     match builder.build() {
-        Ok(client) => client,
+        Ok(client) => {
+            // The first build in the process initializes the TLS backend,
+            // including the platform trust store, which is the expensive part of
+            // a transport that is otherwise ready in well under a millisecond.
+            debug!(
+                "HTTP transport ready: builder_build_ms={}",
+                build_started_at.elapsed().as_millis()
+            );
+            client
+        }
         Err(e) => {
             error!(
                 "HTTP client initialization failed: {}, using default client",

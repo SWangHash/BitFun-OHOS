@@ -17,6 +17,21 @@ const FILE_DROP_LOG_TAG: string = "BitFunFileDrop";
 const USER_APPDATA_PREFIX: string = "/storage/Users/currentUser/appdata";
 const FILE_DROP_MAX_RETRIES: number = 3;
 const FILE_DROP_RETRY_INTERVAL_MS: number = 1500;
+// Cap for the page URL that the startup log line carries. Query and fragment are
+// dropped first, so the line never contains page state.
+const STARTUP_LOG_URL_MAX_LENGTH: number = 96;
+
+/**
+ * Page URL for the `BitFunStartup` log line: fragment and query removed, then
+ * capped, so one startup line stays readable and carries no page state.
+ */
+function startupLogUrl(rawUrl: string): string {
+  const withoutFragment = rawUrl.split('#')[0];
+  const withoutQuery = withoutFragment.split('?')[0];
+  return withoutQuery.length > STARTUP_LOG_URL_MAX_LENGTH
+    ? withoutQuery.slice(0, STARTUP_LOG_URL_MAX_LENGTH) + '...'
+    : withoutQuery;
+}
 
 export interface WebviewStyle {
   x?: number | string;
@@ -300,9 +315,23 @@ function WebBuilder(data: WebviewNodeData) {
         AppStorage.set<ResourceStr>("bitfunStartupSplashIcon", '');
         return true;
       }
+      if (event && event.message && event.message.getMessage() === 'bitfun-startup-overlay-hidden') {
+        hilog.info(FILE_DROP_LOG_DOMAIN, 'BitFunStartup', 'startup overlay hidden by app shell');
+        return true;
+      }
       return false;
     })
     .onPageBegin((event) => {
+      // The first page beginning is the moment the native side has finished
+      // creating this webview and the frontend starts loading. Together with the
+      // `native render returned` mark in DefaultXComponent it splits the launch
+      // surface into "native startup" and "frontend load".
+      hilog.info(
+        FILE_DROP_LOG_DOMAIN,
+        'BitFunStartup',
+        'frontend page load began: url=%{public}s',
+        startupLogUrl(event?.url ?? '')
+      );
       if (typeof data?.onPageBegin === "function") {
         const url = event?.url ?? "";
         data.onPageBegin(url);

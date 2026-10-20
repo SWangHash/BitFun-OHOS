@@ -99,6 +99,7 @@ export struct DefaultXComponent {
   @StorageProp("loadMode") loadMode: "async" | "sync" = "async";
 
   async aboutToAppear(): Promise<void> {
+    const mirrorAppearedAt: number = Date.now();
     // Diagnostics: the exact moment the mirror layer becomes visible.
     hilog.info(SPLASH_LOG_DOMAIN, SPLASH_LOG_TAG, 'splash mirror aboutToAppear');
     // Last-resort safety net: if the webview never reaches a first contentful
@@ -116,7 +117,23 @@ export struct DefaultXComponent {
     AppStorage.setOrCreate<RustWebviewNodeController>("rustWebviewController", this.webviewController);
     const moduleName = `lib${this.name}.so`;
     this.nativeModule = await Loadable.load(moduleName, this.loadMode);
+    // Hands control to the native entry. The two marks bracket the whole native
+    // side of the launch: a `render` that returns quickly means the start
+    // surface is waiting on the frontend, while a long gap here is the ArkTS
+    // host itself (dynamic-library load, ArkWeb engine, native startup).
+    hilog.info(
+      SPLASH_LOG_DOMAIN,
+      SPLASH_LOG_TAG,
+      'native module ready: since_mirror_appear_ms=%{public}d',
+      Date.now() - mirrorAppearedAt
+    );
     this.nativeModule.render(this.helper, this.rootSlot);
+    hilog.info(
+      SPLASH_LOG_DOMAIN,
+      SPLASH_LOG_TAG,
+      'native render returned: since_mirror_appear_ms=%{public}d',
+      Date.now() - mirrorAppearedAt
+    );
   }
 
   build() {

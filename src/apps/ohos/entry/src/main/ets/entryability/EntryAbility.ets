@@ -138,9 +138,15 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
   // never reports its startup handoff. Any explicit chrome request from the
   // shell cancels it.
   private startupChromeWatchdog: number = -1;
+  // When `onWindowStageCreate` began. The launch surface is shown for as long as
+  // the launch page has no first frame, so every step between these two marks is
+  // time the user spends looking at the start window. Logged as one pair so the
+  // host-side and webview-side (BitFunStartup) timeline can be read together.
+  private windowStageCreateStartedAt: number = 0;
 
   async onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Promise<void> {
     super.onCreate(want, launchParam);
+    hilog.info(DOMAIN, 'BitFunStartup', 'launch start: ability onCreate entered');
     this.commonEventListener = new CommonEventListener();
     this.updateSystemColorMode(this.context?.config?.colorMode);
     // Publish the launch-page mirror appearance for the ArkUI page (see
@@ -380,12 +386,17 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     // the cluster appearing, disappearing, then reappearing at handoff. Only the
     // cluster can be set this early; the decor geometry waits for the
     // launch-page handoff (see the deferred block).
+    this.windowStageCreateStartedAt = Date.now();
     this.mainWindowStage = windowStage;
     this.setNativeTitleButtonsVisible(false, 'startup-sync');
     windowStage.setWindowRectAutoSave(true).catch((error: BusinessError) => {
       hilog.warn(DOMAIN, 'window', `setWindowRectAutoSave failed: ${error.message}`);
     });
-    AppGlobal.calendarMgr = calendarManager.getCalendarManager(this.context);
+    // The calendar manager is a system-service handle that only the
+    // `call_calendar` bridge (a user action fired long after the shell is up)
+    // reads, so acquiring it waits for the launch-page handoff at the end of
+    // this method instead of sitting between the window creation and the
+    // page load. `AppGlobal.mContext` is a plain assignment and stays here.
     AppGlobal.mContext = this.context;
     const DOMAIN_NUMBER: number = 0xFF00;
     const TAG: string = '[BitfunUIAbilityComponents]';
@@ -404,11 +415,10 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
 
     // HarmonyOS has no desktop tray. On 2in1 devices the equivalent surface is
     // the system status bar, and the system only lists a third-party entry that
-    // the running application registers itself. Install the icon as soon as the
-    // window exists so the icon, the dock entry, and every *_to_tray bridge
-    // share one lifetime.
-    this.statusBarTray = new StatusBarTrayService(this.context, this);
-    this.statusBarTray.install();
+    // the running application registers itself. The icon is published after the
+    // launch-page handoff at the end of this method: registering it decodes two
+    // bitmaps and round-trips the status bar service, none of which the launch
+    // page's first frame needs, so it must not sit in front of the page load.
 
     RustModule.registerArktsFunction('webdriver_window_ohos', async (
       _err: Error,
@@ -1112,6 +1122,27 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     // frame instead of flashing over the launch surface for the timer's span.
     await super.onWindowStageCreate(windowStage);
     this.applyLaunchSurfaceDecor(windowStage);
+    // The launch page has taken effect, which is the end of the wait the
+    // start window covers. Everything below is only observable well after the
+    // first frame (a tray icon, a calendar handle), so it runs here instead of
+    // between the window creation and `loadContentByName`, where it would extend
+    // the launch surface. The log line closes the host-side half of the startup
+    // timeline; the webview-side half is logged by DefaultXComponent and the
+    // webview release handlers under the same `BitFunStartup` tag.
+    hilog.info(
+      DOMAIN,
+      'BitFunStartup',
+      'launch page content loaded: since_window_stage_create_ms=%{public}d',
+      Date.now() - this.windowStageCreateStartedAt
+    );
+    this.statusBarTray = new StatusBarTrayService(this.context, this);
+    this.statusBarTray.install();
+    try {
+      AppGlobal.calendarMgr = calendarManager.getCalendarManager(this.context);
+    } catch (error) {
+      const businessError = error as BusinessError;
+      hilog.warn(DOMAIN, 'BitFunStartup', `calendar manager unavailable: ${businessError.message}`);
+    }
   }
 
   /**

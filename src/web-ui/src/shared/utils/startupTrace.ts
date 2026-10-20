@@ -530,7 +530,12 @@ export function createStartupTrace(options: StartupTraceOptions = {}): StartupTr
   return new StartupTrace(options);
 }
 
-export const startupTrace = createStartupTrace();
+// The summary is flushed once the post-startup signal fires, by which point the
+// resolved frontend log level is in effect. Startup itself runs at the configured
+// level (often `warn`), so phase events logged as they happen are suppressed; the
+// summary re-emits the recorded phases with their `atMs` timestamps and is the only
+// way to see where a slow launch spent its time on the frontend side.
+export const startupTrace = createStartupTrace({ logSummary: true });
 
 export function isStartupRenderTraceEnabled(): boolean {
   return globalThis.__BITFUN_RENDER_PROFILE_ENABLED__ === true;
