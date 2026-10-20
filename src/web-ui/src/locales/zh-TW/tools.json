@@ -68,6 +68,7 @@
       "changesCount": "({{count}} 處差異)",
       "prevChange": "上一個差異 (Alt+↑ / Shift+F7)",
       "nextChange": "下一個差異 (Alt+↓ / F7)",
+      "revertChangeTooltip": "撤銷此處變更，還原為原始內容",
       "switchToInline": "切換到內聯視圖",
       "switchToSideBySide": "切換到並排視圖"
     },

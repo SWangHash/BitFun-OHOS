@@ -68,6 +68,7 @@
       "changesCount": "({{count}} changes)",
       "prevChange": "Previous change (Alt+↑ / Shift+F7)",
       "nextChange": "Next change (Alt+↓ / F7)",
+      "revertChangeTooltip": "Revert these changes to the original content",
       "switchToInline": "Switch to inline view",
       "switchToSideBySide": "Switch to side-by-side view"
     },
