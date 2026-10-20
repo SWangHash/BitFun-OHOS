@@ -13,6 +13,7 @@ import { peekPendingTerminalSpawn } from '../services/pendingTerminalSpawn';
 import { registerTerminalActions, unregisterTerminalActions } from '../services/TerminalActionManager';
 import {
   POWERSHELL_READLINE_PASTE_SEQUENCE,
+  ReplayColumnGuard,
   ResizeRepaintGuard,
   TerminalInputQueue,
   createResizeRepaintScreenSnapshot,
@@ -137,19 +138,24 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
   // instead restore the correct cursor position via write callbacks after each one.
   const postHistoryCursorRef = useRef<{ row: number; col: number; ignoreCount: number } | null>(null);
 
-  // While set to a positive value, Terminal's doXtermResize will refuse to shrink
-  // the column count below this threshold.  Set during history flush so that the
-  // CSS open-animation (which drives the terminal through many narrow intermediate
+  // While armed, Terminal's doXtermResize refuses to shrink the column count
+  // below the width it protects. Armed during history replay so that the CSS
+  // open-animation (which drives the terminal through many narrow intermediate
   // widths) cannot permanently truncate content written at the historical width.
-  // Cleared when post-history cursor mode exits.
-  const preventShrinkBelowColsRef = useRef<number>(0);
+  // It also has to end on its own: an idle shell produces no live output to clear
+  // it, which used to leave the terminal pinned to the previous dock's width.
+  const replayColumnGuardRef = useRef(new ReplayColumnGuard());
 
   const queueWrite = useCallback((data: string, source: 'live' | 'replay' = 'live') => {
     outputQueueRef.current.push({ type: 'write', data, source });
   }, []);
 
   const setReplayColumnGuard = useCallback((cols: number) => {
-    preventShrinkBelowColsRef.current = Math.max(preventShrinkBelowColsRef.current, cols);
+    replayColumnGuardRef.current.arm(cols);
+  }, []);
+
+  const clearReplayColumnGuard = useCallback(() => {
+    replayColumnGuardRef.current.clear();
   }, []);
 
   const applyReplayResize = useCallback((cols: number, rows: number, protectScreenText: boolean) => {
@@ -219,7 +225,7 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
       } else {
         // Real content arrived — cursor is already at correct position from last restore.
         postHistoryCursorRef.current = null;
-        preventShrinkBelowColsRef.current = 0;
+        clearReplayColumnGuard();
       }
     }
 
@@ -228,7 +234,7 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
       return;
     }
     terminalRef.current.write(data);
-  }, [queueWrite]); // No state deps - reads from refs which are always current
+  }, [queueWrite, clearReplayColumnGuard]); // No state deps - reads from refs which are always current
 
   const flushOutputQueue = useCallback(() => {
     const queue = outputQueueRef.current;
@@ -244,7 +250,7 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
         case 'write':
           if (item.source === 'live') {
             postHistoryCursorRef.current = null;
-            preventShrinkBelowColsRef.current = 0;
+            clearReplayColumnGuard();
           }
           terminalRef.current?.write(item.data);
           break;
@@ -253,14 +259,14 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
           // Pure metadata replay should not enter post-history mode because the
           // next live shell startup output owns the real cursor position.
           if (queue.slice(index + 1).some(next => next.type === 'write' && next.source === 'live')) {
-            preventShrinkBelowColsRef.current = 0;
+            clearReplayColumnGuard();
           } else {
             capturePostReplayCursor();
           }
           break;
       }
     });
-  }, [applyReplayResize, capturePostReplayCursor]);
+  }, [applyReplayResize, capturePostReplayCursor, clearReplayColumnGuard]);
 
   const handleReady = useCallback(() => {
     // Backend ready event - terminal UI is already ready via handleTerminalReady
@@ -621,9 +627,10 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
         onReady={handleTerminalReady}
         onPasteShortcut={handlePasteShortcut}
         onPaste={handlePaste}
-        preventShrinkBelowColsRef={preventShrinkBelowColsRef}
+        replayColumnGuardRef={replayColumnGuardRef}
         resizeSuspended={resizeSuspended}
         onSizeSettled={handleSizeSettled}
+        onLayoutSettled={clearReplayColumnGuard}
         supportsCopyPaste={supportsCopyPaste}
       />
 
