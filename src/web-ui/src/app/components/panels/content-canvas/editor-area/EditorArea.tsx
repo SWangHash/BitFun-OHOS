@@ -124,6 +124,14 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
     [setTabFileDeletedFromDisk]
   );
 
+  // A tab drag rearranges the groups as it moves, so the panels it passes through
+  // are laid out at sizes the drop may never keep. A terminal would follow every
+  // one of them, and each resize makes its shell repaint the prompt: on a shell
+  // whose prompt is wider than the panel, every such repaint leaves a clipped row
+  // behind. Suspend the resize for the length of the drag and let the settled
+  // layout drive a single fit, exactly as an animating panel already does.
+  const terminalResizeSuspendedForDrag = terminalResizeSuspended || draggingTabId !== null;
+
   const renderEditorGroup = (groupId: EditorGroupId, group: typeof primaryGroup) => (
     <EditorGroup
       groupId={groupId}
@@ -150,7 +158,7 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
       onCloseAllTabs={handleCloseAllTabs(groupId)}
       onInteraction={onInteraction}
       disablePopOut={disablePopOut}
-      terminalResizeSuspended={terminalResizeSuspended}
+      terminalResizeSuspended={terminalResizeSuspendedForDrag}
     />
   );
 
