@@ -577,8 +577,40 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     // other application can read from a bare filesystem path, so the system gets
     // a file URI plus a temporary read grant instead. Failures reject the
     // promise so the Rust caller reports them instead of faking success.
+    // mailto/tel/sms follow the HarmonyOS docs: the Web component cannot open
+    // these schemes itself and would render a blank page, so the host must
+    // start the matching system app explicitly. See
+    // 开发指南/Ability_Kit.../拉起邮件类应用_mailto方式 and
+    // FAQ/Web框架/.../H5页面点击邮件链接后跳转空白页面.
     RustModule.registerArktsFunction('open_browser', async (err: Error, target: string): Promise<string> => {
       try {
+        // mailto: per HarmonyOS "拉起邮件类应用（mailto方式）": action is
+        // sendToData and the mailto string is passed verbatim as the uri.
+        // The system resolves it to a registered mail app (module.json5
+        // skill with scheme=mailto). If no mail app is registered,
+        // startAbility rejects; the outer catch surfaces it to Rust and the
+        // frontend keeps the chat view unchanged (no black screen).
+        if (/^mailto:/i.test(target)) {
+          const mailWant: Want = {
+            action: 'ohos.want.action.sendToData',
+            uri: target
+          };
+          await this.context.startAbility(mailWant);
+          hilog.info(201, 'vnext', `open mailto succeed: ${target}`);
+          return `start ability succeed with ${target}`;
+        }
+        // tel:/sms: per faqs-arkweb-144, the Web component also blanks on
+        // these schemes. Hand them to the system the same way: uri verbatim
+        // with viewData, letting the system pick the dialer/messaging app.
+        if (/^(tel|sms):/i.test(target)) {
+          const schemeWant: Want = {
+            action: 'ohos.want.action.viewData',
+            uri: target
+          };
+          await this.context.startAbility(schemeWant);
+          hilog.info(201, 'vnext', `open scheme succeed: ${target}`);
+          return `start ability succeed with ${target}`;
+        }
         if (!/^https?:\/\//i.test(target)) {
           const fileWant: Want = {
             "action": "ohos.want.action.viewData",

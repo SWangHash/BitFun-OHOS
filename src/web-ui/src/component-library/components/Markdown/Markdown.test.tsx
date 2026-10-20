@@ -184,6 +184,52 @@ describe('Markdown file links', () => {
     expect(mocks.createTab).not.toHaveBeenCalled();
   });
 
+  it('prevents webview navigation for mailto links and delegates to openExternal', async () => {
+    container.className = 'bitfun-session-scene modern-flowchat-container';
+
+    await act(async () => {
+      root.render(<Markdown content={'[support@example.com](mailto:support@example.com)'} />);
+      await Promise.resolve();
+    });
+
+    const link = container.querySelector<HTMLAnchorElement>('a[href="mailto:support@example.com"]');
+    expect(link).not.toBeNull();
+
+    const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+    await act(async () => {
+      link?.dispatchEvent(event);
+      await Promise.resolve();
+    });
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(mocks.openExternal).toHaveBeenCalledWith('mailto:support@example.com');
+    expect(mocks.createTab).not.toHaveBeenCalled();
+  });
+
+  it('still prevents webview navigation for mailto links when openExternal rejects', async () => {
+    container.className = 'bitfun-session-scene modern-flowchat-container';
+    mocks.openExternal.mockRejectedValueOnce(new Error('no mail client'));
+
+    await act(async () => {
+      root.render(<Markdown content={'[support@example.com](mailto:support@example.com)'} />);
+      await Promise.resolve();
+    });
+
+    const link = container.querySelector<HTMLAnchorElement>('a[href="mailto:support@example.com"]');
+    expect(link).not.toBeNull();
+
+    const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+    await act(async () => {
+      link?.dispatchEvent(event);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(mocks.openExternal).toHaveBeenCalledWith('mailto:support@example.com');
+    expect(mocks.createTab).not.toHaveBeenCalled();
+  });
+
   it('routes same-label relative, absolute, and computer links independently', async () => {
     const content = [
       '1. [README.md](.\\README.md)',

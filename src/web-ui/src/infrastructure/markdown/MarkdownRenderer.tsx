@@ -1583,7 +1583,20 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
 
       if (isMailtoLink && typeof hrefValue === 'string') {
         return (
-          <a href={hrefValue} {...props}>
+          <a
+            href={hrefValue}
+            {...props}
+            onClick={async (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              try {
+                await systemAPI.openExternal(hrefValue);
+              } catch (error) {
+                log.error('Failed to open external URL', { url: hrefValue, error });
+              }
+            }}
+            style={{ cursor: 'pointer' }}
+          >
             {children}
           </a>
         );
