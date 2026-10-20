@@ -8,8 +8,14 @@ const log = createLogger('hostWindowChrome');
  * cluster update on its UI thread, which is still painting the app's first
  * frames, so the request can take a while; past this bound the launch surface
  * gives up waiting rather than hiding a ready interface behind a stalled host.
+ *
+ * The request is kicked off at the first React render and only awaited at the
+ * launch-surface handoff, so this bound is normally spent overlapping the
+ * workspace bootstrap. It still has to fit the shared launch-surface budget
+ * (see `MIN_SPLASH_MS`), because the wait is served on top of the hold and the
+ * exit fade whenever the host is slow to answer.
  */
-const HANDOVER_TIMEOUT_MS = 400;
+const HANDOVER_TIMEOUT_MS = 260;
 
 async function revealChromeOnHarmonyOS(): Promise<void> {
   const { workspaceAPI } = await import('@/infrastructure/api/service-api/WorkspaceAPI');

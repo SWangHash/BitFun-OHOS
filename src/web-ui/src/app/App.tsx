@@ -102,8 +102,15 @@ const LazyGlobalSearchRoot = lazy(() => import('./global-search/GlobalSearchRoot
  * - With a workspace: show workspace panels
  * - Header is always present; elements toggle by state
  */
+// The launch surface has one budget, from overlay-present to overlay-gone: the
+// enforced hold below, the host window-chrome handover and the exit fade share
+// it instead of each owning its own timeout. That is what bounds the handoff on
+// HarmonyOS, where the host serves the chrome request on the UI thread that is
+// still painting the first frames: a generous per-stage bound there stacks on
+// top of the hold and the fade and takes the handoff past a second.
+// `startupPerformanceContract.test.ts` keeps the three bounds inside the budget.
 // Minimum time (ms) the splash is shown, so the handoff remains intentional without delaying a ready shell.
-const MIN_SPLASH_MS = 650;
+const MIN_SPLASH_MS = 400;
 // Keep hidden tray setup out of the first post-handoff interaction window.
 // Close-to-tray initializes it on demand if the user closes earlier.
 const DEFERRED_TRAY_INIT_DELAY_MS = 1500;

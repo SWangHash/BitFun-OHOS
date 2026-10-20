@@ -108,12 +108,37 @@ describe('startup performance contract', () => {
     expect(source).toContain('font-size: var(--bitfun-type-label-md-font-size);');
   });
 
-  it('keeps the startup overlay exit short enough for a fast visual handoff', () => {
+  it('keeps the whole launch-surface handoff inside one second', () => {
     const source = readSource('../../../index.html');
     const appSource = readSource('../App.tsx');
+    const overlaySource = readSource('./startupOverlay.ts');
+    const chromeSource = readSource('./hostWindowChrome.ts');
 
-    expect(appSource).toContain('const MIN_SPLASH_MS = 650;');
+    const readMs = (text: string, pattern: RegExp): number => {
+      const match = text.match(pattern);
+      if (!match) {
+        throw new Error(`Missing launch-surface budget value for ${pattern}.`);
+      }
+      return Number(match[1]);
+    };
+
+    // The splash hold, the host window-chrome handover and the exit fade share
+    // one budget instead of stacking per-stage timeouts. Stacked bounds are what
+    // took the handoff past a second on HarmonyOS: the host answers the chrome
+    // request on the UI thread that is still painting the launch frames, so its
+    // full bound landed on top of the hold and the fade.
+    const holdMs = readMs(appSource, /const MIN_SPLASH_MS = (\d+);/);
+    const handoverMs = readMs(chromeSource, /const HANDOVER_TIMEOUT_MS = (\d+);/);
+    const exitFallbackMs = readMs(overlaySource, /const EXIT_FALLBACK_MS = (\d+);/);
+    // The fallback is the longest the exit can take on a host that never reports
+    // `animationend`, so it is the term the budget has to cover.
+    const exitFadeMs =
+      readMs(source, /animation: bitfun-startup-overlay-exit ([\d.]+)s ease-in-out both;/) * 1000;
+
     expect(source).toContain('animation: bitfun-startup-overlay-exit 0.24s ease-in-out both;');
+    expect(holdMs + handoverMs + exitFallbackMs).toBeLessThanOrEqual(1000);
+    // A fallback shorter than the fade would cut the animation short.
+    expect(exitFallbackMs).toBeGreaterThanOrEqual(exitFadeMs);
   });
 
   it('keeps editor and tool infrastructure out of the first startup module', () => {

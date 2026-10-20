@@ -2,7 +2,12 @@ import { handOverHostWindowChromeToAppSurface } from './hostWindowChrome';
 
 const STARTUP_OVERLAY_ID = 'bitfun-startup-overlay';
 const EXIT_CLASS = 'bitfun-startup-overlay--exiting';
-const EXIT_FALLBACK_MS = 350;
+// Safety net for hosts that never report `animationend`. It must outlast the
+// exit fade (`bitfun-startup-overlay-exit` in index.html) so a missing event
+// cannot truncate the animation, and stay inside the shared launch-surface
+// budget (see `MIN_SPLASH_MS` in App.tsx). Exported as the upper bound of the
+// handoff for the startup budget contract test.
+export const EXIT_FALLBACK_MS = 300;
 
 declare global {
   interface Window {

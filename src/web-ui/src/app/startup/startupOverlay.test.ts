@@ -7,6 +7,7 @@ const workspaceAPI = vi.hoisted(() => ({ setDecorationsOhos: vi.fn() }));
 vi.mock('@/infrastructure/api/service-api/WorkspaceAPI', () => ({ workspaceAPI }));
 
 import {
+  EXIT_FALLBACK_MS,
   getStartupOverlayElapsedMs,
   hideStartupOverlay,
   isStartupOverlayPresent,
@@ -80,7 +81,7 @@ describe('startupOverlay', () => {
 
     const hidden = hideStartupOverlay();
 
-    await vi.advanceTimersByTimeAsync(349);
+    await vi.advanceTimersByTimeAsync(EXIT_FALLBACK_MS - 1);
     expect(isStartupOverlayPresent()).toBe(true);
 
     await vi.advanceTimersByTimeAsync(1);
