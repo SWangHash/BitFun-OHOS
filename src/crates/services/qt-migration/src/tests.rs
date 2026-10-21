@@ -180,7 +180,8 @@ fn tiers_under_roots(scan: &QtMigrationScanResult, roots: &[&Path]) -> Vec<(QtSc
 }
 
 #[test]
-fn model_source_candidate_fills_backend_scan_gap() {
+fn a_named_source_candidate_is_offered_wherever_it_lives() {
+    // 候选只来自模型点名（识别归模型），所以深浅、是否在工作区内都不筛：点名即候选。
     let (_t, root) = tree();
     let deep = root.join("one/two/three/four/five/model-project");
     std::fs::create_dir_all(&deep).unwrap();
@@ -215,10 +216,8 @@ fn model_source_candidate_from_pro_file_is_default() {
 }
 
 #[test]
-fn model_source_candidates_are_filtered_sorted_deduped_and_capped() {
+fn named_source_candidates_are_filtered_sorted_deduped_and_capped() {
     let (_t, root) = tree();
-    let backend = mkdir(&root, "a-backend");
-    touch(&backend, "backend.pro");
     let model_b = mkdir(&root, "b-model");
     touch(&model_b, "model.pro");
     let model_c = mkdir(&root, "c-model");
@@ -255,7 +254,8 @@ fn model_source_candidates_are_filtered_sorted_deduped_and_capped() {
 #[test]
 fn workspace_external_source_project_is_accepted() {
     // 归属规则：prompt/模型显式给出的 source_project 候选本身是 Qt 工程时，
-    // 即使在当前工作区之外也是用户意图，必须成为候选并占默认位（文件头优先级：
+    // 即使在当前工作区之外也是用户意图，必须成为候选并占默认位。工作区自己的
+    // 工程不参与：后端不扫工作区。
     let (_t, root) = tree();
     let inside = mkdir(&root, "inside-project");
     touch(&inside, "inside.pro");
@@ -270,16 +270,10 @@ fn workspace_external_source_project_is_accepted() {
     let probe = card_probe(&root, &root.join("managed"), &model);
 
     let source = &probe.candidates["source_project"];
-    assert_eq!(source.len(), 2);
     assert_eq!(
-        path_key(Path::new(&source[0])),
-        path_key(&canonical_or_self(&project)),
-        "工作区外 prompt 工程保留并占默认位"
-    );
-    assert_eq!(
-        path_key(Path::new(&source[1])),
-        path_key(&inside),
-        "工作区扫描命中补位，排在 prompt 候选之后"
+        keys(source),
+        keys(&[canonical_or_self(&project).to_string_lossy().into_owned()]),
+        "工作区外点名的工程保留，工作区里的工程不补位"
     );
 }
 #[test]
@@ -297,29 +291,6 @@ fn workspace_relative_source_candidate_is_accepted() {
         keys(&[project.to_string_lossy().into_owned()])
     );
 }
-#[cfg(unix)]
-#[test]
-fn prompt_named_symlinked_container_descends_to_linked_project() {
-    // 点名的链接容器仍要下钻：工作区归属按**解析后**的路径判断，这条链接解析
-    // 后落在工作区内，所以下钻照常。解析到工作区外的链接不下钻，见
-    // a_workspace_external_container_is_not_descended_to_harvest_projects。
-    let (_t, root) = tree();
-    let container = mkdir(&root, "real-container");
-    let project = mkdir(&container, "linked-project");
-    touch(&project, "linked.pro");
-    let link = root.join("link-to-container");
-    std::os::unix::fs::symlink(&container, &link).unwrap();
-    let model = candidate_map("source_project", vec![link.to_string_lossy().into_owned()]);
-
-    let probe = card_probe(&root, &root.join("managed"), &model);
-
-    assert_eq!(
-        keys(&probe.candidates["source_project"]),
-        keys(&[canonical_or_self(&project).to_string_lossy().into_owned()]),
-        "prompt 命名的链接容器必须下钻到其中的真实工程根"
-    );
-}
-
 #[test]
 fn workspace_external_toolchain_and_template_are_kept() {
     // 工作区归属不限制任何字段的候选：工具链与模板本来就常在工作区外
@@ -350,14 +321,12 @@ fn workspace_external_toolchain_and_template_are_kept() {
     );
 }
 #[test]
-fn prompt_named_source_project_outranks_workspace_scan() {
-    // 排序意图（文件头）：prompt 指定的候选优先（tier 0），其后才是工作区扫描
-    // 命中（tier 1）。默认位（options[0]，前端预选）始终是 prompt 命名的工程，
-    // 不是扫描命中的那个。prompt 命名的工作区外工程同样占默认位，见
-    // workspace_external_source_project_is_accepted。
+fn only_named_source_projects_are_offered() {
+    // 工作区里另有 Qt 工程也不采：source_project 候选只来自模型点名，默认位
+    // （options[0]，前端预选）就是点名的那个。
     let (_t, root) = tree();
-    let scanned = mkdir(&root, "a-workspace-project");
-    touch(&scanned, "a.pro");
+    let unscanned = mkdir(&root, "a-workspace-project");
+    touch(&unscanned, "a.pro");
     let prompt_named = mkdir(&root, "z-prompt-project");
     touch(&prompt_named, "z.pro");
     let model = candidate_map(
@@ -369,11 +338,8 @@ fn prompt_named_source_project_outranks_workspace_scan() {
 
     assert_eq!(
         keys(&probe.candidates["source_project"]),
-        keys(&[
-            prompt_named.to_string_lossy().into_owned(),
-            scanned.to_string_lossy().into_owned()
-        ]),
-        "prompt 命名的工程排在扫描命中之前，占默认位"
+        keys(&[prompt_named.to_string_lossy().into_owned()]),
+        "工作区里的工程不补位，候选只有点名的那一个"
     );
 }
 #[test]
@@ -622,82 +588,6 @@ fn prompt_named_toolchain_ranks_first() {
     );
 }
 #[test]
-fn prompt_named_source_container_descends_to_project_roots() {
-    // 用户填的是工程的上级目录（.pro 在子目录）：必须下钻找到真实工程根作为
-    // 候选，而不是丢弃。容器位于工作区内、且深于普通扫描的深度上限，所以
-    // 这里的候选只能来自下钻。工作区外的容器**不**下钻，见
-    // a_workspace_external_container_is_not_descended_to_harvest_projects。
-    let (_t, root) = tree();
-    let container = root
-        .join("one")
-        .join("two")
-        .join("three")
-        .join("four")
-        .join("five");
-    let project = mkdir(&container, "notepad--");
-    touch(&project, "RealCompare.pro");
-    let model = candidate_map(
-        "source_project",
-        vec![container.to_string_lossy().into_owned()],
-    );
-
-    let probe = card_probe(&root, &root.join("managed"), &model);
-
-    assert_eq!(
-        keys(&probe.candidates["source_project"]),
-        keys(&[project.to_string_lossy().into_owned()])
-    );
-}
-
-#[test]
-fn a_workspace_external_container_is_not_descended_to_harvest_projects() {
-    // 用户真机反馈：工作区里没有 Qt 工程时，卡片却把"工作区兄弟目录里的 Qt
-    // 工程"填成了原始工程候选，还占了默认位。触发点是一个**工作区外的容器
-    // 目录**（模型回声或 prompt 解析给出的）被下钻了——下钻不是"解析用户指的
-    // 那个工程"，而是把那棵树里的工程全收成候选。
-    let (_t, root) = tree();
-    let inside = mkdir(&root, "inside-project");
-    touch(&inside, "inside.pro");
-    let outside = tempfile::tempdir().unwrap();
-    let project = mkdir(&outside.path(), "notepad--");
-    touch(&project, "RealCompare.pro");
-    let model = candidate_map(
-        "source_project",
-        vec![outside.path().to_string_lossy().into_owned()],
-    );
-
-    let probe = card_probe(&root, &root.join("managed"), &model);
-
-    assert_eq!(
-        keys(&probe.candidates["source_project"]),
-        keys(&[inside.to_string_lossy().into_owned()]),
-        "工作区外的容器不得下钻：候选只能是工作区自己的工程"
-    );
-}
-
-#[test]
-fn workspace_scan_does_not_reach_outside_the_workspace() {
-    // 工作区扫描是唯一的"后端自行发现"来源，且按构造只读取工作区根之下：
-    // prompt 未命名的外部工程绝不能进入 source_project 候选。
-    let (_t, root) = tree();
-    let scanned = mkdir(&root, "workspace-project");
-    touch(&scanned, "ws.pro");
-    let outside = tempfile::tempdir().unwrap();
-    let external = mkdir(&outside.path(), "external-project");
-    touch(&external, "ext.pro");
-
-    let probe = card_probe(&root, &root.join("managed"), &HashMap::new());
-
-    assert_eq!(
-        keys(&probe.candidates["source_project"]),
-        keys(&[scanned.to_string_lossy().into_owned()]),
-        "工作区扫描不得越出工作区根"
-    );
-    assert!(probe.candidates["source_project"]
-        .iter()
-        .all(|path| path_key(Path::new(path)) != path_key(&external)));
-}
-#[test]
 fn prompt_named_nonexistent_paths_stay_filtered() {
     // 下钻不放松存在性要求：不存在的路径在任何字段都不能成为候选。
     let (_t, root) = tree();
@@ -720,40 +610,8 @@ fn prompt_named_nonexistent_paths_stay_filtered() {
 }
 
 #[test]
-fn source_projects_sorted_original_before_artifact_then_depth_then_alpha() {
-    let (_t, root) = tree();
-    let deep = mkdir(&root, "deep");
-    let inner = mkdir(&deep, "inner_qapp"); // depth 2 project: .pro under deep/inner_qapp
-    touch(&inner, "inner_qapp.pro");
-    touch(&root, "zapp.pro"); // workspace root is itself a project (depth 0)
-    touch(&root, "aapp.pro"); // same root project, lexicographically first file
-    let mid = mkdir(&root, "mid"); // depth 1 project
-    touch(&mid, "mid.pro");
-    let artifact = mkdir(&root, "myapp-ohos");
-    touch(&artifact, "myapp-ohos.pro"); // migration artifact at depth 1
-    let later = mkdir(&root, "zz-later"); // depth 1 project behind the alpha keys
-    touch(&later, "later.pro");
-
-    let hits = probe_source_projects(&root, &[]);
-    // 排序：原始工程（浅者优先，再按路径键）在迁移产物之前；MAX_SOURCE_PROJECTS
-    // 上限为 2，所以只有前两个进入候选项，更深的工程被截断。
-    assert_eq!(
-        hits,
-        vec![
-            root.to_string_lossy().into_owned(),
-            mid.to_string_lossy().into_owned()
-        ],
-        "浅者优先且按路径键排序；2 上限截断更深的工程"
-    );
-    assert!(
-        hits.iter()
-            .all(|h| h != &artifact.to_string_lossy().into_owned()),
-        "迁移产物排在原始工程之后（并被上限截断）"
-    );
-}
-#[test]
 fn cmake_qt_project_is_a_source_candidate() {
-    // 探测依据与 ohos-qt-skills 阶段零预检一致：qmake.pro 之外，
+    // 判定标准与 ohos-qt-skills 阶段零预检一致：qmake.pro 之外，
     // 含 find_package(Qt…) 的 CMakeLists.txt 工程同样是 Qt 工程
     // （coin3d / SARibbon 等 CMake 型项目均属此类）。
     let (_t, root) = tree();
@@ -763,11 +621,9 @@ fn cmake_qt_project_is_a_source_candidate() {
     )
     .unwrap();
     touch(&root, "main.cpp");
+    let named = vec![root.to_string_lossy().into_owned()];
 
-    assert_eq!(
-        probe_source_projects(&root, &[]),
-        vec![root.to_string_lossy().into_owned()]
-    );
+    assert_eq!(probe_source_projects(&root, &named), named);
 }
 
 #[test]
@@ -778,8 +634,9 @@ fn cmake_without_qt_is_not_a_source_candidate() {
         "cmake_minimum_required(VERSION 3.16)\nproject(plain C)\nadd_library(foo foo.c)\n",
     )
     .unwrap();
+    let named = vec![root.to_string_lossy().into_owned()];
 
-    assert_eq!(probe_source_projects(&root, &[]), Vec::<String>::new());
+    assert_eq!(probe_source_projects(&root, &named), Vec::<String>::new());
 }
 
 /// The measured project shape behind the "one project, two candidates" report:
@@ -802,7 +659,7 @@ fn create_indirect_qt_project(root: &Path) {
 fn a_vendored_subproject_is_not_offered_next_to_the_project_that_owns_it() {
     // 用户真机反馈：telegram 工程被"识别成两个 Qt 工程"，而实际候选是两个
     // vendored 子工程。根工程走 include 解析 Qt（这里复刻），ThirdParty 下的
-    // KDE 子工程自己写 find_package(Qt…) —— 只有主工程能成为候选。
+    // KDE 子工程自己写 find_package(Qt…) —— 只有点名的主工程能成为候选。
     let (_t, root) = tree();
     create_indirect_qt_project(&root);
     let sub = mkdir(&root, "Telegram");
@@ -816,41 +673,69 @@ fn a_vendored_subproject_is_not_offered_next_to_the_project_that_owns_it() {
         .unwrap();
     }
 
-    // 工作区扫描：主工程是唯一候选。
-    let scanned = probe_source_projects(&root, &[]);
-    assert_eq!(scanned, vec![root.to_string_lossy().into_owned()]);
-
-    // prompt 里点名那个**不含** Qt 声明的子目录时同样不得退化成 vendored 子工程。
-    let named = probe_source_projects(&root, &[sub.to_string_lossy().into_owned()]);
+    // 工作区里有多少 Qt 形状的目录都不采：候选只有点名的那个。
+    let named = probe_source_projects(&root, &[root.to_string_lossy().into_owned()]);
     assert_eq!(named, vec![root.to_string_lossy().into_owned()]);
     assert!(
         named.iter().all(|path| !path.contains("ThirdParty")),
         "vendored 子工程不得成为候选: {named:?}"
     );
+    assert_eq!(probe_source_projects(&root, &[]), Vec::<String>::new());
 }
 
 #[test]
-fn a_hidden_working_directory_is_not_a_source_project() {
-    // 实测：上一次迁移的暂存区是 `.qt-ohos-precheck/`，迁移过程在里面生成的
-    // 探针工程（host-codegen / qt-hello）会作为"原始工程"挤进候选项，而用户
-    // 要的只有主工程。
+fn a_copied_qt_distribution_yields_no_source_project() {
+    // 实测：把整份 Qt 6.12 工具链复制进工作区后，卡片把
+    // `<拷入目录>/Examples/Qt-6.12.0` 认成了原始工程——安装包在那一层放了
+    // `examples.pro`（`TEMPLATE = subdirs` 清单），与真实 qmake 工程根在文件形状上
+    // 没有区别。原始工程由模型读工作区后点名，后端不再扫工作区，所以工作区里
+    // 躺着什么形状的目录都不会自己变成候选。
     let (_t, root) = tree();
-    let main = mkdir(&root, "app");
+    let app = mkdir(&root, "app");
     std::fs::write(
-        main.join("CMakeLists.txt"),
-        "find_package(Qt5 COMPONENTS Core REQUIRED)\n",
-    )
-    .unwrap();
-    let scratch = mkdir(&root, ".qt-ohos-precheck/host-codegen");
-    std::fs::write(
-        scratch.join("CMakeLists.txt"),
+        app.join("CMakeLists.txt"),
         "find_package(Qt5 COMPONENTS Core REQUIRED)\n",
     )
     .unwrap();
 
+    // Qt 示例集容器：子目录清单 `examples.pro` + 用 Qt 私有构建 API 的
+    // CMakeLists.txt（安装包实测内容）。
+    let create_qt_examples = |dir: &Path| {
+        touch(dir, "examples.pro");
+        std::fs::write(
+            dir.join("CMakeLists.txt"),
+            "qt_examples_build_begin(EXTERNAL_BUILD)\nadd_subdirectory(demos)\nqt_examples_build_end()\n",
+        )
+        .unwrap();
+    };
+
+    // 在线安装器根：components.xml + MaintenanceTool*。
+    let installer = mkdir(&root, "Qt-6-12");
+    touch(&installer, "components.xml");
+    touch(&installer, "MaintenanceTool.exe");
+    let examples = mkdir(&installer, "Examples/Qt-6.12.0");
+    create_qt_examples(&examples);
+
+    // 只复制了 kit：lib/cmake/Qt6 + bin/qmake。
+    let kit = mkdir(&root, "kit");
+    create_qt6_ohos_kit(&kit);
+    create_qt_examples(&mkdir(&kit, "Examples/Qt-6.12.0"));
+
+    // 只复制示例集本身。
+    let fragment = mkdir(&root, "copied/Examples/Qt-6.12.0");
+    create_qt_examples(&fragment);
+    let module = mkdir(&fragment, "widgets");
+    touch(&module, "widgets.pro");
+
     assert_eq!(
         probe_source_projects(&root, &[]),
-        vec![main.to_string_lossy().into_owned()]
+        Vec::<String>::new(),
+        "工作区不扫：真工程与发行版副本都不会自己成为候选"
+    );
+    assert_eq!(
+        probe_source_projects(&root, &[app.to_string_lossy().into_owned()]),
+        vec![app.to_string_lossy().into_owned()],
+        "点名的真工程仍然是候选"
     );
 }
 
@@ -1440,19 +1325,6 @@ fn a_generation_with_no_kit_is_left_unserved_without_substitution() {
     );
 
     assert_eq!(option_paths(&chosen), option_paths(&[qt6]));
-}
-#[test]
-fn source_projects_cap_is_two_and_noise_dir_is_skipped() {
-    let (_t, root) = tree();
-    for n in ["a", "b", "c", "d"] {
-        let d = mkdir(&root, n);
-        touch(&d, &format!("{n}.pro"));
-    }
-    let build = mkdir(&root, "build");
-    touch(&build, "build.pro");
-    let hits = probe_source_projects(&root, &[]);
-    assert_eq!(hits.len(), 2);
-    assert!(hits.iter().all(|h| !h.contains("build")));
 }
 
 #[test]

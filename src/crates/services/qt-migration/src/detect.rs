@@ -276,29 +276,20 @@ pub(crate) fn contains_qt6_only_type_name(haystack: &str, name: &str) -> bool {
     })
 }
 
-/// Whether `path` is the workspace root itself or lives under it.
-pub(crate) fn is_inside_workspace(workspace: &Path, path: &Path) -> bool {
-    let key = |p: &Path| path_key(&dunce::canonicalize(p).unwrap_or_else(|_| p.to_path_buf()));
-    let root = key(workspace);
-    let candidate = key(path);
-    candidate == root || candidate.starts_with(&format!("{root}/"))
-}
-
+/// The `source_project` candidates of a request: the paths the model read out of
+/// the workspace, mechanically validated and ranked. The backend does not scan
+/// the workspace for Qt projects.
+///
+/// Which directory is the user's project is a judgement about intent, and the
+/// disk cannot carry it: a Qt installation root, the example containers shipped
+/// inside it (`Examples/<version>/` with its `examples.pro` subdirectory
+/// manifest), a build tree, and a real project all look alike to a file-level
+/// predicate. Naming the project is the model's job — it reads the workspace and
+/// sends what it found as `candidates.source_project`. A named path outside the
+/// workspace is accepted as sent (a project may live anywhere); nothing is
+/// harvested from its surroundings.
 pub(crate) fn probe_source_projects(workspace: &Path, model_candidates: &[String]) -> Vec<String> {
-    let mut found: Vec<(u8, usize, PathBuf)> = Vec::new();
-    let mut backend_found = Vec::new();
-    scan_projects(workspace, 0, &mut backend_found);
-    found.extend(
-        backend_found
-            .into_iter()
-            .map(|(depth, path)| (1, depth, path)),
-    );
-    // A prompt-named `source_project` is user intent: when the named path is
-    // itself a Qt project it is offered directly, wherever it lives. A named
-    // *directory* (the common case is the project's parent directory, because the
-    // `.pro` sits in a subdirectory) is descended, but only inside the workspace —
-    // see the branch below. `toolchain`, `template`, and `output_project` accept
-    // external paths freely: kits and templates legitimately live outside.
+    let mut found: Vec<(usize, PathBuf)> = Vec::new();
     for candidate in model_candidates {
         let Some(path) = normalize_workspace_candidate(workspace, candidate) else {
             continue;
@@ -313,50 +304,31 @@ pub(crate) fn probe_source_projects(workspace: &Path, model_candidates: &[String
         } else {
             path
         };
+        // A named path only has to be a Qt project and not a migration artifact.
         if is_qt_source_project(&path) && !is_inside_migrated_harmony_project(&path) {
-            // A prompt-named project outside the workspace has no
-            // workspace-relative depth; `MAX_PROBE_DEPTH + 1` keeps it at tier
-            // 0 (still ahead of every workspace scan hit) and behind a
-            // prompt-named project that resolves inside the workspace.
+            // A named project outside the workspace has no workspace-relative
+            // depth; `MAX_PROBE_DEPTH + 1` ranks it behind one that resolves
+            // inside the workspace.
             let depth = path
                 .strip_prefix(workspace)
                 .map(|relative| relative.components().count())
                 .unwrap_or(MAX_PROBE_DEPTH + 1);
-            found.push((0, depth, path));
-        } else if path.is_dir() && is_inside_workspace(workspace, &path) {
-            // Prompt-named container (e.g. the parent directory of the Qt
-            // project): descend and offer the project roots actually found
-            // inside. scan_projects keeps the migrated-project exclusions.
-            let mut scanned = Vec::new();
-            scan_projects(&path, 0, &mut scanned);
-            for (sub_depth, project) in scanned {
-                let depth = project
-                    .strip_prefix(workspace)
-                    .map(|relative| relative.components().count())
-                    .unwrap_or(MAX_PROBE_DEPTH + 1)
-                    + sub_depth;
-                found.push((0, depth, project));
-            }
+            found.push((depth, path));
         }
     }
-    // The model candidate reflects the project named in the current request and
-    // is preferred as the default after backend validation. The backend still
-    // owns the final filtering, ordering, and candidate cap.
+    // The model's candidate is preferred as the default. The ranking keeps a
+    // migration artifact last (a project merely named `<app>-ohos` is still
+    // offered, just not as the default) and a workspace-resolved project ahead of
+    // one that lives outside.
     found.sort_by(|a, b| {
-        a.0.cmp(&b.0)
-            .then_with(|| {
-                let (artifact_a, artifact_b) = (
-                    is_migration_artifact(&a.2) as u8,
-                    is_migration_artifact(&b.2) as u8,
-                );
-                artifact_a.cmp(&artifact_b)
-            })
-            .then_with(|| a.1.cmp(&b.1))
-            .then_with(|| path_key(&a.2).cmp(&path_key(&b.2)))
+        (is_migration_artifact(&a.1) as u8)
+            .cmp(&(is_migration_artifact(&b.1) as u8))
+            .then_with(|| a.0.cmp(&b.0))
+            .then_with(|| path_key(&a.1).cmp(&path_key(&b.1)))
     });
     let mut candidates = found
         .into_iter()
-        .map(|(_, _, p)| p.to_string_lossy().into_owned())
+        .map(|(_, path)| path.to_string_lossy().into_owned())
         .collect::<Vec<_>>();
     dedup_paths(&mut candidates);
     candidates.truncate(MAX_SOURCE_PROJECTS);
@@ -454,63 +426,3 @@ pub(crate) fn is_qt_source_project(dir: &Path) -> bool {
     has_cmake && is_qt_cmake_project(dir)
 }
 
-/// Collect directories that directly contain a `*.pro` file or a Qt CMake
-/// build (CMakeLists.txt with `find_package(Qt…)` — same criteria as the
-/// ohos-qt-skills pre-flight). Roots terminate recursion: sub-projects inside
-/// a project are not hoisted.
-pub(crate) fn scan_projects(dir: &Path, depth: usize, out: &mut Vec<(usize, PathBuf)>) {
-    if depth > MAX_PROBE_DEPTH {
-        return;
-    }
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    let mut has_pro = false;
-    let mut has_cmake = false;
-    let mut subdirs: Vec<PathBuf> = Vec::new();
-    for entry in entries.flatten() {
-        let p = entry.path();
-        let name = entry.file_name().to_string_lossy().into_owned();
-        let Ok(ftype) = entry.file_type() else {
-            continue;
-        };
-        if ftype.is_dir() {
-            // A hidden directory is tooling or scratch space, never the user's
-            // project source. Measured: the previous migration's scratch area is
-            // `.qt-ohos-precheck/`, and the probe projects the migration created
-            // inside it (`host-codegen`, `qt-hello`) were offered as "原始工程"
-            // next to the real project. Dot-*files* are already skipped, for the
-            // same reason.
-            if is_noise_dir(&name) || name.starts_with('.') {
-                continue;
-            }
-            subdirs.push(p);
-            continue;
-        }
-        let lower = name.to_lowercase();
-        if lower.ends_with(".pro") && !name.starts_with('.') {
-            has_pro = true;
-        }
-        if lower == "cmakelists.txt" {
-            has_cmake = true;
-        }
-    }
-    if has_pro || (has_cmake && is_qt_cmake_project(dir)) {
-        if is_inside_migrated_harmony_project(dir) {
-            return;
-        }
-        out.push((depth, dir.to_path_buf()));
-        // A project root hides sub-projects, except at the workspace root
-        // itself: the workspace may host several projects side by side, so
-        // depth 0 keeps recursing instead of short-circuiting.
-        if depth == 0 {
-            for sub in subdirs {
-                scan_projects(&sub, depth + 1, out);
-            }
-        }
-        return;
-    }
-    for sub in subdirs {
-        scan_projects(&sub, depth + 1, out);
-    }
-}
