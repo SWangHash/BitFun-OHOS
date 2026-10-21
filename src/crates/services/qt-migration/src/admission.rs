@@ -55,9 +55,11 @@ pub const QT_MIGRATION_SLOT_SKILL_DIR: DomainStateSlot = DomainStateSlot {
 };
 
 /// Tools always allowed while the migration intake is incomplete: they are
-/// required to finish input collection or load the migration skill, and carry
-/// no migration side effects. Tools that mutate persistent state (TodoWrite,
-/// goal tools) stay gated.
+/// required to finish input collection, load the migration skill, or read the
+/// workspace to find the project — and carry no migration side effects. The
+/// read-only workspace tools are what the intake reconnaissance reads the disk
+/// with; the project is named by the model, not discovered by the backend. Tools
+/// that mutate persistent state (TodoWrite, goal tools) stay gated.
 const BOOTSTRAP_ALLOWED_TOOLS: &[&str] = &[
     "QtMigrationIntake",
     "AskUserQuestion",
@@ -65,6 +67,7 @@ const BOOTSTRAP_ALLOWED_TOOLS: &[&str] = &[
     "Read",
     "Grep",
     "Glob",
+    "LS",
 ];
 
 /// The single shell command allowed through the gate while the intake is
@@ -310,6 +313,7 @@ mod tests {
             "Read",
             "Grep",
             "Glob",
+            "LS",
         ] {
             assert!(
                 check_admission_for_intake(tool, None, &intake).is_ok(),

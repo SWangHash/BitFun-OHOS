@@ -26,6 +26,10 @@ impl QtMigrationMode {
         // Intake routing tool: decides whether a request needs the migration
         // path confirmation dialog. QtMigration-specific, not in the shared set.
         default_tools.push("QtMigrationIntake".to_string());
+        // Intake reconnaissance: the source project is named by the model after
+        // reading the workspace, so the mode needs a directory listing to tell a
+        // user project from a Qt installation the user happened to copy in.
+        default_tools.push("LS".to_string());
         Self { default_tools }
     }
 }
@@ -62,5 +66,23 @@ impl Agent for QtMigrationMode {
 
     fn is_readonly(&self) -> bool {
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn intake_reconnaissance_tools_are_exposed() {
+        // 原始工程由模型读工作区后点名，intake 指令要求它先做只读探查：这些工具
+        // 少一个，那一步就做不了（工具清单里没有的工具模型不会去调）。
+        let tools = QtMigrationMode::new().default_tools();
+        for tool in ["LS", "Read", "Grep", "Glob"] {
+            assert!(
+                tools.contains(&tool.to_string()),
+                "intake reconnaissance needs {tool} in the mode toolset"
+            );
+        }
     }
 }
