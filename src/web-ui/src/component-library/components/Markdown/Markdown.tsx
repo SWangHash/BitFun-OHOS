@@ -23,6 +23,7 @@ import { useAppearance } from '@/infrastructure/appearance';
 import { contextMenuController } from '@/shared/context-menu-system/core/ContextMenuController';
 import { ContextType, type CustomContext, type MenuItem } from '@/shared/context-menu-system/types';
 import { createTab } from '@/shared/utils/tabUtils';
+import { browserTabTitleFromUrl } from '@/shared/utils/browserTabTitle';
 import { createLogger } from '@/shared/utils/logger';
 import {
   isStartupRenderTraceEnabled,
@@ -1055,7 +1056,7 @@ export const Markdown = React.memo<MarkdownProps>(({
     const duplicateCheckKey = `browser-panel:${url}`;
     createTab({
       type: 'browser',
-      title: translateMarkdownLabel('markdown.openInBuiltInBrowser'),
+      title: browserTabTitleFromUrl(url),
       data: { url },
       metadata: { duplicateCheckKey },
       checkDuplicate: true,

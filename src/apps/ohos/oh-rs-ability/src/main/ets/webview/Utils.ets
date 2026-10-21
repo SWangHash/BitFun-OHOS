@@ -14,6 +14,7 @@ export interface JsHelper {
   requestFocus: () => void;
   runJavaScript: (code: string, callback: (result?: string) => void) => void;
   setBackgroundColor: (color: string) => void;
+  setBounds: (x: number, y: number, width: number, height: number) => boolean;
   setVisible: (visible: boolean) => void;
   clearAllBrowsingData: () => void;
 }

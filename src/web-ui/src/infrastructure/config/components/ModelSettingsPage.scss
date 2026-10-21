@@ -43,8 +43,11 @@
   }
 
   &__catalog-revision {
+    max-width: min(560px, 100%);
+    overflow: hidden;
     color: var(--bitfun-color-content-secondary);
     font-size: var(--bitfun-type-label-sm-font-size);
+    white-space: nowrap;
   }
 
   &__catalog-offline-help {

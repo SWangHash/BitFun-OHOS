@@ -154,6 +154,7 @@ describe('Markdown file links', () => {
     expect(mocks.createTab).toHaveBeenCalledTimes(1);
     expect(mocks.createTab.mock.calls[0][0]).toMatchObject({
       type: 'browser',
+      title: 'example.com',
       data: { url: 'https://example.com/docs' },
       duplicateCheckKey: 'browser-panel:https://example.com/docs',
       replaceExisting: false,

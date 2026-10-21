@@ -3,8 +3,8 @@ use super::message_cache::{MessageCache, MessageCacheData};
 use super::state_cache::{FeedbackStateCache, FeedbackStateCacheData};
 use super::vault::{FeedbackCredentialStore, FileFeedbackCredentialStore};
 use crate::anonymous_auth::{
-    AnonymousAccessTokenProvider, AnonymousAuthError, AnonymousAuthService,
-    AnonymousCredentialStore,
+    bitfun_ingress_base_url, AnonymousAccessTokenProvider, AnonymousAuthError,
+    AnonymousAuthService, AnonymousCredentialStore,
 };
 use bitfun_product_domains::feedback::{
     validate_content, validate_inbox_page_size, validate_message_page_size,
@@ -41,8 +41,6 @@ impl AnonymousCredentialStore for FeedbackAnonymousCredentialStore {
 }
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
-const DEBUG_FEEDBACK_API_BASE_URL: &str = "http://api-test.infra-openbitfun.com";
-const RELEASE_FEEDBACK_API_BASE_URL: &str = "https://api.infra-openbitfun.com";
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 struct StoredCredentials {
@@ -1396,11 +1394,7 @@ fn configured_base_url() -> Option<String> {
 }
 
 fn feedback_api_base_url(debug: bool) -> &'static str {
-    if debug {
-        DEBUG_FEEDBACK_API_BASE_URL
-    } else {
-        RELEASE_FEEDBACK_API_BASE_URL
-    }
+    bitfun_ingress_base_url(debug)
 }
 
 fn request_fingerprint(request: &SubmitFeedbackRequest) -> Result<String, FeedbackError> {
@@ -1532,7 +1526,6 @@ mod tests {
         cache_encryption_key, cached_unread_admin_reply, configured_base_url,
         feedback_api_base_url, is_terminal_capability_error, normalize_request, parse_scopes,
         user_message_reconciliation_cursor, FeedbackService, StoredCredentials,
-        DEBUG_FEEDBACK_API_BASE_URL, RELEASE_FEEDBACK_API_BASE_URL,
     };
     use crate::anonymous_auth::{
         AnonymousAccessTokenProvider, AnonymousAuthError, AnonymousAuthService,
@@ -1601,15 +1594,10 @@ mod tests {
     #[test]
     fn selects_a_fixed_feedback_endpoint_for_each_build_profile() {
         assert_eq!(
-            DEBUG_FEEDBACK_API_BASE_URL,
-            "http://api-test.infra-openbitfun.com"
+            feedback_api_base_url(true),
+            "http://api-test.infra-bitfun.com"
         );
-        assert_eq!(
-            RELEASE_FEEDBACK_API_BASE_URL,
-            "https://api.infra-openbitfun.com"
-        );
-        assert_eq!(feedback_api_base_url(true), DEBUG_FEEDBACK_API_BASE_URL);
-        assert_eq!(feedback_api_base_url(false), RELEASE_FEEDBACK_API_BASE_URL);
+        assert_eq!(feedback_api_base_url(false), "https://api.infra-bitfun.com");
         assert_eq!(
             configured_base_url().as_deref(),
             Some(feedback_api_base_url(cfg!(debug_assertions)))

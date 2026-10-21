@@ -19,6 +19,18 @@ describe('native browser webview occlusion contract', () => {
     expect(source).toContain('data-bitfun-native-webview-occlusion');
   });
 
+  it('marks split menus, drag targets, and the split overview as native-webview occluders', () => {
+    const splitSources = [
+      '../../components/panels/content-canvas/tab-bar/TabOverflowMenu.tsx',
+      '../../components/panels/content-canvas/editor-area/DropZone.tsx',
+      '../../components/panels/content-canvas/mission-control/MissionControl.tsx',
+    ].map(readSource);
+
+    for (const source of splitSources) {
+      expect(source).toContain('data-bitfun-native-webview-occlusion');
+    }
+  });
+
   it('includes the context menu only when its bounds intersect the browser viewport', () => {
     expect(NATIVE_WEBVIEW_OCCLUSION_SELECTOR).toContain('[data-bitfun-product-component=\'context-menu\']');
     expect(rectanglesIntersect(

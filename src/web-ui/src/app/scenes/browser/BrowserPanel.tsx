@@ -7,7 +7,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { OverflowText, Icon, IconButton, Input } from '@bitfun/ui';
+import { OverflowText, Icon, IconButton, Input, Tooltip } from '@bitfun/ui';
 import { AlertTriangle, MousePointer2, SquarePlus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { createLogger } from '@/shared/utils/logger';
@@ -43,6 +43,7 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({ isActive, initialUrl, openR
   const { t } = useTranslation('common');
   const addContext = useContextStore((s) => s.addContext);
   const inspectorUnlistenRef = useRef<(() => void) | null>(null);
+  const inspectorPageLoadRevisionRef = useRef(0);
   const [isInspectorActive, setIsInspectorActive] = useState(false);
 
   const browser = useEmbeddedBrowserWebview({
@@ -67,6 +68,7 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({ isActive, initialUrl, openR
     isLoading,
     isTauri,
     loadUrl,
+    pageLoadRevision,
     reload,
     setInputValue,
     viewportRef,
@@ -81,6 +83,12 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({ isActive, initialUrl, openR
     inspectorUnlistenRef.current = null;
     setIsInspectorActive(false);
   }, [evalInWebview, getWebviewLabel]);
+
+  useEffect(() => {
+    if (isInspectorActive && pageLoadRevision !== inspectorPageLoadRevisionRef.current) {
+      stopInspector();
+    }
+  }, [isInspectorActive, pageLoadRevision, stopInspector]);
 
   const loadPanelUrl = useCallback(async (rawUrl: string) => {
     stopInspector();
@@ -152,24 +160,26 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({ isActive, initialUrl, openR
       };
 
       await evalInWebview(createInspectorScript(label));
+      inspectorPageLoadRevisionRef.current = pageLoadRevision;
       setIsInspectorActive(true);
     } catch (inspectorError) {
       log.error('Start inspector failed', inspectorError);
       setIsInspectorActive(false);
     }
-  }, [addContext, evalInWebview, getCurrentUrl, getWebviewLabel, hasWebview, isInspectorActive, isTauri, stopInspector]);
+  }, [addContext, evalInWebview, getCurrentUrl, getWebviewLabel, hasWebview, isInspectorActive, isTauri, pageLoadRevision, stopInspector]);
 
   // Opens a fresh embedded-browser tab instead of reusing this one, so
   // multiple pages can stay open side by side. A request-scoped duplicate
   // key keeps the new tab from being deduplicated against this one.
   const handleNewPage = useCallback(() => {
+    const duplicateCheckKey = `browser-panel:new-${Date.now()}`;
     window.dispatchEvent(new CustomEvent('agent-create-tab', {
       detail: {
         type: 'browser',
         title: t('browserView.newPage'),
-        metadata: { duplicateCheckKey: `browser-panel:new-${Date.now()}` },
+        metadata: { duplicateCheckKey },
         checkDuplicate: true,
-        duplicateCheckKey: `browser-panel:new-${Date.now()}`,
+        duplicateCheckKey,
         replaceExisting: false,
         mode: 'agent',
       },
@@ -219,24 +229,31 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({ isActive, initialUrl, openR
           />
         </div>
         {/* Pure frontend action: works on every host, no Tauri gate. */}
-        <IconButton
-          type="button"
-          size="sm"
-          onClick={handleNewPage}
-          aria-label={t('browserView.newPage')}
-          title={t('browserView.newPage')}
-          icon={<SquarePlus />}
-        />
-        {isTauri && (
+        {/* Keep action hints inside the toolbar so they never occlude the native page. */}
+        <Tooltip content={t('browserView.newPage')} placement="left">
           <IconButton
             type="button"
             size="sm"
-            onClick={() => void handleInspector()}
-            aria-label={isInspectorActive ? t('browserView.stopElementSelection') : t('browserView.startElementSelection')}
-            aria-pressed={isInspectorActive}
-            className={isInspectorActive ? 'browser-panel__inspector-btn--active' : undefined}
-            icon={<MousePointer2 />}
+            onClick={handleNewPage}
+            aria-label={t('browserView.newPage')}
+            icon={<SquarePlus />}
           />
+        </Tooltip>
+        {isTauri && (
+          <Tooltip
+            content={isInspectorActive ? t('browserView.stopElementSelection') : t('browserView.startElementSelection')}
+            placement="left"
+          >
+            <IconButton
+              type="button"
+              size="sm"
+              onClick={() => void handleInspector()}
+              aria-label={isInspectorActive ? t('browserView.stopElementSelection') : t('browserView.startElementSelection')}
+              aria-pressed={isInspectorActive}
+              variant={isInspectorActive ? 'primary' : 'quiet'}
+              icon={<MousePointer2 />}
+            />
+          </Tooltip>
         )}
       </form>
 

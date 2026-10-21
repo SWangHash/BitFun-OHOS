@@ -24,6 +24,7 @@ import { useAppearance } from '@/infrastructure/appearance';
 import { contextMenuController } from '@/shared/context-menu-system/core/ContextMenuController';
 import { ContextType, type CustomContext, type MenuItem } from '@/shared/context-menu-system/types';
 import { createTab, openCanvasArtifactTab, openFileInBestTarget } from '@/shared/utils/tabUtils';
+import { browserTabTitleFromUrl } from '@/shared/utils/browserTabTitle';
 import { isHtmlFilePath, openHtmlFileInExternalBrowser } from '@/shared/utils/htmlFilePreview';
 import { createLogger } from '@/shared/utils/logger';
 import type { LineRange } from '@/shared/editor/LineRange';
@@ -1113,7 +1114,7 @@ export const MarkdownRenderer = React.memo<MarkdownRendererProps>(({
     const duplicateCheckKey = `browser-panel:${url}`;
     createTab({
       type: 'browser',
-      title: translateMarkdownLabel('markdown.openInBuiltInBrowser'),
+      title: browserTabTitleFromUrl(url),
       data: { url },
       metadata: { duplicateCheckKey },
       checkDuplicate: true,

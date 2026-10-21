@@ -144,7 +144,7 @@ export const DropZone: React.FC<DropZoneProps> = ({
       </div>
 
       {showOverlay && zones.length > 0 && (
-        <div className="canvas-drop-zone-overlay" data-bitfun-component="content-canvas" data-bitfun-part="dropOverlay" data-bitfun-state="dragging">
+        <div className="canvas-drop-zone-overlay" data-bitfun-native-webview-occlusion data-bitfun-component="content-canvas" data-bitfun-part="dropOverlay" data-bitfun-state="dragging">
           {zones.filter(z => z.show).map(({ position, label }) => (
             <div
               key={position}

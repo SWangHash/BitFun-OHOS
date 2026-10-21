@@ -6,9 +6,10 @@ import { useEmbeddedBrowserWebview } from './useEmbeddedBrowserWebview';
 
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => {}),
+  listen: vi.fn(),
 }));
 vi.mock('@/infrastructure/api/service-api/ApiClient', () => ({ api: { invoke: mocks.invoke } }));
-vi.mock('@tauri-apps/api/event', () => ({ listen: async () => () => {} }));
+vi.mock('@tauri-apps/api/event', () => ({ listen: mocks.listen }));
 
 const log = { warn: vi.fn(), error: vi.fn() };
 function invokeCount(command: string): number {
@@ -26,6 +27,7 @@ let viewportBounds: DOMRect;
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.invoke.mockImplementation(async () => {});
+  mocks.listen.mockImplementation(async () => () => {});
   vi.stubGlobal('__TAURI_INTERNALS__', { invoke: () => {} });
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
@@ -131,8 +133,55 @@ it('keeps the old native rectangle occluded until the delayed bounds update comp
   });
   await act(async () => { await new Promise(resolve => setTimeout(resolve, 180)); });
   expect(invokeCount('browser_webview_show')).toBe(0);
-  await act(async () => finishBounds());
+  await act(async () => {
+    finishBounds();
+    await new Promise(resolve => setTimeout(resolve, 40));
+  });
   expect(invokeCount('browser_webview_show')).toBe(1);
+});
+
+it('serializes resize updates and applies only the latest pending rectangle', async () => {
+  await render();
+  mocks.invoke.mockClear();
+  let finishFirstBounds!: () => void;
+  let boundsCallCount = 0;
+  mocks.invoke.mockImplementation(async (...args) => {
+    if (args[0] !== 'browser_webview_set_bounds') return;
+    boundsCallCount += 1;
+    if (boundsCallCount === 1) {
+      await new Promise<void>(resolve => { finishFirstBounds = resolve; });
+    }
+  });
+
+  await mutate(() => {
+    viewportBounds = new DOMRect(0, 0, 300, 300);
+    window.dispatchEvent(new Event('resize'));
+  });
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 30)); });
+  expect(invokeCount('browser_webview_set_bounds')).toBe(1);
+  expect(invokeCount('browser_webview_hide')).toBe(0);
+
+  await mutate(() => {
+    viewportBounds = new DOMRect(0, 0, 350, 350);
+    window.dispatchEvent(new Event('resize'));
+    viewportBounds = new DOMRect(0, 0, 400, 400);
+    window.dispatchEvent(new Event('resize'));
+  });
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 30)); });
+  expect(invokeCount('browser_webview_set_bounds')).toBe(1);
+
+  await act(async () => {
+    finishFirstBounds();
+    await new Promise(resolve => setTimeout(resolve, 70));
+  });
+  const updates = mocks.invoke.mock.calls
+    .filter(call => call[0] === 'browser_webview_set_bounds')
+    .map(call => (call[1] as { request: { width: number; height: number } }).request);
+  expect(updates.map(update => [update.width, update.height])).toEqual([
+    [300, 300],
+    [400, 400],
+  ]);
+  expect(invokeCount('browser_webview_show')).toBe(0);
 });
 
 it('does not invoke native APIs in the web surface', async () => {
@@ -141,6 +190,25 @@ it('does not invoke native APIs in the web surface', async () => {
   await act(async () => browser.loadUrl('https://example.com/next'));
   await mutate(() => document.body.append(overlay()));
   expect(mocks.invoke).not.toHaveBeenCalled();
+});
+
+it('records a page-load start even when the finish event is handled immediately', async () => {
+  let pageLoadListener: ((event: { payload: { label: string; event: 'started' | 'finished'; url: string } }) => void) | undefined;
+  mocks.listen.mockImplementation(async (_event: string, listener: typeof pageLoadListener) => {
+    pageLoadListener = listener;
+    return () => {};
+  });
+
+  await render();
+  expect(pageLoadListener).toBeDefined();
+
+  await act(async () => {
+    pageLoadListener?.({ payload: { label: browser.webviewLabel, event: 'started', url: 'https://example.com/next' } });
+    pageLoadListener?.({ payload: { label: browser.webviewLabel, event: 'finished', url: 'https://example.com/next' } });
+  });
+
+  expect(browser.isLoading).toBe(false);
+  expect(browser.pageLoadRevision).toBe(1);
 });
 
 it('aligns native and preview edges at fractional DPI and applies a one-physical-pixel move', async () => {

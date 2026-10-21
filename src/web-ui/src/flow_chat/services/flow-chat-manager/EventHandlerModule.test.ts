@@ -121,23 +121,31 @@ describe('built-in browser open request projection', () => {
       url: ' https://bitfun.com/ ',
       title: ' Docs ',
       requestId: ' request-1 ',
+      ownerSessionId: ' session-1 ',
+      ownerWorkspaceId: ' workspace-1 ',
+      ownerWorkspacePath: ' /workspace ',
       replaceExisting: true,
     })).toMatchObject({
       title: 'Docs',
       data: {
         url: 'https://bitfun.com/',
         openRequestId: 'request-1',
+        ownerSessionId: 'session-1',
+        workspaceId: 'workspace-1',
+        workspacePath: '/workspace',
       },
-      duplicateCheckKey: 'browser-panel',
+      duplicateCheckKey: 'browser-panel:session-1',
       replaceExisting: true,
     });
 
     expect(buildBuiltInBrowserTabOptions({
       url: 'https://bitfun.com/',
       requestId: 'request-2',
+      ownerSessionId: 'session-2',
       replaceExisting: false,
     })).toMatchObject({
-      duplicateCheckKey: 'browser-panel:request-2',
+      data: { ownerSessionId: 'session-2' },
+      duplicateCheckKey: 'browser-panel:session-2:request-2',
       replaceExisting: false,
     });
   });

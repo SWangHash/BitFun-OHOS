@@ -194,6 +194,7 @@ export const TabOverflowMenu: React.FC<TabOverflowMenuProps> = ({
         <Menu
           ref={menuRef}
           className="canvas-tab-overflow-menu"
+          data-bitfun-native-webview-occlusion
           style={{
             position: 'fixed',
             top: `${menuPosition.top}px`,

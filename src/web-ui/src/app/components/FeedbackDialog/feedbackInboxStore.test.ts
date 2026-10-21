@@ -43,6 +43,7 @@ describe('feedbackInboxStore', () => {
     await useFeedbackInboxStore.getState().initializeForMode('full');
     expect(getAccessState).toHaveBeenCalledTimes(1);
     expect(listFeedbackRecords).not.toHaveBeenCalled();
+    expect(useFeedbackInboxStore.getState().canRefresh).toBe(false);
   });
 
   it('preserves cached records when an active refresh fails', async () => {
@@ -66,6 +67,7 @@ describe('feedbackInboxStore', () => {
     expect(await useFeedbackInboxStore.getState().refresh(true)).toBe(false);
     expect(useFeedbackInboxStore.getState().records).toEqual([cached]);
     expect(useFeedbackInboxStore.getState().nextCursor).toBe('cached-cursor');
+    expect(useFeedbackInboxStore.getState().canRefresh).toBe(true);
   });
 
   it('performs one startup Inbox query when full mode has reusable history', async () => {

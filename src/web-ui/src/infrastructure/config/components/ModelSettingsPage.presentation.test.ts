@@ -32,6 +32,14 @@ describe('ModelSettingsPage presentation', () => {
     expect(styles).not.toMatch(/> \* \{\s*width: auto;\s*max-width: none;/);
   });
 
+  it('uses the shared overflow surface for models.dev cache metadata', () => {
+    expect(source).toContain("<code><OverflowText>{modelsDevStatus?.cache_path || '—'}</OverflowText></code>");
+    expect(source).not.toContain('title={modelsDevStatus?.cache_path}');
+    expect(source).toContain("<OverflowText>{modelsDevStatus?.revision || '—'}</OverflowText>");
+    expect(source).not.toContain('title={modelsDevStatus?.revision}');
+    expect(source).not.toContain('modelsDevStatus.revision.slice(');
+  });
+
   it('lets advanced mode actions align to the right edge of their rows', () => {
     expect(styles).toMatch(
       /&__custom-headers-row,\s*&__custom-request-body-row\s*\{\s*> \.bitfun-config-page-row__meta\s*\{\s*width: 100%;\s*max-width: none;/,

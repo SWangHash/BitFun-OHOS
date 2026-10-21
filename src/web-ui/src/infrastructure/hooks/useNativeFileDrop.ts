@@ -102,6 +102,7 @@ export function useNativeFileDrop({
     // The ArkTS shell calls this global hook with filesystem paths, which we
     // forward to the same onDrop path.
     if (isOpenHarmonyRuntime()) {
+      const clearDragOver = () => onDragOverRef.current(false);
       const handle = (payload: unknown) => {
         const data = parseOhosNativeDropPayload(payload);
         if (!data) {
@@ -125,9 +126,16 @@ export function useNativeFileDrop({
           onDragOverRef.current(false);
         }
       };
+      window.addEventListener('dragend', clearDragOver, true);
+      window.addEventListener('drop', clearDragOver, true);
+      window.addEventListener('blur', clearDragOver);
       window.__bitFunNativeFileDrop = handle;
       log.debug('OHOS native file drop listener registered');
       return () => {
+        window.removeEventListener('dragend', clearDragOver, true);
+        window.removeEventListener('drop', clearDragOver, true);
+        window.removeEventListener('blur', clearDragOver);
+        clearDragOver();
         if (window.__bitFunNativeFileDrop === handle) {
           delete window.__bitFunNativeFileDrop;
         }

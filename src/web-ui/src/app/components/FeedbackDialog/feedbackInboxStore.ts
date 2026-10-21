@@ -15,6 +15,7 @@ interface FeedbackInboxState {
   loaded: boolean;
   loading: boolean;
   loadingMore: boolean;
+  canRefresh: boolean;
   backgroundAttempted: boolean;
   error: FeedbackApiError | null;
   initializeForMode: (mode: PrivacyEffectiveMode) => Promise<void>;
@@ -34,6 +35,7 @@ function cachedState(access: FeedbackAccessState) {
     nextCursor: access.cachedInbox.nextCursor,
     hasMore: access.cachedInbox.hasMore,
     loaded: true,
+    canRefresh: access.hasHistory && access.canReuseAccess,
   };
 }
 
@@ -44,6 +46,7 @@ export const useFeedbackInboxStore = create<FeedbackInboxState>((set, get) => ({
   loaded: false,
   loading: false,
   loadingMore: false,
+  canRefresh: false,
   backgroundAttempted: false,
   error: null,
 
@@ -76,6 +79,7 @@ export const useFeedbackInboxStore = create<FeedbackInboxState>((set, get) => ({
       if (!access.canReuseAccess) {
         set({
           ...(!stateBeforeRefresh.loaded ? cachedFallback : {}),
+          canRefresh: false,
           loading: false,
           error: normalizeFeedbackError({
             code: 'FEEDBACK_ACCESS_UNAVAILABLE',
@@ -118,12 +122,14 @@ export const useFeedbackInboxStore = create<FeedbackInboxState>((set, get) => ({
         hasMore,
         loaded: true,
         loading: false,
+        canRefresh: true,
         error: null,
       });
       return true;
     } catch (error) {
       set({
         ...(!stateBeforeRefresh.loaded && cachedFallback ? cachedFallback : {}),
+        canRefresh: cachedFallback?.canRefresh ?? stateBeforeRefresh.canRefresh,
         loading: false,
         loaded: true,
         error: normalizeFeedbackError(error),

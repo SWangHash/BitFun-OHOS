@@ -187,6 +187,7 @@ export const MissionControl: React.FC<MissionControlProps> = ({
 
   return (
     <div data-bitfun-component="mission-control" data-bitfun-part="root" data-bitfun-state="open"
+      data-bitfun-native-webview-occlusion
       ref={rootRef}
       className="canvas-mission-control"
       data-shortcut-scope="canvas"
