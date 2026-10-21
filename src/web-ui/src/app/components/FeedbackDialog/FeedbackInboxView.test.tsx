@@ -88,6 +88,7 @@ describe('FeedbackInboxView pagination', () => {
       loaded: true,
       loading: false,
       loadingMore: false,
+      canRefresh: false,
       error: null,
     });
     container = document.createElement('div');
@@ -114,6 +115,22 @@ describe('FeedbackInboxView pagination', () => {
       await Promise.resolve();
     });
   };
+
+  it('keeps refresh disabled when there is no reusable feedback history', () => {
+    renderInbox();
+
+    const refresh = Array.from(container.querySelectorAll('button')).find(
+      element => element.textContent === 'feedback.inbox.refresh',
+    );
+    expect(refresh).toBeDefined();
+    expect(refresh?.disabled).toBe(true);
+
+    act(() => useFeedbackInboxStore.setState({
+      canRefresh: true,
+      records: [record(1)],
+    }));
+    expect(refresh?.disabled).toBe(false);
+  });
 
   it('shows only the first page while retaining cached records for expansion', async () => {
     useFeedbackInboxStore.setState({

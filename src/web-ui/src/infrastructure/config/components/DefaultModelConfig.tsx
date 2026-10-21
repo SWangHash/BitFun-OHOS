@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Layers } from 'lucide-react';
 import { Combobox } from '@bitfun/ui';
@@ -25,6 +25,32 @@ const normalizeSelectValue = (value: string | number | (string | number)[]): str
 
 type DefaultModelSlot = 'primary' | 'fast' | 'image_understanding' | 'speech_recognition';
 
+function normalizeDefaultModels(config: Partial<DefaultModels> | null | undefined): DefaultModels {
+  return {
+    primary: config?.primary || null,
+    fast: config?.fast || null,
+    image_understanding: config?.image_understanding || null,
+    speech_recognition: config?.speech_recognition || null,
+  };
+}
+
+function mergeConfirmedDefaults(
+  current: DefaultModels,
+  confirmed: DefaultModels,
+  pendingSlots: ReadonlySet<DefaultModelSlot>,
+): DefaultModels {
+  return {
+    primary: pendingSlots.has('primary') ? current.primary : confirmed.primary,
+    fast: pendingSlots.has('fast') ? current.fast : confirmed.fast,
+    image_understanding: pendingSlots.has('image_understanding')
+      ? current.image_understanding
+      : confirmed.image_understanding,
+    speech_recognition: pendingSlots.has('speech_recognition')
+      ? current.speech_recognition
+      : confirmed.speech_recognition,
+  };
+}
+
 export const DefaultModelConfig: React.FC = () => {
   const { t } = useTranslation('settings/default-model');
   const { buildModelOption } = useModelSelectPresentation();
@@ -44,43 +70,59 @@ export const DefaultModelConfig: React.FC = () => {
     image_understanding: null,
     speech_recognition: null,
   });
+  const loadRevisionRef = useRef(0);
+  const pendingDefaultSlotsRef = useRef(new Set<DefaultModelSlot>());
+  const slotMutationRevisionRef = useRef<Record<DefaultModelSlot, number>>({
+    primary: 0,
+    fast: 0,
+    image_understanding: 0,
+    speech_recognition: 0,
+  });
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (initial: boolean) => {
+    const revision = ++loadRevisionRef.current;
     try {
-      setLoading(true);
+      if (initial) setLoading(true);
 
-      const [allModels, defaultModelsConfig] = await Promise.all([
-        configManager.getConfig<AIModelConfig[]>('ai.models') || [],
-        configManager.getConfig<any>('ai.default_models') || {},
-      ]);
+      const configs = await configManager.getConfigs(['ai.models', 'ai.default_models']);
+      if (revision !== loadRevisionRef.current) return;
+      const allModels = (configs['ai.models'] as AIModelConfig[] | undefined) || [];
+      const defaultModelsConfig = configs['ai.default_models'] as Partial<DefaultModels> | undefined;
 
       setModels(allModels);
-
-      setDefaultModels({
-        primary: defaultModelsConfig?.primary || null,
-        fast: defaultModelsConfig?.fast || null,
-        image_understanding: defaultModelsConfig?.image_understanding || null,
-        speech_recognition: defaultModelsConfig?.speech_recognition || null,
-      });
+      const confirmed = normalizeDefaultModels(defaultModelsConfig);
+      setDefaultModels(current => mergeConfirmedDefaults(
+        current,
+        confirmed,
+        pendingDefaultSlotsRef.current,
+      ));
     } catch (error) {
       log.error('Failed to load data', error);
       notificationService.error(t('messages.loadFailed'));
     } finally {
-      setLoading(false);
+      if (revision === loadRevisionRef.current) setLoading(false);
     }
   }, [t]);
 
   useEffect(() => {
-    void loadData();
+    let disposed = false;
+    let refreshQueued = false;
+    void loadData(true);
 
-    const unsubscribeModels = configManager.watch('ai.models', () => {
-      void loadData();
-    });
-    const unsubscribeDefaultModels = configManager.watch('ai.default_models', () => {
-      void loadData();
-    });
+    const refresh = () => {
+      if (refreshQueued) return;
+      refreshQueued = true;
+      queueMicrotask(() => {
+        refreshQueued = false;
+        if (!disposed) void loadData(false);
+      });
+    };
+
+    const unsubscribeModels = configManager.watch('ai.models', refresh);
+    const unsubscribeDefaultModels = configManager.watch('ai.default_models', refresh);
 
     return () => {
+      disposed = true;
       unsubscribeModels();
       unsubscribeDefaultModels();
     };
@@ -113,19 +155,19 @@ export const DefaultModelConfig: React.FC = () => {
 
   const handleDefaultModelChange = async (slot: DefaultModelSlot, modelId: string | number) => {
     const modelIdStr = modelId ? String(modelId) : null;
+    const previousValue = defaultModels[slot];
+    const revision = ++slotMutationRevisionRef.current[slot];
+    pendingDefaultSlotsRef.current.add(slot);
+    setDefaultModels(previous => ({ ...previous, [slot]: modelIdStr }));
     try {
-      const currentConfig = await configManager.getConfig<any>('ai.default_models') || {};
-
-      
-      await configManager.setConfig('ai.default_models', {
-        ...currentConfig,
-        [slot]: modelIdStr,
-      });
-
-      setDefaultModels(prev => ({
-        ...prev,
-        [slot]: modelIdStr,
-      }));
+      await configManager.setConfig(`ai.default_models.${slot}`, modelIdStr);
+      const confirmed = normalizeDefaultModels(
+        await configManager.getConfig<Partial<DefaultModels>>('ai.default_models'),
+      );
+      if (slotMutationRevisionRef.current[slot] !== revision) return;
+      const pendingSlots = new Set(pendingDefaultSlotsRef.current);
+      pendingSlots.delete(slot);
+      setDefaultModels(current => mergeConfirmedDefaults(current, confirmed, pendingSlots));
 
       const modelName = getModelName(modelIdStr);
       let successMessage: string;
@@ -145,7 +187,23 @@ export const DefaultModelConfig: React.FC = () => {
       );
     } catch (error) {
       log.error('Failed to update default model', { slot, modelId: modelIdStr, error });
+      if (slotMutationRevisionRef.current[slot] === revision) {
+        try {
+          const confirmed = normalizeDefaultModels(
+            await configManager.getConfig<Partial<DefaultModels>>('ai.default_models'),
+          );
+          const pendingSlots = new Set(pendingDefaultSlotsRef.current);
+          pendingSlots.delete(slot);
+          setDefaultModels(current => mergeConfirmedDefaults(current, confirmed, pendingSlots));
+        } catch {
+          setDefaultModels(previous => ({ ...previous, [slot]: previousValue }));
+        }
+      }
       notificationService.error(t('messages.updateFailed'));
+    } finally {
+      if (slotMutationRevisionRef.current[slot] === revision) {
+        pendingDefaultSlotsRef.current.delete(slot);
+      }
     }
   };
 

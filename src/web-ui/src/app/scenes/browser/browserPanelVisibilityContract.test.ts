@@ -24,4 +24,15 @@ describe('browser panel visibility contract', () => {
     expect(first).toMatch(/^embedded-browser-panel-view-[a-z0-9-]+$/);
     expect(second).toMatch(/^embedded-browser-panel-view-[a-z0-9-]+$/);
   });
+
+  it('uses governed tooltips and the shared pressed style for browser actions', () => {
+    const source = readBrowserPanelSource();
+
+    expect(source).toContain("<Tooltip content={t('browserView.newPage')} placement=\"left\">");
+    expect(source).toContain("content={isInspectorActive ? t('browserView.stopElementSelection') : t('browserView.startElementSelection')}");
+    expect(source).toMatch(/startElementSelection'\)\}\s+placement="left"/);
+    expect(source).toContain("variant={isInspectorActive ? 'primary' : 'quiet'}");
+    expect(source).not.toContain("title={t('browserView.newPage')}");
+    expect(source).not.toContain('browser-panel__inspector-btn--active');
+  });
 });

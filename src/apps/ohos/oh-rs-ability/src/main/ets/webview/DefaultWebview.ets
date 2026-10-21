@@ -46,6 +46,7 @@ export interface WebviewInitData {
   onTitleChange?: (title: string) => void;
   onPageBegin?: (url: string) => void;
   onPageEnd?: (url: string) => void;
+  contentLoaded?: boolean;
 }
 
 interface WebviewNodeData extends WebviewInitData {
@@ -67,6 +68,12 @@ interface OhosNativeDropPayload {
 interface CollectedDropResult {
   paths: string[];
   metadata: OhosFileMetadata[];
+}
+
+enum NativeDragDataKind {
+  Unavailable,
+  File,
+  NonFile,
 }
 
 // ArkWeb does not deliver external (file manager) file drags as HTML5 drop
@@ -102,6 +109,27 @@ function normalizeDroppedFileUri(uri: string): string {
     const err = e as BusinessError;
     hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `Unable to resolve bundle name: code=${err.code} msg=${err.message}`);
     return storagePath;
+  }
+}
+
+function classifyNativeDragData(dragEvent: DragEvent): NativeDragDataKind {
+  try {
+    const data = dragEvent.getData() as unifiedDataChannel.UnifiedData;
+    if (!data) {
+      return NativeDragDataKind.Unavailable;
+    }
+    const records: unifiedDataChannel.UnifiedRecord[] = data.getRecords();
+    if (!records || records.length <= 0) {
+      return NativeDragDataKind.Unavailable;
+    }
+    for (let i = 0; i < records.length; i++) {
+      if (records[i].getTypes().includes(uniformTypeDescriptor.UniformDataType.FILE_URI)) {
+        return NativeDragDataKind.File;
+      }
+    }
+    return NativeDragDataKind.NonFile;
+  } catch (e) {
+    return NativeDragDataKind.Unavailable;
   }
 }
 
@@ -253,6 +281,12 @@ function WebBuilder(data: WebviewNodeData) {
     )
     .javaScriptOnDocumentStart(data?.initializationScripts)
     .onControllerAttached(() => {
+      // BuilderNode.update() is also used for visibility and bounds changes.
+      // Those style-only updates must not navigate the existing page again.
+      if (data.contentLoaded) {
+        return;
+      }
+      data.contentLoaded = true;
       const ctrl = data.controller;
       // load url or html string
       if (data?.url) {
@@ -341,6 +375,11 @@ function WebBuilder(data: WebviewNodeData) {
       dispatchNativeDragEvent(data.controller, "leave", []);
     })
     .onDrop((dragEvent: DragEvent) => {
+      if (classifyNativeDragData(dragEvent) === NativeDragDataKind.NonFile) {
+        hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, "onDrop ignored non-file drag");
+        dispatchNativeDragEvent(data.controller, "drop", [], []);
+        return;
+      }
       hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, "onDrop triggered, starting retry collection");
       collectDroppedFilePathsWithRetry(data.controller, dragEvent, 0);
     });
@@ -430,6 +469,25 @@ export class RustWebviewNodeController extends NodeController {
       syncStyleToNode();
     };
 
+    const setBounds = (x: number, y: number, width: number, height: number): boolean => {
+      const node = this.webviewList.get(initData.webTag ?? "");
+      if (!node) {
+        return false;
+      }
+      if (!initData.style) {
+        initData.style = {};
+      }
+      initData.style.x = x;
+      initData.style.y = y;
+      initData.style.width = width;
+      initData.style.height = height;
+      // ArkWeb updates its internal viewport only when the Web component's
+      // declarative bounds are reapplied. FrameNode layout mutation moves the
+      // outer node but leaves the page viewport at its previous size.
+      node.update(initData);
+      return true;
+    };
+
     const setVisible = (visible: boolean) => {
       if (!initData.style) {
         initData.style = {};
@@ -449,6 +507,7 @@ export class RustWebviewNodeController extends NodeController {
       clearAllBrowsingData,
       runJavaScript,
       setBackgroundColor,
+      setBounds,
       setVisible,
     } as JsHelper;
     return data;

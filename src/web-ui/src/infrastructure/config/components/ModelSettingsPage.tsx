@@ -81,9 +81,9 @@ import {
 } from '@/infrastructure/config/settingsDraftRegistry';
 import {
   configsNeedingAutoTest,
-  providerConnectionChanged,
   stableJson,
 } from './modelConnectionTestPlan';
+import { modelEditorDraftSnapshot } from './modelEditorDraftState';
 import DefaultModelConfig from './DefaultModelConfig';
 import ReasoningConfigPanel, { type ReasoningConfigApplyResult } from './ReasoningConfigPanel';
 import { createLogger } from '@/shared/utils/logger';
@@ -431,6 +431,7 @@ const ModelSettingsPage: React.FC = () => {
   const [isEditorSaving, setIsEditorSaving] = useState(false);
   const [editingConfig, setEditingConfig] = useState<Partial<AIModelConfigType> | null>(null);
   const [editingTargetKey, setEditingTargetKey] = useState<string | null>(null);
+  const [editorBaseline, setEditorBaseline] = useState<{ targetKey: string; snapshot: string } | null>(null);
   const [draftCloseConfirmOpen, setDraftCloseConfirmOpen] = useState(false);
   const [draftConflictConfirmOpen, setDraftConflictConfirmOpen] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
@@ -762,25 +763,22 @@ const ModelSettingsPage: React.FC = () => {
     model: selectedModelDrafts.length === 0 || selectedModelDrafts.some(draft => !draft.modelName.trim()),
   };
 
-  const editingModalHasUnsavedChanges = useMemo(() => {
-    if (!editingConfig) return false;
-    const persistedModels = editingConfig.id
-      ? aiModels.filter(model => model.id === editingConfig.id)
-      : aiModels.filter(model => editingProviderModelIds.has(model.id || ''));
-    if (persistedModels.length === 0) return true;
+  const currentEditorSnapshot = useMemo(() => (
+    editingConfig ? modelEditorDraftSnapshot(editingConfig, selectedModelDrafts) : null
+  ), [editingConfig, selectedModelDrafts]);
+  const editorBaselineTargetKey = editingTargetKey ?? 'new-provider';
+  const editingModalHasUnsavedChanges = currentEditorSnapshot !== null
+    && editorBaseline?.targetKey === editorBaselineTargetKey
+    && currentEditorSnapshot !== editorBaseline.snapshot;
 
-    const persisted = persistedModels[0];
-    const comparableConfig = { ...persisted, ...editingConfig } as AIModelConfigType;
-    const providerFieldsChanged = providerConnectionChanged(persisted, comparableConfig)
-      || normalizeComparableString(editingConfig.name) !== normalizeComparableString(getProviderDisplayName(persisted));
-    const draftFieldsChanged = selectedModelDrafts.some(draft => modelDraftHasUnsavedChanges(draft, aiModels));
-    const persistedIds = new Set(persistedModels.map(model => model.id).filter(Boolean));
-    const draftIds = new Set(selectedModelDrafts.map(draft => draft.configId).filter(Boolean));
-    const selectionChanged = persistedIds.size !== draftIds.size
-      || Array.from(persistedIds).some(id => !draftIds.has(id));
-
-    return providerFieldsChanged || draftFieldsChanged || selectionChanged;
-  }, [aiModels, editingConfig, editingProviderModelIds, selectedModelDrafts]);
+  useEffect(() => {
+    if (!isEditing || !currentEditorSnapshot) return;
+    setEditorBaseline(current => (
+      current?.targetKey === editorBaselineTargetKey
+        ? current
+        : { targetKey: editorBaselineTargetKey, snapshot: currentEditorSnapshot }
+    ));
+  }, [currentEditorSnapshot, editorBaselineTargetKey, isEditing]);
 
   const createDraftsFromConfigs = (configs: AIModelConfigType[]) => (
     configs.map(config => createModelDraft(config.model_name, config, {
@@ -1122,6 +1120,7 @@ const ModelSettingsPage: React.FC = () => {
   
   const handleCreateNew = () => {
     requestEditorOpen('new-provider', () => {
+      setEditorBaseline(null);
       resetRemoteModelDiscovery();
       setSelectedModelDrafts([]);
       setEditingProviderModelIds(new Set());
@@ -1140,6 +1139,7 @@ const ModelSettingsPage: React.FC = () => {
   ) => {
     const targetKey = `new-provider:subscription:${account.provider}:default`;
     requestEditorOpen(targetKey, () => {
+      setEditorBaseline(null);
       resetRemoteModelDiscovery();
       setManualModelInput('');
       setShowApiKey(false);
@@ -1515,6 +1515,7 @@ const ModelSettingsPage: React.FC = () => {
     setManualModelInput('');
     setShowApiKey(false);
     setSelectedProviderId(providerId);
+    setEditorBaseline(null);
     setEditingTargetKey(`new-provider:${providerId}`);
     
     // Dynamically get translated name
@@ -1550,6 +1551,7 @@ const ModelSettingsPage: React.FC = () => {
     setEditingProviderModelIds(new Set());
     setShowApiKey(false);
     setSelectedProviderId(null);
+    setEditorBaseline(null);
     setEditingTargetKey('new-provider:custom');
     setEditingConfig({
       name: '',
@@ -1577,6 +1579,7 @@ const ModelSettingsPage: React.FC = () => {
     const providerGroupKey = getProviderGroupKey(config);
     const targetKey = `provider:${providerGroupKey}`;
     requestEditorOpen(targetKey, () => {
+      setEditorBaseline(null);
       resetRemoteModelDiscovery();
       setManualModelInput('');
       setShowApiKey(false);
@@ -1629,6 +1632,7 @@ const ModelSettingsPage: React.FC = () => {
   const handleEdit = (config: AIModelConfigType) => {
     const targetKey = `model:${config.id || `${config.provider}:${config.base_url}:${config.model_name}`}`;
     requestEditorOpen(targetKey, () => {
+      setEditorBaseline(null);
       resetRemoteModelDiscovery();
       setManualModelInput('');
       setEditingProviderModelIds(new Set());
@@ -1874,6 +1878,7 @@ const ModelSettingsPage: React.FC = () => {
       setEditingProviderModelIds(new Set());
       setSelectedModelDrafts([]);
       setEditingTargetKey(null);
+      setEditorBaseline(null);
       setDraftCloseConfirmOpen(false);
       setDraftConflictConfirmOpen(false);
       
@@ -1916,6 +1921,7 @@ const ModelSettingsPage: React.FC = () => {
     setCreationMode(null);
     setSelectedProviderId(null);
     setEditingTargetKey(null);
+    setEditorBaseline(null);
     setProviderQuery('');
     setShowAllProviders(false);
     setReasoningPanelDraftKey(null);
@@ -4116,7 +4122,7 @@ const ModelSettingsPage: React.FC = () => {
           </ConfigPageRow>
           <ConfigPageRow label={t('modelsDevCatalog.cachePath')} align="center" wide>
             <div className="bitfun-model-settings__catalog-path">
-              <code title={modelsDevStatus?.cache_path}><OverflowText>{modelsDevStatus?.cache_path || '—'}</OverflowText></code>
+              <code><OverflowText>{modelsDevStatus?.cache_path || '—'}</OverflowText></code>
               <Tooltip content={t('modelsDevCatalog.reveal')}>
                 <IconButton
                   aria-label={t('modelsDevCatalog.reveal')}
@@ -4133,8 +4139,8 @@ const ModelSettingsPage: React.FC = () => {
             </div>
           </ConfigPageRow>
           <ConfigPageRow label={t('modelsDevCatalog.revision')} align="center">
-            <code className="bitfun-model-settings__catalog-revision" title={modelsDevStatus?.revision}>
-              {modelsDevStatus?.revision ? `${modelsDevStatus.revision.slice(0, 12)}…` : '—'}
+            <code className="bitfun-model-settings__catalog-revision">
+              <OverflowText>{modelsDevStatus?.revision || '—'}</OverflowText>
             </code>
           </ConfigPageRow>
           <div className="bitfun-model-settings__catalog-offline-help" role="note">

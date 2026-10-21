@@ -15,9 +15,9 @@ describe('embedded browser WebView identity and visibility commands', () => {
     expect(second).toMatch(/^embedded-browser-panel-view-[a-z0-9-]+$/);
   });
 
-  it('hides the native WebView while split drop targets are visible', () => {
+  it('hides the native WebView while split surfaces are visible', () => {
     expect(BROWSER_WEBVIEW_BLOCKING_OVERLAY_SELECTOR).toContain('.canvas-drop-zone-overlay');
-    expect(BROWSER_WEBVIEW_BLOCKING_OVERLAY_SELECTOR).not.toContain('.canvas-tab-overflow-menu');
+    expect(BROWSER_WEBVIEW_BLOCKING_OVERLAY_SELECTOR).toContain('[data-bitfun-native-webview-occlusion]');
   });
 
   it('serializes show and hide commands for the same native WebView', async () => {

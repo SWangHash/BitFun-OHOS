@@ -2731,20 +2731,35 @@ function buildBuiltInBrowserTabOptions(
   const requestId = typeof event?.requestId === 'string' && event.requestId.trim()
     ? event.requestId.trim()
     : undefined;
+  const ownerSessionId = typeof event?.ownerSessionId === 'string' && event.ownerSessionId.trim()
+    ? event.ownerSessionId.trim()
+    : undefined;
+  const ownerWorkspaceId = typeof event?.ownerWorkspaceId === 'string' && event.ownerWorkspaceId.trim()
+    ? event.ownerWorkspaceId.trim()
+    : undefined;
+  const ownerWorkspacePath = typeof event?.ownerWorkspacePath === 'string' && event.ownerWorkspacePath.trim()
+    ? event.ownerWorkspacePath.trim()
+    : undefined;
   // Frontend-side default matches the Rust tool default: each open request
   // creates a NEW tab unless the agent explicitly asked to reuse one.
   const replaceExisting = event?.replaceExisting === true;
   // Replacing uses one stable product surface. A true new-tab request gets a
   // request-scoped key so identical URLs can still open as distinct targets.
   const duplicateCheckKey = replaceExisting
-    ? 'browser-panel'
-    : `browser-panel:${requestId ?? url}`;
+    ? `browser-panel:${ownerSessionId ?? 'unowned'}`
+    : `browser-panel:${ownerSessionId ?? 'unowned'}:${requestId ?? url}`;
 
   return {
     type: 'browser',
     title,
-    data: { url, openRequestId: requestId },
-    metadata: { duplicateCheckKey },
+    data: {
+      url,
+      openRequestId: requestId,
+      ownerSessionId,
+      workspaceId: ownerWorkspaceId,
+      workspacePath: ownerWorkspacePath,
+    },
+    metadata: { duplicateCheckKey, ownerSessionId },
     checkDuplicate: true,
     duplicateCheckKey,
     replaceExisting,

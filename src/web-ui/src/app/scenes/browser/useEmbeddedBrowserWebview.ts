@@ -8,7 +8,6 @@ import { api } from '@/infrastructure/api/service-api/ApiClient';
 import { createNativeWebviewVisibility, hasNativeWebviewOccluder, NATIVE_WEBVIEW_OCCLUSION_SELECTOR } from './nativeWebviewVisibility';
 export { NATIVE_WEBVIEW_OCCLUSION_SELECTOR, rectanglesIntersect } from './nativeWebviewVisibility';
 
-const WEBVIEW_RESIZE_DEBOUNCE_MS = 160;
 const WEBVIEW_BOUNDS_WAIT_TIMEOUT_MS = 2000;
 const BROWSER_WEBVIEW_PAGE_LOAD_EVENT = 'browser-webview-page-load';
 const WEBVIEW_CREATE_RETRY_DELAYS_MS = [0, 250, 750];
@@ -230,7 +229,10 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
   const viewportRef = useRef<HTMLDivElement>(null);
   const webviewRef = useRef<BrowserWebviewHandle | null>(null);
   const currentUrlRef = useRef<string>(startUrl);
-  const resizeTimerRef = useRef<number | null>(null);
+  const resizeFrameRef = useRef<number | null>(null);
+  const resizeSyncInFlightRef = useRef(false);
+  const resizeSyncPendingRef = useRef(false);
+  const queueResizeSyncRef = useRef<() => void>(() => {});
   const lastBoundsRef = useRef<WebviewBounds | null>(null);
   const webviewLabelRef = useRef<string>('');
   const pageLoadUnlistenRef = useRef<(() => void) | null>(null);
@@ -260,8 +262,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
       right: last.left + last.width, bottom: last.top + last.height,
     } : null;
     const bounds = rect.width > 1 && rect.height > 1 ? rect : nativeBounds;
-    // Bounds updates are debounced; the native view may still occupy its old
-    // rectangle after the DOM container has moved.
+    // A native update may still be applying while the DOM container moves.
     return !!bounds && !hasNativeWebviewOccluder(viewport, bounds)
       && (!nativeBounds || !hasNativeWebviewOccluder(viewport, nativeBounds));
   }, (target, visible) => {
@@ -278,6 +279,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
   const [inputValue, setInputValue] = useState(startUrl);
   const [currentUrl, setCurrentUrl] = useState(startUrl);
   const [isLoading, setIsLoading] = useState(false);
+  const [pageLoadRevision, setPageLoadRevision] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [webviewLabel, setWebviewLabel] = useState('');
 
@@ -379,6 +381,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
         preview.invalidate();
         if (payload.event === 'started') {
           setIsLoading(true);
+          setPageLoadRevision(revision => revision + 1);
         } else {
           setIsLoading(false);
         }
@@ -503,14 +506,25 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
   }, [createWebview, defaultUrl, isTauri, log, navigateExistingWebview, openRequestId, preview, syncWebviewBounds, visibility]);
 
   const queueSync = useCallback(() => {
-    if (resizeTimerRef.current !== null) window.clearTimeout(resizeTimerRef.current);
-    resizeTimerRef.current = window.setTimeout(() => {
-      resizeTimerRef.current = null;
+    resizeSyncPendingRef.current = true;
+    if (resizeFrameRef.current !== null || resizeSyncInFlightRef.current) return;
+
+    resizeFrameRef.current = window.requestAnimationFrame(() => {
+      resizeFrameRef.current = null;
+      if (resizeSyncInFlightRef.current || !resizeSyncPendingRef.current) return;
+      resizeSyncInFlightRef.current = true;
+      resizeSyncPendingRef.current = false;
+
       void syncWebviewBounds().catch((syncError) => {
+        // A later ResizeObserver/window event retries with a fresh rectangle.
         log.warn('Sync browser webview bounds failed', syncError);
+      }).finally(() => {
+        resizeSyncInFlightRef.current = false;
+        if (resizeSyncPendingRef.current) queueResizeSyncRef.current();
       });
-    }, WEBVIEW_RESIZE_DEBOUNCE_MS);
+    });
   }, [log, syncWebviewBounds]);
+  queueResizeSyncRef.current = queueSync;
 
   useEffect(() => {
     if (!isTauri) return;
@@ -548,10 +562,11 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
     return () => {
       observer.disconnect();
       window.removeEventListener('resize', handleResize);
-      if (resizeTimerRef.current !== null) {
-        window.clearTimeout(resizeTimerRef.current);
-        resizeTimerRef.current = null;
+      if (resizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(resizeFrameRef.current);
+        resizeFrameRef.current = null;
       }
+      resizeSyncPendingRef.current = false;
     };
   }, [isTauri, isVisible, queueSync]);
 
@@ -566,10 +581,11 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
       document.removeEventListener('visibilitychange', handleDocumentVisibility);
       pageLoadUnlistenRef.current?.();
       pageLoadUnlistenRef.current = null;
-      if (resizeTimerRef.current !== null) {
-        window.clearTimeout(resizeTimerRef.current);
-        resizeTimerRef.current = null;
+      if (resizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(resizeFrameRef.current);
+        resizeFrameRef.current = null;
       }
+      resizeSyncPendingRef.current = false;
       const handle = webviewRef.current;
       if (handle) {
         // Drain pending show/focus operations before closing the native view.
@@ -676,6 +692,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
     isLoading,
     isTauri,
     loadUrl,
+    pageLoadRevision,
     previewUrl,
     previewBounds,
     reload,
@@ -695,6 +712,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
     isLoading,
     isTauri,
     loadUrl,
+    pageLoadRevision,
     previewUrl,
     previewBounds,
     reload,

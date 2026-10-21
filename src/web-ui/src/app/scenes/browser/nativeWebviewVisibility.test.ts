@@ -36,6 +36,14 @@ describe('native view occlusion geometry', () => {
     second.append(viewport);
     expect(hasNativeWebviewOccluder(viewport, bounds)).toBe(false);
   });
+
+  it('keeps a toolbar tooltip visible without hiding the page below it', () => {
+    const viewportBounds = new DOMRect(0, 40, 300, 200);
+    const viewport = element(viewportBounds);
+    element(new DOMRect(180, 4, 96, 28), true);
+
+    expect(hasNativeWebviewOccluder(viewport, viewportBounds)).toBe(false);
+  });
 });
 
 describe('native view visibility serialization', () => {

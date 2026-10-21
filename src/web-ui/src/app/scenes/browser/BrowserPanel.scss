@@ -94,14 +94,6 @@
     animation: browser-panel-spin 0.8s linear infinite;
   }
 
-  &__inspector-btn--active {
-    color: var(--bitfun-color-accent-default) !important;
-    background: color-mix(in srgb, var(--bitfun-color-accent-default) 14%, transparent) !important;
-
-    &:hover {
-      background: color-mix(in srgb, var(--bitfun-color-accent-default) 22%, transparent) !important;
-    }
-  }
 }
 
 @keyframes browser-panel-spin {

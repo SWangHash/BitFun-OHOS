@@ -148,7 +148,7 @@ const INSPECTOR_SCRIPT_BODY = /* js */ `
   }
 
   function updateOverlay(el) {
-    if (!el) {
+    if (!el || !el.isConnected) {
       overlay.style.display = 'none';
       tooltip.style.display = 'none';
       return;
@@ -184,8 +184,11 @@ const INSPECTOR_SCRIPT_BODY = /* js */ `
   // ── cleanup ───────────────────────────────────────────────────────────────
   function cleanup() {
     document.removeEventListener('mouseover', onMouseOver, true);
+    document.removeEventListener('mousemove', onMouseMove, true);
     document.removeEventListener('click', onClick, true);
     document.removeEventListener('keydown', onKeyDown, true);
+    window.removeEventListener('scroll', onViewportChange, true);
+    window.removeEventListener('resize', onViewportChange);
     try { overlay.parentNode && overlay.parentNode.removeChild(overlay); } catch (e) {}
     try { tooltip.parentNode && tooltip.parentNode.removeChild(tooltip); } catch (e) {}
     delete window.__bitfun_inspector_active;
@@ -194,24 +197,45 @@ const INSPECTOR_SCRIPT_BODY = /* js */ `
   }
 
   // ── event handlers ────────────────────────────────────────────────────────
+  function inspectableElement(target) {
+    return target && target.nodeType === 1 && target !== overlay && target !== tooltip
+      ? target
+      : null;
+  }
+
   function onMouseOver(e) {
-    var el = e.target;
-    if (el === overlay || el === tooltip) return;
+    var el = inspectableElement(e.target);
+    if (!el) return;
     hoveredEl = el;
     updateOverlay(el);
   }
 
+  function onMouseMove(e) {
+    var el = inspectableElement(e.target);
+    if (!el) return;
+    hoveredEl = el;
+    updateOverlay(el);
+  }
+
+  function onViewportChange() {
+    updateOverlay(hoveredEl);
+  }
+
   function onClick(e) {
-    if (!hoveredEl) return;
+    var selectedEl = inspectableElement(e.target);
+    if (!selectedEl) return;
     e.preventDefault();
     e.stopPropagation();
 
+    hoveredEl = selectedEl;
+    updateOverlay(selectedEl);
+
     var data = {
-      tagName: hoveredEl.tagName.toLowerCase(),
-      path: cssPath(hoveredEl),
-      attributes: getAttrs(hoveredEl),
-      textContent: (hoveredEl.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 500),
-      outerHTML: (hoveredEl.outerHTML || '').slice(0, 2000),
+      tagName: selectedEl.tagName.toLowerCase(),
+      path: cssPath(selectedEl),
+      attributes: getAttrs(selectedEl),
+      textContent: (selectedEl.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 500),
+      outerHTML: (selectedEl.outerHTML || '').slice(0, 2000),
     };
 
     emitTauri(EVENT_SELECTED, data);
@@ -237,8 +261,11 @@ const INSPECTOR_SCRIPT_BODY = /* js */ `
   };
 
   document.addEventListener('mouseover', onMouseOver, true);
+  document.addEventListener('mousemove', onMouseMove, true);
   document.addEventListener('click', onClick, true);
   document.addEventListener('keydown', onKeyDown, true);
+  window.addEventListener('scroll', onViewportChange, true);
+  window.addEventListener('resize', onViewportChange);
 })();
 `;
 

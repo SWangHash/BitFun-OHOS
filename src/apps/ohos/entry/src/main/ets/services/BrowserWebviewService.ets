@@ -212,6 +212,8 @@ export class BrowserWebviewService {
     if (entry === undefined) {
       return this.errorEnvelope(`webview not found: ${request.label}`);
     }
+    entry.initData.url = request.url;
+    entry.initData.html = undefined;
     entry.controller.loadUrl(request.url);
     hilog.info(BROWSER_DOMAIN, BROWSER_TAG, `navigated label=${request.label} url=${request.url}`);
     return this.okEnvelope();
@@ -231,20 +233,15 @@ export class BrowserWebviewService {
     if (entry === undefined) {
       return this.errorEnvelope(`webview not found: ${request.label}`);
     }
-    const style = entry.initData.style;
-    if (style === undefined) {
-      return this.errorEnvelope(`webview has no style: ${request.label}`);
+    const applied = entry.controller.setBounds(
+      request.x,
+      request.y,
+      request.width,
+      request.height,
+    );
+    if (!applied) {
+      return this.errorEnvelope(`webview node not ready: ${request.label}`);
     }
-    style.x = request.x;
-    style.y = request.y;
-    style.width = request.width;
-    style.height = request.height;
-    // Re-build the BuilderNode with the mutated style so the Web component
-    // re-applies .width/.height/.position. Same pattern the original
-    // DefaultXComponent used for setVisible/setBackgroundColor.
-    const controller = this.resolveController();
-    const node = controller?.getWebviewNode(entry.webTag);
-    node?.update(entry.initData);
     return this.okEnvelope();
   }
 

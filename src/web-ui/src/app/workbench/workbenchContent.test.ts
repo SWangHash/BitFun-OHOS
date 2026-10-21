@@ -236,6 +236,38 @@ describe('workbench content navigation', () => {
     expect(Object.values(useContentResourceStore.getState().resources)).toHaveLength(0);
   });
 
+  it('isolates built-in browser tabs by session within one workspace', () => {
+    openSession('session-a');
+    createTab({
+      type: 'browser',
+      title: 'Example A',
+      data: { url: 'https://example.com/a' },
+      duplicateCheckKey: 'browser-panel:https://example.com',
+      mode: 'agent',
+    });
+
+    openSession('session-b');
+    createTab({
+      type: 'browser',
+      title: 'Example B',
+      data: { url: 'https://example.com/b' },
+      duplicateCheckKey: 'browser-panel:https://example.com',
+      mode: 'agent',
+    });
+
+    const store = useAgentCanvasStore.getState();
+    expect(store.primaryGroup.tabs).toHaveLength(2);
+    expect(store.primaryGroup.tabs.map(tab => tab.content.data.ownerSessionId).sort())
+      .toEqual(['session-a', 'session-b']);
+    expect(new Set(store.primaryGroup.tabs.map(tab => tab.content.metadata?.contentResourceKey)).size)
+      .toBe(2);
+    const state = useAgentCanvasStore.getState();
+    expect(state.primaryGroup.tabs.find(tab => tab.content.data.ownerSessionId === 'session-a')?.isHidden)
+      .toBe(true);
+    expect(state.primaryGroup.tabs.find(tab => tab.content.data.ownerSessionId === 'session-b')?.isHidden)
+      .toBe(false);
+  });
+
   it('keeps explicit Git opens in Git even with a selected session', () => {
     openSession();
     useSceneStore.getState().openScene('git');

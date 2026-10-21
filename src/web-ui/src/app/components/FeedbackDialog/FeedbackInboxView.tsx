@@ -40,6 +40,7 @@ export const FeedbackInboxView: React.FC<FeedbackInboxViewProps> = ({
   const loaded = useFeedbackInboxStore(state => state.loaded);
   const loading = useFeedbackInboxStore(state => state.loading);
   const loadingMore = useFeedbackInboxStore(state => state.loadingMore);
+  const canRefresh = useFeedbackInboxStore(state => state.canRefresh);
   const hasMore = useFeedbackInboxStore(state => state.hasMore);
   const error = useFeedbackInboxStore(state => state.error);
   const refresh = useFeedbackInboxStore(state => state.refresh);
@@ -81,7 +82,7 @@ export const FeedbackInboxView: React.FC<FeedbackInboxViewProps> = ({
               type="button"
               variant="text"
               size="sm"
-              disabled={loading || loadingMore || replySending}
+              disabled={loading || loadingMore || replySending || (!canRefresh && error?.retryable !== true)}
               onClick={() => void refresh(true)}
             >
               <RefreshCw size={14} aria-hidden="true" />

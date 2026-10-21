@@ -60,6 +60,12 @@ export function openCanvasContent(mode: 'agent' | 'git', input: PanelContent, op
     metadata: { ...input.metadata, resourceScope: scope, contentResourceKey: key },
   };
   const store = (mode === 'git' ? useGitCanvasStore : useAgentCanvasStore).getState();
+  const syncBrowserOwner = () => {
+    const ownerSessionId = browserOwnerSessionId(content);
+    if (mode === 'agent' && ownerSessionId) {
+      store.syncSessionOwnedBrowserTabs(ownerSessionId);
+    }
+  };
   const groups = [store.primaryGroup, store.secondaryGroup, store.tertiaryGroup];
   const groupIds: EditorGroupId[] = ['primary', 'secondary', 'tertiary'];
   for (const [index, group] of groups.entries()) {
@@ -72,10 +78,12 @@ export function openCanvasContent(mode: 'agent' | 'git', input: PanelContent, op
       mergeContentOpenIntent(existing.content, content, options.replaceExisting, existing.isDirty));
     store.switchToTab(existing.id, groupId);
     store.promoteTab(existing.id, groupId);
+    syncBrowserOwner();
     return;
   }
   if (options.splitView && store.layout.splitMode === 'none') store.setSplitMode('vertical');
   store.addTab(content, 'active', options.targetGroup);
+  syncBrowserOwner();
 }
 
 function sessionMatchesContentScope(session: Session, scope: ContentResourceScope): boolean {
@@ -85,13 +93,48 @@ function sessionMatchesContentScope(session: Session, scope: ContentResourceScop
     || session.projectWorkspaceId === scope.workspaceId || session.config?.projectWorkspaceId === scope.workspaceId;
 }
 
-function preferredOpenSessionTarget(scope: ContentResourceScope): SessionSceneTarget | undefined {
+function browserOwnerSessionId(content: PanelContent): string | undefined {
+  if (content.type !== 'browser') return undefined;
+  const owner = content.data?.ownerSessionId ?? content.metadata?.ownerSessionId;
+  return typeof owner === 'string' && owner.trim() ? owner.trim() : undefined;
+}
+
+function withBrowserSessionOwner(content: PanelContent, ownerSessionId: string | undefined): PanelContent {
+  if (content.type !== 'browser' || !ownerSessionId) return content;
+  return {
+    ...content,
+    data: { ...content.data, ownerSessionId },
+    metadata: { ...content.metadata, ownerSessionId },
+  };
+}
+
+function browserSessionResourceKey(
+  content: PanelContent,
+  resourceKey: string | undefined,
+  ownerSessionId: string | undefined,
+): string | undefined {
+  if (content.type !== 'browser' || !ownerSessionId) return resourceKey;
+  const base = resourceKey ?? content.metadata?.duplicateCheckKey;
+  if (typeof base !== 'string' || !base) return resourceKey;
+  const suffix = `:session:${ownerSessionId}`;
+  return base.endsWith(suffix) ? base : `${base}${suffix}`;
+}
+
+function preferredOpenSessionTarget(
+  scope: ContentResourceScope,
+  ownerSessionId?: string,
+): SessionSceneTarget | undefined {
   const { sessions } = flowChatStore.getState();
   const { openTabs, activeTabId } = useSceneStore.getState();
   // Only the tab owner knows whether a session is open. FlowChat's selection and
   // cached history survive closing a tab and must never reopen it for content.
   const tabs = openTabs.filter(tab => tab.session?.surfaceId === scope.surfaceId)
     .sort((a, b) => Number(b.id === activeTabId) - Number(a.id === activeTabId) || b.lastUsed - a.lastUsed);
+  if (ownerSessionId) {
+    const owned = tabs.find(tab => tab.session?.sessionId === ownerSessionId)?.session;
+    const session = owned ? sessions.get(owned.sessionId) : undefined;
+    return owned && session && sessionMatchesContentScope(session, scope) ? owned : undefined;
+  }
   for (const tab of tabs) {
     const target = tab.session!;
     const session = sessions.get(target.sessionId);
@@ -105,11 +148,18 @@ export function openContentInBestTarget(content: PanelContent, options: ContentO
   if (options.isCurrent && !options.isCurrent()) return;
   const scope = options.scope ?? captureContentScope(content.data);
   if (scope.surfaceId !== getActiveSurfaceId()) throw new Error('The resource belongs to another device surface.');
-  const identity = contentResourceIdentity(content, scope, options.resourceKey);
+  const requestedOwnerSessionId = browserOwnerSessionId(content);
+  const target = preferredOpenSessionTarget(scope, requestedOwnerSessionId);
+  const ownerSessionId = requestedOwnerSessionId ?? (content.type === 'browser' ? target?.sessionId : undefined);
+  const ownedContent = withBrowserSessionOwner(content, ownerSessionId);
+  const resourceKey = browserSessionResourceKey(ownedContent, options.resourceKey, ownerSessionId);
+  if (resourceKey && ownedContent.metadata?.duplicateCheckKey !== resourceKey) {
+    ownedContent.metadata = { ...ownedContent.metadata, duplicateCheckKey: resourceKey };
+  }
+  const identity = contentResourceIdentity(ownedContent, scope, resourceKey);
   const mainView = Object.values(useContentResourceStore.getState().resources).find(resource => resource.key === identity.key);
-  const target = preferredOpenSessionTarget(scope);
   if (mainView || !target) {
-    openWorkbenchContent(content, { ...options, scope });
+    openWorkbenchContent(ownedContent, { ...options, scope, resourceKey });
     return;
   }
 
@@ -127,7 +177,7 @@ export function openContentInBestTarget(content: PanelContent, options: ContentO
       const session = flowChatStore.getState().sessions.get(target.sessionId)!;
       const workspace = resolveSessionSceneWorkspace(session, workspaceManager.getState().openedWorkspaces.values());
       switchAgentCanvasWorkspace(undefined, workspace?.id);
-      openCanvasContent('agent', content, { ...options, scope });
+      openCanvasContent('agent', ownedContent, { ...options, scope, resourceKey });
       expandSessionAuxPane();
     },
   });
