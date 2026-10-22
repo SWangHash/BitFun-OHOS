@@ -14,6 +14,7 @@ import { createLogger } from '@/shared/utils/logger';
 import { useI18n } from '@/infrastructure/i18n';
 import { AlertCircle } from 'lucide-react';
 import { activeEditTargetService, createMonacoEditTarget } from '../services/ActiveEditTargetService';
+import { DiffRevertTooltips } from './DiffRevertTooltips';
 import './DiffEditor.scss';
 import { Tooltip } from '@bitfun/ui';
 import {
@@ -572,6 +573,7 @@ export const DiffEditor: React.FC<DiffEditorProps> = ({
             transition: 'opacity 0.2s'
           }} 
         />
+        <DiffRevertTooltips editor={diffEditor} />
       </div>
 
       {loading && (

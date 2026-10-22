@@ -1633,55 +1633,57 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
               title={t('json.title')}
               description={t('json.description')}
             >
-              <Textarea
-                ref={jsonEditorRef}
-                className="bitfun-acp-agents__json-textarea"
-                data-bitfun-component="acp-agents-config"
-                data-bitfun-part="jsonEditor"
-                value={jsonConfig}
-                onChange={(event) => {
-                  const nextValue = event.target.value;
-                  setJsonConfig(nextValue);
-                  setJsonDirty(nextValue !== jsonBaseline);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key !== 'Tab') return;
-                  event.preventDefault();
-                  const target = event.currentTarget;
-                  const start = target.selectionStart ?? 0;
-                  const end = target.selectionEnd ?? 0;
-                  const nextValue = jsonConfig.slice(0, start) + '  ' + jsonConfig.slice(end);
-                  setJsonConfig(nextValue);
-                  setJsonDirty(nextValue !== jsonBaseline);
-                  requestAnimationFrame(() => {
-                    jsonEditorRef.current?.focus();
-                    jsonEditorRef.current?.setSelectionRange(start + 2, start + 2);
-                  });
-                }}
-                rows={16}
-                spellCheck={false}
-                disabled={saving}
-              />
-              <div
-                className="bitfun-acp-agents__json-actions"
-                data-bitfun-component="acp-agents-config"
-                data-bitfun-part="jsonActions"
-              >
-                <Button variant="fill" size="sm" onClick={() => {
-                  setJsonConfig(jsonBaseline);
-                  setJsonDirty(false);
-                }}>
-                  {t('actions.revert')}
-                </Button>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => { void saveJsonConfig(); }}
-                  loading={saving}
-                  disabled={(!jsonDirty && !dirty) || (IS_OHOS && installingClientIds.size > 0)}
+              <div className="bitfun-acp-agents__json-editor">
+                <Textarea
+                  ref={jsonEditorRef}
+                  className="bitfun-acp-agents__json-textarea"
+                  data-bitfun-component="acp-agents-config"
+                  data-bitfun-part="jsonEditor"
+                  value={jsonConfig}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    setJsonConfig(nextValue);
+                    setJsonDirty(nextValue !== jsonBaseline);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Tab') return;
+                    event.preventDefault();
+                    const target = event.currentTarget;
+                    const start = target.selectionStart ?? 0;
+                    const end = target.selectionEnd ?? 0;
+                    const nextValue = jsonConfig.slice(0, start) + '  ' + jsonConfig.slice(end);
+                    setJsonConfig(nextValue);
+                    setJsonDirty(nextValue !== jsonBaseline);
+                    requestAnimationFrame(() => {
+                      jsonEditorRef.current?.focus();
+                      jsonEditorRef.current?.setSelectionRange(start + 2, start + 2);
+                    });
+                  }}
+                  rows={16}
+                  spellCheck={false}
+                  disabled={saving}
+                />
+                <div
+                  className="bitfun-acp-agents__json-actions"
+                  data-bitfun-component="acp-agents-config"
+                  data-bitfun-part="jsonActions"
                 >
-                  {t('actions.saveJson')}
-                </Button>
+                  <Button variant="fill" size="sm" onClick={() => {
+                    setJsonConfig(jsonBaseline);
+                    setJsonDirty(false);
+                  }}>
+                    {t('actions.revert')}
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => { void saveJsonConfig(); }}
+                    loading={saving}
+                    disabled={(!jsonDirty && !dirty) || (IS_OHOS && installingClientIds.size > 0)}
+                  >
+                    {t('actions.saveJson')}
+                  </Button>
+                </div>
               </div>
             </ConfigPageSection>
           )}

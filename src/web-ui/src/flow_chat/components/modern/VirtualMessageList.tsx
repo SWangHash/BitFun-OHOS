@@ -76,6 +76,7 @@ import {
   type HistoryBoundaryProximity,
 } from './flowChatHistoryBoundary';
 import { VirtualItemRenderer } from './VirtualItemRenderer';
+import { FlowChatOpeningBoundary } from './FlowChatOpeningBoundary';
 import { useFlowChatVolatileContext } from './FlowChatContext';
 import {
   estimateVirtualMessageItemHeightWithContext,
@@ -521,8 +522,11 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
     searchNavigationRequestIdRef.current += 1;
   }, [activeSessionId]);
 
+  const reconcileOpeningMeasurementRef = useRef<() => boolean>(() => false);
   const virtualizer = useFlowChatVirtualizer({
     items: virtualItems,
+    startAtTailOnMount: presentationMode !== 'history-window' && !shouldRestoreInitialSnapshot,
+    reconcileOpeningMeasurement: () => reconcileOpeningMeasurementRef.current(),
     scrollerRef: scrollerElementRef,
     headerRef: headerElementRef,
     getItemKey: getVirtualItemStableKey,
@@ -702,9 +706,18 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
     scrollToContentEnd,
     revealNewTurnTail,
     isOpeningViewport,
+    onOpeningOffset: virtualizer.syncViewportOffset,
     viewportOwner,
     viewportId,
   });
+
+  reconcileOpeningMeasurementRef.current = () => {
+    if (isOpenViewportSettledRef.current || isViewportSuspendedRef.current
+      || !isViewportActive || !isFollowingOutputNow()
+      || viewportOwner.currentOwner() !== 'follow-output') return false;
+    scheduleFollowToLatest();
+    return true;
+  };
 
   /**
    * The anchor stands down for anyone aiming at a target of their own — and for
@@ -2598,7 +2611,7 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
   }
 
   return (
-    <div
+    <FlowChatOpeningBoundary
       data-bitfun-component="virtual-message-list"
       data-bitfun-part="root"
       className="virtual-message-list"
@@ -2607,6 +2620,7 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
       data-viewport-mode={viewportMode}
       data-streaming-output={isStreamingOutput ? 'true' : 'false'}
       data-open-viewport-settled={isOpenViewportSettled ? 'true' : 'false'}
+      opening={!isOpenViewportSettled}
     >
       <div
         ref={handleScrollerRef}
@@ -2672,7 +2686,7 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
         focusReturnRef={scrollerElementRef}
         inputHeight={inputHeight}
       />
-    </div>
+    </FlowChatOpeningBoundary>
   );
 });
 

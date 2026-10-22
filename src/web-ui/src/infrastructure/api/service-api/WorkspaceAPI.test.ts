@@ -333,7 +333,7 @@ describe('WorkspaceAPI', () => {
       expect(dialogOpenMock).not.toHaveBeenCalled();
       expect(invokeMock).toHaveBeenCalledWith('open_oh_file_dialog', {
         options: JSON.stringify({ multiple: true, directory: false }),
-      });
+      }, { timeout: 0 });
     });
 
     it('maps the OHOS cancel envelope ("null") to null', async () => {
@@ -344,6 +344,22 @@ describe('WorkspaceAPI', () => {
       // JSON string "null"; see parse_picker_result in register_arkts_function.rs.
       invokeMock.mockResolvedValueOnce('null');
       await expect(workspaceAPI.openFileOrDirectoryDialog()).resolves.toBeNull();
+      expect(invokeMock).toHaveBeenCalledWith('open_oh_file_dialog', {
+        options: '{}',
+      }, { timeout: 0 });
+    });
+
+    it('preserves OHOS picker failures with the request deadline disabled', async () => {
+      stubTauri();
+      stubNavigator('OpenHarmony', 'Mozilla/5.0 (OpenHarmony)');
+      invokeMock.mockRejectedValueOnce(new Error('Document picker unavailable'));
+
+      await expect(workspaceAPI.openFileOrDirectoryDialog({ directory: true })).rejects.toThrow(
+        'Document picker unavailable',
+      );
+      expect(invokeMock).toHaveBeenCalledWith('open_oh_file_dialog', {
+        options: JSON.stringify({ directory: true }),
+      }, { timeout: 0 });
     });
 
     it('keeps the legacy oh-named alias routed through the same dispatch', async () => {

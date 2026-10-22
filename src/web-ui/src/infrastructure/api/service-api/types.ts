@@ -22,6 +22,7 @@ export interface ApiError {
 
 
 export interface ApiRequestConfig {
+  /** Request deadline in milliseconds; 0 disables it. Omit to use the client default. */
   timeout?: number;
   retries?: number;
   retryDelay?: number;

@@ -14,11 +14,14 @@ import { rehypeSourceRange, type MarkdownSourceRange } from './rehypeSourceRange
 
 interface MarkdownMathRendererProps {
   markdownContent: string;
+  /** Accepted for upstream parity; this tree has no streaming table-link plugin yet. */
+  isStreaming?: boolean;
   components: Components;
   sanitizeSchema: RehypeSanitizeOptions;
   remarkAutolinkComputerFileLinks: Pluggable;
   urlTransform: (value: string) => string;
   sourceRange?: MarkdownSourceRange;
+  inline?: boolean;
 }
 
 export const MarkdownMathRenderer: React.FC<MarkdownMathRendererProps> = ({
@@ -28,8 +31,9 @@ export const MarkdownMathRenderer: React.FC<MarkdownMathRendererProps> = ({
   remarkAutolinkComputerFileLinks,
   urlTransform,
   sourceRange,
-}) => (
-  <div data-bitfun-component="markdown" data-bitfun-part="math">
+  inline = false,
+}) => {
+  const content = (
     <ReactMarkdown
       remarkPlugins={[remarkGfm, remarkMath, remarkAutolinkBoundaries, remarkAutolinkComputerFileLinks]}
       rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema], [rehypeSourceRange, sourceRange], rehypeKatex]}
@@ -38,7 +42,10 @@ export const MarkdownMathRenderer: React.FC<MarkdownMathRendererProps> = ({
     >
       {markdownContent}
     </ReactMarkdown>
-  </div>
-);
+  );
+  return inline
+    ? <span data-bitfun-component="markdown" data-bitfun-part="math">{content}</span>
+    : <div data-bitfun-component="markdown" data-bitfun-part="math">{content}</div>;
+};
 
 export default MarkdownMathRenderer;

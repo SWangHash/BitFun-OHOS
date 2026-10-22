@@ -3,6 +3,7 @@
  */
 
 import {
+  Alert,
   Button,
   Field,
   Icon,
@@ -19,6 +20,7 @@ import {
 } from '@bitfun/ui';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
+import { desktopDomainErrorMessage } from '@/shared/ai-errors/desktopDomainErrors';
 
 import { FolderOpen, Key, Loader2, Lock, Server } from 'lucide-react';
 import type { SSHAuthMethod } from './types';
@@ -71,9 +73,11 @@ export const SSHAuthPromptDialog: React.FC<SSHAuthPromptDialogProps> = ({
   const [passphrase, setPassphrase] = useState('');
   const [certificatePath, setCertificatePath] = useState(defaultCertificatePath);
   const [verificationCode, setVerificationCode] = useState('');
+  const [pickerError, setPickerError] = useState<string | null>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    setPickerError(null);
     if (!open) {
       setPassword('');
       setPassphrase('');
@@ -153,18 +157,28 @@ export const SSHAuthPromptDialog: React.FC<SSHAuthPromptDialogProps> = ({
 
   const handleBrowsePrivateKey = useCallback(async () => {
     if (isConnecting) return;
-    const path = await pickSshPrivateKeyPath({
-      title: t('ssh.remote.pickPrivateKeyDialogTitle'),
-    });
-    if (path) setKeyPath(path);
+    setPickerError(null);
+    try {
+      const path = await pickSshPrivateKeyPath({
+        title: t('ssh.remote.pickPrivateKeyDialogTitle'),
+      });
+      if (path) setKeyPath(path);
+    } catch (error) {
+      setPickerError(error instanceof Error ? error.message : String(error));
+    }
   }, [isConnecting, t]);
 
   const handleBrowseCertificate = useCallback(async () => {
     if (isConnecting) return;
-    const path = await pickSshCertificatePath({
-      title: t('ssh.remote.pickCertificateDialogTitle'),
-    });
-    if (path) setCertificatePath(path);
+    setPickerError(null);
+    try {
+      const path = await pickSshCertificatePath({
+        title: t('ssh.remote.pickCertificateDialogTitle'),
+      });
+      if (path) setCertificatePath(path);
+    } catch (error) {
+      setPickerError(error instanceof Error ? error.message : String(error));
+    }
   }, [isConnecting, t]);
 
   return (
@@ -187,6 +201,10 @@ export const SSHAuthPromptDialog: React.FC<SSHAuthPromptDialogProps> = ({
           </div>
           <span className="ssh-auth-prompt-dialog__description-text">{targetDescription}</span>
         </div>
+
+        {pickerError && (
+          <Alert tone="error" message={desktopDomainErrorMessage(pickerError, t)} />
+        )}
 
         {!lockUsername && (
           <div className="ssh-auth-prompt-dialog__field" data-bitfun-component="ssh-remote" data-bitfun-part="authField">

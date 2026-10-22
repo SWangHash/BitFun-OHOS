@@ -136,6 +136,14 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         "account_online_devices",
         RemoteWorkspacePolicy::WorkspaceAgnostic,
     ),
+    (
+        "account_relay_capabilities",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
+    ),
+    (
+        "account_update_device_alias",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
+    ),
     ("account_status", RemoteWorkspacePolicy::WorkspaceAgnostic),
     (
         "append_flow_chat_diagnostics",

@@ -16,6 +16,7 @@ import type { FlowThinkingItem } from '../types/flow-chat';
 import { useTypewriter } from '../hooks/useTypewriter';
 import { useReportTypewriterReveal } from '../hooks/typewriterRevealGateContext';
 import { useToolCardHeightContract } from './useToolCardHeightContract';
+import { useFlowChatContext } from '../components/modern/FlowChatContext';
 import {
   nextEasedScrollTopPx,
   shouldEaseTailFollow,
@@ -25,7 +26,7 @@ import {
   noteTailFollowStep,
 } from '@/infrastructure/diagnostics/flowChatTailFollowDiagnostics';
 import { latestReasoningSummaryPreview } from '../utils/reasoningSummaryPresentation';
-import { MarkdownRenderer } from '@/infrastructure/markdown';
+import { ThinkingMarkdownRenderer } from '@/infrastructure/markdown';
 import './ModelThinkingDisplay.scss';
 
 interface ModelThinkingDisplayProps {
@@ -43,6 +44,7 @@ export const ModelThinkingDisplay: React.FC<ModelThinkingDisplayProps> = ({
   displayContext = 'default',
 }) => {
   const { t } = useTranslation('flow-chat');
+  const { activeSessionOverride } = useFlowChatContext();
   const { content, isStreaming, status } = thinkingItem;
   const isSummary = thinkingItem.reasoningKind === 'summary';
   const contentRef = useRef<HTMLDivElement>(null);
@@ -59,18 +61,49 @@ export const ModelThinkingDisplay: React.FC<ModelThinkingDisplayProps> = ({
   } | null>(null);
 
   const isActive = isStreaming || status === 'streaming';
-  const { displayText: displayContent, isRevealing } = useTypewriter(
-    isSummary ? '' : content,
-    isActive && !isSummary,
-  );
-  useReportTypewriterReveal(thinkingItem.id, isRevealing);
-  const shouldDefaultExpanded = forceExpanded || (!isSummary && (
-    displayContext === 'subagent-projection'
-      ? isActive || isLastItem
-      : isLastItem
+  // Embedded subagent transcripts stay compact until the reader opens them.
+  const isSubagentProjection = displayContext === 'subagent-projection';
+  const isSubagentSurface = isSubagentProjection
+    || activeSessionOverride?.sessionKind === 'subagent';
+  const shouldDefaultExpanded = forceExpanded || (!isSubagentSurface && !isSummary && (
+    isSubagentProjection ? isActive || isLastItem : isLastItem
   ));
 
   const [isExpanded, setIsExpanded] = useState(shouldDefaultExpanded);
+  const [retainClosingContent, setRetainClosingContent] = useState(shouldDefaultExpanded);
+  const expandContainerRef = useRef<HTMLDivElement>(null);
+  const shouldMountContent = isExpanded || retainClosingContent;
+  const { displayText: displayContent, isRevealing } = useTypewriter(
+    isSummary ? '' : content,
+    isActive && !isSummary,
+    // Keep playback through the closing transition, then release the reveal
+    // gate and track current content without animating an invisible backlog.
+    { revealImmediately: !shouldMountContent },
+  );
+  useReportTypewriterReveal(thinkingItem.id, isRevealing);
+
+  // Keep the existing collapse transition, but never build a hidden Markdown
+  // tree on an initially collapsed virtual-row mount. Observe actual CSS
+  // transitions so reduced motion and cancelled transitions also release it.
+  useLayoutEffect(() => {
+    if (isExpanded) {
+      setRetainClosingContent(true);
+      return;
+    }
+    if (!retainClosingContent) return;
+    const transitions = expandContainerRef.current?.getAnimations?.().filter(animation => (
+      'transitionProperty' in animation && animation.transitionProperty === 'grid-template-rows'
+    )) ?? [];
+    if (transitions.length === 0) {
+      setRetainClosingContent(false);
+      return;
+    }
+    let cancelled = false;
+    void Promise.allSettled(transitions.map(animation => animation.finished)).then(() => {
+      if (!cancelled) setRetainClosingContent(false);
+    });
+    return () => { cancelled = true; };
+  }, [isExpanded, retainClosingContent]);
   const userToggledRef = useRef(false);
   const { cardRootRef, applyExpandedState } = useToolCardHeightContract({
     toolId: thinkingItem.id,
@@ -299,8 +332,10 @@ export const ModelThinkingDisplay: React.FC<ModelThinkingDisplayProps> = ({
   }, [content, t]);
 
   const summaryPreview = useMemo(
-    () => latestReasoningSummaryPreview(content),
-    [content],
+    // Ordinary reasoning never displays this preview. Avoid splitting and
+    // stripping its potentially large body on every streaming update.
+    () => isSummary ? latestReasoningSummaryPreview(content) : '',
+    [content, isSummary],
   );
 
   const shouldExpand = useRef(true);
@@ -412,6 +447,7 @@ export const ModelThinkingDisplay: React.FC<ModelThinkingDisplayProps> = ({
       </div>
 
       <div
+        ref={expandContainerRef}
         className={[
           'thinking-expand-container',
           isExpanded ? 'thinking-expand-container--open' : '',
@@ -419,7 +455,7 @@ export const ModelThinkingDisplay: React.FC<ModelThinkingDisplayProps> = ({
         data-bitfun-component="model-thinking-display"
         data-bitfun-part="expandContainer"
       >
-        <div className={`thinking-content-wrapper ${scrollState.hasScroll ? 'has-scroll' : ''} ${scrollState.atTop ? 'at-top' : ''} ${scrollState.atBottom ? 'at-bottom' : ''}`} data-bitfun-component="model-thinking-display" data-bitfun-part="contentWrapper">
+        {shouldMountContent && <div className={`thinking-content-wrapper ${scrollState.hasScroll ? 'has-scroll' : ''} ${scrollState.atTop ? 'at-top' : ''} ${scrollState.atBottom ? 'at-bottom' : ''}`} data-bitfun-component="model-thinking-display" data-bitfun-part="contentWrapper">
           <div
             ref={contentRef}
             data-bitfun-component="model-thinking-display"
@@ -435,13 +471,13 @@ export const ModelThinkingDisplay: React.FC<ModelThinkingDisplayProps> = ({
             onTouchEnd={handleContentTouchEnd}
             onKeyDown={handleContentKeyDown}
           >
-            <MarkdownRenderer
+            <ThinkingMarkdownRenderer
               content={renderedContent}
               isStreaming={isVisuallyStreaming}
               className="thinking-markdown"
             />
           </div>
-        </div>
+        </div>}
       </div>
     </div>
   );

@@ -1,11 +1,11 @@
 /**
- * Native file pickers for SSH authentication files; default folder is ~/.ssh
- * (via Tauri homeDir + join).
+ * Platform-dispatched file pickers for SSH authentication files.
  */
 
-import { open } from '@tauri-apps/plugin-dialog';
-import { homeDir, join } from '@tauri-apps/api/path';
+import { workspaceAPI } from '@/infrastructure/api/service-api/WorkspaceAPI';
+import { isOpenHarmonyRuntime, isTauriRuntime } from '@/infrastructure/runtime';
 import { createLogger } from '@/shared/utils/logger';
+import { captureSshLocalFileHost } from './sshFileDialogs';
 
 const log = createLogger('pickSshAuthFilePath');
 
@@ -14,18 +14,23 @@ async function pickSshAuthFilePath(
   options: { title?: string } = {},
 ): Promise<string | null> {
   try {
-    const home = await homeDir();
-    const defaultPath = await join(home, '.ssh');
-    const selected = await open({
+    const surface = captureSshLocalFileHost();
+    let defaultPath: string | undefined;
+    if (isTauriRuntime() && !isOpenHarmonyRuntime()) {
+      const { homeDir, join } = await import('@tauri-apps/api/path');
+      defaultPath = await join(await homeDir(), '.ssh');
+    }
+    const selected = await workspaceAPI.openFileOrDirectoryDialog({
       multiple: false,
       directory: false,
       defaultPath,
       title: options.title,
     });
-    return selected ?? null;
+    surface.assertCurrent('SSH authentication file selection');
+    return typeof selected === 'string' ? selected : null;
   } catch (e) {
     log.error(`SSH ${kind} file picker failed`, e);
-    return null;
+    throw e;
   }
 }
 

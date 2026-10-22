@@ -30,6 +30,12 @@ This directory follows `src/web-ui/AGENTS.md`.
 
 ## Focused verification
 
+For diff revert tooltip interactions, run from the repository root:
+
+```bash
+pnpm --dir src/web-ui run test:run src/tools/editor/components/DiffRevertTooltips.test.tsx
+```
+
 Run from the repository root after Markdown editor changes:
 
 ```bash

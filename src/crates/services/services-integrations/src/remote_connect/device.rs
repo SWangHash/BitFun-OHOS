@@ -85,18 +85,26 @@ pub async fn local_device_metadata() -> serde_json::Value {
         let value = String::from_utf8(output.stdout).ok()?.trim().to_string();
         (!value.is_empty()).then_some(value)
     }
-    let os = match std::env::consts::OS {
-        "macos" => "macOS",
-        "windows" => "Windows",
-        "linux" => "Linux",
-        other => other,
+    // HarmonyOS targets report `linux` as the OS; the target environment
+    // distinguishes their display metadata from a Linux distribution.
+    let os = if cfg!(target_env = "ohos") {
+        "HarmonyOS"
+    } else {
+        match std::env::consts::OS {
+            "macos" => "macOS",
+            "windows" => "Windows",
+            "linux" => "Linux",
+            other => other,
+        }
     };
     #[cfg(target_os = "macos")]
     let (model, version) = (
         probe("/usr/sbin/sysctl", &["-n", "hw.model"]).await,
         probe("/usr/bin/sw_vers", &["-productVersion"]).await,
     );
-    #[cfg(target_os = "linux")]
+    #[cfg(target_env = "ohos")]
+    let (model, version) = ohos_device_metadata();
+    #[cfg(all(target_os = "linux", not(target_env = "ohos")))]
     let (model, version) = (
         tokio::fs::read_to_string("/sys/class/dmi/id/product_name")
             .await
@@ -142,6 +150,34 @@ pub async fn local_device_metadata() -> serde_json::Value {
     #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
     let (model, version): (Option<String>, Option<String>) = (None, None);
     metadata_payload(os, model, version)
+}
+
+#[cfg(target_env = "ohos")]
+fn ohos_device_metadata() -> (Option<String>, Option<String>) {
+    use std::ffi::{c_char, CStr};
+
+    // DeviceInfo NDK APIs are available since API 10, below the HAP's API 21 minimum.
+    #[link(name = "deviceinfo_ndk.z")]
+    unsafe extern "C" {
+        fn OH_GetProductModel() -> *const c_char;
+        fn OH_GetDisplayVersion() -> *const c_char;
+    }
+
+    fn read(get: unsafe extern "C" fn() -> *const c_char) -> Option<String> {
+        // SAFETY: both DeviceInfo getters take no arguments and return borrowed,
+        // NUL-terminated platform strings. Copy them without changing ownership.
+        let value = unsafe { get() };
+        if value.is_null() {
+            return None;
+        }
+        // SAFETY: the non-null DeviceInfo result remains owned by the platform.
+        unsafe { CStr::from_ptr(value) }
+            .to_str()
+            .ok()
+            .and_then(metadata_value)
+    }
+
+    (read(OH_GetProductModel), read(OH_GetDisplayVersion))
 }
 
 // Validate independently: a broken firmware/probe value must not reject the
@@ -339,11 +375,15 @@ mod tests {
     #[tokio::test]
     async fn local_metadata_has_display_os_and_only_non_destructive_valid_fields() {
         let metadata = local_device_metadata().await;
-        let expected = match std::env::consts::OS {
-            "macos" => "macOS",
-            "windows" => "Windows",
-            "linux" => "Linux",
-            other => other,
+        let expected = if cfg!(target_env = "ohos") {
+            "HarmonyOS"
+        } else {
+            match std::env::consts::OS {
+                "macos" => "macOS",
+                "windows" => "Windows",
+                "linux" => "Linux",
+                other => other,
+            }
         };
         assert_eq!(metadata["device_os"], expected);
         for (key, value) in metadata.as_object().unwrap() {

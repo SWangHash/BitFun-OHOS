@@ -48,6 +48,12 @@
     width: 132px;
   }
 
+  &__json-editor {
+    display: flex;
+    flex-direction: column;
+    padding: var(--bitfun-space-4);
+  }
+
   &__json-textarea {
     font-family: var(--bitfun-type-code-md-font-family);
     font-size: var(--bitfun-type-label-sm-font-size);

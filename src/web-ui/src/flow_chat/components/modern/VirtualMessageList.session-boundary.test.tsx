@@ -33,6 +33,8 @@ const mocks = vi.hoisted(() => ({
   followsNow: false,
   scheduleFollowToLatest: vi.fn(),
   startAtTailOnMount: true,
+  virtualizerStartsAtTail: false,
+  reconcileOpeningMeasurement: null as null | (() => boolean),
   revealNewTurnTail: null as null | ((turnId: string) => boolean),
   /**
    * The register the list built, reached through the hook it hands it to.
@@ -127,7 +129,11 @@ vi.mock('./useFlowChatVirtualizer', async () => {
       items: Array<Record<string, unknown>>;
       getItemKey: (item: Record<string, unknown>) => string;
       scrollerRef: { current: HTMLElement | null };
+      startAtTailOnMount?: boolean;
+      reconcileOpeningMeasurement?: () => boolean;
     }) => {
+      mocks.virtualizerStartsAtTail = options.startAtTailOnMount === true;
+      mocks.reconcileOpeningMeasurement = options.reconcileOpeningMeasurement ?? null;
       const rows = options.items.map((item, index) => ({
         index,
         key: options.getItemKey(item),
@@ -365,6 +371,43 @@ describe('VirtualMessageList natural scroll contract', () => {
     act(() => root.unmount());
     container.remove();
     vi.unstubAllGlobals();
+  });
+
+  it('reconciles opening measurements only while follow owns the active viewport', () => {
+    act(() => root.render(<VirtualMessageList />));
+    expect(mocks.reconcileOpeningMeasurement?.()).toBe(false);
+    mocks.followsNow = true;
+    mocks.viewportOwner!.claim('follow-output');
+    mocks.scheduleFollowToLatest.mockClear();
+    expect(mocks.reconcileOpeningMeasurement?.()).toBe(true);
+    expect(mocks.scheduleFollowToLatest).toHaveBeenCalledTimes(1);
+    mocks.viewportOwner!.claim('user-gesture');
+    expect(mocks.reconcileOpeningMeasurement?.()).toBe(false);
+    expect(mocks.scheduleFollowToLatest).toHaveBeenCalledTimes(1);
+    act(() => root.render(<VirtualMessageList isViewportActive={false} />));
+    expect(mocks.reconcileOpeningMeasurement?.()).toBe(false);
+  });
+
+  it('isolates the opening transcript at its boundary until reveal', async () => {
+    act(() => root.render(<VirtualMessageList />));
+    expect(mocks.virtualizerStartsAtTail).toBe(true);
+    const list = container.querySelector<HTMLElement>('[data-testid="flowchat-message-list"]')!;
+    expect(list.getAttribute('data-open-viewport-settled')).toBe('false');
+    expect(list.hasAttribute('inert')).toBe(false);
+    expect(container.querySelectorAll('[data-flowchat-opening-guard]')).toHaveLength(2);
+    expect(list.querySelector('.virtual-message-list__opening-shield')).not.toBeNull();
+    expect(list.getAttribute('aria-hidden')).toBe('true');
+
+    await settleOpenReveal();
+
+    expect(list.getAttribute('data-open-viewport-settled')).toBe('true');
+    expect(list.hasAttribute('inert')).toBe(false);
+    expect(list.hasAttribute('aria-hidden')).toBe(false);
+    expect(container.querySelectorAll('[data-flowchat-opening-guard][tabindex="-1"]')).toHaveLength(2);
+    expect(list.querySelector('.virtual-message-list__opening-shield')).toBeNull();
+    mocks.followsNow = true;
+    mocks.viewportOwner!.claim('follow-output');
+    expect(mocks.reconcileOpeningMeasurement?.()).toBe(false);
   });
 
   it('renders only the current input layout inset in the Footer', () => {
@@ -903,21 +946,23 @@ describe('VirtualMessageList natural scroll contract', () => {
       });
     }
 
-    it('treats a scroll under a scrollbar press as intent', () => {
+    it('treats a scroll under a scrollbar press as intent', async () => {
       act(() => root.render(<VirtualMessageList />));
+      await settleOpenReveal();
       pressAt(CONTENT_BOX_WIDTH + 6);
       expect(mocks.handleUserScrollIntent).toHaveBeenCalled();
     });
 
-    it('leaves a scroll under a press on the transcript alone', () => {
+    it('leaves a scroll under a press on the transcript alone', async () => {
       // Layout growth and virtualizer remeasurement emit scroll events too, so
       // the press is what qualifies one — not the event itself.
       act(() => root.render(<VirtualMessageList />));
+      await settleOpenReveal();
       pressAt(CONTENT_BOX_WIDTH - 200);
       expect(mocks.handleUserScrollIntent).not.toHaveBeenCalled();
     });
 
-    it('gives up an aim still in flight, which the claim alone cannot reach', () => {
+    it('gives up an aim still in flight, which the claim alone cannot reach', async () => {
       /*
        * The register refuses the re-aim's writes only while the gesture's hold
        * is live — 200ms after the last notch, against a five-second re-aim —
@@ -926,12 +971,14 @@ describe('VirtualMessageList natural scroll contract', () => {
        * for 7784 12ms after that.
        */
       act(() => root.render(<VirtualMessageList />));
+      await settleOpenReveal();
       pressAt(CONTENT_BOX_WIDTH + 6);
       expect(mocks.cancelAim).toHaveBeenCalled();
     });
 
-    it('disarms on release, so a later scroll is not intent', () => {
+    it('disarms on release, so a later scroll is not intent', async () => {
       act(() => root.render(<VirtualMessageList />));
+      await settleOpenReveal();
       pressAt(CONTENT_BOX_WIDTH + 6);
       mocks.handleUserScrollIntent.mockClear();
 
@@ -1509,6 +1556,7 @@ describe('VirtualMessageList natural scroll contract', () => {
       );
 
       expect(mocks.startAtTailOnMount).toBe(false);
+      expect(mocks.virtualizerStartsAtTail).toBe(false);
       expect(scroller.scrollTop).toBe(140);
       await settleOpenReveal();
       expect(container.querySelector('[data-open-viewport-settled="true"]')).not.toBeNull();

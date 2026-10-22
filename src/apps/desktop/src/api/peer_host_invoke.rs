@@ -280,8 +280,13 @@ struct HostInvokeBridgeRequest {
 }
 
 pub fn is_local_only_command(command: &str) -> bool {
+    let stance = peer_stance(command);
     LOCAL_ONLY_COMMANDS.contains(&command)
-        || matches!(peer_stance(command), Some(PeerStance::OperatorOnly))
+        || matches!(stance, Some(PeerStance::OperatorOnly))
+        // Account requests belong to the controller's authenticated Relay,
+        // including metadata operations added after the compatibility list.
+        || (command.starts_with("account_")
+            && matches!(stance, Some(PeerStance::ControllerLocal)))
 }
 
 /// Commands kept as protocol tombstones after their runtime owner was removed.
@@ -781,8 +786,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn deveco_account_commands_are_refused_before_the_webview_bridge() {
+    async fn account_metadata_and_operator_only_commands_are_refused_before_the_webview_bridge() {
         for command in [
+            "account_relay_capabilities",
+            "account_update_device_alias",
             "deveco_account_status",
             "deveco_account_start_login",
             "deveco_account_cancel_login",

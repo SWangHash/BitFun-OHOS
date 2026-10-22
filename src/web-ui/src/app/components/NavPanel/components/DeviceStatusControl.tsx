@@ -1,3 +1,4 @@
+import { useDeviceDirectory, resolveDeviceNameFrom, isDeviceControllable, deviceClientVersion } from '@/infrastructure/account/deviceDirectory';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { OverflowText, Button, Card, CardBody, CardFooter, CardHeader, Icon, IconButton, ScrollArea, createOverlayPortal, subscribeOverlayInteraction } from '@bitfun/ui';
 import { ChevronLeft, ChevronRight, Monitor, Server, Smartphone, Undo2 } from 'lucide-react';
@@ -6,7 +7,7 @@ import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/Ap
 import { useAnchoredPopoverPosition } from '@/shared/utils/useAnchoredPopoverPosition';
 import { usePeerDeviceModeOptional } from '@/infrastructure/peer-device/peerDeviceContextState';
 import { useAccountIdentity } from '@/infrastructure/account-identity';
-import { remoteConnectAPI, type AccountDeviceInfo } from '@/infrastructure/api/service-api/RemoteConnectAPI';
+import { remoteConnectAPI, deviceDisplayName as accountDeviceDisplayName, deviceMetadataLabel, type AccountDeviceInfo } from '@/infrastructure/api/service-api/RemoteConnectAPI';
 import { api } from '@/infrastructure/api/service-api/ApiClient';
 import { useNotification } from '@/shared/notification-system';
 import {
@@ -69,6 +70,7 @@ const DeviceStatusControl: React.FC<DeviceStatusControlProps> = ({
   onOpenChange,
   onManageDevices,
 }) => {
+  const directory = useDeviceDirectory();
   const { t } = useI18n('common');
   const { success, warning } = useNotification();
   const peerContext = usePeerDeviceModeOptional();
@@ -96,13 +98,12 @@ const DeviceStatusControl: React.FC<DeviceStatusControlProps> = ({
         ]);
         if (disposed || request !== generation) return;
         setSwitchTargets({ accountId, localId: local.device_id, devices: [
-          { ...local, online: true, last_seen_at: null },
+          { ...local, ...devices.find(device => device.device_id === local.device_id), online: true, last_seen_at: null },
           ...devices.filter(device => device.online && device.device_id !== local.device_id)
             .sort((a, b) => a.device_id.localeCompare(b.device_id)),
         ] });
       } catch (error) {
         if (disposed || request !== generation) return;
-        setSwitchTargets(null);
         warning(error instanceof Error ? error.message : String(error));
       }
     };
@@ -113,6 +114,8 @@ const DeviceStatusControl: React.FC<DeviceStatusControlProps> = ({
 
   const availableTargets = switchTargets?.accountId === accountId ? switchTargets : null;
   const currentId = peerContext?.peerMode.active ? peerContext.peerMode.deviceId : availableTargets?.localId;
+  // The live query owns control eligibility. The shared directory also retains
+  // older display metadata during outages, so it must not override this verdict.
   const previewTarget = availableTargets?.devices.find(device => device.device_id === previewId);
   const isPreviewing = Boolean(previewTarget && previewTarget.device_id !== currentId);
   const browseDevice = (direction: -1 | 1) => {
@@ -126,11 +129,16 @@ const DeviceStatusControl: React.FC<DeviceStatusControlProps> = ({
   const connectPreview = async () => {
     if (!peerContext || !availableTargets || !previewTarget || !isPreviewing || switchingRef.current || returningLocal) return;
     const target = previewTarget;
+    // A confirmed-incompatible peer stays visible, but never becomes a control target.
+    // Returning to this machine is independent of its Relay compatibility flag.
+    if (target.device_id !== availableTargets.localId && !isDeviceControllable(target)) return;
     switchingRef.current = true;
     setSwitchingDevice(true);
     try {
       if (target.device_id === availableTargets.localId) await peerContext.switchToLocal('manual');
-      else await peerContext.switchToDevice(target.device_id, target.device_name);
+      else await peerContext.switchToDevice(target.device_id, resolveDeviceNameFrom(
+        directory.devices, target.device_id, accountDeviceDisplayName(target),
+      ));
     } catch (error) {
       warning(error instanceof Error ? error.message : String(error));
     } finally {
@@ -141,26 +149,46 @@ const DeviceStatusControl: React.FC<DeviceStatusControlProps> = ({
   const platformHint = typeof navigator === 'undefined'
     ? ''
     : `${navigator.platform ?? ''} ${navigator.userAgent ?? ''}`;
-  const localDeviceLabel = /windows|win32/i.test(platformHint)
-    ? t('deviceOverview.thisWindows')
-    : /macintosh|macintel|mac os/i.test(platformHint)
-      ? t('deviceOverview.thisMac')
-      : /linux/i.test(platformHint)
-        ? t('deviceOverview.thisLinux')
-        : t('deviceOverview.thisDevice');
+  const localDeviceLabel = /harmony|ohos/i.test(platformHint)
+    ? t('deviceOverview.thisHarmonyOS')
+    : /windows|win32/i.test(platformHint)
+      ? t('deviceOverview.thisWindows')
+      : /macintosh|macintel|mac os/i.test(platformHint)
+        ? t('deviceOverview.thisMac')
+        : /linux/i.test(platformHint)
+          ? t('deviceOverview.thisLinux')
+          : t('deviceOverview.thisDevice');
   const {
     overview,
     refresh,
   } = useDeviceInterconnectionOverview(localDeviceLabel, t('remoteConnect.mobileBrowserTitle'));
-  const previewDevices: DeviceOverviewDevice[] = availableTargets?.devices.map(target =>
-    target.device_id === currentId ? overview.primaryDevice
-      : overview.devices.find(device => device.id === target.device_id) ?? {
-        id: target.device_id, name: target.device_name, kind: 'desktop',
+  const previewDevices = availableTargets?.devices.map(target => {
+    const known = target.device_id === currentId ? overview.primaryDevice
+      : overview.devices.find(device => device.id === `device:${target.device_id}`
+        || (device.local && target.device_id === availableTargets.localId));
+    return {
+      ...(known ?? {
+        id: target.device_id, kind: 'desktop' as const,
         local: target.device_id === availableTargets.localId, activities: [], backgroundTaskCount: 0,
-      }) ?? [overview.primaryDevice];
+      }),
+      name: resolveDeviceNameFrom(directory.devices, target.device_id, accountDeviceDisplayName(target)),
+      metadataLabel: deviceMetadataLabel({
+        ...target, ...directory.devices.find(device => device.device_id === target.device_id),
+      }),
+    };
+  }) ?? [{ ...overview.primaryDevice, metadataLabel: '' }];
   const previewIndex = Math.max(0, availableTargets?.devices.findIndex(
     device => device.device_id === (previewTarget?.device_id ?? currentId),
   ) ?? 0);
+  // An older Relay omits compatibility, which remains usable. Only a confirmed
+  // mismatch blocks control, while leaving the device and its name visible.
+  const previewIncompatible = Boolean(previewTarget
+    && previewTarget.device_id !== availableTargets?.localId
+    && !isDeviceControllable(previewTarget));
+  const previewIncompatibleVersion = previewTarget ? deviceClientVersion(previewTarget) : null;
+  const previewIncompatibleNotice = previewIncompatibleVersion
+    ? t('deviceOverview.deviceClientIncompatibleWithVersion', { version: previewIncompatibleVersion })
+    : t('deviceOverview.deviceClientIncompatible');
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const popoverLayout = useAnchoredPopoverPosition({
@@ -229,7 +257,15 @@ const DeviceStatusControl: React.FC<DeviceStatusControlProps> = ({
   const attachedMessageAppIdentity = useMemo(() => (
     overview.connectedDevices.find(device => device.kind === 'message-app')?.name
   ), [overview.connectedDevices]);
-  const accessibleSummary = [overview.currentWorkDeviceName, ...activityLines].join(' · ');
+  const deviceMetadata = useCallback((device: DeviceOverviewDevice) => {
+    const deviceId = device.local ? directory.localId ?? availableTargets?.localId
+      : device.id.startsWith('device:') ? device.id.slice('device:'.length) : device.id;
+    const metadata = directory.devices.find(entry => entry.device_id === deviceId)
+      ?? availableTargets?.devices.find(entry => entry.device_id === deviceId);
+    return metadata ? deviceMetadataLabel(metadata) : '';
+  }, [availableTargets, directory]);
+  const accessibleSummary = [overview.currentWorkDeviceName, deviceMetadata(overview.primaryDevice), ...activityLines]
+    .filter(Boolean).join(' · ');
 
   const deviceActivity = useCallback((device: DeviceOverviewDevice) => {
     const parts: string[] = [];
@@ -359,7 +395,7 @@ const DeviceStatusControl: React.FC<DeviceStatusControlProps> = ({
                             />
                           </span>
                           <strong><OverflowText>{deviceDisplayName(device)}</OverflowText></strong>
-                          <span>{deviceActivity(device)}</span>
+                          <span>{[deviceMetadata(device), deviceActivity(device)].filter(Boolean).join(' · ')}</span>
                         </div>
                       ))}
                     </div>
@@ -377,9 +413,10 @@ const DeviceStatusControl: React.FC<DeviceStatusControlProps> = ({
                           <DeviceArtwork device={device} />
                           {index === previewIndex && isPreviewing && (
                             <div className="bitfun-device-overview__connect-overlay">
-                              <Button variant="outline" size="sm" disabled={switchingDevice || returningLocal}
+                              <Button variant="outline" size="sm" disabled={previewIncompatible || switchingDevice || returningLocal}
+                                data-testid={previewIncompatible ? 'nav-device-status-incompatible' : 'nav-device-status-connect'}
                                 onClick={() => { void connectPreview(); }}>
-                                {t('deviceOverview.connectDevice')}
+                                {previewIncompatible ? previewIncompatibleNotice : t('deviceOverview.connectDevice')}
                               </Button>
                             </div>
                           )}
@@ -388,7 +425,8 @@ const DeviceStatusControl: React.FC<DeviceStatusControlProps> = ({
                           {device.name}
                         </span>
                         <span className="bitfun-device-overview__activity">
-                          {index === previewIndex && !isPreviewing ? deviceActivity(overview.primaryDevice) : '\u00a0'}
+                          {[device.metadataLabel, index === previewIndex && !isPreviewing ? deviceActivity(overview.primaryDevice) : '']
+                            .filter(Boolean).join(' · ') || '\u00a0'}
                         </span>
                       </div>
                     ))}
