@@ -1,13 +1,11 @@
  
 
-import { ScrollArea, useHasModalOverlay } from '@bitfun/ui';
+import { OverlayLayer, OverlayRegion, ScrollArea, useHasModalOverlay } from '@bitfun/ui';
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Notification } from '../types';
 import { useActiveNotifications } from '../hooks/useNotificationState';
 import { notificationService } from '../services/NotificationService';
 import { NotificationItem } from './NotificationItem';
-import { ProgressNotification } from './ProgressNotification';
-import { LoadingNotification } from './LoadingNotification';
 import './NotificationContainer.scss';
 
 const NOTIFICATION_EXIT_DURATION_MS = 140;
@@ -140,47 +138,30 @@ export const NotificationContainer: React.FC<React.PropsWithChildren> = ({ child
   }
 
   return (
-    <div
-      className="notification-container"
-      data-bitfun-component="notification"
-      data-bitfun-part="container"
-    >
-    <ScrollArea
-      className="notification-container__viewport"
-      scrollbarVisibility="hidden"
-    >
-      {children}
-      {presentedNotifications.map((notification) => {
-        const isExiting = !visibleIds.has(notification.id);
-
-        
-        if (notification.variant === 'progress') {
-          return (
-            <ProgressNotification
-              key={notification.id}
-              notification={notification}
-            />
-          );
-        }
-
-        if (notification.variant === 'loading') {
-          return (
-            <LoadingNotification
-              key={notification.id}
-              notification={notification}
-            />
-          );
-        }
-
-        return (
-          <NotificationPresence
-            key={notification.id}
-            notification={notification}
-            isExiting={isExiting}
-          />
-        );
-      })}
-    </ScrollArea>
-    </div>
+    <OverlayRegion>
+      <div
+        className="notification-container"
+        data-bitfun-component="notification"
+        data-bitfun-part="container"
+      >
+        <ScrollArea
+          className="notification-container__viewport"
+          scrollbarVisibility="hidden"
+        >
+          {children}
+          {presentedNotifications.map((notification) => {
+            const isExiting = !visibleIds.has(notification.id);
+            return (
+              <OverlayLayer key={notification.id} passive allowAboveModal open={!isExiting}>
+                <NotificationPresence
+                  notification={notification}
+                  isExiting={isExiting}
+                />
+              </OverlayLayer>
+            );
+          })}
+        </ScrollArea>
+      </div>
+    </OverlayRegion>
   );
 };

@@ -501,6 +501,10 @@ modals. Start dismissal timers inside the admitted content and pause them while
 `OverlayRegion`, with one `OverlayLayer` per card. The region and scroll ancestors
 must not introduce a stacking context (z-index, fixed positioning, transform,
 filter, isolation or paint containment); apply material and motion to each card.
+An actionable global notice that must remain reachable while a modal is open may
+combine `passive` with `allowAboveModal`. The coordinator then keeps that notice
+inside the modal interaction and focus domain while the rest of the document
+remains inert. Do not use this for menus, announcements, or background status.
 Panel-local views and noninteractive export render trees remain local content.
 
 ## FlowChat tool cards

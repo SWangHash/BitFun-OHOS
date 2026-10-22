@@ -21,6 +21,7 @@ export interface OverlayLayerRegistration {
   open: boolean;
   modal: boolean;
   passive: boolean;
+  allowAboveModal: boolean;
 }
 
 export interface OverlayFocusRegistration {
@@ -78,9 +79,17 @@ export class OverlayLayerStack {
     };
   }
 
-  updateLayer(id: symbol, values: Pick<OverlayLayerRegistration, "open" | "modal" | "passive">): void {
+  updateLayer(
+    id: symbol,
+    values: Pick<OverlayLayerRegistration, "open" | "modal" | "passive" | "allowAboveModal">,
+  ): void {
     const layer = this.layers.get(id);
-    if (!layer || (layer.open === values.open && layer.modal === values.modal && layer.passive === values.passive)) return;
+    if (!layer || (
+      layer.open === values.open
+      && layer.modal === values.modal
+      && layer.passive === values.passive
+      && layer.allowAboveModal === values.allowAboveModal
+    )) return;
     if (!layer.open && values.open) {
       layer.sequence = this.reserveSequence();
       layer.activationFocus = this.ownerDocument?.activeElement as HTMLElement | null;
@@ -101,6 +110,18 @@ export class OverlayLayerStack {
     return layer.parentId;
   }
 
+  private isAllowedAboveModal(layer: OverlayLayerRegistration): boolean {
+    let current: OverlayLayerRegistration | undefined = layer;
+    const visited = new Set<symbol>();
+    while (current && !visited.has(current.id)) {
+      if (current.allowAboveModal) return true;
+      visited.add(current.id);
+      const parentId = this.parentOf(current);
+      current = parentId ? this.layers.get(parentId) : undefined;
+    }
+    return false;
+  }
+
   isDescendant(id: symbol | undefined, ancestor: symbol): boolean {
     const visited = new Set<symbol>();
     while (id && !visited.has(id)) {
@@ -117,9 +138,13 @@ export class OverlayLayerStack {
     const layer = this.layers.get(id);
     return !layer || this.ancestorsOpen(layer);
   }
-  canPresent(parentId?: symbol): boolean {
+  canPresent(parentId?: symbol, allowAboveModal = false): boolean {
     const modal = this.topModal();
-    return !modal || this.isDescendant(parentId, modal.id);
+    const parent = parentId ? this.layers.get(parentId) : undefined;
+    return !modal
+      || allowAboveModal
+      || Boolean(parent && this.isAllowedAboveModal(parent))
+      || this.isDescendant(parentId, modal.id);
   }
 
   register(descriptor: OverlayLayerDescriptor): () => void {
@@ -218,7 +243,13 @@ export class OverlayLayerStack {
       result.push(layer);
     };
     pending.forEach(visit);
-    return result;
+    const modalOpen = result.some(layer => layer.modal && this.ancestorsOpen(layer));
+    return modalOpen
+      ? [
+        ...result.filter(layer => !this.isAllowedAboveModal(layer)),
+        ...result.filter(layer => this.isAllowedAboveModal(layer)),
+      ]
+      : result;
   }
   private topModal(): OverlayLayerRegistration | undefined {
     return this.orderedLayers().reverse().find(layer => layer.modal && this.ancestorsOpen(layer));
@@ -237,7 +268,7 @@ export class OverlayLayerStack {
   private isAvailable(layer: OverlayLayerRegistration): boolean {
     if (!layer.open || !this.ancestorsOpen(layer)) return false;
     const modal = this.topModal();
-    return !modal || this.isDescendant(layer.id, modal.id);
+    return !modal || this.isAllowedAboveModal(layer) || this.isDescendant(layer.id, modal.id);
   }
   private orderedDismissibles() {
     const order = this.orderedLayers();
@@ -287,7 +318,8 @@ export class OverlayLayerStack {
     if (scope.element.contains(target)) return true;
     const owner = this.getLayerForElement(scope.element);
     const targetLayer = this.getLayerForElement(target);
-    return Boolean(owner && targetLayer && this.isAvailable(targetLayer) && this.isDescendant(targetLayer.id, owner.id));
+    return Boolean(owner && targetLayer && this.isAvailable(targetLayer)
+      && (this.isDescendant(targetLayer.id, owner.id) || this.isAllowedAboveModal(targetLayer)));
   }
   private focusFirst(scope: OverlayFocusRegistration): void {
     (scope.initialFocus ?? focusableElements(scope.element)[0] ?? scope.element).focus({ preventScroll: true });
@@ -326,7 +358,8 @@ export class OverlayLayerStack {
       const owner = this.getLayerForElement(scope.element);
       const elements = focusableElements(scope.element, true);
       if (owner) this.orderedLayers().filter(layer => layer.id !== owner.id && this.isAvailable(layer)
-        && this.isDescendant(layer.id, owner.id)).forEach(layer => elements.push(...focusableElements(layer.element, true)));
+        && (this.isDescendant(layer.id, owner.id) || this.isAllowedAboveModal(layer)))
+        .forEach(layer => elements.push(...focusableElements(layer.element, true)));
       const first = elements[0], last = elements[elements.length - 1], active = this.ownerDocument?.activeElement;
       if (!first || !active || !this.inFocusDomain(active, scope)) {
         event.preventDefault(); (first ?? scope.element).focus();
@@ -403,7 +436,9 @@ export class OverlayLayerStack {
     const modal = this.topModal(), hidden = new Set<HTMLElement>();
     if (modal && this.ownerDocument?.defaultView) {
       const HTMLElementType = this.ownerDocument.defaultView.HTMLElement;
-      const allowed = this.orderedLayers().filter(layer => this.isDescendant(layer.id, modal.id)).map(layer => layer.element);
+      const allowed = this.orderedLayers()
+        .filter(layer => this.isDescendant(layer.id, modal.id) || this.isAllowedAboveModal(layer))
+        .map(layer => layer.element);
       const visit = (parent: Element) => Array.from(parent.children).forEach(child => {
         if (!(child instanceof HTMLElementType) || allowed.includes(child)) return;
         if (allowed.some(element => child.contains(element))) visit(child);
