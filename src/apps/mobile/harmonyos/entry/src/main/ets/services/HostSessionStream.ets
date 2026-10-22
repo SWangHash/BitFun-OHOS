@@ -262,7 +262,7 @@ export class HostSessionStream {
       if (error instanceof HostStreamUnsupportedError) {
         // Nothing on this side can make an older host answer; stop instead of
         // polling it every 30 seconds.
-        this.callbacks.onError(error);
+        this.callbacks.onError(error as Error);
         this.close();
         return;
       }

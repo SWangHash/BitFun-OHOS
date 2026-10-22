@@ -888,14 +888,15 @@ export abstract class AppRootRuntimeComposition {
         this.closeAppSidebar();
         this.conversationController.openHomeSession(session, true);
       },
-      archive: (session: RemoteSession, archived: boolean): void => {
-        this.conversationController.archiveHomeSession(session, archived);
+      archive: (_session: RemoteSession, _archived: boolean): void => {
+        RemoteLogger.warn('archive session not yet implemented for remote sessions');
       },
-      exportSession: (session: RemoteSession): void => { this.conversationController.exportHomeSession(session); },
+      exportSession: (_session: RemoteSession): void => {
+        RemoteLogger.warn('export session not yet implemented for remote sessions');
+      },
       deleteSession: (session: RemoteSession): void => { this.conversationController.deleteHomeSession(session); },
-      pin: (session: RemoteSession): void => {
-        const pinned: boolean = this.generalChatPageState.pinnedSessionId() === session.id;
-        void this.generalChatCommandController.pinSession(session, !pinned, this.generalChatPageState.isBusy);
+      pin: (_session: RemoteSession): void => {
+        RemoteLogger.warn('pin session not yet implemented for remote sessions');
       }
     },
     onSettings: {
