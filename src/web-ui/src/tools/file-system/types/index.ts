@@ -43,6 +43,8 @@ export interface FileExplorerProps {
   renamingPath?: string | null;
   onRename?: (oldPath: string, newName: string) => void;
   onCancelRename?: () => void;
+  /** Sibling names of the row being renamed (case-insensitive duplicate check). */
+  renameSiblings?: string[];
 
   workspacePath?: string;
 
@@ -220,6 +222,10 @@ export interface VirtualFileTreeProps {
   renamingPath?: string | null;
   onRename?: (oldPath: string, newName: string) => void;
   onCancelRename?: () => void;
+  /** Sibling names of the row being renamed (case-insensitive duplicate check). */
+  renameSiblings?: string[];
+  /** Current workspace runs against a remote host (relaxes filename charset rules). */
+  isRemoteWorkspace?: boolean;
   renderNodeContent?: (node: FileSystemNode, level: number) => React.ReactNode;
   renderNodeActions?: (node: FileSystemNode) => React.ReactNode;
 }

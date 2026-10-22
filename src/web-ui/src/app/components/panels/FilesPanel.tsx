@@ -33,6 +33,7 @@ import { isPeerDeviceModeActive } from '@/infrastructure/peer-device/peerModeFla
 import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 import {
   basenamePath,
+  dirnameAbsolutePath,
   normalizeLocalPathForRename,
   normalizeRemoteWorkspacePath,
   pathsEquivalentFs,
@@ -371,13 +372,32 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     });
   }, [workspacePath, shouldOpenLargeFile, surface, resourceScope]);
 
-  const handleNewFile = useCallback((data: { parentPath: string }) => {
-    globalEventBus.emit('file:new-file', { parentPath: data.parentPath });
+  const findNode = useCallback((nodes: FileSystemNode[], path: string): FileSystemNode | null => {
+    for (const node of nodes) {
+      if (pathsEquivalentFs(node.path, path)) return node;
+      if (node.children) {
+        const found = findNode(node.children, path);
+        if (found) return found;
+      }
+    }
+    return null;
   }, []);
 
+  const handleNewFile = useCallback((data: { parentPath: string }) => {
+    const parentNode = findNode(fileTree, data.parentPath);
+    globalEventBus.emit('file:new-file', {
+      parentPath: data.parentPath,
+      siblings: parentNode?.children?.map((child) => child.name),
+    });
+  }, [fileTree, findNode]);
+
   const handleNewFolder = useCallback((data: { parentPath: string }) => {
-    globalEventBus.emit('file:new-folder', { parentPath: data.parentPath });
-  }, []);
+    const parentNode = findNode(fileTree, data.parentPath);
+    globalEventBus.emit('file:new-folder', {
+      parentPath: data.parentPath,
+      siblings: parentNode?.children?.map((child) => child.name),
+    });
+  }, [fileTree, findNode]);
 
   const handleStartRename = useCallback((data: { path: string; name: string }) => {
     setRenamingPath(normalizePathForCurrentWorkspace(data.path));
@@ -411,6 +431,16 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
   const handleCancelRename = useCallback(() => {
     setRenamingPath(null);
   }, []);
+
+  const renameSiblings = useMemo(() => {
+    if (!renamingPath) {
+      return undefined;
+    }
+    const parentNode = findNode(fileTree, dirnameAbsolutePath(renamingPath));
+    return parentNode?.children
+      ?.filter((child) => !pathsEquivalentFs(child.path, renamingPath))
+      .map((child) => child.name);
+  }, [renamingPath, fileTree, findNode]);
 
   const handleDelete = useCallback(async (data: { path: string; isDirectory: boolean }) => {
     const normalizedPath = normalizePathForCurrentWorkspace(data.path);
@@ -558,17 +588,6 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
       if (data.scrollIntoView) setRevealTarget({ path: plan.targetPath, requestId: request });
     })();
   }, [workspacePath, isRemoteCurrentWorkspace, expandFolderEnsure, selectFile]);
-
-  const findNode = useCallback((nodes: FileSystemNode[], path: string): FileSystemNode | null => {
-    for (const node of nodes) {
-      if (pathsEquivalentFs(node.path, path)) return node;
-      if (node.children) {
-        const found = findNode(node.children, path);
-        if (found) return found;
-      }
-    }
-    return null;
-  }, []);
 
   const executePaste = useCallback(async (targetDir?: string) => {
     if (!workspacePath) {
@@ -955,16 +974,24 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
   const handleExplorerToolbarNewFile = useCallback(() => {
     const parentPath = getNewItemParentPath(workspacePath, selectedFile, fileTree);
     if (parentPath) {
-      globalEventBus.emit('file:new-file', { parentPath });
+      const parentNode = findNode(fileTree, parentPath);
+      globalEventBus.emit('file:new-file', {
+        parentPath,
+        siblings: parentNode?.children?.map((child) => child.name),
+      });
     }
-  }, [workspacePath, selectedFile, fileTree]);
+  }, [workspacePath, selectedFile, fileTree, findNode]);
 
   const handleExplorerToolbarNewFolder = useCallback(() => {
     const parentPath = getNewItemParentPath(workspacePath, selectedFile, fileTree);
     if (parentPath) {
-      globalEventBus.emit('file:new-folder', { parentPath });
+      const parentNode = findNode(fileTree, parentPath);
+      globalEventBus.emit('file:new-folder', {
+        parentPath,
+        siblings: parentNode?.children?.map((child) => child.name),
+      });
     }
-  }, [workspacePath, selectedFile, fileTree]);
+  }, [workspacePath, selectedFile, fileTree, findNode]);
 
   const handleExplorerToolbarRefresh = useCallback(() => {
     loadFileTree(workspacePath || '', false);
@@ -1224,6 +1251,8 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
               renamingPath={renamingPath}
               onRename={handleExecuteRename}
               onCancelRename={handleCancelRename}
+              renameSiblings={renameSiblings}
+              isRemoteWorkspace={isRemoteCurrentWorkspace}
               workspacePath={workspacePath}
               onNewFile={handleNewFile}
               onNewFolder={handleNewFolder}

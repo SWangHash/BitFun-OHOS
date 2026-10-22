@@ -18,6 +18,8 @@ interface VirtualFileRowProps {
   onCancelRename?: () => void;
   renderContent?: (node: FileSystemNode, level: number) => React.ReactNode;
   renderActions?: (node: FileSystemNode) => React.ReactNode;
+  renameSiblings?: string[];
+  isRemoteWorkspace?: boolean;
 }
 
 const VirtualFileRow = React.memo<VirtualFileRowProps>(({
@@ -31,6 +33,8 @@ const VirtualFileRow = React.memo<VirtualFileRowProps>(({
   onCancelRename,
   renderContent,
   renderActions,
+  renameSiblings,
+  isRemoteWorkspace,
 }) => {
   const indentPx = node.depth * 20 + 16;
 
@@ -60,6 +64,8 @@ const VirtualFileRow = React.memo<VirtualFileRowProps>(({
         onToggleExpand={() => onToggleExpand(node.path)}
         renderContent={renderContent}
         renderActions={renderActions}
+        renameSiblings={renameSiblings}
+        isRemoteWorkspace={isRemoteWorkspace}
       />
     </div>
   );
@@ -82,6 +88,8 @@ export const VirtualFileTree = forwardRef<VirtuosoHandle, VirtualFileTreeProps>(
   onCancelRename,
   renderNodeContent,
   renderNodeActions,
+  renameSiblings,
+  isRemoteWorkspace,
 }, ref) => {
   const { t } = useI18n('tools');
   const virtuosoRef = useRef<VirtuosoHandle>(null);
@@ -121,9 +129,11 @@ export const VirtualFileTree = forwardRef<VirtuosoHandle, VirtualFileTreeProps>(
         onCancelRename={onCancelRename}
         renderContent={renderNodeContent}
         renderActions={renderNodeActions}
+        renameSiblings={renameSiblings}
+        isRemoteWorkspace={isRemoteWorkspace}
       />
     );
-  }, [selectedFile, expandedFolders, handleNodeSelect, handleToggleExpand, renamingPath, onRename, onCancelRename, renderNodeContent, renderNodeActions]);
+  }, [selectedFile, expandedFolders, handleNodeSelect, handleToggleExpand, renamingPath, onRename, onCancelRename, renderNodeContent, renderNodeActions, renameSiblings, isRemoteWorkspace]);
 
   if (flatNodes.length === 0) {
     return (
