@@ -60,6 +60,7 @@ pub mod bitfun_control_tool;
 #[cfg(feature = "tools-pages")]
 pub mod page_deploy_tool;
 pub mod open_url_tool;
+#[cfg(feature = "tools-pages")]
 pub mod page_publish_tool;
 mod plan_artifact_diagnostics;
 #[cfg(feature = "tools-miniapp")]

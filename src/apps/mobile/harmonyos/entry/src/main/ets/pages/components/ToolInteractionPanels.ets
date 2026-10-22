@@ -162,16 +162,27 @@ export struct ToolQuestionAnswerPanel {
   @Local questions: QuestionInput[] = [];
   @Local selectedAnswers: Map<number, string[]> = new Map<number, string[]>();
   @Local customAnswers: Map<number, string> = new Map<number, string>();
+  @Local lastQuestionSignature: string = '';
 
   aboutToAppear(): void {
     this.questions = this.parseQuestions(this.questionsJson);
+    this.lastQuestionSignature = this.questionSignature(this.questions);
   }
 
   @Monitor('questionsJson')
   onQuestionsChanged(): void {
     this.questions = this.parseQuestions(this.questionsJson);
-    this.selectedAnswers = new Map<number, string[]>();
-    this.customAnswers = new Map<number, string>();
+    const signature = this.questionSignature(this.questions);
+    if (signature !== this.lastQuestionSignature) {
+      // Only the question content really changed (count / text / options /
+      // multiSelect), so the previous selections no longer apply. A pure
+      // refresh that rebuilds the JSON string leaves selections intact, which
+      // keeps multi-select ticks and the custom-answer draft across file
+      // picker round trips and post-submit mailbox reloads.
+      this.selectedAnswers = new Map<number, string[]>();
+      this.customAnswers = new Map<number, string>();
+      this.lastQuestionSignature = signature;
+    }
   }
 
   build() {
@@ -317,6 +328,17 @@ export struct ToolQuestionAnswerPanel {
     } catch (_err) {
       return [];
     }
+  }
+
+  // Stable content signature so a refresh that only rebuilds the JSON string
+  // (same questions, same options) does not wipe the user's in-progress ticks
+  // and custom-answer draft. `description` is intentionally excluded: a
+  // backend tweak to option descriptions must not invalidate selections.
+  private questionSignature(questions: QuestionInput[]): string {
+    return questions.map((question: QuestionInput): string =>
+      `${question.header}|${question.question}|${question.multiSelect === true}|` +
+      `${(question.options || []).map((option: QuestionOption): string => option.label).join(',')}`
+    ).join(';;');
   }
 
   private normalizeQuestion(question: QuestionInput): QuestionInput {

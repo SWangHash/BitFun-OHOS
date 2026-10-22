@@ -8,7 +8,7 @@ use bitfun_agent_runtime::user_questions::{
     build_cancelled_user_question_result, build_timed_out_user_question_result,
     validate_ask_user_question_input, wait_for_user_question_response, AskUserQuestionInput,
     PendingQuestionRequestMeta, PendingUserQuestion, QuestionPresentation, ResolvedQuestionRequest,
-    UserQuestionController, UserQuestionWaitOutcome, DEFAULT_USER_QUESTION_TIMEOUT_SECONDS,
+    UserQuestionController, UserQuestionWaitOutcome,
     USER_INPUT_AVAILABLE_CONTEXT_KEY, USER_INPUT_MODEL_ROUND_CONTEXT_KEY,
     USER_INPUT_PARENT_CONTEXT_KEY,
 };
@@ -23,19 +23,23 @@ use crate::util::errors::BitFunResult;
 
 /// How long the runtime may wait for the user's first interaction.
 ///
-/// The model's `timeout_seconds` bounds a plain question. A template that owns
-/// its wait (`allowTimeout: false`) returns `None`, which means "wait until the
-/// user answers or the turn is cancelled" — the Qt migration intake needs its
-/// four paths before any work starts, so a skipped question would be a silent
+/// The host-owned `ai.user_question_timeout_secs` bounds a plain question
+/// (null/0 waits indefinitely). A template that owns its wait
+/// (`allowTimeout: false`) returns `None`, which means "wait until the user
+/// answers or the turn is cancelled" — the Qt migration intake needs its four
+/// paths before any work starts, so a skipped question would be a silent
 /// failure rather than a convenient default.
 fn unattended_question_timeout(
     presentation: Option<&QuestionPresentation>,
-    timeout_seconds: u32,
+    configured: Option<std::time::Duration>,
 ) -> Option<std::time::Duration> {
     let allow_timeout = presentation
         .map(|presentation| presentation.allow_timeout)
         .unwrap_or(true);
-    allow_timeout.then(|| std::time::Duration::from_secs(u64::from(timeout_seconds)))
+    if !allow_timeout {
+        return None;
+    }
+    configured
 }
 
 /// AskUserQuestion tool
@@ -186,8 +190,8 @@ RECOMMENDATION GUIDELINES:
 - Provide 2-4 clear options with descriptions of trade-offs
 
 Usage notes:
-- This tool waits up to 30 seconds by default for the first user interaction. Once the user clicks an option or input, the timeout is disabled and the tool waits for submission or cancellation. If the user does not interact, it skips the questions and returns so you can continue execution.
-- Prefer the default timeout. Set timeout_seconds only when necessary to wait a shorter or longer time. A timeout is not user approval or a selected answer.
+- This tool waits up to the host-configured timeout (default 180 seconds) for the first user interaction. Once the user clicks an option or input, the timeout is disabled and the tool waits for submission or cancellation. If the user does not interact, it skips the questions and returns so you can continue execution.
+- The timeout is host-owned: the model cannot shorten or lengthen it. Prefer the default; a timeout is not user approval or a selected answer.
 - A backend template may own the wait instead: the `qt-migration-paths` intake never times out, because a migration cannot start before its paths are confirmed. Such a call blocks until the user answers or the turn is cancelled.
 - Put all questions you need into a single AskUserQuestion call instead of calling it repeatedly in one response
 - Users will always be able to select "Other" to provide custom text input
@@ -203,13 +207,6 @@ Usage notes:
         json!({
             "type": "object",
             "properties": {
-                "timeout_seconds": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": u32::MAX,
-                    "default": DEFAULT_USER_QUESTION_TIMEOUT_SECONDS,
-                    "description": "Seconds to wait for the first user interaction, default 30. Once the user starts answering, wait until submission or cancellation without a timeout. Prefer omitting this parameter; use a shorter or longer wait only when necessary. On timeout, skip the questions and continue execution."
-                },
                 "questions": {
                     "type": "array",
                     "items": {
@@ -310,6 +307,31 @@ Usage notes:
         &self,
         input: &Value,
         context: &ToolUseContext,
+    ) -> BitFunResult<Vec<ToolResult>> {
+        // The unattended-question timeout is host-owned: the model cannot
+        // shorten it. `ai.user_question_timeout_secs` bounds the first
+        // interaction (null/0 waits indefinitely; default 180s); a template
+        // that owns its wait (`allowTimeout: false`) still overrides to
+        // "wait forever". Config read failures surface as tool errors so a
+        // misconfigured host does not silently fall back to a hard-coded bound.
+        let config_service = crate::service::config::global::GlobalConfigManager::get_service()
+            .await?;
+        let ai_config: crate::service::config::types::AIConfig =
+            config_service.get_config(Some("ai")).await?;
+        let configured_timeout = ai_config
+            .user_question_timeout_secs
+            .filter(|seconds| *seconds > 0)
+            .map(|seconds| std::time::Duration::from_secs(u64::from(seconds)));
+        self.call_with_timeout(input, context, configured_timeout).await
+    }
+}
+
+impl AskUserQuestionTool {
+    async fn call_with_timeout(
+        &self,
+        input: &Value,
+        context: &ToolUseContext,
+        timeout: Option<std::time::Duration>,
     ) -> BitFunResult<Vec<ToolResult>> {
         if !Self::is_available_for_tool_context(Some(context)) {
             return Err(crate::util::errors::BitFunError::tool(
@@ -536,7 +558,7 @@ Usage notes:
                 resolved_request
                     .as_ref()
                     .and_then(|resolved| resolved.presentation.as_ref()),
-                tool_input.timeout_seconds,
+                timeout,
             ),
         )
         .await
@@ -641,7 +663,7 @@ mod tests {
         let input = serde_json::json!({ "templateId": "qt-migration-paths" });
 
         let error = tool
-            .call(&input, &context)
+            .call_with_timeout(&input, &context, Some(std::time::Duration::from_secs(180)))
             .await
             .expect_err("incomplete migration intent must not show the path card");
 
@@ -667,7 +689,10 @@ mod tests {
 
         // Drive the tool future on its own task: it blocks on the user answer
         // while the main task waits for the question to reach the mailbox.
-        let handle = tokio::spawn(async move { tool.call(&input, &context).await });
+        let handle = tokio::spawn(async move {
+            tool.call_with_timeout(&input, &context, Some(std::time::Duration::from_secs(180)))
+                .await
+        });
 
         tokio::time::timeout(std::time::Duration::from_secs(5), async {
             loop {
@@ -741,7 +766,7 @@ mod tests {
 
         let error = tokio::time::timeout(
             std::time::Duration::from_millis(100),
-            tool.call(&input, &context),
+            tool.call_with_timeout(&input, &context, Some(std::time::Duration::from_secs(180))),
         )
         .await
         .expect("non-interactive question must not wait")
@@ -792,7 +817,8 @@ mod tests {
             }]
         });
 
-        let call = tool.call(&input, &context);
+        let call =
+            tool.call_with_timeout(&input, &context, Some(std::time::Duration::from_secs(180)));
         tokio::pin!(call);
         let mailbox_registration = async {
             loop {
@@ -854,13 +880,16 @@ mod tests {
         )]));
         context.session_id = Some(child.clone());
         context.tool_call_id = Some(unique.clone());
-        let input = serde_json::json!({"timeout_seconds": 1, "questions": [{
+        let input = serde_json::json!({"questions": [{
             "question": "Continue?", "header": "Continue", "options": [
                 {"label": "Yes", "description": "Continue"}, {"label": "No", "description": "Stop"}
             ]
         }]});
-        let task =
-            tokio::spawn(async move { AskUserQuestionTool::new().call(&input, &context).await });
+        let task = tokio::spawn(async move {
+            AskUserQuestionTool::new()
+                .call_with_timeout(&input, &context, Some(std::time::Duration::from_secs(180)))
+                .await
+        });
         let manager = get_user_input_manager();
         tokio::time::timeout(std::time::Duration::from_secs(2), async {
             while !manager.has_pending(&unique) {
@@ -892,11 +921,12 @@ mod tests {
     }
 
     #[test]
-    fn timeout_schema_is_optional_and_owned_by_the_tool() {
+    fn timeout_is_configured_outside_the_tool_schema() {
         let tool = AskUserQuestionTool::new();
         let schema = tool.input_schema();
-        assert_eq!(schema["properties"]["timeout_seconds"]["default"], 30);
-        assert_eq!(schema["properties"]["timeout_seconds"]["minimum"], 1);
+        // The timeout is host-owned (ai.user_question_timeout_secs); the model
+        // cannot send timeout_seconds, so it must not appear in the schema.
+        assert!(schema["properties"].get("timeout_seconds").is_none());
         assert_eq!(schema["required"], serde_json::json!(["questions"]));
         assert!(tool.manages_own_execution_timeout());
     }
@@ -914,19 +944,28 @@ mod tests {
             allow_timeout,
         };
 
-        // No resolved template: the model's bound applies as before.
+        // No resolved template: the host-configured bound applies as before.
         assert_eq!(
-            super::unattended_question_timeout(None, 30),
+            super::unattended_question_timeout(None, Some(std::time::Duration::from_secs(30))),
             Some(std::time::Duration::from_secs(30))
         );
-        // A template that tolerates a skip keeps the model's bound.
+        // A template that tolerates a skip keeps the configured bound.
         assert_eq!(
-            super::unattended_question_timeout(Some(&presentation(true)), 7),
+            super::unattended_question_timeout(Some(&presentation(true)), Some(std::time::Duration::from_secs(7))),
             Some(std::time::Duration::from_secs(7))
         );
-        // The Qt intake owns its wait: any caller-supplied bound is ignored.
+        // The Qt intake owns its wait: any configured bound is ignored.
         assert_eq!(
-            super::unattended_question_timeout(Some(&presentation(false)), 30),
+            super::unattended_question_timeout(Some(&presentation(false)), Some(std::time::Duration::from_secs(30))),
+            None
+        );
+        // Host config null/0: wait forever even when the template allows a timeout.
+        assert_eq!(
+            super::unattended_question_timeout(None, None),
+            None
+        );
+        assert_eq!(
+            super::unattended_question_timeout(Some(&presentation(true)), None),
             None
         );
     }
@@ -936,7 +975,7 @@ mod tests {
         let mut context = context_with_custom_data(HashMap::new());
         context.session_id = Some(unique.clone());
         context.tool_call_id = Some(unique.clone());
-        let mut input = serde_json::json!({
+        let input = serde_json::json!({
             "questions": [{
                 "question": "Continue?", "header": "Continue",
                 "options": [
@@ -945,14 +984,11 @@ mod tests {
                 ]
             }]
         });
-        if let Some(seconds) = timeout_seconds {
-            input["timeout_seconds"] = serde_json::json!(seconds);
-        }
-        let expected = std::time::Duration::from_secs(u64::from(timeout_seconds.unwrap_or(30)));
+        let expected = std::time::Duration::from_secs(u64::from(timeout_seconds.unwrap_or(180)));
         let started = tokio::time::Instant::now();
         let result = tokio::time::timeout(
             expected + std::time::Duration::from_secs(5),
-            AskUserQuestionTool::new().call(&input, &context),
+            AskUserQuestionTool::new().call_with_timeout(&input, &context, Some(expected)),
         )
         .await
         .expect("question must finish without a user response")
@@ -984,8 +1020,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn unanswered_question_defaults_to_thirty_seconds_and_rejects_late_answers() {
-        assert_question_times_out(None).await;
+    async fn unanswered_question_times_out_and_rejects_late_answers() {
+        assert_question_times_out(Some(1)).await;
     }
 
     #[tokio::test]
@@ -994,6 +1030,6 @@ mod tests {
     }
     #[tokio::test]
     async fn unanswered_question_honors_longer_timeout() {
-        assert_question_times_out(Some(31)).await;
+        assert_question_times_out(Some(2)).await;
     }
 }
