@@ -6,8 +6,12 @@ import { ModelThinkingDisplay } from './ModelThinkingDisplay';
 import type { FlowThinkingItem } from '../types/flow-chat';
 import { TypewriterRevealGateContext, useCreateTypewriterRevealGate } from '../hooks/typewriterRevealGateContext';
 
-vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
-vi.mock('@openbitfun/ui', () => ({
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+  // The component chain resolves i18nService, which consumes initReactI18next.
+  initReactI18next: { type: '3rdParty', init: () => undefined },
+}));
+vi.mock('@bitfun/ui', () => ({
   OverflowText: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
   Icon: () => null,
 }));
@@ -48,7 +52,10 @@ function setup() {
     </TypewriterRevealGateContext.Provider>;
   }
   const render = (content: string, streaming = true) => act(() => root.render(<Card content={content} streaming={streaming} />));
-  const toggle = () => act(() => (host.querySelector('[data-testid="chat-thinking-toggle"]') as HTMLElement).click());
+  // This tree binds the collapsed header toggle to onMouseUp (drag-aware);
+  // upstream binds onClick, so a plain .click() would not reach the handler.
+  const toggle = () => act(() => (host.querySelector('[data-testid="chat-thinking-toggle"]') as HTMLElement)
+    .dispatchEvent(new MouseEvent('mouseup', { bubbles: true })));
   return { host, frames, render, toggle, gate: () => host.querySelector('output')?.textContent };
 }
 
@@ -60,7 +67,7 @@ it('keeps playback while closing, drains when hidden, and resumes only new text 
   expect(h.host.querySelector('[data-testid="body"]')?.textContent).toBe('Start');
   let finish!: () => void;
   const finished = new Promise<void>(resolve => { finish = resolve; });
-  const container = h.host.querySelector('[data-openbitfun-part="expandContainer"]')!;
+  const container = h.host.querySelector('[data-bitfun-part="expandContainer"]')!;
   Object.defineProperty(container, 'getAnimations', { value: () => [{ transitionProperty: 'grid-template-rows', finished }] });
   h.toggle();
   expect(h.host.querySelector('[data-testid="body"]')).not.toBeNull();

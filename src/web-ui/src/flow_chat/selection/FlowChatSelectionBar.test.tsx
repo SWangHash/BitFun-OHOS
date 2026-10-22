@@ -108,7 +108,7 @@ describe('selection annotation dialog lifecycle', () => {
     const second = first.cloneRange(); second.setStart(text.firstChild!, 1);
     const releaseSecond = highlightExcerptRange(second);
     releaseFirst();
-    expect([...highlights.get('openbitfun-flowchat-excerpt')!]).toEqual([second]);
+    expect([...highlights.get('bitfun-flowchat-excerpt')!]).toEqual([second]);
     expect(text.hasAttribute('data-flowchat-highlight-excerpt')).toBe(true);
     releaseSecond();
     expect(highlights.size).toBe(0);
