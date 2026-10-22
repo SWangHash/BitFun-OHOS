@@ -313,38 +313,26 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
                   ? customOption.label
                   : undefined)
                 ?? question.inputPlaceholder;
-              // The declared input is the question's own field, not the custom
-              // option it replaces, so its accessible name and hint come from the
-              // question whenever it declares one.
-              const declaredInputLabel = question.inputPlaceholder ?? inputLabel;
-              const declaredInputPlaceholder = question.inputPlaceholder
-                ?? customOption?.placeholder;
               const isComposing = () => composingQuestionsRef.current.has(question.id);
 
               /**
-               * A declared input owns the row for the whole question, so it never
-               * remounts (and never drops IME composition) when the custom option
-               * is toggled. The custom option only mounts its own row when the
-               * question declares no input.
+               * The custom input row renders inline inside the "Other" option
+               * after it is checked. When the question declares its own
+               * inputPlaceholder the row also carries a browse button so the
+               * user can pick a path instead of typing — but it is still the
+               * "Other" option that owns the answer, so selection follows the
+               * same checkbox/radio toggle as every other option.
                */
-              const customInputRow = (standalone: boolean) => (
+              const customInputRow = () => (
                 <span
                   className={classNames(
                     styles.customInput,
-                    standalone && styles.customInputRow,
-                    standalone && Boolean(customAnswers[question.id]?.trim()) && styles.customInputFilled,
                   )}
                   data-bitfun-part="custom-input"
                 >
-                  {standalone && Boolean(customAnswers[question.id]?.trim()) && (
-                    <CircleCheck
-                      aria-hidden="true"
-                      className={styles.inputSelectedIndicator}
-                    />
-                  )}
                   <input
-                    aria-label={standalone ? declaredInputLabel : inputLabel}
-                    autoFocus={!standalone}
+                    aria-label={inputLabel}
+                    autoFocus
                     className={styles.customInputField}
                     disabled={interactionDisabled}
                     onChange={(event) => {
@@ -378,15 +366,13 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
                         event.stopPropagation();
                       }
                     }}
-                    placeholder={standalone
-                      ? declaredInputPlaceholder
-                      : customOption?.placeholder ?? question.inputPlaceholder}
+                    placeholder={customOption?.placeholder ?? question.inputPlaceholder}
                     type="text"
                     value={customAnswers[question.id] ?? ""}
                   />
-                  {/* The picker belongs to a declared input: a custom option's
-                      inline field stays a plain free-text answer. */}
-                  {standalone && onBrowseCustomAnswer !== undefined && (
+                  {/* A declared input may also pick a path from the file
+                      system; a plain custom option stays free-text only. */}
+                  {hasDeclaredInput && onBrowseCustomAnswer !== undefined && (
                     <button
                       aria-label={browseCustomAnswerLabel}
                       className={styles.browseButton}
@@ -472,11 +458,12 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
                       );
                     })}
 
-                    {/* A declared input replaces the custom option entirely: the
-                        question already shows its own text field below the
-                        options, so a second "Other" row would only duplicate the
-                        same free-text answer. */}
-                    {customOption && !hasDeclaredInput && (() => {
+                    {/* The "Other" option always renders: whether the question
+                        declares its own input or not, the custom answer is an
+                        opt-in selection that follows the same toggle as every
+                        other option. A declared input only adds a browse
+                        button to the inline field. */}
+                    {customOption && (() => {
                       const optionId = `${instanceId}-${questionIndex}-custom`;
 
                       return (
@@ -521,12 +508,10 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
                                 )}
                             </span>
                           </label>
-                          {customSelected && customInputRow(false)}
+                          {customSelected && customInputRow()}
                         </div>
                       );
                     })()}
-
-                    {hasDeclaredInput && customInputRow(true)}
                   </div>
                 </fieldset>
               );

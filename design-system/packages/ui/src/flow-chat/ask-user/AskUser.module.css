@@ -425,21 +425,6 @@
     block-size: var(--bitfun-control-ask-user-icon-size);
   }
 
-  /* When a declared input has a value, show a checkmark so the user sees
-     their path or text is the selected answer, mirroring option selection. */
-  .inputSelectedIndicator {
-    flex: 0 0 auto;
-    align-self: center;
-    inline-size: var(--bitfun-control-ask-user-icon-size);
-    block-size: var(--bitfun-control-ask-user-icon-size);
-    color: var(--bitfun-color-content-success, var(--bitfun-color-content-primary));
-  }
-
-  .customInputFilled {
-    border-radius: var(--bitfun-radius-lg);
-    background: var(--bitfun-color-surface-info, var(--bitfun-color-surface-secondary));
-  }
-
   .root[data-disabled="true"] .option {
     color: var(--bitfun-color-content-disabled);
   }
