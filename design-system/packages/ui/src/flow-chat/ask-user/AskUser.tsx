@@ -332,9 +332,16 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
                   className={classNames(
                     styles.customInput,
                     standalone && styles.customInputRow,
+                    standalone && Boolean(customAnswers[question.id]?.trim()) && styles.customInputFilled,
                   )}
                   data-bitfun-part="custom-input"
                 >
+                  {standalone && Boolean(customAnswers[question.id]?.trim()) && (
+                    <CircleCheck
+                      aria-hidden="true"
+                      className={styles.inputSelectedIndicator}
+                    />
+                  )}
                   <input
                     aria-label={standalone ? declaredInputLabel : inputLabel}
                     autoFocus={!standalone}
