@@ -250,6 +250,7 @@ import {
 import { selectInterruptedTurnRecovery } from '../utils/interruptedTurnRecovery';
 import {
   chatInputPermissionMode,
+  needsFullAccessConfirmation,
   permissionModeFromConfig,
   sessionPermissionMode as toBackendPermissionMode,
 } from '../utils/permissionMode';
@@ -2610,12 +2611,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   ]);
 
   // Full access is the one mode worth a confirmation in either scope: a
-  // one-off turn still runs every tool without asking.
+  // one-off turn still runs every tool without asking. The mode already in
+  // force in that scope is exempt; `needsFullAccessConfirmation` owns that rule.
   const confirmFullAccessIfNeeded = useCallback(async (
     nextMode: Exclude<ChatInputPermissionMode, 'acp'>,
     scope: 'session' | 'next-turn' | 'active-turn',
+    currentMode?: ChatInputPermissionMode | null,
   ) => {
-    if (nextMode !== 'full_access') return true;
+    if (!needsFullAccessConfirmation(nextMode, currentMode)) return true;
     return confirmDanger(
       t('chatInput.permissionMode.fullAccessWarningTitle'),
       t(scope === 'active-turn'
@@ -2635,7 +2638,15 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     nextMode: Exclude<ChatInputPermissionMode, 'acp'>,
   ) => {
     if (permissionModeSaving || isAcpTargetSession) return;
-    if (!(await confirmFullAccessIfNeeded(nextMode, 'session'))) return;
+    // The session write also clears a one-off turn override, so the mode this
+    // click replaces is the session's own unless the turn was running narrower.
+    const overrideMode = temporaryPermissionMode
+      ? chatInputPermissionMode(temporaryPermissionMode)
+      : null;
+    const replacedMode = overrideMode && overrideMode !== 'full_access'
+      ? overrideMode
+      : permissionMode;
+    if (!(await confirmFullAccessIfNeeded(nextMode, 'session', replacedMode))) return;
     const backendMode = toBackendPermissionMode(
       nextMode as Exclude<ChatInputPermissionMode, 'acp' | 'reject'>,
     );
@@ -2644,7 +2655,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     applySessionPermissionMode,
     confirmFullAccessIfNeeded,
     isAcpTargetSession,
+    permissionMode,
     permissionModeSaving,
+    temporaryPermissionMode,
   ]);
 
   /** Updates the active turn when one exists; otherwise arms the next send. */
@@ -2660,11 +2673,18 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       ? activeTurnPermissionMode
       : armedTurnPermissionMode;
     const nextTemporaryMode = currentMode === backendMode ? null : backendMode;
+    // The turn already runs under its override, or under the session mode when
+    // it has none, so arming full access on top of a full-access turn is not a
+    // risk change worth a prompt.
+    const effectiveTurnMode: ChatInputPermissionMode = currentMode
+      ? chatInputPermissionMode(currentMode)
+      : permissionMode;
     if (
       nextTemporaryMode === 'full_access'
       && !(await confirmFullAccessIfNeeded(
         nextMode,
         targetTurnId ? 'active-turn' : 'next-turn',
+        effectiveTurnMode,
       ))
     ) return;
     if (
@@ -2722,6 +2742,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     effectiveTargetSession?.workspacePath,
     effectiveTargetSessionId,
     isAcpTargetSession,
+    permissionMode,
     permissionModeSaving,
     t,
   ]);
