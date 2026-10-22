@@ -33,6 +33,7 @@ import { openAgentCompanionSession } from '@/app/services/openAgentCompanionSess
 import { exitPetOnlyMode, isPetOnlyModeActive } from '@/app/services/agentCompanionPetOnlyMode';
 import { useAgentCompanionPetOnlyModeStore } from '@/app/stores/agentCompanionPetOnlyModeStore';
 import { quickActions } from '@/shared/services/ide-control';
+import { fontPreferenceService, resolveFontSizeTokens } from '@/infrastructure/font-preference';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { createLogger } from '@/shared/utils/logger';
 import {
@@ -58,18 +59,26 @@ import './AgentCompanionInAppPet.scss';
 const log = createLogger('AgentCompanionInAppPet');
 
 const PET_EDGE_GAP = 12;
+/** UI baseline (px) the app zoom presets are measured against; default = 14. */
+const DEFAULT_UI_BASE_PX = 14;
 
 interface PetDragPosition {
   x: number;
   y: number;
 }
 
-function clampDragPosition(x: number, y: number, width: number, height: number): PetDragPosition {
-  const maxX = Math.max(0, window.innerWidth - width - PET_EDGE_GAP);
-  const maxY = Math.max(0, window.innerHeight - height - PET_EDGE_GAP);
+function clampDragPosition(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  edgeGap: number,
+): PetDragPosition {
+  const maxX = Math.max(0, window.innerWidth - width - edgeGap);
+  const maxY = Math.max(0, window.innerHeight - height - edgeGap);
   return {
-    x: Math.min(Math.max(PET_EDGE_GAP, x), maxX),
-    y: Math.min(Math.max(PET_EDGE_GAP, y), maxY),
+    x: Math.min(Math.max(edgeGap, x), maxX),
+    y: Math.min(Math.max(edgeGap, y), maxY),
   };
 }
 
@@ -125,6 +134,30 @@ export const AgentCompanionInAppPet: React.FC = () => {
   const [isSendingComposer, setIsSendingComposer] = useState(false);
   const [hoveredBubbleSessionId, setHoveredBubbleSessionId] = useState<string | null>(null);
   const [dragPosition, setDragPosition] = useState<PetDragPosition | null>(null);
+  // OHOS has no independent pet OS window (see the header comment), so the
+  // in-app pet follows the app zoom (UI font size) instead: the sprite and its
+  // edge gap scale with the same factor the rest of the UI uses.
+  const [uiScale, setUiScale] = useState(1);
+
+  useEffect(() => {
+    let disposed = false;
+    const applyUiScale = (): void => {
+      if (disposed) return;
+      const base = Number.parseFloat(
+        resolveFontSizeTokens(fontPreferenceService.getPreference().uiSize).base,
+      );
+      if (Number.isFinite(base) && base > 0) {
+        const next = base / DEFAULT_UI_BASE_PX;
+        setUiScale(previous => (Math.abs(previous - next) < 0.001 ? previous : next));
+      }
+    };
+    applyUiScale();
+    const unsubscribe = fontPreferenceService.on('font:after-change', applyUiScale);
+    return () => {
+      disposed = true;
+      unsubscribe();
+    };
+  }, []);
 
   const dockRef = useRef<HTMLDivElement>(null);
   const bubblesRef = useRef<HTMLDivElement>(null);
@@ -180,11 +213,16 @@ export const AgentCompanionInAppPet: React.FC = () => {
     [dismissedBubbles, tasks],
   );
   const displayTasks = [...visibleTasks].reverse();
-  const activePetSize = pet && petFrameSize
+  const petEdgeGap = Math.round(PET_EDGE_GAP * uiScale);
+  const unscaledPetSize = pet && petFrameSize
     ? petFrameSize
     : pet
       ? DEFAULT_PETDEX_DISPLAY_SIZE
       : { width: DEFAULT_PET_SIZE, height: DEFAULT_PET_SIZE };
+  const activePetSize = {
+    width: Math.round(unscaledPetSize.width * uiScale),
+    height: Math.round(unscaledPetSize.height * uiScale),
+  };
 
   // Drop dismissals whose bubble kind changed or whose session left the payload.
   useEffect(() => {
@@ -452,6 +490,21 @@ export const AgentCompanionInAppPet: React.FC = () => {
     dragSizeRef.current = { width: activePetSize.width, height: activePetSize.height };
   }, [activePetSize.height, activePetSize.width]);
 
+  // Re-clamp a dragged pet after an app zoom so the scaled sprite stays on
+  // screen instead of drifting behind the enlarged UI.
+  useEffect(() => {
+    setDragPosition(previous => {
+      if (!previous) return previous;
+      return clampDragPosition(
+        previous.x,
+        previous.y,
+        dragSizeRef.current.width,
+        dragSizeRef.current.height,
+        Math.round(PET_EDGE_GAP * uiScale),
+      );
+    });
+  }, [uiScale]);
+
   const clearPetPointerSession = (target: HTMLDivElement, pointerId: number) => {
     const session = petPointerSessionRef.current;
     if (!session || session.pointerId !== pointerId) {
@@ -511,7 +564,7 @@ export const AgentCompanionInAppPet: React.FC = () => {
     const originY = rect ? rect.top : Math.max(0, event.clientY - size.height / 2);
     session.originX = originX;
     session.originY = originY;
-    setDragPosition(clampDragPosition(originX, originY, size.width, size.height));
+    setDragPosition(clampDragPosition(originX, originY, size.width, size.height, petEdgeGap));
   };
 
   const onPetPointerMoveDrag = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -522,7 +575,7 @@ export const AgentCompanionInAppPet: React.FC = () => {
     const size = dragSizeRef.current;
     const nextX = session.originX + (event.clientX - session.startX);
     const nextY = session.originY + (event.clientY - session.startY);
-    setDragPosition(clampDragPosition(nextX, nextY, size.width, size.height));
+    setDragPosition(clampDragPosition(nextX, nextY, size.width, size.height, petEdgeGap));
     // Face the instantaneous movement direction (mirrors the desktop-window
     // drag helper: compare against the previous pointer position, no
     // start-anchored threshold that lags behind direction changes).
@@ -601,12 +654,12 @@ export const AgentCompanionInAppPet: React.FC = () => {
     ...dockVars,
     ...(dragPosition
       ? {
-          right: `${Math.max(PET_EDGE_GAP, window.innerWidth - dragPosition.x - activePetSize.width)}px`,
-          bottom: `${Math.max(PET_EDGE_GAP, window.innerHeight - dragPosition.y - activePetSize.height)}px`,
+          right: `${Math.max(petEdgeGap, window.innerWidth - dragPosition.x - activePetSize.width)}px`,
+          bottom: `${Math.max(petEdgeGap, window.innerHeight - dragPosition.y - activePetSize.height)}px`,
           left: 'auto',
           top: 'auto',
         }
-      : { right: `${PET_EDGE_GAP}px`, bottom: `${PET_EDGE_GAP}px` }),
+      : { right: `${petEdgeGap}px`, bottom: `${petEdgeGap}px` }),
   };
   const isSingleTask = visibleTasks.length === 1;
   const hasAttentionTask = visibleTasks.some(task => task.state === 'attention');
