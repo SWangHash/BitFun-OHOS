@@ -702,6 +702,12 @@ pub async fn create_empty_file(
     .await?
     {
         DesktopPathTarget::Local { resolved_path, .. } => {
+            let target = resolved_path.to_string_lossy().to_string();
+            // Creating a file must never silently overwrite an existing one
+            // (the default write options would back up and replace it).
+            if app_state.filesystem_service.exists(&target).await {
+                return Err(format!("Cannot create file: '{target}' already exists"));
+            }
             let options = FileOperationOptions::default();
             app_state
                 .filesystem_service

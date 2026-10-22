@@ -22,6 +22,7 @@ import { notificationService } from '@/shared/notification-system';
 import { useI18n } from '@/infrastructure/i18n';
 import { isRemoteWorkspace } from '@/shared/types';
 import { joinWorkspaceTargetPath } from '@/tools/file-system/services/workspaceFileTransfer';
+import { validateFileName } from '@/tools/file-system/utils/validateFileName';
 import { createLogger } from '@/shared/utils/logger';
 
 const log = createLogger('FileCreationDialogHost');
@@ -30,6 +31,7 @@ interface DialogState {
   isOpen: boolean;
   type: 'newFile' | 'newFolder' | null;
   parentPath: string;
+  siblings?: string[];
 }
 
 const CLOSED_STATE: DialogState = {
@@ -40,15 +42,15 @@ const CLOSED_STATE: DialogState = {
 
 export const FileCreationDialogHost: React.FC = () => {
   const { workspace } = useCurrentWorkspace();
-  const { t } = useI18n();
+  const { t } = useI18n('panels/files');
   const [dialog, setDialog] = useState<DialogState>(CLOSED_STATE);
 
   useEffect(() => {
-    const handleNewFile = (data: { parentPath: string }): void => {
-      flushSync(() => setDialog({ isOpen: true, type: 'newFile', parentPath: data.parentPath }));
+    const handleNewFile = (data: { parentPath: string; siblings?: string[] }): void => {
+      flushSync(() => setDialog({ isOpen: true, type: 'newFile', parentPath: data.parentPath, siblings: data.siblings }));
     };
-    const handleNewFolder = (data: { parentPath: string }): void => {
-      flushSync(() => setDialog({ isOpen: true, type: 'newFolder', parentPath: data.parentPath }));
+    const handleNewFolder = (data: { parentPath: string; siblings?: string[] }): void => {
+      flushSync(() => setDialog({ isOpen: true, type: 'newFolder', parentPath: data.parentPath, siblings: data.siblings }));
     };
     globalEventBus.on('file:new-file', handleNewFile);
     globalEventBus.on('file:new-folder', handleNewFolder);
@@ -61,6 +63,33 @@ export const FileCreationDialogHost: React.FC = () => {
   const handleClose = useCallback(() => {
     setDialog(CLOSED_STATE);
   }, []);
+
+  // Emitters that hold the file tree (toolbar, context menu) pass the parent's
+  // child names; other entry points (global commands) do not. Fetch them once
+  // per open so the duplicate-name rule applies everywhere.
+  useEffect(() => {
+    if (!dialog.isOpen || !workspace || dialog.siblings) {
+      return;
+    }
+    let disposed = false;
+    void (async () => {
+      try {
+        const page = await workspaceAPI.getDirectoryChildrenPaginated(workspace.id, dialog.parentPath, 0, 1000);
+        if (!disposed) {
+          setDialog(previous => (
+            previous.isOpen && previous.parentPath === dialog.parentPath
+              ? { ...previous, siblings: page.children.map(child => child.name) }
+              : previous
+          ));
+        }
+      } catch (error) {
+        log.warn('Failed to list parent directory for duplicate check', { path: dialog.parentPath, error: String(error) });
+      }
+    })();
+    return () => {
+      disposed = true;
+    };
+  }, [dialog.isOpen, dialog.parentPath, dialog.siblings, workspace]);
 
   const handleConfirm = useCallback(async (value: string) => {
     if (!workspace) {
@@ -101,15 +130,12 @@ export const FileCreationDialogHost: React.FC = () => {
       confirmText={dialog.type === 'newFile' ? t('dialog.newFile.confirm') : t('dialog.newFolder.confirm')}
       cancelText={dialog.type === 'newFile' ? t('dialog.newFile.cancel') : t('dialog.newFolder.cancel')}
       validator={(value) => {
-        const validPattern = isRemote
-          // eslint-disable-next-line no-control-regex -- filename rules explicitly forbid ASCII control characters.
-          ? /^[^/\x00-\x1F]+$/
-          // eslint-disable-next-line no-control-regex -- filename rules explicitly forbid ASCII control characters.
-          : /^[^<>:"/\\|?*\x00-\x1F]+$/;
-        if (!validPattern.test(value)) {
-          return t('validation.invalidFilename');
-        }
-        return null;
+        const validationError = validateFileName(value, {
+          isRemote,
+          isDirectory: dialog.type === 'newFolder',
+          siblings: dialog.siblings,
+        });
+        return validationError ? t(validationError, { name: value.trim() }) : null;
       }}
     />
   );
