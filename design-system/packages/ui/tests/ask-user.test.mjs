@@ -73,8 +73,9 @@ test("AskUser renders a controlled custom answer with an accessible text field",
   assert.match(markup, /data-bitfun-component="button"[^>]+data-bitfun-variant="primary"/);
 });
 
-test("AskUser replaces the custom option with the declared input", () => {
-  const markup = renderToStaticMarkup(createElement(AskUser, {
+test("AskUser keeps the Other option and adds a browse button for declared inputs", () => {
+  // When "Other" is not selected, the inline input and browse button are absent.
+  const unselectedMarkup = renderToStaticMarkup(createElement(AskUser, {
     answers: { source: ["D:/work/myqt"] },
     customAnswers: { source: "" },
     onAnswersChange: () => undefined,
@@ -100,17 +101,48 @@ test("AskUser replaces the custom option with the declared input", () => {
     submitLabel: "Submit",
   }));
 
-  // The declared input owns the answer row, so the custom option is not rendered
-  // a second time.
-  assert.doesNotMatch(markup, /data-custom="true"/);
-  assert.doesNotMatch(markup, /data-bitfun-part="label">Other</);
-  assert.match(markup, /data-bitfun-part="custom-input"/);
-  assert.match(markup, /aria-label="Enter the source project path"/);
-  assert.match(markup, /placeholder="Enter the source project path"/);
-  assert.match(markup, /data-bitfun-part="browse"/);
-  assert.match(markup, /type="radio"[^>]+checked=""/);
-  assert.match(markup, /data-bitfun-part="description"/);
-  assert.match(markup, /data-bitfun-part="submit"/);
+  // The "Other" option always renders, even with a declared input.
+  assert.match(unselectedMarkup, /data-custom="true" data-selected="false"/);
+  assert.match(unselectedMarkup, /data-bitfun-part="label">Other</);
+  // The candidate option is selected.
+  assert.match(unselectedMarkup, /type="radio"[^>]+checked=""/);
+  assert.match(unselectedMarkup, /data-bitfun-part="description"/);
+  // The custom input is not rendered until "Other" is checked.
+  assert.doesNotMatch(unselectedMarkup, /data-bitfun-part="custom-input"/);
+  assert.doesNotMatch(unselectedMarkup, /data-bitfun-part="browse"/);
+
+  // When "Other" is selected, the inline input and browse button appear.
+  const selectedMarkup = renderToStaticMarkup(createElement(AskUser, {
+    answers: { source: ["other"] },
+    customAnswers: { source: "" },
+    onAnswersChange: () => undefined,
+    onBrowseCustomAnswer: () => undefined,
+    onCustomAnswerChange: () => undefined,
+    questions: [{
+      customOption: {
+        description: "Provide custom text input",
+        inputLabel: "Custom source",
+        label: "Other",
+        placeholder: "Enter a source",
+        value: "other",
+      },
+      id: "source",
+      inputPlaceholder: "Enter the source project path",
+      options: [
+        { description: "D:/work/myqt", label: "Default path", value: "D:/work/myqt" },
+      ],
+      prompt: "Which source project?",
+      selectionMode: "single",
+    }],
+    state: "asking",
+    submitLabel: "Submit",
+  }));
+
+  assert.match(selectedMarkup, /data-custom="true" data-selected="true"/);
+  assert.match(selectedMarkup, /data-bitfun-part="custom-input"/);
+  assert.match(selectedMarkup, /placeholder="Enter a source"/);
+  assert.match(selectedMarkup, /data-bitfun-part="browse"/);
+  assert.match(selectedMarkup, /data-bitfun-part="submit"/);
 });
 
 test("AskUser keeps the custom option for questions that declare no input", () => {

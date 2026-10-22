@@ -19,6 +19,17 @@ interface QuestionPayload {
   questions?: QuestionInput[];
 }
 
+interface QuestionAnswerDraft {
+  selectedAnswers: Map<number, string[]>;
+  customAnswers: Map<number, string>;
+  signature: string;
+}
+
+// Survives ToolQuestionAnswerPanel destruction when ownership transfers from
+// ToolStatusList to InteractionMailboxPanel. Keyed by toolId; cleared on
+// submit or when the question content signature changes.
+const draftCache: Map<string, QuestionAnswerDraft> = new Map<string, QuestionAnswerDraft>();
+
 @ComponentV2
 export struct ToolConfirmationPanel {
   @Param toolId: string = '';
@@ -167,6 +178,15 @@ export struct ToolQuestionAnswerPanel {
   aboutToAppear(): void {
     this.questions = this.parseQuestions(this.questionsJson);
     this.lastQuestionSignature = this.questionSignature(this.questions);
+    const draft = draftCache.get(this.toolId);
+    if (draft && draft.signature === this.lastQuestionSignature) {
+      this.selectedAnswers = new Map<number, string[]>(draft.selectedAnswers);
+      this.customAnswers = new Map<number, string>(draft.customAnswers);
+    } else {
+      if (draft) draftCache.delete(this.toolId);
+      this.selectedAnswers = new Map<number, string[]>();
+      this.customAnswers = new Map<number, string>();
+    }
   }
 
   @Monitor('questionsJson')
@@ -182,6 +202,7 @@ export struct ToolQuestionAnswerPanel {
       this.selectedAnswers = new Map<number, string[]>();
       this.customAnswers = new Map<number, string>();
       this.lastQuestionSignature = signature;
+      draftCache.delete(this.toolId);
     }
   }
 
@@ -227,6 +248,7 @@ export struct ToolQuestionAnswerPanel {
             const next = new Map<number, string>(this.customAnswers);
             next.set(index, value);
             this.customAnswers = next;
+            this.saveDraft();
           })
       }
     }
@@ -303,6 +325,7 @@ export struct ToolQuestionAnswerPanel {
     const next = new Map<number, string[]>(this.selectedAnswers);
     next.set(index, current);
     this.selectedAnswers = next;
+    this.saveDraft();
   }
 
   private submit(): void {
@@ -318,6 +341,7 @@ export struct ToolQuestionAnswerPanel {
       (answers as Record<string, Object>)[`${index}`] = value as Object;
     });
     this.onAnswerQuestion(this.toolId, answers);
+    draftCache.delete(this.toolId);
   }
 
   private parseQuestions(value: string): QuestionInput[] {
@@ -339,6 +363,15 @@ export struct ToolQuestionAnswerPanel {
       `${question.header}|${question.question}|${question.multiSelect === true}|` +
       `${(question.options || []).map((option: QuestionOption): string => option.label).join(',')}`
     ).join(';;');
+  }
+
+  private saveDraft(): void {
+    if (this.toolId.length === 0) return;
+    draftCache.set(this.toolId, {
+      selectedAnswers: new Map<number, string[]>(this.selectedAnswers),
+      customAnswers: new Map<number, string>(this.customAnswers),
+      signature: this.lastQuestionSignature
+    });
   }
 
   private normalizeQuestion(question: QuestionInput): QuestionInput {
