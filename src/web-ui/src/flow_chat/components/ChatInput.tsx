@@ -1267,11 +1267,19 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   // Whether the mode above is a resolved value rather than the pre-load
   // fallback. The dispatch approval policy reads the session config directly
   // and never needs this gate.
-  const permissionModeResolved = isAcpTargetSession
-    ? true
-    : effectiveTargetSessionId
-      ? permissionModeResolvedForSessionId === effectiveTargetSessionId
-      : toolPermissionConfigLoaded;
+  let permissionModeResolved: boolean;
+  if (isAcpTargetSession) {
+    permissionModeResolved = true;
+  } else if (effectiveTargetSessionId) {
+    // A session that follows the global default renders that default, so the
+    // loaded config must have replaced the built-in full-access one before
+    // the control may show.
+    permissionModeResolved =
+      permissionModeResolvedForSessionId === effectiveTargetSessionId
+      && (sessionPermissionMode !== null || toolPermissionConfigLoaded);
+  } else {
+    permissionModeResolved = toolPermissionConfigLoaded;
+  }
   const temporaryPermissionMode = activePermissionTurnId
     ? activeTurnPermissionMode
     : armedTurnPermissionMode;
@@ -2521,7 +2529,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       } catch (error) {
         log.warn('Failed to read session permission mode', error);
         // Falling back to the global default is the safe read: it never shows a
-        // wider mode than the session actually runs with.
+        // wider mode than the session actually runs with. The resolved gate
+        // keeps the control hidden until that default itself has loaded.
         if (permissionModeRequestGenerationRef.current === generation) {
           setSessionPermissionMode(null);
           setPermissionModeResolvedForSessionId(effectiveTargetSessionId);

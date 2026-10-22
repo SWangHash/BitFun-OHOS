@@ -166,6 +166,12 @@ describe('SettingsScene canonical page routing', () => {
     expect(dialog()).not.toBeNull();
     expect(buttons()).toHaveLength(2);
 
+    // The hidden save button owned the dialog's initial focus; the anchor
+    // must move to the remaining keep-editing action instead of falling
+    // back to document.body.
+    expect(dialog()?.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).toBe(buttons()[0]);
+
     // The remaining actions stay usable: discard commits the navigation.
     await act(async () => {
       buttons()[1]?.click();
