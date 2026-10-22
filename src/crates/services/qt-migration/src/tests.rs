@@ -385,6 +385,27 @@ fn output_container_dir_in_workspace_is_probed() {
 }
 
 #[test]
+fn the_workspace_root_survives_the_output_candidate_cap() {
+    // 备选路径是卡片对用户的承诺：探测到的容器够两个时，候选上限也不能把它挤掉。
+    let (_t, root) = tree();
+    let managed_root = root.join("managed");
+    for name in ["output", "outputs"] {
+        mkdir(&root, name);
+    }
+
+    let probe = card_probe(&root, &managed_root, &HashMap::new());
+
+    assert_eq!(
+        probe.candidates["output_project"],
+        vec![
+            root.join("output").to_string_lossy().into_owned(),
+            root.to_string_lossy().into_owned(),
+        ],
+        "the probed container stays the default; the workspace root keeps the alternate slot"
+    );
+}
+
+#[test]
 fn prompt_named_output_inside_container_is_rejected() {
     let (_t, root) = tree();
     let output_container = mkdir(&root, "output");
@@ -940,7 +961,16 @@ fn source_projects_carry_their_own_project_version_in_the_probe() {
         "#include <QWidget>\n",
     );
 
-    let probe = card_probe(&root, &root.join("managed"), &HashMap::new());
+    // 原始工程由模型点名，后端不再扫工作区，所以两个工程必须以模型候选传入；
+    // 空候选下 `project_versions` 本来就是空的。
+    let model = candidate_map(
+        "source_project",
+        vec![
+            qt6_project.to_string_lossy().into_owned(),
+            qt5_project.to_string_lossy().into_owned(),
+        ],
+    );
+    let probe = card_probe(&root, &root.join("managed"), &model);
 
     for (project, expected) in [(&qt6_project, 6), (&qt5_project, 5)] {
         let key = path_key(project);
