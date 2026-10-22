@@ -403,12 +403,29 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     setRenamingPath(normalizePathForCurrentWorkspace(data.path));
   }, [normalizePathForCurrentWorkspace]);
 
+  // Hand focus back to the tree row after an inline rename closes (cancel,
+  // failure, or commit): the inline input unmounts with the DOM, so focus
+  // would land on <body>, the filetree shortcut scope goes inactive, and a
+  // follow-up F2/rename press is silently dropped.
+  const focusTreeRow = useCallback((path: string) => {
+    window.setTimeout(() => {
+      const container = panelRef.current;
+      if (!container) {
+        return;
+      }
+      const escaped = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(path) : path.replace(/"/g, '\\"');
+      const row = container.querySelector<HTMLElement>(`[data-file-path="${escaped}"]`);
+      row?.focus();
+    }, 0);
+  }, []);
+
   const handleExecuteRename = useCallback(async (oldPath: string, newName: string) => {
     const normalizedOld = normalizePathForCurrentWorkspace(oldPath);
     const oldName = basenamePath(normalizedOld);
 
     if (newName.trim() === oldName) {
       setRenamingPath(null);
+      focusTreeRow(normalizedOld);
       return;
     }
 
@@ -421,16 +438,22 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
       setRenamingPath(null);
       removePath(normalizedOld);
       await loadFileTree(workspacePath || '', true);
+      focusTreeRow(newPath);
     } catch (error) {
       log.error('Failed to rename file', error);
       notification.error(t('notifications.renameFailed', { error: String(error) }));
       setRenamingPath(null);
+      focusTreeRow(normalizedOld);
     }
-  }, [workspacePath, loadFileTree, removePath, notification, t, normalizePathForCurrentWorkspace, currentWorkspaceId]);
+  }, [workspacePath, loadFileTree, removePath, notification, t, normalizePathForCurrentWorkspace, currentWorkspaceId, focusTreeRow]);
 
   const handleCancelRename = useCallback(() => {
+    const path = renamingPath;
     setRenamingPath(null);
-  }, []);
+    if (path) {
+      focusTreeRow(path);
+    }
+  }, [renamingPath, focusTreeRow]);
 
   const renameSiblings = useMemo(() => {
     if (!renamingPath) {
