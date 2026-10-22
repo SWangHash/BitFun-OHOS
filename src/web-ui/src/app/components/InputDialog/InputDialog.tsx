@@ -93,6 +93,7 @@ export function InputDialog({
         if (!nextOpen) onClose();
       }}
       open={isOpen}
+      restoreFocus={false}
       size="sm"
     >
       <DialogHeader>
