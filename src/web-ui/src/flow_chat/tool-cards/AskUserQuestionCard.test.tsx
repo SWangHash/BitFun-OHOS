@@ -955,22 +955,29 @@ describe('AskUserQuestionCard', () => {
     ));
 
     const candidate = () => container.querySelector<HTMLInputElement>('input[value="D:/work/myqt"]');
+    const otherOption = () => container.querySelector<HTMLInputElement>('input[value="Other"]');
     const sourceInput = () => container
       .querySelectorAll<HTMLInputElement>('[data-bitfun-part="custom-input"] input')[0];
     expect(candidate()?.checked).toBe(true);
+
+    // The input lives inside the "Other" option, so check it first.
+    act(() => otherOption()?.click());
+    await act(async () => {});
+    expect(candidate()?.checked).toBe(false);
 
     act(() => {
       const input = sourceInput();
       if (input) setInputValue(input, 'D:/elsewhere/myqt');
     });
-    expect(candidate()?.checked).toBe(false);
     expect(sourceInput()?.value).toBe('D:/elsewhere/myqt');
 
-    // 反方向同理：重新点候选项，输入框里的路径被清掉。
+    // Re-clicking the candidate clears the "Other" selection (radio replacement).
     act(() => candidate()?.click());
     expect(candidate()?.checked).toBe(true);
-    expect(sourceInput()?.value).toBe('');
 
+    // Re-check "Other" and type the path again.
+    act(() => otherOption()?.click());
+    await act(async () => {});
     act(() => {
       const input = sourceInput();
       if (input) setInputValue(input, 'D:/elsewhere/myqt');
@@ -989,8 +996,7 @@ describe('AskUserQuestionCard', () => {
   });
 
   it('submits the typed text when a multi-select question declares its own input (#86 review)', async () => {
-    // 多选问法同时带常驻输入框时，键入文本会清掉已勾选的选项；答案应当仍是那段
-    // 文本，而不是一个空数组。
+    // 多选问法同时带常驻输入框时，勾选"Other"并键入文本后，提交值应当是那段文本。
     act(() => root.render(
       <AskUserQuestionCard
         toolItem={questionTool('pending_confirmation', true, '/path/to/dir')}
@@ -1003,6 +1009,11 @@ describe('AskUserQuestionCard', () => {
     act(() => {
       container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.click();
     });
+    // The input lives inside the "Other" option, so check it first.
+    act(() => {
+      container.querySelector<HTMLInputElement>('input[value="Other"]')?.click();
+    });
+    await act(async () => {});
     act(() => {
       const input = container.querySelector<HTMLInputElement>('[data-bitfun-part="custom-input"] input');
       if (input) setInputValue(input, 'Custom database');
@@ -1013,7 +1024,7 @@ describe('AskUserQuestionCard', () => {
 
     expect(toolAPI.submitUserAnswers).toHaveBeenCalledWith(
       'question-tool-1',
-      { 0: ['Custom database'] },
+      { 0: ['PostgreSQL', 'Custom database'] },
       'session-a',
     );
   });

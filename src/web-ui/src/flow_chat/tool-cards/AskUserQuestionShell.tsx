@@ -423,7 +423,15 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
   ): boolean => {
     if (!questions[questionIndex]?.inputPlaceholder) return false;
     const typed = value.trim();
-    return typed.length > 0 && currentAnswer !== typed;
+    if (typed.length === 0 || currentAnswer === typed) return false;
+    // In the unified Other-option model, typing into the inline input means
+    // the user has already checked "Other"; do not clear that selection or
+    // any coexisting multi-select options — the typed value is the Other
+    // answer, not a replacement for the option list.
+    if (Array.isArray(currentAnswer)) {
+      return !currentAnswer.includes(OTHER_OPTION_VALUE);
+    }
+    return currentAnswer !== OTHER_OPTION_VALUE;
   }, [questions]);
 
   const handleOtherInputChange = useCallback((
