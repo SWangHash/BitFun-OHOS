@@ -301,6 +301,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const modelRef = useRef<monaco.editor.ITextModel | null>(null);
   const isUnmountedRef = useRef(false);
+  /** View-state fallback for editors rendered without a document session. */
+  const localViewStateRef = useRef<monaco.editor.ICodeEditorViewState | null>(null);
   const isCheckingFileRef = useRef(false);
   /** Last disk state known to match loaded/saved editor content (mtime + size; local + remote). */
   const diskVersionRef = useRef<DiskFileVersion | null>(null);
@@ -1090,7 +1092,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       }
       
       if (editorRef.current) {
-        if (documentSession) documentSession.viewState = editorRef.current.saveViewState();
+        const snapshot = editorRef.current.saveViewState();
+        if (documentSession) documentSession.viewState = snapshot;
+        localViewStateRef.current = snapshot;
         editorRef.current.dispose();
         editorRef.current = null;
       }
@@ -1124,6 +1128,31 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       editorRef.current.updateOptions({ readOnly });
     }
   }, [readOnly]);
+
+  // Keep the cursor across tab switches: snapshot the view state when the tab
+  // deactivates (keep-alive tabs never unmount, so the unmount save alone is
+  // not enough) and restore it plus focus on re-activation so the caret is
+  // visible at the remembered position. Editors without a document session
+  // (e.g. a file opened with no session active) keep the snapshot locally.
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor || !monacoReady) {
+      return;
+    }
+    if (isActiveTab) {
+      const saved = documentSession?.viewState ?? localViewStateRef.current;
+      if (saved) {
+        editor.restoreViewState(saved as monaco.editor.ICodeEditorViewState);
+      }
+      editor.focus();
+    } else {
+      const snapshot = editor.saveViewState();
+      if (documentSession) {
+        documentSession.viewState = snapshot;
+      }
+      localViewStateRef.current = snapshot;
+    }
+  }, [isActiveTab, monacoReady, documentSession]);
 
   // Keep the cursor across tab switches: snapshot the view state when the tab
   // deactivates (keep-alive tabs never unmount, so the unmount save alone is
