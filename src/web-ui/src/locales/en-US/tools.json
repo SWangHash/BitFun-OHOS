@@ -61,6 +61,24 @@
       "overwriteSave": "Overwrite",
       "reloadFromDisk": "Reload from disk"
     },
+    "find": {
+      "find": "Find",
+      "replace": "Replace",
+      "replaceAll": "Replace All",
+      "toggleReplace": "Toggle Replace",
+      "previousMatch": "Previous Match",
+      "nextMatch": "Next Match",
+      "findInSelection": "Find in Selection",
+      "matchCase": "Match Case",
+      "matchWholeWord": "Match Whole Word",
+      "useRegularExpression": "Use Regular Expression",
+      "preserveCase": "Preserve Case",
+      "close": "Close",
+      "noResults": "No results",
+      "expandRange": "Click to expand the range.",
+      "collapseRange": "Click to collapse the range.",
+      "matchesOf": "{{current}} of {{total}}"
+    },
     "diffEditor": {
       "loading": "Loading diff editor...",
       "openFailed": "Failed to open",
