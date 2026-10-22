@@ -307,15 +307,6 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
     for (let index = 0; index < questions.length; index += 1) {
       const answer = answers[index];
       const otherInput = otherInputs[index]?.trim() || '';
-      // A question that declares its own input accepts a typed or picked value
-      // on its own; its option list is a convenience, not a requirement.
-      if (questions[index]?.inputPlaceholder) {
-        const hasOption = Array.isArray(answer)
-          ? answer.some((value) => value !== OTHER_OPTION_VALUE || otherInput.length > 0)
-          : Boolean(answer);
-        if (otherInput.length === 0 && !hasOption) return false;
-        continue;
-      }
       if (!answer) return false;
       if (
         Array.isArray(answer)
@@ -726,9 +717,6 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
   const getAnswerDisplay = useCallback((questionIndex: number): string => {
     const answer = getEffectiveAnswer(questionIndex);
     const otherInput = otherInputs[questionIndex] || '';
-    // A declared input owns the display; a typed or picked value is the answer
-    // even when no option is highlighted.
-    if (questions[questionIndex]?.inputPlaceholder && otherInput) return otherInput;
     if (!answer) return otherInput;
     if (Array.isArray(answer)) {
       return answer.map((value) => (
@@ -738,7 +726,7 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
     return answer === OTHER_OPTION_VALUE
       ? otherInput || OTHER_OPTION_VALUE
       : String(answer);
-  }, [getEffectiveAnswer, otherInputs, questions]);
+  }, [getEffectiveAnswer, otherInputs]);
 
   const answersSummary = useMemo(
     () => questions.map((question, questionIndex) => {

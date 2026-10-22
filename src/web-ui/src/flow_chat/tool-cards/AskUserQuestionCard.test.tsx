@@ -889,6 +889,10 @@ describe('AskUserQuestionCard', () => {
       <AskUserQuestionCard toolItem={qtMigrationTool()} config={config} sessionId="session-a" />,
     ));
 
+    // The browse button lives inside the "Other" option, so check it first.
+    act(() => container.querySelector<HTMLInputElement>('input[value="Other"]')?.click());
+    await act(async () => {});
+
     act(() => container.querySelectorAll<HTMLButtonElement>('[data-bitfun-part="browse"]')[0]?.click());
     await act(async () => {});
     expect(pickWorkspaceDirectory).toHaveBeenCalledWith({
@@ -898,8 +902,10 @@ describe('AskUserQuestionCard', () => {
 
     const sourceInput = container
       .querySelectorAll<HTMLInputElement>('[data-bitfun-part="custom-input"] input')[0];
-    // 提交前：输入框持有该路径，同名候选项不再处于选中态。
+    // 提交前：输入框持有该路径，"Other"选项处于选中态，同名候选项不选中。
     expect(sourceInput?.value).toBe('D:/work/myqt');
+    expect(container.querySelector<HTMLInputElement>('input[value="Other"]')?.checked)
+      .toBe(true);
     expect(container.querySelector<HTMLInputElement>('input[value="D:/work/myqt"]')?.checked)
       .toBe(false);
 
@@ -927,10 +933,11 @@ describe('AskUserQuestionCard', () => {
       <AskUserQuestionCard toolItem={completed} config={config} sessionId="session-a" />,
     ));
 
-    // 提交后：形态与提交前一致；按候选项回答的问题仍显示为选中。
-    expect(container
-      .querySelectorAll<HTMLInputElement>('[data-bitfun-part="custom-input"] input')[0]?.value)
-      .toBe('D:/work/myqt');
+    // 提交后：已完成卡片按持久化答案值回放；按候选项回答的问题仍显示为选中。
+    // The picked path is shown as the answer for the source project question;
+    // the candidate option with the same path is not checked, and the
+    // toolchain candidate remains selected.
+    expect(container.textContent).toContain('D:/work/myqt');
     expect(container.querySelector<HTMLInputElement>('input[value="D:/work/myqt"]')?.checked)
       .toBe(false);
     expect(container.querySelector<HTMLInputElement>('input[value="D:/ohos/qt5-kit"]')?.checked)
