@@ -58,10 +58,12 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   renamingPath,
   onRename,
   onCancelRename,
+  renameSiblings,
   expandedFolders: externalExpandedFolders,
   loadingPaths = new Set(),
   onNodeExpand: externalOnNodeExpand,
   workspacePath,
+  isRemoteWorkspace,
   onNewFile,
   onNewFolder,
   onRefresh,
@@ -380,6 +382,8 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         renamingPath={renamingPath}
         onRename={onRename}
         onCancelRename={onCancelRename}
+        renameSiblings={renameSiblings}
+        isRemoteWorkspace={isRemoteWorkspace}
         renderNodeContent={renderNodeContent}
       />
     </div>

@@ -348,6 +348,14 @@ impl FileOperationService {
             FileSystemError::io(format!("Failed to inspect source '{from_trim}'"), error)
         })?;
 
+        // Renaming or moving must not silently overwrite an existing target:
+        // on Unix `fs::rename` replaces the destination without an error.
+        if fs::symlink_metadata(to_path).await.is_ok() {
+            return Err(FileSystemError::service(format!(
+                "Target already exists: {to_trim}"
+            )));
+        }
+
         if let Some(parent) = to_path.parent() {
             fs::create_dir_all(parent)
                 .await
