@@ -161,6 +161,7 @@ describe('PortForwardDialog', () => {
       root.unmount();
     });
     container.remove();
+    vi.useRealTimers();
   });
 
   async function renderDialog(): Promise<void> {
@@ -207,6 +208,22 @@ describe('PortForwardDialog', () => {
       sshApiMock.startPortForward,
       'detection must never forward on its own'
     ).not.toHaveBeenCalled();
+  });
+
+  it('shows a mapping-list failure despite successful detection and clears it when polling recovers', async () => {
+    vi.useFakeTimers();
+    sshApiMock.listPortForwards.mockRejectedValueOnce(new Error('Failed to read port mappings'));
+    await renderDialog();
+
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('Failed to read port mappings');
+    expect(sshApiMock.listRemoteListeningPorts).toHaveBeenCalledWith('conn-1');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+
+    expect(sshApiMock.listPortForwards).toHaveBeenCalledTimes(2);
+    expect(container.querySelector('[role="alert"]')).toBeNull();
   });
 
   it('forwards a detected port in one click, letting the backend pick the local port', async () => {
@@ -350,6 +367,39 @@ describe('PortForwardDialog', () => {
     });
 
     expect(systemApiMock.setClipboard).toHaveBeenCalledWith('127.0.0.1:8080');
+  });
+
+  it.each([
+    ['openInBrowser', 'openExternal', new Error('Browser launch failed')],
+    ['copyAddress', 'setClipboard', 'Clipboard write failed'],
+  ] as const)('shows failures from the %s button', async (action, method, error) => {
+    vi.useFakeTimers();
+    sshApiMock.listPortForwards.mockResolvedValue([makeForward()]);
+    systemApiMock[method].mockRejectedValue(error);
+    await renderDialog();
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>(`[aria-label="ssh.portForward.${action}"]`)?.click();
+    });
+
+    expect(systemApiMock[method]).toHaveBeenCalledOnce();
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      error instanceof Error ? error.message : error,
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+
+    expect(sshApiMock.listPortForwards).toHaveBeenCalledTimes(2);
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      error instanceof Error ? error.message : error,
+    );
+    systemApiMock[method].mockResolvedValue(undefined);
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>(`[aria-label="ssh.portForward.${action}"]`)?.click();
+    });
+    expect(container.querySelector('[role="alert"]')).toBeNull();
   });
 
   it('stops a forward by id', async () => {

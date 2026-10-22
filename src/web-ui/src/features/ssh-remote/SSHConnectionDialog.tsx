@@ -242,18 +242,28 @@ export const SSHConnectionDialog: React.FC<SSHConnectionDialogProps> = ({
 
   const handleBrowsePrivateKey = useCallback(async () => {
     if (isConnecting || status === 'connecting') return;
-    const path = await pickSshPrivateKeyPath({
-      title: t('ssh.remote.pickPrivateKeyDialogTitle'),
-    });
-    if (path) setFormData((prev) => ({ ...prev, keyPath: path }));
+    setLocalError(null);
+    try {
+      const path = await pickSshPrivateKeyPath({
+        title: t('ssh.remote.pickPrivateKeyDialogTitle'),
+      });
+      if (path) setFormData((prev) => ({ ...prev, keyPath: path }));
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : String(error));
+    }
   }, [isConnecting, status, t]);
 
   const handleBrowseCertificate = useCallback(async () => {
     if (isConnecting || status === 'connecting') return;
-    const path = await pickSshCertificatePath({
-      title: t('ssh.remote.pickCertificateDialogTitle'),
-    });
-    if (path) setFormData((prev) => ({ ...prev, certificatePath: path }));
+    setLocalError(null);
+    try {
+      const path = await pickSshCertificatePath({
+        title: t('ssh.remote.pickCertificateDialogTitle'),
+      });
+      if (path) setFormData((prev) => ({ ...prev, certificatePath: path }));
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : String(error));
+    }
   }, [isConnecting, status, t]);
 
   // Port is intentionally excluded so that the ID stays stable when the user

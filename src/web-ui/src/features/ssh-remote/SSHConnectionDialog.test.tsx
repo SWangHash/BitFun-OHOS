@@ -52,7 +52,7 @@ vi.mock('./SSHAuthPromptDialog', () => ({
 }));
 
 vi.mock('@bitfun/ui', () => ({
-  Alert: () => null,
+  Alert: ({ message }: { message: React.ReactNode }) => <div role="alert">{message}</div>,
   Icon: ({ name, ...props }: { name: string } & React.HTMLAttributes<HTMLSpanElement>) => <span data-icon={name} {...props} />,
   OverflowText: ({ children, behavior: _behavior, marqueeActive: _marqueeActive, ...props }: any) => <span {...props}>{children}</span>,
   Dialog: ({
@@ -315,6 +315,23 @@ describe('SSHConnectionDialog', () => {
     expect(
       container.querySelector<HTMLInputElement>('input[aria-label="ssh.remote.certificatePath"]')?.value
     ).toBe('/keys/dev-cert.pub');
+  });
+
+  it.each([
+    ['browsePrivateKey', 'pickSshPrivateKeyPath', 'privateKeyPath', '~/.ssh/id_rsa'],
+    ['browseCertificate', 'pickSshCertificatePath', 'certificatePath', ''],
+  ] as const)('shows a %s picker failure and preserves the entered path', async (button, picker, field, initialPath) => {
+    authFilePickerMock[picker].mockRejectedValue(new Error('Document picker unavailable'));
+    await renderDialog();
+    const authSelect = [...container.querySelectorAll<HTMLSelectElement>('select')]
+      .find(select => select.querySelector('option[value="privateKey"]'))!;
+    setSelectValue(authSelect, 'privateKey');
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>(`button[aria-label="ssh.remote.${button}"]`)?.click();
+    });
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('Document picker unavailable');
+    expect(container.querySelector<HTMLInputElement>(`input[aria-label="ssh.remote.${field}"]`)?.value)
+      .toBe(initialPath);
   });
 
   it('notifies the controlling surface after a successful connection', async () => {

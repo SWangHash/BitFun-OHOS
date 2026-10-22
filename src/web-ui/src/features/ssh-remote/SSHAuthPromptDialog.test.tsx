@@ -6,7 +6,10 @@ import { expect, it, vi } from 'vitest';
 import { SSHAuthPromptDialog } from './SSHAuthPromptDialog';
 
 vi.mock('@/infrastructure/i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }));
-vi.mock('./pickSshPrivateKeyPath', () => ({ pickSshPrivateKeyPath: vi.fn(), pickSshCertificatePath: vi.fn() }));
+const pickers = vi.hoisted(() => ({ pickSshPrivateKeyPath: vi.fn(), pickSshCertificatePath: vi.fn() }));
+vi.mock('./pickSshPrivateKeyPath', () => pickers);
+
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 it('retains the SSH prompt during exit and clears credentials before reopening', () => {
   vi.useFakeTimers();
@@ -38,5 +41,30 @@ it('retains the SSH prompt during exit and clears credentials before reopening',
     act(() => root.unmount());
     container.remove();
     vi.useRealTimers();
+  }
+});
+
+it.each([
+  ['browsePrivateKey', 'pickSshPrivateKeyPath'],
+  ['browseCertificate', 'pickSshCertificatePath'],
+] as const)('shows a %s failure in the authentication prompt', async (button, picker) => {
+  pickers[picker].mockRejectedValue(new Error('Document picker unavailable'));
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  try {
+    await act(async () => root.render(
+      <SSHAuthPromptDialog open targetDescription="user@remote:22" defaultAuthMethod="privateKey"
+        initialUsername="user" lockUsername onSubmit={() => undefined} onCancel={() => undefined} />,
+    ));
+    const browse = document.querySelector<HTMLButtonElement>(`button[aria-label="ssh.remote.${button}"]`);
+    expect(browse).not.toBeNull();
+    await act(async () => browse!.click());
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain('Document picker unavailable');
+    expect(document.querySelector<HTMLInputElement>('input[placeholder="~/.ssh/id_rsa"]')?.value)
+      .toBe('~/.ssh/id_rsa');
+  } finally {
+    act(() => root.unmount());
+    container.remove();
   }
 });

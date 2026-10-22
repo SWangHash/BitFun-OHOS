@@ -21,7 +21,29 @@ import type {
 } from './types';
 
 // API adapter for Tauri/Server Mode compatibility
-import { api } from '@/infrastructure/api/service-api/ApiClient';
+import { api, ApiClient } from '@/infrastructure/api/service-api/ApiClient';
+import { createLogger } from '@/shared/utils/logger';
+import { getActiveSurfaceScope, type SurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
+
+const log = createLogger('SSHFileTransfer');
+const NO_REQUEST_DEADLINE = { timeout: 0 } as const;
+// A separate client retains the original transport and the ordinary deadline
+// for cleanup cancellation after the rendered device surface changes.
+const transferOwners = new Map<string, { surface: SurfaceScope; cancellationClient: ApiClient }>();
+
+function cancelStoppedTransferOnProgress(transferId: string, isCancelled?: () => boolean) {
+  let requested = false;
+  return () => {
+    if (!isCancelled?.() || requested) return;
+    requested = true;
+    // Progress proves the backend has registered this ID. A stop sent before
+    // that registration may have found no transfer, so repeat it here.
+    void sshApi.cancelTransfer(transferId).catch(error => {
+      requested = false;
+      log.warn('Failed to stop SSH file transfer after progress', error);
+    });
+  };
+}
 
 export const sshApi = {
   // === Connection Management ===
@@ -212,31 +234,39 @@ export const sshApi = {
     localPath: string,
     onProgress?: (downloaded: number, total: number) => void,
     transferId?: string,
+    isCancelled?: () => boolean,
   ): Promise<void> {
     const tid = transferId ?? crypto.randomUUID();
+    const owner = { surface: getActiveSurfaceScope(), cancellationClient: new ApiClient() };
+    transferOwners.set(tid, owner);
     let unlisten: (() => void) | null = null;
 
-    if (onProgress) {
-      const { listen } = await import('@tauri-apps/api/event');
-      unlisten = await listen<{ transferId: string; downloaded: number; total: number }>(
-        'download_progress',
-        (event) => {
-          if (event.payload.transferId === tid) {
-            onProgress(event.payload.downloaded, event.payload.total);
-          }
-        },
-      );
-    }
-
     try {
+      if (onProgress || isCancelled) {
+        const { listen } = await import('@tauri-apps/api/event');
+        const stopIfCancelled = cancelStoppedTransferOnProgress(tid, isCancelled);
+        unlisten = await listen<{ transferId: string; downloaded: number; total: number }>(
+          'download_progress',
+          (event) => {
+            if (event.payload.transferId === tid) {
+              stopIfCancelled();
+              onProgress?.(event.payload.downloaded, event.payload.total);
+            }
+          },
+        );
+      }
+
+      if (isCancelled?.()) throw new Error('Transfer cancelled');
+      owner.surface.assertCurrent('SSH file download');
       await api.invoke('remote_download_to_local_path', {
         connectionId,
         remotePath,
         localPath,
         transferId: tid,
-      });
+      }, transferId ? NO_REQUEST_DEADLINE : undefined);
     } finally {
       unlisten?.();
+      if (transferOwners.get(tid) === owner) transferOwners.delete(tid);
     }
   },
 
@@ -258,31 +288,39 @@ export const sshApi = {
     remotePath: string,
     onProgress?: (uploaded: number, total: number) => void,
     transferId?: string,
+    isCancelled?: () => boolean,
   ): Promise<{ wasDirectory: boolean }> {
     const tid = transferId ?? crypto.randomUUID();
+    const owner = { surface: getActiveSurfaceScope(), cancellationClient: new ApiClient() };
+    transferOwners.set(tid, owner);
     let unlisten: (() => void) | null = null;
 
-    if (onProgress) {
-      const { listen } = await import('@tauri-apps/api/event');
-      unlisten = await listen<{ transferId: string; uploaded: number; total: number }>(
-        'upload_progress',
-        (event) => {
-          if (event.payload.transferId === tid) {
-            onProgress(event.payload.uploaded, event.payload.total);
-          }
-        },
-      );
-    }
-
     try {
+      if (onProgress || isCancelled) {
+        const { listen } = await import('@tauri-apps/api/event');
+        const stopIfCancelled = cancelStoppedTransferOnProgress(tid, isCancelled);
+        unlisten = await listen<{ transferId: string; uploaded: number; total: number }>(
+          'upload_progress',
+          (event) => {
+            if (event.payload.transferId === tid) {
+              stopIfCancelled();
+              onProgress?.(event.payload.uploaded, event.payload.total);
+            }
+          },
+        );
+      }
+
+      if (isCancelled?.()) throw new Error('Transfer cancelled');
+      owner.surface.assertCurrent('SSH file upload');
       return await api.invoke('remote_upload_from_local_path', {
         connectionId,
         localPath,
         remotePath,
         transferId: tid,
-      });
+      }, transferId ? NO_REQUEST_DEADLINE : undefined);
     } finally {
       unlisten?.();
+      if (transferOwners.get(tid) === owner) transferOwners.delete(tid);
     }
   },
 
@@ -291,6 +329,11 @@ export const sshApi = {
    * The backend will abort the transfer at the next chunk boundary.
    */
   async cancelTransfer(transferId: string): Promise<void> {
+    const owner = transferOwners.get(transferId);
+    if (owner && !owner.surface.isCurrent()) {
+      // A device switch must stop the old task on its original host.
+      return owner.cancellationClient.invoke('cancel_transfer', { transferId });
+    }
     return api.invoke('cancel_transfer', { transferId });
   },
 

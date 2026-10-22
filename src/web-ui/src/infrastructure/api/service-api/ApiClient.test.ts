@@ -220,16 +220,23 @@ describe('ApiClient', () => {
     await expect(pending).resolves.toEqual({ loggedIn: true });
   });
 
-  it('enforces the configured timeout for stalled Tauri commands', async () => {
+  it.each([
+    ['default', undefined, 30_000],
+    ['explicit', 60_000, 60_000],
+  ] as const)('enforces the %s timeout for stalled Tauri commands', async (_kind, timeout, deadline) => {
     vi.useFakeTimers();
     try {
       adapterMocks.request.mockReturnValueOnce(new Promise(() => {}));
       const client = new ApiClient({ enableLogging: false, retries: 0 });
 
       const outcome = client
-        .invoke('get_mode_skill_configs', {}, { timeout: 60_000 })
+        .invoke('get_mode_skill_configs', {}, timeout === undefined ? undefined : { timeout })
         .catch((error: unknown) => error);
-      await vi.advanceTimersByTimeAsync(60_000);
+      const settled = vi.fn();
+      void outcome.then(settled);
+      await vi.advanceTimersByTimeAsync(deadline - 1);
+      expect(settled).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
 
       await expect(outcome).resolves.toMatchObject({
         code: 'REQUEST_TIMEOUT',
@@ -240,6 +247,58 @@ describe('ApiClient', () => {
         failedRequests: 1,
         activeRequests: 0,
       });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('waits beyond the default deadline when timeout is explicitly disabled', async () => {
+    vi.useFakeTimers();
+    try {
+      let complete!: (value: string) => void;
+      adapterMocks.request.mockReturnValueOnce(new Promise<string>(resolve => {
+        complete = resolve;
+      }));
+      const client = new ApiClient({ enableLogging: false, retries: 0 });
+      const outcome = client.invoke('open_oh_file_dialog', {}, { timeout: 0 });
+      const settled = vi.fn();
+      void outcome.then(settled, settled);
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(settled).not.toHaveBeenCalled();
+      expect(client.getStats()).toMatchObject({
+        successfulRequests: 0,
+        failedRequests: 0,
+      });
+
+      complete('/data/storage/selected-file');
+      await expect(outcome).resolves.toBe('/data/storage/selected-file');
+      expect(client.getStats()).toMatchObject({
+        successfulRequests: 1,
+        failedRequests: 0,
+        activeRequests: 0,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('still cancels requests with no deadline through cancelAll', async () => {
+    vi.useFakeTimers();
+    try {
+      adapterMocks.request.mockReturnValueOnce(new Promise(() => {}));
+      const client = new ApiClient({ enableLogging: false, retries: 0 });
+      const outcome = client.invoke('open_oh_file_dialog', {}, { timeout: 0 })
+        .catch((error: unknown) => error);
+      const settled = vi.fn();
+      void outcome.then(settled);
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(settled).not.toHaveBeenCalled();
+      client.cancelAll();
+
+      await expect(outcome).resolves.toMatchObject({ code: 'REQUEST_TIMEOUT' });
+      expect(client.getStats()).toMatchObject({ activeRequests: 0, failedRequests: 1 });
     } finally {
       vi.useRealTimers();
     }

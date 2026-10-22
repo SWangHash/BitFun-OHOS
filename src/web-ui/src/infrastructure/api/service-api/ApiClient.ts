@@ -394,9 +394,13 @@ export class ApiClient implements IApiClient {
       });
 
       
-      const timeoutId = setTimeout(() => {
-        controller.abort();
-      }, request.config.timeout || this.config.timeout);
+      // Disabling the deadline still leaves explicit cancellation active.
+      const timeoutMs = request.config.timeout ?? this.config.timeout;
+      const timeoutId = timeoutMs === 0
+        ? undefined
+        : setTimeout(() => {
+            controller.abort();
+          }, timeoutMs);
 
       try {
         
@@ -418,7 +422,9 @@ export class ApiClient implements IApiClient {
         });
         this.assertRequestSurface(request, traceCommand);
 
-        clearTimeout(timeoutId);
+        if (timeoutId !== undefined) {
+          clearTimeout(timeoutId);
+        }
         maxConcurrentRequests = this.activeRequestPressure.get(request.id)?.maxConcurrentRequests ?? this.activeRequests.size;
         this.activeRequests.delete(request.id);
         this.activeRequestPressure.delete(request.id);
@@ -478,7 +484,9 @@ export class ApiClient implements IApiClient {
         maxConcurrentRequests = maxConcurrentRequests ||
           this.activeRequestPressure.get(request.id)?.maxConcurrentRequests ||
           this.activeRequests.size;
-        clearTimeout(timeoutId);
+        if (timeoutId !== undefined) {
+          clearTimeout(timeoutId);
+        }
         this.activeRequests.delete(request.id);
         this.activeRequestPressure.delete(request.id);
         activeRequestsAtEnd = this.activeRequests.size;
