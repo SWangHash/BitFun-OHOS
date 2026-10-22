@@ -687,6 +687,10 @@ const GlobalSearchRoot: React.FC = () => {
     <Dialog
       open={open}
       onOpenChange={(nextOpen) => { if (!nextOpen) closeSearch(); }}
+      // Do not bounce focus back to the nav search trigger on close: after a
+      // keyboard close (Ctrl+K again) the restored focus renders a partial
+      // focus ring on the trigger that reads as a broken border.
+      restoreFocus={false}
       size="xl"
       aria-label={tCommon('nav.search.dialogLabel')}
       className="global-search-dialog"
