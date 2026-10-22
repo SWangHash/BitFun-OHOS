@@ -34,4 +34,6 @@ export type {
   ResizeRepaintSuppressionDetails,
 } from './resizeRepaintGuard';
 export { DEFAULT_XTERM_MINIMUM_CONTRAST_RATIO } from './xtermRendering';
+export { resolveUnmappedKeydownSequence } from './unmappedKeyFallback';
+export type { UnmappedKeydownContext } from './unmappedKeyFallback';
 
