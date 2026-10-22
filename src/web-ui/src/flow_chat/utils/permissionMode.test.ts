@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   chatInputPermissionMode,
+  effectiveTurnPermissionMode,
   needsFullAccessConfirmation,
   permissionModeFromConfig,
   permissionModeToConfig,
+  replacedSessionPermissionMode,
   sessionPermissionMode,
 } from './permissionMode';
 import type { ToolPermissionConfig } from '@/infrastructure/config/types';
@@ -78,5 +80,70 @@ describe('permissionMode', () => {
     expect(needsFullAccessConfirmation('full_access', 'full_access')).toBe(false);
     expect(needsFullAccessConfirmation('ask', 'full_access')).toBe(false);
     expect(needsFullAccessConfirmation('auto', null)).toBe(false);
+  });
+
+  it('replaces the mode a session pick actually clears', () => {
+    // A narrower one-off turn override is cleared by the same write, so narrowing
+    // -> full access on the session row still widens the running turn.
+    expect(replacedSessionPermissionMode('full_access', 'auto_approve')).toBe('auto');
+    expect(
+      needsFullAccessConfirmation(
+        'full_access',
+        replacedSessionPermissionMode('full_access', 'auto_approve'),
+      ),
+    ).toBe(true);
+
+    // Widening the session itself is the case the warning exists for.
+    expect(
+      needsFullAccessConfirmation(
+        'full_access',
+        replacedSessionPermissionMode('ask', null),
+      ),
+    ).toBe(true);
+
+    // Already full access with no narrower override: the pick changes nothing.
+    expect(replacedSessionPermissionMode('full_access', null)).toBe('full_access');
+    expect(
+      needsFullAccessConfirmation(
+        'full_access',
+        replacedSessionPermissionMode('full_access', null),
+      ),
+    ).toBe(false);
+    // A full-access override is not "narrower", so it does not stand in for the
+    // session mode either.
+    expect(replacedSessionPermissionMode('auto', 'full_access')).toBe('auto');
+    expect(
+      needsFullAccessConfirmation(
+        'full_access',
+        replacedSessionPermissionMode('auto', 'full_access'),
+      ),
+    ).toBe(true);
+  });
+
+  it('arms a turn override on top of the mode that turn runs', () => {
+    expect(effectiveTurnPermissionMode(null, 'ask')).toBe('ask');
+    expect(effectiveTurnPermissionMode('auto_approve', 'ask')).toBe('auto');
+
+    // Arming full access on a narrower turn is a real escalation.
+    expect(
+      needsFullAccessConfirmation(
+        'full_access',
+        effectiveTurnPermissionMode('auto_approve', 'ask'),
+      ),
+    ).toBe(true);
+    // The turn already runs full access through its own override.
+    expect(
+      needsFullAccessConfirmation(
+        'full_access',
+        effectiveTurnPermissionMode('full_access', 'ask'),
+      ),
+    ).toBe(false);
+    // ... or through the session mode it inherits.
+    expect(
+      needsFullAccessConfirmation(
+        'full_access',
+        effectiveTurnPermissionMode(null, 'full_access'),
+      ),
+    ).toBe(false);
   });
 });

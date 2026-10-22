@@ -250,8 +250,10 @@ import {
 import { selectInterruptedTurnRecovery } from '../utils/interruptedTurnRecovery';
 import {
   chatInputPermissionMode,
+  effectiveTurnPermissionMode,
   needsFullAccessConfirmation,
   permissionModeFromConfig,
+  replacedSessionPermissionMode,
   sessionPermissionMode as toBackendPermissionMode,
 } from '../utils/permissionMode';
 import {
@@ -2638,14 +2640,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     nextMode: Exclude<ChatInputPermissionMode, 'acp'>,
   ) => {
     if (permissionModeSaving || isAcpTargetSession) return;
-    // The session write also clears a one-off turn override, so the mode this
-    // click replaces is the session's own unless the turn was running narrower.
-    const overrideMode = temporaryPermissionMode
-      ? chatInputPermissionMode(temporaryPermissionMode)
-      : null;
-    const replacedMode = overrideMode && overrideMode !== 'full_access'
-      ? overrideMode
-      : permissionMode;
+    const replacedMode = replacedSessionPermissionMode(permissionMode, temporaryPermissionMode);
     if (!(await confirmFullAccessIfNeeded(nextMode, 'session', replacedMode))) return;
     const backendMode = toBackendPermissionMode(
       nextMode as Exclude<ChatInputPermissionMode, 'acp' | 'reject'>,
@@ -2673,12 +2668,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       ? activeTurnPermissionMode
       : armedTurnPermissionMode;
     const nextTemporaryMode = currentMode === backendMode ? null : backendMode;
-    // The turn already runs under its override, or under the session mode when
-    // it has none, so arming full access on top of a full-access turn is not a
-    // risk change worth a prompt.
-    const effectiveTurnMode: ChatInputPermissionMode = currentMode
-      ? chatInputPermissionMode(currentMode)
-      : permissionMode;
+    // The turn already runs under its override, or under the session mode when it
+    // has none, so arming full access on top of a full-access turn is not a risk
+    // change worth a prompt.
+    const effectiveTurnMode = effectiveTurnPermissionMode(currentMode, permissionMode);
     if (
       nextTemporaryMode === 'full_access'
       && !(await confirmFullAccessIfNeeded(

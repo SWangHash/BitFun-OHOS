@@ -64,3 +64,30 @@ export function needsFullAccessConfirmation(
 ): boolean {
   return nextMode === 'full_access' && currentMode !== 'full_access';
 }
+
+/**
+ * The mode a session-wide pick actually replaces.
+ *
+ * Writing the session mode also clears a one-off turn override, so the click
+ * replaces the session's own mode - unless the running turn was narrower, where
+ * clearing that override is itself what widens the turn. A full-access override
+ * has nothing narrower to preserve, so it falls back to the session mode.
+ */
+export function replacedSessionPermissionMode(
+  sessionMode: ChatInputPermissionMode,
+  temporaryMode: SessionPermissionMode | null | undefined,
+): ChatInputPermissionMode {
+  const overrideMode = temporaryMode ? chatInputPermissionMode(temporaryMode) : null;
+  return overrideMode && overrideMode !== 'full_access' ? overrideMode : sessionMode;
+}
+
+/**
+ * The mode a turn runs once an override is armed on it: its own override when it
+ * has one, otherwise the session mode it inherits.
+ */
+export function effectiveTurnPermissionMode(
+  turnMode: SessionPermissionMode | null | undefined,
+  sessionMode: ChatInputPermissionMode,
+): ChatInputPermissionMode {
+  return turnMode ? chatInputPermissionMode(turnMode) : sessionMode;
+}
