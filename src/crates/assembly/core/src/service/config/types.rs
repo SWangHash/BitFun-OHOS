@@ -96,6 +96,19 @@ pub trait ConfigProvider: Send + Sync {
     /// Validates configuration.
     async fn validate_config(&self, config: &serde_json::Value) -> BitFunResult<Vec<String>>;
 
+    /// Validates configuration recovered at startup without loading catalog-backed
+    /// reference data.
+    ///
+    /// Startup recovery runs before any model resolution, so implementations that
+    /// would otherwise parse reference data must not do it here. The default keeps
+    /// the strict behaviour for providers without such data.
+    async fn validate_config_without_catalog(
+        &self,
+        config: &serde_json::Value,
+    ) -> BitFunResult<Vec<String>> {
+        self.validate_config(config).await
+    }
+
     /// Called when configuration changes.
     async fn on_config_changed(
         &self,

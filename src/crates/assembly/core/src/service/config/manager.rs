@@ -345,7 +345,12 @@ impl ConfigManager {
 
         let mut diagnostics = normalize_typed_config(&mut config);
         diagnostics.extend(reconcile_model_references(&mut config).diagnostics);
-        let validation_result = self.providers.validate_config(&config).await?;
+        // Startup path: no catalog load, so the verdict cannot depend on whether a
+        // catalog is already resident in this process.
+        let validation_result = self
+            .providers
+            .validate_config_without_catalog(&config)
+            .await?;
         if !validation_result.valid {
             return Err(invalid_config_error(
                 "Invalid installer configuration handoff",
@@ -436,7 +441,10 @@ impl ConfigManager {
         diagnostics: &mut Vec<super::types::ConfigDiagnostic>,
     ) -> BitFunResult<super::types::ConfigValidationResult> {
         loop {
-            let result = self.providers.validate_config(config).await?;
+            let result = self
+                .providers
+                .validate_config_without_catalog(config)
+                .await?;
             let mut recovered = false;
             for error in &result.errors {
                 let Some(index) = error
@@ -510,7 +518,10 @@ impl ConfigManager {
 
         let mut diagnostics = normalize_typed_config(&mut config);
         diagnostics.extend(reconcile_model_references(&mut config).diagnostics);
-        let validation_result = self.providers.validate_config(&config).await?;
+        let validation_result = self
+            .providers
+            .validate_config_without_catalog(&config)
+            .await?;
         if !validation_result.valid {
             return Ok(None);
         }
@@ -739,7 +750,10 @@ impl ConfigManager {
             reconcile_model_references(&mut config);
         }
 
-        let validation_result = self.providers.validate_config(&config).await?;
+        let validation_result = self
+            .providers
+            .validate_config_for_write_path(&config, path)
+            .await?;
         if !validation_result.valid {
             return Err(invalid_config_error(
                 "Invalid configuration update",
@@ -761,7 +775,10 @@ impl ConfigManager {
             self.providers.get_default_config()
         };
 
-        let validation_result = self.providers.validate_config(&config).await?;
+        let validation_result = self
+            .providers
+            .validate_config_for_write_path(&config, path.unwrap_or_default())
+            .await?;
         if !validation_result.valid {
             return Err(invalid_config_error(
                 "Invalid configuration reset",

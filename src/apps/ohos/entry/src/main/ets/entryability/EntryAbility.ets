@@ -1217,20 +1217,31 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     // below are allowed to run. Apply them immediately afterwards -- without a
     // timer -- so the native caption strip is hidden before its first mapped
     // frame instead of flashing over the launch surface for the timer's span.
-    await super.onWindowStageCreate(windowStage);
-    this.applyLaunchSurfaceDecor(windowStage);
-    // The launch page has taken effect, which is the end of the wait the
-    // start window covers. Everything below is only observable well after the
-    // first frame (a tray icon, a calendar handle), so it runs here instead of
-    // between the window creation and `loadContentByName`, where it would extend
-    // the launch surface.
-    this.statusBarTray = new StatusBarTrayService(this.context, this);
-    this.statusBarTray.install();
     try {
-      AppGlobal.calendarMgr = calendarManager.getCalendarManager(this.context);
-    } catch (error) {
-      const businessError = error as BusinessError;
-      hilog.warn(DOMAIN, 'BitFunStartup', `calendar manager unavailable: ${businessError.message}`);
+      await super.onWindowStageCreate(windowStage);
+      this.applyLaunchSurfaceDecor(windowStage);
+    } finally {
+      // The launch page has taken effect, which is the end of the wait the
+      // start window covers. Everything below is only observable well after the
+      // first frame (a tray icon, a calendar handle), so it runs here instead of
+      // between the window creation and `loadContentByName`, where it would
+      // extend the launch surface. It sits in `finally` because a launch page
+      // that fails to load must not also cost the app its status bar entry, and
+      // each registration keeps its own recovery so one failure cannot hide the
+      // other or mask the load error propagating out of this method.
+      try {
+        this.statusBarTray = new StatusBarTrayService(this.context, this);
+        this.statusBarTray.install();
+      } catch (error) {
+        const businessError = error as BusinessError;
+        hilog.warn(DOMAIN, 'BitFunStartup', `status bar tray unavailable: ${businessError.message}`);
+      }
+      try {
+        AppGlobal.calendarMgr = calendarManager.getCalendarManager(this.context);
+      } catch (error) {
+        const businessError = error as BusinessError;
+        hilog.warn(DOMAIN, 'BitFunStartup', `calendar manager unavailable: ${businessError.message}`);
+      }
     }
   }
 

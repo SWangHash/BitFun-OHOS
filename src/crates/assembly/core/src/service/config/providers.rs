@@ -6,17 +6,17 @@
 use super::types::*;
 #[cfg(feature = "ai-adapter-runtime")]
 use crate::infrastructure::ai::reasoning_catalog::{
-    cached_models_dev_reasoning_catalog, project_model_reasoning_catalog,
+    load_models_dev_reasoning_catalog_without_refresh, project_model_reasoning_catalog,
 };
 #[cfg(feature = "ai-adapter-runtime")]
 use crate::infrastructure::ai::AIClient;
 use crate::util::errors::*;
 use async_trait::async_trait;
-use log::{error, info};
 #[cfg(any(feature = "ai-adapter-runtime", test))]
 use bitfun_core_types::ReasoningCatalogBinding;
 #[cfg(test)]
 use bitfun_core_types::{ReasoningConfig, ReasoningPreset, ReasoningPresetAction};
+use log::{error, info};
 use std::collections::HashMap;
 
 fn serialize_default_config(section: &str, value: impl serde::Serialize) -> serde_json::Value {
@@ -139,17 +139,31 @@ fn ai_validation_warning_location(config: &GlobalConfig, message: &str) -> Strin
         .unwrap_or_else(|| "ai".to_string())
 }
 
-#[async_trait]
-impl ConfigProvider for AIConfigProvider {
-    fn name(&self) -> &str {
-        "ai"
-    }
+/// Whether a validation pass may load the upstream models.dev catalog.
+///
+/// A catalog-bound reasoning declaration can only be judged against that
+/// document, so the verdict has to state explicitly whether the document is
+/// available instead of reading a process-wide cache and returning different
+/// answers depending on whether an earlier request already parsed it.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ReasoningCatalogPolicy {
+    /// Do not load the catalog. Used where a catalog parse must stay off the
+    /// call path, such as startup recovery. Catalog-dependent verdicts are
+    /// skipped, and they are skipped deterministically because this policy never
+    /// reads the cache either.
+    Skip,
+    /// Load the catalog before judging. Used for configurations a user commits,
+    /// so the same document is accepted or rejected consistently.
+    Load,
+}
 
-    fn get_default_config(&self) -> serde_json::Value {
-        serialize_default_config("ai", AIConfig::default())
-    }
-
-    async fn validate_config(&self, config: &serde_json::Value) -> BitFunResult<Vec<String>> {
+impl AIConfigProvider {
+    async fn validate_ai_config(
+        &self,
+        config: &serde_json::Value,
+        #[cfg_attr(not(feature = "ai-adapter-runtime"), allow(unused_variables))]
+        catalog_policy: ReasoningCatalogPolicy,
+    ) -> BitFunResult<Vec<String>> {
         let mut warnings = Vec::new();
 
         if let Ok(ai_config) = serde_json::from_value::<AIConfig>(config.clone()) {
@@ -166,9 +180,14 @@ impl ConfigProvider for AIConfigProvider {
                     !matches!(reasoning.catalog, ReasoningCatalogBinding::Disabled)
                 })
             });
+            // Only a policy that owns the catalog parse may take it; the skip
+            // policy deliberately leaves it absent so every catalog-dependent
+            // verdict is skipped the same way on a cold and a warm process.
             #[cfg(feature = "ai-adapter-runtime")]
-            let models_dev = if catalog_bound_model_present {
-                cached_models_dev_reasoning_catalog()
+            let models_dev = if catalog_bound_model_present
+                && matches!(catalog_policy, ReasoningCatalogPolicy::Load)
+            {
+                Some(load_models_dev_reasoning_catalog_without_refresh().await)
             } else {
                 None
             };
@@ -225,19 +244,25 @@ impl ConfigProvider for AIConfigProvider {
                         .as_ref()
                         .and_then(|snapshot| snapshot.catalog.as_deref());
                     let projection = project_model_reasoning_catalog(model, catalog);
+                    // A committed configuration is judged even when no catalog could
+                    // be resolved: that is the strict behaviour a save had before the
+                    // catalog was ever cached, and a broken or absent catalog must not
+                    // silently widen what a save accepts. A skip-policy pass instead
+                    // only judges a declaration that did not ask for upstream data, so
+                    // its verdict cannot depend on a catalog it never loaded.
+                    let catalog_verdict_available =
+                        matches!(catalog_policy, ReasoningCatalogPolicy::Load)
+                            || catalog.is_some()
+                            || matches!(reasoning.catalog, ReasoningCatalogBinding::Disabled);
 
                     if let Some(default_preset) = reasoning.default_preset.as_deref() {
-                        if projection.default_preset.as_deref() != Some(default_preset) {
-                            // Only the upstream catalog can decide which presets
-                            // exist there, so without it a mismatch is not an error
-                            // yet: the model-resolution path loads the catalog and
-                            // fails closed on it.
-                            if catalog.is_some() {
-                                return Err(BitFunError::validation(format!(
-                                    "Model '{}' reasoning default preset '{}' is not available at index {}",
-                                    model.name, default_preset, index
-                                )));
-                            }
+                        if projection.default_preset.as_deref() != Some(default_preset)
+                            && catalog_verdict_available
+                        {
+                            return Err(BitFunError::validation(format!(
+                                "Model '{}' reasoning default preset '{}' is not available at index {}",
+                                model.name, default_preset, index
+                            )));
                         }
                     }
 
@@ -257,7 +282,7 @@ impl ConfigProvider for AIConfigProvider {
                             .find(|descriptor| descriptor.id == preset_id)
                         {
                             Some(descriptor) => descriptor,
-                            None if catalog.is_none() => continue,
+                            None if !catalog_verdict_available => continue,
                             None => {
                                 return Err(BitFunError::validation(format!(
                                     "Model '{}' reasoning preset '{}' is not available at index {}",
@@ -393,6 +418,37 @@ impl ConfigProvider for AIConfigProvider {
         }
 
         Ok(warnings)
+    }
+}
+
+#[async_trait]
+impl ConfigProvider for AIConfigProvider {
+    fn name(&self) -> &str {
+        "ai"
+    }
+
+    fn get_default_config(&self) -> serde_json::Value {
+        serialize_default_config("ai", AIConfig::default())
+    }
+
+    /// Validates a configuration the user is committing. The upstream catalog is
+    /// loaded on demand, so the verdict does not depend on whether some earlier
+    /// request happened to parse it.
+    async fn validate_config(&self, config: &serde_json::Value) -> BitFunResult<Vec<String>> {
+        self.validate_ai_config(config, ReasoningCatalogPolicy::Load)
+            .await
+    }
+
+    /// Validates a configuration recovered at startup, where a catalog parse
+    /// would sit on the launch path. Catalog-bound reasoning declarations are
+    /// left to the model-resolution path, which loads the catalog and fails
+    /// closed.
+    async fn validate_config_without_catalog(
+        &self,
+        config: &serde_json::Value,
+    ) -> BitFunResult<Vec<String>> {
+        self.validate_ai_config(config, ReasoningCatalogPolicy::Skip)
+            .await
     }
 
     async fn on_config_changed(
@@ -686,6 +742,14 @@ pub struct ConfigProviderRegistry {
     providers: HashMap<String, Box<dyn ConfigProvider>>,
 }
 
+/// Whether persisting `path` can change the `ai` section, and therefore has to
+/// be judged with the catalog loaded.
+///
+/// An empty path replaces the whole document, so it counts as an AI write.
+fn write_path_commits_ai_section(path: &str) -> bool {
+    path.is_empty() || path == "ai" || path.starts_with("ai.")
+}
+
 impl ConfigProviderRegistry {
     /// Creates the default provider registry.
     pub fn new() -> Self {
@@ -729,15 +793,63 @@ impl ConfigProviderRegistry {
         &self,
         config: &GlobalConfig,
     ) -> BitFunResult<ConfigValidationResult> {
+        self.validate_config_inner(config, false, None).await
+    }
+
+    /// Validates a configuration before it is persisted at `path`.
+    ///
+    /// Every write validates the whole document, so the catalog-backed AI
+    /// verdict is scoped to the writes that can actually change it. A write to
+    /// appearance, editor, terminal, or any other section keeps every
+    /// catalog-independent AI rule but does not load the catalog, because a
+    /// settings save the user is making for an unrelated reason must not fail
+    /// on a catalog it cannot influence or repair. `path` is empty when the
+    /// whole document is replaced, which counts as an AI write.
+    pub async fn validate_config_for_write_path(
+        &self,
+        config: &GlobalConfig,
+        path: &str,
+    ) -> BitFunResult<ConfigValidationResult> {
+        self.validate_config_inner(config, false, Some(path)).await
+    }
+
+    /// Validates the full configuration without letting providers load
+    /// catalog-backed reference data.
+    ///
+    /// Used by startup recovery, which runs before any model resolution. Keeping
+    /// this a separate entry point is what makes the recovered-config verdict
+    /// independent of whether a catalog happens to already be resident.
+    pub async fn validate_config_without_catalog(
+        &self,
+        config: &GlobalConfig,
+    ) -> BitFunResult<ConfigValidationResult> {
+        self.validate_config_inner(config, true, None).await
+    }
+
+    async fn validate_config_inner(
+        &self,
+        config: &GlobalConfig,
+        skip_catalog: bool,
+        write_path: Option<&str>,
+    ) -> BitFunResult<ConfigValidationResult> {
         let mut errors = Vec::new();
         let mut warnings = Vec::new();
+        let catalog_judged = write_path.is_none_or(write_path_commits_ai_section);
 
         for provider_name in ["ai", "appearance", "editor", "terminal", "workspace", "app"] {
             let Some(provider) = self.get_provider(provider_name) else {
                 continue;
             };
             let section_value = self.get_config_section(provider_name, config)?;
-            match provider.validate_config(&section_value).await {
+            let skip_provider_catalog = skip_catalog || (provider_name == "ai" && !catalog_judged);
+            let provider_result = if skip_provider_catalog {
+                provider
+                    .validate_config_without_catalog(&section_value)
+                    .await
+            } else {
+                provider.validate_config(&section_value).await
+            };
+            match provider_result {
                 Ok(provider_warnings) => {
                     warnings.extend(provider_warnings.into_iter().map(|msg| {
                         ConfigValidationWarning {
@@ -1067,6 +1179,64 @@ mod tests {
     }
 
     #[cfg(feature = "ai-adapter-runtime")]
+    fn catalog_bound_reasoning_with_unknown_default_preset() -> serde_json::Value {
+        let mut config = AIConfig::default();
+        config.models.push(model_with_reasoning(ReasoningConfig {
+            catalog: ReasoningCatalogBinding::Auto,
+            default_preset: Some("not-an-upstream-preset".to_string()),
+            ..ReasoningConfig::default()
+        }));
+        serde_json::to_value(config).expect("AI config should serialize")
+    }
+
+    #[cfg(feature = "ai-adapter-runtime")]
+    #[tokio::test]
+    async fn startup_validation_does_not_judge_catalog_membership() {
+        let value = catalog_bound_reasoning_with_unknown_default_preset();
+
+        AIConfigProvider
+            .validate_config_without_catalog(&value)
+            .await
+            .expect("startup validation must not reject a catalog-bound preset it cannot see");
+    }
+
+    #[cfg(all(feature = "ai-adapter-runtime", feature = "model-catalog"))]
+    #[tokio::test]
+    async fn committed_config_validation_loads_the_catalog() {
+        let value = catalog_bound_reasoning_with_unknown_default_preset();
+
+        let error = AIConfigProvider
+            .validate_config(&value)
+            .await
+            .expect_err("a committed configuration must be judged against the upstream catalog");
+        assert!(error.to_string().contains("is not available"), "{error}");
+
+        // The second pass runs against an already parsed catalog. Reaching the
+        // same verdict is what lets one document keep one verdict in a process
+        // that has since warmed the cache.
+        let repeated = AIConfigProvider
+            .validate_config(&value)
+            .await
+            .expect_err("a warm cache must not change the verdict");
+        assert_eq!(error.to_string(), repeated.to_string());
+    }
+
+    // A save must not relax because the catalog could not be resolved. This build
+    // compiles the catalog out, so the loader returns no document at all, which is
+    // the same shape a failed load produces.
+    #[cfg(all(feature = "ai-adapter-runtime", not(feature = "model-catalog")))]
+    #[tokio::test]
+    async fn committed_config_validation_stays_strict_without_a_catalog() {
+        let value = catalog_bound_reasoning_with_unknown_default_preset();
+
+        let error = AIConfigProvider
+            .validate_config(&value)
+            .await
+            .expect_err("a committed configuration must not skip catalog membership");
+        assert!(error.to_string().contains("is not available"), "{error}");
+    }
+
+    #[cfg(feature = "ai-adapter-runtime")]
     #[tokio::test]
     async fn accepts_generated_models_dev_default_preset() {
         validate_reasoning(ReasoningConfig {
@@ -1100,5 +1270,56 @@ mod tests {
         assert!(validation.errors[0]
             .message
             .contains("budget_tokens value must be greater than 0"));
+    }
+
+    // Every write validates the whole document, so the catalog verdict has to be
+    // scoped to the writes that can change the AI section. Otherwise a settings
+    // save the user cannot connect to the catalog fails for a reason they cannot
+    // repair.
+    #[cfg(all(feature = "ai-adapter-runtime", not(feature = "model-catalog")))]
+    #[tokio::test]
+    async fn unrelated_writes_do_not_inherit_the_catalog_verdict() {
+        let mut config = GlobalConfig::default();
+        config.ai = serde_json::from_value(catalog_bound_reasoning_with_unknown_default_preset())
+            .expect("AI config should parse");
+
+        let ai_write = ConfigProviderRegistry::new()
+            .validate_config_for_write_path(&config, "ai.models")
+            .await
+            .expect("registry validation result");
+        assert!(
+            !ai_write.valid,
+            "an AI write must stay strict when the catalog is unavailable"
+        );
+        assert!(ai_write.errors[0].message.contains("is not available"));
+
+        let unrelated_write = ConfigProviderRegistry::new()
+            .validate_config_for_write_path(&config, "appearance.theme")
+            .await
+            .expect("registry validation result");
+        assert!(
+            unrelated_write.valid,
+            "an unrelated write must not inherit the catalog verdict: {:?}",
+            unrelated_write.errors
+        );
+    }
+
+    // Strictness must not mean rejecting everything: a preset the adapter itself
+    // projects survives a missing catalog, so only upstream-only facts fail.
+    #[cfg(all(feature = "ai-adapter-runtime", not(feature = "model-catalog")))]
+    #[tokio::test]
+    async fn an_ai_write_still_accepts_a_declared_preset_without_a_catalog() {
+        let mut config = GlobalConfig::default();
+        config.ai.models.push(model_with_reasoning(ReasoningConfig {
+            catalog: ReasoningCatalogBinding::Auto,
+            default_preset: Some("high".to_string()),
+            ..ReasoningConfig::default()
+        }));
+
+        let validation = ConfigProviderRegistry::new()
+            .validate_config_for_write_path(&config, "ai.models")
+            .await
+            .expect("registry validation result");
+        assert!(validation.valid, "{:?}", validation.errors);
     }
 }
