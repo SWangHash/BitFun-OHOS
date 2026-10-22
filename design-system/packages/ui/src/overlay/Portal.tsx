@@ -48,6 +48,8 @@ export interface PortalProps {
   preventScroll?: boolean;
   /** Background notices wait for the current modal before first presentation. */
   passive?: boolean;
+  /** Keep an explicit global notice reachable above an unrelated modal barrier. */
+  allowAboveModal?: boolean;
   /** Portalled siblings can declare the trigger that owns their interaction. */
   ownerRef?: RefObject<HTMLElement | null>;
   surfaceRef?: RefObject<HTMLElement | null>;
@@ -62,7 +64,8 @@ interface LayerPlacementProps {
 }
 
 function PresentedPortal({
-  children, container, open = true, modal = false, passive = false, ownerRef, surfaceRef,
+  children, container, open = true, modal = false, passive = false, allowAboveModal = false,
+  ownerRef, surfaceRef,
   onDismiss, dismissOnEscape = true, dismissOnPointerOutside = false, inline, preventScroll = true,
 }: PortalProps & LayerPlacementProps & { container: OverlayPortalContainer }) {
   const stack = getOverlayLayerStack(container.ownerDocument);
@@ -74,16 +77,19 @@ function PresentedPortal({
   const [committed, setCommitted] = useState(!passive);
   useLayoutEffect(() => { setCommitted(true); }, []);
   const admitted = useRef(false);
-  const mayPresent = committed && (!passive || stack.canPresent(parentId
-    ?? stack.getLayerForElement(ownerRef?.current ?? null)?.id));
+  const mayPresent = committed && (!passive || stack.canPresent(
+    parentId ?? stack.getLayerForElement(ownerRef?.current ?? null)?.id,
+    allowAboveModal,
+  ));
   useLayoutEffect(() => { if (mayPresent) admitted.current = true; }, [mayPresent]);
   if (!admitted.current && !mayPresent) return null;
-  return <LayerMount {...{ children, container, open, modal, passive, parentId, stack, surfaceRef,
+  return <LayerMount {...{ children, container, open, modal, passive, allowAboveModal, parentId, stack, surfaceRef,
     onDismiss, dismissOnEscape, dismissOnPointerOutside, inline, preventScroll, ownerRef }} />;
 }
 
 function LayerMount({
-  children, container, open = true, modal = false, passive = false, parentId, stack, surfaceRef,
+  children, container, open = true, modal = false, passive = false, allowAboveModal = false,
+  parentId, stack, surfaceRef,
   onDismiss, dismissOnEscape, dismissOnPointerOutside, inline, preventScroll, ownerRef,
 }: PortalProps & LayerPlacementProps & { container: OverlayPortalContainer; parentId?: symbol; stack: OverlayLayerStack }) {
   const [ticket] = useState(() => ({
@@ -94,13 +100,15 @@ function LayerMount({
   }));
   const slotRef = useRef<HTMLDivElement>(null);
   const ownerOpen = stack.hasOpenAncestors(ticket.id);
-  const initial = useRef({ open, modal, passive });
+  const initial = useRef({ open, modal, passive, allowAboveModal });
   useLayoutEffect(() => {
     const element = slotRef.current;
     if (!element) return;
     return stack.registerLayer({ ...ticket, element, parentId, ownerElement: () => ownerRef?.current ?? null, ...initial.current });
   }, [ownerRef, parentId, stack, ticket]);
-  useLayoutEffect(() => { stack.updateLayer(ticket.id, { open, modal, passive }); }, [modal, open, passive, stack, ticket]);
+  useLayoutEffect(() => {
+    stack.updateLayer(ticket.id, { open, modal, passive, allowAboveModal });
+  }, [allowAboveModal, modal, open, passive, stack, ticket]);
   useDismissibleLayer({
     enabled: open && Boolean(onDismiss), layerRef: surfaceRef ?? slotRef,
     branchRefs: ownerRef ? [ownerRef] : undefined,

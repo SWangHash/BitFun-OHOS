@@ -72,6 +72,29 @@ describe('document overlay ownership', () => {
     expect(slot('old').hasAttribute('inert')).toBe(false);
   });
 
+  it('keeps an explicit global notice interactive above a modal', () => {
+    const closeNotice = vi.fn();
+    const render = (modal: boolean) => act(() => root.render(<>
+      <Portal passive allowAboveModal>
+        <button data-test-layer="global-notice" onClick={closeNotice}>Close notice</button>
+      </Portal>
+      <Dialog open={modal} onOpenChange={() => undefined}>
+        <button data-test-layer="dialog">Confirm</button>
+      </Dialog>
+    </>));
+
+    render(false);
+    render(true);
+
+    expect(rank('global-notice')).toBeGreaterThan(rank('dialog'));
+    expect(slot('global-notice').hasAttribute('inert')).toBe(false);
+    expect(container.hasAttribute('inert')).toBe(true);
+
+    const close = document.querySelector<HTMLButtonElement>('[data-test-layer="global-notice"]')!;
+    act(() => close.click());
+    expect(closeNotice).toHaveBeenCalledOnce();
+  });
+
   it('keeps portalled menu focus inside its modal domain and dismisses only the menu', () => {
     const dismissDialog = vi.fn();
     function Content() {
