@@ -505,6 +505,13 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
       return;
     }
 
+    // Local workspaces have file watchers covering external changes; a refresh
+    // on every window focus/visibility change only makes the tree flash.
+    // Remote workspaces have no watchers, so keep the compensating refresh.
+    if (!isRemoteCurrentWorkspace) {
+      return;
+    }
+
     const panelEl = panelRef.current;
     if (!panelEl || panelEl.getClientRects().length === 0) {
       return;
@@ -521,7 +528,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
       workspacePath,
     });
     void loadFileTree(undefined, true);
-  }, [workspacePath, viewMode, loadFileTree]);
+  }, [workspacePath, viewMode, isRemoteCurrentWorkspace, loadFileTree]);
 
   const handleNavigateToPath = useCallback((data: { path: string; scrollIntoView?: boolean }) => {
     if (!data.path || !workspacePath) {
