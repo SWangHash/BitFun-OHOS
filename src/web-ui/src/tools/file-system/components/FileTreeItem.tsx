@@ -5,6 +5,7 @@ import { dragManager } from '../../../shared/services/DragManager';
 import { fileTreeDragSource } from '../../../shared/context-system/drag-drop/FileTreeDragSource';
 import { useI18n } from '@/infrastructure/i18n';
 import { pathsEquivalentFs } from '@/shared/utils/pathUtils';
+import { validateFileName } from '../utils/validateFileName';
 import { FileSystemNode } from '../types';
 import { getFileIcon, getFileIconClass } from '../utils/fileIcons';
 import { getCompressionTooltip } from '../utils/pathCompression';
@@ -13,11 +14,15 @@ interface RenameInputProps {
   node: FileSystemNode;
   onRename: (newName: string) => void;
   onCancel?: () => void;
+  siblings?: string[];
+  isRemoteWorkspace?: boolean;
 }
 
-const RenameInput: React.FC<RenameInputProps> = ({ node, onRename, onCancel }) => {
+const RenameInput: React.FC<RenameInputProps> = ({ node, onRename, onCancel, siblings, isRemoteWorkspace }) => {
   const [value, setValue] = useState(node.name);
+  const [errorKey, setErrorKey] = useState<string | null>(null);
   const submittedRef = React.useRef(false);
+  const { t } = useI18n('panels/files');
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -42,14 +47,26 @@ const RenameInput: React.FC<RenameInputProps> = ({ node, onRename, onCancel }) =
     if (submittedRef.current) {
       return;
     }
-    submittedRef.current = true;
 
     const newName = nextValue.trim();
-    if (newName && newName !== node.name) {
-      onRename(newName);
-    } else {
+    if (!newName || newName === node.name) {
+      submittedRef.current = true;
       onCancel?.();
+      return;
     }
+
+    const validationError = validateFileName(newName, {
+      isRemote: isRemoteWorkspace ?? false,
+      isDirectory: node.isDirectory,
+      siblings,
+    });
+    if (validationError) {
+      setErrorKey(validationError);
+      return;
+    }
+
+    submittedRef.current = true;
+    onRename(newName);
   };
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
@@ -69,6 +86,14 @@ const RenameInput: React.FC<RenameInputProps> = ({ node, onRename, onCancel }) =
   };
 
   const handleBlur = () => {
+    if (submittedRef.current) {
+      return;
+    }
+    if (errorKey) {
+      submittedRef.current = true;
+      onCancel?.();
+      return;
+    }
     commitRename(value);
   };
 
@@ -79,12 +104,23 @@ const RenameInput: React.FC<RenameInputProps> = ({ node, onRename, onCancel }) =
         type="text"
         size="sm"
         value={value}
-        onChange={(event) => setValue(event.target.value)}
+        invalid={Boolean(errorKey)}
+        onChange={(event) => {
+          setValue(event.target.value);
+          if (errorKey) {
+            setErrorKey(null);
+          }
+        }}
         onKeyDown={handleKeyDown}
         onBlur={handleBlur}
         leading={node.isDirectory ? <FolderOpen size={14} /> : <FileText size={14} />}
         autoFocus
       />
+      {errorKey ? (
+        <span className="bitfun-file-explorer__rename-error" role="alert">
+          {t(errorKey, { name: value.trim() })}
+        </span>
+      ) : null}
     </div>
   );
 };
@@ -123,8 +159,8 @@ export const FileTreeItem: React.FC<FileTreeItemProps> = ({
   onToggleExpand,
   renderContent,
   renderActions,
-  renameSiblings: _renameSiblings,
-  isRemoteWorkspace: _isRemoteWorkspace,
+  renameSiblings,
+  isRemoteWorkspace,
 }) => {
   const { t } = useI18n('tools');
   const dragImageRef = React.useRef<HTMLDivElement | null>(null);
@@ -221,6 +257,8 @@ export const FileTreeItem: React.FC<FileTreeItemProps> = ({
           node={node}
           onRename={(newName) => onRename?.(node.path, newName)}
           onCancel={onCancelRename}
+          siblings={renameSiblings}
+          isRemoteWorkspace={isRemoteWorkspace}
         />
       ) : renderContent ? (
         renderContent(node, level)
