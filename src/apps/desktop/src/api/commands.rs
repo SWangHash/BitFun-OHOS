@@ -48,7 +48,7 @@ struct WorkspaceStateSnapshot {
     legacy_remote_workspace: Option<crate::api::RemoteWorkspace>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceStartupStateSnapshotDto {
     pub cleanup_removed_count: usize,
@@ -2120,28 +2120,92 @@ pub async fn cleanup_invalid_workspaces(
     .await
 }
 
-/// Startup snapshot published by a host that can prepare it before the frontend
-/// asks for it. HarmonyOS publishes from a task (its setup callback runs on the
-/// main thread with no entered tokio runtime, so it cannot prepare the snapshot
-/// inline the way desktop does). Consumed on the first read, so every later call
-/// recomputes from live state.
-static PREFETCHED_WORKSPACE_STARTUP_STATE: std::sync::Mutex<
-    Option<WorkspaceStartupStateSnapshotDto>,
-> = std::sync::Mutex::new(None);
+/// Startup work published by a host that can start it before the frontend asks
+/// for it. HarmonyOS publishes from a task (its setup callback runs on the main
+/// thread with no entered tokio runtime, so it cannot prepare the snapshot
+/// inline the way desktop does).
+///
+/// A shared handle is published instead of a finished value: whichever side
+/// arrives first starts the work and the other joins that same execution, so the
+/// workspace scan, the invalid-workspace cleanup, and the watcher resync never
+/// run twice for one launch. A joined handle is consumed by that read, and a
+/// copy that nobody claimed is discarded instead of being served later (see
+/// `PREFETCHED_STARTUP_STATE_TTL`): a completed `Shared` keeps its output, so
+/// leaving the handle around for as long as the process lives would answer a
+/// later request with the workspace state of an older launch.
+pub type WorkspaceStartupStateFuture = futures::future::Shared<
+    futures::future::BoxFuture<'static, Result<WorkspaceStartupStateSnapshotDto, String>>,
+>;
 
-/// Publishes a prepared startup snapshot for the next `initialize_workspace_startup_state`.
-pub fn publish_prefetched_workspace_startup_state(snapshot: WorkspaceStartupStateSnapshotDto) {
+/// How long a published handle still belongs to the launch that published it.
+/// The frontend asks for this work while its splash gate is up, so a handle that
+/// outlives that window was published for a frontend that never came back for
+/// it; answering a much later request from it would describe workspaces as they
+/// were at the previous launch.
+const PREFETCHED_STARTUP_STATE_TTL: Duration = Duration::from_secs(60);
+
+struct PrefetchedWorkspaceStartupState {
+    future: WorkspaceStartupStateFuture,
+    published_at: Instant,
+}
+
+static PREFETCHED_WORKSPACE_STARTUP_STATE: Mutex<Option<PrefetchedWorkspaceStartupState>> =
+    Mutex::new(None);
+
+/// Publishes startup work for the next `initialize_workspace_startup_state`.
+pub fn publish_prefetched_workspace_startup_state(future: WorkspaceStartupStateFuture) {
     match PREFETCHED_WORKSPACE_STARTUP_STATE.lock() {
-        Ok(mut cached) => *cached = Some(snapshot),
-        Err(_) => log::warn!("Prefetched workspace startup snapshot lock is poisoned"),
+        Ok(mut cached) => {
+            *cached = Some(PrefetchedWorkspaceStartupState {
+                future,
+                published_at: Instant::now(),
+            })
+        }
+        Err(_) => log::warn!("Prefetched workspace startup state lock is poisoned"),
     }
 }
 
-fn take_prefetched_workspace_startup_state() -> Option<WorkspaceStartupStateSnapshotDto> {
-    PREFETCHED_WORKSPACE_STARTUP_STATE
+fn take_prefetched_workspace_startup_state() -> Option<WorkspaceStartupStateFuture> {
+    let published = PREFETCHED_WORKSPACE_STARTUP_STATE
         .lock()
         .ok()
-        .and_then(|mut cached| cached.take())
+        .and_then(|mut cached| cached.take())?;
+    if published.published_at.elapsed() > PREFETCHED_STARTUP_STATE_TTL {
+        log::warn!(
+            "Discarding prefetched workspace startup state published {}ms ago",
+            published.published_at.elapsed().as_millis()
+        );
+        return None;
+    }
+    Some(published.future)
+}
+
+/// Builds the startup work as a shareable `'static` future so a prefetching host
+/// and the frontend command can await one execution.
+pub fn workspace_startup_state_future(app: tauri::AppHandle) -> WorkspaceStartupStateFuture {
+    use futures::FutureExt;
+    use tauri::Manager;
+    async move {
+        let state: State<'_, AppState> = app.state();
+        let startup_trace: State<'_, DesktopStartupTrace> = app.state();
+        let started = Instant::now();
+        let result =
+            initialize_workspace_startup_state_impl(&state, &app, &startup_trace, started).await;
+        startup_trace.record_elapsed_step(
+            "native_setup",
+            "prepare_workspace_startup_bootstrap_snapshot",
+            started,
+        );
+        if let Err(error) = &result {
+            warn!(
+                "Failed to prepare workspace startup bootstrap snapshot, frontend will fall back to startup command: {}",
+                error
+            );
+        }
+        result
+    }
+    .boxed()
+    .shared()
 }
 
 #[tauri::command]
@@ -2150,15 +2214,25 @@ pub async fn initialize_workspace_startup_state(
     app: tauri::AppHandle,
     startup_trace: State<'_, DesktopStartupTrace>,
 ) -> Result<WorkspaceStartupStateSnapshotDto, String> {
-    // The frontend's splash gate waits on this command, so a snapshot that
-    // startup already prepared answers it without repeating the workspace scan.
-    if let Some(snapshot) = take_prefetched_workspace_startup_state() {
+    // The frontend's splash gate waits on this command. When startup already
+    // started the same work, join it instead of repeating the workspace scan.
+    if let Some(prefetched) = take_prefetched_workspace_startup_state() {
+        let joined_started = Instant::now();
+        let result = prefetched.await;
         startup_trace.record_tauri_command_elapsed(
             "initialize_workspace_startup_state",
             Some("prefetched"),
-            Instant::now(),
+            joined_started,
         );
-        return Ok(snapshot);
+        if result.is_ok() {
+            return result;
+        }
+        // A failed prefetch falls through to the live path, which is what the
+        // prefetch's own warning promises the frontend. The only failure that
+        // path can report is the workspace cleanup itself, which aborts before
+        // the remote prune, the active-workspace context, and the watcher sync,
+        // so a rerun repeats the global-state load and the cleanup attempt but
+        // cannot repeat those later effects.
     }
 
     let command_started = Instant::now();

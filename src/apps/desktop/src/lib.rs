@@ -1241,28 +1241,15 @@ pub async fn _run() {
             // a task that overlaps the frontend's own boot.
             #[cfg(target_env = "ohos")]
             {
-                let prefetch_handle = app.handle().clone();
+                let startup_state =
+                    api::commands::workspace_startup_state_future(app.handle().clone());
+                // Publish the handle and then start it here. The frontend joins
+                // this exact execution when it asks for the snapshot, and the
+                // workspace cleanup and identity watchers still run when no
+                // command ever arrives.
+                api::commands::publish_prefetched_workspace_startup_state(startup_state.clone());
                 tauri::async_runtime::spawn(async move {
-                    let app_state: tauri::State<'_, api::app_state::AppState> =
-                        prefetch_handle.state();
-                    let prefetch_trace: tauri::State<'_, startup_trace::DesktopStartupTrace> =
-                        prefetch_handle.state();
-                    match prepare_workspace_startup_bootstrap_snapshot(
-                        &app_state,
-                        &prefetch_handle,
-                        &prefetch_trace,
-                    )
-                    .await
-                    {
-                        Some(snapshot) => {
-                            api::commands::publish_prefetched_workspace_startup_state(snapshot);
-                        }
-                        None => {
-                            log::warn!(
-                                "Workspace startup snapshot prefetch failed; the frontend will compute it through the startup command"
-                            );
-                        }
-                    }
+                    let _ = startup_state.await;
                 });
             }
 
@@ -1357,37 +1344,53 @@ pub async fn _run() {
             );
             }
 
-            // HarmonyOS creates the main window through the same builder as the
-            // desktop path above, so the webview receives the bootstrap
-            // `initialization_script`. Without that script every startup value the
-            // frontend needs before its first paint (appearance, locale, log level,
-            // keybindings, workspace state) is fetched over the invoke bridge, and
-            // each call costs 100-300ms while the ArkUI main thread is still
-            // inflating the page -- that bridge latency is the whole launch-time
-            // gap to the desktop host.
+            // HarmonyOS has to end up with a window built by
+            // `appearance::create_main_window`: that is the only place the bootstrap
+            // `initialization_script` and the main-window navigation allow-list are
+            // attached. Without that script every startup value the frontend needs
+            // before its first paint (appearance, locale, log level, keybindings,
+            // workspace state) is fetched over the invoke bridge, and each call costs
+            // 100-300ms while the ArkUI main thread is still inflating the page --
+            // that bridge latency is the whole launch-time gap to the desktop host.
             //
             // There is no inline snapshot to inject here: HarmonyOS has no entered
             // tokio runtime in setup for the desktop `block_in_place` prefetch, so
             // the task above publishes one and `initialize_workspace_startup_state`
             // serves it from that prefetch.
+            //
+            // Which side wins the race is host shape, not a decision made here: the
+            // base `tauri.conf.json` declares a window labelled "main", and whether
+            // the OHOS host creates it before this hook runs is fork behavior that
+            // this crate cannot pin. So create the window only when the label is
+            // still free, and report the other case explicitly instead of leaving it
+            // silent, because in that shape the window keeps its own initialization
+            // and never receives the bootstrap script or the navigation allow-list.
             #[cfg(target_env = "ohos")]
             {
-                let window_started = Instant::now();
-                startup_trace.record_phase("main_window_create_start", "native_window");
-                appearance::create_main_window(
-                    &app_handle,
-                    &startup_trace_id,
-                    &startup_trace,
-                    None,
-                    Arc::clone(&frontend_workbench),
-                );
-                let window_duration_ms = elapsed_ms(window_started);
-                startup_trace.record_step(
-                    "native_step_end",
-                    "native_window",
-                    "create_main_window",
-                    window_duration_ms,
-                );
+                if app_handle.get_webview_window("main").is_none() {
+                    let window_started = Instant::now();
+                    startup_trace.record_phase("main_window_create_start", "native_window");
+                    appearance::create_main_window(
+                        &app_handle,
+                        &startup_trace_id,
+                        &startup_trace,
+                        None,
+                        Arc::clone(&frontend_workbench),
+                    );
+                    let window_duration_ms = elapsed_ms(window_started);
+                    startup_trace.record_step(
+                        "native_step_end",
+                        "native_window",
+                        "create_main_window",
+                        window_duration_ms,
+                    );
+                } else {
+                    startup_trace
+                        .record_phase("main_window_precreated_skip_create", "native_window");
+                    log::warn!(
+                        "HarmonyOS main window already exists before Tauri setup; it keeps its own initialization, so the startup bootstrap script and the main-window navigation allow-list are not applied"
+                    );
+                }
             }
 
             #[cfg(target_os = "macos")]

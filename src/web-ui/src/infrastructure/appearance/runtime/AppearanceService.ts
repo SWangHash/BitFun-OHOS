@@ -452,7 +452,14 @@ export class AppearanceService {
     // of the selection transaction, which sits on the first-paint critical
     // path of every launch. Fetch it alongside the apply and merge it into
     // the published snapshot before initialize resolves.
-    const catalogPromise = this.loadCatalog();
+    // The failure handler is attached where the promise is created: the awaits
+    // below can reject before the merge point at the end of this method, and an
+    // orphaned catalog request would then surface as an unhandled rejection for
+    // a startup that otherwise succeeded.
+    const catalogPromise = this.loadCatalog().catch((error: unknown) => {
+      log.warn('Failed to load the appearance catalog during startup', { error });
+      return null;
+    });
     const bootstrap = consumeBootstrapAppearance();
     const configuredSelection = bootstrap.selection
       ?? await configAPI.getConfig(APPEARANCE_SELECTION_CONFIG_PATH, { skipRetryOnNotFound: true });
@@ -495,10 +502,7 @@ export class AppearanceService {
         lastError: errorMessage(error),
       });
     }
-    const appearances = await catalogPromise.catch(error => {
-      log.warn('Failed to load the appearance catalog during startup', { error });
-      return null;
-    });
+    const appearances = await catalogPromise;
     if (appearances && !appearanceCatalogsEqual(this.snapshot.appearances, appearances)) {
       this.setSnapshot({ ...this.snapshot, appearances });
     }
