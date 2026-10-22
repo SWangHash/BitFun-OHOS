@@ -116,10 +116,14 @@ pub fn official_toolchain_guidance(
 }
 
 /// Guidance for an `__official__` **template** binding: there is no template
-/// provisioner, so the BitFun acquisition script stays the install flow.
+/// provisioner, so the BitFun acquisition script stays the install flow. The
+/// binding also names *which* template the migration may use: the official
+/// recommendation is the one that script installs, not whatever template tree
+/// happens to exist on the machine (the toolchain ships one of its own, and a
+/// user may have unpacked a release next to their project).
 pub fn official_template_guidance(templates_dir: &str, skill_dir: &str, platform: &str) -> String {
     format!(
-        "- 模板：运行时尚未提供模板供给，仍需按 BitFun 供给脚本安装：`bash \"{skill_dir}/scripts/bitfun-download-template.sh\" --platform={platform}`，安装目标目录 `{templates_dir}`（脚本按 BITFUN_QT_MIGRATION_ROOT 落盘，不要用 --dest 改到其他位置，也不要改用技能基线里 vendored 的上游 download-template.sh：它要求显式 --dest，会装到迁移扫描不到的目录），安装完成后使用脚本输出的 OHOS_TEMPLATE_SRC，该路径也必须是后续迁移使用的模板源（OHOS_TEMPLATE_SRC）。\n"
+        "- 模板：绑定值是 __official__，即本次迁移必须使用 BitFun 安装的鸿蒙推荐模板——不得改用本机其它位置已有的模板工程（例如工具链自带的 `src/harmonyos/templates`、用户自己解压的 `templates-*.zip`、工作区或工作区外已有的模板目录）。运行时尚未提供模板供给，仍需按 BitFun 供给脚本安装：`bash \"{skill_dir}/scripts/bitfun-download-template.sh\" --platform={platform}`，安装目标目录 `{templates_dir}`（脚本按 BITFUN_QT_MIGRATION_ROOT 落盘，不要用 --dest 改到其他位置，也不要改用技能基线里 vendored 的上游 download-template.sh：它要求显式 --dest，会装到迁移扫描不到的目录），安装完成后使用脚本输出的 OHOS_TEMPLATE_SRC，该路径也必须是后续迁移使用的模板源（OHOS_TEMPLATE_SRC）。\n"
     )
 }
 
@@ -258,7 +262,13 @@ pub fn bound_inputs_instruction(
          \x20 `output_project` 绑定的是**输出容器**，不是鸿蒙工程目录本身。模板与迁移产物只能写进上面的\n\
          \x20 子目录内，容器根目录不得出现模板文件或产物（即使容器就是当前工作区根）。\n\
          \x20 同名冲突时为本次迁移追加序号 `<app-name>-ohos-2`、`-3`（取最小可用序号），并在结论中说明。\n\
-         \x20 工程目录名以迁移台账 `environment.tsv` 的 layout 行为准：两者不一致时按台账值落盘或更正台账。\n",
+         \x20 工程目录名以迁移台账 `environment.tsv` 的 layout 行为准：两者不一致时按台账值落盘或更正台账。\n\
+         \x20 本次迁移产生的**所有**文件——迁移台账、构建目录与宿主构建产物、按平台构建的产物、证据与截图、\n\
+         \x20 试点工程、打包与中间产物——都只允许出现在上面的工程目录内，或迁移台账记录的路径下。\n\
+         \x20 不得写进输出容器根目录、当前工作区根目录、工作区父目录、系统临时目录或任何其它位置：没有\n\
+         \x20 中间产物留在工作区或工作区外一说，也就没有“试点工程目录”这类额外顶层目录。\n\
+         \x20 需要工作目录时用工程目录内的子目录（如工程目录下的宿主构建目录），不要用工作区根或系统临时\n\
+         \x20 目录当 CWD，否则产物会落在工作区里。\n",
         output_project_dir(values["output_project"], values["source_project"])
     ));
     let toolchain_official = values["toolchain"] == QT_MIGRATION_OFFICIAL_VALUE;

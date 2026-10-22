@@ -369,10 +369,15 @@ fn output_container_dir_in_workspace_is_probed() {
 
     let probe = card_probe(&root, &managed_root, &HashMap::new());
 
+    // #351：探测到的容器是默认路径，工作区根作为备选路径始终在列——工作区根本身
+    // 也是合法容器（迁移工程落在它的 `<app-name>-ohos` 子目录里）。
     assert_eq!(
         probe.candidates["output_project"],
-        vec![output_dir.to_string_lossy().into_owned()],
-        "output container is probed; migrated product dirs are not"
+        vec![
+            output_dir.to_string_lossy().into_owned(),
+            root.to_string_lossy().into_owned(),
+        ],
+        "output container is probed as the default; the workspace root is the alternate"
     );
     assert!(probe.candidates["output_project"]
         .iter()
@@ -394,10 +399,14 @@ fn prompt_named_output_inside_container_is_rejected() {
 
     let probe = card_probe(&root, &managed_root, &model);
 
-    // 容器内的旧产物被拒后，容器本身由语义扫描补上作为输出目标。
+    // 容器内的旧产物被拒后，容器本身由语义扫描补上作为输出目标；工作区根仍是它的
+    // 备选路径。
     assert_eq!(
         probe.candidates["output_project"],
-        vec![output_container.to_string_lossy().into_owned()]
+        vec![
+            output_container.to_string_lossy().into_owned(),
+            root.to_string_lossy().into_owned(),
+        ]
     );
 }
 
@@ -719,7 +728,8 @@ fn a_copied_qt_distribution_yields_no_source_project() {
     // 只复制了 kit：lib/cmake/Qt6 + bin/qmake。
     let kit = mkdir(&root, "kit");
     create_qt6_ohos_kit(&kit);
-    create_qt_examples(&mkdir(&kit, "Examples/Qt-6.12.0"));
+    let kit_examples = mkdir(&kit, "Examples/Qt-6.12.0");
+    create_qt_examples(&kit_examples);
 
     // 只复制示例集本身。
     let fragment = mkdir(&root, "copied/Examples/Qt-6.12.0");
@@ -737,6 +747,17 @@ fn a_copied_qt_distribution_yields_no_source_project() {
         vec![app.to_string_lossy().into_owned()],
         "点名的真工程仍然是候选"
     );
+    // 用户真机反馈（#355）：模型把工具链自带的示例集当成了原始工程，卡片因此给出
+    // 一条指向 Qt 安装树的"备选路径"。安装成员关系由磁盘决定（kit 根之下，或
+    // `<安装根>/Examples/` 之下），所以点名的示例集也必须被丢掉。
+    for installed in [kit_examples, examples, fragment] {
+        assert_eq!(
+            probe_source_projects(&root, &[installed.to_string_lossy().into_owned()]),
+            Vec::<String>::new(),
+            "点名的示例集不得成为候选: {}",
+            installed.display()
+        );
+    }
 }
 
 #[test]

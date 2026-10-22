@@ -54,6 +54,13 @@ pub(crate) fn merge_output_candidates(
     for path in probe_output_project(workspace) {
         ranked.push((1, path));
     }
+    // The workspace root is itself a valid output container — the migrated project
+    // goes into a `<app-name>-ohos` subdirectory of it — so it is always offered as
+    // the last-ranked alternate instead of only when nothing else was found. Ranked
+    // last so a container the probe found stays the default. It can still be
+    // filtered out below when the workspace root is the Qt project itself, which is
+    // exactly the input the field must not offer as an output target.
+    ranked.push((2, workspace.to_string_lossy().into_owned()));
     ranked.sort_by(|a, b| {
         a.0.cmp(&b.0)
             .then_with(|| path_key(Path::new(&a.1)).cmp(&path_key(Path::new(&b.1))))
@@ -62,13 +69,6 @@ pub(crate) fn merge_output_candidates(
     candidates = filter_output_candidates(candidates, source_candidates);
     dedup_paths(&mut candidates);
     candidates.truncate(MAX_OUTPUT_PROJECTS);
-    // The current workspace root is the last-resort default.
-    if candidates.is_empty() {
-        candidates = filter_output_candidates(
-            vec![workspace.to_string_lossy().into_owned()],
-            source_candidates,
-        );
-    }
     candidates
 }
 
