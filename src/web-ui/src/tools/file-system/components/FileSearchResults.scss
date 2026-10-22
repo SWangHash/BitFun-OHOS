@@ -270,11 +270,16 @@ $_icon-size: 16px;
 }
 
 .bitfun-search-results__highlight {
-  background: color-mix(in srgb, var(--bitfun-component-conversation-excerpt-accent) 30%, transparent);
+  background: color-mix(in srgb, var(--bitfun-component-conversation-excerpt-accent) 45%, transparent);
   color: var(--bitfun-component-conversation-excerpt-accent);
-  padding: 1px 2px;
   border-radius: 2px;
   font-weight: var(--bitfun-type-label-sm-font-weight);
+}
+
+/* Padding only for standalone content-line highlights; inline filename
+   highlights must not insert visual gaps between matched characters. */
+.bitfun-search-results__match-highlight {
+  padding: 1px 2px;
 }
 
 @media (forced-colors: active) {
