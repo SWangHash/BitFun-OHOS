@@ -61,12 +61,13 @@ function applyTerminalAppearance(): void {
   );
 }
 
-function press(textarea: HTMLElement, init: { key: string; keyCode: number }): void {
+function press(textarea: HTMLElement, init: { key: string; keyCode: number; isComposing?: boolean }): void {
   const event = new KeyboardEvent('keydown', {
     key: init.key,
     code: init.key,
     keyCode: init.keyCode,
     which: init.keyCode,
+    isComposing: init.isComposing ?? false,
     bubbles: true,
     cancelable: true,
     composed: true,
@@ -135,6 +136,14 @@ describe('Terminal keyboard input', () => {
     press(helperTextarea(), { key: 'ArrowDown', keyCode: 229 });
 
     expect(onData.mock.calls).toEqual([['\x1b[A'], ['\x1b[B']]);
+  });
+
+  it('leaves a composing arrow key to the input method', () => {
+    // While the IME composes, the arrow keys choose a candidate. Forwarding them
+    // would move the cursor in the terminal instead of the highlight in the list.
+    press(helperTextarea(), { key: 'ArrowUp', keyCode: 229, isComposing: true });
+
+    expect(onData).not.toHaveBeenCalled();
   });
 
   it('leaves key codes that are not IME reports to xterm', () => {

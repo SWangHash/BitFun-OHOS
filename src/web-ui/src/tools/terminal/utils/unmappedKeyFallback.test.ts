@@ -11,6 +11,7 @@ function keydown(overrides: Partial<Record<string, unknown>> & { key: string; ke
     altKey: false,
     metaKey: false,
     shiftKey: false,
+    isComposing: false,
     ...overrides,
   } as Parameters<typeof resolveUnmappedKeydownSequence>[0];
 }
@@ -53,6 +54,24 @@ describe('resolveUnmappedKeydownSequence', () => {
     expect(resolveUnmappedKeydownSequence(keydown({ key: 'Process', keyCode: 229 }), NORMAL)).toBeNull();
     expect(resolveUnmappedKeydownSequence(keydown({ key: 'Unidentified', keyCode: 229 }), NORMAL)).toBeNull();
     expect(resolveUnmappedKeydownSequence(keydown({ key: 'Dead', keyCode: 229 }), NORMAL)).toBeNull();
+  });
+
+  it('leaves keys the input method is composing with', () => {
+    // The same 229 report arrives while composing, and there the arrow keys move
+    // through the candidate list: sending them to the PTY would hijack the pick and
+    // drop a cursor key the user never meant for the shell.
+    expect(resolveUnmappedKeydownSequence(
+      keydown({ key: 'ArrowUp', keyCode: 229, isComposing: true }),
+      NORMAL,
+    )).toBeNull();
+    expect(resolveUnmappedKeydownSequence(
+      keydown({ key: 'ArrowDown', keyCode: 229, isComposing: true }),
+      NORMAL,
+    )).toBeNull();
+    expect(resolveUnmappedKeydownSequence(
+      keydown({ key: 'PageDown', keyCode: 229, isComposing: true }),
+      NORMAL,
+    )).toBeNull();
   });
 
   it('does not invent a sequence for modified presses', () => {

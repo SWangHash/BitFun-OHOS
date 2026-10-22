@@ -11,6 +11,11 @@
  *
  * `event.key` still identifies the physical key, so the sequence xterm would have
  * produced is rebuilt here and sent through the normal `onData` path.
+ *
+ * The same key code is also reported while an input method is composing, and there
+ * the key belongs to the method: its arrow keys move through the candidate list,
+ * so an `isComposing` event keeps the existing IME passthrough instead of gaining a
+ * cursor sequence nobody asked the PTY for.
  */
 
 /** Key codes xterm refuses to translate (`evaluateKeyboardEvent` bails out early). */
@@ -41,7 +46,7 @@ export interface UnmappedKeydownContext {
 
 type UnmappedKeydownEvent = Pick<
   KeyboardEvent,
-  'key' | 'keyCode' | 'ctrlKey' | 'altKey' | 'metaKey' | 'shiftKey'
+  'key' | 'keyCode' | 'ctrlKey' | 'altKey' | 'metaKey' | 'shiftKey' | 'isComposing'
 >;
 
 /**
@@ -57,6 +62,13 @@ export function resolveUnmappedKeydownSequence(
   context: UnmappedKeydownContext,
 ): string | null {
   if (!UNMAPPED_KEY_CODES.has(event.keyCode)) {
+    return null;
+  }
+
+  // Composing keys belong to the input method, which reaches this key code as
+  // well. Rebuilding a cursor sequence for them would move the terminal cursor or
+  // scroll history while the user is only picking a candidate.
+  if (event.isComposing) {
     return null;
   }
 
