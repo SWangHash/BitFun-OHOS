@@ -341,6 +341,16 @@ $_indent-width: 8px;
   width: 100%;
 }
 
+.bitfun-file-explorer__rename-error {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--bitfun-type-meta-font-size);
+  color: var(--bitfun-color-status-danger-content);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .bitfun-file-explorer__compressed-path {
   font-style: italic;
   opacity: 0.85;
