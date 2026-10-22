@@ -453,7 +453,15 @@
     align-items: center;
   }
 
+  /* A long status message (a rejected path, for instance) wraps inside its own
+     slot instead of taking the row: the submit button must stay reachable. */
+  .submit {
+    flex: 0 0 auto;
+  }
+
   .status {
+    flex: 1 1 auto;
+    min-inline-size: 0;
     gap: var(--bitfun-space-1);
     padding-inline-start: var(--bitfun-space-2);
     border-inline-start: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
@@ -461,6 +469,8 @@
   }
 
   .statusText {
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
     font-size: var(--bitfun-type-body-xs-font-size);
     font-weight: var(--bitfun-type-label-lg-font-weight);
     line-height: var(--bitfun-type-body-md-line-height);

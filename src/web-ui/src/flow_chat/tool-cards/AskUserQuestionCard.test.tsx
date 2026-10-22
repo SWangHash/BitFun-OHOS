@@ -935,6 +935,47 @@ describe('AskUserQuestionCard', () => {
       .toBe(true);
   });
 
+  it('keeps the own input and the options of a question as one field (#353)', async () => {
+    // 复现 #353：问卷收集卡片里手动输入路径后，候选项仍是选中态；提交值却取自输入框，
+    // 于是"选中的项"和"实际提交的值"不一致。两者是同一个字段，后动的那一方赢。
+    act(() => root.render(
+      <AskUserQuestionCard toolItem={qtMigrationTool()} config={config} sessionId="session-a" />,
+    ));
+
+    const candidate = () => container.querySelector<HTMLInputElement>('input[value="D:/work/myqt"]');
+    const sourceInput = () => container
+      .querySelectorAll<HTMLInputElement>('[data-bitfun-part="custom-input"] input')[0];
+    expect(candidate()?.checked).toBe(true);
+
+    act(() => {
+      const input = sourceInput();
+      if (input) setInputValue(input, 'D:/elsewhere/myqt');
+    });
+    expect(candidate()?.checked).toBe(false);
+    expect(sourceInput()?.value).toBe('D:/elsewhere/myqt');
+
+    // 反方向同理：重新点候选项，输入框里的路径被清掉。
+    act(() => candidate()?.click());
+    expect(candidate()?.checked).toBe(true);
+    expect(sourceInput()?.value).toBe('');
+
+    act(() => {
+      const input = sourceInput();
+      if (input) setInputValue(input, 'D:/elsewhere/myqt');
+    });
+    await act(async () => container
+      .querySelector<HTMLButtonElement>('[data-bitfun-part="submit"] button')?.click());
+    expect(toolAPI.submitUserAnswers).toHaveBeenCalledWith(
+      'question-tool-1',
+      {
+        source_project: 'D:/elsewhere/myqt',
+        toolchain: 'D:/ohos/qt5-kit',
+        template: '__official__',
+      },
+      'session-a',
+    );
+  });
+
   it('leaves a plain single-select question unanswered until the user picks', () => {
     act(() => root.render(
       <AskUserQuestionCard
