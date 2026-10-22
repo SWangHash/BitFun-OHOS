@@ -1,6 +1,6 @@
 import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { FlowToolItem } from '../types/flow-chat';
+import type { FlowToolItem, ToolCardDisplayContext } from '../types/flow-chat';
 import {
   LazyTerminalOutputRenderer,
   type TerminalOutputRendererHandle,
@@ -13,6 +13,7 @@ import { ToolCardCopyAction } from './ToolCardCopyAction';
 import { ToolTimeoutIndicator } from './ToolTimeoutIndicator';
 import { useCopyTextAction } from '../hooks/useCopyTextAction';
 import { useToolCardHeightContract } from './useToolCardHeightContract';
+import { useFlowChatContext } from '../components/modern/FlowChatContext';
 import { formatSessionViewPreviewText } from '../utils/sessionViewPreview';
 
 const EXEC_COLLAPSED_STATUSES = new Set(['completed', 'cancelled', 'error', 'rejected']);
@@ -44,6 +45,7 @@ interface ExecProcessToolCardViewProps {
   model: ExecProcessCardModel;
   onExpand?: () => void;
   isLastItem?: boolean;
+  displayContext?: ToolCardDisplayContext;
 }
 
 function isCollapsedStatus(status: string): boolean {
@@ -94,8 +96,12 @@ export const ExecProcessToolCardView: React.FC<ExecProcessToolCardViewProps> = (
   toolItem,
   model,
   onExpand,
+  displayContext,
 }) => {
   const { t } = useTranslation('flow-chat');
+  const { activeSessionOverride } = useFlowChatContext();
+  const isSubagentSurface = displayContext === 'subagent-projection'
+    || activeSessionOverride?.sessionKind === 'subagent';
   const status = toolItem.status || 'pending';
   const isParamsStreaming = Boolean(toolItem.isParamsStreaming);
   const progressLogs = useMemo(() => readProgressLogs(toolItem), [toolItem]);
@@ -114,7 +120,11 @@ export const ExecProcessToolCardView: React.FC<ExecProcessToolCardViewProps> = (
   const toolId = toolItem.id ?? toolItem.toolCall?.id;
   const hasLiveOutput = liveOutput.length > 0;
 
-  const [isExpanded, setIsExpandedState] = useState(() => getInitialExpandedState(status, hasLiveOutput));
+  // Embedded output remains compact while it streams on a subagent surface;
+  // the reader can still expand the card explicitly.
+  const [isExpanded, setIsExpandedState] = useState(
+    () => (isSubagentSurface ? false : getInitialExpandedState(status, hasLiveOutput)),
+  );
   const userToggledRef = useRef(false);
   const autoExpandedAtRef = useRef<number | null>(null);
   const outputRendererRef = useRef<TerminalOutputRendererHandle | null>(null);

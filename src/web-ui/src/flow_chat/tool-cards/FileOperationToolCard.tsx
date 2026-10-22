@@ -37,6 +37,7 @@ import { i18nService } from '@/infrastructure/i18n';
 import { WritePlanDisplay } from './WritePlanDisplay';
 import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 import { hasSessionFileProvider, openFileThroughSession } from '../session-drivers/sessionFileNavigation';
+import { useFlowChatContext } from '../components/modern/FlowChatContext';
 
 const log = createLogger('FileOperationToolCard');
 const FILE_OPERATION_STREAMING_MAX_HEIGHT = 4 * 22; // 88px – compact while streaming
@@ -126,6 +127,7 @@ interface FileOperationToolCardProps extends ToolCardProps {
 const GenericFileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
   toolItem,
   config,
+  displayContext,
   sessionId,
   onOpenInEditor,
   isLastItem,
@@ -143,7 +145,14 @@ const GenericFileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
   const toolId = toolItem.id ?? toolCall?.id;
   const isFailed = status === 'error' || (toolResult && 'success' in toolResult && !toolResult.success);
   
-  const [isContentExpanded, setIsContentExpanded] = useState(status !== 'completed' && !isFailed);
+  const { activeSessionOverride } = useFlowChatContext();
+  const isSubagentSurface = displayContext === 'subagent-projection'
+    || activeSessionOverride?.sessionKind === 'subagent';
+  // Tool payloads can keep arriving while an embedded subagent is hidden;
+  // avoid mounting the full preview until the reader expands the card.
+  const [isContentExpanded, setIsContentExpanded] = useState(
+    !isSubagentSurface && status !== 'completed' && !isFailed,
+  );
   const [isFailureExpanded, setIsFailureExpanded] = useState(false);
   const [retainLiveCompletionPreview, setRetainLiveCompletionPreview] = useState(false);
   const [operationDiffStats, setOperationDiffStats] = useState<{ surfaceEpoch: number; additions: number; deletions: number } | null>(null);
@@ -250,10 +259,12 @@ const GenericFileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
   const writeTypewriter = useTypewriter(
     toolItem.toolName === 'Write' ? contentPreview : '',
     isWriteContentAnimating,
+    { revealImmediately: !isContentExpanded },
   );
   const editTypewriter = useTypewriter(
     toolItem.toolName === 'Edit' ? newStringContent : '',
     isEditContentAnimating,
+    { revealImmediately: !isContentExpanded },
   );
   useReportTypewriterReveal(`${toolId ?? 'file-op'}:write`, writeTypewriter.isRevealing);
   useReportTypewriterReveal(`${toolId ?? 'file-op'}:edit`, editTypewriter.isRevealing);
@@ -389,6 +400,12 @@ const GenericFileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
   }, [isFailed, isFailureExpanded]);
 
   useLayoutEffect(() => {
+    if (isSubagentSurface && !userToggledContentRef.current) {
+      setRetainLiveCompletionPreview(false);
+      applyContentExpandedState(false, 'auto');
+      return;
+    }
+
     if (isFailed) {
       setRetainLiveCompletionPreview(false);
       applyContentExpandedState(false, 'auto');
@@ -421,6 +438,7 @@ const GenericFileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
     isContentExpanded,
     isFailed,
     isLastItem,
+    isSubagentSurface,
     status,
   ]);
 

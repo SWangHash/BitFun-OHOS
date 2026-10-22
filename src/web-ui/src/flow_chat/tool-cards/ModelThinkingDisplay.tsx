@@ -16,6 +16,7 @@ import type { FlowThinkingItem } from '../types/flow-chat';
 import { useTypewriter } from '../hooks/useTypewriter';
 import { useReportTypewriterReveal } from '../hooks/typewriterRevealGateContext';
 import { useToolCardHeightContract } from './useToolCardHeightContract';
+import { useFlowChatContext } from '../components/modern/FlowChatContext';
 import {
   nextEasedScrollTopPx,
   shouldEaseTailFollow,
@@ -43,6 +44,7 @@ export const ModelThinkingDisplay: React.FC<ModelThinkingDisplayProps> = ({
   displayContext = 'default',
 }) => {
   const { t } = useTranslation('flow-chat');
+  const { activeSessionOverride } = useFlowChatContext();
   const { content, isStreaming, status } = thinkingItem;
   const isSummary = thinkingItem.reasoningKind === 'summary';
   const contentRef = useRef<HTMLDivElement>(null);
@@ -59,7 +61,10 @@ export const ModelThinkingDisplay: React.FC<ModelThinkingDisplayProps> = ({
   } | null>(null);
 
   const isActive = isStreaming || status === 'streaming';
-  const shouldDefaultExpanded = forceExpanded || (!isSummary && (
+  // Embedded subagent transcripts stay compact until the reader opens them.
+  const isSubagentSurface = displayContext === 'subagent-projection'
+    || activeSessionOverride?.sessionKind === 'subagent';
+  const shouldDefaultExpanded = forceExpanded || (!isSubagentSurface && !isSummary && (
     displayContext === 'subagent-projection'
       ? isActive || isLastItem
       : isLastItem
