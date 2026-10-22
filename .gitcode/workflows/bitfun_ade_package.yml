@@ -335,6 +335,10 @@ jobs:
           # packaged branch below; untracked dirs survive checkout.
           mkdir -p .package-tools
           cp scripts/ci/publish-gitcode-release.mjs .package-tools/
+          if [ -d .gitcode/dev-preview/windows ]; then
+            mkdir -p .package-tools/dev-preview
+            cp .gitcode/dev-preview/windows/* .package-tools/dev-preview/
+          fi
           git fetch --force origin "$PKG_BRANCH"
           git checkout --force --detach FETCH_HEAD
           echo "commit=$(git rev-parse HEAD)" >> "$ATOMGIT_OUTPUT"
@@ -514,6 +518,12 @@ jobs:
               for sidecar in "$rel"/flashgrep*; do
                 if [ -e "$sidecar" ]; then cp -r "$sidecar" "$stage/"; fi
               done
+              # dev-preview helpers: README + one-click NSIS installer script
+              for helper in README.txt make-installer.bat installer.nsi; do
+                if [ -f "/workspace/.package-tools/dev-preview/$helper" ]; then
+                  cp "/workspace/.package-tools/dev-preview/$helper" "$stage/"
+                fi
+              done
               out=/workspace/desktop-package-output
               mkdir -p "$out"
               asset="$PKG_NAME"
@@ -595,9 +605,18 @@ jobs:
           set -eu
           # Keep this workflow ref's publisher (it understands the
           # asset-extensions flag) even after switching the worktree to the
-          # packaged branch below; untracked dirs survive checkout.
+          # packaged branch below; untracked dirs survive checkout. The
+          # Mach-O dylib dedup fixer is new on this workflow ref, so copy it
+          # only when the packaged branch carries it.
           mkdir -p .package-tools
           cp scripts/ci/publish-gitcode-release.mjs .package-tools/
+          if [ -f scripts/ci/fix-macho-duplicate-dylibs.mjs ]; then
+            cp scripts/ci/fix-macho-duplicate-dylibs.mjs .package-tools/
+          fi
+          if [ -d .gitcode/dev-preview/macos ]; then
+            mkdir -p .package-tools/dev-preview
+            cp .gitcode/dev-preview/macos/* .package-tools/dev-preview/
+          fi
           git fetch --force origin "$PKG_BRANCH"
           git checkout --force --detach FETCH_HEAD
           echo "commit=$(git rev-parse HEAD)" >> "$ATOMGIT_OUTPUT"
@@ -622,6 +641,7 @@ jobs:
             "$cache_root/cargo/git" \
             "$cache_root/sherpa-onnx" \
             "$bin_cache" \
+            "$cache_root/macos-sdk" \
             "$target_cache"
           docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
           docker run --detach \
@@ -630,24 +650,40 @@ jobs:
             --volume "$cache_root/cargo/registry:$cargo_home/registry" \
             --volume "$cache_root/cargo/git:$cargo_home/git" \
             --volume "$cache_root/sherpa-onnx:/opt/sherpa-onnx-cache" \
-            --volume "$bin_cache:/opt/bitfun-bin" \
+            --volume "$cache_root/bin:/opt/bitfun-bin" \
+            --volume "$cache_root/macos-sdk/MacOSX26.1.sdk:/opt/MacOSX26.1.sdk" \
             --volume "$target_cache:/workspace/target" \
             --workdir /workspace \
             "$IMAGE" \
             sh -c 'while :; do sleep 3600; done'
 
-      - name: Verify sherpa-onnx seed archive
+      - name: Verify sherpa-onnx seed archives and SDK
         run: |
           set -eu
-          archive='sherpa-onnx-v1.13.4-osx-arm64-static-lib.tar.bz2'
           seed='/opt/.gitcode-cache/sherpa-onnx'
-          if [ ! -f "$seed/$archive" ]; then
-            echo "::error::$seed/$archive is missing." >&2
-            echo "Seed it with the pre-downloaded release archive (scp/upload once per runner):" >&2
-            echo "  $archive -> $seed/" >&2
+          for archive in \
+            'sherpa-onnx-v1.13.4-osx-arm64-static-lib.tar.bz2'; do
+            if [ ! -f "$seed/$archive" ]; then
+              echo "::error::$seed/$archive is missing." >&2
+              echo "Seed it with the pre-downloaded release archive (scp/upload once per runner):" >&2
+              echo "  $archive -> $seed/" >&2
+              exit 1
+            fi
+            echo "sherpa-onnx seed archive found: $seed/$archive"
+          done
+          # The image ships macOS SDK 11.3 (2021), whose Vision.tbd-era
+          # export tables produce broken two-level bindings on modern
+          # macOS runtimes. A current SDK is mounted from the host cache.
+          sdk='/opt/.gitcode-cache/macos-sdk/MacOSX26.1.sdk'
+          if [ ! -d "$sdk/System/Library/Frameworks" ]; then
+            echo "::error::$sdk is missing or incomplete." >&2
+            echo "Seed the modern SDK (one-time, per runner):" >&2
+            echo "  mkdir -p /opt/.gitcode-cache/macos-sdk && cd /opt/.gitcode-cache/macos-sdk" >&2
+            echo "  curl -L --fail --retry 3 -o MacOSX26.1.sdk.tar.xz https://github.com/joseluisq/macosx-sdks/releases/download/26.1/MacOSX26.1.sdk.tar.xz" >&2
+            echo "  tar -xJf MacOSX26.1.sdk.tar.xz" >&2
             exit 1
           fi
-          echo "sherpa-onnx seed archive found: $seed/$archive"
+          echo "macOS SDK found: $sdk"
 
       # Bound stalled GitHub fetches (warm with retries) before the long
       # build; GIT_CONFIG_GLOBAL also applies to the build step below.
@@ -680,6 +716,7 @@ jobs:
             command -v pnpm >/dev/null 2>&1 || npm install -g pnpm@9
             command -v bun >/dev/null 2>&1 || npm install -g bun
             command -v zip >/dev/null 2>&1 || { apt-get update -qq && apt-get install -y -qq zip; }
+            rustup target add aarch64-apple-darwin x86_64-apple-darwin
             # ldid is not packaged for Debian 13; cache the ProcursusTeam
             # prebuilt binary on the runner (one download, then offline).
             if ! command -v ldid >/dev/null 2>&1 && [ ! -x /opt/bitfun-bin/ldid ]; then
@@ -698,15 +735,35 @@ jobs:
           set -eu
           docker exec "$CONTAINER_NAME" sh -c 'set -eu; cd /workspace && pnpm install && pnpm --dir design-system run build:packages && npm run build && pnpm run plugin-host:prepare && pnpm --dir src/mobile-web run build'
 
-      - name: Cross build desktop (aarch64-apple-darwin)
+      - name: Inject macOS target rustflags into container CARGO_HOME
         run: |
           set -eu
-          build_args='--runner cargo-zigbuild --no-bundle --target aarch64-apple-darwin --verbose'
-          case "$DEBUG_FLAG" in
-            true|True|TRUE) build_args="$build_args --debug" ;;
-          esac
+          # Belt-and-suspenders alongside the CARGO_TARGET_*_RUSTFLAGS env
+          # vars in the build step: the config applies to every cargo
+          # invocation in this container, not only the desktop build step
+          # (cargo gives the env vars precedence when both are set, and the
+          # flags are identical either way). zig's Mach-O linker rejects
+          # -flat_namespace outright, so the injected flags keep only
+          # -undefined,dynamic_lookup for symbols absent from every tbd.
+          docker exec "$CONTAINER_NAME" sh -c '
+            set -eu
+            cfg="${CARGO_HOME:-/usr/local/cargo}/config.toml"
+            touch "$cfg"
+            if ! grep -q "undefined,dynamic_lookup" "$cfg"; then
+              printf "\n[target.aarch64-apple-darwin]\nrustflags = [\"-C\", \"link-arg=-Wl,-undefined,dynamic_lookup\"]\n\n[target.x86_64-apple-darwin]\nrustflags = [\"-C\", \"link-arg=-Wl,-undefined,dynamic_lookup\"]\n" >> "$cfg"
+            fi
+            echo "--- $cfg ---"
+            cat "$cfg"
+          '
+
+      - name: Cross build desktop (aarch64 and x86_64)
+        run: |
+          set -eu
+          # Two targets share the container, frontend artifacts and caches;
+          # each has its own cargo fingerprint set, so the first run
+          # compiles both fully and later runs are incremental.
           # Same cross env as the agent_kernel CLI macOS pipelines: zig cc
-          # wrappers against the image's extracted macOS SDK. --runner
+          # wrappers against the extracted macOS SDK. --runner
           # cargo-zigbuild makes rustc link through zig (a plain cargo build
           # would invoke the host cc with mac-specific flags and fail). The
           # cargo-zigbuild wrapper rejects -adhoc_codesign, so the ad-hoc
@@ -714,21 +771,42 @@ jobs:
           # LZMA_API_STATIC: force lzma-sys to build its vendored liblzma;
           # otherwise pkg-config finds the host liblzma and the SDK's tbd
           # (old ABI) gets linked, leaving _lzma_stream_encoder_mt undefined.
-          docker exec \
-            --env CARGO_NET_GIT_FETCH_WITH_CLI=true \
-            --env SHERPA_ONNX_ARCHIVE_DIR=/opt/sherpa-onnx-cache \
-            --env CARGO_TARGET_DIR=/workspace/target \
-            --env SDKROOT=/opt/MacOSX.sdk \
-            --env CC_aarch64_apple_darwin='cargo-zigbuild zig cc -- -target aarch64-macos-none' \
-            --env CXX_aarch64_apple_darwin='cargo-zigbuild zig c++ -- -target aarch64-macos-none' \
-            --env GIT_CONFIG_GLOBAL=/tmp/gitconfig \
-            --env LZMA_API_STATIC=1 \
-            "$CONTAINER_NAME" \
-            sh -c "set -eu; cd /workspace && exec node scripts/desktop-tauri-build.mjs $build_args"
+          # macOS rustflags: -undefined,dynamic_lookup only. zig's Mach-O
+          # linker rejects -flat_namespace outright ("unsupported linker
+          # arg"); it was a workaround for the "misbound two-level ordinals"
+          # launches whose real cause was the Mach-O dedup fixer skipping
+          # ULEB128 ordinals (>= 16) — fixed and hardware-verified in
+          # scripts/ci/fix-macho-duplicate-dylibs.mjs, so the raw zig link
+          # output keeps correct two-level binds. dynamic_lookup stays as
+          # belt-and-suspenders for symbols absent from every tbd.
+          for target in aarch64-apple-darwin; do # x86_64 pending: enable after aarch64 is validated
+            build_args="--runner cargo-zigbuild --no-bundle --target $target --verbose"
+            case "$DEBUG_FLAG" in
+              true|True|TRUE) build_args="$build_args --debug" ;;
+            esac
+            # The SDK switch does not change cargo fingerprints; drop the
+            # final link outputs so the crate relinks against the new SDK.
+            docker exec "$CONTAINER_NAME" sh -c "rm -f /workspace/target/\$target/release/bitfun-desktop /workspace/target/\$target/release/deps/libbitfun_desktop_lib.dylib"
+            docker exec \
+              --env CARGO_NET_GIT_FETCH_WITH_CLI=true \
+              --env SHERPA_ONNX_ARCHIVE_DIR=/opt/sherpa-onnx-cache \
+              --env CARGO_TARGET_DIR=/workspace/target \
+              --env SDKROOT=/opt/MacOSX26.1.sdk \
+              --env CC_aarch64_apple_darwin='cargo-zigbuild zig cc -- -target aarch64-macos-none' \
+              --env CXX_aarch64_apple_darwin='cargo-zigbuild zig c++ -- -target aarch64-macos-none' \
+              --env CC_x86_64_apple_darwin='cargo-zigbuild zig cc -- -target x86_64-macos-none' \
+              --env CXX_x86_64_apple_darwin='cargo-zigbuild zig c++ -- -target x86_64-macos-none' \
+              --env GIT_CONFIG_GLOBAL=/tmp/gitconfig \
+              --env LZMA_API_STATIC=1 \
+              --env CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTFLAGS='-C link-arg=-Wl,-undefined,dynamic_lookup' \
+              --env CARGO_TARGET_X86_64_APPLE_DARWIN_RUSTFLAGS='-C link-arg=-Wl,-undefined,dynamic_lookup' \
+              "$CONTAINER_NAME" \
+              sh -c "set -eu; cd /workspace && exec node scripts/desktop-tauri-build.mjs $build_args"
+          done
         env:
           DEBUG_FLAG: ${{ inputs.debug }}
 
-      - name: Collect dev-preview zip
+      - name: Collect dev-preview zips
         env:
           PKG_NAME: ${{ inputs.package_name }}
           RELEASE_TAG: ${{ inputs.release_tag }}
@@ -744,31 +822,6 @@ jobs:
               set -eu
               profile=release
               case "$DEBUG_FLAG" in true|True|TRUE) profile=debug ;; esac
-              rel=/workspace/target/aarch64-apple-darwin/$profile
-              binary="$rel/bitfun-desktop"
-              if [ ! -f "$binary" ]; then
-                echo "::error::macOS binary not found at $binary." >&2
-                exit 1
-              fi
-              stage=/workspace/desktop-package-stage
-              rm -rf "$stage"
-              mkdir -p "$stage"
-              cp "$binary" "$stage/bitfun-desktop"
-              # Ad-hoc sign so Apple Silicon can execute the binary; the
-              # cached ProcursusTeam ldid is provisioned in the tooling step.
-              if [ -x /opt/bitfun-bin/ldid ]; then
-                /opt/bitfun-bin/ldid -S "$stage/bitfun-desktop"
-              elif command -v ldid >/dev/null 2>&1; then
-                ldid -S "$stage/bitfun-desktop"
-              else
-                echo "::warning::ldid unavailable; the macOS binary will not run on Apple Silicon without ad-hoc signing." >&2
-              fi
-              for item in frontend resources mobile-web; do
-                if [ -e "$rel/$item" ]; then cp -r "$rel/$item" "$stage/"; fi
-              done
-              for sidecar in "$rel"/flashgrep*; do
-                if [ -e "$sidecar" ]; then cp -r "$sidecar" "$stage/"; fi
-              done
               out=/workspace/desktop-package-output
               mkdir -p "$out"
               asset="$PKG_NAME"
@@ -780,12 +833,53 @@ jobs:
                     exit 1
                     ;;
                 esac
-                zip_name="$asset-macos-aarch64.zip"
-              else
-                zip_name="bitfun-desktop-aarch64-dev.zip"
               fi
-              (cd "$stage" && zip -qr "$out/$zip_name" .)
-              echo "Collected $zip_name"
+              for arch in aarch64; do # x86_64 pending: enable after aarch64 is validated
+                rel=/workspace/target/$arch-apple-darwin/$profile
+                binary="$rel/bitfun-desktop"
+                if [ ! -f "$binary" ]; then
+                  echo "::error::macOS binary not found at $binary." >&2
+                  exit 1
+                fi
+                stage=/workspace/desktop-package-stage
+                rm -rf "$stage"
+                mkdir -p "$stage"
+                cp "$binary" "$stage/bitfun-desktop"
+                # The zig lld leaves duplicate LC_LOAD_DYLIB entries (libobjc,
+                # libiconv) that strict dyld refuses to launch; dedup before
+                # signing.
+                if [ -f /workspace/.package-tools/fix-macho-duplicate-dylibs.mjs ]; then
+                  node /workspace/.package-tools/fix-macho-duplicate-dylibs.mjs "$stage/bitfun-desktop"
+                fi
+                # Ad-hoc sign so Apple Silicon can execute the binary; the
+                # cached ProcursusTeam ldid is provisioned in the tooling step.
+                if [ -x /opt/bitfun-bin/ldid ]; then
+                  /opt/bitfun-bin/ldid -S "$stage/bitfun-desktop"
+                elif command -v ldid >/dev/null 2>&1; then
+                  ldid -S "$stage/bitfun-desktop"
+                else
+                  echo "::warning::ldid unavailable; the macOS binary will not run on Apple Silicon without ad-hoc signing." >&2
+                fi
+                for item in frontend resources mobile-web; do
+                  if [ -e "$rel/$item" ]; then cp -r "$rel/$item" "$stage/"; fi
+                done
+                for sidecar in "$rel"/flashgrep*; do
+                  if [ -e "$sidecar" ]; then cp -r "$sidecar" "$stage/"; fi
+                done
+                # dev-preview helpers: README + one-click .app/.dmg script
+                for helper in README.txt make-dmg.sh; do
+                  if [ -f "/workspace/.package-tools/dev-preview/$helper" ]; then
+                    cp "/workspace/.package-tools/dev-preview/$helper" "$stage/"
+                  fi
+                done
+                if [ -n "$asset" ]; then
+                  zip_name="$asset-macos-$arch.zip"
+                else
+                  zip_name="bitfun-desktop-$arch-dev.zip"
+                fi
+                (cd "$stage" && zip -qr "$out/$zip_name" .)
+                echo "Collected $zip_name"
+              done
             '
 
       - name: Artifact gate
