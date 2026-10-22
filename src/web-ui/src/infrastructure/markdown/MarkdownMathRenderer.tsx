@@ -14,6 +14,8 @@ import { rehypeSourceRange, type MarkdownSourceRange } from './rehypeSourceRange
 
 interface MarkdownMathRendererProps {
   markdownContent: string;
+  /** Accepted for upstream parity; this tree has no streaming table-link plugin yet. */
+  isStreaming?: boolean;
   components: Components;
   sanitizeSchema: RehypeSanitizeOptions;
   remarkAutolinkComputerFileLinks: Pluggable;

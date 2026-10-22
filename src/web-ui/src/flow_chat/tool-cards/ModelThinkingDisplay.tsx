@@ -62,12 +62,11 @@ export const ModelThinkingDisplay: React.FC<ModelThinkingDisplayProps> = ({
 
   const isActive = isStreaming || status === 'streaming';
   // Embedded subagent transcripts stay compact until the reader opens them.
-  const isSubagentSurface = displayContext === 'subagent-projection'
+  const isSubagentProjection = displayContext === 'subagent-projection';
+  const isSubagentSurface = isSubagentProjection
     || activeSessionOverride?.sessionKind === 'subagent';
   const shouldDefaultExpanded = forceExpanded || (!isSubagentSurface && !isSummary && (
-    displayContext === 'subagent-projection'
-      ? isActive || isLastItem
-      : isLastItem
+    isSubagentProjection ? isActive || isLastItem : isLastItem
   ));
 
   const [isExpanded, setIsExpanded] = useState(shouldDefaultExpanded);
