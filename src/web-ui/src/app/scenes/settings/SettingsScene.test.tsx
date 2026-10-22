@@ -133,4 +133,45 @@ describe('SettingsScene canonical page routing', () => {
     expect(save).toHaveBeenCalledOnce();
     expect(useSettingsStore.getState().activePageId).toBe('application.appearance');
   });
+
+  it('hides the save action after a failed save while keeping the dialog open', async () => {
+    const save = vi.fn(async () => false);
+    registerSettingsDraft({
+      id: 'general-form',
+      pageId: 'application.general',
+      label: 'General form',
+      dirty: true,
+      save,
+      discard: vi.fn(),
+    });
+    await act(async () => root.render(<SettingsScene />));
+
+    await act(async () => useSettingsStore.getState().openPage('application.appearance'));
+    const dialog = () => document.querySelector<HTMLElement>(
+      '[data-testid="settings-unsaved-navigation-dialog"]',
+    );
+    const buttons = () => Array.from(
+      dialog()?.querySelectorAll<HTMLButtonElement>('button') ?? [],
+    );
+    expect(dialog()?.textContent).toContain('General form');
+    expect(buttons()).toHaveLength(3);
+
+    await act(async () => {
+      buttons()[2]?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(save).toHaveBeenCalledOnce();
+    expect(dialog()).not.toBeNull();
+    expect(buttons()).toHaveLength(2);
+
+    // The remaining actions stay usable: discard commits the navigation.
+    await act(async () => {
+      buttons()[1]?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(useSettingsStore.getState().activePageId).toBe('application.appearance');
+  });
 });

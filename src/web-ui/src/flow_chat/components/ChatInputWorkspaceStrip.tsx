@@ -916,7 +916,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
                   left: `${permissionMenuLayout?.left ?? 0}px`,
                   visibility: permissionMenuLayout ? 'visible' : 'hidden',
                 }}
-                aria-label={`${t('chatInput.permissionMode.menuLabel')} ? ${permissionMenuScopeLabel}`}
+                aria-label={`${t('chatInput.permissionMode.menuLabel')}. ${permissionMenuScopeLabel}`}
                 data-testid="chat-input-permission-menu"
                 autoFocusFirstItem
                 onKeyDown={event => {
@@ -933,7 +933,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
                 {permissionMenuView === 'session' ? (
                   <>
                     <MenuSection
-                      title={`${t('chatInput.permissionMode.menuLabel')} ? ${permissionSessionScopeLabel}`}
+                      title={`${t('chatInput.permissionMode.menuLabel')}. ${permissionSessionScopeLabel}`}
                       data-bitfun-component="chat-input-workspace-strip"
                       data-bitfun-part="permissionOptions"
                     >
@@ -993,7 +993,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
                   </>
                 ) : (
                   <MenuSection
-                    title={`${t('chatInput.permissionMode.menuLabel')} ? ${permissionTurnScopeLabel}`}
+                    title={`${t('chatInput.permissionMode.menuLabel')}. ${permissionTurnScopeLabel}`}
                     data-bitfun-component="chat-input-workspace-strip"
                     data-bitfun-part="permissionOptions"
                   >

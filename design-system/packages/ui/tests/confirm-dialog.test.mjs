@@ -45,6 +45,14 @@ test("ConfirmDialog owns async pending and dismissal guards", async () => {
   assert.match(source, /designSystem\.messages\.confirmAction/);
 });
 
+test("ConfirmDialog treats the confirm action as optional like the cancel action", async () => {
+  const source = await readFile(sourceUrl, "utf8");
+
+  assert.match(source, /showConfirm\?: boolean/);
+  assert.match(source, /showConfirm = true/);
+  assert.match(source, /\{showConfirm \? \(\r?\n/);
+});
+
 test("ConfirmDialog presents semantic icons as bare glyphs", async () => {
   const styles = await readFile(stylesUrl, "utf8");
   const iconRule = styles.match(/\.icon\s*\{[^}]+\}/)?.[0];

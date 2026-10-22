@@ -586,6 +586,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   // other open session.
   const [sessionPermissionMode, setSessionPermissionMode] =
     useState<SessionPermissionMode | null>(null);
+  // The mode the strip shows must exist before it renders. Both inputs (the
+  // global default config and, once a session is targeted, that session's own
+  // mode) arrive asynchronously, and the built-in fallback is full access —
+  // rendering before they resolve flashes an `ask` session as unconfirmed.
+  const [toolPermissionConfigLoaded, setToolPermissionConfigLoaded] = useState(false);
+  const [permissionModeResolvedForSessionId, setPermissionModeResolvedForSessionId] =
+    useState<string | null>(null);
   // One-off state has two owners: the idle composer arms a future submission,
   // while an executing turn keeps a mutable override until it ends.
   const [armedTurnPermissionMode, setArmedTurnPermissionMode] =
@@ -1257,6 +1264,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const permissionMode: ChatInputPermissionMode = isAcpTargetSession
     ? 'acp'
     : chatInputPermissionMode(sessionPermissionMode ?? globalPermissionMode);
+  // Whether the mode above is a resolved value rather than the pre-load
+  // fallback. The dispatch approval policy reads the session config directly
+  // and never needs this gate.
+  const permissionModeResolved = isAcpTargetSession
+    ? true
+    : effectiveTargetSessionId
+      ? permissionModeResolvedForSessionId === effectiveTargetSessionId
+      : toolPermissionConfigLoaded;
   const temporaryPermissionMode = activePermissionTurnId
     ? activeTurnPermissionMode
     : armedTurnPermissionMode;
@@ -2428,6 +2443,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const applyConfig = (config: ToolPermissionConfig) => {
       if (!cancelled) {
         setToolPermissionConfig(config);
+        setToolPermissionConfigLoaded(true);
       }
     };
     const loadConfig = async () => {
@@ -2463,8 +2479,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     };
 
     if (sessionChanged) {
+      // The previous session's mode must not stand in for the new one while it
+      // loads: a stale wider mode reads as if tools will run unconfirmed.
+      setSessionPermissionMode(null);
       setArmedTurnPermissionMode(null);
       setActiveTurnPermissionMode(null);
+      setPermissionModeResolvedForSessionId(null);
     } else if (activeTurnChanged) {
       // A locally submitted one-off becomes the active turn's initial mode.
       // Keep it armed until start_dialog_turn acknowledges so a failed send
@@ -2494,6 +2514,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         });
         if (permissionModeRequestGenerationRef.current !== generation) return;
         setSessionPermissionMode(response.mode ?? null);
+        setPermissionModeResolvedForSessionId(effectiveTargetSessionId);
         if (activePermissionTurnId && response.activeTurnId === activePermissionTurnId) {
           setActiveTurnPermissionMode(response.turnMode ?? null);
         }
@@ -2503,6 +2524,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         // wider mode than the session actually runs with.
         if (permissionModeRequestGenerationRef.current === generation) {
           setSessionPermissionMode(null);
+          setPermissionModeResolvedForSessionId(effectiveTargetSessionId);
         }
       }
     })();
@@ -2549,6 +2571,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       ) {
         setSessionPermissionMode(response.mode ?? null);
         setActiveTurnPermissionMode(null);
+        // An explicit user choice is itself a resolved mode, even when it won
+        // the race against the session's initial read.
+        setPermissionModeResolvedForSessionId(targetSessionId);
       }
     } catch (error) {
       log.error('Failed to change session permission mode', error);
@@ -6093,7 +6118,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       dispatchControl={dispatchControl}
       worktreeControl={worktreeControl}
       deferPassiveGitRefresh={deferChatStripPassiveGitRefresh}
+      // The native control stays hidden until its mode is resolved, so an `ask`
+      // session never flashes the pre-load full-access fallback. The dispatch
+      // policy is read synchronously and does not wait.
       permissionControl={showPermissionModeControl
+        && (caps.sessionScopedApproval || permissionModeResolved)
         ? caps.sessionScopedApproval
           ? {
               mode: dispatchPermissionMode,

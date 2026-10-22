@@ -16,6 +16,7 @@ export const confirmDialogMeta = {
     { name: "preview", type: "ReactNode" },
     { defaultValue: "false", name: "confirmDanger", type: "boolean" },
     { defaultValue: "true", name: "showCancel", type: "boolean" },
+    { defaultValue: "true", name: "showConfirm", type: "boolean" },
     { defaultValue: "false", name: "showCloseButton", type: "boolean" },
     { name: "pendingAction", type: "confirm | secondary | null" },
     { name: "onConfirm", type: "() => void | Promise<void>" },
