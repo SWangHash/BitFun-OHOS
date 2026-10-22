@@ -11,6 +11,7 @@ import { WebglAddon } from '@xterm/addon-webgl';
 import {
   TerminalResizeDebouncer,
   DEFAULT_XTERM_MINIMUM_CONTRAST_RATIO,
+  resolveUnmappedKeydownSequence,
 } from '../utils';
 import type { ReplayColumnGuard, TerminalPasteDecision } from '../utils';
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
@@ -726,8 +727,24 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
       // During active IME composition, compositionstart/compositionend events
       // still fire and xterm handles them normally; this only affects the
       // non-composition passthrough path.
-      if (event.type === 'keydown' && event.keyCode === 229) {
-        return false;
+      //
+      // That bypass only works for keys that insert text. xterm gives up on the
+      // key code itself, so an arrow key reported this way would never become a
+      // PTY byte and shell history navigation would silently skip a press. Rebuild
+      // those keys from `event.key` instead of letting them fall through.
+      if (event.type === 'keydown' && (event.keyCode === 229 || event.keyCode === 0)) {
+        const sequence = resolveUnmappedKeydownSequence(event, {
+          applicationCursorKeys: terminalRef.current?.modes.applicationCursorKeysMode ?? false,
+        });
+        if (sequence) {
+          event.preventDefault();
+          onDataRef.current?.(sequence);
+          return false;
+        }
+
+        if (event.keyCode === 229) {
+          return false;
+        }
       }
 
       return true;
