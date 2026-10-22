@@ -642,7 +642,7 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
         } else if (!answerCameFromInput && knownValues.has(value)) {
           selectedValues.push(value);
         } else if (value) {
-          if (!answerCameFromInput && !selectedValues.includes(OTHER_OPTION_VALUE)) {
+          if (!selectedValues.includes(OTHER_OPTION_VALUE)) {
             selectedValues.push(OTHER_OPTION_VALUE);
           }
           customValues.push(value);

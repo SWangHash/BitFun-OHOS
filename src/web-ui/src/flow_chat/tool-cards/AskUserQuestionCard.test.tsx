@@ -935,9 +935,12 @@ describe('AskUserQuestionCard', () => {
 
     // 提交后：已完成卡片按持久化答案值回放；按候选项回答的问题仍显示为选中。
     // The picked path is shown as the answer for the source project question;
-    // the candidate option with the same path is not checked, and the
-    // toolchain candidate remains selected.
+    // "Other" is checked so the inline input with the path is visible, the
+    // candidate option with the same path is not checked, and the toolchain
+    // candidate remains selected.
     expect(container.textContent).toContain('D:/work/myqt');
+    expect(container.querySelector<HTMLInputElement>('input[value="other"]')?.checked)
+      .toBe(true);
     expect(container.querySelector<HTMLInputElement>('input[value="D:/work/myqt"]')?.checked)
       .toBe(false);
     expect(container.querySelector<HTMLInputElement>('input[value="D:/ohos/qt5-kit"]')?.checked)
