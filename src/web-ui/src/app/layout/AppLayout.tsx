@@ -40,6 +40,7 @@ import { WorkspaceKind } from '@/shared/types';
 import { SSHContext } from '@/features/ssh-remote/SSHRemoteContext';
 import { shortcutManager, parseStoredKeybindings } from '@/infrastructure/services/ShortcutManager';
 import { isMacOSDesktopRuntime, isOpenHarmonyRuntime, usesHostWindowControls } from '@/infrastructure/runtime';
+import { TitleTooltipHost } from '@/app/components/TitleTooltipHost/TitleTooltipHost';
 import { flowChatSessionConfigForWorkspace } from '../utils/projectSessionWorkspace';
 import { startSessionSceneLifecycle } from '../services/sessionSceneLifecycle';
 import { startFlowChatInitialization } from '../services/flowChatInitialization';
@@ -806,6 +807,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
       </RetainedMountBoundary>
       <MCPInteractionDialog />
       <FileCreationDialogHost />
+      {isOpenHarmony && <TitleTooltipHost />}
       {isOpenHarmony && (
         <Suspense fallback={null}>
           <AgentCompanionInAppPet />
