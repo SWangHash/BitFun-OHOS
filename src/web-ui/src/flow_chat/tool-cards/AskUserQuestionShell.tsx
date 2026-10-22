@@ -551,11 +551,17 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
         }
 
         if (Array.isArray(answer)) {
-          processedAnswers[answerKey] = answer.flatMap((value) => (
+          const values = answer.flatMap((value) => (
             value === OTHER_OPTION_VALUE
               ? otherInput ? [otherInput] : []
               : [value]
           ));
+          // A declared input is one field with the option list for a
+          // multi-select question too: when the typed text cleared the options,
+          // that text is all that is left of the answer.
+          processedAnswers[answerKey] = values.length === 0 && otherInput
+            ? [otherInput]
+            : values;
         } else if (answer === OTHER_OPTION_VALUE) {
           if (otherInput) processedAnswers[answerKey] = otherInput;
         } else {
@@ -704,8 +710,10 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
       // The declared input is the same field as the option list, so an option
       // that wins the field clears whatever was typed into it. Without this the
       // option would look selected while the submitted answer stays the text.
+      // `preserve` keeps the option just picked: an unpreserved empty value is
+      // what drops the Other answer itself.
       if (value && question.inputPlaceholder) {
-        handleOtherInputChange(questionIndex, '');
+        handleOtherInputChange(questionIndex, '', true);
       }
       return;
     }

@@ -56,6 +56,7 @@ const config: ToolCardConfig = {
 function questionTool(
   status: FlowToolItem['status'],
   multiSelect = false,
+  inputPlaceholder?: string,
 ): FlowToolItem {
   return {
     id: 'question-tool-1',
@@ -70,6 +71,7 @@ function questionTool(
           header: 'Database',
           question: 'Which database?',
           multiSelect,
+          ...(inputPlaceholder ? { inputPlaceholder } : {}),
           // A plain question opens unanswered, so the restore/isolation cases
           // below click the option they mean instead of relying on a default.
           options: [{
@@ -972,6 +974,36 @@ describe('AskUserQuestionCard', () => {
         toolchain: 'D:/ohos/qt5-kit',
         template: '__official__',
       },
+      'session-a',
+    );
+  });
+
+  it('submits the typed text when a multi-select question declares its own input (#86 review)', async () => {
+    // 多选问法同时带常驻输入框时，键入文本会清掉已勾选的选项；答案应当仍是那段
+    // 文本，而不是一个空数组。
+    act(() => root.render(
+      <AskUserQuestionCard
+        toolItem={questionTool('pending_confirmation', true, '/path/to/dir')}
+        config={config}
+        sessionId="session-a"
+        isLastItem
+      />,
+    ));
+
+    act(() => {
+      container.querySelector<HTMLInputElement>('input[value="PostgreSQL"]')?.click();
+    });
+    act(() => {
+      const input = container.querySelector<HTMLInputElement>('[data-bitfun-part="custom-input"] input');
+      if (input) setInputValue(input, 'Custom database');
+    });
+
+    await act(async () => container
+      .querySelector<HTMLButtonElement>('[data-bitfun-part="submit"] button')?.click());
+
+    expect(toolAPI.submitUserAnswers).toHaveBeenCalledWith(
+      'question-tool-1',
+      { 0: ['Custom database'] },
       'session-a',
     );
   });

@@ -68,7 +68,25 @@ pub(crate) fn merge_output_candidates(
     let mut candidates = ranked.into_iter().map(|(_, p)| p).collect::<Vec<_>>();
     candidates = filter_output_candidates(candidates, source_candidates);
     dedup_paths(&mut candidates);
-    candidates.truncate(MAX_OUTPUT_PROJECTS);
+    // The workspace root is the alternate the card promises, so the cap must not
+    // drop it: give it its own slot and let a probed container go instead. It is
+    // absent only when the filter rejected it, which happens when the root is
+    // the Qt project itself.
+    let root = workspace.to_string_lossy().into_owned();
+    let root_key = path_key(Path::new(&root));
+    let has_root = candidates
+        .iter()
+        .any(|candidate| path_key(Path::new(candidate)) == root_key);
+    candidates.retain(|candidate| path_key(Path::new(candidate)) != root_key);
+    let keep = if has_root {
+        MAX_OUTPUT_PROJECTS.saturating_sub(1)
+    } else {
+        MAX_OUTPUT_PROJECTS
+    };
+    candidates.truncate(keep);
+    if has_root {
+        candidates.push(root);
+    }
     candidates
 }
 
