@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   chatInputPermissionMode,
+  needsFullAccessConfirmation,
   permissionModeFromConfig,
   permissionModeToConfig,
   sessionPermissionMode,
@@ -63,5 +64,19 @@ describe('permissionMode', () => {
       const mode = permissionModeFromConfig(stored);
       expect(permissionModeFromConfig(permissionModeToConfig(stored, mode))).toBe(mode);
     }
+  });
+
+  it('only warns when a scope actually gains full access', () => {
+    expect(needsFullAccessConfirmation('full_access', 'ask')).toBe(true);
+    expect(needsFullAccessConfirmation('full_access', 'auto')).toBe(true);
+    // The mode is unresolved and falls back to the global default, which the
+    // caller reports as the scope's current mode.
+    expect(needsFullAccessConfirmation('full_access', null)).toBe(true);
+
+    // Re-selecting the row that is already in force must not re-ask; a user who
+    // confirmed full access once should not be interrupted for picking it again.
+    expect(needsFullAccessConfirmation('full_access', 'full_access')).toBe(false);
+    expect(needsFullAccessConfirmation('ask', 'full_access')).toBe(false);
+    expect(needsFullAccessConfirmation('auto', null)).toBe(false);
   });
 });

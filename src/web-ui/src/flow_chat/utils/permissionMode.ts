@@ -48,3 +48,19 @@ export function permissionModeToConfig(
     },
   };
 }
+
+/**
+ * Whether moving a scope to `nextMode` deserves the full-access warning.
+ *
+ * Full access is worth one confirmation because it stops asking per tool. A
+ * scope that already runs full access has nothing left to give up, so
+ * re-selecting the row that is already in force must not re-ask: that is how
+ * the mode picker turns a resolved choice into a dialog the user has to dismiss
+ * again.
+ */
+export function needsFullAccessConfirmation(
+  nextMode: ChatInputPermissionMode,
+  currentMode: ChatInputPermissionMode | null | undefined,
+): boolean {
+  return nextMode === 'full_access' && currentMode !== 'full_access';
+}
