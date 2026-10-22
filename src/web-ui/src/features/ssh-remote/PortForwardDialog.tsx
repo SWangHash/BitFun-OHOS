@@ -93,17 +93,21 @@ export const PortForwardDialog: React.FC<PortForwardDialogProps> = ({
   const [label, setLabel] = useState('');
   const [exposeOnLan, setExposeOnLan] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
   const [busyPort, setBusyPort] = useState<number | null>(null);
   const [isStarting, setIsStarting] = useState(false);
   const [detectedPorts, setDetectedPorts] = useState<RemoteListeningPort[] | null>(null);
   const [isDetecting, setIsDetecting] = useState(false);
   const remotePortInputRef = useRef<HTMLInputElement>(null);
+  const visibleError = error || listError;
 
   const refresh = useCallback(async () => {
     try {
       setForwards(await sshApi.listPortForwards(connectionId));
+      setListError(null);
     } catch (err) {
       log.error('Failed to list port forwards', err);
+      setListError(err instanceof Error ? err.message : String(err));
     }
   }, [connectionId]);
 
@@ -140,6 +144,7 @@ export const PortForwardDialog: React.FC<PortForwardDialogProps> = ({
     if (open) return;
     setDetectedPorts(null);
     setError(null);
+    setListError(null);
   }, [open]);
 
   const remotePortParsed = useMemo(() => parsePortInput(remotePort), [remotePort]);
@@ -217,15 +222,23 @@ export const PortForwardDialog: React.FC<PortForwardDialogProps> = ({
   );
 
   const handleOpen = useCallback((forward: PortForward) => {
+    setError(null);
     void systemAPI
       .openExternal(`http://${localAddressOf(forward)}`)
-      .catch((err) => log.error('Failed to open forwarded address', err));
+      .catch((err) => {
+        log.error('Failed to open forwarded address', err);
+        setError(err instanceof Error ? err.message : String(err));
+      });
   }, []);
 
   const handleCopy = useCallback((forward: PortForward) => {
+    setError(null);
     void systemAPI
       .setClipboard(localAddressOf(forward))
-      .catch((err) => log.error('Failed to copy forwarded address', err));
+      .catch((err) => {
+        log.error('Failed to copy forwarded address', err);
+        setError(err instanceof Error ? err.message : String(err));
+      });
   }, []);
 
   const forwardedRemotePorts = useMemo(
@@ -264,7 +277,7 @@ export const PortForwardDialog: React.FC<PortForwardDialogProps> = ({
           <p>{t('ssh.portForward.intro')}</p>
         </div>
 
-        {error && (
+        {visibleError && (
           <div
             className="port-forward-dialog__error"
             role="alert"
@@ -272,7 +285,7 @@ export const PortForwardDialog: React.FC<PortForwardDialogProps> = ({
             data-bitfun-part="portForwardError"
           >
             <AlertTriangle size={16} aria-hidden="true" />
-            <span>{desktopDomainErrorMessage(error, t)}</span>
+            <span>{desktopDomainErrorMessage(visibleError, t)}</span>
           </div>
         )}
 

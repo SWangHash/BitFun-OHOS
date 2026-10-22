@@ -1201,7 +1201,7 @@ export class WorkspaceAPI {
     try {
       const raw = await api.invoke<string>('open_oh_file_dialog', {
         options: JSON.stringify(opts),
-      });
+      }, { timeout: 0 });
       if (raw === null || raw === undefined || raw === '' || raw === 'null') {
         return null;
       }
