@@ -42,7 +42,9 @@ export const sessionContentSearchProvider: GlobalSearchProvider = {
   id: 'session-content',
   groups: ['messages', 'sessions'],
   search: async (request, signal) => {
-    if (request.scope === 'actions' || !request.query) return { items: [] };
+    // Session/message hits belong to the "all" scope only: the Content tab
+    // is scoped to workspace file matches.
+    if (request.scope !== 'all' || !request.query) return { items: [] };
 
     const results = await Promise.allSettled(request.workspaces.map(async (workspace) => ({
       workspace,

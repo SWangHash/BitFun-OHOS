@@ -45,7 +45,9 @@ export const interactiveCapabilitySearchProvider: GlobalSearchProvider = {
   id: 'interactive-capabilities',
   groups: ['capabilities', 'settings'],
   search: (request) => {
-    if (request.scope === 'content' || !request.query) return { items: [] };
+    // Capability/feature panels belong to the "all" scope only: the Commands
+    // tab lists executable commands, and the Content tab lists file matches.
+    if (request.scope !== 'all' || !request.query) return { items: [] };
 
     const catalog = request.currentWorkspace?.workspaceKind === 'remote'
       ? getInteractiveCapabilityCatalog(false)
