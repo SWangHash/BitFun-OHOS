@@ -1,0 +1,27 @@
+.bitfun-title-tooltip-host {
+  position: fixed;
+  z-index: var(--bitfun-layer-tooltip);
+  max-inline-size: min(360px, calc(100vw - 16px));
+  padding: var(--bitfun-overlay-tooltip-padding-block) var(--bitfun-overlay-tooltip-padding-inline);
+  border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+  border-radius: var(--bitfun-overlay-tooltip-surface-radius);
+  background: color-mix(in srgb, var(--bitfun-color-surface-raised) 96%, transparent);
+  color: var(--bitfun-color-content-primary);
+  font-family: var(--bitfun-type-support-font-family);
+  font-size: var(--bitfun-type-support-font-size);
+  font-weight: var(--bitfun-type-support-font-weight);
+  line-height: var(--bitfun-type-support-line-height);
+  letter-spacing: var(--bitfun-type-support-letter-spacing);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  box-shadow: var(--bitfun-shadow-sm);
+  backdrop-filter: var(--bitfun-effect-blur-base);
+  -webkit-backdrop-filter: var(--bitfun-effect-blur-base);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--bitfun-motion-duration-fast) ease;
+
+  &[data-visible='true'] {
+    opacity: 1;
+  }
+}

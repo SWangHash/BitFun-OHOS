@@ -125,6 +125,7 @@ import { skillsAppearanceDescriptor } from '@/app/scenes/skills/appearance';
 import { terminalAppearanceDescriptor } from '@/app/scenes/terminal/appearance';
 import { aboutDialogAppearanceDescriptor } from '@/app/components/AboutDialog/appearance';
 import { feedbackDialogAppearanceDescriptor } from '@/app/components/FeedbackDialog/FeedbackDialog.appearance';
+import { titleTooltipAppearanceDescriptor } from '@/app/components/TitleTooltipHost/TitleTooltipHost.appearance';
 import { privacyStatementDialogAppearanceDescriptor } from '@/app/components/Privacy/PrivacyStatementDialog.appearance';
 import { privacyGateAppearanceDescriptor } from '@/app/components/Privacy/PrivacyGate.appearance';
 import { navPanelAppearanceDescriptor } from '@/app/components/NavPanel/appearance';
@@ -445,6 +446,7 @@ export function createDefaultAppearanceRegistry(): AppearanceRegistry {
     .registerComponent(sshRemoteAppearanceDescriptor)
     .registerComponent(aboutDialogAppearanceDescriptor)
     .registerComponent(feedbackDialogAppearanceDescriptor)
+    .registerComponent(titleTooltipAppearanceDescriptor)
     .registerComponent(privacyStatementDialogAppearanceDescriptor)
     .registerComponent(privacyGateAppearanceDescriptor)
     .registerComponent(navPanelAppearanceDescriptor)
