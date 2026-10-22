@@ -163,17 +163,17 @@ $_indent-width: 8px;
   }
 
   &--selected {
-    background: var(--bitfun-domain-git-branch-background);
-    color: var(--bitfun-domain-git-branch);
+    background: var(--bitfun-color-selection-surface);
+    color: var(--bitfun-color-content-primary);
 
     .bitfun-file-explorer__node-name {
-      color: var(--bitfun-domain-git-branch);
+      color: var(--bitfun-color-content-primary);
       font-weight: var(--bitfun-type-label-sm-font-weight);
     }
 
     &:hover {
-      background: var(--bitfun-domain-git-branch-background-hover);
-      color: var(--bitfun-domain-git-branch);
+      background: var(--bitfun-color-selection-surface);
+      color: var(--bitfun-color-content-primary);
     }
   }
 
@@ -192,7 +192,7 @@ $_indent-width: 8px;
       inset: 0;
       z-index: 0;
       border-radius: inherit;
-      background: var(--bitfun-domain-git-branch-background);
+      background: var(--bitfun-color-selection-surface);
       pointer-events: none;
       animation: file-node-highlight-fade 240ms cubic-bezier(0.23, 1, 0.32, 1) forwards;
     }
@@ -203,7 +203,7 @@ $_indent-width: 8px;
     }
     
     .bitfun-file-explorer__node-name {
-      color: var(--bitfun-domain-git-branch);
+      color: var(--bitfun-color-content-primary);
       font-weight: var(--bitfun-type-label-sm-font-weight);
     }
   }
