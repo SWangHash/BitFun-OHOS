@@ -131,7 +131,9 @@ describe('initial virtual window with the real virtualizer', () => {
     shortOverscan = true;
     render(34, true);
     reconcileEnabled = true;
-    expect(windows.at(-1)![0]).toBe(27);
+    // Local FLOW_CHAT_OVERSCAN_ITEMS is 20, so the seeded tail window opens at
+    // count - 1 - 20 instead of upstream's 27 with its overscan of 6.
+    expect(windows.at(-1)![0]).toBe(13);
     const scroller = host.querySelector<HTMLElement>('[data-scroller]')!;
     act(() => {
       latestApi.scrollToOffset(scroller.scrollHeight - 500, { owner: 'follow-output' });
@@ -181,8 +183,10 @@ describe('initial virtual window with the real virtualizer', () => {
     });
     const first = windows.at(-1)![0];
     if (!enabled) {
-      // Control: the old cached offset contracts the window back to the last row.
-      expect(first).toBe(27);
+      // Control: the old cached offset contracts the window back to the last
+      // rows. Local FLOW_CHAT_OVERSCAN_ITEMS is 20, so the contracted window
+      // starts at count - 1 - 20 instead of upstream's 27 with its overscan 6.
+      expect(first).toBe(13);
       return;
     }
     expect(first).toBeLessThan(27);

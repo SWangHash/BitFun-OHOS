@@ -204,13 +204,13 @@ describe('Markdown file links', () => {
     const toolbar = container.querySelector('.code-block-toolbar');
     expect(image).not.toBeNull();
     expect(toolbar?.querySelector('button')).not.toBeNull();
-    expect(container.querySelector('.code-block-wrapper')?.getAttribute('data-openbitfun-state')).toBe('streaming');
+    expect(container.querySelector('.code-block-wrapper')?.getAttribute('data-bitfun-state')).toBe('streaming');
     const lightweight = container.querySelector('pre.code-block-fallback');
     expect(lightweight).not.toBeNull();
     await act(async () => root.render(<ThinkingMarkdownRenderer content={content + '```'} basePath="/srv/thinking" />));
     expect(container.querySelector('img')).toBe(image);
     expect(container.querySelector('.code-block-toolbar')).toBe(toolbar);
-    expect(container.querySelector('.code-block-wrapper')?.hasAttribute('data-openbitfun-state')).toBe(false);
+    expect(container.querySelector('.code-block-wrapper')?.hasAttribute('data-bitfun-state')).toBe(false);
     expect(container.querySelector('pre')).toBe(lightweight);
     expect(container.querySelector('pre code > span:last-child')?.textContent).toBe('const value = 1;');
     expect(mocks.renderHighlighter).not.toHaveBeenCalled();

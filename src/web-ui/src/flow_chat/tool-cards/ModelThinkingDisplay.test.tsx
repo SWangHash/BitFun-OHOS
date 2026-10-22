@@ -21,6 +21,8 @@ vi.mock('react-i18next', () => ({
       'toolCards.think.thinkingCharacters': `Thought ${values?.count ?? 0} characters`,
     })[key] ?? key,
   }),
+  // The component chain resolves i18nService, which consumes initReactI18next.
+  initReactI18next: { type: '3rdParty', init: () => undefined },
 }));
 
 vi.mock('../hooks/useTypewriter', () => ({
@@ -106,7 +108,7 @@ describe('ModelThinkingDisplay reasoning summary', () => {
     expect(latestReasoningSummaryPreview).not.toHaveBeenCalled();
     await act(async () => root.render(<ModelThinkingDisplay thinkingItem={item} isLastItem={false} />));
     expect(latestReasoningSummaryPreview).toHaveBeenCalledWith(item.content);
-    expect(container.querySelector('[data-openbitfun-part="label"]')?.textContent).toBe('Latest summary');
+    expect(container.querySelector('[data-bitfun-part="label"]')?.textContent).toBe('Latest summary');
   });
 
   it('defaults to a collapsed single-line preview of the latest summary part', async () => {
@@ -154,7 +156,7 @@ describe('ModelThinkingDisplay reasoning summary', () => {
         finish = resolve;
         cancel = () => reject(new Error('Transition cancelled'));
       });
-      const expandContainer = container.querySelector('[data-openbitfun-part="expandContainer"]') as HTMLElement;
+      const expandContainer = container.querySelector('[data-bitfun-part="expandContainer"]') as HTMLElement;
       Object.defineProperty(expandContainer, 'getAnimations', {
         value: () => [{ transitionProperty: 'grid-template-rows', finished }],
       });
