@@ -849,7 +849,7 @@
       "theme": "Theme",
       "themeConfiguration": "Theme configuration",
       "appearanceSwitchFailed": "Could not switch the theme. Try again.",
-      "openSettings": "Open settings",
+      "openSettings": "$t(shared:features.settings)",
       "about": "About"
     }
   },
