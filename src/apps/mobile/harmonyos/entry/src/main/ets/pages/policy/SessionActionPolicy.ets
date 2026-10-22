@@ -26,6 +26,9 @@ export class SessionActionPolicy {
       return new SessionActionCapabilities(true, false, false, true);
     }
     const isGeneralChat = agentType.toLowerCase() === 'chat';
-    return new SessionActionCapabilities(true, isGeneralChat, isGeneralChat, true);
+    // Archive/export are not yet wired for general-chat sessions — the
+    // ConversationController has no archiveHomeSession/exportHomeSession
+    // methods — so the buttons are hidden to avoid dead entries.
+    return new SessionActionCapabilities(true, false, false, true);
   }
 }

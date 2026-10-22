@@ -196,7 +196,7 @@ Usage notes:
 - Put all questions you need into a single AskUserQuestion call instead of calling it repeatedly in one response
 - Users will always be able to select "Other" to provide custom text input
 - Use multiSelect: true to allow multiple answers to be selected for a question
-- When a question may need a custom value beyond the predefined choices (for example a file path, host, or version), set the optional `inputPlaceholder` field on that question to the placeholder text (e.g. "请填写您原始工程路径"). The UI then shows a text input below the options and prefers the typed value over the selected option."#.to_string())
+- When a question may need a custom value beyond the predefined choices (for example a file path, host, or version), set the optional `inputPlaceholder` field on that question to the placeholder text (e.g. "请填写您原始工程路径"). The UI then shows a text input inside the "Other" option with this placeholder, and adds a browse button for picking a path."#.to_string())
     }
 
     fn short_description(&self) -> String {
@@ -256,7 +256,7 @@ Usage notes:
                             },
                             "inputPlaceholder": {
                                 "type": "string",
-                                "description": "Optional. When provided, the question shows a text input below the options with this placeholder text. The submitted answer prefers the typed value over the selected option. Use it when the user may need to provide a custom value (e.g. a path) beyond the predefined choices."
+                                "description": "Optional. When provided, the 'Other' option shows a text input with this placeholder and a path browse button. The user checks 'Other' and types or picks a value, following the same selection semantics as other options. Use it when the user may need to provide a custom value (e.g. a path) beyond the predefined choices."
                             }
                         },
                         "required": [
@@ -312,16 +312,26 @@ Usage notes:
         // shorten it. `ai.user_question_timeout_secs` bounds the first
         // interaction (null/0 waits indefinitely; default 180s); a template
         // that owns its wait (`allowTimeout: false`) still overrides to
-        // "wait forever". Config read failures surface as tool errors so a
-        // misconfigured host does not silently fall back to a hard-coded bound.
-        let config_service = crate::service::config::global::GlobalConfigManager::get_service()
-            .await?;
-        let ai_config: crate::service::config::types::AIConfig =
-            config_service.get_config(Some("ai")).await?;
-        let configured_timeout = ai_config
-            .user_question_timeout_secs
-            .filter(|seconds| *seconds > 0)
-            .map(|seconds| std::time::Duration::from_secs(u64::from(seconds)));
+        // "wait forever". Config read failures fall back to the AIConfig
+        // default (180s) rather than failing the tool outright, matching
+        // the tolerance of computer_use_locate.rs.
+        let configured_timeout = match crate::service::config::global::GlobalConfigManager::get_service().await {
+            Ok(service) => {
+                let ai_config: crate::service::config::types::AIConfig =
+                    service.get_config(Some("ai")).await.unwrap_or_default();
+                ai_config
+                    .user_question_timeout_secs
+                    .filter(|seconds| *seconds > 0)
+                    .map(|seconds| std::time::Duration::from_secs(u64::from(seconds)))
+            }
+            Err(_) => {
+                let default = crate::service::config::types::AIConfig::default();
+                default
+                    .user_question_timeout_secs
+                    .filter(|seconds| *seconds > 0)
+                    .map(|seconds| std::time::Duration::from_secs(u64::from(seconds)))
+            }
+        };
         self.call_with_timeout(input, context, configured_timeout).await
     }
 }
