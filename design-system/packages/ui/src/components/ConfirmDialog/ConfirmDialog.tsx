@@ -46,6 +46,7 @@ export interface ConfirmDialogProps {
   preview?: ReactNode;
   secondaryText?: ReactNode;
   showCancel?: boolean;
+  showConfirm?: boolean;
   showCloseButton?: boolean;
   testId?: string;
   title: ReactNode;
@@ -77,6 +78,7 @@ export const ConfirmDialog = forwardRef<HTMLDivElement, ConfirmDialogProps>(
     preview,
     secondaryText,
     showCancel = true,
+    showConfirm = true,
     showCloseButton = false,
     testId,
     title,
@@ -200,16 +202,18 @@ export const ConfirmDialog = forwardRef<HTMLDivElement, ConfirmDialogProps>(
               {secondaryText}
             </Button>
           ) : null}
-          <Button
-            disabled={busy}
-            loading={pendingAction === "confirm"}
-            onClick={() => void runAction("confirm", onConfirm)}
-            ref={confirmButtonRef}
-            tone={confirmDanger || type === "error" ? "danger" : "neutral"}
-            variant="primary"
-          >
-            {resolvedConfirmText}
-          </Button>
+          {showConfirm ? (
+            <Button
+              disabled={busy}
+              loading={pendingAction === "confirm"}
+              onClick={() => void runAction("confirm", onConfirm)}
+              ref={confirmButtonRef}
+              tone={confirmDanger || type === "error" ? "danger" : "neutral"}
+              variant="primary"
+            >
+              {resolvedConfirmText}
+            </Button>
+          ) : null}
         </DialogFooter>
       </Dialog>
     );
