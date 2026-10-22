@@ -264,11 +264,11 @@
     }
 
     &[aria-pressed="true"] {
-      background: var(--bitfun-color-action-secondary-background);
-      color: color-mix(in srgb, var(--bitfun-color-accent-hover) 80%, transparent);
+      background: var(--bitfun-color-selection-surface);
+      color: var(--bitfun-color-accent-hover);
 
       &:hover {
-        background: var(--bitfun-color-action-secondary-hover);
+        background: var(--bitfun-color-selection-surface);
       }
     }
   }
@@ -314,11 +314,11 @@
     }
 
     &.active {
-      background: var(--bitfun-color-action-secondary-background);
-      color: color-mix(in srgb, var(--bitfun-color-accent-hover) 80%, transparent);
+      background: var(--bitfun-color-selection-surface);
+      color: var(--bitfun-color-accent-hover);
 
       &:hover {
-        background: var(--bitfun-color-action-secondary-hover);
+        background: var(--bitfun-color-selection-surface);
       }
     }
   }
