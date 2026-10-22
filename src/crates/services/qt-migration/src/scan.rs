@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::detect::{
     detect_project_qt_major, detect_qt_major, is_ohos_target_kit, probe_source_projects,
-    resolve_kit_root, resolve_template_kit_root,
+    resolve_kit_root, resolve_kit_root_above,
 };
 use crate::layout::{qt_managed_kit_roots, QT_MANAGED_TOOLCHAINS_DIR_NAME};
 use crate::output::{is_migration_artifact, is_output_container_name, merge_output_candidates};
@@ -787,7 +787,7 @@ pub(crate) fn scan_template_candidates(
             // Both facts describe the kit the template belongs to, when its location
             // identifies one; a standalone template reports `None` /
             // `false`.
-            match resolve_template_kit_root(template) {
+            match resolve_kit_root_above(template) {
                 Some(kit_root) => (detect_qt_major(kit_root), is_ohos_target_kit(kit_root)),
                 None => (None, false),
             }

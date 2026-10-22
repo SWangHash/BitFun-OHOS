@@ -88,10 +88,36 @@ pub(crate) fn resolve_kit_root(hit_dir: &Path) -> &Path {
     }
 }
 
-/// Kit root a template directory belongs to, when its location identifies one.
-pub(crate) fn resolve_template_kit_root(dir: &Path) -> Option<&Path> {
+/// Kit root a directory belongs to, when its location identifies one: the
+/// directory itself or one of its ancestors is a kit root.
+pub(crate) fn resolve_kit_root_above(dir: &Path) -> Option<&Path> {
     dir.ancestors()
         .find(|ancestor| detect_qt_major(ancestor).is_some() || is_ohos_target_kit(ancestor))
+}
+
+/// Whether `dir` belongs to a Qt installation rather than to a user project: it
+/// sits under a kit root, or it is one of the installer's version-named example
+/// collections (`<install-root>/Examples/Qt-6.12.0/`). The version-shaped name is
+/// what separates that collection from a user's own `Examples/<app>` folder.
+///
+/// Both carry project shapes — the example collection ships an `examples.pro`
+/// subdirectory manifest and CMake build declarations — so shape alone cannot
+/// tell them apart from the application the user means.
+pub(crate) fn is_inside_qt_installation(dir: &Path) -> bool {
+    if resolve_kit_root_above(dir).is_some() {
+        return true;
+    }
+    let version_named = dir
+        .file_name()
+        .and_then(|name| name.to_str())
+        .and_then(|name| name.get(..3))
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("qt-"));
+    version_named
+        && dir
+            .parent()
+            .and_then(|parent| parent.file_name())
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.eq_ignore_ascii_case("examples"))
 }
 
 /// Detected Qt major version of a **Qt source project**, from a Qt6-only CMake
@@ -288,6 +314,12 @@ pub(crate) fn contains_qt6_only_type_name(haystack: &str, name: &str) -> bool {
 /// sends what it found as `candidates.source_project`. A named path outside the
 /// workspace is accepted as sent (a project may live anywhere); nothing is
 /// harvested from its surroundings.
+///
+/// The one judgement the disk *does* carry is installation membership: a path
+/// under a kit root, or the installer's version-named `Examples/Qt-*` collection,
+/// is the Qt installation's own tree, never the user's application, so it is
+/// dropped rather than offered as a candidate the user has to recognize and
+/// reject.
 pub(crate) fn probe_source_projects(workspace: &Path, model_candidates: &[String]) -> Vec<String> {
     let mut found: Vec<(usize, PathBuf)> = Vec::new();
     for candidate in model_candidates {
@@ -304,8 +336,12 @@ pub(crate) fn probe_source_projects(workspace: &Path, model_candidates: &[String
         } else {
             path
         };
-        // A named path only has to be a Qt project and not a migration artifact.
-        if is_qt_source_project(&path) && !is_inside_migrated_harmony_project(&path) {
+        // A named path only has to be a Qt project, not a migration artifact, and
+        // not part of a Qt installation.
+        if is_qt_source_project(&path)
+            && !is_inside_migrated_harmony_project(&path)
+            && !is_inside_qt_installation(&path)
+        {
             // A named project outside the workspace has no workspace-relative
             // depth; `MAX_PROBE_DEPTH + 1` ranks it behind one that resolves
             // inside the workspace.
