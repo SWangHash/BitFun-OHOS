@@ -373,6 +373,21 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
     });
   }, [draftKey]);
 
+  /**
+   * Drop every option highlight of one question. A cleared answer is written as
+   * an empty answer rather than a missing one: a missing answer is what the
+   * opt-in candidate default fills in, so deleting it would just re-select the
+   * candidate.
+   */
+  const clearOptionSelection = useCallback((questionIndex: number) => {
+    const currentAnswer = answers[questionIndex];
+    if (Array.isArray(currentAnswer)) {
+      currentAnswer.forEach((value) => handleMultiChange(questionIndex, value, false));
+      return;
+    }
+    handleSingleChange(questionIndex, '');
+  }, [answers, handleMultiChange, handleSingleChange]);
+
   // Opt-in candidate default (`preselectFirstOption`): a card whose options are
   // backend-measured candidates opens on the first one so its form is
   // submittable without re-picking what the backend just resolved. The policy
@@ -406,6 +421,20 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
     questions,
   ]);
 
+  // A question that declares its own input owns one field, so its option list and
+  // its input are the same answer seen twice: whichever the user touched last
+  // wins. Typing anything other than the selected option therefore clears the
+  // highlight, exactly as picking a path through the dialog already does.
+  const typedInputReplacesSelection = useCallback((
+    questionIndex: number,
+    value: string,
+    currentAnswer: ToolAnswer | undefined,
+  ): boolean => {
+    if (!questions[questionIndex]?.inputPlaceholder) return false;
+    const typed = value.trim();
+    return typed.length > 0 && currentAnswer !== typed;
+  }, [questions]);
+
   const handleOtherInputChange = useCallback((
     questionIndex: number,
     value: string,
@@ -418,13 +447,21 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
         value,
         preserveOtherSelection,
       );
+      if (typedInputReplacesSelection(questionIndex, value, answers[questionIndex])) {
+        clearOptionSelection(questionIndex);
+      }
       return;
     }
     setLocalDraft((current) => {
       const isEmpty = value.trim().length === 0;
       const currentAnswer = current.answers[questionIndex];
       let nextAnswers = current.answers;
-      if (
+      if (typedInputReplacesSelection(questionIndex, value, currentAnswer)) {
+        nextAnswers = {
+          ...current.answers,
+          [questionIndex]: Array.isArray(currentAnswer) ? [] : '',
+        };
+      } else if (
         isEmpty
         && !preserveOtherSelection
         && Array.isArray(currentAnswer)
@@ -452,7 +489,7 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
         updatedAt: Date.now(),
       };
     });
-  }, [draftKey]);
+  }, [answers, clearOptionSelection, draftKey, typedInputReplacesSelection]);
 
   // Open a native directory picker (or the in-app peer browser in Peer Device
   // Mode) and fill the question's input with the selected folder. Falls back to
@@ -470,15 +507,13 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
       return;
     }
     if (!selected) return;
-    // The picked path is the answer, so any option highlight is cleared.
+    // The picked path is the answer, so any option highlight is cleared — even
+    // when it holds the same path, which the typed-value rule would leave
+    // selected. The `preserve` flag keeps the custom option's own "Other" marker
+    // semantics instead of clearing it with the highlight.
     handleOtherInputChange(questionIndex, selected, true);
-    const currentAnswer = answers[questionIndex];
-    if (Array.isArray(currentAnswer)) {
-      currentAnswer.forEach((value) => handleMultiChange(questionIndex, value, false));
-      return;
-    }
-    handleSingleChange(questionIndex, '');
-  }, [answers, handleMultiChange, handleOtherInputChange, handleSingleChange, otherInputs]);
+    clearOptionSelection(questionIndex);
+  }, [clearOptionSelection, handleOtherInputChange, otherInputs]);
 
   const handleBrowseCustomAnswer = useCallback((questionId: string) => {
     const questionIndex = Number(questionId);
@@ -664,7 +699,14 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
     if (!question || !Number.isInteger(questionIndex)) return;
 
     if (!question.multiSelect) {
-      handleSingleChange(questionIndex, nextValues[0] ?? '');
+      const value = nextValues[0] ?? '';
+      handleSingleChange(questionIndex, value);
+      // The declared input is the same field as the option list, so an option
+      // that wins the field clears whatever was typed into it. Without this the
+      // option would look selected while the submitted answer stays the text.
+      if (value && question.inputPlaceholder) {
+        handleOtherInputChange(questionIndex, '');
+      }
       return;
     }
 
@@ -675,7 +717,7 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
     if (changedValue !== undefined) {
       handleMultiChange(questionIndex, changedValue, nextValues.includes(changedValue));
     }
-  }, [answers, handleMultiChange, handleSingleChange, questions]);
+  }, [answers, handleMultiChange, handleOtherInputChange, handleSingleChange, questions]);
 
   const getAnswerDisplay = useCallback((questionIndex: number): string => {
     const answer = getEffectiveAnswer(questionIndex);

@@ -175,6 +175,11 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
     ? expanded ?? internalExpanded
     : true;
   const interactionDisabled = disabled || state !== "asking";
+  // The answer is accepted before the turn that consumes it resumes. Treating
+  // that window as still-in-flight keeps the submit affordance honest: the
+  // button reporting "sent" while nothing has been submitted yet reads as a
+  // dead, clickable button.
+  const submitting = state === "submitting" || state === "submitted";
   const showStatusOnly = state === "loading"
     || state === "error" && questions.length === 0;
 
@@ -545,13 +550,13 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
               <Button
                 disabled={interactionDisabled || submitDisabled}
                 leadingIcon={<ArrowUp aria-hidden="true" />}
-                loading={state === "submitting"}
+                loading={submitting}
                 onClick={onSubmit}
                 size="sm"
                 title={submitTitle}
                 variant="primary"
               >
-                {state === "submitting" && submittingLabel !== undefined
+                {submitting && submittingLabel !== undefined
                   ? submittingLabel
                   : submitLabel}
               </Button>
