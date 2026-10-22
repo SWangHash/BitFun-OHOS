@@ -507,13 +507,20 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
       return;
     }
     if (!selected) return;
-    // The picked path is the answer, so any option highlight is cleared — even
-    // when it holds the same path, which the typed-value rule would leave
-    // selected. The `preserve` flag keeps the custom option's own "Other" marker
-    // semantics instead of clearing it with the highlight.
+    // The picked path is the custom answer, so check the "Other" option to
+    // make it the selected answer, mirroring how a user would type into the
+    // inline field. Single-select: natural radio replacement. Multi-select:
+    // the "Other" option is added alongside any existing selections.
     handleOtherInputChange(questionIndex, selected, true);
-    clearOptionSelection(questionIndex);
-  }, [clearOptionSelection, handleOtherInputChange, otherInputs]);
+    const currentAnswer = answers[questionIndex];
+    if (Array.isArray(currentAnswer)) {
+      if (!currentAnswer.includes(OTHER_OPTION_VALUE)) {
+        handleMultiChange(questionIndex, OTHER_OPTION_VALUE, true);
+      }
+    } else if (currentAnswer !== OTHER_OPTION_VALUE) {
+      handleSingleChange(questionIndex, OTHER_OPTION_VALUE);
+    }
+  }, [answers, handleMultiChange, handleOtherInputChange, handleSingleChange, otherInputs]);
 
   const handleBrowseCustomAnswer = useCallback((questionId: string) => {
     const questionIndex = Number(questionId);
@@ -551,26 +558,15 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
         }
 
         if (Array.isArray(answer)) {
-          const values = answer.flatMap((value) => (
+          processedAnswers[answerKey] = answer.flatMap((value) => (
             value === OTHER_OPTION_VALUE
               ? otherInput ? [otherInput] : []
               : [value]
           ));
-          // A declared input is one field with the option list for a
-          // multi-select question too: when the typed text cleared the options,
-          // that text is all that is left of the answer.
-          processedAnswers[answerKey] = values.length === 0 && otherInput
-            ? [otherInput]
-            : values;
         } else if (answer === OTHER_OPTION_VALUE) {
           if (otherInput) processedAnswers[answerKey] = otherInput;
         } else {
-          // A question that declares its own input owns the answer: the typed or
-          // picked value wins over an option highlight, mirroring the field that
-          // is always visible for that question.
-          const value = question?.inputPlaceholder
-            ? otherInput || answer
-            : answer || otherInput;
+          const value = answer || otherInput;
           if (value) processedAnswers[answerKey] = value;
         }
       }
