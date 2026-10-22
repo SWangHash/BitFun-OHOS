@@ -47,6 +47,8 @@ import {
   isLikelyFileNotFoundError,
 } from '@/shared/utils/fsErrorUtils';
 import { useI18n } from '@/infrastructure/i18n';
+import { attachMonacoChromeI18n } from '../services/monacoChromeI18n';
+import { buildMonacoChromeStrings } from '../services/monacoChromeStrings';
 import { type LineRange } from '@/shared/editor/LineRange';
 import { EditorBreadcrumb } from './EditorBreadcrumb';
 import { EditorStatusBar } from './EditorStatusBar';
@@ -342,6 +344,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   const largeFileExpansionBlockedLogRef = useRef(false);
   const pendingModelContentRef = useRef<string | null>(null);
   const macosEditorBindingCleanupRef = useRef<(() => void) | null>(null);
+  const monacoChromeI18nDetachRef = useRef<(() => void) | null>(null);
   const workspacePathRuntimeRef = useRef(workspacePath);
   const readOnlyRuntimeRef = useRef(readOnly);
   const showLineNumbersRuntimeRef = useRef(showLineNumbers);
@@ -871,7 +874,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         // #endregion
         
         (container as any).__monacoEditor = editor;
-        
+
+        monacoChromeI18nDetachRef.current = attachMonacoChromeI18n(container, buildMonacoChromeStrings(tRef.current));
+
         setMonacoReady(true);
         const applyOptionsFromConfig = (c: Partial<EditorConfigType>) => {
           if (cancelled) return;
@@ -1067,6 +1072,10 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       clearScheduledNavigationSettlement();
       pendingNavigationRef.current = null;
       completedNavigationKeyRef.current = null;
+      if (monacoChromeI18nDetachRef.current) {
+        monacoChromeI18nDetachRef.current();
+        monacoChromeI18nDetachRef.current = null;
+      }
       if (macosEditorBindingCleanupRef.current) {
         macosEditorBindingCleanupRef.current();
         macosEditorBindingCleanupRef.current = null;
@@ -1115,6 +1124,25 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       editorRef.current.updateOptions({ readOnly });
     }
   }, [readOnly]);
+
+  // Keep the cursor across tab switches: snapshot the view state when the tab
+  // deactivates (keep-alive tabs never unmount, so the unmount save alone is
+  // not enough) and restore it plus focus on re-activation so the caret is
+  // visible at the remembered position.
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor || !monacoReady) {
+      return;
+    }
+    if (isActiveTab) {
+      if (documentSession?.viewState) {
+        editor.restoreViewState(documentSession.viewState as monaco.editor.ICodeEditorViewState);
+      }
+      editor.focus();
+    } else if (documentSession) {
+      documentSession.viewState = editor.saveViewState();
+    }
+  }, [isActiveTab, monacoReady, documentSession]);
 
   const performJump = useCallback((editor: any, model: any, line: number, column: number, endLine?: number) => {
     const lineCount = model.getLineCount();
