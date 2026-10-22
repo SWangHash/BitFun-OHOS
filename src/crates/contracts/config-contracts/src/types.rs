@@ -40,6 +40,16 @@ pub struct FontPreferenceSnapshot {
     pub ui_size: UiFontSizeSnapshot,
 }
 
+/// Remote Connect disclaimer consent record (camelCase keys match the frontend).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteConnectDisclaimerAgreement {
+    /// ISO-8601 instant of the user's consent. Defaults tolerate a partial
+    /// record left by an interrupted write; the timestamp is informational.
+    #[serde(default)]
+    pub agreed_at: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UiFontSizeSnapshot {
@@ -80,6 +90,11 @@ pub struct GlobalConfig {
     /// Web UI font size preferences (`get_config` / `set_config` path `font`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub font: Option<FontPreferenceSnapshot>,
+    /// Remote Connect disclaimer agreement (`get_config` / `set_config` path
+    /// `remote_connect_disclaimer`). Persisted so the agreement survives
+    /// restarts on hosts whose webview disables DOM storage.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub remote_connect_disclaimer: Option<RemoteConnectDisclaimerAgreement>,
     /// Version of the persisted configuration schema. This is intentionally
     /// independent from the BitFun application version stored in `version`.
     pub schema_version: u32,
@@ -1769,6 +1784,7 @@ impl Default for GlobalConfig {
             plugin: Vec::new(),
             appearance: AppearanceConfig::default(),
             font: None,
+            remote_connect_disclaimer: None,
             schema_version: CURRENT_CONFIG_SCHEMA_VERSION,
             version: env!("CARGO_PKG_VERSION").to_string(),
             last_modified: chrono::Utc::now(),
@@ -2146,6 +2162,42 @@ mod tests {
             "info"
         };
         assert_eq!(config.level, expected);
+    }
+
+    /// Upgrade compatibility: documents persisted by older builds do not carry
+    /// the remote-connect disclaimer field, and the timestamp record must
+    /// tolerate partial values from interrupted writes.
+    #[test]
+    fn remote_connect_disclaimer_field_is_upgrade_compatible() {
+        let mut config = super::GlobalConfig::default();
+        assert!(config.remote_connect_disclaimer.is_none());
+
+        config.remote_connect_disclaimer = Some(super::RemoteConnectDisclaimerAgreement {
+            agreed_at: "2026-10-22T00:00:00Z".into(),
+        });
+        let json = serde_json::to_value(&config).unwrap();
+        assert!(json.get("remote_connect_disclaimer").is_some());
+
+        // A document written by the new build read with the field stripped
+        // (an old build's view) deserializes without the field.
+        let mut legacy = json.clone();
+        legacy
+            .as_object_mut()
+            .unwrap()
+            .remove("remote_connect_disclaimer");
+        let legacy_config: super::GlobalConfig = serde_json::from_value(legacy).unwrap();
+        assert!(legacy_config.remote_connect_disclaimer.is_none());
+
+        // A partial record from an interrupted write still deserializes.
+        let partial = <super::RemoteConnectDisclaimerAgreement as serde::Deserialize>::deserialize(
+            serde_json::json!({}),
+        )
+        .unwrap();
+        assert_eq!(partial.agreed_at, "");
+
+        // The default document omits the key entirely (no empty noise).
+        let default_json = serde_json::to_value(super::GlobalConfig::default()).unwrap();
+        assert!(default_json.get("remote_connect_disclaimer").is_none());
     }
 
     #[test]
