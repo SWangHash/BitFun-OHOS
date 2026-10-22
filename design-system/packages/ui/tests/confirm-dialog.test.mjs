@@ -34,6 +34,7 @@ test("ConfirmDialog owns async pending and dismissal guards", async () => {
   const source = await readFile(sourceUrl, "utf8");
 
   assert.match(source, /pendingAction/);
+  assert.match(source, /controlledPendingAction !== undefined/);
   assert.match(source, /typeof result\.then === "function"/);
   assert.match(source, /loading=\{pendingAction === "confirm"\}/);
   assert.match(source, /loading=\{pendingAction === "secondary"\}/);
@@ -51,6 +52,17 @@ test("ConfirmDialog treats the confirm action as optional like the cancel action
   assert.match(source, /showConfirm\?: boolean/);
   assert.match(source, /showConfirm = true/);
   assert.match(source, /\{showConfirm \? \(\r?\n/);
+});
+
+test("ConfirmDialog keeps a focus anchor when the confirm action is hidden", async () => {
+  const source = await readFile(sourceUrl, "utf8");
+
+  assert.match(source, /initialFocusRef = showConfirm/);
+  assert.match(source, /showCancel \? cancelButtonRef : secondaryButtonRef/);
+  assert.match(source, /ref=\{cancelButtonRef\}/);
+  assert.match(source, /ref=\{secondaryButtonRef\}/);
+  assert.match(source, /if \(!open \|\| showConfirm \|\| busy\) return;/);
+  assert.match(source, /ownerDocument\.activeElement !== ownerDocument\.body/);
 });
 
 test("ConfirmDialog presents semantic icons as bare glyphs", async () => {

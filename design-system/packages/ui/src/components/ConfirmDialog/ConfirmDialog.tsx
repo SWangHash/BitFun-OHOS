@@ -86,9 +86,16 @@ export const ConfirmDialog = forwardRef<HTMLDivElement, ConfirmDialogProps>(
   }, ref) {
     const designSystem = useDesignSystem();
     const confirmButtonRef = useRef<HTMLButtonElement>(null);
+    const cancelButtonRef = useRef<HTMLButtonElement>(null);
+    const secondaryButtonRef = useRef<HTMLButtonElement>(null);
     const mountedRef = useRef(true);
     const [internalPendingAction, setInternalPendingAction] = useState<"confirm" | "secondary" | null>(null);
-    const pendingAction = controlledPendingAction ?? internalPendingAction;
+    // A controlled null owns the state: it must not lose to a stale internal
+    // pending left over from an action whose owner already reset its own
+    // state, or the dialog stays busy one commit longer than the owner asked.
+    const pendingAction = controlledPendingAction !== undefined
+      ? controlledPendingAction
+      : internalPendingAction;
     const busy = pendingAction !== null;
     const resolvedIcon = icon === false ? null : icon ?? defaultIcons[type];
     const hasMessage = message !== undefined && message !== null && message !== "";
@@ -127,12 +134,34 @@ export const ConfirmDialog = forwardRef<HTMLDivElement, ConfirmDialogProps>(
       onOpenChange(false, reason);
     }, [busy, onOpenChange]);
 
+    // The confirm button owns the initial focus while it renders. Once it is
+    // hidden — including mid-life, when a failed action removes it from an
+    // open dialog — the first remaining action takes over so the dialog never
+    // loses its focus anchor.
+    const initialFocusRef = showConfirm
+      ? confirmButtonRef
+      : showCancel ? cancelButtonRef : secondaryButtonRef;
+
+    // The swapped focus target can still be disabled for one commit when the
+    // action that hid the confirm button also cleared its pending state, so
+    // the re-registered focus scope cannot land on it yet. Re-land focus on
+    // the fallback action once it is enabled, unless the user already holds
+    // focus somewhere inside the dialog.
+    useEffect(() => {
+      if (!open || showConfirm || busy) return;
+      const target = initialFocusRef.current;
+      if (!target) return;
+      const ownerDocument = target.ownerDocument;
+      if (ownerDocument.activeElement !== ownerDocument.body) return;
+      target.focus();
+    }, [busy, initialFocusRef, open, showConfirm]);
+
     return (
       <Dialog
         closeOnEscape={!busy && closeOnEscape}
         closeOnPointerOutside={!busy && closeOnPointerOutside}
         data-testid={testId}
-        initialFocusRef={confirmButtonRef}
+        initialFocusRef={initialFocusRef}
         onOpenChange={(_nextOpen, reason) => requestClose(reason)}
         open={open}
         ref={ref}
@@ -188,7 +217,7 @@ export const ConfirmDialog = forwardRef<HTMLDivElement, ConfirmDialogProps>(
         ) : null}
         <DialogFooter>
           {showCancel ? (
-            <Button disabled={busy} onClick={() => requestClose("cancel-button")} variant="fill">
+            <Button disabled={busy} onClick={() => requestClose("cancel-button")} ref={cancelButtonRef} variant="fill">
               {resolvedCancelText}
             </Button>
           ) : null}
@@ -197,6 +226,7 @@ export const ConfirmDialog = forwardRef<HTMLDivElement, ConfirmDialogProps>(
               disabled={busy}
               loading={pendingAction === "secondary"}
               onClick={() => void runAction("secondary", onSecondary)}
+              ref={secondaryButtonRef}
               variant="outline"
             >
               {secondaryText}
