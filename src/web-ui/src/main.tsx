@@ -265,6 +265,9 @@ async function initializeAfterRender(): Promise<void> {
   await fontPreferenceService.initialize();
   log.info('Font preference initialized at startup');
 
+  const { hydrateRemoteConnectDisclaimerAgreed } = await import('./app/components/RemoteConnectDialog/remoteConnectDisclaimerStorage');
+  void hydrateRemoteConnectDisclaimerAgreed();
+
   const initResults = await Promise.allSettled([
     (async () => {
       const { backgroundTaskScheduler } = await import('./shared/utils/backgroundTaskScheduler');
