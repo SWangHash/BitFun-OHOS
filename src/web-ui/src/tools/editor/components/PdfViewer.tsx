@@ -783,7 +783,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ isActiveTab = true,
         trailing={
           <>
             <ToolbarGroup>
-              <Tooltip content={t('editor.pdfViewer.previousPage')} placement="top">
+              <Tooltip content={t('editor.pdfViewer.previousPage')} placement="bottom">
                 <IconButton
                   aria-label={t('editor.pdfViewer.previousPage')}
                   size="sm"
@@ -793,7 +793,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ isActiveTab = true,
                   disabled={loading || pageNumber <= 1}
                 />
               </Tooltip>
-              <Tooltip content={t('editor.pdfViewer.nextPage')} placement="top">
+              <Tooltip content={t('editor.pdfViewer.nextPage')} placement="bottom">
                 <IconButton
                   aria-label={t('editor.pdfViewer.nextPage')}
                   size="sm"
@@ -815,7 +815,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ isActiveTab = true,
                 size="sm"
                 value={zoom}
               />
-              <Tooltip content={t('editor.pdfViewer.zoomOut')} placement="top">
+              <Tooltip content={t('editor.pdfViewer.zoomOut')} placement="bottom">
                 <IconButton
                   aria-label={t('editor.pdfViewer.zoomOut')}
                   size="sm"
@@ -825,7 +825,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ isActiveTab = true,
                   disabled={loading || zoom <= MIN_ZOOM}
                 />
               </Tooltip>
-              <Tooltip content={t('editor.pdfViewer.zoomIn')} placement="top">
+              <Tooltip content={t('editor.pdfViewer.zoomIn')} placement="bottom">
                 <IconButton
                   aria-label={t('editor.pdfViewer.zoomIn')}
                   size="sm"
@@ -838,7 +838,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ isActiveTab = true,
             </ToolbarGroup>
             <ToolbarSeparator />
             <ToolbarGroup>
-              <Tooltip content={t('editor.pdfViewer.rotate90')} placement="top">
+              <Tooltip content={t('editor.pdfViewer.rotate90')} placement="bottom">
                 <IconButton
                   aria-label={t('editor.pdfViewer.rotate90')}
                   size="sm"

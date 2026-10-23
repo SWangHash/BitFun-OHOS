@@ -127,6 +127,7 @@
       "zoomIn": "放大 (Ctrl + +)",
       "rotate90": "旋转 90°",
       "download": "下载图片",
+      "downloadSucceeded": "图片已下载",
       "enterFullscreen": "全屏显示",
       "exitFullscreen": "退出全屏",
       "imageUrlEmpty": "图片URL为空"
