@@ -205,39 +205,26 @@ export class ContextMenuManager {
    
   private calculatePosition(
     event: MouseEvent | React.MouseEvent,
-    items: MenuItem[]
+    _items: MenuItem[]
   ): { x: number; y: number } {
     const nativeEvent = 'nativeEvent' in event ? event.nativeEvent : event;
-    let { clientX: x, clientY: y } = nativeEvent;
+    const { clientX: x, clientY: y } = nativeEvent;
 
     if (!this.options.autoAdjustPosition) {
       return { x, y };
     }
 
-    
+    // Only clamp the anchor into the viewport; vertical flip/overflow is
+    // decided by the popover layer with the real measured menu height.
+    // Estimating the height here (items * row height) was always wrong for
+    // separators/groups and double-shifted the menu away from the cursor.
     const menuWidth = this.options.minWidth || 180;
-    const itemHeight = 32; 
-    const menuHeight = Math.min(items.length * itemHeight, 400); 
-
-    
     const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
 
-    
-    if (x + menuWidth > viewportWidth) {
-      x = viewportWidth - menuWidth - 10;
-    }
+    const clampedX = Math.max(10, Math.min(x, viewportWidth - menuWidth - 10));
+    const clampedY = Math.max(10, y);
 
-    
-    if (y + menuHeight > viewportHeight) {
-      y = viewportHeight - menuHeight - 10;
-    }
-
-    
-    x = Math.max(10, x);
-    y = Math.max(10, y);
-
-    return { x, y };
+    return { x: clampedX, y: clampedY };
   }
 
    
