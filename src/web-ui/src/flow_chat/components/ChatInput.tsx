@@ -1978,19 +1978,26 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const draft = sessionComposerStore.getState().activateDraft(
       previousSessionId,
       effectiveTargetSessionId,
-      useContextStore.getState().contexts,
+      // Save the scoped view's contexts, not the default store's: the pill
+      // widgets live in the store this component reads and writes.
+      contextStore.getState().contexts,
       richTextInputRef.current?.getComposerPresentation?.() ?? null,
       !surfaceChanged,
     );
     previousComposerSessionIdRef.current = effectiveTargetSessionId;
     previousComposerSurfaceEpochRef.current = deviceSurfaceScope.epoch;
 
-    const nextValue = draft.value;
     const nextContexts = draft.contexts;
     const nextPendingLargePastes = draft.pendingLargePastes;
+    // When the saved draft carries a composer presentation, restore the
+    // pill widgets from it instead of letting the plain `#file:` text stand
+    // in for them (issue #384).
+    const presentationValue = draft.presentation
+      ? composerPresentationToEditorText(draft.presentation)
+      : null;
 
-    dispatchLocalInput({ type: 'SET_VALUE', payload: nextValue });
-    inputValueRef.current = nextValue;
+    dispatchLocalInput({ type: 'SET_VALUE', payload: presentationValue ?? draft.value });
+    inputValueRef.current = presentationValue ?? draft.value;
     const restoredPendingLargePastes = { ...nextPendingLargePastes };
     pendingLargePastesRef.current = restoredPendingLargePastes;
     setPendingLargePastes(restoredPendingLargePastes);
@@ -1999,6 +2006,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       replaceContexts(nextContexts);
     } finally {
       isRestoringSessionDraftRef.current = false;
+    }
+    if (draft.presentation) {
+      richTextInputRef.current?.restoreComposerPresentation?.(draft.presentation);
     }
     setHistoryIndex(-1);
     setSavedDraft('');
@@ -3081,8 +3091,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       const customEvent = event as CustomEvent<{ context: any; sessionId?: string }>;
       if (customEvent.detail?.sessionId ? customEvent.detail.sessionId !== effectiveTargetSessionIdRef.current : Boolean(conversationScope)) return;
       const context = customEvent.detail?.context;
-      
+
       if (context) {
+        // The emitter writes to the default (unscoped) store; the scoped
+        // conversation view must record the context itself or the pill is
+        // lost on the next session switch.
+        addContext(context);
         setTimeout(() => {
           if (richTextInputRef.current && (richTextInputRef.current as any).insertTag) {
             const el = richTextInputRef.current;
@@ -3102,11 +3116,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     };
 
     window.addEventListener('insert-context-tag', handleInsertContextTag);
-    
+
     return () => {
       window.removeEventListener('insert-context-tag', handleInsertContextTag);
     };
-  }, [conversationScope]);
+  }, [addContext, conversationScope]);
 
   const refreshWorkspaceModeCatalog = useWorkspaceModeCatalog(
     { workspaceId: inputWorkspaceId },
