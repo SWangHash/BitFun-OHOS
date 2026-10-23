@@ -506,11 +506,10 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
       return;
     }
     if (!selected) return;
-    // The picked path is the custom answer, so check the "Other" option to
-    // make it the selected answer, mirroring how a user would type into the
-    // inline field. Single-select: natural radio replacement. Multi-select:
-    // the "Other" option is added alongside any existing selections.
-    handleOtherInputChange(questionIndex, selected, true);
+    // Check the "Other" option first so typedInputReplacesSelection sees
+    // OTHER_OPTION_VALUE in the answer and does not clear coexisting
+    // multi-select options. Single-select: natural radio replacement.
+    // Multi-select: Other is added alongside any existing selections.
     const currentAnswer = answers[questionIndex];
     if (Array.isArray(currentAnswer)) {
       if (!currentAnswer.includes(OTHER_OPTION_VALUE)) {
@@ -519,6 +518,9 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
     } else if (currentAnswer !== OTHER_OPTION_VALUE) {
       handleSingleChange(questionIndex, OTHER_OPTION_VALUE);
     }
+    // Now fill the path — the guard in typedInputReplacesSelection skips
+    // clearing because the answer already holds OTHER_OPTION_VALUE.
+    handleOtherInputChange(questionIndex, selected, true);
   }, [answers, handleMultiChange, handleOtherInputChange, handleSingleChange, otherInputs]);
 
   const handleBrowseCustomAnswer = useCallback((questionId: string) => {
