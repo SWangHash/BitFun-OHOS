@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useId, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Loader2 } from 'lucide-react';
 import { Checkbox, Icon, Tooltip } from '@bitfun/ui';
@@ -58,6 +58,7 @@ export const RemediationSelectionPanel: React.FC<RemediationSelectionPanelProps>
   onSetDecisionSelection,
 }) => {
   const { t } = useTranslation('flow-chat');
+  const panelId = useId();
 
   const selectableItems = useMemo(
     () => remediationItems.filter((item) => !completedRemediationIds.has(item.id)),
@@ -85,6 +86,12 @@ export const RemediationSelectionPanel: React.FC<RemediationSelectionPanelProps>
     if (groupedItems.ungrouped?.length) ordered.push('ungrouped');
     return ordered;
   }, [groupedItems]);
+
+  const isDecisionExpanded = (item: ReviewRemediationItem) => (
+    (item.requiresDecision && selectedRemediationIds.has(item.id) && !completedRemediationIds.has(item.id)) ||
+    expandedDecisionIds.has(item.id)
+  );
+  const hasExpandedDecision = remediationItems.some((item) => item.requiresDecision && isDecisionExpanded(item));
 
   return (
     <div className="deep-review-action-bar__remediation">
@@ -117,7 +124,9 @@ export const RemediationSelectionPanel: React.FC<RemediationSelectionPanelProps>
 
       {showRemediationList && (
         <div
-          className="deep-review-action-bar__remediation-list"
+          className={`deep-review-action-bar__remediation-list ${
+            hasExpandedDecision ? 'deep-review-action-bar__remediation-list--decisions-expanded' : ''
+          }`}
           onWheel={stopNestedScrollPropagation}
           onTouchMove={stopNestedScrollPropagation}
         >
@@ -168,11 +177,15 @@ export const RemediationSelectionPanel: React.FC<RemediationSelectionPanelProps>
                     const isCompleted = completedRemediationIds.has(item.id);
                     const isFixing = !isCompleted && fixingRemediationIds.has(item.id);
                     const isLocked = selectionDisabled || isCompleted;
+                    const isSelectedDecision = item.requiresDecision &&
+                      selectedRemediationIds.has(item.id) && !isCompleted;
+                    const isExpanded = isDecisionExpanded(item);
+                    const checkboxId = `${panelId}-${item.id}`;
                     const decisionHintText = item.decisionContext
                       ? `${item.decisionContext.question}\n${item.plan}`
                       : item.plan;
                     return (
-                      <label
+                      <div
                         key={item.id}
                         className={`deep-review-action-bar__remediation-item ${
                           isCompleted ? 'deep-review-action-bar__remediation-item--completed' : ''
@@ -181,79 +194,87 @@ export const RemediationSelectionPanel: React.FC<RemediationSelectionPanelProps>
                         }`}
                       >
                         <Checkbox
+                          id={checkboxId}
+                          aria-label={item.decisionContext?.question ?? item.plan}
                           checked={isCompleted || selectedRemediationIds.has(item.id)}
                           onChange={() => !isLocked && onToggleRemediation(item.id)}
                           disabled={isLocked}
                           size="sm"
                         />
-                        <Tooltip
-                          content={decisionHintText}
-                          disabled={!decisionHintText}
-                          placement="top"
-                        >
-                          <span className="deep-review-action-bar__remediation-text">
-                          {isCompleted && (
-                            <Icon name="check-circle" size="xs" className="deep-review-action-bar__completed-icon" />
-                          )}
-                          {isFixing && (
-                            <Loader2 size={12} className="deep-review-action-bar__fixing-icon" />
-                          )}
-                          {(isCompleted || isFixing) && (
-                            <span className="deep-review-action-bar__remediation-status">
-                              {isCompleted
-                                ? t('deepReviewActionBar.remediationStatus.fixed')
-                                : t('deepReviewActionBar.remediationStatus.fixing')}
-                            </span>
-                          )}
-                          {item.requiresDecision && (
-                            <span className="deep-review-action-bar__remediation-tag">
-                              {t('reviewActionBar.needsDecisionTag')}
-                            </span>
-                          )}
-                          {item.groupId === 'verification' ? (
-                            <span className="deep-review-action-bar__remediation-text-plain">
-                              {item.decisionContext?.question ?? item.plan}
-                            </span>
-                          ) : (
-                            <a
-                              className="deep-review-action-bar__remediation-link"
-                              href={`#review-remediation-${item.groupId ?? 'ungrouped'}-${item.groupIndex}`}
-                              onClick={(event) => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                if (item.groupId != null) {
-                                  globalEventBus.emit(DEEP_REVIEW_SCROLL_TO_EVENT, {
-                                    groupId: item.groupId,
-                                    groupIndex: item.groupIndex,
-                                    issueIndex: item.issueIndex ?? -1,
-                                  });
-                                }
-                              }}
-                            >
-                              {item.decisionContext?.question ?? item.plan}
-                            </a>
-                          )}
-                          {item.decisionContext?.tradeoffs && (
-                            <span className="deep-review-action-bar__remediation-tradeoffs">
-                              {item.decisionContext.tradeoffs}
-                            </span>
-                          )}
-                          {item.decisionContext?.options && item.decisionContext.options.length > 0 && (
+                        <div className="deep-review-action-bar__remediation-content">
+                          <Tooltip
+                            content={decisionHintText}
+                            disabled={!decisionHintText}
+                            placement="top"
+                          >
+                            <label htmlFor={checkboxId} className={`deep-review-action-bar__remediation-text ${
+                              isExpanded ? 'deep-review-action-bar__remediation-text--expanded' : ''
+                            }`}>
+                              {isCompleted && (
+                                <Icon name="check-circle" size="xs" className="deep-review-action-bar__completed-icon" />
+                              )}
+                              {isFixing && (
+                                <Loader2 size={12} className="deep-review-action-bar__fixing-icon" />
+                              )}
+                              {(isCompleted || isFixing) && (
+                                <span className="deep-review-action-bar__remediation-status">
+                                  {isCompleted
+                                    ? t('deepReviewActionBar.remediationStatus.fixed')
+                                    : t('deepReviewActionBar.remediationStatus.fixing')}
+                                </span>
+                              )}
+                              {item.requiresDecision && (
+                                <span className="deep-review-action-bar__remediation-tag">
+                                  {t('reviewActionBar.needsDecisionTag')}
+                                </span>
+                              )}
+                              {item.groupId === 'verification' ? (
+                                <span className="deep-review-action-bar__remediation-text-plain">
+                                  {item.decisionContext?.question ?? item.plan}
+                                </span>
+                              ) : (
+                                <a
+                                  className="deep-review-action-bar__remediation-link"
+                                  href={`#review-remediation-${item.groupId ?? 'ungrouped'}-${item.groupIndex}`}
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    if (item.groupId != null) {
+                                      globalEventBus.emit(DEEP_REVIEW_SCROLL_TO_EVENT, {
+                                        groupId: item.groupId,
+                                        groupIndex: item.groupIndex,
+                                        issueIndex: item.issueIndex ?? -1,
+                                      });
+                                    }
+                                  }}
+                                >
+                                  {item.decisionContext?.question ?? item.plan}
+                                </a>
+                              )}
+                              {!isExpanded && item.decisionContext?.tradeoffs && (
+                                <span className="deep-review-action-bar__remediation-tradeoffs">
+                                  {item.decisionContext.tradeoffs}
+                                </span>
+                              )}
+                            </label>
+                          </Tooltip>
+                          {!isSelectedDecision && item.decisionContext?.options && item.decisionContext.options.length > 0 && (
                             <button
                               type="button"
                               className="deep-review-action-bar__decision-toggle"
+                              aria-expanded={isExpanded}
                               onClick={(event) => {
                                 event.preventDefault();
                                 event.stopPropagation();
                                 onToggleDecisionExpansion(item.id);
                               }}
                             >
-                              {expandedDecisionIds.has(item.id)
+                              {isExpanded
                                 ? t('toolCards.codeReview.remediationActions.collapseOptions')
                                 : t('toolCards.codeReview.remediationActions.expandOptions')}
                             </button>
                           )}
-                          {expandedDecisionIds.has(item.id) && item.decisionContext?.options && (
+                          {isExpanded && item.decisionContext?.options && (
                             <ul className="deep-review-action-bar__decision-options">
                               {item.decisionContext.options.map((opt, oi) => {
                                 const isSelected = decisionSelections[item.id] === oi;
@@ -262,6 +283,8 @@ export const RemediationSelectionPanel: React.FC<RemediationSelectionPanelProps>
                                   <li key={oi} className={`deep-review-action-bar__decision-option ${isSelected ? 'is-selected' : ''} ${isRecommended ? 'is-recommended' : ''}`}>
                                     <button
                                       type="button"
+                                      aria-pressed={isSelected}
+                                      disabled={isLocked}
                                       onClick={(event) => {
                                         event.preventDefault();
                                         event.stopPropagation();
@@ -281,9 +304,18 @@ export const RemediationSelectionPanel: React.FC<RemediationSelectionPanelProps>
                               })}
                             </ul>
                           )}
-                          </span>
-                        </Tooltip>
-                      </label>
+                          {isExpanded && item.requiresDecision && !item.decisionContext?.options?.length && (
+                            <div className="deep-review-action-bar__decision-gate-note" role="note">
+                              {t('deepReviewActionBar.decisionGate.noOptionsHint')}
+                            </div>
+                          )}
+                          {isExpanded && item.decisionContext?.tradeoffs && (
+                            <div className="deep-review-action-bar__remediation-tradeoffs">
+                              {item.decisionContext.tradeoffs}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     );
                   })}
                 </div>

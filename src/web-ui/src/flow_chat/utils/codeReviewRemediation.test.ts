@@ -156,6 +156,84 @@ describe('getDefaultSelectedRemediationIds', () => {
 });
 
 describe('buildSelectedReviewRemediationPrompt', () => {
+  const decision = {
+    question: 'Which migration strategy should we use?',
+    plan: 'Use the fast path or the staged path after deciding.',
+    options: ['Migrate all records now', 'Migrate records in stages'],
+    tradeoffs: 'Immediate migration is faster; staged migration limits disruption.',
+    recommendation: 0,
+  };
+
+  it.each([
+    ['legacy text', 'Choose a migration strategy', undefined],
+    ['missing options', { question: decision.question, plan: decision.plan }, undefined],
+    ['empty options', { ...decision, options: [] }, 0],
+    ['no user selection', decision, undefined],
+    ['a stale option index', decision, 2],
+  ])('does not authorize remediation with %s', (_name, entry, selection) => {
+    const reviewData = {
+      report_sections: { remediation_groups: { needs_decision: [entry] } },
+    } as CodeReviewRemediationData;
+    const [item] = buildReviewRemediationItems(reviewData);
+
+    expect(buildSelectedReviewRemediationPrompt({
+      reviewData,
+      selectedIds: new Set([item.id]),
+      reviewMode: 'standard',
+      decisionSelections: selection == null ? {} : { [item.id]: selection as number },
+    })).toBe('');
+  });
+
+  it.each(['standard', 'deep'] as const)('uses only the chosen option as the executable %s plan', (reviewMode) => {
+    const reviewData = {
+      report_sections: { remediation_groups: { needs_decision: [decision] } },
+    };
+    const [item] = buildReviewRemediationItems(reviewData);
+    const prompt = buildSelectedReviewRemediationPrompt({
+      reviewData,
+      selectedIds: new Set([item.id]),
+      reviewMode,
+      decisionSelections: { [item.id]: 1 },
+    });
+
+    expect(prompt).toContain('## Selected Remediation Plan\n1. Migrate records in stages');
+    expect(prompt).toContain(`Decision: ${decision.question}`);
+    expect(prompt).toContain('User chose option 2: Migrate records in stages');
+    expect(prompt).toContain('do not substitute another option');
+    expect(prompt).not.toContain(decision.plan);
+    expect(prompt).not.toContain(decision.options[0]);
+    expect(prompt).not.toContain('Recommended option');
+  });
+
+  it('requires a choice for every selected decision while ignoring unselected decisions', () => {
+    const reviewData = {
+      report_sections: {
+        remediation_groups: {
+          must_fix: ['Fix the confirmed defect'],
+          needs_decision: [decision, { question: 'Another decision', plan: 'Decide first' }],
+        },
+      },
+    };
+    const [fix, chosen, unresolved] = buildReviewRemediationItems(reviewData);
+    const params = {
+      reviewData,
+      reviewMode: 'standard' as const,
+      decisionSelections: { [chosen.id]: 1 },
+    };
+
+    expect(buildSelectedReviewRemediationPrompt({
+      ...params,
+      selectedIds: new Set([fix.id, chosen.id, unresolved.id]),
+    })).toBe('');
+    const prompt = buildSelectedReviewRemediationPrompt({
+      ...params,
+      selectedIds: new Set([fix.id, chosen.id]),
+    });
+    expect(prompt).toContain('Fix the confirmed defect');
+    expect(prompt).toContain(decision.options[1]);
+    expect(prompt).not.toContain('Another decision');
+  });
+
   it('returns empty string when no items selected', () => {
     const prompt = buildSelectedReviewRemediationPrompt({
       reviewData: {
@@ -203,7 +281,7 @@ describe('buildSelectedReviewRemediationPrompt', () => {
         summary: { recommended_action: 'request_changes' },
         remediation_plan: ['Fix issue 1', 'Fix issue 2', 'Fix issue 3'],
       },
-      selectedIds: new Set(['remediation-1', 'remediation-2']),
+      selectedIds: new Set(['remediation-0', 'remediation-1', 'remediation-2']),
       reviewMode: 'deep',
       completedItems: ['remediation-0'],
     });
@@ -212,6 +290,31 @@ describe('buildSelectedReviewRemediationPrompt', () => {
     expect(prompt).toContain('Already completed items (DO NOT re-fix)');
     expect(prompt).toContain('Fix issue 1');
     expect(prompt).toContain('Please focus only on the remaining items');
+    expect(prompt.split('## Selected Remediation Plan')[1]).not.toContain('Fix issue 1');
+  });
+
+  it('does not require a current decision selection for an already completed item', () => {
+    const prompt = buildSelectedReviewRemediationPrompt({
+      reviewData: {
+        report_sections: { remediation_groups: {
+          must_fix: ['Fix the remaining issue'],
+          needs_decision: [{
+            question: 'Which migration?',
+            plan: 'Completed migration',
+            options: ['Fast path', 'Staged path'],
+          }],
+        } },
+      },
+      selectedIds: new Set(['remediation-must_fix-0', 'remediation-needs_decision-1']),
+      reviewMode: 'deep',
+      completedItems: ['remediation-needs_decision-1'],
+    });
+
+    expect(prompt).toContain('Already completed items (DO NOT re-fix)');
+    expect(prompt).toContain('Completed migration');
+    expect(prompt.split('## Selected Remediation Plan')[1]).toContain('Fix the remaining issue');
+    expect(prompt.split('## Selected Remediation Plan')[1]).not.toContain('Completed migration');
+    expect(prompt).not.toContain('User chose option');
   });
 
   it('does not append continuation context when completedItems is empty', () => {

@@ -219,7 +219,10 @@ fn count_decision_items(input: &Value) -> usize {
         .map(|items| {
             items
                 .iter()
-                .filter_map(Value::as_str)
+                .filter_map(|item| {
+                    item.as_str()
+                        .or_else(|| item.get("question").and_then(Value::as_str))
+                })
                 .map(str::trim)
                 .filter(|item| !item.is_empty())
                 .count()

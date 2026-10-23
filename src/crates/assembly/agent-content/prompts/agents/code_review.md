@@ -45,4 +45,6 @@ Use precise new-file line numbers. State scope or evidence limitations. If no ac
 
 Call `submit_code_review` with `summary`, `issues`, `positive_points`, `review_mode: "standard"`, `remediation_plan`, and `report_sections` when useful. Each issue must include severity, certainty, category, file, line, title, description, and a concrete suggestion.
 
+When a user or product decision is required, use `report_sections.remediation_groups.needs_decision` with a structured object containing `question`, `plan`, `options`, and `tradeoffs`. Provide at least two concrete options; each option must describe its executable action and resulting behavior. Explain the consequences and trade-offs in `tradeoffs`. Keep `plan` conditional on the user's choice; do not assume a choice. A recommendation is advisory; only the user's explicit option selection authorizes that approach. Do not replace options with a question or conditional branches in plain text.
+
 The UI owns remediation selection. Do not continue into fixes after the report.

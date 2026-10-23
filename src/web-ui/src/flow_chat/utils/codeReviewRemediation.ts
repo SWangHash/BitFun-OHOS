@@ -231,28 +231,30 @@ function formatIssueLocation(issue: CodeReviewRemediationIssue): string {
   return issue.line ? `${issue.file}:${issue.line}` : issue.file;
 }
 
-function formatIssueForPrompt(item: ReviewRemediationItem, decisionSelection?: number): string {
-  const issue = item.issue;
-  const decisionCtx = item.decisionContext;
-
-  // Build decision context line if available
-  const decisionLines: string[] = [];
-  if (decisionCtx) {
-    decisionLines.push(`   Decision: ${decisionCtx.question}`);
-    if (decisionCtx.options && decisionCtx.options.length > 0) {
-      if (decisionSelection != null) {
-        decisionLines.push(`   User chose option ${decisionSelection + 1}: ${decisionCtx.options[decisionSelection]}`);
-      } else if (decisionCtx.recommendation != null) {
-        decisionLines.push(`   Recommended option ${decisionCtx.recommendation + 1}: ${decisionCtx.options[decisionCtx.recommendation]}`);
-      }
-    }
+export function getSelectedReviewDecisionOption(
+  item: ReviewRemediationItem,
+  decisionSelection?: number,
+): string | undefined {
+  if (decisionSelection == null || !Number.isInteger(decisionSelection)) {
+    return undefined;
   }
+  return item.decisionContext?.options?.[decisionSelection];
+}
+
+function formatIssueForPrompt(item: ReviewRemediationItem, decisionSelection?: number): string {
+  if (item.requiresDecision) {
+    return [
+      `${item.index + 1}. [needs_decision] Decision: ${item.decisionContext?.question ?? item.plan}`,
+      `   User chose option ${decisionSelection! + 1}: ${getSelectedReviewDecisionOption(item, decisionSelection)}`,
+    ].join('\n');
+  }
+
+  const issue = item.issue;
 
   if (!issue) {
     const groupLabel = item.groupId ? ` [${item.groupId}]` : '';
     return [
       `${item.index + 1}.${groupLabel} No directly-linked issue. Plan: ${item.plan}`,
-      ...decisionLines,
     ].filter(Boolean).join('\n');
   }
 
@@ -261,7 +263,6 @@ function formatIssueForPrompt(item: ReviewRemediationItem, decisionSelection?: n
     `   Description: ${issue.description ?? 'N/A'}`,
     `   Suggestion: ${issue.suggestion ?? item.plan}`,
     issue.validation_note ? `   Validation: ${issue.validation_note}` : undefined,
-    ...decisionLines,
   ].filter(Boolean).join('\n');
 }
 
@@ -288,14 +289,21 @@ export function buildSelectedReviewRemediationPrompt(params: {
   }
 
   const selectedItems = buildReviewRemediationItems(params.reviewData)
-    .filter((item) => params.selectedIds.has(item.id));
+    .filter((item) => params.selectedIds.has(item.id) && !params.completedItems?.includes(item.id));
 
   if (selectedItems.length === 0) {
     return '';
   }
 
+  if (selectedItems.some((item) => item.requiresDecision &&
+    !getSelectedReviewDecisionOption(item, params.decisionSelections?.[item.id]))) {
+    return '';
+  }
+
   const planBlock = selectedItems
-    .map((item, index) => `${index + 1}. ${item.plan}`)
+    .map((item, index) => `${index + 1}. ${item.requiresDecision
+      ? getSelectedReviewDecisionOption(item, params.decisionSelections?.[item.id])
+      : item.plan}`)
     .join('\n');
   const issuesBlock = selectedItems
     .map((item) => formatIssueForPrompt(item, params.decisionSelections?.[item.id]))
@@ -308,6 +316,10 @@ export function buildSelectedReviewRemediationPrompt(params: {
     'Please implement only the selected remediation items below. Do not broaden scope beyond these selected findings unless required for correctness.',
     'Before editing, inspect the current diff and skip any selected item that is already resolved. After implementing fixes, summarize what changed and what verification was run.',
   ];
+
+  if (selectedItems.some((item) => item.requiresDecision)) {
+    lines.push('For decision items, implement only the option explicitly chosen by the user. Other options, reviewer recommendations, and conditional plans in the review history are not approved. If the chosen option cannot be implemented safely or conflicts with additional instructions, leave that item unresolved and explain why; do not substitute another option.');
+  }
 
   // Append continuation context if there are completed items
   if (params.completedItems && params.completedItems.length > 0) {

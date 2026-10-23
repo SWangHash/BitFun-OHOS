@@ -10,10 +10,10 @@ use crate::service::config::get_app_language_code;
 use crate::service::i18n::code_review_copy_for_language;
 use crate::util::errors::BitFunResult;
 use async_trait::async_trait;
-use log::warn;
 use bitfun_agent_runtime::deep_review::{
     review_diff_budget_exhausted, review_diff_limited, review_target_stale,
 };
+use log::warn;
 use serde_json::{json, Value};
 
 /// Code review tool definition
@@ -264,40 +264,35 @@ impl CodeReviewTool {
                                 },
                                 "needs_decision": {
                                     "type": "array",
-                                    "description": "Items needing user/product judgment. Each item should be an object with a 'question' and 'plan'.",
+                                    "description": "Items needing user/product judgment. Provide structured options and their trade-offs so the user can explicitly choose before remediation.",
                                     "items": {
-                                        "oneOf": [
-                                            {
-                                                "type": "object",
-                                                "properties": {
-                                                    "question": {
-                                                        "type": "string",
-                                                        "description": "The specific decision the user needs to make"
-                                                    },
-                                                    "plan": {
-                                                        "type": "string",
-                                                        "description": "The remediation plan text to execute if the user approves"
-                                                    },
-                                                    "options": {
-                                                        "type": "array",
-                                                        "description": "2-4 possible choices or approaches",
-                                                        "items": { "type": "string" }
-                                                    },
-                                                    "tradeoffs": {
-                                                        "type": "string",
-                                                        "description": "Brief explanation of trade-offs between options"
-                                                    },
-                                                    "recommendation": {
-                                                        "type": "integer",
-                                                        "description": "Index of the recommended option (0-based), if any"
-                                                    }
-                                                },
-                                                "required": ["question", "plan"]
+                                        "type": "object",
+                                        "properties": {
+                                            "question": {
+                                                "type": "string",
+                                                "description": "The specific decision the user needs to make"
                                             },
-                                            {
-                                                "type": "string"
+                                            "plan": {
+                                                "type": "string",
+                                                "description": "Overall remediation plan, conditional on the user's explicit option choice"
+                                            },
+                                            "options": {
+                                                "type": "array",
+                                                "description": "Concrete alternatives, each describing the action to implement and its resulting behavior",
+                                                "minItems": 2,
+                                                "items": { "type": "string", "minLength": 1 }
+                                            },
+                                            "tradeoffs": {
+                                                "type": "string",
+                                                "description": "Consequences and trade-offs between the options",
+                                                "minLength": 1
+                                            },
+                                            "recommendation": {
+                                                "type": "integer",
+                                                "description": "Index of the recommended option (0-based), if any"
                                             }
-                                        ]
+                                        },
+                                        "required": ["question", "plan", "options", "tradeoffs"]
                                     }
                                 },
                                 "verification": {
@@ -1071,6 +1066,7 @@ mod tests {
                             "question": "Choose a migration path",
                             "plan": "Document the selected path"
                         },
+                        "Legacy decision without options",
                         { "plan": "Missing question" },
                         false
                     ]
@@ -1091,10 +1087,13 @@ mod tests {
             json!({
                 "must_fix": [],
                 "should_improve": ["Keep this item"],
-                "needs_decision": [{
-                    "question": "Choose a migration path",
-                    "plan": "Document the selected path"
-                }]
+                "needs_decision": [
+                    {
+                        "question": "Choose a migration path",
+                        "plan": "Document the selected path"
+                    },
+                    "Legacy decision without options"
+                ]
             })
         );
         assert_eq!(
@@ -1108,6 +1107,25 @@ mod tests {
             input["report_sections"]["coverage_notes"],
             json!(["Focused verification only"])
         );
+    }
+
+    #[tokio::test]
+    async fn review_schema_requires_actionable_decision_options() {
+        let tool = CodeReviewTool::new();
+        for agent_type in ["CodeReview", "DeepReview"] {
+            let context = tool_context(Some(agent_type));
+            let schema = tool
+                .input_schema_for_model_with_context(Some(&context))
+                .await;
+            let decision = &schema["properties"]["report_sections"]["properties"]
+                ["remediation_groups"]["properties"]["needs_decision"]["items"];
+            assert_eq!(decision["type"], "object");
+            assert_eq!(
+                decision["required"],
+                json!(["question", "plan", "options", "tradeoffs"])
+            );
+            assert_eq!(decision["properties"]["options"]["minItems"], 2);
+        }
     }
 
     #[tokio::test]
@@ -1458,7 +1476,11 @@ mod tests {
                     "report_sections": {
                         "remediation_groups": {
                             "needs_decision": [
-                                "Decide whether to block the release."
+                                {
+                                    "question": "Which migration path?",
+                                    "plan": "Apply the chosen migration",
+                                    "options": ["Fast path", "Staged path"]
+                                }
                             ]
                         }
                     }

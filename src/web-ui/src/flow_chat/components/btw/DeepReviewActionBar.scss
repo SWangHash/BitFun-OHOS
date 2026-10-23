@@ -241,6 +241,15 @@
     overscroll-behavior: contain;
     scrollbar-gutter: stable;
     padding-right: 4px;
+
+    // Expanded decisions share the action bar's scroll area so long options
+    // are not confined to a second, compact viewport.
+    &--decisions-expanded {
+      max-height: none;
+      overflow: visible;
+      scrollbar-gutter: auto;
+      padding-right: 0;
+    }
   }
 
   /* Remediation group */
@@ -372,9 +381,12 @@
     vertical-align: text-bottom;
   }
 
-  &__remediation-text {
+  &__remediation-content {
     flex: 1;
     min-width: 0;
+  }
+
+  &__remediation-text {
     font-size: var(--bitfun-type-flow-control-font-size);
     line-height: var(--bitfun-type-flow-support-line-height);
     color: var(--bitfun-color-content-secondary);
@@ -382,6 +394,12 @@
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+
+    &--expanded {
+      display: block;
+      -webkit-line-clamp: unset;
+      overflow: visible;
+    }
   }
 
   &__remediation-link {
@@ -449,8 +467,12 @@
       text-align: left;
       transition: background-color 0.12s ease;
 
-      &:hover {
+      &:hover:not(:disabled) {
         background: var(--bitfun-color-action-quiet-hover);
+      }
+
+      &:disabled {
+        cursor: default;
       }
     }
 
