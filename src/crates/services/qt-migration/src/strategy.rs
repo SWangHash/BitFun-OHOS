@@ -102,6 +102,35 @@ pub const QT_MIGRATION_STRATEGY_PROCEED_VALUE: &str = "continue_migration";
 /// Option value the runtime reads as "the user refused to migrate this project".
 pub const QT_MIGRATION_STRATEGY_ABORT_VALUE: &str = "abort";
 
+/// Wording the model's own question uses for the two decisions. The contract
+/// values above are what the instruction asks for, but the question is written by
+/// the model in the user's language, so the card can submit the visible option
+/// text instead. Reading it is what keeps a question the user did answer from
+/// being asked again (#366). Refusal markers win over acceptance markers, because
+/// a refusal is often phrased with the acceptance verb ("不继续迁移").
+const STRATEGY_ABORT_MARKERS: &[&str] = &[
+    "abort",
+    "cancel",
+    "do not migrate",
+    "don't migrate",
+    "取消",
+    "不迁移",
+    "不继续",
+    "放弃",
+    "终止",
+    "中止",
+];
+
+const STRATEGY_PROCEED_MARKERS: &[&str] = &[
+    "continue",
+    "proceed",
+    "accept",
+    "继续",
+    "接受",
+    "降级",
+    "确定迁移",
+];
+
 /// The decision a submitted version-strategy answer carries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QtMigrationStrategyAnswer {
@@ -113,6 +142,10 @@ pub enum QtMigrationStrategyAnswer {
 
 /// Read the decision out of a submitted answer group, or `None` when it carries
 /// neither value.
+///
+/// The contract values are tried first, per token; a token that carries neither is
+/// matched against the wording of the model's own options, so an answer the user
+/// really made is not lost to the question's phrasing.
 pub fn read_version_strategy_answer(
     answers: &serde_json::Value,
 ) -> Option<QtMigrationStrategyAnswer> {
@@ -127,12 +160,27 @@ pub fn read_version_strategy_answer(
             _ => continue,
         };
         for token in tokens {
-            match token.trim() {
+            let token = token.trim();
+            match token {
                 QT_MIGRATION_STRATEGY_ABORT_VALUE => return Some(QtMigrationStrategyAnswer::Abort),
                 QT_MIGRATION_STRATEGY_PROCEED_VALUE => {
                     decided = Some(QtMigrationStrategyAnswer::Proceed)
                 }
-                _ => {}
+                _ => {
+                    let lower = token.to_lowercase();
+                    if STRATEGY_ABORT_MARKERS
+                        .iter()
+                        .any(|marker| lower.contains(marker))
+                    {
+                        return Some(QtMigrationStrategyAnswer::Abort);
+                    }
+                    if STRATEGY_PROCEED_MARKERS
+                        .iter()
+                        .any(|marker| lower.contains(marker))
+                    {
+                        decided = Some(QtMigrationStrategyAnswer::Proceed);
+                    }
+                }
             }
         }
     }

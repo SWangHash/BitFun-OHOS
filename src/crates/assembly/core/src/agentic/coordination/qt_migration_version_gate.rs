@@ -34,10 +34,13 @@ pub(crate) async fn record_version_mismatch_if_any(
     let snapshot = intake_snapshot_from_slot_value(
         session_manager.domain_state_get(session_id, &QT_MIGRATION_SLOT_INTAKE_STATE),
     );
-    if snapshot.version_strategy != QtMigrationVersionStrategy::NotNeeded {
+    let (project, toolchain) = measure_bound_generation_mismatch(&snapshot, official_qt_major())?;
+    // A decision already recorded for this exact (project, toolchain) pair is the
+    // user's own answer: re-measuring the same mismatch — a later turn of the same
+    // migration, or the same pair bound again — must not ask a second time (#366).
+    if snapshot.version_strategy.measured_generations() == Some((project, toolchain)) {
         return None;
     }
-    let (project, toolchain) = measure_bound_generation_mismatch(&snapshot, official_qt_major())?;
 
     let updated = qt_migration_set_version_strategy(
         &snapshot,
