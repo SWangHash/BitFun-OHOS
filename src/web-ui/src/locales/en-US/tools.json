@@ -127,6 +127,7 @@
       "zoomIn": "Zoom in (Ctrl + +)",
       "rotate90": "Rotate 90°",
       "download": "Download image",
+      "downloadSucceeded": "Image downloaded",
       "enterFullscreen": "Enter fullscreen",
       "exitFullscreen": "Exit fullscreen",
       "imageUrlEmpty": "Image URL is empty"

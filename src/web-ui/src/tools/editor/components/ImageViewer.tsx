@@ -180,7 +180,10 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
   }, []);
 
   const handleRotate = useCallback(() => {
-    setRotation(prev => (prev + 90) % 360);
+    // Keep the angle cumulative instead of wrapping at 360: the CSS rotate
+    // transition animates between consecutive values, and 270 → 0 would spin
+    // counter-clockwise across three quarters instead of one quarter.
+    setRotation(prev => prev + 90);
   }, []);
 
   const handleDownload = useCallback(() => {
@@ -191,6 +194,9 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
     // mounted FilesPanel to handle the event.
     if (filePath && !filePath.startsWith('dispatch-file://')) {
       downloadWorkspaceFileToDisk(filePath, null, () => {}, undefined, false)
+        .then(() => {
+          notification.success(t('editor.imageViewer.downloadSucceeded'));
+        })
         .catch((err) => {
           log.error('Failed to download image', err);
           notification.error(t('editor.imageViewer.loadImageFailedWithMessage', { message: String(err) }));
@@ -208,8 +214,10 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      notification.success(t('editor.imageViewer.downloadSucceeded'));
     } catch (err) {
       log.error('Failed to download image', err);
+      notification.error(t('editor.imageViewer.loadImageFailedWithMessage', { message: String(err) }));
     }
   }, [imageUrl, fileName, filePath, notification, t]);
 
@@ -247,7 +255,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
         trailing={
           <>
             <ToolbarGroup>
-              <Tooltip content={t('editor.imageViewer.zoomOut')} placement="top">
+              <Tooltip content={t('editor.imageViewer.zoomOut')} placement="bottom">
                 <IconButton
                   aria-label={t('editor.imageViewer.zoomOut')}
                   size="sm"
@@ -257,7 +265,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
                   disabled={zoom <= 25}
                 />
               </Tooltip>
-              <Tooltip content={t('editor.imageViewer.zoomReset')} placement="top">
+              <Tooltip content={t('editor.imageViewer.zoomReset')} placement="bottom">
                 <Button
                   size="sm"
                   variant="text"
@@ -267,7 +275,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
                   {zoom}%
                 </Button>
               </Tooltip>
-              <Tooltip content={t('editor.imageViewer.zoomIn')} placement="top">
+              <Tooltip content={t('editor.imageViewer.zoomIn')} placement="bottom">
                 <IconButton
                   aria-label={t('editor.imageViewer.zoomIn')}
                   size="sm"
@@ -280,7 +288,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
             </ToolbarGroup>
             <ToolbarSeparator />
             <ToolbarGroup>
-              <Tooltip content={t('editor.imageViewer.rotate90')} placement="top">
+              <Tooltip content={t('editor.imageViewer.rotate90')} placement="bottom">
                 <IconButton
                   aria-label={t('editor.imageViewer.rotate90')}
                   size="sm"
@@ -289,7 +297,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
                   onClick={handleRotate}
                 />
               </Tooltip>
-              <Tooltip content={t('editor.imageViewer.download')} placement="top">
+              <Tooltip content={t('editor.imageViewer.download')} placement="bottom">
                 <IconButton
                   aria-label={t('editor.imageViewer.download')}
                   size="sm"
@@ -301,7 +309,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
               </Tooltip>
               <Tooltip
                 content={isFullscreen ? t('editor.imageViewer.exitFullscreen') : t('editor.imageViewer.enterFullscreen')}
-                placement="top"
+                placement="bottom"
               >
                 <IconButton
                   aria-label={isFullscreen ? t('editor.imageViewer.exitFullscreen') : t('editor.imageViewer.enterFullscreen')}
