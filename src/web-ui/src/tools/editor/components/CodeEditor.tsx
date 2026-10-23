@@ -1110,9 +1110,20 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 
   useEffect(() => {
     if (monacoReady && pendingModelContentRef.current !== null) {
-      applyExternalContentToModel(pendingModelContentRef.current);
+      const pendingContent = pendingModelContentRef.current;
+      applyExternalContentToModel(pendingContent);
+      // The pending payload came from an accepted disk snapshot whose
+      // model was not mounted yet: re-anchor the saved-version marker so the
+      // freshly applied buffer is not reported dirty.
+      queueMicrotask(() => {
+        const model = modelRef.current;
+        if (model) {
+          savedVersionIdRef.current = model.getAlternativeVersionId();
+          monacoModelManager.markAsSaved(modelKey);
+        }
+      });
     }
-  }, [monacoReady, applyExternalContentToModel]);
+  }, [monacoReady, applyExternalContentToModel, modelKey]);
 
   useEffect(() => {
     if (modelRef.current && monacoReady) {
@@ -1856,6 +1867,41 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     }
   }, []);
 
+  /**
+   * Adopts the on-disk state as the editor's clean baseline. Used by every
+   * "buffer already matches the file" exit of the external-sync paths: those
+   * exits previously only refreshed the disk-version baseline and left stale
+   * dirty flags behind, so the second external write misreported the sync as
+   * a conflict and popped the "file changed on disk" dialog. Refreshes the
+   * version from metadata when the caller only has a stale/null one, clears
+   * the dirty flags, and re-anchors Monaco's saved-version marker.
+   */
+  const acceptDiskState = useCallback(async (content: string | null, version: DiskFileVersion | null) => {
+    let effectiveVersion = version;
+    if (!effectiveVersion) {
+      try {
+        const fileInfo = await fetchFileMetadata();
+        effectiveVersion = diskVersionFromMetadata(fileInfo);
+      } catch (err) {
+        log.warn('Failed to refresh disk version for accepted state', err);
+      }
+    }
+    if (effectiveVersion) {
+      diskVersionRef.current = effectiveVersion;
+    }
+    if (content !== null) {
+      originalContentRef.current = content;
+      documentSession?.capture(content, false, content);
+    }
+    setHasChanges(false);
+    hasChangesRef.current = false;
+    const model = modelRef.current;
+    if (model) {
+      savedVersionIdRef.current = model.getAlternativeVersionId();
+      monacoModelManager.markAsSaved(modelKey);
+    }
+  }, [documentSession, fetchFileMetadata, modelKey]);
+
   const checkFileModification = useCallback(async () => {
     if (!filePath || !isActiveTab || isCheckingFileRef.current) {
       return;
@@ -1917,7 +1963,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         if (diskHash && editorMid !== undefined) {
           const editorHash = await editorSyncContentSha256Hex(editorMid);
           if (editorHash === diskHash) {
-            diskVersionRef.current = currentVersion;
+            await acceptDiskState(editorMid, currentVersion);
             outcome = 'hash-match';
             return;
           }
@@ -1947,7 +1993,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 
       const fileContent = await workspaceAPI.readFileContent(filePath);
       if (diskContentMatchesEditorForExternalSync(fileContent, editorBuffer)) {
-        diskVersionRef.current = currentVersion;
+        await acceptDiskState(fileContent, currentVersion);
         outcome = 'content-match';
         return;
       }
@@ -2230,15 +2276,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           if (diskHash && editorMid !== undefined) {
             const editorHash = await editorSyncContentSha256Hex(editorMid);
             if (editorHash === diskHash) {
-              try {
-                const fileInfo = await fetchFileMetadata();
-                const v = diskVersionFromMetadata(fileInfo);
-                if (v) {
-                  diskVersionRef.current = v;
-                }
-              } catch (err) {
-                log.warn('Failed to sync disk version after noop file-changed', err);
-              }
+              await acceptDiskState(editorMid, null);
               return;
             }
           }
@@ -2262,15 +2300,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           editorBuffer !== undefined &&
           diskContentMatchesEditorForExternalSync(diskContent, editorBuffer)
         ) {
-          try {
-            const fileInfo = await fetchFileMetadata();
-            const v = diskVersionFromMetadata(fileInfo);
-            if (v) {
-              diskVersionRef.current = v;
-            }
-          } catch (err) {
-            log.warn('Failed to sync disk version after noop file-changed', err);
-          }
+          await acceptDiskState(diskContent, null);
           return;
         }
 
