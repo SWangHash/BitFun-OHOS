@@ -712,12 +712,9 @@ export const ChatContextPicker: React.FC<ChatContextPickerProps> = ({
         event.preventDefault();
         event.stopPropagation();
         const selected = displayItems[selectedIndex];
-        if (selected) {
-          // Enter always selects — including directories — so the user
-          // can confirm a folder as the answer. Use → to browse into a dir.
-          if (selected.kind === 'source') handleItemClick(selected);
-          else handleSelect(selected);
-        }
+        // Enter always selects — including directories — so the user
+        // can confirm a folder as the answer. Use → to browse into a dir.
+        if (selected) handleSelect(selected);
         break;
       }
       case 'Escape':

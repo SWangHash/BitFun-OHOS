@@ -446,7 +446,14 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
         value,
         preserveOtherSelection,
       );
-      if (typedInputReplacesSelection(questionIndex, value, answers[questionIndex])) {
+      // When preserveOtherSelection is set (browse path), the caller has
+      // already checked "Other" via handleMultiChange/handleSingleChange.
+      // Those store updates are async, so answers[questionIndex] is still
+      // the stale snapshot without OTHER_OPTION_VALUE — the guard would
+      // fire clearOptionSelection and wipe the selections we just made.
+      // Skip the typed-replaces-selection check in that case.
+      if (!preserveOtherSelection
+        && typedInputReplacesSelection(questionIndex, value, answers[questionIndex])) {
         clearOptionSelection(questionIndex);
       }
       return;

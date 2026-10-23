@@ -2003,6 +2003,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     setHistoryIndex(-1);
     setSavedDraft('');
     setContextTriggerState({ isActive: false, query: '', startOffset: 0 });
+    setBoostEntryView('sources');
     setInlineTriggerState({
       isActive: false,
       trigger: null,
