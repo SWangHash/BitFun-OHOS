@@ -5,6 +5,7 @@ These product marks are cached locally so the compatibility scene does not depen
 | File | Upstream source |
 | --- | --- |
 | `claude-code.svg` | Claude official site: https://claude.ai/favicon.svg |
+| `deveco-code.png` | DevEco Code application favicon (500 x 500 PNG) |
 | `codex.svg` | OpenAI Developers: https://developers.openai.com/favicon.svg |
 | `pi.svg` | Pi official site: https://pi.dev/favicon.svg |
 | `deepseek-harness.svg` | DeepSeek Harness official repository: https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/master/website/public/favicon.svg |

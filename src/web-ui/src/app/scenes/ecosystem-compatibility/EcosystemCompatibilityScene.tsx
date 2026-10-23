@@ -61,7 +61,7 @@ const AcpAgentsConfig = lazy(
 );
 const PRODUCT_ICON_SOURCES: Record<EcosystemProductId, string | undefined> = {
   'claude-code': '/assets/ecosystem-compatibility/claude-code.svg',
-  'deveco-code': undefined,
+  'deveco-code': '/assets/ecosystem-compatibility/deveco-code.png',
   codex: '/assets/ecosystem-compatibility/codex.svg',
   pi: '/assets/ecosystem-compatibility/pi.svg',
   dsh: '/assets/ecosystem-compatibility/deepseek-harness.svg',
