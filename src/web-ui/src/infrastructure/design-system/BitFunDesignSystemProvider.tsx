@@ -16,10 +16,20 @@ import { useI18n } from '@/infrastructure/i18n';
 import {
   HOST_CHROME_INSET_BLOCK_START_VARIABLE,
   hostWindowChromeInsetBlockStart,
+  isOpenHarmonyRuntime,
 } from '@/infrastructure/runtime/environment';
 
 const DENSITY: DensityMode = 'compact';
 const HIGH_CONTRAST_MEDIA_QUERY = '(prefers-contrast: more), (forced-colors: active)';
+const SCROLLBAR_WIDTH_VARIABLE = '--bitfun-scrollbar-width';
+/**
+ * The Windows engine renders the shared scrollbar CSS (`scrollbar-width: thin`
+ * plus `scrollbar-color`) as a 10px custom scrollbar, and that is the thickness
+ * the desktop build is read at. ArkWeb ignores `scrollbar-width` and keeps the
+ * `::-webkit-scrollbar` width, whose token default is 6px, so the OHOS host
+ * hands the desktop thickness to the token instead.
+ */
+const ARKWEB_SCROLLBAR_WIDTH = '10px';
 
 function readHighContrastPreference(): boolean {
   return typeof window !== 'undefined'
@@ -63,28 +73,34 @@ export function BitFunDesignSystemProvider({ children }: PropsWithChildren) {
     const previousValues = new Map(
       Object.keys(attributes).map(name => [name, root.getAttribute(name)]),
     );
-    const previousInset = root.style.getPropertyValue(HOST_CHROME_INSET_BLOCK_START_VARIABLE);
+    const hostTokens: Record<string, string> = {
+      // A host that paints window chrome over the web view reserves that strip for
+      // every floating surface; hosts without it keep the zero default.
+      [HOST_CHROME_INSET_BLOCK_START_VARIABLE]: `${hostWindowChromeInsetBlockStart()}px`,
+    };
+    if (isOpenHarmonyRuntime()) {
+      hostTokens[SCROLLBAR_WIDTH_VARIABLE] = ARKWEB_SCROLLBAR_WIDTH;
+    }
+    const previousTokens = new Map(
+      Object.keys(hostTokens).map(name => [name, root.style.getPropertyValue(name)]),
+    );
 
     Object.entries(attributes).forEach(([name, value]) => {
       root.setAttribute(name, value);
     });
-    // A host that paints window chrome over the web view reserves that strip for
-    // every floating surface; hosts without it keep the zero default.
-    root.style.setProperty(
-      HOST_CHROME_INSET_BLOCK_START_VARIABLE,
-      `${hostWindowChromeInsetBlockStart()}px`,
-    );
+    Object.entries(hostTokens).forEach(([name, value]) => {
+      root.style.setProperty(name, value);
+    });
 
     return () => {
       previousValues.forEach((value, name) => {
         if (value === null) root.removeAttribute(name);
         else root.setAttribute(name, value);
       });
-      if (previousInset) {
-        root.style.setProperty(HOST_CHROME_INSET_BLOCK_START_VARIABLE, previousInset);
-      } else {
-        root.style.removeProperty(HOST_CHROME_INSET_BLOCK_START_VARIABLE);
-      }
+      previousTokens.forEach((value, name) => {
+        if (value) root.style.setProperty(name, value);
+        else root.style.removeProperty(name);
+      });
     };
   }, [colorScheme, contrast]);
 
