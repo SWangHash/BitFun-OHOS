@@ -11,6 +11,8 @@ import { WebglAddon } from '@xterm/addon-webgl';
 import {
   TerminalResizeDebouncer,
   DEFAULT_XTERM_MINIMUM_CONTRAST_RATIO,
+  decideFitResize,
+  decideResizeUnderColumnGuard,
   resolveUnmappedKeydownSequence,
 } from '../utils';
 import type { ReplayColumnGuard, TerminalPasteDecision } from '../utils';
@@ -29,7 +31,23 @@ import { readTextFromClipboard } from '@/shared/utils/textSelection';
 import './Terminal.scss';
 
 const log = createLogger('Terminal');
+// #region agent log
+const agentProbeLog = createLogger('TerminalProbe');
+// #endregion agent log
 const MIN_STABLE_TERMINAL_ROWS = 3;
+/** Narrowest column count the terminal lays out at; below it the columns are kept. */
+const MIN_STABLE_TERMINAL_COLS = 40;
+/**
+ * Deferred fits that follow a layout event that is not trustworthy on its own.
+ *
+ * A host may deliver the final container size after the frame that observed the
+ * change (ArkWeb lays out a re-parented panel across several frames), and a replay
+ * column guard refuses a column shrink for `REPLAY_COLUMN_GUARD_MAX_AGE_MS`. Neither
+ * produces another ResizeObserver entry once the box stops moving, so a single fit
+ * can settle on a geometry the panel no longer has. These retries are idempotent:
+ * a fit that measures the current size does nothing.
+ */
+const SETTLE_REFIT_DELAYS_MS = [120, 420, 1_200, 2_400];
 const TERMINAL_FONT_WEIGHT = getTypographyTokenNumber('font.weight.regular');
 const TERMINAL_FONT_WEIGHT_BOLD = getTypographyTokenNumber('font.weight.bold');
 
@@ -243,6 +261,9 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
   const onLayoutSettledRef = useRef(onLayoutSettled);
   const resizeSuspendedRef = useRef(resizeSuspended);
   const pendingFitAfterSuspendRef = useRef(false);
+  // Assigned once the fit scheduler below is created; callbacks that can run
+  // before that (a resize refused by the replay column guard) only schedule.
+  const scheduleSettleRefitsRef = useRef<() => void>(() => {});
   // Track key-pressed state to mirror xterm's internal _keyDownSeen flag.
   // Used by the input-event safety net (see below).
   const keyDownSeenRef = useRef(false);
@@ -274,6 +295,43 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
   resizeSuspendedRef.current = resizeSuspended;
   mergedOptionsRef.current = mergedOptions;
 
+  // #region agent log
+  const agentProbe = useCallback((id: string, loc: string, msg: string, data: Record<string, unknown> = {}) => {
+    const payload = { id, loc, msg, data: { terminalId: terminalIdRef.current, sessionId: sessionIdRef.current, ...data } };
+    // Persisted channel: survives a release build, where debug/info are filtered out.
+    agentProbeLog.warn(msg, payload);
+    void fetch('http://127.0.0.1:7469/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).catch(() => {});
+  }, []);
+
+  const agentGeometry = useCallback(() => {
+    const container = containerRef.current;
+    const term = terminalRef.current;
+    const viewport = container?.querySelector<HTMLElement>('.xterm-viewport') ?? null;
+    const viewportParent = viewport?.parentElement ?? null;
+    const xtermEl = container?.querySelector<HTMLElement>('.xterm') ?? null;
+    const screenEl = container?.querySelector<HTMLElement>('.xterm-screen') ?? null;
+    return {
+      container: container ? [container.clientWidth, container.clientHeight] : null,
+      containerScroll: container ? [container.scrollHeight, container.scrollTop] : null,
+      xterm: xtermEl
+        ? [xtermEl.offsetWidth, xtermEl.offsetHeight, xtermEl.clientHeight, getComputedStyle(xtermEl).paddingTop]
+        : null,
+      viewportParent: viewportParent ? [viewportParent.clientHeight, viewportParent.scrollHeight] : null,
+      viewport: viewport
+        ? [viewport.clientHeight, viewport.scrollHeight, viewport.scrollTop, viewport.offsetHeight]
+        : null,
+      screen: screenEl ? [screenEl.offsetWidth, screenEl.offsetHeight] : null,
+      term: term ? [term.cols, term.rows] : null,
+      bufferLines: term ? term.buffer.active.length : null,
+      baseY: term ? term.buffer.active.baseY : null,
+    };
+  }, []);
+  // #endregion agent log
+
   // Force refresh for rendering consistency.
   const forceRefresh = useCallback((terminal: XTerm) => {
     const rows = terminal.rows;
@@ -286,6 +344,15 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
     if (!terminal) return false;
 
     try {
+      // #region agent log
+      agentProbe('B', 'Terminal.doXtermResize', 'enter', {
+        target: [cols, rows],
+        current: [terminal.cols, terminal.rows],
+        suspended: resizeSuspendedRef.current,
+        guardCols: replayColumnGuardRef?.current?.protectedCols() ?? null,
+      });
+      // #endregion agent log
+
       if (resizeSuspendedRef.current) {
         pendingFitAfterSuspendRef.current = true;
         return false;
@@ -305,22 +372,66 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
       // The guard expires on its own, so a settled layout always wins.
       const minCols = replayColumnGuardRef?.current?.protectedCols() ?? 0;
       const hasBufferedScreenText = minCols > 0 ? terminalHasBufferedScreenText(terminal) : false;
-      // The guard only protects actual screen text. Applying it to an empty new
+      // The guard protects only actual screen text. Applying it to an empty new
       // terminal leaves xterm at 80x24 while the PTY moves to the panel size,
       // which creates blank scrollback during shell startup repaints.
-      if (minCols > 0 && cols < minCols && hasBufferedScreenText) {
+      const decision = decideResizeUnderColumnGuard({
+        targetCols: cols,
+        targetRows: rows,
+        currentCols: terminal.cols,
+        currentRows: terminal.rows,
+        protectedCols: minCols,
+        hasBufferedScreenText,
+      });
+
+      if (decision.kind === 'skip') {
+        // Nothing else retries a refused fit: the container may already have
+        // stopped moving, so the guard's expiry would go unnoticed. Ask for a
+        // settle refit that lands after it expires.
+        // #region agent log
+        agentProbe('B', 'Terminal.doXtermResize', 'guard-skip', {
+          target: [cols, rows],
+          guardCols: minCols,
+          hasBufferedScreenText,
+          geometry: agentGeometry(),
+        });
+        // #endregion agent log
+        scheduleSettleRefitsRef.current?.();
+        return false;
+      }
+
+      if (decision.kind === 'rows-only') {
+        // The protected width stands, but the panel's height still belongs to the
+        // container. Freezing both axes left a tall panel showing a single row of
+        // its scrollback behind a scrollbar.
+        terminal.resize(decision.cols, decision.rows);
+        // #region agent log
+        agentProbe('B', 'Terminal.doXtermResize', 'rows-only-applied', {
+          applied: [decision.cols, decision.rows],
+          guardCols: minCols,
+          geometry: agentGeometry(),
+        });
+        // #endregion agent log
+        scheduleSettleRefitsRef.current?.();
         return false;
       }
 
       terminal.resize(cols, rows);
       onSizeSettledRef.current?.({ cols, rows });
+      // #region agent log
+      agentProbe('B', 'Terminal.doXtermResize', 'applied', {
+        applied: [decision.cols, decision.rows],
+        guardCols: minCols,
+        geometry: agentGeometry(),
+      });
+      // #endregion agent log
 
       return true;
     } catch (error) {
       log.warn('Xterm resize error', { cols, rows, error });
       return false;
     }
-  }, [replayColumnGuardRef]);
+  }, [replayColumnGuardRef, agentProbe, agentGeometry]);
 
   // Notify backend PTY with deduping.
   const doBackendResize = useCallback((cols: number, rows: number) => {
@@ -372,6 +483,15 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
 
       const { clientWidth, clientHeight } = containerRef.current;
       if (clientWidth < 50 || clientHeight < 50) {
+        log.debug('Fit skipped: container not laid out yet', { clientWidth, clientHeight });
+        // #region agent log
+        agentProbe('A', 'Terminal.fit', 'skip-small-container', {
+          immediate,
+          clientWidth,
+          clientHeight,
+          geometry: agentGeometry(),
+        });
+        // #endregion agent log
         return;
       }
 
@@ -382,23 +502,64 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
 
       // Skip only unusably tiny dimensions. Panel animation and drag resizes are
       // suspended by the parent; the final compact bottom panel still needs to
-      // resize to fewer than 10 rows so the prompt remains visible.
-      if (dims.cols < 40 || dims.rows < MIN_STABLE_TERMINAL_ROWS) {
+      // resize to fewer than 10 rows so the prompt remains visible. An unusable
+      // axis keeps its current value instead of refusing the whole measurement:
+      // a split panel narrow enough to fall below the minimum column count would
+      // otherwise freeze the row count too, leaving a single row of scrollback
+      // behind a scrollbar in every terminal that was not the one being dragged.
+      const terminal = terminalRef.current;
+      if (!terminal) return;
+      const decision = decideFitResize({
+        measuredCols: dims.cols,
+        measuredRows: dims.rows,
+        currentCols: terminal.cols,
+        currentRows: terminal.rows,
+        minCols: MIN_STABLE_TERMINAL_COLS,
+        minRows: MIN_STABLE_TERMINAL_ROWS,
+      });
+
+      if (decision.kind === 'skip') {
+        log.debug('Fit skipped: measured size unusable', {
+          cols: dims.cols,
+          rows: dims.rows,
+          clientWidth,
+          clientHeight,
+        });
+        // #region agent log
+        agentProbe('A', 'Terminal.fit', 'skip-unusable', {
+          immediate,
+          dims,
+          clientWidth,
+          clientHeight,
+          geometry: agentGeometry(),
+        });
+        // #endregion agent log
         return;
       }
 
+      // #region agent log
+      agentProbe('A', 'Terminal.fit', 'measure', {
+        immediate,
+        dims,
+        applied: [decision.cols, decision.rows],
+        clientWidth,
+        clientHeight,
+        geometry: agentGeometry(),
+      });
+      // #endregion agent log
+
       if (resizeDebouncerRef.current) {
-        resizeDebouncerRef.current.resize(dims.cols, dims.rows, immediate);
+        resizeDebouncerRef.current.resize(decision.cols, decision.rows, immediate);
       } else {
-        if (doXtermResize(dims.cols, dims.rows)) {
-          doBackendResize(dims.cols, dims.rows);
+        if (doXtermResize(decision.cols, decision.rows)) {
+          doBackendResize(decision.cols, decision.rows);
           handleResizeComplete();
         }
       }
     } catch (error) {
       log.warn('Fit error', error);
     }
-  }, [doXtermResize, doBackendResize, handleResizeComplete]);
+  }, [doXtermResize, doBackendResize, handleResizeComplete, agentProbe, agentGeometry]);
 
   const flushResize = useCallback(() => {
     if (resizeSuspendedRef.current) {
@@ -426,12 +587,48 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
   fitRef.current = fit;
   forceRefreshRef.current = forceRefresh;
 
-  useEffect(() => {
-    if (resizeSuspended) {
+  const settleRefitTimersRef = useRef<number[]>([]);
+  const previousResizeSuspendedRef = useRef(resizeSuspended);
+
+  const cancelSettleRefits = useCallback(() => {
+    if (settleRefitTimersRef.current.length === 0) {
       return;
     }
+    settleRefitTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
+    settleRefitTimersRef.current = [];
+  }, []);
 
-    if (!pendingFitAfterSuspendRef.current) {
+  /**
+   * Re-fit after a layout event whose measurement cannot be trusted yet.
+   * See SETTLE_REFIT_DELAYS_MS for why more than one attempt is needed.
+   */
+  const scheduleSettleRefits = useCallback(() => {
+    cancelSettleRefits();
+
+    SETTLE_REFIT_DELAYS_MS.forEach((delayMs) => {
+      const timerId = window.setTimeout(() => {
+        settleRefitTimersRef.current = settleRefitTimersRef.current.filter(
+          (pending) => pending !== timerId,
+        );
+        fitRef.current(false);
+      }, delayMs);
+      settleRefitTimersRef.current.push(timerId);
+    });
+  }, [cancelSettleRefits]);
+  scheduleSettleRefitsRef.current = scheduleSettleRefits;
+
+  useEffect(() => {
+    const wasSuspended = previousResizeSuspendedRef.current;
+    previousResizeSuspendedRef.current = resizeSuspended;
+    // #region agent log
+    agentProbe('D', 'Terminal.suspendEffect', 'transition', {
+      resizeSuspended,
+      wasSuspended,
+      geometry: agentGeometry(),
+    });
+    // #endregion agent log
+
+    if (resizeSuspended || !wasSuspended) {
       return;
     }
 
@@ -444,6 +641,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
     requestAnimationFrame(() => {
       resizeDebouncerRef.current?.flush();
       fitRef.current(true);
+      scheduleSettleRefitsRef.current();
     });
   }, [resizeSuspended]);
 
@@ -591,7 +789,14 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
     resizeDebouncerRef.current = resizeDebouncer;
 
     requestAnimationFrame(() => {
+      // #region agent log
+      agentProbe('D', 'Terminal.mount', 'mounted-fit', { geometry: agentGeometry() });
+      // #endregion agent log
       fitRef.current(true);
+      // A freshly mounted terminal may be measured before the host finished laying
+      // out the panel it was re-parented into, and a history replay that follows
+      // arms the column guard. Retry so the container's settled geometry wins.
+      scheduleSettleRefitsRef.current();
 
       setIsReady(true);
       onReadyRef.current?.(terminal);
@@ -615,6 +820,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
 
             remeasureTerminal(terminalRef.current);
             fitRef.current(true);
+            scheduleSettleRefitsRef.current();
 
             requestAnimationFrame(() => {
               if (!terminalRef.current) return;
@@ -786,10 +992,23 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
       textareaEl.addEventListener('input', textareaInputHandler, true);
     }
 
-    const resizeObserver = new ResizeObserver(() => {
+    const resizeObserver = new ResizeObserver((entries) => {
+      // #region agent log
+      const observed = entries[0]?.contentRect;
+      agentProbe('C', 'Terminal.resizeObserver', 'observed', {
+        observed: observed
+          ? [Math.round(observed.width), Math.round(observed.height)]
+          : null,
+        suspended: resizeSuspendedRef.current,
+        geometry: agentGeometry(),
+      });
+      // #endregion agent log
       requestAnimationFrame(() => {
         fitRef.current(false);
       });
+      // The observed box is not always the box the panel keeps: a re-parent or a
+      // split change moves it again without another entry. Retry after it settles.
+      scheduleSettleRefitsRef.current();
     });
     resizeObserver.observe(container);
     resizeObserverRef.current = resizeObserver;
@@ -807,6 +1026,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
           resizeDebouncerRef.current?.flush();
           
           fitRef.current(true);
+          scheduleSettleRefitsRef.current();
           
           requestAnimationFrame(() => {
             const term = terminalRef.current;
@@ -840,6 +1060,9 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
     intersectionObserverRef.current = intersectionObserver;
 
     return () => {
+      // #region agent log
+      agentProbe('D', 'Terminal.unmount', 'dispose', { geometry: agentGeometry() });
+      // #endregion agent log
       dataDisposable.dispose();
       binaryDisposable.dispose();
       titleDisposable.dispose();
@@ -853,6 +1076,8 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
       resizeObserver.disconnect();
       intersectionObserver.disconnect();
       fontLoadCancelled = true;
+      settleRefitTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
+      settleRefitTimersRef.current = [];
       resizeDebouncer.dispose();
       webglAddonRef.current?.dispose();
       terminal.dispose();

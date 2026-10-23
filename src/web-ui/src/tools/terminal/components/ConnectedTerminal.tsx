@@ -29,6 +29,20 @@ import './Terminal.scss';
 
 const log = createLogger('ConnectedTerminal');
 
+// #region agent log
+const agentProbeLog = createLogger('TerminalProbe');
+function agentProbe(id: string, loc: string, msg: string, data: Record<string, unknown> = {}): void {
+  const payload = { id, loc, msg, data };
+  // Persisted channel: survives a release build, where debug/info are filtered out.
+  agentProbeLog.warn(msg, payload);
+  void fetch('http://127.0.0.1:7469/log', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).catch(() => {});
+}
+// #endregion agent log
+
 /**
  * Matches a standalone absolute cursor position command: ESC [ R ; C H
  * ConPTY sends these after resize to reposition the cursor in its own coordinate
@@ -128,6 +142,17 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
     };
   }, []);
 
+  // #region agent log
+  useEffect(() => {
+    agentProbe('D', 'ConnectedTerminal.lifecycle', 'mounted', { sessionId });
+    return () => agentProbe('D', 'ConnectedTerminal.lifecycle', 'unmounted', { sessionId });
+  }, [sessionId]);
+
+  useEffect(() => {
+    agentProbe('D', 'ConnectedTerminal.resizeSuspended', 'changed', { sessionId, resizeSuspended });
+  }, [sessionId, resizeSuspended]);
+  // #endregion agent log
+
   // Buffer output until the terminal is ready.
   // Use a ref (not state) to avoid stale closure issues with isTerminalReady.
   const isTerminalReadyRef = useRef(false);
@@ -152,12 +177,21 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
   }, []);
 
   const setReplayColumnGuard = useCallback((cols: number) => {
+    // #region agent log
+    agentProbe('E', 'ConnectedTerminal.setReplayColumnGuard', 'armed', { sessionId, cols });
+    // #endregion agent log
     replayColumnGuardRef.current.arm(cols);
-  }, []);
+  }, [sessionId]);
 
   const clearReplayColumnGuard = useCallback(() => {
+    // #region agent log
+    agentProbe('E', 'ConnectedTerminal.clearReplayColumnGuard', 'cleared', {
+      sessionId,
+      protectedCols: replayColumnGuardRef.current.protectedCols(),
+    });
+    // #endregion agent log
     replayColumnGuardRef.current.clear();
-  }, []);
+  }, [sessionId]);
 
   const applyReplayResize = useCallback((cols: number, rows: number, protectScreenText: boolean) => {
     const xterm = terminalRef.current?.getTerminal?.();
@@ -331,9 +365,26 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
       outputQueueRef.current.push({ type: 'replayComplete' });
     }
 
+    // #region agent log
+    agentProbe('E', 'ConnectedTerminal.handleReplay', 'replay', {
+      sessionId,
+      events: events.length,
+      hasReplayScreenText,
+      maxReplayCols,
+      recordedDims: recordedDims ? [recordedDims.cols, recordedDims.rows] : null,
+      xtermBefore: xterm ? [xterm.cols, xterm.rows] : null,
+      shellWillRepaint,
+      ready: isTerminalReadyRef.current,
+    });
+    // #endregion agent log
+
     if (isTerminalReadyRef.current && terminalRef.current) {
       terminalRef.current.flushResize();
       flushOutputQueue();
+      // The replay restored the geometry the session was recorded at, which is not
+      // necessarily the geometry of the panel this view was just re-parented into.
+      // Ask for a fit so the container wins instead of waiting for the next resize.
+      terminalRef.current.fit();
     }
   }, [flushOutputQueue, queueWrite, setReplayColumnGuard]);
 
@@ -408,6 +459,13 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
     }
 
     lastSentSizeRef.current = { cols, rows };
+    // #region agent log
+    agentProbe('B', 'ConnectedTerminal.handleResize', 'backend-resize', {
+      sessionId,
+      target: [cols, rows],
+      xterm: xterm ? [xterm.cols, xterm.rows] : null,
+    });
+    // #endregion agent log
 
     // If post-history cursor mode is active, update the saved cursor position
     // ONLY when the terminal is growing (wider cols). Shrinking resizes may place
