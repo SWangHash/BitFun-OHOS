@@ -35,23 +35,18 @@
   /*
    * Keep the standard width/color pair together. Safari 18 supports width but
    * not color; setting thin there disables its transparent WebKit scrollbar.
+   *
+   * A host that reports its scrollbar engine through `data-bitfun-scrollbar-host`
+   * stays out of this pair. ArkWeb resolves the standard properties into a thin
+   * idle thumb that expands to the whole track on hover, and the standard
+   * properties win over the WebKit pseudo-elements, so the only way to hold one
+   * scrollbar width there is to keep the engine on the WebKit path, where the
+   * width token and the paint rules below are the only input.
    */
   @supports (scrollbar-color: transparent transparent) {
-    :where([data-bitfun-design-system-root], [data-bitfun-design-system-root] *, [data-bitfun-scrollbar-visibility]) {
+    :where([data-bitfun-design-system-root], [data-bitfun-design-system-root] *, [data-bitfun-scrollbar-visibility]):not([data-bitfun-scrollbar-host], [data-bitfun-scrollbar-host] *) {
       scrollbar-width: thin;
       scrollbar-color: var(--bitfun-color-scrollbar-thumb) transparent;
-    }
-  }
-
-  /*
-   * ArkWeb pairs a thin idle thumb with a full-width hover thumb, so its
-   * scrollbar changes width when the pointer reaches it instead of only
-   * changing paint. A host that reports `arkweb` leaves the thin variant out
-   * and keeps one width for both states.
-   */
-  @supports (scrollbar-color: transparent transparent) {
-    :where([data-bitfun-scrollbar-host="arkweb"], [data-bitfun-scrollbar-host="arkweb"] *) {
-      scrollbar-width: auto;
     }
   }
 
@@ -67,7 +62,7 @@
     }
 
     @supports (scrollbar-color: transparent transparent) {
-      :where([data-bitfun-design-system-root], [data-bitfun-design-system-root] *, [data-bitfun-scrollbar-visibility]):where(:not(:hover, :focus-visible, :has(:focus-visible), [data-bitfun-scrollbar-visibility="always"])) {
+      :where([data-bitfun-design-system-root], [data-bitfun-design-system-root] *, [data-bitfun-scrollbar-visibility]):where(:not(:hover, :focus-visible, :has(:focus-visible), [data-bitfun-scrollbar-visibility="always"])):not([data-bitfun-scrollbar-host], [data-bitfun-scrollbar-host] *) {
         scrollbar-color: transparent transparent;
       }
     }
