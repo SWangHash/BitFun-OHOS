@@ -76,13 +76,23 @@ export interface QtMigrationQuestion {
  * the coordinator:
  * - `qt_migration_path_not_found: field=<id>; path=<value>`
  * - `qt_migration_output_is_artifact: field=<id>; path=<value>`
+ * - `qt_migration_output_is_source_project: field=<id>; path=<value>`
+ * - `qt_migration_toolchain_not_a_kit: field=<id>; path=<value>`
  */
 const PATH_NOT_FOUND_PATTERN =
   /qt_migration_path_not_found:\s*field=([^;]+);\s*path=(.+)/;
 const OUTPUT_ARTIFACT_PATTERN =
   /qt_migration_output_is_artifact:\s*field=([^;]+);\s*path=(.+)/;
+const OUTPUT_SOURCE_PROJECT_PATTERN =
+  /qt_migration_output_is_source_project:\s*field=([^;]+);\s*path=(.+)/;
+const TOOLCHAIN_NOT_A_KIT_PATTERN =
+  /qt_migration_toolchain_not_a_kit:\s*field=([^;]+);\s*path=(.+)/;
 
-type SubmitRejectionCode = 'path-not-found' | 'output-artifact';
+type SubmitRejectionCode =
+  | 'path-not-found'
+  | 'output-artifact'
+  | 'output-source-project'
+  | 'toolchain-not-a-kit';
 
 /** Static i18n keys for the migration field ids rejected by the backend. */
 const FIELD_LABEL_KEYS: Record<string, string> = {
@@ -110,6 +120,22 @@ function parseSubmitRejection(
       code: 'output-artifact',
       field: outputArtifact[1].trim(),
       path: outputArtifact[2].trim(),
+    };
+  }
+  const outputSourceProject = OUTPUT_SOURCE_PROJECT_PATTERN.exec(trimmed);
+  if (outputSourceProject) {
+    return {
+      code: 'output-source-project',
+      field: outputSourceProject[1].trim(),
+      path: outputSourceProject[2].trim(),
+    };
+  }
+  const toolchainNotAKit = TOOLCHAIN_NOT_A_KIT_PATTERN.exec(trimmed);
+  if (toolchainNotAKit) {
+    return {
+      code: 'toolchain-not-a-kit',
+      field: toolchainNotAKit[1].trim(),
+      path: toolchainNotAKit[2].trim(),
     };
   }
   return null;
@@ -338,15 +364,17 @@ export const QtMigrationIntakeCard: React.FC<ToolCardProps> = ({
       if (!rejection) return null;
       const fieldLabelKey = FIELD_LABEL_KEYS[rejection.field];
       const fieldLabel = fieldLabelKey ? translate(fieldLabelKey) : rejection.field;
-      return rejection.code === 'output-artifact'
-        ? translate('toolCards.askUser.submitOutputArtifact', {
-          field: fieldLabel,
-          path: rejection.path,
-        })
-        : translate('toolCards.askUser.submitPathNotFound', {
-          field: fieldLabel,
-          path: rejection.path,
-        });
+      const values = { field: fieldLabel, path: rejection.path };
+      switch (rejection.code) {
+        case 'output-artifact':
+          return translate('toolCards.askUser.submitOutputArtifact', values);
+        case 'output-source-project':
+          return translate('toolCards.askUser.submitOutputSourceProject', values);
+        case 'toolchain-not-a-kit':
+          return translate('toolCards.askUser.submitToolchainNotAKit', values);
+        default:
+          return translate('toolCards.askUser.submitPathNotFound', values);
+      }
     },
     [],
   );

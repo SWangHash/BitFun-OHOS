@@ -539,6 +539,16 @@ impl QuestionTemplateContribution for QtMigrationQuestionCard {
                         "qt_migration_output_is_artifact: field={field}; path={value}"
                     ));
                 }
+                // The container holds the migrated project, so it cannot be the Qt
+                // project itself: that is how a migration ends up writing its own
+                // result into the source tree (#347).
+                if field == "output_project"
+                    && crate::detect::is_qt_source_project(std::path::Path::new(value))
+                {
+                    return Err(format!(
+                        "qt_migration_output_is_source_project: field={field}; path={value}"
+                    ));
+                }
                 // A bound toolchain has to be a Qt installation the runtime can read
                 // a generation from: a value it cannot resolve silently skipped the
                 // version-strategy question (#369). This is the resolver the gate
@@ -884,13 +894,12 @@ mod tests {
     fn on_answers_states_the_installed_toolchain_for_an_official_binding() {
         let mut snapshot = QtMigrationIntakeStateSnapshot::empty();
         snapshot.version_strategy = crate::state::QtMigrationVersionStrategy::NotNeeded;
-        let mut toolchain = snapshot
+        let toolchain = snapshot
             .fields
             .get_mut("toolchain")
             .expect("the snapshot pre-seeds its fields");
         toolchain.value = Some("D:/installed/qt5-kit".to_string());
         toolchain.state = crate::state::QtMigrationFieldResolutionState::Resolved;
-        drop(toolchain);
 
         #[derive(Debug)]
         struct SnapshotReader(QtMigrationIntakeStateSnapshot);
@@ -932,7 +941,7 @@ mod tests {
     fn on_answers_states_the_official_template_install_flow() {
         let mut snapshot = QtMigrationIntakeStateSnapshot::empty();
         snapshot.version_strategy = crate::state::QtMigrationVersionStrategy::NotNeeded;
-        let mut template = snapshot
+        let template = snapshot
             .fields
             .get_mut("template")
             .expect("the snapshot pre-seeds its fields");
