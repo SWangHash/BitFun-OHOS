@@ -1,10 +1,11 @@
 {
   "section": {
     "title": "Local AI Models",
-    "description": "Download and manage locally running AI models (e.g. Ollama)."
+    "description": "Download and manage locally running AI models."
   },
   "service": {
-    "unavailable": "Local model service is not running. Please start Ollama or another compatible service to use local models. See System Settings -> System -> Local AI Model Management."
+    "fallbackName": "Local AI Model",
+    "unavailable": "The local model service is not running. Start it to use local models. See System Settings → System → Local AI Model Management."
   },
   "status": {
     "downloaded": "Downloaded",

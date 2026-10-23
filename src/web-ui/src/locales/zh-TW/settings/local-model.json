@@ -1,10 +1,11 @@
 {
   "section": {
     "title": "本地AI模型",
-    "description": "下載並管理本地運行的AI模型（如Ollama）。"
+    "description": "下載並管理本地運行的AI模型。"
   },
   "service": {
-    "unavailable": "本地模型服務未運行，請先啟動Ollama或其他兼容服務以使用本地模型。如系統設定->系統->本地AI模型管理。"
+    "fallbackName": "本地AI模型",
+    "unavailable": "本地模型服務未運行，請先啟動本地AI模型服務以使用本地模型。參見 系統設定 → 系統 → 本地AI模型管理。"
   },
   "status": {
     "downloaded": "已下載",
