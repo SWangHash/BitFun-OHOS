@@ -671,7 +671,7 @@ mod tests {
         // 已装好的工具链：不该再提下载/安装/备份。
         assert!(!text.contains("工具链由运行时负责安装"));
         assert!(!text.contains("bitfun-download-qt-sdk.sh"));
-        assert!(!text.contains("BITFUN_QT_MIGRATION_ROOT"));
+        assert!(!text.contains("备份路径"));
         // 模板仍走 BitFun 供给脚本流程。
         assert!(text.contains(&format!(
             "bash \"{SKILL_DIR}/scripts/bitfun-download-template.sh\" --platform=harmonyos"
