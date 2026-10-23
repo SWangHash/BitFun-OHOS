@@ -78,7 +78,7 @@ describe('BitFunDesignSystemProvider', () => {
     expect(document.documentElement.getAttribute('data-color-scheme')).toBe('light');
   });
 
-  it('hands the desktop scrollbar thickness to the ArkWeb host', () => {
+  it('hands the ArkWeb host the desktop scrollbar contract', () => {
     hostState.openHarmony = true;
     act(() => {
       root.render(
@@ -88,10 +88,11 @@ describe('BitFunDesignSystemProvider', () => {
       );
     });
 
+    expect(document.documentElement.getAttribute('data-bitfun-scrollbar-host')).toBe('arkweb');
     expect(document.documentElement.style.getPropertyValue('--bitfun-scrollbar-width')).toBe('10px');
   });
 
-  it('leaves the scrollbar token to the design system on other hosts', () => {
+  it('leaves the scrollbar contract to the design system on other hosts', () => {
     act(() => {
       root.render(
         <BitFunDesignSystemProvider>
@@ -100,6 +101,7 @@ describe('BitFunDesignSystemProvider', () => {
       );
     });
 
+    expect(document.documentElement.getAttribute('data-bitfun-scrollbar-host')).toBeNull();
     expect(document.documentElement.style.getPropertyValue('--bitfun-scrollbar-width')).toBe('');
   });
 

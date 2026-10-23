@@ -23,12 +23,14 @@ const DENSITY: DensityMode = 'compact';
 const HIGH_CONTRAST_MEDIA_QUERY = '(prefers-contrast: more), (forced-colors: active)';
 const SCROLLBAR_WIDTH_VARIABLE = '--bitfun-scrollbar-width';
 /**
- * The Windows engine renders the shared scrollbar CSS (`scrollbar-width: thin`
- * plus `scrollbar-color`) as a 10px custom scrollbar, and that is the thickness
- * the desktop build is read at. ArkWeb ignores `scrollbar-width` and keeps the
- * `::-webkit-scrollbar` width, whose token default is 6px, so the OHOS host
- * hands the desktop thickness to the token instead.
+ * ArkWeb pairs a thin idle scrollbar thumb with a full-width hover thumb, so
+ * the same scrollbar changes width when the pointer reaches it, and it ignores
+ * `::-webkit-scrollbar` while the standard scrollbar properties apply. That
+ * host therefore reports its scrollbar engine and gets the desktop reserved
+ * width handed to the token, so the webkit path would still match the desktop
+ * build if the standard properties ever stop applying.
  */
+const ARKWEB_SCROLLBAR_HOST = 'arkweb';
 const ARKWEB_SCROLLBAR_WIDTH = '10px';
 
 function readHighContrastPreference(): boolean {
@@ -64,12 +66,16 @@ export function BitFunDesignSystemProvider({ children }: PropsWithChildren) {
 
   useLayoutEffect(() => {
     const root = document.documentElement;
-    const attributes = {
+    const openHarmony = isOpenHarmonyRuntime();
+    const attributes: Record<string, string> = {
       'data-bitfun-design-system-root': '',
       'data-color-scheme': colorScheme,
       'data-contrast': contrast,
       'data-density': DENSITY,
-    } as const;
+    };
+    if (openHarmony) {
+      attributes['data-bitfun-scrollbar-host'] = ARKWEB_SCROLLBAR_HOST;
+    }
     const previousValues = new Map(
       Object.keys(attributes).map(name => [name, root.getAttribute(name)]),
     );
@@ -78,7 +84,7 @@ export function BitFunDesignSystemProvider({ children }: PropsWithChildren) {
       // every floating surface; hosts without it keep the zero default.
       [HOST_CHROME_INSET_BLOCK_START_VARIABLE]: `${hostWindowChromeInsetBlockStart()}px`,
     };
-    if (isOpenHarmonyRuntime()) {
+    if (openHarmony) {
       hostTokens[SCROLLBAR_WIDTH_VARIABLE] = ARKWEB_SCROLLBAR_WIDTH;
     }
     const previousTokens = new Map(

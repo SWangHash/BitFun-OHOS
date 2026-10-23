@@ -44,6 +44,18 @@
   }
 
   /*
+   * ArkWeb pairs a thin idle thumb with a full-width hover thumb, so its
+   * scrollbar changes width when the pointer reaches it instead of only
+   * changing paint. A host that reports `arkweb` leaves the thin variant out
+   * and keeps one width for both states.
+   */
+  @supports (scrollbar-color: transparent transparent) {
+    :where([data-bitfun-scrollbar-host="arkweb"], [data-bitfun-scrollbar-host="arkweb"] *) {
+      scrollbar-width: auto;
+    }
+  }
+
+  /*
    * Hide only for a primary mouse/trackpad. Touch keeps a discoverable native
    * thumb, and forced colors keeps the operating system's accessibility cues.
    * Keyboard focus reveals its viewport without latching ordinary mouse focus.
