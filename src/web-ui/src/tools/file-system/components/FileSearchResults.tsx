@@ -100,23 +100,52 @@ function buildFallbackMatchPreview(
   };
 }
 
+/** Visible preview budget: keeps the match plus a short window on each side. */
+const MATCH_PREVIEW_TOTAL_CHARS = 120;
+const MATCH_PREVIEW_BEFORE_CHARS = 24;
+
+/**
+ * Clamps backend-provided preview segments to a short window around the
+ * match. Long lines previously surfaced their full text through the hover
+ * title and unscrollable overflow UI; the visible row now stays bounded.
+ */
+function clampMatchPreviewSegments(segments: MatchPreviewSegments): MatchPreviewSegments {
+  const inside = segments.inside.slice(0, MATCH_PREVIEW_TOTAL_CHARS);
+  const beforeBudget = Math.max(0, MATCH_PREVIEW_TOTAL_CHARS - inside.length);
+  const afterBudget = Math.max(0, MATCH_PREVIEW_TOTAL_CHARS - inside.length);
+  let before = segments.before;
+  if (before.length > MATCH_PREVIEW_BEFORE_CHARS) {
+    before = `…${before.slice(before.length - MATCH_PREVIEW_BEFORE_CHARS)}`;
+  }
+  if (before.length > beforeBudget) {
+    before = `…${before.slice(before.length - beforeBudget + 1)}`;
+  }
+  let after = segments.after;
+  if (after.length > afterBudget) {
+    after = `${after.slice(0, Math.max(1, afterBudget - 1))}…`;
+  }
+  return { before, inside, after };
+}
+
 function resolveMatchPreview(
   match: FileSearchResult,
   searchQuery: string
 ): MatchPreviewSegments {
+  let segments: MatchPreviewSegments;
   if (
     match.previewInside !== undefined
     || match.previewBefore !== undefined
     || match.previewAfter !== undefined
   ) {
-    return {
+    segments = {
       before: match.previewBefore ?? '',
       inside: match.previewInside ?? '',
       after: match.previewAfter ?? '',
     };
+  } else {
+    segments = buildFallbackMatchPreview(match.matchedContent || '', searchQuery);
   }
-
-  return buildFallbackMatchPreview(match.matchedContent || '', searchQuery);
+  return clampMatchPreviewSegments(segments);
 }
 
 interface HighlightedTextProps {
@@ -181,9 +210,9 @@ const MatchItem = memo<MatchItemProps>(({ match, target, searchQuery, onLineClic
       data-bitfun-component="file-system"
       data-bitfun-part="match"
     >
-      <span 
+      <span
         className="bitfun-search-results__match-content"
-        title={match.matchedContent || ''}
+        title={`${preview.before}${preview.inside}${preview.after}`}
       >
         <code>
           {preview.before && (
