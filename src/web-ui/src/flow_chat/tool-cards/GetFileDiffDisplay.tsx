@@ -115,7 +115,10 @@ export const GetFileDiffDisplay: React.FC<ToolCardProps> = React.memo(({
     return t('toolCards.getFileDiff.diffFile');
   };
 
-  const inlinePreview = resultData?.original_content !== undefined && resultData.modified_content !== undefined
+  // Diff-only results leave both source bodies empty; use their text preview.
+  const inlinePreview = resultData?.original_content !== undefined
+    && resultData.modified_content !== undefined
+    && (resultData.original_content || resultData.modified_content || !resultData.diff_content)
     ? (
         <InlineDiffPreview
           originalContent={resultData.original_content}

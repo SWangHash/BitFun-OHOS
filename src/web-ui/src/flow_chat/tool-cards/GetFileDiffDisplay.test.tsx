@@ -25,8 +25,8 @@ vi.mock('@/infrastructure/i18n', () => ({
   },
 }));
 
-vi.mock('../components/InlineDiffPreview', () => ({
-  InlineDiffPreview: () => <div data-testid="inline-diff-preview" />,
+vi.mock('@/infrastructure/appearance', () => ({
+  useAppearance: () => ({ current: { mode: 'dark' } }),
 }));
 
 const config: ToolCardConfig = {
@@ -44,6 +44,30 @@ describe('GetFileDiffDisplay', () => {
   let container: HTMLDivElement;
   let root: Root;
 
+  function renderDiff(result: Record<string, unknown>) {
+    const toolItem = {
+      id: 'tool-diff-preview',
+      type: 'tool',
+      toolName: 'GetFileDiff',
+      status: 'completed',
+      timestamp: Date.now(),
+      toolCall: { id: 'call-diff-preview', input: { file_path: 'src/app.tsx' } },
+      toolResult: { success: true, result: { file_path: 'src/app.tsx', diff_type: 'git', ...result } },
+    } as FlowToolItem;
+
+    act(() => {
+      root.render(<GetFileDiffDisplay toolItem={toolItem} config={config} />);
+    });
+  }
+
+  function expandDiff() {
+    const surface = container.querySelector('[data-bitfun-part="surface"]');
+    expect(surface).not.toBeNull();
+    act(() => {
+      surface!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    });
+  }
+
   beforeEach(() => {
     dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
       pretendToBeVisual: true,
@@ -52,6 +76,11 @@ describe('GetFileDiffDisplay', () => {
     vi.stubGlobal('document', dom.window.document);
     vi.stubGlobal('HTMLElement', dom.window.HTMLElement);
     vi.stubGlobal('CustomEvent', dom.window.CustomEvent);
+    vi.stubGlobal('ResizeObserver', class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    });
 
     container = dom.window.document.getElementById('root') as HTMLDivElement;
     root = createRoot(container);
@@ -106,5 +135,49 @@ describe('GetFileDiffDisplay', () => {
     );
     expect(container.querySelector('[data-bitfun-tool-card="file-diff"]')?.getAttribute('data-diff-type')).toBe('git');
     expect(container.textContent).not.toContain('Git HEAD');
+  });
+
+  it('shows a prepared Review diff without an empty inline preview', () => {
+    const diff = '@@ -0,0 +1,2 @@\n+first\n+second';
+    const message = 'Diff from prepared Review workspace target';
+    renderDiff({
+      original_content: '',
+      modified_content: '',
+      diff_content: diff,
+      message,
+      stats: { additions: 2, deletions: 0 },
+    });
+    expandDiff();
+
+    expect(container.querySelector('pre')?.textContent).toBe(diff);
+    expect(container.textContent).toContain(message);
+    expect(container.querySelector('[data-bitfun-part="changeSummary"]')?.textContent).toBe('+2-0');
+    expect(container.querySelector('[data-bitfun-component="inline-diff-preview"]')).toBeNull();
+    expect(container.textContent).not.toContain('No content');
+  });
+
+  it.each([
+    { name: 'modified', original: 'before\n', modified: 'after\n', diff: '-before\n+after' },
+    { name: 'added', original: '', modified: 'after\n', diff: '+after' },
+    { name: 'deleted', original: 'before\n', modified: '', diff: '-before' },
+    { name: 'unchanged', original: 'same\n', modified: 'same\n', diff: '' },
+  ])('keeps the inline and text previews for $name files', ({ original, modified, diff }) => {
+    renderDiff({ original_content: original, modified_content: modified, diff_content: diff });
+    expandDiff();
+
+    expect(container.querySelector('[data-bitfun-component="inline-diff-preview"]')).not.toBeNull();
+    expect(container.textContent).not.toContain('No content');
+    expect(container.querySelector('pre')?.textContent ?? '').toBe(diff);
+  });
+
+  it('keeps the empty state when an expanded result has no file content or diff', () => {
+    renderDiff({ original_content: 'before\n', modified_content: 'after\n', diff_content: '-before\n+after' });
+    expandDiff();
+
+    renderDiff({ original_content: '', modified_content: '', diff_content: '' });
+
+    expect(container.querySelector('[data-bitfun-component="inline-diff-preview"][data-bitfun-state="empty"]')).not.toBeNull();
+    expect(container.textContent).toContain('No content');
+    expect(container.querySelector('pre')).toBeNull();
   });
 });
