@@ -3438,9 +3438,10 @@ impl ExecutionEngine {
                                 || session.config.remote_ssh_host.is_some()
                         })
                         .unwrap_or(false);
-                    let mut all_bound = true;
+                    let mut all_bound = false;
                     if !is_remote && resolved_paths.is_object() {
                         let mut bindings = std::collections::BTreeMap::new();
+                        all_bound = true;
                         for field in bitfun_qt_migration::state::QT_MIGRATION_INTAKE_REQUIRED_FIELDS
                         {
                             if let Some(path) = resolved_paths.get(field).and_then(|v| v.as_str()) {
