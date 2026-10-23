@@ -328,7 +328,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
           }}
         >
           {onNewFile && (
-            <Tooltip content={t('fileTree.newFile')} placement="bottom">
+            <Tooltip content={`${t('fileTree.newFile')} (${modKey}+N)`} placement="bottom">
               <IconButton
                 size="sm"
                 aria-label={t('fileTree.newFile')}
@@ -338,7 +338,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
             </Tooltip>
           )}
           {onNewFolder && (
-            <Tooltip content={t('fileTree.newFolder')} placement="bottom">
+            <Tooltip content={`${t('fileTree.newFolder')} (${modKey}+Shift+N)`} placement="bottom">
               <IconButton
                 size="sm"
                 aria-label={t('fileTree.newFolder')}
@@ -348,7 +348,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
             </Tooltip>
           )}
           {onRefresh && (
-            <Tooltip content={t('fileTree.refresh')} placement="bottom">
+            <Tooltip content={`${t('fileTree.refresh')} (F5)`} placement="bottom">
               <IconButton
                 size="sm"
                 aria-label={t('fileTree.refresh')}

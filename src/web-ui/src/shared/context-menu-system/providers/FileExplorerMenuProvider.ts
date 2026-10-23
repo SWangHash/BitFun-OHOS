@@ -18,6 +18,9 @@ import { getActiveSurfaceId } from '@/infrastructure/peer-device/deviceSurface';
 const PASTE_SHORTCUT = /Mac|iPhone|iPad|iPod/.test(navigator.userAgent) ? 'Cmd+V' : 'Ctrl+V';
 const COPY_SHORTCUT = /Mac|iPhone|iPad|iPod/.test(navigator.userAgent) ? 'Cmd+C' : 'Ctrl+C';
 const CUT_SHORTCUT = /Mac|iPhone|iPad|iPod/.test(navigator.userAgent) ? 'Cmd+X' : 'Ctrl+X';
+const MOD_KEY = /Mac|iPhone|iPad|iPod/.test(navigator.userAgent) ? 'Cmd' : 'Ctrl';
+const NEW_FILE_SHORTCUT = `${MOD_KEY}+N`;
+const NEW_FOLDER_SHORTCUT = `${MOD_KEY}+Shift+N`;
 
 const ARCHIVE_EXTENSIONS = [
   '.zip', '.tar.gz', '.tgz', '.tar',
@@ -81,6 +84,7 @@ export class FileExplorerMenuProvider implements IMenuProvider {
           id: 'file-new-file',
           label: i18nService.t('common:file.newFile'),
           icon: 'FilePlus',
+          shortcut: NEW_FILE_SHORTCUT,
           onClick: () => {
             globalEventBus.emit('file:new-file', { parentPath });
           }
@@ -90,6 +94,7 @@ export class FileExplorerMenuProvider implements IMenuProvider {
           id: 'file-new-folder',
           label: i18nService.t('common:file.newFolder'),
           icon: 'FolderPlus',
+          shortcut: NEW_FOLDER_SHORTCUT,
           onClick: () => {
             globalEventBus.emit('file:new-folder', { parentPath });
           }
@@ -258,6 +263,7 @@ export class FileExplorerMenuProvider implements IMenuProvider {
               id: 'file-new-file',
               label: i18nService.t('common:file.file'),
               icon: 'FilePlus',
+              shortcut: NEW_FILE_SHORTCUT,
               command: 'file.new-file',
               onClick: async (ctx) => {
                 await commandExecutor.execute('file.new-file', ctx);
@@ -267,6 +273,7 @@ export class FileExplorerMenuProvider implements IMenuProvider {
               id: 'file-new-folder',
               label: i18nService.t('common:file.folder'),
               icon: 'FolderPlus',
+              shortcut: NEW_FOLDER_SHORTCUT,
               command: 'file.new-folder',
               onClick: async (ctx) => {
                 await commandExecutor.execute('file.new-folder', ctx);
@@ -293,6 +300,7 @@ export class FileExplorerMenuProvider implements IMenuProvider {
         id: 'file-delete',
         label: i18nService.t('common:file.delete'),
         icon: 'Trash2',
+        shortcut: 'Delete',
         command: 'file.delete',
         onClick: async (ctx) => {
           await commandExecutor.execute('file.delete', ctx);
