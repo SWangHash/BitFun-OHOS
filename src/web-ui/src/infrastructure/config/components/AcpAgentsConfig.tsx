@@ -39,7 +39,6 @@ import {
   type AcpClientPermissionMode,
   type AcpClientRequirementProbe,
   type AcpClientSubagentConfig,
-  type AcpManagedProvisioningProgress,
   type AcpRequirementProbeItem,
 } from '../../api/service-api/ACPClientAPI';
 import { systemAPI } from '../../api/service-api/SystemAPI';
@@ -61,6 +60,8 @@ import {
 } from './acpAgentPresetPolicy';
 import { useSettingsDraft } from '@/infrastructure/config/settingsDraftRegistry';
 import { mergeAcpConfigDraft } from './acpConfigDraftMerge';
+import { beginAcpProvisioning, hasManagedAcpSetup, useAcpProvisioningState } from '../acpProvisioningState';
+import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 import './AcpAgentsConfig.scss';
 
 const log = createLogger('AcpAgentsConfig');
@@ -518,15 +519,23 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
   const [probingRequirements, setProbingRequirements] = useState(false);
   const [registrySearch, setRegistrySearch] = useState('');
   const [registryFilter, setRegistryFilter] = useState<RegistryFilter>('all');
-  const [installingClientIds, setInstallingClientIds] = useState<Set<string>>(() => new Set());
-  const [installingRemoteClientIds, setInstallingRemoteClientIds] = useState<Set<string>>(() => new Set());
-  const [provisioningProgress, setProvisioningProgress] = useState<Record<string, AcpManagedProvisioningProgress>>({});
+  const provisioning = useAcpProvisioningState();
+  const installingClientIds = useMemo(() => new Set(provisioning.operations
+    .filter(operation => !operation.remoteConnectionId).map(operation => operation.clientId)), [provisioning]);
+  const installingRemoteClientIds = useMemo(() => new Set(provisioning.operations
+    .filter(operation => operation.remoteConnectionId)
+    .map(operation => `${operation.remoteConnectionId}:${operation.clientId}`)), [provisioning]);
+  const provisioningProgress = useMemo(() => Object.fromEntries(provisioning.operations
+    .filter(operation => !operation.remoteConnectionId && operation.progress)
+    .map(operation => [operation.clientId, operation.progress!])), [provisioning]);
   const [hiddenRemoteConnectionIds, setHiddenRemoteConnectionIds] = useState(loadHiddenRemoteConnectionIds);
   const [showHiddenRemoteConnections, setShowHiddenRemoteConnections] = useState(false);
   const [installConfirmation, setInstallConfirmation] = useState<InstallConfirmation | null>(null);
   const requirementProbeRequestIdRef = useRef(0);
   const savingConfigRef = useRef(false);
-  const managedSetupIdsRef = useRef(new Set<string>());
+  const provisioningOwnerRef = useRef(Symbol('acp-manager'));
+  const observedCompletionRef = useRef(provisioning.completion?.revision);
+  const mountedRef = useRef(true);
   const managedConfigRefreshPendingRef = useRef(false);
   const configLoadRequestRef = useRef(0);
   const persistedConfigRef = useRef<AcpClientConfigFile>({ acpClients: {} });
@@ -541,14 +550,14 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
 
   useImperativeHandle(ref, () => ({
     requestClose: () => {
-      if (savingConfigRef.current || installingClientIds.size > 0 || installingRemoteClientIds.size > 0) return;
+      if (savingConfigRef.current) return;
       if (dirty || jsonDirty) {
         setConfirmClose(true);
       } else {
         onClose?.();
       }
     },
-  }), [dirty, installingClientIds, installingRemoteClientIds, jsonDirty, onClose]);
+  }), [dirty, jsonDirty, onClose]);
 
   const clientsById = useMemo(() => new Map(clients.map(client => [client.id, client])), [clients]);
   const remoteConnectionRows = useMemo(() => {
@@ -687,15 +696,18 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
   const refreshRequirementProbes = useCallback(async (
     options: { force?: boolean; notifyOnError?: boolean } = {}
   ) => {
+    const scope = getActiveSurfaceScope();
     const requestId = ++requirementProbeRequestIdRef.current;
     localRequirementProbeStartedRef.current = true;
     setProbingRequirements(true);
     try {
       const nextRequirementProbes = await loadRequirementProbes({ force: options.force });
+      if (!scope.isCurrent()) return;
       if (requirementProbeRequestIdRef.current === requestId) {
         setRequirementProbes(nextRequirementProbes);
       }
     } catch (error) {
+      if (!scope.isCurrent()) return;
       log.error('Failed to probe ACP agent requirements', error);
       if (options.notifyOnError ?? true) {
         notifyError(desktopDomainErrorMessage(error instanceof Error ? error.message : String(error), t), {
@@ -722,6 +734,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
     connectionId: string,
     options: { force?: boolean; notifyOnError?: boolean } = {}
   ) => {
+    const scope = getActiveSurfaceScope();
     const normalizedConnectionId = connectionId.trim();
     if (!normalizedConnectionId || remoteProbeRequestsRef.current.has(normalizedConnectionId)) return;
     if (!options.force && completedRemoteProbeIdsRef.current.has(normalizedConnectionId)) return;
@@ -744,14 +757,14 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
         // The backend only reads a snapshot unless a real probe is requested.
         force: true,
       });
-      if (remoteProbeRequestsRef.current.get(normalizedConnectionId) !== requestId) return;
+      if (!scope.isCurrent() || remoteProbeRequestsRef.current.get(normalizedConnectionId) !== requestId) return;
       completedRemoteProbeIdsRef.current.add(normalizedConnectionId);
       setRemoteRequirementProbes(prev => ({
         ...prev,
         [normalizedConnectionId]: nextRequirementProbes,
       }));
     } catch (error) {
-      if (remoteProbeRequestsRef.current.get(normalizedConnectionId) !== requestId) return;
+      if (!scope.isCurrent() || remoteProbeRequestsRef.current.get(normalizedConnectionId) !== requestId) return;
       completedRemoteProbeIdsRef.current.add(normalizedConnectionId);
       setRemoteProbeErrors(prev => ({
         ...prev,
@@ -778,6 +791,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
   const loadConfig = useCallback(async (
     options: { showLoading?: boolean; refreshRequirements?: boolean; preserveDrafts?: boolean } = {}
   ) => {
+    const scope = getActiveSurfaceScope();
     const requestId = ++configLoadRequestRef.current;
     const showLoading = options.showLoading ?? true;
     const refreshRequirements = options.refreshRequirements ?? true;
@@ -790,11 +804,12 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
         ACPClientAPI.loadJsonConfig(),
         ACPClientAPI.getClients(),
       ]);
+      if (!scope.isCurrent()) return false;
       const nextSavedConnections = await sshApi.listSavedConnections().catch((error) => {
         log.warn('Failed to load saved SSH connections for ACP remote overrides', error);
         return [] as SavedConnection[];
       });
-      if (configLoadRequestRef.current !== requestId) return false;
+      if (!scope.isCurrent() || configLoadRequestRef.current !== requestId) return false;
       const { config: parsed, hasLegacyPermissionModes } = normalizeConfigValue(JSON.parse(rawConfig || '{}'));
       // Read the draft after all awaits: the user can keep editing during setup.
       const draft = draftStateRef.current;
@@ -834,7 +849,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
       }
       return true;
     } catch (error) {
-      if (configLoadRequestRef.current !== requestId) return false;
+      if (!scope.isCurrent() || configLoadRequestRef.current !== requestId) return false;
       log.error('Failed to load ACP agent config', error);
       if (showLoading) setLoadFailed(true);
       else {
@@ -875,24 +890,26 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
   }, [hiddenRemoteConnectionRows.length, notifySuccess, t]);
 
   useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  useEffect(() => {
     void loadConfig();
   }, [loadConfig]);
 
-  useEffect(() => ACPClientAPI.onManagedProvisioningProgress((progress) => {
-    setProvisioningProgress(prev => {
-      const next = { ...prev };
-      if (
-        progress.stage === 'ready'
-        || progress.stage === 'cancelled'
-        || progress.stage === 'failed'
-      ) {
-        delete next[progress.clientId];
-      } else {
-        next[progress.clientId] = progress;
-      }
-      return next;
+  useEffect(() => {
+    const completion = provisioning.completion;
+    if (!completion || completion.revision === observedCompletionRef.current) return;
+    observedCompletionRef.current = completion.revision;
+    if (completion.owner === provisioningOwnerRef.current) return;
+    // Another, now-unmounted manager may have started this installation.
+    managedConfigRefreshPendingRef.current = true;
+    invalidateRemoteRequirementProbes();
+    void loadConfig({ showLoading: false, preserveDrafts: true }).then(loaded => {
+      if (loaded) managedConfigRefreshPendingRef.current = false;
     });
-  }), []);
+  }, [invalidateRemoteRequirementProbes, loadConfig, provisioning.completion]);
 
   useEffect(() => {
     if (settingsDraftEnabled || (!dirty && !jsonDirty)) return undefined;
@@ -987,42 +1004,38 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
     const remoteConnectionId = options.remoteConnectionId?.trim();
     const managed = IS_OHOS && !remoteConnectionId;
     if (managed && savingConfigRef.current) return;
-    const installKey = remoteConnectionId ? `${remoteConnectionId}:${preset.id}` : preset.id;
-    if (managed) {
-      managedSetupIdsRef.current.add(installKey);
-      managedConfigRefreshPendingRef.current = true;
-    }
-    const setInstalling = remoteConnectionId ? setInstallingRemoteClientIds : setInstallingClientIds;
-    setInstalling(prev => new Set(prev).add(installKey));
-    if (!remoteConnectionId) {
-      setProvisioningProgress(prev => {
-        const next = { ...prev };
-        delete next[preset.id];
-        return next;
-      });
-    }
+    const scope = getActiveSurfaceScope();
+    const operation = beginAcpProvisioning(scope, provisioningOwnerRef.current, {
+      clientId: preset.id, remoteConnectionId, managed,
+    });
+    if (!operation) return;
+    if (managed) managedConfigRefreshPendingRef.current = true;
     try {
       const outcome = await ACPClientAPI.installClientCli({
         clientId: preset.id,
         remoteConnectionId,
       });
-      if (remoteConnectionId) {
+      if (!scope.isCurrent()) return;
+      if (mountedRef.current && remoteConnectionId) {
         completedRemoteProbeIdsRef.current.delete(remoteConnectionId);
         await refreshRemoteRequirementProbes(remoteConnectionId, { force: true, notifyOnError: false });
-      } else {
+      } else if (mountedRef.current) {
         if (outcome.status === 'managed_ready') {
           managedConfigRefreshPendingRef.current = true;
           const loaded = await loadConfig({ showLoading: false, preserveDrafts: true });
           if (loaded) managedConfigRefreshPendingRef.current = false;
         }
+        if (!scope.isCurrent()) return;
         await refreshRequirementProbes({ force: true, notifyOnError: false });
       }
+      if (!scope.isCurrent()) return;
       notifySuccess(t(
         outcome.status === 'managed_ready'
           ? 'notifications.managedAddSuccess'
           : 'notifications.installSuccess'
       ));
     } catch (error) {
+      if (!scope.isCurrent()) return;
       if (managed) managedConfigRefreshPendingRef.current = true;
       const message = error instanceof Error ? error.message : String(error);
       if (message.includes('ACP_PROVISIONING_CANCELLED')) {
@@ -1034,19 +1047,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
         title: t('notifications.installFailed'),
       });
     } finally {
-      if (managed) managedSetupIdsRef.current.delete(installKey);
-      setInstalling(prev => {
-        const next = new Set(prev);
-        next.delete(installKey);
-        return next;
-      });
-      if (!remoteConnectionId) {
-        setProvisioningProgress(prev => {
-          const next = { ...prev };
-          delete next[preset.id];
-          return next;
-        });
-      }
+      operation.finish();
     }
   };
 
@@ -1072,25 +1073,27 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
   };
 
   const configurePresetClient = async (preset: AcpClientPreset) => {
-    const installKey = preset.id;
-    setInstallingClientIds(prev => new Set(prev).add(installKey));
+    const scope = getActiveSurfaceScope();
+    const operation = beginAcpProvisioning(scope, provisioningOwnerRef.current, {
+      clientId: preset.id, managed: false,
+    });
+    if (!operation) return;
     try {
       await ACPClientAPI.predownloadClientAdapter({
         clientId: preset.id,
       });
-      await refreshRequirementProbes({ force: true, notifyOnError: false });
+      if (!scope.isCurrent()) return;
+      if (mountedRef.current) await refreshRequirementProbes({ force: true, notifyOnError: false });
+      if (!scope.isCurrent()) return;
       notifySuccess(t('notifications.configureSuccess'));
     } catch (error) {
+      if (!scope.isCurrent()) return;
       log.error('Failed to predownload ACP adapter', error);
       notifyError(desktopDomainErrorMessage(error instanceof Error ? error.message : String(error), t), {
         title: t('notifications.configureFailed'),
       });
     } finally {
-      setInstallingClientIds(prev => {
-        const next = new Set(prev);
-        next.delete(installKey);
-        return next;
-      });
+      operation.finish();
     }
   };
 
@@ -1112,7 +1115,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
     nextConfig = config,
     options: { mergeEnvDrafts?: boolean; successMessage?: string } = {}
   ): Promise<boolean> => {
-    if (savingConfigRef.current || managedSetupIdsRef.current.size > 0) return false;
+    if (savingConfigRef.current || hasManagedAcpSetup(getActiveSurfaceScope().surfaceId)) return false;
     const refreshManagedConfig = managedConfigRefreshPendingRef.current;
     configLoadRequestRef.current += 1;
     savingConfigRef.current = true;
@@ -1190,7 +1193,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
   };
 
   const saveJsonConfig = async (): Promise<boolean> => {
-    if (savingConfigRef.current || managedSetupIdsRef.current.size > 0) return false;
+    if (savingConfigRef.current || hasManagedAcpSetup(getActiveSurfaceScope().surfaceId)) return false;
     try {
       const { config: parsed } = normalizeConfigValue(JSON.parse(jsonConfig));
       const { config: baseline } = normalizeConfigValue(JSON.parse(jsonBaseline));
