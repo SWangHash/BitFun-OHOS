@@ -17,6 +17,7 @@ import { useI18n } from '@/infrastructure/i18n';
 import { formatBytes } from '@/shared/utils/format';
 import { downloadWorkspaceFileToDisk } from '@/tools/file-system/services/workspaceFileTransfer';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
+import { createBrowserImageDataUrl } from '@/shared/utils/imageDataUrl';
 import './ImageViewer.scss';
 
 const log = createLogger('ImageViewer');
@@ -73,27 +74,12 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
   const originCurrent = loadedOrigin?.filePath === filePath && loadedOrigin.imageSource === imageSource && loadedOrigin.documentSession === documentSession;
   const [fileSize, setFileSize] = useState<number>(0);
 
-  const getMimeType = useCallback((path: string): string => {
-    const ext = path.toLowerCase().split('.').pop();
-    const mimeTypes: Record<string, string> = {
-      'jpg': 'image/jpeg',
-      'jpeg': 'image/jpeg',
-      'png': 'image/png',
-      'gif': 'image/gif',
-      'bmp': 'image/bmp',
-      'webp': 'image/webp',
-      'svg': 'image/svg+xml',
-      'ico': 'image/x-icon',
-      'avif': 'image/avif'
-    };
-    return mimeTypes[ext || ''] || 'image/jpeg';
-  }, []);
-
   useEffect(() => {
     let cancelled = false;
     setLoadedOrigin({ filePath, imageSource, documentSession });
     setImageUrl('');
     setImageDimensions(null);
+    setDisplayScale(1);
     if (imageSource) {
       setImageUrl(imageSource.dataUrl);
       setFileSize(imageSource.size);
@@ -120,18 +106,19 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
 
         const workspaceAPI = documentSession?.files ?? (await import('@/infrastructure/api')).workspaceAPI;
         // Request base64 explicitly: the default read returns decoded text,
-        // which produces invalid data URLs for binary images and SVG.
+        // which produces invalid data URLs for binary images and SVG. The
+        // shared helper picks the right MIME per extension and decodes TIFF
+        // (unsupported by the browser) through utif into a PNG data URL.
         const result = await workspaceAPI.readFileContent(filePath, 'base64');
 
         if (cancelled) return;
-        const mimeType = getMimeType(filePath);
+        const dataUrl = await createBrowserImageDataUrl(filePath, result);
+        if (cancelled) return;
 
-        const dataUrl = `data:${mimeType};base64,${result}`;
-        
         setImageUrl(dataUrl);
         setFileSize(Math.floor(result.length * 3 / 4) - (result.endsWith('==') ? 2 : result.endsWith('=') ? 1 : 0));
         setLoading(false);
-        
+
       } catch (err) {
         if (cancelled) return;
         log.error('Failed to load image', err);
@@ -142,7 +129,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
 
     void loadImage();
     return () => { cancelled = true; };
-  }, [filePath, getMimeType, imageSource, t, documentSession, retryKey]);
+  }, [filePath, imageSource, t, documentSession, retryKey]);
 
   const errorRef = useRef(error);
   errorRef.current = error;
