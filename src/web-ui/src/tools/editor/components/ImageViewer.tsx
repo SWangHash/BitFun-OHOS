@@ -21,6 +21,21 @@ import './ImageViewer.scss';
 
 const log = createLogger('ImageViewer');
 
+/** Tiny images are blown up to at least this display size (pixels). */
+const MIN_SMALL_IMAGE_DISPLAY_SIZE = 32;
+
+/**
+ * Low-resolution images previously rendered at their natural 1:1 size and
+ * looked broken (tiny blob in a large canvas). Returns the upscale factor
+ * that presents a small image at a usable size; normal images return 1.
+ */
+export function getSmallImageDisplayScale(width: number, height: number): number {
+  if (width <= 0 || height <= 0 || width > MIN_SMALL_IMAGE_DISPLAY_SIZE || height > MIN_SMALL_IMAGE_DISPLAY_SIZE) {
+    return 1;
+  }
+  return Math.max(1, MIN_SMALL_IMAGE_DISPLAY_SIZE / Math.max(width, height));
+}
+
 export interface ImageViewerProps {
   /** Image file path */
   filePath: string;
@@ -52,6 +67,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
   const [zoom, setZoom] = useState(100);
   const [rotation, setRotation] = useState(0);
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
+  const [displayScale, setDisplayScale] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [loadedOrigin, setLoadedOrigin] = useState<{ filePath: string; imageSource: typeof imageSource; documentSession: typeof documentSession }>();
   const originCurrent = loadedOrigin?.filePath === filePath && loadedOrigin.imageSource === imageSource && loadedOrigin.documentSession === documentSession;
@@ -137,11 +153,12 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
 
   const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
-    
+
     setImageDimensions({
       width: img.naturalWidth,
       height: img.naturalHeight
     });
+    setDisplayScale(getSmallImageDisplayScale(img.naturalWidth, img.naturalHeight));
   }, []);
 
   const handleImageError = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -323,7 +340,10 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
               data-bitfun-component="image-viewer"
               data-bitfun-part="image"
               style={{
-                transform: `scale(${zoom / 100}) rotate(${rotation}deg)`,
+                width: imageDimensions ? `${imageDimensions.width * displayScale * zoom / 100}px` : undefined,
+                height: imageDimensions ? `${imageDimensions.height * displayScale * zoom / 100}px` : undefined,
+                transform: `rotate(${rotation}deg)`,
+                imageRendering: displayScale > 1 ? 'pixelated' : undefined,
               }}
               onLoad={handleImageLoad}
               onError={handleImageError}
