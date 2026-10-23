@@ -23,12 +23,12 @@ const DENSITY: DensityMode = 'compact';
 const HIGH_CONTRAST_MEDIA_QUERY = '(prefers-contrast: more), (forced-colors: active)';
 const SCROLLBAR_WIDTH_VARIABLE = '--bitfun-scrollbar-width';
 /**
- * ArkWeb pairs a thin idle scrollbar thumb with a full-width hover thumb, so
- * the same scrollbar changes width when the pointer reaches it, and it ignores
- * `::-webkit-scrollbar` while the standard scrollbar properties apply. That
- * host therefore reports its scrollbar engine and gets the desktop reserved
- * width handed to the token, so the webkit path would still match the desktop
- * build if the standard properties ever stop applying.
+ * ArkWeb resolves the standard scrollbar properties into a thin idle thumb that
+ * expands to the whole track on hover, so one scrollbar shows two widths. That
+ * host reports its scrollbar engine instead of using those properties, which
+ * puts it on the WebKit path whose width comes from the token below. The
+ * desktop engines reserve 10px for the same paint, so the OHOS host asks for
+ * the same thickness rather than the 6px token default.
  */
 const ARKWEB_SCROLLBAR_HOST = 'arkweb';
 const ARKWEB_SCROLLBAR_WIDTH = '10px';
