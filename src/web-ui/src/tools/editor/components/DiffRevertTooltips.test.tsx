@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import type * as monaco from 'monaco-editor';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DiffRevertTooltips } from './DiffRevertTooltips';
+import { TitleTooltipHost } from '@/app/components/TitleTooltipHost/TitleTooltipHost';
 
 vi.mock('@/infrastructure/i18n', () => ({
   useI18n: () => ({
@@ -39,7 +40,7 @@ describe('DiffRevertTooltips', () => {
     editorContainer = document.createElement('div');
     editorContainer.className = 'monaco-diff-editor';
     const gutter = document.createElement('div');
-    gutter.className = 'gutter';
+    gutter.className = 'gutter monaco-editor';
     const gutterItem = document.createElement('div');
     gutterItem.className = 'gutterItem';
     buttons = document.createElement('div');
@@ -84,8 +85,11 @@ describe('DiffRevertTooltips', () => {
     return { item, button };
   }
 
-  async function render() {
-    await act(async () => root?.render(<DiffRevertTooltips editor={editor} />));
+  async function render(withTitleHost = false) {
+    await act(async () => root?.render(<>
+      <DiffRevertTooltips editor={editor} />
+      {withTitleHost && <TitleTooltipHost />}
+    </>));
   }
 
   async function advance(milliseconds: number) {
@@ -93,7 +97,10 @@ describe('DiffRevertTooltips', () => {
   }
 
   async function hover(button: HTMLElement) {
-    await act(async () => button.dispatchEvent(new MouseEvent('mouseenter')));
+    await act(async () => {
+      button.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+      button.dispatchEvent(new MouseEvent('mouseenter'));
+    });
   }
 
   async function showTooltip(button: HTMLElement) {
@@ -111,11 +118,11 @@ describe('DiffRevertTooltips', () => {
     async (icon) => {
       const { item, button } = revertButton(icon);
       buttons.append(item);
-      await render();
+      await render(true);
 
       await hover(button);
       await advance(449);
-      expect(document.querySelector('[role="tooltip"]')).toBeNull();
+      expect(document.querySelector('[data-bitfun-component="tooltip"]')).toBeNull();
       await advance(1);
       await advance(16);
 
@@ -123,6 +130,7 @@ describe('DiffRevertTooltips', () => {
       expect(tooltip()?.getAttribute('data-bitfun-component')).toBe('tooltip');
       expect(button.getAttribute('aria-describedby')).toBe(tooltip()?.id);
       expect(button.getAttribute('aria-label')).toBe('Revert Block');
+      expect(document.querySelector('[data-bitfun-component="title-tooltip"][data-visible="true"]')).toBeNull();
 
       await act(async () => button.dispatchEvent(new MouseEvent('mouseleave')));
       expect(tooltip()).toBeNull();

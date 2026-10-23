@@ -33,11 +33,17 @@ export function DiffRevertTooltips({ editor }: { editor: monaco.editor.IStandalo
       const buttons = Array.from(container.querySelectorAll<HTMLElement>(REVERT_BUTTON_SELECTOR));
       const currentButtons = new Set(buttons);
       for (const element of knownTriggers.keys()) {
-        if (!currentButtons.has(element)) knownTriggers.delete(element);
+        if (!currentButtons.has(element)) {
+          element.removeAttribute('data-bitfun-tooltip-trigger');
+          knownTriggers.delete(element);
+        }
       }
       const updated = buttons.map(element => {
         let trigger = knownTriggers.get(element);
         if (!trigger) {
+          // The OHOS title fallback must leave this control to the shared Tooltip,
+          // including the delay before its aria-describedby is attached.
+          element.setAttribute('data-bitfun-tooltip-trigger', '');
           trigger = { id: nextId.current++, ref: { current: element } };
           knownTriggers.set(element, trigger);
         }
@@ -58,6 +64,9 @@ export function DiffRevertTooltips({ editor }: { editor: monaco.editor.IStandalo
     return () => {
       observer.disconnect();
       scrollListener.dispose();
+      for (const element of knownTriggers.keys()) {
+        element.removeAttribute('data-bitfun-tooltip-trigger');
+      }
     };
   }, [editor]);
 
