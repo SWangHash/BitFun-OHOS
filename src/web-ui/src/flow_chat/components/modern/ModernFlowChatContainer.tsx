@@ -923,6 +923,10 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
   // session object) keeps the context value referentially stable across
   // streaming flushes, which produce a new session object ~30x/second.
   const activeSessionId = activeSession?.sessionId;
+  const thinkingExpansionStates = useMemo(
+    () => new Map<string, boolean>(),
+    [surfaceScope.surfaceId, activeSessionId],
+  );
   const activeSessionWorkspaceId = activeSession?.workspaceId
     || activeSession?.config?.workspaceId;
   const activeSessionWorkspacePath = activeSession?.workspacePath
@@ -965,6 +969,7 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
     onToolConfirm: handleToolConfirm,
     onToolReject: handleToolReject,
     sessionId: activeSessionId,
+    thinkingExpansionStates,
     workspaceId: activeSessionWorkspaceId,
     workspacePath: activeSessionWorkspacePath,
     remoteConnectionId: activeSessionRemoteConnectionId,
@@ -983,6 +988,7 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
     handleToolConfirm,
     handleToolReject,
     activeSessionId,
+    thinkingExpansionStates,
     activeSessionWorkspaceId,
     activeSessionWorkspacePath,
     activeSessionRemoteConnectionId,

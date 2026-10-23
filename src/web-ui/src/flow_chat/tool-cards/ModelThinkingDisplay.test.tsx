@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FlowThinkingItem } from '../types/flow-chat';
 import { ModelThinkingDisplay } from './ModelThinkingDisplay';
 import { latestReasoningSummaryPreview } from '../utils/reasoningSummaryPresentation';
+import { FlowChatContext } from '../components/modern/FlowChatContext';
 
 vi.mock('../utils/reasoningSummaryPresentation', { spy: true });
 
@@ -148,8 +149,10 @@ describe('ModelThinkingDisplay reasoning summary', () => {
     'retains closing content until the actual transition settles: %s', async outcome => {
       await act(async () => root.render(<ModelThinkingDisplay thinkingItem={summaryItem('**Body**')} />));
       const toggle = container.querySelector('[data-testid="chat-thinking-toggle"]') as HTMLElement;
-      await act(async () => toggle.click());
+      const toggleCard = () => toggle.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+      await act(async () => { toggleCard(); });
       const body = container.querySelector('[data-testid="thinking-markdown"]');
+      expect(body).not.toBeNull();
       let finish!: () => void;
       let cancel!: () => void;
       const finished = new Promise<void>((resolve, reject) => {
@@ -160,9 +163,9 @@ describe('ModelThinkingDisplay reasoning summary', () => {
       Object.defineProperty(expandContainer, 'getAnimations', {
         value: () => [{ transitionProperty: 'grid-template-rows', finished }],
       });
-      await act(async () => toggle.click());
+      await act(async () => { toggleCard(); });
       expect(container.querySelector('[data-testid="thinking-markdown"]')).toBe(body);
-      if (outcome === 'reopen') await act(async () => toggle.click());
+      if (outcome === 'reopen') await act(async () => { toggleCard(); });
       await act(async () => { if (outcome === 'finish') finish(); else cancel(); });
       expect(container.querySelector('[data-testid="thinking-markdown"]')).toBe(outcome === 'reopen' ? body : null);
     },
@@ -223,6 +226,93 @@ describe('ModelThinkingDisplay reasoning summary', () => {
     expect(container.querySelector('[data-testid="chat-thinking-panel"]')
       ?.getAttribute('data-expanded')).toBe('true');
     expect(container.querySelector('[data-bitfun-part="leadingIcon"]')).toBe(leadingIcon);
+  });
+});
+
+describe('ModelThinkingDisplay manual expansion', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  let choices: Map<string, boolean>;
+
+  beforeEach(() => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    vi.stubGlobal('ResizeObserver', class {
+      observe() {}
+      disconnect() {}
+    });
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    choices = new Map();
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+    vi.unstubAllGlobals();
+  });
+
+  async function renderCard(isLastItem: boolean, states = choices, id = 'thinking-1') {
+    await act(async () => root.render(
+      <FlowChatContext.Provider value={{ thinkingExpansionStates: states }}>
+        <ModelThinkingDisplay
+          thinkingItem={{ ...summaryItem('Reasoning'), id, reasoningKind: 'reasoning' }}
+          isLastItem={isLastItem}
+        />
+      </FlowChatContext.Provider>,
+    ));
+  }
+
+  function isExpanded() {
+    return container.querySelector('[data-testid="chat-thinking-panel"]')
+      ?.getAttribute('data-expanded') === 'true';
+  }
+
+  async function toggle() {
+    await act(async () => {
+      container.querySelector('[data-testid="chat-thinking-toggle"]')
+        ?.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    });
+  }
+
+  it.each([true, false])('restores a manual expanded=%s after the card remounts', async expanded => {
+    await renderCard(!expanded);
+    await toggle();
+    expect(isExpanded()).toBe(expanded);
+
+    await act(async () => root.render(null));
+    await renderCard(!expanded);
+    expect(isExpanded()).toBe(expanded);
+
+    await renderCard(expanded);
+    await renderCard(!expanded);
+    expect(isExpanded()).toBe(expanded);
+  });
+
+  it('keeps automatic defaults responsive until the reader makes a choice', async () => {
+    await renderCard(true);
+    expect(isExpanded()).toBe(true);
+    await renderCard(false);
+    expect(isExpanded()).toBe(false);
+    await renderCard(true);
+    expect(isExpanded()).toBe(true);
+    expect(choices.size).toBe(0);
+  });
+
+  it('isolates choices by view owner and thinking item when a mounted card is rebound', async () => {
+    await renderCard(false);
+    await toggle();
+    const otherView = new Map<string, boolean>();
+    await renderCard(false, otherView);
+    expect(isExpanded()).toBe(false);
+    expect(otherView.size).toBe(0);
+
+    await renderCard(false, choices);
+    expect(isExpanded()).toBe(true);
+    await renderCard(false, choices, 'thinking-2');
+    expect(isExpanded()).toBe(false);
+    await renderCard(false, choices);
+    expect(isExpanded()).toBe(true);
   });
 });
 

@@ -361,6 +361,7 @@ const BtwSessionPanelContent: React.FC<BtwSessionPanelProps & { viewState: BtwPa
     onTabOpen: handleTabOpen,
     sessionId: childSessionId,
     activeSessionOverride: childSession ?? null,
+    thinkingExpansionStates: viewState.thinkingExpansionStates,
     allowUserMessageRollback: false,
     allowUserMessageEdit: false,
     allowTranscriptExport: viewKind !== 'review-check',
@@ -378,6 +379,7 @@ const BtwSessionPanelContent: React.FC<BtwSessionPanelProps & { viewState: BtwPa
     onExpandAllInTurn,
     onCollapseGroup,
     viewKind,
+    viewState,
   ]);
 
   const volatileContextValue = useMemo(() => ({

@@ -3,10 +3,17 @@ export interface BtwPanelViewState {
   followTail: boolean;
   anchor: { key: string; offsetPx: number } | null;
   exploreGroupStates: Map<string, boolean>;
+  thinkingExpansionStates: Map<string, boolean>;
   restoredReviewLocation?: string;
   restoring: boolean;
 }
 
 export function createBtwPanelViewState(): BtwPanelViewState {
-  return { followTail: true, anchor: null, exploreGroupStates: new Map(), restoring: false };
+  return {
+    followTail: true,
+    anchor: null,
+    exploreGroupStates: new Map(),
+    thinkingExpansionStates: new Map(),
+    restoring: false,
+  };
 }
