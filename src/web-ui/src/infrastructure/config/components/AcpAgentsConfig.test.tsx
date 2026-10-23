@@ -1156,7 +1156,10 @@ describe('AcpAgentsConfig', () => {
     });
   });
 
-  async function beginManagedInstall() {
+  async function beginManagedInstall(options: {
+    manager?: React.RefObject<AcpAgentsConfigHandle>;
+    onClose?: () => void;
+  } = {}) {
     vi.resetModules();
     isOpenHarmonyRuntimeMock.mockReturnValue(true);
     const Page = (await import('./AcpAgentsConfig')).default;
@@ -1175,13 +1178,19 @@ describe('AcpAgentsConfig', () => {
       finish = resolve;
       fail = reject;
     }));
-    await act(async () => root.render(<Page settingsDraftEnabled />));
+    const render = () => root.render(<Page
+      ref={options.manager}
+      presentation={options.onClose ? 'dialog' : 'page'}
+      onClose={options.onClose}
+      settingsDraftEnabled={!options.onClose}
+    />);
+    await act(async () => render());
     const kimiRow = Array.from(container.querySelectorAll('.bitfun-acp-agents__registry-row'))
       .find(row => row.querySelector('.bitfun-acp-agents__registry-name')?.textContent === 'presets.kimiCode.name')!;
     const add = Array.from(kimiRow.querySelectorAll('button')).find(button => button.textContent === 'actions.add')!;
     await act(async () => add.click());
     await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="confirm-install"]')!.click());
-    return async (options: { failConfigRefresh?: boolean; installError?: string } = {}) => {
+    const complete = async (options: { failConfigRefresh?: boolean; installError?: string } = {}) => {
       loadJsonConfigMock.mockResolvedValue(JSON.stringify({ acpClients: {
         ...original.acpClients,
         'kimi-code': {
@@ -1201,7 +1210,82 @@ describe('AcpAgentsConfig', () => {
         finish({ clientId: 'kimi-code', status: 'managed_ready' });
       });
     };
+    return Object.assign(complete, { render });
   }
+
+  it.each(['success', 'failure'] as const)('keeps managed setup after closing and reopening its dialog until %s', async outcome => {
+    const manager = React.createRef<AcpAgentsConfigHandle>();
+    const onClose = vi.fn();
+    const finish = await beginManagedInstall({ manager, onClose });
+    await act(async () => manager.current?.requestClose());
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(cancelClientInstallMock).not.toHaveBeenCalled();
+    await act(async () => root.render(null));
+
+    // Progress continues to be observed while no settings view is mounted.
+    await act(async () => emitManagedProvisioningProgress?.({ clientId: 'kimi-code', stage: 'installing', percent: 40 }));
+    await act(async () => finish.render());
+    expect(container.textContent).toContain('provisioning.installing');
+    expect(installClientCliMock).toHaveBeenCalledOnce();
+    const installingRow = Array.from(container.querySelectorAll('.bitfun-acp-agents__registry-row'))
+      .find(row => row.querySelector('.bitfun-acp-agents__registry-name')?.textContent === 'presets.kimiCode.name')!;
+    expect(installingRow.textContent).not.toContain('actions.add');
+    await selectPermission(container, 'allow_once');
+    const save = () => Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'actions.save');
+    expect(save()?.disabled).toBe(true);
+
+    // Closing still protects unsaved edits rather than silently discarding them.
+    await act(async () => manager.current?.requestClose());
+    expect(container.textContent).toContain('settings:changeGuard.title');
+    expect(onClose).toHaveBeenCalledOnce();
+    const keepEditing = Array.from(container.querySelectorAll('button'))
+      .find(button => button.textContent === 'settings:changeGuard.keepEditing')!;
+    await act(async () => keepEditing.click());
+    const cancel = Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'actions.cancelInstall')!;
+    await act(async () => cancel.click());
+    expect(cancelClientInstallMock).toHaveBeenCalledWith('kimi-code');
+
+    await finish(outcome === 'failure' ? { installError: 'Setup failed' } : {});
+    expect(container.textContent).not.toContain('actions.cancelInstall');
+    expect(container.textContent).not.toContain('provisioning.installing');
+    expect(save()?.disabled).toBe(false);
+    expect(installClientCliMock).toHaveBeenCalledOnce();
+    if (outcome === 'failure') expect(notifyErrorMock).toHaveBeenCalledWith('Setup failed', expect.anything());
+    else expect(notifySuccessMock).toHaveBeenCalledWith('notifications.managedAddSuccess');
+  });
+
+  it('isolates pending setup by device surface and SSH host while deduplicating the same client', async () => {
+    vi.resetModules();
+    const { beginAcpProvisioning, useAcpProvisioningState } = await import('../acpProvisioningState');
+    const { activateSurface, getActiveSurfaceScope, LOCAL_SURFACE_ID } = await import('@/infrastructure/peer-device/deviceSurface');
+    const owner = Symbol('test-manager');
+    const local = getActiveSurfaceScope();
+    const pendingLocal = beginAcpProvisioning(local, owner, { clientId: 'opencode', managed: false })!;
+    const Observer = () => <span>{useAcpProvisioningState().operations.length}</span>;
+    let pendingPeer: ReturnType<typeof beginAcpProvisioning>;
+    let pendingSsh: ReturnType<typeof beginAcpProvisioning>;
+    try {
+      await act(async () => root.render(<Observer />));
+      expect(container.textContent).toBe('1');
+      expect(beginAcpProvisioning(local, owner, { clientId: 'opencode', managed: false })).toBeNull();
+      await act(async () => { activateSurface('peer-a'); });
+      expect(container.textContent).toBe('0');
+      await act(async () => {
+        pendingPeer = beginAcpProvisioning(getActiveSurfaceScope(), owner, { clientId: 'opencode', managed: false });
+        pendingSsh = beginAcpProvisioning(getActiveSurfaceScope(), owner, { clientId: 'opencode', remoteConnectionId: 'ssh-a', managed: false });
+      });
+      expect(container.textContent).toBe('2');
+      await act(async () => { activateSurface(LOCAL_SURFACE_ID); });
+      expect(container.textContent).toBe('1');
+      await act(async () => { pendingPeer?.finish(); pendingSsh?.finish(); });
+      expect(container.textContent).toBe('1');
+      await act(async () => pendingLocal.finish());
+      expect(container.textContent).toBe('0');
+    } finally {
+      await act(async () => root.render(null));
+      activateSurface(LOCAL_SURFACE_ID);
+    }
+  });
 
   it('keeps edits made during managed setup and saves them with the installed runtime', async () => {
     const finish = await beginManagedInstall();
