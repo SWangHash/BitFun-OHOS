@@ -197,10 +197,19 @@ async fn resolve_bound_toolchain_field(
     let current = intake_snapshot_from_slot_value(
         session_manager.domain_state_get(session_id, &QT_MIGRATION_SLOT_INTAKE_STATE),
     );
-    if !current.fields.contains_key(QT_MIGRATION_PROVISIONED_FIELD) {
+    // Only the field that still asks the runtime to install the kit may be
+    // rewritten: a real path there means the user (or the model, while the transfer
+    // ran) bound the toolchain they want, and the installed kit must not replace it
+    // (#367).
+    let bound = current
+        .fields
+        .get(QT_MIGRATION_PROVISIONED_FIELD)
+        .filter(|state| state.state.can_bind_value())
+        .and_then(|state| state.value.as_deref());
+    if bound != Some(bitfun_qt_migration::state::QT_MIGRATION_OFFICIAL_VALUE) {
         warn!(
-            "Qt toolchain provisioning finished for a session whose intake snapshot no longer holds the toolchain field; leaving it unchanged: session_id={}",
-            session_id
+            "Qt toolchain provisioning finished for a session whose toolchain binding is no longer the official sentinel; leaving it unchanged: session_id={}, bound={:?}",
+            session_id, bound
         );
         return;
     }
