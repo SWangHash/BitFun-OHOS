@@ -42,11 +42,21 @@ export const TitleTooltipHost: React.FC = () => {
         showTimer = undefined;
       }
       target = null;
+      observer.disconnect();
       bubble.setAttribute('data-visible', 'false');
     };
 
+    // Monaco can replace a hovered gutter action without emitting mouseout.
+    const observer = new MutationObserver(() => {
+      if (target && !target.isConnected) hide();
+    });
+
     const show = (): void => {
-      if (!target) return;
+      showTimer = undefined;
+      if (!target?.isConnected) {
+        hide();
+        return;
+      }
       const text = readTooltipText(target);
       if (!text) {
         hide();
@@ -76,10 +86,19 @@ export const TitleTooltipHost: React.FC = () => {
       const node = event.target instanceof Node ? event.target : null;
       if (!(node instanceof HTMLElement)) return;
       if (bubble.contains(node)) return;
+      if (node.closest('[data-bitfun-tooltip-trigger]')) {
+        hide();
+        return;
+      }
       const withLabel = node.closest<HTMLElement>(TOOLTIP_SELECTOR);
-      if (!withLabel || withLabel === target) return;
+      if (!withLabel) {
+        hide();
+        return;
+      }
+      if (withLabel === target) return;
       hide();
       target = withLabel;
+      observer.observe(document.documentElement, { childList: true, subtree: true });
       showTimer = window.setTimeout(show, SHOW_DELAY_MS);
     };
 
@@ -120,9 +139,7 @@ export const TitleTooltipHost: React.FC = () => {
       document.removeEventListener('wheel', onScrollInterrupt, true);
       document.removeEventListener('scroll', onScrollInterrupt, true);
       window.removeEventListener('blur', onInterrupt);
-      if (showTimer !== undefined) {
-        window.clearTimeout(showTimer);
-      }
+      hide();
       if (settleTimer !== undefined) {
         window.clearTimeout(settleTimer);
       }
