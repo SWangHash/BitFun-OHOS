@@ -6,9 +6,12 @@ import { fileURLToPath } from 'node:url';
 
 import {
   buildCapabilityCatalog,
+  buildResolvedDefinitions,
+  buildRuntimeCapability,
   loadRemoteSurfaceRegistry,
   parseRegisteredCommands,
   renderRemoteSurfaceTsBindings,
+  renderCapabilityMarkdown,
 } from './generate-interactive-capabilities.mjs';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -119,10 +122,48 @@ test('every manual entry has bilingual discovery, instructions, routing, and age
         && control.workflowZh.length === control.workflowEn.length));
     assert.ok(capability.stepsZh.length > 0);
     assert.ok(capability.agentExamplesZh.length > 0);
-    assert.ok(['settings', 'action', 'scene', 'event'].includes(capability.destination.kind));
+    if (capability.destination) {
+      assert.ok(['settings', 'action', 'scene', 'event'].includes(capability.destination.kind));
+    } else {
+      assert.equal(capability.kind, 'feature');
+      assert.ok(capability.items.every(({ control, destination }) => control.kind !== 'open' || destination));
+    }
     assert.equal(capability.docsUrl, `${publicCatalog.origin}/capabilities/${capability.id}/`);
     assert.doesNotMatch(JSON.stringify(capability), /"handler"/u);
   }
+});
+
+test('Git keeps delegated operations without advertising a removed presentation entry', async () => {
+  const source = JSON.parse(await read('src/shared/interactive-capabilities/catalog.json'));
+  const gitSource = source.capabilities.find(({ id }) => id === 'feature.git');
+  const git = buildRuntimeCapability(gitSource, source.categories[gitSource.categoryId], source.origin);
+  assert.equal(git.destination, undefined);
+  assert.deepEqual(git.items.map(({ id }) => id), [
+    'status-diff', 'stage-reset', 'commit', 'sync', 'branches', 'graph-history',
+    'revision-content', 'cherry-pick',
+  ]);
+  assert.ok(git.items.every(({ control }) => control.kind === 'delegate'
+    && control.tools.includes('ExecCommand')));
+  const definitions = JSON.parse(JSON.stringify(buildResolvedDefinitions([git])));
+  assert.ok(definitions.every(({ kind }) => kind === 'query' || kind === 'delegate'));
+  assert.ok(definitions.every((definition) => !Object.hasOwn(definition, 'presentationTarget')));
+  const catalogs = await Promise.all([
+    'docs/interactive-capabilities/capabilities.json',
+    'src/web-ui/src/app/global-search/generated/interactive-capabilities.json',
+    'src/crates/contracts/product-domains/src/generated/product-control-catalog.json',
+  ].map(async (file) => JSON.parse(await read(file))));
+  assert.equal(new Set(catalogs.map(({ digest }) => digest)).size, 1);
+  for (const catalog of catalogs) {
+    assert.deepEqual(catalog.capabilities.find(({ id }) => id === git.id), git);
+    assert.deepEqual(catalog.definitions.filter(({ capabilityId }) => capabilityId === git.id), definitions);
+  }
+  const markdown = renderCapabilityMarkdown(git);
+  assert.match(markdown, /no standalone page entry/u);
+  assert.doesNotMatch(markdown, /Open the UI|Open Git|Open the Git panel|trust-worktrees/u);
+
+  const invalid = structuredClone(git);
+  invalid.items[0].control = { kind: 'open', reasonCode: 'unstructuredInteraction' };
+  assert.throws(() => buildResolvedDefinitions([invalid]), /open needs a presentation destination/u);
 });
 
 test('every executable contract is bound to a documented item and navigation is not called control', () => {

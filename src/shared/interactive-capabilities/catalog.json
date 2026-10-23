@@ -258,6 +258,16 @@
       "deveco_account_logout",
       "deveco_account_start_login",
       "deveco_account_status"
+    ],
+    "gitTrustAndWorktreeImplementation": [
+      "git_add_worktree",
+      "git_get_repository_trust",
+      "git_trust_repository",
+      "worktree_bind_session",
+      "worktree_create",
+      "worktree_create_branch",
+      "worktree_promote",
+      "worktree_recreate"
     ]
   },
   "capabilities": [
@@ -2040,56 +2050,26 @@
             "command:git_cherry_pick_continue",
             "command:git_cherry_pick_abort"
           ]
-        },
-        {
-          "id": "trust-worktrees",
-          "titleZh": "管理仓库信任与 Worktree 的创建、绑定、提升、重建和删除",
-          "titleEn": "Manage repository trust and create, bind, promote, recreate, or remove worktrees",
-          "control": {
-            "kind": "open",
-            "reasonCode": "unstructuredInteraction",
-            "reasonZh": "“管理仓库信任与 Worktree 的创建、绑定、提升、重建和删除”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；智能体会打开精确入口，并把后续交互保留在用户可见界面。",
-            "reasonEn": "“Manage repository trust and create, bind, promote, recreate, or remove worktrees” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
-          },
-          "evidence": [
-            "command:git_get_repository_trust",
-            "command:git_trust_repository",
-            "command:worktree_create",
-            "command:worktree_bind_session",
-            "command:worktree_promote",
-            "command:worktree_recreate",
-            "command:worktree_remove",
-            "command:check_git_isolation",
-            "command:git_add_worktree",
-            "command:git_list_worktrees",
-            "command:git_remove_worktree",
-            "command:worktree_create_branch",
-            "command:worktree_list_projects"
-          ]
         }
       ],
       "stepsZh": [
-        "打开 Git",
-        "选择改动或分支",
-        "执行暂存、提交或分支操作"
+        "确认当前工作区和 Git 仓库",
+        "通过智能体的 Git 命令工具查看改动或分支",
+        "按确认的参数执行暂存、提交或分支操作"
       ],
       "stepsEn": [
-        "Open Git",
-        "Choose changes or a branch",
-        "Stage, commit, or perform a branch operation"
+        "Confirm the current workspace and Git repository",
+        "Use the Agent command tools to inspect changes or branches",
+        "Stage, commit, or perform a branch operation with the confirmed arguments"
       ],
       "agentExamplesZh": [
-        "打开 Git 面板",
-        "带我查看当前代码改动"
+        "查看当前 Git 仓库状态",
+        "查看当前代码改动"
       ],
       "agentExamplesEn": [
-        "Open the Git panel",
-        "Show me the current code changes"
+        "Inspect the current Git repository status",
+        "Show the current code changes"
       ],
-      "destination": {
-        "kind": "scene",
-        "sceneId": "git"
-      },
       "operations": []
     },
     {

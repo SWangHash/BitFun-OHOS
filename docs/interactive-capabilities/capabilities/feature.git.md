@@ -33,38 +33,36 @@ Inspect changes, branches, and commits; stage, commit, merge, cherry-pick, and w
   - Resolve revisions and inspect file content from any commit
 - **由专用智能体工具控制 / Delegated Agent tool** · `ExecCommand` · 执行、继续或中止 Cherry-pick
   - Start, continue, or abort a cherry-pick
-- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 管理仓库信任与 Worktree 的创建、绑定、提升、重建和删除
-  - Manage repository trust and create, bind, promote, recreate, or remove worktrees
 
 ## 怎么用 / How to use it
 
-1. 打开 Git
-   Open Git
-2. 选择改动或分支
-   Choose changes or a branch
-3. 执行暂存、提交或分支操作
-   Stage, commit, or perform a branch operation
+1. 确认当前工作区和 Git 仓库
+   Confirm the current workspace and Git repository
+2. 通过智能体的 Git 命令工具查看改动或分支
+   Use the Agent command tools to inspect changes or branches
+3. 按确认的参数执行暂存、提交或分支操作
+   Stage, commit, or perform a branch operation with the confirmed arguments
 
-入口 / Entry: BitFun 对应场景
+入口 / Entry: 通过专用工具执行，无独立页面入口 / Available through tools; no standalone page entry
 
 ## 智能体可替你做什么 / What an agent can do for you
 
 | 操作 / Action | 中文说明 | English description |
 | --- | --- | --- |
-| 打开对应界面 / Open the UI | 进入 BitFun 中对应的功能界面。 | Open the matching feature in BitFun. |
+| 专用工具 / Delegated tools | 使用上方子能力列出的工具与流程。 | Use the tools and workflows listed above. |
 
 ## 可配置选项 / Configurable options
 
 | 选项 / Option | 可用值 / Values | 中文说明 | English description |
 | --- | --- | --- | --- |
-| 在界面中配置 / Configure in the UI | — | 此页面的设置在对应界面中完成。 | Configure this page in its matching UI. |
+| 无 / None | — | 此能力没有独立的可配置选项。 | This capability has no configurable product options. |
 
 ## 可以直接对智能体说 / Try saying
 
-- “打开 Git 面板”
-  - “Open the Git panel”
-- “带我查看当前代码改动”
-  - “Show me the current code changes”
+- “查看当前 Git 仓库状态”
+  - “Inspect the current Git repository status”
+- “查看当前代码改动”
+  - “Show the current code changes”
 
 智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 

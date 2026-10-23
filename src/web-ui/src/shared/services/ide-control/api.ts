@@ -239,9 +239,6 @@ export const ideControl = {
  
 export const quickActions = {
    
-  openGitPanel: () => window.dispatchEvent(new CustomEvent('scene:open', { detail: { sceneId: 'git' } })),
-
-   
    
   openSettings: (destination?: SettingsDestination | string) => {
     if (isLegacyEcosystemCompatibilityDestination(destination)) {

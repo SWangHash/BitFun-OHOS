@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
   "generatedFrom": "src/shared/interactive-capabilities/catalog.json",
-  "catalogDigest": "6587344a6b5e75a80457ea4ba2670bf37cf3038bdb436089ae402eb7b5a5a025",
-  "count": 211,
+  "catalogDigest": "07aad700e3211c4f8785b0bfb0de6d9ba7b1be6583d2a62246a4507cff13c2a9",
+  "count": 210,
   "reasonCounts": {
     "externalAuth": 4,
     "secretEntry": 5,
-    "unstructuredInteraction": 184,
+    "unstructuredInteraction": 183,
     "visualSelection": 18
   },
   "entries": [
@@ -826,34 +826,6 @@
         "command:terminal_ack",
         "command:terminal_close",
         "command:terminal_shutdown_all"
-      ]
-    },
-    {
-      "capabilityId": "feature.git",
-      "itemId": "trust-worktrees",
-      "titleZh": "管理仓库信任与 Worktree 的创建、绑定、提升、重建和删除",
-      "titleEn": "Manage repository trust and create, bind, promote, recreate, or remove worktrees",
-      "reasonCode": "unstructuredInteraction",
-      "reasonZh": "“管理仓库信任与 Worktree 的创建、绑定、提升、重建和删除”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；智能体会打开精确入口，并把后续交互保留在用户可见界面。",
-      "reasonEn": "“Manage repository trust and create, bind, promote, recreate, or remove worktrees” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
-      "presentationTarget": {
-        "kind": "scene",
-        "sceneId": "git"
-      },
-      "evidence": [
-        "command:git_get_repository_trust",
-        "command:git_trust_repository",
-        "command:worktree_create",
-        "command:worktree_bind_session",
-        "command:worktree_promote",
-        "command:worktree_recreate",
-        "command:worktree_remove",
-        "command:check_git_isolation",
-        "command:git_add_worktree",
-        "command:git_list_worktrees",
-        "command:git_remove_worktree",
-        "command:worktree_create_branch",
-        "command:worktree_list_projects"
       ]
     },
     {

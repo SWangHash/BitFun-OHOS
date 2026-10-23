@@ -49,11 +49,6 @@ export const APP_SHORTCUTS: ShortcutDef[] = [
     descriptionKey: 'keyboard.shortcuts.scene.openSession',
   },
   {
-    id: 'scene.openGit',
-    config: mod('G', { shift: true, scope: 'app', allowInInput: true }),
-    descriptionKey: 'keyboard.shortcuts.scene.openGit',
-  },
-  {
     id: 'scene.openSettings',
     config: mod(',', { scope: 'app', allowInInput: true }),
     descriptionKey: 'keyboard.shortcuts.scene.openSettings',
@@ -263,41 +258,6 @@ export const FILETREE_SHORTCUTS: ShortcutDef[] = [
   },
 ];
 
-// ─── Git shortcuts (scope: 'git') ─────────────────────────────────────────
-
-export const GIT_SHORTCUTS: ShortcutDef[] = [
-  {
-    id: 'git.commit',
-    config: mod('Enter', { scope: 'git', allowInInput: true }),
-    descriptionKey: 'keyboard.shortcuts.git.commit',
-  },
-  {
-    id: 'git.refresh',
-    config: { key: 'F5', scope: 'git' },
-    descriptionKey: 'keyboard.shortcuts.git.refresh',
-  },
-  {
-    id: 'git.stageAll',
-    config: mod('A', { shift: true, scope: 'git' }),
-    descriptionKey: 'keyboard.shortcuts.git.stageAll',
-  },
-  {
-    id: 'git.unstageAll',
-    config: mod('U', { shift: true, scope: 'git' }),
-    descriptionKey: 'keyboard.shortcuts.git.unstageAll',
-  },
-  {
-    id: 'git.push',
-    config: mod('P', { shift: true, scope: 'git' }),
-    descriptionKey: 'keyboard.shortcuts.git.push',
-  },
-  {
-    id: 'git.pull',
-    config: mod('L', { shift: true, scope: 'git' }),
-    descriptionKey: 'keyboard.shortcuts.git.pull',
-  },
-];
-
 // ─── All shortcuts combined ────────────────────────────────────────────────
 
 export const ALL_SHORTCUTS: ShortcutDef[] = [
@@ -307,7 +267,6 @@ export const ALL_SHORTCUTS: ShortcutDef[] = [
   ...EDITOR_SHORTCUTS,
   ...CHAT_SHORTCUTS,
   ...FILETREE_SHORTCUTS,
-  ...GIT_SHORTCUTS,
 ];
 
 /** Shortcuts registered in code but not listed in ALL_SHORTCUTS (e.g. legacy ids). */

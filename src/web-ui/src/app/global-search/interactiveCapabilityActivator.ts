@@ -21,6 +21,7 @@ export async function activateInteractiveCapability(
     throw new Error(`Unknown documented item for ${capabilityId}: ${options.itemId}`);
   }
   const destination = item?.destination ?? capability.destination;
+  if (!destination) throw new Error(`Unknown BitFun capability entry: ${capabilityId}`);
 
   switch (destination.kind) {
     case 'settings':

@@ -281,7 +281,6 @@
         "focusMerged": "切換場景",
         "focusMergedHint": "錄製一次修飾鍵 + 任意數字 1–3；數字 1–3 對應從左到右的場景。",
         "openSession": "開啟智能體會話",
-        "openGit": "開啟 Git",
         "openSettings": "開啟設置",
         "openTerminal": "開啟終端"
       },

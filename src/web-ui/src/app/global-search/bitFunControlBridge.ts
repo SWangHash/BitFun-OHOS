@@ -82,7 +82,7 @@ export async function executeBitFunPresentationRequest(
     const definition = getInteractiveControlDefinition(
       `${capability.id}:operation:${operation.id}`,
     );
-    if (!definition || definition.presentationTarget.kind !== 'action') {
+    if (definition?.presentationTarget?.kind !== 'action') {
       throw new Error(
         `Operation ${capability.id}:${operation.id} is not a presentation action`,
       );

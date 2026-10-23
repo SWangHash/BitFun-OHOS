@@ -160,7 +160,8 @@ pub struct ProductControlDefinition {
     pub open_reason: Option<ProductControlOpenReason>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub delegate_tools: Vec<String>,
-    pub presentation_target: ProductCapabilityDestination,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub presentation_target: Option<ProductCapabilityDestination>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -326,7 +327,8 @@ pub struct ProductCapability {
     pub agent_examples_en: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_control: Option<ProductCapabilityAgentControl>,
-    pub destination: ProductCapabilityDestination,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub destination: Option<ProductCapabilityDestination>,
     #[serde(default)]
     pub operations: Vec<ProductCapabilityOperation>,
     #[serde(default)]
@@ -646,12 +648,23 @@ pub fn validate_open_target(
     item_id: Option<&str>,
 ) -> Result<&'static ProductCapability, String> {
     let capability = capability(capability_id)?;
-    if let Some(item_id) = item_id.map(str::trim).filter(|item_id| !item_id.is_empty()) {
-        if !capability.items.iter().any(|item| item.id == item_id) {
-            return Err(format!(
-                "Unknown documented item for {capability_id}: {item_id}"
-            ));
-        }
+    let item = item_id
+        .map(str::trim)
+        .filter(|item_id| !item_id.is_empty())
+        .map(|item_id| {
+            capability
+                .items
+                .iter()
+                .find(|item| item.id == item_id)
+                .ok_or_else(|| format!("Unknown documented item for {capability_id}: {item_id}"))
+        })
+        .transpose()?;
+    if item
+        .and_then(|item| item.destination.as_ref())
+        .or(capability.destination.as_ref())
+        .is_none()
+    {
+        return Err(format!("Unknown BitFun capability entry: {capability_id}"));
     }
     Ok(capability)
 }
@@ -1588,5 +1601,33 @@ mod tests {
                 .unwrap_err()
                 .contains("Unknown documented item")
         );
+        let git = capability("feature.git").unwrap();
+        assert!(git.destination.is_none());
+        assert!(git
+            .items
+            .iter()
+            .all(|item| matches!(item.control, ProductCapabilityItemControl::Delegate { .. })));
+        for item_id in [None, Some("status-diff"), Some("branches")] {
+            assert!(validate_open_target("feature.git", item_id)
+                .unwrap_err()
+                .contains("Unknown BitFun capability entry"));
+        }
+        assert!(validate_open_target("feature.git", Some("trust-worktrees"))
+            .unwrap_err()
+            .contains("Unknown documented item"));
+        let serialized = serde_json::to_value(git).unwrap();
+        assert!(serialized.get("destination").is_none());
+        let restored: ProductCapability = serde_json::from_value(serialized).unwrap();
+        assert!(restored.destination.is_none());
+        let legacy_catalog: Value = serde_json::from_str(GENERATED_CATALOG).unwrap();
+        let legacy_payload = legacy_catalog["capabilities"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|value| value["id"] == "setting.application.shortcuts")
+            .unwrap();
+        let restored: ProductCapability = serde_json::from_value(legacy_payload.clone()).unwrap();
+        assert!(restored.destination.is_some());
+        assert_eq!(serde_json::to_value(restored).unwrap(), *legacy_payload);
     }
 }

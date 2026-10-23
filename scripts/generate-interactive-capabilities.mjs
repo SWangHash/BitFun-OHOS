@@ -389,7 +389,7 @@ function validateOperationSchema(schema, owner, inheritedProperties = null) {
   }
 }
 
-function controlCoverage(source) {
+export function controlCoverage(source) {
   const coverage = { direct: 0, delegated: 0, interactive: 0, unsupported: 0 };
   for (const capability of source.capabilities) {
     for (const item of capability.items) {
@@ -419,6 +419,9 @@ function validateSource(source) {
   const delegatedToolNames = new Set();
 
   const validateDestination = (destination, owner) => {
+    if (!destination || typeof destination !== 'object' || Array.isArray(destination)) {
+      throw new Error(`${owner} needs a presentation destination object`);
+    }
     if (destination.kind === 'settings') {
       if (!settingsIds.has(destination.pageId)) {
         throw new Error(`${owner} targets unknown settings page ${destination.pageId}`);
@@ -495,7 +498,7 @@ function validateSource(source) {
         validateDestination(item.destination, `${capability.id}.${item.id}`);
         if (
           item.destination.kind === 'settings'
-          && capability.destination.kind === 'settings'
+          && capability.destination?.kind === 'settings'
           && item.destination.pageId !== capability.destination.pageId
         ) {
           throw new Error(`${capability.id}.${item.id} must stay inside its owning settings page`);
@@ -544,10 +547,15 @@ function validateSource(source) {
         ].includes(control.reasonCode)) {
           throw new Error(`${capability.id}.${item.id}.control needs a machine-checkable reasonCode`);
         }
+        if (control.kind === 'open' && !(item.destination ?? capability.destination)) {
+          throw new Error(`${capability.id}.${item.id}.control open needs a presentation destination`);
+        }
       }
     }
 
-    validateDestination(capability.destination, capability.id);
+    if (capability.destination !== undefined || capability.kind === 'setting') {
+      validateDestination(capability.destination, capability.id);
+    }
 
     const operationIds = new Set();
     for (const operation of capability.operations ?? []) {
@@ -1313,7 +1321,7 @@ function itemIdsReferencing(capability, kind, id) {
     .map((item) => item.id);
 }
 
-function buildResolvedDefinitions(capabilities) {
+export function buildResolvedDefinitions(capabilities) {
   const definitions = [];
   for (const capability of capabilities) {
     definitions.push({
@@ -1389,6 +1397,9 @@ function buildResolvedDefinitions(capabilities) {
           presentationTarget: target,
         });
       } else if (item.control.kind === 'open') {
+        if (!target) {
+          throw new Error(`${capability.id}.${item.id}.control open needs a presentation destination`);
+        }
         definitions.push({
           id: `${capability.id}:open:${item.id}`,
           capabilityId: capability.id,
@@ -1408,6 +1419,17 @@ function buildResolvedDefinitions(capabilities) {
   return definitions;
 }
 
+export function buildRuntimeCapability(capability, category, origin) {
+  return {
+    ...capability,
+    items: capability.items.map((item) => runtimeItem(item, capability)),
+    operations: capability.operations ?? [],
+    options: capability.options ?? [],
+    searchTerms: searchTerms(capability, category),
+    docsUrl: `${origin}/capabilities/${capability.id}/`,
+  };
+}
+
 export function buildCapabilityCatalog() {
   const ownerDefinitions = loadOwnerDefinitions();
   const source = resolveOwnerFacts(JSON.parse(readFileSync(SOURCE_PATH, 'utf8')));
@@ -1417,17 +1439,8 @@ export function buildCapabilityCatalog() {
   const technicalCommands = technicalCoverage.commands;
   validateDocumentationEvidence(source, technicalCommands);
 
-  const runtimeCapabilities = source.capabilities.map((capability) => {
-    const category = source.categories[capability.categoryId];
-    return {
-      ...capability,
-      items: capability.items.map((item) => runtimeItem(item, capability)),
-      operations: capability.operations ?? [],
-      options: capability.options ?? [],
-      searchTerms: searchTerms(capability, category),
-      docsUrl: `${source.origin}/capabilities/${capability.id}/`,
-    };
-  });
+  const runtimeCapabilities = source.capabilities.map((capability) =>
+    buildRuntimeCapability(capability, source.categories[capability.categoryId], source.origin));
   const publicCapabilities = runtimeCapabilities.map((capability) => ({
     ...capability,
     operations: capability.operations.map(publicOperation),
@@ -1517,6 +1530,7 @@ export function buildCapabilityCatalog() {
 }
 
 function destinationText(destination) {
+  if (!destination) return '通过专用工具执行，无独立页面入口 / Available through tools; no standalone page entry';
   if (destination.kind === 'settings') return 'BitFun 设置';
   if (destination.kind === 'action') return 'BitFun 功能入口';
   if (destination.kind === 'scene') return 'BitFun 对应场景';
@@ -1579,7 +1593,7 @@ export type ProductControlOperationId<C extends ProductControlCapabilityId> =
 `;
 }
 
-function renderCapabilityMarkdown(capability) {
+export function renderCapabilityMarkdown(capability) {
   const kindZh = capability.kind === 'feature' ? '功能' : '设置';
   const kindEn = capability.kind === 'feature' ? 'Feature' : 'Setting';
   const operations = capability.agentControl
@@ -1590,12 +1604,16 @@ function renderCapabilityMarkdown(capability) {
     ? capability.operations.map((operation) =>
       `| ${operation.titleZh} / ${operation.titleEn} | ${operation.descriptionZh} | ${operation.descriptionEn} |`,
     ).join('\n')
-    : '| 打开对应界面 / Open the UI | 进入 BitFun 中对应的功能界面。 | Open the matching feature in BitFun. |';
+    : capability.destination
+    ? '| 打开对应界面 / Open the UI | 进入 BitFun 中对应的功能界面。 | Open the matching feature in BitFun. |'
+    : '| 专用工具 / Delegated tools | 使用上方子能力列出的工具与流程。 | Use the tools and workflows listed above. |';
   const options = capability.options.length
     ? capability.options.map((option) =>
       `| ${option.titleZh} / ${option.titleEn} | ${schemaLabel(option.valueSchema)} | ${option.descriptionZh} | ${option.descriptionEn} |`,
     ).join('\n')
-    : '| 在界面中配置 / Configure in the UI | — | 此页面的设置在对应界面中完成。 | Configure this page in its matching UI. |';
+    : capability.destination
+    ? '| 在界面中配置 / Configure in the UI | — | 此页面的设置在对应界面中完成。 | Configure this page in its matching UI. |'
+    : '| 无 / None | — | 此能力没有独立的可配置选项。 | This capability has no configurable product options. |';
   const steps = capability.stepsZh.map((step, index) => `${index + 1}. ${step}\n   ${capability.stepsEn[index] ?? ''}`).join('\n');
   const inventory = capability.items.map((item) =>
     `- **${itemControlLabel(item)}**${itemControlDetail(item, capability)} · ${item.titleZh}\n  - ${item.titleEn}`,
@@ -1650,7 +1668,7 @@ The agent first finds the relevant feature or setting, confirms the target, and 
 `;
 }
 
-function renderReadme(catalog, technicalMap) {
+export function renderReadme(catalog, technicalMap) {
   return `${GENERATED_MARKER}
 # BitFun 功能与设置目录 / BitFun Features & Settings
 
