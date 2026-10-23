@@ -13,6 +13,7 @@ import { useEditorDocument } from '../services/EditorDocument';
 import type { EditorInstance } from '../meditor';
 import { AlertCircle } from 'lucide-react';
 import { createLogger } from '@/shared/utils/logger';
+import { useNotification } from '@/shared/notification-system';
 import { sendDebugProbe } from '@/shared/utils/debugProbe';
 import { elapsedMs, nowMs } from '@/shared/utils/timing';
 import { globalEventBus } from '@/infrastructure/event-bus';
@@ -39,6 +40,9 @@ import 'katex/dist/katex.min.css';
 import 'highlight.js/styles/github-dark.css';
 
 const log = createLogger('MarkdownEditor');
+/** Rich (TipTap) rendering above this size freezes the IDE; force source mode. */
+const MARKDOWN_RICH_EDITOR_MAX_BYTES = 2 * 1024 * 1024;
+const MARKDOWN_RICH_EDITOR_MAX_CHARS = 2 * 1024 * 1024;
 
 
 const FILE_SYNC_POLL_INTERVAL_MS = 1000;
@@ -101,6 +105,10 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   const [content, setContent] = useState<string>(initialContent);
   const [hasChanges, setHasChanges] = useState(false);
   const [viewMode, setViewMode] = useState<'ir' | 'source'>('ir');
+  const notification = useNotification();
+  // Set once the file size is known (metadata after load) and honoured by the
+  // view-mode effect above so a re-render does not flip back to rich mode.
+  const isLargeMarkdownRef = useRef(false);
   const [loading, setLoading] = useState(!!filePath);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -158,7 +166,10 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   }, []);
 
   useEffect(() => {
-    setViewMode(documentMarkdownMode ?? 'ir');
+    // Oversized documents skip the rich (TipTap) renderer entirely: parsing
+    // multiple megabytes of markdown on the main thread freezes the whole IDE.
+    // The plain textarea (source mode) stays responsive at any size.
+    setViewMode(documentMarkdownMode ?? (isLargeMarkdownRef.current ? 'source' : 'ir'));
   }, [documentIdentity, documentMarkdownMode, initialContent]);
 
   const fetchFileMetadata = useCallback(async () => {
@@ -203,6 +214,9 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
           if (v) {
             diskVersionRef.current = v;
           }
+          if (typeof fileInfo?.size === 'number') {
+            isLargeMarkdownRef.current = fileInfo.size > MARKDOWN_RICH_EDITOR_MAX_BYTES;
+          }
         }
       } catch (err) {
         if (isLikelyFileNotFoundError(err)) {
@@ -213,6 +227,13 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
 
       if (!isUnmountedRef.current) {
         const nextContent = fileContent;
+        // Metadata can fail or omit the size; fall back to the content length.
+        if (!isLargeMarkdownRef.current && nextContent.length > MARKDOWN_RICH_EDITOR_MAX_CHARS) {
+          isLargeMarkdownRef.current = true;
+        }
+        if (isLargeMarkdownRef.current) {
+          setViewMode('source');
+        }
 
         documentSession?.capture(nextContent, false);
         setContent(nextContent);
@@ -671,6 +692,12 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
             ]}
             value={viewMode}
             onValueChange={(value) => {
+              // Oversized documents stay in source mode: the rich renderer
+              // parses the whole document on the main thread and freezes.
+              if (isLargeMarkdownRef.current && value === 'ir') {
+                notification.info(t('editor.markdownEditor.largeFileSourceOnly'));
+                return;
+              }
               if (documentSession) documentSession.markdownMode = value as 'ir' | 'source';
               setViewMode(value as 'ir' | 'source');
             }}

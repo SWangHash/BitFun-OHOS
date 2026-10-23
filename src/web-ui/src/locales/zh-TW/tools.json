@@ -102,6 +102,7 @@
       "viewModeLabel": "Markdown 與預覽模式",
       "notice": {
         "sourcePreviewFallback": "該文檔包含無法在可視化模式中安全編輯的語法。請在源碼模式中編輯，或切換到預覽模式查看。"
+      "largeFileSourceOnly": "檔案過大，已切換為原始碼模式以保持流暢。"
       }
     },
     "planViewer": {
