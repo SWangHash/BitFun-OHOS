@@ -14,7 +14,9 @@ use bitfun_runtime_ports::{
 };
 use serde_json::Value;
 
-use crate::admission::QT_MIGRATION_SLOT_INTAKE_STATE;
+use crate::admission::{
+    QT_MIGRATION_SLOT_INTAKE_STATE, QT_MIGRATION_SLOT_SKILL_DIR, QT_MIGRATION_SLOT_TEMPLATES_DIR,
+};
 use crate::state::{
     intake_snapshot_from_slot_value, intake_snapshot_to_slot_value,
     qt_migration_apply_validated_answers, qt_migration_validate_answer_fields,
@@ -59,6 +61,19 @@ fn merge_prompt_resolved_paths(candidates: &mut HashMap<String, Vec<String>>, re
     }
 }
 
+/// Whether one submitted answer value is the `__official__` sentinel. The sentinel
+/// only means "the runtime installs this" for the field that owns an install flow,
+/// so callers look it up per field instead of scanning every answer.
+fn answer_binds_official_toolchain(value: &Value) -> bool {
+    match value {
+        Value::String(answer) => answer.trim() == QT_MIGRATION_OFFICIAL_VALUE,
+        Value::Array(items) => items
+            .iter()
+            .any(|item| item.as_str().map(str::trim) == Some(QT_MIGRATION_OFFICIAL_VALUE)),
+        _ => false,
+    }
+}
+
 /// Question-template contribution for the Qt migration intake card.
 pub struct QtMigrationQuestionCard;
 
@@ -78,13 +93,9 @@ impl QtMigrationQuestionCard {
         snapshot: &QtMigrationIntakeStateSnapshot,
         answers: &Value,
     ) -> Option<String> {
-        let submitted_official = answers.as_object()?.values().any(|value| match value {
-            Value::String(answer) => answer.trim() == QT_MIGRATION_OFFICIAL_VALUE,
-            Value::Array(items) => items
-                .iter()
-                .any(|item| item.as_str().map(str::trim) == Some(QT_MIGRATION_OFFICIAL_VALUE)),
-            _ => false,
-        });
+        let submitted_official = answers
+            .get("toolchain")
+            .is_some_and(answer_binds_official_toolchain);
         if !submitted_official {
             return None;
         }
@@ -100,6 +111,49 @@ impl QtMigrationQuestionCard {
             "## 工具链已就绪（系统事实，必须使用）\n\n本次提交的 toolchain 绑定是 __official__，运行时已经把它安装到 `{installed}`。\
              本次迁移的工具链就是这个路径：直接使用它，不要再运行任何工具链下载脚本，也不要再做存在性探索或检查，\
              不要在后续任何步骤里把 toolchain 当成 __official__。"
+        ))
+    }
+
+    /// The official-template fact for an intake answer that bound
+    /// `template = __official__`.
+    ///
+    /// A template has no provisioner: the model installs it with the BitFun
+    /// acquisition script, and the turn-start instruction saying so was frozen
+    /// before this answer existed, so it never reaches the turn that submits it
+    /// (#348). The answer's own tool result is the one place the model still reads
+    /// while it can act, and it names the same script and target directory the
+    /// turn-start guidance does.
+    fn official_template_fact(
+        snapshot: &QtMigrationIntakeStateSnapshot,
+        state: &dyn DomainStateReader,
+    ) -> Option<String> {
+        let template = snapshot.fields.get("template")?;
+        if !template.state.can_bind_value()
+            || template.value.as_deref() != Some(QT_MIGRATION_OFFICIAL_VALUE)
+        {
+            return None;
+        }
+        let slot_string = |slot: &DomainStateSlot| {
+            state
+                .get(slot)
+                .and_then(|value| value.as_str().map(str::to_string))
+                .unwrap_or_default()
+        };
+        let templates_dir = slot_string(&QT_MIGRATION_SLOT_TEMPLATES_DIR);
+        if templates_dir.trim().is_empty() {
+            return None;
+        }
+        let skill_dir = match slot_string(&QT_MIGRATION_SLOT_SKILL_DIR) {
+            dir if dir.trim().is_empty() => "<skill>".to_string(),
+            dir => dir,
+        };
+        Some(format!(
+            "## 模板尚未安装（系统事实，必须立即执行）\n\n{}",
+            crate::instructions::official_template_guidance(
+                &templates_dir,
+                &skill_dir,
+                crate::instructions::download_platform(),
+            )
         ))
     }
 
@@ -126,6 +180,7 @@ impl QtMigrationQuestionCard {
         template_id: Option<&str>,
         answers: &Value,
         snapshot: &QtMigrationIntakeStateSnapshot,
+        state: &dyn DomainStateReader,
     ) -> Option<String> {
         let intake_template = template_id == Some(QT_MIGRATION_PATHS_TEMPLATE_ID);
 
@@ -138,6 +193,11 @@ impl QtMigrationQuestionCard {
             // migration in this very turn without the path it has to build with.
             if let Some(installed) = Self::installed_toolchain_fact(snapshot, answers) {
                 facts.push(installed);
+            }
+            // A template has no provisioner, so the install flow itself is the fact:
+            // nothing else in this turn tells the model to run it.
+            if let Some(template) = Self::official_template_fact(snapshot, state) {
+                facts.push(template);
             }
             // `None` when the generations agree: the answer stands on its own.
             if let Some(mismatch) = pending_generation_mismatch(snapshot) {
@@ -506,7 +566,7 @@ impl QuestionTemplateContribution for QtMigrationQuestionCard {
         state: &dyn DomainStateReader,
     ) -> Vec<ToolResultFact> {
         let snapshot = intake_snapshot_from_slot_value(state.get(&QT_MIGRATION_SLOT_INTAKE_STATE));
-        Self::follow_up_instruction(template_id, answers, &snapshot)
+        Self::follow_up_instruction(template_id, answers, &snapshot, state)
             .map(|text| vec![ToolResultFact { text }])
             .unwrap_or_default()
     }
@@ -844,13 +904,70 @@ mod tests {
         let facts = card().on_answers(
             Some(QT_MIGRATION_PATHS_TEMPLATE_ID),
             &json!({ "toolchain": QT_MIGRATION_OFFICIAL_VALUE }),
-            &SnapshotReader(snapshot),
+            &SnapshotReader(snapshot.clone()),
         );
         assert_eq!(facts.len(), 1, "{facts:?}");
         assert!(
             facts[0].text.contains("D:/installed/qt5-kit"),
             "the fact must name the installed kit path: {}",
             facts[0].text
+        );
+
+        // The sentinel belongs to the field that owns an install flow: a template
+        // chosen as official must not read as an installed toolchain.
+        let facts = card().on_answers(
+            Some(QT_MIGRATION_PATHS_TEMPLATE_ID),
+            &json!({ "template": QT_MIGRATION_OFFICIAL_VALUE }),
+            &SnapshotReader(snapshot.clone()),
+        );
+        assert!(
+            !facts
+                .iter()
+                .any(|fact| fact.text.contains("工具链已就绪")),
+            "{facts:?}"
+        );
+    }
+
+    #[test]
+    fn on_answers_states_the_official_template_install_flow() {
+        let mut snapshot = QtMigrationIntakeStateSnapshot::empty();
+        snapshot.version_strategy = crate::state::QtMigrationVersionStrategy::NotNeeded;
+        let mut template = snapshot
+            .fields
+            .get_mut("template")
+            .expect("the snapshot pre-seeds its fields");
+        template.value = Some(QT_MIGRATION_OFFICIAL_VALUE.to_string());
+        template.state = crate::state::QtMigrationFieldResolutionState::Resolved;
+
+        #[derive(Debug)]
+        struct HostReader(QtMigrationIntakeStateSnapshot);
+        impl DomainStateReader for HostReader {
+            fn get(&self, slot: &DomainStateSlot) -> Option<Value> {
+                if slot == &QT_MIGRATION_SLOT_TEMPLATES_DIR {
+                    return Some(json!("/root/templates"));
+                }
+                if slot == &QT_MIGRATION_SLOT_SKILL_DIR {
+                    return Some(json!("/root/skills/ohos-qt-skills"));
+                }
+                Some(intake_snapshot_to_slot_value(&self.0))
+            }
+        }
+
+        let facts = card().on_answers(
+            Some(QT_MIGRATION_PATHS_TEMPLATE_ID),
+            &json!({ "template": QT_MIGRATION_OFFICIAL_VALUE }),
+            &HostReader(snapshot),
+        );
+        assert_eq!(facts.len(), 1, "{facts:?}");
+        let text = &facts[0].text;
+        assert!(
+            text.contains("/root/skills/ohos-qt-skills/scripts/bitfun-download-template.sh"),
+            "the fact must name the acquisition script: {text}"
+        );
+        assert!(text.contains("/root/templates"), "{text}");
+        assert!(
+            text.contains("不得改用本机其它位置已有的模板工程"),
+            "the binding forbids substituting another template tree: {text}"
         );
     }
 
