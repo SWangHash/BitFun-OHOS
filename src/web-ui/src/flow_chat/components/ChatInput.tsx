@@ -22,7 +22,7 @@ import {
   type InlineTriggerState,
   type RichTextInputElement,
 } from './RichTextInput';
-import { ChatContextPicker, type ContextPickerSkill } from './ChatContextPicker';
+import { ChatContextPicker, type ChatContextPickerEntryView, type ContextPickerSkill } from './ChatContextPicker';
 import { useChatMcpCatalog } from '../hooks/useChatMcpCatalog';
 import type { ContextPickerMcpItem } from './chatMcpItems';
 import { globalEventBus } from '@/infrastructure/event-bus';
@@ -1593,6 +1593,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     query: '',
     startOffset: 0,
   });
+  // When the boost menu opens the picker (via the "引用文件" item), skip the
+  // sources menu and go straight to the file list. Manual @ triggers still
+  // show the full sources menu so MCP and other sources remain reachable.
+  const [boostEntryView, setBoostEntryView] = useState<ChatContextPickerEntryView>('sources');
   const canSelectMcp = resolveChatInputCanUseMcp({
     targetAgentType: effectiveSendAgentType,
     isAcpTargetSession,
@@ -5805,7 +5809,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       if (isComposing) {
         return;
       }
-      
+      // The context picker handles Enter itself via overlay interaction;
+      // do not send the message while it is open.
+      if (contextTriggerState.isActive) {
+        return;
+      }
+
       e.preventDefault();
 
       const isBtwCommand = isSlashCommand(inputState.value.trim(), '/btw');
@@ -5829,7 +5838,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       handleSendOrCancel();
     }
     
-  }, [canUseThreadGoal, handleSendOrCancel, submitBtwFromInput, submitGoalFromInput, derivedState, dispatchInput, slashCommandState, getActiveSlashPickerItems, selectSlashCommandAction, selectSlashExternalPromptCommand, selectSlashPromptCommand, selectSlashAcpCommand, selectSlashSkill, getRichTextTriggerController, historyIndex, inputHistory, savedDraft, inputState.value, hasSendableInput, currentSessionId, isBtwSession, showTargetSwitcher, setInputTarget, removeContext, t]);
+  }, [canUseThreadGoal, contextTriggerState.isActive, handleSendOrCancel, submitBtwFromInput, submitGoalFromInput, derivedState, dispatchInput, slashCommandState, getActiveSlashPickerItems, selectSlashCommandAction, selectSlashExternalPromptCommand, selectSlashPromptCommand, selectSlashAcpCommand, selectSlashSkill, getRichTextTriggerController, historyIndex, inputHistory, savedDraft, inputState.value, hasSendableInput, currentSessionId, isBtwSession, showTargetSwitcher, setInputTarget, removeContext, t]);
 
   const handleImeCompositionStart = useCallback(() => {
     isImeComposingRef.current = true;
@@ -5949,11 +5958,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const handleBoostOpenAtContext = useCallback((e: React.SyntheticEvent) => {
     e.stopPropagation();
     dispatchMode({ type: 'CLOSE_DROPDOWN' });
+    setBoostEntryView('files');
     window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        const el = richTextInputRef.current;
-        el?.openContextPicker?.();
-      });
+      const el = richTextInputRef.current;
+      el?.openContextPicker?.();
     });
   }, []);
 
@@ -6403,7 +6411,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   : effectiveTargetSession?.workspaceId || contextWorkspace?.id}
                 excludeSessionId={effectiveTargetSessionId || undefined}
                 anchorRef={inputAreaAnchorRef}
-                entryView={isAcpTargetSession ? 'files' : 'sources'}
+                entryView={isAcpTargetSession ? 'files' : boostEntryView}
                 skills={canUseSkillsForTarget ? userInvocableSkills : []}
                 skillsLoading={resolvedModeSkillsLoading}
                 skillsLoadFailed={resolvedModeSkillsLoadFailed}
@@ -6425,6 +6433,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 onClose={() => {
                   richTextInputRef.current?.closeContextPicker?.();
                   setContextTriggerState({ isActive: false, query: '', startOffset: 0 });
+                  setBoostEntryView('sources');
                 }}
               />
               

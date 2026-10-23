@@ -119,6 +119,14 @@
     flex: 1;
     min-height: 0;
     padding: var(--bitfun-overlay-menu-surface-padding);
+
+    // Suppress the Listbox :hover highlight so only data-active (the
+    // keyboard/mouse selectedIndex) shows the grey. Without this, a
+    // motionless mouse resting on a stale option plus arrow-key nav
+    // produces two simultaneous grey rows.
+    [data-bitfun-listbox-option]:not(:disabled):hover:not([data-active='true']) {
+      background: transparent;
+    }
   }
 
   &--skills {
