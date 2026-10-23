@@ -310,7 +310,7 @@ impl Tool for BitFunControlTool {
 
     async fn description(&self) -> BitFunResult<String> {
         Ok(
-            "Control BitFun itself through its internal ProductControl API. Use the two-step flow: first `list` or `search`, then `get` the matching capability and follow its returned schema and availability to `configure`, `execute`, or `open`. To show a capability's root surface, call `open` with only its capability_id. destination.actionId is presentation metadata, never an item_id or operation_id. The full catalog loads only on demand; never guess IDs or values."
+            "Control BitFun itself through its internal ProductControl API. Use the two-step flow: first `list` or `search`, then `get` the matching capability and follow its returned schema and availability to `configure`, `execute`, or `open`. When the capability declares a root destination, call `open` with only its capability_id to show that surface. destination.actionId is presentation metadata, never an item_id or operation_id. The full catalog loads only on demand; never guess IDs or values."
                 .to_string(),
         )
     }
@@ -529,18 +529,28 @@ impl Tool for BitFunControlTool {
             let capability_id = Self::capability_id(input).unwrap_or_default();
             if action == "open" {
                 if let Err(error) = validate_open_target(capability_id, Self::item_id(input)) {
-                    let valid_items = product_capability(capability_id)
+                    let capability = product_capability(capability_id).ok();
+                    let valid_items = capability
                         .map(|capability| {
                             capability
                                 .items
                                 .iter()
+                                .filter(|item| {
+                                    item.destination.is_some() || capability.destination.is_some()
+                                })
                                 .map(|item| item.id.as_str())
                                 .collect::<Vec<_>>()
                                 .join(", ")
                         })
                         .unwrap_or_default();
+                    let root_hint = capability
+                        .filter(|capability| capability.destination.is_some())
+                        .map(|_| format!(
+                            " To open the capability root, call {{\"action\":\"open\",\"capability_id\":\"{capability_id}\"}} and omit item_id."
+                        ))
+                        .unwrap_or_default();
                     return invalid(&format!(
-                        "{error}. Valid item_id values: [{valid_items}]. To open the capability root, call {{\"action\":\"open\",\"capability_id\":\"{capability_id}\"}} and omit item_id. destination.actionId is presentation metadata, not an item_id or operation_id."
+                        "{error}. Valid item_id values: [{valid_items}].{root_hint} destination.actionId is presentation metadata, not an item_id or operation_id."
                     ));
                 }
             } else if product_capability(capability_id).is_err() {
@@ -712,34 +722,34 @@ impl Tool for BitFunControlTool {
                         "toolInput".to_string(),
                         json!({ "capability_id": capability_id }),
                     );
-                    object.insert(
-                        "nextToolCalls".to_string(),
-                        json!({
-                            "openCapabilityRoot": {
-                                "action": "open",
-                                "capability_id": capability_id,
-                            },
-                            "delegateTool": capability
-                                .agent_control
-                                .as_ref()
-                                .map(|control| control.tool.as_str()),
-                            "validItemIds": capability
-                                .items
-                                .iter()
-                                .map(|item| item.id.as_str())
-                                .collect::<Vec<_>>(),
-                            "validOperationIds": capability
-                                .operations
-                                .iter()
-                                .map(|operation| operation.id.as_str())
-                                .collect::<Vec<_>>(),
-                            "validOptionIds": capability
-                                .options
-                                .iter()
-                                .map(|option| option.id.as_str())
-                                .collect::<Vec<_>>(),
-                        }),
-                    );
+                    let mut next_tool_calls = json!({
+                        "delegateTool": capability
+                            .agent_control
+                            .as_ref()
+                            .map(|control| control.tool.as_str()),
+                        "validItemIds": capability
+                            .items
+                            .iter()
+                            .map(|item| item.id.as_str())
+                            .collect::<Vec<_>>(),
+                        "validOperationIds": capability
+                            .operations
+                            .iter()
+                            .map(|operation| operation.id.as_str())
+                            .collect::<Vec<_>>(),
+                        "validOptionIds": capability
+                            .options
+                            .iter()
+                            .map(|option| option.id.as_str())
+                            .collect::<Vec<_>>(),
+                    });
+                    if capability.destination.is_some() {
+                        next_tool_calls["openCapabilityRoot"] = json!({
+                            "action": "open",
+                            "capability_id": capability_id,
+                        });
+                    }
+                    object.insert("nextToolCalls".to_string(), next_tool_calls);
                     object.insert(
                         "idNamespaceRules".to_string(),
                         json!({
@@ -983,6 +993,17 @@ mod tests {
         assert!(item_message.contains("omit item_id"));
         assert!(item_message.contains("\"capability_id\":\"feature.browser\""));
         assert!(item_message.contains("presentation metadata"));
+
+        let git_entry = tool
+            .validate_input(
+                &json!({ "action": "open", "capability_id": "feature.git" }),
+                Some(&context()),
+            )
+            .await;
+        assert!(!git_entry.result);
+        let message = git_entry.message.unwrap();
+        assert!(message.contains("Unknown BitFun capability entry"));
+        assert!(!message.contains("To open the capability root"));
 
         let invalid_operation = tool
             .validate_input(
@@ -1278,6 +1299,22 @@ mod tests {
             data["idNamespaceRules"]["destinationActionIdCallable"],
             false
         );
+
+        let results = tool
+            .call_impl(
+                &json!({ "action": "get", "capability_id": "feature.git" }),
+                &context(),
+            )
+            .await
+            .unwrap();
+        let ToolResult::Result { data, .. } = &results[0] else {
+            panic!("expected the Git operation contract");
+        };
+        assert!(data["nextToolCalls"].get("openCapabilityRoot").is_none());
+        assert!(data["nextToolCalls"]["validItemIds"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("status-diff")));
 
         let error = tool
             .call_impl(

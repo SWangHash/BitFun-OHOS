@@ -1,13 +1,13 @@
 {
   "schemaVersion": 2,
   "generatedFrom": "src/shared/interactive-capabilities/catalog.json",
-  "catalogDigest": "5473331e06ecd4bfafbf9b547d48b4fe1561ccf69d86fdfde51ea10dc919531c",
+  "catalogDigest": "07aad700e3211c4f8785b0bfb0de6d9ba7b1be6583d2a62246a4507cff13c2a9",
   "commandCount": 657,
   "coverage": {
     "commandCount": 657,
-    "documentedCommandCount": 613,
-    "implementationCommandCount": 44,
-    "implementationDigest": "012cebbd8d7c908d8e4c0787f73a2fa5f43184c240e7fde68cb941667574ba8f"
+    "documentedCommandCount": 605,
+    "implementationCommandCount": 52,
+    "implementationDigest": "5e1108206a8ca2f174c53708aa1176bd186306bc252fa004379a120b32cc1d83"
   },
   "commands": [
     {
@@ -1107,13 +1107,11 @@
     {
       "id": "check_git_isolation",
       "moduleId": "snapshot_service",
-      "capabilityId": null,
+      "capabilityId": "setting.workspace.worktrees",
       "capabilityIds": [
-        "feature.git",
         "setting.workspace.worktrees"
       ],
       "documentedItemIds": [
-        "feature.git:trust-worktrees",
         "setting.workspace.worktrees:management"
       ],
       "visibility": "documented",
@@ -3992,10 +3990,8 @@
       "capabilityIds": [
         "feature.git"
       ],
-      "documentedItemIds": [
-        "feature.git:trust-worktrees"
-      ],
-      "visibility": "documented",
+      "documentedItemIds": [],
+      "visibility": "implementation",
       "rustPath": "git_add_worktree",
       "sourceFile": "src/apps/desktop/src/api/git_api.rs",
       "signature": "fn git_add_worktree( state: State<'_, AppState>, request: GitAddWorktreeRequest, ) -> Result<bitfun_core::service::git::GitWorktreeInfo, String>",
@@ -4264,10 +4260,8 @@
       "capabilityIds": [
         "feature.git"
       ],
-      "documentedItemIds": [
-        "feature.git:trust-worktrees"
-      ],
-      "visibility": "documented",
+      "documentedItemIds": [],
+      "visibility": "implementation",
       "rustPath": "git_get_repository_trust",
       "sourceFile": "src/apps/desktop/src/api/git_api.rs",
       "signature": "fn git_get_repository_trust( state: State<'_, AppState>, request: GitRepositoryRequest, ) -> Result<GitTrustReport, String>",
@@ -4308,13 +4302,11 @@
     {
       "id": "git_list_worktrees",
       "moduleId": "git",
-      "capabilityId": null,
+      "capabilityId": "setting.workspace.worktrees",
       "capabilityIds": [
-        "feature.git",
         "setting.workspace.worktrees"
       ],
       "documentedItemIds": [
-        "feature.git:trust-worktrees",
         "setting.workspace.worktrees:management"
       ],
       "visibility": "documented",
@@ -4358,13 +4350,11 @@
     {
       "id": "git_remove_worktree",
       "moduleId": "git",
-      "capabilityId": null,
+      "capabilityId": "setting.workspace.worktrees",
       "capabilityIds": [
-        "feature.git",
         "setting.workspace.worktrees"
       ],
       "documentedItemIds": [
-        "feature.git:trust-worktrees",
         "setting.workspace.worktrees:open-restore-delete"
       ],
       "visibility": "documented",
@@ -4428,10 +4418,8 @@
       "capabilityIds": [
         "feature.git"
       ],
-      "documentedItemIds": [
-        "feature.git:trust-worktrees"
-      ],
-      "visibility": "documented",
+      "documentedItemIds": [],
+      "visibility": "implementation",
       "rustPath": "git_trust_repository",
       "sourceFile": "src/apps/desktop/src/api/git_api.rs",
       "signature": "fn git_trust_repository( state: State<'_, AppState>, request: GitRepositoryRequest, ) -> Result<GitTrustOutcome, String>",
@@ -10384,10 +10372,8 @@
       "capabilityIds": [
         "feature.git"
       ],
-      "documentedItemIds": [
-        "feature.git:trust-worktrees"
-      ],
-      "visibility": "documented",
+      "documentedItemIds": [],
+      "visibility": "implementation",
       "rustPath": "api::worktree_api::worktree_bind_session",
       "sourceFile": "src/apps/desktop/src/api/worktree_api.rs",
       "signature": "fn worktree_bind_session( request: WorktreeSessionBindingRequest, ) -> Result<WorktreeSessionBindingResult, WorktreeError>",
@@ -10400,10 +10386,8 @@
       "capabilityIds": [
         "feature.git"
       ],
-      "documentedItemIds": [
-        "feature.git:trust-worktrees"
-      ],
-      "visibility": "documented",
+      "documentedItemIds": [],
+      "visibility": "implementation",
       "rustPath": "api::worktree_api::worktree_create",
       "sourceFile": "src/apps/desktop/src/api/worktree_api.rs",
       "signature": "fn worktree_create( request: WorktreeCreateRequest, ) -> Result<WorktreeCreateResult, WorktreeError>",
@@ -10416,10 +10400,8 @@
       "capabilityIds": [
         "feature.git"
       ],
-      "documentedItemIds": [
-        "feature.git:trust-worktrees"
-      ],
-      "visibility": "documented",
+      "documentedItemIds": [],
+      "visibility": "implementation",
       "rustPath": "api::worktree_api::worktree_create_branch",
       "sourceFile": "src/apps/desktop/src/api/worktree_api.rs",
       "signature": "fn worktree_create_branch( request: WorktreeCreateBranchRequest, ) -> Result<WorktreeMutationResult, WorktreeError>",
@@ -10444,13 +10426,11 @@
     {
       "id": "worktree_list_projects",
       "moduleId": "worktree",
-      "capabilityId": null,
+      "capabilityId": "setting.workspace.worktrees",
       "capabilityIds": [
-        "feature.git",
         "setting.workspace.worktrees"
       ],
       "documentedItemIds": [
-        "feature.git:trust-worktrees",
         "setting.workspace.worktrees:management"
       ],
       "visibility": "documented",
@@ -10466,10 +10446,8 @@
       "capabilityIds": [
         "feature.git"
       ],
-      "documentedItemIds": [
-        "feature.git:trust-worktrees"
-      ],
-      "visibility": "documented",
+      "documentedItemIds": [],
+      "visibility": "implementation",
       "rustPath": "api::worktree_api::worktree_promote",
       "sourceFile": "src/apps/desktop/src/api/worktree_api.rs",
       "signature": "fn worktree_promote( request: WorktreePromoteRequest, ) -> Result<WorktreeMutationResult, WorktreeError>",
@@ -10482,10 +10460,8 @@
       "capabilityIds": [
         "feature.git"
       ],
-      "documentedItemIds": [
-        "feature.git:trust-worktrees"
-      ],
-      "visibility": "documented",
+      "documentedItemIds": [],
+      "visibility": "implementation",
       "rustPath": "api::worktree_api::worktree_recreate",
       "sourceFile": "src/apps/desktop/src/api/worktree_api.rs",
       "signature": "fn worktree_recreate( request: WorktreeRecreateRequest, ) -> Result<WorktreeMutationResult, WorktreeError>",
@@ -10494,13 +10470,11 @@
     {
       "id": "worktree_remove",
       "moduleId": "worktree",
-      "capabilityId": null,
+      "capabilityId": "setting.workspace.worktrees",
       "capabilityIds": [
-        "feature.git",
         "setting.workspace.worktrees"
       ],
       "documentedItemIds": [
-        "feature.git:trust-worktrees",
         "setting.workspace.worktrees:open-restore-delete"
       ],
       "visibility": "documented",

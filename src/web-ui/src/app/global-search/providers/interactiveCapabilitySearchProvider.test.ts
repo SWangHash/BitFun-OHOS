@@ -49,6 +49,20 @@ describe('interactiveCapabilitySearchProvider', () => {
       && item.target.capabilityId === 'feature.terminal')).toBe(true);
   });
 
+  it('omits the Git panel entry in local and remote workspace searches', async () => {
+    for (const remote of [false, true]) {
+      for (const term of ['Git', '版本控制', 'cherry-pick']) {
+        const query = request(term);
+        if (remote) {
+          query.currentWorkspace = { workspaceKind: 'remote' } as typeof query.currentWorkspace;
+        }
+        const result = await interactiveCapabilitySearchProvider.search(query, new AbortController().signal);
+        expect(result.items.some((item) => item.target.kind === 'capability'
+          && item.target.capabilityId === 'feature.git')).toBe(false);
+      }
+    }
+  });
+
   it('finds the same catalog by Chinese terms', async () => {
     const result = await interactiveCapabilitySearchProvider.search(
       request('终端'),
@@ -124,6 +138,9 @@ describe('interactiveCapabilitySearchProvider', () => {
 
   it('satisfies the shared cross-surface search acceptance corpus', async () => {
     for (const acceptance of INTERACTIVE_CAPABILITY_CATALOG.searchAcceptance) {
+      const capability = INTERACTIVE_CAPABILITY_CATALOG.capabilities
+        .find(({ id }) => id === acceptance.expectedFirstCapabilityId);
+      if (!capability?.destination) continue;
       const result = await interactiveCapabilitySearchProvider.search(
         request(acceptance.query),
         new AbortController().signal,

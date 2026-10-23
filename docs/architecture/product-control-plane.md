@@ -62,6 +62,10 @@ overlay 不得重新声明 handler、配置路径或由真实 registry 提供的
 不会进入 system prompt；模型先发现或搜索，再按 `get` 返回的精确 schema 调用。已经退休的
 产品控制 ID 在正常运行时直接拒绝，不提供旧名称 alias；未来如需导入旧数据，由独立迁移边界完成。
 
+功能能力可以仅提供工具操作而没有页面入口。此时不声明根 destination，Query/Delegate
+定义也不携带 presentation target；发现结果保留操作信息，且不推荐打开根页面。
+`open` 子项仍须具有自身或继承的有效入口，打开校验与界面适配均使用同一声明。
+
 Product Control Registry 是闭集路由，不是第二个业务 owner，也不是通用 RPC。它只能
 注册已有 owner 的 Query/Command；来源字段只参与审计和权限提示，不得改变业务结果。
 

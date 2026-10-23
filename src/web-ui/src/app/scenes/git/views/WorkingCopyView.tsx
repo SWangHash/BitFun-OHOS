@@ -4,7 +4,6 @@
 
 import { OverflowText, Button, Icon, IconButton, SearchField, Textarea, Tooltip } from '@bitfun/ui';
 import React, { useCallback, useState, useMemo, useEffect, useRef } from 'react';
-import { useShortcut } from '@/infrastructure/hooks/useShortcut';
 import { useTranslation } from 'react-i18next';
 import { Minus, RotateCcw, Square, FileCode2, History } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
@@ -89,7 +88,7 @@ const WorkingCopyView: React.FC<WorkingCopyViewProps> = ({
     [currentBranch, staged, unstaged, untracked, ahead, behind]
   );
 
-  const { isOperating, addFiles, commit, push, pull, resetFiles } = useGitOperations({
+  const { isOperating, addFiles, commit, push, pull } = useGitOperations({
     repositoryPath: { workspaceId: workspaceId ?? '', repositoryPath: workspacePath },
     autoRefresh: false,
   });
@@ -317,76 +316,6 @@ const WorkingCopyView: React.FC<WorkingCopyViewProps> = ({
     document.addEventListener('mouseup', onMouseUp);
   }, [fileListWidth]);
 
-  const handleGitStageAll = useCallback(async () => {
-    const files = getAllUnstagedFiles();
-    if (files.length === 0) return;
-    const result = await addFiles({ files, all: false });
-    if (result.success) {
-      setSelectedFiles(new Set());
-      await handleRefresh();
-      notification.success(t('notifications.stageSuccess', { count: files.length }));
-    } else if (result.error) notification.error(t('notifications.stageFailed', { error: result.error }));
-  }, [getAllUnstagedFiles, addFiles, handleRefresh, notification, t]);
-
-  const handleGitUnstageAll = useCallback(async () => {
-    if (!status?.staged?.length) return;
-    const paths = status.staged.map((f: { path: string }) => f.path);
-    const result = await resetFiles(paths, true);
-    if (result.success) await handleRefresh();
-    else if (result.error) notification.error(result.error);
-  }, [status, resetFiles, handleRefresh, notification]);
-
-  const gitShortcutsEnabled = Boolean(workspacePath) && isActive;
-
-  useShortcut(
-    'git.refresh',
-    { key: 'F5', scope: 'git' },
-    () => {
-      void handleRefresh();
-    },
-    { enabled: gitShortcutsEnabled, description: 'keyboard.shortcuts.git.refresh' }
-  );
-  useShortcut(
-    'git.commit',
-    { key: 'Enter', ctrl: true, scope: 'git', allowInInput: true },
-    () => {
-      void handleQuickCommit();
-    },
-    { enabled: gitShortcutsEnabled, description: 'keyboard.shortcuts.git.commit' }
-  );
-  useShortcut(
-    'git.push',
-    { key: 'P', ctrl: true, shift: true, scope: 'git' },
-    () => {
-      void handlePush();
-    },
-    { enabled: gitShortcutsEnabled, description: 'keyboard.shortcuts.git.push' }
-  );
-  useShortcut(
-    'git.pull',
-    { key: 'L', ctrl: true, shift: true, scope: 'git' },
-    () => {
-      void handlePull();
-    },
-    { enabled: gitShortcutsEnabled, description: 'keyboard.shortcuts.git.pull' }
-  );
-  useShortcut(
-    'git.stageAll',
-    { key: 'A', ctrl: true, shift: true, scope: 'git' },
-    () => {
-      void handleGitStageAll();
-    },
-    { enabled: gitShortcutsEnabled, description: 'keyboard.shortcuts.git.stageAll' }
-  );
-  useShortcut(
-    'git.unstageAll',
-    { key: 'U', ctrl: true, shift: true, scope: 'git' },
-    () => {
-      void handleGitUnstageAll();
-    },
-    { enabled: gitShortcutsEnabled, description: 'keyboard.shortcuts.git.unstageAll' }
-  );
-
   if (!workspacePath) {
     return (
       <div data-bitfun-component="working-copy-view" data-bitfun-part="root" className="bitfun-git-scene-working-copy">
@@ -442,12 +371,6 @@ const WorkingCopyView: React.FC<WorkingCopyViewProps> = ({
             placeholder={status?.staged?.length ? t('commit.inputPlaceholder') : t('commit.inputPlaceholderNoStaged')}
             value={quickCommitMessage}
             onChange={e => setQuickCommitMessage(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                e.preventDefault();
-                handleQuickCommit();
-              }
-            }}
             disabled={isOperating || isGeneratingCommit}
           />
           {isGeneratingCommit ? (

@@ -1,6 +1,7 @@
 import {
   INTERACTIVE_CAPABILITY_CATALOG,
   getInteractiveCapabilityCatalog,
+  isInteractiveCapabilityOpenable,
   type InteractiveCapability,
 } from '../interactiveCapabilityCatalog';
 import { scoreTextMatch } from '../searchMatching';
@@ -53,6 +54,7 @@ export const interactiveCapabilitySearchProvider: GlobalSearchProvider = {
       ? getInteractiveCapabilityCatalog(false)
       : INTERACTIVE_CAPABILITY_CATALOG;
     const items = catalog.capabilities
+      .filter(isInteractiveCapabilityOpenable)
       .map((capability) => {
         const item = matchingItem(capability, request.query);
         const textScore = scoreTextMatch(request.query, [
