@@ -10,7 +10,6 @@ import { OverflowText,
   Textarea,
 } from '@bitfun/ui';
 import React, { useEffect, useMemo, useState } from 'react';
-import { open } from '@tauri-apps/plugin-dialog';
 import { AlertTriangle, Camera, Github, History, Loader2, PackageOpen, Send } from 'lucide-react';
 import { GalleryEmpty, GalleryLayout, GalleryPageHeader } from '@/app/components';
 import { useI18n } from '@/infrastructure/i18n';
@@ -25,6 +24,7 @@ import {
 } from '@/infrastructure/api/service-api/MiniAppMarketAPI';
 import type { MiniAppMeta } from '@/infrastructure/api/service-api/MiniAppAPI';
 import { miniAppAPI } from '@/infrastructure/api/service-api/MiniAppAPI';
+import { workspaceAPI } from '@/infrastructure/api';
 import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext';
 import { isRemoteWorkspace } from '@/shared/types';
 import { useNotification } from '@/shared/notification-system';
@@ -93,7 +93,7 @@ const MiniAppSubmissionsView: React.FC<MiniAppSubmissionsViewProps> = ({ tabs })
     try {
       const [installed, currentClientVersion] = await Promise.all([
         miniAppAPI.listMiniApps(),
-        draft.minBitFunVersion ? Promise.resolve(undefined) : loadCurrentClientVersion(),
+        draft.minOpenBitFunVersion ? Promise.resolve(undefined) : loadCurrentClientVersion(),
       ]);
       setApps(installed);
       if (currentClientVersion) {
@@ -140,23 +140,31 @@ const MiniAppSubmissionsView: React.FC<MiniAppSubmissionsViewProps> = ({ tabs })
   }
 
   const chooseScreenshots = async () => {
-    const selected = await open({
-      multiple: true,
-      directory: false,
-      title: t('market.submissions.chooseScreenshots'),
-      filters: [
-        {
-          name: t('market.submissions.screenshotFiles'),
-          extensions: ['png', 'jpg', 'jpeg', 'webp'],
-        },
-      ],
-    });
-    const paths = Array.isArray(selected) ? selected : selected ? [selected] : [];
-    if (paths.length > 5) {
-      notification.error(t('market.submissions.screenshotLimit'));
-      return;
+    // Route through the workspace dialog bridge: the desktop dialog plugin is
+    // not registered on OHOS, so the direct plugin call silently failed and
+    // the button looked dead.
+    try {
+      const selected = await workspaceAPI.openFileOrDirectoryDialog({
+        multiple: true,
+        directory: false,
+        title: t('market.submissions.chooseScreenshots'),
+        filters: [
+          {
+            name: t('market.submissions.screenshotFiles'),
+            extensions: ['png', 'jpg', 'jpeg', 'webp'],
+          },
+        ],
+      });
+      const paths = Array.isArray(selected) ? selected : selected ? [selected] : [];
+      if (paths.length > 5) {
+        notification.error(t('market.submissions.screenshotLimit'));
+        return;
+      }
+      setScreenshotPaths(paths);
+    } catch (error) {
+      log.warn('Screenshot selection failed', { error: String(error) });
+      notification.error(t('market.submissions.chooseFailed', { error: String(error) }));
     }
-    setScreenshotPaths(paths);
   };
 
   const captureCurrentApp = async () => {
@@ -174,7 +182,15 @@ const MiniAppSubmissionsView: React.FC<MiniAppSubmissionsViewProps> = ({ tabs })
       setScreenshotPaths((current) => [path, ...current].slice(0, 5));
       notification.success(t('market.submissions.captured'));
     } catch (error) {
-      notification.error(t('market.submissions.captureFailed', { error: String(error) }));
+      const message = String(error);
+      // OHOS screen capture refuses with code=201 until the user enables
+      // Settings → Privacy & security → Screen capture; surface guidance
+      // instead of the raw bridge error.
+      if (/code=201|permission/i.test(message)) {
+        notification.error(t('market.submissions.capturePermissionDenied'));
+      } else {
+        notification.error(t('market.submissions.captureFailed', { error: message }));
+      }
     } finally {
       activateScene('miniapps');
       setBusy(false);
@@ -460,10 +476,10 @@ const MiniAppSubmissionsView: React.FC<MiniAppSubmissionsViewProps> = ({ tabs })
                 </Field>
                 <Field label={t('market.submissions.minVersion')} controlWidth="fill" required>
                   <Input
-                    value={draft.minBitFunVersion}
+                    value={draft.minOpenBitFunVersion}
                     disabled={busy}
                     onChange={(event) =>
-                      setDraft({ ...draft, minBitFunVersion: event.target.value })
+                      setDraft({ ...draft, minOpenBitFunVersion: event.target.value })
                     }
                   />
                 </Field>

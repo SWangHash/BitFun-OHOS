@@ -53,7 +53,7 @@ struct StoredSubmissionMetadata {
     icon: String,
     category: String,
     tags: Vec<String>,
-    #[serde(rename = "minBitFunVersion")]
+    #[serde(rename = "minOpenBitFunVersion")]
     min_bitfun_version: String,
     changelog: String,
     license: MarketLicense,
@@ -2761,7 +2761,7 @@ mod tests {
         let draft = serde_json::from_value(serde_json::json!({
             "slug":"email-owner-app", "releaseNumber":1, "name":"Email App",
             "description":"A safe email account submission.", "icon":"box", "category":"developer",
-            "tags":["test"], "minBitFunVersion":"1.0.0", "changelog":"Initial release",
+            "tags":["test"], "minOpenBitFunVersion":"1.0.0", "changelog":"Initial release",
             "license":{"spdxExpression":"MIT"}
         }))
         .unwrap();

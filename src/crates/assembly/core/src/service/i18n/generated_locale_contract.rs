@@ -114,6 +114,11 @@ pub const GENERATED_SHARED_TERMS: &[GeneratedSharedTermEntry] = &[
     },
     GeneratedSharedTermEntry {
         locale: LocaleId::ZhCN,
+        key: "connectionMethods.bitfunServer",
+        value: "BitFun Server",
+    },
+    GeneratedSharedTermEntry {
+        locale: LocaleId::ZhCN,
         key: "connectionMethods.botFeishu",
         value: "飞书机器人",
     },
@@ -136,11 +141,6 @@ pub const GENERATED_SHARED_TERMS: &[GeneratedSharedTermEntry] = &[
         locale: LocaleId::ZhCN,
         key: "connectionMethods.lan",
         value: "局域网",
-    },
-    GeneratedSharedTermEntry {
-        locale: LocaleId::ZhCN,
-        key: "connectionMethods.bitfunServer",
-        value: "BitFun Server",
     },
     GeneratedSharedTermEntry {
         locale: LocaleId::ZhCN,
@@ -299,6 +299,11 @@ pub const GENERATED_SHARED_TERMS: &[GeneratedSharedTermEntry] = &[
     },
     GeneratedSharedTermEntry {
         locale: LocaleId::ZhTW,
+        key: "connectionMethods.bitfunServer",
+        value: "BitFun Server",
+    },
+    GeneratedSharedTermEntry {
+        locale: LocaleId::ZhTW,
         key: "connectionMethods.botFeishu",
         value: "飛書機器人",
     },
@@ -321,11 +326,6 @@ pub const GENERATED_SHARED_TERMS: &[GeneratedSharedTermEntry] = &[
         locale: LocaleId::ZhTW,
         key: "connectionMethods.lan",
         value: "區域網路",
-    },
-    GeneratedSharedTermEntry {
-        locale: LocaleId::ZhTW,
-        key: "connectionMethods.bitfunServer",
-        value: "BitFun Server",
     },
     GeneratedSharedTermEntry {
         locale: LocaleId::ZhTW,
@@ -484,6 +484,11 @@ pub const GENERATED_SHARED_TERMS: &[GeneratedSharedTermEntry] = &[
     },
     GeneratedSharedTermEntry {
         locale: LocaleId::EnUS,
+        key: "connectionMethods.bitfunServer",
+        value: "BitFun Server",
+    },
+    GeneratedSharedTermEntry {
+        locale: LocaleId::EnUS,
         key: "connectionMethods.botFeishu",
         value: "Feishu Bot",
     },
@@ -506,11 +511,6 @@ pub const GENERATED_SHARED_TERMS: &[GeneratedSharedTermEntry] = &[
         locale: LocaleId::EnUS,
         key: "connectionMethods.lan",
         value: "LAN",
-    },
-    GeneratedSharedTermEntry {
-        locale: LocaleId::EnUS,
-        key: "connectionMethods.bitfunServer",
-        value: "BitFun Server",
     },
     GeneratedSharedTermEntry {
         locale: LocaleId::EnUS,

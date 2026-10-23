@@ -45,7 +45,7 @@ interface ManualSubmissionDraft {
   licenseValue: string;
   changelog: string;
   repositoryUrl: string;
-  minBitFunVersion: string;
+  minOpenBitFunVersion: string;
 }
 
 function createManualSubmissionDraft(): ManualSubmissionDraft {
@@ -56,7 +56,7 @@ function createManualSubmissionDraft(): ManualSubmissionDraft {
     licenseValue: '',
     changelog: '',
     repositoryUrl: '',
-    minBitFunVersion: getVersionInfo().version,
+    minOpenBitFunVersion: getVersionInfo().version,
   };
 }
 
@@ -183,7 +183,7 @@ export function AppearanceMarketWorkflows({ workflow }: AppearanceMarketWorkflow
       const submission = await appearanceMarketAPI.submitPackage({
         packagePath: manualDraft.packagePath,
         slug: manualDraft.slug.trim() || undefined,
-        minBitFunVersion: manualDraft.minBitFunVersion.trim() || undefined,
+        minOpenBitFunVersion: manualDraft.minOpenBitFunVersion.trim() || undefined,
         changelog: manualDraft.changelog.trim() || undefined,
         license: manualDraft.licenseKind === 'spdx'
           ? { spdxExpression: licenseValue }
@@ -290,10 +290,10 @@ export function AppearanceMarketWorkflows({ workflow }: AppearanceMarketWorkflow
           required
         >
           <Input
-            value={manualDraft.minBitFunVersion}
+            value={manualDraft.minOpenBitFunVersion}
             onChange={event => setManualDraft(current => ({
               ...current,
-              minBitFunVersion: event.target.value,
+              minOpenBitFunVersion: event.target.value,
             }))}
           />
         </Field>
@@ -560,7 +560,7 @@ export function AppearanceMarketWorkflows({ workflow }: AppearanceMarketWorkflow
                 <dl className="appearance-market__facts">
                   <div><dt><OverflowText>{t('package.market.review.package')}</OverflowText></dt><dd><OverflowText>{reviewDetail.submission.packageId}</OverflowText></dd></div>
                   <div><dt><OverflowText>{t('package.market.review.version')}</OverflowText></dt><dd><OverflowText>{reviewDetail.submission.packageVersion}</OverflowText></dd></div>
-                  <div><dt><OverflowText>{t('package.market.minimumVersion')}</OverflowText></dt><dd><OverflowText>{reviewDetail.submission.minBitFunVersion}</OverflowText></dd></div>
+                  <div><dt><OverflowText>{t('package.market.minimumVersion')}</OverflowText></dt><dd><OverflowText>{reviewDetail.submission.minOpenBitFunVersion}</OverflowText></dd></div>
                   <div><dt><OverflowText>{t('package.market.license')}</OverflowText></dt><dd><OverflowText>{reviewDetail.submission.license.spdxExpression || t('package.market.customLicense')}</OverflowText></dd></div>
                 </dl>
                 {reviewDetail.submission.requiredCapabilities.length > 0 && (

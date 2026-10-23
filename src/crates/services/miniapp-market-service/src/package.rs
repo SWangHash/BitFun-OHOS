@@ -413,13 +413,13 @@ pub fn validate_min_bitfun_version(value: &str) -> MarketResult<()> {
     let version = semver::Version::parse(value).map_err(|_| {
         MarketError::bad_request(
             "invalid_min_bitfun_version",
-            "minBitFunVersion must use semantic version syntax, for example 1.0.0.",
+            "minOpenBitFunVersion must use semantic version syntax, for example 1.0.0.",
         )
     })?;
     if version < BITFUN_INITIAL_RELEASE_VERSION {
         return Err(MarketError::bad_request(
             "invalid_min_bitfun_version",
-            "minBitFunVersion must be 1.0.0 or newer.",
+            "minOpenBitFunVersion must be 1.0.0 or newer.",
         ));
     }
     Ok(())

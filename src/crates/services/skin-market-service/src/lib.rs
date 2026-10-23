@@ -273,7 +273,7 @@ mod tests {
         let body = serde_json::json!({
             "slug": slug,
             "releaseNumber": 1,
-            "minBitFunVersion": "1.0.0",
+            "minOpenBitFunVersion": "1.0.0",
             "changelog": "Initial release",
             "license": {"spdxExpression": "MIT"}
         });
@@ -597,7 +597,7 @@ mod tests {
         let unsafe_license = serde_json::json!({
             "slug": "unsafe-license",
             "releaseNumber": 1,
-            "minBitFunVersion": "1.0.0",
+            "minOpenBitFunVersion": "1.0.0",
             "changelog": "Initial release",
             "license": {"customUrl": "javascript:alert(1)"}
         });

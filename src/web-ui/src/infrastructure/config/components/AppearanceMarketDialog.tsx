@@ -271,7 +271,7 @@ export function AppearanceMarketDialog({ isOpen, onClose }: AppearanceMarketDial
     const active = selectedAppearanceId === detail.packageId;
     const unsupported = hasUnsupportedCapabilities(detail);
     const incompatibleVersion = requiresNewerBitFun(
-      release?.minBitFunVersion ?? detail.minBitFunVersion,
+      release?.minOpenBitFunVersion ?? detail.minOpenBitFunVersion,
     );
     const linkedToOtherListing = local?.marketOrigin
       && local.marketOrigin.listingId !== detail.listingId;
@@ -337,7 +337,7 @@ export function AppearanceMarketDialog({ isOpen, onClose }: AppearanceMarketDial
           </div>
           <p>{detail.description}</p>
           <dl className="appearance-market__facts">
-            <div><dt><OverflowText>{t('package.market.minimumVersion')}</OverflowText></dt><dd><OverflowText>{detail.minBitFunVersion}</OverflowText></dd></div>
+            <div><dt><OverflowText>{t('package.market.minimumVersion')}</OverflowText></dt><dd><OverflowText>{detail.minOpenBitFunVersion}</OverflowText></dd></div>
             <div><dt><OverflowText>{t('package.market.license')}</OverflowText></dt><dd><OverflowText>{detail.license.spdxExpression || t('package.market.customLicense')}</OverflowText></dd></div>
           </dl>
           {detail.requiredCapabilities.length > 0 && (
@@ -372,7 +372,7 @@ export function AppearanceMarketDialog({ isOpen, onClose }: AppearanceMarketDial
                     ? t('package.market.installedReleaseYanked')
                     : incompatibleVersion
                       ? t('package.market.incompatibleVersion', {
-                          version: release?.minBitFunVersion ?? detail.minBitFunVersion,
+                          version: release?.minOpenBitFunVersion ?? detail.minOpenBitFunVersion,
                         })
                       : unsupported
                         ? t('package.market.unsupportedCapabilities')
