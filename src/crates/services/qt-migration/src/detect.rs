@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use crate::output::{is_inside_migrated_harmony_project, is_migration_artifact};
 use crate::scan::{
     dedup_paths, is_migration_artifact_location, is_noise_dir, normalize_workspace_candidate,
-    path_key, ScanGuard, MAX_PROBE_DEPTH, MAX_SOURCE_PROJECTS,
+    path_key, scan_qmake_hits, ScanGuard, MAX_PROBE_DEPTH, MAX_SOURCE_PROJECTS,
 };
 
 /// Qt6 CMake package directory, relative to a kit root. Its presence is the
@@ -93,6 +93,85 @@ pub(crate) fn resolve_kit_root(hit_dir: &Path) -> &Path {
 pub(crate) fn resolve_kit_root_above(dir: &Path) -> Option<&Path> {
     dir.ancestors()
         .find(|ancestor| detect_qt_major(ancestor).is_some() || is_ohos_target_kit(ancestor))
+}
+
+/// Kit root that identifies the generation of a **bound toolchain value**.
+///
+/// A user types whatever names their install, so the value may be the kit itself,
+/// its `bin` directory, the `qmake` executable, or the installer root that keeps
+/// the kit below a version directory (`<root>/6.12.0/<target>`). Only the kit
+/// answers `detect_qt_major`, and measuring the generation is what decides whether
+/// a version-strategy question is needed, so the value is resolved in every
+/// direction before giving up.
+pub(crate) fn resolve_bound_kit_root(value: &Path) -> Option<PathBuf> {
+    let direct = resolve_kit_root(value);
+    if detect_qt_major(direct).is_some() {
+        return Some(direct.to_path_buf());
+    }
+    if let Some(kit) = value
+        .ancestors()
+        .find(|ancestor| detect_qt_major(ancestor).is_some())
+    {
+        return Some(kit.to_path_buf());
+    }
+    scan_qmake_hits(value)
+        .into_iter()
+        .map(|bin_dir| resolve_kit_root(&bin_dir).to_path_buf())
+        .find(|kit| detect_qt_major(kit).is_some())
+}
+
+/// Whether the kit's own tools were built for the host this process runs on.
+///
+/// A Qt-for-HarmonyOS SDK is published per host platform with the same directory
+/// shape (`bin/qmake`, `lib/cmake/Qt5`, the OHOS platform plugin), so the layout
+/// cannot tell a kit that runs here from one built for HarmonyOS itself (#365).
+/// The executables can: their format is the host platform's. `None` when no qmake
+/// is readable, so a kit whose tools cannot be inspected is kept.
+pub(crate) fn kit_tools_run_on_host(kit_root: &Path) -> Option<bool> {
+    let bin_dir = kit_root.join("bin");
+    let qmake = crate::scan::QMAKE_EXECUTABLES
+        .iter()
+        .map(|name| bin_dir.join(name))
+        .find(|path| path.is_file())?;
+    let mut magic = [0u8; 4];
+    let mut file = std::fs::File::open(qmake).ok()?;
+    std::io::Read::read_exact(&mut file, &mut magic).ok()?;
+    binary_format(magic).map(|format| format == host_binary_format())
+}
+
+/// Executable container formats that identify the platform a binary was built for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BinaryFormat {
+    MachO,
+    Pe,
+    Elf,
+}
+
+fn binary_format(magic: [u8; 4]) -> Option<BinaryFormat> {
+    match magic {
+        [0x7f, b'E', b'L', b'F'] => Some(BinaryFormat::Elf),
+        [b'M', b'Z', _, _] => Some(BinaryFormat::Pe),
+        // 32/64-bit Mach-O, both byte orders, and the fat (universal) header.
+        [0xfe, 0xed, 0xfa, 0xce]
+        | [0xfe, 0xed, 0xfa, 0xcf]
+        | [0xce, 0xfa, 0xed, 0xfe]
+        | [0xcf, 0xfa, 0xed, 0xfe]
+        | [0xca, 0xfe, 0xba, 0xbe]
+        | [0xbe, 0xba, 0xfe, 0xca] => Some(BinaryFormat::MachO),
+        _ => None,
+    }
+}
+
+fn host_binary_format() -> BinaryFormat {
+    if cfg!(target_env = "ohos") {
+        BinaryFormat::Elf
+    } else if cfg!(target_os = "macos") {
+        BinaryFormat::MachO
+    } else if cfg!(windows) {
+        BinaryFormat::Pe
+    } else {
+        BinaryFormat::Elf
+    }
 }
 
 /// Whether `dir` belongs to a Qt installation rather than to a user project: it
@@ -362,13 +441,35 @@ pub(crate) fn probe_source_projects(workspace: &Path, model_candidates: &[String
             .then_with(|| a.0.cmp(&b.0))
             .then_with(|| path_key(&a.1).cmp(&path_key(&b.1)))
     });
-    let mut candidates = found
+    // A project and a project nested inside it are the same migration target, and
+    // the outer one is the project the user means: a `.pro` subdirectory inside a
+    // qmake project is a subproject the build owns (#371). The surviving candidate
+    // comes first, so it is also the card's default.
+    let mut roots: Vec<PathBuf> = Vec::new();
+    for (_, path) in found {
+        if roots
+            .iter()
+            .any(|root| is_inside_dir(&path, root) || is_inside_dir(root, &path))
+        {
+            continue;
+        }
+        roots.push(path);
+    }
+    let mut candidates = roots
         .into_iter()
-        .map(|(_, path)| path.to_string_lossy().into_owned())
+        .map(|path| path.to_string_lossy().into_owned())
         .collect::<Vec<_>>();
     dedup_paths(&mut candidates);
     candidates.truncate(MAX_SOURCE_PROJECTS);
     candidates
+}
+
+/// Whether `path` is `dir` or lives below it, comparing the normalized keys so a
+/// case- or separator-different spelling of one path still folds.
+fn is_inside_dir(path: &Path, dir: &Path) -> bool {
+    let path = path_key(path);
+    let dir = path_key(dir);
+    path == dir || path.starts_with(&format!("{dir}/"))
 }
 
 /// CMake-based Qt project marker: a CMakeLists.txt that resolves Qt via

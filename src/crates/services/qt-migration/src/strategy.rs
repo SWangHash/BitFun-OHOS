@@ -6,7 +6,7 @@
 use std::path::Path;
 
 use crate::detect::{
-    detect_project_qt_major, detect_qt_major, is_qt_source_project, resolve_kit_root,
+    detect_project_qt_major, detect_qt_major, is_qt_source_project, resolve_bound_kit_root,
 };
 use crate::scan::{QtScanCandidate, MAX_TOOLCHAINS};
 use crate::state::{
@@ -294,12 +294,23 @@ pub fn compare_bound_generations(
     let toolchain_major = if qt_migration_is_skill_managed_value(toolchain) {
         official_qt_major
     } else {
-        detect_qt_major(resolve_kit_root(Path::new(toolchain)))
+        // The bound value may name the kit, its `bin`, its qmake, or the installer
+        // root above the kit; only the resolved kit carries the generation, and an
+        // unresolvable value must not silently pass as "same generation" (#369).
+        resolve_bound_kit_root(Path::new(toolchain)).and_then(|kit| detect_qt_major(&kit))
     };
     let (Some(project), Some(toolchain)) = (project_major, toolchain_major) else {
         return QtMigrationGenerationMismatch::Unknown;
     };
     QtMigrationGenerationMismatch::from_generations(project, toolchain)
+}
+
+/// Whether a bound toolchain value names a Qt installation whose generation the
+/// runtime can read. Used where a binding would otherwise be accepted while
+/// leaving the version-strategy question unanswerable (#369).
+pub fn toolchain_value_is_measurable(toolchain: &str) -> bool {
+    qt_migration_is_skill_managed_value(toolchain)
+        || resolve_bound_kit_root(Path::new(toolchain)).is_some()
 }
 
 /// The `toolchain` options of the card, in option order.
