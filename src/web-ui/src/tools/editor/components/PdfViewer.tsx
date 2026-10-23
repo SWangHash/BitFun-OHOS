@@ -203,7 +203,14 @@ const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
   const textLayerContainerRef = useRef<HTMLDivElement | null>(null);
   const textLayerRef = useRef<TextLayer | null>(null);
   const [rendering, setRendering] = useState(false);
+  // Angle of the bitmap currently painted on the canvas. While a rotation
+  // re-render is in flight the old bitmap is CSS-rotated into the new frame
+  // instead of being stretched across the swapped box (which read as "the
+  // font squashes first, then it rotates").
+  const renderedRotationRef = useRef(rotation);
   const displaySize = displayedPageSize(size, zoom, rotation);
+  const renderedDisplaySize = displayedPageSize(size, zoom, renderedRotationRef.current);
+  const rotateTransitionActive = rendering && Math.abs(rotation - renderedRotationRef.current) % 180 !== 0;
   const setPageElement = useCallback((element: HTMLDivElement | null) => {
     onElementChange(pageNumber, element);
   }, [onElementChange, pageNumber]);
@@ -281,6 +288,7 @@ const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
           stagingTextLayerContainer.getAttribute('data-main-rotation') ?? '0',
         );
         textLayerContainer.replaceChildren(...stagingTextLayerContainer.childNodes);
+        renderedRotationRef.current = rotation;
         setRendering(false);
       } catch (error) {
         if (disposed || isRenderingCancelled(error)) {
@@ -317,7 +325,19 @@ const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
           <canvas
             ref={canvasRef}
             aria-label={pageLabel}
-            style={{ width: displaySize.width, height: displaySize.height }}
+            style={
+              rotateTransitionActive
+                ? {
+                    // Bridge the async re-render: CSS-rotate the previous
+                    // bitmap into the new orientation instead of stretching
+                    // it across the swapped box.
+                    width: renderedDisplaySize.width,
+                    height: renderedDisplaySize.height,
+                    transform: `rotate(${rotation - renderedRotationRef.current}deg)`,
+                    transition: 'transform 0.2s ease-out',
+                  }
+                : { width: displaySize.width, height: displaySize.height }
+            }
           />
           <div
             ref={textLayerContainerRef}
