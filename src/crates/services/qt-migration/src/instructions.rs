@@ -206,6 +206,30 @@ pub fn output_project_dir(output_project: &str, source_project: &str) -> String 
     format!("{container}{separator}{}-ohos", app_name(source_project))
 }
 
+/// The project directory this migration owns, given the bound container: the
+/// derived name, or the smallest free `-<n>` suffix when that name is taken.
+///
+/// The name is decided when the inputs bind and then kept in the intake snapshot,
+/// so a second migration of the same project cannot land on the first one's
+/// directory (#347) — and so every later turn of one migration names the same
+/// directory even after it has been created.
+pub fn new_migration_project_dir(output_project: &str, source_project: &str) -> String {
+    let base = output_project_dir(output_project, source_project);
+    if !std::path::Path::new(&base).exists() {
+        return base;
+    }
+    for index in 2..=MAX_PROJECT_DIR_SUFFIX {
+        let candidate = format!("{base}-{index}");
+        if !std::path::Path::new(&candidate).exists() {
+            return candidate;
+        }
+    }
+    base
+}
+
+/// Highest `<app>-ohos-<n>` suffix the derivation tries before reusing the name.
+const MAX_PROJECT_DIR_SUFFIX: u32 = 32;
+
 /// The Qt application name: the `.pro` file stem, the CMake project directory, or
 /// the last path segment of a directory.
 fn app_name(source_project: &str) -> String {
@@ -248,6 +272,10 @@ pub fn bound_inputs_instruction(
     let mut text = String::from(
         "## 迁移绑定输入（系统事实，必须使用）\n\n用户已通过问题卡片确认本次迁移的四项最小输入。迁移操作必须使用以下绑定值，不得替换为其他路径，不得重新询问：\n",
     );
+    let project_dir = snapshot
+        .output_project_dir
+        .clone()
+        .unwrap_or_else(|| output_project_dir(values["output_project"], values["source_project"]));
     for field in crate::state::QT_MIGRATION_INTAKE_REQUIRED_FIELDS {
         let value = values[field];
         if value == QT_MIGRATION_OFFICIAL_VALUE {
@@ -259,11 +287,11 @@ pub fn bound_inputs_instruction(
         }
     }
     text.push_str(&format!(
-        "- 输出工程目录（由 `output_project` 推导，不是绑定值的原样）：{}\n\
+        "- 输出工程目录（本次迁移唯一允许的工程目录）：{}\n\
          \x20 `output_project` 绑定的是**输出容器**，不是鸿蒙工程目录本身。模板与迁移产物只能写进上面的\n\
          \x20 子目录内，容器根目录不得出现模板文件或产物（即使容器就是当前工作区根）。\n\
-         \x20 同名冲突时为本次迁移追加序号 `<app-name>-ohos-2`、`-3`（取最小可用序号），并在结论中说明。\n\
-         \x20 工程目录名以迁移台账 `environment.tsv` 的 layout 行为准：两者不一致时按台账值落盘或更正台账。\n\
+         \x20 迁移台账 `environment.tsv` 的 layout 行必须记录上面这个路径。台账与它不一致时以它为准并\n\
+         \x20 更正台账，不得改用工作区根、原始工程目录、上一次迁移留下的目录或任何别的名字。\n\
          \x20 本次迁移产生的**所有**文件——迁移台账、构建目录与宿主构建产物、按平台构建的产物、证据与截图、\n\
          \x20 试点工程、打包与中间产物——都只允许出现在上面的工程目录内，或迁移台账记录的路径下。\n\
          \x20 不得**直接**写在输出容器根目录、当前工作区根目录、工作区父目录、系统临时目录或其它位置：容器\n\
@@ -271,7 +299,7 @@ pub fn bound_inputs_instruction(
          \x20 没有中间产物留在工作区或工作区外一说，没有“试点工程目录”这类额外顶层目录。\n\
          \x20 需要工作目录时用工程目录内的子目录（如工程目录下的宿主构建目录），不要用工作区根或系统临时\n\
          \x20 目录当 CWD，否则产物会落在工作区里。\n",
-        output_project_dir(values["output_project"], values["source_project"])
+        project_dir
     ));
     let toolchain_official = values["toolchain"] == QT_MIGRATION_OFFICIAL_VALUE;
     let template_official = values["template"] == QT_MIGRATION_OFFICIAL_VALUE;
@@ -768,6 +796,27 @@ mod tests {
     }
 
     #[test]
+    fn a_new_migration_takes_the_smallest_free_project_directory() {
+        let container = tempfile::tempdir().expect("container");
+        let project = container.path().join("notepad");
+        std::fs::create_dir(&project).expect("project dir");
+        let container = container.path().to_string_lossy().into_owned();
+        let source = project.to_string_lossy().into_owned();
+
+        // Free name: the migration that runs first keeps `<app>-ohos`.
+        let base = output_project_dir(&container, &source);
+        assert_eq!(new_migration_project_dir(&container, &source), base);
+
+        // Taken (a previous migration of the same project): the next free suffix.
+        std::fs::create_dir(&base).expect("first result");
+        std::fs::create_dir(format!("{base}-2")).expect("second result");
+        assert_eq!(
+            new_migration_project_dir(&container, &source),
+            format!("{base}-3")
+        );
+    }
+
+    #[test]
     fn skill_gate_instruction_carries_official_download_targets() {
         // 只有仍是 official 的字段才带下载语义。
         let both = skill_gate_instruction(
@@ -913,6 +962,7 @@ mod tests {
             status: QtMigrationIntakeStatus::NeedsInput,
             loaded_skill_receipt: None,
             version_strategy: QtMigrationVersionStrategy::default(),
+            output_project_dir: None,
         }
     }
 

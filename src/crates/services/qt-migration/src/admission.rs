@@ -272,6 +272,7 @@ mod tests {
             status,
             loaded_skill_receipt: None,
             version_strategy: QtMigrationVersionStrategy::default(),
+            output_project_dir: None,
         }
     }
 

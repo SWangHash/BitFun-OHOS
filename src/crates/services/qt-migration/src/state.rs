@@ -164,6 +164,7 @@ fn reset_project_bindings(
     // `Abort` (or a `Pending` that was never answered) would leave the fresh intake
     // permanently blocked.
     next.version_strategy = QtMigrationVersionStrategy::default();
+    next.output_project_dir = None;
     next.status = qt_migration_derive_intake_status(&next);
     next
 }
@@ -283,6 +284,22 @@ pub fn qt_migration_apply_validated_answers(
             entry.state = QtMigrationFieldResolutionState::Resolved;
         }
     }
+    // The project directory is named once, by the runtime: a container that already
+    // holds `<app>-ohos` means this is a later migration of the same project, and
+    // reusing that name would write into the previous result (#347).
+    if next.output_project_dir.is_none() {
+        let bound = |field: &str| {
+            next.fields
+                .get(field)
+                .filter(|state| state.state.can_bind_value())
+                .and_then(|state| state.value.as_deref())
+        };
+        if let (Some(output), Some(source)) = (bound("output_project"), bound("source_project")) {
+            next.output_project_dir = Some(crate::instructions::new_migration_project_dir(
+                output, source,
+            ));
+        }
+    }
     next.status = qt_migration_derive_intake_status(&next);
     next
 }
@@ -364,6 +381,7 @@ mod tests {
             status: QtMigrationIntakeStatus::NotApplicable,
             loaded_skill_receipt: receipt,
             version_strategy: QtMigrationVersionStrategy::default(),
+            output_project_dir: None,
         }
     }
 
