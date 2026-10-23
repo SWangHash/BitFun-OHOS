@@ -46,6 +46,8 @@ export interface FlowChatContextValue {
    * scalar fields above.
    */
   activeSessionOverride?: Session | null;
+  /** View-owned manual choices, retained while virtual rows are unmounted. */
+  thinkingExpansionStates?: Map<string, boolean>;
   allowUserMessageRollback?: boolean;
   allowUserMessageEdit?: boolean;
   /** Hides transcript actions when the visible projection omits internal turn input. */

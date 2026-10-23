@@ -44,7 +44,7 @@ export const ModelThinkingDisplay: React.FC<ModelThinkingDisplayProps> = ({
   displayContext = 'default',
 }) => {
   const { t } = useTranslation('flow-chat');
-  const { activeSessionOverride } = useFlowChatContext();
+  const { activeSessionOverride, thinkingExpansionStates } = useFlowChatContext();
   const { content, isStreaming, status } = thinkingItem;
   const isSummary = thinkingItem.reasoningKind === 'summary';
   const contentRef = useRef<HTMLDivElement>(null);
@@ -69,8 +69,10 @@ export const ModelThinkingDisplay: React.FC<ModelThinkingDisplayProps> = ({
     isSubagentProjection ? isActive || isLastItem : isLastItem
   ));
 
-  const [isExpanded, setIsExpanded] = useState(shouldDefaultExpanded);
-  const [retainClosingContent, setRetainClosingContent] = useState(shouldDefaultExpanded);
+  const savedExpansion = thinkingExpansionStates?.get(thinkingItem.id);
+  const initialExpanded = savedExpansion ?? shouldDefaultExpanded;
+  const [isExpanded, setIsExpanded] = useState(initialExpanded);
+  const [retainClosingContent, setRetainClosingContent] = useState(initialExpanded);
   const expandContainerRef = useRef<HTMLDivElement>(null);
   const shouldMountContent = isExpanded || retainClosingContent;
   const { displayText: displayContent, isRevealing } = useTypewriter(
@@ -104,18 +106,26 @@ export const ModelThinkingDisplay: React.FC<ModelThinkingDisplayProps> = ({
     });
     return () => { cancelled = true; };
   }, [isExpanded, retainClosingContent]);
-  const userToggledRef = useRef(false);
+  const userToggledRef = useRef(savedExpansion !== undefined);
+  const expansionOwnerRef = useRef({ states: thinkingExpansionStates, itemId: thinkingItem.id });
   const { cardRootRef, applyExpandedState } = useToolCardHeightContract({
     toolId: thinkingItem.id,
     toolName: 'thinking',
   });
 
   useLayoutEffect(() => {
-    if (userToggledRef.current) return;
-    if (isExpanded !== shouldDefaultExpanded) {
-      applyExpandedState(isExpanded, shouldDefaultExpanded, setIsExpanded);
+    const ownerChanged = expansionOwnerRef.current.states !== thinkingExpansionStates
+      || expansionOwnerRef.current.itemId !== thinkingItem.id;
+    if (ownerChanged) {
+      expansionOwnerRef.current = { states: thinkingExpansionStates, itemId: thinkingItem.id };
+      userToggledRef.current = savedExpansion !== undefined;
     }
-  }, [applyExpandedState, isExpanded, shouldDefaultExpanded]);
+    if (userToggledRef.current && !ownerChanged) return;
+    const nextExpanded = savedExpansion ?? shouldDefaultExpanded;
+    if (isExpanded !== nextExpanded) {
+      applyExpandedState(isExpanded, nextExpanded, setIsExpanded);
+    }
+  }, [applyExpandedState, isExpanded, savedExpansion, shouldDefaultExpanded, thinkingExpansionStates, thinkingItem.id]);
 
   // Keep rendering the typewriter output while it drains after the stream
   // ends. Snapping to full `content` here would make the drain invisible
@@ -351,6 +361,7 @@ export const ModelThinkingDisplay: React.FC<ModelThinkingDisplayProps> = ({
   const handleToggleClick = () => {
     const nextExpanded = !isExpanded;
     userToggledRef.current = true;
+    thinkingExpansionStates?.set(thinkingItem.id, nextExpanded);
     applyExpandedState(isExpanded, nextExpanded, setIsExpanded);
   };
 
