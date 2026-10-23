@@ -467,33 +467,70 @@ fn classify_non_migration_primary(text: &str) -> Option<String> {
     best.map(|(_, task)| task.to_string())
 }
 
-/// Extract absolute-path-like tokens: Windows `X:\...`/`X:/...`, or a token
-/// starting with `/`/`\` on the executing host. Kept conservative: bare words,
-/// URLs' path fragments and query strings are ignored.
+/// Extract absolute-path-like runs: Windows `X:\...`/`X:/...`, or a run starting
+/// with `/`/`\` on the executing host. Kept conservative: bare words, URLs' path
+/// fragments and query strings are ignored.
+///
+/// Runs are found wherever they start instead of only at whitespace boundaries:
+/// Chinese sentences glue the label to the value (`原始工程路径为/D/proj`), and
+/// reading that as one token dropped the path entirely.
 fn find_absolute_paths(text: &str) -> Vec<String> {
+    let chars: Vec<char> = text.chars().collect();
     let mut paths = Vec::new();
-    for token in text.split_whitespace() {
-        let cleaned = token.trim_matches(|c: char| {
-            "。，,;；：:\"'()[]{}《》〈〉\u{201C}\u{201D}\u{2018}\u{2019}「」『』【】".contains(c)
-        });
-        if cleaned.len() < 3 {
+    let mut index = 0;
+    while index < chars.len() {
+        let Some((path, end)) = absolute_path_at(&chars, index) else {
+            index += 1;
             continue;
+        };
+        if path.len() >= 3 {
+            paths.push(path);
         }
-        let bytes = cleaned.as_bytes();
-        let is_windows = bytes.len() >= 3
-            && bytes[0].is_ascii_alphabetic()
-            && bytes[1] == b':'
-            && (bytes[2] == b'\\' || bytes[2] == b'/');
-        let is_unix = bytes[0] == b'/' || bytes[0] == b'\\';
-        if is_windows || is_unix {
-            // Heuristic URL check: skip tokens that clearly are web URLs.
-            if cleaned.contains("://") || cleaned.starts_with("http") {
-                continue;
-            }
-            paths.push(cleaned.to_string());
-        }
+        index = end.max(index + 1);
     }
     paths
+}
+
+/// A path run starting at `chars[start]` plus the index just past its end.
+fn absolute_path_at(chars: &[char], start: usize) -> Option<(String, usize)> {
+    let first = *chars.get(start)?;
+    let windows = first.is_ascii_alphabetic()
+        && chars.get(start + 1) == Some(&':')
+        && matches!(chars.get(start + 2), Some('\\') | Some('/'));
+    // A `/` right after a scheme separator belongs to a URL, not to a path.
+    let unix = (first == '/' || first == '\\')
+        && !(start > 0 && chars[start - 1] == ':');
+    if !windows && !unix {
+        return None;
+    }
+    let mut end = start;
+    while end < chars.len() && !is_path_run_stop(chars[end]) {
+        end += 1;
+    }
+    // Prose glued to the tail (`/D/proj迁移到鸿蒙`) is not part of the path.
+    while end > start && is_cjk(chars[end - 1]) {
+        end -= 1;
+    }
+    if end <= start {
+        return None;
+    }
+    let path = chars[start..end]
+        .iter()
+        .collect::<String>()
+        .trim_end_matches(is_path_run_stop)
+        .to_string();
+    Some((path, end))
+}
+
+/// Separators and punctuation that end a path run. ASCII letters, digits and the
+/// path characters themselves (`/ \ : . _ - ~ % + @ =`) continue it.
+fn is_path_run_stop(c: char) -> bool {
+    c.is_whitespace()
+        || "。，,;；、！？：!?\"'“”‘’（）()[]{}【】《》〈〉「」『』<>|*`".contains(c)
+}
+
+fn is_cjk(c: char) -> bool {
+    matches!(c, '\u{3400}'..='\u{9fff}' | '\u{f900}'..='\u{faff}')
 }
 
 /// Classify each of the four minimum inputs independently.
@@ -506,13 +543,14 @@ fn classify_fields(text: &str) -> Value {
     let mut toolchain = FieldLevel::Missing;
     let mut template = FieldLevel::Missing;
 
-    // --- source / output from path tokens (independent, never shared) ---
-    for (idx, path) in paths.iter().enumerate() {
-        let is_output = output_anchor_here(idx, path, text);
-        if is_output {
-            output = FieldLevel::Resolved;
-        } else {
-            source = FieldLevel::Resolved;
+    // --- source / output / toolchain / template from path runs (independent,
+    // never shared): the label nearest before the path names its field ---
+    for path in &paths {
+        match field_of_path(path, text) {
+            Some(PathField::Output) => output = FieldLevel::Resolved,
+            Some(PathField::Toolchain) => toolchain = FieldLevel::Resolved,
+            Some(PathField::Template) => template = FieldLevel::Resolved,
+            Some(PathField::Source) | None => source = FieldLevel::Resolved,
         }
     }
     // A named source mention without a path: "source 是 myqt 工程" -> Referenced
@@ -550,14 +588,9 @@ fn classify_fields(text: &str) -> Value {
         || contains_ci(&lower, "toolchain")
         || contains_ci(&lower, "编译器")
         || has_word_ci(&lower, "sdk");
-    if mentions_toolchain
-        && paths
-            .iter()
-            .any(|p| has_toolchain_anchor_here_text(p, text))
+    if toolchain == FieldLevel::Missing
+        && (mentions_toolchain || has_word_ci(&lower, "toolchain"))
     {
-        toolchain = FieldLevel::Resolved;
-    } else if has_word_ci(&lower, "toolchain") || contains_ci(&lower, "工具链") {
-        // Named mention only (e.g. "使用官方工具链") -> no bindable value.
         toolchain = FieldLevel::Referenced;
     }
 
@@ -565,12 +598,7 @@ fn classify_fields(text: &str) -> Value {
     let mentions_template = contains_ci(&lower, "模板")
         || has_word_ci(&lower, "template")
         || contains_ci(&lower, "模版");
-    if mentions_template && paths.iter().any(|p| has_template_anchor_here_text(p, text)) {
-        template = FieldLevel::Resolved;
-    } else if has_word_ci(&lower, "template")
-        || contains_ci(&lower, "模板")
-        || contains_ci(&lower, "模版")
-    {
+    if template == FieldLevel::Missing && mentions_template {
         template = FieldLevel::Referenced;
     }
 
@@ -582,65 +610,105 @@ fn classify_fields(text: &str) -> Value {
     })
 }
 
-fn output_anchor_here(idx: usize, path: &str, text: &str) -> bool {
-    // Direct prefix: `output:D:/out` / `out:D:/out`
-    if path.starts_with("output:") || path.starts_with("out:") {
-        return true;
+/// Intake field a path belongs to, named by the field label nearest before it.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum PathField {
+    Source,
+    Output,
+    Toolchain,
+    Template,
+}
+
+/// Field labels as they appear in a user sentence, longest first so that
+/// `输出工程` is preferred over the bare `输出`.
+const FIELD_LABELS: &[(PathField, &[&str])] = &[
+    (
+        PathField::Output,
+        &[
+            "输出工程",
+            "输出路径",
+            "输出目录",
+            "输出到",
+            "输出为",
+            "输出",
+            "目标",
+            "destination",
+            "output",
+        ],
+    ),
+    (
+        PathField::Toolchain,
+        &["工具链", "toolchain", "编译器", "sdk"],
+    ),
+    (
+        PathField::Template,
+        &["模板工程", "模板路径", "模板", "模版", "template"],
+    ),
+    (
+        PathField::Source,
+        &["原始工程", "源工程", "原工程", "source"],
+    ),
+];
+
+/// How far before a path a label may sit. Chinese labels are short; the window
+/// only has to be wide enough to see the one that introduces this value.
+const FIELD_LABEL_WINDOW_CHARS: usize = 80;
+
+fn field_of_path(path: &str, text: &str) -> Option<PathField> {
+    for (index, _) in text.match_indices(path) {
+        // Only occurrences that stand as a whole run count: the same text is
+        // also a prefix of a longer path (`/out` inside `/out/proj`).
+        let end = index + path.len();
+        if !borders_path_run(text, index, end) {
+            continue;
+        }
+        if let Some(field) = labelled_field_before(text, index) {
+            return Some(field);
+        }
     }
-    // Window scan before the path for an output anchor.
-    let Some(index) = text.find(path) else {
-        return false;
-    };
-    let start = index.saturating_sub(60);
-    let window = &text[start..index];
-    let window_lower = window.to_lowercase();
-    let _ = idx;
-    [
-        "输出到",
-        "输出为",
-        "输出目录",
-        "输出路径",
-        "输出工程",
-        "输出",
-        "目标",
-        "destination",
-    ]
-    .iter()
-    .any(|anchor| window_lower.contains(anchor))
-        || ["output", "out"]
-            .iter()
-            .any(|anchor| has_word_ci(&window_lower, anchor))
+    None
 }
 
-fn has_toolchain_anchor_here_text(path: &str, text: &str) -> bool {
-    let Some(index) = text.find(path) else {
-        return false;
-    };
-    let start = index.saturating_sub(80);
-    let window = text[start..index].to_lowercase();
-    [
-        "工具链",
-        "toolchain",
-        "编译器",
-        "sdk",
-        "用",
-        "使用",
-        "路径为",
-        "路径是",
-    ]
-    .iter()
-    .any(|anchor| window.contains(anchor))
+fn labelled_field_before(text: &str, index: usize) -> Option<PathField> {
+    let window = window_before(text, index, FIELD_LABEL_WINDOW_CHARS).to_lowercase();
+    let mut nearest: Option<(usize, PathField)> = None;
+    for (field, labels) in FIELD_LABELS {
+        for label in *labels {
+            if let Some(position) = window.rfind(label) {
+                let end = position + label.len();
+                if nearest.is_none_or(|(closest, _)| end > closest) {
+                    nearest = Some((end, *field));
+                }
+            }
+        }
+    }
+    nearest.map(|(_, field)| field)
 }
 
-fn has_template_anchor_here_text(path: &str, text: &str) -> bool {
-    let Some(index) = text.find(path) else {
-        return false;
-    };
-    let start = index.saturating_sub(80);
-    let window = text[start..index].to_lowercase();
-    ["模板", "template", "模版"]
-        .iter()
-        .any(|anchor| window.contains(anchor))
+/// Whether `text[start..end]` is a whole path run rather than a fragment of a
+/// longer one.
+fn borders_path_run(text: &str, start: usize, end: usize) -> bool {
+    let before_ok = text[..start]
+        .chars()
+        .next_back()
+        .is_none_or(|c| is_path_run_stop(c) || is_cjk(c));
+    let after_ok = text[end..]
+        .chars()
+        .next()
+        .is_none_or(|c| is_path_run_stop(c) || is_cjk(c));
+    before_ok && after_ok
+}
+
+/// The `chars` characters of `text` before byte offset `index`, without cutting
+/// a multi-byte character in half.
+fn window_before(text: &str, index: usize, chars: usize) -> &str {
+    let start = text[..index]
+        .char_indices()
+        .rev()
+        .nth(chars.saturating_sub(1))
+        .map(|(offset, _)| offset)
+        .unwrap_or(0);
+    &text[start..index]
 }
 
 fn extract_resolved_paths(text: &str) -> Value {
@@ -648,17 +716,27 @@ fn extract_resolved_paths(text: &str) -> Value {
     let mut resolved = serde_json::Map::new();
     let mut unclassified: Vec<String> = Vec::new();
     for path in &paths {
-        if output_anchor_here(0, path, text) {
-            resolved.insert("output_project".to_string(), json!(path));
-        } else if has_toolchain_anchor_here_text(path, text) {
-            resolved.insert("toolchain".to_string(), json!(path));
-        } else if has_template_anchor_here_text(path, text) {
-            resolved.insert("template".to_string(), json!(path));
-        } else {
-            resolved
-                .entry("source_project".to_string())
-                .or_insert(json!(path));
-            unclassified.push(path.clone());
+        match field_of_path(path, text) {
+            Some(PathField::Output) => {
+                resolved.insert("output_project".to_string(), json!(path));
+            }
+            Some(PathField::Toolchain) => {
+                resolved.insert("toolchain".to_string(), json!(path));
+            }
+            Some(PathField::Template) => {
+                resolved.insert("template".to_string(), json!(path));
+            }
+            Some(PathField::Source) => {
+                resolved
+                    .entry("source_project".to_string())
+                    .or_insert(json!(path));
+            }
+            None => {
+                resolved
+                    .entry("source_project".to_string())
+                    .or_insert(json!(path));
+                unclassified.push(path.clone());
+            }
         }
     }
     resolved.insert("unclassifiedPaths".to_string(), json!(unclassified));
@@ -894,6 +972,32 @@ mod tests {
     fn bound_toolchain_path_resolves() {
         let d = analyze_request("把 D:/proj 迁移到鸿蒙，工具链用 D:/sdk/ohos");
         assert_eq!(d["fields"]["toolchain"], "resolved");
+    }
+
+    #[test]
+    fn glued_chinese_labels_bind_all_four_paths() {
+        // #370: one sentence that glues every label to its path must satisfy the
+        // four inputs, so the card is not demanded on top of them.
+        let d = analyze_request(
+            "将QT工程迁移成鸿蒙工程，原始工程路径为/D/pro/qt611/qView-main ，输出工程路径为/D/pro/qt611/ \
+             ，工具链路径为/D/pro/chain_qt6/chain，模板工程路径为/D/pro/template/templates",
+        );
+        assert_eq!(d["taskType"], "app_migration");
+        let (source, output, toolchain, template) = fields_of(&d);
+        assert_eq!(
+            (source, output, toolchain, template),
+            (
+                FieldLevel::Resolved,
+                FieldLevel::Resolved,
+                FieldLevel::Resolved,
+                FieldLevel::Resolved
+            )
+        );
+        let resolved = &d["resolvedPaths"];
+        assert_eq!(resolved["source_project"], "/D/pro/qt611/qView-main");
+        assert_eq!(resolved["output_project"], "/D/pro/qt611/");
+        assert_eq!(resolved["toolchain"], "/D/pro/chain_qt6/chain");
+        assert_eq!(resolved["template"], "/D/pro/template/templates");
     }
 
     #[test]
