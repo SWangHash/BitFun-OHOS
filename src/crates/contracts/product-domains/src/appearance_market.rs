@@ -1,9 +1,9 @@
 //! Appearance marketplace contracts and pure publication policy.
 //!
-//! Market servers deployed before the BitFun identity rename still use the
-//! `minOpenBitFunVersion` wire name for the minimum-version field, so every
-//! minimum-version field accepts it as a legacy alias while the canonical
-//! `minBitFunVersion` name stays the one this client writes.
+//! The marketplace is deployed under the OpenBitFun identity, so every
+//! minimum-version field is written on the wire as `minOpenBitFunVersion`
+//! while the retired `minBitFunVersion` spelling stays accepted as a legacy
+//! read alias.
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -80,7 +80,7 @@ pub struct AppearanceMarketListingSummary {
     pub mode: AppearancePackageMode,
     pub package_version: String,
     pub latest_release: u32,
-    #[serde(rename = "minBitFunVersion", alias = "minOpenBitFunVersion")]
+    #[serde(rename = "minOpenBitFunVersion", alias = "minBitFunVersion")]
     pub min_bitfun_version: String,
     pub required_capabilities: Vec<String>,
     pub owner: AppearanceMarketUserSummary,
@@ -108,7 +108,7 @@ pub struct AppearanceMarketRelease {
     pub listing_id: String,
     pub release_number: u32,
     pub package_version: String,
-    #[serde(rename = "minBitFunVersion", alias = "minOpenBitFunVersion")]
+    #[serde(rename = "minOpenBitFunVersion", alias = "minBitFunVersion")]
     pub min_bitfun_version: String,
     pub package_sha256: String,
     pub package_size: u64,
@@ -158,7 +158,7 @@ pub struct AppearanceMarketSubmission {
     pub mode: Option<AppearancePackageMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub package_version: Option<String>,
-    #[serde(rename = "minBitFunVersion", alias = "minOpenBitFunVersion")]
+    #[serde(rename = "minOpenBitFunVersion", alias = "minBitFunVersion")]
     pub min_bitfun_version: String,
     pub required_capabilities: Vec<String>,
     pub changelog: String,
@@ -187,7 +187,7 @@ pub struct AppearanceMarketSubmissionDraftRequest {
     pub listing_id: Option<String>,
     pub slug: String,
     pub release_number: u32,
-    #[serde(rename = "minBitFunVersion", alias = "minOpenBitFunVersion")]
+    #[serde(rename = "minOpenBitFunVersion", alias = "minBitFunVersion")]
     pub min_bitfun_version: String,
     pub changelog: String,
     pub license: AppearanceMarketLicense,
@@ -350,7 +350,7 @@ mod tests {
         let value = listing
             .as_object_mut()
             .unwrap()
-            .remove("minBitFunVersion")
+            .remove("minOpenBitFunVersion")
             .unwrap();
         let retired_field = ["min", "Bit", "fun", "Version"].concat();
         listing
@@ -359,11 +359,11 @@ mod tests {
             .insert(retired_field, value);
 
         let error = serde_json::from_value::<AppearanceMarketListingDetail>(listing).unwrap_err();
-        assert!(error.to_string().contains("minBitFunVersion"));
+        assert!(error.to_string().contains("minOpenBitFunVersion"));
     }
 
     #[test]
-    fn listing_contract_reads_the_pre_rename_minimum_version_field() {
+    fn listing_contract_reads_the_legacy_minimum_version_field() {
         let fixture = include_str!(
             "../../../../shared/appearance-market-contract-fixtures/listing-detail.json"
         );
@@ -378,12 +378,12 @@ mod tests {
         assert_eq!(detail.releases[0].min_bitfun_version, "1.0.0");
 
         let serialized = serde_json::to_value(&detail).unwrap();
-        assert_eq!(serialized["minBitFunVersion"], "1.0.0");
-        assert!(serialized.get("minOpenBitFunVersion").is_none());
+        assert_eq!(serialized["minOpenBitFunVersion"], "1.0.0");
+        assert!(serialized.get("minBitFunVersion").is_none());
     }
 
     #[test]
-    fn submission_draft_reads_the_pre_rename_minimum_version_field() {
+    fn submission_draft_reads_the_legacy_minimum_version_field() {
         let draft = AppearanceMarketSubmissionDraftRequest {
             listing_id: None,
             slug: "ocean-night".to_string(),
@@ -404,8 +404,8 @@ mod tests {
         assert_eq!(decoded, draft);
     }
 
-    /// Rewrites a canonical minimum-version key to the wire name used by market
-    /// servers deployed before the BitFun identity rename.
+    /// Rewrites a canonical minimum-version key to the legacy BitFun-era wire
+    /// name that the alias still accepts on read.
     fn rename_min_version_field(
         object: &mut serde_json::Map<String, serde_json::Value>,
         canonical: &str,

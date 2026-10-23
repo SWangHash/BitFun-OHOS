@@ -196,7 +196,7 @@ export function DetailPage({ catalogSearch, isAdmin, locale, onNavigate, slug, t
         <section className="detail-fact-strip" aria-label={t('compatibility')}>
           <div><span>{t('mode')}</span><strong>{modeLabel}</strong></div>
           <div><span>{t('version')}</span><strong>{detail.packageVersion}</strong></div>
-          <div><span>{t('compatibility')}</span><strong>{t('minBitFun', { version: detail.minBitFunVersion })}</strong></div>
+          <div><span>{t('compatibility')}</span><strong>{t('minBitFun', { version: detail.minOpenBitFunVersion })}</strong></div>
         </section>
 
         <div className="detail-content">
@@ -262,7 +262,7 @@ export function DetailPage({ catalogSearch, isAdmin, locale, onNavigate, slug, t
             <section className="aside-section" aria-labelledby="compatibility-heading">
               <ShieldCheck size={24} aria-hidden="true" />
               <h2 id="compatibility-heading">{t('compatibility')}</h2>
-              <p>{t('minBitFun', { version: detail.minBitFunVersion })}</p>
+              <p>{t('minBitFun', { version: detail.minOpenBitFunVersion })}</p>
               <h3>{t('requiredCapabilities')}</h3>
               {detail.requiredCapabilities.length ? (
                 <ul className="capability-list">
@@ -412,7 +412,7 @@ function ReleaseItem({
         </span>
       </div>
       <dl className="release-facts">
-        <div><dt>{t('compatibility')}</dt><dd>{t('minBitFun', { version: release.minBitFunVersion })}</dd></div>
+        <div><dt>{t('compatibility')}</dt><dd>{t('minBitFun', { version: release.minOpenBitFunVersion })}</dd></div>
         <div><dt>{t('packageSize')}</dt><dd>{formatPackageSize(release.packageSize, locale)}</dd></div>
         <div><dt>{t('checksum')}</dt><dd><code title={release.packageSha256}>{shortHash(release.packageSha256)}</code></dd></div>
       </dl>

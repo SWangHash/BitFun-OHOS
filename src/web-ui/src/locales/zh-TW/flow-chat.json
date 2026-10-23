@@ -2847,6 +2847,11 @@
     "send": "傳送",
     "hint": "訊息將由 {{app}} 處理"
   },
+  "modelConfigurationNotice": {
+    "title": "暫無可用的 AI 模型",
+    "description": "請先設定並啟用模型，然後開始對話。",
+    "action": "模型設定"
+  },
   "fileShare": {
     "button": "分享到附近裝置",
     "discover": "透過系統面板分享",

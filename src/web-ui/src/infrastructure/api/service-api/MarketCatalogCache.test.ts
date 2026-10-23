@@ -12,7 +12,7 @@ const listing: MarketListingSummary = {
   listingId: 'one', slug: 'one', name: 'One', description: '', icon: 'box',
   category: 'utilities', tags: [], permissions: {},
   owner: { githubId: 1, login: 'owner', avatarUrl: '' },
-  latestRelease: 1, minBitFunVersion: '1.0.0', publishedAt: 1,
+  latestRelease: 1, minOpenBitFunVersion: '1.0.0', publishedAt: 1,
   screenshotUrls: [`https://market.test/screenshots/${'a'.repeat(64)}`],
   ratingAverage: 4, ratingCount: 2, downloadCount: 12, favoriteCount: 3,
   isFavorited: true, myRating: 5,

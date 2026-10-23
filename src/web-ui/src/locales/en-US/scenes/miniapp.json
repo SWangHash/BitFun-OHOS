@@ -280,6 +280,8 @@
       "capture": "Capture current view",
       "captured": "Added the current MiniApp view as a marketplace image.",
       "captureFailed": "Could not capture the current view: {{error}}",
+      "capturePermissionDenied": "Screen capture is disabled. Go to Settings → Privacy & security → Screen capture, enable it, and try again.",
+      "chooseFailed": "Could not open the screenshot picker: {{error}}",
       "chooseScreenshots": "Choose MiniApp marketplace images",
       "screenshotFiles": "Marketplace images",
       "screenshotLimit": "Choose at most 5 marketplace images.",

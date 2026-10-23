@@ -68,7 +68,7 @@ export function isMarketSummary(value: unknown): value is Record<string, unknown
   if (!value || typeof value !== 'object') return false;
   const item = value as Record<string, unknown>;
   const owner = item.owner as Record<string, unknown> | undefined;
-  return ['listingId', 'slug', 'name', 'description', 'minBitFunVersion']
+  return ['listingId', 'slug', 'name', 'description', 'minOpenBitFunVersion']
     .every(key => typeof item[key] === 'string')
     && ['latestRelease', 'downloadCount', 'publishedAt'].every(key => Number.isFinite(item[key]))
     && Boolean(owner && typeof owner.login === 'string' && typeof owner.githubId === 'number');

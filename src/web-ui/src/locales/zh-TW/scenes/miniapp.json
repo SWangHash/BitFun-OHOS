@@ -280,6 +280,8 @@
       "capture": "截取目前畫面",
       "captured": "已將目前 MiniApp 畫面加入為展示圖。",
       "captureFailed": "截取目前畫面失敗：{{error}}",
+      "capturePermissionDenied": "截屏權限未開啟，請前往 系統設定 → 隱私和安全 → 截屏 開啟後重試",
+      "chooseFailed": "選擇展示圖失敗：{{error}}",
       "chooseScreenshots": "選擇 MiniApp 市場展示圖",
       "screenshotFiles": "市場展示圖",
       "screenshotLimit": "最多選擇 5 張市場展示圖。",

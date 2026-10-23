@@ -101,7 +101,7 @@ export const marketApi = {
     request<MarketSubmission>(`/submissions/${id}/package`, {
       method: 'PUT',
       body: file,
-      headers: { 'content-type': 'application/vnd.bitfun.miniapp+zip' },
+      headers: { 'content-type': 'application/vnd.openbitfun.miniapp+zip' },
     }),
   uploadScreenshot: (id: string, position: number, file: File) =>
     request<MarketSubmission>(`/submissions/${id}/screenshots/${position}`, {

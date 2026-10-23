@@ -1628,7 +1628,7 @@ fn validate_min_bitfun_version(value: &str) -> SkinMarketResult<()> {
     Version::parse(value).map_err(|_| {
         SkinMarketError::bad_request(
             "invalid_min_bitfun_version",
-            "minBitFunVersion must use semantic version syntax, for example 1.0.0.",
+            "minOpenBitFunVersion must use semantic version syntax, for example 1.0.0.",
         )
     })?;
     Ok(())
