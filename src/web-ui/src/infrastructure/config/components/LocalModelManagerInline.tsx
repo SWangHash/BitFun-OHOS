@@ -488,7 +488,7 @@ export const LocalModelManagerInline: React.FC<LocalModelManagerInlineProps> = (
       {isAvailable && serviceStatus && (
         <div className="local-model-manager__service-info" data-bitfun-component="local-model-manager" data-bitfun-part="serviceInfo">
           <span className="local-model-manager__service-name">
-            {serviceStatus.serviceName || 'Ollama'}
+            {serviceStatus.serviceName || t('service.fallbackName')}
           </span>
           {serviceStatus.version && (
             <span className="local-model-manager__service-version">
