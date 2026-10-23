@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::detect::*;
-use crate::layout::qt_managed_kit_roots;
+use crate::layout::{qt_managed_kit_roots, QT_MANAGED_TOOLCHAINS_DIR_NAME};
 use crate::output::*;
 use crate::scan::*;
 use crate::state::*;
@@ -1040,6 +1040,48 @@ fn option_paths(candidates: &[QtScanCandidate]) -> Vec<String> {
 }
 
 #[test]
+fn a_prompt_named_toolchain_is_the_default_over_the_installed_kit() {
+    // #370：会话里给的那套工具链是用户要用的那套，卡片默认项必须是它；安装过的 kit
+    // 只能排在后面当备选，不能顶到第一位。
+    let (_t, root) = tree();
+    let workspace = mkdir(&root, "work");
+    let project = mkdir(&workspace, "qt6-app");
+    create_version_fixture(
+        &project,
+        "find_package(Qt6 COMPONENTS Widgets REQUIRED)",
+        "QAnyStringView view;\n",
+    );
+    let named = create_qt6_ohos_kit(&mkdir(&root, "user-kits/Qt6.7.2"));
+    let managed_root = mkdir(&root, "managed");
+    let installed = create_qt6_ohos_kit(&mkdir(
+        &managed_root.join(QT_MANAGED_TOOLCHAINS_DIR_NAME),
+        "qt6.13.0",
+    ));
+
+    let mut model = HashMap::new();
+    model.insert(
+        "source_project".to_string(),
+        vec![project.to_string_lossy().into_owned()],
+    );
+    model.insert(
+        "toolchain".to_string(),
+        vec![named.to_string_lossy().into_owned()],
+    );
+
+    let probe = probe_qt_migration_candidates(&workspace, &managed_root, &model, &[], &[]);
+
+    assert_eq!(
+        keys(&probe.candidates["toolchain"]),
+        keys(&[
+            canonical_or_self(&named).to_string_lossy().into_owned(),
+            canonical_or_self(&installed).to_string_lossy().into_owned(),
+        ]),
+        "会话输入的工具链是默认项，已安装的 kit 只能排在它后面：{:?}",
+        probe.candidates["toolchain"]
+    );
+}
+
+#[test]
 fn toolchain_options_serve_each_project_generation() {
     // 默认工程 Qt5、备选工程 Qt6 ⇒ 默认槽 Qt5 kit、备选槽 Qt6 kit。Qt6 kit 在盘上
     // 排得更靠后也不能被"第二个 Qt5 kit"顶掉。
@@ -1172,6 +1214,21 @@ fn the_answer_contract_is_read_by_value_not_by_key() {
         ),
         Some(QtMigrationStrategyAnswer::Abort)
     );
+    // 问题是模型自己写的，选项文案随语言变化：卡片提交的就是那段文案，运行时必须
+    // 仍能读出用户的决定，否则同一个问题会被反复提问（#366）。
+    assert_eq!(
+        read_version_strategy_answer(&json!({ "0": "降级到 Qt5 迁移" })),
+        Some(QtMigrationStrategyAnswer::Proceed)
+    );
+    assert_eq!(
+        read_version_strategy_answer(&json!({ "0": "Cancel: migrate with the Qt6 toolchain first" })),
+        Some(QtMigrationStrategyAnswer::Abort)
+    );
+    // 拒绝语里常带"继续"，拒绝标记优先。
+    assert_eq!(
+        read_version_strategy_answer(&json!({ "0": "不继续迁移" })),
+        Some(QtMigrationStrategyAnswer::Abort)
+    );
 }
 #[test]
 fn a_recorded_strategy_is_stated_as_a_fact() {
@@ -1248,10 +1305,11 @@ fn a_readable_answer_that_was_not_recorded_is_reported_instead_of_being_silent()
             },
         })
     );
-    // 没有契约取值的答案仍是"重新提问"，两者必须区分开。
+    // 答案带契约取值、会话却仍 pending：必须报"未记录"，而不是返回 None。
+    // 模型自己写的选项文案现在同样可读，读到但未记录也是同一条事实。
     assert_eq!(
         version_strategy_follow_up(&pending(6, 5), &json!({ "0": "降级到 Qt5 迁移" })),
-        Some(QtMigrationStrategyFollowUp::MissingAnswer {
+        Some(QtMigrationStrategyFollowUp::NotRecorded {
             mismatch: QtMigrationGenerationMismatch::ProjectNewer {
                 project: 6,
                 toolchain: 5,
