@@ -23,6 +23,20 @@ Run `node --test scripts/ohos-remote-web-resources.test.mjs` for resource isolat
 stale asset replacement, and final HAP integrity. Use a HarmonyOS build to verify
 the Hvigor task integration and the native resource lookup.
 
+## Scrollbars
+
+ArkWeb draws overlay scrollbars by default: the thumb floats above page
+content and a mouse cannot drag it, so only the wheel, trackpad, or touch
+scrolls. `DefaultWebview.ets` sets `forceDisplayScrollBar(true)`, which keeps
+the scrollbar inside the content area, reserves its column, and makes it
+draggable. Do not remove it to match a mobile look, and do not try to fix
+overlap or drag in web-side CSS: the webkit scrollbar paint rules only apply
+once the engine stops using an overlay scrollbar. Web-side CSS still owns
+width, color, and idle hiding.
+
+Run `node --test src/apps/ohos/tests/browser-webview.test.cjs` for the source
+contract.
+
 ## Secure credential bridge
 
 `SecureCredentialStore.ets` returns Base64 secret bytes to Rust. The legacy

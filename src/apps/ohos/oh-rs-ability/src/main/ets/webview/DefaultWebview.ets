@@ -274,6 +274,19 @@ function WebBuilder(data: WebviewNodeData) {
     // are still delivered through notifySystemColorMode (see EntryAbility).
     .darkMode(WebDarkMode.Auto)
     .forceDarkAccess(false)
+    // ArkWeb suspends its scrollbars above page content by default
+    // (ScrollbarMode.OVERLAY_LAYOUT_SCROLLBAR): the thumb paints on top of
+    // hovered rows, buttons, and card edges, and on a 2in1 build a mouse cannot
+    // grab it, so only the wheel, a trackpad, or touch can scroll. That is a
+    // host-level deviation from WebView2/WKWebView, where the desktop
+    // scrollbar keeps its own column and is draggable, and no web-side CSS can
+    // change it: the webkit scrollbar paint rules only apply once the engine
+    // uses a non-overlay scrollbar. The resident mode keeps the scrollbar
+    // inside the content area, reserves its column (so page styles such as the
+    // design system's scrollbar gutter stay honest), and appears when the page
+    // actually overflows. Scrollbar width, color, and idle hiding remain owned
+    // by the web-side design system.
+    .forceDisplayScrollBar(true)
     .visibility(data?.style?.visible === "hidden" ? Visibility.Hidden : Visibility.Visible)
     .javaScriptAccess(data?.javascriptEnable)
     .mediaPlayGestureAccess(

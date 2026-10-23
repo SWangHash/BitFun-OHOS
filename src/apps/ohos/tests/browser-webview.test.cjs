@@ -80,3 +80,10 @@ test('internal drags keep the drop hint but skip the native file retry path on d
   assert.match(webviewSource, /\.onDragEnter\(\(dragEvent: DragEvent\) => \{[\s\S]*?dispatchNativeDragEvent\(data\.controller, "enter", \[\]\);/);
   assert.match(webviewSource, /if \(classifyNativeDragData\(dragEvent\) === NativeDragDataKind\.NonFile\) \{[\s\S]*?dispatchNativeDragEvent\(data\.controller, "drop", \[\], \[\]\);\s*return;/);
 });
+
+test('the web component opts out of ArkWeb overlay scrollbars', () => {
+  const builder = webviewSource.match(/function WebBuilder\(data: WebviewNodeData\) \{([\s\S]*?)\n\}/)?.[1] ?? '';
+  // ArkWeb's default overlay thumb paints over page content and cannot be
+  // dragged with a mouse; the resident scrollbar keeps its own column.
+  assert.match(builder, /\.forceDisplayScrollBar\(true\)/);
+});
