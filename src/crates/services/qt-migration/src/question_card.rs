@@ -479,6 +479,15 @@ impl QuestionTemplateContribution for QtMigrationQuestionCard {
                         "qt_migration_output_is_artifact: field={field}; path={value}"
                     ));
                 }
+                // A bound toolchain has to be a Qt installation the runtime can read
+                // a generation from: a value it cannot resolve silently skipped the
+                // version-strategy question (#369). This is the resolver the gate
+                // measures with, so a binding the card accepts is one it can judge.
+                if field == "toolchain" && !crate::strategy::toolchain_value_is_measurable(value) {
+                    return Err(format!(
+                        "qt_migration_toolchain_not_a_kit: field={field}; path={value}"
+                    ));
+                }
             }
         }
         Ok(normalized)

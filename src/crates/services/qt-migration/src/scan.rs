@@ -10,8 +10,8 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::detect::{
-    detect_project_qt_major, detect_qt_major, is_ohos_target_kit, probe_source_projects,
-    resolve_kit_root, resolve_kit_root_above,
+    detect_project_qt_major, detect_qt_major, is_ohos_target_kit, kit_tools_run_on_host,
+    probe_source_projects, resolve_kit_root, resolve_kit_root_above,
 };
 use crate::layout::{qt_managed_kit_roots, QT_MANAGED_TOOLCHAINS_DIR_NAME};
 use crate::output::{is_migration_artifact, is_output_container_name, merge_output_candidates};
@@ -692,6 +692,12 @@ pub struct QtScanCandidate {
     /// derivable from `qt_major`: a Qt6 host kit and a Qt6 target kit both
     /// report `Some(6)`.
     pub ohos_target_kit: bool,
+    /// Whether the kit's tools were built for the host this scan runs on, or
+    /// `None` when no qmake was readable. A kit built for another host (a
+    /// HarmonyOS-host SDK seen on macOS) cannot build anything here, so it is not
+    /// offered (#365).
+    #[serde(default)]
+    pub runs_on_host: Option<bool>,
     /// Priority tier the candidate came from.
     pub source: QtScanSource,
 }
@@ -705,9 +711,10 @@ pub struct QtMigrationScanResult {
 
 impl QtScanCandidate {
     /// Whether this candidate is a toolchain a HarmonyOS migration can actually
-    /// use: an OHOS target kit whose Qt generation the on-disk layout identifies.
+    /// use: an OHOS target kit whose Qt generation the on-disk layout identifies
+    /// and whose tools run on this host.
     pub(crate) fn is_usable_toolchain(&self) -> bool {
-        self.qt_major.is_some() && self.ohos_target_kit
+        self.qt_major.is_some() && self.ohos_target_kit && self.runs_on_host != Some(false)
     }
 }
 
@@ -772,7 +779,11 @@ pub(crate) fn scan_toolchain_candidates(
 
     rank_scan_candidates(ranked, |hit| {
         let kit_root = resolve_kit_root(hit);
-        (detect_qt_major(kit_root), is_ohos_target_kit(kit_root))
+        (
+            detect_qt_major(kit_root),
+            is_ohos_target_kit(kit_root),
+            kit_tools_run_on_host(kit_root),
+        )
     })
 }
 
@@ -786,10 +797,15 @@ pub(crate) fn scan_template_candidates(
         |template| {
             // Both facts describe the kit the template belongs to, when its location
             // identifies one; a standalone template reports `None` /
-            // `false`.
+            // `false`. A template is not a toolchain, so it claims nothing about
+            // the host its kit's tools run on.
             match resolve_kit_root_above(template) {
-                Some(kit_root) => (detect_qt_major(kit_root), is_ohos_target_kit(kit_root)),
-                None => (None, false),
+                Some(kit_root) => (
+                    detect_qt_major(kit_root),
+                    is_ohos_target_kit(kit_root),
+                    None,
+                ),
+                None => (None, false, None),
             }
         },
     )
@@ -800,7 +816,7 @@ pub(crate) fn scan_template_candidates(
 /// [`MAX_SCAN_CANDIDATES`].
 pub(crate) fn rank_scan_candidates(
     mut ranked: Vec<(QtScanSource, PathBuf)>,
-    facts: impl Fn(&Path) -> (Option<u8>, bool),
+    facts: impl Fn(&Path) -> (Option<u8>, bool, Option<bool>),
 ) -> Vec<QtScanCandidate> {
     ranked.sort_by(|a, b| {
         a.0.cmp(&b.0)
@@ -812,11 +828,12 @@ pub(crate) fn rank_scan_candidates(
         if !seen.insert(path_key(&hit)) {
             continue;
         }
-        let (qt_major, ohos_target_kit) = facts(&hit);
+        let (qt_major, ohos_target_kit, runs_on_host) = facts(&hit);
         out.push(QtScanCandidate {
             path: hit.to_string_lossy().into_owned(),
             qt_major,
             ohos_target_kit,
+            runs_on_host,
             source,
         });
         if out.len() >= MAX_SCAN_CANDIDATES {

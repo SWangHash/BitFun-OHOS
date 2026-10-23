@@ -1026,6 +1026,7 @@ fn kit(path: &str, qt_major: u8) -> QtScanCandidate {
         path: path.to_string(),
         qt_major: Some(qt_major),
         ohos_target_kit: true,
+        runs_on_host: None,
         source: QtScanSource::Workspace,
     }
 }
