@@ -405,6 +405,12 @@ bounded Explore retains 8px bottom padding for its scroll fade. There is no
 negative adjacent-region margin. The resident runtime slot stays 24px high and
 continues to participate in the existing footer/reservation contract.
 
+An expanded Explore group observes both its scroll viewport and its direct
+item boxes. At the bounded viewport's 400px cap, a nested card can expand or
+load more content without resizing that viewport. Observing the natural-flow
+items keeps overflow and scroll-edge fades current without changing the reading
+offset, item spacing, or the existing tail placement on new settled rounds.
+
 ## Selection and custom highlight paint
 
 Native transcript selections use the application selection style. Do not add

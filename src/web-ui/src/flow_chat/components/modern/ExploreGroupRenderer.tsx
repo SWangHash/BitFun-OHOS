@@ -162,6 +162,11 @@ export const ExploreGroupRenderer: React.FC<ExploreGroupRendererProps> = React.m
       checkScrollState();
     });
     observer.observe(el);
+    // The bounded viewport stops resizing at its height cap. Child-local
+    // expansion and async content still resize the natural-flow item boxes.
+    for (const child of el.children) {
+      observer.observe(child);
+    }
 
     return () => {
       cancelAnimationFrame(frameId);

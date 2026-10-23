@@ -33,6 +33,7 @@ each missing what the other had.
 | `flowChatCollapseMotion.test.ts` | collapse does not move earlier content |
 | `useFlowChatFollowOutput.test.tsx` | one-shot new-Turn reveal, frame loop, blank crossing, resize realign, opening readback publication and ownership/lifecycle gates |
 | `../../tool-cards/useToolCardHeightContract.test.tsx` | tool cards reflow rather than compensate |
+| `ExploreGroupRenderer.test.tsx` | overflow and edge updates after nested tool/thinking expansion, collapse and delayed content growth; item replacement, reopen cleanup, reading-offset preservation and unbounded flow; supplied DOM geometry only |
 | `flowChatHistoryBoundary.test.ts` | the screenful lead, and the latch's own predicate |
 | `flowChatLiveTailWindow.test.ts` | "does the transcript still reach the newest Turn" |
 | `flowChatViewportAnchor.test.ts` | anchor geometry and the DOM contract |
