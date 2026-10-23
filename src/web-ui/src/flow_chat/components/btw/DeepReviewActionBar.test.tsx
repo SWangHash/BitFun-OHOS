@@ -1193,7 +1193,7 @@ describeWithJsdom('DeepReviewActionBar', () => {
               plan: 'Choose a migration strategy before editing.',
               options: ['Fast path', 'Staged path'],
               tradeoffs: 'Fast path is risky; staged path is safer.',
-              recommendation: 1,
+              recommendation: 0,
             }],
           },
         },
@@ -1206,6 +1206,12 @@ describeWithJsdom('DeepReviewActionBar', () => {
     await act(async () => {
       root.render(<div onKeyDown={onKeyDown}><DeepReviewActionBar /></div>);
     });
+
+    const inlineOptions = container.querySelectorAll('.deep-review-action-bar__decision-option');
+    expect(inlineOptions).toHaveLength(2);
+    expect(container.querySelector('.deep-review-action-bar__decision-toggle')).toBeNull();
+    expect(container.querySelector('.deep-review-action-bar__decision-option.is-selected')).toBeNull();
+    expect(useReviewActionBarStore.getState().decisionSelections).toEqual({});
 
     const customToggle = container.querySelector<HTMLButtonElement>('.deep-review-action-bar__custom-toggle')!;
     await act(async () => customToggle.click());
@@ -1269,6 +1275,11 @@ describeWithJsdom('DeepReviewActionBar', () => {
 
     expect(sendMessageMock).not.toHaveBeenCalled();
     expect(container.textContent).toContain('Confirm decision items before fixing');
+    expect(container.querySelector('.deep-review-action-bar__remediation-list')).toBeNull();
+    expect(container.querySelector('.deep-review-action-bar__actions')).toBeNull();
+    expect(document.activeElement).toBe(container.querySelector('.deep-review-action-bar__decision-gate-title'));
+    expect(container.querySelector('[role="dialog"]')?.getAttribute('aria-labelledby'))
+      .toBe(document.activeElement?.id);
     expect(container.textContent).toContain('Which migration strategy should we use?');
     expect(container.textContent).toContain('Fast path is risky; staged path is safer.');
     const supplement = container.querySelector<HTMLTextAreaElement>('.deep-review-action-bar__decision-gate-supplement textarea')!;
@@ -1296,6 +1307,26 @@ describeWithJsdom('DeepReviewActionBar', () => {
       await Promise.resolve();
     });
 
+    const cancelButton = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.textContent?.includes('Back to selection'))!;
+    await act(async () => cancelButton.click());
+    expect(sendMessageMock).not.toHaveBeenCalled();
+    expect(container.querySelector('.deep-review-action-bar__decision-gate')).toBeNull();
+    expect(document.activeElement).toBe(container.querySelector('.deep-review-action-bar__remediation-toggle'));
+    expect(useReviewActionBarStore.getState().selectedRemediationIds)
+      .toEqual(new Set(['remediation-needs_decision-0']));
+    const selectedInlineOption = container.querySelector('.deep-review-action-bar__decision-option.is-selected');
+    expect(selectedInlineOption?.textContent).toContain('Staged path');
+    expect(useReviewActionBarStore.getState().customInstructions).toBe(updatedInstructions);
+    const itemCheckbox = container.querySelector<HTMLInputElement>('.deep-review-action-bar__remediation-item input')!;
+    await act(async () => itemCheckbox.click());
+    expect(container.querySelector('.deep-review-action-bar__decision-options')).toBeNull();
+    await act(async () => itemCheckbox.click());
+    expect(container.querySelector('.deep-review-action-bar__decision-option.is-selected')?.textContent).toContain('Staged path');
+
+    const startAgain = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.textContent?.includes('Start fixing'))!;
+    await act(async () => startAgain.click());
     const confirmButton = Array.from(container.querySelectorAll('button'))
       .find((button) => button.textContent?.includes('Confirm and start')) as HTMLButtonElement | undefined;
     expect(confirmButton).toBeTruthy();
@@ -1310,7 +1341,73 @@ describeWithJsdom('DeepReviewActionBar', () => {
     const [prompt] = sendMessageMock.mock.calls[0];
     expect(prompt).toContain('User chose option 2: Staged path');
     expect(prompt).toContain(updatedInstructions);
-    expect(prompt).not.toContain('Recommended option 2: Staged path');
+    expect(prompt).not.toContain('Fast path');
+    expect(prompt).not.toContain('Choose a migration strategy before editing.');
+    expect(prompt).not.toContain('Recommended option');
+  });
+
+  it('discards a pending decision confirmation when the report is replaced', async () => {
+    const store = useReviewActionBarStore.getState();
+    const showReport = (question: string) => store.showActionBar({
+      childSessionId: 'child-session', parentSessionId: 'parent-session', phase: 'review_completed',
+      reviewData: { report_sections: { remediation_groups: { needs_decision: [{
+        question, plan: 'Choose before editing', options: ['Fast', 'Staged'],
+      }] } } },
+    });
+    showReport('Original decision');
+    store.setSelectedRemediationIds(new Set(['remediation-needs_decision-0']));
+    await act(async () => root.render(<DeepReviewActionBar />));
+    const start = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.textContent?.includes('Start fixing'))!;
+    await act(async () => start.click());
+    expect(container.querySelector('.deep-review-action-bar__decision-gate')).not.toBeNull();
+
+    await act(async () => showReport('Replacement decision'));
+    expect(container.querySelector('.deep-review-action-bar__decision-gate')).toBeNull();
+    expect(container.querySelector('.deep-review-action-bar__decision-options')).toBeNull();
+    expect(container.textContent).toContain('Replacement decision');
+    expect(useReviewActionBarStore.getState().selectedRemediationIds.size).toBe(0);
+    expect(sendMessageMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['legacy', 'Choose how to migrate the records'],
+    ['structured', { question: 'How should records be migrated?', plan: 'Choose before editing.' }],
+  ])('blocks fixing and filling input for a %s decision without options', async (_name, decision) => {
+    useReviewActionBarStore.getState().showActionBar({
+      childSessionId: 'child-session',
+      parentSessionId: 'parent-session',
+      reviewData: {
+        review_mode: 'standard',
+        report_sections: { remediation_groups: { needs_decision: [decision] } },
+      },
+      reviewMode: 'standard',
+      phase: 'review_completed',
+    });
+    useReviewActionBarStore.getState().setSelectedRemediationIds(new Set(['remediation-needs_decision-0']));
+    useReviewActionBarStore.getState().setCustomInstructions('Preserve existing data.');
+
+    await act(async () => root.render(<DeepReviewActionBar />));
+    expect(container.textContent).toContain('This item has no decision options and cannot be fixed yet.');
+    const fillButton = Array.from(container.querySelectorAll('button'))
+      .find(button => button.textContent?.includes('Fill to input'))!;
+    await act(async () => fillButton.click());
+    expect(notificationWarningMock).toHaveBeenCalledWith(
+      'Choose an option for each selected decision item before starting.',
+    );
+    expect(eventBusEmitMock).not.toHaveBeenCalledWith('fill-chat-input', expect.anything());
+
+    const startButton = Array.from(container.querySelectorAll('button'))
+      .find(button => button.textContent?.includes('Start fixing'))!;
+    await act(async () => startButton.click());
+    expect(container.textContent).toContain('This item has no decision options and cannot be fixed yet.');
+    const confirmButton = Array.from(container.querySelectorAll('button'))
+      .find(button => button.textContent?.includes('Confirm and start'))!;
+    expect(confirmButton.disabled).toBe(true);
+    await act(async () => confirmButton.click());
+    expect(sendMessageMock).not.toHaveBeenCalled();
+    expect(useReviewActionBarStore.getState().phase).toBe('review_completed');
+    expect(container.textContent).toContain(typeof decision === 'string' ? decision : decision.question);
   });
 
   it('toggles the Other group from partial selection and excludes completed items', async () => {
@@ -1349,6 +1446,38 @@ describeWithJsdom('DeepReviewActionBar', () => {
       .toEqual(['remediation-1', 'remediation-2']);
     expect(groupCheckbox.checked).toBe(true);
   });
+
+  it.each(['Start fixing', 'Fill to input'])(
+    'excludes a selected completed decision when using %s',
+    async action => {
+      const store = useReviewActionBarStore.getState();
+      store.showActionBar({
+        childSessionId: 'child-session',
+        parentSessionId: 'parent-session',
+        phase: 'review_completed',
+        reviewData: { report_sections: { remediation_groups: {
+          must_fix: ['Fix the remaining issue'],
+          needs_decision: [{ question: 'Which migration?', plan: 'Completed migration' }],
+        } } },
+        completedRemediationIds: new Set(['remediation-needs_decision-1']),
+      });
+      store.setSelectedRemediationIds(new Set(['remediation-must_fix-0', 'remediation-needs_decision-1']));
+      await act(async () => root.render(<DeepReviewActionBar />));
+
+      const button = Array.from(container.querySelectorAll('button'))
+        .find(button => button.textContent?.includes(action))!;
+      await act(async () => button.click());
+
+      const prompt = action === 'Start fixing'
+        ? sendMessageMock.mock.calls[0]?.[0]
+        : eventBusEmitMock.mock.calls.find(([event]) => event === 'fill-chat-input')?.[1].content;
+      expect(prompt).toContain('Already completed items (DO NOT re-fix)');
+      expect(prompt.split('## Selected Remediation Plan')[1]).toContain('Fix the remaining issue');
+      expect(prompt.split('## Selected Remediation Plan')[1]).not.toContain('Completed migration');
+      expect(container.querySelector('.deep-review-action-bar__decision-gate')).toBeNull();
+      expect(notificationWarningMock).not.toHaveBeenCalled();
+    },
+  );
 
   it('marks completed remediation items when fix completes', async () => {
     const store = useReviewActionBarStore.getState();
@@ -1453,32 +1582,38 @@ describeWithJsdom('DeepReviewActionBar', () => {
     },
   );
 
-  it('shows continue fix UI when phase is fix_interrupted', async () => {
-    useReviewActionBarStore.getState().showActionBar({
+  it('requires decision confirmation before continuing interrupted fixes', async () => {
+    const store = useReviewActionBarStore.getState();
+    store.showActionBar({
       childSessionId: 'child-session',
       parentSessionId: 'parent-session',
       reviewData: {
-        summary: { recommended_action: 'request_changes' },
-        remediation_plan: ['Fix issue 1', 'Fix issue 2'],
+        report_sections: { remediation_groups: { needs_decision: [{
+          question: 'Which migration?', plan: 'Choose before editing',
+          options: ['Fast path', 'Staged path'],
+        }] } },
       },
       phase: 'fix_interrupted',
     });
-
-    // Set remaining fix IDs directly on state
-    const store = useReviewActionBarStore.getState();
-    (store as unknown as { remainingFixIds: string[] }).remainingFixIds = ['remediation-0'];
-
-    await act(async () => {
-      root.render(<DeepReviewActionBar />);
-    });
+    store.setRemainingFixIds(['remediation-needs_decision-0']);
+    await act(async () => root.render(<DeepReviewActionBar />));
 
     const continueButton = Array.from(container.querySelectorAll('button'))
-      .find((button) => button.textContent?.includes('Recheck and continue'));
+      .find((button) => button.textContent?.includes('Recheck and continue'))!;
     expect(continueButton).toBeTruthy();
-
-    const skipButton = Array.from(container.querySelectorAll('button'))
-      .find((button) => button.textContent?.includes('Skip remaining'));
-    expect(skipButton).toBeTruthy();
+    expect(container.textContent).toContain('Skip remaining');
+    await act(async () => continueButton.click());
+    expect(container.querySelector('.deep-review-action-bar__decision-gate')).not.toBeNull();
+    expect(container.querySelector('.deep-review-action-bar__actions')).toBeNull();
+    expect(sendMessageMock).not.toHaveBeenCalled();
+    const confirm = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.textContent?.includes('Confirm and start'))!;
+    expect(confirm.disabled).toBe(true);
+    await act(async () => container.querySelector<HTMLButtonElement>('.deep-review-action-bar__decision-gate-option')!.click());
+    expect(confirm.disabled).toBe(false);
+    await act(async () => confirm.click());
+    expect(sendMessageMock).toHaveBeenCalledOnce();
+    expect(sendMessageMock.mock.calls[0][0]).toContain('User chose option 1: Fast path');
   });
 
   it('skips remaining fixes and returns to review_completed', async () => {

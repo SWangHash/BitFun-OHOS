@@ -1,5 +1,5 @@
 import { Icon, Textarea, type IconName } from '@bitfun/ui';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useI18n } from '@/infrastructure/i18n';
 import {
@@ -18,7 +18,7 @@ import {
   type DeepReviewCapacityQueueState,
   type ReviewActionPhase,
 } from '../../store/deepReviewActionBarStore';
-import { buildSelectedReviewRemediationPrompt } from '../../utils/codeReviewRemediation';
+import { buildSelectedReviewRemediationPrompt, getSelectedReviewDecisionOption } from '../../utils/codeReviewRemediation';
 import {
   buildDeepReviewRetryPrompt,
   extractDeepReviewRetryableSlices,
@@ -143,6 +143,7 @@ const stopNestedScrollPropagation = (event: React.WheelEvent | React.TouchEvent)
 
 interface PendingDecisionAction {
   selectedIds: Set<string>;
+  childSessionId: string;
 }
 
 interface ReviewActionBarProps {
@@ -240,8 +241,16 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
   const [showPartialResults, setShowPartialResults] = useState(false);
   const [expandedDecisionIds, setExpandedDecisionIds] = useState<Set<string>>(new Set());
   const [pendingDecisionAction, setPendingDecisionAction] = useState<PendingDecisionAction | null>(null);
+  const actionBarRef = useRef<HTMLDivElement>(null);
+  const returnToSelectionRef = useRef(false);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [longRunningNotified, setLongRunningNotified] = useState(false);
+
+  useEffect(() => {
+    setPendingDecisionAction(null);
+    setExpandedDecisionIds(new Set());
+    returnToSelectionRef.current = false;
+  }, [childSessionId, reviewData]);
 
   const selectedCount = selectedRemediationIds.size;
   const isFixDisabled = activeAction !== null || selectedCount === 0;
@@ -435,7 +444,7 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
   const PhaseIcon = phaseConfig.icon;
 
   const decisionGateItems = useMemo(() => {
-    if (!pendingDecisionAction) {
+    if (!pendingDecisionAction || pendingDecisionAction.childSessionId !== childSessionId) {
       return [];
     }
     return remediationItems.filter((item) => (
@@ -443,12 +452,21 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
       item.requiresDecision &&
       !completedRemediationIds.has(item.id)
     ));
-  }, [completedRemediationIds, pendingDecisionAction, remediationItems]);
+  }, [childSessionId, completedRemediationIds, pendingDecisionAction, remediationItems]);
+
+  const showDecisionGate = (phase === 'review_completed' || phase === 'fix_interrupted') &&
+    decisionGateItems.length > 0;
+
+  useEffect(() => {
+    if (!showDecisionGate && returnToSelectionRef.current) {
+      actionBarRef.current?.querySelector<HTMLButtonElement>('.deep-review-action-bar__remediation-toggle')?.focus();
+      returnToSelectionRef.current = false;
+    }
+  }, [showDecisionGate]);
 
   const decisionGateMissingSelection = useMemo(() => (
     decisionGateItems.some((item) => (
-      (item.decisionContext?.options?.length ?? 0) > 0 &&
-      decisionSelections[item.id] == null
+      !getSelectedReviewDecisionOption(item, decisionSelections[item.id])
     ))
   ), [decisionGateItems, decisionSelections]);
 
@@ -489,10 +507,8 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
       !completedRemediationIds.has(item.id)
     ));
     if (!options?.skipDecisionGate && selectedDecisionItems.length > 0) {
-      const decisionIds = selectedDecisionItems.map((item) => item.id);
-      setPendingDecisionAction({ selectedIds: new Set(idsToFix) });
+      setPendingDecisionAction({ selectedIds: new Set(idsToFix), childSessionId });
       setShowRemediationList(true);
-      setExpandedDecisionIds((current) => new Set([...current, ...decisionIds]));
       return;
     }
 
@@ -723,6 +739,7 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
   }, [decisionGateMissingSelection, handleStartFixing, pendingDecisionAction]);
 
   const handleCancelDecisionGate = useCallback(() => {
+    returnToSelectionRef.current = true;
     setPendingDecisionAction(null);
   }, []);
 
@@ -762,14 +779,20 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
       reviewData,
       selectedIds: selectedRemediationIds,
       reviewMode,
+      completedItems: [...completedRemediationIds],
       decisionSelections,
     });
+
+    if (!prompt) {
+      if (selectedRemediationIds.size > 0) {
+        notificationService.warning(t('deepReviewActionBar.decisionGate.missingSelection'));
+      }
+      return;
+    }
 
     if (customInstructions.trim()) {
       prompt = `${prompt}\n\n## User Instructions\n${customInstructions.trim()}`;
     }
-
-    if (!prompt) return;
 
     // Check if chat input already has content — require confirmation before replacing
     const currentInputRequest: { getValue?: () => string } = {};
@@ -793,7 +816,7 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
     });
 
     store.minimize(childSessionId ?? undefined);
-  }, [reviewData, childSessionId, selectedRemediationIds, customInstructions, reviewMode, decisionSelections, store, t]);
+  }, [reviewData, childSessionId, selectedRemediationIds, completedRemediationIds, customInstructions, reviewMode, decisionSelections, store, t]);
 
   const handleMinimize = useCallback(() => {
     store.minimize(childSessionId ?? undefined);
@@ -953,6 +976,7 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
 
   return (
     <div
+      ref={actionBarRef}
       data-bitfun-product-component="deep-review-action-bar"
       data-bitfun-product-part="root"
       data-bitfun-phase={phase}
@@ -1097,7 +1121,7 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
       )}
 
       {/* Remediation selection stays visible while fixes run so progress remains inspectable. */}
-      {['review_completed', 'fix_running', 'fix_completed', 'fix_interrupted'].includes(phase) && remediationItems.length > 0 && (
+      {!showDecisionGate && ['review_completed', 'fix_running', 'fix_completed', 'fix_interrupted'].includes(phase) && remediationItems.length > 0 && (
         <RemediationSelectionPanel
           remediationItems={remediationItems}
           selectedRemediationIds={selectedRemediationIds}
@@ -1118,7 +1142,7 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
         />
       )}
 
-      {phase === 'review_completed' && pendingDecisionAction && decisionGateItems.length > 0 && (
+      {showDecisionGate && (
         <DecisionExecutionGate
           items={decisionGateItems}
           decisionSelections={decisionSelections}
@@ -1156,7 +1180,7 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
       )}
 
       {/* Custom instructions input */}
-      {phase === 'review_completed' && remediationItems.length > 0 && !pendingDecisionAction && (
+      {phase === 'review_completed' && remediationItems.length > 0 && !showDecisionGate && (
         <div
           className="deep-review-action-bar__custom"
           data-bitfun-product-component="deep-review-action-bar"
@@ -1189,7 +1213,7 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
         </div>
       )}
 
-      <ReviewActionControls
+      {!showDecisionGate && <ReviewActionControls
         phase={phase}
         isDeepReview={isDeepReview}
         retryableSliceCount={retryableSlices.length}
@@ -1216,7 +1240,7 @@ export const ReviewActionBar: React.FC<ReviewActionBarProps> = ({ childSessionId
         onContinueFix={handleContinueFix}
         onSkipRemainingFixes={() => store.skipRemainingFixes(childSessionId ?? undefined)}
         onMinimize={handleMinimize}
-      />
+      />}
       {deepReviewConsentDialog}
     </div>
   );

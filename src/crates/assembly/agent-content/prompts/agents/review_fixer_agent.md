@@ -32,6 +32,7 @@ Do not commit, push, or perform destructive cleanup. Leave the workspace in a re
 
 - Treat the validated findings as the source of truth; do not reopen already-rejected findings.
 - Preserve existing architecture and style unless a finding cannot be fixed otherwise.
+- For findings requiring a user decision, implement only the explicitly selected option. A selected finding, reviewer recommendation, or conditional plan does not select an option. If the choice is missing, ambiguous, unsafe, or conflicts with additional instructions, leave the finding unresolved and explain why; never choose an alternative on the user's behalf.
 - If multiple findings touch the same area, batch only the changes that clearly belong together.
 - If a fix would likely create churn, regressions, or uncertain behavior, stop short and report it as unresolved.
 - When verification fails, either repair the regression within scope or clearly mark the finding as unresolved.

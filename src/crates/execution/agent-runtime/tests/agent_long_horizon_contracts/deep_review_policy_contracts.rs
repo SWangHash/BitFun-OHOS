@@ -189,6 +189,18 @@ fn deep_review_report_owner_enriches_packet_reliability_and_cache_facts() {
         ],
         "summary": {
             "recommended_action": "block"
+        },
+        "report_sections": {
+            "remediation_groups": {
+                "needs_decision": [
+                    "Legacy decision",
+                    {
+                        "question": "Choose a migration path",
+                        "plan": "Apply the chosen migration",
+                        "options": ["Fast path", "Staged path"]
+                    }
+                ]
+            }
         }
     });
 
@@ -216,6 +228,15 @@ fn deep_review_report_owner_enriches_packet_reliability_and_cache_facts() {
     assert!(signal_kinds.contains(&"partial_reviewer"));
     assert!(signal_kinds.contains(&"retry_guidance"));
     assert!(signal_kinds.contains(&"user_decision"));
+    assert_eq!(
+        report["reliability_signals"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|signal| signal["kind"] == "user_decision")
+            .unwrap()["count"],
+        json!(2)
+    );
 
     let cache_update = deep_review_cache_from_completed_reviewers(&report, Some(&manifest), None)
         .expect("cache update");

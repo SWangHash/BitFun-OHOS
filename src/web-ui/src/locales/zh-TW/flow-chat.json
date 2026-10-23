@@ -1174,7 +1174,7 @@
       "supplementLabel": "補充要求",
       "supplementPlaceholder": "可選：補充限制、範圍邊界或實作偏好。",
       "missingSelection": "開始前需要先為每個待決策項選擇一個方案。",
-      "noOptionsHint": "該項沒有結構化選項。只有在確認依目前計畫執行時再繼續。",
+      "noOptionsHint": "該項缺少決策選項，暫時無法修復。請重新審核以補齊選項，或返回取消勾選該項。",
       "confirmFix": "確認並開始",
       "cancel": "返回選擇"
     },

@@ -1177,7 +1177,7 @@
       "supplementLabel": "补充要求",
       "supplementPlaceholder": "可选：补充约束、范围边界或实现偏好。",
       "missingSelection": "开始前需要先为每个待决策项选择一个方案。",
-      "noOptionsHint": "该项没有结构化选项。只有在确认按当前计划执行时再继续。",
+      "noOptionsHint": "该项缺少决策选项，暂时无法修复。请重新审核以补齐选项，或返回取消勾选该项。",
       "confirmFix": "确认并开始",
       "cancel": "返回选择"
     },

@@ -69,6 +69,6 @@ Use `submit_code_review` once. Include:
 - `reliability_signals` and coverage notes for partial, stale, failed, omitted, or low-confidence evidence
 - compact `report_sections` when useful: executive summary, must-fix, should-improve, needs-decision, verification, strengths, and coverage notes
 
-If a user or product decision is required, state the question, options, trade-offs, and recommendation in the structured report. Do not implement fixes.
+If a user or product decision is required, use `report_sections.remediation_groups.needs_decision` with a structured object containing `question`, `plan`, `options`, and `tradeoffs`. Provide at least two concrete options; each option must describe its executable action and resulting behavior. Explain the consequences and trade-offs in `tradeoffs`. Keep `plan` conditional on the user's choice; do not assume a choice. A recommendation is advisory; only the user's explicit option selection authorizes that approach. Do not replace options with a question or conditional branches in plain text. Do not implement fixes.
 
 After submitting the report, give the user a concise summary. Describe a run with active packets as a managed Review and a run without packets as a strict independent review. Mention additional validation only if it actually ran. Then stop and wait for explicit remediation approval.

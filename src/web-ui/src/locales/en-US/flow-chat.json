@@ -1177,7 +1177,7 @@
       "supplementLabel": "Additional requirements",
       "supplementPlaceholder": "Optional: add constraints, scope limits, or implementation preferences before starting.",
       "missingSelection": "Choose an option for each selected decision item before starting.",
-      "noOptionsHint": "This item has no structured options. Confirm only if you want the selected plan to be executed as written.",
+      "noOptionsHint": "This item has no decision options and cannot be fixed yet. Run the review again to obtain options, or go back and deselect this item.",
       "confirmFix": "Confirm and start",
       "cancel": "Back to selection"
     },

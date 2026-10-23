@@ -1,6 +1,8 @@
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { fileURLToPath } from 'node:url';
+import { compile } from 'sass';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RemediationSelectionPanel } from './RemediationSelectionPanel';
 import type { ReviewRemediationItem } from '../../utils/codeReviewRemediation';
@@ -281,6 +283,98 @@ describeWithJsdom('RemediationSelectionPanel interactions', () => {
     expect(onToggleGroup).toHaveBeenCalledWith('should_improve');
   });
 
+  it('shows decision options immediately when selected and keeps unselected previews outside clipped summaries', () => {
+    const style = document.createElement('style');
+    style.textContent = compile(fileURLToPath(new URL('../../components/btw/DeepReviewActionBar.scss', import.meta.url))).css;
+    document.head.appendChild(style);
+    const onToggleRemediation = vi.fn();
+    const onSelect = vi.fn();
+    const item: ReviewRemediationItem = {
+      id: 'decision-1', index: 0, groupIndex: 0, issueIndex: -1,
+      groupId: 'needs_decision', requiresDecision: true, defaultSelected: false,
+      plan: 'Wait for the user to choose before changing either document.',
+      decisionContext: {
+        question: 'Should both documents remove the placeholder text or both include the same placeholder text?',
+        plan: 'Wait for the user to choose before changing either document.',
+        tradeoffs: 'Removing placeholders keeps the documents ready to publish. Keeping them preserves draft context but requires cleanup before publication.',
+        options: ['Remove the placeholder text from both documents.', 'Keep the placeholder text in both documents.'],
+      },
+    };
+    function Panel() {
+      const [expanded, setExpanded] = React.useState(false);
+      const [selected, setSelected] = React.useState(false);
+      const [selection, setSelection] = React.useState<Record<string, number>>({});
+      return (
+        <RemediationSelectionPanel
+          {...baseProps}
+          remediationItems={[item, ...remediationItems()]}
+          selectedRemediationIds={new Set(selected ? [item.id] : [])}
+          completedRemediationIds={new Set()}
+          decisionSelections={selection}
+          expandedDecisionIds={new Set(expanded ? [item.id] : [])}
+          onToggleRemediation={() => {
+            onToggleRemediation();
+            setSelected(!selected);
+          }}
+          onToggleDecisionExpansion={() => setExpanded(!expanded)}
+          onSetDecisionSelection={(id, index) => {
+            onSelect(id, index);
+            setSelection({ [id]: index });
+          }}
+        />
+      );
+    }
+    mount(<Panel />);
+    const toggle = container.querySelector<HTMLButtonElement>('.deep-review-action-bar__decision-toggle')!;
+    const row = toggle.closest('.deep-review-action-bar__remediation-item')!;
+    const summary = row.querySelector('.deep-review-action-bar__remediation-text')!;
+    const assertNotClipped = (control: Element) => {
+      for (let ancestor = control.parentElement; ancestor && ancestor !== row; ancestor = ancestor.parentElement) {
+        const css = window.getComputedStyle(ancestor);
+        expect(css.overflow).not.toBe('hidden');
+        expect(css.getPropertyValue('-webkit-line-clamp')).not.toBe('2');
+      }
+    };
+    expect(window.getComputedStyle(summary).getPropertyValue('-webkit-line-clamp')).toBe('2');
+    assertNotClipped(toggle);
+    const checkbox = row.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+    act(() => checkbox.click());
+    expect(checkbox.checked).toBe(true);
+    expect(row.querySelector('.deep-review-action-bar__decision-toggle')).toBeNull();
+    expect(window.getComputedStyle(summary).getPropertyValue('-webkit-line-clamp')).toBe('unset');
+    expect(window.getComputedStyle(summary).overflow).toBe('visible');
+    expect(row.textContent).toContain(item.decisionContext!.tradeoffs);
+    const list = container.querySelector('.deep-review-action-bar__remediation-list')!;
+    expect(window.getComputedStyle(list).maxHeight).toBe('none');
+    expect(window.getComputedStyle(list).overflow).toBe('visible');
+    expect(summary.getAttribute('for')).toBe(checkbox.id);
+    const options = row.querySelectorAll<HTMLButtonElement>('.deep-review-action-bar__decision-option button');
+    expect(options).toHaveLength(2);
+    options.forEach((option) => {
+      assertNotClipped(option);
+      expect(option.closest('label')).toBeNull();
+      expect(option.getAttribute('aria-pressed')).toBe('false');
+    });
+    expect(row.querySelector('.deep-review-action-bar__decision-option.is-selected')).toBeNull();
+    expect(onSelect).not.toHaveBeenCalled();
+    act(() => options[1].click());
+    expect(onSelect).toHaveBeenCalledWith(item.id, 1);
+    expect(options[1].getAttribute('aria-pressed')).toBe('true');
+    expect(onToggleRemediation).toHaveBeenCalledTimes(1);
+    act(() => checkbox.click());
+    expect(row.querySelector('.deep-review-action-bar__decision-options')).toBeNull();
+    expect(window.getComputedStyle(list).maxHeight).not.toBe('none');
+    expect(window.getComputedStyle(summary).getPropertyValue('-webkit-line-clamp')).toBe('2');
+    const preview = row.querySelector<HTMLButtonElement>('.deep-review-action-bar__decision-toggle')!;
+    act(() => preview.click());
+    expect(preview.getAttribute('aria-expanded')).toBe('true');
+    expect(row.querySelectorAll('.deep-review-action-bar__decision-option')).toHaveLength(2);
+    expect(checkbox.checked).toBe(false);
+    act(() => preview.click());
+    expect(preview.getAttribute('aria-expanded')).toBe('false');
+    expect(row.querySelector('.deep-review-action-bar__decision-options')).toBeNull();
+  });
+
   it.each([
     ['ordinary', false], ['ordinary', true],
     ['completed', false], ['completed', true],
@@ -332,27 +426,35 @@ describeWithJsdom('RemediationSelectionPanel interactions', () => {
     },
   );
 
-  it('keeps the tree visible but disables selection while fixing', () => {
+  it.each(['fixing', 'completed'])('keeps the tree visible but disables item and option selection when %s', (phase) => {
     const onToggleRemediation = vi.fn();
     const onToggleGroup = vi.fn();
+    const onSelect = vi.fn();
+    const decision: ReviewRemediationItem = {
+      id: 'decision', index: 2, groupIndex: 0, issueIndex: -1,
+      plan: 'Choose a migration', groupId: 'needs_decision', requiresDecision: true,
+      decisionContext: { question: 'Which migration?', plan: 'Choose a migration', options: ['Fast', 'Staged'] },
+      defaultSelected: false,
+    };
 
     mount(
       <RemediationSelectionPanel
         {...baseProps}
-        remediationItems={remediationItems()}
-        selectedRemediationIds={new Set(['remediation-should-improve-1'])}
-        completedRemediationIds={new Set()}
-        fixingRemediationIds={new Set(['remediation-should-improve-1'])}
-        decisionSelections={{}}
-        expandedDecisionIds={new Set()}
+        remediationItems={[...remediationItems(), decision]}
+        selectedRemediationIds={new Set(['remediation-should-improve-1', decision.id])}
+        completedRemediationIds={new Set(phase === 'completed' ? [decision.id] : [])}
+        fixingRemediationIds={new Set(phase === 'fixing' ? ['remediation-should-improve-1'] : [])}
+        decisionSelections={{ [decision.id]: 1 }}
+        expandedDecisionIds={new Set([decision.id])}
         selectionDisabled
+        onSetDecisionSelection={onSelect}
         onToggleRemediation={onToggleRemediation}
         onToggleGroup={onToggleGroup}
       />,
     );
 
     expect(container.textContent).toContain('Improve error copy');
-    expect(container.textContent).toContain('Fixing');
+    expect(container.textContent).toContain(phase === 'fixing' ? 'Fixing' : 'Fixed');
     const checkboxes = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'));
     expect(checkboxes.length).toBeGreaterThan(0);
     expect(checkboxes.every((checkbox) => checkbox.disabled)).toBe(true);
@@ -363,5 +465,11 @@ describeWithJsdom('RemediationSelectionPanel interactions', () => {
 
     expect(onToggleRemediation).not.toHaveBeenCalled();
     expect(onToggleGroup).not.toHaveBeenCalled();
+    const options = container.querySelectorAll<HTMLButtonElement>('.deep-review-action-bar__decision-option button');
+    expect(options).toHaveLength(2);
+    expect([...options].every((option) => option.disabled)).toBe(true);
+    act(() => options[0].click());
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(options[1].getAttribute('aria-pressed')).toBe('true');
   });
 });
