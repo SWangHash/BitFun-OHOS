@@ -27,6 +27,59 @@
   height: 100%;
 }
 
+// Missing-model onboarding notice (ported from the 1.0 line).
+.bitfun-chat-pane__model-notice {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--bitfun-space-3);
+  min-width: 0;
+  width: 100%;
+  margin: 0 0 var(--bitfun-space-2);
+  box-sizing: border-box;
+  padding: var(--bitfun-space-2) var(--bitfun-space-3);
+  color: var(--bitfun-color-status-warning-content);
+  background: var(--bitfun-color-status-warning-surface);
+  border: 1px solid color-mix(in srgb, var(--bitfun-color-status-warning-content) 28%, transparent);
+  border-radius: var(--bitfun-radius-sm);
+}
+
+.bitfun-chat-pane__model-notice-copy {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--bitfun-space-1);
+  min-width: 0;
+  color: var(--bitfun-color-content-secondary);
+  font-size: var(--bitfun-type-body-sm-font-size);
+  line-height: 1.4;
+
+  strong {
+    color: var(--bitfun-color-content-primary);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
+  }
+}
+
+.bitfun-chat-pane__model-notice-action {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--bitfun-space-1);
+  min-height: 30px;
+  padding: 0 var(--bitfun-space-3);
+  color: var(--bitfun-color-content-primary);
+  background: var(--bitfun-color-surface-raised);
+  border: 1px solid color-mix(in srgb, var(--bitfun-color-status-warning-content) 32%, transparent);
+  border-radius: var(--bitfun-radius-sm);
+  font: inherit;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--bitfun-color-status-warning-content);
+  }
+}
+
 // A pane-sized target without intercepting drops or changing transcript geometry.
 .bitfun-chat-pane__drop-overlay {
   position: absolute;

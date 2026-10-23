@@ -5,7 +5,8 @@
  * Renamed from panels/CenterPanel. All logic preserved.
  */
 
-import React, { useCallback, memo, useEffect, useRef, useState, useMemo, useContext } from 'react';
+import React, { useCallback, memo, useEffect, useRef, useState, useMemo, useContext, useSyncExternalStore } from 'react';
+import { AlertTriangle, Settings } from 'lucide-react';
 import { ChatFileDropOverlay } from './ChatFileDropOverlay';
 import type { FileDropPreview, FileDropPosition } from '@/shared/types/fileDropPreview';
 import { ModernFlowChatContainer as FlowChatContainer } from '../../../flow_chat/components/modern/ModernFlowChatContainer';
@@ -24,6 +25,11 @@ import { openWorkbenchContent } from '@/shared/services/workbenchContentService'
 import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
 import type { ConversationSessionRef } from '@/flow_chat/contexts/conversationViewScope';
 import { ConversationTextVisibilityContext } from '@/flow_chat/contexts/conversationViewScope';
+import { isAcpFlowSession } from '@/flow_chat/utils/acpSession';
+import { useActiveSessionState } from '@/flow_chat/hooks';
+import { useAvailableAIModels } from '@/infrastructure/config/hooks/useAvailableAIModels';
+import { openModelSettings } from '../../services/openModelSettings';
+import { useI18n } from '@/infrastructure/i18n';
 
 const log = createLogger('ChatPane');
 const TASK_DETAIL_PANEL_EXPAND_DEFER_MS = 520;
@@ -68,6 +74,19 @@ const ChatPaneInner: React.FC<ChatPaneProps> = ({
   chatInputRegistration,
 }) => {
   const isSceneActive = useContext(ConversationTextVisibilityContext) && hostActive;
+  const { t } = useI18n('flow-chat');
+  const modelStatus = useAvailableAIModels();
+  const activeSessionState = useActiveSessionState();
+  const subscribeActiveSession = useCallback((notify: () => void) => flowChatStore.subscribe(notify), []);
+  const activeSession = useSyncExternalStore(
+    subscribeActiveSession,
+    () => (activeSessionState.sessionId ? flowChatStore.getState().sessions.get(activeSessionState.sessionId) ?? null : null),
+    () => null,
+  );
+  const showMissingModelNotice = Boolean(workspacePath)
+    && showChatInput
+    && modelStatus === 'unavailable'
+    && !isAcpFlowSession(activeSession);
   const addTab = useCanvasStore(state => state.addTab);
   const fileDropTargetRef = useRef<HTMLDivElement>(null);
   const [isFileDragOver, setIsFileDragOver] = useState(false);
@@ -191,6 +210,34 @@ const ChatPaneInner: React.FC<ChatPaneProps> = ({
       data-fullscreen={isFullscreen}
       data-testid="chat-pane"
     >
+      {showMissingModelNotice && (
+        <div
+          data-bitfun-component="chat-pane"
+          data-bitfun-part="modelNotice"
+          className="bitfun-chat-pane__model-notice"
+          role="status"
+        >
+          <AlertTriangle size={18} aria-hidden="true" />
+          <div
+            data-bitfun-component="chat-pane"
+            data-bitfun-part="modelNoticeCopy"
+            className="bitfun-chat-pane__model-notice-copy"
+          >
+            <strong>{t('modelConfigurationNotice.title')}</strong>
+            <span>{t('modelConfigurationNotice.description')}</span>
+          </div>
+          <button
+            type="button"
+            data-bitfun-component="chat-pane"
+            data-bitfun-part="modelNoticeAction"
+            className="bitfun-chat-pane__model-notice-action"
+            onClick={() => { void openModelSettings(); }}
+          >
+            <Settings size={15} aria-hidden="true" />
+            <span>{t('modelConfigurationNotice.action')}</span>
+          </button>
+        </div>
+      )}
       <FlowChatContainer
         className="bitfun-chat-pane__chat-container"
         isViewportActive={isSceneActive}
