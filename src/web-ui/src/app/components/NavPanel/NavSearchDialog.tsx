@@ -25,7 +25,6 @@ import {
   getSessionSortTimestamp,
 } from '@/flow_chat/utils/sessionOrdering';
 import { deriveSessionRelationshipFromMetadata } from '@/flow_chat/utils/sessionMetadata';
-import './NavSearchDialog.scss';
 
 interface NavSearchDialogProps {
   open: boolean;

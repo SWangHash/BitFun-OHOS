@@ -6,7 +6,6 @@ import { ConfigPageHeader, ConfigPageLayout, ConfigPageContent, ConfigPageSectio
 import { LspPluginList } from '@/tools/lsp';
 import { lspService } from '@/tools/lsp/services/LspService';
 import { createLogger } from '@/shared/utils/logger';
-import './LspConfig.scss';
 import {workspaceAPI} from "@/infrastructure";
 import { storage } from '@/shared/utils/storageAdapter';
 

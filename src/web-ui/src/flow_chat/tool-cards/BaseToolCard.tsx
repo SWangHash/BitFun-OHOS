@@ -14,7 +14,6 @@ import {
 } from './ToolCardHeaderLayoutContext';
 import { ToolCardIconSlot } from './ToolCardIconSlot';
 import { ToolCardStatusIcon } from './ToolCardStatusIcon';
-import './BaseToolCard.scss';
 
 const LOADING_SHIMMER_STATUSES = new Set([
   'queued',
