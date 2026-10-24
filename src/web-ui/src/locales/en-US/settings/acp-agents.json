@@ -164,7 +164,8 @@
     "notReady": "Requirements missing"
   },
   "provisioning": {
-    "installing": "Installing"
+    "installing": "Installing",
+    "saveAfterSetup": "Agent setup is still running. You can keep editing or leave without saving. Saving will be available when setup finishes."
   },
   "notifications": {
     "draftConflict": "ACP configuration changed. Your unsaved edits were kept; review conflicting fields before saving.",
