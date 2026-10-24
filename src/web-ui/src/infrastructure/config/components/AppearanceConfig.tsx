@@ -22,7 +22,10 @@ import {
   ConfigPageSectionStack,
   ConfigPageRow,
 } from './common';
-import './AppearanceConfig.scss';
+// The stylesheet was renamed to AppearanceSettingsPage.scss upstream
+// (settings reorganization) while this legacy component kept the old
+// relative import, which broke the web build.
+import './AppearanceSettingsPage.scss';
 
 const log = createLogger('AppearanceConfig');
 
