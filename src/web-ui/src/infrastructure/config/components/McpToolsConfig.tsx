@@ -793,15 +793,10 @@ const McpToolsConfig: React.FC = () => {
       return;
     }
 
-    // OAuth-enabled remote servers cannot complete an MCP handshake before the
-    // first authorization. Enter OAuth directly instead of surfacing the
-    // provider's expected 401 challenge as a server-start failure.
-    if (isRemoteServer(server) && server.oauthEnabled === true && server.authConfigured === false) {
-      if (serverLifecycleActionsRef.current.has(server.id)) return;
-      handleOpenAuthDialog(server, false);
-      void startRemoteOAuthFlow(server);
-      return;
-    }
+    // Always attempt a direct connection first: the backend surfaces a 401
+    // for servers that actually need OAuth, and the catch block below falls
+    // back to the OAuth flow. Pre-emptively intercepting here dead-locked
+    // services that don't need OAuth (issue #403).
 
     const serverId = server.id;
     let shouldStartOAuth = false;
@@ -878,12 +873,8 @@ const McpToolsConfig: React.FC = () => {
       return;
     }
 
-    if (isRemoteServer(server) && server.oauthEnabled === true && server.authConfigured === false) {
-      if (serverLifecycleActionsRef.current.has(server.id)) return;
-      handleOpenAuthDialog(server, false);
-      void startRemoteOAuthFlow(server);
-      return;
-    }
+    // Same rationale as handleStartServer: connect first, fall back to
+    // OAuth on 401 (issue #403).
 
     const serverId = server.id;
     let shouldStartOAuth = false;
@@ -1613,10 +1604,7 @@ const McpToolsConfig: React.FC = () => {
           {desktopConfigAvailable && !showJsonEditor && !mcpLoading
             && !serverLoadFailed && servers.length === 0 && (
             <div className="bitfun-collection-empty" data-bitfun-component="mcp-tools-config" data-bitfun-part="empty">
-              <Button variant="outline" size="sm" data-testid="mcp-json-toggle-empty" onClick={() => setShowJsonEditor(true)} leadingIcon={<FileJson size={14} />}>
-
-                {tMcp('actions.jsonConfig')}
-              </Button>
+              <p>{tMcp('empty.noServers')}</p>
             </div>
           )}
 
