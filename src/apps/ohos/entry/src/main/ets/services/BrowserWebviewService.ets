@@ -143,6 +143,9 @@ export class BrowserWebviewService {
       html: request.html,
       style: style,
       javascriptEnable: true,
+      // Web apps may read localStorage/sessionStorage during startup. ArkWeb
+      // disables them by default, which can leave those pages blank.
+      domStorageEnable: true,
       devtools: true,
       onNavigationRequest: (url: string): boolean => {
         // RustWebviewNodeController forwards this value to ArkUI Web's
@@ -175,16 +178,17 @@ export class BrowserWebviewService {
     if (entry === undefined) {
       return this.errorEnvelope(`webview not found: ${request.label}`);
     }
-    // The JsHelper callback wrapper fires exactly once when the underlying
-    // WebviewController.runJavaScript promise resolves; wrap it in a Promise
-    // so the Rust side can await the script's return value.
-    const result = await new Promise<string>((resolve: (value: string) => void): void => {
-      entry.controller.runJavaScript(request.script, (res: string | undefined): void => {
-        resolve(res ?? '');
-      });
-    });
-    const ok: OkResultResponse = { ok: true, result: result };
-    return JSON.stringify(ok);
+    // addWebview fills initData.controller with the native controller. Await
+    // its Promise directly: JsHelper's success-only callback loses rejections
+    // and can leave the Rust request waiting indefinitely.
+    try {
+      const result: string = await entry.initData.controller!.runJavaScript(request.script);
+      const ok: OkResultResponse = { ok: true, result: result ?? '' };
+      return JSON.stringify(ok);
+    } catch (e) {
+      hilog.warn(BROWSER_DOMAIN, BROWSER_TAG, `eval failed label=${request.label}: ${JSON.stringify(e)}`);
+      return this.errorEnvelope(`eval failed: ${JSON.stringify(e)}`);
+    }
   }
 
   async getUrl(request: LabelRequest): Promise<string> {

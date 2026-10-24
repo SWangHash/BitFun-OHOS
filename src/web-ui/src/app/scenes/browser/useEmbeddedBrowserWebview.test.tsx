@@ -192,7 +192,57 @@ it('does not invoke native APIs in the web surface', async () => {
   expect(mocks.invoke).not.toHaveBeenCalled();
 });
 
-it('records a page-load start even when the finish event is handled immediately', async () => {
+it.each(['pending', 'rejected'])('shows the first page even when script injection is %s', async (outcome) => {
+  let pageLoadListener: ((event: { payload: { label: string; event: 'finished'; url: string } }) => void) | undefined;
+  mocks.listen.mockImplementation(async (_event: string, listener: typeof pageLoadListener) => {
+    pageLoadListener = listener;
+    return () => {};
+  });
+  mocks.invoke.mockImplementation(async (command, args) => {
+    if (command === 'browser_webview_create') {
+      const { request } = args as { request: { label: string; url: string } };
+      // A cached page can finish loading before the create command returns.
+      pageLoadListener?.({ payload: { ...request, event: 'finished' } });
+    }
+    if (command === 'browser_webview_eval') {
+      if (outcome === 'pending') return new Promise(() => {});
+      throw new Error('Script execution failed');
+    }
+  });
+
+  await render();
+  expect(invokeCount('browser_webview_eval')).toBe(1);
+  expect(invokeCount('browser_webview_show')).toBe(1);
+  expect(browser.hasWebview()).toBe(true);
+  expect(browser.error).toBeNull();
+});
+
+it('releases the page-load listener when native creation fails', async () => {
+  const unlisten = vi.fn();
+  mocks.listen.mockResolvedValue(unlisten);
+  mocks.invoke.mockImplementation(async command => {
+    if (command === 'browser_webview_create') throw new Error('Native controller unavailable');
+  });
+
+  await render();
+  expect(unlisten).toHaveBeenCalledOnce();
+  expect(browser.error).toBe('Native controller unavailable');
+  expect(invokeCount('browser_webview_show')).toBe(0);
+});
+
+it('releases late listener registration without creating a view after unmount', async () => {
+  const unlisten = vi.fn();
+  let finishListening!: (listener: () => void) => void;
+  mocks.listen.mockImplementation(() => new Promise<() => void>(resolve => { finishListening = resolve; }));
+
+  await render();
+  await act(async () => root.unmount());
+  await act(async () => finishListening(unlisten));
+  expect(unlisten).toHaveBeenCalledOnce();
+  expect(invokeCount('browser_webview_create')).toBe(0);
+});
+
+it('injects scripts on each finished document, including initial load, reload and redirect', async () => {
   let pageLoadListener: ((event: { payload: { label: string; event: 'started' | 'finished'; url: string } }) => void) | undefined;
   mocks.listen.mockImplementation(async (_event: string, listener: typeof pageLoadListener) => {
     pageLoadListener = listener;
@@ -201,14 +251,32 @@ it('records a page-load start even when the finish event is handled immediately'
 
   await render();
   expect(pageLoadListener).toBeDefined();
+  expect(invokeCount('browser_webview_eval')).toBe(0);
 
+  // The first load and a reload keep the same URL; neither can be deduplicated by URL.
+  for (const reload of [false, true]) {
+    await act(async () => {
+      if (reload) browser.reload();
+      pageLoadListener?.({ payload: { label: browser.webviewLabel, event: 'started', url: 'https://example.com' } });
+      pageLoadListener?.({ payload: { label: browser.webviewLabel, event: 'finished', url: 'https://example.com' } });
+    });
+    expect(invokeCount('browser_webview_eval')).toBe(reload ? 2 : 1);
+  }
+
+  await act(async () => browser.loadUrl('https://example.com/next'));
   await act(async () => {
     pageLoadListener?.({ payload: { label: browser.webviewLabel, event: 'started', url: 'https://example.com/next' } });
-    pageLoadListener?.({ payload: { label: browser.webviewLabel, event: 'finished', url: 'https://example.com/next' } });
+    pageLoadListener?.({ payload: { label: browser.webviewLabel, event: 'started', url: 'https://example.com/login' } });
+  });
+  expect(invokeCount('browser_webview_eval')).toBe(2);
+  await act(async () => {
+    pageLoadListener?.({ payload: { label: browser.webviewLabel, event: 'finished', url: 'https://example.com/login' } });
   });
 
+  expect(invokeCount('browser_webview_eval')).toBe(3);
+  expect(browser.currentUrl).toBe('https://example.com/login');
   expect(browser.isLoading).toBe(false);
-  expect(browser.pageLoadRevision).toBe(1);
+  expect(browser.pageLoadRevision).toBe(4);
 });
 
 it('aligns native and preview edges at fractional DPI and applies a one-physical-pixel move', async () => {

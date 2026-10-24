@@ -59,6 +59,17 @@ width, color, and idle hiding.
 Run `node --test src/apps/ohos/tests/browser-webview.test.cjs` for the source
 contract.
 
+## Embedded browser bridge
+
+`BrowserWebviewService.ets` opts embedded browser views into DOM Storage before
+their first navigation so web apps can use `localStorage` and `sessionStorage`.
+`DefaultWebview.ets` applies that setting; other callers retain the ArkWeb default.
+
+Run `node --test src/apps/ohos/tests/browser-webview.test.cjs` for browser
+creation, initial storage configuration, evaluation failures, bounds updates,
+and drag handling.
+These tests mock ArkUI and do not verify webpage rendering on a device.
+
 ## Secure credential bridge
 
 `SecureCredentialStore.ets` returns Base64 secret bytes to Rust. The legacy
