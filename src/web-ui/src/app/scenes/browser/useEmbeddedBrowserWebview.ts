@@ -374,10 +374,10 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
     pageLoadUnlistenRef.current = null;
 
     const { listen } = await import('@tauri-apps/api/event');
-    pageLoadUnlistenRef.current = await listen<BrowserWebviewPageLoadPayload>(
+    const unlisten = await listen<BrowserWebviewPageLoadPayload>(
       BROWSER_WEBVIEW_PAGE_LOAD_EVENT,
       ({ payload }) => {
-        if (!payload || payload.label !== label) return;
+        if (!mountedRef.current || !payload || payload.label !== label) return;
         preview.invalidate();
         if (payload.event === 'started') {
           setIsLoading(true);
@@ -390,11 +390,22 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
           setInputValue(payload.url);
           setCurrentUrl(payload.url);
           setError(null);
-          injectBrowserPageScripts(label).catch(() => {});
+        }
+        if (payload.event === 'finished') {
+          // Each loaded document needs the scripts, even when the URL stays
+          // the same after initial load or reload. Injection must not gate display.
+          void injectBrowserPageScripts(label).catch(injectionError => {
+            log.warn('Inject browser page scripts failed', injectionError);
+          });
         }
       },
     );
-  }, [preview]);
+    if (!mountedRef.current) {
+      unlisten();
+      throw new Error('Browser surface disposed during listener registration');
+    }
+    pageLoadUnlistenRef.current = unlisten;
+  }, [log, preview]);
 
   const createWebview = useCallback(async (url: string) => {
     const previous = webviewRef.current;
@@ -413,6 +424,8 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
       webviewLabelRef.current = label;
       setWebviewLabel(label);
       try {
+        // Native page-load events can arrive before the create command returns.
+        await startPageLoadListener(label);
         const handle = await createBrowserWebview(label, url, initialBounds, openRequestId);
         if (!mountedRef.current) {
           await handle.close();
@@ -421,11 +434,11 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
         webviewRef.current = handle;
         preview.setTarget(label);
         lastBoundsRef.current = initialBounds;
-        await injectBrowserPageScripts(label);
-        await startPageLoadListener(label);
         return handle;
       } catch (creationError) {
         lastError = creationError;
+        pageLoadUnlistenRef.current?.();
+        pageLoadUnlistenRef.current = null;
         // Clean up any partially-created webview via the command path; it
         // works on both desktop (Tauri child webview) and OHOS (ArkUI Web node).
         await api.invoke('browser_webview_close', { request: { label } }).catch(() => {});
@@ -449,16 +462,6 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
 
     try {
       await navigateWebview(label, url, openRequestId);
-      window.setTimeout(() => {
-        if (webviewLabelRef.current === label) {
-          void injectBrowserPageScripts(label).catch(() => {});
-        }
-      }, 1000);
-      window.setTimeout(() => {
-        if (webviewLabelRef.current === label) {
-          void injectBrowserPageScripts(label).catch(() => {});
-        }
-      }, 2500);
       return true;
     } catch (navigationError) {
       log.warn('Navigate browser webview via existing instance failed', navigationError);

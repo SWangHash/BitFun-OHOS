@@ -20,14 +20,20 @@ const { outputText } = ts.transpileModule(serviceSource, {
   compilerOptions: { module: ts.ModuleKind.CommonJS },
 });
 
-function serviceHost(setBounds) {
+function serviceHost(setBounds, onCreate = () => {}, runJavaScript = async () => '') {
   const exports = {};
   const helper = {
     loadUrl() {},
     setBounds,
+    // The legacy helper only delivers successful evaluations to its callback.
+    runJavaScript: (script, callback) => { runJavaScript(script).then(callback, () => {}); },
   };
   const controller = {
-    addWebview: () => ({ webTag: 'browser-test', controller: helper }),
+    addWebview: data => {
+      data.controller = { runJavaScript };
+      onCreate(data);
+      return { webTag: 'browser-test', controller: helper };
+    },
     removeWebview() {},
   };
   global.AppStorage = { get: () => controller };
@@ -40,6 +46,63 @@ function serviceHost(setBounds) {
   exports.BrowserWebviewService.instance = null;
   return exports.BrowserWebviewService.getInstance();
 }
+
+test('embedded browser enables DOM storage before loading a web page', async () => {
+  // Execute the production builder with the ArkUI attribute boundary mocked.
+  // Inspect the applied setting when the controller starts its first navigation.
+  const builderSource = webviewSource.match(/@Builder\s+(function WebBuilder[\s\S]*?)\nconst webViewWrap/)[1];
+  const builderJs = ts.transpileModule(builderSource, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS },
+  }).outputText;
+  let attach;
+  let storageEnabled = false; // ArkWeb's default when domStorageAccess is omitted.
+  const attributes = new Proxy({}, {
+    get: (_, name) => value => {
+      if (name === 'domStorageAccess') storageEnabled = value;
+      if (name === 'onControllerAttached') attach = value;
+      return attributes;
+    },
+  });
+  const build = new Function('Web', 'WebDarkMode', 'Visibility', `${builderJs}\nreturn WebBuilder;`)(
+    () => attributes,
+    { Auto: 'auto' },
+    { Hidden: 'hidden', Visible: 'visible' },
+  );
+  const navigations = [];
+  const service = serviceHost(() => true, data => {
+    build({
+      ...data,
+      controller: {
+        loadUrl: url => navigations.push({ url, storageEnabled }),
+      },
+    });
+    attach();
+  });
+
+  assert.deepEqual(JSON.parse(await service.create({
+    label: 'browser', url: 'https://example.test/pulls/new',
+    x: 0, y: 0, width: 800, height: 600,
+  })), { ok: true });
+  assert.deepEqual(navigations, [{ url: 'https://example.test/pulls/new', storageEnabled: true }]);
+});
+
+test('script evaluation returns native results and failures to the caller', { timeout: 1000 }, async () => {
+  const failure = { code: 17100001, message: 'Controller is not attached' };
+  const service = serviceHost(() => true, () => {}, script => {
+    if (script === 'throw') throw failure;
+    if (script === 'reject') return Promise.reject(failure);
+    return Promise.resolve('page result');
+  });
+  await service.create({ label: 'browser', url: 'https://example.test', x: 0, y: 0, width: 200, height: 100 });
+
+  assert.deepEqual(JSON.parse(await service.eval({ label: 'browser', script: 'succeed' })), {
+    ok: true, result: 'page result',
+  });
+  for (const script of ['throw', 'reject']) {
+    const response = JSON.parse(await service.eval({ label: 'browser', script }));
+    assert.match(response.error, /Controller is not attached/);
+  }
+});
 
 test('bounds updates report whether the ArkUI node accepted the rectangle', async () => {
   const calls = [];

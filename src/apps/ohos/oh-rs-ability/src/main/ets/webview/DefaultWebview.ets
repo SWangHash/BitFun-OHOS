@@ -33,6 +33,7 @@ export interface WebviewInitData {
   style?: WebviewStyle;
   controller?: WebviewController;
   javascriptEnable?: boolean;
+  domStorageEnable?: boolean;
   devtools?: boolean;
   autoplay?: boolean;
   userAgent?: string;
@@ -289,6 +290,7 @@ function WebBuilder(data: WebviewNodeData) {
     .forceDisplayScrollBar(true)
     .visibility(data?.style?.visible === "hidden" ? Visibility.Hidden : Visibility.Visible)
     .javaScriptAccess(data?.javascriptEnable)
+    .domStorageAccess(data?.domStorageEnable ?? false)
     .mediaPlayGestureAccess(
       typeof data?.autoplay === "boolean" && data.autoplay === true ? false : true,
     )
