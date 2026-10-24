@@ -2016,6 +2016,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             model_config_id: None,
             effective_model_name: None,
             first_chunk_ms: None,
+            ttft_ms: None,
             first_visible_output_ms: None,
             stream_duration_ms: None,
             attempt_count: None,
@@ -2094,6 +2095,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             model_config_id: None,
             effective_model_name: None,
             first_chunk_ms: None,
+            ttft_ms: None,
             first_visible_output_ms: None,
             stream_duration_ms: None,
             attempt_count: None,
@@ -2742,7 +2744,10 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         config.workspace_path = Some(workspace_path.clone());
         crate::agentic::workspace::normalize_session_workspace(&mut config).await?;
         let normalize_ms = perf_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
-        info!("session_perf create_session phase=normalize_workspace duration_ms={}", normalize_ms);
+        info!(
+            "session_perf create_session phase=normalize_workspace duration_ms={}",
+            normalize_ms
+        );
         let resolve_agent_start = Instant::now();
         self.ensure_runtime_ownership(
             Path::new(&workspace_path),
@@ -2764,8 +2769,14 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             expected_route_key.as_deref(),
         )
         .await?;
-        let resolve_agent_ms = resolve_agent_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
-        info!("session_perf create_session phase=resolve_primary_agent duration_ms={}", resolve_agent_ms);
+        let resolve_agent_ms = resolve_agent_start
+            .elapsed()
+            .as_millis()
+            .min(u64::MAX as u128) as u64;
+        info!(
+            "session_perf create_session phase=resolve_primary_agent duration_ms={}",
+            resolve_agent_ms
+        );
         config.agent_route_owner = primary_agent_binding.route_owner;
         config.agent_route_key = primary_agent_binding.route_key.clone();
         apply_primary_agent_model_default(
@@ -2797,8 +2808,14 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 )
                 .await?
         };
-        let session_create_ms = session_create_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
-        info!("session_perf create_session phase=session_manager_create duration_ms={}", session_create_ms);
+        let session_create_ms = session_create_start
+            .elapsed()
+            .as_millis()
+            .min(u64::MAX as u128) as u64;
+        info!(
+            "session_perf create_session phase=session_manager_create duration_ms={}",
+            session_create_ms
+        );
 
         let track_start = Instant::now();
         if !transient {
@@ -2810,7 +2827,10 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .await;
         }
         let track_ms = track_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
-        info!("session_perf create_session phase=track_workspace_activity duration_ms={}", track_ms);
+        info!(
+            "session_perf create_session phase=track_workspace_activity duration_ms={}",
+            track_ms
+        );
 
         // SessionManager::create_session_with_id_and_creator already persists the
         // session into the effective workspace session storage path. Avoid writing
@@ -2833,9 +2853,15 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         let hooks_start = Instant::now();
         Self::dispatch_session_start_hooks(&session, "startup").await;
         let hooks_ms = hooks_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
-        info!("session_perf create_session phase=dispatch_session_start_hooks duration_ms={}", hooks_ms);
+        info!(
+            "session_perf create_session phase=dispatch_session_start_hooks duration_ms={}",
+            hooks_ms
+        );
         let total_ms = perf_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
-        info!("session_perf create_session total_duration_ms={} session_id={}", total_ms, session.session_id);
+        info!(
+            "session_perf create_session total_duration_ms={} session_id={}",
+            total_ms, session.session_id
+        );
         Ok(session)
     }
 
@@ -3160,6 +3186,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                         success: Some(execution_result.success),
                         finish_reason: Some(execution_result.effective_finish_reason.clone()),
                         has_final_response: Some(execution_result.has_final_response),
+                        background_delivery: None,
                     },
                     None,
                 )
@@ -4699,6 +4726,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                         model_config_id: String::new(),
                         effective_model_name: String::new(),
                         first_chunk_ms: None,
+                        ttft_ms: None,
                         first_visible_output_ms: None,
                         stream_duration_ms: None,
                         attempt_count: None,
@@ -4736,6 +4764,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                             success: Some(true),
                             finish_reason: Some("complete".to_string()),
                             has_final_response: Some(false),
+                            background_delivery: None,
                         })
                         .await;
                 }
@@ -5671,6 +5700,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     success: Some(true),
                     finish_reason: Some("complete".to_string()),
                     has_final_response: Some(true),
+                    background_delivery: None,
                 },
                 Some(EventPriority::Normal),
             )
@@ -10212,6 +10242,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                         .get_session(&session_id)
                         .and_then(|session| session.config.model_id.clone()),
                     focused_review_display_label: focused_review_display_label.clone(),
+                    continuation_policy: None,
                 })
                 .await;
             }
@@ -14532,6 +14563,7 @@ impl ConversationCoordinator {
                             "tool_error".to_string()
                         }),
                         has_final_response: Some(false),
+                        background_delivery: None,
                     },
                     Some(EventPriority::Normal),
                 )

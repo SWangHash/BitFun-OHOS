@@ -431,7 +431,7 @@ async function generateBrandAssets() {
   await writePng(path.join(installerTauriIconDir, 'bitfun-app-icon.ico'), tauriContainers.ico);
   await writePng(path.join(installerTauriIconDir, 'bitfun-app-icon.icns'), tauriContainers.icns);
 
-  const migratorIconDir = outputPath('src', 'apps', 'data-migrator', 'icons');
+  const migratorIconDir = outputPath('src', 'apps', 'data-tools', 'icons');
   await writePng(path.join(migratorIconDir, 'bitfun-app-icon.png'), applicationIconLarge);
   await writePng(path.join(migratorIconDir, 'bitfun-app-icon.ico'), tauriContainers.ico);
   await writePng(path.join(migratorIconDir, 'bitfun-app-icon.icns'), tauriContainers.icns);

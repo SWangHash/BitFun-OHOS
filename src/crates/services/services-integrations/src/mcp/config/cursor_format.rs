@@ -4,10 +4,11 @@ use log::warn;
 
 use crate::mcp::server::{MCPServerConfig, MCPServerTransport, MCPServerType};
 
+use super::json_config::normalized_token;
 use super::ConfigLocation;
 
 fn parse_source(value: &str) -> Option<MCPServerType> {
-    match value.trim() {
+    match normalized_token(value).as_str() {
         "local" => Some(MCPServerType::Local),
         "remote" => Some(MCPServerType::Remote),
         _ => None,
@@ -15,7 +16,7 @@ fn parse_source(value: &str) -> Option<MCPServerType> {
 }
 
 fn parse_transport(value: &str) -> Option<MCPServerTransport> {
-    match value.trim() {
+    match normalized_token(value).as_str() {
         "stdio" => Some(MCPServerTransport::Stdio),
         "sse" => Some(MCPServerTransport::Sse),
         "http" | "streamable_http" | "streamable-http" | "streamablehttp" => {
@@ -26,7 +27,7 @@ fn parse_transport(value: &str) -> Option<MCPServerTransport> {
 }
 
 fn parse_legacy_type(value: &str) -> Option<(Option<MCPServerType>, Option<MCPServerTransport>)> {
-    match value.trim() {
+    match normalized_token(value).as_str() {
         "stdio" => Some((None, Some(MCPServerTransport::Stdio))),
         "local" => Some((Some(MCPServerType::Local), Some(MCPServerTransport::Stdio))),
         "sse" => Some((Some(MCPServerType::Remote), Some(MCPServerTransport::Sse))),
@@ -107,7 +108,10 @@ pub fn config_to_cursor_format(config: &MCPServerConfig) -> serde_json::Value {
     }
 
     if !config.capabilities.is_empty() {
-        cursor_config.insert("capabilities".to_string(), serde_json::json!(config.capabilities));
+        cursor_config.insert(
+            "capabilities".to_string(),
+            serde_json::json!(config.capabilities),
+        );
     }
 
     if !config.settings.is_empty() {
@@ -115,10 +119,7 @@ pub fn config_to_cursor_format(config: &MCPServerConfig) -> serde_json::Value {
     }
 
     if let Some(oauth_enabled) = config.oauth_enabled {
-        cursor_config.insert(
-            "oauthEnabled".to_string(),
-            serde_json::json!(oauth_enabled),
-        );
+        cursor_config.insert("oauthEnabled".to_string(), serde_json::json!(oauth_enabled));
     }
 
     cursor_config.insert("location".to_string(), serde_json::json!(config.location));
@@ -301,7 +302,9 @@ pub fn parse_cursor_format(
                             .get("settings")
                             .and_then(|v| v.as_object())
                             .map(|m| {
-                                m.clone().into_iter().collect::<std::collections::HashMap<_, _>>()
+                                m.clone()
+                                    .into_iter()
+                                    .collect::<std::collections::HashMap<_, _>>()
                             })
                             .unwrap_or_default();
                         if let Some(value) =
@@ -317,14 +320,13 @@ pub fn parse_cursor_format(
                         .and_then(|value| serde_json::from_value(value).ok()),
                     // Boolean shorthand controls discovery; an object carries
                     // OAuth options. Do not discard an explicit opt-out.
-                    oauth_enabled: obj
-                        .get("oauth")
-                        .and_then(|value| value.as_bool())
-                        .or_else(|| {
+                    oauth_enabled: obj.get("oauth").and_then(|value| value.as_bool()).or_else(
+                        || {
                             obj.get("oauthEnabled")
                                 .or_else(|| obj.get("oauth_enabled"))
                                 .and_then(|value| value.as_bool())
-                        }),
+                        },
+                    ),
                     xaa: obj
                         .get("xaa")
                         .cloned()

@@ -629,7 +629,6 @@ fn merge_chat_state(source: &BotChatStateRecord, target: &mut BotChatStateRecord
     }
     if target.current_assistant.is_none() {
         target.current_assistant = source.current_assistant.clone();
-        target.current_assistant_id = source.current_assistant_id.clone();
         imported_source_context |= target.current_assistant.is_some();
     }
     if target.current_assistant_name.is_none() {

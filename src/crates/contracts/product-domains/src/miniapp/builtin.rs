@@ -149,7 +149,7 @@ pub const BUILTIN_APPS: &[BuiltinMiniAppBundle] = &[
     },
     BuiltinMiniAppBundle {
         id: "builtin-ppt-live",
-        version: 260,
+        version: 261,
         meta_json: include_str!("builtin/assets/ppt-live/meta.json"),
         html: include_str!("builtin/assets/ppt-live/index.html"),
         css: include_str!("builtin/assets/ppt-live/style.css"),
@@ -557,8 +557,7 @@ mod tests {
         // A single cowork agent turn loads the ppt-design skill and produces
         // the whole deck end to end. Prompt construction is isolated from the
         // host adapter so its generated-file contract can be tested directly.
-        let adapter_source =
-            include_str!("builtin/assets/ppt-live/src/bitfun-backend-adapter.js");
+        let adapter_source = include_str!("builtin/assets/ppt-live/src/bitfun-backend-adapter.js");
         let prompt_source = include_str!("builtin/assets/ppt-live/src/agent-prompt.js");
         assert!(adapter_source.contains("sessionId: options.sessionId"));
         assert!(adapter_source.contains("buildAgentPrompt"));
@@ -605,8 +604,9 @@ mod tests {
             .as_array()
             .is_some_and(|scopes| scopes.iter().any(|scope| scope == "{appdata}")));
         assert!(!app.ui_js.contains("Sparo"));
-        assert!(include_str!("builtin/assets/ppt-live/ui.js")
-            .contains("installBitFunBackendAdapter"));
+        assert!(
+            include_str!("builtin/assets/ppt-live/ui.js").contains("installBitFunBackendAdapter")
+        );
         // The single cowork agent turn loads the stable ppt-design skill key.
         assert!(prompt_source.contains("user::bitfun-system::ppt-design"));
         let ppt_live_source = include_str!("builtin/assets/ppt-live/ui.js");

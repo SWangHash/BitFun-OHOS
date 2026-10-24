@@ -762,6 +762,7 @@ pub fn project_reasoning_catalog_with_limit_and_auto_binding(
                     source: ReasoningPresetSource::ModelConfig,
                     execution_provider: Some(execution_provider.clone()),
                     execution_model: Some(execution_model.clone()),
+                    effective_effort: None,
                 },
             );
         }
@@ -1182,6 +1183,7 @@ fn effort_descriptors(
             source,
             execution_provider: Some(execution_provider.to_string()),
             execution_model: Some(execution_model.to_string()),
+            effective_effort: None,
         })
         .collect()
 }
@@ -1209,6 +1211,7 @@ fn toggle_descriptors(
             source,
             execution_provider: Some(execution_provider.to_string()),
             execution_model: Some(execution_model.to_string()),
+            effective_effort: None,
         },
         ReasoningPresetDescriptor {
             id: "on".to_string(),
@@ -1218,6 +1221,7 @@ fn toggle_descriptors(
             source,
             execution_provider: Some(execution_provider.to_string()),
             execution_model: Some(execution_model.to_string()),
+            effective_effort: None,
         },
     ]
 }
@@ -1264,6 +1268,7 @@ fn budget_descriptors(
             source,
             execution_provider: Some(execution_provider.to_string()),
             execution_model: Some(execution_model.to_string()),
+            effective_effort: None,
         })
         .collect()
 }

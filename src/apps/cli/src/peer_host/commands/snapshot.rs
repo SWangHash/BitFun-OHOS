@@ -115,7 +115,7 @@ pub(crate) async fn get_session_files(
 
     bitfun_agent_runtime::session_control::validate_session_id(&session_id)?;
     require_local_snapshot_workspace(&workspace)?;
-    let scope = ensure_session_workspace_runtime_ownership(state, request)?;
+    let scope = ensure_session_workspace_runtime_ownership(state, request).await?;
     let storage_path = resolved_session_storage_scope(state, scope).await?;
     let read = state
         .compatibility
@@ -172,7 +172,7 @@ pub(crate) async fn rollback_session_to_turn(
     rollback_request.workspace_path = workspace.root_path.to_string_lossy().into_owned();
     let resolved_request = serde_json::to_value(&rollback_request).map_err(|e| e.to_string())?;
     let request = &resolved_request;
-    ensure_session_workspace_runtime_ownership(state, request)?;
+    ensure_session_workspace_runtime_ownership(state, request).await?;
     let outcome = state
         .agent_runtime
         .rollback_session_to_turn(rollback_request)

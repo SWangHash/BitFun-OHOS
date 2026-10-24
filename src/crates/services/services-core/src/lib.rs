@@ -16,6 +16,8 @@ pub mod dispatch_contract;
 #[cfg(feature = "dispatch-workspace")]
 pub mod dispatch_workspace;
 #[cfg(any(feature = "local-storage", feature = "runtime-ownership"))]
+pub mod exclusive_file_lease;
+#[cfg(any(feature = "local-storage", feature = "runtime-ownership"))]
 mod file_lock;
 #[cfg(any(feature = "filesystem", feature = "workspace-transfer"))]
 pub mod file_write_lock;
@@ -39,16 +41,16 @@ pub mod memory_store;
 pub mod permission_store;
 #[cfg(feature = "local-storage")]
 pub mod persistence;
-#[cfg(feature = "secure-credentials")]
-pub mod secure_credentials;
-#[cfg(feature = "screen-capture")]
-pub mod screen_capture;
 #[cfg(feature = "pet-packages")]
 pub mod pet_packages;
 #[cfg(feature = "process-runtime")]
 pub mod process_manager;
 #[cfg(feature = "process-runtime")]
 pub mod process_tree;
+#[cfg(feature = "screen-capture")]
+pub mod screen_capture;
+#[cfg(feature = "secure-credentials")]
+pub mod secure_credentials;
 #[cfg(feature = "session-event-format")]
 pub mod session_projection_format;
 pub mod storage_error;
@@ -66,6 +68,8 @@ pub use bitfun_core_types::product_identity;
 pub mod runtime_ownership;
 #[cfg(feature = "local-storage")]
 pub mod session;
+#[cfg(feature = "session-recovery")]
+pub mod session_recovery;
 #[cfg(feature = "session-search")]
 pub mod session_search;
 #[cfg(feature = "local-storage")]

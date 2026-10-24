@@ -23,8 +23,8 @@ use crate::service::config::{get_global_config_service, ConfigService};
 use crate::util::errors::{BitFunError, BitFunResult};
 use crate::util::types::AIConfig;
 use anyhow::{anyhow, Result};
-use log::{debug, info, warn};
 use bitfun_ai_adapters::resolve_required_model_selector;
+use log::{debug, info, warn};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock, RwLock};
 
@@ -286,9 +286,11 @@ impl AIClientFactory {
 
         #[cfg(feature = "subscription-auth")]
         let credential_revision = match &model_config.auth {
-            AuthConfig::Subscription { provider, .. } => {
-                Some(subscription_auth::credential_revision(to_adapter_provider(*provider)).await?)
-            }
+            AuthConfig::Subscription { provider, .. } => match to_adapter_provider(*provider) {
+                Some(provider) => Some(subscription_auth::credential_revision(provider).await?),
+                None => None,
+            },
+            AuthConfig::SubscriptionPool { .. } => None,
             AuthConfig::ApiKey => None,
         };
 
@@ -453,21 +455,29 @@ pub async fn initialize_global_ai_client_factory() -> BitFunResult<()> {
 }
 
 #[cfg(feature = "subscription-auth")]
-fn to_adapter_provider(provider: SubscriptionProvider) -> AdapterProvider {
-    match provider {
+fn to_adapter_provider(provider: SubscriptionProvider) -> Option<AdapterProvider> {
+    Some(match provider {
         SubscriptionProvider::Codex => AdapterProvider::Codex,
         SubscriptionProvider::Antigravity => AdapterProvider::Antigravity,
         SubscriptionProvider::Opencode => AdapterProvider::Opencode,
         SubscriptionProvider::Grok => AdapterProvider::Grok,
         SubscriptionProvider::Hermes => AdapterProvider::Hermes,
-    }
+        // Providers without a subscription-auth adapter in this build cannot
+        // resolve a runtime client; callers degrade instead of misrouting.
+        SubscriptionProvider::Workbuddy
+        | SubscriptionProvider::WorkbuddyAi
+        | SubscriptionProvider::Zcode
+        | SubscriptionProvider::ZcodeCn => return None,
+    })
 }
 
 /// Attach request policy from explicit auth identity after credential resolution.
 pub fn apply_subscription_request_profile(auth: &AuthConfig, client: AIClient) -> AIClient {
     #[cfg(feature = "subscription-auth")]
     if let AuthConfig::Subscription { provider, .. } = auth {
-        return client.with_subscription_provider(to_adapter_provider(*provider));
+        if let Some(provider) = to_adapter_provider(*provider) {
+            return client.with_subscription_provider(provider);
+        }
     }
     #[cfg(not(feature = "subscription-auth"))]
     let _ = auth;
@@ -532,8 +542,11 @@ pub async fn apply_subscription_auth_with_options(
 ) -> Result<Option<i64>> {
     let resolved = match auth {
         AuthConfig::ApiKey => return Ok(None),
-        AuthConfig::Subscription { provider, plan } => {
-            let adapter_provider = to_adapter_provider(*provider);
+        AuthConfig::SubscriptionPool { .. } => return Ok(None),
+        AuthConfig::Subscription { provider, plan, .. } => {
+            let adapter_provider = to_adapter_provider(*provider).ok_or_else(|| {
+                anyhow!("Subscription provider {provider:?} is not supported by this build")
+            })?;
             if let Some(model) =
                 subscription_auth::runtime_model_override(adapter_provider, &ai_config.model)
             {

@@ -61,6 +61,7 @@ pub(crate) fn account_snapshot_projection(
                 device_os_version: device.device_os_version,
                 device_client_version: device.device_client_version,
                 device_client_protocol: device.device_client_protocol,
+                device_kind: None,
                 compatible: device.compatible,
                 online: device.online,
             })
@@ -790,9 +791,8 @@ impl bitfun_core::service::remote_connect::host_stream::HostStreamNotifier
             };
             use bitfun_core::service::remote_connect::remote_server::RemoteCommand;
             let envelope = match serde_json::to_string(&RemoteCommand::DeviceEvent {
-                event:
-                    bitfun_core::service::remote_connect::host_stream::HOST_STREAM_CHANGED_EVENT
-                        .to_owned(),
+                event: bitfun_core::service::remote_connect::host_stream::HOST_STREAM_CHANGED_EVENT
+                    .to_owned(),
                 payload,
             }) {
                 Ok(envelope) => envelope,

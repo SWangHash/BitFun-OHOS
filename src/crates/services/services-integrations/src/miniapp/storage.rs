@@ -449,6 +449,7 @@ impl MiniAppStorage {
             runtime: meta.runtime,
             runtime_profile: meta.runtime_profile,
             i18n: meta.i18n,
+            chrome: meta.chrome,
         })
     }
 
@@ -833,6 +834,7 @@ impl MiniAppStorage {
             runtime: meta.runtime,
             runtime_profile: meta.runtime_profile,
             i18n: meta.i18n,
+            chrome: meta.chrome,
         })
     }
 

@@ -89,7 +89,7 @@ internal class AccountRealtime(
                     epoch.socket.send(EngineIO.encodeSocketIO(EngineIOPacket.Message(packet)))
                     val result = reply.await().jsonObject
                     if (result["ok"]?.jsonPrimitive?.booleanOrNull != true) {
-                        throw CloudAccountException(CloudAccountFailure.RELAY_UNAVAILABLE)
+                        throw relayRpcRejection(result["error"]?.jsonPrimitive?.contentOrNull)
                     }
                     result["result"] ?: throw CloudAccountException(CloudAccountFailure.MALFORMED_RESPONSE)
                 }
@@ -130,7 +130,12 @@ internal class AccountRealtime(
                             engineOpened = true
                             require(packet.pingInterval > 0 && packet.pingTimeout > 0)
                             idleMs = packet.pingInterval.toLong() + packet.pingTimeout
-                            val auth = buildJsonObject { put("token", token); put("clientType", "user-scoped") }
+                            // The Relay reads this build from the handshake, not from the
+                            // login row, when it gates device RPC between two clients.
+                            val auth = buildJsonObject {
+                                put("token", token); put("clientType", "user-scoped")
+                                put("clientVersion", CLIENT_VERSION); put("clientProtocol", CLIENT_PROTOCOL_VERSION)
+                            }
                             socket.send(EngineIO.encodeSocketIO(EngineIOPacket.Message(SocketIOPacket.Connect("/", auth))))
                         }
                         is EngineIOPacket.Ping -> socket.send(EngineIO.encodeSocketIO(EngineIOPacket.Pong(packet.payload)))
@@ -201,4 +206,31 @@ internal class AccountRealtime(
         log.info("account realtime close requested")
         scope.cancel()
     }
+}
+
+/**
+ * Substrings of Relay refusals that mean "this build is too old to be served";
+ * mirrors `OUTDATED_MARKERS` in `src/shared/relay-transport/RelayFailure.ts`.
+ */
+private val OUTDATED_MARKERS = listOf(
+    "relay_version_retired",
+    "relay_session_history_retired",
+    "incompatible client build",
+    "requires matching client versions",
+    "update the controlling app",
+    "update openbitfun on every device",
+)
+
+/**
+ * The Relay answered a device RPC with `ok: false` — it refused to forward, so
+ * the desktop never saw the call. A build refusal is final and carries the
+ * Relay's own sentence for the screen; anything else (target offline, deadline,
+ * lost ack) is left retryable, the way an unreachable relay already is, but
+ * keeps the Relay's wording for the log instead of collapsing to a bare enum.
+ */
+internal fun relayRpcRejection(error: String?): Throwable {
+    val text = error?.trim()?.takeIf { it.isNotEmpty() }
+    val lowered = text?.lowercase().orEmpty()
+    if (OUTDATED_MARKERS.any { it in lowered }) return RelayTransportException(RelayFailure.ClientOutdated(text))
+    return CloudAccountException(CloudAccountFailure.RELAY_UNAVAILABLE, null, null, detail = text ?: "Relay RPC failed")
 }

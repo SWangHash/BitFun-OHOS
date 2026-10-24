@@ -53,7 +53,8 @@ export const optionalDependencyFeatureOwnerRules = [
   },
   {
     crateName: 'services-core',
-    reviewedAggregateFeatures: ['workspace-persistence'],
+    // Offline recovery composes only existing storage/identity contracts.
+    reviewedAggregateFeatures: ['workspace-persistence', 'session-recovery'],
     reason:
       'services-core optional implementation dependencies must stay behind their exact owner capability',
     dependencies: [
@@ -61,14 +62,14 @@ export const optionalDependencyFeatureOwnerRules = [
       { depName: 'zip', ownerFeatures: ['pet-packages'] },
       { depName: 'uuid', ownerFeatures: ['pet-packages'] },
       { depName: 'aes-gcm', ownerFeatures: ['credential-vault'] },
-      { depName: 'anyhow', ownerFeatures: ['credential-vault', 'dispatch-workspace', 'workspace-runtime', 'workspace-transfer'] },
+      { depName: 'anyhow', ownerFeatures: ['credential-vault', 'dispatch-workspace', 'workspace-runtime', 'workspace-transfer', 'session-recovery'] },
       { depName: 'async-trait', ownerFeatures: ['permission', 'workspace-runtime'] },
       { depName: 'base64', ownerFeatures: ['pet-packages', 'credential-vault', 'filesystem'] },
       {
         depName: 'bitfun-core-types',
-        ownerFeatures: ['filesystem', 'local-storage', 'product-identity', 'workspace-persistence'],
+        ownerFeatures: ['filesystem', 'local-storage', 'product-identity', 'workspace-persistence', 'session-recovery'],
       },
-      { depName: 'bitfun-events', ownerFeatures: ['local-storage', 'session-event-format'] },
+      { depName: 'bitfun-events', ownerFeatures: ['local-storage', 'session-event-format', 'session-recovery'] },
       { depName: 'bitfun-runtime-ports', ownerFeatures: ['permission', 'workspace-runtime', 'workspace-persistence', 'workspace-transfer'] },
       { depName: 'chrono', ownerFeatures: ['filesystem', 'local-storage', 'workspace-persistence'] },
       { depName: 'chrono-tz', ownerFeatures: ['token-usage-statistics'] },
@@ -542,6 +543,7 @@ export const capabilityContractDependencyRules = [
           capabilityForwarder('workspace-transfer', 'workspace-ports'),
         ],
         ['permission', 'workspace-runtime', 'workspace-persistence', 'workspace-transfer'],
+        ['session-recovery'],
       )],
       ['bitfun-services-integrations', capabilityConsumer(
         [capabilityEdge([], { optional: true })],

@@ -74,6 +74,16 @@ fn custom_mode_defaults_generate_id_and_default_policy() {
     for tool_name in ["get_goal", "create_goal", "update_goal"] {
         assert!(parsed.definition.tools.iter().any(|tool| tool == tool_name));
     }
+    for tool_name in [
+        "AgentSpawn",
+        "AgentSendInput",
+        "AgentControl",
+        "AgentList",
+        "AgentWait",
+    ] {
+        assert!(parsed.definition.tools.iter().any(|tool| tool == tool_name));
+    }
+    assert!(!parsed.definition.tools.iter().any(|tool| tool == "Task"));
     assert_eq!(parsed.definition.readonly, DEFAULT_CUSTOM_MODE_READONLY);
     assert_eq!(parsed.definition.model, DEFAULT_CUSTOM_MODE_MODEL);
     assert_eq!(
@@ -377,8 +387,7 @@ fn custom_agent_discovery_ignores_non_bitfun_agent_dirs() {
     let project_claude = workspace.path.join(".claude").join("agents");
     let user_agents = user_root.path.join("agents");
     let home_claude = home.path.join(".claude").join("agents");
-    fs::create_dir_all(&project_bitfun)
-        .expect("project bitfun agents dir should be created");
+    fs::create_dir_all(&project_bitfun).expect("project bitfun agents dir should be created");
     fs::create_dir_all(&project_claude).expect("project claude agents dir should be created");
     fs::create_dir_all(&user_agents).expect("user agents dir should be created");
     fs::create_dir_all(&home_claude).expect("home claude agents dir should be created");

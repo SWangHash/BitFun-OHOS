@@ -4,8 +4,8 @@ use crate::types::{
     DEFAULT_MODEL_CONTEXT_WINDOW_TOKENS, MAX_CONFIGURED_OUTPUT_TOKENS_RATIO_PERCENT,
     MIN_MODEL_CONTEXT_WINDOW_TOKENS,
 };
-use log::warn;
 pub use bitfun_core_types::AIConfig;
+use log::warn;
 
 fn append_endpoint(base_url: &str, endpoint: &str) -> String {
     let base = base_url.trim();
@@ -74,6 +74,9 @@ impl TryFrom<AIModelConfig> for AIConfig {
     type Error = String;
 
     fn try_from(other: AIModelConfig) -> Result<Self, Self::Error> {
+        if crate::protected_account_models::is_guarded_account_model(&other) {
+            return Err("This subscription account binding requires an account-capable OpenBitFun; the original configuration was preserved".into());
+        }
         if !other.supports_text_generation() {
             return Err(format!(
                 "Model '{}' does not support text_chat and cannot be used for text generation",
@@ -81,7 +84,11 @@ impl TryFrom<AIModelConfig> for AIConfig {
             ));
         }
 
-        let custom_request_body = if let Some(body_str) = &other.custom_request_body {
+        let custom_request_body = if let Some(body_str) = other
+            .custom_request_body
+            .as_deref()
+            .filter(|body| !body.trim().is_empty())
+        {
             match serde_json::from_str::<serde_json::Value>(body_str) {
                 Ok(value) => Some(value),
                 Err(e) => {
@@ -259,6 +266,7 @@ mod tests {
             custom_request_body: None,
             custom_request_body_mode: None,
             auth: Default::default(),
+            channel_routing: None,
         }
     }
 
@@ -266,6 +274,55 @@ mod tests {
     fn missing_reasoning_default_does_not_change_runtime_config() {
         let config = AIConfig::try_from(base_model_config()).expect("conversion should succeed");
         assert_eq!(config.model, "test-model");
+    }
+
+    #[test]
+    fn accepts_legacy_missing_null_and_blank_custom_request_bodies() {
+        for body in [
+            None,
+            Some(serde_json::Value::Null),
+            Some("".into()),
+            Some(" \n\t ".into()),
+        ] {
+            let mut payload = serde_json::to_value(base_model_config()).unwrap();
+            payload
+                .as_object_mut()
+                .unwrap()
+                .remove("custom_request_body");
+            if let Some(body) = body {
+                payload["custom_request_body"] = body;
+            }
+            let model: AIModelConfig = serde_json::from_value(payload).unwrap();
+            let round_trip: AIModelConfig =
+                serde_json::from_value(serde_json::to_value(model).unwrap()).unwrap();
+            let config =
+                AIConfig::try_from(round_trip).expect("legacy config should remain usable");
+            assert_eq!(config.custom_request_body, None);
+        }
+    }
+
+    #[test]
+    fn preserves_non_empty_custom_request_body_and_mode() {
+        let mut model = base_model_config();
+        model.custom_request_body = Some(" \n{\"temperature\":0.2}\n ".to_string());
+        model.custom_request_body_mode = Some("trim".to_string());
+
+        let config = AIConfig::try_from(model).expect("conversion should succeed");
+        assert_eq!(
+            config.custom_request_body,
+            Some(serde_json::json!({"temperature": 0.2}))
+        );
+        assert_eq!(config.custom_request_body_mode.as_deref(), Some("trim"));
+    }
+
+    #[test]
+    fn ignores_malformed_non_empty_custom_request_body() {
+        let mut model = base_model_config();
+        model.custom_request_body = Some("{".to_string());
+
+        let config =
+            AIConfig::try_from(model).expect("existing parse fallback should remain usable");
+        assert_eq!(config.custom_request_body, None);
     }
 
     #[test]

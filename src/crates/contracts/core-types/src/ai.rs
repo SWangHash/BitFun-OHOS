@@ -175,6 +175,10 @@ pub struct ReasoningPresetDescriptor {
     pub order: i32,
     pub actions: Vec<ReasoningPresetAction>,
     pub source: ReasoningPresetSource,
+    /// Adapter-resolved effort for display and alias grouping. Request actions
+    /// and persisted preset ids remain unchanged; older peers may omit this.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effective_effort: Option<String>,
     /// Catalog identity used only by the host-side adapter compiler. It is
     /// intentionally omitted from Web/remote projections.
     #[serde(skip)]
@@ -660,8 +664,25 @@ pub struct ModelRequestContext {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ModelResponseReplay {
     pub protocol: String,
+    /// Concrete host-local channel that produced nonportable continuation state.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub channel_origin: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub channel_fingerprint: Option<String>,
+    /// Native subscription account that produced opaque continuation state.
+    /// Legacy replay without provenance cannot authorize an account switch.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub account_origin: Option<ModelAccountOrigin>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub items: Vec<ModelResponseReplayItem>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ModelAccountOrigin {
+    pub provider: String,
+    pub account_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub upstream_account_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -879,6 +900,50 @@ pub struct RemoteModelRouting {
 
 #[cfg(test)]
 mod remote_model_routing_compatibility {
+    #[test]
+    fn reasoning_preset_old_payload_round_trips_without_display_metadata() {
+        let old = serde_json::json!({
+            "id": "medium", "label": "Medium", "order": 10,
+            "actions": [{"type": "effort", "value": "medium"}], "source": "models_dev"
+        });
+        let preset: super::ReasoningPresetDescriptor = serde_json::from_value(old.clone()).unwrap();
+        assert!(preset.effective_effort.is_none());
+        assert_eq!(serde_json::to_value(&preset).unwrap(), old);
+
+        let mut enriched = preset;
+        enriched.effective_effort = Some("high".to_string());
+        let serialized = serde_json::to_value(&enriched).unwrap();
+        let restored: super::ReasoningPresetDescriptor =
+            serde_json::from_value(serialized).unwrap();
+        assert_eq!(restored, enriched);
+        assert_eq!(restored.id, "medium");
+    }
+
+    #[test]
+    fn legacy_model_replay_round_trips_without_account_provenance() {
+        let old = serde_json::json!({"protocol":"openai_responses", "items":[{"kind":"opaque_reasoning", "opaque_state":"legacy-state"}]});
+        let replay: super::ModelResponseReplay = serde_json::from_value(old.clone()).unwrap();
+        assert!(replay.account_origin.is_none());
+        assert!(replay.channel_origin.is_none());
+        assert!(replay.channel_fingerprint.is_none());
+        assert_eq!(serde_json::to_value(&replay).unwrap(), old);
+        let mut attributed = replay;
+        attributed.channel_origin = Some("recorded-channel".into());
+        attributed.channel_fingerprint = Some("recorded-fingerprint".into());
+        attributed.account_origin = Some(super::ModelAccountOrigin {
+            provider: "codex".into(),
+            account_id: "slot-1".into(),
+            upstream_account_id: Some("seat-1".into()),
+        });
+        assert_eq!(
+            serde_json::from_value::<super::ModelResponseReplay>(
+                serde_json::to_value(&attributed).unwrap()
+            )
+            .unwrap(),
+            attributed
+        );
+    }
+
     #[test]
     fn old_discovery_payload_round_trips_without_route_fields() {
         let old = serde_json::json!({"id":"legacy-model", "display_name":"Legacy"});

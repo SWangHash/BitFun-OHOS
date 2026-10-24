@@ -2,9 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
 use bitfun_core::service::config::AIConfig;
-use bitfun_core_types::model::{
-    ModelListProjection, ModelMutation, ModelSummary, SecretUpdate,
-};
+use bitfun_core_types::model::{ModelListProjection, ModelMutation, ModelSummary, SecretUpdate};
 
 pub(crate) use bitfun_core::service::config::model_projection::{
     model_catalog_projection, model_edit_projection, model_list_projection, resolve_model_selector,
@@ -106,6 +104,7 @@ pub(crate) fn model_from_mutation(
         custom_request_body,
         custom_request_body_mode: current.custom_request_body_mode,
         auth: current.auth,
+        channel_routing: current.channel_routing,
     })
 }
 

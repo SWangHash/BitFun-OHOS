@@ -1278,11 +1278,11 @@ impl CoreAgentRuntimeCompatibility {
         limit: usize,
         session_ids: Option<&[String]>,
     ) -> BitFunResult<SessionMetadataPage> {
-        use futures::StreamExt;
         use bitfun_agent_runtime::session_state::SessionState;
         use bitfun_services_core::session::page::{
             empty_session_metadata_page, SessionActivitySummary,
         };
+        use futures::StreamExt;
 
         if let Some(ids) = session_ids {
             if ids.len() > 128 {
@@ -1409,6 +1409,7 @@ impl CoreAgentRuntimeCompatibility {
                         active_turn_id,
                         last_turn: metadata.last_turn,
                         unread_completion: metadata.unread_completion,
+                        unread_turn: None,
                     }
                 })
                 .collect(),
@@ -4391,10 +4392,7 @@ mod tests {
             .load_visible_persisted_session_turns(&storage_path, session_id)
             .await
             .expect_err("cold readers must fail closed on an unfinished undo transition");
-        assert!(matches!(
-            cold_read_error,
-            BitFunError::OutcomeUnknown(_)
-        ));
+        assert!(matches!(cold_read_error, BitFunError::OutcomeUnknown(_)));
 
         let result = port
             .fork_session(AgentSessionForkRequest {

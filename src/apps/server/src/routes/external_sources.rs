@@ -61,14 +61,13 @@ pub(crate) async fn dispatch(
         .ok_or_else(|| ExternalSourceOperationError::invalid_request("missing request"))?;
     let workspace = external_workspace_root(state, request)?;
     let workspace = workspace.as_deref();
+    let workspace = workspace.and_then(|path| path.to_str());
     match method {
         "get_external_source_snapshot" => {
             let force_refresh = optional_bool_field(request, "forceRefresh")?;
             let snapshot = external_source_read_only_snapshot(workspace, force_refresh)
                 .await
-                .map_err(
-                    bitfun_core::external_sources::sanitize_external_source_operation_error,
-                )?;
+                .map_err(bitfun_core::external_sources::sanitize_external_source_operation_error)?;
             serde_json::to_value(snapshot.into_legacy_v0_compatible())
         }
         "get_external_source_control_snapshot" => {

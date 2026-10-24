@@ -1,6 +1,8 @@
 //! Agentic Events Definition
 pub use bitfun_core_types::errors::{AiErrorDetail, ErrorCategory};
-use bitfun_core_types::{ReasoningContentKind, SessionExecutionTarget, ToolImageAttachment};
+use bitfun_core_types::{
+    ReasoningContentKind, SessionContinuationPolicy, SessionExecutionTarget, ToolImageAttachment,
+};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::time::SystemTime;
 
@@ -159,6 +161,15 @@ pub enum AgenticEvent {
         title: String,
         method: String,
     },
+
+    /// One-sentence next-input suggestion offered after a completed turn.
+    /// Session-scoped hint: it is not part of the turn lifecycle or journal.
+    PromptSuggestionGenerated {
+        session_id: String,
+        turn_id: String,
+        suggestion: String,
+    },
+
     ImageAnalysisStarted {
         session_id: String,
         image_count: usize,
@@ -200,6 +211,9 @@ pub enum AgenticEvent {
         /// Runtime-admitted public label for a focused Review child.
         #[serde(skip_serializing_if = "Option::is_none")]
         focused_review_display_label: Option<String>,
+        /// Runtime-owned admission policy for subsequent child turns.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        continuation_policy: Option<SessionContinuationPolicy>,
     },
 
     DialogTurnCompleted {
@@ -221,6 +235,8 @@ pub enum AgenticEvent {
         /// Whether the turn produced a user-visible final response.
         #[serde(skip_serializing_if = "Option::is_none")]
         has_final_response: Option<bool>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        background_delivery: Option<bitfun_core_types::background_delivery::BackgroundDelivery>,
     },
 
     DialogTurnCancelled {
@@ -347,6 +363,9 @@ pub enum AgenticEvent {
         first_visible_output_ms: Option<u64>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         stream_duration_ms: Option<u64>,
+        /// Request start to first effective output for the accepted model attempt.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        ttft_ms: Option<u64>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         attempt_count: Option<u32>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -681,6 +700,7 @@ impl AgenticEvent {
             | Self::SessionHistoryChanged { session_id, .. }
             | Self::SessionDeleted { session_id }
             | Self::SessionTitleGenerated { session_id, .. }
+            | Self::PromptSuggestionGenerated { session_id, .. }
             | Self::ImageAnalysisStarted { session_id, .. }
             | Self::ImageAnalysisCompleted { session_id, .. }
             | Self::DialogTurnStarted { session_id, .. }
@@ -766,6 +786,7 @@ impl AgenticEvent {
             | Self::ContextCompressionStarted { .. }
             | Self::ThreadGoalUpdated { .. }
             | Self::UserSteeringInjected { .. }
+            | Self::PromptSuggestionGenerated { .. }
             | Self::ContextCompressionCompleted { .. } => AgenticEventPriority::Normal,
 
             Self::ToolEvent { tool_event, .. } => tool_event.default_priority(),

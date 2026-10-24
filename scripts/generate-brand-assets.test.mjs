@@ -8,7 +8,7 @@ import { canonicalizeIcns } from './icns-container.mjs';
 const GENERATED_ICNS_FILES = [
   'src/apps/desktop/icons/bitfun-app-icon.icns',
   'BitFun-Installer/src-tauri/icons/bitfun-app-icon.icns',
-  'src/apps/data-migrator/icons/bitfun-app-icon.icns',
+  'src/apps/data-tools/icons/bitfun-app-icon.icns',
 ];
 
 const ANDROID_LAUNCHER_SIZES = { mdpi: 48, hdpi: 72, xhdpi: 96, xxhdpi: 144, xxxhdpi: 192 };
@@ -220,7 +220,7 @@ test('installer, data migrator, and Mini App Market icons reuse the application 
 
   for (const directory of [
     'BitFun-Installer/src-tauri/icons',
-    'src/apps/data-migrator/icons',
+    'src/apps/data-tools/icons',
   ]) {
     assert.deepEqual(readFileSync(`${directory}/bitfun-app-icon.png`), exportedPng(1024), directory);
     assert.deepEqual(readFileSync(`${directory}/bitfun-app-icon.ico`), exportedIco, directory);

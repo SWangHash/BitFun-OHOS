@@ -12,7 +12,6 @@ use crate::miniapp::types::{
 };
 use crate::product_domain_runtime::CoreProductDomainRuntime;
 use crate::util::errors::{BitFunError, BitFunResult};
-use chrono::Utc;
 use bitfun_product_domains::miniapp::customization::{
     MiniAppCustomizationBaseline, MiniAppCustomizationMetadata, MiniAppPermissionDiff,
 };
@@ -25,6 +24,7 @@ use bitfun_product_domains::miniapp::ports::{
     MiniAppCompilePort, MiniAppImportFromPathRequest, MiniAppPortError, MiniAppPortErrorKind,
     MiniAppPortFuture, MiniAppRuntimeFacade,
 };
+use chrono::Utc;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
@@ -188,6 +188,7 @@ impl MiniAppManager {
                     source,
                     permissions,
                     ai_context,
+                    chrome: None,
                 },
                 compiled_html,
                 now,
@@ -221,6 +222,7 @@ impl MiniAppManager {
             source,
             permissions,
             ai_context,
+            chrome: None,
         };
         let now = Utc::now().timestamp_millis();
         let compiled_html = if self.uses_market_strict_runtime(app_id).await {
@@ -321,11 +323,7 @@ impl MiniAppManager {
     }
 
     /// Get app storage (KV) value.
-    pub async fn get_storage(
-        &self,
-        app_id: &str,
-        key: &str,
-    ) -> BitFunResult<serde_json::Value> {
+    pub async fn get_storage(&self, app_id: &str, key: &str) -> BitFunResult<serde_json::Value> {
         let storage = self.storage.load_app_storage(app_id).await?;
         Ok(storage.get(key).cloned().unwrap_or(serde_json::Value::Null))
     }
@@ -778,9 +776,7 @@ fn map_bitfun_error_to_miniapp_port_error(error: BitFunError) -> MiniAppPortErro
         BitFunError::Deserialization(_) | BitFunError::Serialization(_) => {
             MiniAppPortErrorKind::Deserialization
         }
-        BitFunError::Io(io_error)
-            if io_error.kind() == std::io::ErrorKind::PermissionDenied =>
-        {
+        BitFunError::Io(io_error) if io_error.kind() == std::io::ErrorKind::PermissionDenied => {
             MiniAppPortErrorKind::PermissionDenied
         }
         BitFunError::Io(_) => MiniAppPortErrorKind::Io,

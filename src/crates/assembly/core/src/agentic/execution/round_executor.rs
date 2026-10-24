@@ -281,6 +281,9 @@ impl RoundExecutor {
         let capture = stream_result.model_response_replay.as_ref()?;
         Some(ModelResponseReplay {
             protocol: capture.protocol.clone(),
+            channel_origin: None,
+            channel_fingerprint: None,
+            account_origin: None,
             items: capture.items.clone(),
         })
     }
@@ -1326,6 +1329,7 @@ impl RoundExecutor {
                 effective_model_name: context.effective_model_name.clone(),
                 first_chunk_ms: stream_result.first_chunk_ms,
                 first_visible_output_ms: stream_result.first_visible_output_ms,
+                ttft_ms: None,
                 stream_duration_ms: Some(stream_processing_ms),
                 attempt_count: Some(lifecycle.attempts_started()),
                 failure_category: None,

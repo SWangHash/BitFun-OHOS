@@ -600,9 +600,7 @@ impl ProductControlRegistry {
             .definitions
             .iter()
             .find(|definition| definition.id == definition_id)
-            .ok_or_else(|| {
-                format!("Unknown BitFun product-control definition: {definition_id}")
-            })
+            .ok_or_else(|| format!("Unknown BitFun product-control definition: {definition_id}"))
     }
 
     pub fn option(
@@ -1587,6 +1585,28 @@ mod tests {
             validate_open_target("setting.application.shortcuts", Some("removed-setting-row"))
                 .unwrap_err()
                 .contains("Unknown documented item")
+        );
+    }
+
+    #[test]
+    fn diagnostics_log_level_accepts_off_and_rejects_unknown_levels() {
+        let log_level = capability("setting.data.diagnostics")
+            .unwrap()
+            .options
+            .iter()
+            .find(|option| option.id == "log-level")
+            .unwrap();
+        for level in ["trace", "debug", "info", "warn", "error", "off"] {
+            assert!(
+                validate_option_value(&log_level.value_schema, &Value::String(level.into()))
+                    .is_ok(),
+                "log level '{level}' should be accepted"
+            );
+        }
+        assert!(
+            validate_option_value(&log_level.value_schema, &Value::String("verbose".into()))
+                .unwrap_err()
+                .contains("value must be one of")
         );
     }
 }

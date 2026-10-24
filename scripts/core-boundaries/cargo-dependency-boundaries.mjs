@@ -176,6 +176,8 @@ const SERVICES_CORE_TOKIO_FEATURES = new Map([
   ['permission', ['rt']],
   ['process-runtime', ['io-util', 'process', 'rt', 'time']],
   ['session-search', ['rt']],
+  // Offline repair uses strict atomic storage writes; no processes or network.
+  ['session-recovery', ['fs', 'rt', 'sync', 'time']],
   ['workspace-instructions', ['fs', 'io-util', 'rt']],
   ['workspace-text-runtime', ['rt']],
   ['workspace-runtime', ['fs', 'io-util', 'process', 'rt', 'sync', 'time']],

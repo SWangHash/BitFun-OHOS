@@ -4806,21 +4806,22 @@ impl ExecutionEngine {
                         // into the multimodal message below. The UserSteeringInjected
                         // event echoes these back so the frontend can render the
                         // images the user attached to the steering message.
-                        let steering_images: Vec<bitfun_events::agentic::UserSteeringImage> = images
-                            .iter()
-                            .map(|img| bitfun_events::agentic::UserSteeringImage {
-                                id: img.id.clone(),
-                                name: img
-                                    .metadata
-                                    .as_ref()
-                                    .and_then(|m| m.get("name"))
-                                    .and_then(|v| v.as_str())
-                                    .map(String::from),
-                                data_url: img.data_url.clone(),
-                                image_path: img.image_path.clone(),
-                                mime_type: Some(img.mime_type.clone()),
-                            })
-                            .collect();
+                        let steering_images: Vec<bitfun_events::agentic::UserSteeringImage> =
+                            images
+                                .iter()
+                                .map(|img| bitfun_events::agentic::UserSteeringImage {
+                                    id: img.id.clone(),
+                                    name: img
+                                        .metadata
+                                        .as_ref()
+                                        .and_then(|m| m.get("name"))
+                                        .and_then(|v| v.as_str())
+                                        .map(String::from),
+                                    data_url: img.data_url.clone(),
+                                    image_path: img.image_path.clone(),
+                                    mime_type: Some(img.mime_type.clone()),
+                                })
+                                .collect();
                         let user_msg = if images.is_empty() {
                             Message::internal_reminder(reminder_kind, wrapped)
                         } else {
@@ -5341,6 +5342,7 @@ impl ExecutionEngine {
                         success: Some(success),
                         finish_reason: Some(effective_finish_reason.to_string()),
                         has_final_response: Some(has_final_response),
+                        background_delivery: None,
                     },
                     None,
                 )

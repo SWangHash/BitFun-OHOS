@@ -139,11 +139,11 @@
 | 工作区创建 Code 会话 | `nav-workspace-menu-create-code-session` | 普通工作区 code 会话动作。 |
 | 工作区创建 Cowork 会话 | `nav-workspace-menu-create-cowork-session` | 普通工作区 cowork 会话动作。 |
 | 工作区创建 ACP 会话 | `nav-workspace-menu-create-acp-session` | 重复项。配合 `data-acp-client-id` 使用。 |
-| 工作区创建 Init 会话 | `nav-workspace-menu-create-init-session` | 启动 AGENTS.md/init 会话。 |
 | 工作区相关路径 | `nav-workspace-menu-related-paths` | 打开相关路径对话框。 |
 | 会话 worktree 开关 | `chat-input-worktree-toggle` | 会话输入框状态条，切换当前会话的 worktree 隔离。配合 `data-worktree-enabled` 使用。 |
 | 工作区复制路径 | `nav-workspace-menu-copy-path` | 复制工作区路径。 |
 | 工作区 reveal | `nav-workspace-menu-reveal` | 在文件管理器中显示工作区。 |
+| 工作区会话存储目录 | `nav-workspace-menu-open-session-storage` | 打开主机管理的会话总目录，包括远程工作区的本机镜像。仅支持本机桌面端。 |
 | 工作区关闭 | `nav-workspace-menu-close` | 关闭工作区。 |
 | 工作区重置 assistant | `nav-workspace-menu-reset-assistant` | 重置默认 assistant 工作区。 |
 | 工作区删除 assistant | `nav-workspace-menu-delete-assistant` | 删除具名 assistant 工作区。 |
@@ -159,6 +159,7 @@
 | 会话菜单 | `nav-session-menu` | 单个会话的 portal 菜单。配合 `data-session-id` 使用。 |
 | 会话重命名项 | `nav-session-menu-rename` | 开始重命名会话。 |
 | 会话复制 ID 项 | `nav-session-menu-copy-id` | 复制会话 ID。配合 `data-session-id` 使用。 |
+| 会话存储目录 | `nav-session-menu-open-storage` | 打开该会话的存储目录。配合 `data-session-id` 使用。对端设备和 Detached Dispatch 会话不可用。 |
 | 会话定时任务项 | `nav-session-menu-scheduled-jobs` | 打开该会话的定时任务。配合 `data-session-id` 使用。 |
 | 会话归档项 | `nav-session-menu-archive` | 归档会话。配合 `data-session-id` 使用。 |
 | 会话删除项 | `nav-session-menu-delete` | 删除会话。 |
@@ -308,10 +309,10 @@
 | Browser 面板标题 | `browser-panel-title` | Browser toolbar/form 区域。 |
 | Browser URL 输入框 | `browser-url-input` | 真实 URL 输入框。按 Enter 打开输入的 URL。 |
 | Browser 页面容器 | `browser-page-frame` | iframe/webview host 内容区域。 |
-| Browser 加载状态 | `browser-loading-indicator` | URL 加载中时的刷新/加载图标。 |
+| Browser 加载状态 | `browser-loading-indicator` | URL 加载中时地址栏内替换浏览器图标的转圈指示。 |
 | Browser 错误信息 | `browser-error-message` | URL 校验、连通性或 webview 加载失败信息。 |
 | Browser 当前 URL | `browser-current-url` | webview placeholder 中展示的当前 URL。 |
-| Browser 刷新按钮 | `browser-refresh-button` | 刷新当前 Browser 页面。 |
+| Browser 刷新按钮 | `browser-refresh-button` | 刷新当前 Browser 页面；加载中该按钮变为停止加载。 |
 | Browser 后退按钮 | `browser-back-button` | Browser 历史后退。 |
 | Browser 前进按钮 | `browser-forward-button` | Browser 历史前进。 |
 

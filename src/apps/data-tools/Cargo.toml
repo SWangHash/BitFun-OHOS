@@ -1,0 +1,34 @@
+[package]
+name = "bitfun-data-tools"
+version = "0.2.0"
+authors.workspace = true
+edition.workspace = true
+description = "BitFun offline data migration, reset and session repair tools"
+
+[lib]
+name = "bitfun_data_tools_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "bitfun-data-tools"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { workspace = true }
+
+[dependencies]
+bitfun-services-core = { path = "../../crates/services/services-core", features = ["session-recovery"] }
+bitfun-legacy-migration-adapters = { path = "../../crates/services/legacy-migration-adapters" }
+bitfun-core-types = { path = "../../crates/contracts/core-types" }
+bitfun-legacy-migration = { path = "../../crates/services/legacy-migration" }
+bitfun-product-domains = { path = "../../crates/contracts/product-domains", features = ["legacy-migration"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tauri = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

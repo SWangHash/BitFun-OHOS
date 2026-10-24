@@ -65,6 +65,7 @@ installed-apps = ["dep:windows", "windows/Win32_Foundation", "windows/Win32_Syst
 default = []
 pet-packages = ["dep:image", "image/png", "image/webp", "image/jpeg", "image/gif", "dep:zip", "dep:uuid", "dep:sha2", "dep:base64", "dep:dunce", "dep:fs2"]
 workspace-persistence = ["workspace-identity", "dep:bitfun-core-types", "dep:bitfun-runtime-ports", "dep:chrono"]
+session-recovery = ["local-storage", "workspace-persistence", "dep:anyhow", "dep:bitfun-core-types", "dep:bitfun-events"]
 coordination-store = ["dep:rusqlite"]
 session-event-format = ["dep:bitfun-events"]
 tls-provider = ["dep:rustls"]

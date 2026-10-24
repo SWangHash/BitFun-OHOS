@@ -27,11 +27,12 @@ import {
 } from './remote/RemoteSurfaceHost';
 import { SidebarToggleButton } from './SidebarToggleButton';
 import { SidebarWorkspaceSection } from './SidebarWorkspaceSection';
+import { WindowInsetsBinding } from '../../services/WindowSystemBarService';
 import {
-  CARD,
   LINE,
   PAGE_BG,
   SHADOW_SUBTLE,
+  SIDEBAR_BG,
 } from './Theme';
 
 const WIDE_DETAIL_CONTENT_MAX_WIDTH: number = 920;
@@ -49,6 +50,8 @@ export struct WideConversationHost {
   @Param filePreviewLayout: FilePreviewLayout = new FilePreviewLayout(FilePreviewPlacement.Hidden);
   @Param sessionDetailsPlacement: SettingsPlacement =
     SettingsPlacementPolicy.compactBottom(SettingsSheetKind.SessionDetails);
+  @Param fullTextSheetPlacement: SettingsPlacement =
+    SettingsPlacementPolicy.compactBottom(SettingsSheetKind.UserMessageFullText);
   @Param wideMasterPaneWidth: number = 0;
   @Param wideMasterDetailGap: number = 0;
   @Param wideDetailContentOffset: number = 0;
@@ -63,6 +66,23 @@ export struct WideConversationHost {
   @Event onRestoreMasterPane: () => void = () => {};
   @Event onToggleFilePreviewExpanded: () => void = () => {};
   @Event onOpenRemoteViewSettings: () => void = () => {};
+  /**
+   * The window's own insets, in vp. Every pane in this host is pinned to the
+   * window's edges, so the floating controls that are not part of a page's own
+   * header band keep the status bar strip clear themselves.
+   */
+  @Local insets: WindowInsetsBinding = new WindowInsetsBinding();
+
+  aboutToAppear(): void {
+    const context = this.getUIContext().getHostContext();
+    if (context) {
+      this.insets.bind(this.getUIContext(), context);
+    }
+  }
+
+  aboutToDisappear(): void {
+    this.insets.unbind();
+  }
 
   build() {
     if (this.showsRemoteConversation() &&
@@ -117,8 +137,12 @@ export struct WideConversationHost {
       .width('100%').height('100%').justifyContent(FlexAlign.Start).backgroundColor(PAGE_BG)
 
       if (this.wideMasterPaneCollapsed) {
+        // The detail pane's top edge is the window's, so the floating control
+        // keeps the status bar strip above it instead of sitting under it — and
+        // its left edge is the window's too, which is the edge a rotated device
+        // moves the camera cutout onto.
         SidebarToggleButton({ restore: true, controlSize: 44, onToggle: this.onRestoreMasterPane })
-          .position({ x: 12, y: 12 }).zIndex(2)
+          .position({ x: this.insets.leftPadding(12), y: 12 + this.insets.top }).zIndex(2)
           .hitTestBehavior(HitTestMode.Default)
       }
     }
@@ -145,7 +169,6 @@ export struct WideConversationHost {
           onNewChat: this.actions.onSidebar.newChat,
           onEnterCode: this.actions.onSidebar.enterCode,
           onOpenMiniApps: this.actions.onRemoteHome.openMiniApps,
-          onScanDesktop: this.actions.onSidebar.scanDesktop,
           onCollapse: this.onCollapseMasterPane,
           onOpenViewSettings: this.onOpenRemoteViewSettings,
           onSearchQueryChange: (query: string) => {
@@ -155,7 +178,7 @@ export struct WideConversationHost {
           onOpenAccount: this.actions.onSidebar.openAccount,
         })
       }
-      .width('100%').height('100%').backgroundColor(CARD)
+      .width('100%').height('100%').backgroundColor(SIDEBAR_BG)
       .borderRadius(18).clip(true)
       .shadow({ radius: 24, color: SHADOW_SUBTLE, offsetX: 4, offsetY: 8 })
     }
@@ -210,7 +233,7 @@ export struct WideConversationHost {
       onReconnect: this.actions.onRemoteHome.reconnect,
       onAddWorkspace: this.actions.onRemoteHome.addDirectoryWorkspace,
       onRefreshDevices: this.actions.onSidebar.refreshDevices,
-      onAddDevice: this.actions.onSidebar.addDesktop
+      onAddDevice: this.actions.onSidebar.openAccountDevices
     })
   }
 
@@ -343,6 +366,7 @@ export struct WideConversationHost {
         this.filePreviewLayout
       ),
       useWidePresentation: true,
+      fullTextSheetPlacement: this.fullTextSheetPlacement,
       onRestoreSidebar: this.onRestoreMasterPane
     })
   }

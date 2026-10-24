@@ -17,6 +17,7 @@ bitfun-product-domains = { path = "../../contracts/product-domains", features = 
 bitfun-static-hook-support = { path = "../static-hook-support" }
 dirs = { workspace = true }
 bitfun-runtime-ports = { path = "../../contracts/runtime-ports", features = ["plugin-runtime"] }
+bitfun-services-core = { path = "../../services/services-core" }
 hex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -24,6 +25,7 @@ serde_yaml = { workspace = true }
 sha2 = { workspace = true }
 urlencoding = { workspace = true }
 url = { workspace = true }
+zstd = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

@@ -244,7 +244,9 @@ pub(crate) fn inference_classes(
     };
     let auth = auth.map(|value| match value {
         AuthConfig::ApiKey => InferenceAuthClass::ApiKey,
-        AuthConfig::Subscription { .. } => InferenceAuthClass::Subscription,
+        AuthConfig::Subscription { .. } | AuthConfig::SubscriptionPool { .. } => {
+            InferenceAuthClass::Subscription
+        }
     });
     (provider, model_class(category), protocol, auth)
 }

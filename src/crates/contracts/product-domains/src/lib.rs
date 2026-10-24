@@ -16,6 +16,8 @@ pub mod product_release;
 pub mod product_search;
 pub mod qt_migration;
 pub mod remote_surface;
+#[cfg(feature = "external-sources")]
+pub mod session_import;
 pub mod tool_permissions;
 pub mod user_questions;
 

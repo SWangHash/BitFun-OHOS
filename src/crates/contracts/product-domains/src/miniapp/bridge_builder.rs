@@ -163,6 +163,9 @@ pub fn build_bridge_script(
     // per-run virtual read-only snapshot.
     agent: {{
       ensureSession:  (opts) => _rpc('agent.ensureSession', opts || {{}}),
+      // Explicit fresh conversation. Uses the existing host operation, so it
+      // also works across older peers. Existing sessions/history are retained.
+      createSession:  (opts) => _rpc('agent.ensureSession', {{ ...(opts || {{}}), sessionId: undefined }}),
       run:            (prompt, opts) => _rpc('agent.run', {{ prompt, ...(opts || {{}}) }}),
       cancel:         (sessionId, turnId) => _rpc('agent.cancel', {{ sessionId, turnId }}),
       turnText:       (sessionId, turnId) => _rpc('agent.turnText', {{ sessionId, turnId }}),
@@ -201,6 +204,12 @@ pub fn build_bridge_script(
       // until MiniApp post-processing and any Agent retries have completed.
       onUserMessage:   (fn) => app.on('chat:userMessage', fn),
       offUserMessage:  (fn) => app.off('chat:userMessage', fn),
+    }},
+
+    // Per-app titlebar actions are delivered only to this content view.
+    chrome: {{
+      onAction: (fn) => app.on('chrome:action', fn),
+      offAction: (fn) => app.off('chrome:action', fn),
     }},
 
     // Clipboard namespace — proxies to host navigator.clipboard (bypasses sandbox restriction).

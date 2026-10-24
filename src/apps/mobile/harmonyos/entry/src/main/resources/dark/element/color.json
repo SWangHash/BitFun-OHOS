@@ -13,6 +13,10 @@
       "value": "#151514"
     },
     {
+      "name": "welcome_page_bg",
+      "value": "#252522"
+    },
+    {
       "name": "page_bg_fade",
       "value": "#00151514"
     },
@@ -133,6 +137,42 @@
       "value": "#1E1E1C"
     },
     {
+      "name": "sidebar_bg",
+      "value": "#0E0E10"
+    },
+    {
+      "name": "sidebar_bg_fade",
+      "value": "#000E0E10"
+    },
+    {
+      "name": "sidebar_raised",
+      "value": "#1C1C1F"
+    },
+    {
+      "name": "sidebar_line",
+      "value": "#1FFFFFFF"
+    },
+    {
+      "name": "sidebar_hover",
+      "value": "#0FFFFFFF"
+    },
+    {
+      "name": "sidebar_selection",
+      "value": "#1FFFFFFF"
+    },
+    {
+      "name": "sidebar_ink",
+      "value": "#E8E8E8"
+    },
+    {
+      "name": "sidebar_muted",
+      "value": "#B0B0B0"
+    },
+    {
+      "name": "sidebar_subtle",
+      "value": "#858585"
+    },
+    {
       "name": "status_success",
       "value": "#3BD47B"
     },
@@ -186,7 +226,7 @@
     },
     {
       "name": "welcome_dock",
-      "value": "#171917"
+      "value": "#000000"
     },
     {
       "name": "welcome_button",

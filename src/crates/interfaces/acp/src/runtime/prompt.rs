@@ -5,13 +5,13 @@ use agent_client_protocol::schema::{
     SessionUpdate, StopReason,
 };
 use agent_client_protocol::{Client, ConnectionTo, Error, Result};
-use log::warn;
 use bitfun_agent_runtime::sdk::{
     AgentDialogTurnRequest, AgentSessionEventReceiver, AgentSubmissionSource,
     AgentTurnCancellationRequest, DialogSubmissionPolicy, DialogSubmitOutcome, PermissionReply,
     PermissionRequest, PermissionRequestEvent, PermissionRequestEventReceiver,
 };
 use bitfun_events::AgenticEvent as CoreEvent;
+use log::warn;
 use serde_json::json;
 use tokio::sync::broadcast;
 
@@ -494,11 +494,8 @@ mod tests {
 
     #[test]
     fn cancellation_request_keeps_bounded_wait_and_active_turn_semantics() {
-        let request = turn_cancellation_request(
-            &session().bitfun_session_id,
-            None,
-            "acp_client_cancelled",
-        );
+        let request =
+            turn_cancellation_request(&session().bitfun_session_id, None, "acp_client_cancelled");
 
         assert_eq!(request.session_id, "bitfun-session");
         assert_eq!(request.turn_id, None);
@@ -513,11 +510,8 @@ mod tests {
             turn_id: "turn-queued".to_string(),
         })
         .expect_err("queued prompt must not be treated as started");
-        let cancellation = turn_cancellation_request(
-            "bitfun-session",
-            Some(&queued_turn_id),
-            "acp_busy_rejected",
-        );
+        let cancellation =
+            turn_cancellation_request("bitfun-session", Some(&queued_turn_id), "acp_busy_rejected");
 
         assert_eq!(cancellation.turn_id.as_deref(), Some("turn-queued"));
         assert_eq!(cancellation.reason.as_deref(), Some("acp_busy_rejected"));
@@ -543,6 +537,7 @@ mod tests {
             success: Some(true),
             finish_reason: None,
             has_final_response: Some(true),
+            background_delivery: None,
         };
 
         assert!(prompt_event_matches_turn(&current, "turn-current"));

@@ -130,10 +130,8 @@ impl AppManagementService {
             }
         }
         let mut subscription =
-            match bitfun_core::external_sources::subscribe_external_source_updates(Some(
-                workspace,
-            ))
-            .await
+            match bitfun_core::external_sources::subscribe_external_source_updates(Some(workspace))
+                .await
             {
                 Ok(subscription) => subscription,
                 Err(error) => {
@@ -190,8 +188,7 @@ fn external_source_string_error(error: String) -> AppManagementError {
 }
 
 fn external_source_string_error_with_id(error: String, operation_id: &str) -> AppManagementError {
-    let mut typed =
-        bitfun_core::external_sources::sanitize_external_source_operation_error(error);
+    let mut typed = bitfun_core::external_sources::sanitize_external_source_operation_error(error);
     if typed.correlation_id.is_none() {
         typed = typed.with_correlation_id(operation_id);
     } else if typed.causation_id.is_none() {
@@ -456,6 +453,7 @@ fn model_from_mutation(
         custom_request_body,
         custom_request_body_mode: current.custom_request_body_mode,
         auth: current.auth,
+        channel_routing: current.channel_routing,
     })
 }
 
@@ -994,8 +992,7 @@ impl AppManagementService {
         let operation_id = request.operation_id.clone();
         let result = match request.action {
             ExternalSourceReviewAction::Refresh => {
-                bitfun_core::external_sources::external_source_snapshot(Some(workspace), true)
-                    .await
+                bitfun_core::external_sources::external_source_snapshot(Some(workspace), true).await
             }
             ExternalSourceReviewAction::SetPromptCommandConflictChoice {
                 conflict_key,
@@ -1100,22 +1097,21 @@ impl AppManagementService {
     ) -> AppManagementResult<SetNativeCommandChoiceResponse> {
         validate_external_operation(&request.operation_id)?;
         let operation_id = request.operation_id.clone();
-        let conflicts =
-            bitfun_core::external_sources::set_native_prompt_command_conflict_choice(
-                Some(
-                    &resolve_management_workspace(
-                        request.workspace_id.as_deref(),
-                        &request.workspace_path,
-                    )
-                    .await?
-                    .id,
-                ),
-                request.native_commands,
-                &request.selected_candidate_id,
-                request.expected_preference_revision,
-            )
-            .await
-            .map_err(|error| external_source_string_error_with_id(error, &operation_id))?;
+        let conflicts = bitfun_core::external_sources::set_native_prompt_command_conflict_choice(
+            Some(
+                &resolve_management_workspace(
+                    request.workspace_id.as_deref(),
+                    &request.workspace_path,
+                )
+                .await?
+                .id,
+            ),
+            request.native_commands,
+            &request.selected_candidate_id,
+            request.expected_preference_revision,
+        )
+        .await
+        .map_err(|error| external_source_string_error_with_id(error, &operation_id))?;
         Ok(SetNativeCommandChoiceResponse {
             conflicts,
             preferences: external_source_preferences().await?,
@@ -1330,8 +1326,7 @@ impl AppManagementService {
         let workspace = bitfun_core::agentic::workspace::WorkspaceBinding::resolve(&record.id)
             .await
             .map_err(core_error)?;
-        let registry =
-            bitfun_core::agentic::tools::implementations::skills::get_skill_registry();
+        let registry = bitfun_core::agentic::tools::implementations::skills::get_skill_registry();
         let skills = if request.manageable {
             registry
                 .get_mode_skill_infos_for_workspace(
@@ -1738,6 +1733,7 @@ fn project_account_snapshot(
                 device_os_version: device.device_os_version,
                 device_client_version: device.device_client_version,
                 device_client_protocol: device.device_client_protocol,
+                device_kind: None,
                 compatible: device.compatible,
                 online: device.online,
             })

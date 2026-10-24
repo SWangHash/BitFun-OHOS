@@ -3,7 +3,8 @@ members = [
     "src/apps/cli",
     "src/apps/sdk-host",
     "src/apps/desktop",
-    "src/apps/data-migrator",
+    "src/apps/miniapp-shell",
+    "src/apps/data-tools",
     "src/apps/server",
     "src/apps/relay-server",
     "src/apps/miniapp-market-server",
@@ -14,6 +15,7 @@ members = [
     "src/crates/interfaces/app-server-protocol",
     "src/crates/interfaces/sdk-host",
     "src/crates/adapters/agent-runtime-ipc",
+    "src/crates/adapters/miniapp-ipc",
     "src/crates/assembly/agent-content",
     "src/crates/assembly/core",
     "src/crates/assembly/external-sources",
@@ -25,6 +27,8 @@ members = [
     "src/crates/adapters/claude-code-adapter",
     "src/crates/adapters/deveco-code-adapter",
     "src/crates/adapters/codex-adapter",
+    "src/crates/adapters/cursor-adapter",
+    "src/crates/adapters/zcode-adapter",
     "src/crates/adapters/matrix-adapter",
     "src/crates/adapters/static-hook-support",
     "src/crates/adapters/webdriver",
@@ -61,6 +65,8 @@ members = [
 exclude = [
     "BitFun-Installer/src-tauri",
     "third_party/eioc",
+    "third_party/tao",
+    "third_party/wry",
 ]
 
 resolver = "2"
@@ -105,6 +111,8 @@ serde_yaml = "0.9"
 
 # Document conversion
 anydoc = "=0.1.6"
+pdf-inspector = { version = "1.17.0", default-features = false }
+roxmltree = { version = "0.21.1", default-features = false }
 
 # TypeScript binding generation (schema-first; gated by per-crate `ts` features)
 ts-rs = { version = "12", features = ["serde-json-impl", "no-serde-warnings"] }
@@ -364,3 +372,12 @@ lto = false
 codegen-units = 16
 strip = false
 incremental = true
+
+# Build the window-only sidecar independently, including during Desktop dev.
+# Never inherit Desktop's large debug artifact or its unified dependency features.
+[profile.miniapp-shell]
+inherits = "release"
+opt-level = "z"
+lto = "fat"
+debug = false
+strip = true
