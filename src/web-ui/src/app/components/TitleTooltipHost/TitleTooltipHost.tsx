@@ -35,6 +35,7 @@ export const TitleTooltipHost: React.FC = () => {
     let showTimer: number | undefined;
     let settleTimer: number | undefined;
     let scrolling = false;
+    const observer = new MutationObserver(handleTargetRemoval);
 
     const hide = (): void => {
       if (showTimer !== undefined) {
@@ -47,9 +48,9 @@ export const TitleTooltipHost: React.FC = () => {
     };
 
     // Monaco can replace a hovered gutter action without emitting mouseout.
-    const observer = new MutationObserver(() => {
+    function handleTargetRemoval(): void {
       if (target && !target.isConnected) hide();
-    });
+    }
 
     const show = (): void => {
       showTimer = undefined;

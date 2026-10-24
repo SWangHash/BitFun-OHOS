@@ -272,7 +272,7 @@ export function Tooltip({
       if (followCursor) {
         setMousePosition(latestMousePositionRef.current);
       }
-      setLayout((prev) => (prev.ready ? { ...prev, ready: false } : prev));
+      // Closing resets layout; repeated hover/focus opens keep its measurement.
       setVisible(true);
     }, openDelay);
   }, [disabled, followCursor, onBeforeShow, resolvedDelayMs, tooltipId, trigger, triggerRef]);

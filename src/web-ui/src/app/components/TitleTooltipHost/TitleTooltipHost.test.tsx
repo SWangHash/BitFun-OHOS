@@ -112,6 +112,9 @@ describe('TitleTooltipHost', () => {
     await advance(200);
 
     await act(async () => button.remove());
+    // Reconnecting the same node must not revive the hover that removal cancelled.
+    // Otherwise the delayed isConnected guard alone would make this test pass.
+    fixture.append(button);
     await advance(1_000);
 
     expect(visibleTooltip()).toBeNull();
