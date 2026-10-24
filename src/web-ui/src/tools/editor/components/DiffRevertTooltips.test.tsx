@@ -140,6 +140,18 @@ describe('DiffRevertTooltips', () => {
       await advance(450);
       await advance(16);
       expect(tooltip()?.textContent).toBe('撤销此处更改');
+      // Focus activation and a later mouse enter can both request the same hint.
+      // Wait past either delayed opening so an invisible retained portal cannot pass.
+      await advance(1_000);
+      expect(tooltip()?.textContent).toBe('撤销此处更改');
+      await hover(button);
+      await advance(1_000);
+      expect(tooltip()?.textContent).toBe('撤销此处更改');
+      expect(button.getAttribute('aria-describedby')).toBe(tooltip()?.id);
+      expect(document.querySelector('[data-bitfun-component="title-tooltip"][data-visible="true"]')).toBeNull();
+
+      await act(async () => button.dispatchEvent(new MouseEvent('mouseleave')));
+      expect(tooltip()).not.toBeNull();
       await act(async () => button.blur());
       expect(tooltip()).toBeNull();
     },
