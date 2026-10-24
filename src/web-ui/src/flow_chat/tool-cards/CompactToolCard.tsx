@@ -16,7 +16,6 @@ import { FLOWCHAT_COLLAPSE_DURATION_MS } from '../components/modern/flowChatColl
 import { ToolCardIconSlot } from './ToolCardIconSlot';
 import { ToolCardStatusIcon } from './ToolCardStatusIcon';
 import type { ToolCardHeaderAffordanceKind } from './ToolCardHeaderLayoutContext';
-import './CompactToolCard.scss';
 
 export interface CompactToolCardProps {
   /** Tool status */

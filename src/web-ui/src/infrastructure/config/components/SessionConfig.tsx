@@ -54,8 +54,6 @@ import { ask } from '@tauri-apps/plugin-dialog';
 import { workspaceAPI } from '@/infrastructure/api';
 import { createLogger } from '@/shared/utils/logger';
 import { usePeerDeviceModeOptional } from '@/infrastructure/peer-device/peerDeviceContextState';
-import './AIFeaturesConfig.scss';
-import './DebugConfig.scss';
 
 const log = createLogger('SessionSettingsPanels');
 

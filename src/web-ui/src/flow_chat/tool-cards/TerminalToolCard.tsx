@@ -34,7 +34,6 @@ import { CopyableTextPreview } from '../components/CopyableTextPreview';
 import { formatSessionViewPreviewText } from '../utils/sessionViewPreview';
 import { api } from '@/infrastructure/api/service-api/ApiClient';
 import { usePeerDeviceModeOptional } from '@/infrastructure/peer-device/peerDeviceContextState';
-import './TerminalToolCard.scss';
 
 const log = createLogger('TerminalToolCard');
 const TERMINAL_COLLAPSED_STATUSES = new Set(['completed', 'cancelled', 'error', 'rejected']);

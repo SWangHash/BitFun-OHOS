@@ -46,7 +46,6 @@ import {
   ConfigPageRow,
   ConfigPageSection,
 } from './common';
-import './WorktreesConfig.scss';
 
 const AUTO_DELETE_LIMIT_MIN = 1;
 const AUTO_DELETE_LIMIT_MAX = 100;

@@ -37,7 +37,6 @@ import type {
   TerminalConfig as TerminalSettings,
   TerminalPanelPosition,
 } from '../types';
-import './BasicsConfig.scss';
 
 const log = createLogger('BasicsConfig');
 
