@@ -74,6 +74,7 @@ vi.mock('@bitfun/ui', async importOriginal => ({
     onSecondary,
     open,
     secondaryText,
+    showConfirm = true,
     title,
   }: {
     cancelText?: string;
@@ -84,14 +85,15 @@ vi.mock('@bitfun/ui', async importOriginal => ({
     onSecondary?: () => void;
     open: boolean;
     secondaryText?: string;
+    showConfirm?: boolean;
     title: string;
   }) => open ? (
     <div role="dialog">
       <h2>{title}</h2>
       <div>{message}</div>
-      <button type="button" data-testid="confirm-install" onClick={onConfirm}>
+      {showConfirm ? <button type="button" data-testid="confirm-install" onClick={onConfirm}>
         {confirmText}
-      </button>
+      </button> : null}
       {onSecondary ? <button type="button" onClick={onSecondary}>{secondaryText}</button> : null}
       <button type="button" data-testid="cancel-dialog" onClick={() => onOpenChange(false)}>{cancelText ?? 'Cancel'}</button>
     </div>
@@ -327,9 +329,11 @@ describe('AcpAgentsConfig', () => {
     installClientCliMock.mockResolvedValue({ clientId: 'opencode', status: 'cli_installed' });
     cancelClientInstallMock.mockResolvedValue({ clientId: 'opencode', status: 'cancellation_requested' });
     predownloadClientAdapterMock.mockResolvedValue(undefined);
+    const progressCallbacks = new Set<(progress: AcpManagedProvisioningProgress) => void>();
     onManagedProvisioningProgressMock.mockImplementation((callback) => {
-      emitManagedProvisioningProgress = callback;
-      return () => undefined;
+      progressCallbacks.add(callback);
+      emitManagedProvisioningProgress = progress => progressCallbacks.forEach(listener => listener(progress));
+      return () => { progressCallbacks.delete(callback); };
     });
 
     container = document.createElement('div');
@@ -880,22 +884,13 @@ describe('AcpAgentsConfig', () => {
   });
 
   it('does not retain an installing label after managed provisioning fails', async () => {
-    await act(async () => {
-      root.render(<AcpAgentsConfig />);
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    act(() => {
-      emitManagedProvisioningProgress?.({
-        clientId: 'opencode',
-        stage: 'failed',
-        percent: 100,
-      });
-    });
-
+    const finish = await beginManagedInstall();
+    expect(emitManagedProvisioningProgress).toBeTypeOf('function');
+    act(() => emitManagedProvisioningProgress!({ clientId: 'kimi-code', stage: 'installing', percent: 40 }));
+    expect(container.textContent).toContain('provisioning.installing');
+    act(() => emitManagedProvisioningProgress!({ clientId: 'kimi-code', stage: 'failed', percent: 100 }));
     expect(container.textContent).not.toContain('provisioning.installing');
+    await finish({ installError: 'Setup failed' });
   });
 
   it('omits the redundant CLI capability column from local agent rows', async () => {
@@ -1190,7 +1185,11 @@ describe('AcpAgentsConfig', () => {
     const add = Array.from(kimiRow.querySelectorAll('button')).find(button => button.textContent === 'actions.add')!;
     await act(async () => add.click());
     await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="confirm-install"]')!.click());
-    const complete = async (options: { failConfigRefresh?: boolean; installError?: string } = {}) => {
+    const complete = async (options: {
+      failConfigRefresh?: boolean;
+      installError?: string;
+      notifyClientsChanged?: boolean;
+    } = {}) => {
       loadJsonConfigMock.mockResolvedValue(JSON.stringify({ acpClients: {
         ...original.acpClients,
         'kimi-code': {
@@ -1206,7 +1205,7 @@ describe('AcpAgentsConfig', () => {
           fail(new Error(options.installError));
           return;
         }
-        window.dispatchEvent(new Event('bitfun:acp-clients-changed'));
+        if (options.notifyClientsChanged ?? true) window.dispatchEvent(new Event('bitfun:acp-clients-changed'));
         finish({ clientId: 'kimi-code', status: 'managed_ready' });
       });
     };
@@ -1237,6 +1236,9 @@ describe('AcpAgentsConfig', () => {
     // Closing still protects unsaved edits rather than silently discarding them.
     await act(async () => manager.current?.requestClose());
     expect(container.textContent).toContain('settings:changeGuard.title');
+    expect(container.textContent).toContain('provisioning.saveAfterSetup');
+    expect(Array.from(container.querySelectorAll('button'))
+      .find(button => button.textContent === 'settings:changeGuard.saveAndLeave')).toBeUndefined();
     expect(onClose).toHaveBeenCalledOnce();
     const keepEditing = Array.from(container.querySelectorAll('button'))
       .find(button => button.textContent === 'settings:changeGuard.keepEditing')!;
@@ -1252,38 +1254,98 @@ describe('AcpAgentsConfig', () => {
     expect(installClientCliMock).toHaveBeenCalledOnce();
     if (outcome === 'failure') expect(notifyErrorMock).toHaveBeenCalledWith('Setup failed', expect.anything());
     else expect(notifySuccessMock).toHaveBeenCalledWith('notifications.managedAddSuccess');
+    await act(async () => manager.current?.requestClose());
+    const saveAndLeave = Array.from(container.querySelectorAll('button'))
+      .find(button => button.textContent === 'settings:changeGuard.saveAndLeave');
+    expect(saveAndLeave).toBeDefined();
+    await act(async () => saveAndLeave!.click());
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
+  it('refreshes the initiating manager after setup finishes while another device is rendered', async () => {
+    const finish = await beginManagedInstall();
+    const { activateSurface, LOCAL_SURFACE_ID } = await import('@/infrastructure/peer-device/deviceSurface');
+    try {
+      await selectPermission(container, 'allow_once');
+      const loads = loadJsonConfigMock.mock.calls.length;
+      await act(async () => { activateSurface('peer-a'); });
+      await finish({ notifyClientsChanged: false });
+      expect(loadJsonConfigMock).toHaveBeenCalledTimes(loads);
+      await act(async () => { activateSurface(LOCAL_SURFACE_ID); });
+      expect(loadJsonConfigMock.mock.calls.length).toBeGreaterThan(loads);
+      await openView(container, 'views.json');
+      const config = JSON.parse(container.querySelector<HTMLTextAreaElement>('[data-bitfun-part="jsonEditor"]')!.value);
+      expect(config.acpClients['kimi-code'].localOverride.command).toBe('/managed/node');
+      expect(config.acpClients.opencode.permissionMode).toBe('allow_once');
+    } finally {
+      await act(async () => root.render(null));
+      activateSurface(LOCAL_SURFACE_ID);
+    }
   });
 
   it('isolates pending setup by device surface and SSH host while deduplicating the same client', async () => {
     vi.resetModules();
     const { beginAcpProvisioning, useAcpProvisioningState } = await import('../acpProvisioningState');
     const { activateSurface, getActiveSurfaceScope, LOCAL_SURFACE_ID } = await import('@/infrastructure/peer-device/deviceSurface');
+    const { PEER_EVENT_SOURCE_KEY, routeSurfaceEvent, setActiveSurfaceDeviceId } = await import('@/infrastructure/peer-device/deviceSurfaceRouting');
     const owner = Symbol('test-manager');
     const local = getActiveSurfaceScope();
-    const pendingLocal = beginAcpProvisioning(local, owner, { clientId: 'opencode', managed: false })!;
-    const Observer = () => <span>{useAcpProvisioningState().operations.length}</span>;
-    let pendingPeer: ReturnType<typeof beginAcpProvisioning>;
-    let pendingSsh: ReturnType<typeof beginAcpProvisioning>;
+    let pendingLocal = beginAcpProvisioning(local, owner, { clientId: 'opencode', managed: true });
+    let observed: ReturnType<typeof useAcpProvisioningState> | undefined;
+    const Observer = () => {
+      observed = useAcpProvisioningState();
+      return <span>{observed.operations.length}</span>;
+    };
+    const activate = (surfaceId: string) => activateSurface(surfaceId, () => {
+      setActiveSurfaceDeviceId(surfaceId === LOCAL_SURFACE_ID ? null : surfaceId);
+    });
+    const emitProgress = (percent: number, sourceDeviceId?: string) => {
+      const payload = { clientId: 'opencode', stage: 'installing' as const, percent,
+        ...(sourceDeviceId ? { [PEER_EVENT_SOURCE_KEY]: sourceDeviceId } : {}) };
+      const routed = routeSurfaceEvent('agentic://acp-provisioning-progress', payload);
+      if (routed.deliver) emitManagedProvisioningProgress!(routed.payload);
+    };
+    const progress = () => observed?.operations.find(operation => !operation.remoteConnectionId)?.progress?.percent;
+    let pendingPeer: ReturnType<typeof beginAcpProvisioning> | undefined;
+    let pendingSsh: ReturnType<typeof beginAcpProvisioning> | undefined;
     try {
       await act(async () => root.render(<Observer />));
       expect(container.textContent).toBe('1');
-      expect(beginAcpProvisioning(local, owner, { clientId: 'opencode', managed: false })).toBeNull();
-      await act(async () => { activateSurface('peer-a'); });
+      expect(beginAcpProvisioning(local, owner, { clientId: 'opencode', managed: true })).toBeNull();
+      await act(async () => emitProgress(40));
+      expect(progress()).toBe(40);
+      await act(async () => { activate(LOCAL_SURFACE_ID); emitProgress(55); });
+      expect(progress()).toBe(55);
+      await act(async () => { activate('peer-a'); });
       expect(container.textContent).toBe('0');
       await act(async () => {
-        pendingPeer = beginAcpProvisioning(getActiveSurfaceScope(), owner, { clientId: 'opencode', managed: false });
+        pendingPeer = beginAcpProvisioning(getActiveSurfaceScope(), owner, { clientId: 'opencode', managed: true });
         pendingSsh = beginAcpProvisioning(getActiveSurfaceScope(), owner, { clientId: 'opencode', remoteConnectionId: 'ssh-a', managed: false });
+        emitProgress(70, 'peer-a');
       });
       expect(container.textContent).toBe('2');
-      await act(async () => { activateSurface(LOCAL_SURFACE_ID); });
+      expect(progress()).toBe(70);
+      await act(async () => emitProgress(90));
+      expect(progress()).toBe(70);
+      await act(async () => { activate(LOCAL_SURFACE_ID); emitProgress(80); });
       expect(container.textContent).toBe('1');
-      await act(async () => { pendingPeer?.finish(); pendingSsh?.finish(); });
+      expect(progress()).toBe(80);
+      await act(async () => { activate('peer-a'); });
+      expect(progress()).toBe(70);
+      await act(async () => { activate(LOCAL_SURFACE_ID); });
+      await act(async () => {
+        pendingPeer?.finish(); pendingPeer = undefined;
+        pendingSsh?.finish(); pendingSsh = undefined;
+      });
       expect(container.textContent).toBe('1');
-      await act(async () => pendingLocal.finish());
+      await act(async () => { pendingLocal?.finish(); pendingLocal = null; });
       expect(container.textContent).toBe('0');
     } finally {
       await act(async () => root.render(null));
-      activateSurface(LOCAL_SURFACE_ID);
+      pendingLocal?.finish();
+      pendingPeer?.finish();
+      pendingSsh?.finish();
+      activate(LOCAL_SURFACE_ID);
     }
   });
 

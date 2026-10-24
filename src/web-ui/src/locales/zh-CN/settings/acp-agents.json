@@ -164,7 +164,8 @@
     "notReady": "依赖缺失"
   },
   "provisioning": {
-    "installing": "安装中"
+    "installing": "安装中",
+    "saveAfterSetup": "智能体仍在安装配置中。你可以继续编辑或不保存离开，安装配置完成后即可保存。"
   },
   "notifications": {
     "draftConflict": "ACP 配置已更新，已保留你的未保存修改。请在保存前检查冲突字段。",

@@ -17,7 +17,7 @@ interface ProvisioningOperation {
 
 interface ProvisioningSnapshot {
   operations: readonly ProvisioningOperation[];
-  completion?: { owner: symbol; revision: number };
+  completion?: { owner: symbol; ownerHandled: boolean; revision: number };
 }
 
 const emptySnapshot: ProvisioningSnapshot = { operations: [] };
@@ -56,14 +56,14 @@ export function beginAcpProvisioning(
   scope: SurfaceScope,
   owner: symbol,
   options: { clientId: string; remoteConnectionId?: string; managed: boolean },
-): { finish: () => void } | null {
+): { finish: (options?: { ownerHandled?: boolean }) => void } | null {
   const key = surfaceScopedKey(scope.surfaceId, options.remoteConnectionId, options.clientId);
   const snapshot = snapshotFor(scope.surfaceId);
   if (snapshot.operations.some(operation => operation.key === key)) return null;
   publish(scope.surfaceId, { ...snapshot, operations: [...snapshot.operations, { ...options, key }] });
   // Register for the operation's lifetime, including while no dialog is mounted.
   const unsubscribe = options.managed ? ACPClientAPI.onManagedProvisioningProgress(progress => {
-    if (!scope.isCurrent() || progress.clientId !== options.clientId) return;
+    if (getActiveSurfaceId() !== scope.surfaceId || progress.clientId !== options.clientId) return;
     const current = snapshotFor(scope.surfaceId);
     const terminal = ['ready', 'cancelled', 'failed'].includes(progress.stage);
     publish(scope.surfaceId, {
@@ -73,12 +73,12 @@ export function beginAcpProvisioning(
     });
   }) : undefined;
   return {
-    finish: () => {
+    finish: ({ ownerHandled = false } = {}) => {
       unsubscribe?.();
       const current = snapshotFor(scope.surfaceId);
       publish(scope.surfaceId, {
         operations: current.operations.filter(operation => operation.key !== key),
-        completion: { owner, revision: ++completionRevision },
+        completion: { owner, ownerHandled, revision: ++completionRevision },
       });
     },
   };

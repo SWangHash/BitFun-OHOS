@@ -520,6 +520,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
   const [registrySearch, setRegistrySearch] = useState('');
   const [registryFilter, setRegistryFilter] = useState<RegistryFilter>('all');
   const provisioning = useAcpProvisioningState();
+  const managedSetupPending = provisioning.operations.some(operation => operation.managed);
   const installingClientIds = useMemo(() => new Set(provisioning.operations
     .filter(operation => !operation.remoteConnectionId).map(operation => operation.clientId)), [provisioning]);
   const installingRemoteClientIds = useMemo(() => new Set(provisioning.operations
@@ -902,8 +903,8 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
     const completion = provisioning.completion;
     if (!completion || completion.revision === observedCompletionRef.current) return;
     observedCompletionRef.current = completion.revision;
-    if (completion.owner === provisioningOwnerRef.current) return;
-    // Another, now-unmounted manager may have started this installation.
+    if (completion.owner === provisioningOwnerRef.current && completion.ownerHandled) return;
+    // The initiating manager may have unmounted or skipped refresh after a surface change.
     managedConfigRefreshPendingRef.current = true;
     invalidateRemoteRequirementProbes();
     void loadConfig({ showLoading: false, preserveDrafts: true }).then(loaded => {
@@ -1010,6 +1011,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
     });
     if (!operation) return;
     if (managed) managedConfigRefreshPendingRef.current = true;
+    let ownerHandled = false;
     try {
       const outcome = await ACPClientAPI.installClientCli({
         clientId: preset.id,
@@ -1029,6 +1031,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
         await refreshRequirementProbes({ force: true, notifyOnError: false });
       }
       if (!scope.isCurrent()) return;
+      ownerHandled = mountedRef.current;
       notifySuccess(t(
         outcome.status === 'managed_ready'
           ? 'notifications.managedAddSuccess'
@@ -1036,6 +1039,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
       ));
     } catch (error) {
       if (!scope.isCurrent()) return;
+      ownerHandled = mountedRef.current;
       if (managed) managedConfigRefreshPendingRef.current = true;
       const message = error instanceof Error ? error.message : String(error);
       if (message.includes('ACP_PROVISIONING_CANCELLED')) {
@@ -1047,7 +1051,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
         title: t('notifications.installFailed'),
       });
     } finally {
-      operation.finish();
+      operation.finish({ ownerHandled });
     }
   };
 
@@ -1078,6 +1082,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
       clientId: preset.id, managed: false,
     });
     if (!operation) return;
+    let ownerHandled = false;
     try {
       await ACPClientAPI.predownloadClientAdapter({
         clientId: preset.id,
@@ -1085,15 +1090,17 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
       if (!scope.isCurrent()) return;
       if (mountedRef.current) await refreshRequirementProbes({ force: true, notifyOnError: false });
       if (!scope.isCurrent()) return;
+      ownerHandled = mountedRef.current;
       notifySuccess(t('notifications.configureSuccess'));
     } catch (error) {
       if (!scope.isCurrent()) return;
+      ownerHandled = mountedRef.current;
       log.error('Failed to predownload ACP adapter', error);
       notifyError(desktopDomainErrorMessage(error instanceof Error ? error.message : String(error), t), {
         title: t('notifications.configureFailed'),
       });
     } finally {
-      operation.finish();
+      operation.finish({ ownerHandled });
     }
   };
 
@@ -2441,7 +2448,8 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
           onClose?.();
         }}
         title={t('settings:changeGuard.title')}
-        message={t('settings:changeGuard.message')}
+        message={managedSetupPending ? t('provisioning.saveAfterSetup') : t('settings:changeGuard.message')}
+        showConfirm={!managedSetupPending}
         confirmText={t('settings:changeGuard.saveAndLeave')}
         secondaryText={t('settings:changeGuard.discardAndLeave')}
         cancelText={t('settings:changeGuard.keepEditing')}
