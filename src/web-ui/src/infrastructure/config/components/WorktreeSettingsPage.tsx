@@ -151,7 +151,17 @@ function waitFor(ms: number): Promise<void> {
     : Promise.resolve();
 }
 
-const WorktreeSettingsPage: React.FC = () => {
+export interface WorktreeSettingsPageProps {
+  /**
+   * Render only the page body so the page can be composed inside another
+   * settings page. The composer owns layout, header, and section anchors.
+   */
+  embedded?: boolean;
+}
+
+const WorktreeSettingsPage: React.FC<WorktreeSettingsPageProps> = ({
+  embedded = false,
+}) => {
   const { t } = useI18n('worktrees');
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [trustedSettings, setTrustedSettings] = useState<WorktreeSettings | null>(null);
@@ -324,7 +334,7 @@ const WorktreeSettingsPage: React.FC = () => {
 
   useSettingsDraft({
     id: 'worktree-settings',
-    pageId: 'workspace.worktrees',
+    pageId: 'development.workspace',
     label: t('settings.title'),
     dirty: settingsDirty,
     saving,
@@ -783,6 +793,97 @@ const WorktreeSettingsPage: React.FC = () => {
     return t('management.delete.message');
   })();
 
+  const settingsContent = (
+    <>
+      {renderSettings()}
+      <ConfigPageSection
+        className="bitfun-worktree-settings__management-section"
+        bodySurface={false}
+        title={t('management.title')}
+        description={t('management.description')}
+        extra={(
+          <ConfigRefreshButton
+            tooltip={t('management.refresh')}
+            onClick={() => void loadProjects()}
+            loading={projectsLoading}
+            disabled={deletingWorktreeId !== null}
+            testId="worktrees-management-refresh-btn"
+          />
+        )}
+      >
+        <ConfigMessage message={projectsMessage} />
+        {projectsMessage?.type === 'error' && projects.length === 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void loadProjects()}
+          >
+            {t('management.retry')}
+          </Button>
+        )}
+        <div
+          ref={projectsResultsRef}
+          data-bitfun-component="worktree-settings"
+          data-bitfun-part="results"
+          className={[
+            'bitfun-worktree-settings__results',
+            projectsLoading
+              && projectsInitialized
+              && 'bitfun-worktree-settings__results--refreshing',
+          ].filter(Boolean).join(' ')}
+          aria-busy={projectsLoading}
+        >
+          {projectsLoading && projectsInitialized && (
+            <>
+              <div
+                className="bitfun-worktree-settings__refresh-progress"
+                aria-hidden="true"
+              >
+                <span />
+              </div>
+              <span className="bitfun-sr-only" role="status">
+                {t('management.loading')}
+              </span>
+            </>
+          )}
+          {renderProjects()}
+        </div>
+      </ConfigPageSection>
+    </>
+  );
+
+  const deleteDialog = (
+    <ConfirmDialog
+      open={deleteTarget !== null}
+      onOpenChange={() => setDeleteTarget(null)}
+      onConfirm={() => void confirmDelete()}
+      title={deletingWithLocalWork
+        ? t('management.delete.forceTitle')
+        : t('management.delete.title')}
+      message={deleteMessage}
+      preview={deleteTarget?.worktree.path}
+      type={deletingWithLocalWork ? 'error' : 'warning'}
+      confirmDanger
+      confirmText={deletingWithLocalWork
+        ? t('management.delete.forceAction')
+        : t('management.delete.action')}
+      cancelText={t('management.delete.cancel')}
+    />
+  );
+
+  if (embedded) {
+    return (
+      <div
+        className="bitfun-worktree-settings bitfun-worktree-settings--embedded"
+        data-bitfun-component="worktree-settings"
+        data-bitfun-part="root"
+      >
+        {settingsContent}
+        {deleteDialog}
+      </div>
+    );
+  }
+
   return (
     <ConfigPageLayout
       className="bitfun-worktree-settings"
@@ -794,79 +895,8 @@ const WorktreeSettingsPage: React.FC = () => {
         title={t('settings.title')}
         subtitle={t('settings.description')}
       />
-      <ConfigPageContent>
-        {renderSettings()}
-        <ConfigPageSection
-          className="bitfun-worktree-settings__management-section"
-          bodySurface={false}
-          title={t('management.title')}
-          description={t('management.description')}
-          extra={(
-            <ConfigRefreshButton
-              tooltip={t('management.refresh')}
-              onClick={() => void loadProjects()}
-              loading={projectsLoading}
-              disabled={deletingWorktreeId !== null}
-              testId="worktrees-management-refresh-btn"
-            />
-          )}
-        >
-          <ConfigMessage message={projectsMessage} />
-          {projectsMessage?.type === 'error' && projects.length === 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void loadProjects()}
-            >
-              {t('management.retry')}
-            </Button>
-          )}
-          <div
-            ref={projectsResultsRef}
-            data-bitfun-component="worktree-settings"
-            data-bitfun-part="results"
-            className={[
-              'bitfun-worktree-settings__results',
-              projectsLoading
-                && projectsInitialized
-                && 'bitfun-worktree-settings__results--refreshing',
-            ].filter(Boolean).join(' ')}
-            aria-busy={projectsLoading}
-          >
-            {projectsLoading && projectsInitialized && (
-              <>
-                <div
-                  className="bitfun-worktree-settings__refresh-progress"
-                  aria-hidden="true"
-                >
-                  <span />
-                </div>
-                <span className="bitfun-sr-only" role="status">
-                  {t('management.loading')}
-                </span>
-              </>
-            )}
-            {renderProjects()}
-          </div>
-        </ConfigPageSection>
-      </ConfigPageContent>
-
-      <ConfirmDialog
-        open={deleteTarget !== null}
-        onOpenChange={() => setDeleteTarget(null)}
-        onConfirm={() => void confirmDelete()}
-        title={deletingWithLocalWork
-          ? t('management.delete.forceTitle')
-          : t('management.delete.title')}
-        message={deleteMessage}
-        preview={deleteTarget?.worktree.path}
-        type={deletingWithLocalWork ? 'error' : 'warning'}
-        confirmDanger
-        confirmText={deletingWithLocalWork
-          ? t('management.delete.forceAction')
-          : t('management.delete.action')}
-        cancelText={t('management.delete.cancel')}
-      />
+      <ConfigPageContent>{settingsContent}</ConfigPageContent>
+      {deleteDialog}
     </ConfigPageLayout>
   );
 };

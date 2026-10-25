@@ -90,7 +90,12 @@ function isValidMemoryWindowConfig(config: MemoriesConfigShape): boolean {
   return config.max_rollout_age_days <= config.max_unused_days;
 }
 
-const MemorySettingsPage: React.FC = () => {
+export interface MemorySettingsPageProps {
+  /** Render sections only, so a composed settings page owns the header and scroll owner. */
+  embedded?: boolean;
+}
+
+const MemorySettingsPage: React.FC<MemorySettingsPageProps> = ({ embedded = false }) => {
   const { t } = useTranslation('settings/memory');
   const { error: notifyError, success: notifySuccess } = useNotification();
   const [loading, setLoading] = useState(true);
@@ -304,6 +309,16 @@ const MemorySettingsPage: React.FC = () => {
   ], [actionBusy, handleOpenMemoryDirectory, t]);
 
   if (loading || loadFailed) {
+    const state = loading ? (
+      <ConfigLoadingState label={t('messages.loading')} />
+    ) : (
+      <ConfigRetryState
+        message={t('messages.loadFailedLocked')}
+        retryLabel={t('messages.retry')}
+        onRetry={() => void loadData()}
+      />
+    );
+    if (embedded) return <>{state}</>;
     return (
       <ConfigPageLayout
         className="bitfun-memories-config"
@@ -311,17 +326,7 @@ const MemorySettingsPage: React.FC = () => {
         data-bitfun-part="root"
       >
         <ConfigPageHeader title={t('title')} subtitle={t('subtitle')} />
-        <ConfigPageContent>
-          {loading ? (
-            <ConfigLoadingState label={t('messages.loading')} />
-          ) : (
-            <ConfigRetryState
-              message={t('messages.loadFailedLocked')}
-              retryLabel={t('messages.retry')}
-              onRetry={() => void loadData()}
-            />
-          )}
-        </ConfigPageContent>
+        <ConfigPageContent>{state}</ConfigPageContent>
       </ConfigPageLayout>
     );
   }
@@ -329,14 +334,8 @@ const MemorySettingsPage: React.FC = () => {
   const memoryEnabled = config.generate_memories && config.use_memories;
   const memoryWorkDisabled = !memoryEnabled;
 
-  return (
-    <ConfigPageLayout
-      className="bitfun-memories-config"
-      data-bitfun-component="config"
-      data-bitfun-part="root"
-    >
-      <ConfigPageHeader title={t('title')} subtitle={t('subtitle')} />
-      <ConfigPageContent>
+  const content = (
+      <>
         <ConfigMessage message={{ type: 'info', text: t('scopeNotice') }} />
         <ConfigPageSection title={t('sections.basic.title')} description={t('sections.basic.description')}>
           <ConfigPageRow
@@ -595,7 +594,21 @@ const MemorySettingsPage: React.FC = () => {
             </>
           )}
         </ConfigPageSection>
-      </ConfigPageContent>
+      </>
+  );
+
+  return (
+    <>
+      {embedded ? content : (
+        <ConfigPageLayout
+          className="bitfun-memories-config"
+          data-bitfun-component="config"
+          data-bitfun-part="root"
+        >
+          <ConfigPageHeader title={t('title')} subtitle={t('subtitle')} />
+          <ConfigPageContent>{content}</ConfigPageContent>
+        </ConfigPageLayout>
+      )}
       <ConfirmDialog
         open={resetSettingsConfirmOpen}
         onOpenChange={() => setResetSettingsConfirmOpen(false)}
@@ -615,7 +628,7 @@ const MemorySettingsPage: React.FC = () => {
         confirmDanger
         confirmText={t('actions.resetMemoryConfirmAction')}
       />
-    </ConfigPageLayout>
+    </>
   );
 };
 

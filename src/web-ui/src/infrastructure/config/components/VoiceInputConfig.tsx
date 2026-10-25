@@ -83,7 +83,12 @@ function statusActionKey(status: VoiceInputStatus): string {
   }
 }
 
-const VoiceInputConfig: React.FC = () => {
+export interface VoiceInputConfigProps {
+  /** Render sections only, so a composed settings page owns the header and scroll owner. */
+  embedded?: boolean;
+}
+
+const VoiceInputConfig: React.FC<VoiceInputConfigProps> = ({ embedded = false }) => {
   const { t } = useTranslation('settings/voice-input');
   const speechRuntimeSupported = isTauriRuntime();
   const {
@@ -314,41 +319,31 @@ const VoiceInputConfig: React.FC = () => {
     if (saved) notificationService.success(t('messages.localActivated'));
   }, [firstInstalledModel, selectedModel, t, updateVoiceInput]);
 
-  if (!speechRuntimeSupported) {
-    return (
+  const frame = (content: React.ReactNode, contentClassName?: string): React.ReactElement => (
+    embedded ? <>{content}</> : (
       <ConfigPageLayout className="voice-input-config" data-bitfun-component="voice-input-config" data-bitfun-part="root">
         <ConfigPageHeader title={t('title')} subtitle={t('subtitle')} />
-        <ConfigPageContent>
-          <ConfigMessage message={{ type: 'info', text: t('messages.unsupported') }} />
-        </ConfigPageContent>
+        <ConfigPageContent className={contentClassName}>{content}</ConfigPageContent>
       </ConfigPageLayout>
-    );
+    )
+  );
+
+  if (!speechRuntimeSupported) {
+    return frame(<ConfigMessage message={{ type: 'info', text: t('messages.unsupported') }} />);
   }
 
   if (modelsLoading || settingsLoading) {
-    return (
-      <ConfigPageLayout className="voice-input-config" data-bitfun-component="voice-input-config" data-bitfun-part="root">
-        <ConfigPageHeader title={t('title')} subtitle={t('subtitle')} />
-        <ConfigPageContent>
-          <ConfigLoadingState label={t('loading')} />
-        </ConfigPageContent>
-      </ConfigPageLayout>
-    );
+    return frame(<ConfigLoadingState label={t('loading')} />);
   }
 
   if (settingsError || !settings || !voiceInput) {
-    return (
-      <ConfigPageLayout className="voice-input-config" data-bitfun-component="voice-input-config" data-bitfun-part="root">
-        <ConfigPageHeader title={t('title')} subtitle={t('subtitle')} />
-        <ConfigPageContent>
-          <ConfigRetryState
-            message={t('messages.loadFailed')}
-            retryLabel={t('messages.retry')}
-            onRetry={() => void reloadSettings()}
-            loading={settingsLoading}
-          />
-        </ConfigPageContent>
-      </ConfigPageLayout>
+    return frame(
+      <ConfigRetryState
+        message={t('messages.loadFailed')}
+        retryLabel={t('messages.retry')}
+        onRetry={() => void reloadSettings()}
+        loading={settingsLoading}
+      />,
     );
   }
 
@@ -385,10 +380,8 @@ const VoiceInputConfig: React.FC = () => {
       ? <CloudOff size={18} />
       : <HardDrive size={18} />;
 
-  return (
-    <ConfigPageLayout className="voice-input-config" data-bitfun-component="voice-input-config" data-bitfun-part="root">
-      <ConfigPageHeader title={t('title')} subtitle={t('subtitle')} />
-      <ConfigPageContent className="voice-input-config__content">
+  const sections = (
+      <>
         <ConfigPageSection
           title={t('sections.basic')}
           description={t('sections.basicDescription')}
@@ -613,12 +606,17 @@ const VoiceInputConfig: React.FC = () => {
           )}
         </ConfigPageSection>
 
-      </ConfigPageContent>
+      </>
+  );
+
+  return (
+    <>
+      {frame(sections, 'voice-input-config__content')}
       <LocalVoiceModelsConfig
         isOpen={localModelsOpen}
         onClose={() => setLocalModelsOpen(false)}
       />
-    </ConfigPageLayout>
+    </>
   );
 };
 

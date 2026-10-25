@@ -304,7 +304,12 @@ function shortcutDisplayName(
   return reg.id.replace(/[._]/g, ' ');
 }
 
-const KeyboardShortcutsTab: React.FC = () => {
+export interface KeyboardShortcutsTabProps {
+  /** Render the shortcuts section only, so a composed settings page owns the header. */
+  embedded?: boolean;
+}
+
+const KeyboardShortcutsTab: React.FC<KeyboardShortcutsTabProps> = ({ embedded = false }) => {
   const { t } = useI18n('settings');
   const { t: tComponents } = useI18n('components');
 
@@ -629,7 +634,7 @@ const KeyboardShortcutsTab: React.FC = () => {
 
   useSettingsDraft({
     id: 'keyboard-shortcuts',
-    pageId: 'application.shortcuts',
+    pageId: 'application.input',
     label: t('keyboard.title'),
     dirty: hasPendingChanges,
     saving,
@@ -637,16 +642,8 @@ const KeyboardShortcutsTab: React.FC = () => {
     discard: discardPendingChanges,
   });
 
-  return (
-    <ConfigPageLayout data-bitfun-component="keyboard-shortcuts" data-bitfun-part="root">
-      <ConfigPageHeader
-        className="kb-shortcuts-page-header"
-        title={t('keyboard.title')}
-        subtitle={t('keyboard.description')}
-        data-bitfun-component="keyboard-shortcuts"
-        data-bitfun-part="header"
-      />
-      <ConfigPageContent data-bitfun-component="keyboard-shortcuts" data-bitfun-part="content">
+  const content = (
+    <>
         {/* Search + actions bar */}
         <div className="kb-shortcuts__toolbar" data-bitfun-component="keyboard-shortcuts" data-bitfun-part="toolbar">
           <SearchField
@@ -924,6 +921,28 @@ const KeyboardShortcutsTab: React.FC = () => {
             {t('keyboard.noResults')}
           </div>
         )}
+      </>
+  );
+
+  if (embedded) {
+    return (
+      <div data-bitfun-component="keyboard-shortcuts" data-bitfun-part="root">
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <ConfigPageLayout data-bitfun-component="keyboard-shortcuts" data-bitfun-part="root">
+      <ConfigPageHeader
+        className="kb-shortcuts-page-header"
+        title={t('keyboard.title')}
+        subtitle={t('keyboard.description')}
+        data-bitfun-component="keyboard-shortcuts"
+        data-bitfun-part="header"
+      />
+      <ConfigPageContent data-bitfun-component="keyboard-shortcuts" data-bitfun-part="content">
+        {content}
       </ConfigPageContent>
     </ConfigPageLayout>
   );
