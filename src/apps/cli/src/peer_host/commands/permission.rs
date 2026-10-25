@@ -294,6 +294,11 @@ pub(crate) async fn session_permission_mode(
                 manager.clear_active_turn_permission_mode(session_id, &turn_id);
             }
         }
+        // The round that raised the pending requests cannot re-plan them, so
+        // answer the ones the new selection makes unnecessary.
+        manager
+            .settle_pending_permissions_after_mode_change(session_id, active_turn_id.as_deref())
+            .await;
     }
     Ok(serde_json::json!({
         "mode": manager.session_permission_mode(session_id),

@@ -1000,6 +1000,21 @@ impl CoreAgentRuntimeCompatibility {
             .clear_active_turn_permission_mode(session_id, turn_id)
     }
 
+    /// Applies the runtime side effect every permission mode change needs.
+    ///
+    /// A running round cannot re-plan the requests it already raised, so a
+    /// surface that changed the mode must settle the ones the new selection
+    /// makes unnecessary. Returns how many pending requests were answered.
+    pub async fn settle_pending_permissions_after_mode_change(
+        &self,
+        session_id: &str,
+        turn_id: Option<&str>,
+    ) -> usize {
+        self.coordinator
+            .settle_pending_permissions_after_mode_change(session_id, turn_id)
+            .await
+    }
+
     /// Start a manual context compaction as a caller-identified turn.
     ///
     /// Detached dispatch supplies its own turn id so the compaction's

@@ -1054,6 +1054,77 @@ async fn exact_turn_routing_stays_runtime_local_and_is_removed_with_the_request(
 }
 
 #[tokio::test]
+async fn mode_change_answers_only_the_pending_requests_of_its_own_turn() {
+    let (manager, store) = manager();
+    let owned = manager
+        .register_batch_for_turn(vec![request("request-owned", "session-a")], "turn-a")
+        .await
+        .expect("register turn-owned request")
+        .pop()
+        .expect("permission receiver");
+    let _sibling = manager
+        .register_batch_for_turn(vec![request("request-sibling", "session-a")], "turn-b")
+        .await
+        .expect("register sibling turn request");
+    let _other_session = manager
+        .register_batch_for_turn(vec![request("request-other", "session-b")], "turn-a")
+        .await
+        .expect("register other-session request");
+
+    assert_eq!(
+        manager
+            .auto_approve_pending_for_turn("session-a", Some("turn-a"))
+            .await
+            .expect("auto approve the changed turn"),
+        vec!["request-owned".to_string()]
+    );
+    assert_eq!(
+        owned.wait().await,
+        PermissionWaitOutcome::Replied(PermissionReply::Once)
+    );
+    assert_eq!(
+        manager
+            .pending_requests()
+            .into_iter()
+            .map(|request| request.request_id)
+            .collect::<Vec<_>>(),
+        vec!["request-sibling".to_string(), "request-other".to_string()]
+    );
+    // A mode change answers this one invocation only; no remembered rule is
+    // written for a session the user may widen and narrow again.
+    assert!(store.grants.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn mode_change_without_a_turn_settles_unknown_turn_requests_of_its_session() {
+    let (manager, _) = manager();
+    let _registered_without_turn = manager
+        .register(request("request-untracked", "session-a"))
+        .await
+        .expect("register turn-less request");
+    let _other_session = manager
+        .register_batch_for_turn(vec![request("request-other", "session-b")], "turn-a")
+        .await
+        .expect("register other-session request");
+
+    assert_eq!(
+        manager
+            .auto_approve_pending_for_turn("session-a", Some("turn-a"))
+            .await
+            .expect("auto approve the session scope"),
+        vec!["request-untracked".to_string()]
+    );
+    assert_eq!(
+        manager
+            .pending_requests()
+            .into_iter()
+            .map(|request| request.request_id)
+            .collect::<Vec<_>>(),
+        vec!["request-other".to_string()]
+    );
+}
+
+#[tokio::test]
 async fn grant_management_is_project_scoped_and_audit_remains_append_only() {
     let (manager, store) = manager();
     store

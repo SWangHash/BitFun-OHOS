@@ -668,6 +668,52 @@ impl PermissionRequestManager {
         })
     }
 
+    /// Answers the pending requests a permission mode change made unnecessary.
+    ///
+    /// A model round registers the requests it raises at its own boundary, so a
+    /// request that already reached an interactive surface cannot re-plan
+    /// itself after the user switches to a mode that no longer asks. Answering
+    /// it here is exactly what that mode would have produced: a one-shot
+    /// approval from the runtime with no saved grant, so the decision cannot
+    /// widen past the invocation it unblocks.
+    ///
+    /// A request whose owning turn is unknown stays eligible when a turn is
+    /// given: provider and extension requests may register without one, and
+    /// they still belong to the session the user just changed.
+    pub async fn auto_approve_pending_for_turn(
+        &self,
+        session_id: &str,
+        dialog_turn_id: Option<&str>,
+    ) -> Result<Vec<String>, PermissionRequestManagerError> {
+        let requests = self.ordered_pending_requests(|pending| {
+            pending.request.session_id == session_id
+                && dialog_turn_id.map_or(true, |turn_id| {
+                    pending
+                        .dialog_turn_id
+                        .as_deref()
+                        .map_or(true, |owner| owner == turn_id)
+                })
+        });
+
+        let mut resolved = Vec::with_capacity(requests.len());
+        for request in requests {
+            match self
+                .reply(
+                    &request.request_id,
+                    PermissionReply::Once,
+                    PermissionReplySource::AutoApprove,
+                )
+                .await
+            {
+                Ok(resolution) => resolved.extend(resolution.resolved_request_ids),
+                // Another surface answered between the scan and the reply.
+                Err(PermissionRequestManagerError::RequestNotFound(_)) => {}
+                Err(error) => return Err(error),
+            }
+        }
+        Ok(resolved)
+    }
+
     pub async fn cancel_request(
         &self,
         request_id: &str,

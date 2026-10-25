@@ -823,6 +823,15 @@ impl ToolPipeline {
         self
     }
 
+    /// The interactive permission channel this pipeline reports through.
+    ///
+    /// Exposed so the owner of a permission mode change can settle requests a
+    /// running round already raised: that round keeps the policy it resolved at
+    /// its boundary and cannot re-plan them itself.
+    pub fn permission_request_manager(&self) -> Option<&Arc<PermissionRequestManager>> {
+        self.permission_request_manager.as_ref()
+    }
+
     pub fn computer_use_host(&self) -> Option<ComputerUseHostRef> {
         self.computer_use_host.clone()
     }
