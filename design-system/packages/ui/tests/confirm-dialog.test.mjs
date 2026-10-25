@@ -78,6 +78,14 @@ test("ConfirmDialog presents semantic icons as bare glyphs", async () => {
   );
 });
 
+test("ConfirmDialog wraps unbroken message tokens instead of scrolling the dialog body", async () => {
+  const styles = await readFile(stylesUrl, "utf8");
+  const messageRule = styles.match(/\.message\s*\{[^}]+\}/)?.[0];
+
+  assert.ok(messageRule, "missing ConfirmDialog message rule");
+  assert.match(messageRule, /overflow-wrap:\s*anywhere/);
+});
+
 test("ConfirmDialog styles use public status, layout, and typography tokens", async () => {
   const styles = await readFile(new URL("../dist/styles.css", import.meta.url), "utf8");
 

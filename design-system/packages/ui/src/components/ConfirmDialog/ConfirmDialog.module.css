@@ -59,6 +59,11 @@
     min-inline-size: 0;
     flex: 1 1 auto;
     color: var(--bitfun-color-content-secondary);
+    /* Confirmation copy regularly embeds an unbroken path, command, or
+       identifier. Without an anywhere break it widens the dialog body's
+       scroll area instead of wrapping, so the message scrolls sideways and
+       its tail is unreachable. */
+    overflow-wrap: anywhere;
   }
 
   .message > :first-child {
