@@ -23,12 +23,17 @@ export type TooltipPlacement = "top" | "bottom" | "left" | "right";
 export type TooltipTrigger = "hover" | "click" | "focus" | "hover-focus";
 
 const DEFAULT_TOOLTIP_DELAY_MS = 450;
-const INTERACTIVE_HIDE_DELAY_MS = 400;
 /**
  * After a tooltip hides, tooltips shown again within this window skip the
  * open delay so scanning across adjacent triggers feels instant.
  */
 const WARM_WINDOW_MS = 300;
+/**
+ * Scrolling keeps the pointer over moving content. Reopening inside this window
+ * would surface a tooltip the user never asked for, so a scroll closes the
+ * current tooltip and blocks new ones until the gesture has settled.
+ */
+const SCROLL_SUPPRESS_MS = 300;
 let tooltipWarmUntil = 0;
 const activeTooltips = new WeakMap<Document, { id: string; hide: () => void }>();
 
@@ -198,7 +203,7 @@ export function Tooltip({
   const triggerRef = externalTriggerRef ?? internalTriggerRef;
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const showTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollSuppressUntilRef = useRef(0);
   const latestMousePositionRef = useRef<{ x: number; y: number } | null>(null);
   const recalcFrameRef = useRef<number | null>(null);
   const instantRef = useRef(false);
@@ -243,14 +248,13 @@ export function Tooltip({
 
   const showTooltip = useCallback((event?: Pick<MouseEvent, "clientX" | "clientY">) => {
     if (disabled) return;
+    // A scroll gesture owns the pointer; hover hit testing keeps re-arming
+    // during it, so decline to open until the gesture has settled.
+    if (Date.now() < scrollSuppressUntilRef.current) return;
     const element = triggerRef.current;
     if (!element || element.closest('[hidden], [aria-hidden="true"]')) return;
     if (onBeforeShow && !onBeforeShow()) return;
     if (showTimeoutRef.current) clearTimeout(showTimeoutRef.current);
-    if (hideTimeoutRef.current) {
-      clearTimeout(hideTimeoutRef.current);
-      hideTimeoutRef.current = null;
-    }
     if (followCursor && event) {
       latestMousePositionRef.current = { x: event.clientX, y: event.clientY };
     }
@@ -278,10 +282,6 @@ export function Tooltip({
       clearTimeout(showTimeoutRef.current);
       showTimeoutRef.current = null;
     }
-    if (hideTimeoutRef.current) {
-      clearTimeout(hideTimeoutRef.current);
-      hideTimeoutRef.current = null;
-    }
     if (visible) {
       tooltipWarmUntil = Date.now() + WARM_WINDOW_MS;
     }
@@ -297,38 +297,31 @@ export function Tooltip({
 
   useEffect(() => { hideCurrentRef.current = hideTooltip; }, [hideTooltip]);
 
+  // Leaving the trigger for the tooltip itself is not leaving the pair: an
+  // interactive tooltip must stay reachable for reading or copying its content.
+  const keepsPointerInside = useCallback((event: { relatedTarget: EventTarget | null }): boolean => (
+    interactive && event.relatedTarget instanceof Node
+      && (tooltipRef.current?.contains(event.relatedTarget) ?? false)
+  ), [interactive]);
+
   // Scrolling slides other rows under a stationary pointer and browsers re-run
-  // hover hit testing while the content moves. A tooltip armed by that synthetic
-  // hover would pop up over a row the user never chose, so any document scroll
-  // cancels a pending open. A tooltip that is already visible keeps tracking its
-  // trigger, and scrolling the tooltip's own content does not cancel it.
+  // hover hit testing while the content moves. An open tooltip then describes a
+  // row the user is no longer looking at, so a document scroll closes it and
+  // blocks reopening until the gesture settles. Scrolling the tooltip's own
+  // content does neither.
   useEffect(() => {
     const ownerDocument = triggerRef.current?.ownerDocument
       ?? (typeof document === "undefined" ? null : document);
     if (!ownerDocument) return undefined;
-    const cancelPendingShow = (event: Event) => {
-      if (showTimeoutRef.current === null) return;
+    const onScroll = (event: Event) => {
       const target = event.target;
       if (target instanceof Node && tooltipRef.current?.contains(target)) return;
-      clearTimeout(showTimeoutRef.current);
-      showTimeoutRef.current = null;
+      scrollSuppressUntilRef.current = Date.now() + SCROLL_SUPPRESS_MS;
+      hideCurrentRef.current();
     };
-    ownerDocument.addEventListener("scroll", cancelPendingShow, { capture: true, passive: true });
-    return () => ownerDocument.removeEventListener("scroll", cancelPendingShow, true);
+    ownerDocument.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    return () => ownerDocument.removeEventListener("scroll", onScroll, true);
   }, [triggerRef]);
-
-  const scheduleHideTooltip = useCallback(() => {
-    if (!interactive || !visible) {
-      hideTooltip();
-      return;
-    }
-
-    if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
-    hideTimeoutRef.current = setTimeout(() => {
-      hideTimeoutRef.current = null;
-      hideTooltip();
-    }, INTERACTIVE_HIDE_DELAY_MS);
-  }, [hideTooltip, interactive, visible]);
 
   useEffect(() => {
     setLayout((prev) => (prev.placement === placement ? prev : { ...prev, placement }));
@@ -345,27 +338,20 @@ export function Tooltip({
     if (!visible) return;
 
     scheduleCalculatePosition();
-    if (!followCursor) {
-      window.addEventListener("scroll", scheduleCalculatePosition, { capture: true, passive: true });
-    }
     window.addEventListener("resize", scheduleCalculatePosition, { passive: true });
     return () => {
-      if (!followCursor) {
-        window.removeEventListener("scroll", scheduleCalculatePosition, { capture: true });
-      }
       window.removeEventListener("resize", scheduleCalculatePosition);
       if (recalcFrameRef.current !== null) {
         cancelAnimationFrame(recalcFrameRef.current);
         recalcFrameRef.current = null;
       }
     };
-  }, [visible, followCursor, scheduleCalculatePosition]);
+  }, [visible, scheduleCalculatePosition]);
 
   useEffect(() => {
     const ownerDocument = triggerRef.current?.ownerDocument;
     return () => {
       if (showTimeoutRef.current) clearTimeout(showTimeoutRef.current);
-      if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
       if (ownerDocument && activeTooltips.get(ownerDocument)?.id === tooltipId) activeTooltips.delete(ownerDocument);
     };
   }, [tooltipId, triggerRef]);
@@ -380,11 +366,10 @@ export function Tooltip({
     };
     const onLeave = (event: MouseEvent) => {
       // React can deliver the portal's mouse-enter before this native
-      // mouse-leave. Do not restart the hide timer when entering the tooltip.
-      if (interactive && event.relatedTarget instanceof Node
-        && tooltipRef.current?.contains(event.relatedTarget)) return;
+      // mouse-leave; that transition keeps the tooltip open.
+      if (keepsPointerInside(event)) return;
       if (trigger === "hover-focus" && element.contains(element.ownerDocument.activeElement)) return;
-      if (trigger === "hover" || trigger === "hover-focus") scheduleHideTooltip();
+      if (trigger === "hover" || trigger === "hover-focus") hideTooltip();
     };
     const onFocus = () => {
       if (trigger === "focus" || trigger === "hover-focus") showTooltip();
@@ -409,7 +394,7 @@ export function Tooltip({
       element.removeEventListener("focusout", onBlur);
       element.removeEventListener("click", onClick);
     };
-  }, [externalTriggerRef, hideTooltip, interactive, scheduleHideTooltip, showTooltip, trigger, visible]);
+  }, [externalTriggerRef, hideTooltip, keepsPointerInside, showTooltip, trigger, visible]);
 
   // A measured text slot can mount after focus has already reached its owner.
   // Only replay focus/virtual activation on a transition, not on visibility updates.
@@ -451,7 +436,11 @@ export function Tooltip({
   };
 
   const handleMouseLeave = (event: ReactMouseEvent) => {
-    if (trigger === "hover" || (trigger === "hover-focus" && !event.currentTarget.contains(event.currentTarget.ownerDocument.activeElement))) scheduleHideTooltip();
+    if (trigger === "hover" || (trigger === "hover-focus" && !event.currentTarget.contains(event.currentTarget.ownerDocument.activeElement))) {
+      // Hiding is immediate: a tooltip that outlives the pointer sits over
+      // whatever the user moved on to.
+      if (!keepsPointerInside(event)) hideTooltip();
+    }
     (childProps.onMouseLeave as ((event: ReactMouseEvent) => void) | undefined)?.(event);
   };
 
@@ -537,13 +526,13 @@ export function Tooltip({
           data-instant={instantRef.current || undefined}
           // Portal clicks still bubble through the React tree to the owning control.
           onClick={(event) => event.stopPropagation()}
-          onMouseEnter={interactive ? () => {
-            if (hideTimeoutRef.current) {
-              clearTimeout(hideTimeoutRef.current);
-              hideTimeoutRef.current = null;
-            }
+          onMouseLeave={interactive ? (event) => {
+            // Returning to the trigger keeps the pair alive; anything else
+            // closes immediately, like leaving the trigger itself.
+            const related = event.relatedTarget;
+            if (related instanceof Node && triggerRef.current?.contains(related)) return;
+            hideTooltip();
           } : undefined}
-          onMouseLeave={interactive ? scheduleHideTooltip : undefined}
           style={{
             top: `${layout.top}px`,
             left: `${layout.left}px`,

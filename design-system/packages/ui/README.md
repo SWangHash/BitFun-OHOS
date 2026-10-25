@@ -190,6 +190,9 @@ content. An explicit enclosing `Tooltip` suppresses automatic nested tooltips.
 Do not put a native `title` on the clipped slot's wrapper as well: the wrapper
 title and the automatic tooltip would open two bubbles on the same hover target,
 and the native bubble cannot track the row when the list scrolls.
+The tooltip closes as soon as the pointer leaves its trigger, and any scroll of
+the surrounding content closes it and keeps it closed until the gesture settles.
+A bubble must never outlive the pointer or lag behind the row it describes.
 Do not use marquee as the sole way to access information on touch surfaces.
 
 Multi-line descriptions should normally wrap. Editable fields, source code,
