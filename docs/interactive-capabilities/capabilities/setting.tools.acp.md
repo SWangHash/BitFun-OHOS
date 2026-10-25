@@ -38,8 +38,8 @@ Configure external agents connected through Agent Client Protocol and inspect ad
 
 1. 打开设置
    Open Settings
-2. 进入“工具 > ACP”
-   Go to Tools > ACP
+2. 进入“工具与集成 > ACP 智能体”
+   Go to Tools & Integrations > ACP Agents
 3. 添加客户端并通过探测检查可用性
    Add a client and probe its availability
 

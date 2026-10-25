@@ -26,8 +26,10 @@ Search, browse, customize, and reset app, scene, editor, and terminal shortcuts.
 
 1. 打开设置
    Open Settings
-2. 进入“应用与界面 > 快捷键”
-   Go to App & Interface > Keyboard Shortcuts
+2. 进入“应用与界面 > 输入与交互”
+   Go to App & Interface > Input & Interaction
+3. 搜索、录制或重置快捷键
+   Search, record, or reset shortcuts
 
 入口 / Entry: BitFun 设置
 

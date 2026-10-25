@@ -26,8 +26,8 @@ Choose the default terminal shell and where new terminal panels open in a sessio
 
 1. 打开设置
    Open Settings
-2. 进入“应用与界面 > 终端”
-   Go to App & Interface > Terminal
+2. 进入“编程与开发 > 终端”
+   Go to Programming & Development > Terminal
 
 入口 / Entry: BitFun 设置
 

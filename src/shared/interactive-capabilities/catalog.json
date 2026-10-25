@@ -258,6 +258,26 @@
       "deveco_account_logout",
       "deveco_account_start_login",
       "deveco_account_status"
+    ],
+    "privacyConsent": [
+      "privacy_initialize",
+      "privacy_get_status",
+      "privacy_accept",
+      "privacy_enter_not_accepted",
+      "privacy_mark_viewed",
+      "privacy_apply_collection_policy"
+    ],
+    "inAppFeedback": [
+      "acknowledge_feedback",
+      "feedback_get_access_state",
+      "list_feedback",
+      "open_feedback_conversation",
+      "reply_feedback",
+      "submit_feedback"
+    ],
+    "clipboardTextPrimitives": [
+      "get_clipboard",
+      "set_clipboard"
     ]
   },
   "capabilities": [
@@ -389,8 +409,7 @@
             "command:frontend_update_candidate_ready",
             "command:get_frontend_update_status",
             "command:confirm_frontend_update",
-            "command:rollback_frontend_update",
-            "command:frontend_update_candidate_failed"
+            "command:rollback_frontend_update"
           ]
         },
         {
@@ -1167,7 +1186,8 @@
           "evidence": [
             "command:get_recent_workspaces",
             "command:remove_recent_workspace",
-            "command:cleanup_invalid_workspaces"
+            "command:cleanup_invalid_workspaces",
+            "command:delete_workspace"
           ]
         },
         {
@@ -1444,6 +1464,8 @@
           },
           "evidence": [
             "command:read_file_content",
+            "command:read_file_content_prefix",
+            "command:read_file_binary",
             "command:write_file_content",
             "command:get_file_editor_sync_hash",
             "command:apply_patch",
@@ -2274,6 +2296,22 @@
             "source:src/web-ui/src/flow_chat/deep-review/launch/DeepReviewService.ts#DeepReviewService",
             "command:get_default_review_team_definition"
           ]
+        },
+        {
+          "id": "report-export",
+          "titleZh": "把代码评审报告另存为 Markdown 文件，或在内置编辑器中打开",
+          "titleEn": "Save a code review report as a Markdown file, or open it in the built-in editor",
+          "control": {
+            "kind": "open",
+            "reasonCode": "visualSelection",
+            "reasonZh": "导出需要用户在本机保存对话框中选择目标位置，智能体不会替用户决定落盘路径；智能体会打开评审报告入口，并把保存位置保留给用户确认。",
+            "reasonEn": "Exporting requires the user to choose a destination in the local save dialog, and the Agent does not decide where files land; the Agent opens the review report entry and leaves the destination for the user to confirm."
+          },
+          "evidence": [
+            "command:save_text_file_dialog",
+            "source:src/web-ui/src/infrastructure/services/infra/saveTextFileWithDialog.ts#export async function saveTextFileWithDialog",
+            "source:src/web-ui/src/flow_chat/tool-cards/CodeReviewReportExportActions.tsx#await saveTextFileWithDialog({"
+          ]
         }
       ],
       "stepsZh": [
@@ -2350,12 +2388,25 @@
           "titleZh": "输入完整网址、本地域名或开发服务端口并在 BitFun 内打开",
           "titleEn": "Open full URLs, local hostnames, or development-service ports inside BitFun",
           "control": {
-            "kind": "delegate"
+            "kind": "delegate",
+            "tools": [
+              "OpenUrl",
+              "ControlHub"
+            ],
+            "workflowZh": [
+              "用户给出链接且只需要打开页面时用 OpenUrl 打开；需要读取页面、定位元素、截图或交互时改用 ControlHub",
+              "打开后如需继续操作页面，先取得内置页面的 session_id，再按浏览器动作契约执行"
+            ],
+            "workflowEn": [
+              "Use OpenUrl when the user supplies a link and only needs the page opened; switch to ControlHub when reading, locating elements, capturing screenshots, or interacting",
+              "When further page work is needed, keep the built-in session_id and follow the shared browser-action contract"
+            ]
           },
           "evidence": [
             "command:browser_webview_create",
             "command:browser_webview_navigate",
-            "command:open_html_file_in_browser"
+            "command:open_html_file_in_browser",
+            "command:open_external_ohos"
           ]
         },
         {
@@ -2513,6 +2564,10 @@
           },
           "evidence": [
             "command:browser_webview_set_bounds",
+            "command:browser_webview_show",
+            "command:browser_webview_hide",
+            "command:browser_webview_close",
+            "command:browser_webview_set_focus",
             "command:browser_webview_capture_preview",
             "source:src/web-ui/src/app/scenes/browser/browserPreviewCache.ts#export class BrowserPreviewCache",
             "source:src/web-ui/src/app/scenes/browser/BrowserPanel.tsx#sandbox=",
@@ -2724,7 +2779,7 @@
       ],
       "destination": {
         "kind": "settings",
-        "pageId": "tools.execution"
+        "pageId": "tools.desktop-control"
       },
       "operations": []
     },
@@ -2787,7 +2842,12 @@
           },
           "evidence": [
             "command:list_skill_market",
-            "command:search_skill_market"
+            "command:search_skill_market",
+            "command:get_skill_descriptions",
+            "command:list_matrix_tags",
+            "command:list_matrix_skills",
+            "command:list_matrix_categories",
+            "command:list_matrix_organizations"
           ]
         },
         {
@@ -2801,7 +2861,9 @@
             "reasonEn": "“Download a market Skill for the user or current project” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
           },
           "evidence": [
-            "command:download_skill_market"
+            "command:download_skill_market",
+            "command:install_matrix_skill",
+            "command:check_matrix_skill_checksum"
           ]
         },
         {
@@ -4015,8 +4077,8 @@
       "categoryId": "workspace",
       "titleZh": "鸿蒙开发工具链",
       "titleEn": "HarmonyOS dev tooling",
-      "summaryZh": "让智能体构建鸿蒙工程、检查 ArkTS 与 C++ 源码、安装启动应用到真机、抓取 hdc 日志并验证 UI，覆盖真机调试闭环。",
-      "summaryEn": "Let agents build HarmonyOS projects, check ArkTS and C++ sources, install and launch on a device, capture hdc logs, and verify UI through the on-device loop.",
+      "summaryZh": "让智能体检查 ArkTS 源码、安装启动应用到真机、抓取 hdc 日志并验证 UI，覆盖真机调试闭环。",
+      "summaryEn": "Let agents check ArkTS sources, install and launch on a device, capture hdc logs, and verify UI through the on-device loop.",
       "keywordsZh": [
         "鸿蒙",
         "HarmonyOS",
@@ -4025,7 +4087,8 @@
         "hdc",
         "真机调试",
         "设备日志",
-        "UI 验证"
+        "UI 验证",
+        "Qt 迁移"
       ],
       "keywordsEn": [
         "HarmonyOS",
@@ -4034,43 +4097,38 @@
         "hdc",
         "on-device debugging",
         "device log",
-        "UI verification"
+        "UI verification",
+        "Qt migration"
       ],
       "highlightsZh": [
-        "构建与静态检查一站式完成",
+        "ArkTS 源码静态检查",
         "hdc 安装、启动与设备日志抓取",
         "UI 验证留痕：截图与验证日志"
       ],
       "highlightsEn": [
-        "One-pass build and static checks",
+        "ArkTS source static checks",
         "hdc install, launch, and log capture",
         "Traceable UI verification with screenshots and logs"
       ],
       "items": [
         {
           "id": "build-and-checks",
-          "titleZh": "构建鸿蒙工程并检查 ArkTS 与 C++ 源码",
-          "titleEn": "Build HarmonyOS projects and check ArkTS and C++ sources",
+          "titleZh": "检查 ArkTS 源码",
+          "titleEn": "Check ArkTS sources",
           "control": {
             "kind": "delegate",
             "tools": [
-              "build_project",
-              "check_arkts_files",
-              "check_cpp_files"
+              "arkts_check"
             ],
             "workflowZh": [
-              "先用 build_project 触发构建，阅读失败输出，修复后重试，直到构建通过",
-              "提交前用 check_arkts_files 与 check_cpp_files 做静态检查，把问题按文件与行号汇报"
+              "提交前用 arkts_check 做静态检查，把问题按文件与行号汇报"
             ],
             "workflowEn": [
-              "Trigger the build with build_project, read failures, fix, and rerun until it passes",
-              "Run check_arkts_files and check_cpp_files before commits and report findings by file and line"
+              "Run arkts_check before commits and report findings by file and line"
             ]
           },
           "evidence": [
-            "source:src/crates/execution/tool-provider-groups/src/lib.rs#build_project",
-            "source:src/crates/execution/tool-provider-groups/src/lib.rs#check_arkts_files",
-            "source:src/crates/execution/tool-provider-groups/src/lib.rs#check_cpp_files"
+            "source:src/crates/execution/tool-provider-groups/src/lib.rs#arkts_check"
           ]
         },
         {
@@ -4098,6 +4156,28 @@
           ]
         },
         {
+          "id": "qt-migration-intake",
+          "titleZh": "分析 Qt 迁移请求并收集源码、产物、工具链与模板信息",
+          "titleEn": "Analyze Qt migration requests and collect source, output, toolchain, and template details",
+          "control": {
+            "kind": "delegate",
+            "tools": [
+              "QtMigrationIntake"
+            ],
+            "workflowZh": [
+              "在 Qt 迁移入口先用 QtMigrationIntake 判定任务类型与四个必填字段，缺少路径时用 AskUserQuestion 补齐",
+              "用户在策略问题中给出新的 Qt kit bin 目录时，用 toolchain 参数重新绑定工具链，不再要求二次确认"
+            ],
+            "workflowEn": [
+              "Start Qt migration intake with QtMigrationIntake to classify the task and the four required fields, and use AskUserQuestion for missing paths",
+              "When the user names a different Qt kit bin directory in the strategy answer, rebind it through the toolchain argument instead of asking again"
+            ]
+          },
+          "evidence": [
+            "source:src/crates/execution/tool-provider-groups/src/lib.rs#QtMigrationIntake"
+          ]
+        },
+        {
           "id": "ui-verification",
           "titleZh": "验证界面表现并保存截图与验证日志",
           "titleEn": "Verify UI behavior and keep screenshots and verification logs",
@@ -4114,7 +4194,7 @@
             ],
             "workflowEn": [
               "Run verify_ui against the target page and read the verdict instead of guessing from screenshots",
-              "Keep evidence with get_ui_verification_log and save_ui_screenshot so users can review it"
+              "Keep the verification output from get_ui_verification_log and save_ui_screenshot so users can review it"
             ]
           },
           "evidence": [
@@ -4125,45 +4205,41 @@
         },
         {
           "id": "knowledge-and-cwd",
-          "titleZh": "检索 ArkTS 知识并切换会话工作目录",
-          "titleEn": "Search ArkTS knowledge and switch the session working directory",
+          "titleZh": "切换会话工作目录",
+          "titleEn": "Switch the session working directory",
           "control": {
             "kind": "delegate",
             "tools": [
-              "arkts_knowledge_search",
               "switch_cwd"
             ],
             "workflowZh": [
-              "用 arkts_knowledge_search 查询 ArkTS/API 资料，引用来源再写代码",
               "需要在不同模块间连续操作时用 switch_cwd 切换工作目录，并说明当前目录"
             ],
             "workflowEn": [
-              "Use arkts_knowledge_search for ArkTS and API questions and cite the source before coding",
               "Use switch_cwd when work spans modules and always state the current directory"
             ]
           },
           "evidence": [
-            "source:src/crates/execution/tool-provider-groups/src/lib.rs#arkts_knowledge_search",
             "source:src/crates/execution/tool-provider-groups/src/lib.rs#switch_cwd"
           ]
         }
       ],
       "stepsZh": [
         "在鸿蒙工作区打开智能体会话",
-        "让智能体构建、检查并安装应用到设备",
+        "让智能体检查并安装应用到设备",
         "查看设备日志与 UI 验证结果"
       ],
       "stepsEn": [
         "Open an agent session on a HarmonyOS workspace",
-        "Ask the agent to build, check, and install to the device",
+        "Ask the agent to check sources and install to the device",
         "Review device logs and UI verification results"
       ],
       "agentExamplesZh": [
-        "构建这个鸿蒙工程并修复报错",
+        "检查这个鸿蒙工程的 ArkTS 源码",
         "把应用装到真机上，看看崩溃日志"
       ],
       "agentExamplesEn": [
-        "Build this HarmonyOS project and fix the errors",
+        "Check the ArkTS sources in this HarmonyOS project",
         "Install the app on the device and check the crash logs"
       ],
       "destination": {
@@ -5178,7 +5254,8 @@
       ],
       "destination": {
         "kind": "settings",
-        "pageId": "application.voice"
+        "pageId": "application.input",
+        "sectionId": "voice"
       },
       "operations": []
     },
@@ -5382,7 +5459,8 @@
             "command:download_update",
             "command:get_pending_update",
             "command:install_pending_update",
-            "command:get_app_version"
+            "command:get_app_version",
+            "command:check_for_updates_ohos"
           ]
         },
         {
@@ -5971,7 +6049,8 @@
           "titleEn": "Enable or disable voice input in the chat composer",
           "destination": {
             "kind": "settings",
-            "pageId": "application.voice"
+            "pageId": "application.input",
+            "sectionId": "voice"
           },
           "control": {
             "kind": "direct",
@@ -5992,7 +6071,8 @@
           "titleEn": "Choose automatic detection or Chinese, Cantonese, English, Japanese, and other recognition languages",
           "destination": {
             "kind": "settings",
-            "pageId": "application.voice"
+            "pageId": "application.input",
+            "sectionId": "voice"
           },
           "control": {
             "kind": "direct",
@@ -6013,7 +6093,8 @@
           "titleEn": "Choose a microphone and run a speech-recognition test",
           "destination": {
             "kind": "settings",
-            "pageId": "application.voice"
+            "pageId": "application.input",
+            "sectionId": "voice"
           },
           "control": {
             "kind": "open",
@@ -6032,7 +6113,8 @@
           "titleEn": "Download, select, verify, repair, or delete local speech models",
           "destination": {
             "kind": "settings",
-            "pageId": "application.voice"
+            "pageId": "application.input",
+            "sectionId": "voice"
           },
           "control": {
             "kind": "open",
@@ -6053,7 +6135,8 @@
           "titleEn": "Set the maximum duration of one voice-input recording",
           "destination": {
             "kind": "settings",
-            "pageId": "application.voice"
+            "pageId": "application.input",
+            "sectionId": "voice"
           },
           "control": {
             "kind": "direct",
@@ -6071,11 +6154,13 @@
       ],
       "stepsZh": [
         "打开设置",
-        "进入“应用与界面 > 语音”"
+        "进入“应用与界面 > 输入与交互”",
+        "调整语音输入选项"
       ],
       "stepsEn": [
         "Open Settings",
-        "Go to App & Interface > Voice"
+        "Go to App & Interface > Input & Interaction",
+        "Adjust the voice-input options"
       ],
       "agentExamplesZh": [
         "打开语音输入设置",
@@ -6087,7 +6172,8 @@
       ],
       "destination": {
         "kind": "settings",
-        "pageId": "application.voice"
+        "pageId": "application.input",
+        "sectionId": "voice"
       },
       "operations": [],
       "options": [
@@ -6151,7 +6237,8 @@
           "titleEn": "Search and browse all app, scene, editor, and terminal shortcuts",
           "destination": {
             "kind": "settings",
-            "pageId": "application.shortcuts"
+            "pageId": "application.input",
+            "sectionId": "shortcuts"
           },
           "control": {
             "kind": "open",
@@ -6169,7 +6256,8 @@
           "titleEn": "Record new shortcuts, detect conflicts, revert one binding, or reset all custom bindings",
           "destination": {
             "kind": "settings",
-            "pageId": "application.shortcuts"
+            "pageId": "application.input",
+            "sectionId": "shortcuts"
           },
           "control": {
             "kind": "open",
@@ -6185,11 +6273,13 @@
       ],
       "stepsZh": [
         "打开设置",
-        "进入“应用与界面 > 快捷键”"
+        "进入“应用与界面 > 输入与交互”",
+        "搜索、录制或重置快捷键"
       ],
       "stepsEn": [
         "Open Settings",
-        "Go to App & Interface > Keyboard Shortcuts"
+        "Go to App & Interface > Input & Interaction",
+        "Search, record, or reset shortcuts"
       ],
       "agentExamplesZh": [
         "打开快捷键设置"
@@ -6199,7 +6289,8 @@
       ],
       "destination": {
         "kind": "settings",
-        "pageId": "application.shortcuts"
+        "pageId": "application.input",
+        "sectionId": "shortcuts"
       },
       "operations": [],
       "options": []
@@ -6245,7 +6336,7 @@
           "titleEn": "Configure editor font, weight, size, line height, and cursor behavior",
           "destination": {
             "kind": "settings",
-            "pageId": "application.editor"
+            "pageId": "development.editor"
           },
           "control": {
             "kind": "direct",
@@ -6282,7 +6373,7 @@
           "titleEn": "Configure tab size, space indentation, word wrapping, line numbers, and smooth scrolling",
           "destination": {
             "kind": "settings",
-            "pageId": "application.editor"
+            "pageId": "development.editor"
           },
           "control": {
             "kind": "direct",
@@ -6319,7 +6410,7 @@
           "titleEn": "Control the minimap, whitespace rendering, current-line highlight, and scroll bounds",
           "destination": {
             "kind": "settings",
-            "pageId": "application.editor"
+            "pageId": "development.editor"
           },
           "control": {
             "kind": "direct",
@@ -6356,7 +6447,7 @@
           "titleEn": "Control autosave, semantic highlighting, bracket colors, formatting, and whitespace trimming",
           "destination": {
             "kind": "settings",
-            "pageId": "application.editor"
+            "pageId": "development.editor"
           },
           "control": {
             "kind": "direct",
@@ -6393,11 +6484,11 @@
       ],
       "stepsZh": [
         "打开设置",
-        "进入“应用与界面 > 编辑器”"
+        "进入“编程与开发 > 编辑器”"
       ],
       "stepsEn": [
         "Open Settings",
-        "Go to App & Interface > Editor"
+        "Go to Programming & Development > Editor"
       ],
       "agentExamplesZh": [
         "把编辑器字号改成 15"
@@ -6407,7 +6498,7 @@
       ],
       "destination": {
         "kind": "settings",
-        "pageId": "application.editor"
+        "pageId": "development.editor"
       },
       "operations": [],
       "options": [
@@ -6688,6 +6779,24 @@
           "evidence": [
             "source:src/web-ui/src/locales/zh-CN/settings/default-model.json#core.primary.label",
             "source:src/web-ui/src/locales/zh-CN/settings/default-model.json#optional.capabilities.image_generation.label"
+          ]
+        },
+        {
+          "id": "local-model-service",
+          "titleZh": "检测本机 Ollama 服务，列出、下载、暂停或继续本地模型",
+          "titleEn": "Detect the local Ollama service and list, download, pause, or resume local models",
+          "control": {
+            "kind": "open",
+            "reasonCode": "unstructuredInteraction",
+            "reasonZh": "“检测本机 Ollama 服务，列出、下载、暂停或继续本地模型”依赖本机服务实时状态和下载进度，目前没有一个能确定完成整个流程的单一结构化 Command；智能体会打开精确入口，并把后续交互保留在用户可见界面。",
+            "reasonEn": "“Detect the local Ollama service and list, download, pause, or resume local models” depends on live local-service state and download progress, and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
+          },
+          "evidence": [
+            "command:detect_local_model_service",
+            "command:list_local_models",
+            "command:pull_local_model",
+            "command:pause_local_model_download",
+            "source:src/web-ui/src/locales/zh-CN/settings/local-model.json#section.title"
           ]
         },
         {
@@ -7073,7 +7182,8 @@
       ],
       "destination": {
         "kind": "settings",
-        "pageId": "ai.memory"
+        "pageId": "ai.session-memory",
+        "sectionId": "memory"
       },
       "operations": [],
       "options": [
@@ -7150,41 +7260,187 @@
       ]
     },
     {
+      "id": "setting.ai.permissions",
+      "kind": "setting",
+      "categoryId": "assistant",
+      "titleZh": "权限规则",
+      "titleEn": "Permission rules",
+      "summaryZh": "选择默认审批模式，控制聊天输入框中的权限选择器，并维护全局与项目级 Allow、Ask、Deny 规则。",
+      "summaryEn": "Choose the default approval mode, control the permission selector in the chat composer, and maintain global and project-level Allow, Ask, and Deny rules.",
+      "keywordsZh": [
+        "权限设置",
+        "审批",
+        "权限模式",
+        "完全访问",
+        "自动批准",
+        "规则",
+        "授权记录"
+      ],
+      "keywordsEn": [
+        "permission settings",
+        "approval",
+        "permission mode",
+        "full access",
+        "auto approve",
+        "rules",
+        "grants"
+      ],
+      "highlightsZh": [
+        "询问、自动批准与完全访问策略",
+        "权限模式选择器可见性",
+        "全局与项目级规则和记住的授权"
+      ],
+      "highlightsEn": [
+        "Ask, auto-approve, and full-access policies",
+        "Permission-selector visibility",
+        "Global and project-level rules and remembered grants"
+      ],
+      "items": [
+        {
+          "id": "permission-mode",
+          "titleZh": "选择询问、自动批准或完全访问权限模式，并确认高风险警告",
+          "titleEn": "Choose Ask, Auto-approve, or Full Access permission mode and acknowledge high-risk warnings",
+          "destination": {
+            "kind": "settings",
+            "pageId": "ai.permissions"
+          },
+          "control": {
+            "kind": "open",
+            "reasonCode": "unstructuredInteraction",
+            "reasonZh": "“选择询问、自动批准或完全访问权限模式，并确认高风险警告”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；智能体会打开精确入口，并把后续交互保留在用户可见界面。",
+            "reasonEn": "“Choose Ask, Auto-approve, or Full Access permission mode and acknowledge high-risk warnings” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
+          },
+          "evidence": [
+            "source:src/web-ui/src/locales/zh-CN/settings/runtime.json#permissionPolicy.mode",
+            "command:update_session_permission_mode"
+          ]
+        },
+        {
+          "id": "permission-selector",
+          "titleZh": "控制权限模式选择器是否显示在聊天输入框下方",
+          "titleEn": "Choose whether the permission-mode selector appears below the chat composer",
+          "destination": {
+            "kind": "settings",
+            "pageId": "ai.permissions"
+          },
+          "control": {
+            "kind": "direct",
+            "operations": [],
+            "options": [
+              {
+                "id": "show-permission-mode-control"
+              }
+            ]
+          },
+          "evidence": [
+            "source:src/web-ui/src/locales/zh-CN/settings/runtime.json#permissionPolicy.showInChatInput"
+          ]
+        },
+        {
+          "id": "global-project-rules",
+          "titleZh": "创建、排序和保存全局或项目级 Allow、Ask、Deny 规则",
+          "titleEn": "Create, reorder, and save global or project-level Allow, Ask, and Deny rules",
+          "destination": {
+            "kind": "settings",
+            "pageId": "ai.permissions"
+          },
+          "control": {
+            "kind": "open",
+            "reasonCode": "unstructuredInteraction",
+            "reasonZh": "“创建、排序和保存全局或项目级 Allow、Ask、Deny 规则”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；智能体会打开精确入口，并把后续交互保留在用户可见界面。",
+            "reasonEn": "“Create, reorder, and save global or project-level Allow, Ask, and Deny rules” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
+          },
+          "evidence": [
+            "command:get_project_permission_rules",
+            "command:save_project_permission_rules",
+            "source:src/web-ui/src/locales/zh-CN/settings/runtime.json#permissionPolicy.globalRules"
+          ]
+        },
+        {
+          "id": "remembered-grants",
+          "titleZh": "查看、撤销或清空项目中记住的权限授权与审计记录",
+          "titleEn": "Review, revoke, or clear remembered project permission grants and audit records",
+          "destination": {
+            "kind": "settings",
+            "pageId": "ai.permissions"
+          },
+          "control": {
+            "kind": "open",
+            "reasonCode": "unstructuredInteraction",
+            "reasonZh": "“查看、撤销或清空项目中记住的权限授权与审计记录”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；智能体会打开精确入口，并把后续交互保留在用户可见界面。",
+            "reasonEn": "“Review, revoke, or clear remembered project permission grants and audit records” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
+          },
+          "evidence": [
+            "command:list_project_permission_grants",
+            "command:remove_project_permission_grant",
+            "command:clear_project_permission_grants",
+            "command:list_project_permission_audit"
+          ]
+        }
+      ],
+      "stepsZh": [
+        "打开设置",
+        "进入“AI 与智能体 > 权限规则”",
+        "先确认安全影响，再修改审批模式或规则"
+      ],
+      "stepsEn": [
+        "Open Settings",
+        "Go to AI & Agents > Permission Rules",
+        "Review the security impact before changing the approval mode or rules"
+      ],
+      "agentExamplesZh": [
+        "打开权限设置",
+        "把权限模式改为自动批准",
+        "添加一条全局允许规则"
+      ],
+      "agentExamplesEn": [
+        "Open permission settings",
+        "Switch the permission mode to auto-approve",
+        "Add a global allow rule"
+      ],
+      "destination": {
+        "kind": "settings",
+        "pageId": "ai.permissions"
+      },
+      "operations": [],
+      "options": [
+        {
+          "id": "show-permission-mode-control",
+          "titleZh": "显示权限模式选择器",
+          "titleEn": "Show permission-mode selector",
+          "descriptionZh": "在聊天输入框下方显示或隐藏权限模式快捷选择器。",
+          "descriptionEn": "Show or hide the permission-mode shortcut below the chat composer."
+        }
+      ]
+    },
+    {
       "id": "setting.workspace.session",
       "kind": "setting",
       "categoryId": "assistant",
-      "titleZh": "会话与工作区设置",
-      "titleEn": "Session & workspace settings",
-      "summaryZh": "控制默认智能体执行框架、会话标题生成、工作区加速搜索和与项目上下文相关的行为。",
-      "summaryEn": "Control the default Agent Harness, session-title generation, accelerated workspace search, and project-context behavior.",
+      "titleZh": "会话设置",
+      "titleEn": "Session settings",
+      "summaryZh": "控制新会话默认使用的智能体执行框架和会话标题生成行为。",
+      "summaryEn": "Control the default Agent Harness for new sessions and session-title generation.",
       "keywordsZh": [
         "会话设置",
-        "工作区设置",
         "默认执行框架",
         "上次选择",
-        "标题生成",
-        "项目搜索",
-        "索引"
+        "标题生成"
       ],
       "keywordsEn": [
         "session settings",
-        "workspace settings",
         "default Harness",
         "last selection",
-        "title generation",
-        "project search",
-        "index"
+        "title generation"
       ],
       "highlightsZh": [
         "跟随上次选择或固定默认执行框架",
         "自动生成会话标题",
-        "本地工作区加速搜索",
         "会话使用的标题模型"
       ],
       "highlightsEn": [
         "Follow the last selection or fix a default Harness",
         "Automatic session titles",
-        "Accelerated local-workspace search",
         "Model used for session titles"
       ],
       "items": [
@@ -7234,7 +7490,83 @@
           "evidence": [
             "source:src/web-ui/src/locales/zh-CN/settings/models.json#sessionTitle.model.label"
           ]
-        },
+        }
+      ],
+      "stepsZh": [
+        "打开设置",
+        "进入“AI 与智能体 > 会话与记忆”",
+        "调整默认执行框架或标题选项"
+      ],
+      "stepsEn": [
+        "Open Settings",
+        "Go to AI & Agents > Sessions & Memory",
+        "Tune the default Harness or title controls"
+      ],
+      "agentExamplesZh": [
+        "让新会话跟随 ChatInput 上一次选择的执行框架",
+        "把新会话固定为 Ultimate 执行框架",
+        "关闭自动生成会话标题"
+      ],
+      "agentExamplesEn": [
+        "Make new sessions follow the last Harness selected in ChatInput",
+        "Fix Ultimate as the Harness for new sessions",
+        "Turn off automatic session titles"
+      ],
+      "destination": {
+        "kind": "settings",
+        "pageId": "ai.session-memory",
+        "sectionId": "session"
+      },
+      "operations": [],
+      "options": [
+        {
+          "id": "session-title-generation",
+          "titleZh": "自动生成会话标题",
+          "titleEn": "Automatic session titles",
+          "descriptionZh": "根据会话内容生成易识别的标题。",
+          "descriptionEn": "Generate a recognizable title from session content."
+        }
+      ]
+    },
+    {
+      "id": "setting.workspace.worktrees",
+      "kind": "setting",
+      "categoryId": "workspace",
+      "titleZh": "Worktree 与工作区搜索",
+      "titleEn": "Worktrees & workspace search",
+      "summaryZh": "配置本地工作区加速搜索，以及 Git Worktree 的根目录、分支前缀和自动清理规则。",
+      "summaryEn": "Configure accelerated local-workspace search plus the root, branch prefix, and cleanup rules for Git worktrees.",
+      "keywordsZh": [
+        "Worktree 设置",
+        "并行分支",
+        "隔离工作区",
+        "分支前缀",
+        "自动清理",
+        "工作区搜索",
+        "加速搜索",
+        "索引"
+      ],
+      "keywordsEn": [
+        "worktree settings",
+        "parallel branch",
+        "isolated workspace",
+        "branch prefix",
+        "automatic cleanup",
+        "workspace search",
+        "accelerated search",
+        "index"
+      ],
+      "highlightsZh": [
+        "本地工作区加速搜索与索引状态",
+        "Worktree 根目录与分支前缀",
+        "自动清理数量与现有 Worktree 管理"
+      ],
+      "highlightsEn": [
+        "Accelerated local-workspace search and index state",
+        "Worktree root and branch prefix",
+        "Automatic cleanup count and existing worktree management"
+      ],
+      "items": [
         {
           "id": "accelerated-search",
           "titleZh": "为本地工作区启用 Flashgrep 加速搜索",
@@ -7251,7 +7583,12 @@
           "evidence": [
             "command:search_build_index",
             "source:src/web-ui/src/locales/zh-CN/settings/runtime.json#features.workspaceSearch.enable"
-          ]
+          ],
+          "destination": {
+            "kind": "settings",
+            "pageId": "development.workspace",
+            "sectionId": "workspace-search"
+          }
         },
         {
           "id": "search-index",
@@ -7266,7 +7603,12 @@
           "evidence": [
             "command:search_get_repo_status",
             "command:search_rebuild_index"
-          ]
+          ],
+          "destination": {
+            "kind": "settings",
+            "pageId": "development.workspace",
+            "sectionId": "workspace-search"
+          }
         },
         {
           "id": "remote-behavior",
@@ -7281,86 +7623,13 @@
           "evidence": [
             "command:remote_execute",
             "command:remote_get_workspace_info"
-          ]
-        }
-      ],
-      "stepsZh": [
-        "打开设置",
-        "进入“工作区 > 会话与工作区”",
-        "调整默认执行框架、标题或搜索选项"
-      ],
-      "stepsEn": [
-        "Open Settings",
-        "Go to Workspace > Session & Workspace",
-        "Tune the default Harness, title, or search controls"
-      ],
-      "agentExamplesZh": [
-        "让新会话跟随 ChatInput 上一次选择的执行框架",
-        "把新会话固定为 Ultimate 执行框架",
-        "关闭自动生成会话标题",
-        "启用工作区加速搜索"
-      ],
-      "agentExamplesEn": [
-        "Make new sessions follow the last Harness selected in ChatInput",
-        "Fix Ultimate as the Harness for new sessions",
-        "Turn off automatic session titles",
-        "Enable accelerated workspace search"
-      ],
-      "destination": {
-        "kind": "settings",
-        "pageId": "workspace.session"
-      },
-      "operations": [],
-      "options": [
-        {
-          "id": "session-title-generation",
-          "titleZh": "自动生成会话标题",
-          "titleEn": "Automatic session titles",
-          "descriptionZh": "根据会话内容生成易识别的标题。",
-          "descriptionEn": "Generate a recognizable title from session content."
+          ],
+          "destination": {
+            "kind": "settings",
+            "pageId": "development.workspace",
+            "sectionId": "workspace-search"
+          }
         },
-        {
-          "id": "workspace-search",
-          "titleZh": "工作区加速搜索",
-          "titleEn": "Accelerated workspace search",
-          "descriptionZh": "为本地项目启用 Flashgrep 加速搜索。",
-          "descriptionEn": "Enable Flashgrep-backed search for local projects."
-        }
-      ]
-    },
-    {
-      "id": "setting.workspace.worktrees",
-      "kind": "setting",
-      "categoryId": "workspace",
-      "titleZh": "Worktree 设置",
-      "titleEn": "Worktree settings",
-      "summaryZh": "配置 Git Worktree 的根目录、分支前缀和自动清理规则，并查看现有隔离工作区。",
-      "summaryEn": "Configure the root, branch prefix, and cleanup rules for Git worktrees, and inspect existing isolated workspaces.",
-      "keywordsZh": [
-        "Worktree 设置",
-        "并行分支",
-        "隔离工作区",
-        "分支前缀",
-        "自动清理"
-      ],
-      "keywordsEn": [
-        "worktree settings",
-        "parallel branch",
-        "isolated workspace",
-        "branch prefix",
-        "automatic cleanup"
-      ],
-      "highlightsZh": [
-        "Worktree 根目录与分支前缀",
-        "自动清理数量",
-        "现有 Worktree 和关联会话管理"
-      ],
-      "highlightsEn": [
-        "Worktree root and branch prefix",
-        "Automatic cleanup count",
-        "Existing worktree and linked-session management"
-      ],
-      "items": [
         {
           "id": "isolation",
           "titleZh": "了解隔离 Worktree，并配置其创建与清理默认值",
@@ -7492,28 +7761,38 @@
       ],
       "stepsZh": [
         "打开设置",
-        "进入“工作区 > Worktrees”",
-        "保存规则或管理现有 Worktree"
+        "进入“编程与开发 > 工作区与 Git”",
+        "调整搜索选项或管理现有 Worktree"
       ],
       "stepsEn": [
         "Open Settings",
-        "Go to Workspace > Worktrees",
-        "Save policy or manage existing worktrees"
+        "Go to Programming & Development > Workspace & Git",
+        "Adjust search options or manage existing worktrees"
       ],
       "agentExamplesZh": [
         "打开 Worktree 设置",
+        "启用工作区加速搜索",
         "带我管理并行工作区"
       ],
       "agentExamplesEn": [
         "Open Worktree settings",
+        "Enable accelerated workspace search",
         "Take me to parallel-workspace management"
       ],
       "destination": {
         "kind": "settings",
-        "pageId": "workspace.worktrees"
+        "pageId": "development.workspace",
+        "sectionId": "worktrees"
       },
       "operations": [],
       "options": [
+        {
+          "id": "workspace-search",
+          "titleZh": "工作区加速搜索",
+          "titleEn": "Accelerated workspace search",
+          "descriptionZh": "为本地项目启用 Flashgrep 加速搜索。",
+          "descriptionEn": "Enable Flashgrep-backed search for local projects."
+        },
         {
           "id": "worktree-root-path",
           "titleZh": "受管 Worktree 根目录",
@@ -7555,16 +7834,14 @@
       "id": "setting.tools.execution",
       "kind": "setting",
       "categoryId": "assistant",
-      "titleZh": "执行与权限控制",
-      "titleEn": "Execution & permissions",
-      "summaryZh": "管理智能体工具权限、并行度、超时、延迟加载、Computer Use 与浏览器控制。",
-      "summaryEn": "Manage agent tool permissions, concurrency, timeouts, deferred loading, Computer Use, and browser control.",
+      "titleZh": "执行与协作",
+      "titleEn": "Execution & collaboration",
+      "summaryZh": "管理子智能体并行度、工具超时、延迟加载、参数修复、Computer Use 与浏览器控制。",
+      "summaryEn": "Manage subagent concurrency, tool timeouts, deferred loading, argument repair, Computer Use, and browser control.",
       "keywordsZh": [
         "执行控制",
-        "工具权限",
         "工具调用超时",
         "延迟加载工具",
-        "审批",
         "并行",
         "超时",
         "Computer Use",
@@ -7573,9 +7850,7 @@
       ],
       "keywordsEn": [
         "execution control",
-        "tool permissions",
         "deferred tool loading",
-        "approval",
         "parallel",
         "timeout",
         "computer use",
@@ -7583,109 +7858,23 @@
         "JSON repair"
       ],
       "highlightsZh": [
-        "询问、自动批准与完全访问策略",
         "子智能体并行度和工具超时",
-        "Computer Use、浏览器连接与工具参数修复"
+        "延迟工具加载与工具参数修复",
+        "Computer Use 与浏览器连接"
       ],
       "highlightsEn": [
-        "Ask, auto-approve, and full-access policies",
         "Subagent concurrency and tool timeouts",
-        "Computer Use, browser connection, and tool-argument repair"
+        "Deferred tool loading and tool-argument repair",
+        "Computer Use and browser connection"
       ],
       "items": [
-        {
-          "id": "permission-mode",
-          "titleZh": "选择询问、自动批准或完全访问权限模式，并确认高风险警告",
-          "titleEn": "Choose Ask, Auto-approve, or Full Access permission mode and acknowledge high-risk warnings",
-          "destination": {
-            "kind": "settings",
-            "pageId": "tools.execution",
-            "viewId": "common"
-          },
-          "control": {
-            "kind": "open",
-            "reasonCode": "unstructuredInteraction",
-            "reasonZh": "“选择询问、自动批准或完全访问权限模式，并确认高风险警告”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；智能体会打开精确入口，并把后续交互保留在用户可见界面。",
-            "reasonEn": "“Choose Ask, Auto-approve, or Full Access permission mode and acknowledge high-risk warnings” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
-          },
-          "evidence": [
-            "source:src/web-ui/src/locales/zh-CN/settings/runtime.json#permissionPolicy.mode",
-            "command:update_session_permission_mode"
-          ]
-        },
-        {
-          "id": "permission-selector",
-          "titleZh": "控制权限模式选择器是否显示在聊天输入框下方",
-          "titleEn": "Choose whether the permission-mode selector appears below the chat composer",
-          "destination": {
-            "kind": "settings",
-            "pageId": "tools.execution",
-            "viewId": "common"
-          },
-          "control": {
-            "kind": "direct",
-            "operations": [],
-            "options": [
-              {
-                "id": "show-permission-mode-control"
-              }
-            ]
-          },
-          "evidence": [
-            "source:src/web-ui/src/locales/zh-CN/settings/runtime.json#permissionPolicy.showInChatInput"
-          ]
-        },
-        {
-          "id": "global-project-rules",
-          "titleZh": "创建、排序和保存全局或项目级 Allow、Ask、Deny 规则",
-          "titleEn": "Create, reorder, and save global or project-level Allow, Ask, and Deny rules",
-          "destination": {
-            "kind": "settings",
-            "pageId": "tools.execution",
-            "viewId": "common"
-          },
-          "control": {
-            "kind": "open",
-            "reasonCode": "unstructuredInteraction",
-            "reasonZh": "“创建、排序和保存全局或项目级 Allow、Ask、Deny 规则”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；智能体会打开精确入口，并把后续交互保留在用户可见界面。",
-            "reasonEn": "“Create, reorder, and save global or project-level Allow, Ask, and Deny rules” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
-          },
-          "evidence": [
-            "command:get_project_permission_rules",
-            "command:save_project_permission_rules",
-            "source:src/web-ui/src/locales/zh-CN/settings/runtime.json#permissionPolicy.globalRules"
-          ]
-        },
-        {
-          "id": "remembered-grants",
-          "titleZh": "查看、撤销或清空项目中记住的权限授权与审计记录",
-          "titleEn": "Review, revoke, or clear remembered project permission grants and audit records",
-          "destination": {
-            "kind": "settings",
-            "pageId": "tools.execution",
-            "viewId": "common"
-          },
-          "control": {
-            "kind": "open",
-            "reasonCode": "unstructuredInteraction",
-            "reasonZh": "“查看、撤销或清空项目中记住的权限授权与审计记录”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；智能体会打开精确入口，并把后续交互保留在用户可见界面。",
-            "reasonEn": "“Review, revoke, or clear remembered project permission grants and audit records” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
-          },
-          "evidence": [
-            "command:list_project_permission_grants",
-            "command:remove_project_permission_grant",
-            "command:clear_project_permission_grants",
-            "command:list_project_permission_audit"
-          ]
-        },
         {
           "id": "deferred-tools",
           "titleZh": "按需延迟加载工具定义以减少智能体初始上下文",
           "titleEn": "Deferred tool loading on demand to reduce initial agent context",
           "destination": {
             "kind": "settings",
-            "pageId": "tools.execution",
-            "viewId": "advanced"
+            "pageId": "ai.execution"
           },
           "control": {
             "kind": "direct",
@@ -7706,8 +7895,7 @@
           "titleEn": "Set subagent and swarm concurrency plus safe-only, forced-parallel, or serial policy",
           "destination": {
             "kind": "settings",
-            "pageId": "tools.execution",
-            "viewId": "advanced"
+            "pageId": "ai.execution"
           },
           "control": {
             "kind": "direct",
@@ -7735,8 +7923,7 @@
           "titleEn": "Set or disable the per-tool execution timeout",
           "destination": {
             "kind": "settings",
-            "pageId": "tools.execution",
-            "viewId": "advanced"
+            "pageId": "ai.execution"
           },
           "control": {
             "kind": "direct",
@@ -7757,8 +7944,7 @@
           "titleEn": "Set the maximum parallel Deep Review workers and queue wait time",
           "destination": {
             "kind": "settings",
-            "pageId": "tools.execution",
-            "viewId": "advanced"
+            "pageId": "ai.execution"
           },
           "control": {
             "kind": "open",
@@ -7841,8 +8027,7 @@
           "titleEn": "Choose whether malformed model-generated tool-argument JSON may be repaired within safety boundaries",
           "destination": {
             "kind": "settings",
-            "pageId": "tools.execution",
-            "viewId": "advanced"
+            "pageId": "ai.execution"
           },
           "control": {
             "kind": "direct",
@@ -7860,37 +8045,30 @@
       ],
       "stepsZh": [
         "打开设置",
-        "进入“工具 > 执行与权限”",
-        "先确认安全影响，再修改权限或执行参数"
+        "进入“AI 与智能体 > 执行与协作”",
+        "调整执行参数并确认资源影响"
       ],
       "stepsEn": [
         "Open Settings",
-        "Go to Tools > Execution & Permissions",
-        "Review the security impact before changing permissions or execution controls"
+        "Go to AI & Agents > Execution & Collaboration",
+        "Tune execution controls and confirm their resource impact"
       ],
       "agentExamplesZh": [
         "启用 Computer Use",
         "把子智能体最大并发改为 8",
-        "打开权限设置"
+        "开启延迟工具加载"
       ],
       "agentExamplesEn": [
         "Enable Computer Use",
         "Set maximum subagent concurrency to 8",
-        "Open permission settings"
+        "Enable deferred tool loading"
       ],
       "destination": {
         "kind": "settings",
-        "pageId": "tools.execution"
+        "pageId": "ai.execution"
       },
       "operations": [],
       "options": [
-        {
-          "id": "show-permission-mode-control",
-          "titleZh": "显示权限模式选择器",
-          "titleEn": "Show permission-mode selector",
-          "descriptionZh": "在聊天输入框下方显示或隐藏权限模式快捷选择器。",
-          "descriptionEn": "Show or hide the permission-mode shortcut below the chat composer."
-        },
         {
           "id": "deferred-tool-loading",
           "titleZh": "延迟加载工具",
@@ -8022,11 +8200,11 @@
       ],
       "stepsZh": [
         "打开设置",
-        "进入“应用与界面 > 终端”"
+        "进入“编程与开发 > 终端”"
       ],
       "stepsEn": [
         "Open Settings",
-        "Go to App & Interface > Terminal"
+        "Go to Programming & Development > Terminal"
       ],
       "agentExamplesZh": [
         "打开终端设置",
@@ -8038,7 +8216,7 @@
       ],
       "destination": {
         "kind": "settings",
-        "pageId": "application.terminal"
+        "pageId": "development.terminal"
       },
       "operations": [],
       "options": [
@@ -8563,12 +8741,12 @@
       ],
       "stepsZh": [
         "打开设置",
-        "进入“工具 > 网页搜索”",
+        "进入“工具与集成 > 网页搜索”",
         "选择搜索服务，完成所需配置并保存"
       ],
       "stepsEn": [
         "Open Settings",
-        "Go to Tools > Web Search",
+        "Go to Tools & Integrations > Web Search",
         "Choose a provider, complete its required configuration, and save"
       ],
       "agentExamplesZh": [
@@ -8581,7 +8759,7 @@
       ],
       "destination": {
         "kind": "settings",
-        "pageId": "tools.webSearch"
+        "pageId": "tools.web-search"
       },
       "operations": [],
       "options": []
@@ -8862,7 +9040,7 @@
           "titleEn": "Use presets for OpenCode, dsh, OMP, Claude Code, Codex, and others",
           "destination": {
             "kind": "settings",
-            "pageId": "tools.acp",
+            "pageId": "tools.external-agents",
             "viewId": "local"
           },
           "control": {
@@ -8881,7 +9059,7 @@
           "titleEn": "View, add, and save ACP agent configuration through JSON",
           "destination": {
             "kind": "settings",
-            "pageId": "tools.acp",
+            "pageId": "tools.external-agents",
             "viewId": "json"
           },
           "control": {
@@ -8901,7 +9079,7 @@
           "titleEn": "Probe CLI, adapter, path, version, connection, and permission requirements",
           "destination": {
             "kind": "settings",
-            "pageId": "tools.acp",
+            "pageId": "tools.external-agents",
             "viewId": "local"
           },
           "control": {
@@ -8923,7 +9101,7 @@
           "titleEn": "Install external-agent CLIs and predownload ACP client adapters",
           "destination": {
             "kind": "settings",
-            "pageId": "tools.acp",
+            "pageId": "tools.external-agents",
             "viewId": "local"
           },
           "control": {
@@ -8943,7 +9121,7 @@
           "titleEn": "Detect available external agents in SSH workspaces and show explicit unsupported reasons",
           "destination": {
             "kind": "settings",
-            "pageId": "tools.acp",
+            "pageId": "tools.external-agents",
             "viewId": "ssh"
           },
           "control": {
@@ -8970,7 +9148,11 @@
             "command:get_acp_session_options",
             "command:set_acp_session_model",
             "command:set_acp_session_config_option"
-          ]
+          ],
+          "destination": {
+            "kind": "settings",
+            "pageId": "tools.external-agents"
+          }
         },
         {
           "id": "session-commands",
@@ -8984,7 +9166,11 @@
           },
           "evidence": [
             "command:get_acp_session_commands"
-          ]
+          ],
+          "destination": {
+            "kind": "settings",
+            "pageId": "tools.external-agents"
+          }
         },
         {
           "id": "dialog-permissions",
@@ -9001,17 +9187,21 @@
             "command:cancel_acp_dialog_turn",
             "command:submit_acp_permission_response",
             "command:create_acp_flow_session"
-          ]
+          ],
+          "destination": {
+            "kind": "settings",
+            "pageId": "tools.external-agents"
+          }
         }
       ],
       "stepsZh": [
         "打开设置",
-        "进入“工具 > ACP”",
+        "进入“工具与集成 > ACP 智能体”",
         "添加客户端并通过探测检查可用性"
       ],
       "stepsEn": [
         "Open Settings",
-        "Go to Tools > ACP",
+        "Go to Tools & Integrations > ACP Agents",
         "Add a client and probe its availability"
       ],
       "agentExamplesZh": [
@@ -9024,7 +9214,7 @@
       ],
       "destination": {
         "kind": "settings",
-        "pageId": "tools.acp"
+        "pageId": "tools.external-agents"
       },
       "operations": [],
       "options": []
@@ -9718,6 +9908,15 @@
     },
     "deveco_account": {
       "capabilityId": "feature.ecosystem-compatibility"
+    },
+    "privacy": {
+      "capabilityId": null
+    },
+    "feedback": {
+      "capabilityId": null
+    },
+    "matrix_skill": {
+      "capabilityId": "feature.skills"
     }
   }
 }

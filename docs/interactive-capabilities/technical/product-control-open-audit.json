@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "generatedFrom": "src/shared/interactive-capabilities/catalog.json",
-  "catalogDigest": "6587344a6b5e75a80457ea4ba2670bf37cf3038bdb436089ae402eb7b5a5a025",
-  "count": 211,
+  "catalogDigest": "c746ccef219391ae07dd2431d94881946582076a999920da58c19060b224d66b",
+  "count": 213,
   "reasonCounts": {
     "externalAuth": 4,
     "secretEntry": 5,
-    "unstructuredInteraction": 184,
-    "visualSelection": 18
+    "unstructuredInteraction": 185,
+    "visualSelection": 19
   },
   "entries": [
     {
@@ -536,7 +536,8 @@
       "evidence": [
         "command:get_recent_workspaces",
         "command:remove_recent_workspace",
-        "command:cleanup_invalid_workspaces"
+        "command:cleanup_invalid_workspaces",
+        "command:delete_workspace"
       ]
     },
     {
@@ -891,6 +892,24 @@
       ]
     },
     {
+      "capabilityId": "feature.code-review",
+      "itemId": "report-export",
+      "titleZh": "把代码评审报告另存为 Markdown 文件，或在内置编辑器中打开",
+      "titleEn": "Save a code review report as a Markdown file, or open it in the built-in editor",
+      "reasonCode": "visualSelection",
+      "reasonZh": "导出需要用户在本机保存对话框中选择目标位置，智能体不会替用户决定落盘路径；智能体会打开评审报告入口，并把保存位置保留给用户确认。",
+      "reasonEn": "Exporting requires the user to choose a destination in the local save dialog, and the Agent does not decide where files land; the Agent opens the review report entry and leaves the destination for the user to confirm.",
+      "presentationTarget": {
+        "kind": "action",
+        "actionId": "surface.files.open"
+      },
+      "evidence": [
+        "command:save_text_file_dialog",
+        "source:src/web-ui/src/infrastructure/services/infra/saveTextFileWithDialog.ts#export async function saveTextFileWithDialog",
+        "source:src/web-ui/src/flow_chat/tool-cards/CodeReviewReportExportActions.tsx#await saveTextFileWithDialog({"
+      ]
+    },
+    {
       "capabilityId": "feature.computer-use",
       "itemId": "status",
       "titleZh": "检查 Computer Use 可用性、辅助功能和屏幕录制授权状态",
@@ -900,7 +919,7 @@
       "reasonEn": "“Check Computer Use availability plus accessibility and screen-recording permission status” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "tools.execution"
+        "pageId": "tools.desktop-control"
       },
       "evidence": [
         "command:computer_use_get_status"
@@ -916,7 +935,7 @@
       "reasonEn": "“Request the operating-system permissions required for desktop control” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "tools.execution"
+        "pageId": "tools.desktop-control"
       },
       "evidence": [
         "command:computer_use_request_permissions"
@@ -932,7 +951,7 @@
       "reasonEn": "“Open the matching operating-system privacy and security settings” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "tools.execution"
+        "pageId": "tools.desktop-control"
       },
       "evidence": [
         "command:computer_use_open_system_settings"
@@ -948,7 +967,7 @@
       "reasonEn": "“Discover supported browsers and inspect the current CDP connection state” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "tools.execution"
+        "pageId": "tools.desktop-control"
       },
       "evidence": [
         "command:browser_control_list_browsers",
@@ -965,7 +984,7 @@
       "reasonEn": "“Launch browser control, or connect to and disconnect from a browser configured for CDP” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "tools.execution"
+        "pageId": "tools.desktop-control"
       },
       "evidence": [
         "command:browser_control_launch",
@@ -982,7 +1001,7 @@
       "reasonEn": "“Enable the default CDP setup and restart the browser when required” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "tools.execution"
+        "pageId": "tools.desktop-control"
       },
       "evidence": [
         "command:browser_control_enable_default_cdp",
@@ -1019,7 +1038,12 @@
       },
       "evidence": [
         "command:list_skill_market",
-        "command:search_skill_market"
+        "command:search_skill_market",
+        "command:get_skill_descriptions",
+        "command:list_matrix_tags",
+        "command:list_matrix_skills",
+        "command:list_matrix_categories",
+        "command:list_matrix_organizations"
       ]
     },
     {
@@ -1035,7 +1059,9 @@
         "actionId": "surface.skills.open"
       },
       "evidence": [
-        "command:download_skill_market"
+        "command:download_skill_market",
+        "command:install_matrix_skill",
+        "command:check_matrix_skill_checksum"
       ]
     },
     {
@@ -2274,7 +2300,8 @@
       "reasonEn": "“Start, finish, or cancel a recording from the chat composer” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "application.voice"
+        "pageId": "application.input",
+        "sectionId": "voice"
       },
       "evidence": [
         "command:speech_start_input_session",
@@ -2292,7 +2319,8 @@
       "reasonEn": "“Stream audio chunks during recording and show recognition progress” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "application.voice"
+        "pageId": "application.input",
+        "sectionId": "voice"
       },
       "evidence": [
         "command:speech_append_audio_chunk"
@@ -2308,7 +2336,8 @@
       "reasonEn": "“Start or end a client-wide realtime voice call, hear replies, and ask the assistant to run or stop project tasks” depends on microphone input, streaming model responses, and task state, so no single structured Command can deterministically complete the workflow; the Agent opens the exact entry and keeps the call and task progress visible.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "application.voice"
+        "pageId": "application.input",
+        "sectionId": "voice"
       },
       "evidence": [
         "command:speech_start_realtime_session",
@@ -2330,7 +2359,8 @@
       "reasonEn": "“Read or save realtime voice service settings” includes credentials and model choices that the user must review and save in Settings; the Agent opens the exact entry and keeps sensitive input in the visible interface.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "application.voice"
+        "pageId": "application.input",
+        "sectionId": "voice"
       },
       "evidence": [
         "command:speech_get_realtime_config",
@@ -2347,7 +2377,8 @@
       "reasonEn": "“Browse local speech models and their install, download, verify, repair, and delete states” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "application.voice"
+        "pageId": "application.input",
+        "sectionId": "voice"
       },
       "evidence": [
         "command:speech_list_models",
@@ -2366,7 +2397,8 @@
       "reasonEn": "“Cancel an in-progress speech-model download” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "application.voice"
+        "pageId": "application.input",
+        "sectionId": "voice"
       },
       "evidence": [
         "command:speech_cancel_model_download"
@@ -2382,7 +2414,8 @@
       "reasonEn": "“Use automatic language detection or choose a language and system microphone” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "application.voice"
+        "pageId": "application.input",
+        "sectionId": "voice"
       },
       "evidence": [
         "source:src/web-ui/src/locales/zh-CN/settings/voice-input.json#composer.language.label",
@@ -2400,7 +2433,8 @@
       "reasonEn": "“Test the microphone and speech recognition in Settings, including timing and errors” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "application.voice"
+        "pageId": "application.input",
+        "sectionId": "voice"
       },
       "evidence": [
         "source:src/web-ui/src/locales/zh-CN/settings/voice-input.json#diagnostics.recognition.start"
@@ -2416,7 +2450,8 @@
       "reasonEn": "“Return the transcript to the composer for editing before sending” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "application.voice"
+        "pageId": "application.input",
+        "sectionId": "voice"
       },
       "evidence": [
         "command:speech_finish_input_session",
@@ -2459,7 +2494,8 @@
         "command:download_update",
         "command:get_pending_update",
         "command:install_pending_update",
-        "command:get_app_version"
+        "command:get_app_version",
+        "command:check_for_updates_ohos"
       ]
     },
     {
@@ -2580,7 +2616,8 @@
       "reasonEn": "“Choose a microphone and run a speech-recognition test” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "application.voice"
+        "pageId": "application.input",
+        "sectionId": "voice"
       },
       "evidence": [
         "source:src/web-ui/src/locales/zh-CN/settings/voice-input.json#diagnostics.microphone.label",
@@ -2597,7 +2634,8 @@
       "reasonEn": "“Download, select, verify, repair, or delete local speech models” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "application.voice"
+        "pageId": "application.input",
+        "sectionId": "voice"
       },
       "evidence": [
         "command:speech_download_model",
@@ -2616,7 +2654,8 @@
       "reasonEn": "“Search and browse all app, scene, editor, and terminal shortcuts” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "application.shortcuts"
+        "pageId": "application.input",
+        "sectionId": "shortcuts"
       },
       "evidence": [
         "source:src/web-ui/src/app/scenes/settings/components/KeyboardShortcutsTab.tsx#lists every known shortcut"
@@ -2632,7 +2671,8 @@
       "reasonEn": "“Record new shortcuts, detect conflicts, revert one binding, or reset all custom bindings” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "application.shortcuts"
+        "pageId": "application.input",
+        "sectionId": "shortcuts"
       },
       "evidence": [
         "source:src/web-ui/src/app/scenes/settings/components/KeyboardShortcutsTab.tsx#buildFinalConflictMap",
@@ -2710,6 +2750,26 @@
       "evidence": [
         "source:src/web-ui/src/locales/zh-CN/settings/default-model.json#core.primary.label",
         "source:src/web-ui/src/locales/zh-CN/settings/default-model.json#optional.capabilities.image_generation.label"
+      ]
+    },
+    {
+      "capabilityId": "setting.ai.models",
+      "itemId": "local-model-service",
+      "titleZh": "检测本机 Ollama 服务，列出、下载、暂停或继续本地模型",
+      "titleEn": "Detect the local Ollama service and list, download, pause, or resume local models",
+      "reasonCode": "unstructuredInteraction",
+      "reasonZh": "“检测本机 Ollama 服务，列出、下载、暂停或继续本地模型”依赖本机服务实时状态和下载进度，目前没有一个能确定完成整个流程的单一结构化 Command；智能体会打开精确入口，并把后续交互保留在用户可见界面。",
+      "reasonEn": "“Detect the local Ollama service and list, download, pause, or resume local models” depends on live local-service state and download progress, and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
+      "presentationTarget": {
+        "kind": "settings",
+        "pageId": "ai.models"
+      },
+      "evidence": [
+        "command:detect_local_model_service",
+        "command:list_local_models",
+        "command:pull_local_model",
+        "command:pause_local_model_download",
+        "source:src/web-ui/src/locales/zh-CN/settings/local-model.json#section.title"
       ]
     },
     {
@@ -2808,7 +2868,8 @@
       "reasonEn": "The choices come from the live set of enabled model configurations and must be selected against that list; the Agent can open the exact setting without pretending any arbitrary string is a valid model.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "ai.memory"
+        "pageId": "ai.session-memory",
+        "sectionId": "memory"
       },
       "evidence": [
         "source:src/web-ui/src/locales/zh-CN/settings/memory.json#fields.extractModel.label"
@@ -2824,7 +2885,8 @@
       "reasonEn": "“Choose the consolidation model or make it follow the primary or extraction model” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "ai.memory"
+        "pageId": "ai.session-memory",
+        "sectionId": "memory"
       },
       "evidence": [
         "source:src/web-ui/src/locales/zh-CN/settings/memory.json#fields.consolidationModel.label"
@@ -2840,13 +2902,68 @@
       "reasonEn": "“Open the memory directory, restore defaults, or explicitly erase all memories” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "ai.memory"
+        "pageId": "ai.session-memory",
+        "sectionId": "memory"
       },
       "evidence": [
         "command:get_memory_paths",
         "command:reset_memory",
         "source:src/web-ui/src/locales/zh-CN/settings/memory.json#actions.resetSettings",
         "command:reset_config"
+      ]
+    },
+    {
+      "capabilityId": "setting.ai.permissions",
+      "itemId": "permission-mode",
+      "titleZh": "选择询问、自动批准或完全访问权限模式，并确认高风险警告",
+      "titleEn": "Choose Ask, Auto-approve, or Full Access permission mode and acknowledge high-risk warnings",
+      "reasonCode": "unstructuredInteraction",
+      "reasonZh": "“选择询问、自动批准或完全访问权限模式，并确认高风险警告”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；智能体会打开精确入口，并把后续交互保留在用户可见界面。",
+      "reasonEn": "“Choose Ask, Auto-approve, or Full Access permission mode and acknowledge high-risk warnings” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
+      "presentationTarget": {
+        "kind": "settings",
+        "pageId": "ai.permissions"
+      },
+      "evidence": [
+        "source:src/web-ui/src/locales/zh-CN/settings/runtime.json#permissionPolicy.mode",
+        "command:update_session_permission_mode"
+      ]
+    },
+    {
+      "capabilityId": "setting.ai.permissions",
+      "itemId": "global-project-rules",
+      "titleZh": "创建、排序和保存全局或项目级 Allow、Ask、Deny 规则",
+      "titleEn": "Create, reorder, and save global or project-level Allow, Ask, and Deny rules",
+      "reasonCode": "unstructuredInteraction",
+      "reasonZh": "“创建、排序和保存全局或项目级 Allow、Ask、Deny 规则”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；智能体会打开精确入口，并把后续交互保留在用户可见界面。",
+      "reasonEn": "“Create, reorder, and save global or project-level Allow, Ask, and Deny rules” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
+      "presentationTarget": {
+        "kind": "settings",
+        "pageId": "ai.permissions"
+      },
+      "evidence": [
+        "command:get_project_permission_rules",
+        "command:save_project_permission_rules",
+        "source:src/web-ui/src/locales/zh-CN/settings/runtime.json#permissionPolicy.globalRules"
+      ]
+    },
+    {
+      "capabilityId": "setting.ai.permissions",
+      "itemId": "remembered-grants",
+      "titleZh": "查看、撤销或清空项目中记住的权限授权与审计记录",
+      "titleEn": "Review, revoke, or clear remembered project permission grants and audit records",
+      "reasonCode": "unstructuredInteraction",
+      "reasonZh": "“查看、撤销或清空项目中记住的权限授权与审计记录”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；智能体会打开精确入口，并把后续交互保留在用户可见界面。",
+      "reasonEn": "“Review, revoke, or clear remembered project permission grants and audit records” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
+      "presentationTarget": {
+        "kind": "settings",
+        "pageId": "ai.permissions"
+      },
+      "evidence": [
+        "command:list_project_permission_grants",
+        "command:remove_project_permission_grant",
+        "command:clear_project_permission_grants",
+        "command:list_project_permission_audit"
       ]
     },
     {
@@ -2859,7 +2976,8 @@
       "reasonEn": "“Make regular new sessions follow the last ChatInput selection or use a fixed Harness” is managed by related controls on the session settings page and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the selection visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "workspace.session"
+        "pageId": "ai.session-memory",
+        "sectionId": "session"
       },
       "evidence": [
         "source:src/web-ui/src/infrastructure/config/components/DefaultHarnessConfig.tsx#DefaultHarnessConfig",
@@ -2876,14 +2994,15 @@
       "reasonEn": "“Make title generation inherit the primary or fast model, or use a selected model” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "workspace.session"
+        "pageId": "ai.session-memory",
+        "sectionId": "session"
       },
       "evidence": [
         "source:src/web-ui/src/locales/zh-CN/settings/models.json#sessionTitle.model.label"
       ]
     },
     {
-      "capabilityId": "setting.workspace.session",
+      "capabilityId": "setting.workspace.worktrees",
       "itemId": "search-index",
       "titleZh": "查看索引状态并在需要时重建工作区索引",
       "titleEn": "Inspect index status and rebuild the workspace index when needed",
@@ -2892,7 +3011,8 @@
       "reasonEn": "“Inspect index status and rebuild the workspace index when needed” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "workspace.session"
+        "pageId": "development.workspace",
+        "sectionId": "workspace-search"
       },
       "evidence": [
         "command:search_get_repo_status",
@@ -2900,7 +3020,7 @@
       ]
     },
     {
-      "capabilityId": "setting.workspace.session",
+      "capabilityId": "setting.workspace.worktrees",
       "itemId": "remote-behavior",
       "titleZh": "远程工作区明确降级搜索实现，不把远程路径回退到本机",
       "titleEn": "Use an explicit remote-workspace search path without silently falling back to local files",
@@ -2909,7 +3029,8 @@
       "reasonEn": "“Use an explicit remote-workspace search path without silently falling back to local files” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "workspace.session"
+        "pageId": "development.workspace",
+        "sectionId": "workspace-search"
       },
       "evidence": [
         "command:remote_execute",
@@ -2926,7 +3047,8 @@
       "reasonEn": "Whether a new session uses isolation is selected at session creation against the live repository state; this page stores only managed-worktree defaults, so the contract does not invent a global enable switch.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "workspace.worktrees"
+        "pageId": "development.workspace",
+        "sectionId": "worktrees"
       },
       "evidence": [
         "source:src/web-ui/src/locales/zh-CN/worktrees.json#settings.isolation.title"
@@ -2942,70 +3064,14 @@
       "reasonEn": "“Open or restore linked sessions and delete or force-delete a worktree after protection checks” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "workspace.worktrees"
+        "pageId": "development.workspace",
+        "sectionId": "worktrees"
       },
       "evidence": [
         "command:worktree_remove",
         "source:src/web-ui/src/locales/zh-CN/worktrees.json#management.sessions.restoreTitle",
         "source:src/web-ui/src/locales/zh-CN/worktrees.json#management.delete.forceTitle",
         "command:git_remove_worktree"
-      ]
-    },
-    {
-      "capabilityId": "setting.tools.execution",
-      "itemId": "permission-mode",
-      "titleZh": "选择询问、自动批准或完全访问权限模式，并确认高风险警告",
-      "titleEn": "Choose Ask, Auto-approve, or Full Access permission mode and acknowledge high-risk warnings",
-      "reasonCode": "unstructuredInteraction",
-      "reasonZh": "“选择询问、自动批准或完全访问权限模式，并确认高风险警告”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；智能体会打开精确入口，并把后续交互保留在用户可见界面。",
-      "reasonEn": "“Choose Ask, Auto-approve, or Full Access permission mode and acknowledge high-risk warnings” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
-      "presentationTarget": {
-        "kind": "settings",
-        "pageId": "tools.execution",
-        "viewId": "common"
-      },
-      "evidence": [
-        "source:src/web-ui/src/locales/zh-CN/settings/runtime.json#permissionPolicy.mode",
-        "command:update_session_permission_mode"
-      ]
-    },
-    {
-      "capabilityId": "setting.tools.execution",
-      "itemId": "global-project-rules",
-      "titleZh": "创建、排序和保存全局或项目级 Allow、Ask、Deny 规则",
-      "titleEn": "Create, reorder, and save global or project-level Allow, Ask, and Deny rules",
-      "reasonCode": "unstructuredInteraction",
-      "reasonZh": "“创建、排序和保存全局或项目级 Allow、Ask、Deny 规则”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；智能体会打开精确入口，并把后续交互保留在用户可见界面。",
-      "reasonEn": "“Create, reorder, and save global or project-level Allow, Ask, and Deny rules” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
-      "presentationTarget": {
-        "kind": "settings",
-        "pageId": "tools.execution",
-        "viewId": "common"
-      },
-      "evidence": [
-        "command:get_project_permission_rules",
-        "command:save_project_permission_rules",
-        "source:src/web-ui/src/locales/zh-CN/settings/runtime.json#permissionPolicy.globalRules"
-      ]
-    },
-    {
-      "capabilityId": "setting.tools.execution",
-      "itemId": "remembered-grants",
-      "titleZh": "查看、撤销或清空项目中记住的权限授权与审计记录",
-      "titleEn": "Review, revoke, or clear remembered project permission grants and audit records",
-      "reasonCode": "unstructuredInteraction",
-      "reasonZh": "“查看、撤销或清空项目中记住的权限授权与审计记录”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；智能体会打开精确入口，并把后续交互保留在用户可见界面。",
-      "reasonEn": "“Review, revoke, or clear remembered project permission grants and audit records” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
-      "presentationTarget": {
-        "kind": "settings",
-        "pageId": "tools.execution",
-        "viewId": "common"
-      },
-      "evidence": [
-        "command:list_project_permission_grants",
-        "command:remove_project_permission_grant",
-        "command:clear_project_permission_grants",
-        "command:list_project_permission_audit"
       ]
     },
     {
@@ -3018,8 +3084,7 @@
       "reasonEn": "“Set the maximum parallel Deep Review workers and queue wait time” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "tools.execution",
-        "viewId": "advanced"
+        "pageId": "ai.execution"
       },
       "evidence": [
         "source:src/web-ui/src/locales/zh-CN/settings/review-capacity.json#capacity.maxParallelReviewers.label",
@@ -3036,7 +3101,7 @@
       "reasonEn": "Operating-system permissions require user confirmation in system UI; the Agent can open the exact entry without pretending that an app setting grants OS authorization.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "tools.execution"
+        "pageId": "ai.execution"
       },
       "evidence": [
         "command:computer_use_get_status",
@@ -3053,7 +3118,7 @@
       "reasonEn": "Available browsers and CDP state come from the current machine and may require restart confirmation; the Agent can open setup, while page automation uses the shared ControlHub browser contract.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "tools.execution"
+        "pageId": "ai.execution"
       },
       "evidence": [
         "command:browser_control_list_browsers",
@@ -3197,7 +3262,7 @@
       "reasonEn": "“Choose free Exa MCP, Exa Search API, Tavily, or BitFun Search HTTP Protocol as the runtime provider” depends on provider-specific configuration state, and no single structured Command can safely complete selection, validation, and saving; the Agent opens the exact settings entry for user confirmation.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "tools.webSearch"
+        "pageId": "tools.web-search"
       },
       "evidence": [
         "source:src/web-ui/src/locales/zh-CN/settings/web-search.json#providers"
@@ -3213,7 +3278,7 @@
       "reasonEn": "“Configure the endpoint, authentication mode, and restricted credential header for BitFun Search HTTP Protocol” combines URL, security restrictions, and authentication fields that must be validated and explicitly saved together in Settings; the Agent opens the corresponding entry instead of guessing endpoint configuration.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "tools.webSearch"
+        "pageId": "tools.web-search"
       },
       "evidence": [
         "source:src/web-ui/src/locales/zh-CN/settings/web-search.json#fields.endpoint",
@@ -3231,7 +3296,7 @@
       "reasonEn": "WebSearch API keys and secrets must only be entered or cleared through the protected device-credential field; the Agent can open that settings entry but does not read, echo, or fill raw credential values.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "tools.webSearch"
+        "pageId": "tools.web-search"
       },
       "evidence": [
         "command:get_web_search_credential_status",
@@ -3250,7 +3315,7 @@
       "reasonEn": "The protocol specification is shown only when BitFun Search HTTP Protocol is selected and the Settings page owns the complete copyable content; the Agent opens the exact entry instead of substituting an incomplete summary.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "tools.webSearch"
+        "pageId": "tools.web-search"
       },
       "evidence": [
         "source:src/web-ui/src/locales/zh-CN/settings/web-search.json#protocol.request.description",
@@ -3407,7 +3472,7 @@
       "reasonEn": "“Use presets for OpenCode, dsh, OMP, Claude Code, Codex, and others” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "tools.acp",
+        "pageId": "tools.external-agents",
         "viewId": "local"
       },
       "evidence": [
@@ -3424,7 +3489,7 @@
       "reasonEn": "“View, add, and save ACP agent configuration through JSON” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "tools.acp",
+        "pageId": "tools.external-agents",
         "viewId": "json"
       },
       "evidence": [
@@ -3442,7 +3507,7 @@
       "reasonEn": "“Probe CLI, adapter, path, version, connection, and permission requirements” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "tools.acp",
+        "pageId": "tools.external-agents",
         "viewId": "local"
       },
       "evidence": [
@@ -3462,7 +3527,7 @@
       "reasonEn": "“Install external-agent CLIs and predownload ACP client adapters” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "tools.acp",
+        "pageId": "tools.external-agents",
         "viewId": "local"
       },
       "evidence": [
@@ -3480,7 +3545,7 @@
       "reasonEn": "“Detect available external agents in SSH workspaces and show explicit unsupported reasons” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "tools.acp",
+        "pageId": "tools.external-agents",
         "viewId": "ssh"
       },
       "evidence": [
@@ -3497,7 +3562,7 @@
       "reasonEn": "“Choose an ACP session model and edit client-declared configuration options” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "tools.acp"
+        "pageId": "tools.external-agents"
       },
       "evidence": [
         "command:get_acp_session_options",
@@ -3515,7 +3580,7 @@
       "reasonEn": "“Browse and run session commands exposed by an external agent” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "tools.acp"
+        "pageId": "tools.external-agents"
       },
       "evidence": [
         "command:get_acp_session_commands"
@@ -3531,7 +3596,7 @@
       "reasonEn": "“Start or cancel ACP turns and answer external-agent permission requests remotely” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user.",
       "presentationTarget": {
         "kind": "settings",
-        "pageId": "tools.acp"
+        "pageId": "tools.external-agents"
       },
       "evidence": [
         "command:start_acp_dialog_turn",

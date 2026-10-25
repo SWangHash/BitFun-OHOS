@@ -27,14 +27,15 @@ import { activateInteractiveCapability } from './interactiveCapabilityActivator'
 describe('activateInteractiveCapability', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('opens the exact settings subview declared by a documented item', async () => {
+  it('opens the exact settings section declared by a documented item', async () => {
     await activateInteractiveCapability('setting.application.shortcuts', {
       itemId: 'shortcut-browser',
     });
 
     expect(mocks.openDestination).toHaveBeenCalledWith({
       kind: 'settings',
-      pageId: 'application.shortcuts',
+      pageId: 'application.input',
+      sectionId: 'shortcuts',
     });
     expect(mocks.openScene).toHaveBeenCalledWith('settings');
   });
@@ -45,7 +46,7 @@ describe('activateInteractiveCapability', () => {
     });
     expect(mocks.openDestination).toHaveBeenLastCalledWith({
       kind: 'settings',
-      pageId: 'application.terminal',
+      pageId: 'development.terminal',
     });
 
     await activateInteractiveCapability('setting.application.development', {
@@ -53,7 +54,7 @@ describe('activateInteractiveCapability', () => {
     });
     expect(mocks.openDestination).toHaveBeenLastCalledWith({
       kind: 'settings',
-      pageId: 'application.editor',
+      pageId: 'development.editor',
     });
   });
 

@@ -41,7 +41,9 @@ use tauri::{AppHandle, Emitter, State};
 
 #[cfg(target_env = "ohos")]
 #[tauri::command]
-pub async fn speech_list_models() -> Result<SpeechListModelsResponse, String> {
+pub async fn speech_list_models(
+    _state: State<'_, AppState>,
+) -> Result<SpeechListModelsResponse, String> {
     Ok(SpeechListModelsResponse {
         models: vec![ohos_system_model_status()],
     })
@@ -62,6 +64,8 @@ pub async fn speech_list_models(
 #[cfg(target_env = "ohos")]
 #[tauri::command]
 pub async fn speech_download_model(
+    _state: State<'_, AppState>,
+    _app: AppHandle,
     request: SpeechDownloadModelRequest,
 ) -> Result<SpeechModelStatus, String> {
     Err(format!(
@@ -94,6 +98,8 @@ pub async fn speech_download_model(
 #[cfg(target_env = "ohos")]
 #[tauri::command]
 pub async fn speech_cancel_model_download(
+    _state: State<'_, AppState>,
+    _app: AppHandle,
     request: SpeechCancelModelDownloadRequest,
 ) -> Result<SpeechModelStatus, String> {
     Err(format!(
@@ -121,6 +127,8 @@ pub async fn speech_cancel_model_download(
 #[cfg(target_env = "ohos")]
 #[tauri::command]
 pub async fn speech_delete_model(
+    _state: State<'_, AppState>,
+    _app: AppHandle,
     request: SpeechDeleteModelRequest,
 ) -> Result<SpeechModelStatus, String> {
     Err(format!(
@@ -148,6 +156,8 @@ pub async fn speech_delete_model(
 #[cfg(target_env = "ohos")]
 #[tauri::command]
 pub async fn speech_verify_model(
+    _state: State<'_, AppState>,
+    _app: AppHandle,
     request: SpeechVerifyModelRequest,
 ) -> Result<SpeechModelStatus, String> {
     Err(format!(
@@ -175,6 +185,7 @@ pub async fn speech_verify_model(
 #[cfg(target_env = "ohos")]
 #[tauri::command]
 pub async fn speech_start_input_session(
+    _state: State<'_, AppState>,
     request: SpeechStartInputSessionRequest,
 ) -> Result<SpeechInputSession, String> {
     log::info!(
@@ -227,6 +238,7 @@ pub async fn speech_start_input_session(
 #[cfg(target_env = "ohos")]
 #[tauri::command]
 pub async fn speech_append_audio_chunk(
+    _state: State<'_, AppState>,
     request: SpeechAppendAudioChunkRequest,
 ) -> Result<SpeechAppendAudioChunkResponse, String> {
     let payload = serde_json::to_string(&request)
@@ -252,6 +264,7 @@ pub async fn speech_append_audio_chunk(
 #[cfg(target_env = "ohos")]
 #[tauri::command]
 pub async fn speech_finish_input_session(
+    _state: State<'_, AppState>,
     request: SpeechFinishInputSessionRequest,
 ) -> Result<SpeechTranscriptionResult, String> {
     let payload = serde_json::to_string(&request)
@@ -277,6 +290,7 @@ pub async fn speech_finish_input_session(
 #[cfg(target_env = "ohos")]
 #[tauri::command]
 pub async fn speech_cancel_input_session(
+    _state: State<'_, AppState>,
     request: SpeechCancelInputSessionRequest,
 ) -> Result<(), String> {
     let payload = serde_json::to_string(&request)

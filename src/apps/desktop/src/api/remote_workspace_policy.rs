@@ -53,10 +53,22 @@ pub enum RemoteWorkspacePolicy {
 
 /// Declared remote-workspace policy for every registered Tauri command.
 pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = &[
-    ("deveco_account_cancel_login", RemoteWorkspacePolicy::RemoteUnsupported),
-    ("deveco_account_logout", RemoteWorkspacePolicy::RemoteUnsupported),
-    ("deveco_account_start_login", RemoteWorkspacePolicy::RemoteUnsupported),
-    ("deveco_account_status", RemoteWorkspacePolicy::RemoteUnsupported),
+    (
+        "deveco_account_cancel_login",
+        RemoteWorkspacePolicy::RemoteUnsupported,
+    ),
+    (
+        "deveco_account_logout",
+        RemoteWorkspacePolicy::RemoteUnsupported,
+    ),
+    (
+        "deveco_account_start_login",
+        RemoteWorkspacePolicy::RemoteUnsupported,
+    ),
+    (
+        "deveco_account_status",
+        RemoteWorkspacePolicy::RemoteUnsupported,
+    ),
     (
         "frontend_update_candidate_ready",
         RemoteWorkspacePolicy::LocalOnly,
@@ -354,6 +366,10 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
     ),
     ("create_cron_job", RemoteWorkspacePolicy::LegacyUnaudited),
     (
+        "create_control_conversation",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
+    ),
+    (
         "create_custom_agent",
         RemoteWorkspacePolicy::LegacyUnaudited,
     ),
@@ -468,6 +484,10 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
     (
         "ensure_coordinator_session",
         RemoteWorkspacePolicy::LegacyUnaudited,
+    ),
+    (
+        "ensure_control_conversation",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
     ),
     ("execute_tool", RemoteWorkspacePolicy::LegacyUnaudited),
     (
@@ -856,6 +876,11 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         "hide_main_window_after_close_request",
         RemoteWorkspacePolicy::LocalOnly,
     ),
+    ("html_preview_create", RemoteWorkspacePolicy::RemoteRouted),
+    (
+        "html_preview_release",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
+    ),
     ("i18n_get_config", RemoteWorkspacePolicy::WorkspaceAgnostic),
     (
         "i18n_get_current_language",
@@ -902,6 +927,15 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
     ),
     ("install_matrix_skill", RemoteWorkspacePolicy::LocalOnly),
     ("install_update", RemoteWorkspacePolicy::WorkspaceAgnostic),
+    ("download_update", RemoteWorkspacePolicy::WorkspaceAgnostic),
+    (
+        "get_pending_update",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
+    ),
+    (
+        "install_pending_update",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
+    ),
     (
         "list_agent_companion_pets",
         RemoteWorkspacePolicy::LegacyUnaudited,
@@ -1262,6 +1296,10 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         RemoteWorkspacePolicy::RemoteUnsupported,
     ),
     ("read_mcp_resource", RemoteWorkspacePolicy::LegacyUnaudited),
+    (
+        "record_voice_exchange",
+        RemoteWorkspacePolicy::WorkspaceAgnostic,
+    ),
     (
         "refresh_model_client",
         RemoteWorkspacePolicy::LegacyUnaudited,

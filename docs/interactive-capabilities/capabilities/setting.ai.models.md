@@ -25,6 +25,8 @@ Add AI providers and models, choose defaults, and configure proxy, subscription,
   - Sign in, refresh, and sign out of Codex, Antigravity, OpenCode Console (Zen), Grok, Hermes, and other accounts
 - **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 选择主模型、快速模型以及图像理解、图像生成和语音识别模型
   - Choose primary, fast, image-understanding, image-generation, and speech-recognition models
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 检测本机 Ollama 服务，列出、下载、暂停或继续本地模型
+  - Detect the local Ollama service and list, download, pause, or resume local models
 - **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 为模型选择推理预设或自定义推理强度
   - Choose reasoning presets or a custom reasoning effort per model
 - **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 配置 AI 请求使用的网络代理与绕过规则
@@ -39,8 +41,6 @@ Add AI providers and models, choose defaults, and configure proxy, subscription,
   - Add custom headers, request-body fields, and SSL behavior per provider
 - **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 保存前测试供应商或模型连接并刷新运行时客户端
   - Test provider or model connectivity before saving and refresh the runtime client
-- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 管理模型池、路由策略与会话模型选择
-  - Manage model pools, routing strategies, and session model selection
 
 ## 怎么用 / How to use it
 

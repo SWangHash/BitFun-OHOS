@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import {
   buildCapabilityCatalog,
   loadRemoteSurfaceRegistry,
+  parsePlatformGatedCommandIds,
   parseRegisteredCommands,
   renderRemoteSurfaceTsBindings,
 } from './generate-interactive-capabilities.mjs';
@@ -469,13 +470,21 @@ test('GUI, Agent, CLI, and Peer config writes converge on the ProductControl exe
 
 test('the remote surface bindings are a projection of the compiled Product Operation Registry', async () => {
   const { raw, registry } = loadRemoteSurfaceRegistry();
-  const registrations = parseRegisteredCommands(await read('src/apps/desktop/src/lib.rs'));
+  const desktopLib = await read('src/apps/desktop/src/lib.rs');
+  const registrations = parseRegisteredCommands(desktopLib);
+  const platformGatedCommands = parsePlatformGatedCommandIds(desktopLib);
   const tauriRows = registry.operations.filter(({ surface }) => surface === 'tauri_command');
-  assert.deepEqual(
-    new Set(tauriRows.map(({ id }) => id)),
-    new Set(registrations.map(({ id }) => id)),
-    'every registered Tauri command has exactly one registry row and vice versa',
-  );
+  const tauriRowIds = new Set(tauriRows.map(({ id }) => id));
+  for (const { id } of registrations) {
+    assert.ok(tauriRowIds.has(id), `${id} is registered but has no registry row`);
+  }
+  for (const { id } of tauriRows) {
+    assert.ok(
+      registrations.some((registration) => registration.id === id) || platformGatedCommands.has(id),
+      `${id} has a registry row but is neither registered nor platform-gated`,
+    );
+  }
+  assert.equal(tauriRowIds.size, tauriRows.length, 'registry rows must be unique');
   assert.equal(new Set(registry.operations.map(({ id }) => id)).size, registry.operations.length);
   assert.ok(registry.digest.startsWith('fnv1a64:'));
 

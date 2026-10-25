@@ -3,20 +3,26 @@
 id: setting.workspace.worktrees
 kind: setting
 category: workspace
-title_zh: "Worktree 设置"
-title_en: "Worktree settings"
+title_zh: "Worktree 与工作区搜索"
+title_en: "Worktrees & workspace search"
 ---
 
-# Worktree 设置 / Worktree settings
+# Worktree 与工作区搜索 / Worktrees & workspace search
 
 > 设置 / Setting
 
-配置 Git Worktree 的根目录、分支前缀和自动清理规则，并查看现有隔离工作区。
+配置本地工作区加速搜索，以及 Git Worktree 的根目录、分支前缀和自动清理规则。
 
-Configure the root, branch prefix, and cleanup rules for Git worktrees, and inspect existing isolated workspaces.
+Configure accelerated local-workspace search plus the root, branch prefix, and cleanup rules for Git worktrees.
 
 ## 完整功能清单 / Everything included
 
+- **智能体可直接控制 / Direct Agent control** · 为本地工作区启用 Flashgrep 加速搜索
+  - Enable Flashgrep-backed accelerated search for local workspaces
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 查看索引状态并在需要时重建工作区索引
+  - Inspect index status and rebuild the workspace index when needed
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 远程工作区明确降级搜索实现，不把远程路径回退到本机
+  - Use an explicit remote-workspace search path without silently falling back to local files
 - **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 了解隔离 Worktree，并配置其创建与清理默认值
   - Understand isolated worktrees and configure their creation and cleanup defaults
 - **智能体可直接控制 / Direct Agent control** · 设置受管 Worktree 的统一根目录
@@ -36,10 +42,10 @@ Configure the root, branch prefix, and cleanup rules for Git worktrees, and insp
 
 1. 打开设置
    Open Settings
-2. 进入“工作区 > Worktrees”
-   Go to Workspace > Worktrees
-3. 保存规则或管理现有 Worktree
-   Save policy or manage existing worktrees
+2. 进入“编程与开发 > 工作区与 Git”
+   Go to Programming & Development > Workspace & Git
+3. 调整搜索选项或管理现有 Worktree
+   Adjust search options or manage existing worktrees
 
 入口 / Entry: BitFun 设置
 
@@ -53,6 +59,7 @@ Configure the root, branch prefix, and cleanup rules for Git worktrees, and insp
 
 | 选项 / Option | 可用值 / Values | 中文说明 | English description |
 | --- | --- | --- | --- |
+| 工作区加速搜索 / Accelerated workspace search | `boolean` | 为本地项目启用 Flashgrep 加速搜索。 | Enable Flashgrep-backed search for local projects. |
 | 受管 Worktree 根目录 / Managed-worktree root | `string` | 设置 BitFun 创建受管 Worktree 的统一根目录。 | Set the common root where BitFun creates managed worktrees. |
 | Worktree 分支前缀 / Worktree branch prefix | `string` | 设置自动创建分支使用的前缀。 | Set the prefix used for automatically created branches. |
 | 复制本地改动 / Copy local changes | `boolean` | 创建隔离 Worktree 时复制未提交改动。 | Copy uncommitted changes when creating an isolated worktree. |
@@ -63,6 +70,8 @@ Configure the root, branch prefix, and cleanup rules for Git worktrees, and insp
 
 - “打开 Worktree 设置”
   - “Open Worktree settings”
+- “启用工作区加速搜索”
+  - “Enable accelerated workspace search”
 - “带我管理并行工作区”
   - “Take me to parallel-workspace management”
 

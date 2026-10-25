@@ -30,8 +30,8 @@ Choose the search provider used by the WebSearch tool at runtime and configure c
 
 1. 打开设置
    Open Settings
-2. 进入“工具 > 网页搜索”
-   Go to Tools > Web Search
+2. 进入“工具与集成 > 网页搜索”
+   Go to Tools & Integrations > Web Search
 3. 选择搜索服务，完成所需配置并保存
    Choose a provider, complete its required configuration, and save
 

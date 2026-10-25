@@ -31,6 +31,8 @@ Review changes and pull-request context, inspect CI logs, generate commit messag
   - Preview, generate, or quickly apply a commit message
 - **由专用智能体工具控制 / Delegated Agent tool** · `LaunchReviewAgent` / `submit_code_review` · 针对工作区、提交或 PR 发起 Deep Review 并汇总结构化评审
   - Run Deep Review against a workspace, commit, or pull request and consolidate a structured review
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 把代码评审报告另存为 Markdown 文件，或在内置编辑器中打开
+  - Save a code review report as a Markdown file, or open it in the built-in editor
 
 ## 怎么用 / How to use it
 

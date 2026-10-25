@@ -355,6 +355,12 @@ pub fn owner_definitions() -> Vec<ProductControlOwnerDefinition> {
             config("app.notifications.permission_request_notify"),
         ),
         option(
+            "setting.application.general",
+            "startup-tips",
+            boolean(),
+            config("app.notifications.enable_startup_tips"),
+        ),
+        option(
             "setting.application.appearance",
             "theme",
             string(),
@@ -371,12 +377,6 @@ pub fn owner_definitions() -> Vec<ProductControlOwnerDefinition> {
             "enabled",
             boolean(),
             merge_config("app.ai_experience", &["enable_agent_companion"]),
-        ),
-        option(
-            "setting.application.pet",
-            "desktop-cards-enabled",
-            boolean(),
-            merge_config("app.ai_experience", &["enable_desktop_cards"]),
         ),
         operation(
             "setting.application.pet",
@@ -423,12 +423,6 @@ pub fn owner_definitions() -> Vec<ProductControlOwnerDefinition> {
             "voice-enabled",
             boolean(),
             merge_config("app.ai_experience", &["voice_input.enabled"]),
-        ),
-        option(
-            "setting.application.input",
-            "auto-show-selection-toolbar",
-            boolean(),
-            config("app.flow_chat.auto_show_selection_toolbar"),
         ),
         option(
             "setting.application.input",
@@ -690,13 +684,7 @@ pub fn owner_definitions() -> Vec<ProductControlOwnerDefinition> {
             merge_config("app.ai_experience", &["enable_session_title_generation"]),
         ),
         option(
-            "setting.workspace.session",
-            "prompt-suggestion",
-            boolean(),
-            merge_config("app.ai_experience", &["enable_prompt_suggestion"]),
-        ),
-        option(
-            "setting.workspace.session",
+            "setting.workspace.worktrees",
             "workspace-search",
             boolean(),
             merge_config("app.ai_experience", &["enable_workspace_search"]),
@@ -732,7 +720,7 @@ pub fn owner_definitions() -> Vec<ProductControlOwnerDefinition> {
             config("app.worktrees.autoDeleteLimit"),
         ),
         option(
-            "setting.tools.execution",
+            "setting.ai.permissions",
             "show-permission-mode-control",
             boolean(),
             FlowChatPermissionModeControl,

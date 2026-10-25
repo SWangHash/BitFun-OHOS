@@ -3,28 +3,20 @@
 id: setting.tools.execution
 kind: setting
 category: assistant
-title_zh: "执行与权限控制"
-title_en: "Execution & permissions"
+title_zh: "执行与协作"
+title_en: "Execution & collaboration"
 ---
 
-# 执行与权限控制 / Execution & permissions
+# 执行与协作 / Execution & collaboration
 
 > 设置 / Setting
 
-管理智能体工具权限、并行度、超时、延迟加载、Computer Use 与浏览器控制。
+管理子智能体并行度、工具超时、延迟加载、参数修复、Computer Use 与浏览器控制。
 
-Manage agent tool permissions, concurrency, timeouts, deferred loading, Computer Use, and browser control.
+Manage subagent concurrency, tool timeouts, deferred loading, argument repair, Computer Use, and browser control.
 
 ## 完整功能清单 / Everything included
 
-- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 选择询问、自动批准或完全访问权限模式，并确认高风险警告
-  - Choose Ask, Auto-approve, or Full Access permission mode and acknowledge high-risk warnings
-- **智能体可直接控制 / Direct Agent control** · 控制权限模式选择器是否显示在聊天输入框下方
-  - Choose whether the permission-mode selector appears below the chat composer
-- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 创建、排序和保存全局或项目级 Allow、Ask、Deny 规则
-  - Create, reorder, and save global or project-level Allow, Ask, and Deny rules
-- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 查看、撤销或清空项目中记住的权限授权与审计记录
-  - Review, revoke, or clear remembered project permission grants and audit records
 - **智能体可直接控制 / Direct Agent control** · 按需延迟加载工具定义以减少智能体初始上下文
   - Deferred tool loading on demand to reduce initial agent context
 - **智能体可直接控制 / Direct Agent control** · 设置子智能体与 Swarm 最大并发及安全、强制并行或串行策略
@@ -48,10 +40,10 @@ Manage agent tool permissions, concurrency, timeouts, deferred loading, Computer
 
 1. 打开设置
    Open Settings
-2. 进入“工具 > 执行与权限”
-   Go to Tools > Execution & Permissions
-3. 先确认安全影响，再修改权限或执行参数
-   Review the security impact before changing permissions or execution controls
+2. 进入“AI 与智能体 > 执行与协作”
+   Go to AI & Agents > Execution & Collaboration
+3. 调整执行参数并确认资源影响
+   Tune execution controls and confirm their resource impact
 
 入口 / Entry: BitFun 设置
 
@@ -65,7 +57,6 @@ Manage agent tool permissions, concurrency, timeouts, deferred loading, Computer
 
 | 选项 / Option | 可用值 / Values | 中文说明 | English description |
 | --- | --- | --- | --- |
-| 显示权限模式选择器 / Show permission-mode selector | `boolean` | 在聊天输入框下方显示或隐藏权限模式快捷选择器。 | Show or hide the permission-mode shortcut below the chat composer. |
 | 延迟加载工具 / Deferred tool loading | `boolean` | 按需加载大型工具定义，减少智能体初始上下文。 | Load large tool definitions on demand to reduce initial agent context. |
 | 子智能体批量执行策略 / Subagent batch policy | `safe_only` / `force_parallel` / `serial` | 选择仅安全任务并行、强制并行或串行执行。 | Choose safe-only parallelism, forced parallelism, or serial execution. |
 | 子智能体最大并发 / Maximum subagent concurrency | `integer` (1–32) | 限制同时运行的子智能体数量。 | Limit the number of subagents that may run at once. |
@@ -81,8 +72,8 @@ Manage agent tool permissions, concurrency, timeouts, deferred loading, Computer
   - “Enable Computer Use”
 - “把子智能体最大并发改为 8”
   - “Set maximum subagent concurrency to 8”
-- “打开权限设置”
-  - “Open permission settings”
+- “开启延迟工具加载”
+  - “Enable deferred tool loading”
 
 智能体会先查找相关功能或设置，确认目标后再替你打开、执行或修改。完整能力目录不会预先塞进对话上下文。
 

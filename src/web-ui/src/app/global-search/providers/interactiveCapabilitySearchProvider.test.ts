@@ -19,7 +19,7 @@ function request(query: string): GlobalSearchRequest {
 describe('interactiveCapabilitySearchProvider', () => {
   it('restores accelerated search in the settings catalog', () => {
     const capability = INTERACTIVE_CAPABILITY_CATALOG.capabilities.find(
-      ({ id }) => id === 'setting.workspace.session',
+      ({ id }) => id === 'setting.workspace.worktrees',
     );
     expect(capability?.options.some(({ id }) => id === 'workspace-search')).toBe(true);
     expect(capability?.items.some(({ id }) => id === 'accelerated-search')).toBe(true);

@@ -77,10 +77,10 @@ function stripRustComments(source) {
   return source.replace(/\/\*[\s\S]*?\*\//gu, '').replace(/\/\/.*$/gmu, '');
 }
 
-export function parseRegisteredCommands(source) {
+export function parseInvokeHandlerEntries(source) {
   const match = source.match(/\.invoke_handler\(tauri::generate_handler!\[([\s\S]*?)\]\)/u);
   if (!match) throw new Error('Desktop invoke_handler registration block was not found');
-  const registrations = [];
+  const entries = [];
   const invalid = [];
   // One registration per line; an attribute line gates the entry that follows it.
   let conditional = false;
@@ -96,19 +96,37 @@ export function parseRegisteredCommands(source) {
       conditional = false;
       continue;
     }
-    // A gated registration (`#[cfg(target_env = "ohos")]`) only exists in that
-    // platform build, so it is not part of the audited command surface: the
-    // Product Operation Registry, the capability catalog, and the Web UI
-    // transport contract all describe the shared command set.
-    if (conditional) {
-      conditional = false;
-      continue;
-    }
     const rustPath = line.replace(/,$/u, '');
-    registrations.push({ id: rustPath.split('::').at(-1), rustPath });
+    entries.push({ id: rustPath.split('::').at(-1), rustPath, conditional });
+    conditional = false;
   }
   if (invalid.length) throw new Error(`Unsupported invoke_handler entries: ${invalid.join(', ')}`);
-  return registrations;
+  return entries;
+}
+
+export function parseRegisteredCommands(source) {
+  // A gated registration (`#[cfg(target_env = "ohos")]`) only exists in that
+  // platform build, so it is not part of the audited command surface: the
+  // Product Operation Registry, the capability catalog, and the Web UI
+  // transport contract all describe the shared command set.
+  return parseInvokeHandlerEntries(source)
+    .filter(({ conditional }) => !conditional)
+    .map(({ id, rustPath }) => ({ id, rustPath }));
+}
+
+/**
+ * Platform-gated registrations are excluded from required coverage, but a
+ * registry row may still describe one when the frontend keeps that command on
+ * the controller on that platform (for example the HarmonyOS-only
+ * `window_is_focused`). The row then participates in the generated transport
+ * deny set without making the command part of the shared audited surface.
+ */
+export function parsePlatformGatedCommandIds(source) {
+  return new Set(
+    parseInvokeHandlerEntries(source)
+      .filter(({ conditional }) => conditional)
+      .map(({ id }) => id),
+  );
 }
 
 function findBalancedFunctionEnd(source, start) {
@@ -909,14 +927,18 @@ function publicOption(option) {
 }
 
 function buildTechnicalCoverage(source, capabilityIds) {
-  const registrations = parseRegisteredCommands(readFileSync(DESKTOP_LIB, 'utf8'));
+  const desktopLibSource = readFileSync(DESKTOP_LIB, 'utf8');
+  const registrations = parseRegisteredCommands(desktopLibSource);
+  const platformGatedCommands = parsePlatformGatedCommandIds(desktopLibSource);
   const duplicateIds = registrations.map(({ id }) => id).filter((id, index, all) => all.indexOf(id) !== index);
   if (duplicateIds.length) throw new Error(`Duplicate registered commands: ${duplicateIds.join(', ')}`);
   const functions = collectTauriFunctions();
   const policies = remoteSurfaceTauriPolicies();
   const registeredSet = new Set(registrations.map(({ id }) => id));
   const missingPolicies = [...registeredSet].filter((id) => !policies.has(id));
-  const extraPolicies = [...policies.keys()].filter((id) => !registeredSet.has(id));
+  const extraPolicies = [...policies.keys()].filter(
+    (id) => !registeredSet.has(id) && !platformGatedCommands.has(id),
+  );
   if (missingPolicies.length || extraPolicies.length) {
     throw new Error([
       missingPolicies.length

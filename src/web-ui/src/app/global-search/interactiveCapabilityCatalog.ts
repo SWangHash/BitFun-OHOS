@@ -152,7 +152,7 @@ export function getInteractiveCapabilityCatalog(
   : {
     ...catalog,
     capabilities: catalog.capabilities.map((capability) => {
-      if (capability.id !== 'setting.workspace.session') return capability;
+      if (capability.id !== 'setting.workspace.worktrees') return capability;
       const items = capability.items.filter(({ id }) => !suspendedSearchItems.has(id));
       const options = capability.options.filter(({ id }) => id !== 'workspace-search');
       const titlesZh = items.map(({ titleZh }) => titleZh);
@@ -175,7 +175,7 @@ export function getInteractiveCapabilityCatalog(
       };
     }),
     definitions: catalog.definitions.flatMap((definition) => {
-      if (definition.capabilityId !== 'setting.workspace.session') return [definition];
+      if (definition.capabilityId !== 'setting.workspace.worktrees') return [definition];
       const itemIds = definition.itemIds.filter((id) => !suspendedSearchItems.has(id));
       return itemIds.length ? [{ ...definition, itemIds }] : [];
     }),

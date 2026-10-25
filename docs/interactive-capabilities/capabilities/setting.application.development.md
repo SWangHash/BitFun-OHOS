@@ -30,8 +30,8 @@ Tune code editor font, indentation, wrapping, formatting, and minimap behavior.
 
 1. 打开设置
    Open Settings
-2. 进入“应用与界面 > 编辑器”
-   Go to App & Interface > Editor
+2. 进入“编程与开发 > 编辑器”
+   Go to Programming & Development > Editor
 
 入口 / Entry: BitFun 设置
 
