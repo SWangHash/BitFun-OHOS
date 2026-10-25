@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import './TitleTooltipHost.scss';
 
 const SHOW_DELAY_MS = 400;
+const SCROLL_SETTLE_MS = 240;
 const VIEWPORT_MARGIN = 8;
 const GAP = 6;
 
@@ -32,6 +33,8 @@ export const TitleTooltipHost: React.FC = () => {
 
     let target: HTMLElement | null = null;
     let showTimer: number | undefined;
+    let settleTimer: number | undefined;
+    let scrolling = false;
 
     const hide = (): void => {
       if (showTimer !== undefined) {
@@ -66,6 +69,10 @@ export const TitleTooltipHost: React.FC = () => {
     };
 
     const onOver = (event: MouseEvent): void => {
+      // Browsers re-run hover hit testing while a scroll area moves content
+      // under a stationary pointer. Ignoring that synthetic hover keeps the
+      // bubble closed until the scroll gesture has settled.
+      if (scrolling) return;
       const node = event.target instanceof Node ? event.target : null;
       if (!(node instanceof HTMLElement)) return;
       if (bubble.contains(node)) return;
@@ -87,22 +94,37 @@ export const TitleTooltipHost: React.FC = () => {
       hide();
     };
 
+    const onScrollInterrupt = (): void => {
+      hide();
+      scrolling = true;
+      if (settleTimer !== undefined) {
+        window.clearTimeout(settleTimer);
+      }
+      settleTimer = window.setTimeout(() => {
+        settleTimer = undefined;
+        scrolling = false;
+      }, SCROLL_SETTLE_MS);
+    };
+
     document.addEventListener('mouseover', onOver, true);
     document.addEventListener('mouseout', onOut, true);
     document.addEventListener('mousedown', onInterrupt, true);
-    document.addEventListener('wheel', onInterrupt, { capture: true, passive: true });
-    document.addEventListener('scroll', onInterrupt, true);
+    document.addEventListener('wheel', onScrollInterrupt, { capture: true, passive: true });
+    document.addEventListener('scroll', onScrollInterrupt, true);
     window.addEventListener('blur', onInterrupt);
 
     return () => {
       document.removeEventListener('mouseover', onOver, true);
       document.removeEventListener('mouseout', onOut, true);
       document.removeEventListener('mousedown', onInterrupt, true);
-      document.removeEventListener('wheel', onInterrupt, true);
-      document.removeEventListener('scroll', onInterrupt, true);
+      document.removeEventListener('wheel', onScrollInterrupt, true);
+      document.removeEventListener('scroll', onScrollInterrupt, true);
       window.removeEventListener('blur', onInterrupt);
       if (showTimer !== undefined) {
         window.clearTimeout(showTimer);
+      }
+      if (settleTimer !== undefined) {
+        window.clearTimeout(settleTimer);
       }
     };
   }, []);

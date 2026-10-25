@@ -289,7 +289,7 @@ export const WorkspaceProjectPermissionsDialog: React.FC<WorkspaceProjectPermiss
                 <div data-bitfun-component="workspace-project-permissions-dialog" data-bitfun-part="grant" key={key} className="workspace-project-permissions-dialog__grant-row">
                   <div className="workspace-project-permissions-dialog__grant-copy">
                     <code><OverflowText>{grant.action}</OverflowText></code>
-                    <code title={grant.resource}><OverflowText>{grant.resource}</OverflowText></code>
+                    <code><OverflowText>{grant.resource}</OverflowText></code>
                     <span>{formatDate(grant.createdAtMs, { dateStyle: 'medium', timeStyle: 'short' })}</span>
                   </div>
                   <Tooltip content={t('projectPermissions.removeGrant')}>

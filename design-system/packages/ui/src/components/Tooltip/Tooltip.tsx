@@ -297,6 +297,26 @@ export function Tooltip({
 
   useEffect(() => { hideCurrentRef.current = hideTooltip; }, [hideTooltip]);
 
+  // Scrolling slides other rows under a stationary pointer and browsers re-run
+  // hover hit testing while the content moves. A tooltip armed by that synthetic
+  // hover would pop up over a row the user never chose, so any document scroll
+  // cancels a pending open. A tooltip that is already visible keeps tracking its
+  // trigger, and scrolling the tooltip's own content does not cancel it.
+  useEffect(() => {
+    const ownerDocument = triggerRef.current?.ownerDocument
+      ?? (typeof document === "undefined" ? null : document);
+    if (!ownerDocument) return undefined;
+    const cancelPendingShow = (event: Event) => {
+      if (showTimeoutRef.current === null) return;
+      const target = event.target;
+      if (target instanceof Node && tooltipRef.current?.contains(target)) return;
+      clearTimeout(showTimeoutRef.current);
+      showTimeoutRef.current = null;
+    };
+    ownerDocument.addEventListener("scroll", cancelPendingShow, { capture: true, passive: true });
+    return () => ownerDocument.removeEventListener("scroll", cancelPendingShow, true);
+  }, [triggerRef]);
+
   const scheduleHideTooltip = useCallback(() => {
     if (!interactive || !visible) {
       hideTooltip();

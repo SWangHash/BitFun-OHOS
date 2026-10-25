@@ -53,6 +53,19 @@ test("Tooltip owns delayed opening, viewport flipping, and interactive persisten
   assert.match(source, /<Portal/);
 });
 
+test("Tooltip cancels a pending open while the document scrolls", async () => {
+  const source = await readFile(
+    new URL("../src/components/Tooltip/Tooltip.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(source, /const cancelPendingShow = \(event: Event\) => \{/);
+  assert.match(source, /addEventListener\("scroll", cancelPendingShow, \{ capture: true, passive: true \}\)/);
+  assert.match(source, /removeEventListener\("scroll", cancelPendingShow, true\)/);
+  // Scrolling the tooltip's own content must not cancel it.
+  assert.match(source, /tooltipRef\.current\?\.contains\(target\)/);
+});
+
 test("Tooltip styling uses only public surface, geometry, and elevation tokens", async () => {
   const styles = await readFile(
     new URL("../src/components/Tooltip/Tooltip.module.css", import.meta.url),

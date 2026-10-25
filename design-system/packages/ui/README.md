@@ -187,6 +187,9 @@ it. Complete text stays in the accessibility tree. Plain-text arrays and rich
 labels use their complete rendered text in the tooltip. A supplied `title`
 overrides that text; `title=""` opts out when a surrounding native title owns the
 content. An explicit enclosing `Tooltip` suppresses automatic nested tooltips.
+Do not put a native `title` on the clipped slot's wrapper as well: the wrapper
+title and the automatic tooltip would open two bubbles on the same hover target,
+and the native bubble cannot track the row when the list scrolls.
 Do not use marquee as the sole way to access information on touch surfaces.
 
 Multi-line descriptions should normally wrap. Editable fields, source code,
