@@ -2201,6 +2201,12 @@ pub async fn update_session_permission_mode(
             })
             .map(|_| turn_id.to_string())
     });
+    // The running round keeps the policy it resolved at its boundary, so the
+    // requests it already raised would stay on screen under a mode that no
+    // longer asks.
+    coordinator
+        .settle_pending_permissions_after_mode_change(&session_id, active_turn_id.as_deref())
+        .await;
     Ok(SessionPermissionModeResponse {
         mode: session_manager.session_permission_mode(&session_id),
         turn_mode: active_turn_id
@@ -2274,6 +2280,13 @@ pub async fn update_active_turn_permission_mode(
             "Turn is no longer active for this session: session_id={session_id}, turn_id={turn_id}"
         ));
     }
+
+    // A one-off selection reaches a round that already resolved its policy, so
+    // the requests it raised must be settled by the change that made them
+    // unnecessary instead of waiting for an answer under the old mode.
+    coordinator
+        .settle_pending_permissions_after_mode_change(&session_id, Some(turn_id.as_str()))
+        .await;
 
     Ok(SessionPermissionModeResponse {
         mode: session_manager.session_permission_mode(&session_id),

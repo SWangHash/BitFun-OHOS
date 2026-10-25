@@ -9525,6 +9525,61 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         self.tool_pipeline.reply_to_tool(tool_id, reply).await
     }
 
+    /// Applies the runtime side effect of a permission mode change.
+    ///
+    /// A running model round keeps the policy it resolved at its boundary, so
+    /// the requests that round already raised stay on screen even after the
+    /// user switched to a mode that no longer asks. Their owning round cannot
+    /// re-plan them, so answer the ones the new selection makes unnecessary and
+    /// let the next round resolve the mode on its own.
+    ///
+    /// Returns how many pending requests were answered.
+    pub async fn settle_pending_permissions_after_mode_change(
+        &self,
+        session_id: &str,
+        turn_id: Option<&str>,
+    ) -> usize {
+        let session_manager = self.get_session_manager();
+        let effective_mode = resolve_permission_mode(
+            PermissionModeLayers::new(default_permission_mode_from_global_config().await)
+                .with_session(session_manager.session_permission_mode(session_id))
+                .with_turn(turn_id.and_then(|turn_id| {
+                    session_manager.active_turn_permission_mode(session_id, turn_id)
+                })),
+        )
+        .mode;
+        if effective_mode == PermissionMode::Ask {
+            return 0;
+        }
+        let Some(manager) = self.tool_pipeline.permission_request_manager() else {
+            return 0;
+        };
+        match manager
+            .auto_approve_pending_for_turn(session_id, turn_id)
+            .await
+        {
+            Ok(resolved) => {
+                if !resolved.is_empty() {
+                    info!(
+                        "Auto-approved pending permission requests after a mode change: session_id={}, turn_id={:?}, mode={}, count={}",
+                        session_id,
+                        turn_id,
+                        effective_mode,
+                        resolved.len()
+                    );
+                }
+                resolved.len()
+            }
+            Err(error) => {
+                warn!(
+                    "Failed to auto-approve pending permission requests after a mode change: session_id={}, turn_id={:?}, mode={}, error={}",
+                    session_id, turn_id, effective_mode, error
+                );
+                0
+            }
+        }
+    }
+
     async fn get_subagent_concurrency_limiter(&self) -> SubagentConcurrencyLimiter {
         let configured = match GlobalConfigManager::get_service().await {
             Ok(config_service) => match config_service
