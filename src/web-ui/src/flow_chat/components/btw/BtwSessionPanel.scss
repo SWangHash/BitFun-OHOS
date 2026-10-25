@@ -3,6 +3,15 @@
  * Align the shell with TaskDetailPanel while reusing FlowChat message renderers.
  */
 
+// The app-level Hello launcher (FloatingMiniChat.scss) owns a block-size square
+// flush in the window's bottom-right corner, and it ranks above every overlay.
+// This panel docks against that corner, so its own floating controls keep the
+// launch footprint clear — anything inside it would let the launcher take the
+// click instead of the control underneath.
+$hello-launcher-corner-clearance: calc(
+  var(--bitfun-control-launcher-button-block-size) + var(--bitfun-space-2)
+);
+
 .btw-session-panel {
   position: relative;
   display: flex;
@@ -211,13 +220,21 @@
     animation: btw-session-panel-stop-spin 0.9s linear infinite;
   }
 
+  // Sitting above the Hello launcher keeps the whole button clickable; at the
+  // corner the launcher covered its bottom-right quarter.
   &__scroll-to-bottom {
-    bottom: 18px;
+    bottom: calc(18px + #{$hello-launcher-corner-clearance});
     right: 18px;
     width: 34px;
     height: 34px;
     border-width: 1px;
     z-index: 12;
+  }
+
+  // The trailing control of the action row is right-aligned, which puts its
+  // corner under the launcher as well.
+  &__action-bar-wrapper .deep-review-action-bar__actions {
+    padding-inline-end: #{$hello-launcher-corner-clearance};
   }
 
   // The body owns bottom breathing room so the floating card does not cover the final lines.
