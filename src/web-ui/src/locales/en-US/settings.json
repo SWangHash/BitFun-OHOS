@@ -5,9 +5,9 @@
       "empty": "No matching settings"
     },
     "categories": {
-      "application": "App & Interface",
-      "ai": "AI & Models",
-      "workspace": "Sessions & Workspace",
+      "application": "Application & Interface",
+      "ai": "Models & Agents",
+      "development": "Programming & Development",
       "tools": "Tools & Integrations",
       "data": "Data & Maintenance"
     },
@@ -24,21 +24,21 @@
         "label": "Pet",
         "description": "Display surface, character packages, import, and preview."
       },
-      "voice": {
-        "label": "Voice",
-        "description": "Voice input, local speech models, and realtime voice calls."
-      },
-      "shortcuts": {
-        "label": "Keyboard Shortcuts",
-        "description": "Browse, customize, and reset keyboard shortcuts."
+      "input": {
+        "label": "Input & Interaction",
+        "description": "Configure voice dictation and keyboard shortcuts."
       },
       "terminal": {
         "label": "Terminal",
-        "description": "Default shell."
+        "description": "Choose the shell for new terminals and commands in local workspaces."
       },
       "editor": {
         "label": "Editor",
-        "description": "Code editor appearance, indentation, display, and formatting."
+        "description": "Adjust code display, indentation, and automatic formatting."
+      },
+      "workspaceGit": {
+        "label": "Workspace & Git",
+        "description": "Configure file search and worktrees, and manage isolated working directories."
       },
       "models": {
         "label": "Models",
@@ -48,17 +48,17 @@
         "label": "Memory",
         "description": "Memory generation, use, extraction, and consolidation."
       },
-      "sessionWorkspace": {
-        "label": "Session & Workspace",
-        "description": "Default Harness, session titles, and current workspace search."
-      },
-      "worktrees": {
-        "label": "Worktrees",
-        "description": "Git worktree isolation and parallel-session defaults."
+      "sessionMemory": {
+        "label": "Sessions & Memory",
+        "description": "Configure default execution modes, session titles, and memory behavior."
       },
       "execution": {
-        "label": "Execution & Permissions",
-        "description": "Tool permissions, execution, review, and recovery settings."
+        "label": "Execution & Collaboration",
+        "description": "Configure tool timeouts, agent concurrency, and review capacity."
+      },
+      "permissions": {
+        "label": "Permission Rules",
+        "description": "Configure default approval behavior and global tool permission rules."
       },
       "browserDesktopControl": {
         "label": "Browser & Desktop Control",
@@ -93,9 +93,15 @@
         "description": "Log levels, runtime information, and troubleshooting."
       }
     },
+    "sections": {
+      "voice": "Voice",
+      "shortcuts": "Keyboard Shortcuts",
+      "session": "Session Defaults",
+      "memory": "Memory",
+      "workspace-search": "Workspace Search",
+      "worktrees": "Worktrees"
+    },
     "views": {
-      "common": "Common",
-      "advanced": "Advanced",
       "local": "Local",
       "ssh": "SSH",
       "json": "Advanced JSON",

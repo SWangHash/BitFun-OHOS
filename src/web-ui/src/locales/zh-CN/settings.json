@@ -6,8 +6,8 @@
     },
     "categories": {
       "application": "应用与界面",
-      "ai": "AI 与模型",
-      "workspace": "会话与工作区",
+      "ai": "模型与智能体",
+      "development": "编程与开发",
       "tools": "工具与集成",
       "data": "数据与维护"
     },
@@ -24,21 +24,21 @@
         "label": "宠物",
         "description": "显示位置、角色包、导入与预览。"
       },
-      "voice": {
-        "label": "语音",
-        "description": "语音输入、本地识别模型与实时语音通话。"
-      },
-      "shortcuts": {
-        "label": "快捷键",
-        "description": "查看、自定义与重置键盘快捷键。"
+      "input": {
+        "label": "输入与交互",
+        "description": "设置语音转文字与键盘快捷键。"
       },
       "terminal": {
         "label": "终端",
-        "description": "默认 Shell。"
+        "description": "选择新建终端和本地工作区命令使用的 Shell。"
       },
       "editor": {
         "label": "编辑器",
-        "description": "代码编辑器的外观、缩进、显示与格式化。"
+        "description": "调整代码的显示、缩进与自动格式化。"
+      },
+      "workspaceGit": {
+        "label": "工作区与 Git",
+        "description": "设置文件搜索与 Worktree，管理隔离工作目录。"
       },
       "models": {
         "label": "模型",
@@ -48,17 +48,17 @@
         "label": "记忆",
         "description": "记忆生成、使用、提取与整理。"
       },
-      "sessionWorkspace": {
-        "label": "会话与工作区",
-        "description": "默认执行框架、会话标题与当前工作区搜索。"
-      },
-      "worktrees": {
-        "label": "Worktrees",
-        "description": "Git Worktree 隔离与并行会话默认值。"
+      "sessionMemory": {
+        "label": "会话与记忆",
+        "description": "设置新会话的执行模式、标题生成与记忆策略。"
       },
       "execution": {
-        "label": "执行与权限",
-        "description": "工具权限、执行参数、Review 与容错设置。"
+        "label": "执行与协作",
+        "description": "设置工具运行时限、智能体并行方式与审核容量。"
+      },
+      "permissions": {
+        "label": "权限规则",
+        "description": "设置新会话的审批模式与全局工具权限规则。"
       },
       "browserDesktopControl": {
         "label": "浏览器与桌面控制",
@@ -93,9 +93,15 @@
         "description": "日志级别、运行信息与故障排查。"
       }
     },
+    "sections": {
+      "voice": "语音",
+      "shortcuts": "快捷键",
+      "session": "会话默认行为",
+      "memory": "记忆",
+      "workspace-search": "工作区搜索",
+      "worktrees": "Worktrees"
+    },
     "views": {
-      "common": "常用",
-      "advanced": "高级",
       "local": "本机",
       "ssh": "SSH",
       "json": "高级 JSON",

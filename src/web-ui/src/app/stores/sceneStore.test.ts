@@ -281,7 +281,7 @@ describe('sceneStore transition snapshots', () => {
     useSceneStore.getState().openScene('settings');
     registerSettingsDraft({
       id: 'settings-form',
-      pageId: 'application.voice',
+      pageId: 'application.input',
       label: 'Voice',
       dirty: true,
       save: vi.fn(),
@@ -301,7 +301,7 @@ describe('sceneStore transition snapshots', () => {
     const discard = vi.fn();
     registerSettingsDraft({
       id: 'old-device-form',
-      pageId: 'application.voice',
+      pageId: 'application.input',
       label: 'Voice',
       dirty: true,
       save,
@@ -320,7 +320,7 @@ describe('sceneStore transition snapshots', () => {
     useSceneStore.getState().openSessionScene(sessionTarget);
     registerSettingsDraft({
       id: 'background-form',
-      pageId: 'application.voice',
+      pageId: 'application.input',
       label: 'Voice',
       dirty: true,
       save: vi.fn(),

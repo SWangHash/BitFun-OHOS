@@ -24,22 +24,24 @@ describe('Runtime settings information architecture', () => {
     }
   });
 
-  it('keeps execution and permissions unified and stacks browser and desktop control in one owner', () => {
+  it('keeps execution and permissions separately owned and stacks browser and desktop control in one owner', () => {
     const source = readSource('./RuntimeSettingsPages.tsx');
     const appearance = readSource('./RuntimeSettingsPages.appearance.ts');
-    const wrapper = readSource('../../../app/scenes/settings/pages/ExecutionSettingsPage.tsx');
+    const wrapper = readSource('../../../app/scenes/settings/pages/ai/ExecutionSettingsPage.tsx');
+    const permissionsWrapper = readSource('../../../app/scenes/settings/pages/ai/PermissionsSettingsPage.tsx');
 
     expect(wrapper).toContain('<RuntimeExecutionSettingsPage />');
     expect(wrapper).not.toContain('<SettingsViewPage');
     expect(wrapper).not.toContain("id: 'common' as const");
     expect(wrapper).not.toContain("id: 'advanced' as const");
+    expect(permissionsWrapper).toContain('<RuntimePermissionsSettingsPage />');
     expect(source.match(/\{showsExecutionSettings \? \(/g)).toHaveLength(1);
     expect(source).toContain('export function ExecutionSettingsPage()');
     expect(source).not.toContain('ExecutionCommonSettingsPage');
     expect(source).not.toContain('ExecutionAdvancedSettingsPage');
-    expect(source.indexOf("title={t('permissionPolicy.sectionTitle')}")).toBeLessThan(
-      source.indexOf("title={t('toolExecution.sectionTitle')}"),
-    );
+    expect(source).toContain('export function PermissionsSettingsPage()');
+    expect(source).toContain("page === 'permissions'");
+    expect(source).toContain("page === 'workspace-search'");
     expect(source.match(/\{page === 'browser-desktop-control' \? \(/g)).toHaveLength(1);
     expect(source).toContain('export function BrowserDesktopControlSettingsPage()');
     expect(source).not.toContain('export function DesktopControlSettingsPage()');
@@ -58,6 +60,9 @@ describe('Runtime settings information architecture', () => {
       source.indexOf("title={t('browserControl.sectionTitle')}"),
     );
     expect(appearance).toContain("'execution'");
+    expect(appearance).toContain("'permissions'");
+    expect(appearance).toContain("'workspace-search'");
+    expect(appearance).not.toContain("'session-workspace'");
     expect(appearance).not.toContain("'execution-common'");
     expect(appearance).not.toContain("'execution-advanced'");
     expect(appearance).toContain("'browser-desktop-control'");

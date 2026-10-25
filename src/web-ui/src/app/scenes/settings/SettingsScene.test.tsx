@@ -9,10 +9,16 @@ vi.mock('./settingsRegistry', () => {
     'application.general': {
       id: 'application.general',
       categoryId: 'application',
-      component: ({ viewId, isActive }: { viewId?: string; isActive?: boolean }) => (
+      sections: [{ id: 'voice' }],
+      component: ({ viewId, sectionId, isActive }: {
+        viewId?: string;
+        sectionId?: string;
+        isActive?: boolean;
+      }) => (
         <div
           data-testid="general-page"
           data-view={viewId}
+          data-section={sectionId}
           data-settings-scene-active={isActive ? 'true' : 'false'}
         />
       ),
@@ -25,6 +31,7 @@ vi.mock('./settingsRegistry', () => {
     'tools.automation': {
       id: 'tools.automation',
       categoryId: 'tools',
+      views: [{ id: 'hooks' }],
       component: ({ viewId }: { viewId?: string }) => <div data-testid="automation-page" data-view={viewId} />,
     },
   };
@@ -83,6 +90,16 @@ describe('SettingsScene canonical page routing', () => {
     });
     await act(async () => root.render(<SettingsScene />));
     expect(container.querySelector('[data-testid="automation-page"]')?.getAttribute('data-view')).toBe('hooks');
+  });
+
+  it('passes a section anchor to the active page', async () => {
+    useSettingsStore.getState().openDestination({
+      pageId: 'application.general',
+      sectionId: 'voice',
+    });
+    await act(async () => root.render(<SettingsScene />));
+    expect(container.querySelector('[data-testid="general-page"]')?.getAttribute('data-section'))
+      .toBe('voice');
   });
 
   it('switches pages without retaining the outgoing page for instant navigation', async () => {

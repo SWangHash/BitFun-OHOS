@@ -24,8 +24,9 @@ export const runtimeSettingsAppearanceDescriptor: AppearanceSurfaceDescriptor = 
       attribute: 'data-bitfun-view',
       values: [
         'pet',
-        'session-workspace',
+        'workspace-search',
         'execution',
+        'permissions',
         'browser-desktop-control',
       ],
     },

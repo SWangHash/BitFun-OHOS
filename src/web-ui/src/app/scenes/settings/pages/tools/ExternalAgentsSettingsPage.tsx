@@ -1,9 +1,9 @@
 import React from 'react';
 import AcpAgentsConfig from '@/infrastructure/config/components/AcpAgentsConfig';
-import { useSettingsStore } from '../settingsStore';
-import type { SettingsPageProps } from '../settingsTypes';
+import { useSettingsStore } from '../../settingsStore';
+import type { SettingsPageProps } from '../../settingsTypes';
 
-const AcpSettingsPage: React.FC<SettingsPageProps> = ({
+const ExternalAgentsSettingsPage: React.FC<SettingsPageProps> = ({
   viewId,
   navigationRequestId,
 }) => {
@@ -18,4 +18,4 @@ const AcpSettingsPage: React.FC<SettingsPageProps> = ({
   );
 };
 
-export default AcpSettingsPage;
+export default ExternalAgentsSettingsPage;

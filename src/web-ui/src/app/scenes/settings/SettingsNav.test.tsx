@@ -8,19 +8,25 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 vi.mock('./settingsRegistry', () => {
   const pages = [
-    { id: 'application.general', categoryId: 'application', labelKey: 'General' },
+    {
+      id: 'application.general',
+      categoryId: 'application',
+      labelKey: 'General',
+      sections: [{ id: 'voice', labelKey: 'Anchor', keywords: ['anchor'], searchPhrases: [] }],
+    },
     { id: 'application.appearance', categoryId: 'application', labelKey: 'Appearance' },
     { id: 'ai.models', categoryId: 'ai', labelKey: 'Models' },
   ].map((page) => ({ ...page, descriptionKey: 'Description', keywords: ['settings'], searchPhrases: [] }));
   return {
     DEFAULT_SETTINGS_PAGE_ID: 'application.general',
     SETTINGS_PAGE_MANIFESTS: pages,
-    VISIBLE_SETTINGS_PAGE_MANIFESTS: pages,
     SETTINGS_CATEGORIES: [
       { id: 'application', labelKey: 'Application', pages: pages.slice(0, 2) },
       { id: 'ai', labelKey: 'AI', pages: pages.slice(2) },
     ],
+    getSettingsPageManifest: (pageId: string) => pages.find((page) => page.id === pageId) ?? pages[0],
     isSettingsPageId: (value: string) => pages.some((page) => page.id === value),
+    isSettingsPageReady: () => true,
     preloadSettingsPage: vi.fn(async () => undefined),
   };
 });
@@ -131,6 +137,18 @@ describe('SettingsNav shared component composition', () => {
     expect(useSettingsStore.getState().activePageId).toBe('application.appearance');
     expect(input.value).toBe('');
     expect(container.querySelector('[role="listbox"]')).toBeNull();
+  });
+
+  it('lists a section anchor as a search result and navigates to it', async () => {
+    await search('anchor');
+    const results = container.querySelector<HTMLDivElement>('[role="listbox"]')!;
+    const options = results.querySelectorAll('[role="option"]');
+    expect(options).toHaveLength(1);
+    expect(options[0].textContent).toContain('Anchor');
+
+    await act(async () => (options[0] as HTMLElement).click());
+    expect(useSettingsStore.getState().activePageId).toBe('application.general');
+    expect(useSettingsStore.getState().activeSectionId).toBe('voice');
   });
 
   it('restores grouped navigation after clearing an empty search', async () => {

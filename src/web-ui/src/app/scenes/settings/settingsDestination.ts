@@ -1,4 +1,5 @@
-import { DEFAULT_SETTINGS_PAGE_ID, isSettingsPageId } from './settingsRegistry';
+import migrations from './settingsDestinationMigrations.json';
+import { DEFAULT_SETTINGS_PAGE_ID, getSettingsPageManifest, isSettingsPageId } from './settingsRegistry';
 import type { SettingsDestination } from './settingsTypes';
 
 const LEGACY_ECOSYSTEM_COMPATIBILITY_IDS = new Set([
@@ -16,48 +17,48 @@ export function isLegacyEcosystemCompatibilityDestination(value: unknown): boole
     && LEGACY_ECOSYSTEM_COMPATIBILITY_IDS.has(value.pageId);
 }
 
+export interface SettingsDestinationInput {
+  pageId: string;
+  viewId?: string;
+  sectionId?: string;
+}
+
 /**
  * Upgrade boundary for links emitted by older installs, extensions, and peers.
  * Product code must use canonical SettingsDestination values directly; legacy
- * identifiers are intentionally contained in this one reader-only table.
+ * identifiers are contained in settingsDestinationMigrations.json so the
+ * compatibility table stays readable and auditable.
  */
-const LEGACY_DESTINATION_MIGRATIONS: Readonly<Record<string, SettingsDestination>> = {
-  basics: { pageId: 'application.general' },
-  appearance: { pageId: 'application.appearance' },
-  font: { pageId: 'application.appearance' },
-  fonts: { pageId: 'application.appearance' },
-  'session-personalization': { pageId: 'application.pet' },
-  'application.input': { pageId: 'application.voice' },
-  keyboard: { pageId: 'application.shortcuts' },
-  shortcuts: { pageId: 'application.shortcuts' },
-  keybindings: { pageId: 'application.shortcuts' },
-  hotkeys: { pageId: 'application.shortcuts' },
-  'voice-input': { pageId: 'application.voice' },
-  'application.development': { pageId: 'application.terminal' },
-  editor: { pageId: 'application.editor' },
-  terminal: { pageId: 'application.terminal' },
-  models: { pageId: 'ai.models' },
-  memories: { pageId: 'ai.memory' },
-  'session-config': { pageId: 'workspace.session' },
-  'session-permissions': { pageId: 'tools.execution' },
-  'tools.device-control': { pageId: 'tools.desktop-control' },
-  'tools.browser-control': { pageId: 'tools.desktop-control' },
-  review: { pageId: 'tools.execution' },
-  'deep-review': { pageId: 'tools.execution' },
-  'code-review': { pageId: 'tools.execution' },
-  'review-team': { pageId: 'tools.execution' },
-  worktrees: { pageId: 'workspace.worktrees' },
-  'quick-actions': { pageId: 'tools.automation', viewId: 'quick-actions' },
-  hooks: { pageId: 'tools.automation', viewId: 'hooks' },
-  'mcp-tools': { pageId: 'tools.mcp' },
-  'acp-agents': { pageId: 'tools.acp' },
-  'usage-statistics': { pageId: 'data.usage' },
-  'archived-sessions': { pageId: 'data.archived' },
-  'data.history': { pageId: 'data.usage' },
-  logging: { pageId: 'data.diagnostics' },
-};
+const LEGACY_DESTINATION_MIGRATIONS: Readonly<Record<string, SettingsDestinationInput>> = migrations.pages;
+const LEGACY_VIEW_MIGRATIONS: Readonly<
+  Record<string, Readonly<Record<string, SettingsDestinationInput>>>
+> = migrations.views;
 
-export function resolveSettingsDestination(value: string): SettingsDestination {
-  if (isSettingsPageId(value)) return { pageId: value };
-  return LEGACY_DESTINATION_MIGRATIONS[value] ?? { pageId: DEFAULT_SETTINGS_PAGE_ID };
+/** Normalize old page ids, old tab links, and current destinations before use. */
+export function resolveSettingsDestination(
+  value: string | SettingsDestinationInput,
+): SettingsDestination {
+  const input: SettingsDestinationInput = typeof value === 'string' ? { pageId: value } : value;
+  const migrated = (input.viewId
+    ? LEGACY_VIEW_MIGRATIONS[input.pageId]?.[input.viewId]
+    : undefined)
+    ?? LEGACY_DESTINATION_MIGRATIONS[input.pageId];
+  const pageId = migrated?.pageId ?? input.pageId;
+  if (!isSettingsPageId(pageId)) return { pageId: DEFAULT_SETTINGS_PAGE_ID };
+
+  const manifest = getSettingsPageManifest(pageId);
+  const requestedSectionId = input.sectionId ?? migrated?.sectionId;
+  const section = requestedSectionId
+    ? manifest.sections?.find((candidate) => candidate.id === requestedSectionId)
+    : undefined;
+  const requestedViewId = input.viewId ?? migrated?.viewId;
+  const view = requestedViewId
+    ? manifest.views?.find((candidate) => candidate.id === requestedViewId)
+    : undefined;
+
+  return {
+    pageId,
+    ...(section ? { sectionId: section.id } : {}),
+    ...(view ? { viewId: view.id } : {}),
+  };
 }

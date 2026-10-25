@@ -2,7 +2,7 @@
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { BrowserDesktopControlSettingsPage, ExecutionSettingsPage, SessionWorkspaceSettingsPage } from './RuntimeSettingsPages';
+import { BrowserDesktopControlSettingsPage, ExecutionSettingsPage, WorkspaceSearchSettingsSection } from './RuntimeSettingsPages';
 
 const mocks = vi.hoisted(() => {
   Object.defineProperty(window, '__TAURI__', { configurable: true, value: {} });
@@ -172,8 +172,7 @@ describe('Browser and desktop control settings', () => {
 describe('Flashgrep settings availability', () => {
   it.each(['normal', 'remote'])('only exposes indexing for local workspaces (%s)', async (workspaceKind) => {
     mocks.workspace = { workspaceKind };
-    await act(async () => root.render(<SessionWorkspaceSettingsPage />));
-    expect(container.textContent).toContain('default-harness-config');
+    await act(async () => root.render(<WorkspaceSearchSettingsSection />));
     expect(container.textContent?.includes('features.workspaceSearch.enable')).toBe(workspaceKind === 'normal');
   });
 });

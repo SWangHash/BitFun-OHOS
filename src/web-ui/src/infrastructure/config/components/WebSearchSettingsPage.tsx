@@ -341,7 +341,7 @@ const WebSearchSettingsPage: React.FC = () => {
 
   useSettingsDraft({
     id: 'web-search-settings',
-    pageId: 'tools.webSearch',
+    pageId: 'tools.web-search',
     label: t('title'),
     dirty: draftDirty,
     saving: saving || credentialBusy,

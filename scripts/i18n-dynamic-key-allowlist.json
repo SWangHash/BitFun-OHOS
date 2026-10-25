@@ -39,16 +39,18 @@
       "surface": "web-ui",
       "namespace": "settings",
       "owner": "src/web-ui/src/app/scenes/settings/settingsRegistry.ts",
-      "description": "The canonical Settings registry stores category, page, and in-page view metadata resolved with the settings namespace.",
+      "description": "The canonical Settings registry stores category, page, section, and in-page view metadata resolved with the settings namespace.",
       "sourceReferences": [
         "labelKey: `navigation.categories.${categoryId}`",
         "labelKey: 'navigation.pages.general.label'",
         "descriptionKey: 'navigation.pages.general.description'",
-        "labelKey: 'navigation.pages.editor.label'"
+        "labelKey: 'navigation.pages.editor.label'",
+        "labelKey: 'navigation.sections.voice'"
       ],
       "keyPrefixes": [
         "navigation.categories.",
         "navigation.pages.",
+        "navigation.sections.",
         "navigation.views."
       ]
     },

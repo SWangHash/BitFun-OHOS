@@ -1,6 +1,6 @@
 import { ScrollArea } from '@bitfun/ui';
 import React, { lazy, Suspense, useEffect, useRef } from 'react';
-import type { SettingsPageProps } from '../settingsTypes';
+import type { SettingsPageProps } from '../../settingsTypes';
 import './AutomationSettingsPage.scss';
 
 const QuickActionsConfig = lazy(() => import('@/infrastructure/config/components/QuickActionsConfig'));

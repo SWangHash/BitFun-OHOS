@@ -42,6 +42,7 @@ const SettingsScene: React.FC<SettingsSceneProps> = ({ isActive = true }) => {
   const { t } = useTranslation('settings');
   const activePageId = useSettingsStore((state) => state.activePageId);
   const activeViewId = useSettingsStore((state) => state.activeViewId);
+  const activeSectionId = useSettingsStore((state) => state.activeSectionId);
   const navigationRequestId = useSettingsStore((state) => state.navigationRequestId);
   const pageTransitionTarget = useSettingsStore((state) => state.pageTransitionTarget);
   const pageTransitionMotion = useSettingsStore((state) => state.pageTransitionMotion);
@@ -106,6 +107,7 @@ const SettingsScene: React.FC<SettingsSceneProps> = ({ isActive = true }) => {
               <Content
                 isActive={isActive}
                 viewId={activeViewId ?? undefined}
+                sectionId={activeSectionId ?? undefined}
                 navigationRequestId={navigationRequestId}
               />
             </Suspense>

@@ -3,33 +3,33 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { openModelSettings } from './openModelSettings';
 
-const openTab = vi.fn();
-const preloadSettingsTabContent = vi.fn(() => Promise.resolve());
+const openPage = vi.fn();
+const preloadSettingsPage = vi.fn(() => Promise.resolve());
 
 vi.mock('@/app/scenes/settings/settingsStore', () => ({
   useSettingsStore: {
-    getState: () => ({ openTab }),
+    getState: () => ({ openPage }),
   },
 }));
 
-vi.mock('@/app/scenes/settings/settingsContentRegistry', () => ({
-  preloadSettingsTabContent,
+vi.mock('@/app/scenes/settings/settingsRegistry', () => ({
+  preloadSettingsPage,
 }));
 
 describe('openModelSettings', () => {
   beforeEach(() => {
-    openTab.mockClear();
-    preloadSettingsTabContent.mockClear();
+    openPage.mockClear();
+    preloadSettingsPage.mockClear();
   });
 
-  it('sets model-create focus and preloads the settings tab before opening', async () => {
+  it('opens the models page and preloads it before opening the scene', async () => {
     const sceneOpen = vi.fn();
     window.addEventListener('scene:open', sceneOpen);
 
     await openModelSettings();
 
-    expect(openTab).toHaveBeenCalledWith('models', 'model-create');
-    expect(preloadSettingsTabContent).toHaveBeenCalledWith('models');
+    expect(openPage).toHaveBeenCalledWith('ai.models');
+    expect(preloadSettingsPage).toHaveBeenCalledWith('ai.models');
     expect(sceneOpen).toHaveBeenCalledOnce();
     expect(sceneOpen.mock.calls[0][0]).toMatchObject({
       type: 'scene:open',
@@ -39,7 +39,7 @@ describe('openModelSettings', () => {
   });
 
   it('opens the settings scene when preloading fails', async () => {
-    preloadSettingsTabContent.mockRejectedValueOnce(new Error('chunk unavailable'));
+    preloadSettingsPage.mockRejectedValueOnce(new Error('chunk unavailable'));
     const sceneOpen = vi.fn();
     window.addEventListener('scene:open', sceneOpen);
 

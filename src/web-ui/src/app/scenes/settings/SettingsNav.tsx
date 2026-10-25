@@ -23,7 +23,7 @@ import { useSettingsDraftSnapshot } from '@/infrastructure/config/settingsDraftR
 import { getInteractionMotion } from '@/shared/utils/motionPreference';
 import {
   SETTINGS_CATEGORIES,
-  VISIBLE_SETTINGS_PAGE_MANIFESTS,
+  SETTINGS_PAGE_MANIFESTS,
   preloadSettingsPage,
   type SettingsSearchPhrase,
 } from './settingsRegistry';
@@ -38,7 +38,7 @@ export interface SettingsSearchRow {
   destination: SettingsDestination;
   categoryLabel: string;
   pageLabel: string;
-  viewLabel?: string;
+  targetLabel?: string;
   description: string;
   haystack: string;
 }
@@ -63,40 +63,49 @@ function buildSettingsSearchIndex(t: SettingsT, i18n: I18nApi): SettingsSearchRo
     translateString(t, category.labelKey, category.id),
   ]));
 
-  return VISIBLE_SETTINGS_PAGE_MANIFESTS.flatMap((page) => {
+  return SETTINGS_PAGE_MANIFESTS.flatMap((page) => {
     const categoryLabel = categoryLabels.get(page.categoryId) ?? page.categoryId;
     const pageLabel = translateString(t, page.labelKey, page.id);
     const description = translateString(t, page.descriptionKey, '');
     const pageContent = resolvePhrases(i18n, page.searchPhrases);
     const base = [categoryLabel, pageLabel, description, page.id, ...page.keywords, pageContent];
 
-    if (!page.views?.length) {
-      return [{
+    const targets = [
+      ...(page.sections ?? []).map((section) => ({
+        ...section,
+        destination: { pageId: page.id, sectionId: section.id },
+      })),
+      ...(page.views ?? []).map((view) => ({
+        ...view,
+        destination: { pageId: page.id, viewId: view.id },
+      })),
+    ];
+
+    return [
+      {
         destination: { pageId: page.id },
         categoryLabel,
         pageLabel,
         description,
         haystack: base.join(' ').toLowerCase(),
-      }];
-    }
-
-    return page.views.map((view) => {
-      const viewLabel = translateString(t, view.labelKey, view.id);
-      return {
-        destination: { pageId: page.id, viewId: view.id },
-        categoryLabel,
-        pageLabel,
-        viewLabel,
-        description,
-        haystack: [
-          ...base,
-          viewLabel,
-          view.id,
-          ...view.keywords,
-          resolvePhrases(i18n, view.searchPhrases),
-        ].join(' ').toLowerCase(),
-      };
-    });
+      },
+      ...targets.map((target) => {
+        const targetLabel = translateString(t, target.labelKey, target.id);
+        return {
+          destination: target.destination,
+          categoryLabel,
+          pageLabel,
+          targetLabel,
+          description,
+          haystack: [
+            targetLabel,
+            target.id,
+            ...target.keywords,
+            resolvePhrases(i18n, target.searchPhrases),
+          ].join(' ').toLowerCase(),
+        };
+      }),
+    ];
   });
 }
 
@@ -125,6 +134,7 @@ const SettingsNav: React.FC = () => {
   const { t: tComponents } = useI18n('components');
   const activePageId = useSettingsStore((state) => state.activePageId);
   const activeViewId = useSettingsStore((state) => state.activeViewId);
+  const activeSectionId = useSettingsStore((state) => state.activeSectionId);
   const { resources: draftResources } = useSettingsDraftSnapshot();
   const openDestination = useSettingsStore((state) => state.openDestination);
   const searchQuery = useSettingsStore((state) => state.searchQuery);
@@ -283,12 +293,13 @@ const SettingsNav: React.FC = () => {
           >
             {results.map((row, index) => {
               const active = activePageId === row.destination.pageId
-                && (!row.destination.viewId || row.destination.viewId === activeViewId);
+                && (!row.destination.viewId || row.destination.viewId === activeViewId)
+                && (!row.destination.sectionId || row.destination.sectionId === activeSectionId);
               const selected = index === highlightedIndex;
-              const path = [row.categoryLabel, row.pageLabel, row.viewLabel].filter(Boolean).join(' › ');
+              const path = [row.categoryLabel, row.pageLabel, row.targetLabel].filter(Boolean).join(' › ');
               return (
                 <NavigationPanelItem data-overflow-trigger
-                  key={`${row.destination.pageId}:${row.destination.viewId ?? ''}`}
+                  key={`${row.destination.pageId}:${row.destination.sectionId ?? row.destination.viewId ?? ''}`}
                   id={`settings-nav-result-${index}`}
                   role="option"
                   aria-selected={active}

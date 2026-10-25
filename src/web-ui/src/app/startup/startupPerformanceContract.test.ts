@@ -499,24 +499,25 @@ describe('startup performance contract', () => {
     const sceneSource = readSource('../scenes/settings/SettingsScene.tsx');
     const registrySource = readSource('../scenes/settings/settingsRegistry.ts');
     const viewPageSources = [
-      readSource('../scenes/settings/pages/AutomationSettingsPage.tsx'),
+      readSource('../scenes/settings/pages/tools/AutomationSettingsPage.tsx'),
     ];
     const lazyPanelSpecifiers = [
       '../../../infrastructure/config/components/ModelSettingsPage',
       '../../../infrastructure/config/components/ApplicationSettingsPages',
       '../../../infrastructure/config/components/AppearanceSettingsPage',
-      '../../../infrastructure/config/components/MemorySettingsPage',
       '../../../infrastructure/config/components/RuntimeSettingsPages',
-      '../../../infrastructure/config/components/WorktreeSettingsPage',
       '../../../infrastructure/config/components/UsageStatisticsConfig',
       '../../../infrastructure/config/components/McpToolsConfig',
-      '../../../infrastructure/config/components/VoiceInputConfig',
+      '../../../infrastructure/config/components/WebSearchSettingsPage',
       './components/ArchivedSessionsConfig',
-      './components/KeyboardShortcutsTab',
-      './pages/EditorSettingsPage',
-      './pages/ExecutionSettingsPage',
-      './pages/AutomationSettingsPage',
-      './pages/AcpSettingsPage',
+      './pages/application/InputSettingsPage',
+      './pages/ai/SessionMemorySettingsPage',
+      './pages/ai/ExecutionSettingsPage',
+      './pages/ai/PermissionsSettingsPage',
+      './pages/development/EditorSettingsPage',
+      './pages/development/WorkspaceGitSettingsPage',
+      './pages/tools/ExternalAgentsSettingsPage',
+      './pages/tools/AutomationSettingsPage',
     ];
     const sceneImports = staticImportSpecifiers(sceneSource);
     const registryImports = staticImportSpecifiers(registrySource);

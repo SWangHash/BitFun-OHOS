@@ -5,6 +5,7 @@ import type {
   SettingsCategoryId,
   SettingsPageId,
   SettingsPageProps,
+  SettingsSectionId,
   SettingsViewId,
 } from './settingsTypes';
 
@@ -15,6 +16,13 @@ export interface SettingsSearchPhrase {
 
 export interface SettingsViewManifest {
   id: SettingsViewId;
+  labelKey: string;
+  keywords: readonly string[];
+  searchPhrases: readonly SettingsSearchPhrase[];
+}
+
+export interface SettingsSectionManifest {
+  id: SettingsSectionId;
   labelKey: string;
   keywords: readonly string[];
   searchPhrases: readonly SettingsSearchPhrase[];
@@ -32,10 +40,10 @@ export interface SettingsPageManifest {
   searchPhrases: readonly SettingsSearchPhrase[];
   views?: readonly SettingsViewManifest[];
   /**
-   * Hidden pages stay routable (feature entry points, legacy deep links) but are
-   * omitted from the Settings navigation and search results.
+   * Anchors inside this page. Sections appear in search results and deep links
+   * but are never rendered as separate navigation rows.
    */
-  hidden?: boolean;
+  sections?: readonly SettingsSectionManifest[];
   load: () => Promise<SettingsPageModule>;
   component: LazyExoticComponent<ComponentType<SettingsPageProps>>;
 }
@@ -107,63 +115,42 @@ export const SETTINGS_PAGE_MANIFESTS: readonly SettingsPageManifest[] = [
     })),
   }),
   definePage({
-    id: 'application.voice',
+    id: 'application.input',
     categoryId: 'application',
-    labelKey: 'navigation.pages.voice.label',
-    descriptionKey: 'navigation.pages.voice.description',
-    keywords: ['voice', 'speech', 'microphone', 'dictation', 'transcription'],
+    labelKey: 'navigation.pages.input.label',
+    descriptionKey: 'navigation.pages.input.description',
+    keywords: [
+      'voice', 'speech', 'microphone', 'dictation', 'transcription',
+      'keyboard', 'shortcut', 'keybinding', 'hotkey',
+    ],
     namespaces: ['settings', 'settings/voice-input'],
     searchPhrases: [
       phrase('settings/voice-input', 'title'),
       phrase('settings/voice-input', 'subtitle'),
-    ],
-    hidden: true,
-    load: () => import('../../../infrastructure/config/components/VoiceInputConfig'),
-  }),
-  definePage({
-    id: 'application.shortcuts',
-    categoryId: 'application',
-    labelKey: 'navigation.pages.shortcuts.label',
-    descriptionKey: 'navigation.pages.shortcuts.description',
-    keywords: ['keyboard', 'shortcut', 'keybinding', 'hotkey'],
-    namespaces: ['settings'],
-    searchPhrases: [
       phrase('settings', 'keyboard.title'),
       phrase('settings', 'keyboard.description'),
     ],
-    load: () => import('./components/KeyboardShortcutsTab'),
-  }),
-  definePage({
-    id: 'application.terminal',
-    categoryId: 'application',
-    labelKey: 'navigation.pages.terminal.label',
-    descriptionKey: 'navigation.pages.terminal.description',
-    keywords: ['terminal', 'shell', 'pwsh', 'powershell', 'panel'],
-    namespaces: ['settings', 'settings/application'],
-    searchPhrases: [
-      phrase('settings/application', 'terminal.sections.terminal'),
-      phrase('settings/application', 'terminal.sections.terminalHint'),
+    sections: [
+      {
+        id: 'voice',
+        labelKey: 'navigation.sections.voice',
+        keywords: ['voice', 'speech', 'microphone', 'dictation', 'transcription'],
+        searchPhrases: [
+          phrase('settings/voice-input', 'title'),
+          phrase('settings/voice-input', 'subtitle'),
+        ],
+      },
+      {
+        id: 'shortcuts',
+        labelKey: 'navigation.sections.shortcuts',
+        keywords: ['keyboard', 'shortcut', 'keybinding', 'hotkey'],
+        searchPhrases: [
+          phrase('settings', 'keyboard.title'),
+          phrase('settings', 'keyboard.description'),
+        ],
+      },
     ],
-    load: () => import('../../../infrastructure/config/components/ApplicationSettingsPages').then((module) => ({
-      default: module.TerminalSettingsPage,
-    })),
-  }),
-  definePage({
-    id: 'application.editor',
-    categoryId: 'application',
-    labelKey: 'navigation.pages.editor.label',
-    descriptionKey: 'navigation.pages.editor.description',
-    keywords: ['editor', 'font', 'indent', 'minimap', 'word wrap', 'format'],
-    namespaces: ['settings/editor'],
-    searchPhrases: [
-      phrase('settings/editor', 'title'),
-      phrase('settings/editor', 'subtitle'),
-      phrase('settings/editor', 'sections.appearance.title'),
-      phrase('settings/editor', 'sections.behavior.title'),
-      phrase('settings/editor', 'sections.display.title'),
-      phrase('settings/editor', 'sections.advanced.title'),
-    ],
-    load: () => import('./pages/EditorSettingsPage'),
+    load: () => import('./pages/application/InputSettingsPage'),
   }),
   definePage({
     id: 'ai.models',
@@ -182,75 +169,164 @@ export const SETTINGS_PAGE_MANIFESTS: readonly SettingsPageManifest[] = [
     load: () => import('../../../infrastructure/config/components/ModelSettingsPage'),
   }),
   definePage({
-    id: 'ai.memory',
+    id: 'ai.session-memory',
     categoryId: 'ai',
-    labelKey: 'navigation.pages.memory.label',
-    descriptionKey: 'navigation.pages.memory.description',
-    keywords: ['memory', 'remember', 'recall', 'consolidation', 'learning', 'knowledge'],
-    namespaces: ['settings/memory'],
+    labelKey: 'navigation.pages.sessionMemory.label',
+    descriptionKey: 'navigation.pages.sessionMemory.description',
+    keywords: ['session', 'harness', 'title', 'memory', 'remember', 'recall', 'consolidation', 'learning', 'knowledge'],
+    namespaces: ['settings', 'settings/runtime', 'settings/memory', 'settings/models', 'settings/agentic-tools'],
     searchPhrases: [
+      phrase('settings/runtime', 'defaultHarness.title'),
+      phrase('settings/models', 'sessionTitle.title'),
       phrase('settings/memory', 'title'),
       phrase('settings/memory', 'subtitle'),
-      phrase('settings/memory', 'sections.basic.title'),
-      phrase('settings/memory', 'sections.basic.description'),
-      phrase('settings/memory', 'sections.models.title'),
-      phrase('settings/memory', 'sections.advanced.title'),
-      phrase('settings/memory', 'fields.memoryEnabled.label'),
-      phrase('settings/memory', 'fields.generateForBtwSessions.label'),
-      phrase('settings/memory', 'fields.externalContextPolicy.label'),
-      phrase('settings/memory', 'fields.extractModel.label'),
-      phrase('settings/memory', 'fields.consolidationModel.label'),
-      phrase('settings/memory', 'fields.maxRolloutsPerStartup.label'),
-      phrase('settings/memory', 'fields.maxRolloutsScanLimit.label'),
-      phrase('settings/memory', 'fields.phase1MaxConcurrency.label'),
     ],
-    load: () => import('../../../infrastructure/config/components/MemorySettingsPage'),
+    sections: [
+      {
+        id: 'session',
+        labelKey: 'navigation.sections.session',
+        keywords: ['session', 'harness', 'title', 'default model'],
+        searchPhrases: [
+          phrase('settings/runtime', 'defaultHarness.title'),
+          phrase('settings/models', 'sessionTitle.title'),
+        ],
+      },
+      {
+        id: 'memory',
+        labelKey: 'navigation.sections.memory',
+        keywords: ['memory', 'remember', 'recall', 'consolidation', 'learning', 'knowledge'],
+        searchPhrases: [
+          phrase('settings/memory', 'title'),
+          phrase('settings/memory', 'subtitle'),
+          phrase('settings/memory', 'sections.basic.title'),
+          phrase('settings/memory', 'sections.basic.description'),
+          phrase('settings/memory', 'sections.models.title'),
+          phrase('settings/memory', 'sections.advanced.title'),
+          phrase('settings/memory', 'fields.memoryEnabled.label'),
+          phrase('settings/memory', 'fields.generateForBtwSessions.label'),
+          phrase('settings/memory', 'fields.externalContextPolicy.label'),
+          phrase('settings/memory', 'fields.extractModel.label'),
+          phrase('settings/memory', 'fields.consolidationModel.label'),
+          phrase('settings/memory', 'fields.maxRolloutsPerStartup.label'),
+          phrase('settings/memory', 'fields.maxRolloutsScanLimit.label'),
+          phrase('settings/memory', 'fields.phase1MaxConcurrency.label'),
+        ],
+      },
+    ],
+    load: () => import('./pages/ai/SessionMemorySettingsPage'),
   }),
   definePage({
-    id: 'workspace.session',
-    categoryId: 'workspace',
-    labelKey: 'navigation.pages.sessionWorkspace.label',
-    descriptionKey: 'navigation.pages.sessionWorkspace.description',
-    keywords: ['session', 'workspace', 'search', 'index', 'title'],
-    namespaces: ['settings', 'settings/runtime', 'settings/agentic-tools', 'settings/models'],
-    searchPhrases: [
-      phrase('settings/runtime', 'features.workspaceSearch.title'),
-      phrase('settings/models', 'sessionTitle.title'),
-    ],
-    load: () => import('../../../infrastructure/config/components/RuntimeSettingsPages').then((module) => ({
-      default: module.SessionWorkspaceSettingsPage,
-    })),
-  }),
-  definePage({
-    id: 'workspace.worktrees',
-    categoryId: 'workspace',
-    labelKey: 'navigation.pages.worktrees.label',
-    descriptionKey: 'navigation.pages.worktrees.description',
-    keywords: ['git', 'worktree', 'isolation', 'parallel', 'branch'],
-    namespaces: ['worktrees'],
-    searchPhrases: [
-      phrase('worktrees', 'settings.title'),
-      phrase('worktrees', 'settings.description'),
-      phrase('worktrees', 'management.title'),
-    ],
-    load: () => import('../../../infrastructure/config/components/WorktreeSettingsPage'),
-  }),
-  definePage({
-    id: 'tools.execution',
-    categoryId: 'tools',
+    id: 'ai.execution',
+    categoryId: 'ai',
     labelKey: 'navigation.pages.execution.label',
     descriptionKey: 'navigation.pages.execution.description',
-    keywords: ['permission', 'approval', 'tool', 'timeout', 'parallel', 'review', 'json repair'],
-    namespaces: ['settings', 'settings/runtime', 'settings/agentic-tools', 'settings/review-capacity', 'settings/models'],
+    keywords: ['tool', 'timeout', 'parallel', 'review', 'json repair', 'deferred loading'],
+    namespaces: ['settings/runtime', 'settings/agentic-tools', 'settings/review-capacity', 'settings/models'],
     searchPhrases: [
-      phrase('settings/runtime', 'permissionPolicy.sectionTitle'),
-      phrase('settings/runtime', 'permissionPolicy.globalRules'),
       phrase('settings/runtime', 'toolExecution.sectionTitle'),
       phrase('settings/runtime', 'deferredToolLoading.sectionTitle'),
       phrase('settings/review-capacity', 'capacity.title'),
       phrase('settings/models', 'toolArgumentJsonRepair.title'),
     ],
-    load: () => import('./pages/ExecutionSettingsPage'),
+    load: () => import('./pages/ai/ExecutionSettingsPage'),
+  }),
+  definePage({
+    id: 'ai.permissions',
+    categoryId: 'ai',
+    labelKey: 'navigation.pages.permissions.label',
+    descriptionKey: 'navigation.pages.permissions.description',
+    keywords: ['permission', 'approval', 'policy', 'rules', 'full access', 'auto approve'],
+    namespaces: ['settings/runtime'],
+    searchPhrases: [
+      phrase('settings/runtime', 'permissionPolicy.sectionTitle'),
+      phrase('settings/runtime', 'permissionPolicy.globalRules'),
+      phrase('settings/runtime', 'permissionPolicy.mode'),
+      phrase('settings/runtime', 'permissionPolicy.showInChatInput'),
+    ],
+    load: () => import('./pages/ai/PermissionsSettingsPage'),
+  }),
+  definePage({
+    id: 'development.editor',
+    categoryId: 'development',
+    labelKey: 'navigation.pages.editor.label',
+    descriptionKey: 'navigation.pages.editor.description',
+    keywords: ['editor', 'font', 'indent', 'minimap', 'word wrap', 'format'],
+    namespaces: ['settings/editor'],
+    searchPhrases: [
+      phrase('settings/editor', 'title'),
+      phrase('settings/editor', 'subtitle'),
+      phrase('settings/editor', 'sections.appearance.title'),
+      phrase('settings/editor', 'sections.behavior.title'),
+      phrase('settings/editor', 'sections.display.title'),
+      phrase('settings/editor', 'sections.advanced.title'),
+    ],
+    load: () => import('./pages/development/EditorSettingsPage'),
+  }),
+  definePage({
+    id: 'development.terminal',
+    categoryId: 'development',
+    labelKey: 'navigation.pages.terminal.label',
+    descriptionKey: 'navigation.pages.terminal.description',
+    keywords: ['terminal', 'shell', 'pwsh', 'powershell', 'panel'],
+    namespaces: ['settings', 'settings/application'],
+    searchPhrases: [
+      phrase('settings/application', 'terminal.sections.terminal'),
+      phrase('settings/application', 'terminal.sections.terminalHint'),
+    ],
+    load: () => import('../../../infrastructure/config/components/ApplicationSettingsPages').then((module) => ({
+      default: module.TerminalSettingsPage,
+    })),
+  }),
+  definePage({
+    id: 'development.workspace',
+    categoryId: 'development',
+    labelKey: 'navigation.pages.workspaceGit.label',
+    descriptionKey: 'navigation.pages.workspaceGit.description',
+    keywords: ['git', 'worktree', 'isolation', 'parallel', 'branch', 'workspace', 'search', 'index'],
+    namespaces: ['worktrees', 'settings/runtime'],
+    searchPhrases: [
+      phrase('worktrees', 'settings.title'),
+      phrase('worktrees', 'settings.description'),
+      phrase('worktrees', 'management.title'),
+      phrase('settings/runtime', 'features.workspaceSearch.title'),
+    ],
+    sections: [
+      {
+        id: 'workspace-search',
+        labelKey: 'navigation.sections.workspace-search',
+        keywords: ['workspace', 'search', 'index', 'flashgrep'],
+        searchPhrases: [
+          phrase('settings/runtime', 'features.workspaceSearch.title'),
+          phrase('settings/runtime', 'features.workspaceSearch.subtitle'),
+        ],
+      },
+      {
+        id: 'worktrees',
+        labelKey: 'navigation.sections.worktrees',
+        keywords: ['git', 'worktree', 'isolation', 'parallel', 'branch'],
+        searchPhrases: [
+          phrase('worktrees', 'settings.title'),
+          phrase('worktrees', 'settings.description'),
+          phrase('worktrees', 'management.title'),
+        ],
+      },
+    ],
+    load: () => import('./pages/development/WorkspaceGitSettingsPage'),
+  }),
+  definePage({
+    id: 'tools.web-search',
+    categoryId: 'tools',
+    labelKey: 'navigation.pages.webSearch.label',
+    descriptionKey: 'navigation.pages.webSearch.description',
+    keywords: ['web search', 'exa', 'tavily', 'http', 'provider', 'api key'],
+    namespaces: ['settings/web-search'],
+    searchPhrases: [
+      phrase('settings/web-search', 'title'),
+      phrase('settings/web-search', 'sections.provider.title'),
+      phrase('settings/web-search', 'sections.http.title'),
+      phrase('settings/web-search', 'sections.credential.title'),
+    ],
+    load: () => import('../../../infrastructure/config/components/WebSearchSettingsPage'),
   }),
   definePage({
     id: 'tools.desktop-control',
@@ -275,45 +351,6 @@ export const SETTINGS_PAGE_MANIFESTS: readonly SettingsPageManifest[] = [
     })),
   }),
   definePage({
-    id: 'tools.automation',
-    categoryId: 'tools',
-    labelKey: 'navigation.pages.automation.label',
-    descriptionKey: 'navigation.pages.automation.description',
-    keywords: ['automation', 'quick action', 'hook', 'lifecycle', 'command'],
-    namespaces: ['settings', 'settings/quick-actions', 'settings/hooks'],
-    searchPhrases: [],
-    views: [
-      {
-        id: 'quick-actions',
-        labelKey: 'navigation.views.quick-actions',
-        keywords: ['quick action', 'commit', 'pull request', 'post coding'],
-        searchPhrases: [phrase('settings/quick-actions', 'page.title'), phrase('settings/quick-actions', 'page.subtitle')],
-      },
-      {
-        id: 'hooks',
-        labelKey: 'navigation.views.hooks',
-        keywords: ['hook', 'hooks', 'lifecycle', 'command'],
-        searchPhrases: [phrase('settings/hooks', 'title'), phrase('settings/hooks', 'activation.title')],
-      },
-    ],
-    load: () => import('./pages/AutomationSettingsPage'),
-  }),
-  definePage({
-    id: 'tools.webSearch',
-    categoryId: 'tools',
-    labelKey: 'navigation.pages.webSearch.label',
-    descriptionKey: 'navigation.pages.webSearch.description',
-    keywords: ['web search', 'exa', 'tavily', 'http', 'provider', 'api key'],
-    namespaces: ['settings/web-search'],
-    searchPhrases: [
-      phrase('settings/web-search', 'title'),
-      phrase('settings/web-search', 'sections.provider.title'),
-      phrase('settings/web-search', 'sections.http.title'),
-      phrase('settings/web-search', 'sections.credential.title'),
-    ],
-    load: () => import('../../../infrastructure/config/components/WebSearchSettingsPage'),
-  }),
-  definePage({
     id: 'tools.mcp',
     categoryId: 'tools',
     labelKey: 'navigation.pages.mcp.label',
@@ -327,7 +364,7 @@ export const SETTINGS_PAGE_MANIFESTS: readonly SettingsPageManifest[] = [
     load: () => import('../../../infrastructure/config/components/McpToolsConfig'),
   }),
   definePage({
-    id: 'tools.acp',
+    id: 'tools.external-agents',
     categoryId: 'tools',
     labelKey: 'navigation.pages.acp.label',
     descriptionKey: 'navigation.pages.acp.description',
@@ -357,7 +394,31 @@ export const SETTINGS_PAGE_MANIFESTS: readonly SettingsPageManifest[] = [
         searchPhrases: [phrase('settings/acp-agents', 'json.title')],
       },
     ],
-    load: () => import('./pages/AcpSettingsPage'),
+    load: () => import('./pages/tools/ExternalAgentsSettingsPage'),
+  }),
+  definePage({
+    id: 'tools.automation',
+    categoryId: 'tools',
+    labelKey: 'navigation.pages.automation.label',
+    descriptionKey: 'navigation.pages.automation.description',
+    keywords: ['automation', 'quick action', 'hook', 'lifecycle', 'command'],
+    namespaces: ['settings', 'settings/quick-actions', 'settings/hooks'],
+    searchPhrases: [],
+    views: [
+      {
+        id: 'quick-actions',
+        labelKey: 'navigation.views.quick-actions',
+        keywords: ['quick action', 'commit', 'pull request', 'post coding'],
+        searchPhrases: [phrase('settings/quick-actions', 'page.title'), phrase('settings/quick-actions', 'page.subtitle')],
+      },
+      {
+        id: 'hooks',
+        labelKey: 'navigation.views.hooks',
+        keywords: ['hook', 'hooks', 'lifecycle', 'command'],
+        searchPhrases: [phrase('settings/hooks', 'title'), phrase('settings/hooks', 'activation.title')],
+      },
+    ],
+    load: () => import('./pages/tools/AutomationSettingsPage'),
   }),
   definePage({
     id: 'data.usage',
@@ -406,16 +467,12 @@ export interface SettingsCategory {
   pages: readonly SettingsPageManifest[];
 }
 
-const CATEGORY_ORDER: readonly SettingsCategoryId[] = ['application', 'ai', 'workspace', 'tools', 'data'];
-
-/** Pages rendered in the Settings navigation and indexed for search. */
-export const VISIBLE_SETTINGS_PAGE_MANIFESTS: readonly SettingsPageManifest[] =
-  SETTINGS_PAGE_MANIFESTS.filter((page) => !page.hidden);
+const CATEGORY_ORDER: readonly SettingsCategoryId[] = ['application', 'ai', 'development', 'tools', 'data'];
 
 export const SETTINGS_CATEGORIES: readonly SettingsCategory[] = CATEGORY_ORDER.map((categoryId) => ({
   id: categoryId,
   labelKey: `navigation.categories.${categoryId}`,
-  pages: SETTINGS_PAGE_MANIFESTS.filter((page) => page.categoryId === categoryId && !page.hidden),
+  pages: SETTINGS_PAGE_MANIFESTS.filter((page) => page.categoryId === categoryId),
 }));
 
 export const DEFAULT_SETTINGS_PAGE_ID: SettingsPageId = 'application.general';

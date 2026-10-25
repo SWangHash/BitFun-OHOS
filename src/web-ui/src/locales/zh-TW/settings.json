@@ -5,9 +5,9 @@
       "empty": "沒有匹配的設定"
     },
     "categories": {
-      "application": "應用與介面",
-      "ai": "AI 與模型",
-      "workspace": "會話與工作區",
+      "application": "應用程式與介面",
+      "ai": "模型與智慧體",
+      "development": "程式設計與開發",
       "tools": "工具與整合",
       "data": "資料與維護"
     },
@@ -24,21 +24,21 @@
         "label": "寵物",
         "description": "顯示位置、角色包、匯入與預覽。"
       },
-      "voice": {
-        "label": "語音",
-        "description": "語音輸入、本機辨識模型與即時語音通話。"
-      },
-      "shortcuts": {
-        "label": "快捷鍵",
-        "description": "檢視、自訂與重設鍵盤快捷鍵。"
+      "input": {
+        "label": "輸入與互動",
+        "description": "設定語音轉文字與鍵盤快速鍵。"
       },
       "terminal": {
-        "label": "終端",
-        "description": "預設 Shell。"
+        "label": "終端機",
+        "description": "選擇新建終端機與本機工作區命令使用的 Shell。"
       },
       "editor": {
         "label": "編輯器",
-        "description": "程式碼編輯器的外觀、縮排、顯示與格式化。"
+        "description": "調整程式碼的顯示、縮排與自動格式化。"
+      },
+      "workspaceGit": {
+        "label": "工作區與 Git",
+        "description": "設定檔案搜尋與 Worktree，管理隔離工作目錄。"
       },
       "models": {
         "label": "模型",
@@ -48,17 +48,17 @@
         "label": "記憶",
         "description": "記憶生成、使用、提取與整理。"
       },
-      "sessionWorkspace": {
-        "label": "會話與工作區",
-        "description": "預設執行框架、會話標題與目前工作區搜尋。"
-      },
-      "worktrees": {
-        "label": "Worktrees",
-        "description": "Git Worktree 隔離與平行會話預設值。"
+      "sessionMemory": {
+        "label": "工作階段與記憶",
+        "description": "設定新工作階段的執行模式、標題產生與記憶策略。"
       },
       "execution": {
-        "label": "執行與權限",
-        "description": "工具權限、執行參數、Review 與容錯設定。"
+        "label": "執行與協作",
+        "description": "設定工具執行時限、智慧體並行方式與審核容量。"
+      },
+      "permissions": {
+        "label": "權限規則",
+        "description": "設定新工作階段的核准模式與全域工具權限規則。"
       },
       "browserDesktopControl": {
         "label": "瀏覽器與桌面控制",
@@ -93,9 +93,15 @@
         "description": "日誌層級、執行資訊與故障排查。"
       }
     },
+    "sections": {
+      "voice": "語音",
+      "shortcuts": "快速鍵",
+      "session": "工作階段預設行為",
+      "memory": "記憶",
+      "workspace-search": "工作區搜尋",
+      "worktrees": "Worktrees"
+    },
     "views": {
-      "common": "常用",
-      "advanced": "進階",
       "local": "本機",
       "ssh": "SSH",
       "json": "進階 JSON",

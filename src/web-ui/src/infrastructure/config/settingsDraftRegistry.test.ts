@@ -19,7 +19,7 @@ describe('settingsDraftRegistry', () => {
     const commit = vi.fn();
     registerSettingsDraft({
       id: 'page-form',
-      pageId: 'application.editor',
+      pageId: 'development.editor',
       label: 'Editor',
       dirty: true,
       save: vi.fn(),
@@ -27,8 +27,8 @@ describe('settingsDraftRegistry', () => {
     });
 
     expect(requestSettingsNavigation(
-      { pageId: 'application.editor' },
-      { kind: 'settings', pageId: 'application.editor', viewId: 'advanced' },
+      { pageId: 'development.editor' },
+      { kind: 'settings', pageId: 'development.editor' },
       commit,
     )).toBe(true);
     expect(commit).toHaveBeenCalledOnce();
@@ -40,7 +40,7 @@ describe('settingsDraftRegistry', () => {
     const save = vi.fn(async () => true);
     registerSettingsDraft({
       id: 'acp-json',
-      pageId: 'tools.acp',
+      pageId: 'tools.external-agents',
       viewId: 'json',
       label: 'ACP JSON',
       dirty: true,
@@ -49,8 +49,8 @@ describe('settingsDraftRegistry', () => {
     });
 
     expect(requestSettingsNavigation(
-      { pageId: 'tools.acp', viewId: 'json' },
-      { kind: 'settings', pageId: 'tools.acp', viewId: 'local' },
+      { pageId: 'tools.external-agents', viewId: 'json' },
+      { kind: 'settings', pageId: 'tools.external-agents', viewId: 'local' },
       commit,
     )).toBe(false);
     expect(getSettingsDraftSnapshot().pendingNavigation?.resourceLabels).toEqual(['ACP JSON']);
@@ -64,14 +64,14 @@ describe('settingsDraftRegistry', () => {
     const commit = vi.fn();
     registerSettingsDraft({
       id: 'invalid-form',
-      pageId: 'workspace.worktrees',
+      pageId: 'development.workspace',
       label: 'Worktrees',
       dirty: true,
       save: async () => false,
       discard: vi.fn(),
     });
     requestSettingsNavigation(
-      { pageId: 'workspace.worktrees' },
+      { pageId: 'development.workspace' },
       { kind: 'settings', pageId: 'application.general' },
       commit,
     );
@@ -137,14 +137,14 @@ describe('settingsDraftRegistry', () => {
     const commit = vi.fn();
     registerSettingsDraft({
       id: 'old-device-form',
-      pageId: 'application.voice',
+      pageId: 'application.input',
       label: 'Voice',
       dirty: true,
       save,
       discard: vi.fn(),
     });
     requestSettingsNavigation(
-      { pageId: 'application.voice' },
+      { pageId: 'application.input' },
       null,
       commit,
     );
@@ -172,7 +172,7 @@ describe('settingsDraftRegistry', () => {
       });
     registerSettingsDraft({
       id: 'first',
-      pageId: 'tools.webSearch',
+      pageId: 'tools.web-search',
       label: 'Configuration',
       dirty: true,
       save: saveFirst,
@@ -180,14 +180,14 @@ describe('settingsDraftRegistry', () => {
     });
     registerSettingsDraft({
       id: 'second',
-      pageId: 'tools.webSearch',
+      pageId: 'tools.web-search',
       label: 'Credential',
       dirty: true,
       save: saveSecond,
       discard: vi.fn(),
     });
     requestSettingsNavigation(
-      { pageId: 'tools.webSearch' },
+      { pageId: 'tools.web-search' },
       { kind: 'settings', pageId: 'tools.mcp' },
       commit,
     );
@@ -207,14 +207,14 @@ describe('settingsDraftRegistry', () => {
     const commit = vi.fn();
     registerSettingsDraft({
       id: 'old-device-form',
-      pageId: 'application.voice',
+      pageId: 'application.input',
       label: 'Voice',
       dirty: true,
       save: vi.fn(),
       discard: vi.fn(),
     });
     requestSettingsNavigation(
-      { pageId: 'application.voice' },
+      { pageId: 'application.input' },
       null,
       commit,
     );

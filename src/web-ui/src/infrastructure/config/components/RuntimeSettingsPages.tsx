@@ -59,8 +59,6 @@ import type {
   ToolPermissionConfig,
 } from '../types';
 import { GlobalPermissionRulesDialog } from './GlobalPermissionRulesDialog';
-import SessionTitleConfig from './SessionTitleConfig';
-import DefaultHarnessConfig from './DefaultHarnessConfig';
 import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext';
 import { isRemoteWorkspace } from '@/shared/types/global-state';
 import { WORKSPACE_SEARCH_AVAILABLE } from '@/infrastructure/config/workspaceSearchAvailability';
@@ -149,18 +147,22 @@ const DEFAULT_BROWSER_CONTROL_BROWSER = 'default';
 
 export type RuntimeSettingsPageKind =
   | 'pet'
-  | 'session-workspace'
+  | 'workspace-search'
   | 'execution'
+  | 'permissions'
   | 'browser-desktop-control';
 
 interface RuntimeSettingsPageProps {
   page: RuntimeSettingsPageKind;
   isActive?: boolean;
+  /** Render page sections only so a composed settings page owns layout and header. */
+  embedded?: boolean;
 }
 
 const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
   page,
   isActive = true,
+  embedded = false,
 }) => {
   const { t } = useTranslation('settings/runtime');
   const { t: tNavigation } = useTranslation('settings');
@@ -336,7 +338,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
           reloadCompanionPets(),
         ]);
         setSettings(loadedSettings);
-      } else if (page === 'session-workspace') {
+      } else if (page === 'workspace-search') {
         setSettings(await aiExperienceConfigService.getSettingsAsync());
       } else if (page === 'execution') {
         const [
@@ -345,16 +347,12 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
           loadedSwarmMaxConcurrency,
           execTimeout,
           loadedSubagentBatchExecutionPolicy,
-          loadedToolPermissionConfig,
-          loadedPermissionModeControlVisibility,
         ] = await Promise.all([
           configManager.getConfig<boolean>('ai.enable_deferred_tool_loading'),
           configManager.getConfig<number | null>('ai.subagent_max_concurrency'),
           configManager.getConfig<number | null>('ai.swarm_max_concurrency'),
           configManager.getConfig<number | null>('ai.tool_execution_timeout_secs'),
           configManager.getConfig<SubagentBatchExecutionPolicy>('ai.subagent_batch_execution_policy'),
-          permissionConfigService.getConfig(),
-          configManager.getOptionalConfig<boolean>(SHOW_PERMISSION_MODE_CONTROL_CONFIG_PATH),
         ]);
         setEnableDeferredToolLoading(deferredToolLoadingEnabled ?? true);
         setSubagentMaxConcurrency(loadedSubagentMaxConcurrency != null
@@ -365,6 +363,14 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
           : DEFAULT_SWARM_MAX_CONCURRENCY);
         setExecutionTimeout(execTimeout != null ? String(execTimeout) : '');
         setSubagentBatchExecutionPolicy(normalizeSubagentBatchExecutionPolicy(loadedSubagentBatchExecutionPolicy));
+      } else if (page === 'permissions') {
+        const [
+          loadedToolPermissionConfig,
+          loadedPermissionModeControlVisibility,
+        ] = await Promise.all([
+          permissionConfigService.getConfig(),
+          configManager.getOptionalConfig<boolean>(SHOW_PERMISSION_MODE_CONTROL_CONFIG_PATH),
+        ]);
         setToolPermissionConfig(normalizeToolPermissionConfig(loadedToolPermissionConfig));
         setShowPermissionModeControl(loadedPermissionModeControlVisibility !== false);
       } else if (page === 'browser-desktop-control') {
@@ -945,8 +951,8 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
     };
   });
 
-  const pageCopyKey = page === 'session-workspace'
-    ? 'sessionWorkspace'
+  const pageCopyKey = page === 'workspace-search'
+    ? 'workspaceGit'
     : page === 'browser-desktop-control'
       ? 'browserDesktopControl'
       : page;
@@ -956,37 +962,32 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
   const showsExecutionSettings = page === 'execution';
 
   const { workspace } = useCurrentWorkspace();
-  const requiresExperienceSettings = page === 'pet' || page === 'session-workspace';
-  if (loadError) {
-    return (
+  const requiresExperienceSettings = page === 'pet' || page === 'workspace-search';
+  const frame = (body: React.ReactNode): React.ReactElement => (
+    embedded ? <>{body}</> : (
       <ConfigPageLayout className="bitfun-runtime-settings" data-bitfun-component="runtime-settings" data-bitfun-part="root" data-bitfun-view={appearanceView}>
         <ConfigPageHeader title={pageTitle} subtitle={pageSubtitle} />
         <ConfigPageContent className="bitfun-runtime-settings__content" data-bitfun-component="runtime-settings" data-bitfun-part="content">
-          <ConfigRetryState
-            message={t('loading.failed')}
-            retryLabel={t('loading.retry')}
-            onRetry={() => void loadPageData()}
-          />
+          {body}
         </ConfigPageContent>
       </ConfigPageLayout>
+    )
+  );
+  if (loadError) {
+    return frame(
+      <ConfigRetryState
+        message={t('loading.failed')}
+        retryLabel={t('loading.retry')}
+        onRetry={() => void loadPageData()}
+      />,
     );
   }
   if (isLoading || (requiresExperienceSettings && !settings)) {
-    return (
-      <ConfigPageLayout className="bitfun-runtime-settings" data-bitfun-component="runtime-settings" data-bitfun-part="root" data-bitfun-view={appearanceView}>
-        <ConfigPageHeader title={pageTitle} subtitle={pageSubtitle} />
-        <ConfigPageContent className="bitfun-runtime-settings__content" data-bitfun-component="runtime-settings" data-bitfun-part="content">
-          <ConfigLoadingState label={t('loading.text')} />
-        </ConfigPageContent>
-      </ConfigPageLayout>
-    );
+    return frame(<ConfigLoadingState label={t('loading.text')} />);
   }
 
-  return (
-    <ConfigPageLayout className="bitfun-runtime-settings" data-bitfun-component="runtime-settings" data-bitfun-part="root" data-bitfun-view={appearanceView}>
-      <ConfigPageHeader title={pageTitle} subtitle={pageSubtitle} />
-
-      <ConfigPageContent className="bitfun-runtime-settings__content" data-bitfun-component="runtime-settings" data-bitfun-part="content">
+  return frame(
+    <>
 
         {page === 'pet' && settings ? (
           <>
@@ -1130,11 +1131,8 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
           </>
         ) : null}
 
-        {page === 'session-workspace' && settings ? (
+        {page === 'workspace-search' && settings ? (
           <>
-
-<DefaultHarnessConfig />
-
         {/* Accelerated search is available for local workspaces only. */}
         {WORKSPACE_SEARCH_AVAILABLE && !isRemoteWorkspace(workspace) && (
           <ConfigPageSection
@@ -1151,15 +1149,11 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
             </ConfigPageRow>
           </ConfigPageSection>
         )}
-
-        <SessionTitleConfig />
-
           </>
         ) : null}
 
-        {showsExecutionSettings ? (
+        {page === 'permissions' ? (
           <>
-
         <ConfigPageSection
           title={t('permissionPolicy.sectionTitle')}
           description={t('permissionPolicy.sectionDescription')}
@@ -1230,6 +1224,11 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
           onSave={handleSaveGlobalPermissionRules}
           onClose={() => setIsGlobalPermissionRulesDialogOpen(false)}
         />
+          </>
+        ) : null}
+
+        {showsExecutionSettings ? (
+          <>
 
         {/* ── Tool execution behavior ────────────────────────────── */}
         <ConfigPageSection
@@ -1660,8 +1659,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
           </>
         ) : null}
 
-      </ConfigPageContent>
-    </ConfigPageLayout>
+    </>,
   );
 };
 
@@ -1669,12 +1667,16 @@ export function PetSettingsPage({ isActive }: { isActive?: boolean }): React.Rea
   return <RuntimeSettingsPage page="pet" isActive={isActive} />;
 }
 
-export function SessionWorkspaceSettingsPage(): React.ReactElement {
-  return <RuntimeSettingsPage page="session-workspace" />;
+export function WorkspaceSearchSettingsSection(): React.ReactElement {
+  return <RuntimeSettingsPage page="workspace-search" embedded />;
 }
 
 export function ExecutionSettingsPage(): React.ReactElement {
   return <RuntimeSettingsPage page="execution" />;
+}
+
+export function PermissionsSettingsPage(): React.ReactElement {
+  return <RuntimeSettingsPage page="permissions" />;
 }
 
 export function BrowserDesktopControlSettingsPage(): React.ReactElement {

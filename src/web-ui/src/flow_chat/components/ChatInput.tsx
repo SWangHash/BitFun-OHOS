@@ -2748,7 +2748,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   // The reset row follows the user-level default, so give it a way to reach the
   // page that owns that default instead of making the user hunt for it.
   const handleOpenPermissionDefaultSettings = useCallback(() => {
-    useSettingsStore.getState().openPage('tools.execution');
+    useSettingsStore.getState().openPage('ai.permissions');
     openScene('settings');
   }, [openScene]);
 
