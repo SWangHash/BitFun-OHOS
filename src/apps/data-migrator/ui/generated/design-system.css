@@ -217,7 +217,7 @@
     --bitfun-layout-card-radius-sm: var(--bitfun-radius-base);
     --bitfun-layout-card-title-description-gap: var(--bitfun-space-1);
     --bitfun-layout-confirm-dialog-content-gap: var(--bitfun-space-4);
-    --bitfun-layout-confirm-dialog-icon-glyph-size: var(--bitfun-control-icon-size-md);
+    --bitfun-layout-confirm-dialog-icon-glyph-size: var(--bitfun-control-icon-size-lg);
     --bitfun-layout-confirm-dialog-icon-size: 32px;
     --bitfun-layout-confirm-dialog-message-gap: var(--bitfun-space-2);
     --bitfun-layout-confirm-dialog-preview-max-block-size: 240px;

@@ -754,7 +754,7 @@
       "contentGap": { "$value": "{space.4}" },
       "messageGap": { "$value": "{space.2}" },
       "iconSize": { "$value": "32px" },
-      "iconGlyphSize": { "$value": "{control.icon.sizeMd}" },
+      "iconGlyphSize": { "$value": "{control.icon.sizeLg}" },
       "previewMaxBlockSize": { "$value": "240px" },
       "previewPaddingBlock": { "$value": "{space.3}" },
       "previewPaddingInline": { "$value": "{space.4}" },

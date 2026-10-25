@@ -329,7 +329,7 @@ test("ConfirmDialog tokens preserve semantic content and preview composition", a
   assert.equal(tokens["layout.confirmDialog.contentGap"], "16px");
   assert.equal(tokens["layout.confirmDialog.messageGap"], "8px");
   assert.equal(tokens["layout.confirmDialog.iconSize"], "32px");
-  assert.equal(tokens["layout.confirmDialog.iconGlyphSize"], "16px");
+  assert.equal(tokens["layout.confirmDialog.iconGlyphSize"], "24px");
   assert.equal(tokens["layout.confirmDialog.previewMaxBlockSize"], "240px");
   assert.equal(tokens["layout.spinner.matrixCellXs"], "3px");
   assert.equal(tokens["layout.spinner.matrixCellSm"], "4px");
