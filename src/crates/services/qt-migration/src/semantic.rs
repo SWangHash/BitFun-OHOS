@@ -166,7 +166,6 @@ pub fn build_intent_decision(output: &str) -> Option<TurnIntentDecision> {
 
     let mut fields = serde_json::Map::new();
     let mut resolved_paths = serde_json::Map::new();
-    let mut unclassified: Vec<Value> = Vec::new();
     let mut unverified: Vec<Value> = Vec::new();
     for field in QT_MIGRATION_INTAKE_REQUIRED_FIELDS {
         let entry = fields_input.get(field).cloned().unwrap_or(Value::Null);
@@ -179,24 +178,25 @@ pub fn build_intent_decision(output: &str) -> Option<TurnIntentDecision> {
             .and_then(Value::as_str)
             .map(str::trim)
             .filter(|p| !p.is_empty());
+        // A parent-directory path is never a value: it stays a hint the user has
+        // to correct, so it cannot travel as this field's path.
+        let path = path.filter(|path| !path.contains(".."));
         let normalized = match (state, path) {
-            ("resolved", Some(path)) if !path.contains("..") => {
-                // The named path is kept either way: it is this field's card
-                // candidate, so the question offers what the user wrote instead
-                // of an empty field (#370). Only an existing path may bind.
+            ("resolved", Some(path)) => {
+                // The named path is this field's value: it is the candidate the
+                // card offers, and a prompt naming all four starts the migration
+                // without a card. Whether the path resolves on this host is the
+                // migration's own problem to surface, not the analyzer's.
                 resolved_paths.insert(field.to_string(), json!(path));
-                if std::path::Path::new(path).exists() {
-                    "resolved"
-                } else {
-                    // Not visible from this process: keep it as a candidate the
-                    // user has to confirm, and say so — calling it "unclassified"
-                    // made the model re-collect paths the analysis had in fact
-                    // matched to their fields.
+                if !std::path::Path::new(path).exists() {
                     unverified.push(json!(path));
-                    "referenced"
                 }
+                "resolved"
             }
-            ("resolved", Some(path)) | ("referenced", Some(path)) => {
+            ("referenced", Some(path)) => {
+                // Named but not claimed as the value: it is still the path the
+                // user wrote for this field, so the card offers it.
+                resolved_paths.insert(field.to_string(), json!(path));
                 unverified.push(json!(path));
                 "referenced"
             }
@@ -207,7 +207,9 @@ pub fn build_intent_decision(output: &str) -> Option<TurnIntentDecision> {
         };
         fields.insert(field.to_string(), json!(normalized));
     }
-    resolved_paths.insert("unclassifiedPaths".to_string(), json!(unclassified));
+    // Every path the model reports belongs to a field, so this analysis has no
+    // unattributed path: the deterministic layer is where that fact comes from.
+    resolved_paths.insert("unclassifiedPaths".to_string(), json!([]));
     resolved_paths.insert("unverifiedPaths".to_string(), json!(unverified));
 
     Some(decision_from_analyze_json(json!({
@@ -225,6 +227,47 @@ pub fn build_intent_decision(output: &str) -> Option<TurnIntentDecision> {
 /// fails.
 pub fn fallback_intent_decision(prompt: &str) -> TurnIntentDecision {
     decision_from_analyze_json(analyze_request(prompt))
+}
+
+/// Union of the model's analysis and the deterministic one: a path the string
+/// layer read out of the prompt is a fact about the prompt, so a field the model
+/// left without a path still carries one — the migration then starts instead of
+/// asking for it again (#370). The model keeps every other verdict, including
+/// the ones it judged better than the string layer.
+pub fn merged_intent_decision(
+    model: TurnIntentDecision,
+    deterministic: &TurnIntentDecision,
+) -> TurnIntentDecision {
+    if !model.flow_enabled {
+        return model;
+    }
+    let mut value = model.value.clone();
+    let mut carried = false;
+    for field in QT_MIGRATION_INTAKE_REQUIRED_FIELDS {
+        let modelled = model
+            .resolved_paths
+            .get(field)
+            .and_then(Value::as_str)
+            .is_some_and(|path| !path.is_empty());
+        if modelled {
+            continue;
+        }
+        let Some(found) = deterministic
+            .resolved_paths
+            .get(field)
+            .and_then(Value::as_str)
+            .filter(|path| !path.is_empty())
+        else {
+            continue;
+        };
+        value["resolvedPaths"][field] = json!(found);
+        value["fields"][field] = json!("resolved");
+        carried = true;
+    }
+    if !carried {
+        return model;
+    }
+    decision_from_analyze_json(value)
 }
 
 /// Project a decision JSON (the `analyze_request` shape, shared by the
@@ -265,19 +308,23 @@ pub fn instruction_facts(
     prompt_starts_new_task: bool,
     all_bound: bool,
 ) -> Value {
+    // A field counts as pending when the analysis has no path for it: a prompt
+    // that names all four is complete, and the card is only the answer to an
+    // input the user did not give.
     let pending: Vec<&str> = QT_MIGRATION_INTAKE_REQUIRED_FIELDS
         .iter()
         .copied()
         .filter(|field| {
-            matches!(
-                decision.field_states.get(*field).map(String::as_str),
-                Some("missing" | "referenced")
-            )
+            decision
+                .resolved_paths
+                .get(*field)
+                .and_then(Value::as_str)
+                .is_none_or(str::is_empty)
         })
         .collect();
     let missing_or_referenced = prompt_starts_new_task || !all_bound || !pending.is_empty();
-    // Paths the analysis matched to a field but could not see on this host: they
-    // are candidates the user still has to confirm, never "unclassified".
+    // Paths the prompt named that this host cannot see: they are values, not
+    // gaps, and the model has to keep them as written.
     let unverified: Vec<String> = decision.resolved_paths["unverifiedPaths"]
         .as_array()
         .map(|paths| {
@@ -874,6 +921,14 @@ impl IntentAnalysisContribution for QtMigrationIntentAnalyzer {
     fn fallback_decision(&self, prompt: &str) -> TurnIntentDecision {
         fallback_intent_decision(prompt)
     }
+
+    fn merge_with_deterministic(
+        &self,
+        model: TurnIntentDecision,
+        deterministic: TurnIntentDecision,
+    ) -> TurnIntentDecision {
+        merged_intent_decision(model, &deterministic)
+    }
 }
 
 #[cfg(test)]
@@ -1052,7 +1107,9 @@ mod tests {
     }
 
     #[test]
-    fn existing_path_is_resolved_and_missing_path_demotes_to_referenced() {
+    fn a_named_path_is_the_fields_value_whether_this_host_can_see_it_or_not() {
+        // 用户写下的路径就是该字段的取值：本机看不看得见由迁移过程自己暴露，分析层
+        // 不因此降级——四个路径齐了就直接开始迁移，不再弹卡片。
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("myqt");
         std::fs::create_dir_all(&path).unwrap();
@@ -1073,7 +1130,7 @@ mod tests {
             decision.value["resolvedPaths"]["source_project"].as_str(),
             Some(path.to_string_lossy().replace('\\', "/").as_str())
         );
-        assert_eq!(decision.value["fields"]["output_project"], "referenced");
+        assert_eq!(decision.value["fields"]["output_project"], "resolved");
         assert_eq!(decision.value["fields"]["toolchain"], "referenced");
         assert_eq!(decision.value["fields"]["template"], "missing");
         assert_eq!(decision.resolved_paths, decision.value["resolvedPaths"]);
@@ -1085,8 +1142,8 @@ mod tests {
             Some("resolved")
         );
 
-        // 本机看不到的路径不是"未归类"：它已按字段归属，只是需要用户在卡片里确认，
-        // 而且必须留在该字段的候选里，卡片才不会给出空选项。
+        // 本机看不到的路径不是"未归类"：它已按字段归属，并且留在该字段的候选里，
+        // 卡片才不会给出空选项。
         let unclassified = decision.value["resolvedPaths"]["unclassifiedPaths"]
             .as_array()
             .expect("unclassified array");
@@ -1095,12 +1152,12 @@ mod tests {
         let unverified = decision.value["resolvedPaths"]["unverifiedPaths"]
             .as_array()
             .expect("unverified array");
-        assert_eq!(unverified.len(), 1, "只有看不见的那个路径需要确认");
+        assert_eq!(unverified.len(), 1, "只有看不见的那个路径需要提示");
         assert_eq!(unverified[0], "D:/definitely/not/here");
         assert_eq!(
             decision.value["resolvedPaths"]["output_project"].as_str(),
             Some("D:/definitely/not/here"),
-            "看不见的路径同样要作为该字段的卡片候选"
+            "看不见的路径同样是该字段的取值与卡片候选"
         );
     }
 
@@ -1294,7 +1351,50 @@ mod tests {
     }
 
     #[test]
-    fn instruction_facts_carry_unclassified_paths_and_pending_fields() {
+    fn a_path_the_prompt_names_survives_a_model_that_left_the_field_empty() {
+        // #370 的硬要求：prompt 里给全四项就直接迁移。模型漏报的字段由字符串层补上，
+        // 四个路径齐了就不会再弹收集卡片。
+        let request = "把QT工程迁移成鸿蒙工程，原始工程路径是/D/pro/calculator， 输出到/D/pro/out， \
+工具链是/D/pro/chain/bin，模板工程路径/D/pro/templates";
+        let deterministic = fallback_intent_decision(request);
+        assert_eq!(
+            deterministic
+                .resolved_paths
+                .get("source_project")
+                .and_then(Value::as_str),
+            Some("/D/pro/calculator")
+        );
+
+        // 模型只认了输出容器，其余当作 referenced/missing。
+        let model = build_intent_decision(
+            r#"{"taskType": "app_migration", "fields": {
+                "source_project": {"state": "missing"},
+                "output_project": {"state": "resolved", "path": "/D/pro/out"},
+                "toolchain": {"state": "referenced"},
+                "template": {"state": "missing"}
+            }}"#,
+        )
+        .expect("usable analysis");
+        assert_eq!(model.field_states.get("toolchain").map(String::as_str), Some("referenced"));
+
+        let merged = merged_intent_decision(model, &deterministic);
+        for (field, expected) in [
+            ("source_project", "/D/pro/calculator"),
+            ("output_project", "/D/pro/out"),
+            ("toolchain", "/D/pro/chain/bin"),
+            ("template", "/D/pro/templates"),
+        ] {
+            assert_eq!(
+                merged.resolved_paths.get(field).and_then(Value::as_str),
+                Some(expected),
+                "{field} 必须带上 prompt 里的路径"
+            );
+            assert_eq!(merged.field_states.get(field).map(String::as_str), Some("resolved"));
+        }
+    }
+
+    #[test]
+    fn instruction_facts_carry_named_paths_and_pending_fields() {
         let output = format!(
             r#"{{"taskType": "app_migration", "fields": {{
                 "source_project": {{"state": "referenced", "path": "D:/maybe/qt"}},
@@ -1307,10 +1407,13 @@ mod tests {
         let facts = instruction_facts(&decision, false, true);
         assert_eq!(facts["missing_or_referenced"], true);
         let pending = facts["pending_fields"].as_str().expect("pending fields");
-        assert!(pending.contains("source_project"));
         assert!(pending.contains("output_project"));
         assert!(pending.contains("template"));
-        // 该路径已归到 source_project，只是本机看不到：它进"待确认"而不是"未归类"，
+        assert!(
+            !pending.contains("source_project"),
+            "有路径的字段不算待补：用户已经写了路径"
+        );
+        // 该路径已归到 source_project，只是本机看不到：它进"提示"而不是"未归类"，
         // 否则模型会以为四个字段都没识别出来，重新从零收集一遍。
         assert!(facts["unclassified_paths"]
             .as_array()

@@ -3426,30 +3426,19 @@ impl ExecutionEngine {
                             migration_active_slot_value(true),
                         )
                         .await;
-                    // Bind prompt-resolved paths directly to the intake when
-                    // all four fields exist on the local filesystem, skipping
-                    // the question card.
+                    // A prompt that names all four inputs starts the migration
+                    // directly: the paths are the user's statement of intent, and
+                    // whether they resolve on this host is the migration's problem
+                    // to surface, not a reason to ask the question card again.
                     let resolved_paths = &decision.resolved_paths;
-                    let is_remote = self
-                        .session_manager
-                        .get_session(&context.session_id)
-                        .map(|session| {
-                            session.config.remote_connection_id.is_some()
-                                || session.config.remote_ssh_host.is_some()
-                        })
-                        .unwrap_or(false);
                     let mut all_bound = false;
-                    if !is_remote && resolved_paths.is_object() {
+                    if resolved_paths.is_object() {
                         let mut bindings = std::collections::BTreeMap::new();
                         all_bound = true;
                         for field in bitfun_qt_migration::state::QT_MIGRATION_INTAKE_REQUIRED_FIELDS
                         {
                             if let Some(path) = resolved_paths.get(field).and_then(|v| v.as_str()) {
-                                if std::path::Path::new(path).exists() {
-                                    bindings.insert(field.to_string(), path.to_string());
-                                } else {
-                                    all_bound = false;
-                                }
+                                bindings.insert(field.to_string(), path.to_string());
                             } else {
                                 all_bound = false;
                             }

@@ -54,9 +54,13 @@ pub async fn analyze_turn_intent(
     )
     .await
     {
-        Ok(output) => contribution
-            .build_decision(&output)
-            .unwrap_or_else(|| contribution.fallback_decision(prompt)),
+        Ok(output) => match contribution.build_decision(&output) {
+            // The contribution reconciles its model verdict with the
+            // deterministic reading of the same prompt; the host only asks.
+            Some(model) => contribution
+                .merge_with_deterministic(model, contribution.fallback_decision(prompt)),
+            None => contribution.fallback_decision(prompt),
+        },
         Err(error) => {
             log::warn!(
                 "Turn intent analysis failed; falling back to the deterministic analyzer: {error}"

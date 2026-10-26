@@ -449,9 +449,9 @@ impl QtMigrationTurnInstructions {
                     unclassified.join("、")
                 ));
             }
-            // Paths already matched to their field but not visible here: the model
-            // must carry them into that field's candidates instead of re-deriving
-            // paths the analysis already understood.
+            // Paths the prompt already named but this process cannot see: the
+            // model must keep them as they are, in the field they belong to,
+            // instead of re-deriving what the user wrote.
             let unverified = facts
                 .get("unverified_paths")
                 .and_then(Value::as_array)
@@ -464,7 +464,7 @@ impl QtMigrationTurnInstructions {
                 .unwrap_or_default();
             if !unverified.is_empty() {
                 instruction.push_str(&format!(
-                    "\n\n以下路径已按字段归类（顺序与上面缺少的输入项一致），但当前进程看不到它们——可能尚未创建、写错，或工作区在别处。请把它们按同样的字段放入 candidates（有对应字段时就用同一路径，不要另猜或改写），由用户在卡片里确认或更正：{}。\n",
+                    "\n\n以下路径已在用户 prompt 中点名，但当前进程看不到它们（可能尚未创建、写错，或工作区在别处）。它们各属于哪个字段由你按语义判断，放入对应的 candidates，并原样使用该路径：不要改写、不要另猜、也不要因为看不到就换一个：{}。\n",
                     unverified.join("、")
                 ));
             }
@@ -1078,10 +1078,10 @@ mod tests {
         assert!(body.starts_with("## 迁移前置输入"));
         assert!(body.contains("toolchain、template"));
         assert!(body.contains("/tmp/maybe"));
-        // 已归字段但本机看不到的路径要单独说清：模型只补缺少的字段，不要把已识别的
-        // 路径当成"未归类"重新收集一遍（#370 回归的真实失败形态）。
+        // prompt 里已点名的路径必须原样带进 candidates：模型不要因为看不到就另猜，
+        // 也不要把它当成"未归类"重新收集一遍（#370 回归的真实失败形态）。
         assert!(body.contains("/ws/calculator"));
-        assert!(body.contains("已按字段归类"));
+        assert!(body.contains("原样使用该路径"));
         assert!(body.contains("## 必用技能"));
         // `body` must precede `activation` in the splice order the engine
         // applies (body inserted last at index 0).
