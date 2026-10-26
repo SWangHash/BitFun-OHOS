@@ -101,8 +101,8 @@
       "copiedMarkdown": "已复制 Markdown",
       "viewModeLabel": "Markdown 与预览模式",
       "notice": {
-        "sourcePreviewFallback": "该文档包含无法在可视化模式中安全编辑的语法。请在源码模式中编辑，或切换到预览模式查看。"
-      "largeFileSourceOnly": "文件过大，已切换为源码模式以保持流畅。"
+        "sourcePreviewFallback": "该文档包含无法在可视化模式中安全编辑的语法。请在源码模式中编辑，或切换到预览模式查看。",
+        "largeFileSourceOnly": "文件过大，已切换为源码模式以保持流畅。"
       }
     },
     "planViewer": {
