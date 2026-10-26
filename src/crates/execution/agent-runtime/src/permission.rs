@@ -677,16 +677,27 @@ impl PermissionRequestManager {
     /// approval from the runtime with no saved grant, so the decision cannot
     /// widen past the invocation it unblocks.
     ///
-    /// A request whose owning turn is unknown stays eligible when a turn is
-    /// given: provider and extension requests may register without one, and
-    /// they still belong to the session the user just changed.
+    /// Only requests waiting on an interactive surface are candidates. A
+    /// non-interactive registration belongs to the pipeline path that
+    /// registered it and answers it itself, so settling one here would steal
+    /// that reply and fail the batch that owns it.
+    ///
+    /// `should_settle` decides per request and receives the Dialog Turn that
+    /// owns it. A turn carries its own selection, so the caller judges each
+    /// request by the mode that now governs its owning turn instead of one
+    /// resolution for the whole session. A request whose owning turn is unknown
+    /// stays eligible when a turn is given: provider and extension requests may
+    /// register without one, and they still belong to the session the user just
+    /// changed.
     pub async fn auto_approve_pending_for_turn(
         &self,
         session_id: &str,
         dialog_turn_id: Option<&str>,
+        mut should_settle: impl FnMut(&PermissionRequest, Option<&str>) -> bool,
     ) -> Result<Vec<String>, PermissionRequestManagerError> {
         let requests = self.ordered_pending_requests(|pending| {
-            pending.request.session_id == session_id
+            pending.interactive
+                && pending.request.session_id == session_id
                 && dialog_turn_id.map_or(true, |turn_id| {
                     pending
                         .dialog_turn_id
@@ -697,6 +708,10 @@ impl PermissionRequestManager {
 
         let mut resolved = Vec::with_capacity(requests.len());
         for request in requests {
+            let owner_turn_id = self.pending_request_dialog_turn_id(&request.request_id);
+            if !should_settle(&request, owner_turn_id.as_deref()) {
+                continue;
+            }
             match self
                 .reply(
                     &request.request_id,
