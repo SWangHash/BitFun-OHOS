@@ -42,12 +42,25 @@
    * properties win over the WebKit pseudo-elements, so the only way to hold one
    * scrollbar width there is to keep the engine on the WebKit path, where the
    * width token and the paint rules below are the only input.
+   *
+   * The exclusion sits inside `:where()` to keep this rule at zero
+   * specificity: a bare `:not()` would count its attribute selector and
+   * outrank the zero-specificity forced-colors fallback further down.
    */
   @supports (scrollbar-color: transparent transparent) {
-    :where([data-bitfun-design-system-root], [data-bitfun-design-system-root] *, [data-bitfun-scrollbar-visibility]):not([data-bitfun-scrollbar-host], [data-bitfun-scrollbar-host] *) {
+    :where([data-bitfun-design-system-root], [data-bitfun-design-system-root] *, [data-bitfun-scrollbar-visibility]):where(:not([data-bitfun-scrollbar-host], [data-bitfun-scrollbar-host] *)) {
       scrollbar-width: thin;
       scrollbar-color: var(--bitfun-color-scrollbar-thumb) transparent;
     }
+  }
+
+  /*
+   * Those hosts keep the design-system paint but own their thickness: the
+   * desktop engines reserve 10px for the same scrollbar, so the reported
+   * WebKit host asks for the same width instead of the 6px token default.
+   */
+  :where([data-bitfun-scrollbar-host="arkweb"]) {
+    --bitfun-scrollbar-width: 10px;
   }
 
   /*
@@ -62,7 +75,7 @@
     }
 
     @supports (scrollbar-color: transparent transparent) {
-      :where([data-bitfun-design-system-root], [data-bitfun-design-system-root] *, [data-bitfun-scrollbar-visibility]):where(:not(:hover, :focus-visible, :has(:focus-visible), [data-bitfun-scrollbar-visibility="always"])):not([data-bitfun-scrollbar-host], [data-bitfun-scrollbar-host] *) {
+      :where([data-bitfun-design-system-root], [data-bitfun-design-system-root] *, [data-bitfun-scrollbar-visibility]):where(:not(:hover, :focus-visible, :has(:focus-visible), [data-bitfun-scrollbar-visibility="always"])):where(:not([data-bitfun-scrollbar-host], [data-bitfun-scrollbar-host] *)) {
         scrollbar-color: transparent transparent;
       }
     }

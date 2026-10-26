@@ -78,7 +78,7 @@ describe('BitFunDesignSystemProvider', () => {
     expect(document.documentElement.getAttribute('data-color-scheme')).toBe('light');
   });
 
-  it('hands the ArkWeb host the desktop scrollbar contract', () => {
+  it('reports the ArkWeb scrollbar engine to the design system', () => {
     hostState.openHarmony = true;
     act(() => {
       root.render(
@@ -89,7 +89,9 @@ describe('BitFunDesignSystemProvider', () => {
     });
 
     expect(document.documentElement.getAttribute('data-bitfun-scrollbar-host')).toBe('arkweb');
-    expect(document.documentElement.style.getPropertyValue('--bitfun-scrollbar-width')).toBe('10px');
+    // The engine is a host fact; what it asks the engine for stays with the
+    // design-system stylesheet, so the product must not inline the width token.
+    expect(document.documentElement.style.getPropertyValue('--bitfun-scrollbar-width')).toBe('');
   });
 
   it('leaves the scrollbar contract to the design system on other hosts', () => {
