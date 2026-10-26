@@ -66,6 +66,60 @@ function validateDataUrl(dataUrl: string): void {
   }
 }
 
+/** Flatten the authored thinking mask before it enters the capture's SVG foreignObject. */
+async function rasterizeThinkingIcons(container: HTMLElement, scale: number): Promise<void> {
+  const rasters = new Map<string, Promise<string>>();
+  const icons = container.querySelectorAll<HTMLElement>(
+    '[data-bitfun-component="icon"][data-bitfun-name="thinking"][data-bitfun-source="catalog"]',
+  );
+  await Promise.all(Array.from(icons, async icon => {
+    const style = getComputedStyle(icon);
+    const mask = style.getPropertyValue('mask-image') || style.getPropertyValue('-webkit-mask-image');
+    const source = mask.match(/^url\((["']?)(.*?)\1\)$/)?.[2];
+    if (!source) return;
+
+    const bounds = icon.getBoundingClientRect();
+    const width = Math.ceil(bounds.width * scale);
+    const height = Math.ceil(bounds.height * scale);
+    const key = JSON.stringify([source, style.color, width, height]);
+    let raster = rasters.get(key);
+    if (!raster) {
+      raster = new Promise<string>((resolve, reject) => {
+        const image = new window.Image();
+        image.crossOrigin = 'anonymous';
+        image.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const context = canvas.getContext('2d');
+            if (!context) throw new Error('No canvas context for thinking icon');
+            context.drawImage(image, 0, 0, width, height);
+            context.globalCompositeOperation = 'source-in';
+            context.fillStyle = style.color;
+            context.fillRect(0, 0, width, height);
+            resolve(canvas.toDataURL('image/png'));
+          } catch (error) {
+            reject(error);
+          }
+        };
+        image.onerror = reject;
+        image.src = source;
+      });
+      rasters.set(key, raster);
+    }
+
+    const dataUrl = await raster;
+    icon.style.setProperty('mask-image', 'none');
+    icon.style.setProperty('-webkit-mask-image', 'none');
+    icon.style.backgroundColor = 'transparent';
+    icon.style.backgroundImage = `url("${dataUrl}")`;
+    icon.style.backgroundPosition = 'center';
+    icon.style.backgroundRepeat = 'no-repeat';
+    icon.style.backgroundSize = 'contain';
+  }));
+}
+
 interface ExportImageButtonProps {
   turnId: string;
   className?: string;
@@ -368,6 +422,11 @@ export const ExportImageButton: React.FC<ExportImageButtonProps> = ({
       await new Promise(resolve => setTimeout(resolve, 0));
       
       const pixelRatio = 2;
+      await withTimeout(
+        rasterizeThinkingIcons(container, pixelRatio),
+        CAPTURE_TIMEOUT_MS,
+        'Thinking icon rasterization',
+      );
       const captureFilter = (node: Node) => {
         // Filter out action buttons and other non-export elements.
         if (node instanceof HTMLElement) {
@@ -403,29 +462,24 @@ export const ExportImageButton: React.FC<ExportImageButtonProps> = ({
 
       let baseDataUrl: string;
 
+      // All capture attempts share this render. A timeout must leave it mounted
+      // for the next strategy; cleanup happens after capture or on final failure.
       // Strategy 1: domToPng (primary)
       try {
         baseDataUrl = await withTimeout(
           modernScreenshot.domToPng(container, captureOptions),
           CAPTURE_TIMEOUT_MS,
           'domToPng capture',
-          cleanupDom,
         );
         validateDataUrl(baseDataUrl);
       } catch (e1) {
         log.warn('domToPng failed, trying domToBlob fallback', e1);
-        // Ensure DOM is still alive for fallback.
-        if (!wrapper || !wrapper.parentNode) {
-          throw new Error('DOM was cleaned up before fallback could run');
-        }
-
         // Strategy 2: domToBlob (fallback)
         try {
           const fallbackBlob = await withTimeout(
             modernScreenshot.domToBlob(container, { ...captureOptions, type: 'image/png' }),
             CAPTURE_TIMEOUT_MS,
             'domToBlob capture',
-            cleanupDom,
           );
           if (!fallbackBlob) throw new Error(i18nService.t('flow-chat:exportImage.generateFailed'));
           baseDataUrl = await new Promise<string>((resolve, reject) => {
@@ -437,18 +491,12 @@ export const ExportImageButton: React.FC<ExportImageButtonProps> = ({
           validateDataUrl(baseDataUrl);
         } catch (e2) {
           log.warn('domToBlob fallback also failed, trying reduced scale', e2);
-          // Ensure DOM is still alive for second fallback.
-          if (!wrapper || !wrapper.parentNode) {
-            throw new Error('DOM was cleaned up before reduced-scale fallback could run');
-          }
-
           // Strategy 3: domToPng with scale=1 (reduced memory for large DOMs)
           const reducedOptions = { ...captureOptions, scale: 1 };
           baseDataUrl = await withTimeout(
             modernScreenshot.domToPng(container, reducedOptions),
             CAPTURE_TIMEOUT_MS,
             'domToPng reduced-scale capture',
-            cleanupDom,
           );
           validateDataUrl(baseDataUrl);
         }

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppearanceCompiler } from '@/infrastructure/appearance/compiler/AppearanceCompiler';
 import { AppearanceRegistry } from '@/infrastructure/appearance/registry/AppearanceRegistry';
 import { APPEARANCE_SCHEMA_VERSION, type AppearancePackage } from '@/infrastructure/appearance/types';
-import type { ModelRound } from '../../types/flow-chat';
+import type { DialogTurn, ModelRound } from '../../types/flow-chat';
 import { ExportImageButton } from './ExportImageButton';
 import { ModelRoundItem } from './ModelRoundItem';
 import { exportImageAppearanceDescriptor } from './ExportImageButton.appearance';
@@ -19,6 +19,11 @@ const mocks = vi.hoisted(() => ({
   copyText: vi.fn(() => 'Full transcript'),
   clipboard: vi.fn(async (_text: string) => undefined),
   error: vi.fn(),
+  capturePng: vi.fn(),
+  captureBlob: vi.fn(),
+  savePng: vi.fn(),
+  notifyExportSuccess: vi.fn(),
+  drawImage: vi.fn(),
   revealing: false,
   anchor: null as HTMLButtonElement | null,
 }));
@@ -28,7 +33,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 vi.mock('@/infrastructure/i18n', () => ({
-  i18nService: { t: (key: string) => key },
+  i18nService: { t: (key: string) => key, formatDate: () => '10/23 12:00' },
   useI18n: () => ({ t: (key: string) => key, formatDate: () => '12:00' }),
 }));
 vi.mock('../../store/FlowChatStore', () => ({
@@ -50,9 +55,19 @@ vi.mock('@/infrastructure/appearance/runtime/AppearanceOverlayHost', () => ({
   getAppearanceOverlayHost: () => document.body,
 }));
 vi.mock('@/infrastructure/api', () => ({ workspaceAPI: {} }));
+vi.mock('modern-screenshot', () => ({ domToPng: mocks.capturePng, domToBlob: mocks.captureBlob }));
+vi.mock('../../utils/saveExportedPng', () => ({
+  savePngBlob: mocks.savePng,
+  notifyPngExportSuccess: mocks.notifyExportSuccess,
+}));
 vi.mock('../FlowTextBlock', () => ({ FlowTextBlock: () => <span>Answer</span> }));
 vi.mock('../FlowToolCard', () => ({ FlowToolCard: () => null }));
-vi.mock('../../tool-cards/ModelThinkingDisplay', () => ({ ModelThinkingDisplay: () => null }));
+vi.mock('../../tool-cards/ModelThinkingDisplay', async () => {
+  const { Icon } = await import('@bitfun/ui');
+  return {
+    ModelThinkingDisplay: () => <Icon name="thinking" size="sm" style={{ color: 'rgb(51, 51, 51)' }} />,
+  };
+});
 vi.mock('../subagent/SubagentProjectionView', () => ({ SubagentProjectionView: () => null }));
 vi.mock('./ForkSessionButton', () => ({ ForkSessionButton: () => null }));
 vi.mock('./FlowChatContext', () => ({
@@ -122,6 +137,7 @@ describe('message copy and image export controls', () => {
     mocks.revealing = false;
     mocks.anchor = null;
     mocks.copyText.mockReturnValue('Full transcript');
+    mocks.store.mockReturnValue({ sessions: new Map() });
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: mocks.clipboard } });
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -136,6 +152,8 @@ describe('message copy and image export controls', () => {
     document.documentElement.removeAttribute('data-bitfun-appearance-revision');
     vi.clearAllTimers();
     vi.useRealTimers();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it('anchors the export menu to the button and retains inside/outside and Escape handling', () => {
@@ -177,6 +195,153 @@ describe('message copy and image export controls', () => {
       expect(trigger.querySelector('.spinning')).toBeNull();
     },
   );
+
+  async function startImageExport(expandThinking = false) {
+    const pngDataUrl = `data:image/png;base64,${'A'.repeat(120)}`;
+    const iconDataUrl = `data:image/png;base64,${'B'.repeat(120)}`;
+    const png = new Blob(['png'], { type: 'image/png' });
+    const turn: DialogTurn = {
+      id: 'review-turn', sessionId: 'review-session', startTime: 1, status: 'completed',
+      modelRounds: [{
+        ...round,
+        items: [
+          ...round.items,
+          ...[1, 2].map(index => ({
+            id: `thinking-${index}`, type: 'thinking' as const, timestamp: index + 1,
+            status: 'completed' as const, content: 'Inspecting the code', isStreaming: false,
+          })),
+        ],
+      }],
+    };
+    mocks.store.mockReturnValue({
+      sessions: new Map([['review-session', { title: 'Code review', dialogTurns: [turn] }]]),
+    });
+    mocks.capturePng.mockResolvedValue(pngDataUrl);
+    mocks.captureBlob.mockImplementation(async (element: HTMLElement) => {
+      expect(element.isConnected).toBe(true);
+      expect(element.textContent).toContain('Answer');
+      return png;
+    });
+    mocks.savePng.mockResolvedValue({ filePath: '/downloads/review.png', downloaded: false });
+    vi.stubGlobal('Image', class {
+      naturalWidth = 1600;
+      naturalHeight = 1200;
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      set src(_value: string) {
+        queueMicrotask(() => this.onload?.());
+      }
+    });
+    vi.stubGlobal('FileReader', class {
+      result = pngDataUrl;
+      onload: (() => void) | null = null;
+      readAsDataURL() { queueMicrotask(() => this.onload?.()); }
+    });
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function () {
+      if (this.getAttribute('data-bitfun-name') === 'thinking') {
+        return { left: 24, top: 80, width: 16, height: 16 } as DOMRect;
+      }
+      return this.classList.contains('export-content__logo-placeholder')
+        ? { left: 24, top: 24, width: 32, height: 32 } as DOMRect
+        : { left: 0, top: 0, width: 800, height: 600 } as DOMRect;
+    });
+    const context = {
+      drawImage: mocks.drawImage, save: vi.fn(), restore: vi.fn(),
+      fillRect: vi.fn(), fillStyle: '', globalCompositeOperation: 'source-over',
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as unknown as CanvasRenderingContext2D);
+    vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue(iconDataUrl);
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(callback => callback(png));
+
+    act(() => root.render(<ExportImageButton turnId="review-turn" />));
+    const trigger = container.querySelector<HTMLButtonElement>('.model-round-item__export-btn')!;
+    act(() => trigger.click());
+    const action = Array.from(document.querySelectorAll<HTMLButtonElement>('.export-image-menu button'))
+      .find(button => button.textContent === (expandThinking
+        ? 'exportImage.expandedThinking' : 'exportImage.collapsedThinking'))!;
+    act(() => action.click());
+    await act(async () => vi.advanceTimersByTimeAsync(50));
+    return { trigger, png, pngDataUrl, iconDataUrl, context };
+  }
+
+  it('rasterizes the authored thinking artwork before capture, saves the image and releases the render', async () => {
+    const { trigger, png, pngDataUrl, iconDataUrl, context } = await startImageExport();
+    let capturedIcons: HTMLElement[] = [];
+    mocks.capturePng.mockImplementationOnce(async (element: HTMLElement) => {
+      capturedIcons = Array.from(element.querySelectorAll<HTMLElement>('[data-bitfun-name="thinking"]'));
+      return pngDataUrl;
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(400));
+    await act(async () => vi.dynamicImportSettled());
+
+    expect(capturedIcons).toHaveLength(2);
+    for (const icon of capturedIcons) {
+      expect(icon.style.getPropertyValue('mask-image')).toBe('none');
+      expect(icon.style.getPropertyValue('-webkit-mask-image')).toBe('none');
+      expect(icon.style.backgroundColor).toBe('transparent');
+      expect(icon.style.backgroundImage).toContain(iconDataUrl);
+    }
+    expect(HTMLCanvasElement.prototype.toDataURL).toHaveBeenCalledExactlyOnceWith('image/png');
+    expect(context.globalCompositeOperation).toBe('source-in');
+    expect(context.fillStyle).toBe('rgb(51, 51, 51)');
+    expect(context.fillRect).toHaveBeenCalledExactlyOnceWith(0, 0, 32, 32);
+    expect(mocks.captureBlob).not.toHaveBeenCalled();
+    expect(mocks.savePng).toHaveBeenCalledExactlyOnceWith(png, 'Code review_10-23-12-00.png');
+    expect(mocks.notifyExportSuccess).toHaveBeenCalledExactlyOnceWith({
+      filePath: '/downloads/review.png', downloaded: false,
+    });
+    expect(mocks.error).not.toHaveBeenCalled();
+    expect(document.querySelector('#export-image-wrapper')).toBeNull();
+    expect(trigger.disabled).toBe(false);
+  });
+
+  it('keeps the rendered review available to the fallback after the first capture times out', async () => {
+    const { trigger, png } = await startImageExport();
+    mocks.capturePng.mockImplementationOnce(() => new Promise(() => {}));
+    await act(async () => vi.advanceTimersByTimeAsync(400));
+    await act(async () => vi.dynamicImportSettled());
+    await act(async () => vi.advanceTimersByTimeAsync(15_000));
+
+    expect(mocks.captureBlob).toHaveBeenCalledOnce();
+    expect(mocks.savePng).toHaveBeenCalledExactlyOnceWith(png, 'Code review_10-23-12-00.png');
+    expect(mocks.notifyExportSuccess).toHaveBeenCalledOnce();
+    expect(mocks.error).not.toHaveBeenCalled();
+    expect(document.querySelector('#export-image-wrapper')).toBeNull();
+    expect(trigger.disabled).toBe(false);
+  });
+
+  it('retries at reduced scale after the blob capture times out', async () => {
+    const { trigger } = await startImageExport(true);
+    mocks.capturePng.mockRejectedValueOnce(new Error('Capture failed'));
+    mocks.captureBlob.mockImplementationOnce(() => new Promise(() => {}));
+    await act(async () => vi.advanceTimersByTimeAsync(400));
+    await act(async () => vi.dynamicImportSettled());
+    await act(async () => vi.advanceTimersByTimeAsync(15_000));
+
+    expect(mocks.capturePng).toHaveBeenCalledTimes(2);
+    expect(mocks.capturePng).toHaveBeenLastCalledWith(expect.any(HTMLElement), expect.objectContaining({ scale: 1 }));
+    expect(mocks.savePng).toHaveBeenCalledOnce();
+    expect(mocks.error).not.toHaveBeenCalled();
+    expect(document.querySelector('#export-image-wrapper')).toBeNull();
+    expect(trigger.disabled).toBe(false);
+  });
+
+  it('reports final capture failure, releases the render and enables retry without saving an image', async () => {
+    const { trigger } = await startImageExport();
+    mocks.capturePng.mockImplementation(() => new Promise(() => {}));
+    mocks.captureBlob.mockImplementation(() => new Promise(() => {}));
+    await act(async () => vi.advanceTimersByTimeAsync(400));
+    await act(async () => vi.dynamicImportSettled());
+    await act(async () => vi.advanceTimersByTimeAsync(45_000));
+
+    expect(mocks.capturePng).toHaveBeenCalledTimes(2);
+    expect(mocks.captureBlob).toHaveBeenCalledOnce();
+    expect(mocks.savePng).not.toHaveBeenCalled();
+    expect(mocks.notifyExportSuccess).not.toHaveBeenCalled();
+    expect(mocks.error).toHaveBeenCalledExactlyOnceWith('flow-chat:exportImage.exportFailed');
+    expect(document.querySelector('#export-image-wrapper')).toBeNull();
+    expect(trigger.disabled).toBe(false);
+  });
 
   it.each(['full', 'result'] as const)('copies %s once and keeps legacy appearance on the copied button', async scope => {
     const style = compileLegacyPackage();
