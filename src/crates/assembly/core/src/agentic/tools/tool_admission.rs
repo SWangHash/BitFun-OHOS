@@ -9,6 +9,7 @@ use std::sync::Arc;
 use bitfun_qt_migration::admission::{
     QtMigrationAdmissionPolicy, QT_MIGRATION_SLOT_ACTIVE, QT_MIGRATION_SLOT_INTAKE_STATE,
     QT_MIGRATION_SLOT_SKILL_DIR, QT_MIGRATION_SLOT_TEMPLATES_DIR, QT_MIGRATION_SLOT_TOOLCHAINS_DIR,
+    QT_MIGRATION_SLOT_WORKSPACE_ROOT,
 };
 use bitfun_qt_migration::instructions::QtMigrationTurnInstructions;
 use bitfun_qt_migration::question_card::QtMigrationQuestionCard;
@@ -116,6 +117,14 @@ impl DomainStateReader for SessionDomainStateStore {
                     .to_string_lossy()
                     .into_owned(),
             ));
+        }
+        if slot == &QT_MIGRATION_SLOT_WORKSPACE_ROOT {
+            // The migration write-scope check measures artifacts against the
+            // workspace of this session, not of whatever host answers last.
+            return self
+                .session_manager
+                .session_workspace_path(&self.session_id)
+                .map(|path| Value::String(path.to_string_lossy().into_owned()));
         }
         self.session_manager
             .domain_state_get(&self.session_id, slot)

@@ -1229,8 +1229,7 @@ impl SessionManager {
         Ok(session_storage_path)
     }
 
-    #[allow(dead_code)]
-    fn session_workspace_path(&self, session_id: &str) -> Option<PathBuf> {
+    pub(crate) fn session_workspace_path(&self, session_id: &str) -> Option<PathBuf> {
         self.sessions
             .get(session_id)
             .and_then(|session| Self::session_workspace_from_config(&session.config))
