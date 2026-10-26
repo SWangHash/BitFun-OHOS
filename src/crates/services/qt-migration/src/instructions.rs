@@ -32,8 +32,6 @@ pub const CTX_QT_MIGRATION_ENABLED: &str = "qt_migration_enabled";
 pub const CTX_QT_MIGRATION_RESOLVED_PATHS: &str = "qt_migration_resolved_paths";
 /// Host context-stash key holding this turn's instruction facts JSON:
 /// `{"missing_or_referenced": bool, "pending_fields": String,
-/// "unclassified_paths": [String], "unverified_paths": [String]}`. The JSON is
-/// computed by
 /// `semantic::instruction_facts` in this crate; the engine only runs the
 /// binding outcome through it and stashes the result here.
 pub const CTX_QT_MIGRATION_INSTRUCTION_FACTS: &str = "qt_migration_instruction_facts";
@@ -117,15 +115,6 @@ pub fn official_toolchain_guidance(
     )
 }
 
-/// Guidance for an `__official__` **template** binding.
-///
-/// The binding names *which* template the migration may use: the official
-/// recommendation is the one the BitFun acquisition script installs, not whatever
-/// template tree happens to exist on the machine (the toolchain ships one of its
-/// own, and a user may have unpacked a release next to their project). The
-/// acquisition itself belongs to `ohos-qt-skills`, so the guidance states the
-/// order — load the skill, then let its flow install — instead of handing the
-/// model a script to run on the spot.
 pub fn official_template_guidance(templates_dir: &str, skill_dir: &str, platform: &str) -> String {
     format!(
         "- 模板：绑定值是 __official__，即本次迁移必须使用 BitFun 安装的鸿蒙推荐模板——不得改用本机其它位置已有的模板工程（例如工具链自带的 `src/harmonyos/templates`、用户自己解压的 `templates-*.zip`、工作区或工作区外已有的模板目录）。模板供给属于 `ohos-qt-skills` 的流程：**先用 Skill 工具加载 `ohos-qt-skills`，再由该技能的流程安装模板**，不要在加载技能之前直接运行下载脚本。技能流程使用的脚本是 `bash \"{skill_dir}/scripts/bitfun-download-template.sh\" --platform={platform}`，安装目标目录 `{templates_dir}`（脚本按 BITFUN_QT_MIGRATION_ROOT 落盘，不要用 --dest 改到其他位置，也不要改用技能基线里 vendored 的上游 download-template.sh：它要求显式 --dest，会装到迁移扫描不到的目录），安装完成后使用脚本输出的 OHOS_TEMPLATE_SRC，该路径也必须是后续迁移使用的模板源（OHOS_TEMPLATE_SRC）。\n"
@@ -210,13 +199,6 @@ pub fn output_project_dir(output_project: &str, source_project: &str) -> String 
     format!("{container}{separator}{}-ohos", app_name(source_project))
 }
 
-/// The project directory this migration owns, given the bound container: the
-/// derived name, or the smallest free `-<n>` suffix when that name is taken.
-///
-/// The name is decided when the inputs bind and then kept in the intake snapshot,
-/// so a second migration of the same project cannot land on the first one's
-/// directory (#347) — and so every later turn of one migration names the same
-/// directory even after it has been created.
 pub fn new_migration_project_dir(output_project: &str, source_project: &str) -> String {
     let base = output_project_dir(output_project, source_project);
     if !std::path::Path::new(&base).exists() {
@@ -231,7 +213,6 @@ pub fn new_migration_project_dir(output_project: &str, source_project: &str) -> 
     base
 }
 
-/// Highest `<app>-ohos-<n>` suffix the derivation tries before reusing the name.
 const MAX_PROJECT_DIR_SUFFIX: u32 = 32;
 
 /// The Qt application name: the `.pro` file stem, the CMake project directory, or
@@ -452,9 +433,6 @@ impl QtMigrationTurnInstructions {
                     unclassified.join("、")
                 ));
             }
-            // Paths the prompt already named but this process cannot see: the
-            // model must keep them as they are, in the field they belong to,
-            // instead of re-deriving what the user wrote.
             let unverified = facts
                 .get("unverified_paths")
                 .and_then(Value::as_array)
@@ -827,11 +805,9 @@ mod tests {
         let container = container.path().to_string_lossy().into_owned();
         let source = project.to_string_lossy().into_owned();
 
-        // Free name: the migration that runs first keeps `<app>-ohos`.
         let base = output_project_dir(&container, &source);
         assert_eq!(new_migration_project_dir(&container, &source), base);
 
-        // Taken (a previous migration of the same project): the next free suffix.
         std::fs::create_dir(&base).expect("first result");
         std::fs::create_dir(format!("{base}-2")).expect("second result");
         assert_eq!(
@@ -1081,8 +1057,6 @@ mod tests {
         assert!(body.starts_with("## 迁移前置输入"));
         assert!(body.contains("toolchain、template"));
         assert!(body.contains("/tmp/maybe"));
-        // prompt 里已点名的路径必须原样带进 candidates：模型不要因为看不到就另猜，
-        // 也不要把它当成"未归类"重新收集一遍（#370 回归的真实失败形态）。
         assert!(body.contains("/ws/calculator"));
         assert!(body.contains("原样使用该路径"));
         assert!(body.contains("## 必用技能"));

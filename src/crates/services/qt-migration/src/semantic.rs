@@ -179,15 +179,9 @@ pub fn build_intent_decision(output: &str) -> Option<TurnIntentDecision> {
             .map(str::trim)
             .filter(|p| !p.is_empty());
         // A parent-directory path is never a value: it stays a hint the user has
-        // to correct, so it cannot travel as this field's path.
         let path = path.filter(|path| !path.contains(".."));
         let normalized = match (state, path) {
             ("resolved", Some(path)) => {
-                // The named path is kept either way: it is this field's card
-                // candidate, so the question shows what the prompt wrote instead of
-                // an empty field. Only a path that exists on this host may bind, so
-                // a misspelt or not-yet-created path asks the user again — and the
-                // card's own submit check names the offending field and path.
                 resolved_paths.insert(field.to_string(), json!(path));
                 if std::path::Path::new(path).exists() {
                     "resolved"
@@ -197,8 +191,6 @@ pub fn build_intent_decision(output: &str) -> Option<TurnIntentDecision> {
                 }
             }
             ("referenced", Some(path)) => {
-                // Named but not claimed as the value: still the path the prompt
-                // wrote for this field, so the card offers it.
                 resolved_paths.insert(field.to_string(), json!(path));
                 unverified.push(json!(path));
                 "referenced"
@@ -210,8 +202,6 @@ pub fn build_intent_decision(output: &str) -> Option<TurnIntentDecision> {
         };
         fields.insert(field.to_string(), json!(normalized));
     }
-    // Every path the model reports belongs to a field, so this analysis has no
-    // unattributed path: the deterministic layer is where that fact comes from.
     resolved_paths.insert("unclassifiedPaths".to_string(), json!([]));
     resolved_paths.insert("unverifiedPaths".to_string(), json!(unverified));
 
@@ -232,11 +222,6 @@ pub fn fallback_intent_decision(prompt: &str) -> TurnIntentDecision {
     decision_from_analyze_json(analyze_request(prompt))
 }
 
-/// Union of the model's analysis and the deterministic one: a path the string
-/// layer read out of the prompt is a fact about the prompt, so a field the model
-/// left without a path still carries one — the card then offers it instead of
-/// asking the user to type it again (#370). The model keeps every other verdict,
-/// including the ones it judged better than the string layer.
 pub fn merged_intent_decision(
     model: TurnIntentDecision,
     deterministic: &TurnIntentDecision,
@@ -263,8 +248,6 @@ pub fn merged_intent_decision(
         else {
             continue;
         };
-        // The string layer reads the prompt, it cannot see the disk: a carried
-        // path binds only when it exists here, so a wrong one still asks.
         let state = if std::path::Path::new(found).exists() {
             "resolved"
         } else {
@@ -280,11 +263,6 @@ pub fn merged_intent_decision(
     decision_from_analyze_json(value)
 }
 
-/// The four prompt-named paths that may bind without asking, or `None` when the
-/// turn still needs the question card: every field must carry a path, and every
-/// path must exist on this host. A path the prompt named but the disk does not
-/// have is the user's to correct, and the card's submit check reports exactly
-/// which field and path is wrong.
 pub fn prompt_bindings(
     decision: &TurnIntentDecision,
 ) -> Option<std::collections::BTreeMap<String, String>> {
@@ -344,9 +322,6 @@ pub fn instruction_facts(
     prompt_starts_new_task: bool,
     all_bound: bool,
 ) -> Value {
-    // A field counts as pending when the analysis has no path for it: a prompt
-    // that names all four is complete, and the card is only the answer to an
-    // input the user did not give.
     let pending: Vec<&str> = QT_MIGRATION_INTAKE_REQUIRED_FIELDS
         .iter()
         .copied()
@@ -359,8 +334,6 @@ pub fn instruction_facts(
         })
         .collect();
     let missing_or_referenced = prompt_starts_new_task || !all_bound || !pending.is_empty();
-    // Paths the prompt named that this host cannot see: they are values, not
-    // gaps, and the model has to keep them as written.
     let unverified: Vec<String> = decision.resolved_paths["unverifiedPaths"]
         .as_array()
         .map(|paths| {
@@ -569,13 +542,6 @@ fn classify_non_migration_primary(text: &str) -> Option<String> {
     best.map(|(_, task)| task.to_string())
 }
 
-/// Extract absolute-path-like runs: Windows `X:\...`/`X:/...`, or a run starting
-/// with `/`/`\` on the executing host. Kept conservative: bare words, URLs' path
-/// fragments and query strings are ignored.
-///
-/// Runs are found wherever they start instead of only at whitespace boundaries:
-/// Chinese sentences glue the label to the value (`原始工程路径为/D/proj`), and
-/// reading that as one token dropped the path entirely.
 fn find_absolute_paths(text: &str) -> Vec<String> {
     let chars: Vec<char> = text.chars().collect();
     let mut paths = Vec::new();
@@ -593,13 +559,11 @@ fn find_absolute_paths(text: &str) -> Vec<String> {
     paths
 }
 
-/// A path run starting at `chars[start]` plus the index just past its end.
 fn absolute_path_at(chars: &[char], start: usize) -> Option<(String, usize)> {
     let first = *chars.get(start)?;
     let windows = first.is_ascii_alphabetic()
         && chars.get(start + 1) == Some(&':')
         && matches!(chars.get(start + 2), Some('\\') | Some('/'));
-    // A `/` right after a scheme separator belongs to a URL, not to a path.
     let unix = (first == '/' || first == '\\')
         && !(start > 0 && chars[start - 1] == ':');
     if !windows && !unix {
@@ -609,7 +573,6 @@ fn absolute_path_at(chars: &[char], start: usize) -> Option<(String, usize)> {
     while end < chars.len() && !is_path_run_stop(chars[end]) {
         end += 1;
     }
-    // Prose glued to the tail (`/D/proj迁移到鸿蒙`) is not part of the path.
     while end > start && is_cjk(chars[end - 1]) {
         end -= 1;
     }
@@ -625,7 +588,6 @@ fn absolute_path_at(chars: &[char], start: usize) -> Option<(String, usize)> {
 }
 
 /// Separators and punctuation that end a path run. ASCII letters, digits and the
-/// path characters themselves (`/ \ : . _ - ~ % + @ =`) continue it.
 fn is_path_run_stop(c: char) -> bool {
     c.is_whitespace()
         || "。，,;；、！？：!?\"'“”‘’（）()[]{}【】《》〈〉「」『』<>|*`".contains(c)
@@ -645,8 +607,6 @@ fn classify_fields(text: &str) -> Value {
     let mut toolchain = FieldLevel::Missing;
     let mut template = FieldLevel::Missing;
 
-    // --- source / output / toolchain / template from path runs (independent,
-    // never shared): the label nearest before the path names its field ---
     for path in &paths {
         match field_of_path(path, text) {
             Some(PathField::Output) => output = FieldLevel::Resolved,
@@ -712,7 +672,6 @@ fn classify_fields(text: &str) -> Value {
     })
 }
 
-/// Intake field a path belongs to, named by the field label nearest before it.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum PathField {
     Source,
@@ -721,8 +680,6 @@ enum PathField {
     Template,
 }
 
-/// Field labels as they appear in a user sentence, longest first so that
-/// `输出工程` is preferred over the bare `输出`.
 const FIELD_LABELS: &[(PathField, &[&str])] = &[
     (
         PathField::Output,
@@ -752,14 +709,10 @@ const FIELD_LABELS: &[(PathField, &[&str])] = &[
     ),
 ];
 
-/// How far before a path a label may sit. Chinese labels are short; the window
-/// only has to be wide enough to see the one that introduces this value.
 const FIELD_LABEL_WINDOW_CHARS: usize = 80;
 
 fn field_of_path(path: &str, text: &str) -> Option<PathField> {
     for (index, _) in text.match_indices(path) {
-        // Only occurrences that stand as a whole run count: the same text is
-        // also a prefix of a longer path (`/out` inside `/out/proj`).
         let end = index + path.len();
         if !borders_path_run(text, index, end) {
             continue;
@@ -787,8 +740,6 @@ fn labelled_field_before(text: &str, index: usize) -> Option<PathField> {
     nearest.map(|(_, field)| field)
 }
 
-/// Whether `text[start..end]` is a whole path run rather than a fragment of a
-/// longer one.
 fn borders_path_run(text: &str, start: usize, end: usize) -> bool {
     let before_ok = text[..start]
         .chars()
@@ -801,8 +752,6 @@ fn borders_path_run(text: &str, start: usize, end: usize) -> bool {
     before_ok && after_ok
 }
 
-/// The `chars` characters of `text` before byte offset `index`, without cutting
-/// a multi-byte character in half.
 fn window_before(text: &str, index: usize, chars: usize) -> &str {
     let start = text[..index]
         .char_indices()
@@ -1086,8 +1035,6 @@ mod tests {
 
     #[test]
     fn glued_chinese_labels_bind_all_four_paths() {
-        // #370: one sentence that glues every label to its path must satisfy the
-        // four inputs, so the card is not demanded on top of them.
         let d = analyze_request(
             "将QT工程迁移成鸿蒙工程，原始工程路径为/D/pro/qt611/qView-main ，输出工程路径为/D/pro/qt611/ \
              ，工具链路径为/D/pro/chain_qt6/chain，模板工程路径为/D/pro/template/templates",
@@ -1144,8 +1091,6 @@ mod tests {
 
     #[test]
     fn a_named_path_that_this_host_cannot_see_is_a_candidate_but_never_binds() {
-        // 用户写下的路径要留在该字段的候选里（卡片不能给空选项），但它不能直接绑定：
-        // 本机看不到的路径要靠卡片让用户确认，提交时的路径检查会点名指出哪一项不对。
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("myqt");
         std::fs::create_dir_all(&path).unwrap();
@@ -1178,8 +1123,6 @@ mod tests {
             Some("resolved")
         );
 
-        // 本机看不到的路径不是"未归类"：它已按字段归属，并且留在该字段的候选里，
-        // 卡片才不会给出空选项。
         let unclassified = decision.value["resolvedPaths"]["unclassifiedPaths"]
             .as_array()
             .expect("unclassified array");
@@ -1224,7 +1167,6 @@ mod tests {
         assert_eq!(bindings.get("source_project").map(String::as_str), Some(paths[0].as_str()));
         assert_eq!(bindings.get("template").map(String::as_str), Some(paths[3].as_str()));
 
-        // 少一项就不绑：卡片负责补那一项。
         let incomplete = build_intent_decision(
             r#"{"taskType": "app_migration", "fields": {
                 "source_project": {"state": "resolved", "path": "/tmp"},
@@ -1383,7 +1325,6 @@ mod tests {
 
     #[test]
     fn a_chinese_sentence_naming_all_four_paths_classifies_every_field() {
-        // 实测 prompt（#370 回归）：中文标签直接贴在路径前面，且用「输出到」这种动词短语。
         let request = "把QT工程迁移成鸿蒙工程，原始工程路径是/storage/Users/currentUser/Desktop/qt-test/0901-zero-test/calculator， \
 输出到/storage/Users/currentUser/Desktop/qt-test/0901-one-test， \
 工具链是/storage/Users/currentUser/Desktop/qt-test/0901-one-test/toolchain，\
@@ -1428,8 +1369,6 @@ mod tests {
 
     #[test]
     fn a_path_the_prompt_names_survives_a_model_that_left_the_field_empty() {
-        // #370 的硬要求：prompt 里给全四项就直接迁移。模型漏报的字段由字符串层补上，
-        // 四个路径齐了就不会再弹收集卡片。
         let request = "把QT工程迁移成鸿蒙工程，原始工程路径是/D/pro/calculator， 输出到/D/pro/out， \
 工具链是/D/pro/chain/bin，模板工程路径/D/pro/templates";
         let deterministic = fallback_intent_decision(request);
@@ -1441,7 +1380,6 @@ mod tests {
             Some("/D/pro/calculator")
         );
 
-        // 模型只认了输出容器，其余当作 referenced/missing。
         let model = build_intent_decision(
             r#"{"taskType": "app_migration", "fields": {
                 "source_project": {"state": "missing"},
@@ -1493,8 +1431,6 @@ mod tests {
             !pending.contains("source_project"),
             "有路径的字段不算待补：用户已经写了路径"
         );
-        // 该路径已归到 source_project，只是本机看不到：它进"提示"而不是"未归类"，
-        // 否则模型会以为四个字段都没识别出来，重新从零收集一遍。
         assert!(facts["unclassified_paths"]
             .as_array()
             .expect("paths")

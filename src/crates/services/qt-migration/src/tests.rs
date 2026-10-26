@@ -106,8 +106,6 @@ fn candidate_for<'a>(
         .find(|candidate| path_key(Path::new(&candidate.path)) == path_key(path))
 }
 
-/// Magic bytes of an executable built for this host, and of one built for a
-/// different platform: `kit_tools_run_on_host` compares the two.
 fn host_executable_magic() -> [u8; 4] {
     if cfg!(target_os = "macos") {
         [0xcf, 0xfa, 0xed, 0xfe]
@@ -126,13 +124,10 @@ fn foreign_executable_magic() -> [u8; 4] {
     }
 }
 
-/// Write an executable stub with the given header, so the kit fixtures can
-/// carry a measurable platform.
 fn write_executable(dir: &Path, name: &str, magic: [u8; 4]) {
     std::fs::write(dir.join(name), magic).expect("write executable stub");
 }
 
-/// Qt6 OHOS target kit whose tools are built for another platform.
 fn create_foreign_qt6_ohos_kit(root: &Path) -> PathBuf {
     let bin = mkdir(root, "bin");
     write_executable(&bin, "qmake", foreign_executable_magic());
@@ -708,16 +703,12 @@ fn cmake_without_qt_is_not_a_source_candidate() {
 
 #[test]
 fn a_named_source_project_this_host_cannot_see_is_still_offered() {
-    // #370 回归：prompt 点名的工程路径在当前进程里看不到（写错、尚未创建，或工作区
-    // 其实在别处）时，卡片仍要把这个路径作为候选给出来让用户确认或更正，而不是留一个
-    // 空输入框——用户会以为输入被吃掉了。错的路径由提交时的检查点名报错。
     let (_t, root) = tree();
     let named = root.join("no-such-calculator");
     let candidates = probe_source_projects(&root, &[named.to_string_lossy().into_owned()]);
 
     assert_eq!(keys(&candidates), keys(&[named.to_string_lossy().into_owned()]));
 
-    // 盘上已有可用的工程时，用户点名的路径仍要在选项里（排在验证过的候选之后）。
     let real = mkdir(&root, "real-app");
     create_version_fixture(
         &real,
@@ -740,7 +731,6 @@ fn a_named_source_project_this_host_cannot_see_is_still_offered() {
         "验证过的工程是默认项，点名的路径仍可选：{candidates:?}"
     );
 
-    // 盘上确实存在、但不是 Qt 工程的目录依旧不作为候选：磁盘事实优先。
     let plain = mkdir(&root, "plain-cmake");
     std::fs::write(
         plain.join("CMakeLists.txt"),
@@ -1122,8 +1112,6 @@ fn option_paths(candidates: &[QtScanCandidate]) -> Vec<String> {
 
 #[test]
 fn a_kit_whose_tools_are_not_built_for_this_host_is_not_a_candidate() {
-    // #365：工作区里放一份别的系统上的鸿蒙工具链，卡片不能把它当候选——迁移是要用
-    // 这套工具链真的去构建的。
     let (_t, root) = tree();
     let workspace = mkdir(&root, "work");
     let project = mkdir(&workspace, "qt6-app");
@@ -1151,7 +1139,6 @@ fn a_kit_whose_tools_are_not_built_for_this_host_is_not_a_candidate() {
         "跑不起来的 kit 不能进候选：{:?}",
         probe.candidates["toolchain"]
     );
-    // 反过来，本机格式的 kit 照常作为候选。
     let native = mkdir(&workspace, "native-toolchain");
     let native_bin = mkdir(&native, "bin");
     write_executable(&native_bin, "qmake", host_executable_magic());
@@ -1178,8 +1165,6 @@ fn a_kit_whose_tools_are_not_built_for_this_host_is_not_a_candidate() {
 
 #[test]
 fn a_launcher_script_does_not_hide_the_kits_real_binary() {
-    // 有些 SDK 的 bin/qmake 是启动脚本，真正的二进制叫 qmake6：格式判不出来时不能
-    // 就此放过，否则别的系统的工具链又会被当成候选（#365）。
     let (_t, root) = tree();
     let kit_root = mkdir(&root, "wrapped-kit");
     let bin = mkdir(&kit_root, "bin");
@@ -1188,7 +1173,6 @@ fn a_launcher_script_does_not_hide_the_kits_real_binary() {
 
     assert_eq!(kit_tools_run_on_host(&kit_root), Some(false));
 
-    // 只有脚本、没有任何可判定的二进制时保持未知，不做判断。
     let script_only = mkdir(&root, "script-only");
     let script_bin = mkdir(&script_only, "bin");
     std::fs::write(script_bin.join("qmake"), "#!/bin/sh\nexec real-qmake \"$@\"\n").unwrap();
@@ -1197,8 +1181,6 @@ fn a_launcher_script_does_not_hide_the_kits_real_binary() {
 
 #[test]
 fn a_prompt_named_toolchain_is_the_default_over_the_installed_kit() {
-    // #370：会话里给的那套工具链是用户要用的那套，卡片默认项必须是它；安装过的 kit
-    // 只能排在后面当备选，不能顶到第一位。
     let (_t, root) = tree();
     let workspace = mkdir(&root, "work");
     let project = mkdir(&workspace, "qt6-app");
@@ -1370,8 +1352,6 @@ fn the_answer_contract_is_read_by_value_not_by_key() {
         ),
         Some(QtMigrationStrategyAnswer::Abort)
     );
-    // 问题是模型自己写的，选项文案随语言变化：卡片提交的就是那段文案，运行时必须
-    // 仍能读出用户的决定，否则同一个问题会被反复提问（#366）。
     assert_eq!(
         read_version_strategy_answer(&json!({ "0": "降级到 Qt5 迁移" })),
         Some(QtMigrationStrategyAnswer::Proceed)
@@ -1380,7 +1360,6 @@ fn the_answer_contract_is_read_by_value_not_by_key() {
         read_version_strategy_answer(&json!({ "0": "Cancel: migrate with the Qt6 toolchain first" })),
         Some(QtMigrationStrategyAnswer::Abort)
     );
-    // 拒绝语里常带"继续"，拒绝标记优先。
     assert_eq!(
         read_version_strategy_answer(&json!({ "0": "不继续迁移" })),
         Some(QtMigrationStrategyAnswer::Abort)
@@ -1461,8 +1440,6 @@ fn a_readable_answer_that_was_not_recorded_is_reported_instead_of_being_silent()
             },
         })
     );
-    // 答案带契约取值、会话却仍 pending：必须报"未记录"，而不是返回 None。
-    // 模型自己写的选项文案现在同样可读，读到但未记录也是同一条事实。
     assert_eq!(
         version_strategy_follow_up(&pending(6, 5), &json!({ "0": "降级到 Qt5 迁移" })),
         Some(QtMigrationStrategyFollowUp::NotRecorded {

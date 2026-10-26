@@ -61,9 +61,6 @@ fn merge_prompt_resolved_paths(candidates: &mut HashMap<String, Vec<String>>, re
     }
 }
 
-/// Whether one submitted answer value is the `__official__` sentinel. The sentinel
-/// only means "the runtime installs this" for the field that owns an install flow,
-/// so callers look it up per field instead of scanning every answer.
 fn answer_binds_official_toolchain(value: &Value) -> bool {
     match value {
         Value::String(answer) => answer.trim() == QT_MIGRATION_OFFICIAL_VALUE,
@@ -114,15 +111,6 @@ impl QtMigrationQuestionCard {
         ))
     }
 
-    /// The official-template fact for an intake answer that bound
-    /// `template = __official__`.
-    ///
-    /// A template has no provisioner: `ohos-qt-skills` owns the acquisition, and
-    /// the turn-start instruction saying so was frozen before this answer existed,
-    /// so it never reaches the turn that submits it (#348). The answer's own tool
-    /// result is the one place the model still reads while it can act, and it names
-    /// the same script and target directory the turn-start guidance does — as the
-    /// skill's flow, which the model has to load first.
     fn official_template_fact(
         snapshot: &QtMigrationIntakeStateSnapshot,
         state: &dyn DomainStateReader,
@@ -194,8 +182,6 @@ impl QtMigrationQuestionCard {
             if let Some(installed) = Self::installed_toolchain_fact(snapshot, answers) {
                 facts.push(installed);
             }
-            // A template has no provisioner, so the install flow itself is the fact:
-            // nothing else in this turn tells the model to run it.
             if let Some(template) = Self::official_template_fact(snapshot, state) {
                 facts.push(template);
             }
@@ -539,9 +525,6 @@ impl QuestionTemplateContribution for QtMigrationQuestionCard {
                         "qt_migration_output_is_artifact: field={field}; path={value}"
                     ));
                 }
-                // The container holds the migrated project, so it cannot be the Qt
-                // project itself: that is how a migration ends up writing its own
-                // result into the source tree (#347).
                 if field == "output_project"
                     && crate::detect::is_qt_source_project(std::path::Path::new(value))
                 {
@@ -549,10 +532,6 @@ impl QuestionTemplateContribution for QtMigrationQuestionCard {
                         "qt_migration_output_is_source_project: field={field}; path={value}"
                     ));
                 }
-                // A bound toolchain has to be a Qt installation the runtime can read
-                // a generation from: a value it cannot resolve silently skipped the
-                // version-strategy question (#369). This is the resolver the gate
-                // measures with, so a binding the card accepts is one it can judge.
                 if field == "toolchain" && !crate::strategy::toolchain_value_is_measurable(value) {
                     return Err(format!(
                         "qt_migration_toolchain_not_a_kit: field={field}; path={value}"
@@ -922,8 +901,6 @@ mod tests {
             facts[0].text
         );
 
-        // The sentinel belongs to the field that owns an install flow: a template
-        // chosen as official must not read as an installed toolchain.
         let facts = card().on_answers(
             Some(QT_MIGRATION_PATHS_TEMPLATE_ID),
             &json!({ "template": QT_MIGRATION_OFFICIAL_VALUE }),

@@ -102,12 +102,6 @@ pub const QT_MIGRATION_STRATEGY_PROCEED_VALUE: &str = "continue_migration";
 /// Option value the runtime reads as "the user refused to migrate this project".
 pub const QT_MIGRATION_STRATEGY_ABORT_VALUE: &str = "abort";
 
-/// Wording the model's own question uses for the two decisions. The contract
-/// values above are what the instruction asks for, but the question is written by
-/// the model in the user's language, so the card can submit the visible option
-/// text instead. Reading it is what keeps a question the user did answer from
-/// being asked again (#366). Refusal markers win over acceptance markers, because
-/// a refusal is often phrased with the acceptance verb ("不继续迁移").
 const STRATEGY_ABORT_MARKERS: &[&str] = &[
     "abort",
     "cancel",
@@ -142,10 +136,6 @@ pub enum QtMigrationStrategyAnswer {
 
 /// Read the decision out of a submitted answer group, or `None` when it carries
 /// neither value.
-///
-/// The contract values are tried first, per token; a token that carries neither is
-/// matched against the wording of the model's own options, so an answer the user
-/// really made is not lost to the question's phrasing.
 pub fn read_version_strategy_answer(
     answers: &serde_json::Value,
 ) -> Option<QtMigrationStrategyAnswer> {
@@ -342,9 +332,6 @@ pub fn compare_bound_generations(
     let toolchain_major = if qt_migration_is_skill_managed_value(toolchain) {
         official_qt_major
     } else {
-        // The bound value may name the kit, its `bin`, its qmake, or the installer
-        // root above the kit; only the resolved kit carries the generation, and an
-        // unresolvable value must not silently pass as "same generation" (#369).
         resolve_bound_kit_root(Path::new(toolchain)).and_then(|kit| detect_qt_major(&kit))
     };
     let (Some(project), Some(toolchain)) = (project_major, toolchain_major) else {
@@ -353,9 +340,6 @@ pub fn compare_bound_generations(
     QtMigrationGenerationMismatch::from_generations(project, toolchain)
 }
 
-/// Whether a bound toolchain value names a Qt installation whose generation the
-/// runtime can read. Used where a binding would otherwise be accepted while
-/// leaving the version-strategy question unanswerable (#369).
 pub fn toolchain_value_is_measurable(toolchain: &str) -> bool {
     qt_migration_is_skill_managed_value(toolchain)
         || resolve_bound_kit_root(Path::new(toolchain)).is_some()

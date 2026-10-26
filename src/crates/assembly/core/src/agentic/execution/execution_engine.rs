@@ -3426,12 +3426,6 @@ impl ExecutionEngine {
                             migration_active_slot_value(true),
                         )
                         .await;
-                    // A prompt that names all four inputs and that this host can
-                    // actually see starts the migration without the question card;
-                    // a named path the disk does not have is the user's to correct,
-                    // so the card still appears and offers their paths. A remote
-                    // workspace is never judged here: this process cannot see those
-                    // paths, so the card stays the way inputs are confirmed.
                     let is_remote = self
                         .session_manager
                         .get_session(&context.session_id)

@@ -54,8 +54,6 @@ impl QtMigrationIntakeTool {
                     .to_string(),
             ));
         }
-        // Rebinding a value the runtime cannot read a generation from would clear
-        // the strategy question while saying nothing about the generations (#369).
         if !bitfun_qt_migration::strategy::toolchain_value_is_measurable(toolchain) {
             return Err(BitFunError::tool(format!(
                 "`{toolchain}` is not a Qt installation with a readable generation (pass the kit \
