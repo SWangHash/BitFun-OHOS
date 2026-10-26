@@ -7,7 +7,7 @@
  * Scene quick-open (allowInInput: true — fires from anywhere):
  *   Mod+Shift+A — open Agent/Session scene
  *   Mod+,       — open Settings scene
- *   Mod+Shift+` — open Terminal scene
+ *   Mod+Shift+` — open a terminal (terminal-create-requested)
  */
 
 import { useCallback } from 'react';
@@ -60,7 +60,13 @@ export function useGlobalSceneShortcuts(): void {
   useShortcut(
     'scene.openTerminal',
     { key: '`', ctrl: true, shift: true, scope: 'app', allowInInput: true },
-    () => openSceneById('terminal'),
+    // The standalone terminal scene only mirrors a session another surface already
+    // owns (terminalSceneStore.activeSessionId), so opening it directly lands on
+    // its empty state with no shell. Go through the product's terminal create
+    // action instead, the same one the quick action and nav panel use.
+    () => {
+      window.dispatchEvent(new CustomEvent('terminal-create-requested'));
+    },
     { priority: 10, description: 'keyboard.shortcuts.scene.openTerminal' }
   );
 }

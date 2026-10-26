@@ -85,6 +85,33 @@ function sanitizeOverrides(raw: Record<string, unknown>): KeybindingOverrides {
 }
 
 /**
+ * Physical key code → base character for keys whose `event.key` changes when
+ * Shift is held: Backquote reports "~" and the bracket keys report "{" / "}".
+ * Shortcut configs name the base character, so both sides normalize to it.
+ */
+const PHYSICAL_KEY_CHARACTERS: Record<string, string> = {
+  Backquote: '`',
+  BracketLeft: '[',
+  BracketRight: ']',
+};
+
+/**
+ * Shifted characters a stored override may carry because it was recorded from a
+ * raw `event.key` before the physical-key normalization existed. Aliasing them
+ * keeps those saved bindings working.
+ */
+const SHIFTED_KEY_ALIASES: Record<string, string> = {
+  '~': '`',
+  '{': '[',
+  '}': ']',
+};
+
+function normalizeConfigKey(key: string): string {
+  const lower = key.toLowerCase();
+  return SHIFTED_KEY_ALIASES[lower] ?? lower;
+}
+
+/**
  * Compute the O(1) map key for a shortcut config.
  * Format: "{scope}:{key_lower}:{primary}{shift}{alt}{meta}"
  * Example: "app:]:1000"
@@ -95,7 +122,7 @@ function makeMapKey(scope: ShortcutScope, config: ShortcutConfig): string {
   const s = config.shift ? '1' : '0';
   const a = config.alt ? '1' : '0';
   const m = normalized.meta ? '1' : '0';
-  return `${scope}:${config.key.toLowerCase()}:${c}${s}${a}${m}`;
+  return `${scope}:${normalizeConfigKey(config.key)}:${c}${s}${a}${m}`;
 }
 
 function isMacPlatform(): boolean {
@@ -116,20 +143,22 @@ function normalizeShortcutConfig(config: ShortcutConfig): { primary: boolean; me
 }
 
 /**
- * Normalize which logical key was pressed for lookup.
+ * Normalize which logical key a keydown represents.
  * Digit row: prefer `event.code` (Digit1–Digit9) so Ctrl+digit shortcuts work when `event.key`
  * differs by layout/browser; also support Numpad1–Numpad9.
+ * Shared with the keybinding recorder so a recorded binding round-trips through
+ * `makeMapKey`.
  */
-function eventKeyForLookup(event: KeyboardEvent): string {
+export function shortcutLogicalKey(event: KeyboardEvent): string {
   const code = event.code ?? '';
   const digit = /^Digit([1-9])$/.exec(code);
   if (digit) return digit[1];
   const numpad = /^Numpad([1-9])$/.exec(code);
   if (numpad) return numpad[1];
-  // Shift changes event.key for bracket keys to "{" / "}". Use the physical
-  // bracket key so configurable shortcuts such as Ctrl+Shift+[ remain stable.
-  if (code === 'BracketLeft') return '[';
-  if (code === 'BracketRight') return ']';
+  // Shift changes event.key for punctuation ("`" → "~", "[" → "{"), which would
+  // never match a config that names the base character. Use the physical key.
+  const physical = PHYSICAL_KEY_CHARACTERS[code];
+  if (physical) return physical;
   // Keep in sync with makeMapKey: always lower-case logical key (Tab, escape, w, etc.)
   return event.key.toLowerCase();
 }
@@ -143,7 +172,7 @@ function makeEventKey(scope: ShortcutScope, event: KeyboardEvent): string {
   const s = event.shiftKey ? '1' : '0';
   const a = event.altKey ? '1' : '0';
   const m = !isMacPlatform() && event.metaKey ? '1' : '0';
-  return `${scope}:${eventKeyForLookup(event)}:${c}${s}${a}${m}`;
+  return `${scope}:${shortcutLogicalKey(event)}:${c}${s}${a}${m}`;
 }
 
 export class ShortcutManager {
