@@ -166,10 +166,13 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   }, []);
 
   useEffect(() => {
+    // Reset the large-file flag on document switch so a previous document's
+    // oversized state doesn't lock the next (small) document in source mode.
+    isLargeMarkdownRef.current = false;
     // Oversized documents skip the rich (TipTap) renderer entirely: parsing
     // multiple megabytes of markdown on the main thread freezes the whole IDE.
     // The plain textarea (source mode) stays responsive at any size.
-    setViewMode(documentMarkdownMode ?? (isLargeMarkdownRef.current ? 'source' : 'ir'));
+    setViewMode(documentMarkdownMode ?? 'ir');
   }, [documentIdentity, documentMarkdownMode, initialContent]);
 
   const fetchFileMetadata = useCallback(async () => {
@@ -695,7 +698,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
               // Oversized documents stay in source mode: the rich renderer
               // parses the whole document on the main thread and freezes.
               if (isLargeMarkdownRef.current && value === 'ir') {
-                notification.info(t('editor.markdownEditor.notice.largeFileSourceOnly'));
+                notification.info(t('editor.markdownEditor.largeFileSourceOnly'));
                 return;
               }
               if (documentSession) documentSession.markdownMode = value as 'ir' | 'source';

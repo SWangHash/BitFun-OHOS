@@ -3093,10 +3093,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       const context = customEvent.detail?.context;
 
       if (context) {
-        // The emitter writes to the default (unscoped) store; the scoped
-        // conversation view must record the context itself or the pill is
-        // lost on the next session switch.
-        addContext(context);
+        // Deduplicate: producers may have already written to the same store.
+        const existing = contextStore.getState().contexts;
+        if (!existing.some(c => c.id === context.id)) {
+          addContext(context);
+        }
         setTimeout(() => {
           if (richTextInputRef.current && (richTextInputRef.current as any).insertTag) {
             const el = richTextInputRef.current;
