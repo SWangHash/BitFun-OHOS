@@ -117,12 +117,12 @@ impl QtMigrationQuestionCard {
     /// The official-template fact for an intake answer that bound
     /// `template = __official__`.
     ///
-    /// A template has no provisioner: the model installs it with the BitFun
-    /// acquisition script, and the turn-start instruction saying so was frozen
-    /// before this answer existed, so it never reaches the turn that submits it
-    /// (#348). The answer's own tool result is the one place the model still reads
-    /// while it can act, and it names the same script and target directory the
-    /// turn-start guidance does.
+    /// A template has no provisioner: `ohos-qt-skills` owns the acquisition, and
+    /// the turn-start instruction saying so was frozen before this answer existed,
+    /// so it never reaches the turn that submits it (#348). The answer's own tool
+    /// result is the one place the model still reads while it can act, and it names
+    /// the same script and target directory the turn-start guidance does — as the
+    /// skill's flow, which the model has to load first.
     fn official_template_fact(
         snapshot: &QtMigrationIntakeStateSnapshot,
         state: &dyn DomainStateReader,
@@ -148,7 +148,7 @@ impl QtMigrationQuestionCard {
             dir => dir,
         };
         Some(format!(
-            "## 模板尚未安装（系统事实，必须立即执行）\n\n{}",
+            "## 模板尚未安装（系统事实，按技能流程安装）\n\n{}",
             crate::instructions::official_template_guidance(
                 &templates_dir,
                 &skill_dir,
