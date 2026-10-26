@@ -73,3 +73,33 @@ describe('shared native scrollbar presentation', () => {
     expect(overrides).toEqual([]);
   });
 });
+
+describe('host scrollbar engine contract', () => {
+  const providerSource = readFileSync(
+    resolve(
+      repositoryRoot,
+      'src/web-ui/src/infrastructure/design-system/BitFunDesignSystemProvider.tsx',
+    ),
+    'utf8',
+  );
+
+  it('keeps the reported host exclusion at zero specificity', () => {
+    // A bare :not() would count its attribute selector, lift this rule off zero
+    // specificity and outrank the forced-colors fallback below it.
+    expect(stylesheet.match(/:where\(:not\(\[data-bitfun-scrollbar-host/g)).toHaveLength(2);
+    expect(stylesheet).not.toMatch(/\):not\(\[data-bitfun-scrollbar-host/);
+  });
+
+  it('writes and consumes the same host attribute', () => {
+    expect(providerSource).toContain("const ARKWEB_SCROLLBAR_HOST = 'arkweb';");
+    expect(providerSource).toContain("attributes['data-bitfun-scrollbar-host'] = ARKWEB_SCROLLBAR_HOST;");
+    expect(stylesheet).toContain('[data-bitfun-scrollbar-host="arkweb"]');
+  });
+
+  it('keeps the host scrollbar width in the stylesheet, not in product markup', () => {
+    expect(stylesheet).toMatch(
+      /:where\(\[data-bitfun-scrollbar-host="arkweb"\]\)\s*\{\s*--bitfun-scrollbar-width:\s*10px;/s,
+    );
+    expect(providerSource).not.toContain('--bitfun-scrollbar-width');
+  });
+});

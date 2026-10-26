@@ -21,17 +21,13 @@ import {
 
 const DENSITY: DensityMode = 'compact';
 const HIGH_CONTRAST_MEDIA_QUERY = '(prefers-contrast: more), (forced-colors: active)';
-const SCROLLBAR_WIDTH_VARIABLE = '--bitfun-scrollbar-width';
 /**
  * ArkWeb resolves the standard scrollbar properties into a thin idle thumb that
- * expands to the whole track on hover, so one scrollbar shows two widths. That
- * host reports its scrollbar engine instead of using those properties, which
- * puts it on the WebKit path whose width comes from the token below. The
- * desktop engines reserve 10px for the same paint, so the OHOS host asks for
- * the same thickness rather than the 6px token default.
+ * expands to the whole track on hover, so one scrollbar shows two widths. The
+ * product only reports which scrollbar engine paints the view; the design
+ * system owns what that engine is asked for, including the replacement width.
  */
 const ARKWEB_SCROLLBAR_HOST = 'arkweb';
-const ARKWEB_SCROLLBAR_WIDTH = '10px';
 
 function readHighContrastPreference(): boolean {
   return typeof window !== 'undefined'
@@ -84,9 +80,6 @@ export function BitFunDesignSystemProvider({ children }: PropsWithChildren) {
       // every floating surface; hosts without it keep the zero default.
       [HOST_CHROME_INSET_BLOCK_START_VARIABLE]: `${hostWindowChromeInsetBlockStart()}px`,
     };
-    if (openHarmony) {
-      hostTokens[SCROLLBAR_WIDTH_VARIABLE] = ARKWEB_SCROLLBAR_WIDTH;
-    }
     const previousTokens = new Map(
       Object.keys(hostTokens).map(name => [name, root.style.getPropertyValue(name)]),
     );
