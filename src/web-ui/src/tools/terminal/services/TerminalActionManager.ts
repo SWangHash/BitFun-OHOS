@@ -172,7 +172,9 @@ class TerminalActionManager {
       return 'paste';
     }
 
-    if (key === 'a') {
+    // Ctrl+A belongs to the shell (readline beginning-of-line), so select all
+    // only answers to the terminal-specific Ctrl+Shift+A.
+    if (key === 'a' && event.shiftKey) {
       return 'select-all';
     }
 

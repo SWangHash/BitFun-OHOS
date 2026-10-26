@@ -30,6 +30,9 @@ const mocks = vi.hoisted(() => ({
   downloadModel: vi.fn(),
   cancelModelDownload: vi.fn(async () => undefined),
   modelStatusListener: undefined as ((status: Record<string, unknown>) => void) | undefined,
+  transcriptionListener: undefined as
+    | ((event: { sessionId: string; text: string; isFinal: boolean }) => void)
+    | undefined,
   notificationInfo: vi.fn(),
   notificationError: vi.fn(),
 }));
@@ -44,7 +47,12 @@ vi.mock('@/infrastructure/api', () => ({
       return () => undefined;
     }),
     onModelProgress: vi.fn(() => () => undefined),
-    onTranscription: vi.fn(() => () => undefined),
+    onTranscription: vi.fn((
+      listener: (event: { sessionId: string; text: string; isFinal: boolean }) => void,
+    ) => {
+      mocks.transcriptionListener = listener;
+      return () => undefined;
+    }),
     downloadModel: mocks.downloadModel,
     cancelModelDownload: mocks.cancelModelDownload,
     startInputSession: vi.fn(async () => ({ sessionId: 'voice-session-1' })),
@@ -192,6 +200,7 @@ describe('useComposerVoiceInput transcription', () => {
     }));
     mocks.cancelModelDownload.mockClear();
     mocks.modelStatusListener = undefined;
+    mocks.transcriptionListener = undefined;
     mocks.notificationInfo.mockClear();
     mocks.notificationError.mockClear();
     focusInputSoon = vi.fn();
@@ -262,6 +271,139 @@ describe('useComposerVoiceInput transcription', () => {
     expect(insertText).not.toHaveBeenCalled();
     expect(mocks.notificationInfo).not.toHaveBeenCalled();
     expect(controller?.phase).toBe('idle');
+  });
+
+  it('appends live recognition to a draft that keeps its trailing whitespace', async () => {
+    let composerValue = 'Existing draft ';
+    getCurrentText.mockImplementation(() => composerValue);
+    replaceText.mockImplementation((text: string) => {
+      composerValue = text;
+    });
+
+    await startRecording();
+
+    await act(async () => {
+      mocks.transcriptionListener?.({
+        sessionId: 'voice-session-1',
+        text: 'spoken words',
+        isFinal: false,
+      });
+      await Promise.resolve();
+    });
+
+    expect(replaceText).toHaveBeenLastCalledWith('Existing draft spoken words');
+  });
+
+  async function emitTranscription(text: string) {
+    await act(async () => {
+      mocks.transcriptionListener?.({
+        sessionId: 'voice-session-1',
+        text,
+        isFinal: false,
+      });
+      await Promise.resolve();
+    });
+  }
+
+  function useLaggingComposer(initialDraft = '') {
+    let composerValue = initialDraft;
+    let laggingValue = initialDraft;
+    getCurrentText.mockImplementation(() => laggingValue);
+    replaceText.mockImplementation((text: string) => {
+      laggingValue = composerValue;
+      composerValue = text;
+    });
+    return {
+      read: () => composerValue,
+      readState: () => laggingValue,
+    };
+  }
+
+  it('renders streaming snapshots without spaces while the composer state lags', async () => {
+    const composer = useLaggingComposer();
+    await startRecording();
+
+    for (const snapshot of ['因', '因都', '因都在想', '因都在想法实现', '因都在想法实现这 个功能']) {
+      await emitTranscription(snapshot);
+    }
+
+    expect(composer.read()).toBe('因都在想法实现这个功能');
+    expect(composer.read()).not.toContain(' ');
+    expect(composer.readState()).not.toContain(' ');
+  });
+
+  it('renders the reported HarmonyOS snapshot stream without fragment spaces', async () => {
+    const composer = useLaggingComposer();
+    await startRecording();
+
+    for (const snapshot of [
+      '因 都 在想',
+      '因 都 在想 法 实现这 个功能',
+      '因 都 在想 法 实现这 公 员。',
+    ]) {
+      await emitTranscription(snapshot);
+    }
+
+    expect(composer.read()).toBe('因都在想法实现这公员。');
+  });
+
+  it('keeps only the latest take of a clause instead of repeating every take', async () => {
+    const composer = useLaggingComposer();
+    await startRecording();
+
+    for (const snapshot of [
+      '增强',
+      '增强的',
+      '增强的有',
+      '增强的有增强的',
+      '增强的有增强的有增强的。',
+    ]) {
+      await emitTranscription(snapshot);
+    }
+
+    expect(composer.read()).toBe('增强的有增强的有增强的。');
+  });
+
+  it('replaces revised recognition instead of appending it twice', async () => {
+    const composer = useLaggingComposer('帮我写');
+    await startRecording();
+
+    await emitTranscription('今天天气不错');
+    await emitTranscription('今天天气很好');
+
+    expect(composer.read()).toBe('帮我写今天天气很好');
+  });
+
+  it('keeps the reshape of a finished transcript free of duplicated speech', async () => {
+    const composer = useLaggingComposer();
+    mocks.finishText = '今天天气不错我们去公园吧';
+    await startRecording();
+
+    await emitTranscription('今天天气不错');
+    await act(async () => {
+      controller?.transcribe();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(composer.read()).toBe('今天天气不错我们去公园吧');
+  });
+
+  it('keeps a user edit and appends only the speech that is still missing', async () => {
+    let composerValue = 'Existing draft';
+    getCurrentText.mockImplementation(() => composerValue);
+    replaceText.mockImplementation((text: string) => {
+      composerValue = text;
+    });
+    await startRecording();
+
+    await emitTranscription('你好世界');
+    expect(composerValue).toBe('Existing draft你好世界');
+
+    composerValue = 'Existing draft你好世界！';
+    await emitTranscription('你好世界今天下雨了');
+
+    expect(composerValue).toBe('Existing draft你好世界！今天下雨了');
   });
 
   it('keeps the idle control actionable when microphone capture is unavailable', async () => {

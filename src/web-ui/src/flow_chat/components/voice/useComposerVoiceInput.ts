@@ -17,6 +17,11 @@ import {
   createVoiceInputRecorder,
   type VoiceInputRecorder,
 } from '@/infrastructure/speech/voiceInputAudio';
+import {
+  joinDraftAndSpeech,
+  normalizeSpeechText,
+  takeTranscriptSnapshot,
+} from './voiceTranscript';
 
 const log = createLogger('ComposerVoiceInput');
 
@@ -30,6 +35,8 @@ const RECORDING_CHUNK_DURATION_MS = 1000;
 const LOW_VOLUME_LEVEL_THRESHOLD = 0.002;
 const LOW_VOLUME_WARNING_DELAY_MS = 3000;
 const DEFAULT_LOCAL_VOICE_MODEL_ID = LOCAL_SENSEVOICE_SMALL_INT8_MODEL_ID;
+/** How many recent composer values stay valid while detecting a user edit. */
+const RENDER_HISTORY_LIMIT = 8;
 
 export interface ComposerVoiceInputController {
   enabled: boolean;
@@ -87,13 +94,6 @@ function estimatePcm16Base64Seconds(pcm16Base64: string, sampleRate: number): nu
   return bytes / (sampleRate * 2);
 }
 
-function getRecognitionDelta(previous: string, next: string): string {
-  if (!previous || next.startsWith(previous)) {
-    return previous ? next.slice(previous.length).trim() : next;
-  }
-  return '';
-}
-
 export function useComposerVoiceInput({
   focusInputSoon,
   getCurrentText,
@@ -123,11 +123,18 @@ export function useComposerVoiceInput({
   const bufferedChunksRef = useRef<Array<{ pcm16Base64: string; seconds: number }>>([]);
   const bufferedSecondsRef = useRef(0);
   const cancelRecordingRef = useRef<(() => Promise<void>) | null>(null);
-  const liveTextRef = useRef('');
-  const pendingLiveTextRef = useRef('');
-  const liveTextBaseRef = useRef('');
-  const liveTextEditedRef = useRef(false);
-  const lastRenderedTextRef = useRef('');
+  // Composer voice rendering. `draftRef` is the composer text the user owns,
+  // `transcriptRef` the merged recognition transcript, and `renderedRef` the
+  // exact value this hook last wrote. The live composer value is only consulted
+  // to detect a real user edit: streaming results arrive faster than React state
+  // propagates, so comparing against the latest value alone would read lag as an
+  // edit and switch the composer into delta appends.
+  const draftRef = useRef('');
+  const transcriptRef = useRef('');
+  const consumedTranscriptLengthRef = useRef(0);
+  const renderedSpeechRef = useRef('');
+  const renderedRef = useRef('');
+  const recentRenderingsRef = useRef<string[]>([]);
   const lowVolumeStartedAtRef = useRef<number | null>(null);
   const speechRuntimeSupported = isTauriRuntime();
   const selectedModelCapability = selectedProvider === 'local'
@@ -208,49 +215,65 @@ export function useComposerVoiceInput({
     };
   }, [refreshCapability, selectedModelId, selectedProvider, speechRuntimeSupported]);
 
-  const mergeLiveText = useCallback((nextText: string) => {
-    const base = liveTextBaseRef.current;
-    const current = getCurrentText();
-    const previousLive = liveTextRef.current;
-    const expectedPrevious = previousLive ? (base ? `${base} ${previousLive}` : previousLive) : base;
+  const rememberRendering = useCallback((text: string) => {
+    renderedRef.current = text;
+    const recent = recentRenderingsRef.current;
+    recent.push(text);
+    if (recent.length > RENDER_HISTORY_LIMIT) {
+      recent.shift();
+    }
+  }, []);
 
-    if (previousLive && !current.trim() && lastRenderedTextRef.current.trim()) {
-      liveTextBaseRef.current = '';
-      liveTextEditedRef.current = true;
-      liveTextRef.current = nextText;
-      pendingLiveTextRef.current = nextText;
-      lastRenderedTextRef.current = '';
-      return '';
+  const resetRenderingState = useCallback(() => {
+    draftRef.current = '';
+    transcriptRef.current = '';
+    consumedTranscriptLengthRef.current = 0;
+    renderedSpeechRef.current = '';
+    renderedRef.current = '';
+    recentRenderingsRef.current = [];
+  }, []);
+
+  /**
+   * Render one recognition snapshot into the composer.
+   *
+   * A snapshot is a complete transcript assembled by the host, so it replaces
+   * the previous one: the composer always shows `draft + latestTranscript`. It
+   * must not append `${current} ${delta}` — that turns one spoken sentence into
+   * space-separated fragments — and it must not try to relate snapshots to each
+   * other, because the host already commits a recognized clause and replaces the
+   * clause still being recognized.
+   */
+  const renderRecognitionSnapshot = useCallback((snapshot: string) => {
+    const current = getCurrentText();
+    const isUserEdit = current !== renderedRef.current
+      && !recentRenderingsRef.current.includes(current);
+    if (isUserEdit) {
+      // The user typed while recognition ran. Keep their text as the draft and
+      // remember how much of the transcript is already accounted for, so the
+      // speech on screen is not inserted a second time.
+      const visibleSpeech = renderedSpeechRef.current;
+      if (visibleSpeech.length > 0 && current.endsWith(visibleSpeech)) {
+        draftRef.current = current.slice(0, current.length - visibleSpeech.length).trimEnd();
+      } else {
+        draftRef.current = current;
+        consumedTranscriptLengthRef.current = transcriptRef.current.length;
+      }
     }
-    if (current.length < lastRenderedTextRef.current.length && current !== lastRenderedTextRef.current) {
-      liveTextBaseRef.current = current;
-      liveTextEditedRef.current = true;
-      liveTextRef.current = nextText;
-      pendingLiveTextRef.current = nextText;
-      lastRenderedTextRef.current = current;
-      return current;
+    const nextTranscript = takeTranscriptSnapshot(transcriptRef.current, snapshot);
+    if (nextTranscript.length === 0) {
+      return;
     }
-    if (liveTextEditedRef.current) {
-      const delta = getRecognitionDelta(previousLive, nextText);
-      return current ? (delta ? `${current} ${delta}` : current) : delta;
+    transcriptRef.current = nextTranscript;
+    const consumedLength = Math.min(consumedTranscriptLengthRef.current, nextTranscript.length);
+    const visibleSpeech = nextTranscript.slice(consumedLength);
+    renderedSpeechRef.current = visibleSpeech;
+    const next = joinDraftAndSpeech(draftRef.current, visibleSpeech);
+    if (next === renderedRef.current) {
+      return;
     }
-    if (current === lastRenderedTextRef.current) {
-      return base ? `${base} ${nextText}` : nextText;
-    }
-    if (current === expectedPrevious || (!current && !expectedPrevious)) {
-      return base ? `${base} ${nextText}` : nextText;
-    }
-    // The user edited the composer while recognition was running. Discard the
-    // current cumulative result and use it only as the new recognition cursor.
-    // The next result will be compared against this cursor, so old speech is
-    // never inserted into the edited draft again.
-    liveTextBaseRef.current = current;
-    liveTextEditedRef.current = true;
-    liveTextRef.current = nextText;
-    pendingLiveTextRef.current = nextText;
-    lastRenderedTextRef.current = current;
-    return current;
-  }, [getCurrentText]);
+    rememberRendering(next);
+    replaceText(next);
+  }, [getCurrentText, rememberRendering, replaceText]);
 
   useEffect(() => {
     return speechAPI.onTranscription(event => {
@@ -258,20 +281,9 @@ export function useComposerVoiceInput({
       if (!session || session.sessionId !== event.sessionId || (phase !== 'recording' && phase !== 'transcribing')) {
         return;
       }
-      const nextText = event.text.trim();
-      if (!nextText || nextText === pendingLiveTextRef.current) {
-        return;
-      }
-      const mergedText = mergeLiveText(nextText);
-      liveTextRef.current = nextText;
-      pendingLiveTextRef.current = nextText;
-      if (mergedText === getCurrentText() && liveTextEditedRef.current) {
-        return;
-      }
-      replaceText(mergedText);
-      lastRenderedTextRef.current = mergedText;
+      renderRecognitionSnapshot(event.text);
     });
-  }, [mergeLiveText, phase, replaceText]);
+  }, [phase, renderRecognitionSnapshot]);
 
   useEffect(() => {
     if (phase !== 'setup' || modelInstalled !== true) return;
@@ -306,6 +318,7 @@ export function useComposerVoiceInput({
     bufferedChunksRef.current = [];
     bufferedSecondsRef.current = 0;
     lowVolumeStartedAtRef.current = null;
+    resetRenderingState();
     if (audioLevelFrameRef.current !== null) {
       window.cancelAnimationFrame(audioLevelFrameRef.current);
       audioLevelFrameRef.current = null;
@@ -335,7 +348,7 @@ export function useComposerVoiceInput({
         log.warn('Voice input session creation failed during cleanup', { error });
       });
     }
-  }, []);
+  }, [resetRenderingState]);
 
   const updateAudioLevel = useCallback((level: number) => {
     latestAudioLevelRef.current = Math.max(0, Math.min(1, level));
@@ -440,6 +453,7 @@ export function useComposerVoiceInput({
     bufferedSecondsRef.current = 0;
     latestAudioLevelRef.current = 0;
     setAudioLevel(0);
+    resetRenderingState();
     setPhase('idle');
 
     if (recorder) {
@@ -467,7 +481,7 @@ export function useComposerVoiceInput({
         log.warn('Voice input session creation failed after cancellation', { error });
       });
     }
-  }, []);
+  }, [resetRenderingState]);
 
   useEffect(() => {
     cancelRecordingRef.current = cancelRecording;
@@ -508,23 +522,17 @@ export function useComposerVoiceInput({
       }
 
       const result = await speechAPI.finishInputSession(session.sessionId);
-      const text = result.text.trim() || liveTextRef.current.trim();
-      if (text) {
-        const base = liveTextBaseRef.current;
-        const current = getCurrentText();
-        const expectedPreview = liveTextRef.current
-          ? (base ? `${base} ${liveTextRef.current}` : liveTextRef.current)
-          : base;
-        const recognitionDelta = getRecognitionDelta(liveTextRef.current, text);
-        const mergedText = liveTextRef.current.length === 0
-          ? insertText(text)
-          : liveTextEditedRef.current
-            ? (current ? (recognitionDelta ? `${current} ${recognitionDelta}` : current) : recognitionDelta)
-            : current === expectedPreview
-              ? (base ? `${base} ${text}` : text)
-              : (current ? (recognitionDelta ? `${current} ${recognitionDelta}` : current) : text);
-        if (liveTextRef.current.length > 0) {
-          replaceText(mergedText ?? text);
+      const finalText = normalizeSpeechText(result.text ?? '');
+      if (finalText) {
+        if (transcriptRef.current.length === 0 && renderedRef.current === draftRef.current) {
+          // Hosts without streaming results (desktop local ASR) deliver the
+          // transcript once, at finish.
+          const inserted = insertText(finalText);
+          transcriptRef.current = finalText;
+          renderedSpeechRef.current = finalText;
+          rememberRendering(inserted ?? joinDraftAndSpeech(draftRef.current, finalText));
+        } else {
+          renderRecognitionSnapshot(finalText);
         }
         focusInputSoon();
       }
@@ -552,9 +560,18 @@ export function useComposerVoiceInput({
       pendingAppendRef.current = Promise.resolve();
       bufferedChunksRef.current = [];
       bufferedSecondsRef.current = 0;
+      resetRenderingState();
       setPhase('idle');
     }
-  }, [attachSession, focusInputSoon, getCurrentText, insertText, replaceText, t]);
+  }, [
+    attachSession,
+    focusInputSoon,
+    insertText,
+    rememberRendering,
+    renderRecognitionSnapshot,
+    resetRenderingState,
+    t,
+  ]);
 
   const startRecording = useCallback(async (skipModelCheck = false) => {
     if (!settings?.enabled) {
@@ -586,11 +603,12 @@ export function useComposerVoiceInput({
     }
 
     setPhase('preparing');
-    liveTextRef.current = '';
-    pendingLiveTextRef.current = '';
-    liveTextBaseRef.current = getCurrentText().trim();
-    liveTextEditedRef.current = false;
-    lastRenderedTextRef.current = liveTextBaseRef.current;
+    draftRef.current = getCurrentText();
+    transcriptRef.current = '';
+    consumedTranscriptLengthRef.current = 0;
+    renderedSpeechRef.current = '';
+    renderedRef.current = draftRef.current;
+    recentRenderingsRef.current = [draftRef.current];
     latestAudioLevelRef.current = 0;
     setAudioLevel(0);
     const recordingId = activeRecordingIdRef.current + 1;

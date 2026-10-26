@@ -133,6 +133,44 @@ describe('ComposerVoiceInput', () => {
     expect(controller.transcribe).toHaveBeenCalledOnce();
   });
 
+  it('shows the live meter in the stop control instead of a static microphone', async () => {
+    await render(<ComposerVoiceStopButton controller={createController()} />);
+
+    const meter = container.querySelector<HTMLElement>('.bitfun-chat-input__voice-live-meter');
+
+    expect(meter).toBeTruthy();
+    expect(meter?.dataset.bitfunPart).toBe('liveMeter');
+    expect(meter?.querySelectorAll('.bitfun-chat-input__voice-live-meter-bar')).toHaveLength(3);
+    expect(container.querySelector('[data-bitfun-component="icon"]')).toBeNull();
+  });
+
+  it('scales the live meter bars with the microphone level', async () => {
+    const readBarHeights = () =>
+      Array.from(container.querySelectorAll<HTMLElement>('.bitfun-chat-input__voice-live-meter-bar'))
+        .map(bar => Number.parseFloat(bar.style.height));
+
+    await render(<ComposerVoiceStopButton controller={createController({ audioLevel: 0 })} />);
+    const quiet = readBarHeights();
+
+    await render(<ComposerVoiceStopButton controller={createController({ audioLevel: 0.5 })} />);
+    const loud = readBarHeights();
+
+    expect(quiet).toHaveLength(3);
+    quiet.forEach((height, index) => {
+      expect(loud[index]).toBeGreaterThan(height);
+    });
+  });
+
+  it('keeps a distinct resting height per bar so the meter reads as an equalizer in silence', async () => {
+    await render(<ComposerVoiceStopButton controller={createController({ audioLevel: 0 })} />);
+
+    const quietHeights = Array.from(
+      container.querySelectorAll<HTMLElement>('.bitfun-chat-input__voice-live-meter-bar'),
+    ).map(bar => Number.parseFloat(bar.style.height));
+
+    expect(new Set(quietHeights).size).toBe(3);
+  });
+
   it('renders no stop control outside the recording phase', async () => {
     await render(<ComposerVoiceStopButton controller={createController({ phase: 'transcribing' })} />);
 

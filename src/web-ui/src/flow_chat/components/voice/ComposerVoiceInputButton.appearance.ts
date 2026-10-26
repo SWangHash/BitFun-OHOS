@@ -5,6 +5,7 @@ export const composerVoiceInputAppearanceDescriptor: AppearanceSurfaceDescriptor
   parts: [
     { id: 'root' }, { id: 'control' }, { id: 'setupPill' },
     { id: 'setupMessage' }, { id: 'status' }, { id: 'action' },
+    { id: 'liveMeter' },
   ],
   facets: [
     { id: 'phase', attribute: 'data-bitfun-phase', values: ['idle', 'setup', 'downloading', 'preparing', 'recording', 'transcribing'] },
