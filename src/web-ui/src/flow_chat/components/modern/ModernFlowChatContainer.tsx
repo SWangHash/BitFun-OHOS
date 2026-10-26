@@ -2619,7 +2619,7 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
 
   useShortcut(
     'chat.newSession',
-    { key: 'N', ctrl: true, scope: 'chat' },
+    { key: 'N', ctrl: true, scope: 'chat', allowInInput: true },
     () => {
       void (async () => {
         try {

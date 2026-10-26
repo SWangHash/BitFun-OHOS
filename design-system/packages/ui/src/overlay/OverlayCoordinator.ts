@@ -172,7 +172,7 @@ export class OverlayLayerStack {
   hasLayers(scope?: OverlayLayerScope): boolean {
     const dismissibles = this.orderedDismissibles();
     return scope ? dismissibles.some(layer => layer.scope === scope)
-      : [...this.layers.values()].some(layer => (layer.open || layer.modal) && !layer.passive && this.ancestorsOpen(layer))
+      : [...this.layers.values()].some(layer => layer.open && !layer.passive && this.ancestorsOpen(layer))
         || dismissibles.length > 0;
   }
 

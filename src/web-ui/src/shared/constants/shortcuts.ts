@@ -208,7 +208,7 @@ export const CHAT_SHORTCUTS: ShortcutDef[] = [
   },
   {
     id: 'chat.newSession',
-    config: mod('N', { scope: 'chat' }),
+    config: mod('N', { scope: 'chat', allowInInput: true }),
     descriptionKey: 'keyboard.shortcuts.chat.newSession',
   },
   {

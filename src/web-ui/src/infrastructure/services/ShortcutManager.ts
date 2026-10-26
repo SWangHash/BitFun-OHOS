@@ -383,15 +383,39 @@ export class ShortcutManager {
   /**
    * Detect the active shortcut scope by walking up the DOM from the event target.
    * Returns the innermost known data-shortcut-scope value, or 'app' as fallback.
+   *
+   * When the focus is on the document body or an element without a
+   * data-shortcut-scope attribute (e.g. after closing a dialog, focus often
+   * returns to body), and the chat panel is currently mounted, fall back to
+   * 'chat' so that chat-scoped navigation shortcuts (like Ctrl+N for new
+   * session) still work without requiring the user to click back into the
+   * chat panel first. This mirrors the user's mental model: when the chat
+   * surface is visible, chat shortcuts are active.
    */
   private detectScope(target: EventTarget | null): ShortcutScope {
-    if (!target || !(target instanceof Element)) return 'app';
+    if (!target || !(target instanceof Element)) {
+      return this.chatScopeFallback();
+    }
     const el = target.closest('[data-shortcut-scope]');
     const scope = el?.getAttribute('data-shortcut-scope') as ShortcutScope | null;
     // Only accept known panel scopes; canvas is included so canvas-scoped shortcuts
     // fire only when focus is inside the editor canvas area.
     if (scope === 'canvas' || scope === 'editor' || scope === 'chat' || scope === 'terminal' || scope === 'filetree' || scope === 'git') {
       return scope;
+    }
+    return this.chatScopeFallback();
+  }
+
+  /**
+   * Return 'chat' when no specific scope is detected but a chat panel is
+   * currently mounted in the document, otherwise 'app'. This lets
+   * chat-scoped navigation shortcuts (Ctrl+N) fire after focus drifts to
+   * body or a non-scoped element (e.g. after closing a modal), without
+   * requiring the user to click back into the chat panel.
+   */
+  private chatScopeFallback(): ShortcutScope {
+    if (typeof document !== 'undefined' && document.querySelector('[data-shortcut-scope="chat"]')) {
+      return 'chat';
     }
     return 'app';
   }
