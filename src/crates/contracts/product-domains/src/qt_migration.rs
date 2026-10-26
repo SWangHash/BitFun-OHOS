@@ -132,6 +132,13 @@ pub struct QtMigrationLoadedSkillReceipt {
     pub content_hash: String,
 }
 
+/// The bound values a version-strategy state was measured on.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QtMigrationStrategyBindings {
+    pub source_project: String,
+    pub toolchain: String,
+}
+
 /// Immutable Session-level intake snapshot.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct QtMigrationIntakeStateSnapshot {
@@ -149,6 +156,10 @@ pub struct QtMigrationIntakeStateSnapshot {
     /// before this field existed keep loading.
     #[serde(default)]
     pub version_strategy: QtMigrationVersionStrategy,
+    /// The values `version_strategy` was measured on, so a decision carries over to
+    /// the same project and toolchain only. Absent on snapshots written before it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version_strategy_bindings: Option<QtMigrationStrategyBindings>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub output_project_dir: Option<String>,
 }
@@ -165,6 +176,7 @@ impl QtMigrationIntakeStateSnapshot {
             status: QtMigrationIntakeStatus::NotApplicable,
             loaded_skill_receipt: None,
             version_strategy: QtMigrationVersionStrategy::default(),
+            version_strategy_bindings: None,
             output_project_dir: None,
         }
     }

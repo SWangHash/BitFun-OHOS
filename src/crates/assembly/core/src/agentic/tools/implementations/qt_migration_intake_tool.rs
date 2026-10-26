@@ -54,7 +54,9 @@ impl QtMigrationIntakeTool {
                     .to_string(),
             ));
         }
-        if !bitfun_qt_migration::strategy::toolchain_value_is_measurable(toolchain) {
+        if !context.is_remote()
+            && !bitfun_qt_migration::strategy::toolchain_value_is_measurable(toolchain)
+        {
             return Err(BitFunError::tool(format!(
                 "`{toolchain}` is not a Qt installation with a readable generation (pass the kit \
                  root, its bin directory, or the installer root above them); the migration \

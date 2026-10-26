@@ -10,7 +10,7 @@ use log::info;
 use crate::agentic::session::SessionManager;
 use bitfun_qt_migration::strategy::{
     measure_bound_generation_mismatch, pending_generation_mismatch, read_version_strategy_answer,
-    QtMigrationGenerationMismatch, QtMigrationStrategyAnswer,
+    version_strategy_state_applies, QtMigrationGenerationMismatch, QtMigrationStrategyAnswer,
 };
 
 /// Generation of the official Qt package, when this build can install it.
@@ -35,7 +35,9 @@ pub(crate) async fn record_version_mismatch_if_any(
         session_manager.domain_state_get(session_id, &QT_MIGRATION_SLOT_INTAKE_STATE),
     );
     let (project, toolchain) = measure_bound_generation_mismatch(&snapshot, official_qt_major())?;
-    if snapshot.version_strategy.measured_generations() == Some((project, toolchain)) {
+    if snapshot.version_strategy.measured_generations() == Some((project, toolchain))
+        && version_strategy_state_applies(&snapshot)
+    {
         return None;
     }
 

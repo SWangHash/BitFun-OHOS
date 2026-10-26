@@ -13,7 +13,7 @@ use bitfun_runtime_ports::{
 };
 use serde_json::Value;
 
-use crate::scan::path_key;
+use crate::scan::resolved_path_key;
 use crate::state::{
     is_valid_qt_migration_receipt, QtMigrationIntakeStateSnapshot, QtMigrationIntakeStatus,
     QtMigrationVersionStrategy, QT_MIGRATION_INTAKE_REQUIRED_FIELDS,
@@ -134,7 +134,7 @@ fn scoped_write_target(tool_name: &str, input: Option<&Value>) -> Option<String>
 }
 
 fn path_key_is_inside(root: &Path, target_key: &str) -> bool {
-    let root_key = path_key(root);
+    let root_key = resolved_path_key(root);
     !root_key.is_empty()
         && (target_key == root_key || target_key.starts_with(&format!("{root_key}/")))
 }
@@ -162,7 +162,7 @@ pub fn check_migration_write_scope(
     } else {
         workspace_root.join(&raw)
     };
-    let target_key = path_key(&target);
+    let target_key = resolved_path_key(&target);
     if scope
         .managed_roots
         .iter()
@@ -415,6 +415,7 @@ mod tests {
             status,
             loaded_skill_receipt: None,
             version_strategy: QtMigrationVersionStrategy::default(),
+            version_strategy_bindings: None,
             output_project_dir: None,
         }
     }
@@ -815,6 +816,20 @@ mod tests {
             },
         )
         .is_ok()
+    }
+
+    #[test]
+    fn a_target_that_steps_out_of_the_project_is_rejected() {
+        // `..` must not read as staying inside the bound project directory.
+        for (tool, input) in [
+            (
+                "Write",
+                serde_json::json!({"payload": "+++ /work/qt6/app/app-ohos/../build.log\nx"}),
+            ),
+            ("Edit", serde_json::json!({"file_path": "app-ohos/../build.log"})),
+        ] {
+            assert_eq!(scope_error(tool, input).kind, "outside_project");
+        }
     }
 
     #[test]

@@ -546,6 +546,12 @@ fn find_absolute_paths(text: &str) -> Vec<String> {
     let mut paths = Vec::new();
     let mut index = 0;
     while index < chars.len() {
+        // A URL the prompt quotes is not a path, and neither is the path part of
+        // one: `https://host/a/b` carries no candidate for `/host/a/b`.
+        if let Some(end) = uri_end(&chars, index) {
+            index = end.max(index + 1);
+            continue;
+        }
         let Some((path, end)) = absolute_path_at(&chars, index) else {
             index += 1;
             continue;
@@ -556,6 +562,34 @@ fn find_absolute_paths(text: &str) -> Vec<String> {
         index = end.max(index + 1);
     }
     paths
+}
+
+/// End of a `scheme://…` run starting at `start`. A single-letter scheme is left
+/// alone so a `C://` drive path keeps being read as a path.
+fn uri_end(chars: &[char], start: usize) -> Option<usize> {
+    if !chars.get(start)?.is_ascii_alphabetic() {
+        return None;
+    }
+    let mut scheme = start + 1;
+    while matches!(chars.get(scheme), Some(c) if c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.'))
+    {
+        scheme += 1;
+    }
+    if scheme - start < 2
+        || chars.get(scheme) != Some(&':')
+        || chars.get(scheme + 1) != Some(&'/')
+        || chars.get(scheme + 2) != Some(&'/')
+    {
+        return None;
+    }
+    let mut end = scheme + 3;
+    while end < chars.len() && !is_path_run_stop(chars[end]) {
+        end += 1;
+    }
+    while end > start && is_cjk(chars[end - 1]) {
+        end -= 1;
+    }
+    Some(end)
 }
 
 fn absolute_path_at(chars: &[char], start: usize) -> Option<(String, usize)> {
@@ -1019,6 +1053,18 @@ mod tests {
         );
     }
     #[test]
+    fn a_url_in_the_prompt_yields_no_path_candidate() {
+        assert_eq!(
+            find_absolute_paths("参考 https://gitcode.com/OpenBitFun/bitfun_ade/blob/main/README.md 说明"),
+            Vec::<String>::new()
+        );
+        assert_eq!(
+            find_absolute_paths("参考 https://gitcode.com/a/b 把 /ws/myqt 迁移到鸿蒙"),
+            vec!["/ws/myqt".to_string()]
+        );
+    }
+
+    #[test]
     fn output_anchor_binds_path_to_output() {
         let d = analyze_request("把 D:/workspace/myqt 迁移到鸿蒙，输出到 D:/out");
         let (source, output, _tc, _tp) = fields_of(&d);
@@ -1256,6 +1302,7 @@ mod tests {
             status,
             loaded_skill_receipt: None,
             version_strategy: QtMigrationVersionStrategy::default(),
+            version_strategy_bindings: None,
             output_project_dir: None,
         }
     }

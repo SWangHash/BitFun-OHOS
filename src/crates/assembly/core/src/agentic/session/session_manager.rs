@@ -19360,6 +19360,7 @@ mod tests {
             status: bitfun_qt_migration::state::QtMigrationIntakeStatus::NeedsInput,
             loaded_skill_receipt: None,
             version_strategy: bitfun_qt_migration::state::QtMigrationVersionStrategy::default(),
+            version_strategy_bindings: None,
             output_project_dir: None,
         };
         let snapshot_value = serde_json::to_value(&snapshot).expect("intake snapshot serializes");

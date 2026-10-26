@@ -12,7 +12,7 @@ use crate::scan::{QtScanCandidate, MAX_TOOLCHAINS};
 use crate::state::{
     qt_migration_is_skill_managed_value, qt_migration_set_version_strategy,
     QtMigrationFieldResolutionState, QtMigrationIntakeFieldState, QtMigrationIntakeStateSnapshot,
-    QtMigrationVersionStrategy,
+    QtMigrationStrategyBindings, QtMigrationVersionStrategy,
 };
 use crate::templates::QT_MIGRATION_PATHS_TEMPLATE_ID;
 
@@ -225,6 +225,26 @@ pub fn pending_generation_mismatch(
             QtMigrationGenerationMismatch::from_generations(project, toolchain),
         ),
         _ => None,
+    }
+}
+
+/// The bound `(source_project, toolchain)` values, when both are bound.
+pub fn bound_strategy_bindings(
+    snapshot: &QtMigrationIntakeStateSnapshot,
+) -> Option<QtMigrationStrategyBindings> {
+    Some(QtMigrationStrategyBindings {
+        source_project: bound_intake_value(snapshot, "source_project")?.to_string(),
+        toolchain: bound_intake_value(snapshot, "toolchain")?.to_string(),
+    })
+}
+
+/// Whether a recorded version-strategy state still belongs to the values bound
+/// now. A snapshot written before the values were recorded keeps the older
+/// generation-only behavior rather than asking again.
+pub fn version_strategy_state_applies(snapshot: &QtMigrationIntakeStateSnapshot) -> bool {
+    match snapshot.version_strategy_bindings.as_ref() {
+        Some(recorded) => bound_strategy_bindings(snapshot).as_ref() == Some(recorded),
+        None => true,
     }
 }
 
