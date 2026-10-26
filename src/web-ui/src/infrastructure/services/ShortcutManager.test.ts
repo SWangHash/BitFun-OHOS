@@ -7,7 +7,7 @@ import { act, createElement, createRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Portal } from '@bitfun/ui';
 import { EDITOR_SHORTCUTS } from '@/shared/constants/shortcuts';
-import { parseStoredKeybindings, shortcutManager } from './ShortcutManager';
+import { parseStoredKeybindings, shortcutLogicalKey, shortcutManager } from './ShortcutManager';
 
 function setPlatform(platform: string): void {
   Object.defineProperty(window.navigator, 'platform', {
@@ -217,6 +217,73 @@ describe('ShortcutManager platform primary modifier', () => {
     });
 
     expect(callback).toHaveBeenCalledTimes(1);
+  });
+
+  it('matches shifted backquote shortcuts by their physical key code', () => {
+    setPlatform('Win32');
+    const callback = vi.fn();
+    shortcutManager.register(
+      'scene.openTerminal',
+      { key: '`', ctrl: true, shift: true, scope: 'app', allowInInput: true },
+      callback
+    );
+
+    dispatchScopedKey('app', {
+      key: '~',
+      code: 'Backquote',
+      ctrlKey: true,
+      shiftKey: true,
+    });
+
+    expect(callback).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps an override recorded as the shifted character working', () => {
+    setPlatform('Win32');
+    const callback = vi.fn();
+    // A binding recorded before the physical-key normalization stored event.key
+    // ("~" for Ctrl+Shift+`) instead of the base character.
+    shortcutManager.loadUserOverrides({ 'scene.openTerminal': { key: '~', ctrl: true, shift: true } });
+    shortcutManager.register(
+      'scene.openTerminal',
+      { key: '`', ctrl: true, shift: true, scope: 'app', allowInInput: true },
+      callback
+    );
+
+    dispatchScopedKey('app', {
+      key: '~',
+      code: 'Backquote',
+      ctrlKey: true,
+      shiftKey: true,
+    });
+
+    expect(callback).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps an override recorded as a shifted bracket working', () => {
+    setPlatform('Win32');
+    const callback = vi.fn();
+    shortcutManager.loadUserOverrides({ 'filetree.collapseAll': { key: '{', ctrl: true, shift: true } });
+    shortcutManager.register(
+      'filetree.collapseAll',
+      { key: '[', ctrl: true, shift: true, scope: 'filetree' },
+      callback
+    );
+
+    dispatchScopedKey('filetree', {
+      key: '{',
+      code: 'BracketLeft',
+      ctrlKey: true,
+      shiftKey: true,
+    });
+
+    expect(callback).toHaveBeenCalledTimes(1);
+  });
+
+  it('normalizes shifted punctuation to its physical base character', () => {
+    expect(shortcutLogicalKey(new KeyboardEvent('keydown', { key: '~', code: 'Backquote', shiftKey: true }))).toBe('`');
+    expect(shortcutLogicalKey(new KeyboardEvent('keydown', { key: '{', code: 'BracketLeft', shiftKey: true }))).toBe('[');
+    expect(shortcutLogicalKey(new KeyboardEvent('keydown', { key: 'B', code: 'KeyB', shiftKey: true }))).toBe('b');
   });
 
   it('does not inherit canvas shortcuts when focus is inside terminal scope', () => {

@@ -25,6 +25,7 @@ import {
 import { useSettingsDraft } from '@/infrastructure/config/settingsDraftRegistry';
 import {
   shortcutManager,
+  shortcutLogicalKey,
   parseStoredKeybindings,
   buildStoredKeybindings,
   type ShortcutRegistration,
@@ -405,7 +406,9 @@ const KeyboardShortcutsTab: React.FC = () => {
         ...prev,
         [recordingId]: {
           id: recordingId,
-          key: e.key,
+          // Store the same logical key ShortcutManager resolves from a keydown,
+          // so a recorded Ctrl+Shift+` is saved as "`" instead of "~".
+          key: shortcutLogicalKey(e),
           ctrl,
           shift: e.shiftKey,
           alt: e.altKey,
