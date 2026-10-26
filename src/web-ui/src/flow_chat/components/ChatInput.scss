@@ -21,6 +21,13 @@
   padding: 0 var(--bitfun-space-2);
   pointer-events: auto !important;
 
+  // Lift the drop zone above the FloatingMiniChat hello button (fixed to
+  // the bottom-right corner) so they do not overlap. 46px = 40px button
+  // height + 6px gap; the original bottom was --bitfun-space-6 (24px).
+  // The composer box-shadow (0 2px 12px) extends ~14px downward, so the
+  // extra 2px over 44px keeps the shadow clear of the button top edge.
+  bottom: calc(var(--bitfun-control-launcher-button-block-size, 40px) + 6px);
+
   &.bitfun-context-drop-zone--can-accept {
     .bitfun-chat-input__composer {
       outline: var(--bitfun-border-width-default) solid var(--bitfun-color-field-border-hover);

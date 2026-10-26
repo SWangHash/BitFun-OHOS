@@ -1123,29 +1123,60 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
         return;
       }
 
-      const preferredLeft = anchorRect.right + NATIVE_SUBMENU_GAP;
-      const opensRight = preferredLeft + submenuWidth
-        <= window.innerWidth - NATIVE_SUBMENU_VIEWPORT_PADDING;
-
-      setNativeSubmenuPlacement(opensRight ? 'right' : 'left');
-      // Let the side flyout grow upward from the first-level surface's lower
-      // edge. This keeps a taller model list from being pushed down by the
-      // settings row; the viewport clamp remains the final boundary guard.
       const parentMenuRect = portalDropdownRef.current?.getBoundingClientRect();
       const preferredBottom = parentMenuRect && parentMenuRect.height > 0
         ? parentMenuRect.bottom
         : anchorRect.bottom - 4;
+
+      // Position the submenu against the primary dropdown's edges rather
+      // than the anchor item's edges. The anchor sits 16px inside the
+      // dropdown due to menu padding, so using it directly always leaves
+      // an 11px overlap on the right and makes leftFits unreachable.
+      const parentLeft = parentMenuRect ? parentMenuRect.left : anchorRect.left;
+      const parentRight = parentMenuRect ? parentMenuRect.right : anchorRect.right;
+
+      // 1. Right of the primary dropdown.
+      const preferredLeft = parentRight + NATIVE_SUBMENU_GAP;
+      const rightFits = preferredLeft + submenuWidth
+        <= window.innerWidth - NATIVE_SUBMENU_VIEWPORT_PADDING;
+
+      // 2. Left of the primary dropdown.
+      const leftwardRightEdge = parentLeft - NATIVE_SUBMENU_GAP;
+      const leftFits = leftwardRightEdge - submenuWidth >= NATIVE_SUBMENU_VIEWPORT_PADDING;
+
+      // 3. Below the primary dropdown as a last resort.
+      let placement: 'right' | 'left' | 'bottom';
+      let submenuLeft: number;
+      let submenuTop: number;
+
+      if (rightFits) {
+        placement = 'right';
+        submenuLeft = preferredLeft;
+        submenuTop = preferredBottom - submenuHeight;
+      } else if (leftFits) {
+        placement = 'left';
+        submenuLeft = leftwardRightEdge - submenuWidth;
+        submenuTop = preferredBottom - submenuHeight;
+      } else {
+        placement = 'bottom';
+        submenuLeft = clampToRange(
+          parentLeft,
+          NATIVE_SUBMENU_VIEWPORT_PADDING,
+          window.innerWidth - submenuWidth - NATIVE_SUBMENU_VIEWPORT_PADDING,
+        );
+        submenuTop = (parentMenuRect ? parentMenuRect.bottom : anchorRect.bottom) + NATIVE_SUBMENU_GAP;
+      }
+
+      setNativeSubmenuPlacement(placement);
       setNativeSubmenuStyle({
         position: 'fixed',
         left: clampToRange(
-          opensRight
-            ? preferredLeft
-            : anchorRect.left - NATIVE_SUBMENU_GAP - submenuWidth,
+          submenuLeft,
           NATIVE_SUBMENU_VIEWPORT_PADDING,
           window.innerWidth - submenuWidth - NATIVE_SUBMENU_VIEWPORT_PADDING,
         ),
         top: clampToRange(
-          preferredBottom - submenuHeight,
+          submenuTop,
           NATIVE_SUBMENU_VIEWPORT_PADDING,
           window.innerHeight - submenuHeight - NATIVE_SUBMENU_VIEWPORT_PADDING,
         ),
