@@ -183,19 +183,22 @@ pub fn build_intent_decision(output: &str) -> Option<TurnIntentDecision> {
         let path = path.filter(|path| !path.contains(".."));
         let normalized = match (state, path) {
             ("resolved", Some(path)) => {
-                // The named path is this field's value: it is the candidate the
-                // card offers, and a prompt naming all four starts the migration
-                // without a card. Whether the path resolves on this host is the
-                // migration's own problem to surface, not the analyzer's.
+                // The named path is kept either way: it is this field's card
+                // candidate, so the question shows what the prompt wrote instead of
+                // an empty field. Only a path that exists on this host may bind, so
+                // a misspelt or not-yet-created path asks the user again — and the
+                // card's own submit check names the offending field and path.
                 resolved_paths.insert(field.to_string(), json!(path));
-                if !std::path::Path::new(path).exists() {
+                if std::path::Path::new(path).exists() {
+                    "resolved"
+                } else {
                     unverified.push(json!(path));
+                    "referenced"
                 }
-                "resolved"
             }
             ("referenced", Some(path)) => {
-                // Named but not claimed as the value: it is still the path the
-                // user wrote for this field, so the card offers it.
+                // Named but not claimed as the value: still the path the prompt
+                // wrote for this field, so the card offers it.
                 resolved_paths.insert(field.to_string(), json!(path));
                 unverified.push(json!(path));
                 "referenced"
@@ -231,9 +234,9 @@ pub fn fallback_intent_decision(prompt: &str) -> TurnIntentDecision {
 
 /// Union of the model's analysis and the deterministic one: a path the string
 /// layer read out of the prompt is a fact about the prompt, so a field the model
-/// left without a path still carries one — the migration then starts instead of
-/// asking for it again (#370). The model keeps every other verdict, including
-/// the ones it judged better than the string layer.
+/// left without a path still carries one — the card then offers it instead of
+/// asking the user to type it again (#370). The model keeps every other verdict,
+/// including the ones it judged better than the string layer.
 pub fn merged_intent_decision(
     model: TurnIntentDecision,
     deterministic: &TurnIntentDecision,
@@ -260,14 +263,47 @@ pub fn merged_intent_decision(
         else {
             continue;
         };
+        // The string layer reads the prompt, it cannot see the disk: a carried
+        // path binds only when it exists here, so a wrong one still asks.
+        let state = if std::path::Path::new(found).exists() {
+            "resolved"
+        } else {
+            "referenced"
+        };
         value["resolvedPaths"][field] = json!(found);
-        value["fields"][field] = json!("resolved");
+        value["fields"][field] = json!(state);
         carried = true;
     }
     if !carried {
         return model;
     }
     decision_from_analyze_json(value)
+}
+
+/// The four prompt-named paths that may bind without asking, or `None` when the
+/// turn still needs the question card: every field must carry a path, and every
+/// path must exist on this host. A path the prompt named but the disk does not
+/// have is the user's to correct, and the card's submit check reports exactly
+/// which field and path is wrong.
+pub fn prompt_bindings(
+    decision: &TurnIntentDecision,
+) -> Option<std::collections::BTreeMap<String, String>> {
+    if !decision.flow_enabled {
+        return None;
+    }
+    let mut bindings = std::collections::BTreeMap::new();
+    for field in QT_MIGRATION_INTAKE_REQUIRED_FIELDS {
+        let path = decision
+            .resolved_paths
+            .get(field)
+            .and_then(Value::as_str)
+            .filter(|path| !path.is_empty())?;
+        if !std::path::Path::new(path).exists() {
+            return None;
+        }
+        bindings.insert(field.to_string(), path.to_string());
+    }
+    Some(bindings)
 }
 
 /// Project a decision JSON (the `analyze_request` shape, shared by the
@@ -1107,9 +1143,9 @@ mod tests {
     }
 
     #[test]
-    fn a_named_path_is_the_fields_value_whether_this_host_can_see_it_or_not() {
-        // 用户写下的路径就是该字段的取值：本机看不看得见由迁移过程自己暴露，分析层
-        // 不因此降级——四个路径齐了就直接开始迁移，不再弹卡片。
+    fn a_named_path_that_this_host_cannot_see_is_a_candidate_but_never_binds() {
+        // 用户写下的路径要留在该字段的候选里（卡片不能给空选项），但它不能直接绑定：
+        // 本机看不到的路径要靠卡片让用户确认，提交时的路径检查会点名指出哪一项不对。
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("myqt");
         std::fs::create_dir_all(&path).unwrap();
@@ -1130,7 +1166,7 @@ mod tests {
             decision.value["resolvedPaths"]["source_project"].as_str(),
             Some(path.to_string_lossy().replace('\\', "/").as_str())
         );
-        assert_eq!(decision.value["fields"]["output_project"], "resolved");
+        assert_eq!(decision.value["fields"]["output_project"], "referenced");
         assert_eq!(decision.value["fields"]["toolchain"], "referenced");
         assert_eq!(decision.value["fields"]["template"], "missing");
         assert_eq!(decision.resolved_paths, decision.value["resolvedPaths"]);
@@ -1157,8 +1193,48 @@ mod tests {
         assert_eq!(
             decision.value["resolvedPaths"]["output_project"].as_str(),
             Some("D:/definitely/not/here"),
-            "看不见的路径同样是该字段的取值与卡片候选"
+            "看不见的路径同样要作为该字段的卡片候选"
         );
+        assert!(
+            prompt_bindings(&decision).is_none(),
+            "四项路径里有一项本机看不到，就不能免卡片直接开始"
+        );
+    }
+
+    #[test]
+    fn only_four_existing_paths_bind_without_the_card() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut paths = Vec::new();
+        for name in ["src", "out", "kit/bin", "tpl"] {
+            let path = dir.path().join(name);
+            std::fs::create_dir_all(&path).unwrap();
+            paths.push(path.to_string_lossy().replace('\\', "/"));
+        }
+        let output = format!(
+            r#"{{"taskType": "app_migration", "fields": {{
+                "source_project": {{"state": "resolved", "path": "{}"}},
+                "output_project": {{"state": "resolved", "path": "{}"}},
+                "toolchain": {{"state": "resolved", "path": "{}"}},
+                "template": {{"state": "resolved", "path": "{}"}}
+            }}}}"#,
+            paths[0], paths[1], paths[2], paths[3]
+        );
+        let decision = build_intent_decision(&output).expect("usable analysis");
+        let bindings = prompt_bindings(&decision).expect("four existing paths bind");
+        assert_eq!(bindings.get("source_project").map(String::as_str), Some(paths[0].as_str()));
+        assert_eq!(bindings.get("template").map(String::as_str), Some(paths[3].as_str()));
+
+        // 少一项就不绑：卡片负责补那一项。
+        let incomplete = build_intent_decision(
+            r#"{"taskType": "app_migration", "fields": {
+                "source_project": {"state": "resolved", "path": "/tmp"},
+                "output_project": {"state": "missing"},
+                "toolchain": {"state": "missing"},
+                "template": {"state": "missing"}
+            }}"#,
+        )
+        .expect("usable analysis");
+        assert!(prompt_bindings(&incomplete).is_none());
     }
 
     #[test]
@@ -1389,7 +1465,11 @@ mod tests {
                 Some(expected),
                 "{field} 必须带上 prompt 里的路径"
             );
-            assert_eq!(merged.field_states.get(field).map(String::as_str), Some("resolved"));
+            assert_eq!(
+                merged.field_states.get(field).map(String::as_str),
+                Some("referenced"),
+                "字符串层看不到磁盘，补进来的路径只能待用户确认，不能直接绑定"
+            );
         }
     }
 

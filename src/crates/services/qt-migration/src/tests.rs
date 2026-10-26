@@ -710,12 +710,35 @@ fn cmake_without_qt_is_not_a_source_candidate() {
 fn a_named_source_project_this_host_cannot_see_is_still_offered() {
     // #370 回归：prompt 点名的工程路径在当前进程里看不到（写错、尚未创建，或工作区
     // 其实在别处）时，卡片仍要把这个路径作为候选给出来让用户确认或更正，而不是留一个
-    // 空输入框——用户会以为输入被吃掉了。
+    // 空输入框——用户会以为输入被吃掉了。错的路径由提交时的检查点名报错。
     let (_t, root) = tree();
     let named = root.join("no-such-calculator");
     let candidates = probe_source_projects(&root, &[named.to_string_lossy().into_owned()]);
 
     assert_eq!(keys(&candidates), keys(&[named.to_string_lossy().into_owned()]));
+
+    // 盘上已有可用的工程时，用户点名的路径仍要在选项里（排在验证过的候选之后）。
+    let real = mkdir(&root, "real-app");
+    create_version_fixture(
+        &real,
+        "find_package(Qt6 COMPONENTS Widgets REQUIRED)",
+        "QAnyStringView view;\n",
+    );
+    let candidates = probe_source_projects(
+        &root,
+        &[
+            named.to_string_lossy().into_owned(),
+            real.to_string_lossy().into_owned(),
+        ],
+    );
+    assert_eq!(
+        keys(&candidates),
+        keys(&[
+            real.to_string_lossy().into_owned(),
+            named.to_string_lossy().into_owned()
+        ]),
+        "验证过的工程是默认项，点名的路径仍可选：{candidates:?}"
+    );
 
     // 盘上确实存在、但不是 Qt 工程的目录依旧不作为候选：磁盘事实优先。
     let plain = mkdir(&root, "plain-cmake");
