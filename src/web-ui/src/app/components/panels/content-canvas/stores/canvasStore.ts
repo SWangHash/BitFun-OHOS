@@ -95,7 +95,10 @@ interface CanvasStoreActions {
   showTab: (tabId: string, groupId: EditorGroupId) => void;
 
   /** Show only Agent browser tabs owned by the active chat session. */
-  syncSessionOwnedBrowserTabs: (activeSessionId: string | null) => void;
+  syncSessionOwnedBrowserTabs: (activeSessionId: string | null) => {
+    hasVisibleOwnedBrowserTab: boolean;
+    hasVisibleTab: boolean;
+  };
   
   // ==================== Drag Operations ====================
   
@@ -847,6 +850,8 @@ const createCanvasStoreHook = () => create<CanvasStore>()(
       },
 
       syncSessionOwnedBrowserTabs: (activeSessionId) => {
+        let hasVisibleOwnedBrowserTab = false;
+        let hasVisibleTab = false;
         set((draft) => {
           const groups = [draft.primaryGroup, draft.secondaryGroup, draft.tertiaryGroup];
           for (const group of groups) {
@@ -864,6 +869,9 @@ const createCanvasStoreHook = () => create<CanvasStore>()(
               ) {
                 preferredOwnedBrowser = tab;
               }
+              if (!tab.isHidden) {
+                hasVisibleOwnedBrowserTab = true;
+              }
             }
 
             if (activeOwner !== null) {
@@ -873,8 +881,12 @@ const createCanvasStoreHook = () => create<CanvasStore>()(
             } else {
               ensureValidActiveTab(group);
             }
+            if (group.tabs.some(tab => !tab.isHidden)) {
+              hasVisibleTab = true;
+            }
           }
         });
+        return { hasVisibleOwnedBrowserTab, hasVisibleTab };
       },
       
       // ==================== Drag Operations ====================

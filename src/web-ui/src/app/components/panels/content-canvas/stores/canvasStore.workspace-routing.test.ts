@@ -55,7 +55,10 @@ describe('Agent canvas workspace routing', () => {
       data: { html: '<h1>Preview</h1>' },
     }, 'active');
 
-    store.syncSessionOwnedBrowserTabs('session-1');
+    expect(store.syncSessionOwnedBrowserTabs('session-1')).toEqual({
+      hasVisibleOwnedBrowserTab: true,
+      hasVisibleTab: true,
+    });
     let state = useAgentCanvasStore.getState();
     let sessionOne = state.primaryGroup.tabs.find(tab => tab.content.data?.ownerSessionId === 'session-1');
     let sessionTwo = state.primaryGroup.tabs.find(tab => tab.content.data?.ownerSessionId === 'session-2');
@@ -65,12 +68,19 @@ describe('Agent canvas workspace routing', () => {
     expect(workspacePreview?.isHidden).not.toBe(true);
 
     state.switchToTab(sessionOne!.id, 'primary');
-    state.syncSessionOwnedBrowserTabs('session-2');
+    expect(state.syncSessionOwnedBrowserTabs('session-2')).toEqual({
+      hasVisibleOwnedBrowserTab: true,
+      hasVisibleTab: true,
+    });
     state = useAgentCanvasStore.getState();
     sessionOne = state.primaryGroup.tabs.find(tab => tab.content.data?.ownerSessionId === 'session-1');
     sessionTwo = state.primaryGroup.tabs.find(tab => tab.content.data?.ownerSessionId === 'session-2');
     expect(sessionOne?.isHidden).toBe(true);
     expect(sessionTwo?.isHidden).toBe(false);
     expect(state.primaryGroup.activeTabId).toBe(sessionTwo?.id);
+    expect(state.syncSessionOwnedBrowserTabs(null)).toEqual({
+      hasVisibleOwnedBrowserTab: false,
+      hasVisibleTab: true,
+    });
   });
 });

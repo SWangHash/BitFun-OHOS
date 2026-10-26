@@ -41,6 +41,13 @@ pub fn register_arkweb_browser_host_port(port: Arc<dyn ArkWebBrowserHostPort>) {
     }
 }
 
+pub fn arkweb_browser_host_available() -> bool {
+    arkweb_browser_host_port()
+        .read()
+        .map(|slot| slot.is_some())
+        .unwrap_or(false)
+}
+
 pub fn register_arkweb_automation_target(target: ArkWebAutomationTarget) {
     if let Ok(mut registry) = arkweb_automation_targets().write() {
         let target_id = target.target_id.clone();
@@ -105,6 +112,25 @@ pub async fn close_arkweb_browser_webview(label: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct TestArkWebBrowserHost;
+
+    #[async_trait]
+    impl ArkWebBrowserHostPort for TestArkWebBrowserHost {
+        async fn create_webview(&self, _label: &str, _html: &str) -> Result<(), String> {
+            Ok(())
+        }
+
+        async fn close_webview(&self, _label: &str) -> Result<(), String> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn registered_host_is_reported_as_available() {
+        register_arkweb_browser_host_port(Arc::new(TestArkWebBrowserHost));
+        assert!(arkweb_browser_host_available());
+    }
 
     #[test]
     fn automation_targets_track_default_and_remove_closed_target() {

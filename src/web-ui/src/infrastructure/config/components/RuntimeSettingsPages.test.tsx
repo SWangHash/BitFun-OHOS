@@ -43,7 +43,7 @@ vi.mock('@bitfun/ui', async (original) => ({
   ),
 }));
 
-const readyStatus = { cdpAvailable: false, defaultCdpSupported: true, defaultCdpEnabled: true, browserReady: true, browserKind: 'Chrome', browserVersion: '146', pageCount: 3 };
+const readyStatus = { cdpAvailable: false, defaultCdpSupported: true, defaultCdpEnabled: true, browserReady: true, browserKind: 'Chrome', browserVersion: '146', pageCount: 3, selectedBrowser: 'default' };
 let status = { ...readyStatus };
 let container: HTMLDivElement;
 let root: Root;
@@ -127,6 +127,21 @@ describe('Browser and desktop control settings', () => {
     expect(Array.from(container.querySelectorAll('button')).filter(el => el.textContent === 'browserControl.connect')).toHaveLength(1);
     await act(async () => connect.click());
     expect(mocks.invoke).toHaveBeenCalledWith('browser_control_enable_default_cdp', expect.anything());
+  });
+
+  it('shows the host default browser when a fresh install has no saved preference', async () => {
+    status.selectedBrowser = 'builtin';
+    mocks.invoke.mockImplementation(async (command: string) => {
+      if (command === 'computer_use_get_status') return { computerUseEnabled: false, accessibilityGranted: true, screenCaptureGranted: false, platformNote: null };
+      if (command === 'browser_control_get_status') return { ...status };
+      if (command === 'browser_control_list_browsers') return { options: [{ value: 'builtin', label: 'BitFun Built-in ArkWeb', installed: true }] };
+      return { success: true, status: 'connected', browserKind: 'BitFun Built-in ArkWeb' };
+    });
+
+    await render();
+
+    expect(container.querySelector('select')?.value).toBe('builtin');
+    expect(container.querySelector('option')?.textContent).toBe('BitFun Built-in ArkWeb');
   });
 
   it('uses the existing launch path when the browser cannot reuse its current profile', async () => {
