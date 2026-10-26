@@ -18,3 +18,5 @@ resources/ mobile-web/ flashgrep* 为运行必需，勿单独拷贝 exe）。
 - 产物未做 Authenticode 签名，首次运行 SmartScreen 会提示，点"仍要运行"
 - CRT 为静态链接，目标机器无需安装 VC++ 运行库
 - 安装包同样未签名，仅适合内部测试分发
+- bitfun-app-icon.ico 同时用作安装器/卸载器图标与快捷方式图标；
+  NSIS 3.x（winget 安装的版本自带 MUI2）即可编译

@@ -36,7 +36,9 @@ const LC_LOAD_DYLIB = 0xc;
 const LC_LOAD_WEAK_DYLIB = 0x80000018;
 const LC_REEXPORT_DYLIB = (0x1f | 0x80000000) >>> 0;
 const LC_LAZY_LOAD_DYLIB = 0x20;
-const LC_LOAD_UPWARD_DYLIB = (0x1d | 0x80000000) >>> 0;
+// 0x23 | LC_REQ_DYLD. 0x1d is LC_CODE_SIGNATURE, which carries no LC_REQ_DYLD
+// flag; conflating the two corrupts ordinal-slot accounting.
+const LC_LOAD_UPWARD_DYLIB = (0x23 | 0x80000000) >>> 0;
 const LC_SEGMENT_64 = 0x19;
 const LC_DYLD_INFO = 0x22;
 const LC_DYLD_INFO_ONLY = (0x22 | 0x80000000) >>> 0;
@@ -188,16 +190,16 @@ for (let i = 0; i < ncmds; i += 1) {
   p += cmdsize;
 }
 
+if (remove.length === 0) {
+  console.log('No duplicate dylib load commands; nothing to do.');
+  process.exit(0);
+}
+
 if (hasChainedFixups) {
   fail(
     'Image uses LC_DYLD_CHAINED_FIXUPS; its dylib ordinals live in the ' +
       'chained-fixup import table, which this tool does not rewrite. Refusing to modify.',
   );
-}
-
-if (remove.length === 0) {
-  console.log('No duplicate dylib load commands; nothing to do.');
-  process.exit(0);
 }
 
 const removedBytes = remove.reduce((total, [, cmdsize]) => total + cmdsize, 0);

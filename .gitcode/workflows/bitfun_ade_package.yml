@@ -1,5 +1,14 @@
 # Unified desktop packaging pipeline for GitCode self-hosted runners.
 #
+# Daily schedule (00:00 Asia/Shanghai): packages the upstream main branch
+# (https://gitcode.com/OpenBitFun/bitfun_ade.git) as bitfun-daily.YYYYMMDD
+# dev-preview zips for Windows and macOS. Daily products live as workflow
+# artifacts (bitfun-daily-YYYYMMDD-*) and are pruned after a 1-day retention
+# window to keep the 1G artifact quota healthy; no GitCode release is
+# created. The schedule only fires on the packaging host repository (the
+# fork that owns the self-hosted runners), so merging this file upstream
+# does not double-run the daily build.
+#
 # One manual dispatch, three independently togglable platform jobs:
 #   - OHOS (default on): one-click signed HAP/.app/so via the host-side
 #     script /root/package-tools/package.sh on the dedicated ohos_package
@@ -14,12 +23,15 @@
 #     image (cargo-zigbuild + /opt/MacOSX.sdk, same shape as the
 #     agent_kernel CLI pipelines), ad-hoc signed post-link with a cached
 #     ldid; dev-preview zip. A real .app/DMG with Developer ID signing and
-#     notarization still needs macOS (rcodesign or a mac runner later).
-# Windows/macOS jobs build inputs.branch of THIS repository (prepare_source
-# fetches and checks it out; the release publisher runs from a copy of this
-# workflow ref's script so new CLI flags work regardless of the packaged
-# branch). Each enabled job uploads its own assets to the same idempotent
-# GitCode release (OHOS: hap/app, Windows/macOS: zip).
+#     notarization needs a Mac: run make-dmg.sh on one with
+#     BITFUN_SIGN_IDENTITY + BITFUN_NOTARY_PROFILE set (see
+#     .gitcode/dev-preview/macos/README.txt), or wire a mac runner later.
+# Windows/macOS jobs build the resolved branch of the configured remote
+# (manual: inputs.branch of THIS repository; daily: upstream main) —
+# prepare_source fetches and checks it out; the release publisher runs from a
+# copy of this workflow ref's script so new CLI flags work regardless of the
+# packaged branch. Each enabled job uploads its own assets to the same
+# idempotent GitCode release (OHOS: hap/app, Windows/macOS: zip).
 
 name: BitFun ADE Package
 
@@ -87,13 +99,129 @@ on:
         description: 'Release 标题（不填默认为 tag；重跑不填则保留原标题）'
         required: false
         type: string
+  schedule:
+    # GitCode schedule uses Asia/Shanghai time; run daily at 00:00 Beijing.
+    - cron: '0 0 * * *'
+
+concurrency:
+  max: 1
+  exceed-action: QUEUE
 
 permissions:
   repository: read
 
 jobs:
+  resolve-run-config:
+    name: Resolve run configuration
+    # Manual dispatch works from any repository; the unattended daily
+    # schedule runs only on the packaging host (this fork) that owns the
+    # self-hosted runners and the GIT_TOKEN secret. inputs.* carry their
+    # dispatch defaults on manual runs and stay empty on schedule events,
+    # so an empty branch input marks the daily run.
+    if: ${{ inputs.branch != '' || atomgit.repository == 'qq_60134168/bitfun_ade' }}
+    runs-on: [self-hosted, os=ubuntu, target=linux]
+    timeout-minutes: 10
+    outputs:
+      is_daily: ${{ steps.resolve.outputs.is_daily }}
+      package_ohos: ${{ steps.resolve.outputs.package_ohos }}
+      package_win: ${{ steps.resolve.outputs.package_win }}
+      package_mac: ${{ steps.resolve.outputs.package_mac }}
+      branch: ${{ steps.resolve.outputs.branch }}
+      remote: ${{ steps.resolve.outputs.remote }}
+      repo: ${{ steps.resolve.outputs.repo }}
+      debug: ${{ steps.resolve.outputs.debug }}
+      so_only: ${{ steps.resolve.outputs.so_only }}
+      build_app: ${{ steps.resolve.outputs.build_app }}
+      upload_to_release: ${{ steps.resolve.outputs.upload_to_release }}
+      upload_artifact: ${{ steps.resolve.outputs.upload_artifact }}
+      release_tag: ${{ steps.resolve.outputs.release_tag }}
+      package_name: ${{ steps.resolve.outputs.package_name }}
+      release_title: ${{ steps.resolve.outputs.release_title }}
+      windows_artifact_name: ${{ steps.resolve.outputs.windows_artifact_name }}
+      macos_artifact_name: ${{ steps.resolve.outputs.macos_artifact_name }}
+    steps:
+      - name: Resolve
+        id: resolve
+        env:
+          MANUAL_BRANCH: ${{ inputs.branch }}
+          PACKAGE_OHOS: ${{ inputs.package_ohos }}
+          PACKAGE_WIN: ${{ inputs.package_win }}
+          PACKAGE_MAC: ${{ inputs.package_mac }}
+          INPUT_REPO: ${{ inputs.repo }}
+          INPUT_DEBUG: ${{ inputs.debug }}
+          INPUT_SO_ONLY: ${{ inputs.so_only }}
+          INPUT_BUILD_APP: ${{ inputs.build_app }}
+          INPUT_UPLOAD_TO_RELEASE: ${{ inputs.upload_to_release }}
+          INPUT_UPLOAD_ARTIFACT: ${{ inputs.upload_artifact }}
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
+          INPUT_PACKAGE_NAME: ${{ inputs.package_name }}
+          INPUT_RELEASE_TITLE: ${{ inputs.release_title }}
+        run: |
+          set -eu
+          if [ -n "$MANUAL_BRANCH" ]; then
+            is_daily=false
+            package_ohos="$PACKAGE_OHOS"
+            package_win="$PACKAGE_WIN"
+            package_mac="$PACKAGE_MAC"
+            branch="$MANUAL_BRANCH"
+            remote=origin
+            repo="$INPUT_REPO"
+            debug="$INPUT_DEBUG"
+            so_only="$INPUT_SO_ONLY"
+            build_app="$INPUT_BUILD_APP"
+            upload_to_release="$INPUT_UPLOAD_TO_RELEASE"
+            upload_artifact="$INPUT_UPLOAD_ARTIFACT"
+            release_tag="$INPUT_RELEASE_TAG"
+            package_name="$INPUT_PACKAGE_NAME"
+            release_title="$INPUT_RELEASE_TITLE"
+            windows_artifact_name=bitfun-windows-package
+            macos_artifact_name=bitfun-macos-package
+          else
+            build_date="$(TZ=Asia/Shanghai date +%Y%m%d)"
+            is_daily=true
+            package_ohos=false
+            package_win=true
+            package_mac=true
+            branch=main
+            remote=https://gitcode.com/OpenBitFun/bitfun_ade.git
+            repo=""
+            debug=false
+            so_only=false
+            build_app=false
+            upload_to_release=false
+            upload_artifact=true
+            release_tag="bitfun-daily.$build_date"
+            package_name="bitfun-daily.$build_date"
+            release_title="BitFun Desktop daily $build_date"
+            windows_artifact_name="bitfun-daily-$build_date-windows-x64"
+            macos_artifact_name="bitfun-daily-$build_date-macos-aarch64"
+          fi
+          echo "Resolved configuration: daily=$is_daily branch=$branch remote=$remote tag=$release_tag"
+          {
+            printf 'is_daily=%s\n' "$is_daily"
+            printf 'package_ohos=%s\n' "$package_ohos"
+            printf 'package_win=%s\n' "$package_win"
+            printf 'package_mac=%s\n' "$package_mac"
+            printf 'branch=%s\n' "$branch"
+            printf 'remote=%s\n' "$remote"
+            printf 'repo=%s\n' "$repo"
+            printf 'debug=%s\n' "$debug"
+            printf 'so_only=%s\n' "$so_only"
+            printf 'build_app=%s\n' "$build_app"
+            printf 'upload_to_release=%s\n' "$upload_to_release"
+            printf 'upload_artifact=%s\n' "$upload_artifact"
+            printf 'release_tag=%s\n' "$release_tag"
+            printf 'package_name=%s\n' "$package_name"
+            printf 'release_title=%s\n' "$release_title"
+            printf 'windows_artifact_name=%s\n' "$windows_artifact_name"
+            printf 'macos_artifact_name=%s\n' "$macos_artifact_name"
+          } >> "$ATOMGIT_OUTPUT"
+
   package:
     name: OHOS one-click signed package
+    needs: resolve-run-config
+    # GitCode if-expressions cannot reference needs outputs; the daily run
+    # (empty inputs on schedule) skips OHOS by the raw input alone.
     if: ${{ inputs.package_ohos == true }}
     # Dedicated label so packaging does not share the runner pool with the
     # OHOS CI jobs: the package host carries signing material and host-side
@@ -101,11 +229,11 @@ jobs:
     runs-on: [self-hosted, os=ubuntu, target=ohos_package]
     timeout-minutes: 120
     env:
-      PKG_BRANCH: ${{ inputs.branch }}
-      PKG_REPO: ${{ inputs.repo }}
-      PKG_SO_ONLY: ${{ inputs.so_only }}
-      PKG_BUILD_APP: ${{ inputs.build_app }}
-      PKG_DEBUG: ${{ inputs.debug }}
+      PKG_BRANCH: ${{ needs.resolve-run-config.outputs.branch }}
+      PKG_REPO: ${{ needs.resolve-run-config.outputs.repo }}
+      PKG_SO_ONLY: ${{ needs.resolve-run-config.outputs.so_only }}
+      PKG_BUILD_APP: ${{ needs.resolve-run-config.outputs.build_app }}
+      PKG_DEBUG: ${{ needs.resolve-run-config.outputs.debug }}
     steps:
       - name: Checkout pipeline scripts
         uses: checkout
@@ -148,12 +276,12 @@ jobs:
       - name: Collect artifacts
         id: collect
         env:
-          PKG_BRANCH: ${{ inputs.branch }}
-          PKG_SO_ONLY: ${{ inputs.so_only }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
-          PKG_NAME: ${{ inputs.package_name }}
-          UPLOAD_TO_RELEASE: ${{ inputs.upload_to_release }}
-          UPLOAD_ARTIFACT: ${{ inputs.upload_artifact }}
+          PKG_BRANCH: ${{ needs.resolve-run-config.outputs.branch }}
+          PKG_SO_ONLY: ${{ needs.resolve-run-config.outputs.so_only }}
+          RELEASE_TAG: ${{ needs.resolve-run-config.outputs.release_tag }}
+          PKG_NAME: ${{ needs.resolve-run-config.outputs.package_name }}
+          UPLOAD_TO_RELEASE: ${{ needs.resolve-run-config.outputs.upload_to_release }}
+          UPLOAD_ARTIFACT: ${{ needs.resolve-run-config.outputs.upload_artifact }}
         run: |
           set -eu
           branch_dir="/root/workspace/$PKG_BRANCH"
@@ -254,7 +382,7 @@ jobs:
       - name: Gate artifact upload
         id: artifact_gate
         env:
-          UPLOAD_FLAG: ${{ inputs.upload_artifact }}
+          UPLOAD_FLAG: ${{ needs.resolve-run-config.outputs.upload_artifact }}
         run: |
           case "$UPLOAD_FLAG" in
             true|True|TRUE) echo 'upload=true' >> "$ATOMGIT_OUTPUT" ;;
@@ -272,12 +400,12 @@ jobs:
         id: release
         env:
           GITCODE_TOKEN: ${{ secrets.GIT_TOKEN }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
-          RELEASE_TITLE: ${{ inputs.release_title }}
-          RELEASE_BRANCH: ${{ inputs.branch }}
-          RELEASE_REPO_INPUT: ${{ inputs.repo }}
+          RELEASE_TAG: ${{ needs.resolve-run-config.outputs.release_tag }}
+          RELEASE_TITLE: ${{ needs.resolve-run-config.outputs.release_title }}
+          RELEASE_BRANCH: ${{ needs.resolve-run-config.outputs.branch }}
+          RELEASE_REPO_INPUT: ${{ needs.resolve-run-config.outputs.repo }}
           PACKAGED_COMMIT: ${{ steps.collect.outputs.commit }}
-          UPLOAD_FLAG: ${{ inputs.upload_to_release }}
+          UPLOAD_FLAG: ${{ needs.resolve-run-config.outputs.upload_to_release }}
         run: |
           # 主机 PATH（node 等）来自 /root/.bashrc，先加载再做判断
           export HOME=/root PS1="ci$ "
@@ -314,7 +442,11 @@ jobs:
 
   windows:
     name: Windows package (x86_64 cross, dev preview)
-    if: ${{ inputs.package_win == true }}
+    needs: resolve-run-config
+    # GitCode if-expressions cannot reference needs outputs, so the daily
+    # condition (schedule => empty inputs, on the packaging host only) is
+    # restated here; all values still flow from resolve-run-config outputs.
+    if: ${{ inputs.package_win == true || (atomgit.repository == 'qq_60134168/bitfun_ade' && inputs.branch == '') }}
     runs-on: [self-hosted, os=ubuntu, target=windows_package]
     timeout-minutes: 240
     env:
@@ -327,7 +459,8 @@ jobs:
       - name: Prepare packaging source
         id: prepare_source
         env:
-          PKG_BRANCH: ${{ inputs.branch }}
+          PKG_BRANCH: ${{ needs.resolve-run-config.outputs.branch }}
+          PKG_REMOTE: ${{ needs.resolve-run-config.outputs.remote }}
         run: |
           set -eu
           # Keep this workflow ref's publisher (it understands the
@@ -339,7 +472,7 @@ jobs:
             mkdir -p .package-tools/dev-preview
             cp .gitcode/dev-preview/windows/* .package-tools/dev-preview/
           fi
-          git fetch --force origin "$PKG_BRANCH"
+          git fetch --force "$PKG_REMOTE" "$PKG_BRANCH"
           git checkout --force --detach FETCH_HEAD
           echo "commit=$(git rev-parse HEAD)" >> "$ATOMGIT_OUTPUT"
           echo "Packaging $(git log --oneline -1)"
@@ -484,13 +617,13 @@ jobs:
             "$CONTAINER_NAME" \
             sh -c "set -eu; cd /workspace && exec node scripts/desktop-tauri-build.mjs $build_args"
         env:
-          DEBUG_FLAG: ${{ inputs.debug }}
+          DEBUG_FLAG: ${{ needs.resolve-run-config.outputs.debug }}
 
       - name: Collect dev-preview zip
         env:
-          PKG_NAME: ${{ inputs.package_name }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
-          DEBUG_FLAG: ${{ inputs.debug }}
+          PKG_NAME: ${{ needs.resolve-run-config.outputs.package_name }}
+          RELEASE_TAG: ${{ needs.resolve-run-config.outputs.release_tag }}
+          DEBUG_FLAG: ${{ needs.resolve-run-config.outputs.debug }}
         run: |
           set -eu
           docker exec \
@@ -512,6 +645,9 @@ jobs:
               rm -rf "$stage"
               mkdir -p "$stage"
               cp "$binary" "$stage/bitfun-desktop.exe"
+              # App icon: installer.nsi uses it for the setup/uninstaller
+              # exes and every shortcut; a missing icon must fail the package.
+              cp /workspace/src/apps/desktop/icons/bitfun-app-icon.ico "$stage/"
               for item in frontend resources mobile-web; do
                 if [ -e "$rel/$item" ]; then cp -r "$rel/$item" "$stage/"; fi
               done
@@ -546,7 +682,7 @@ jobs:
       - name: Artifact gate
         id: artifact_gate
         env:
-          UPLOAD_FLAG: ${{ inputs.upload_artifact }}
+          UPLOAD_FLAG: ${{ needs.resolve-run-config.outputs.upload_artifact }}
         run: |
           set -eu
           case "$UPLOAD_FLAG" in
@@ -558,16 +694,17 @@ jobs:
         if: ${{ steps.artifact_gate.outputs.upload == 'true' }}
         uses: upload-artifact
         with:
-          name: bitfun-windows-package
+          name: ${{ needs.resolve-run-config.outputs.windows_artifact_name }}
           path: desktop-package-output/
 
       - name: Upload to GitCode release
         if: ${{ inputs.upload_to_release == true }}
         env:
           GITCODE_TOKEN: ${{ secrets.GIT_TOKEN }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
-          RELEASE_TITLE: ${{ inputs.release_title }}
-          RELEASE_BRANCH: ${{ inputs.branch }}
+          RELEASE_TAG: ${{ needs.resolve-run-config.outputs.release_tag }}
+          RELEASE_TITLE: ${{ needs.resolve-run-config.outputs.release_title }}
+          RELEASE_BRANCH: ${{ needs.resolve-run-config.outputs.branch }}
+          RELEASE_REPO_INPUT: ${{ needs.resolve-run-config.outputs.repo }}
           PACKAGED_COMMIT: ${{ steps.prepare_source.outputs.commit }}
         run: |
           set -eu
@@ -579,7 +716,16 @@ jobs:
             echo "::error::release_tag is required when upload_to_release is true." >&2
             exit 1
           fi
-          node .package-tools/publish-gitcode-release.mjs "$RELEASE_TAG" "qq_60134168/bitfun_ade" desktop-package-output "$RELEASE_BRANCH" "$PACKAGED_COMMIT" "$RELEASE_TITLE" "zip"
+          # Same repo selection as the OHOS job: inputs.repo overrides,
+          # defaulting to the upstream repository.
+          release_repo="$RELEASE_REPO_INPUT"
+          if [ -z "$release_repo" ]; then
+            release_repo='https://gitcode.com/OpenBitFun/bitfun_ade.git'
+          fi
+          release_repo="${release_repo%.git}"
+          release_repo="$(printf '%s' "$release_repo" | awk -F/ '{print $(NF-1)"/"$NF}')"
+          echo "Release repository: $release_repo (target branch: $RELEASE_BRANCH)"
+          node .package-tools/publish-gitcode-release.mjs "$RELEASE_TAG" "$release_repo" desktop-package-output "$RELEASE_BRANCH" "$PACKAGED_COMMIT" "$RELEASE_TITLE" "zip"
 
       - name: Remove Windows package container
         if: ${{ always() }}
@@ -587,7 +733,9 @@ jobs:
 
   macos:
     name: macOS package (aarch64 cross, dev preview)
-    if: ${{ inputs.package_mac == true }}
+    needs: resolve-run-config
+    # Same inputs-based restatement of the daily condition as the windows job.
+    if: ${{ inputs.package_mac == true || (atomgit.repository == 'qq_60134168/bitfun_ade' && inputs.branch == '') }}
     runs-on: [self-hosted, os=ubuntu, target=macos_package]
     timeout-minutes: 240
     env:
@@ -600,24 +748,23 @@ jobs:
       - name: Prepare packaging source
         id: prepare_source
         env:
-          PKG_BRANCH: ${{ inputs.branch }}
+          PKG_BRANCH: ${{ needs.resolve-run-config.outputs.branch }}
+          PKG_REMOTE: ${{ needs.resolve-run-config.outputs.remote }}
         run: |
           set -eu
           # Keep this workflow ref's publisher (it understands the
           # asset-extensions flag) even after switching the worktree to the
           # packaged branch below; untracked dirs survive checkout. The
-          # Mach-O dylib dedup fixer is new on this workflow ref, so copy it
-          # only when the packaged branch carries it.
+          # Mach-O dylib dedup fixer ships on the same workflow ref and is
+          # copied unconditionally.
           mkdir -p .package-tools
           cp scripts/ci/publish-gitcode-release.mjs .package-tools/
-          if [ -f scripts/ci/fix-macho-duplicate-dylibs.mjs ]; then
-            cp scripts/ci/fix-macho-duplicate-dylibs.mjs .package-tools/
-          fi
+          cp scripts/ci/fix-macho-duplicate-dylibs.mjs .package-tools/
           if [ -d .gitcode/dev-preview/macos ]; then
             mkdir -p .package-tools/dev-preview
             cp .gitcode/dev-preview/macos/* .package-tools/dev-preview/
           fi
-          git fetch --force origin "$PKG_BRANCH"
+          git fetch --force "$PKG_REMOTE" "$PKG_BRANCH"
           git checkout --force --detach FETCH_HEAD
           echo "commit=$(git rev-parse HEAD)" >> "$ATOMGIT_OUTPUT"
           echo "Packaging $(git log --oneline -1)"
@@ -749,14 +896,21 @@ jobs:
             set -eu
             cfg="${CARGO_HOME:-/usr/local/cargo}/config.toml"
             touch "$cfg"
-            if ! grep -q "undefined,dynamic_lookup" "$cfg"; then
-              printf "\n[target.aarch64-apple-darwin]\nrustflags = [\"-C\", \"link-arg=-Wl,-undefined,dynamic_lookup\"]\n\n[target.x86_64-apple-darwin]\nrustflags = [\"-C\", \"link-arg=-Wl,-undefined,dynamic_lookup\"]\n" >> "$cfg"
+            # Guard on the section headers, not the flag text: appending a
+            # second [target.<triple>] table would make every cargo
+            # invocation fail to parse the config, and a flag-only grep could
+            # skip the append when unrelated text matches.
+            if ! grep -qF "[target.aarch64-apple-darwin]" "$cfg"; then
+              printf "\n[target.aarch64-apple-darwin]\nrustflags = [\"-C\", \"link-arg=-Wl,-undefined,dynamic_lookup\"]\n" >> "$cfg"
+            fi
+            if ! grep -qF "[target.x86_64-apple-darwin]" "$cfg"; then
+              printf "\n[target.x86_64-apple-darwin]\nrustflags = [\"-C\", \"link-arg=-Wl,-undefined,dynamic_lookup\"]\n" >> "$cfg"
             fi
             echo "--- $cfg ---"
             cat "$cfg"
           '
 
-      - name: Cross build desktop (aarch64 and x86_64)
+      - name: Cross build desktop (aarch64; x86_64 pending)
         run: |
           set -eu
           # Two targets share the container, frontend artifacts and caches;
@@ -786,7 +940,11 @@ jobs:
             esac
             # The SDK switch does not change cargo fingerprints; drop the
             # final link outputs so the crate relinks against the new SDK.
-            docker exec "$CONTAINER_NAME" sh -c "rm -f /workspace/target/\$target/release/bitfun-desktop /workspace/target/\$target/release/deps/libbitfun_desktop_lib.dylib"
+            # $target expands host-side from the loop whitelist (an earlier
+            # \$target escape made the container sh expand an unset variable,
+            # so the rm silently missed the real target dir); both release
+            # and debug profiles are covered.
+            docker exec "$CONTAINER_NAME" sh -c "rm -f /workspace/target/$target/release/bitfun-desktop /workspace/target/$target/release/deps/libbitfun_desktop_lib.dylib /workspace/target/$target/debug/bitfun-desktop /workspace/target/$target/debug/deps/libbitfun_desktop_lib.dylib"
             docker exec \
               --env CARGO_NET_GIT_FETCH_WITH_CLI=true \
               --env SHERPA_ONNX_ARCHIVE_DIR=/opt/sherpa-onnx-cache \
@@ -804,13 +962,13 @@ jobs:
               sh -c "set -eu; cd /workspace && exec node scripts/desktop-tauri-build.mjs $build_args"
           done
         env:
-          DEBUG_FLAG: ${{ inputs.debug }}
+          DEBUG_FLAG: ${{ needs.resolve-run-config.outputs.debug }}
 
       - name: Collect dev-preview zips
         env:
-          PKG_NAME: ${{ inputs.package_name }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
-          DEBUG_FLAG: ${{ inputs.debug }}
+          PKG_NAME: ${{ needs.resolve-run-config.outputs.package_name }}
+          RELEASE_TAG: ${{ needs.resolve-run-config.outputs.release_tag }}
+          DEBUG_FLAG: ${{ needs.resolve-run-config.outputs.debug }}
         run: |
           set -eu
           docker exec \
@@ -845,12 +1003,12 @@ jobs:
                 rm -rf "$stage"
                 mkdir -p "$stage"
                 cp "$binary" "$stage/bitfun-desktop"
-                # The zig lld leaves duplicate LC_LOAD_DYLIB entries (libobjc,
-                # libiconv) that strict dyld refuses to launch; dedup before
-                # signing.
-                if [ -f /workspace/.package-tools/fix-macho-duplicate-dylibs.mjs ]; then
-                  node /workspace/.package-tools/fix-macho-duplicate-dylibs.mjs "$stage/bitfun-desktop"
-                fi
+                # The zig linker leaves duplicate LC_LOAD_DYLIB entries
+                # (libobjc, libiconv) that strict dyld refuses to launch;
+                # dedup before signing. Invoked unconditionally: a missing
+                # fixer must fail the package instead of silently shipping a
+                # binary dyld refuses to launch.
+                node /workspace/.package-tools/fix-macho-duplicate-dylibs.mjs "$stage/bitfun-desktop"
                 # Ad-hoc sign so Apple Silicon can execute the binary; the
                 # cached ProcursusTeam ldid is provisioned in the tooling step.
                 if [ -x /opt/bitfun-bin/ldid ]; then
@@ -860,6 +1018,9 @@ jobs:
                 else
                   echo "::warning::ldid unavailable; the macOS binary will not run on Apple Silicon without ad-hoc signing." >&2
                 fi
+                # App icon: make-dmg.sh installs it into the .app bundle
+                # (CFBundleIconFile); a missing icon must fail the package.
+                cp /workspace/src/apps/desktop/icons/bitfun-app-icon.icns "$stage/"
                 for item in frontend resources mobile-web; do
                   if [ -e "$rel/$item" ]; then cp -r "$rel/$item" "$stage/"; fi
                 done
@@ -885,7 +1046,7 @@ jobs:
       - name: Artifact gate
         id: artifact_gate
         env:
-          UPLOAD_FLAG: ${{ inputs.upload_artifact }}
+          UPLOAD_FLAG: ${{ needs.resolve-run-config.outputs.upload_artifact }}
         run: |
           set -eu
           case "$UPLOAD_FLAG" in
@@ -897,16 +1058,17 @@ jobs:
         if: ${{ steps.artifact_gate.outputs.upload == 'true' }}
         uses: upload-artifact
         with:
-          name: bitfun-macos-package
+          name: ${{ needs.resolve-run-config.outputs.macos_artifact_name }}
           path: desktop-package-output/
 
       - name: Upload to GitCode release
         if: ${{ inputs.upload_to_release == true }}
         env:
           GITCODE_TOKEN: ${{ secrets.GIT_TOKEN }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
-          RELEASE_TITLE: ${{ inputs.release_title }}
-          RELEASE_BRANCH: ${{ inputs.branch }}
+          RELEASE_TAG: ${{ needs.resolve-run-config.outputs.release_tag }}
+          RELEASE_TITLE: ${{ needs.resolve-run-config.outputs.release_title }}
+          RELEASE_BRANCH: ${{ needs.resolve-run-config.outputs.branch }}
+          RELEASE_REPO_INPUT: ${{ needs.resolve-run-config.outputs.repo }}
           PACKAGED_COMMIT: ${{ steps.prepare_source.outputs.commit }}
         run: |
           set -eu
@@ -918,8 +1080,41 @@ jobs:
             echo "::error::release_tag is required when upload_to_release is true." >&2
             exit 1
           fi
-          node .package-tools/publish-gitcode-release.mjs "$RELEASE_TAG" "qq_60134168/bitfun_ade" desktop-package-output "$RELEASE_BRANCH" "$PACKAGED_COMMIT" "$RELEASE_TITLE" "zip"
+          # Same repo selection as the OHOS job: inputs.repo overrides,
+          # defaulting to the upstream repository.
+          release_repo="$RELEASE_REPO_INPUT"
+          if [ -z "$release_repo" ]; then
+            release_repo='https://gitcode.com/OpenBitFun/bitfun_ade.git'
+          fi
+          release_repo="${release_repo%.git}"
+          release_repo="$(printf '%s' "$release_repo" | awk -F/ '{print $(NF-1)"/"$NF}')"
+          echo "Release repository: $release_repo (target branch: $RELEASE_BRANCH)"
+          node .package-tools/publish-gitcode-release.mjs "$RELEASE_TAG" "$release_repo" desktop-package-output "$RELEASE_BRANCH" "$PACKAGED_COMMIT" "$RELEASE_TITLE" "zip"
 
       - name: Remove macOS cross container
         if: ${{ always() }}
         run: docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+
+  cleanup-daily-artifacts:
+    name: Prune old daily artifacts
+    needs:
+      - resolve-run-config
+      - windows
+      - macos
+    # Runs even when a daily build failed so retention keeps working. GitCode
+    # if-expressions cannot reference needs outputs, so the daily condition
+    # (schedule => empty inputs, on the packaging host only) is restated
+    # here; manual dispatches never match it.
+    if: ${{ always() && inputs.branch == '' && atomgit.repository == 'qq_60134168/bitfun_ade' }}
+    runs-on: [self-hosted, os=ubuntu, target=linux]
+    timeout-minutes: 10
+    steps:
+      - name: Checkout workflow source
+        uses: checkout
+      - name: Prune artifacts past the retention window
+        env:
+          GITCODE_TOKEN: ${{ secrets.GIT_TOKEN }}
+          REPOSITORY: ${{ atomgit.repository }}
+        # 1-day retention: the daily artifacts total ~600 MB against the 1G
+        # namespace quota, so only the newest day stays.
+        run: node scripts/ci/prune-daily-artifacts.mjs "$REPOSITORY" 1 bitfun-daily-
