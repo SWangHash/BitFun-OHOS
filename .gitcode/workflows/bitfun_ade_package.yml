@@ -122,10 +122,6 @@ jobs:
     runs-on: [self-hosted, os=ubuntu, target=linux]
     timeout-minutes: 10
     outputs:
-      is_daily: ${{ steps.resolve.outputs.is_daily }}
-      package_ohos: ${{ steps.resolve.outputs.package_ohos }}
-      package_win: ${{ steps.resolve.outputs.package_win }}
-      package_mac: ${{ steps.resolve.outputs.package_mac }}
       branch: ${{ steps.resolve.outputs.branch }}
       remote: ${{ steps.resolve.outputs.remote }}
       repo: ${{ steps.resolve.outputs.repo }}
@@ -144,9 +140,6 @@ jobs:
         id: resolve
         env:
           MANUAL_BRANCH: ${{ inputs.branch }}
-          PACKAGE_OHOS: ${{ inputs.package_ohos }}
-          PACKAGE_WIN: ${{ inputs.package_win }}
-          PACKAGE_MAC: ${{ inputs.package_mac }}
           INPUT_REPO: ${{ inputs.repo }}
           INPUT_DEBUG: ${{ inputs.debug }}
           INPUT_SO_ONLY: ${{ inputs.so_only }}
@@ -160,9 +153,6 @@ jobs:
           set -eu
           if [ -n "$MANUAL_BRANCH" ]; then
             is_daily=false
-            package_ohos="$PACKAGE_OHOS"
-            package_win="$PACKAGE_WIN"
-            package_mac="$PACKAGE_MAC"
             branch="$MANUAL_BRANCH"
             remote=origin
             repo="$INPUT_REPO"
@@ -179,9 +169,6 @@ jobs:
           else
             build_date="$(TZ=Asia/Shanghai date +%Y%m%d)"
             is_daily=true
-            package_ohos=false
-            package_win=true
-            package_mac=true
             branch=main
             remote=https://gitcode.com/OpenBitFun/bitfun_ade.git
             repo=""
@@ -198,10 +185,6 @@ jobs:
           fi
           echo "Resolved configuration: daily=$is_daily branch=$branch remote=$remote tag=$release_tag"
           {
-            printf 'is_daily=%s\n' "$is_daily"
-            printf 'package_ohos=%s\n' "$package_ohos"
-            printf 'package_win=%s\n' "$package_win"
-            printf 'package_mac=%s\n' "$package_mac"
             printf 'branch=%s\n' "$branch"
             printf 'remote=%s\n' "$remote"
             printf 'repo=%s\n' "$repo"
@@ -1116,5 +1099,12 @@ jobs:
           GITCODE_TOKEN: ${{ secrets.GIT_TOKEN }}
           REPOSITORY: ${{ atomgit.repository }}
         # 1-day retention: the daily artifacts total ~600 MB against the 1G
-        # namespace quota, so only the newest day stays.
-        run: node scripts/ci/prune-daily-artifacts.mjs "$REPOSITORY" 1 bitfun-daily-
+        # namespace quota, so only the newest day stays. The host PATH (node)
+        # comes from /root/.bashrc, same as the other host-level node calls;
+        # enable strict mode only AFTER sourcing because .bashrc references
+        # unset variables.
+        run: |
+          export HOME=/root PS1="ci$ "
+          . /root/.bashrc
+          set -eu
+          node scripts/ci/prune-daily-artifacts.mjs "$REPOSITORY" 1 bitfun-daily-
