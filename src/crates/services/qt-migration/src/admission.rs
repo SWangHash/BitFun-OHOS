@@ -521,6 +521,18 @@ mod tests {
             let rejection = check_admission_for_intake("Write", None, &intake)
                 .expect_err("side effects must be rejected until the skill is loaded");
             assert_eq!(rejection.code, REJECT_CODE_SKILL_REQUIRED);
+            // The official-template install is the skill's flow, so the download
+            // script cannot run before the skill is loaded either: the card answer
+            // must lead to loading the skill, not to a standalone shell command.
+            let rejection = check_admission_for_intake(
+                "ExecCommand",
+                Some(&serde_json::json!({
+                    "cmd": "bash \"/skills/.system/ohos-qt-skills/scripts/bitfun-download-template.sh\" --platform=macos"
+                })),
+                &intake,
+            )
+            .expect_err("the template download must wait for the skill");
+            assert_eq!(rejection.code, REJECT_CODE_SKILL_REQUIRED);
         }
     }
 

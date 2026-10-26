@@ -52,7 +52,7 @@ pub const CONFIRM_INSTRUCTION: &str = r#"## 迁移前置输入（系统约束，
    - 第 1 步命中路径时，取其父目录放入 `candidates.toolchain_env`（专用字段——环境变量命中的工具链优先级最低，后端会排在输入/工作区/托管候选之后；不要放入 `candidates.toolchain`）。未命中则不传该字段（卡片会显示输入框）。
    - 用户要迁移的那个 Qt 工程：其工程目录或 `.pro` 文件路径放入 `candidates.source_project`，且置于数组第一项。这个候选由你在第 2 步探查后自己判断：Qt 工程判定标准见 ohos-qt-skills 阶段零预检（qmake `.pro` 工程，或含 `find_package(Qt…)` 的 CMakeLists.txt 工程），但**形状符合不等于就是原始工程**——Qt 安装目录、工具链副本、其自带示例集（如 `Examples/<版本>`，根目录只有 `examples.pro` 这类子目录清单）、构建产物目录同样符合形状；工作区里出现它们（例如用户把整份工具链复制进来）时不得作为候选。用户点名或明确写出的工程即使位于工作区之外也照原样绑定（探查只用来认清工作区里的东西，不得反过来推翻用户点名的路径）。判断不了就不填该字段（卡片会留输入框给用户自己填），不要拿形状匹配的目录凑数。用户在 prompt 中明确写出的其他路径（**输出容器**、模板工程）也必须分别放入对应的 `candidates.output_project` / `candidates.template`；这些路径即使位于当前工作区之外，也必须原样放入候选，不得丢弃或替换。注意 `output_project` 绑定的是**输出容器**，不是鸿蒙工程目录本身：鸿蒙工程创建在容器下的 `<app-name>-ohos` 子目录里，所以不要把一个已有的鸿蒙（DevEco）工程目录当作容器，也不要把容器路径当作最终工程目录。
    - 其他已探测候选也应按字段传入。不得只在分析文字中描述候选而省略 `candidates`。不要自行构造 questions，不要在工具调用前后输出说明文字，也不能用纯文本提示代替工具调用。
-   - 用户选择「鸿蒙推荐模板工程」时，`template` 绑定值是 `__official__`，代表**必须由 BitFun 模板供给脚本安装**官方模板（绑定后的指令会给出脚本与目标目录）；不得改用本机其它位置已有的模板工程（工具链自带的 `src/harmonyos/templates`、用户自己解压的 `templates-*.zip`、工作区或工作区外已有的模板目录）。
+   - 用户选择「鸿蒙推荐模板工程」时，`template` 绑定值是 `__official__`，代表**官方模板由 `ohos-qt-skills` 的流程安装**（先加载技能，再由技能的流程运行 BitFun 供给脚本；绑定后的指令会给出脚本与目标目录）；不得改用本机其它位置已有的模板工程（工具链自带的 `src/harmonyos/templates`、用户自己解压的 `templates-*.zip`、工作区或工作区外已有的模板目录）。
 
 除第 1 步的 `command -v qmake` 外，四项输入绑定前禁止执行任何其他 shell 命令（第 2 步只用上面那些非 shell 的只读工具）。调用 AskUserQuestion 后等待用户提交答案；答案返回的四项绑定值就是本次迁移的唯一输入事实，必须直接采用，不得重新询问或替换为其他路径。"#;
 
@@ -117,15 +117,18 @@ pub fn official_toolchain_guidance(
     )
 }
 
-/// Guidance for an `__official__` **template** binding: there is no template
-/// provisioner, so the BitFun acquisition script stays the install flow. The
-/// binding also names *which* template the migration may use: the official
-/// recommendation is the one that script installs, not whatever template tree
-/// happens to exist on the machine (the toolchain ships one of its own, and a
-/// user may have unpacked a release next to their project).
+/// Guidance for an `__official__` **template** binding.
+///
+/// The binding names *which* template the migration may use: the official
+/// recommendation is the one the BitFun acquisition script installs, not whatever
+/// template tree happens to exist on the machine (the toolchain ships one of its
+/// own, and a user may have unpacked a release next to their project). The
+/// acquisition itself belongs to `ohos-qt-skills`, so the guidance states the
+/// order — load the skill, then let its flow install — instead of handing the
+/// model a script to run on the spot.
 pub fn official_template_guidance(templates_dir: &str, skill_dir: &str, platform: &str) -> String {
     format!(
-        "- 模板：绑定值是 __official__，即本次迁移必须使用 BitFun 安装的鸿蒙推荐模板——不得改用本机其它位置已有的模板工程（例如工具链自带的 `src/harmonyos/templates`、用户自己解压的 `templates-*.zip`、工作区或工作区外已有的模板目录）。运行时尚未提供模板供给，仍需按 BitFun 供给脚本安装：`bash \"{skill_dir}/scripts/bitfun-download-template.sh\" --platform={platform}`，安装目标目录 `{templates_dir}`（脚本按 BITFUN_QT_MIGRATION_ROOT 落盘，不要用 --dest 改到其他位置，也不要改用技能基线里 vendored 的上游 download-template.sh：它要求显式 --dest，会装到迁移扫描不到的目录），安装完成后使用脚本输出的 OHOS_TEMPLATE_SRC，该路径也必须是后续迁移使用的模板源（OHOS_TEMPLATE_SRC）。\n"
+        "- 模板：绑定值是 __official__，即本次迁移必须使用 BitFun 安装的鸿蒙推荐模板——不得改用本机其它位置已有的模板工程（例如工具链自带的 `src/harmonyos/templates`、用户自己解压的 `templates-*.zip`、工作区或工作区外已有的模板目录）。模板供给属于 `ohos-qt-skills` 的流程：**先用 Skill 工具加载 `ohos-qt-skills`，再由该技能的流程安装模板**，不要在加载技能之前直接运行下载脚本。技能流程使用的脚本是 `bash \"{skill_dir}/scripts/bitfun-download-template.sh\" --platform={platform}`，安装目标目录 `{templates_dir}`（脚本按 BITFUN_QT_MIGRATION_ROOT 落盘，不要用 --dest 改到其他位置，也不要改用技能基线里 vendored 的上游 download-template.sh：它要求显式 --dest，会装到迁移扫描不到的目录），安装完成后使用脚本输出的 OHOS_TEMPLATE_SRC，该路径也必须是后续迁移使用的模板源（OHOS_TEMPLATE_SRC）。\n"
     )
 }
 
