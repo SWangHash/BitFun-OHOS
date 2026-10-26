@@ -66,6 +66,30 @@ test('the manual overlay cannot own executable product-control facts', async () 
   }
 });
 
+test('OHOS-only registrations are platform-gated while not(ohos) registrations stay audited', () => {
+  const source = `
+    .invoke_handler(tauri::generate_handler![
+      shared_command,
+      #[cfg(target_env = "ohos")]
+      ohos_only_command,
+      #[cfg(not(target_env = "ohos"))]
+      desktop_only_command,
+      #[cfg(all(target_env = "ohos", feature = "ohos-window"))]
+      ohos_feature_command,
+    ])
+  `;
+  assert.deepEqual(
+    parseRegisteredCommands(source).map(({ id }) => id),
+    ['shared_command', 'desktop_only_command'],
+    'not(target_env = "ohos") entries ship on the shared desktop surface',
+  );
+  assert.deepEqual(
+    [...parsePlatformGatedCommandIds(source)].sort(),
+    ['ohos_feature_command', 'ohos_only_command'],
+    'only entries constrained to the OHOS build are platform-gated',
+  );
+});
+
 test('the technical audit exactly covers Desktop Tauri registration without exposing it as UX', async () => {
   const registrations = parseRegisteredCommands(await read('src/apps/desktop/src/lib.rs'));
   const { publicCatalog, technicalMap } = buildCapabilityCatalog();

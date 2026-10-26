@@ -77,18 +77,30 @@ function stripRustComments(source) {
   return source.replace(/\/\*[\s\S]*?\*\//gu, '').replace(/\/\/.*$/gmu, '');
 }
 
+/**
+ * Registration attributes only remove an entry from the shared command surface
+ * when they restrict it to the OHOS build. `cfg(not(target_env = "ohos"))` is the
+ * opposite direction: the command ships on Desktop, macOS, and Linux and must
+ * stay audited, while `cfg(target_env = "ohos")` commands exist only on
+ * HarmonyOS.
+ */
+function isOhosOnlyGate(attributeLine) {
+  if (!/target_env\s*=\s*"ohos"/u.test(attributeLine)) return false;
+  return !/not\s*\(\s*target_env\s*=\s*"ohos"\s*\)/u.test(attributeLine);
+}
+
 export function parseInvokeHandlerEntries(source) {
   const match = source.match(/\.invoke_handler\(tauri::generate_handler!\[([\s\S]*?)\]\)/u);
   if (!match) throw new Error('Desktop invoke_handler registration block was not found');
   const entries = [];
   const invalid = [];
-  // One registration per line; an attribute line gates the entry that follows it.
+  // One registration per line; the attribute line gates the entry that follows it.
   let conditional = false;
   for (const rawLine of stripRustComments(match[1]).split('\n')) {
     const line = rawLine.trim();
     if (!line) continue;
     if (line.startsWith('#[')) {
-      conditional = true;
+      conditional ||= isOhosOnlyGate(line);
       continue;
     }
     if (!/^[A-Za-z0-9_:]+,?$/u.test(line)) {
@@ -105,17 +117,18 @@ export function parseInvokeHandlerEntries(source) {
 }
 
 export function parseRegisteredCommands(source) {
-  // A gated registration (`#[cfg(target_env = "ohos")]`) only exists in that
-  // platform build, so it is not part of the audited command surface: the
+  // An OHOS-only registration (`#[cfg(target_env = "ohos")]`) exists in just
+  // that platform build, so it is not part of the audited command surface: the
   // Product Operation Registry, the capability catalog, and the Web UI
   // transport contract all describe the shared command set.
+  // `#[cfg(not(target_env = "ohos"))]` is a shared-surface entry and stays in.
   return parseInvokeHandlerEntries(source)
     .filter(({ conditional }) => !conditional)
     .map(({ id, rustPath }) => ({ id, rustPath }));
 }
 
 /**
- * Platform-gated registrations are excluded from required coverage, but a
+ * OHOS-only registrations are excluded from required coverage, but a
  * registry row may still describe one when the frontend keeps that command on
  * the controller on that platform (for example the HarmonyOS-only
  * `window_is_focused`). The row then participates in the generated transport
