@@ -97,4 +97,7 @@ if [ -n "$IDENTITY" ] && [ -n "$NOTARY_PROFILE" ]; then
   echo "[OK] BitFun.dmg Developer ID signed, notarized and stapled; users can open it directly."
 else
   echo "[OK] BitFun.dmg created."
+  if [ -n "$IDENTITY" ]; then
+    echo "[!] Developer ID signed but NOT notarized: Gatekeeper still blocks the first launch. Set BITFUN_NOTARY_PROFILE to notarize." >&2
+  fi
 fi
