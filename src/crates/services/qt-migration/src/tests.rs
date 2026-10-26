@@ -106,6 +106,43 @@ fn candidate_for<'a>(
         .find(|candidate| path_key(Path::new(&candidate.path)) == path_key(path))
 }
 
+/// Magic bytes of an executable built for this host, and of one built for a
+/// different platform: `kit_tools_run_on_host` compares the two.
+fn host_executable_magic() -> [u8; 4] {
+    if cfg!(target_os = "macos") {
+        [0xcf, 0xfa, 0xed, 0xfe]
+    } else if cfg!(windows) {
+        [b'M', b'Z', 0x90, 0x00]
+    } else {
+        [0x7f, b'E', b'L', b'F']
+    }
+}
+
+fn foreign_executable_magic() -> [u8; 4] {
+    if cfg!(windows) {
+        [0xcf, 0xfa, 0xed, 0xfe]
+    } else {
+        [b'M', b'Z', 0x90, 0x00]
+    }
+}
+
+/// Write an executable stub with the given header, so the kit fixtures can
+/// carry a measurable platform.
+fn write_executable(dir: &Path, name: &str, magic: [u8; 4]) {
+    std::fs::write(dir.join(name), magic).expect("write executable stub");
+}
+
+/// Qt6 OHOS target kit whose tools are built for another platform.
+fn create_foreign_qt6_ohos_kit(root: &Path) -> PathBuf {
+    let bin = mkdir(root, "bin");
+    write_executable(&bin, "qmake", foreign_executable_magic());
+    let cmake = mkdir(root, QT6_CMAKE_PACKAGE_DIR);
+    touch(&cmake, "Qt6Config.cmake");
+    let platforms = mkdir(root, "plugins/platforms");
+    touch(&platforms, "libqohos.so");
+    bin
+}
+
 fn candidate_map(field: &str, paths: Vec<String>) -> HashMap<String, Vec<String>> {
     HashMap::from([(field.to_string(), paths)])
 }
@@ -669,6 +706,27 @@ fn cmake_without_qt_is_not_a_source_candidate() {
     assert_eq!(probe_source_projects(&root, &named), Vec::<String>::new());
 }
 
+#[test]
+fn a_named_source_project_this_host_cannot_see_is_still_offered() {
+    // #370 回归：prompt 点名的工程路径在当前进程里看不到（写错、尚未创建，或工作区
+    // 其实在别处）时，卡片仍要把这个路径作为候选给出来让用户确认或更正，而不是留一个
+    // 空输入框——用户会以为输入被吃掉了。
+    let (_t, root) = tree();
+    let named = root.join("no-such-calculator");
+    let candidates = probe_source_projects(&root, &[named.to_string_lossy().into_owned()]);
+
+    assert_eq!(keys(&candidates), keys(&[named.to_string_lossy().into_owned()]));
+
+    // 盘上确实存在、但不是 Qt 工程的目录依旧不作为候选：磁盘事实优先。
+    let plain = mkdir(&root, "plain-cmake");
+    std::fs::write(
+        plain.join("CMakeLists.txt"),
+        "cmake_minimum_required(VERSION 3.16)\nproject(plain C)\n",
+    )
+    .unwrap();
+    assert!(probe_source_projects(&root, &[plain.to_string_lossy().into_owned()]).is_empty());
+}
+
 /// The measured project shape behind the "one project, two candidates" report:
 /// the root resolves Qt inside a module it includes, while the vendored
 /// subprojects under `ThirdParty/` spell `find_package(Qt…)` themselves.
@@ -1037,6 +1095,81 @@ fn option_paths(candidates: &[QtScanCandidate]) -> Vec<String> {
         .iter()
         .map(|candidate| candidate.path.clone())
         .collect()
+}
+
+#[test]
+fn a_kit_whose_tools_are_not_built_for_this_host_is_not_a_candidate() {
+    // #365：工作区里放一份别的系统上的鸿蒙工具链，卡片不能把它当候选——迁移是要用
+    // 这套工具链真的去构建的。
+    let (_t, root) = tree();
+    let workspace = mkdir(&root, "work");
+    let project = mkdir(&workspace, "qt6-app");
+    create_version_fixture(
+        &project,
+        "find_package(Qt6 COMPONENTS Widgets REQUIRED)",
+        "QAnyStringView view;\n",
+    );
+    let foreign_root = mkdir(&workspace, "harmonyos-toolchain");
+    create_foreign_qt6_ohos_kit(&foreign_root);
+
+    let probe = probe_qt_migration_candidates(
+        &workspace,
+        &root.join("managed"),
+        &HashMap::new(),
+        &[],
+        &[],
+    );
+
+    assert_eq!(kit_tools_run_on_host(&foreign_root), Some(false));
+    assert!(
+        !keys(&probe.candidates["toolchain"])
+            .iter()
+            .any(|path| path.starts_with(&path_key(&foreign_root))),
+        "跑不起来的 kit 不能进候选：{:?}",
+        probe.candidates["toolchain"]
+    );
+    // 反过来，本机格式的 kit 照常作为候选。
+    let native = mkdir(&workspace, "native-toolchain");
+    let native_bin = mkdir(&native, "bin");
+    write_executable(&native_bin, "qmake", host_executable_magic());
+    let cmake = mkdir(&native, QT6_CMAKE_PACKAGE_DIR);
+    touch(&cmake, "Qt6Config.cmake");
+    let platforms = mkdir(&native, "plugins/platforms");
+    touch(&platforms, "libqohos.so");
+    let probe = probe_qt_migration_candidates(
+        &workspace,
+        &root.join("managed"),
+        &HashMap::new(),
+        &[],
+        &[],
+    );
+    assert_eq!(kit_tools_run_on_host(&native), Some(true));
+    assert!(
+        keys(&probe.candidates["toolchain"])
+            .iter()
+            .any(|path| path.starts_with(&path_key(&native))),
+        "本机可用的 kit 仍然要被推荐：{:?}",
+        probe.candidates["toolchain"]
+    );
+}
+
+#[test]
+fn a_launcher_script_does_not_hide_the_kits_real_binary() {
+    // 有些 SDK 的 bin/qmake 是启动脚本，真正的二进制叫 qmake6：格式判不出来时不能
+    // 就此放过，否则别的系统的工具链又会被当成候选（#365）。
+    let (_t, root) = tree();
+    let kit_root = mkdir(&root, "wrapped-kit");
+    let bin = mkdir(&kit_root, "bin");
+    std::fs::write(bin.join("qmake"), "#!/bin/sh\nexec qmake6 \"$@\"\n").unwrap();
+    write_executable(&bin, "qmake6", foreign_executable_magic());
+
+    assert_eq!(kit_tools_run_on_host(&kit_root), Some(false));
+
+    // 只有脚本、没有任何可判定的二进制时保持未知，不做判断。
+    let script_only = mkdir(&root, "script-only");
+    let script_bin = mkdir(&script_only, "bin");
+    std::fs::write(script_bin.join("qmake"), "#!/bin/sh\nexec real-qmake \"$@\"\n").unwrap();
+    assert_eq!(kit_tools_run_on_host(&script_only), None);
 }
 
 #[test]

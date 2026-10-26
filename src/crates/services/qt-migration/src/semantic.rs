@@ -167,6 +167,7 @@ pub fn build_intent_decision(output: &str) -> Option<TurnIntentDecision> {
     let mut fields = serde_json::Map::new();
     let mut resolved_paths = serde_json::Map::new();
     let mut unclassified: Vec<Value> = Vec::new();
+    let mut unverified: Vec<Value> = Vec::new();
     for field in QT_MIGRATION_INTAKE_REQUIRED_FIELDS {
         let entry = fields_input.get(field).cloned().unwrap_or(Value::Null);
         let state = entry
@@ -180,19 +181,23 @@ pub fn build_intent_decision(output: &str) -> Option<TurnIntentDecision> {
             .filter(|p| !p.is_empty());
         let normalized = match (state, path) {
             ("resolved", Some(path)) if !path.contains("..") => {
+                // The named path is kept either way: it is this field's card
+                // candidate, so the question offers what the user wrote instead
+                // of an empty field (#370). Only an existing path may bind.
+                resolved_paths.insert(field.to_string(), json!(path));
                 if std::path::Path::new(path).exists() {
-                    resolved_paths.insert(field.to_string(), json!(path));
-                    unclassified.push(json!(path));
                     "resolved"
                 } else {
-                    // LLM claimed a path that does not exist locally: keep it
-                    // as a candidate hint but never bind it blindly.
-                    unclassified.push(json!(path));
+                    // Not visible from this process: keep it as a candidate the
+                    // user has to confirm, and say so — calling it "unclassified"
+                    // made the model re-collect paths the analysis had in fact
+                    // matched to their fields.
+                    unverified.push(json!(path));
                     "referenced"
                 }
             }
             ("resolved", Some(path)) | ("referenced", Some(path)) => {
-                unclassified.push(json!(path));
+                unverified.push(json!(path));
                 "referenced"
             }
             // A field the model marked present without a usable path stays
@@ -203,6 +208,7 @@ pub fn build_intent_decision(output: &str) -> Option<TurnIntentDecision> {
         fields.insert(field.to_string(), json!(normalized));
     }
     resolved_paths.insert("unclassifiedPaths".to_string(), json!(unclassified));
+    resolved_paths.insert("unverifiedPaths".to_string(), json!(unverified));
 
     Some(decision_from_analyze_json(json!({
         "taskType": task_type,
@@ -270,10 +276,23 @@ pub fn instruction_facts(
         })
         .collect();
     let missing_or_referenced = prompt_starts_new_task || !all_bound || !pending.is_empty();
+    // Paths the analysis matched to a field but could not see on this host: they
+    // are candidates the user still has to confirm, never "unclassified".
+    let unverified: Vec<String> = decision.resolved_paths["unverifiedPaths"]
+        .as_array()
+        .map(|paths| {
+            paths
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
     json!({
         "missing_or_referenced": missing_or_referenced,
         "pending_fields": pending.join("、"),
         "unclassified_paths": decision.unclassified_paths,
+        "unverified_paths": unverified,
     })
 }
 
@@ -1066,11 +1085,23 @@ mod tests {
             Some("resolved")
         );
 
+        // 本机看不到的路径不是"未归类"：它已按字段归属，只是需要用户在卡片里确认，
+        // 而且必须留在该字段的候选里，卡片才不会给出空选项。
         let unclassified = decision.value["resolvedPaths"]["unclassifiedPaths"]
             .as_array()
             .expect("unclassified array");
-        assert_eq!(unclassified.len(), 2, "识别到的路径全部透传给模型归类");
-        assert_eq!(decision.unclassified_paths.len(), 2);
+        assert!(unclassified.is_empty(), "已归字段的路径不算未归类");
+        assert!(decision.unclassified_paths.is_empty());
+        let unverified = decision.value["resolvedPaths"]["unverifiedPaths"]
+            .as_array()
+            .expect("unverified array");
+        assert_eq!(unverified.len(), 1, "只有看不见的那个路径需要确认");
+        assert_eq!(unverified[0], "D:/definitely/not/here");
+        assert_eq!(
+            decision.value["resolvedPaths"]["output_project"].as_str(),
+            Some("D:/definitely/not/here"),
+            "看不见的路径同样要作为该字段的卡片候选"
+        );
     }
 
     #[test]
@@ -1218,6 +1249,51 @@ mod tests {
     }
 
     #[test]
+    fn a_chinese_sentence_naming_all_four_paths_classifies_every_field() {
+        // 实测 prompt（#370 回归）：中文标签直接贴在路径前面，且用「输出到」这种动词短语。
+        let request = "把QT工程迁移成鸿蒙工程，原始工程路径是/storage/Users/currentUser/Desktop/qt-test/0901-zero-test/calculator， \
+输出到/storage/Users/currentUser/Desktop/qt-test/0901-one-test， \
+工具链是/storage/Users/currentUser/Desktop/qt-test/0901-one-test/toolchain，\
+模板工程路径/storage/Users/currentUser/Desktop/qt-test/templates/templates";
+        let analyzed = analyze_request(request);
+        assert_eq!(analyzed["taskType"], "app_migration");
+        for field in [
+            "source_project",
+            "output_project",
+            "toolchain",
+            "template",
+        ] {
+            assert_eq!(
+                analyzed["fields"][field], "resolved",
+                "{field} 必须被就近标签归位：{}",
+                analyzed["fields"]
+            );
+        }
+        let paths = &analyzed["resolvedPaths"];
+        assert_eq!(
+            paths["source_project"],
+            "/storage/Users/currentUser/Desktop/qt-test/0901-zero-test/calculator"
+        );
+        assert_eq!(
+            paths["output_project"],
+            "/storage/Users/currentUser/Desktop/qt-test/0901-one-test"
+        );
+        assert_eq!(
+            paths["toolchain"],
+            "/storage/Users/currentUser/Desktop/qt-test/0901-one-test/toolchain"
+        );
+        assert_eq!(
+            paths["template"],
+            "/storage/Users/currentUser/Desktop/qt-test/templates/templates"
+        );
+        assert_eq!(
+            paths["unclassifiedPaths"].as_array().map(Vec::len),
+            Some(0),
+            "四个路径都归位了，就没有未归类路径"
+        );
+    }
+
+    #[test]
     fn instruction_facts_carry_unclassified_paths_and_pending_fields() {
         let output = format!(
             r#"{{"taskType": "app_migration", "fields": {{
@@ -1234,8 +1310,14 @@ mod tests {
         assert!(pending.contains("source_project"));
         assert!(pending.contains("output_project"));
         assert!(pending.contains("template"));
-        let unclassified = facts["unclassified_paths"].as_array().expect("paths");
-        assert_eq!(unclassified.len(), 1);
-        assert_eq!(unclassified[0], "D:/maybe/qt");
+        // 该路径已归到 source_project，只是本机看不到：它进"待确认"而不是"未归类"，
+        // 否则模型会以为四个字段都没识别出来，重新从零收集一遍。
+        assert!(facts["unclassified_paths"]
+            .as_array()
+            .expect("paths")
+            .is_empty());
+        let unverified = facts["unverified_paths"].as_array().expect("paths");
+        assert_eq!(unverified.len(), 1);
+        assert_eq!(unverified[0], "D:/maybe/qt");
     }
 }
