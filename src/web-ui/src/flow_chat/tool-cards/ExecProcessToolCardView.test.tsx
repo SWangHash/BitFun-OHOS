@@ -6,6 +6,7 @@ import { JSDOM } from 'jsdom';
 
 import { ExecProcessToolCardView, type ExecProcessCardModel } from './ExecProcessToolCardView';
 import type { FlowToolItem } from '../types/flow-chat';
+import { copyTextToClipboard } from '@/shared/utils/textSelection';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -18,6 +19,9 @@ const messages: Record<string, string> = {
   'toolCards.execProcess.copyPrimary': 'Copy',
   'toolCards.execProcess.primaryCopied': 'Copied',
   'toolCards.execProcess.copyPrimaryFailed': 'Failed to copy',
+  'toolCards.execProcess.copyOutput': 'Copy output',
+  'toolCards.execProcess.outputCopied': 'Output copied',
+  'toolCards.execProcess.copyOutputFailed': 'Failed to copy output',
 };
 
 vi.mock('react-i18next', async () => {
@@ -35,13 +39,31 @@ vi.mock('react-i18next', async () => {
 
 vi.mock('@/tools/terminal/components/LazyTerminalOutputRenderer', () => ({
   LazyTerminalOutputRenderer: React.forwardRef<
-    { getVisibleText: () => string },
+    { getVisibleText: () => string; getFullText: () => string },
     { content: string; className?: string; maxRows?: number }
   >(({ content, className, maxRows }, ref) => {
-    React.useImperativeHandle(ref, () => ({ getVisibleText: () => content }), [content]);
+    React.useImperativeHandle(ref, () => ({
+      // Simulates the real xterm viewport: only the first `maxRows` lines
+      // are "visible". This lets the copy-output regression test prove the
+      // button copies the full buffer, not the visible subset.
+      getVisibleText: () => {
+        const lines = content.split('\n');
+        const limit = Math.min(maxRows ?? lines.length, lines.length);
+        return lines.slice(0, limit).join('\n');
+      },
+      getFullText: () => content,
+    }), [content, maxRows]);
     return <pre className={className} data-max-rows={maxRows}>{content}</pre>;
   }),
 }));
+
+vi.mock('@/shared/utils/textSelection', async (importActual) => {
+  const actual = await importActual<typeof import('@/shared/utils/textSelection')>();
+  return {
+    ...actual,
+    copyTextToClipboard: vi.fn().mockResolvedValue({ ok: true }),
+  };
+});
 
 const model: ExecProcessCardModel = {
   kind: 'command',
@@ -119,6 +141,14 @@ describe('ExecProcessToolCardView', () => {
 
     expect(container.textContent).toContain('Rejected');
     expect(container.textContent).not.toContain('Receiving parameters...');
+  });
+
+  it('does not reserve an empty output frame when rejected without output', () => {
+    act(() => {
+      root.render(<ExecProcessToolCardView toolItem={toolItem('rejected', true)} model={model} />);
+    });
+
+    expect(container.querySelector('[data-bitfun-component="command-tool-card"] [data-bitfun-part="outputFrame"]')).toBeNull();
   });
 
   it('keeps legacy cancelled rejection state labeled as rejected', () => {
@@ -407,5 +437,47 @@ describe('ExecProcessToolCardView', () => {
       vi.advanceTimersByTime(1);
     });
     expect(container.querySelector('[data-bitfun-component="command-tool-card"] [data-bitfun-part="details"]')).toBeNull();
+  });
+
+  it('copies the full output instead of the visible viewport subset', async () => {
+    const copyMock = vi.mocked(copyTextToClipboard);
+    copyMock.mockClear();
+    // 20 lines exceed the expanded max-rows cap (15), so a viewport-only copy
+    // would miss lines 16-20. The copy-output button must capture the full
+    // buffer instead.
+    const multiLineOutput = Array.from({ length: 20 }, (_, i) => `line ${i + 1}`).join('\n');
+    const resultModel: ExecProcessCardModel = {
+      ...model,
+      resultOutput: multiLineOutput,
+    };
+
+    act(() => {
+      root.render(
+        <ExecProcessToolCardView
+          toolItem={toolItem('completed')}
+          model={resultModel}
+        />,
+      );
+    });
+
+    // Expand the card so the output frame (and its copy-output action) mount.
+    act(() => {
+      container
+        .querySelector<HTMLElement>('[data-bitfun-part="surface"][data-bitfun-attention="prominent"]')
+        ?.click();
+    });
+
+    const copyOutputButton = container.querySelector<HTMLButtonElement>(
+      '[data-bitfun-action="copy"][title="Copy output"]',
+    );
+    expect(copyOutputButton).not.toBeNull();
+    expect(copyOutputButton?.disabled).toBeFalsy();
+
+    await act(async () => {
+      copyOutputButton?.click();
+    });
+
+    expect(copyMock).toHaveBeenCalledTimes(1);
+    expect(copyMock).toHaveBeenCalledWith(multiLineOutput);
   });
 });

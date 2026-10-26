@@ -42,6 +42,12 @@ export interface TerminalOutputRendererProps {
 
 export interface TerminalOutputRendererHandle {
   getVisibleText: () => string;
+  /**
+   * Returns the full rendered text of the entire xterm buffer (not just the
+   * current viewport). Used by copy actions that must capture all output
+   * rather than only the visible rows.
+   */
+  getFullText: () => string;
 }
 
 function getTerminalVisibleText(terminal: XTerm | null): string {
@@ -54,6 +60,26 @@ function getTerminalVisibleText(terminal: XTerm | null): string {
   const endRow = Math.min(buffer.viewportY + terminal.rows, buffer.length);
 
   for (let row = buffer.viewportY; row < endRow; row += 1) {
+    lines.push(buffer.getLine(row)?.translateToString(true) ?? '');
+  }
+
+  while (lines.length > 0 && !lines[lines.length - 1].trim()) {
+    lines.pop();
+  }
+
+  return lines.join('\n');
+}
+
+function getTerminalFullText(terminal: XTerm | null): string {
+  if (!terminal) {
+    return '';
+  }
+
+  const buffer = terminal.buffer.active;
+  const lines: string[] = [];
+  const endRow = buffer.length;
+
+  for (let row = 0; row < endRow; row += 1) {
     lines.push(buffer.getLine(row)?.translateToString(true) ?? '');
   }
 
@@ -101,6 +127,7 @@ const TerminalOutputRendererComponent = forwardRef<TerminalOutputRendererHandle,
 
   useImperativeHandle(ref, () => ({
     getVisibleText: () => getTerminalVisibleText(terminalRef.current),
+    getFullText: () => getTerminalFullText(terminalRef.current),
   }), []);
 
   const height = calculateTerminalOutputHeight(preparedContent, {

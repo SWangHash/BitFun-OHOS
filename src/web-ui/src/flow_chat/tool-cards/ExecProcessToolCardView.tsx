@@ -223,13 +223,13 @@ export const ExecProcessToolCardView: React.FC<ExecProcessToolCardViewProps> = (
     return '';
   }, [isRunning, liveOutput, model.resultOutput, status]);
 
-  const getVisibleOutputText = useCallback(() => {
-    return outputRendererRef.current?.getVisibleText() ?? getOutputText();
+  const getCopyOutputText = useCallback(() => {
+    return outputRendererRef.current?.getFullText() ?? getOutputText();
   }, [getOutputText]);
 
   const renderCopyOutputButton = () => (
     <ToolCardCopyAction
-      getText={getVisibleOutputText}
+      getText={getCopyOutputText}
       disabled={!getOutputText().trim()}
       tooltip={t('toolCards.execProcess.copyOutput')}
       copiedTooltip={t('toolCards.execProcess.outputCopied')}
@@ -350,7 +350,7 @@ export const ExecProcessToolCardView: React.FC<ExecProcessToolCardViewProps> = (
         outputDensity={keepCompactCompletionPreview || isRunning ? 'compact' : 'expanded'}
         outputSizing={status === 'completed' && userToggledRef.current ? 'content' : 'fixed'}
         reserveFooter
-        reserveOutput
+        reserveOutput={!rejectedOrCancelled || Boolean(outputText)}
         requiresConfirmation={status === 'pending_confirmation'}
         status={status}
         statusLabel={rejectedOrCancelled ? t(cancelledStatusLabelKey) : undefined}
