@@ -4,11 +4,13 @@ import { speechRecognizer } from '@kit.CoreSpeechKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import RustModule from 'libbitfun_desktop_lib.so';
+import { buildTranscript, normalizeRecognizedText } from './SpeechTranscript';
 
 const VOICE_DOMAIN: number = 0x0000;
 const VOICE_TAG: string = 'BitFunVoiceInput';
 const MICROPHONE_PERMISSION: Permissions = 'ohos.permission.MICROPHONE';
 const AUDIO_CHUNK_BYTES = 1280;
+const HALF_AUDIO_CHUNK_BYTES = 640;
 const DEFAULT_LANGUAGE = 'zh-CN';
 const DEFAULT_SAMPLE_RATE = 16000;
 const DEFAULT_MAX_RECORDING_SECONDS = 8 * 60 * 60;
@@ -50,26 +52,13 @@ interface VoiceAppendResult {
   limitReached: boolean;
 }
 
-function appendRecognitionSegment(existing: string, incoming: string): string {
-  const current = existing.trim();
-  const next = incoming.trim();
-  if (next.length === 0) {
-    return current;
-  }
-  if (current.length === 0 || next === current || next.indexOf(current) === 0) {
-    return next.length >= current.length ? next : current;
-  }
-  if (current.indexOf(next) === 0 || (next.length > 1 && current.endsWith(next))) {
-    return current;
-  }
-  const maxOverlap: number = Math.min(current.length, next.length);
-  for (let overlap = maxOverlap; overlap > 1; overlap -= 1) {
-    if (current.slice(current.length - overlap) === next.slice(0, overlap)) {
-      return `${current}${next.slice(overlap)}`;
-    }
-  }
-  return `${current}${next}`;
-}
+/**
+ * HarmonyOS `speechRecognizer` results are clause-scoped snapshots: every
+ * non-final result is another take of the clause being recognized and replaces
+ * the previous take, and `isFinal` commits that clause. `SpeechTranscript` owns
+ * the assembly and the whitespace cleanup; this service only tracks the clause
+ * boundary. See `SpeechTranscript.ets` for the rules.
+ */
 
 /**
  * HarmonyOS system speech input service.
@@ -95,8 +84,8 @@ export class VoiceInputService {
   private startedAt: number = 0;
   private capturedSeconds: number = 0;
   private pendingAudio: Uint8Array = new Uint8Array(0);
-  private finalText: string = '';
-  private partialText: string = '';
+  private committedText: string = '';
+  private transcript: string = '';
   private finishedResult: string = '';
   private finishedSessionId: string = '';
   private finishedError: string = '';
@@ -122,8 +111,8 @@ export class VoiceInputService {
     );
     const modelId: string = req.modelId ?? 'ohos-system';
     this.sessionId = this.newSessionId();
-    this.finalText = '';
-    this.partialText = '';
+    this.committedText = '';
+    this.transcript = '';
     this.finishedResult = '';
     this.finishedSessionId = '';
     this.finishedError = '';
@@ -223,7 +212,7 @@ export class VoiceInputService {
       this.finishRejecter = reject;
     });
     await this.releaseCapturer();
-    this.flushPendingAudio();
+    this.flushPendingAudio(true);
     try {
       engine.finish(sessionId);
     } catch (err) {
@@ -254,7 +243,7 @@ export class VoiceInputService {
         hilog.info(VOICE_DOMAIN, VOICE_TAG,
           'recognition ready: session=%{public}s pendingAudioBytes=%{public}d',
           sessionId, this.pendingAudio.length);
-        this.flushPendingAudio();
+        this.flushPendingAudio(false);
         this.maxDurationTimer = setTimeout(() => {
           void this.finishAfterLimit();
         }, this.maxRecordingSeconds * 1000);
@@ -268,39 +257,40 @@ export class VoiceInputService {
         if (sessionId !== this.sessionId) {
           return;
         }
-        const text: string = result.result.trim();
+        const text: string = result.result;
+        const isFinal: boolean = result.isFinal || result.isLast;
         hilog.info(VOICE_DOMAIN, VOICE_TAG,
           'recognition onResult: session=%{public}s isFinal=%{public}d isLast=%{public}d rawText=%{public}s',
           sessionId, result.isFinal ? 1 : 0, result.isLast ? 1 : 0, text);
-        if (text.length > 0) {
-          const isFinal: boolean = result.isFinal || result.isLast;
-          if (isFinal) {
-            this.finalText = appendRecognitionSegment(this.finalText, text);
-            this.partialText = '';
-          } else {
-            this.partialText = text;
-          }
-          const displayText: string = appendRecognitionSegment(this.finalText, this.partialText);
-          hilog.info(VOICE_DOMAIN, VOICE_TAG,
-            'recognition merged: session=%{public}s finalText=%{public}s partialText=%{public}s displayText=%{public}s',
-            sessionId, this.finalText, this.partialText, displayText);
-          RustModule.emitSpeechTranscription(
-            this.sessionId,
-            displayText,
-            isFinal
-          );
+        const snapshot: string = normalizeRecognizedText(text);
+        if (snapshot.length === 0) {
+          return;
         }
+        if (isFinal) {
+          this.committedText = buildTranscript(this.committedText, snapshot);
+          this.transcript = this.committedText;
+        } else {
+          this.transcript = buildTranscript(this.committedText, snapshot);
+        }
+        hilog.info(VOICE_DOMAIN, VOICE_TAG,
+          'recognition merged: session=%{public}s transcript=%{public}s',
+          sessionId, this.transcript);
+        RustModule.emitSpeechTranscription(
+          this.sessionId,
+          this.transcript,
+          isFinal
+        );
         if (result.isLast) {
           hilog.info(VOICE_DOMAIN, VOICE_TAG,
-            'recognition result isLast: session=%{public}s finalText=%{public}s partialText=%{public}s',
-            sessionId, this.finalText, this.partialText);
+            'recognition result isLast: session=%{public}s transcript=%{public}s',
+            sessionId, this.transcript);
           this.resolveFinish();
         }
       },
       onComplete: (sessionId: string, eventMessage: string): void => {
         hilog.info(VOICE_DOMAIN, VOICE_TAG,
-          'recognition onComplete: session=%{public}s message=%{public}s finalText=%{public}s partialText=%{public}s',
-          sessionId, eventMessage, this.finalText, this.partialText);
+          'recognition onComplete: session=%{public}s message=%{public}s transcript=%{public}s',
+          sessionId, eventMessage, this.transcript);
         if (sessionId !== this.sessionId) {
           return;
         }
@@ -338,9 +328,8 @@ export class VoiceInputService {
   private resolveFinish(): void {
     this.listening = false;
     this.reading = false;
-    const resolvedText: string = appendRecognitionSegment(this.finalText, this.partialText);
-    this.finalText = resolvedText;
-    this.partialText = '';
+    const resolvedText: string = normalizeRecognizedText(this.transcript);
+    this.transcript = resolvedText;
     const result: VoiceTranscriptionResult = {
       text: resolvedText,
       language: this.language,
@@ -409,7 +398,14 @@ export class VoiceInputService {
     }
   }
 
-  private flushPendingAudio(): void {
+  /**
+   * `speechRecognizer.writeAudio` accepts only 640- or 1280-byte frames. Feed
+   * the buffer as whole frames only: a shorter chunk is rejected or dropped,
+   * which lost the first or last words of a recording. A trailing remainder
+   * stays buffered and merges with the next read; `finalFlush` pads the last
+   * remainder with silence into a legal 640-byte frame instead of discarding it.
+   */
+  private flushPendingAudio(finalFlush: boolean): void {
     const engine = this.engine;
     if (!engine || this.pendingAudio.length === 0 || this.sessionId.length === 0) {
       return;
@@ -419,10 +415,19 @@ export class VoiceInputService {
       engine.writeAudio(this.sessionId, this.pendingAudio.subarray(offset, offset + AUDIO_CHUNK_BYTES));
       offset += AUDIO_CHUNK_BYTES;
     }
-    if (offset < this.pendingAudio.length) {
-      engine.writeAudio(this.sessionId, this.pendingAudio.subarray(offset));
+    const remainder: number = this.pendingAudio.length - offset;
+    if (remainder === HALF_AUDIO_CHUNK_BYTES) {
+      engine.writeAudio(this.sessionId, this.pendingAudio.subarray(offset, offset + HALF_AUDIO_CHUNK_BYTES));
+      offset += HALF_AUDIO_CHUNK_BYTES;
+    } else if (finalFlush && remainder > 0) {
+      const padded: Uint8Array = new Uint8Array(HALF_AUDIO_CHUNK_BYTES);
+      padded.set(this.pendingAudio.subarray(offset), 0);
+      engine.writeAudio(this.sessionId, padded);
+      offset = this.pendingAudio.length;
     }
-    this.pendingAudio = new Uint8Array(0);
+    this.pendingAudio = offset >= this.pendingAudio.length
+      ? new Uint8Array(0)
+      : this.pendingAudio.slice(offset);
   }
 
   private clearFinishedResult(): void {

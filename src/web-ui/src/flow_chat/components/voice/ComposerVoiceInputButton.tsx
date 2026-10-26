@@ -13,6 +13,46 @@ interface ComposerVoiceInputProps {
   controller: ComposerVoiceInputController;
 }
 
+// The recording control is a 14px icon slot, so the live meter keeps three bars
+// that stay inside the composer's trailing action button. Each bar keeps its own
+// resting and peak height so the mark already reads as an equalizer in silence.
+const VOICE_LIVE_BAR_IDLE_HEIGHTS = [6, 10, 7];
+const VOICE_LIVE_BAR_PEAK_HEIGHTS = [10, 14, 11];
+const VOICE_LIVE_BAR_WEIGHTS = [0.78, 1, 0.86];
+const VOICE_LEVEL_TO_BAR_GAIN = 9;
+
+function resolveLiveBarHeight(level: number, index: number): number {
+  const weight = VOICE_LIVE_BAR_WEIGHTS[index] ?? 1;
+  const normalized = Math.min(1, Math.max(0, level * VOICE_LEVEL_TO_BAR_GAIN * weight));
+  const idle = VOICE_LIVE_BAR_IDLE_HEIGHTS[index] ?? 5;
+  const peak = VOICE_LIVE_BAR_PEAK_HEIGHTS[index] ?? 9;
+  return idle + normalized * (peak - idle);
+}
+
+/**
+ * Level-reactive recording mark. The bar heights follow the microphone level so
+ * the composer reads as "listening" instead of showing a static microphone, and
+ * the CSS equalizer (per-bar duration and phase offsets) keeps it visibly moving
+ * while nobody is speaking.
+ */
+function ComposerVoiceLiveMeter({ level }: { level: number }) {
+  return (
+    <span
+      className="bitfun-chat-input__voice-live-meter"
+      data-bitfun-component="composer-voice-input"
+      data-bitfun-part="liveMeter"
+    >
+      {VOICE_LIVE_BAR_WEIGHTS.map((_weight, index) => (
+        <span
+          key={index}
+          className="bitfun-chat-input__voice-live-meter-bar"
+          style={{ height: `${resolveLiveBarHeight(level, index)}px` }}
+        />
+      ))}
+    </span>
+  );
+}
+
 /**
  * Composer-local voice control. It owns the idle microphone button and the
  * local-model setup prompt; the active capture renders its status below the
@@ -165,7 +205,8 @@ export function ComposerVoiceInputBar({ controller }: ComposerVoiceInputProps) {
 
 /**
  * Stop control for an active capture. It renders in the composer end actions so
- * it stays at the bottom-right corner of the input box.
+ * it stays at the bottom-right corner of the input box, and its icon is the live
+ * microphone meter instead of a static glyph.
  */
 export function ComposerVoiceStopButton({ controller }: ComposerVoiceInputProps) {
   if (!controller.enabled || controller.phase !== 'recording') {
@@ -187,7 +228,7 @@ export function ComposerVoiceStopButton({ controller }: ComposerVoiceInputProps)
             event.stopPropagation();
             controller.transcribe();
           }}
-          icon={<Icon name="mic" size="lg" />}
+          icon={<ComposerVoiceLiveMeter level={controller.audioLevel} />}
           variant="primary"
         />
       </Tooltip>

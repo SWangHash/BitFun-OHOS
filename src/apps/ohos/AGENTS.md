@@ -23,6 +23,28 @@ Run `node --test scripts/ohos-remote-web-resources.test.mjs` for resource isolat
 stale asset replacement, and final HAP integrity. Use a HarmonyOS build to verify
 the Hvigor task integration and the native resource lookup.
 
+## Voice input transcript
+
+`VoiceInputService` forwards the system `speechRecognizer` stream to the web-ui,
+and `SpeechTranscript.ets` owns the platform-independent part of it. Engine
+results are clause-scoped snapshots: every non-final result is another take of
+the clause being recognized — it may insert, drop, or replace characters
+anywhere inside it — and `isFinal` commits that clause. A take therefore
+replaces the clause; only a final result is appended to the committed
+transcript. Concatenating takes repeats them (the engine revises mid-clause), and
+so does any prefix-overlap heuristic.
+
+The host is the only place that assembles clauses. The composer renders
+`draft + latestTranscript` and re-normalizes the text on purpose, but it must
+not append `${current} ${delta}` or relate snapshots to each other.
+
+Keep the ArkTS rules in step with
+`src/web-ui/src/flow_chat/components/voice/voiceTranscript.ts`.
+
+Run `node --test src/apps/ohos/tests/speech-transcript.test.cjs` for the
+transcript rules. It covers text assembly only, not the speech engine, ArkTS
+compilation, or device behavior.
+
 ## Scrollbars
 
 ArkWeb draws overlay scrollbars by default: the thumb floats above page

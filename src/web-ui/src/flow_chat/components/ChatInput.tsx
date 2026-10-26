@@ -198,6 +198,7 @@ import {
 } from './voice/ComposerVoiceInputButton';
 import { useRealtimeVoiceCallActive } from './voice/RealtimeVoiceCallContext';
 import { useComposerVoiceInput } from './voice/useComposerVoiceInput';
+import { joinDraftAndSpeech } from './voice/voiceTranscript';
 import { expandWidgetPromptReferenceTokens } from '@/tools/generative-widget/widgetPromptReference';
 import {
   expandAdditionalModePromptReferenceTokens,
@@ -6008,8 +6009,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       window.requestAnimationFrame(() => richTextInputRef.current?.focus());
     },
     insertText: (text) => {
-      const current = inputState.value.trim();
-      const mergedText = current ? `${inputState.value.trimEnd()} ${text}` : text;
+      // The draft and the transcript share one line of text: Chinese takes no
+      // separating space, only two Latin word boundaries do.
+      const mergedText = joinDraftAndSpeech(inputState.value, text);
       dispatchInput({
         type: 'SET_VALUE',
         payload: mergedText,
