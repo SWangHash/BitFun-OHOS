@@ -21,6 +21,7 @@ const scriptPath = path.join(scriptDir, 'fix-macho-duplicate-dylibs.mjs');
 
 const LC_SYMTAB = 0x2;
 const LC_LOAD_DYLIB = 0xc;
+const LC_LOAD_UPWARD_DYLIB = (0x23 | 0x80000000) >>> 0;
 const LC_SEGMENT_64 = 0x19;
 const LC_DYLD_INFO_ONLY = (0x22 | 0x80000000) >>> 0;
 const LC_DYLD_CHAINED_FIXUPS = (0x34 | 0x80000000) >>> 0;
@@ -47,6 +48,7 @@ const DYLIBS = [
   '/System/Library/Frameworks/OSAKit.framework/Versions/A/OSAKit',
   '/System/Library/Frameworks/WebKit.framework/Versions/A/WebKit',
 ];
+const UPWARD_DYLIB = '/usr/lib/libupward.dylib';
 const EXPECTED_SURVIVORS = DYLIBS.filter(
   (name, index) => !(name === '/usr/lib/libobjc.A.dylib' && index === 1) && !(name === '/usr/lib/libiconv.2.dylib' && index === 5),
 );
@@ -78,6 +80,17 @@ function dylibCommand(name) {
   const cmdsize = align8(24 + nameBytes.length + 1);
   const cmd = Buffer.alloc(cmdsize);
   cmd.writeUInt32LE(LC_LOAD_DYLIB, 0);
+  cmd.writeUInt32LE(cmdsize, 4);
+  cmd.writeUInt32LE(24, 8);
+  nameBytes.copy(cmd, 24);
+  return cmd;
+}
+
+function upwardDylibCommand(name) {
+  const nameBytes = Buffer.from(name, 'latin1');
+  const cmdsize = align8(24 + nameBytes.length + 1);
+  const cmd = Buffer.alloc(cmdsize);
+  cmd.writeUInt32LE(LC_LOAD_UPWARD_DYLIB, 0);
   cmd.writeUInt32LE(cmdsize, 4);
   cmd.writeUInt32LE(24, 8);
   nameBytes.copy(cmd, 24);
@@ -146,7 +159,7 @@ function buildStrtab(names) {
   return { table: Buffer.from(parts.join(''), 'latin1'), offsets };
 }
 
-function buildFixture({ uniqueDylibs = false, chainedFixups = false, outOfRangeOrdinal = false } = {}) {
+function buildFixture({ uniqueDylibs = false, chainedFixups = false, outOfRangeOrdinal = false, upwardDylibs = false } = {}) {
   const dylibs = uniqueDylibs ? DYLIBS.map((name, index) => `${name}.${index}`) : DYLIBS;
   const strtab = buildStrtab(['_sym_objc', '_sym_foundation', '_sym_corefoundation']);
   const strtabOffset = SYMTAB_OFFSET + 3 * 16;
@@ -158,6 +171,9 @@ function buildFixture({ uniqueDylibs = false, chainedFixups = false, outOfRangeO
   ];
   if (outOfRangeOrdinal) {
     bindRecords.push(bindRecord('_sym_out_of_range', 'uleb', 25, 0x28));
+  }
+  if (upwardDylibs) {
+    bindRecords.push(bindRecord('_sym_upward', 'uleb', 20, 0x30));
   }
   const bindStream = Buffer.concat(bindRecords);
   const lazyStream = Buffer.concat([
@@ -181,9 +197,16 @@ function buildFixture({ uniqueDylibs = false, chainedFixups = false, outOfRangeO
   dyldInfoCommand.writeUInt32LE(LAZY_OFFSET, 32);
   dyldInfoCommand.writeUInt32LE(lazyStream.length, 36);
 
+  const dylibCommands = dylibs.map(dylibCommand);
+  if (upwardDylibs) {
+    // Two same-name LC_LOAD_UPWARD_DYLIB entries after the normal dylibs:
+    // they must occupy ordinal slots 19/20 and never be deduplicated.
+    dylibCommands.push(upwardDylibCommand(UPWARD_DYLIB));
+    dylibCommands.push(upwardDylibCommand(UPWARD_DYLIB));
+  }
   const commands = [
     segmentCommand(),
-    ...dylibs.map(dylibCommand),
+    ...dylibCommands,
     symtabCommand,
     dyldInfoCommand,
   ];
@@ -253,6 +276,24 @@ function parseDylibs(buffer) {
   }
   assert.equal(p, 32 + sizeofcmds);
   return names;
+}
+
+function parseDylibCommands(buffer) {
+  const allDylibCmds = new Set([0xc, 0x80000018, 0x8000001f, 0x20, LC_LOAD_UPWARD_DYLIB]);
+  const ncmds = buffer.readUInt32LE(16);
+  const entries = [];
+  let p = 32;
+  for (let i = 0; i < ncmds; i += 1) {
+    const cmd = buffer.readUInt32LE(p) >>> 0;
+    const cmdsize = buffer.readUInt32LE(p + 4);
+    if (allDylibCmds.has(cmd)) {
+      const nameOffset = buffer.readUInt32LE(p + 8);
+      const nameEnd = buffer.indexOf(0, p + nameOffset, 'latin1');
+      entries.push({ cmd, name: buffer.toString('latin1', p + nameOffset, nameEnd) });
+    }
+    p += cmdsize;
+  }
+  return entries;
 }
 
 function findDyldInfo(buffer) {
@@ -413,6 +454,36 @@ test('refuses to modify images using chained fixups', () => {
   const { status, stderr, fixed } = runFixer(image);
   assert.equal(status, 1);
   assert.match(stderr, /LC_DYLD_CHAINED_FIXUPS/);
+  assert.ok(fixed.equals(image));
+});
+
+test('counts LC_LOAD_UPWARD_DYLIB slots without deduplicating them', () => {
+  const image = buildFixture({ upwardDylibs: true });
+  const { status, stdout, fixed } = runFixer(image);
+  assert.equal(status, 0, stdout);
+  assert.match(stdout, /18 libraries remain/);
+  // 18 survivors: the 16 normal libraries plus both same-name upward
+  // entries, which occupy ordinal slots and are never deduplicated.
+  const commands = parseDylibCommands(fixed);
+  assert.deepEqual(
+    commands.map((entry) => entry.name),
+    [...EXPECTED_SURVIVORS, UPWARD_DYLIB, UPWARD_DYLIB],
+  );
+  const info = findDyldInfo(fixed);
+  const bindOrdinals = new Map(parseBindRecords(fixed, info.bindOff, info.bindSize).map((r) => [r.sym, r.ordinal]));
+  assert.equal(bindOrdinals.get('_sym_foundation'), 14);
+  // The second upward entry (old ordinal 20) must land on slot 18, proving
+  // upward commands are counted in the ordinal map. With the wrong constant
+  // (0x8000001d) the tool ignores them, the ordinal stays out of range, and
+  // the validation pass aborts.
+  assert.equal(bindOrdinals.get('_sym_upward'), 18);
+});
+
+test('exits cleanly when chained fixups have no duplicates to remove', () => {
+  const image = buildFixture({ uniqueDylibs: true, chainedFixups: true });
+  const { status, stdout, fixed } = runFixer(image);
+  assert.equal(status, 0, stdout);
+  assert.match(stdout, /No duplicate dylib load commands; nothing to do\./);
   assert.ok(fixed.equals(image));
 });
 
