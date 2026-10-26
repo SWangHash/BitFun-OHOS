@@ -962,6 +962,7 @@ mod tests {
             status: QtMigrationIntakeStatus::NeedsInput,
             loaded_skill_receipt: None,
             version_strategy: QtMigrationVersionStrategy::default(),
+            version_strategy_bindings: None,
             output_project_dir: None,
         }
     }

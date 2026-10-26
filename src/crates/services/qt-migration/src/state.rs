@@ -6,8 +6,9 @@
 
 pub use bitfun_product_domains::qt_migration::{
     QtMigrationFieldResolutionState, QtMigrationIntakeFieldState, QtMigrationIntakeStateSnapshot,
-    QtMigrationIntakeStatus, QtMigrationLoadedSkillReceipt, QtMigrationVersionStrategy,
-    QT_MIGRATION_INTAKE_REQUIRED_FIELDS, QT_MIGRATION_INTAKE_SNAPSHOT_SCHEMA_VERSION,
+    QtMigrationIntakeStatus, QtMigrationLoadedSkillReceipt, QtMigrationStrategyBindings,
+    QtMigrationVersionStrategy, QT_MIGRATION_INTAKE_REQUIRED_FIELDS,
+    QT_MIGRATION_INTAKE_SNAPSHOT_SCHEMA_VERSION,
 };
 
 use std::collections::BTreeMap;
@@ -119,7 +120,13 @@ pub fn qt_migration_set_version_strategy(
     strategy: QtMigrationVersionStrategy,
 ) -> QtMigrationIntakeStateSnapshot {
     let mut next = snapshot.clone();
+    let measured = strategy.measured_generations().is_some();
     next.version_strategy = strategy;
+    next.version_strategy_bindings = if measured {
+        crate::strategy::bound_strategy_bindings(&next)
+    } else {
+        None
+    };
     next.status = qt_migration_derive_intake_status(&next);
     next
 }
@@ -160,12 +167,22 @@ fn reset_project_bindings(
         }
     }
     next.loaded_skill_receipt = None;
-    // A new migration task decides its own version strategy: keeping a previous
-    // `Abort` (or a `Pending` that was never answered) would leave the fresh intake
-    next.version_strategy = match snapshot.version_strategy {
-        decision @ (QtMigrationVersionStrategy::Downgrade { .. }
-        | QtMigrationVersionStrategy::Continue { .. }) => decision,
-        _ => QtMigrationVersionStrategy::default(),
+    // A new migration task decides its own version strategy (`Abort` would leave it
+    // blocked). A carried decision keeps the values it was measured on, so the gate
+    // asks again for another project.
+    let carried = matches!(
+        snapshot.version_strategy,
+        QtMigrationVersionStrategy::Downgrade { .. } | QtMigrationVersionStrategy::Continue { .. }
+    );
+    next.version_strategy = if carried {
+        snapshot.version_strategy
+    } else {
+        QtMigrationVersionStrategy::default()
+    };
+    next.version_strategy_bindings = if carried {
+        snapshot.version_strategy_bindings.clone()
+    } else {
+        None
     };
     next.output_project_dir = None;
     next.status = qt_migration_derive_intake_status(&next);
@@ -381,6 +398,7 @@ mod tests {
             status: QtMigrationIntakeStatus::NotApplicable,
             loaded_skill_receipt: receipt,
             version_strategy: QtMigrationVersionStrategy::default(),
+            version_strategy_bindings: None,
             output_project_dir: None,
         }
     }
@@ -469,6 +487,47 @@ mod tests {
     }
 
     #[test]
+    fn a_version_strategy_decision_carries_the_values_it_was_measured_on() {
+        let mut bound = snapshot_with(&all_resolved(), Some(valid_receipt()));
+        for (field, value) in [("source_project", "/ws/app"), ("toolchain", "/sdk/qt5")] {
+            bound.fields.insert(
+                field.to_string(),
+                QtMigrationIntakeFieldState {
+                    state: QtMigrationFieldResolutionState::Resolved,
+                    value: Some(value.to_string()),
+                },
+            );
+        }
+
+        let decided = qt_migration_set_version_strategy(
+            &bound,
+            QtMigrationVersionStrategy::Downgrade {
+                project: 6,
+                toolchain: 5,
+            },
+        );
+        assert_eq!(
+            decided.version_strategy_bindings,
+            Some(QtMigrationStrategyBindings {
+                source_project: "/ws/app".to_string(),
+                toolchain: "/sdk/qt5".to_string(),
+            })
+        );
+        assert!(crate::strategy::version_strategy_state_applies(&decided));
+
+        // 换成另一个工程（两侧代相同）后，上一轮决策不再适用，闸门要重新提问。
+        let mut other = decided.clone();
+        other.fields.insert(
+            "source_project".to_string(),
+            QtMigrationIntakeFieldState {
+                state: QtMigrationFieldResolutionState::Resolved,
+                value: Some("/ws/other".to_string()),
+            },
+        );
+        assert!(!crate::strategy::version_strategy_state_applies(&other));
+    }
+
+    #[test]
     fn a_snapshot_without_the_version_strategy_field_still_loads() {
         // 升级兼容：本字段之前落盘的快照没有 version_strategy，必须仍能反序列化并取默认值。
         let legacy = json!({
@@ -489,6 +548,7 @@ mod tests {
             snapshot.version_strategy,
             QtMigrationVersionStrategy::NotNeeded
         );
+        assert_eq!(snapshot.version_strategy_bindings, None);
         assert_eq!(snapshot.status, QtMigrationIntakeStatus::Ready);
     }
 

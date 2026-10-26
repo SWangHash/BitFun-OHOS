@@ -5,7 +5,7 @@
 //! state into the candidate map the question card renders.
 
 use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -649,6 +649,37 @@ pub(crate) fn dedup_paths(paths: &mut Vec<String>) {
 pub(crate) fn path_key(p: &Path) -> String {
     let key = p.to_string_lossy().replace('\\', "/").to_lowercase();
     key.strip_prefix("//?/").unwrap_or(&key).to_string()
+}
+
+/// [`path_key`] of a path with `.` and `..` resolved component-wise, so a target
+/// that spells its own way out of a directory cannot read as staying inside it.
+pub(crate) fn resolved_path_key(p: &Path) -> String {
+    path_key(&lexically_resolved(p))
+}
+
+fn lexically_resolved(path: &Path) -> PathBuf {
+    let absolute = path.is_absolute();
+    let mut out = PathBuf::new();
+    let mut kept = 0usize;
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if kept > 0 {
+                    kept -= 1;
+                    out.pop();
+                } else if !absolute {
+                    out.push("..");
+                }
+            }
+            Component::Normal(_) => {
+                kept += 1;
+                out.push(component.as_os_str());
+            }
+            Component::RootDir | Component::Prefix(_) => out.push(component.as_os_str()),
+        }
+    }
+    out
 }
 
 /// Priority tier a candidate came from, declared in scan order:
