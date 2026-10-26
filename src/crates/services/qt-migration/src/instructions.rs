@@ -32,7 +32,8 @@ pub const CTX_QT_MIGRATION_ENABLED: &str = "qt_migration_enabled";
 pub const CTX_QT_MIGRATION_RESOLVED_PATHS: &str = "qt_migration_resolved_paths";
 /// Host context-stash key holding this turn's instruction facts JSON:
 /// `{"missing_or_referenced": bool, "pending_fields": String,
-/// "unclassified_paths": [String]}`. The JSON is computed by
+/// "unclassified_paths": [String], "unverified_paths": [String]}`. The JSON is
+/// computed by
 /// `semantic::instruction_facts` in this crate; the engine only runs the
 /// binding outcome through it and stashes the result here.
 pub const CTX_QT_MIGRATION_INSTRUCTION_FACTS: &str = "qt_migration_instruction_facts";
@@ -386,7 +387,8 @@ impl QtMigrationTurnInstructions {
                 serde_json::json!({
                     "missing_or_referenced": false,
                     "pending_fields": "",
-                    "unclassified_paths": []
+                    "unclassified_paths": [],
+                    "unverified_paths": []
                 })
             })
     }
@@ -445,6 +447,25 @@ impl QtMigrationTurnInstructions {
                 instruction.push_str(&format!(
                     "\n\n以下路径出现在用户 prompt 中但未能自动归类，请结合语义分别放入对应的 candidates 字段（通常第一个为源工程路径）：{}。\n",
                     unclassified.join("、")
+                ));
+            }
+            // Paths already matched to their field but not visible here: the model
+            // must carry them into that field's candidates instead of re-deriving
+            // paths the analysis already understood.
+            let unverified = facts
+                .get("unverified_paths")
+                .and_then(Value::as_array)
+                .map(|paths| {
+                    paths
+                        .iter()
+                        .filter_map(|value| value.as_str())
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            if !unverified.is_empty() {
+                instruction.push_str(&format!(
+                    "\n\n以下路径已按字段归类（顺序与上面缺少的输入项一致），但当前进程看不到它们——可能尚未创建、写错，或工作区在别处。请把它们按同样的字段放入 candidates（有对应字段时就用同一路径，不要另猜或改写），由用户在卡片里确认或更正：{}。\n",
+                    unverified.join("、")
                 ));
             }
             instruction.push_str("\n\n输入收集完成后，迁移工作必须遵守下面的必用技能约束：\n");
@@ -1037,7 +1058,8 @@ mod tests {
         let facts = serde_json::json!({
             "missing_or_referenced": true,
             "pending_fields": "toolchain、template",
-            "unclassified_paths": ["/tmp/maybe"]
+            "unclassified_paths": ["/tmp/maybe"],
+            "unverified_paths": ["/ws/calculator"]
         });
         let vars = vars(facts);
         let reader = IntakeReader {
@@ -1056,6 +1078,10 @@ mod tests {
         assert!(body.starts_with("## 迁移前置输入"));
         assert!(body.contains("toolchain、template"));
         assert!(body.contains("/tmp/maybe"));
+        // 已归字段但本机看不到的路径要单独说清：模型只补缺少的字段，不要把已识别的
+        // 路径当成"未归类"重新收集一遍（#370 回归的真实失败形态）。
+        assert!(body.contains("/ws/calculator"));
+        assert!(body.contains("已按字段归类"));
         assert!(body.contains("## 必用技能"));
         // `body` must precede `activation` in the splice order the engine
         // applies (body inserted last at index 0).

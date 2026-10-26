@@ -120,23 +120,40 @@ pub(crate) fn resolve_bound_kit_root(value: &Path) -> Option<PathBuf> {
         .find(|kit| detect_qt_major(kit).is_some())
 }
 
-/// Whether the kit's own tools were built for the host this process runs on.
+/// Whether the kit's own tool executables are built for this host.
 ///
 /// A Qt-for-HarmonyOS SDK is published per host platform with the same directory
 /// shape (`bin/qmake`, `lib/cmake/Qt5`, the OHOS platform plugin), so the layout
-/// cannot tell a kit that runs here from one built for HarmonyOS itself (#365).
-/// The executables can: their format is the host platform's. `None` when no qmake
-/// is readable, so a kit whose tools cannot be inspected is kept.
+/// cannot tell a kit that runs here from one built for HarmonyOS itself (#365):
+/// the executables' format is what can. A kit copied from another system must not
+/// be offered as a candidate — the migration builds with it, so a kit that cannot
+/// run here is worse than no candidate at all. `None` when no executable in the
+/// kit reveals a format: the answer is unknown, and a kit is only excluded on a
+/// positive mismatch.
 pub(crate) fn kit_tools_run_on_host(kit_root: &Path) -> Option<bool> {
     let bin_dir = kit_root.join("bin");
-    let qmake = crate::scan::QMAKE_EXECUTABLES
-        .iter()
-        .map(|name| bin_dir.join(name))
-        .find(|path| path.is_file())?;
+    // The measured Qt bins ship `qmake`, `qmake6` and `qt-cmake` in any
+    // combination, and a launcher script under one name must not hide the real
+    // binary under another: the first executable whose format is recognizable
+    // answers for the kit.
+    for name in crate::scan::QMAKE_PROBE_EXECUTABLES {
+        let path = bin_dir.join(name);
+        if !path.is_file() {
+            continue;
+        }
+        if let Some(format) = executable_format(&path) {
+            return Some(format == host_binary_format());
+        }
+    }
+    None
+}
+
+/// The executable container format of a file, from its first four bytes.
+fn executable_format(path: &Path) -> Option<BinaryFormat> {
     let mut magic = [0u8; 4];
-    let mut file = std::fs::File::open(qmake).ok()?;
+    let mut file = std::fs::File::open(path).ok()?;
     std::io::Read::read_exact(&mut file, &mut magic).ok()?;
-    binary_format(magic).map(|format| format == host_binary_format())
+    binary_format(magic)
 }
 
 /// Executable container formats that identify the platform a binary was built for.
@@ -401,6 +418,11 @@ pub(crate) fn contains_qt6_only_type_name(haystack: &str, name: &str) -> bool {
 /// reject.
 pub(crate) fn probe_source_projects(workspace: &Path, model_candidates: &[String]) -> Vec<String> {
     let mut found: Vec<(usize, PathBuf)> = Vec::new();
+    // Named candidates the disk could not confirm: they are neither a project
+    // this host can see nor a disqualified location, so they stay as the card's
+    // fallback — the user named that path and must be able to see and correct it
+    // there (#370) instead of being handed an empty field.
+    let mut unconfirmed: Vec<PathBuf> = Vec::new();
     for candidate in model_candidates {
         let Some(path) = normalize_workspace_candidate(workspace, candidate) else {
             continue;
@@ -417,19 +439,26 @@ pub(crate) fn probe_source_projects(workspace: &Path, model_candidates: &[String
         };
         // A named path only has to be a Qt project, not a migration artifact, and
         // not part of a Qt installation.
-        if is_qt_source_project(&path)
-            && !is_inside_migrated_harmony_project(&path)
-            && !is_inside_qt_installation(&path)
-        {
-            // A named project outside the workspace has no workspace-relative
-            // depth; `MAX_PROBE_DEPTH + 1` ranks it behind one that resolves
-            // inside the workspace.
-            let depth = path
-                .strip_prefix(workspace)
-                .map(|relative| relative.components().count())
-                .unwrap_or(MAX_PROBE_DEPTH + 1);
-            found.push((depth, path));
+        if is_inside_migrated_harmony_project(&path) || is_inside_qt_installation(&path) {
+            continue;
         }
+        if !is_qt_source_project(&path) {
+            // A path this host cannot see is not evidence against it: the user
+            // named it, so it stays as the card's fallback (#370). A path that
+            // does exist but is not a Qt project is a disk fact and stays out.
+            if !path.exists() {
+                unconfirmed.push(path);
+            }
+            continue;
+        }
+        // A named project outside the workspace has no workspace-relative
+        // depth; `MAX_PROBE_DEPTH + 1` ranks it behind one that resolves
+        // inside the workspace.
+        let depth = path
+            .strip_prefix(workspace)
+            .map(|relative| relative.components().count())
+            .unwrap_or(MAX_PROBE_DEPTH + 1);
+        found.push((depth, path));
     }
     // The model's candidate is preferred as the default. The ranking keeps a
     // migration artifact last (a project merely named `<app>-ohos` is still
@@ -455,10 +484,19 @@ pub(crate) fn probe_source_projects(workspace: &Path, model_candidates: &[String
         }
         roots.push(path);
     }
-    let mut candidates = roots
-        .into_iter()
-        .map(|path| path.to_string_lossy().into_owned())
-        .collect::<Vec<_>>();
+    let mut candidates = if roots.is_empty() {
+        // Nothing on disk matched: fall back to the paths the request named, so
+        // the card shows them as the options to confirm or correct.
+        unconfirmed
+            .into_iter()
+            .map(|path| path.to_string_lossy().into_owned())
+            .collect::<Vec<_>>()
+    } else {
+        roots
+            .into_iter()
+            .map(|path| path.to_string_lossy().into_owned())
+            .collect::<Vec<_>>()
+    };
     dedup_paths(&mut candidates);
     candidates.truncate(MAX_SOURCE_PROJECTS);
     candidates
