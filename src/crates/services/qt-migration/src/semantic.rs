@@ -178,7 +178,6 @@ pub fn build_intent_decision(output: &str) -> Option<TurnIntentDecision> {
             .and_then(Value::as_str)
             .map(str::trim)
             .filter(|p| !p.is_empty());
-        // A parent-directory path is never a value: it stays a hint the user has
         let path = path.filter(|path| !path.contains(".."));
         let normalized = match (state, path) {
             ("resolved", Some(path)) => {
@@ -587,7 +586,6 @@ fn absolute_path_at(chars: &[char], start: usize) -> Option<(String, usize)> {
     Some((path, end))
 }
 
-/// Separators and punctuation that end a path run. ASCII letters, digits and the
 fn is_path_run_stop(c: char) -> bool {
     c.is_whitespace()
         || "。，,;；、！？：!?\"'“”‘’（）()[]{}【】《》〈〉「」『』<>|*`".contains(c)
