@@ -692,10 +692,6 @@ pub struct QtScanCandidate {
     /// derivable from `qt_major`: a Qt6 host kit and a Qt6 target kit both
     /// report `Some(6)`.
     pub ohos_target_kit: bool,
-    /// Whether the kit's tools were built for the host this scan runs on, or
-    /// `None` when no qmake was readable. A kit built for another host (a
-    /// HarmonyOS-host SDK seen on macOS) cannot build anything here, so it is not
-    /// offered (#365).
     #[serde(default)]
     pub runs_on_host: Option<bool>,
     /// Priority tier the candidate came from.
@@ -711,8 +707,6 @@ pub struct QtMigrationScanResult {
 
 impl QtScanCandidate {
     /// Whether this candidate is a toolchain a HarmonyOS migration can actually
-    /// use: an OHOS target kit whose Qt generation the on-disk layout identifies
-    /// and whose tools run on this host.
     pub(crate) fn is_usable_toolchain(&self) -> bool {
         self.qt_major.is_some() && self.ohos_target_kit && self.runs_on_host != Some(false)
     }
@@ -797,8 +791,6 @@ pub(crate) fn scan_template_candidates(
         |template| {
             // Both facts describe the kit the template belongs to, when its location
             // identifies one; a standalone template reports `None` /
-            // `false`. A template is not a toolchain, so it claims nothing about
-            // the host its kit's tools run on.
             match resolve_kit_root_above(template) {
                 Some(kit_root) => (
                     detect_qt_major(kit_root),

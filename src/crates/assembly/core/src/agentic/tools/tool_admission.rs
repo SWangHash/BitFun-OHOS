@@ -119,8 +119,6 @@ impl DomainStateReader for SessionDomainStateStore {
             ));
         }
         if slot == &QT_MIGRATION_SLOT_WORKSPACE_ROOT {
-            // The migration write-scope check measures artifacts against the
-            // workspace of this session, not of whatever host answers last.
             return self
                 .session_manager
                 .session_workspace_path(&self.session_id)

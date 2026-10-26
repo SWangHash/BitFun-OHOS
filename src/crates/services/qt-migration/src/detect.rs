@@ -95,14 +95,6 @@ pub(crate) fn resolve_kit_root_above(dir: &Path) -> Option<&Path> {
         .find(|ancestor| detect_qt_major(ancestor).is_some() || is_ohos_target_kit(ancestor))
 }
 
-/// Kit root that identifies the generation of a **bound toolchain value**.
-///
-/// A user types whatever names their install, so the value may be the kit itself,
-/// its `bin` directory, the `qmake` executable, or the installer root that keeps
-/// the kit below a version directory (`<root>/6.12.0/<target>`). Only the kit
-/// answers `detect_qt_major`, and measuring the generation is what decides whether
-/// a version-strategy question is needed, so the value is resolved in every
-/// direction before giving up.
 pub(crate) fn resolve_bound_kit_root(value: &Path) -> Option<PathBuf> {
     let direct = resolve_kit_root(value);
     if detect_qt_major(direct).is_some() {
@@ -120,22 +112,8 @@ pub(crate) fn resolve_bound_kit_root(value: &Path) -> Option<PathBuf> {
         .find(|kit| detect_qt_major(kit).is_some())
 }
 
-/// Whether the kit's own tool executables are built for this host.
-///
-/// A Qt-for-HarmonyOS SDK is published per host platform with the same directory
-/// shape (`bin/qmake`, `lib/cmake/Qt5`, the OHOS platform plugin), so the layout
-/// cannot tell a kit that runs here from one built for HarmonyOS itself (#365):
-/// the executables' format is what can. A kit copied from another system must not
-/// be offered as a candidate — the migration builds with it, so a kit that cannot
-/// run here is worse than no candidate at all. `None` when no executable in the
-/// kit reveals a format: the answer is unknown, and a kit is only excluded on a
-/// positive mismatch.
 pub(crate) fn kit_tools_run_on_host(kit_root: &Path) -> Option<bool> {
     let bin_dir = kit_root.join("bin");
-    // The measured Qt bins ship `qmake`, `qmake6` and `qt-cmake` in any
-    // combination, and a launcher script under one name must not hide the real
-    // binary under another: the first executable whose format is recognizable
-    // answers for the kit.
     for name in crate::scan::QMAKE_PROBE_EXECUTABLES {
         let path = bin_dir.join(name);
         if !path.is_file() {
@@ -148,7 +126,6 @@ pub(crate) fn kit_tools_run_on_host(kit_root: &Path) -> Option<bool> {
     None
 }
 
-/// The executable container format of a file, from its first four bytes.
 fn executable_format(path: &Path) -> Option<BinaryFormat> {
     let mut magic = [0u8; 4];
     let mut file = std::fs::File::open(path).ok()?;
@@ -156,7 +133,6 @@ fn executable_format(path: &Path) -> Option<BinaryFormat> {
     binary_format(magic)
 }
 
-/// Executable container formats that identify the platform a binary was built for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum BinaryFormat {
     MachO,
@@ -168,7 +144,6 @@ fn binary_format(magic: [u8; 4]) -> Option<BinaryFormat> {
     match magic {
         [0x7f, b'E', b'L', b'F'] => Some(BinaryFormat::Elf),
         [b'M', b'Z', _, _] => Some(BinaryFormat::Pe),
-        // 32/64-bit Mach-O, both byte orders, and the fat (universal) header.
         [0xfe, 0xed, 0xfa, 0xce]
         | [0xfe, 0xed, 0xfa, 0xcf]
         | [0xce, 0xfa, 0xed, 0xfe]
@@ -418,10 +393,6 @@ pub(crate) fn contains_qt6_only_type_name(haystack: &str, name: &str) -> bool {
 /// reject.
 pub(crate) fn probe_source_projects(workspace: &Path, model_candidates: &[String]) -> Vec<String> {
     let mut found: Vec<(usize, PathBuf)> = Vec::new();
-    // Named candidates the disk could not confirm: they are neither a project
-    // this host can see nor a disqualified location, so they stay as the card's
-    // fallback — the user named that path and must be able to see and correct it
-    // there (#370) instead of being handed an empty field.
     let mut unconfirmed: Vec<PathBuf> = Vec::new();
     for candidate in model_candidates {
         let Some(path) = normalize_workspace_candidate(workspace, candidate) else {
@@ -443,18 +414,11 @@ pub(crate) fn probe_source_projects(workspace: &Path, model_candidates: &[String
             continue;
         }
         if !is_qt_source_project(&path) {
-            // A path this host cannot see is not evidence against it: the prompt
-            // named it, so the card offers it for the user to confirm or correct
-            // (#370), and submitting reports the path that is wrong. A path that
-            // does exist but is not a Qt project is a disk fact and stays out.
             if !path.exists() {
                 unconfirmed.push(path);
             }
             continue;
         }
-        // A named project outside the workspace has no workspace-relative
-        // depth; `MAX_PROBE_DEPTH + 1` ranks it behind one that resolves
-        // inside the workspace.
         let depth = path
             .strip_prefix(workspace)
             .map(|relative| relative.components().count())
@@ -471,10 +435,6 @@ pub(crate) fn probe_source_projects(workspace: &Path, model_candidates: &[String
             .then_with(|| a.0.cmp(&b.0))
             .then_with(|| path_key(&a.1).cmp(&path_key(&b.1)))
     });
-    // A project and a project nested inside it are the same migration target, and
-    // the outer one is the project the user means: a `.pro` subdirectory inside a
-    // qmake project is a subproject the build owns (#371). The surviving candidate
-    // comes first, so it is also the card's default.
     let mut roots: Vec<PathBuf> = Vec::new();
     for (_, path) in found {
         if roots
@@ -489,9 +449,6 @@ pub(crate) fn probe_source_projects(workspace: &Path, model_candidates: &[String
         .into_iter()
         .map(|path| path.to_string_lossy().into_owned())
         .collect::<Vec<_>>();
-    // Named paths the disk could not confirm come after whatever was verified: a
-    // usable project is the better default, and the user's own path is still there
-    // to pick or correct.
     candidates.extend(
         unconfirmed
             .into_iter()
@@ -502,8 +459,6 @@ pub(crate) fn probe_source_projects(workspace: &Path, model_candidates: &[String
     candidates
 }
 
-/// Whether `path` is `dir` or lives below it, comparing the normalized keys so a
-/// case- or separator-different spelling of one path still folds.
 fn is_inside_dir(path: &Path, dir: &Path) -> bool {
     let path = path_key(path);
     let dir = path_key(dir);

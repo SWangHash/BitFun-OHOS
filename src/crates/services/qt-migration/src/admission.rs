@@ -56,9 +56,6 @@ pub const QT_MIGRATION_SLOT_SKILL_DIR: DomainStateSlot = DomainStateSlot {
     namespace: QT_MIGRATION_STATE_NAMESPACE,
     key: "skill_dir",
 };
-/// Session workspace root (JSON string), resolved live by the host. It is what
-/// the write-scope check measures a migration artifact against, so it describes
-/// the session's workspace rather than the intake and is never persisted.
 pub const QT_MIGRATION_SLOT_WORKSPACE_ROOT: DomainStateSlot = DomainStateSlot {
     namespace: QT_MIGRATION_STATE_NAMESPACE,
     key: "workspaceRoot",
@@ -105,31 +102,20 @@ pub const REJECT_CODE_INPUT_REQUIRED: &str = "qt_migration_input_required";
 /// Stable rejection code used when the four inputs are bound but the managed
 /// Qt migration skill has not been loaded (or its receipt is stale).
 pub const REJECT_CODE_SKILL_REQUIRED: &str = "qt_migration_skill_required";
-/// Stable rejection code used when a file-writing tool aims outside the
-/// migration's own project directory (#352, #364).
 pub const REJECT_CODE_WRITE_SCOPE: &str = "qt_migration_write_outside_project";
 
-/// Write tools whose target path is readable before the call runs. The shell
-/// tool is deliberately absent: its targets are only known once the command has
-/// already run, so a scope check there would be guesswork.
 const SCOPED_WRITE_TOOLS: &[&str] = &["Write", "Edit", "Delete"];
 
 /// Path marker of the `Write` tool's payload, whose first line names the target.
 const WRITE_PAYLOAD_PATH_PREFIX: &str = "+++ ";
 
-/// Roots a migration may write into, resolved from host and intake state.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct QtMigrationWriteScope<'a> {
-    /// Session workspace root. `None` (unknown workspace) leaves writes
-    /// ungated rather than guessing where the workspace is.
     pub workspace_root: Option<&'a Path>,
-    /// The migration's own project directory, `<container>/<app-name>-ohos`.
     pub project_dir: Option<&'a Path>,
-    /// Managed roots the `__official__` scripts install into.
     pub managed_roots: &'a [&'a Path],
 }
 
-/// The path a scoped write tool targets, when the call carries one.
 fn scoped_write_target(tool_name: &str, input: Option<&Value>) -> Option<String> {
     let input = input?;
     let raw = match tool_name {
@@ -147,19 +133,12 @@ fn scoped_write_target(tool_name: &str, input: Option<&Value>) -> Option<String>
     (!raw.is_empty()).then(|| raw.to_string())
 }
 
-/// Whether the normalized `target` is `root` itself or sits below it.
 fn path_key_is_inside(root: &Path, target_key: &str) -> bool {
     let root_key = path_key(root);
     !root_key.is_empty()
         && (target_key == root_key || target_key.starts_with(&format!("{root_key}/")))
 }
 
-/// Keep every migration artifact inside the project directory or a managed
-/// root. Reports from the intake round were artifacts left in the workspace
-/// root, a pilot project built beside the workspace, and intermediate files
-/// unpacked next to a custom output container (#352, #364), so once the
-/// project directory is known nothing else is in scope. A session without one
-/// falls back to rejecting the workspace itself and the workspace's parent.
 pub fn check_migration_write_scope(
     tool_name: &str,
     input: Option<&Value>,
@@ -197,8 +176,6 @@ pub fn check_migration_write_scope(
     let kind = if path_key_is_inside(workspace_root, &target_key) {
         "outside_project"
     } else if scope.project_dir.is_none() {
-        // Without a project directory to measure against, only the shape the
-        // reports named is rejected.
         let Some(parent) = workspace_root
             .parent()
             .filter(|parent| parent.parent().is_some())
@@ -214,9 +191,6 @@ pub fn check_migration_write_scope(
         .parent()
         .filter(|parent| parent.parent().is_some())
     {
-        // A running migration with a known project directory writes nowhere
-        // else: a pilot project beside a custom output container, or a scratch
-        // file next to the workspace, is the same defect (#364).
         if path_key_is_inside(parent, &target_key) {
             "workspace_parent"
         } else {
@@ -377,8 +351,6 @@ impl ToolAdmissionPolicy for QtMigrationAdmissionPolicy {
             });
         }
         check_admission_for_intake(request.tool_name, request.input, &intake)?;
-        // Past this point the migration is running, so where its artifacts land
-        // is checked against the roots the host reports.
         if intake.status == QtMigrationIntakeStatus::NotApplicable {
             return Ok(());
         }
@@ -392,10 +364,6 @@ impl ToolAdmissionPolicy for QtMigrationAdmissionPolicy {
         let project_dir = intake
             .output_project_dir
             .clone()
-            // The latch is authoritative; a session whose intake predates it
-            // still derives the same directory the bound-inputs instruction
-            // names, so the gate cannot lock the migration out of its own
-            // project directory.
             .or_else(|| {
                 let container = intake.fields.get("output_project")?.value.clone()?;
                 let source = intake.fields.get("source_project")?.value.clone()?;
@@ -414,8 +382,6 @@ impl ToolAdmissionPolicy for QtMigrationAdmissionPolicy {
     }
 }
 
-/// Path carried by a host-resolved state slot, or `None` when the host does not
-/// report one for this session.
 fn slot_path(state: &dyn DomainStateReader, slot: &DomainStateSlot) -> Option<PathBuf> {
     state.get(slot)?.as_str().map(PathBuf::from)
 }
@@ -521,9 +487,6 @@ mod tests {
             let rejection = check_admission_for_intake("Write", None, &intake)
                 .expect_err("side effects must be rejected until the skill is loaded");
             assert_eq!(rejection.code, REJECT_CODE_SKILL_REQUIRED);
-            // The official-template install is the skill's flow, so the download
-            // script cannot run before the skill is loaded either: the card answer
-            // must lead to loading the skill, not to a standalone shell command.
             let rejection = check_admission_for_intake(
                 "ExecCommand",
                 Some(&serde_json::json!({
@@ -794,7 +757,6 @@ mod tests {
             .is_ok());
     }
 
-    /// Intake whose four paths are bound and whose project directory is latched.
     fn bound_intake(project_dir: &str) -> QtMigrationIntakeStateSnapshot {
         let mut intake = snapshot_with_receipt(
             QtMigrationIntakeStatus::NeedsValidation,
@@ -804,7 +766,6 @@ mod tests {
         intake
     }
 
-    /// Bound intake that predates the latched project directory.
     fn intake_with_paths(container: &str, source: &str) -> QtMigrationIntakeStateSnapshot {
         let mut intake = snapshot_with_receipt(
             QtMigrationIntakeStatus::NeedsValidation,
@@ -858,8 +819,6 @@ mod tests {
 
     #[test]
     fn writes_inside_the_project_and_the_managed_roots_pass() {
-        // 工程目录内（工程目录本身就是容器下的 <app-name>-ohos）与托管根都要放行，
-        // 否则正常迁移会被自己的门禁挡住。
         assert!(scope_allows(
             "Write",
             serde_json::json!({"payload": "+++ /work/qt6/app/app-ohos/entry/src/main.ets\nx"})
@@ -876,8 +835,6 @@ mod tests {
 
     #[test]
     fn an_artifact_left_in_the_workspace_is_rejected() {
-        // #352：迁移中间产物不许落在工作区里（容器就是工作区根时，工作区根下只应多出
-        // 那一个工程目录）。
         for input in [
             serde_json::json!({"payload": "+++ /work/qt6/app/build.log\nx"}),
             serde_json::json!({"payload": "+++ /work/qt6/app/entry/src/main.ets\nx"}),
@@ -890,7 +847,6 @@ mod tests {
                 "恢复动作要指向工程目录"
             );
         }
-        // 相对路径按工作区解析，同样拦住。
         assert_eq!(
             scope_error("Delete", serde_json::json!({"path": "entry/src/main.ets"})).kind,
             "outside_project"
@@ -899,13 +855,11 @@ mod tests {
 
     #[test]
     fn an_artifact_beside_the_workspace_is_rejected() {
-        // #364：工作区的父目录下也不许出现中间文件/试点工程目录。
         let rejection = scope_error(
             "Write",
             serde_json::json!({"payload": "+++ /work/qt6/pilot-project/ohos/entry/src/main.ets\nx"}),
         );
         assert_eq!(rejection.kind, "workspace_parent");
-        // 自定义输出容器（工作区之外）里，工程目录及其之下照常放行。
         let custom_container = PathBuf::from("/out/myapp-ohos");
         let owned = PathBuf::from("/work/qt6/app");
         let roots: Vec<&Path> = Vec::new();
@@ -919,7 +873,6 @@ mod tests {
             },
         )
         .is_ok());
-        // 同一个自定义容器里另建的试点工程目录仍然不合格：迁移只有工程目录这一个落点。
         let rejection = check_migration_write_scope(
             "Write",
             Some(&serde_json::json!({"payload": "+++ /out/pilot/entry/src/main.ets\nx"})),
@@ -931,7 +884,6 @@ mod tests {
         )
         .expect_err("a pilot directory beside the output container must be rejected");
         assert_eq!(rejection.kind, "outside_project");
-        // 更远处（例如系统临时目录）同样不是迁移的落点。
         let rejection = scope_error(
             "Write",
             serde_json::json!({"payload": "+++ /tmp/build/notes.txt\nx"}),
@@ -941,7 +893,6 @@ mod tests {
 
     #[test]
     fn an_unknown_workspace_leaves_writes_ungated() {
-        // 宿主没给出工作区时不猜位置：宁可不管，也不误拦。
         let project = PathBuf::from("/work/qt6/app/app-ohos");
         let roots: Vec<&Path> = Vec::new();
         assert!(check_migration_write_scope(
@@ -954,7 +905,6 @@ mod tests {
             },
         )
         .is_ok());
-        // 没有工程目录可量、工作区又直接挂在卷根时，工作区外不判（没有可用的"父目录"）。
         let volume_root = PathBuf::from("/proj");
         assert!(check_migration_write_scope(
             "Write",
@@ -966,7 +916,6 @@ mod tests {
             },
         )
         .is_ok());
-        // 但工作区里照样只认工程目录。
         assert_eq!(
             check_migration_write_scope(
                 "Write",
@@ -981,7 +930,6 @@ mod tests {
             .kind,
             "outside_project"
         );
-        // 读类工具与 shell 命令不在这条规则里（shell 的目标路径运行时才知道）。
         let owned = PathBuf::from("/work/qt6/app");
         for (tool, input) in [
             ("Read", serde_json::json!({"file_path": "/work/qt6/app/build.log"})),
@@ -1002,8 +950,6 @@ mod tests {
 
     #[test]
     fn a_session_without_the_latched_directory_still_owns_its_project_directory() {
-        // 老会话的 intake 里没有固化目录：门禁必须按同一套推导认出工程目录，
-        // 否则会把迁移挡在自己的工程目录之外。
         let policy = QtMigrationAdmissionPolicy;
         let reader = |intake: QtMigrationIntakeStateSnapshot| SlotReader {
             active: true,
@@ -1061,7 +1007,6 @@ mod tests {
         assert_eq!(rejection.code, REJECT_CODE_WRITE_SCOPE);
         assert_eq!(rejection.kind, "outside_project");
 
-        // 同一会话里写在工程目录内则照常放行。
         let allowed = ToolAdmissionRequest {
             tool_name: "Write",
             input: Some(

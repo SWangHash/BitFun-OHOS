@@ -162,10 +162,6 @@ fn reset_project_bindings(
     next.loaded_skill_receipt = None;
     // A new migration task decides its own version strategy: keeping a previous
     // `Abort` (or a `Pending` that was never answered) would leave the fresh intake
-    // permanently blocked. A recorded *proceed* decision is different — it belongs to
-    // the (project, toolchain) pair it was measured on, so it travels with the pair
-    // and the same pair is never asked again (#366); a different pair is measured and
-    // asked afresh by the version gate.
     next.version_strategy = match snapshot.version_strategy {
         decision @ (QtMigrationVersionStrategy::Downgrade { .. }
         | QtMigrationVersionStrategy::Continue { .. }) => decision,
@@ -291,9 +287,6 @@ pub fn qt_migration_apply_validated_answers(
             entry.state = QtMigrationFieldResolutionState::Resolved;
         }
     }
-    // The project directory is named once, by the runtime: a container that already
-    // holds `<app>-ohos` means this is a later migration of the same project, and
-    // reusing that name would write into the previous result (#347).
     if next.output_project_dir.is_none() {
         let bound = |field: &str| {
             next.fields

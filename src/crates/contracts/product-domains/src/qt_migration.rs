@@ -149,12 +149,6 @@ pub struct QtMigrationIntakeStateSnapshot {
     /// before this field existed keep loading.
     #[serde(default)]
     pub version_strategy: QtMigrationVersionStrategy,
-    /// The HarmonyOS project directory this migration owns:
-    /// `<output container>/<app-name>-ohos`, with the smallest free suffix when
-    /// that name is already taken. Computed once, when the four inputs bind, so
-    /// every later turn names the same directory and a re-migration of the same
-    /// project cannot land on the previous result. Defaulted on deserialization so
-    /// snapshots written before this field existed keep loading.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub output_project_dir: Option<String>,
 }

@@ -35,9 +35,6 @@ pub(crate) async fn record_version_mismatch_if_any(
         session_manager.domain_state_get(session_id, &QT_MIGRATION_SLOT_INTAKE_STATE),
     );
     let (project, toolchain) = measure_bound_generation_mismatch(&snapshot, official_qt_major())?;
-    // A decision already recorded for this exact (project, toolchain) pair is the
-    // user's own answer: re-measuring the same mismatch — a later turn of the same
-    // migration, or the same pair bound again — must not ask a second time (#366).
     if snapshot.version_strategy.measured_generations() == Some((project, toolchain)) {
         return None;
     }
