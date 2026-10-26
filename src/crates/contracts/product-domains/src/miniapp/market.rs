@@ -377,9 +377,9 @@ mod tests {
             "../../../../../shared/miniapp-market-contract-fixtures/listing-detail.json"
         );
         let mut listing: serde_json::Value = serde_json::from_str(fixture).unwrap();
-        rename_min_version_field(listing.as_object_mut().unwrap(), "minBitFunVersion");
+        rename_min_version_field(listing.as_object_mut().unwrap(), "minOpenBitFunVersion");
         for release in listing["releases"].as_array_mut().unwrap() {
-            rename_min_version_field(release.as_object_mut().unwrap(), "minBitFunVersion");
+            rename_min_version_field(release.as_object_mut().unwrap(), "minOpenBitFunVersion");
         }
 
         let detail: MarketListingDetail = serde_json::from_value(listing).unwrap();
@@ -411,7 +411,7 @@ mod tests {
             repository_url: None,
         };
         let mut value = serde_json::to_value(&draft).unwrap();
-        rename_min_version_field(value.as_object_mut().unwrap(), "minBitFunVersion");
+        rename_min_version_field(value.as_object_mut().unwrap(), "minOpenBitFunVersion");
 
         let decoded: MarketSubmissionDraftRequest = serde_json::from_value(value).unwrap();
         assert_eq!(decoded, draft);

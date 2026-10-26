@@ -695,7 +695,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
               // Oversized documents stay in source mode: the rich renderer
               // parses the whole document on the main thread and freezes.
               if (isLargeMarkdownRef.current && value === 'ir') {
-                notification.info(t('editor.markdownEditor.largeFileSourceOnly'));
+                notification.info(t('editor.markdownEditor.notice.largeFileSourceOnly'));
                 return;
               }
               if (documentSession) documentSession.markdownMode = value as 'ir' | 'source';
