@@ -14,6 +14,8 @@ import { globalEventBus } from '@/infrastructure/event-bus';
 import { commandExecutor } from '@/shared/context-menu-system/commands/CommandExecutor';
 import { ContextType, type FileNodeContext } from '@/shared/context-menu-system/types/context.types';
 
+const modKey = /Mac|iPhone|iPad|iPod/.test(navigator.userAgent) ? '⌘' : 'Ctrl';
+
 function findNodeByPath(nodes: FileSystemNode[], path: string): FileSystemNode | undefined {
   for (const node of nodes) {
     if (pathsEquivalentFs(node.path, path)) {
