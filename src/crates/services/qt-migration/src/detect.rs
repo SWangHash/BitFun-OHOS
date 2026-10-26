@@ -443,8 +443,9 @@ pub(crate) fn probe_source_projects(workspace: &Path, model_candidates: &[String
             continue;
         }
         if !is_qt_source_project(&path) {
-            // A path this host cannot see is not evidence against it: the user
-            // named it, so it stays as the card's fallback (#370). A path that
+            // A path this host cannot see is not evidence against it: the prompt
+            // named it, so the card offers it for the user to confirm or correct
+            // (#370), and submitting reports the path that is wrong. A path that
             // does exist but is not a Qt project is a disk fact and stays out.
             if !path.exists() {
                 unconfirmed.push(path);
@@ -484,19 +485,18 @@ pub(crate) fn probe_source_projects(workspace: &Path, model_candidates: &[String
         }
         roots.push(path);
     }
-    let mut candidates = if roots.is_empty() {
-        // Nothing on disk matched: fall back to the paths the request named, so
-        // the card shows them as the options to confirm or correct.
+    let mut candidates = roots
+        .into_iter()
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+    // Named paths the disk could not confirm come after whatever was verified: a
+    // usable project is the better default, and the user's own path is still there
+    // to pick or correct.
+    candidates.extend(
         unconfirmed
             .into_iter()
-            .map(|path| path.to_string_lossy().into_owned())
-            .collect::<Vec<_>>()
-    } else {
-        roots
-            .into_iter()
-            .map(|path| path.to_string_lossy().into_owned())
-            .collect::<Vec<_>>()
-    };
+            .map(|path| path.to_string_lossy().into_owned()),
+    );
     dedup_paths(&mut candidates);
     candidates.truncate(MAX_SOURCE_PROJECTS);
     candidates

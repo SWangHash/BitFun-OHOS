@@ -3426,37 +3426,39 @@ impl ExecutionEngine {
                             migration_active_slot_value(true),
                         )
                         .await;
-                    // A prompt that names all four inputs starts the migration
-                    // directly: the paths are the user's statement of intent, and
-                    // whether they resolve on this host is the migration's problem
-                    // to surface, not a reason to ask the question card again.
-                    let resolved_paths = &decision.resolved_paths;
-                    let mut all_bound = false;
-                    if resolved_paths.is_object() {
-                        let mut bindings = std::collections::BTreeMap::new();
-                        all_bound = true;
-                        for field in bitfun_qt_migration::state::QT_MIGRATION_INTAKE_REQUIRED_FIELDS
-                        {
-                            if let Some(path) = resolved_paths.get(field).and_then(|v| v.as_str()) {
-                                bindings.insert(field.to_string(), path.to_string());
-                            } else {
-                                all_bound = false;
-                            }
-                        }
-                        if all_bound && !bindings.is_empty() {
-                            let bound_intake =
-                                bitfun_qt_migration::state::qt_migration_apply_validated_answers(
-                                    &activated_intake,
-                                    &bindings,
-                                );
-                            self.session_manager
-                                .domain_state_set(
-                                    &context.session_id,
-                                    &QT_MIGRATION_SLOT_INTAKE_STATE,
-                                    intake_snapshot_to_slot_value(&bound_intake),
-                                )
-                                .await;
-                        }
+                    // A prompt that names all four inputs and that this host can
+                    // actually see starts the migration without the question card;
+                    // a named path the disk does not have is the user's to correct,
+                    // so the card still appears and offers their paths. A remote
+                    // workspace is never judged here: this process cannot see those
+                    // paths, so the card stays the way inputs are confirmed.
+                    let is_remote = self
+                        .session_manager
+                        .get_session(&context.session_id)
+                        .map(|session| {
+                            session.config.remote_connection_id.is_some()
+                                || session.config.remote_ssh_host.is_some()
+                        })
+                        .unwrap_or(false);
+                    let bindings = if is_remote {
+                        None
+                    } else {
+                        bitfun_qt_migration::semantic::prompt_bindings(&decision)
+                    };
+                    let all_bound = bindings.is_some();
+                    if let Some(bindings) = bindings {
+                        let bound_intake =
+                            bitfun_qt_migration::state::qt_migration_apply_validated_answers(
+                                &activated_intake,
+                                &bindings,
+                            );
+                        self.session_manager
+                            .domain_state_set(
+                                &context.session_id,
+                                &QT_MIGRATION_SLOT_INTAKE_STATE,
+                                intake_snapshot_to_slot_value(&bound_intake),
+                            )
+                            .await;
                     }
                     // The engine only stashes the facts the turn-instruction
                     // contribution renders; the binding outcome is domain-owned.
