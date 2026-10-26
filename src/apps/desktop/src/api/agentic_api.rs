@@ -2186,9 +2186,6 @@ pub async fn update_session_permission_mode(
         .update_session_permission_mode(&session_id, mode)
         .await
         .map_err(|error| format!("Failed to update session permission mode: {error}"))?;
-    if let Some(turn_id) = requested_turn_id {
-        session_manager.clear_active_turn_permission_mode(&session_id, turn_id);
-    }
 
     let active_turn_id = requested_turn_id.and_then(|turn_id| {
         session_manager
@@ -2203,10 +2200,15 @@ pub async fn update_session_permission_mode(
     });
     // The running round keeps the policy it resolved at its boundary, so the
     // requests it already raised would stay on screen under a mode that no
-    // longer asks.
+    // longer asks. Settle them while the running turn's own selection is still
+    // observable, so this session-level change cannot widen a turn the user
+    // keeps asking on; the selection is dropped afterwards for the next rounds.
     coordinator
         .settle_pending_permissions_after_mode_change(&session_id, active_turn_id.as_deref())
         .await;
+    if let Some(turn_id) = requested_turn_id {
+        session_manager.clear_active_turn_permission_mode(&session_id, turn_id);
+    }
     Ok(SessionPermissionModeResponse {
         mode: session_manager.session_permission_mode(&session_id),
         turn_mode: active_turn_id

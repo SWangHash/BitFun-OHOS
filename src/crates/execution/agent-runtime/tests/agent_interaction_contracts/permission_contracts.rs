@@ -1073,7 +1073,7 @@ async fn mode_change_answers_only_the_pending_requests_of_its_own_turn() {
 
     assert_eq!(
         manager
-            .auto_approve_pending_for_turn("session-a", Some("turn-a"))
+            .auto_approve_pending_for_turn("session-a", Some("turn-a"), |_, _| true)
             .await
             .expect("auto approve the changed turn"),
         vec!["request-owned".to_string()]
@@ -1096,7 +1096,7 @@ async fn mode_change_answers_only_the_pending_requests_of_its_own_turn() {
 }
 
 #[tokio::test]
-async fn mode_change_without_a_turn_settles_unknown_turn_requests_of_its_session() {
+async fn mode_change_settles_requests_of_its_session_that_have_no_owning_turn() {
     let (manager, _) = manager();
     let _registered_without_turn = manager
         .register(request("request-untracked", "session-a"))
@@ -1109,7 +1109,7 @@ async fn mode_change_without_a_turn_settles_unknown_turn_requests_of_its_session
 
     assert_eq!(
         manager
-            .auto_approve_pending_for_turn("session-a", Some("turn-a"))
+            .auto_approve_pending_for_turn("session-a", Some("turn-a"), |_, _| true)
             .await
             .expect("auto approve the session scope"),
         vec!["request-untracked".to_string()]
@@ -1121,6 +1121,93 @@ async fn mode_change_without_a_turn_settles_unknown_turn_requests_of_its_session
             .map(|request| request.request_id)
             .collect::<Vec<_>>(),
         vec!["request-other".to_string()]
+    );
+}
+
+#[tokio::test]
+async fn mode_change_keeps_the_requests_the_caller_still_asks_for() {
+    let (manager, _) = manager();
+    let kept = manager
+        .register_batch_for_turn(vec![request("request-kept", "session-a")], "turn-a")
+        .await
+        .expect("register turn-owned request")
+        .pop()
+        .expect("permission receiver");
+    let settled = manager
+        .register_batch_for_turn(vec![request("request-settled", "session-a")], "turn-b")
+        .await
+        .expect("register sibling turn request")
+        .pop()
+        .expect("permission receiver");
+
+    assert_eq!(
+        manager
+            .auto_approve_pending_for_turn("session-a", None, |_request, owner_turn_id| {
+                owner_turn_id != Some("turn-a")
+            })
+            .await
+            .expect("auto approve the settled turns"),
+        vec!["request-settled".to_string()]
+    );
+    assert_eq!(
+        manager
+            .pending_requests()
+            .into_iter()
+            .map(|request| request.request_id)
+            .collect::<Vec<_>>(),
+        vec!["request-kept".to_string()]
+    );
+    assert_eq!(
+        settled.wait().await,
+        PermissionWaitOutcome::Replied(PermissionReply::Once)
+    );
+
+    // The kept request is still answerable by a human, and settling the other
+    // turn never touched it.
+    manager
+        .reply(
+            "request-kept",
+            PermissionReply::Once,
+            PermissionReplySource::User,
+        )
+        .await
+        .expect("answer the kept request");
+    assert_eq!(
+        kept.wait().await,
+        PermissionWaitOutcome::Replied(PermissionReply::Once)
+    );
+}
+
+#[tokio::test]
+async fn mode_change_leaves_non_interactive_registrations_to_their_owner() {
+    let (manager, _) = manager();
+    let owned_elsewhere = manager
+        .register_batch_non_interactive_for_turn(
+            vec![request("request-auto-approved", "session-a")],
+            "turn-a",
+        )
+        .await
+        .expect("register non-interactive request")
+        .pop()
+        .expect("permission receiver");
+
+    assert!(manager
+        .auto_approve_pending_for_turn("session-a", Some("turn-a"), |_, _| true)
+        .await
+        .expect("auto approve the session scope")
+        .is_empty());
+    // The registering pipeline still owns the answer.
+    manager
+        .reply(
+            "request-auto-approved",
+            PermissionReply::Once,
+            PermissionReplySource::AutoApprove,
+        )
+        .await
+        .expect("the pipeline answers its own non-interactive request");
+    assert_eq!(
+        owned_elsewhere.wait().await,
+        PermissionWaitOutcome::Replied(PermissionReply::Once)
     );
 }
 

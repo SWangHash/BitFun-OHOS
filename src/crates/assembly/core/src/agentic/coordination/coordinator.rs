@@ -9533,38 +9533,45 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
     /// re-plan them, so answer the ones the new selection makes unnecessary and
     /// let the next round resolve the mode on its own.
     ///
+    /// Every request is judged by the turn that raised it. That turn may carry
+    /// its own selection, which wins over the session-level value the caller
+    /// just changed, so a session change never widens a turn the user kept
+    /// asking on.
+    ///
     /// Returns how many pending requests were answered.
     pub async fn settle_pending_permissions_after_mode_change(
         &self,
         session_id: &str,
         turn_id: Option<&str>,
     ) -> usize {
-        let session_manager = self.get_session_manager();
-        let effective_mode = resolve_permission_mode(
-            PermissionModeLayers::new(default_permission_mode_from_global_config().await)
-                .with_session(session_manager.session_permission_mode(session_id))
-                .with_turn(turn_id.and_then(|turn_id| {
-                    session_manager.active_turn_permission_mode(session_id, turn_id)
-                })),
-        )
-        .mode;
-        if effective_mode == PermissionMode::Ask {
-            return 0;
-        }
         let Some(manager) = self.tool_pipeline.permission_request_manager() else {
             return 0;
         };
+        let session_manager = self.get_session_manager();
+        let session_mode = session_manager.session_permission_mode(session_id);
+        let global_default = default_permission_mode_from_global_config().await;
+        let settle_mode = |owner_turn_id: Option<&str>| {
+            settle_pending_permission_mode(
+                global_default,
+                session_mode,
+                owner_turn_id.and_then(|owner| {
+                    session_manager.active_turn_permission_mode(session_id, owner)
+                }),
+            )
+        };
         match manager
-            .auto_approve_pending_for_turn(session_id, turn_id)
+            .auto_approve_pending_for_turn(session_id, turn_id, |_request, owner_turn_id| {
+                settle_mode(owner_turn_id.or(turn_id)) != PermissionMode::Ask
+            })
             .await
         {
             Ok(resolved) => {
                 if !resolved.is_empty() {
                     info!(
-                        "Auto-approved pending permission requests after a mode change: session_id={}, turn_id={:?}, mode={}, count={}",
+                        "Auto-approved pending permission requests after a mode change: session_id={}, turn_id={:?}, session_mode={:?}, count={}",
                         session_id,
                         turn_id,
-                        effective_mode,
+                        session_mode,
                         resolved.len()
                     );
                 }
@@ -9572,8 +9579,8 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             }
             Err(error) => {
                 warn!(
-                    "Failed to auto-approve pending permission requests after a mode change: session_id={}, turn_id={:?}, mode={}, error={}",
-                    session_id, turn_id, effective_mode, error
+                    "Failed to auto-approve pending permission requests after a mode change: session_id={}, turn_id={:?}, session_mode={:?}, error={}",
+                    session_id, turn_id, session_mode, error
                 );
                 0
             }
@@ -15511,6 +15518,26 @@ fn permission_mode_from_metadata(metadata: Option<&serde_json::Value>) -> Option
         .and_then(PermissionMode::parse)
 }
 
+/// Resolves the mode one pending permission request has to live under after a
+/// permission mode change.
+///
+/// The request belongs to the turn that raised it, so that turn's own selection
+/// is the strongest layer: a session-level change must never widen a turn the
+/// user explicitly kept asking on. Without a turn selection the request follows
+/// the same `session -> global` fallback its owning round would resolve.
+fn settle_pending_permission_mode(
+    global_default: PermissionMode,
+    session_mode: Option<PermissionMode>,
+    owner_turn_mode: Option<PermissionMode>,
+) -> PermissionMode {
+    resolve_permission_mode(
+        PermissionModeLayers::new(global_default)
+            .with_session(session_mode)
+            .with_turn(owner_turn_mode),
+    )
+    .mode
+}
+
 async fn new_session_memory_mode_from_global_config() -> SessionMemoryMode {
     match crate::service::config::get_global_config_service().await {
         Ok(service) => {
@@ -15623,12 +15650,13 @@ mod tests {
         revoke_interrupted_turn_intent_or_observe_commit, runtime_port_error_preserving_message,
         runtime_session_summary, runtime_tool_restrictions_for_session_lifetime,
         runtime_transcript_messages_from_turns, session_storage_workspace_locator,
-        snapshot_normal_session_model, turn_review_manifest_for_agent,
-        validate_required_lineage_turns_settled, ActiveSubagentExecution,
-        BackgroundSubagentWaitMode, ContextCompactionOutcome, ConversationCoordinator,
-        DialogSubmissionPolicy, DialogTriggerSource, InterruptedTurnIntentState,
-        ManualCompactionCommitGate, SessionMemoryMode, SessionReferenceLocator,
-        SessionRelationshipKind, SubagentExecutionRequest, TEST_AGENT_MODEL_DEFAULTS,
+        settle_pending_permission_mode, snapshot_normal_session_model,
+        turn_review_manifest_for_agent, validate_required_lineage_turns_settled,
+        ActiveSubagentExecution, BackgroundSubagentWaitMode, ContextCompactionOutcome,
+        ConversationCoordinator, DialogSubmissionPolicy, DialogTriggerSource,
+        InterruptedTurnIntentState, ManualCompactionCommitGate, SessionMemoryMode,
+        SessionReferenceLocator, SessionRelationshipKind, SubagentExecutionRequest,
+        TEST_AGENT_MODEL_DEFAULTS,
     };
     use crate::agentic::agents::ExternalSubagentModelBinding;
     use crate::agentic::coordination::coordination_store::{
@@ -16693,6 +16721,51 @@ mod tests {
         assert_eq!(
             permission_mode_from_metadata(Some(&serde_json::json!({ "other": "ask" }))),
             None
+        );
+    }
+
+    #[test]
+    fn settle_permission_mode_keeps_the_owning_turn_selection_over_the_session() {
+        // A turn the user explicitly kept asking on is never widened by a
+        // session-level change, whichever mode that change selected.
+        assert_eq!(
+            settle_pending_permission_mode(
+                PermissionMode::FullAccess,
+                Some(PermissionMode::FullAccess),
+                Some(PermissionMode::Ask),
+            ),
+            PermissionMode::Ask
+        );
+        assert_eq!(
+            settle_pending_permission_mode(
+                PermissionMode::AutoApprove,
+                Some(PermissionMode::AutoApprove),
+                Some(PermissionMode::Ask),
+            ),
+            PermissionMode::Ask
+        );
+        // Without a turn selection the request follows the session the user
+        // just changed, then the user-level default.
+        assert_eq!(
+            settle_pending_permission_mode(
+                PermissionMode::Ask,
+                Some(PermissionMode::FullAccess),
+                None,
+            ),
+            PermissionMode::FullAccess
+        );
+        assert_eq!(
+            settle_pending_permission_mode(PermissionMode::AutoApprove, None, None),
+            PermissionMode::AutoApprove
+        );
+        // A relaxing turn selection still wins over a narrower session value.
+        assert_eq!(
+            settle_pending_permission_mode(
+                PermissionMode::Ask,
+                Some(PermissionMode::Ask),
+                Some(PermissionMode::AutoApprove),
+            ),
+            PermissionMode::AutoApprove
         );
     }
 

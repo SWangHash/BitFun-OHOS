@@ -290,15 +290,19 @@ pub(crate) async fn session_permission_mode(
                 .update_session_permission_mode(session_id, mode)
                 .await
                 .map_err(|e| e.to_string())?;
+        }
+        // The round that raised the pending requests cannot re-plan them, so
+        // answer the ones the new selection makes unnecessary. Settle before a
+        // session-level change drops the running turn's own selection, so this
+        // change cannot widen a turn the user keeps asking on.
+        manager
+            .settle_pending_permissions_after_mode_change(session_id, active_turn_id.as_deref())
+            .await;
+        if !active_turn_only {
             if let Some(turn_id) = optional_string(request, "turnId") {
                 manager.clear_active_turn_permission_mode(session_id, &turn_id);
             }
         }
-        // The round that raised the pending requests cannot re-plan them, so
-        // answer the ones the new selection makes unnecessary.
-        manager
-            .settle_pending_permissions_after_mode_change(session_id, active_turn_id.as_deref())
-            .await;
     }
     Ok(serde_json::json!({
         "mode": manager.session_permission_mode(session_id),
