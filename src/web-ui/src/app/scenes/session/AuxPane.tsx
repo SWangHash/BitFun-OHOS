@@ -20,6 +20,7 @@ import { useI18n } from '@/infrastructure/i18n';
 import type { PanelContent as OldPanelContent } from '../../components/panels/base/types';
 import type { PanelContent } from '../../components/panels/content-canvas/types';
 import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
+import { appManager } from '@/app/services/AppManager';
 import { createLogger } from '@/shared/utils/logger';
 import { useMigrationAutoOpen } from '@/features/qt-ohos-migration/hooks/useMigrationAutoOpen';
 
@@ -120,6 +121,20 @@ const AuxPane = forwardRef<AuxPaneRef, AuxPaneProps>(
     ]);
 
     const prevWorkspaceIdRef = useRef<string | undefined>(undefined);
+    const panelOpenBySessionRef = useRef(new Map<string, boolean>());
+
+    const restoreRememberedBrowserPanel = useCallback((
+      sessionId: string | null,
+      hasVisibleOwnedBrowserTab: boolean,
+    ) => {
+      if (
+        sessionId
+        && hasVisibleOwnedBrowserTab
+        && panelOpenBySessionRef.current.get(sessionId) === true
+      ) {
+        expandSessionAuxPane();
+      }
+    }, []);
 
     const syncAgentCanvasWorkspace = useCallback((next: string | undefined) => {
       const prev = prevWorkspaceIdRef.current;
@@ -130,9 +145,11 @@ const AuxPane = forwardRef<AuxPaneRef, AuxPaneProps>(
         to: next ?? '(none)',
       });
       switchAgentCanvasWorkspace(prev ?? null, next ?? null);
-      syncSessionOwnedBrowserTabs(flowChatStore.getState().activeSessionId);
+      const sessionId = flowChatStore.getState().activeSessionId;
+      const { hasVisibleOwnedBrowserTab } = syncSessionOwnedBrowserTabs(sessionId);
+      restoreRememberedBrowserPanel(sessionId, hasVisibleOwnedBrowserTab);
       prevWorkspaceIdRef.current = next;
-    }, [syncSessionOwnedBrowserTabs]);
+    }, [restoreRememberedBrowserPanel, syncSessionOwnedBrowserTabs]);
 
     useEffect(() => {
       syncAgentCanvasWorkspace(workspaceId);
@@ -140,15 +157,28 @@ const AuxPane = forwardRef<AuxPaneRef, AuxPaneProps>(
 
     useEffect(() => {
       let previousSessionId: string | null | undefined;
+      // Session-owned browser tabs are hidden rather than closed. Remember the
+      // user's layout so an empty session's automatic collapse is reversible.
       const sync = (sessionId: string | null) => {
         if (sessionId === previousSessionId) return;
+        const isSessionTransition = previousSessionId !== undefined;
+        if (previousSessionId) {
+          panelOpenBySessionRef.current.set(
+            previousSessionId,
+            !appManager.getState().layout.rightPanelCollapsed,
+          );
+        }
+        const { hasVisibleOwnedBrowserTab, hasVisibleTab } = syncSessionOwnedBrowserTabs(sessionId);
+        if (isSessionTransition && !hasVisibleTab) {
+          collapseSessionAuxPane();
+        }
+        restoreRememberedBrowserPanel(sessionId, hasVisibleOwnedBrowserTab);
         previousSessionId = sessionId;
-        syncSessionOwnedBrowserTabs(sessionId);
       };
 
       sync(flowChatStore.getState().activeSessionId);
       return flowChatStore.subscribe(state => sync(state.activeSessionId));
-    }, [syncSessionOwnedBrowserTabs]);
+    }, [restoreRememberedBrowserPanel, syncSessionOwnedBrowserTabs]);
 
     useEffect(() => {
       const removeListener = workspaceManager.addEventListener((event) => {

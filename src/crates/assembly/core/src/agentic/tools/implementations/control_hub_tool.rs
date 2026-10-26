@@ -30,18 +30,19 @@ use crate::agentic::tools::browser_control::session_registry::{
 use crate::agentic::tools::framework::{
     Tool, ToolExposure, ToolRenderOptions, ToolResult, ToolUseContext, ValidationResult,
 };
+use crate::infrastructure::events::get_global_event_system;
+use crate::infrastructure::events::BackendEvent;
 use crate::service::config::{get_global_config_service, GlobalConfig};
 use crate::util::errors::{BitFunError, BitFunResult};
 use crate::util::types::ToolImageAttachment;
-use crate::infrastructure::events::get_global_event_system;
-use crate::infrastructure::events::BackendEvent;
 use async_trait::async_trait;
 use bitfun_services_core::system::{truncate_with_marker, LocalSystemProvider};
 #[cfg(target_env = "ohos")]
 use bitfun_services_integrations::browser_control::{
-    close_arkweb_browser_webview, create_arkweb_browser_webview, default_arkweb_automation_target,
-    list_arkweb_automation_targets, register_arkweb_automation_target,
-    remove_arkweb_automation_target, set_default_arkweb_automation_target, ArkWebAutomationTarget,
+    arkweb_browser_host_available, close_arkweb_browser_webview, create_arkweb_browser_webview,
+    default_arkweb_automation_target, list_arkweb_automation_targets,
+    register_arkweb_automation_target, remove_arkweb_automation_target,
+    set_default_arkweb_automation_target, ArkWebAutomationTarget,
 };
 #[cfg(target_env = "ohos")]
 use log::info;
@@ -358,6 +359,33 @@ impl ControlHubTool {
 
         #[cfg(not(target_env = "ohos"))]
         Self::browser_connect_backend_from_params(params)
+    }
+
+    fn use_builtin_browser_backend(
+        is_ohos: bool,
+        target_kind: BrowserTargetKind,
+        target_kind_was_explicit: bool,
+        requested_backend: Option<BrowserConnectBackend>,
+        current_session_is_builtin: bool,
+        has_recoverable_builtin: bool,
+    ) -> bool {
+        if is_ohos && target_kind == BrowserTargetKind::BuiltIn {
+            return true;
+        }
+        if target_kind_was_explicit {
+            return false;
+        }
+        requested_backend
+            .map(|backend| backend == BrowserConnectBackend::Builtin)
+            .unwrap_or(current_session_is_builtin || has_recoverable_builtin)
+    }
+
+    fn explicit_connect_backend(
+        target_kind: BrowserTargetKind,
+        target_kind_was_explicit: bool,
+    ) -> Option<BrowserConnectBackend> {
+        (target_kind_was_explicit && target_kind == BrowserTargetKind::External)
+            .then_some(BrowserConnectBackend::External)
     }
 
     #[cfg(target_env = "ohos")]
@@ -740,6 +768,8 @@ impl ControlHubTool {
 
         let mut result = json!({
             "success": true,
+            "target": "builtin",
+            "backend": "builtin",
             "browser": "BitFun Built-in ArkWeb",
             "browser_mode": "embedded",
             "browser_profile": "embedded",
@@ -1133,13 +1163,23 @@ Branch on `ok` and `error.code`, not on English messages.
                 let likely_terminal_available = context.computer_use_host.is_some();
                 let browser_default = browser_sessions().default_id().await;
                 let browser_session_count = browser_sessions().list().await.len();
+                #[cfg(target_env = "ohos")]
+                let builtin_host_available = arkweb_browser_host_available();
+                #[cfg(not(target_env = "ohos"))]
                 let builtin_host_available = builtin_browser_host_available();
+                #[cfg(target_env = "ohos")]
+                let builtin_targets = list_arkweb_automation_targets();
+                #[cfg(not(target_env = "ohos"))]
                 let builtin_targets = if builtin_host_available {
                     list_builtin_browser_targets().await.unwrap_or_default()
                 } else {
                     Vec::new()
                 };
                 let builtin_target_count = builtin_targets.len();
+                #[cfg(target_env = "ohos")]
+                let builtin_default =
+                    default_arkweb_automation_target().map(|target| target.target_id);
+                #[cfg(not(target_env = "ohos"))]
                 let builtin_default = default_builtin_browser_target_id();
                 let os = std::env::consts::OS;
                 let arch = std::env::consts::ARCH;
@@ -1597,28 +1637,16 @@ Branch on `ok` and `error.code`, not on English messages.
         } else {
             None
         };
-        #[cfg(target_env = "ohos")]
-        let has_recoverable_builtin = default_arkweb_automation_target().is_some();
-        #[cfg(not(target_env = "ohos"))]
-        let has_recoverable_builtin = false;
-        let use_builtin_backend = requested_backend
-            .map(|backend| backend == BrowserConnectBackend::Builtin)
-            .unwrap_or_else(|| {
-                current_session
-                    .as_ref()
-                    .map(|session| session.backend.is_builtin_arkweb())
-                    .unwrap_or(has_recoverable_builtin)
-            });
-        let mut browser_target_kind = match Self::browser_target_kind(params) {
+        let mut logical_browser_target_kind = match Self::browser_target_kind(params) {
             Ok(target) => target,
             Err(error) => return Ok(err_response("browser", action, error)),
         };
-        let target_was_explicit = params.get("target").is_some()
-            || params.get("browser_target").is_some()
-            || session_id_param.is_some();
+        let target_kind_was_explicit =
+            params.get("target").is_some() || params.get("browser_target").is_some();
+        let target_was_explicit = target_kind_was_explicit || session_id_param.is_some();
         if !target_was_explicit
             && action != "connect"
-            && browser_target_kind == BrowserTargetKind::External
+            && logical_browser_target_kind == BrowserTargetKind::External
             && browser_sessions().default_id().await.is_none()
             && default_builtin_browser_target_id().is_some()
         {
@@ -1626,8 +1654,34 @@ Branch on `ok` and `error.code`, not on English messages.
             // follow-up when there is no external default. This keeps the
             // common open -> snapshot -> click flow concise without stealing
             // an existing external CDP session from backward-compatible calls.
-            browser_target_kind = BrowserTargetKind::BuiltIn;
+            logical_browser_target_kind = BrowserTargetKind::BuiltIn;
         }
+        #[cfg(target_env = "ohos")]
+        let has_recoverable_builtin = default_arkweb_automation_target().is_some();
+        #[cfg(not(target_env = "ohos"))]
+        let has_recoverable_builtin = false;
+        let current_session_is_builtin = current_session
+            .as_ref()
+            .map(|session| session.backend.is_builtin_arkweb())
+            .unwrap_or(false);
+        let use_builtin_backend = Self::use_builtin_browser_backend(
+            cfg!(target_env = "ohos"),
+            logical_browser_target_kind,
+            target_kind_was_explicit,
+            requested_backend,
+            current_session_is_builtin,
+            has_recoverable_builtin,
+        );
+        // OHOS implements the logical built-in target through its app-local
+        // ArkWeb CDP session registry. The generic Desktop WebView host remains
+        // the built-in implementation on macOS and Windows only.
+        let use_desktop_builtin_host =
+            logical_browser_target_kind == BrowserTargetKind::BuiltIn && !use_builtin_backend;
+        let response_target_kind = if use_builtin_backend {
+            BrowserTargetKind::BuiltIn.as_str()
+        } else {
+            logical_browser_target_kind.as_str()
+        };
 
         let port = match params.get("port").and_then(|v| v.as_u64()) {
             Some(p) => p as u16,
@@ -1654,7 +1708,9 @@ Branch on `ok` and `error.code`, not on English messages.
             }
         };
 
-        if browser_target_kind == BrowserTargetKind::External
+        if action != "open_builtin"
+            && logical_browser_target_kind == BrowserTargetKind::External
+            && !use_builtin_backend
             && CdpClient::browser_connection_suppressed(port).await
         {
             return Ok(err_response(
@@ -1662,6 +1718,23 @@ Branch on `ok` and `error.code`, not on English messages.
                 action,
                 Self::browser_disconnected_error(),
             ));
+        }
+
+        #[cfg(target_env = "ohos")]
+        if action == "open_builtin" {
+            let raw_url = params.get("url").and_then(Value::as_str).unwrap_or("");
+            let computer_use = Self::computer_use_available(context).await;
+            let url = match Self::normalize_builtin_browser_url(raw_url, computer_use) {
+                Ok(url) => url,
+                Err(error) => return Ok(err_response("browser", "open_builtin", error)),
+            };
+            let mut arkweb_params = params.clone();
+            if let Some(object) = arkweb_params.as_object_mut() {
+                object.insert("url".to_string(), json!(url));
+                object.remove("target");
+                object.remove("browser_target");
+            }
+            return Self::connect_builtin_arkweb("open_builtin", &arkweb_params, context).await;
         }
 
         match action {
@@ -1762,7 +1835,7 @@ Branch on `ok` and `error.code`, not on English messages.
             }
 
             "connect" => {
-                if browser_target_kind == BrowserTargetKind::BuiltIn {
+                if use_desktop_builtin_host {
                     let target_url = params.get("target_url").and_then(Value::as_str);
                     let target_title = params.get("target_title").and_then(Value::as_str);
                     let targeted = target_url.is_some() || target_title.is_some();
@@ -1812,10 +1885,21 @@ Branch on `ok` and `error.code`, not on English messages.
                         )),
                     )]);
                 }
+                #[cfg(target_env = "ohos")]
+                if use_builtin_backend {
+                    return Self::connect_builtin_arkweb("connect", params, context).await;
+                }
                 let mode = Self::browser_connect_mode_from_params(params);
-                let backend = match Self::configured_browser_connect_backend(params).await {
-                    Ok(backend) => backend,
-                    Err(error) => return Ok(err_response("browser", "connect", error)),
+                let backend = if let Some(backend) = Self::explicit_connect_backend(
+                    logical_browser_target_kind,
+                    target_kind_was_explicit,
+                ) {
+                    backend
+                } else {
+                    match Self::configured_browser_connect_backend(params).await {
+                        Ok(backend) => backend,
+                        Err(error) => return Ok(err_response("browser", "connect", error)),
+                    }
                 };
                 if backend == BrowserConnectBackend::Builtin {
                     #[cfg(target_env = "ohos")]
@@ -2365,7 +2449,7 @@ Branch on `ok` and `error.code`, not on English messages.
             }
 
             "list_pages" => {
-                if browser_target_kind == BrowserTargetKind::BuiltIn {
+                if use_desktop_builtin_host {
                     let targets = match list_builtin_browser_targets().await {
                         Ok(targets) => targets,
                         Err(error) => {
@@ -2409,14 +2493,14 @@ Branch on `ok` and `error.code`, not on English messages.
                             "title": p.title,
                             "url": p.url,
                             "type": p.page_type,
-                            "target": "external",
+                            "target": response_target_kind,
                             "is_default_session": Some(&p.id) == default_id.as_ref(),
                         })
                     })
                     .collect();
                 Ok(vec![ToolResult::ok(
                     json!({
-                        "target": "external",
+                        "target": response_target_kind,
                         "pages": summary,
                         "default_session_id": default_id,
                     }),
@@ -2452,7 +2536,7 @@ Branch on `ok` and `error.code`, not on English messages.
                     .unwrap_or(20)
                     .max(1);
 
-                let (pages, default_id) = if browser_target_kind == BrowserTargetKind::BuiltIn {
+                let (pages, default_id) = if use_desktop_builtin_host {
                     let targets = match list_builtin_browser_targets().await {
                         Ok(targets) => targets,
                         Err(error) => {
@@ -2471,9 +2555,13 @@ Branch on `ok` and `error.code`, not on English messages.
                         default_builtin_browser_target_id(),
                     )
                 } else {
+                    let pages = if use_builtin_backend {
+                        Self::registered_builtin_pages().await?
+                    } else {
+                        Self::browser_pages(port).await?
+                    };
                     (
-                        Self::browser_pages(port)
-                            .await?
+                        pages
                             .into_iter()
                             .map(|page| {
                                 json!({
@@ -2481,23 +2569,16 @@ Branch on `ok` and `error.code`, not on English messages.
                                     "title": page.title,
                                     "url": page.url,
                                     "type": page.page_type,
-                                    "target": "external",
+                                    "target": response_target_kind,
                                 })
                             })
                             .collect::<Vec<_>>(),
                         browser_sessions().default_id().await,
                     )
                 };
-                let pages = if use_builtin_backend {
-                    Self::registered_builtin_pages().await?
-                } else {
-                    Self::browser_pages(port).await?
-                };
-                let default_id = browser_sessions().default_id().await;
                 let total = pages.len();
                 let filtered: Vec<Value> = pages
                     .into_iter()
-                    .map(|page| json!({"id": page.id, "title": page.title, "url": page.url, "type": page.page_type, "target": "external"}))
                     .filter(|p| {
                         if only_pages && p.get("type").and_then(Value::as_str) != Some("page") {
                             return false;
@@ -2542,7 +2623,7 @@ Branch on `ok` and `error.code`, not on English messages.
                 let matched = filtered.len();
                 Ok(vec![ToolResult::ok(
                     json!({
-                        "target": browser_target_kind.as_str(),
+                        "target": response_target_kind,
                         "pages": filtered,
                         "matched": matched,
                         "total": total,
@@ -2558,7 +2639,7 @@ Branch on `ok` and `error.code`, not on English messages.
             }
 
             "tab_new" => {
-                if browser_target_kind == BrowserTargetKind::BuiltIn {
+                if use_desktop_builtin_host {
                     let raw_url = params.get("url").and_then(Value::as_str).unwrap_or("");
                     let computer_use = Self::computer_use_available(context).await;
                     let url = match Self::normalize_builtin_browser_url(raw_url, computer_use) {
@@ -2667,7 +2748,7 @@ Branch on `ok` and `error.code`, not on English messages.
                     .ok_or_else(|| {
                         BitFunError::tool("switch_page requires 'page_id'".to_string())
                     })?;
-                if browser_target_kind == BrowserTargetKind::BuiltIn {
+                if use_desktop_builtin_host {
                     let client = match connect_builtin_browser(Some(page_id)).await {
                         Ok(client) => client,
                         Err(error) => {
@@ -2783,7 +2864,7 @@ Branch on `ok` and `error.code`, not on English messages.
 
                 let mut body = json!({
                     "success": true,
-                    "target": "external",
+                    "target": response_target_kind,
                     "page_id": page_id,
                     "session_id": session.session_id,
                     "reused": reused,
@@ -2807,10 +2888,13 @@ Branch on `ok` and `error.code`, not on English messages.
             }
 
             "list_sessions" | "network" | "network_requests" | "console" | "errors" | "trace" => {
-                if browser_target_kind == BrowserTargetKind::BuiltIn {
-                    if action != "list_sessions" {
-                        return Ok(Self::builtin_extension_error(action));
-                    }
+                if action != "list_sessions"
+                    && (logical_browser_target_kind == BrowserTargetKind::BuiltIn
+                        || use_builtin_backend)
+                {
+                    return Ok(Self::builtin_extension_error(action));
+                }
+                if use_desktop_builtin_host {
                     let targets = match list_builtin_browser_targets().await {
                         Ok(targets) => targets,
                         Err(error) => {
@@ -2849,7 +2933,7 @@ Branch on `ok` and `error.code`, not on English messages.
                         let default = registry.default_id().await;
                         Ok(vec![ToolResult::ok(
                             json!({
-                                "target": "external",
+                                "target": response_target_kind,
                                 "sessions": ids,
                                 "default_session_id": default,
                             }),
@@ -3032,7 +3116,7 @@ Branch on `ok` and `error.code`, not on English messages.
             _ => {
                 // Resolve a target adapter, then run every portable operation
                 // through the one shared BrowserActions implementation.
-                let target = if browser_target_kind == BrowserTargetKind::BuiltIn {
+                let target = if use_desktop_builtin_host {
                     match connect_builtin_browser(session_id_param.as_deref()).await {
                         Ok(client) => ResolvedBrowserTarget::BuiltIn(client),
                         Err(error) => {
@@ -5318,6 +5402,58 @@ mod control_hub_tests {
             &json!({ "backend": "unknown" })
         )
         .is_err());
+    }
+
+    #[test]
+    fn builtin_target_routes_to_arkweb_only_on_ohos() {
+        assert!(ControlHubTool::use_builtin_browser_backend(
+            true,
+            BrowserTargetKind::BuiltIn,
+            true,
+            None,
+            false,
+            false,
+        ));
+        assert!(!ControlHubTool::use_builtin_browser_backend(
+            false,
+            BrowserTargetKind::BuiltIn,
+            true,
+            None,
+            false,
+            false,
+        ));
+        assert_eq!(
+            ControlHubTool::explicit_connect_backend(BrowserTargetKind::BuiltIn, true),
+            None
+        );
+    }
+
+    #[test]
+    fn explicit_external_target_is_not_replaced_by_arkweb_session_state() {
+        assert!(!ControlHubTool::use_builtin_browser_backend(
+            true,
+            BrowserTargetKind::External,
+            true,
+            None,
+            true,
+            true,
+        ));
+        assert_eq!(
+            ControlHubTool::explicit_connect_backend(BrowserTargetKind::External, true),
+            Some(BrowserConnectBackend::External)
+        );
+    }
+
+    #[test]
+    fn implicit_target_reuses_existing_arkweb_session() {
+        assert!(ControlHubTool::use_builtin_browser_backend(
+            true,
+            BrowserTargetKind::External,
+            false,
+            None,
+            true,
+            false,
+        ));
     }
 
     #[test]

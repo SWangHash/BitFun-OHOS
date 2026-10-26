@@ -267,6 +267,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
           browserVersion: string | null;
           port: number;
           pageCount: number;
+          selectedBrowser: string;
         }>('browser_control_get_status', { request: { port: 9222 } }),
         api.invoke<{ options: BrowserControlBrowserOption[] }>('browser_control_list_browsers'),
       ]);
@@ -279,6 +280,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
       setBrowserKind(s.browserKind);
       setBrowserVersion(s.browserVersion);
       setBrowserPageCount(s.pageCount);
+      setPreferredBrowser(s.selectedBrowser);
       setBrowserOptions(browsers.options);
     } catch (error) {
       if (isPeerUnsupportedBrowserControlError(error)) {
@@ -370,17 +372,14 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
       } else if (page === 'browser-desktop-control') {
         const [
           computerUseCfg,
-          browserControlPreferredBrowser,
           browserControlAutoConnect,
         ] = await Promise.all([
           configManager.getConfig<boolean>('ai.computer_use_enabled'),
-          configManager.getConfig<string>('ai.browser_control_preferred_browser'),
           configManager.getConfig<boolean>('ai.browser_control_auto_connect_on_startup'),
         ]);
         if (!IS_TAURI_DESKTOP) {
           setComputerUseEnabled(computerUseCfg ?? false);
         }
-        setPreferredBrowser(browserControlPreferredBrowser || DEFAULT_BROWSER_CONTROL_BROWSER);
         setBrowserAutoConnectOnStartup(browserControlAutoConnect === true);
       }
       hasLoadedPageDataRef.current = true;

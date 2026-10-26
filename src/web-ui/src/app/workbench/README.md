@@ -60,6 +60,10 @@ termination policies keep using the existing terminal service.
   operation checks device identity and activation epoch. It cannot silently read
   or write through the newly selected device. Returning to a failed initial load
   allows the editor to retry on activation.
+- Agent browser tabs include their owning session in resource identity. Session
+  switches hide other sessions' browser tabs without destroying them. If this
+  empties and auto-collapses the AuxPane, returning to a session whose browser pane
+  was open restores it; a pane the user explicitly collapsed stays collapsed.
 - Closing a dirty main document offers Save, Discard and Cancel. Failed/canceled saves
   preserve the tab; repeated close gestures share one pending operation. Resource
   removal releases its retained document model.

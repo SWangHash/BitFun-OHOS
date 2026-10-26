@@ -541,6 +541,15 @@ async fn activate_builtin_fallback(
     Ok(builtin_ready_response(Some(fallback_from.to_string())))
 }
 
+async fn prepare_explicit_browser_launch(port: u16, kind: &BrowserKind) -> bool {
+    // Disconnect suppresses agent-driven reattachment. A user clicking Connect
+    // is the explicit action that must clear that process-local guard.
+    CdpClient::allow_browser_connection(port).await;
+    CdpClient::browser_connection_for_kind(port, kind)
+        .await
+        .is_some()
+}
+
 /// Launch the user's default browser with CDP debug port.
 #[tauri::command]
 pub async fn browser_control_launch(
@@ -554,10 +563,7 @@ pub async fn browser_control_launch(
     let kind = BrowserLauncher::resolve_browser_kind(Some(&preference))
         .map_err(|error| error.to_string())?;
 
-    if CdpClient::browser_connection_for_kind(port, &kind)
-        .await
-        .is_some()
-    {
+    if prepare_explicit_browser_launch(port, &kind).await {
         return Ok(to_launch_response(&kind, LaunchResult::AlreadyConnected));
     }
 
@@ -685,4 +691,19 @@ pub async fn browser_control_disconnect(
         },
         browser_kind: kind.to_string(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn explicit_launch_clears_disconnect_suppression() {
+        let port = 61_339;
+        CdpClient::suppress_browser_connection(port).await;
+        assert!(CdpClient::browser_connection_suppressed(port).await);
+
+        assert!(!prepare_explicit_browser_launch(port, &BrowserKind::Haitai).await);
+        assert!(!CdpClient::browser_connection_suppressed(port).await);
+    }
 }
