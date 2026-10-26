@@ -105,6 +105,28 @@
   flex: 0 0 auto;
 }
 
+// Live recording meter used as the stop control's icon. Bar heights follow the
+// microphone level; the sway keeps the mark animated while nobody is speaking.
+.bitfun-chat-input__voice-live-meter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 10px;
+  height: 14px;
+  color: currentColor;
+}
+
+.bitfun-chat-input__voice-live-meter-bar {
+  width: 2px;
+  height: 4px;
+  border-radius: var(--bitfun-radius-pill);
+  background: currentColor;
+  transform-origin: center;
+  transition: height 90ms linear;
+  animation: bitfun-voice-live-sway 1.15s ease-in-out infinite;
+}
+
 .bitfun-chat-input__voice-setup-pill {
   display: inline-flex;
   align-items: center;
@@ -186,12 +208,17 @@
 }
 
 @keyframes bitfun-voice-input-spin { to { transform: rotate(360deg); } }
+@keyframes bitfun-voice-live-sway {
+  0%, 100% { transform: scaleY(0.78); }
+  50% { transform: scaleY(1); }
+}
 @keyframes bitfun-voice-pill-in {
   from { opacity: 0; transform: scaleX(0.94) scaleY(0.88); }
   to { opacity: 1; transform: scale(1); }
 }
 @media (prefers-reduced-motion: reduce) {
   .bitfun-chat-input__voice-spinner,
+  .bitfun-chat-input__voice-live-meter-bar,
   .bitfun-chat-input__voice-setup-pill {
     animation: none;
     transition: none;

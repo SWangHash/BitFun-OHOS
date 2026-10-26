@@ -13,6 +13,44 @@ interface ComposerVoiceInputProps {
   controller: ComposerVoiceInputController;
 }
 
+// The recording control is a 14px icon slot, so the live meter keeps three bars
+// that stay inside the composer's trailing action button.
+const VOICE_LIVE_BAR_WEIGHTS = [0.68, 1, 0.78];
+const VOICE_LIVE_BAR_MIN_HEIGHT = 4;
+const VOICE_LIVE_BAR_HEIGHT_RANGE = 8;
+const VOICE_LEVEL_TO_BAR_GAIN = 9;
+
+function resolveLiveBarHeight(level: number, weight: number): number {
+  const normalized = Math.min(1, Math.max(0, level * VOICE_LEVEL_TO_BAR_GAIN * weight));
+  return VOICE_LIVE_BAR_MIN_HEIGHT + normalized * VOICE_LIVE_BAR_HEIGHT_RANGE;
+}
+
+/**
+ * Level-reactive recording mark. The bar heights follow the microphone level so
+ * the composer reads as "listening" instead of showing a static microphone, and
+ * the CSS sway keeps it alive while nobody is speaking.
+ */
+function ComposerVoiceLiveMeter({ level }: { level: number }) {
+  return (
+    <span
+      className="bitfun-chat-input__voice-live-meter"
+      data-bitfun-component="composer-voice-input"
+      data-bitfun-part="liveMeter"
+    >
+      {VOICE_LIVE_BAR_WEIGHTS.map((weight, index) => (
+        <span
+          key={index}
+          className="bitfun-chat-input__voice-live-meter-bar"
+          style={{
+            height: `${resolveLiveBarHeight(level, weight)}px`,
+            animationDelay: `${index * 110}ms`,
+          }}
+        />
+      ))}
+    </span>
+  );
+}
+
 /**
  * Composer-local voice control. It owns the idle microphone button and the
  * local-model setup prompt; the active capture renders its status below the
@@ -165,7 +203,8 @@ export function ComposerVoiceInputBar({ controller }: ComposerVoiceInputProps) {
 
 /**
  * Stop control for an active capture. It renders in the composer end actions so
- * it stays at the bottom-right corner of the input box.
+ * it stays at the bottom-right corner of the input box, and its icon is the live
+ * microphone meter instead of a static glyph.
  */
 export function ComposerVoiceStopButton({ controller }: ComposerVoiceInputProps) {
   if (!controller.enabled || controller.phase !== 'recording') {
@@ -187,7 +226,7 @@ export function ComposerVoiceStopButton({ controller }: ComposerVoiceInputProps)
             event.stopPropagation();
             controller.transcribe();
           }}
-          icon={<Icon name="mic" size="lg" />}
+          icon={<ComposerVoiceLiveMeter level={controller.audioLevel} />}
           variant="primary"
         />
       </Tooltip>
