@@ -407,14 +407,25 @@ export class ShortcutManager {
   }
 
   /**
-   * Return 'chat' when no specific scope is detected but a chat panel is
-   * currently mounted in the document, otherwise 'app'. This lets
-   * chat-scoped navigation shortcuts (Ctrl+N) fire after focus drifts to
+   * Return 'chat' when no specific scope is detected but a visible, active
+   * chat panel is currently mounted in the document, otherwise 'app'. This
+   * lets chat-scoped navigation shortcuts (Ctrl+N) fire after focus drifts to
    * body or a non-scoped element (e.g. after closing a modal), without
    * requiring the user to click back into the chat panel.
+   *
+   * Non-active scenes stay mounted in the DOM with `aria-hidden="true"`,
+   * `inert`, and `data-scene-active="false"` (see SceneViewport). Those
+   * must not count as "mounted" — otherwise chat-scope shortcuts would fire
+   * while the user is in settings/miniapp scenes and hijack keys like
+   * Ctrl+Enter, Ctrl+N, and Ctrl+F from non-chat inputs.
    */
   private chatScopeFallback(): ShortcutScope {
-    if (typeof document !== 'undefined' && document.querySelector('[data-shortcut-scope="chat"]')) {
+    if (typeof document === 'undefined') return 'app';
+    const candidates = document.querySelectorAll<HTMLElement>('[data-shortcut-scope="chat"]');
+    for (const el of candidates) {
+      if (el.closest('[inert], [aria-hidden="true"], [data-scene-active="false"]')) {
+        continue;
+      }
       return 'chat';
     }
     return 'app';
