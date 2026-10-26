@@ -3460,7 +3460,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         command: `/${skill.name}`,
         label: [skill.argumentHint?.trim(), skill.description || skill.name]
           .filter(Boolean)
-          .join(' ??'),
+          .join(' — '),
         skillName: skill.name,
       }))
       .sort((a, b) => {
@@ -6571,13 +6571,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                     <span className="bitfun-chat-input__slash-command-section-line" aria-hidden />
                                   </div>
                                 )}
+                                <Tooltip content={`${commandText}\n${labelText}`} disabled={!slashCommandState.isActive} placement="top">
                                 <div data-overflow-trigger
                                   data-bitfun-component="chat-input"
                                   data-bitfun-part="commandItem"
                                   data-bitfun-command-item-kind={item.kind === 'mcpPrompt' ? 'mcp' : item.kind === 'externalCommand' || item.kind === 'acpCommand' ? 'action' : item.kind}
                                   data-bitfun-state={index === slashCommandState.selectedIndex ? 'selected' : undefined}
                                   className={`bitfun-chat-input__slash-command-item ${index === slashCommandState.selectedIndex ? 'bitfun-chat-input__slash-command-item--selected' : ''}`}
-                                  title={`${commandText}\n${labelText}`}
                                   onClick={() => {
                                     if (item.kind === 'skill') {
                                       selectSlashSkill(item);
@@ -6616,6 +6616,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                     </span>
                                   ) : null}
                                 </div>
+                                </Tooltip>
                               </React.Fragment>
                             );
                           })
@@ -6680,12 +6681,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                   : item.label;
 
                             return (
+                              <Tooltip content={`${commandText}\n${labelText}`} disabled={!slashCommandState.isActive} placement="top">
                               <div data-overflow-trigger data-bitfun-component="chat-input" data-bitfun-part="commandItem"
                                 data-bitfun-command-item-kind={item.kind === 'mcpPrompt' ? 'mcp' : item.kind === 'externalCommand' || item.kind === 'acpCommand' ? 'action' : item.kind}
                                 data-bitfun-state={index === slashCommandState.selectedIndex ? 'selected' : undefined}
                                 key={`${item.kind}-${item.id}`}
                                 className={`bitfun-chat-input__slash-command-item ${index === slashCommandState.selectedIndex ? 'bitfun-chat-input__slash-command-item--selected' : ''}`}
-                                title={`${commandText}\n${labelText}`}
                                 onClick={() => {
                                   if (item.kind === 'skill') {
                                     selectSlashSkill(item);
@@ -6712,6 +6713,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                   {labelText}
                                 </span>
                               </div>
+                              </Tooltip>
                             );
                           })
                         ) : (
