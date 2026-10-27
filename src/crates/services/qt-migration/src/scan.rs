@@ -611,24 +611,21 @@ pub(crate) fn normalize_toolchain_candidate(candidate: &Path) -> Option<PathBuf>
 /// Normalize a model-provided candidate path. Absolute paths are accepted even
 /// outside the workspace: a prompt-named path is user intent, not a workspace
 /// scan hit, for every field (`toolchain`/`template`/`output_project`
-/// legitimately live outside the workspace, and `source_project` may too).
+/// legitimately live outside the workspace, and `source_project` may too). A
+/// relative path is resolved against the workspace, `.` and `..` included, so a
+/// project beside the workspace stays addressable instead of being dropped.
 pub(crate) fn normalize_workspace_candidate(workspace: &Path, candidate: &str) -> Option<PathBuf> {
     let candidate = candidate.trim();
     if candidate.is_empty() {
         return None;
     }
     let candidate = PathBuf::from(candidate);
-    if candidate
-        .components()
-        .any(|component| matches!(component, std::path::Component::ParentDir))
-    {
-        return None;
-    }
     let candidate = if candidate.is_absolute() {
         candidate
     } else {
         workspace.join(candidate)
     };
+    let candidate = lexically_resolved(&candidate);
     if candidate.exists() {
         // dunce keeps the Windows canonical form free of the `\\?\` prefix;
         // std canonicalize would leak it into user-visible option paths.
