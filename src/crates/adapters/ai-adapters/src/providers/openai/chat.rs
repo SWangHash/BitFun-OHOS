@@ -20,7 +20,13 @@ fn try_build_request_body_with_context(
     let mut request_body = serde_json::json!({
         "model": client.config.model,
         "messages": openai_messages,
-        "stream": true
+        "stream": true,
+        // OpenAI Chat Completions does not return usage in stream chunks unless
+        // explicitly requested. Without this, token usage shows "Unavailable"
+        // for every OpenAI-compatible endpoint. Responses API and Codex ChatGPT
+        // are unaffected: the Responses protocol returns usage in
+        // response.completed.
+        "stream_options": { "include_usage": true }
     });
 
     let model_name = client.config.model.to_lowercase();
@@ -43,6 +49,7 @@ fn try_build_request_body_with_context(
         "model",
         "messages",
         "stream",
+        "stream_options",
         "max_tokens",
         "tool_stream",
         "tools",
@@ -68,7 +75,7 @@ fn try_build_request_body_with_context(
     let protected_body = shared::protect_request_body(
         client,
         &mut request_body,
-        &["model", "messages", "stream", "max_tokens", "tool_stream"],
+        &["model", "messages", "stream", "stream_options", "max_tokens", "tool_stream"],
         &[],
     );
 

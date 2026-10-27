@@ -809,6 +809,43 @@ mod tests {
         );
     }
 
+    #[test]
+    fn openai_chat_stream_request_includes_usage_flag() {
+        // OpenAI Chat Completions does not return usage in stream chunks unless
+        // stream_options.include_usage is set; without it token usage shows
+        // "Unavailable" for every OpenAI-compatible endpoint.
+        let body = openai::chat::build_request_body(
+            &make_test_client("openai", None),
+            "https://example.com/v1/chat/completions",
+            vec![json!({ "role": "user", "content": "hello" })],
+            None,
+            None,
+        );
+
+        assert_eq!(body["stream"], true);
+        assert_eq!(body["stream_options"]["include_usage"], true);
+    }
+
+    #[test]
+    fn openai_chat_stream_options_protected_from_custom_body() {
+        // A custom_request_body that tries to disable or drop stream_options
+        // must not override the runtime default, so usage always flows back.
+        let client = make_test_client(
+            "openai",
+            Some(json!({ "stream_options": { "include_usage": false } })),
+        );
+
+        let body = openai::chat::build_request_body(
+            &client,
+            "https://example.com/v1/chat/completions",
+            vec![json!({ "role": "user", "content": "hello" })],
+            None,
+            None,
+        );
+
+        assert_eq!(body["stream_options"]["include_usage"], true);
+    }
+
     fn reasoning_preset(
         id: &str,
         actions: Vec<ReasoningPresetAction>,
