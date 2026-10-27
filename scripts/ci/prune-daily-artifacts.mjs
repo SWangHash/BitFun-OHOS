@@ -1,51 +1,54 @@
 #!/usr/bin/env node
-// Prune old daily workflow artifacts from the GitCode artifact store.
+// Prune stale daily workflow artifacts from the GitCode artifact store.
 //
-// Usage: prune-daily-artifacts.mjs <owner/repo> <keep-days> <name-prefix>
+// Usage: prune-daily-artifacts.mjs <owner/repo> <name-prefix>
 //   (GITCODE_TOKEN required)
 //
-// Lists the repository's workflow artifacts and deletes those whose name
-// starts with <name-prefix> and whose creation is older than <keep-days>
-// days, keeping nightly artifacts inside the 1G namespace quota. Artifacts
-// without a parseable creation date are kept (safe side). Any API failure
-// fails the job loudly: retention silently not working would only surface
-// days later as quota exhaustion.
+// Daily artifacts are named <name-prefix>YYYYMMDD-<platform> by the
+// packaging workflow. This deletes every artifact whose embedded date is
+// not today (Asia/Shanghai), so a stale day can never hold the 1G quota
+// hostage while the new day uploads. Run it BEFORE the daily builds; a
+// same-day rerun keeps the current day's artifacts. Names that do not embed
+// a parseable date are kept (safe side). Any API failure fails the job
+// loudly: retention silently not working would only surface days later as
+// quota exhaustion.
 
 import { artifactsFrom, createArtifactsApi, parseRepository } from './gitcode-artifacts-api.mjs';
 
-const [repository, rawKeepDays, namePrefix] = process.argv.slice(2);
+const [repository, namePrefix] = process.argv.slice(2);
 const token = process.env.GITCODE_TOKEN;
 
-if (!repository || !rawKeepDays || !namePrefix || !token) {
+if (!repository || !namePrefix || !token) {
   console.error(
-    'Usage: prune-daily-artifacts.mjs <owner/repo> <keep-days> <name-prefix> (GITCODE_TOKEN required)',
+    'Usage: prune-daily-artifacts.mjs <owner/repo> <name-prefix> (GITCODE_TOKEN required)',
   );
   process.exit(2);
 }
 
-const keepDays = Number.parseInt(rawKeepDays, 10);
-if (!Number.isFinite(keepDays) || keepDays < 1) {
-  console.error(`Invalid keep-days value: ${rawKeepDays}`);
-  process.exit(2);
+function todayCompact() {
+  // en-CA formats as YYYY-MM-DD; strip the dashes for YYYYMMDD.
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+    .format(new Date())
+    .replace(/-/g, '');
 }
 
-function artifactCreatedMs(artifact) {
-  const raw = artifact.created_at ?? artifact.createdAt ?? artifact.updated_at;
-  if (typeof raw === 'number') {
-    // Epoch seconds or milliseconds.
-    return raw > 1e12 ? raw : raw * 1000;
-  }
-  if (typeof raw === 'string') {
-    const parsed = Date.parse(raw);
-    if (!Number.isNaN(parsed)) return parsed;
-  }
-  return null;
+function embeddedDate(name) {
+  if (!name.startsWith(namePrefix)) return null;
+  const digits = name.slice(namePrefix.length, namePrefix.length + 8);
+  return /^\d{8}$/.test(digits) ? digits : null;
 }
 
 try {
   const [owner, repo] = parseRepository(repository);
   const api = createArtifactsApi(token, owner, repo);
 
+  // Page until an EMPTY page: the server may cap the page size below the
+  // requested per_page, so a "short page" cannot signal the end.
   const artifacts = [];
   for (let page = 1; page <= 100; page += 1) {
     const value = await api.value(
@@ -55,28 +58,28 @@ try {
       `List artifacts page ${page}`,
     );
     const pageArtifacts = artifactsFrom(value);
+    if (pageArtifacts.length === 0) break;
     artifacts.push(...pageArtifacts);
-    if (pageArtifacts.length < 100) break;
   }
 
-  const cutoff = Date.now() - keepDays * 24 * 60 * 60 * 1000;
+  const today = todayCompact();
   const stale = [];
   const kept = [];
   let untouched = 0;
   for (const artifact of artifacts) {
-    if (
-      typeof artifact.name !== 'string' ||
-      !artifact.name.startsWith(namePrefix) ||
-      artifact.id === undefined
-    ) {
+    if (typeof artifact.name !== 'string' || artifact.id === undefined) {
       untouched += 1;
       continue;
     }
-    const createdMs = artifactCreatedMs(artifact);
-    if (createdMs !== null && createdMs < cutoff) {
-      stale.push(artifact);
-    } else {
+    const date = embeddedDate(artifact.name);
+    if (date === null) {
+      untouched += 1;
+      continue;
+    }
+    if (date === today) {
       kept.push(artifact);
+    } else {
+      stale.push(artifact);
     }
   }
 
@@ -92,7 +95,7 @@ try {
   }
 
   console.log(
-    `[prune] ${stale.length} deleted, ${kept.length} kept inside the ${keepDays}-day window, ` +
+    `[prune] ${stale.length} deleted, ${kept.length} kept (today ${today}), ` +
       `${untouched} untouched (other names or unparseable).`,
   );
 } catch (error) {
