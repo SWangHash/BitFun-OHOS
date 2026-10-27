@@ -8,11 +8,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { HarnessProfileSelector } from './HarnessProfileSelector';
 
+const translate = vi.hoisted(() => vi.fn(
+  (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key,
+));
+
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, options?: { defaultValue?: string }) =>
-      options?.defaultValue ?? key,
-  }),
+  useTranslation: () => ({ t: translate }),
 }));
 
 vi.mock('@bitfun/ui', async (importOriginal) => ({
@@ -110,6 +111,80 @@ describe('HarnessProfileSelector', () => {
     );
     expect(trigger?.querySelector('.bitfun-harness-selector__density-mark')).toBeNull();
     expect(trigger?.textContent).toContain('chatInput.harness.unsupportedProfile');
+    expect(trigger?.getAttribute('aria-label')).toBe('chatInput.harness.unsupportedProfileNotice');
+    expect(translate).toHaveBeenCalledWith('chatInput.harness.unsupportedProfileNotice', {
+      id: 'future-profile',
+    });
+  });
+
+  it.each(['DeepReview', 'CodeReview', 'ReviewFixer'])(
+    'describes the current %s workflow Agent without making it selectable for a new Session',
+    async (agentId) => {
+      const onStartNewSession = vi.fn();
+      await act(async () => {
+        root.render(
+          <HarnessProfileSelector
+            sessionStarted
+            selectedProfile="other"
+            selectedAgentId={agentId}
+            sessionAgent={{ id: agentId, name: agentId }}
+            otherAgents={[{ id: agentId, name: agentId, available: false }]}
+            onSelectProfile={vi.fn()}
+            onStartNewSession={onStartNewSession}
+          />,
+        );
+      });
+
+      const trigger = container.querySelector<HTMLButtonElement>(
+        '[data-testid="harness-profile-selector"]',
+      );
+      expect(trigger?.textContent).toBe(agentId);
+      expect(trigger?.getAttribute('aria-label')).toBe('chatInput.harness.fixedTooltip');
+      expect(translate).toHaveBeenCalledWith('chatInput.harness.fixedTooltip', { name: agentId });
+      expect(translate).not.toHaveBeenCalledWith(
+        'chatInput.harness.unsupportedProfileNotice',
+        expect.anything(),
+      );
+
+      await act(async () => {
+        trigger?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+      await act(async () => {
+        document.querySelector<HTMLButtonElement>('[data-testid="harness-profile-other"]')
+          ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+      await act(async () => {
+        document.querySelector<HTMLButtonElement>(`[data-testid="harness-agent-${agentId}"]`)
+          ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+
+      expect(notify.info).toHaveBeenCalledWith('chatInput.harness.agentUnavailable', {
+        duration: 3200,
+      });
+      expect(onStartNewSession).not.toHaveBeenCalled();
+    },
+  );
+
+  it('identifies an unavailable stored Agent by its name instead of the navigation profile', async () => {
+    await act(async () => {
+      root.render(
+        <HarnessProfileSelector
+          sessionStarted
+          selectedProfile="other"
+          selectedAgentId="missing-agent"
+          otherAgents={[{ id: 'missing-agent', name: 'Missing Agent', available: false }]}
+          onSelectProfile={vi.fn()}
+        />,
+      );
+    });
+
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-testid="harness-profile-selector"]',
+    );
+    expect(trigger?.getAttribute('aria-label')).toBe('chatInput.harness.unsupportedProfileNotice');
+    expect(translate).toHaveBeenCalledWith('chatInput.harness.unsupportedProfileNotice', {
+      id: 'Missing Agent',
+    });
   });
 
   it('disables profile selection while the authoritative update is in flight', async () => {
