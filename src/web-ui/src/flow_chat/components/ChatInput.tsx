@@ -6353,7 +6353,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   {t('chatInput.targetMain')}
                   {inputTarget === 'main' && currentSessionTitle && (
                     <>
-                      <span className="bitfun-chat-input__target-tab-separator" aria-hidden="true">?</span>
+                      <span className="bitfun-chat-input__target-tab-separator" aria-hidden="true">·</span>
                       <OverflowText className="bitfun-chat-input__target-tab-name" data-bitfun-component="chat-input" data-bitfun-part="targetName">{currentSessionTitle}</OverflowText>
                     </>
                   )}
@@ -6380,7 +6380,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   <OverflowText>{activeBtwTargetLabel}</OverflowText>
                   {inputTarget === 'btw' && activeBtwSessionTitle && activeBtwSessionTitle !== activeBtwTargetLabel && (
                     <>
-                      <span className="bitfun-chat-input__target-tab-separator" aria-hidden="true">?</span>
+                      <span className="bitfun-chat-input__target-tab-separator" aria-hidden="true">·</span>
                       <OverflowText className="bitfun-chat-input__target-tab-name" data-bitfun-component="chat-input" data-bitfun-part="targetName">{activeBtwSessionTitle}</OverflowText>
                     </>
                   )}

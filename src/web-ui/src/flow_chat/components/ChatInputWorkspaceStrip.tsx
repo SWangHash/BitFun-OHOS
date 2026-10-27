@@ -13,7 +13,7 @@ import { useDeviceDirectory, resolveDeviceName } from '@/infrastructure/account/
 
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Circle, Shield, ShieldAlert, ShieldCheck, Square, SquareCheck } from 'lucide-react';
+import { Circle, FolderGit2, Laptop, Shield, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { subscribeOverlayInteraction, createOverlayPortal, OverflowText, Menu, MenuItem, MenuSection, MenuSeparator } from '@bitfun/ui';
 import { Tooltip, Icon } from '@bitfun/ui';
 import { BranchQuickSwitch } from '@/tools/git/components/BranchQuickSwitch';
@@ -685,12 +685,12 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
         onClick={handleWorktreeToggle}
       >
         {worktreeEnabled ? (
-          <SquareCheck size={12} strokeWidth={1.8} aria-hidden />
+          <FolderGit2 size={12} strokeWidth={1.8} aria-hidden />
         ) : (
-          <Square size={12} strokeWidth={1.8} aria-hidden />
+          <Laptop size={12} strokeWidth={1.8} aria-hidden />
         )}
         <span className="bitfun-chat-input-workspace-strip__worktree-label">
-          {tWorktrees('strip.toggleLabel')}
+          {worktreeEnabled ? tWorktrees('strip.toggleLabel') : t('chatInput.dispatch.local')}
         </span>
       </button>
     </Tooltip>

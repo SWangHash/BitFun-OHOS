@@ -32,6 +32,8 @@ vi.mock('react-i18next', () => ({
       'deepReviewConsent.strategyLabels.normal': 'Standard',
       'reasoningSelector.auto': 'Auto',
       'chatInput.permissionMode.ask.label': 'Ask',
+      'chatInput.dispatch.local': 'Local',
+      'strip.toggleLabel': 'worktree',
       'strip.newWorktree': 'New Worktree',
       'workspaceStrip.primaryAssistant': 'Primary assistant',
       'workspaceStrip.personalAssistant': 'Personal assistant',
@@ -972,6 +974,7 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
     const toggle = container.querySelector<HTMLButtonElement>('[data-testid="chat-input-worktree-toggle"]');
     expect(toggle).not.toBeNull();
     expect(toggle?.dataset.worktreeEnabled).toBe('false');
+    expect(toggle?.textContent).toBe('Local');
     expect(toggle?.disabled).toBe(false);
 
     await act(async () => {
@@ -1016,13 +1019,15 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
     const toggle = container.querySelector<HTMLButtonElement>('[data-testid="chat-input-worktree-toggle"]');
     expect(toggle?.dataset.worktreeEnabled).toBe('true');
     expect(toggle?.dataset.worktreeMaterialized).toBe('false');
+    expect(toggle?.textContent).toBe('worktree');
   });
 
-  it('shows the toggle as on inside a worktree and asks to turn it off', async () => {
+  it('shows the current session mode when switching from a worktree to a local session', async () => {
     const onChange = vi.fn(async () => undefined);
     await act(async () => {
       root.render(
         <ChatInputWorkspaceStrip
+          workspaceId="worktree-workspace"
           repositoryPath="/worktrees/wt-1"
           workspaceLabel="wt-1"
           executionTarget={{
@@ -1040,6 +1045,7 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
 
     const toggle = container.querySelector<HTMLButtonElement>('[data-testid="chat-input-worktree-toggle"]');
     expect(toggle?.dataset.worktreeEnabled).toBe('true');
+    expect(toggle?.textContent).toBe('worktree');
     expect(container.textContent).toContain('bitfun/isolated');
     expect(container.querySelector('[data-testid="chat-input-branch-trigger"]')).toBeNull();
 
@@ -1047,6 +1053,23 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
       toggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     expect(onChange).toHaveBeenCalledWith(false);
+
+    await act(async () => {
+      root.render(
+        <ChatInputWorkspaceStrip
+          workspaceId="project-workspace"
+          repositoryPath="/repo"
+          workspaceLabel="repo"
+          executionTarget={{ kind: 'local', rootPath: '/repo' }}
+          worktreeControl={{ enabled: false, locked: true, onChange }}
+        />
+      );
+    });
+
+    const localToggle = container.querySelector<HTMLButtonElement>('[data-testid="chat-input-worktree-toggle"]');
+    expect(localToggle?.textContent).toBe('Local');
+    expect(localToggle?.getAttribute('aria-checked')).toBe('false');
+    expect(localToggle?.disabled).toBe(true);
   });
 
   it('locks the toggle once the session has a transcript', async () => {
