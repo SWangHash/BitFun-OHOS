@@ -495,7 +495,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
         }
       }
       await syncWebviewBounds(handle);
-      await visibility(handle, true);
+      await visibility(handle);
       if (mountedRef.current && handle === webviewRef.current) {
         await setAgentTargetState(handle.label, activeRef.current, openRequestId);
       }

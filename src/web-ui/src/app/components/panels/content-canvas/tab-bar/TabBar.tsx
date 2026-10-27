@@ -108,8 +108,14 @@ export const TabBar: React.FC<TabBarProps> = ({
       && previous.every((id, index) => id === nextIds[index]) ? previous : nextIds);
   }, [onOpenMissionControl, visibleTabs]);
 
+  // Only scroll the active tab into view when the active tab actually CHANGES
+  // — not on resize/layout re-runs. Without this guard, scrolling the tab bar
+  // to reach an overflowing tab triggers a resize-observed reveal that snaps
+  // the scroll back to the active tab before the user can click it.
+  const lastRevealedTabIdRef = useRef<string | null>(null);
   const revealActiveTab = useCallback(() => {
-    if (activeTabId && tabsListRef.current?.clientWidth) {
+    if (activeTabId && activeTabId !== lastRevealedTabIdRef.current && tabsListRef.current?.clientWidth) {
+      lastRevealedTabIdRef.current = activeTabId;
       tabWrapperRefs.current.get(activeTabId)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     }
   }, [activeTabId]);
