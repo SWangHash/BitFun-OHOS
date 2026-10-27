@@ -315,7 +315,7 @@
         "openMiniApps": "Open Mini Apps",
         "openTodos": "Open todos",
         "openInsights": "Open insights",
-        "openSettings": "Open settings",
+      "openSettings": "Settings",
         "openKeyboardShortcuts": "Open keyboard shortcuts",
         "openIntegrations": "Open ecosystem compatibility"
       },
@@ -849,7 +849,7 @@
       "theme": "Theme",
       "themeConfiguration": "Theme configuration",
       "appearanceSwitchFailed": "Could not switch the theme. Try again.",
-      "openSettings": "Open settings",
+        "openSettings": "Settings",
       "about": "About"
     }
   },
