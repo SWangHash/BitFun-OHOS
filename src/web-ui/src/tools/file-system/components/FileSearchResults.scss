@@ -272,6 +272,7 @@ $_icon-size: 16px;
 .bitfun-search-results__highlight {
   background: color-mix(in srgb, var(--bitfun-component-conversation-excerpt-accent) 55%, transparent);
   color: var(--bitfun-component-conversation-excerpt-accent);
+  padding: 1px 2px;
   border-radius: 2px;
   font-weight: var(--bitfun-type-label-sm-font-weight);
 }
