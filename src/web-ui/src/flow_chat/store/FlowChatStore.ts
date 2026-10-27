@@ -7236,6 +7236,7 @@ export class FlowChatStore {
             workspaceSessionNumber: titleState.workspaceSessionNumber,
             titleStatus: hasDynamicDefaultTitle ? undefined : 'generated',
             dialogTurns: [],
+            totalTurnCount: metadata.turnCount,
             status: 'idle',
             persistedStatus: metadata.status,
             config: {
@@ -7685,6 +7686,7 @@ export class FlowChatStore {
               workspaceSessionNumber: titleState.workspaceSessionNumber,
               titleStatus: hasDynamicDefaultTitle ? undefined : 'generated',
               dialogTurns: [],
+              totalTurnCount: metadata.turnCount,
               status: 'idle',
               persistedStatus: metadata.status,
               config: {
@@ -8444,22 +8446,6 @@ export class FlowChatStore {
               );
               notifyHydratingState();
               const restored = await restoredPromise;
-              // Skip heavy response processing if this session is no longer the
-              // active one (user switched to another session during the invoke).
-              // On OHOS, withOhosFetchLock serializes invokes, so the response
-              // may arrive long after the user has moved on. Processing the
-              // response (turn parsing, Map copies, React re-renders) would
-              // block the JS event loop for 1-2 seconds for nothing.
-              if (this.state.activeSessionId !== sessionId && !options?.deferFullHistoryUntilActive) {
-                startupTrace.markPhase('historical_session_restore_superseded', {
-                  remote,
-                  sessionId,
-                  sessionTraceId,
-                  activeSessionId: this.state.activeSessionId,
-                  durationMs: elapsedMs(restoreStartedAt),
-                });
-                return;
-              }
               restoredSessionInfo = restored.session;
               turns = restored.turns;
               contextRestoreState =
@@ -8566,6 +8552,8 @@ export class FlowChatStore {
         turnCount: Array.isArray(turns) ? turns.length : 0,
       });
 
+      // Detail panes hydrate child sessions while the parent remains active.
+      // Only callers that require an active session may discard this restore.
       const skipStaleLocalHydrateCommit =
         !remote &&
         options?.deferFullHistoryUntilActive === true &&
