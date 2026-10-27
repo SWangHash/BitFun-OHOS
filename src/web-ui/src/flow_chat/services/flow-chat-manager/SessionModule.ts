@@ -667,7 +667,8 @@ async function switchChatSessionInternal(
       touchActiveSessionInBackground();
     }
 
-    if (session?.isHistorical && !shouldHydrateBeforeSwitch && session.historyState !== 'ready') {
+    const isSessionReady = session?.historyState === 'ready';
+    if (session?.isHistorical && !shouldHydrateBeforeSwitch && !isSessionReady) {
       // Load history in the background — do not block the UI.
       // Skip when historyState is already 'ready': the content is loaded,
       // and re-hydrating would reset historyState to 'hydrating' and
