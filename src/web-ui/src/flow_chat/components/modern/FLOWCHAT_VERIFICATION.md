@@ -25,7 +25,7 @@ each missing what the other had.
 | `../../../infrastructure/markdown/useStreamingTextReveal.test.tsx` | appended-glyph-only fading, independent batch clocks and renderers, history/remount stability, stream completion and reduced motion |
 | `UserMessageItem.test.tsx` | sent and reloaded MCP references, mixed reference capsules, failed-message presentation, and message actions |
 | `UserMessageItemActions.test.ts` | metadata visibility, bubble outsets from the shared reading column, and normal-flow action layout |
-| `MessageExportControls.test.tsx` | copy/export menus, authored thinking-icon rasterization before capture, image capture fallback after timeouts, final failure feedback and temporary render cleanup; mocked capture/save boundaries, not native WebView or filesystem validation |
+| `MessageExportControls.test.tsx` | copy/export menus, authored thinking-icon rasterization before capture, continued capture with original icons after rasterization failure or timeout, late rasterization isolation, image capture fallback after timeouts, final failure feedback and temporary render cleanup; mocked capture/save boundaries, not native WebView or filesystem validation |
 | `../../services/submittedMessagePresentation.test.ts` | explicit-send receipts, one-shot claims, expiry, device activation isolation, and initial status paint delay |
 | `useSubmittedMessageMotion.test.tsx` | submission clock, remount stability, StrictMode, reduced motion, focus, and surface-change cancellation; lifecycle only, not visual acceptance |
 | `RuntimeStatusSlot.test.tsx` | resident status slot identity and removal of a pending submission paint delay when real status clears |
