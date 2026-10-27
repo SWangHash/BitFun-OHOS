@@ -6,7 +6,7 @@
 use std::path::Path;
 
 use crate::detect::{
-    detect_project_qt_major, detect_qt_major, is_qt_source_project, resolve_bound_kit_root,
+    detect_project_qt_major, is_qt_source_project, kit_qt_major, resolve_bound_kit_root,
 };
 use crate::scan::{QtScanCandidate, MAX_TOOLCHAINS};
 use crate::state::{
@@ -352,7 +352,7 @@ pub fn compare_bound_generations(
     let toolchain_major = if qt_migration_is_skill_managed_value(toolchain) {
         official_qt_major
     } else {
-        resolve_bound_kit_root(Path::new(toolchain)).and_then(|kit| detect_qt_major(&kit))
+        resolve_bound_kit_root(Path::new(toolchain)).and_then(|kit| kit_qt_major(&kit))
     };
     let (Some(project), Some(toolchain)) = (project_major, toolchain_major) else {
         return QtMigrationGenerationMismatch::Unknown;

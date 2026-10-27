@@ -60,7 +60,7 @@ fn create_qt6_template(root: &Path) {
 /// platform plugin. Returns the `bin` dir (the toolchain candidate).
 fn create_qt5_ohos_kit(root: &Path) -> PathBuf {
     let bin = mkdir(root, "bin");
-    touch(&bin, "qmake");
+    write_executable(&bin, "qmake", host_executable_magic());
     let cmake = mkdir(root, QT5_CMAKE_PACKAGE_DIR);
     touch(&cmake, "Qt5Config.cmake");
     let platforms = mkdir(root, "plugins/platforms");
@@ -74,7 +74,7 @@ fn create_qt5_ohos_kit(root: &Path) -> PathBuf {
 fn create_qt6_ohos_kit(root: &Path) -> PathBuf {
     let bin = mkdir(root, "bin");
     for exe in ["qmake", "qmake6", "qt-cmake"] {
-        touch(&bin, exe);
+        write_executable(&bin, exe, host_executable_magic());
     }
     let cmake = mkdir(root, QT6_CMAKE_PACKAGE_DIR);
     touch(&cmake, "Qt6Config.cmake");

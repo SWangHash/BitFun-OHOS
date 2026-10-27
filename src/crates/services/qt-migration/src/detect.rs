@@ -1,7 +1,11 @@
 //! Qt kit and project detection: measure which Qt generation a kit or a
 //! source project uses, and recognize Qt CMake projects on disk.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::process::Stdio;
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant, SystemTime};
 
 use crate::output::{is_inside_migrated_harmony_project, is_migration_artifact};
 use crate::scan::{
@@ -21,6 +25,14 @@ pub(crate) const QT5_CMAKE_PACKAGE_DIR: &str = "lib/cmake/Qt5";
 /// kit, absent from a desktop host kit
 /// .
 pub(crate) const QT_OHOS_PLATFORM_PLUGIN: &str = "plugins/platforms/libqohos.so";
+
+/// Upper bound on one `qmake -query` run: a kit tool that hangs proves nothing
+/// and must not stall a scan.
+const KIT_VERSION_PROBE_TIMEOUT: Duration = Duration::from_secs(3);
+const KIT_VERSION_PROBE_POLL: Duration = Duration::from_millis(10);
+
+static KIT_VERSION_CACHE: OnceLock<Mutex<HashMap<PathBuf, (Option<SystemTime>, Option<u8>)>>> =
+    OnceLock::new();
 /// Qt6-only **type names** that decide a Qt *project*'s version.
 pub const QT6_ONLY_TYPE_NAMES: &[&str] = &[
     "QInputDevice",
@@ -106,10 +118,132 @@ pub(crate) fn resolve_bound_kit_root(value: &Path) -> Option<PathBuf> {
     {
         return Some(kit.to_path_buf());
     }
-    scan_qmake_hits(value)
+    let mut kits: Vec<PathBuf> = scan_qmake_hits(value)
         .into_iter()
         .map(|bin_dir| resolve_kit_root(&bin_dir).to_path_buf())
-        .find(|kit| detect_qt_major(kit).is_some())
+        .filter(|kit| kit_qt_major(kit).is_some())
+        .collect();
+    kits.sort();
+    kits.dedup();
+    if kits.len() <= 1 {
+        return kits.pop();
+    }
+    let mut majors = majors_of(&kits);
+    if majors.len() == 1 {
+        return kits.into_iter().next();
+    }
+    // An installer root holding several generations names no single toolchain.
+    // Only a generation that runs here is the answer; two runnable generations
+    // stay ambiguous.
+    let mut runnable: Vec<PathBuf> = kits
+        .iter()
+        .filter(|kit| kit_tools_run_on_host(kit) == Some(true))
+        .cloned()
+        .collect();
+    runnable.sort();
+    runnable.dedup();
+    majors = majors_of(&runnable);
+    if majors.len() == 1 {
+        return runnable.into_iter().next();
+    }
+    None
+}
+
+fn majors_of(kits: &[PathBuf]) -> Vec<u8> {
+    let mut majors: Vec<u8> = kits.iter().filter_map(|kit| kit_qt_major(kit)).collect();
+    majors.sort_unstable();
+    majors.dedup();
+    majors
+}
+
+/// Qt major version a kit reports: its CMake package layout when that identifies
+/// one, else the answer its own `qmake` gives. The fallback executes the kit's
+/// tool, so it is cached per kit until the tool is replaced.
+pub(crate) fn kit_qt_major(kit_root: &Path) -> Option<u8> {
+    if let Some(major) = detect_qt_major(kit_root) {
+        return Some(major);
+    }
+    let qmake = find_kit_qmake(kit_root)?;
+    probe_kit_qt_major(kit_root, &qmake)
+}
+
+fn find_kit_qmake(kit_root: &Path) -> Option<PathBuf> {
+    let bin_dir = kit_root.join("bin");
+    crate::scan::QMAKE_PROBE_EXECUTABLES
+        .iter()
+        .map(|name| bin_dir.join(name))
+        .find(|path| path.is_file())
+}
+
+fn probe_kit_qt_major(kit_root: &Path, qmake: &Path) -> Option<u8> {
+    let stamp = std::fs::metadata(qmake)
+        .and_then(|metadata| metadata.modified())
+        .ok();
+    let cache = KIT_VERSION_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Some((cached_stamp, major)) = cache
+        .lock()
+        .ok()
+        .and_then(|cache| cache.get(kit_root).cloned())
+    {
+        if cached_stamp == stamp {
+            return major;
+        }
+    }
+    let major = run_qmake_qt_major(qmake);
+    if let Ok(mut cache) = cache.lock() {
+        cache.insert(kit_root.to_path_buf(), (stamp, major));
+    }
+    major
+}
+
+fn run_qmake_qt_major(qmake: &Path) -> Option<u8> {
+    let mut command = bitfun_services_core::process_manager::create_command(qmake);
+    command
+        .arg("-query")
+        .arg("QT_VERSION")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+    let mut child = command.spawn().ok()?;
+    let deadline = Instant::now() + KIT_VERSION_PROBE_TIMEOUT;
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) if status.success() => {
+                // Reading on this thread could wait on a pipe that a background
+                // process of a launcher script still holds open, which is the
+                // one wait the deadline above does not cover.
+                let stdout = child.stdout.take()?;
+                let (sender, receiver) = std::sync::mpsc::channel();
+                std::thread::spawn(move || {
+                    let mut stdout = stdout;
+                    let mut output = String::new();
+                    let _ = std::io::Read::read_to_string(&mut stdout, &mut output);
+                    let _ = sender.send(output);
+                });
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                let output = receiver.recv_timeout(remaining).ok()?;
+                return qt_major_from_version(&output);
+            }
+            Ok(Some(_)) => return None,
+            Ok(None) => {
+                if Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return None;
+                }
+                std::thread::sleep(KIT_VERSION_PROBE_POLL);
+            }
+            Err(_) => return None,
+        }
+    }
+}
+
+fn qt_major_from_version(version: &str) -> Option<u8> {
+    match version.trim().as_bytes().first()? {
+        b'5' => Some(5),
+        b'6' => Some(6),
+        _ => None,
+    }
 }
 
 pub(crate) fn kit_tools_run_on_host(kit_root: &Path) -> Option<bool> {
