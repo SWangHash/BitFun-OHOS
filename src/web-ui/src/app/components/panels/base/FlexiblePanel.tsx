@@ -198,6 +198,32 @@ const FlexiblePanel: React.FC<ExtendedFlexiblePanelProps> = memo(({
     contentRef.current = content;
   }, [content, onInteraction]);
 
+  // Keep keyboard shortcuts working on viewer tabs (image/pdf/text/html):
+  // hiding the previously active keep-alive tab drops focus onto <body>,
+  // which takes the keydown target outside the canvas shortcut scope and
+  // silently disables canvas-scope shortcuts such as Ctrl+1..9 tab switching.
+  // When a tab activates and nothing else holds focus, park focus on the
+  // panel root (inside the canvas scope) until the user clicks elsewhere.
+  const panelRootRef = React.useRef<HTMLDivElement | null>(null);
+  React.useEffect(() => {
+    if (!isActive) {
+      return;
+    }
+    const parkFocus = () => {
+      if (document.activeElement === document.body) {
+        panelRootRef.current?.focus({ preventScroll: true });
+      }
+    };
+    const frame = requestAnimationFrame(parkFocus);
+    // Re-park when the host window regains focus (e.g. user clicked outside
+    // a native webview, causing the webview to blur and the host to refocus).
+    window.addEventListener('focus', parkFocus);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('focus', parkFocus);
+    };
+  }, [isActive]);
+
   // Sync dirty state from MonacoModelManager on component mount
   React.useEffect(() => {
     if (content?.type !== 'code-editor') {
@@ -1049,7 +1075,7 @@ const FlexiblePanel: React.FC<ExtendedFlexiblePanelProps> = memo(({
   const showHeader = content && shouldShowHeader(content.type);
 
   return (
-    <div className={`bitfun-flexible-panel ${className}`} data-bitfun-component="flexible-panel" data-bitfun-part="root">
+    <div ref={panelRootRef} tabIndex={-1} className={`bitfun-flexible-panel ${className}`} data-bitfun-component="flexible-panel" data-bitfun-part="root">
       {showHeader && (
         <div className="bitfun-flexible-panel__header" data-bitfun-component="flexible-panel" data-bitfun-part="header">
           <div className="bitfun-flexible-panel__header-left" data-bitfun-component="flexible-panel" data-bitfun-part="headerMain">
