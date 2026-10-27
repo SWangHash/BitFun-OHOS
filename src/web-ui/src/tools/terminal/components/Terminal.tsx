@@ -31,9 +31,6 @@ import { readTextFromClipboard } from '@/shared/utils/textSelection';
 import './Terminal.scss';
 
 const log = createLogger('Terminal');
-// #region agent log
-const agentProbeLog = createLogger('TerminalProbe');
-// #endregion agent log
 const MIN_STABLE_TERMINAL_ROWS = 3;
 /** Narrowest column count the terminal lays out at; below it the columns are kept. */
 const MIN_STABLE_TERMINAL_COLS = 40;
@@ -369,42 +366,6 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
   resizeSuspendedRef.current = resizeSuspended;
   mergedOptionsRef.current = mergedOptions;
 
-  // #region agent log
-  const agentProbe = useCallback((id: string, loc: string, msg: string, data: Record<string, unknown> = {}) => {
-    const payload = { id, loc, msg, data: { terminalId: terminalIdRef.current, sessionId: sessionIdRef.current, ...data } };
-    // Persisted channel: survives a release build, where debug/info are filtered out.
-    agentProbeLog.warn(msg, payload);
-    void fetch('http://127.0.0.1:7469/log', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }).catch(() => {});
-  }, []);
-
-  const agentGeometry = useCallback(() => {
-    const container = containerRef.current;
-    const term = terminalRef.current;
-    const viewport = container?.querySelector<HTMLElement>('.xterm-viewport') ?? null;
-    const viewportParent = viewport?.parentElement ?? null;
-    const xtermEl = container?.querySelector<HTMLElement>('.xterm') ?? null;
-    const screenEl = container?.querySelector<HTMLElement>('.xterm-screen') ?? null;
-    return {
-      container: container ? [container.clientWidth, container.clientHeight] : null,
-      containerScroll: container ? [container.scrollHeight, container.scrollTop] : null,
-      xterm: xtermEl
-        ? [xtermEl.offsetWidth, xtermEl.offsetHeight, xtermEl.clientHeight, getComputedStyle(xtermEl).paddingTop]
-        : null,
-      viewportParent: viewportParent ? [viewportParent.clientHeight, viewportParent.scrollHeight] : null,
-      viewport: viewport
-        ? [viewport.clientHeight, viewport.scrollHeight, viewport.scrollTop, viewport.offsetHeight]
-        : null,
-      screen: screenEl ? [screenEl.offsetWidth, screenEl.offsetHeight] : null,
-      term: term ? [term.cols, term.rows] : null,
-      bufferLines: term ? term.buffer.active.length : null,
-      baseY: term ? term.buffer.active.baseY : null,
-    };
-  }, []);
-  // #endregion agent log
 
   // Force refresh for rendering consistency.
   const forceRefresh = useCallback((terminal: XTerm) => {
@@ -418,14 +379,6 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
     if (!terminal) return false;
 
     try {
-      // #region agent log
-      agentProbe('B', 'Terminal.doXtermResize', 'enter', {
-        target: [cols, rows],
-        current: [terminal.cols, terminal.rows],
-        suspended: resizeSuspendedRef.current,
-        guardCols: replayColumnGuardRef?.current?.protectedCols() ?? null,
-      });
-      // #endregion agent log
 
       if (resizeSuspendedRef.current) {
         pendingFitAfterSuspendRef.current = true;
@@ -466,14 +419,6 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
         // Nothing else retries a refused fit: the container may already have
         // stopped moving, so the guard's expiry would go unnoticed. Ask for a
         // settle refit that lands after it expires.
-        // #region agent log
-        agentProbe('B', 'Terminal.doXtermResize', 'guard-skip', {
-          target: [cols, rows],
-          guardCols: minCols,
-          hasBufferedScreenText,
-          geometry: agentGeometry(),
-        });
-        // #endregion agent log
         scheduleSettleRefitsRef.current?.();
         return false;
       }
@@ -483,33 +428,19 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
         // container. Freezing both axes left a tall panel showing a single row of
         // its scrollback behind a scrollbar.
         terminal.resize(decision.cols, decision.rows);
-        // #region agent log
-        agentProbe('B', 'Terminal.doXtermResize', 'rows-only-applied', {
-          applied: [decision.cols, decision.rows],
-          guardCols: minCols,
-          geometry: agentGeometry(),
-        });
-        // #endregion agent log
         scheduleSettleRefitsRef.current?.();
         return false;
       }
 
       terminal.resize(cols, rows);
       onSizeSettledRef.current?.({ cols, rows });
-      // #region agent log
-      agentProbe('B', 'Terminal.doXtermResize', 'applied', {
-        applied: [decision.cols, decision.rows],
-        guardCols: minCols,
-        geometry: agentGeometry(),
-      });
-      // #endregion agent log
 
       return true;
     } catch (error) {
       log.warn('Xterm resize error', { cols, rows, error });
       return false;
     }
-  }, [replayColumnGuardRef, agentProbe, agentGeometry]);
+  }, [replayColumnGuardRef]);
 
   // Notify backend PTY with deduping.
   const doBackendResize = useCallback((cols: number, rows: number) => {
@@ -568,14 +499,6 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
       const { clientWidth, clientHeight } = containerRef.current;
       if (clientWidth < 50 || clientHeight < 50) {
         log.debug('Fit skipped: container not laid out yet', { clientWidth, clientHeight });
-        // #region agent log
-        agentProbe('A', 'Terminal.fit', 'skip-small-container', {
-          immediate,
-          clientWidth,
-          clientHeight,
-          geometry: agentGeometry(),
-        });
-        // #endregion agent log
         return;
       }
 
@@ -611,28 +534,9 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
           clientWidth,
           clientHeight,
         });
-        // #region agent log
-        agentProbe('A', 'Terminal.fit', 'skip-unusable', {
-          immediate,
-          dims,
-          clientWidth,
-          clientHeight,
-          geometry: agentGeometry(),
-        });
-        // #endregion agent log
         return;
       }
 
-      // #region agent log
-      agentProbe('A', 'Terminal.fit', 'measure', {
-        immediate,
-        dims,
-        applied: [decision.cols, decision.rows],
-        clientWidth,
-        clientHeight,
-        geometry: agentGeometry(),
-      });
-      // #endregion agent log
 
       if (resizeDebouncerRef.current) {
         resizeDebouncerRef.current.resize(decision.cols, decision.rows, immediate);
@@ -654,7 +558,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
         syncStaleRendererGeometry(terminal);
       }
     }
-  }, [doXtermResize, doBackendResize, handleResizeComplete, agentProbe, agentGeometry]);
+  }, [doXtermResize, doBackendResize, handleResizeComplete]);
 
   const flushResize = useCallback(() => {
     if (resizeSuspendedRef.current) {
@@ -715,13 +619,6 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
   useEffect(() => {
     const wasSuspended = previousResizeSuspendedRef.current;
     previousResizeSuspendedRef.current = resizeSuspended;
-    // #region agent log
-    agentProbe('D', 'Terminal.suspendEffect', 'transition', {
-      resizeSuspended,
-      wasSuspended,
-      geometry: agentGeometry(),
-    });
-    // #endregion agent log
 
     if (resizeSuspended || !wasSuspended) {
       return;
@@ -738,7 +635,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
       fitRef.current(true);
       scheduleSettleRefitsRef.current();
     });
-  }, [resizeSuspended, agentProbe, agentGeometry]);
+  }, [resizeSuspended]);
 
   useImperativeHandle(ref, () => ({
     write: (data: string) => {
@@ -884,9 +781,6 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
     resizeDebouncerRef.current = resizeDebouncer;
 
     requestAnimationFrame(() => {
-      // #region agent log
-      agentProbe('D', 'Terminal.mount', 'mounted-fit', { geometry: agentGeometry() });
-      // #endregion agent log
       fitRef.current(true);
       // A freshly mounted terminal may be measured before the host finished laying
       // out the panel it was re-parented into, and a history replay that follows
@@ -1087,17 +981,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
       textareaEl.addEventListener('input', textareaInputHandler, true);
     }
 
-    const resizeObserver = new ResizeObserver((entries) => {
-      // #region agent log
-      const observed = entries[0]?.contentRect;
-      agentProbe('C', 'Terminal.resizeObserver', 'observed', {
-        observed: observed
-          ? [Math.round(observed.width), Math.round(observed.height)]
-          : null,
-        suspended: resizeSuspendedRef.current,
-        geometry: agentGeometry(),
-      });
-      // #endregion agent log
+    const resizeObserver = new ResizeObserver(() => {
       requestAnimationFrame(() => {
         fitRef.current(false);
       });
@@ -1155,9 +1039,6 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
     intersectionObserverRef.current = intersectionObserver;
 
     return () => {
-      // #region agent log
-      agentProbe('D', 'Terminal.unmount', 'dispose', { geometry: agentGeometry() });
-      // #endregion agent log
       dataDisposable.dispose();
       binaryDisposable.dispose();
       titleDisposable.dispose();
@@ -1184,7 +1065,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
       resizeDebouncerRef.current = null;
       lastBackendSizeRef.current = null;
     };
-  }, [agentProbe, agentGeometry]);
+  }, []);
 
   useEffect(() => {
     const terminal = terminalRef.current;
