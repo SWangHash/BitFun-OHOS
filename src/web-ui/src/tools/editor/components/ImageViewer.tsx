@@ -167,20 +167,20 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
     setZoom(100);
   }, []);
 
-  // Zoom/reset keyboard shortcuts (advertised in the toolbar tooltips).
-  // App-level Ctrl+= / Ctrl+- typography scaling is gated off while an image
-  // viewer holds the canvas (issue #389).
-  useShortcut('imageViewer.zoomIn', { key: '=', ctrl: true, scope: 'canvas', allowInInput: true }, handleZoomIn, { enabled: isActiveTab });
-  useShortcut('imageViewer.zoomInPlus', { key: '+', ctrl: true, scope: 'canvas', allowInInput: true }, handleZoomIn, { enabled: isActiveTab });
-  useShortcut('imageViewer.zoomOut', { key: '-', ctrl: true, scope: 'canvas', allowInInput: true }, handleZoomOut, { enabled: isActiveTab });
-  useShortcut('imageViewer.zoomReset', { key: '0', ctrl: true, scope: 'canvas', allowInInput: true }, handleZoomReset, { enabled: isActiveTab });
-
   const handleRotate = useCallback(() => {
     // Keep the angle cumulative instead of wrapping at 360: the CSS rotate
     // transition animates between consecutive values, and 270 → 0 would spin
     // counter-clockwise across three quarters instead of one quarter.
     setRotation(prev => prev + 90);
   }, []);
+
+  // Zoom/reset keyboard shortcuts (advertised in the toolbar tooltips).
+  // App-level Ctrl+= / Ctrl+- typography scaling is gated off while an image
+  // viewer holds the canvas.
+  useShortcut('imageViewer.zoomIn', { key: '=', ctrl: true, scope: 'canvas', allowInInput: true }, handleZoomIn, { enabled: isActiveTab });
+  useShortcut('imageViewer.zoomInPlus', { key: '+', ctrl: true, scope: 'canvas', allowInInput: true }, handleZoomIn, { enabled: isActiveTab });
+  useShortcut('imageViewer.zoomOut', { key: '-', ctrl: true, scope: 'canvas', allowInInput: true }, handleZoomOut, { enabled: isActiveTab });
+  useShortcut('imageViewer.zoomReset', { key: '0', ctrl: true, scope: 'canvas', allowInInput: true }, handleZoomReset, { enabled: isActiveTab });
 
   const handleDownload = useCallback(() => {
     // Anchor-based downloads (href + download attribute) are silently dropped
@@ -344,9 +344,9 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
               data-bitfun-component="image-viewer"
               data-bitfun-part="image"
               style={{
-                width: imageDimensions ? `${imageDimensions.width * displayScale * zoom / 100}px` : undefined,
-                height: imageDimensions ? `${imageDimensions.height * displayScale * zoom / 100}px` : undefined,
-                transform: `rotate(${rotation}deg)`,
+                width: imageDimensions ? `${imageDimensions.width * displayScale}px` : undefined,
+                height: imageDimensions ? `${imageDimensions.height * displayScale}px` : undefined,
+                transform: `scale(${zoom / 100}) rotate(${rotation}deg)`,
                 imageRendering: displayScale > 1 ? 'pixelated' : undefined,
               }}
               onLoad={handleImageLoad}
