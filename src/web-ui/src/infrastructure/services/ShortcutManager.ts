@@ -342,12 +342,15 @@ export class ShortcutManager {
       results.push(reg);
     }
 
-    // Check panel-scope registrations (if inside a scoped panel)
-    if (activeScope !== 'app') {
-      // When the innermost scope is the Monaco editor surface, inherit canvas-registered
-      // shortcuts (tab switch, close tab, etc.) in addition to editor-scoped ones.
+    // Check panel-scope registrations (if inside a scoped panel).
+    // Also fall back to canvas when focus is on <body> (activeScope === 'app')
+    // so tab switching works after opening viewer tabs that park focus on
+    // <body> instead of inside the canvas.
+    {
       const panelScopes: ShortcutScope[] =
-        activeScope === 'editor' ? (['editor', 'canvas'] as const) : [activeScope];
+        activeScope === 'editor' ? (['editor', 'canvas'] as const)
+        : activeScope === 'app' ? (['canvas'] as const)
+        : [activeScope];
       const panelRegs: ShortcutRegistration[] = [];
       for (const scope of panelScopes) {
         for (const reg of this.lookupMap.get(makeEventKey(scope, event)) ?? []) {
