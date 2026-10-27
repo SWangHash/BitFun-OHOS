@@ -72,7 +72,7 @@ async function rasterizeThinkingIcons(container: HTMLElement, scale: number): Pr
   const icons = container.querySelectorAll<HTMLElement>(
     '[data-bitfun-component="icon"][data-bitfun-name="thinking"][data-bitfun-source="catalog"]',
   );
-  await Promise.all(Array.from(icons, async icon => {
+  const pendingIcons = Array.from(icons, async icon => {
     const style = getComputedStyle(icon);
     const mask = style.getPropertyValue('mask-image') || style.getPropertyValue('-webkit-mask-image');
     const source = mask.match(/^url\((["']?)(.*?)\1\)$/)?.[2];
@@ -109,7 +109,19 @@ async function rasterizeThinkingIcons(container: HTMLElement, scale: number): Pr
       rasters.set(key, raster);
     }
 
-    const dataUrl = await raster;
+    return { icon, dataUrl: await raster };
+  });
+  const rasterizedIcons = await withTimeout(
+    Promise.all(pendingIcons),
+    CAPTURE_TIMEOUT_MS,
+    'Thinking icon rasterization',
+  );
+
+  // Apply only completed preparation so failures or late results leave the
+  // original icons untouched while capture proceeds.
+  for (const result of rasterizedIcons) {
+    if (!result) continue;
+    const { icon, dataUrl } = result;
     icon.style.setProperty('mask-image', 'none');
     icon.style.setProperty('-webkit-mask-image', 'none');
     icon.style.backgroundColor = 'transparent';
@@ -117,7 +129,7 @@ async function rasterizeThinkingIcons(container: HTMLElement, scale: number): Pr
     icon.style.backgroundPosition = 'center';
     icon.style.backgroundRepeat = 'no-repeat';
     icon.style.backgroundSize = 'contain';
-  }));
+  }
 }
 
 interface ExportImageButtonProps {
@@ -422,11 +434,11 @@ export const ExportImageButton: React.FC<ExportImageButtonProps> = ({
       await new Promise(resolve => setTimeout(resolve, 0));
       
       const pixelRatio = 2;
-      await withTimeout(
-        rasterizeThinkingIcons(container, pixelRatio),
-        CAPTURE_TIMEOUT_MS,
-        'Thinking icon rasterization',
-      );
+      try {
+        await rasterizeThinkingIcons(container, pixelRatio);
+      } catch (error) {
+        log.warn('Thinking icon rasterization failed, continuing with original icons', { error });
+      }
       const captureFilter = (node: Node) => {
         // Filter out action buttons and other non-export elements.
         if (node instanceof HTMLElement) {

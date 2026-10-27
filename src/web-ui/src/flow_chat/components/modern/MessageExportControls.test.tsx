@@ -196,7 +196,7 @@ describe('message copy and image export controls', () => {
     },
   );
 
-  async function startImageExport(expandThinking = false) {
+  async function startImageExport(expandThinking = false, deferThinkingIcon = false) {
     const pngDataUrl = `data:image/png;base64,${'A'.repeat(120)}`;
     const iconDataUrl = `data:image/png;base64,${'B'.repeat(120)}`;
     const png = new Blob(['png'], { type: 'image/png' });
@@ -216,19 +216,24 @@ describe('message copy and image export controls', () => {
     mocks.store.mockReturnValue({
       sessions: new Map([['review-session', { title: 'Code review', dialogTurns: [turn] }]]),
     });
-    mocks.capturePng.mockResolvedValue(pngDataUrl);
-    mocks.captureBlob.mockImplementation(async (element: HTMLElement) => {
+    mocks.capturePng.mockReset().mockResolvedValue(pngDataUrl);
+    mocks.captureBlob.mockReset().mockImplementation(async (element: HTMLElement) => {
       expect(element.isConnected).toBe(true);
       expect(element.textContent).toContain('Answer');
       return png;
     });
     mocks.savePng.mockResolvedValue({ filePath: '/downloads/review.png', downloaded: false });
+    const pendingThinkingImages: (() => void)[] = [];
     vi.stubGlobal('Image', class {
       naturalWidth = 1600;
       naturalHeight = 1200;
       onload: (() => void) | null = null;
       onerror: (() => void) | null = null;
-      set src(_value: string) {
+      set src(value: string) {
+        if (deferThinkingIcon && value.startsWith('data:image/svg+xml')) {
+          pendingThinkingImages.push(() => this.onload?.());
+          return;
+        }
         queueMicrotask(() => this.onload?.());
       }
     });
@@ -261,7 +266,7 @@ describe('message copy and image export controls', () => {
         ? 'exportImage.expandedThinking' : 'exportImage.collapsedThinking'))!;
     act(() => action.click());
     await act(async () => vi.advanceTimersByTimeAsync(50));
-    return { trigger, png, pngDataUrl, iconDataUrl, context };
+    return { trigger, png, pngDataUrl, iconDataUrl, context, pendingThinkingImages };
   }
 
   it('rasterizes the authored thinking artwork before capture, saves the image and releases the render', async () => {
@@ -309,6 +314,52 @@ describe('message copy and image export controls', () => {
     expect(document.querySelector('#export-image-wrapper')).toBeNull();
     expect(trigger.disabled).toBe(false);
   });
+
+  it.each(['error', 'timeout'] as const)(
+    'preserves the original icons and capture fallback after a rasterization %s',
+    async failure => {
+      const { trigger, png, pendingThinkingImages } = await startImageExport(false, failure === 'timeout');
+      if (failure === 'error') {
+        vi.mocked(HTMLCanvasElement.prototype.toDataURL).mockImplementationOnce(() => {
+          throw new DOMException('Canvas is tainted', 'SecurityError');
+        });
+      }
+      let capturedIcons: HTMLElement[] = [];
+      let finishCapture!: (blob: Blob) => void;
+      mocks.capturePng.mockRejectedValueOnce(new Error('Capture failed'));
+      mocks.captureBlob.mockImplementationOnce((element: HTMLElement) => {
+        expect(element.isConnected).toBe(true);
+        capturedIcons = Array.from(element.querySelectorAll<HTMLElement>('[data-bitfun-name="thinking"]'));
+        return new Promise<Blob>(resolve => { finishCapture = resolve; });
+      });
+      await act(async () => vi.advanceTimersByTimeAsync(400));
+      await act(async () => vi.dynamicImportSettled());
+      if (failure === 'timeout') {
+        await act(async () => vi.advanceTimersByTimeAsync(15_000));
+      }
+
+      expect(mocks.capturePng).toHaveBeenCalledOnce();
+      expect(mocks.captureBlob).toHaveBeenCalledOnce();
+      expect(capturedIcons).toHaveLength(2);
+      for (const icon of capturedIcons) {
+        expect(icon.style.getPropertyValue('mask-image')).toContain('data:image/svg+xml');
+        expect(icon.style.backgroundImage).toBe('');
+      }
+      const originalStyles = capturedIcons.map(icon => icon.style.cssText);
+      if (failure === 'timeout') {
+        expect(pendingThinkingImages).toHaveLength(1);
+        await act(async () => { pendingThinkingImages.forEach(load => load()); });
+        expect(capturedIcons.map(icon => icon.style.cssText)).toEqual(originalStyles);
+      }
+      await act(async () => finishCapture(png));
+
+      expect(mocks.savePng).toHaveBeenCalledExactlyOnceWith(png, 'Code review_10-23-12-00.png');
+      expect(mocks.notifyExportSuccess).toHaveBeenCalledOnce();
+      expect(mocks.error).not.toHaveBeenCalled();
+      expect(document.querySelector('#export-image-wrapper')).toBeNull();
+      expect(trigger.disabled).toBe(false);
+    },
+  );
 
   it('retries at reduced scale after the blob capture times out', async () => {
     const { trigger } = await startImageExport(true);
