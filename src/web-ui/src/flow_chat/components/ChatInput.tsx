@@ -1399,6 +1399,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     );
   }, [modeInfoById, t]);
 
+  // Review workflows own these primaries even though the new-Session catalog
+  // deliberately omits them.
+  const reviewSessionAgent = effectiveTargetRelationship.isReview
+    && ['codereview', 'deepreview', 'reviewfixer'].includes(currentMode.trim().toLowerCase())
+    ? { id: currentMode, name: getModeDisplayName(currentMode) }
+    : undefined;
+
   const otherAgentOptions = useMemo((): HarnessAgentOption[] => {
     const options: HarnessAgentOption[] = mainAgentModes.map(mode => ({
       id: mode.id,
@@ -6220,6 +6227,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     sessionStarted: harnessProfileLocked,
     selectedProfile: selectedHarnessProfile,
     selectedAgentId: selectedHarnessProfile === 'other' ? currentMode : undefined,
+    sessionAgent: reviewSessionAgent,
     otherAgents: otherAgentOptions,
     disabled: isModeChangePending || isHarnessSessionCreating,
     onSelectProfile: requestHarnessProfileChange,

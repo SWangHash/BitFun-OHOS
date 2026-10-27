@@ -44,6 +44,8 @@ interface HarnessProfileSelectorProps {
   sessionStarted?: boolean;
   selectedProfile: HarnessProfileId;
   selectedAgentId?: string;
+  /** Workflow-owned execution identity, independent of new-Session options. */
+  sessionAgent?: Pick<HarnessAgentOption, 'id' | 'name'>;
   otherAgents?: HarnessAgentOption[];
   disabled?: boolean;
   /**
@@ -132,6 +134,7 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
   sessionStarted = false,
   selectedProfile,
   selectedAgentId,
+  sessionAgent,
   otherAgents = [],
   disabled = false,
   presentation = 'standalone',
@@ -270,6 +273,9 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
 
   const knownSelectedProfile = PROFILE_IDS.find(id => id === selectedProfile);
   const selectedAgent = otherAgents.find(agent => sameAgent(agent.id, selectedAgentId));
+  const selectedSessionAgent = sessionAgent && sameAgent(sessionAgent.id, selectedAgentId)
+    ? sessionAgent
+    : undefined;
   /**
    * The caller projects every non-Harness Agent as the catch-all `other`
    * profile, so the two navigation entries derive their own connected state
@@ -282,15 +288,17 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
         isSelectableProfile(knownSelectedProfile)
         || (
           knownSelectedProfile === 'other'
-          && selectedAgent
-          && selectedAgent.available !== false
+          && (
+            selectedSessionAgent
+            || (selectedAgent && selectedAgent.available !== false)
+          )
         )
       ),
   );
   const primaryLabel = legacySession
     ? t('chatInput.harness.compatibilityShort')
     : knownSelectedProfile === 'other'
-      ? selectedAgent?.name || selectedAgentId || t('chatInput.harness.profiles.other.name')
+      ? selectedSessionAgent?.name || selectedAgent?.name || selectedAgentId || t('chatInput.harness.profiles.other.name')
       : knownSelectedProfile
         ? t(`chatInput.harness.profiles.${knownSelectedProfile}.name`)
         : t('chatInput.harness.unsupportedProfile', { id: selectedProfile });
@@ -298,7 +306,9 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
   const triggerTooltip = legacySession
     ? t('chatInput.harness.legacySessionNotice')
     : !selectedProfileAvailable
-      ? t('chatInput.harness.unsupportedProfileNotice', { id: selectedProfile })
+      ? t('chatInput.harness.unsupportedProfileNotice', {
+          id: knownSelectedProfile === 'other' ? primaryLabel : selectedProfile,
+        })
       : sessionStarted
         ? t('chatInput.harness.fixedTooltip', { name: primaryLabel })
         : t('chatInput.harness.selectorTooltip', { name: primaryLabel });
