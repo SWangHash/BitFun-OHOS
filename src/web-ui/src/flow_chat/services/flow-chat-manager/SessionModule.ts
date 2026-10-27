@@ -667,8 +667,12 @@ async function switchChatSessionInternal(
       touchActiveSessionInBackground();
     }
 
-    if (session?.isHistorical && !shouldHydrateBeforeSwitch) {
+    if (session?.isHistorical && !shouldHydrateBeforeSwitch && session.historyState !== 'ready') {
       // Load history in the background — do not block the UI.
+      // Skip when historyState is already 'ready': the content is loaded,
+      // and re-hydrating would reset historyState to 'hydrating' and
+      // reload already-visible content (e.g. when switchChatSession is
+      // called for an already-ready session via an activation race).
       recordHistorySessionDiagnosticEvent(sessionId, 'switch_background_hydrate_started', {
         switchRequestId,
       });
