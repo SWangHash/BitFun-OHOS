@@ -299,6 +299,10 @@ import {
 
 const log = createLogger('ChatInput');
 
+// Stable empty array so the input-history selector returns the same reference
+// when a session has no history, avoiding needless re-renders.
+const EMPTY_INPUT_HISTORY: string[] = [];
+
 export interface ChatInputProps {
   /** Conversation hosts use an in-flow composer without the workbench context bar. */
   presentation?: 'standard' | 'conversation';
@@ -609,7 +613,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     sessionId: string | null;
     activeTurnId: string | null;
   }>({ sessionId: null, activeTurnId: null });
-  const { addMessage: addToHistory, getSessionHistory } = useInputHistoryStore();
+  const addToHistory = useInputHistoryStore(s => s.addMessage);
   
   const conversationScope = useConversationViewScope();
   const contextStore = useContextStoreApi();
@@ -769,10 +773,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       effectiveTargetSession.contextRestoreState === 'pending'
     );
   
-  // Memoize history so keyboard handlers don't see a fresh [] on every render.
-  const inputHistory = useMemo(
-    () => (effectiveTargetSessionId ? getSessionHistory(effectiveTargetSessionId) : []),
-    [effectiveTargetSessionId, getSessionHistory],
+  // Subscribe directly to the session's history slice so addMessage updates
+  // are observed immediately. A useMemo over getSessionHistory kept a stable
+  // function reference in its deps, so a newly sent message never refreshed
+  // the list until the session id changed.
+  const inputHistory = useInputHistoryStore(
+    s => (effectiveTargetSessionId ? s.messagesBySession[effectiveTargetSessionId] : undefined) ?? EMPTY_INPUT_HISTORY,
   );
   const derivedState = useSessionDerivedState(
     effectiveTargetSessionId,
@@ -5754,78 +5760,92 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     // History navigation with up/down arrows
     // Only handle when not in slash command mode and not composing
     if (!slashCommandState.isActive && inputHistory.length > 0) {
-      const selection = window.getSelection();
-      const editor = richTextInputRef.current;
-      
-      if (selection && selection.rangeCount > 0 && editor) {
-        const range = selection.getRangeAt(0);
-        
-        // Check cursor position
-        const isAtStart = range.collapsed && range.startOffset === 0 && 
-                          (range.startContainer === editor || 
-                           (range.startContainer.nodeType === Node.TEXT_NODE && 
-                            range.startContainer.previousSibling === null &&
-                            range.startContainer.parentNode === editor));
-        
-        // For end position, we need to check if cursor is at the end of content
-        const isAtEnd = (() => {
-          if (!range.collapsed) return false;
-          const editorContent = editor.textContent || '';
-          let cursorPos = 0;
-          const traverse = (node: Node): boolean => {
-            if (node === range.startContainer) {
+      // While browsing history (historyIndex !== -1), arrow up/down always
+      // navigate. RichTextInput moves the caret to the end after each history
+      // value is loaded, so requiring isAtStart/isAtEnd would make the second
+      // ArrowUp silently fail. In draft mode (historyIndex === -1) the
+      // endpoint checks are kept so up/down still move the caret inside
+      // multi-line drafts.
+      const isBrowsingHistory = historyIndex !== -1;
+      let isAtStart = false;
+      let isAtEnd = false;
+
+      if (!isBrowsingHistory) {
+        const selection = window.getSelection();
+        const editor = richTextInputRef.current;
+
+        if (selection && selection.rangeCount > 0 && editor) {
+          const range = selection.getRangeAt(0);
+
+          // Check cursor position
+          isAtStart = range.collapsed && range.startOffset === 0 &&
+                      (range.startContainer === editor ||
+                       (range.startContainer.nodeType === Node.TEXT_NODE &&
+                        range.startContainer.previousSibling === null &&
+                        range.startContainer.parentNode === editor));
+
+          // For end position, we need to check if cursor is at the end of content
+          isAtEnd = (() => {
+            if (!range.collapsed) return false;
+            const editorContent = editor.textContent || '';
+            let cursorPos = 0;
+            const traverse = (node: Node): boolean => {
+              if (node === range.startContainer) {
+                if (node.nodeType === Node.TEXT_NODE) {
+                  cursorPos += range.startOffset;
+                }
+                return true;
+              }
               if (node.nodeType === Node.TEXT_NODE) {
-                cursorPos += range.startOffset;
+                cursorPos += (node.textContent || '').length;
+              } else if (node.nodeType === Node.ELEMENT_NODE) {
+                for (const child of Array.from(node.childNodes)) {
+                  if (traverse(child)) return true;
+                }
               }
-              return true;
-            }
-            if (node.nodeType === Node.TEXT_NODE) {
-              cursorPos += (node.textContent || '').length;
-            } else if (node.nodeType === Node.ELEMENT_NODE) {
-              for (const child of Array.from(node.childNodes)) {
-                if (traverse(child)) return true;
-              }
-            }
-            return false;
-          };
-          traverse(editor);
-          return cursorPos === editorContent.length;
-        })();
-        
-        // Arrow Up at start of line -> go back in history
-        if (e.key === 'ArrowUp' && isAtStart) {
-          e.preventDefault();
-          
-          // Save draft if starting navigation
-          if (historyIndex === -1 && inputState.value.trim()) {
-            setSavedDraft(inputState.value);
-          }
-          
-          // Navigate back (older messages)
-          if (historyIndex < inputHistory.length - 1) {
-            const newIndex = historyIndex + 1;
-            setHistoryIndex(newIndex);
-            dispatchInput({ type: 'SET_VALUE', payload: inputHistory[newIndex] });
-          }
-          return;
+              return false;
+            };
+            traverse(editor);
+            return cursorPos === editorContent.length;
+          })();
         }
-        
-        // Arrow Down at end of line -> go forward in history
-        if (e.key === 'ArrowDown' && isAtEnd) {
-          e.preventDefault();
-          
-          if (historyIndex > 0) {
-            // Navigate forward (newer messages)
-            const newIndex = historyIndex - 1;
-            setHistoryIndex(newIndex);
-            dispatchInput({ type: 'SET_VALUE', payload: inputHistory[newIndex] });
-          } else if (historyIndex === 0) {
-            // Return to draft/empty
-            setHistoryIndex(-1);
-            dispatchInput({ type: 'SET_VALUE', payload: savedDraft });
-          }
-          return;
+      }
+
+      // Arrow Up -> go back in history (older messages)
+      if (e.key === 'ArrowUp' && (isBrowsingHistory || isAtStart)) {
+        e.preventDefault();
+
+        // Save draft if starting navigation
+        if (historyIndex === -1 && inputState.value.trim()) {
+          setSavedDraft(inputState.value);
         }
+
+        // Navigate back (older messages)
+        if (historyIndex < inputHistory.length - 1) {
+          const newIndex = historyIndex + 1;
+          setHistoryIndex(newIndex);
+          dispatchInput({ type: 'SET_VALUE', payload: inputHistory[newIndex] });
+        }
+        // Already at oldest: preventDefault locks the caret so up does not
+        // jump inside the loaded history message while browsing.
+        return;
+      }
+
+      // Arrow Down -> go forward in history (newer messages)
+      if (e.key === 'ArrowDown' && (isBrowsingHistory || isAtEnd)) {
+        e.preventDefault();
+
+        if (historyIndex > 0) {
+          // Navigate forward (newer messages)
+          const newIndex = historyIndex - 1;
+          setHistoryIndex(newIndex);
+          dispatchInput({ type: 'SET_VALUE', payload: inputHistory[newIndex] });
+        } else if (historyIndex === 0) {
+          // Return to draft/empty
+          setHistoryIndex(-1);
+          dispatchInput({ type: 'SET_VALUE', payload: savedDraft });
+        }
+        return;
       }
     }
     
