@@ -275,15 +275,6 @@ function WebBuilder(data: WebviewNodeData) {
     // are still delivered through notifySystemColorMode (see EntryAbility).
     .darkMode(WebDarkMode.Auto)
     .forceDarkAccess(false)
-    // ArkWeb defaults domStorageAccess to false; wry's OHOS backend never
-    // passes dom_storage_access either, so window.localStorage is null on
-    // this host. That forces the shared storageAdapter into a memory-only
-    // fallback, so input history (and every other persisted store) is lost
-    // on restart. Enable DOM storage explicitly: the desktop front end is
-    // loaded from the trusted built-in asset protocol, matching WebView2 /
-    // WKWebView, which keep DOM storage enabled by default. Embedded mobile
-    // webviews (MiniApp/terminal/editor) keep their own .domStorageAccess(false).
-    .domStorageAccess(true)
     // ArkWeb suspends its scrollbars above page content by default
     // (ScrollbarMode.OVERLAY_LAYOUT_SCROLLBAR): the thumb paints on top of
     // hovered rows, buttons, and card edges, and on a 2in1 build a mouse cannot
@@ -299,7 +290,15 @@ function WebBuilder(data: WebviewNodeData) {
     .forceDisplayScrollBar(true)
     .visibility(data?.style?.visible === "hidden" ? Visibility.Hidden : Visibility.Visible)
     .javaScriptAccess(data?.javascriptEnable)
-    .domStorageAccess(data?.domStorageEnable ?? false)
+    // ArkWeb defaults domStorageAccess to false and wry's OHOS backend never
+    // passes dom_storage_access, so without this default the main desktop
+    // webview exposes window.localStorage as null. The shared storageAdapter
+    // then falls back to a memory Map and every persisted zustand store
+    // (input history, context store, i18n, etc.) is lost on restart. Default
+    // to true so the desktop front end (loaded from the trusted built-in
+    // asset protocol) keeps DOM storage, matching WebView2 / WKWebView.
+    // Embedded browser webviews already pass domStorageEnable explicitly.
+    .domStorageAccess(data?.domStorageEnable ?? true)
     .mediaPlayGestureAccess(
       typeof data?.autoplay === "boolean" && data.autoplay === true ? false : true,
     )
