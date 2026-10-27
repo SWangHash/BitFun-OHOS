@@ -22,6 +22,7 @@ default = []
 qt-toolchain = []
 
 [dependencies]
+bitfun-services-core = { path = "../services-core", features = ["process-runtime"] }
 bitfun-product-domains = { path = "../../contracts/product-domains" }
 bitfun-runtime-ports = { path = "../../contracts/runtime-ports", features = [
     "intent-analysis-port",

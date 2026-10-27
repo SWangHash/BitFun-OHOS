@@ -735,8 +735,10 @@ pub struct QtMigrationScanResult {
 
 impl QtScanCandidate {
     /// Whether this candidate is a toolchain a HarmonyOS migration can actually
+    /// run: a target kit whose tools were measured as running on this host. An
+    /// unmeasured tool (`None`) is not proof of usability.
     pub(crate) fn is_usable_toolchain(&self) -> bool {
-        self.qt_major.is_some() && self.ohos_target_kit && self.runs_on_host != Some(false)
+        self.qt_major.is_some() && self.ohos_target_kit && self.runs_on_host == Some(true)
     }
 }
 
