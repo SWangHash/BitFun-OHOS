@@ -18,6 +18,8 @@ import { useAnchoredPopoverPosition } from '@/shared/utils/useAnchoredPopoverPos
 import { useGitState } from '@/tools/git/hooks/useGitState';
 import { gitService } from '@/tools/git/services';
 import type { GitStatus } from '@/tools/git/types';
+import { useChatInputState } from '@/flow_chat/store/chatInputStateStore';
+import { computeFlowChatInputStackFooterPx } from '@/flow_chat/utils/flowChatScrollLayout';
 import './WelcomePanel.css';
 import './WelcomePanelSurface.scss';
 
@@ -43,6 +45,8 @@ export const WelcomePanel: React.FC<WelcomePanelProps> = ({
   const { t: tCommon } = useTranslation('common');
   const [workspaceDropdownOpen, setWorkspaceDropdownOpen] = useState(false);
   const [isSelectingWorkspace, setIsSelectingWorkspace] = useState(false);
+  const inputHeight = useChatInputState(state => state.inputHeight);
+  const inputClearance = computeFlowChatInputStackFooterPx(inputHeight);
   const workspaceDropdownRef = useRef<HTMLDivElement>(null);
   const workspaceTriggerRef = useRef<HTMLButtonElement>(null);
   const workspaceMenuRef = useRef<HTMLDivElement>(null);
@@ -276,7 +280,12 @@ export const WelcomePanel: React.FC<WelcomePanelProps> = ({
 
   return (
     <div data-bitfun-product-component="welcome-panel" data-bitfun-product-part="root" className={`welcome-panel ${className}`}>
-      <div data-bitfun-product-component="welcome-panel" data-bitfun-product-part="content" className="welcome-panel__content">
+      <div
+        data-bitfun-product-component="welcome-panel"
+        data-bitfun-product-part="content"
+        className="welcome-panel__content"
+        style={{ paddingBottom: `${inputClearance}px` }}
+      >
         {/* Greeting */}
         <div data-bitfun-product-component="welcome-panel" data-bitfun-product-part="greeting" className="welcome-panel__greeting">
           <PageHeader

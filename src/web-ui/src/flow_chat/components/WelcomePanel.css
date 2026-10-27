@@ -4,9 +4,6 @@
  */
 
 .welcome-panel {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: 100%;
   height: 100%;
   padding: var(--bitfun-space-8) var(--bitfun-space-6);
@@ -17,11 +14,15 @@
 }
 
 .welcome-panel__content {
-  display: flex;
-  flex-direction: column;
-  gap: var(--bitfun-space-6);
   width: 100%;
   max-width: 640px;
+  margin: 0 auto;
+  min-height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--bitfun-space-6);
 }
 
 /* ── Greeting ── */
@@ -249,11 +250,19 @@
 
 /* ── Responsive ── */
 
-@media (max-width: 480px) {
+@container flow-chat-transcript (max-width: 520px) {
   .welcome-panel {
-    padding: var(--bitfun-space-5) var(--bitfun-space-4);
+    padding: var(--bitfun-space-6) var(--bitfun-space-4);
   }
 
+  .welcome-panel__content {
+    gap: var(--bitfun-space-4);
+  }
+
+  .welcome-panel__summary {
+    margin-top: var(--bitfun-space-3);
+    padding: var(--bitfun-space-3) var(--bitfun-space-4);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
