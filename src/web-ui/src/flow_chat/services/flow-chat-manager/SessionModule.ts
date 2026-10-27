@@ -622,10 +622,15 @@ async function switchChatSessionInternal(
           retryActiveStaleReuse: shouldActivateBeforeHydrate,
         });
         surfaceScope.assertCurrent('hydrate session before switch');
-      } catch (error) {
-        if (isSurfaceChangedError(error)) {
-          throw error;
-        }
+  } catch (error) {
+    if (isSurfaceChangedError(error)) {
+      // Surface changed during hydration — reset historyState so the
+      // consumer effect (e.g. BtwSessionPanel) can retry when the surface
+      // becomes active again. Without this, historyState stays 'hydrating'
+      // forever and the UI shows "loading saved details..." permanently.
+      context.flowChatStore.setSessionHistoryState(sessionId, 'metadata-only');
+      throw error;
+    }
         // The hydrate path already marks the session failed and notifies the user.
         // Continue with activation so the failed state is visible.
       }

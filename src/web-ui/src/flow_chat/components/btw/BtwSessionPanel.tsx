@@ -267,6 +267,12 @@ const BtwSessionPanelContent: React.FC<BtwSessionPanelProps & { viewState: BtwPa
   );
 
   // Load history for historical sessions that have not yet had their turns loaded.
+  // Also retry when historyState is stuck at 'hydrating' (e.g. after a
+  // SurfaceChangedError interrupted hydration), with exponential backoff to
+  // avoid hammering the backend.
+  const hydrationRetryCountRef = useRef(0);
+  const hydrationRetryTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
   const loadChildHistory = useCallback(async () => {
     if (!childSessionId || !childSession) return;
 
@@ -274,9 +280,48 @@ const BtwSessionPanelContent: React.FC<BtwSessionPanelProps & { viewState: BtwPa
   }, [childSessionId, childSession, parentSessionId]);
 
   useEffect(() => {
-    if (!childSession?.isHistorical || childSession.historyState !== 'metadata-only') return;
-    void loadChildHistory().catch(() => undefined);
+    if (!childSession?.isHistorical) return;
+    if (childSession.historyState !== 'metadata-only' && childSession.historyState !== 'hydrating') return;
+
+    // Clear any pending retry timer when the effect re-runs.
+    if (hydrationRetryTimerRef.current !== undefined) {
+      clearTimeout(hydrationRetryTimerRef.current);
+      hydrationRetryTimerRef.current = undefined;
+    }
+
+    // 'metadata-only' retries immediately (original behavior). 'hydrating'
+    // backs off exponentially (1s -> 2s -> 4s -> 8s cap) to avoid hammering
+    // the backend when hydration is repeatedly interrupted by surface changes.
+    const delay = childSession.historyState === 'hydrating'
+      ? Math.min(1000 * 2 ** hydrationRetryCountRef.current, 8000)
+      : 0;
+
+    hydrationRetryTimerRef.current = setTimeout(() => {
+      hydrationRetryTimerRef.current = undefined;
+      void loadChildHistory().catch(() => undefined);
+    }, delay);
+
+    return () => {
+      if (hydrationRetryTimerRef.current !== undefined) {
+        clearTimeout(hydrationRetryTimerRef.current);
+        hydrationRetryTimerRef.current = undefined;
+      }
+    };
   }, [childSession?.historyState, childSession?.isHistorical, loadChildHistory]);
+
+  // Reset the backoff counter once hydration settles to 'ready' or 'failed'.
+  useEffect(() => {
+    if (childSession?.historyState === 'ready' || childSession?.historyState === 'failed') {
+      hydrationRetryCountRef.current = 0;
+    }
+  }, [childSession?.historyState]);
+
+  // Increment the backoff counter after each 'hydrating' retry is dispatched.
+  useEffect(() => {
+    if (childSession?.historyState === 'hydrating') {
+      hydrationRetryCountRef.current += 1;
+    }
+  }, [childSession?.historyState]);
 
   const updateScrollAffordance = useCallback(() => {
     const container = scrollContainerRef.current;
