@@ -48,6 +48,7 @@ import {
 } from '@/shared/utils/fsErrorUtils';
 import { useI18n } from '@/infrastructure/i18n';
 import { attachMonacoChromeI18n } from '../services/monacoChromeI18n';
+import { shouldFocusEditorOnTabActivation } from '../utils/activationFocus';
 import { buildMonacoChromeStrings } from '../services/monacoChromeStrings';
 import { type LineRange } from '@/shared/editor/LineRange';
 import { EditorBreadcrumb } from './EditorBreadcrumb';
@@ -63,6 +64,23 @@ import {
 } from '../config/defaults';
 
 const log = createLogger('CodeEditor');
+
+/**
+ * Bounded prefix read for oversized-file previews. Returns null when the
+ * access adapter cannot serve a prefix read; the caller falls back to refusing.
+ */
+async function readPreviewPrefix(access: EditorFileAccess, filePath: string): Promise<string | null> {
+  if (!access.readFileContentPrefix) {
+    return null;
+  }
+  try {
+    return await access.readFileContentPrefix(filePath, EDITOR_PREVIEW_BYTES);
+  } catch (error) {
+    log.warn('Prefix preview read failed', { error: String(error) });
+    return null;
+  }
+}
+
 import {
   GoToLinePopover,
   IndentPopover,
@@ -121,6 +139,15 @@ export interface CodeEditorProps {
 }
 
 const LARGE_FILE_SIZE_THRESHOLD_BYTES = 1 * 1024 * 1024; // 1MB
+/** Files above this size open as a bounded read-only preview instead of a full edit buffer. */
+const EDITOR_MAX_OPEN_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
+/** Character-count backstop applied after a read (metadata can omit the size). */
+const EDITOR_MAX_OPEN_FILE_CHARS = 15 * 1024 * 1024; // 15M chars
+/** Preview window: matches the `editor.common.largeFilePreview` copy ("first 8 MB"). */
+const EDITOR_PREVIEW_BYTES = 8 * 1024 * 1024; // 8MB
+const EDITOR_PREVIEW_CHARS = 8 * 1024 * 1024; // 8M chars
+/** External-change probes above this size skip hash/content comparison and auto-reload. */
+const LARGE_FILE_SYNC_GUARD_BYTES = 2 * 1024 * 1024; // 2MB
 const LARGE_FILE_MAX_LINE_LENGTH = 20000;
 const LARGE_FILE_RENDER_LINE_LIMIT = 10000;
 const LARGE_FILE_MAX_TOKENIZATION_LINE_LENGTH = 2000;
@@ -297,12 +324,19 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   const [statusBarAnchorRect, setStatusBarAnchorRect] = useState<AnchorRect | null>(null);
   const [encoding, setEncoding] = useState<string>('UTF-8');
   const [largeFileMode, setLargeFileMode] = useState(false);
+  /** True when the buffer is a bounded read-only preview of an oversized file. */
+  const [previewTruncated, setPreviewTruncated] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const modelRef = useRef<monaco.editor.ITextModel | null>(null);
   const isUnmountedRef = useRef(false);
   /** View-state fallback for editors rendered without a document session. */
   const localViewStateRef = useRef<monaco.editor.ICodeEditorViewState | null>(null);
+  const autoLoadRetryCountRef = useRef(0);
+  const isActiveTabRef = useRef(isActiveTab);
+  useEffect(() => {
+    isActiveTabRef.current = isActiveTab;
+  }, [isActiveTab]);
   const isCheckingFileRef = useRef(false);
   /** Last disk state known to match loaded/saved editor content (mtime + size; local + remote). */
   const diskVersionRef = useRef<DiskFileVersion | null>(null);
@@ -690,6 +724,18 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     isUnmountedRef.current = false;
     setMonacoReady(false);
 
+    // Intercept context drags (file tree / chat context pills) at the capture
+    // phase before Monaco's drop handler inserts the text/plain payload (the
+    // file's absolute path) into the buffer (issue #410).
+    const isContextDrag = (e: DragEvent) =>
+      !!e.dataTransfer && Array.from(e.dataTransfer.types).includes('application/x-bitfun-context');
+    const interceptContextDrag = (e: DragEvent) => {
+      if (isContextDrag(e)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
     const initEditor = async () => {
       try {
         if (!containerRef.current) {
@@ -853,6 +899,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 
         editor = monacoApi.editor.create(container, editorOptions);
         editorRef.current = editor;
+        container.addEventListener('dragover', interceptContextDrag, true);
+        container.addEventListener('drop', interceptContextDrag, true);
         if (documentSession?.viewState) editor.restoreViewState(documentSession.viewState as monaco.editor.ICodeEditorViewState);
         const editTarget = createMonacoEditTarget(editor);
         const unbindEditTarget = activeEditTargetService.bindTarget(editTarget);
@@ -1101,6 +1149,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 
       if (container) {
         delete (container as any).__monacoEditor;
+        container.removeEventListener('dragover', interceptContextDrag, true);
+        container.removeEventListener('drop', interceptContextDrag, true);
       }
 
       monacoModelManager.releaseModel(modelKey);
@@ -1136,7 +1186,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 
   useEffect(() => {
     if (editorRef.current) {
-      editorRef.current.updateOptions({ readOnly });
+      editorRef.current.updateOptions({ readOnly: readOnly || previewTruncated });
     }
   }, [readOnly]);
 
@@ -1155,7 +1205,12 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       if (saved) {
         editor.restoreViewState(saved as monaco.editor.ICodeEditorViewState);
       }
-      editor.focus();
+      // Single clicks in the file tree keep focus on the tree; the editor
+      // takes focus when the activation came from the tab bar, keyboard tab
+      // switching, or an unfocused workbench.
+      if (shouldFocusEditorOnTabActivation()) {
+        editor.focus();
+      }
     } else {
       const snapshot = editor.saveViewState();
       if (documentSession) {
@@ -1165,24 +1220,17 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     }
   }, [isActiveTab, monacoReady, documentSession]);
 
-  // Keep the cursor across tab switches: snapshot the view state when the tab
-  // deactivates (keep-alive tabs never unmount, so the unmount save alone is
-  // not enough) and restore it plus focus on re-activation so the caret is
-  // visible at the remembered position.
+  // Second click on the already-selected tree file: the file tree asks the
+  // active editor to take the caret (first click only selects and keeps the
+  // focus on the tree).
   useEffect(() => {
-    const editor = editorRef.current;
-    if (!editor || !monacoReady) {
-      return;
-    }
-    if (isActiveTab) {
-      if (documentSession?.viewState) {
-        editor.restoreViewState(documentSession.viewState as monaco.editor.ICodeEditorViewState);
+    return globalEventBus.on('workbench:focus-active-editor', () => {
+      if (!isActiveTabRef.current || !editorRef.current) {
+        return;
       }
-      editor.focus();
-    } else if (documentSession) {
-      documentSession.viewState = editor.saveViewState();
-    }
-  }, [isActiveTab, monacoReady, documentSession]);
+      editorRef.current.focus();
+    });
+  }, []);
 
   const performJump = useCallback((editor: any, model: any, line: number, column: number, endLine?: number) => {
     const lineCount = model.getLineCount();
@@ -1626,7 +1674,63 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     try {
       const workspaceAPI = documentFiles;
 
+      // Check the file size before reading: multi-hundred-MB files previously
+      // got read whole into the editor and froze/flashed the renderer. Files
+      // over the cap open as a bounded read-only preview (first 8 MB).
+      let sizeBefore: number | undefined;
+      try {
+        const infoBefore = await fetchFileMetadata();
+        if (isFileMissingFromMetadata(infoBefore)) {
+          reportFileMissingFromDisk(true);
+          setLoading(false);
+          isLoadingContentRef.current = false;
+          return;
+        }
+        reportFileMissingFromDisk(false);
+        const baselineBefore = diskVersionFromMetadata(infoBefore);
+        if (baselineBefore) {
+          diskVersionRef.current = baselineBefore;
+        }
+        if (typeof infoBefore?.size === 'number') {
+          sizeBefore = infoBefore.size;
+        }
+      } catch (err) {
+        if (isLikelyFileNotFoundError(err)) {
+          reportFileMissingFromDisk(true);
+        }
+        log.warn('Failed to get file metadata before load', err);
+      }
+
+      if (sizeBefore !== undefined && sizeBefore > EDITOR_MAX_OPEN_FILE_SIZE_BYTES) {
+        const previewContent = await readPreviewPrefix(workspaceAPI, filePath);
+        if (previewContent !== null) {
+          log.info('Opening oversized file as read-only prefix preview', { filePath, size: sizeBefore });
+          documentSession?.capture(previewContent, false);
+          updateLargeFileMode(previewContent, sizeBefore);
+          setPreviewTruncated(true);
+          setContent(previewContent);
+          originalContentRef.current = previewContent;
+          setHasChanges(false);
+          hasChangesRef.current = false;
+          applyExternalContentToModel(previewContent);
+          return;
+        }
+        log.warn('Refusing to open oversized file: prefix preview unavailable', { filePath, size: sizeBefore });
+        setError(tRef.current('editor.common.fileTooLarge'));
+        setLoading(false);
+        isLoadingContentRef.current = false;
+        return;
+      }
+
       const fileContent = await workspaceAPI.readFileContent(filePath);
+      // Metadata can fail or omit the size on some hosts; fall back to a
+      // truncated preview instead of handing the whole payload to Monaco.
+      let editorContent = fileContent;
+      if (fileContent.length > EDITOR_MAX_OPEN_FILE_CHARS) {
+        log.warn('Opening oversized file as truncated read-only preview', { filePath, chars: fileContent.length });
+        editorContent = fileContent.slice(0, EDITOR_PREVIEW_CHARS);
+        setPreviewTruncated(true);
+      }
       reportFileMissingFromDisk(false);
       let fileSizeBytes: number | undefined;
       try {
@@ -1650,14 +1754,14 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         log.warn('Failed to get file metadata', err);
       }
 
-      documentSession?.capture(fileContent, false);
-      updateLargeFileMode(fileContent, fileSizeBytes);
-      
-      setContent(fileContent);
-      originalContentRef.current = fileContent;
+      documentSession?.capture(editorContent, false);
+      updateLargeFileMode(editorContent, fileSizeBytes);
+
+      setContent(editorContent);
+      originalContentRef.current = editorContent;
       setHasChanges(false);
       hasChangesRef.current = false;
-      applyExternalContentToModel(fileContent);
+      applyExternalContentToModel(editorContent);
       
       // NOTE: Do NOT call onContentChange here during initial load.
       // Calling it triggers parent re-render which unmounts this component,
@@ -1944,6 +2048,21 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         return;
       }
 
+      // Huge buffers must never enter the hash/content comparison path below:
+      // it materializes the whole model and re-reads the whole file per poll,
+      // which flashes the editor between the loading and loaded states. Large
+      // files only refresh their baseline here; use the manual reload to pick
+      // up real external changes.
+      if (currentVersion.size > LARGE_FILE_SYNC_GUARD_BYTES) {
+        diskVersionRef.current = currentVersion;
+        outcome = 'large-file-baseline-refresh';
+        log.info('Skipping external-change hash check for large file', {
+          filePath,
+          size: currentVersion.size,
+        });
+        return;
+      }
+
       const bufferBeforeRead = modelRef.current?.getValue();
       try {
         const hashRes: any = await (documentInvoke ?? api.invoke.bind(api))('get_file_editor_sync_hash', {
@@ -2050,8 +2169,10 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     loadFileContentCalledRef.current = false;
     diskVersionRef.current = null;
     lastReportedMissingRef.current = undefined;
+    autoLoadRetryCountRef.current = 0;
+    setPreviewTruncated(false);
   }, [filePath]);
-  
+
   useEffect(() => {
     if ((!documentSession || documentSession.isCurrent()) && !loadFileContentCalledRef.current) {
       loadFileContentCalledRef.current = true;
@@ -2059,8 +2180,21 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     }
   }, [loadFileContent, isActiveTab, documentSession]);
 
+  // Automatic retry is capped at one attempt per file: persistent failures
+  // (oversized files, unreadable hosts) previously re-entered the load path
+  // and kept flashing the editor between the loading and loaded states. The
+  // error overlay's manual retry button remains available.
   useEffect(() => {
-    if (isActiveTab && documentSession?.isCurrent() && !documentSession.snapshot && error) void loadFileContent();
+    if (
+      isActiveTab
+      && documentSession?.isCurrent()
+      && !documentSession.snapshot
+      && error
+      && autoLoadRetryCountRef.current < 1
+    ) {
+      autoLoadRetryCountRef.current += 1;
+      void loadFileContent();
+    }
   }, [documentSession, error, isActiveTab, loadFileContent]);
 
   useEffect(() => {
@@ -2367,7 +2501,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 
   return (
     <div 
-      className={`code-editor-tool ${className} ${loading && showLoadingOverlay ? 'is-loading' : ''} ${error ? 'is-error' : ''} ${largeFileMode ? 'is-large-file-mode' : ''}`}
+      className={`code-editor-tool ${className} ${loading && showLoadingOverlay ? 'is-loading' : ''} ${error ? 'is-error' : ''} ${largeFileMode ? 'is-large-file-mode' : ''} ${previewTruncated ? 'is-preview-truncated' : ''}`}
       data-monaco-editor="true"
       data-editor-id={`editor-${filePath.replace(/[^a-zA-Z0-9]/g, '-')}`}
       data-file-path={filePath}
@@ -2400,6 +2534,17 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           }} 
         />
       </div>
+
+      {previewTruncated && (
+        <div
+          className="code-editor-tool__preview-notice"
+          data-bitfun-component="editor-tool"
+          data-bitfun-part="previewNotice"
+          role="status"
+        >
+          {t('editor.common.largeFilePreview')}
+        </div>
+      )}
 
       {loading && showLoadingOverlay && (
         <div className="code-editor-tool__loading-overlay" data-bitfun-component="editor-tool" data-bitfun-part="loading">

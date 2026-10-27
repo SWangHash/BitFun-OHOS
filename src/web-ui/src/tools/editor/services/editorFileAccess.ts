@@ -7,6 +7,8 @@ import type { FileMetadata } from '@/infrastructure/api/service-api/WorkspaceAPI
  */
 export interface EditorFileAccess {
   readFileContent(path: string, encoding?: string): Promise<string>;
+  /** Bounded prefix read for oversized-file previews; optional (local hosts). */
+  readFileContentPrefix?(path: string, maxBytes: number): Promise<string>;
   getFileMetadata(path: string): Promise<FileMetadata>;
   /** The first argument is a legacy root projection and is ignored; the owner is the workspace ID. */
   writeFileContent(workspacePath: string, path: string, content: string): Promise<void>;
@@ -38,6 +40,8 @@ export function standaloneEditorFileAccess(workspaceId?: string): EditorFileAcce
   return {
     readFileContent: async (path, encoding) =>
       (await api()).readWorkspaceFile(await requireWorkspaceId(), path, encoding),
+    readFileContentPrefix: async (path, maxBytes) =>
+      (await api()).readFileContentPrefix(path, maxBytes),
     getFileMetadata: async (path) =>
       (await api()).getWorkspaceFileMetadata(await requireWorkspaceId(), path),
     writeFileContent: async (_workspacePath, path, content) =>

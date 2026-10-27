@@ -57,6 +57,14 @@ export class EditorDocument {
       this.observedFiles.add(resourcePathKey(path, this.scope));
       return content;
     },
+    readFileContentPrefix: async (path: string, maxBytes: number) => {
+      const content = await this.run(async assertCurrent => {
+        assertCurrent();
+        return workspaceAPI.readFileContentPrefix(path, maxBytes, this.scope.remoteConnectionId);
+      });
+      this.observedFiles.add(resourcePathKey(path, this.scope));
+      return content;
+    },
     getFileMetadata: async (path: string) => {
       const metadata = await this.run(async assertCurrent => {
         const workspaceId = await this.workspaceId();

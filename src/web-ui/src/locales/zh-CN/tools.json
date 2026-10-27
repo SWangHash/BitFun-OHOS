@@ -36,7 +36,7 @@
       "unsupportedFileType": "不支持的文件类型",
       "largeFilePreview": "文件过大，已打开前 8 MB 只读预览",
       "fileNotFound": "文件不存在",
-      "fileTooLarge": "文件过大，仅支持打开小于 15 MB 的文本文件",
+      "fileTooLarge": "文件过大，仅支持打开小于 50 MB 的文本文件",
       "permissionDenied": "权限不足",
       "networkError": "网络错误",
       "saveFailedWithMessage": "保存文件失败: {{message}}",
@@ -61,7 +61,7 @@
       "overwriteSave": "覆盖保存",
       "reloadFromDisk": "从磁盘重新加载"
     },
-    "find": {
+    "findWidget": {
       "find": "查找",
       "replace": "替换",
       "replaceAll": "全部替换",

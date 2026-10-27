@@ -87,6 +87,16 @@ $_editor-padding-desktop: 32px;
     font-family: var(--bitfun-type-code-md-font-family);
   }
 
+  // Oversized-file read-only preview banner
+  &__preview-notice {
+    flex-shrink: 0;
+    padding: var(--bitfun-space-1) var(--bitfun-space-3);
+    font-size: var(--bitfun-type-meta-font-size);
+    color: var(--bitfun-color-content-secondary);
+    background: var(--bitfun-color-selection-surface);
+    border-bottom: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+  }
+
   // Editor Content Area
   &__content {
     flex: 1;
