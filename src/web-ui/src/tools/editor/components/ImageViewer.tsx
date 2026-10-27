@@ -18,6 +18,7 @@ import { formatBytes } from '@/shared/utils/format';
 import { downloadWorkspaceFileToDisk } from '@/tools/file-system/services/workspaceFileTransfer';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { createBrowserImageDataUrl } from '@/shared/utils/imageDataUrl';
+import { useShortcut } from '@/infrastructure/hooks/useShortcut';
 import './ImageViewer.scss';
 
 const log = createLogger('ImageViewer');
@@ -165,6 +166,14 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
   const handleZoomReset = useCallback(() => {
     setZoom(100);
   }, []);
+
+  // Zoom/reset keyboard shortcuts (advertised in the toolbar tooltips).
+  // App-level Ctrl+= / Ctrl+- typography scaling is gated off while an image
+  // viewer holds the canvas (issue #389).
+  useShortcut('imageViewer.zoomIn', { key: '=', ctrl: true, scope: 'canvas', allowInInput: true }, handleZoomIn, { enabled: isActiveTab });
+  useShortcut('imageViewer.zoomInPlus', { key: '+', ctrl: true, scope: 'canvas', allowInInput: true }, handleZoomIn, { enabled: isActiveTab });
+  useShortcut('imageViewer.zoomOut', { key: '-', ctrl: true, scope: 'canvas', allowInInput: true }, handleZoomOut, { enabled: isActiveTab });
+  useShortcut('imageViewer.zoomReset', { key: '0', ctrl: true, scope: 'canvas', allowInInput: true }, handleZoomReset, { enabled: isActiveTab });
 
   const handleRotate = useCallback(() => {
     // Keep the angle cumulative instead of wrapping at 360: the CSS rotate

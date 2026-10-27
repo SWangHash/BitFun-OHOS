@@ -19,6 +19,15 @@
     bottom: 0;
     z-index: var(--bitfun-layer-fullscreen);
     background: var(--bitfun-color-surface-canvas);
+    // Put the toolbar at the bottom in fullscreen: OHOS system controls
+    // (minimize/maximize/close) occupy the top-right corner and would
+    // overlap the toolbar buttons. Bottom placement avoids them entirely
+    // without leaving blank space at the top.
+    flex-direction: column-reverse;
+
+    &__toolbar {
+      order: 2;
+    }
   }
 
   // Toolbar layout comes from the design-system Toolbar; keep it pinned to the top.

@@ -34,6 +34,7 @@ import { RealtimeVoiceCallProvider } from '../flow_chat/components/voice/Realtim
 import type { AgentCompanionPetCommand } from './services/agentCompanionPetCommands';
 import AskUserAnnouncer from './components/NavPanel/AskUserAnnouncer';
 import { handleBrowserShortcut } from './browserShortcutPolicy';
+import { useAgentCanvasStore } from './components/panels/content-canvas/stores';
 import { fontPreferenceService } from '@/infrastructure/font-preference/core/FontPreferenceService';
 import { activateCreationRuntime } from '@/infrastructure/creation/creationRuntime';
 import { attachCreationRuntime, recordCreationActivationError } from '@/infrastructure/creation/creationBridge';
@@ -891,8 +892,16 @@ function App() {
   // Control typography and block browser-native find/print. Reload remains available while the
   // frontend runs in dev mode and is blocked in release builds. The desktop
   // host independently applies the matching Rust build-profile policy.
+  // Skip when the active canvas tab is an image/pdf viewer: Ctrl+= / Ctrl+-
+  // belong to the viewer's own zoom controls, not UI typography (issue #389).
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const canvasState = useAgentCanvasStore.getState();
+      const activeGroup = canvasState[`${canvasState.activeGroupId}Group`];
+      const activeTab = activeGroup?.tabs.find(tab => tab.id === activeGroup.activeTabId);
+      if (activeTab?.content.type === 'image-viewer' || activeTab?.content.type === 'pdf-viewer') {
+        return;
+      }
       handleBrowserShortcut(e, import.meta.env.DEV, delta => {
         void fontPreferenceService.adjustUiSize(delta);
       });
