@@ -27,6 +27,11 @@ import { globalEventBus } from '@/infrastructure/event-bus';
 import { useNotification } from '@/shared/notification-system';
 import { LoadingState } from '@bitfun/ui';
 import { openFileInBestTarget } from '@/shared/utils/tabUtils';
+import { resourcePathKey } from '@/shared/utils/resourcePath';
+import {
+  sameContentResourceOwner,
+  useContentResourceStore,
+} from '@/app/workbench/contentResourceStore';
 import { PanelHeader } from './base';
 import { createLogger } from '@/shared/utils/logger';
 import { isPeerDeviceModeActive } from '@/infrastructure/peer-device/peerModeFlag';
@@ -329,6 +334,17 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
   // ===== File Operation Handlers =====
 
   const shouldOpenLargeFile = useCallback(async (filePath: string, nodeSize?: number): Promise<boolean> => {
+    // Re-selecting a file that is already open in the workbench must not
+    // re-confirm (issue #327).
+    const resources = useContentResourceStore.getState().resources;
+    const pathKey = resourcePathKey(filePath, resourceScope);
+    const alreadyOpen = Object.values(resources).some(resource =>
+      resource.target.kind === 'file'
+      && sameContentResourceOwner(resource.scope, resourceScope)
+      && resourcePathKey(resource.target.path, resourceScope) === pathKey
+    );
+    if (alreadyOpen) return true;
+
     let fileSize: number | undefined = nodeSize;
 
     if (fileSize === undefined || fileSize === null) {
