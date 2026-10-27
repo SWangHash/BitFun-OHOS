@@ -21,6 +21,9 @@ import { Selection } from '@tiptap/pm/state';
 import { useI18n } from '@/infrastructure/i18n';
 
 import { editorAiAPI } from '@/infrastructure/api/service-api/EditorAiAPI';
+import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
+import { openFileInBestTarget } from '@/shared/utils/tabUtils';
+import path from 'path-browserify';
 import { notificationService } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
 import { getMotionAwareScrollBehavior } from '@/shared/utils/motionPreference';
@@ -635,6 +638,33 @@ export const TiptapEditor = React.forwardRef<TiptapEditorHandle, TiptapEditorPro
     ],
     editorProps: {
       attributes: { class: 'markdown-renderer' },
+      handleClick: (_view, _pos, event) => {
+        // The Link extension is configured with openOnClick:false so clicks
+        // stay editable; open web/mail/file links on click to honour the
+        // "clicking a markdown link jumps to it" expectation.
+        const target = event.target instanceof Element ? event.target : null;
+        const anchor = target?.closest('a');
+        if (!anchor) {
+          return false;
+        }
+        const href = anchor.getAttribute('href');
+        if (!href) {
+          return false;
+        }
+        event.preventDefault();
+        if (/^(https?:|mailto:)/i.test(href)) {
+          void systemAPI.openExternal(href).catch(() => undefined);
+          return true;
+        }
+        // Relative or absolute file path (e.g. `./README.zh-CN.md`):
+        // resolve against the current file's directory and open in editor.
+        if (filePath) {
+          const resolved = path.resolve(path.dirname(filePath), href);
+          openFileInBestTarget({ filePath: resolved });
+          return true;
+        }
+        return false;
+      },
       handleKeyDown: (_view, event) => {
         if (readonlyRef.current || inlineAiStateRef.current?.isOpen) {
           return false;
