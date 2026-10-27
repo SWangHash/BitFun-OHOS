@@ -386,7 +386,7 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
       // Ask for a fit so the container wins instead of waiting for the next resize.
       terminalRef.current.fit();
     }
-  }, [flushOutputQueue, queueWrite, setReplayColumnGuard]);
+  }, [flushOutputQueue, queueWrite, setReplayColumnGuard, sessionId]);
 
   const {
     session,

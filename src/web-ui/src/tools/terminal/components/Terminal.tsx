@@ -72,6 +72,7 @@ type TerminalCoreWithMeasurement = XTerm & {
     };
     _renderService?: {
       handleDevicePixelRatioChange?: () => void;
+      handleResize?: (cols: number, rows: number) => void;
     };
   };
 };
@@ -94,6 +95,79 @@ function remeasureTerminal(terminal: XTerm): void {
   const rawTerminal = terminal as TerminalCoreWithMeasurement;
   rawTerminal._core?._charSizeService?.measure?.();
   rawTerminal._core?._renderService?.handleDevicePixelRatioChange?.();
+}
+
+/**
+ * Whether xterm still paints the geometry of the previous row/column count.
+ *
+ * The screen box is sized from the dimensions the render service caches, and the host
+ * applies that render a frame — or, on ArkWeb, sometimes a second — after `resize()`
+ * returned. A re-parented panel therefore paints the previous row count inside its new
+ * box: the terminal shows a single row of its scrollback with a scrollbar above it, and
+ * every later fit measures the same size and returns early, so nothing corrects it.
+ *
+ * The DOM box is the primary evidence — it is what the user sees — with the render
+ * service's own numbers as a fallback for hosts without a measurable screen element.
+ */
+function rendererGeometryIsStale(terminal: XTerm): boolean {
+  const cell = terminal.dimensions?.css?.cell;
+  if (!cell?.width || !cell?.height) {
+    return false;
+  }
+
+  const expectedWidth = terminal.cols * cell.width;
+  const expectedHeight = terminal.rows * cell.height;
+  const screenElement = terminal.element?.querySelector<HTMLElement>('.xterm-screen');
+
+  if (screenElement) {
+    return (
+      Math.abs(screenElement.offsetHeight - expectedHeight) > cell.height / 2
+      || Math.abs(screenElement.offsetWidth - expectedWidth) > cell.width / 2
+    );
+  }
+
+  const canvas = terminal.dimensions?.css?.canvas;
+  if (!canvas) return false;
+
+  return (
+    Math.abs(canvas.height - expectedHeight) > cell.height / 2
+    || Math.abs(canvas.width - expectedWidth) > cell.width / 2
+  );
+}
+
+/**
+ * Re-apply the buffer's geometry to the renderer. Returns true when it had to act.
+ */
+function syncStaleRendererGeometry(terminal: XTerm): boolean {
+  if (!rendererGeometryIsStale(terminal)) {
+    return false;
+  }
+
+  const cell = terminal.dimensions?.css?.cell;
+  log.debug('Renderer geometry was stale, re-applying the buffer size', {
+    cols: terminal.cols,
+    rows: terminal.rows,
+    expectedHeight: cell ? Math.round(terminal.rows * cell.height) : null,
+    paintedHeight: terminal.element?.querySelector<HTMLElement>('.xterm-screen')?.offsetHeight ?? null,
+  });
+
+  // Re-measuring drops the cached cell metrics and redraws with them, which is what
+  // makes the screen box take the row count the buffer already has.
+  remeasureTerminal(terminal);
+
+  if (rendererGeometryIsStale(terminal)) {
+    // The measured cell is fine but the render service still holds the previous
+    // geometry; hand it the current size directly, the same call xterm itself makes
+    // on a buffer resize.
+    const rawTerminal = terminal as TerminalCoreWithMeasurement;
+    try {
+      rawTerminal._core?._renderService?.handleResize?.(terminal.cols, terminal.rows);
+    } catch {
+      // Internal API: a shape change only costs this extra attempt.
+    }
+  }
+
+  return true;
 }
 
 export interface TerminalOptions {
@@ -362,6 +436,10 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
         // Already at the measured size: still report it, so a caller waiting for a
         // measured geometry is not left waiting for a resize that never happens.
         onSizeSettledRef.current?.({ cols, rows });
+        // The buffer can already hold this size while the renderer still paints the
+        // previous one. Returning here without checking froze that half-painted
+        // screen: the settle refits all bailed out as "already correct".
+        syncStaleRendererGeometry(terminal);
         return true;
       }
 
@@ -464,9 +542,15 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
     if (!terminal) return;
 
     requestAnimationFrame(() => {
-      if (terminalRef.current) {
-        forceRefresh(terminalRef.current);
+      const current = terminalRef.current;
+      if (!current) return;
+      // A host that applies the render late leaves the screen box at the previous
+      // row count; re-measuring here fixes it a frame after the resize instead of
+      // leaving it to the settle refits.
+      if (syncStaleRendererGeometry(current)) {
+        return;
       }
+      forceRefresh(current);
     });
   }, [forceRefresh]);
 
@@ -519,9 +603,11 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
       });
 
       if (decision.kind === 'skip') {
-        log.debug('Fit skipped: measured size unusable', {
+        log.debug('Fit skipped: nothing to apply', {
           cols: dims.cols,
           rows: dims.rows,
+          currentCols: terminal.cols,
+          currentRows: terminal.rows,
           clientWidth,
           clientHeight,
         });
@@ -558,6 +644,15 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
       }
     } catch (error) {
       log.warn('Fit error', error);
+    } finally {
+      // Every fit is also a chance to notice that the renderer is painting the
+      // previous geometry, whatever path this fit took — a refused shrink, an
+      // unchanged size, or a host that applied the render late. Without this the
+      // check only ran on the paths that happened to reach it.
+      const terminal = terminalRef.current;
+      if (terminal && !resizeSuspendedRef.current) {
+        syncStaleRendererGeometry(terminal);
+      }
     }
   }, [doXtermResize, doBackendResize, handleResizeComplete, agentProbe, agentGeometry]);
 
@@ -643,7 +738,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
       fitRef.current(true);
       scheduleSettleRefitsRef.current();
     });
-  }, [resizeSuspended]);
+  }, [resizeSuspended, agentProbe, agentGeometry]);
 
   useImperativeHandle(ref, () => ({
     write: (data: string) => {
@@ -1089,7 +1184,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
       resizeDebouncerRef.current = null;
       lastBackendSizeRef.current = null;
     };
-  }, []);
+  }, [agentProbe, agentGeometry]);
 
   useEffect(() => {
     const terminal = terminalRef.current;
