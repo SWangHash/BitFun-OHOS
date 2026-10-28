@@ -2832,7 +2832,8 @@
   "errors": {
     "sendFailed": "Failed to send message",
     "thinkingProcessError": "Thinking process error",
-    "workspaceNotResolvable": "The workspace folder does not exist or has been moved"
+    "workspaceNotResolvable": "The workspace folder does not exist or has been moved",
+    "modelConfigUnavailable": "The model configuration is unknown, disabled, or ambiguous. Please select another model."
   },
   "actions": {
     "send": "Send"

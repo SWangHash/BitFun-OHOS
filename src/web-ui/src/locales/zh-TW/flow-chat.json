@@ -2841,7 +2841,8 @@
   "errors": {
     "sendFailed": "傳送訊息失敗",
     "thinkingProcessError": "思考過程錯誤",
-    "workspaceNotResolvable": "工作區資料夾不存在或已被移動"
+    "workspaceNotResolvable": "工作區資料夾不存在或已被移動",
+    "modelConfigUnavailable": "模型設定不可用、已停用或無法識別，請重新選擇模型"
   },
   "actions": {
     "send": "傳送"

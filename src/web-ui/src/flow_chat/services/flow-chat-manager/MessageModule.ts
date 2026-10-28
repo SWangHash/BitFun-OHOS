@@ -447,7 +447,9 @@ export async function sendMessage(
     const rawErrorMessage = error instanceof Error ? error.message : '';
     const errorMessage = /does not resolve to a local workspace/i.test(rawErrorMessage)
       ? i18nService.t('flow-chat:errors.workspaceNotResolvable')
-      : (rawErrorMessage || i18nService.t('flow-chat:errors.sendFailed'));
+      : /Unknown, disabled, or ambiguous model configuration/i.test(rawErrorMessage)
+        ? i18nService.t('flow-chat:errors.modelConfigUnavailable')
+        : (rawErrorMessage || i18nService.t('flow-chat:errors.sendFailed'));
 
     const currentState = stateMachineManager.getCurrentState(sessionId);
     const activeDialogTurnId = stateMachineManager
