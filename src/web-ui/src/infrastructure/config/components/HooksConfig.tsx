@@ -17,6 +17,9 @@ import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext'
 import { WorkspaceKind } from '@/shared/types';
 import { useNotification } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
+import { HOOK_IMPORT_CHANGED, type HookImportChanged } from '@/infrastructure/agent-hooks/importEvents';
+import { globalEventBus } from '@/infrastructure/event-bus';
+import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 import {
   externalHooksAPI,
   type ExternalHookImportMutation,
@@ -88,6 +91,7 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
   >(null);
   const [projectHooksEnableConfirmOpen, setProjectHooksEnableConfirmOpen] = useState(false);
   const requestSequence = useRef(0);
+  const importSequence = useRef(0);
   const mountedRef = useRef(true);
 
   const loadData = useCallback(async () => {
@@ -127,9 +131,11 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
     };
   }, [loadData]);
 
+  // Import reads have their own generation: rereading them must neither cancel
+  // the pending page load nor keep the loading state alive after it.
   const refreshImports = useCallback(async () => {
     if (remoteWorkspace) return;
-    const sequence = ++requestSequence.current;
+    const sequence = ++importSequence.current;
     setImportLoading(true);
     setImportError(null);
     try {
@@ -137,19 +143,31 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
         workspace?.id,
         true,
       );
-      if (mountedRef.current && sequence === requestSequence.current) {
+      if (mountedRef.current && sequence === importSequence.current) {
         setImportSnapshot(snapshot);
       }
     } catch (error) {
-      if (!mountedRef.current || sequence !== requestSequence.current) return;
+      if (!mountedRef.current || sequence !== importSequence.current) return;
       log.error('Failed to refresh imported Hooks', error);
       setImportError(t('imports.refreshFailed'));
     } finally {
-      if (mountedRef.current && sequence === requestSequence.current) {
-        setImportLoading(false);
-      }
+      // A superseded read must still release the control it started.
+      if (mountedRef.current) setImportLoading(false);
     }
   }, [remoteWorkspace, t, workspace?.id]);
+
+  // The ecosystem catalog can import or remove the same copies. Follow those
+  // writes so this list never keeps showing a native copy that is gone, or hides
+  // one that now exists.
+  useEffect(() => {
+    if (remoteWorkspace) return;
+    const scope = getActiveSurfaceScope();
+    return globalEventBus.on<HookImportChanged>(HOOK_IMPORT_CHANGED, ({ surfaceId, revision }) => {
+      if (!scope.isCurrent() || surfaceId !== scope.surfaceId) return;
+      if (importSnapshot?.revision === revision) return;
+      void refreshImports();
+    });
+  }, [importSnapshot?.revision, refreshImports, remoteWorkspace]);
 
   const updateConfig = useCallback(
     async <K extends keyof AgentHooksConfigShape>(key: K, value: AgentHooksConfigShape[K]) => {

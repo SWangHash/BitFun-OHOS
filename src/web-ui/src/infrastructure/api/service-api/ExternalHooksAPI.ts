@@ -1,3 +1,5 @@
+import { notifyHookImportChanged } from '@/infrastructure/agent-hooks/importEvents';
+import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 import {
   ExternalSourceApiError,
   invokeExternalSourceCommand,
@@ -593,6 +595,7 @@ export const externalHooksAPI = {
     return normalizeImportPlan(response);
   },
   async applyImport(workspaceId: string | undefined, plan: ExternalHookImportPlan) {
+    const scope = getActiveSurfaceScope();
     const response = await invokeExternalSourceCommand<unknown>(
       'apply_external_hook_import_command',
       {
@@ -606,13 +609,20 @@ export const externalHooksAPI = {
         },
       },
     );
-    return normalizeApplyResult(response);
+    const result = normalizeApplyResult(response);
+    // A stale plan writes nothing, so it must not invalidate other readers.
+    if (result.outcome.kind === 'stale') return result;
+    if (scope.isCurrent()) {
+      notifyHookImportChanged(scope, result.outcome.snapshot.revision);
+    }
+    return result;
   },
   async mutateImport(
     workspaceId: string | undefined,
     expectedRevision: string,
     action: ExternalHookImportMutation,
   ) {
+    const scope = getActiveSurfaceScope();
     const response = await invokeExternalSourceCommand<unknown>(
       'mutate_external_hook_import_command',
       {
@@ -622,6 +632,8 @@ export const externalHooksAPI = {
         },
       },
     );
-    return normalizeImportSnapshot(response);
+    const snapshot = normalizeImportSnapshot(response);
+    if (scope.isCurrent()) notifyHookImportChanged(scope, snapshot.revision);
+    return snapshot;
   },
 };

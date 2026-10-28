@@ -50,6 +50,24 @@ export function permissionModeToConfig(
 }
 
 /**
+ * Whether a session's own selection is an override worth surfacing.
+ *
+ * A session only carries an override while it resolves to a mode the user-level
+ * default does not already select: writing the same value back moves no scope,
+ * so the "follow the default" row it would unlock is an action that changes
+ * nothing. Until the default has loaded the comparison cannot be made honestly -
+ * the built-in fallback is full access - so the selection stays an override.
+ */
+export function sessionModeOverridesDefault(
+  sessionMode: SessionPermissionMode | null,
+  defaultMode: SessionPermissionMode,
+  defaultLoaded: boolean,
+): boolean {
+  if (sessionMode === null) return false;
+  return !defaultLoaded || sessionMode !== defaultMode;
+}
+
+/**
  * Whether moving a scope to `nextMode` deserves the full-access warning.
  *
  * Full access is worth one confirmation because it stops asking per tool. A

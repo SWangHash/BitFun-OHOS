@@ -2349,6 +2349,22 @@ impl ExecutionEngine {
             }
         }
 
+        // Providers reject a request whose assistant `tool_calls` message is not
+        // answered by a tool message for every call id. History can legitimately
+        // reach this point unpaired (aborted tool phase, compression cut, filtered
+        // result), so repair the outgoing payload instead of failing the turn and
+        // let an already poisoned session become usable again.
+        let pairing_repair =
+            bitfun_ai_adapters::tool_call_pairing::repair_tool_call_pairing(&mut result);
+        if !pairing_repair.is_empty() {
+            warn!(
+                "Repaired unpaired tool calls before sending the request: synthesized_tool_results={}, dropped_tool_results={}, unpairable_tool_calls={}",
+                pairing_repair.synthesized_results,
+                pairing_repair.dropped_tool_results,
+                pairing_repair.unpairable_tool_calls
+            );
+        }
+
         Ok(result)
     }
 

@@ -255,6 +255,7 @@ import {
   needsFullAccessConfirmation,
   permissionModeFromConfig,
   replacedSessionPermissionMode,
+  sessionModeOverridesDefault,
   sessionPermissionMode as toBackendPermissionMode,
 } from '../utils/permissionMode';
 import {
@@ -1293,8 +1294,17 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const temporaryPermissionMode = activePermissionTurnId
     ? activeTurnPermissionMode
     : armedTurnPermissionMode;
+  // A session record is only an override while it resolves to a different mode
+  // than the user-level default: writing back the value the default already
+  // holds changes nothing, so offering "follow the default" for it would be a
+  // no-op row.
   const permissionModeOverridden =
-    !isAcpTargetSession && (temporaryPermissionMode !== null || sessionPermissionMode !== null);
+    !isAcpTargetSession
+    && sessionModeOverridesDefault(
+      sessionPermissionMode,
+      globalPermissionMode,
+      toolPermissionConfigLoaded,
+    );
   const activeSessionMode = effectiveTargetSessionId
     ? acpTargetAgentType || flowChatState.sessions.get(effectiveTargetSessionId)?.mode
     : undefined;

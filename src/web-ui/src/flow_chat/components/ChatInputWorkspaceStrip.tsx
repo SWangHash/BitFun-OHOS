@@ -63,6 +63,9 @@ export interface ChatInputWorkspaceStripProps {
     /**
      * The session chose its own mode instead of following the default. Shown so
      * two sessions sitting on different modes is legible rather than confusing.
+     * A session selection that resolves to the default's own mode is not an
+     * override: both scopes run the same thing, so the reset row would be a
+     * no-op.
      */
     overridden?: boolean;
     /** Clears the session's own selection and follows the default again. */

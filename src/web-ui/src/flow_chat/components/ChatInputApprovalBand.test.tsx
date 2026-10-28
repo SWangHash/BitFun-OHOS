@@ -44,9 +44,14 @@ vi.mock('react-i18next', async importOriginal => ({
   }),
 }));
 
+const tooltipProps = vi.hoisted(() => [] as Array<{ content?: React.ReactNode; interactive?: boolean }>);
+
 vi.mock('@bitfun/ui', async importOriginal => ({
   ...await importOriginal<typeof import('@bitfun/ui')>(),
-  Tooltip: ({ children }: { children: React.ReactElement }) => <>{children}</>,
+  Tooltip: (props: { children: React.ReactElement; content?: React.ReactNode; interactive?: boolean }) => {
+    tooltipProps.push({ content: props.content, interactive: props.interactive });
+    return <>{props.children}</>;
+  },
 }));
 
 vi.mock('@/shared/utils/textSelection', async importOriginal => ({
@@ -85,6 +90,7 @@ describe('ChatInputApprovalBand', () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
+    tooltipProps.length = 0;
     vi.clearAllMocks();
   });
 
@@ -350,6 +356,31 @@ describe('ChatInputApprovalBand', () => {
       'Always allow this scope',
     );
     expect(container.querySelector('[data-bitfun-part="grantScope"]')).toBeNull();
+  });
+
+  it('keeps the saved-grant explanation reachable while it is being read', async () => {
+    await act(async () => {
+      root.render(
+        <ChatInputApprovalBand
+          requests={[request({
+            action: 'edit',
+            resources: ['src/main.rs'],
+            saveResources: ['src/*', 'docs/**'],
+          })]}
+          onRespond={vi.fn(async () => undefined)}
+          onRespondBatch={vi.fn(async () => undefined)}
+        />,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="chat-input-approval-allow-always"]')).not.toBeNull();
+    const grantTooltip = tooltipProps.find(props => (
+      typeof props.content === 'string' && props.content.includes('Remember approval in')
+    ));
+    expect(grantTooltip?.content).toContain('src/*');
+    // The scope wraps to several lines, so the bubble must survive the pointer
+    // leaving the button and entering it.
+    expect(grantTooltip?.interactive).toBe(true);
   });
 
   it('copies the complete command without repeating the tool name or answering permission', async () => {

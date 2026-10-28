@@ -9,6 +9,7 @@ pub mod stream;
 #[cfg(feature = "subscription-auth")]
 pub mod subscription_auth;
 pub mod tool_call_accumulator;
+pub mod tool_call_pairing;
 pub mod trace;
 pub mod types;
 

@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum ShellType {
     /// Bash shell
-    #[cfg_attr(not(windows), default)]
+    #[cfg_attr(all(not(windows), not(target_env = "ohos")), default)]
     Bash,
     /// Zsh shell
     Zsh,
@@ -37,6 +37,7 @@ pub enum ShellType {
     /// Windows CMD
     Cmd,
     /// Sh (POSIX shell)
+    #[cfg_attr(all(not(windows), target_env = "ohos"), default)]
     Sh,
     /// Ksh (Korn shell)
     Ksh,
@@ -99,6 +100,18 @@ impl ShellType {
         )
     }
 
+    /// Check whether automatic shell discovery may offer this shell type on the
+    /// current platform. HarmonyOS PC does not expose a Bash terminal type, so
+    /// discovery skips Bash there; an explicitly configured bash path is still
+    /// honored through the explicit-config resolution path.
+    pub fn is_discoverable(&self) -> bool {
+        #[cfg(target_env = "ohos")]
+        if matches!(self, ShellType::Bash) {
+            return false;
+        }
+        true
+    }
+
     /// Check if this shell supports shell integration
     pub fn supports_integration(&self) -> bool {
         matches!(
@@ -159,7 +172,9 @@ mod tests {
     fn shell_default_remains_platform_specific() {
         #[cfg(windows)]
         assert_eq!(ShellType::default(), ShellType::PowerShellCore);
-        #[cfg(not(windows))]
+        #[cfg(all(not(windows), target_env = "ohos"))]
+        assert_eq!(ShellType::default(), ShellType::Sh);
+        #[cfg(all(not(windows), not(target_env = "ohos")))]
         assert_eq!(ShellType::default(), ShellType::Bash);
     }
 }

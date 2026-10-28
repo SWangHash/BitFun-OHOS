@@ -5,6 +5,7 @@ import {
   useId,
   useRef,
   useState,
+  type CSSProperties,
   type FocusEvent as ReactFocusEvent,
   type MouseEvent as ReactMouseEvent,
   type ReactElement,
@@ -53,7 +54,10 @@ export interface TooltipProps {
   disabled?: boolean;
   /** Position near the mouse cursor instead of the trigger element. */
   followCursor?: boolean;
-  /** Keep the tooltip open while hovered so its content can be selected or clicked. */
+  /**
+   * Keep the tooltip open while hovered so its content can be selected or
+   * clicked. The placement gap is bridged so the pointer can travel there.
+   */
   interactive?: boolean;
   /** Preferred side of the trigger; flips to the opposite side when space runs out. */
   placement?: TooltipPlacement;
@@ -169,6 +173,25 @@ interface TooltipLayout {
   left: number;
   placement: TooltipPlacement;
   ready: boolean;
+}
+
+/**
+ * Reaching interactive content means crossing the gap the tooltip keeps from
+ * its trigger. This invisible corridor on the trigger side makes that crossing
+ * part of the tooltip, so the pointer never leaves the pair and the trigger's
+ * own mouseleave lands inside the content the reader is moving toward.
+ */
+function getBridgeStyle(placement: TooltipPlacement): CSSProperties {
+  switch (placement) {
+    case "top":
+      return { bottom: -GAP, left: 0, right: 0, height: GAP };
+    case "bottom":
+      return { top: -GAP, left: 0, right: 0, height: GAP };
+    case "left":
+      return { right: -GAP, top: 0, bottom: 0, width: GAP };
+    case "right":
+      return { left: -GAP, top: 0, bottom: 0, width: GAP };
+  }
 }
 
 export function Tooltip({
@@ -544,6 +567,14 @@ export function Tooltip({
           <div className={styles.content} data-bitfun-part="content">
             <div className={styles.body} data-bitfun-part="body">{content}</div>
           </div>
+          {interactive && !followCursor && isShown ? (
+            <div
+              className={styles.bridge}
+              data-bitfun-part="bridge"
+              aria-hidden="true"
+              style={getBridgeStyle(layout.placement)}
+            />
+          ) : null}
         </div>
         </Portal>
       )}

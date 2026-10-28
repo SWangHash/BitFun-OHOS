@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { globalEventBus } from '@/infrastructure/event-bus';
 import { MCP_CONFIG_CHANGED } from '@/infrastructure/mcp/configEvents';
+import { HOOK_IMPORT_CHANGED } from '@/infrastructure/agent-hooks/importEvents';
 import type { ExternalSourceCatalogSnapshot } from '@/infrastructure/api/service-api/ExternalSourcesAPI';
 import { buildEcosystemProductRuntimes, type EcosystemProductId } from './ecosystemCompatibilityModel';
 
@@ -69,6 +70,7 @@ vi.mock('@bitfun/ui', async (importOriginal) => {
 });
 import ExternalAgentContent, { type ExternalAgentContentHandle } from './ExternalAgentContent';
 import { clearEcosystemDiscoveryCache } from './ecosystemDiscoveryCache';
+import { persistHookScan, readPersistedHookScan } from './ecosystemHookScanStorage';
 
 function fixture() {
   const sources = ['codex', 'claude-code'].map((ecosystemId) => ({
@@ -90,6 +92,7 @@ function fixture() {
   }));
   const hookSources = ['codex', 'claude-code'].map((ecosystemId) => ({ ecosystemId,
     key: { providerId: `${ecosystemId}.hooks`, sourceId: 'user' }, displayName: `${ecosystemId}-Hooks`,
+    sourceKind: 'settings', contentVersion: 'v1',
     scope: 'user_global', locationHint: `/${ecosystemId}/settings.json`, health: 'available',
   }));
   const hooks = { schemaVersion: 1, revision: 'r1', imports: [], diagnostics: [], catalog: {
@@ -1043,6 +1046,37 @@ describe('external agent content and explicit import boundary', () => {
     expect(container.querySelector('[data-import-kind="mcp"]')?.textContent).not.toContain('content.prepareImport');
   });
 
+  it('keeps the last successful Hook scan visible after a restart while discovery stays paused', async () => {
+    data.snapshot.discovery = { enabled: false, canChange: true, hasScanned: true, preferenceRevision: 1 };
+    // A previous session read these sources; only that remembered result survives a restart.
+    persistHookScan(JSON.stringify([undefined, mocks.workspaceId]), data.hooks);
+
+    await render(); await expand('hook');
+
+    expect(mocks.getHooks).not.toHaveBeenCalled();
+    const row = container.querySelector('[data-import-kind="hook"]')!;
+    expect(row.getAttribute('data-import-state')).toBe('discovered');
+    expect(row.textContent).toContain('content.lastKnownResult');
+    // A remembered copy is not proof, so no import or undo action is offered.
+    expect(row.textContent).not.toContain('content.prepareImport');
+    expect(row.textContent).not.toContain('content.undo');
+    expect(container.querySelector('[data-content-empty-state]')).toBeNull();
+
+    // An explicit refresh is the only path back to owner facts.
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="content.refresh"]')!.click());
+    expect(mocks.getHooks).toHaveBeenCalledWith('workspace-id', true);
+    expect(container.querySelector('[data-import-kind="hook"]')?.getAttribute('data-import-state')).toBe('review');
+  });
+
+  it('remembers the last successful Hook read for the next start', async () => {
+    await render(); await expand('hook');
+
+    const stored = readPersistedHookScan(JSON.stringify([undefined, mocks.workspaceId]))!;
+    expect(stored.catalog.sources.map((source) => source.displayName)).toEqual(['codex-Hooks', 'claude-code-Hooks']);
+    // Imported copies remain owner facts and never enter storage.
+    expect(stored.imports).toEqual([]);
+  });
+
   it('keeps directly usable Skills visible while external Hook and MCP discovery is paused', async () => {
     data.snapshot.discovery = { enabled: false, canChange: true, hasScanned: true, preferenceRevision: 1 };
     await render();
@@ -1145,6 +1179,51 @@ describe('external agent content and explicit import boundary', () => {
     expect(mocks.mutateHook).not.toHaveBeenCalled();
     await click('content.confirmUndo');
     expect(mocks.mutateHook).toHaveBeenCalledWith('workspace-id', 'r1', { kind: 'remove', importId: 'codex-hook-copy' });
+  });
+
+  it('clears an imported Hook when the native copy is removed in settings', async () => {
+    const imported = { ...data.hooks, imports: [{ importId: 'codex-hook-copy', source: data.hooks.catalog.sources[0], enabled: true, behaviorVersion: 'v1', state: 'current' }] };
+    mocks.getHooks.mockResolvedValue(imported);
+    await render(); await expand('hook');
+    const row = () => container.querySelector('[data-import-kind="hook"]')!;
+    expect(row().getAttribute('data-import-state')).toBe('imported');
+    expect(row().textContent).toContain('content.undo');
+
+    // Native management removed the copy: the next owner read no longer reports it.
+    mocks.getHooks.mockResolvedValue({ ...imported, revision: 'r2', imports: [] });
+    await act(async () => globalEventBus.emit(HOOK_IMPORT_CHANGED, { surfaceId: 'local', revision: 'r2' }));
+
+    expect(mocks.getHooks).toHaveBeenLastCalledWith('workspace-id', false);
+    expect(row().getAttribute('data-import-state')).toBe('review');
+    expect(row().textContent).toContain('content.prepareImport');
+    expect(row().textContent).not.toContain('content.undo');
+  });
+
+  it('drops a past import success when the owner no longer reports the Hook copy', async () => {
+    await render(); await click('content.prepareImport', 'hook'); await click('content.confirm');
+    const row = () => container.querySelector('[data-import-kind="hook"]')!;
+    // The acknowledged apply alone marks this session as imported.
+    expect(row().getAttribute('data-import-state')).toBe('imported');
+
+    mocks.getHooks.mockResolvedValue({ ...data.hooks, revision: 'r2' });
+    await act(async () => globalEventBus.emit(HOOK_IMPORT_CHANGED, { surfaceId: 'local', revision: 'r2' }));
+
+    expect(mocks.getHooks).toHaveBeenLastCalledWith('workspace-id', false);
+    expect(row().getAttribute('data-import-state')).toBe('review');
+    expect(row().textContent).toContain('content.prepareImport');
+  });
+
+  it('ignores Hook import changes from another surface and a revision it already holds', async () => {
+    const imported = { ...data.hooks, imports: [{ importId: 'codex-hook-copy', source: data.hooks.catalog.sources[0], enabled: true, behaviorVersion: 'v1', state: 'current' }] };
+    mocks.getHooks.mockResolvedValue(imported);
+    await render(); await expand('hook');
+    const calls = mocks.getHooks.mock.calls.length;
+
+    await act(async () => globalEventBus.emit(HOOK_IMPORT_CHANGED, { surfaceId: 'another-device', revision: 'r2' }));
+    await act(async () => globalEventBus.emit(HOOK_IMPORT_CHANGED, { surfaceId: 'local', revision: 'r1' }));
+
+    expect(mocks.getHooks.mock.calls.length).toBe(calls);
+    expect(container.querySelector('[data-import-kind="hook"]')?.getAttribute('data-import-state')).toBe('imported');
   });
 
 });

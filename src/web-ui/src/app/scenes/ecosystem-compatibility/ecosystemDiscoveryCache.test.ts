@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { AcpClientInfo } from '@/infrastructure/api/service-api/ACPClientAPI';
 import type { ExternalSourceCatalogSnapshot } from '@/infrastructure/api/service-api/ExternalSourcesAPI';
+import type { ExternalHookImportSnapshot } from '@/infrastructure/api/service-api/ExternalHooksAPI';
 import type { SkillInfo } from '@/infrastructure/config/types';
 import { buildEcosystemImportItems, buildEcosystemProductRuntimes, catalogDiscoveryState } from './ecosystemCompatibilityModel';
-import { clearEcosystemDiscoveryCache, ecosystemDiscoveryCache, rememberEcosystemCatalog, rememberEcosystemSkills } from './ecosystemDiscoveryCache';
+import { clearEcosystemDiscoveryCache, ecosystemDiscoveryCache, forgetEcosystemHookImports, rememberEcosystemCatalog, rememberEcosystemHooks, rememberEcosystemSkills } from './ecosystemDiscoveryCache';
 
 function catalog(): ExternalSourceCatalogSnapshot {
   return { generation: 1, preferenceRevision: 1, discoveryPending: false, commands: [],
@@ -59,6 +60,30 @@ describe('ecosystem recognition and scoped discovery results', () => {
     expect(rememberEcosystemSkills(cache, [], [{ sourceId: 'codex', path: '/codex', message: 'Read failed' }])).toEqual([skill]);
     expect(cache.staleSkillKeys?.has(skill.key)).toBe(true);
     expect(rememberEcosystemSkills(cache, [], [])).toEqual([]);
+  });
+
+  it('drops cached import proof after an owner-side change but keeps the discovered Hook catalog', () => {
+    const cache = ecosystemDiscoveryCache('local:/project');
+    const hookSource = {
+      key: { providerId: 'codex.hooks', sourceId: 'user' }, ecosystemId: 'codex',
+      displayName: 'codex-Hooks', sourceKind: 'settings' as const, scope: 'user_global' as const,
+      locationHint: '/codex/hooks.json', health: 'available' as const, contentVersion: 'v1', diagnostics: [],
+    };
+    const hooks = {
+      schemaVersion: 1 as const, revision: 'r1', diagnostics: [],
+      imports: [{ importId: 'copy-1', source: hookSource, enabled: true, behaviorVersion: 'v1', state: 'current' as const }],
+      catalog: {
+        schemaVersion: 1 as const, discoveryPending: false, providers: [], sources: [hookSource],
+        entries: [], staleProviderIds: [], failedProviderIds: [], diagnostics: [],
+      },
+    } satisfies ExternalHookImportSnapshot;
+    rememberEcosystemHooks(cache, hooks);
+    expect(cache.hooks?.imports).toHaveLength(1);
+
+    forgetEcosystemHookImports();
+
+    expect(cache.hooks?.imports).toEqual([]);
+    expect(cache.hooks?.catalog.sources).toHaveLength(1);
   });
 
   it('distinguishes policy exclusions from successful empty discovery and never claims runtime availability', () => {

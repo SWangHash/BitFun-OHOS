@@ -23,7 +23,9 @@ impl ShellDetector {
         #[cfg(not(windows))]
         {
             // Prefer zsh first when available, then honor the login shell
-            // ($SHELL), then fall back to bash / sh.
+            // ($SHELL), then fall back to bash / sh. Shell types the platform
+            // must not offer are rejected by the resolution helpers below, so
+            // an excluded login shell falls through to the next candidate.
             if let Some(shell) = Self::find_shell(&ShellType::Zsh) {
                 return shell;
             }
@@ -41,6 +43,9 @@ impl ShellDetector {
     }
 
     pub fn find_shell(shell_type: &ShellType) -> Option<DetectedShell> {
+        if !shell_type.is_discoverable() {
+            return None;
+        }
         #[cfg(windows)]
         {
             if matches!(shell_type, ShellType::Bash) {
@@ -54,6 +59,9 @@ impl ShellDetector {
         }
     }
 
+    /// Resolve a discovered shell by its stable ID. This intentionally skips
+    /// the discoverability filter so an existing session whose shell type is no
+    /// longer offered by the platform can still be reopened or stopped.
     pub fn find_shell_by_id(id: &str) -> Option<DetectedShell> {
         let shell_type = id
             .split_once(':')
@@ -96,6 +104,7 @@ impl ShellDetector {
             ShellType::from_executable(path.to_string_lossy().as_ref()),
             ShellDiscoverySource::ExplicitConfig,
         ))
+        .filter(|shell| shell.shell_type.is_discoverable())
     }
 
     pub fn resolve_configured_shell(preference: &str) -> Option<DetectedShell> {
@@ -113,12 +122,15 @@ impl ShellDetector {
         let preference = preference.trim();
         let configured_path = PathBuf::from(preference);
         if configured_path.is_absolute() && path::is_regular_file(&configured_path) {
-            return Some(DetectedShell::new(
-                ShellType::from_executable(configured_path.to_string_lossy().as_ref()),
-                configured_path,
-                None,
-                ShellDiscoverySource::ExplicitConfig,
-            ));
+            let shell_type = ShellType::from_executable(configured_path.to_string_lossy().as_ref());
+            return shell_type.is_discoverable().then(|| {
+                DetectedShell::new(
+                    shell_type,
+                    configured_path,
+                    None,
+                    ShellDiscoverySource::ExplicitConfig,
+                )
+            });
         }
         // A relative path with directories would otherwise be checked against
         // the host process cwd and executed against a different child cwd.
@@ -134,25 +146,20 @@ impl ShellDetector {
                 .into_iter()
                 .find(|candidate| path::is_regular_file(candidate))
             {
-                return Some(DetectedShell::new(
-                    shell_type,
-                    candidate,
-                    None,
-                    ShellDiscoverySource::Path,
-                ));
+                return shell_type.is_discoverable().then(|| {
+                    DetectedShell::new(shell_type, candidate, None, ShellDiscoverySource::Path)
+                });
             }
             return Self::resolve_shell_type_without_probe(&shell_type);
         }
         Self::find_all_in_path(preference)
             .into_iter()
             .find(|candidate| path::is_regular_file(candidate))
-            .map(|candidate| {
-                DetectedShell::new(
-                    ShellType::from_executable(candidate.to_string_lossy().as_ref()),
-                    candidate,
-                    None,
-                    ShellDiscoverySource::Path,
-                )
+            .and_then(|candidate| {
+                let shell_type = ShellType::from_executable(candidate.to_string_lossy().as_ref());
+                shell_type.is_discoverable().then(|| {
+                    DetectedShell::new(shell_type, candidate, None, ShellDiscoverySource::Path)
+                })
             })
     }
 
@@ -172,6 +179,9 @@ impl ShellDetector {
         }
         #[cfg(not(windows))]
         {
+            if let Some(shell) = Self::resolve_shell_type_without_probe(&ShellType::Zsh) {
+                return shell;
+            }
             if let Ok(shell_path) = std::env::var("SHELL") {
                 if let Some(shell) = Self::resolve_configured_shell_without_probe(&shell_path) {
                     return shell;
@@ -186,6 +196,9 @@ impl ShellDetector {
     }
 
     fn resolve_shell_type_without_probe(shell_type: &ShellType) -> Option<DetectedShell> {
+        if !shell_type.is_discoverable() {
+            return None;
+        }
         #[cfg(windows)]
         let candidates = if matches!(shell_type, ShellType::Bash) {
             platform::git_bash_candidates()
