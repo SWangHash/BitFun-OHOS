@@ -47,7 +47,7 @@ import {
   isLikelyFileNotFoundError,
 } from '@/shared/utils/fsErrorUtils';
 import { useI18n } from '@/infrastructure/i18n';
-import { attachMonacoChromeI18n } from '../services/monacoChromeI18n';
+import { attachMonacoChromeI18n, MonacoChromeI18nHandle } from '../services/monacoChromeI18n';
 import { shouldFocusEditorOnTabActivation } from '../utils/activationFocus';
 import { buildMonacoChromeStrings } from '../services/monacoChromeStrings';
 import { type LineRange } from '@/shared/editor/LineRange';
@@ -380,7 +380,16 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   const largeFileExpansionBlockedLogRef = useRef(false);
   const pendingModelContentRef = useRef<string | null>(null);
   const macosEditorBindingCleanupRef = useRef<(() => void) | null>(null);
-  const monacoChromeI18nDetachRef = useRef<(() => void) | null>(null);
+  const monacoChromeI18nDetachRef = useRef<MonacoChromeI18nHandle | null>(null);
+
+  // Re-apply Monaco chrome localization when the UI language changes
+  // (issue #434: switching language mode after opening a file previously
+  // left the find widget tooltips and fold hints in the old language).
+  useEffect(() => {
+    if (monacoChromeI18nDetachRef.current) {
+      monacoChromeI18nDetachRef.current.update(buildMonacoChromeStrings(tRef.current));
+    }
+  }, [t]);
   const workspacePathRuntimeRef = useRef(workspacePath);
   const readOnlyRuntimeRef = useRef(readOnly);
   const showLineNumbersRuntimeRef = useRef(showLineNumbers);
@@ -926,6 +935,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         (container as any).__monacoEditor = editor;
 
         monacoChromeI18nDetachRef.current = attachMonacoChromeI18n(container, buildMonacoChromeStrings(tRef.current));
+        monacoChromeI18nDetachRef.current.update(buildMonacoChromeStrings(tRef.current));
 
         setMonacoReady(true);
         const applyOptionsFromConfig = (c: Partial<EditorConfigType>) => {
@@ -1123,7 +1133,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       pendingNavigationRef.current = null;
       completedNavigationKeyRef.current = null;
       if (monacoChromeI18nDetachRef.current) {
-        monacoChromeI18nDetachRef.current();
+        monacoChromeI18nDetachRef.current.detach();
         monacoChromeI18nDetachRef.current = null;
       }
       if (macosEditorBindingCleanupRef.current) {

@@ -452,7 +452,7 @@ export const SessionUsageReportCard: React.FC<SessionUsageReportCardProps> = ({
           <div className="session-usage-report-card__header-actions">
             <Tooltip content={t('usage.export.redactPathsHelp')}>
               <Checkbox
-                appearance="native"
+                appearance="custom"
                 size="sm"
                 className="session-usage-report-card__export-option"
                 checked={redactExportPaths}

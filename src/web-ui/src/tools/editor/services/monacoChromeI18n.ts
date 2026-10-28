@@ -74,17 +74,33 @@ const ATTRIBUTES_TO_LOCALIZE = ['title', 'aria-label', 'placeholder'] as const;
  * Returns a detach function. Re-localization converges because already
  * localized text matches no English rule.
  */
-export function attachMonacoChromeI18n(container: HTMLElement, strings: MonacoChromeStrings): () => void {
+export interface MonacoChromeI18nHandle {
+  detach: () => void;
+  update: (strings: MonacoChromeStrings) => void;
+}
+
+export function attachMonacoChromeI18n(container: HTMLElement, initialStrings: MonacoChromeStrings): MonacoChromeI18nHandle {
   let scheduled = false;
+  let pendingTimer: number | undefined;
+  let currentStrings = initialStrings;
 
   const localizeAttributes = (element: HTMLElement): void => {
     for (const attribute of ATTRIBUTES_TO_LOCALIZE) {
       const value = element.getAttribute(attribute);
       if (!value) continue;
-      const localized = localizeMonacoText(value, strings);
+      const localized = localizeMonacoText(value, currentStrings);
       if (localized !== value) {
         element.setAttribute(attribute, localized);
       }
+    }
+    // Move native title into aria-label: ArkWeb renders persistent native
+    // title bubbles that don't disappear on mouse leave (issue #432).
+    const title = element.getAttribute('title');
+    if (title && !element.getAttribute('aria-label')) {
+      element.setAttribute('aria-label', title);
+    }
+    if (title) {
+      element.removeAttribute('title');
     }
   };
 
@@ -96,7 +112,7 @@ export function attachMonacoChromeI18n(container: HTMLElement, strings: MonacoCh
       widget.querySelectorAll<HTMLElement>('[title], [aria-label], [placeholder]').forEach(localizeAttributes);
       const count = widget.querySelector<HTMLElement>('.matchesCount');
       if (count) {
-        const localized = localizeMatchesCount(count.textContent ?? '', strings);
+        const localized = localizeMatchesCount(count.textContent ?? '', currentStrings);
         if (localized !== null && localized !== count.textContent) {
           count.textContent = localized;
         }
@@ -123,5 +139,33 @@ export function attachMonacoChromeI18n(container: HTMLElement, strings: MonacoCh
   });
   run();
 
-  return () => observer.disconnect();
+  // Force-hide managed hover widgets that ArkWeb fails to hide on mouse
+  // leave (issue #432).
+  const hideStaleHover = () => {
+    for (const hover of container.querySelectorAll('.monaco-hover')) {
+      const parent = hover.parentElement;
+      if (parent && parent.style.display !== 'none') {
+        parent.style.display = 'none';
+      }
+    }
+  };
+  container.addEventListener('mouseleave', hideStaleHover);
+
+  return {
+    detach: () => {
+      observer.disconnect();
+      container.removeEventListener('mouseleave', hideStaleHover);
+      if (pendingTimer !== undefined) {
+        window.clearTimeout(pendingTimer);
+        pendingTimer = undefined;
+      }
+    },
+    // Re-applies all localized strings with a new translation set (e.g. after
+    // the user switches the UI language). Called from CodeEditor when the
+    // i18n `languageChanged` event fires.
+    update: (strings: MonacoChromeStrings) => {
+      currentStrings = strings;
+      run();
+    },
+  };
 }

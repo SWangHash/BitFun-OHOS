@@ -273,7 +273,7 @@ function UsageExportRedactionToggle({
   return (
     <Tooltip content={t('usage.export.redactPathsHelp')}>
       <Checkbox
-        appearance="native"
+        appearance="custom"
         size="sm"
         className={className}
         checked={checked}
