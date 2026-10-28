@@ -816,6 +816,16 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     { enabled: Boolean(workspacePath) }
   );
 
+  // Ctrl+Shift+{ (the physical BracketLeft key, typed as { with shift) folds
+  // the whole tree, matching the toolbar's collapse-all button (issue #413).
+  // The manager normalizes BracketLeft to '[' so shifted layouts match.
+  useShortcut(
+    'filetree.collapseAll',
+    { key: '[', ctrl: true, shift: true, scope: 'filetree' },
+    () => collapseAll(),
+    { enabled: Boolean(workspacePath) }
+  );
+
   // macOS bridge: the native menu bar intercepts Cmd+V before the DOM sees a
   // keydown event, so ShortcutManager never fires. In "System" edit-menu mode
   // (the default when no text editor is focused) the menu tells the WebView to

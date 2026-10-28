@@ -248,7 +248,9 @@ export const FILETREE_SHORTCUTS: ShortcutDef[] = [
   },
   {
     id: 'filetree.collapseAll',
-    config: mod('{', { shift: true, scope: 'filetree' }),
+    // '[' is the physical BracketLeft key; with Shift it types '{' and the
+    // manager normalizes the event back to '[' so the binding stays stable.
+    config: mod('[', { shift: true, scope: 'filetree' }),
     descriptionKey: 'keyboard.shortcuts.filetree.collapseAll',
   },
   {
