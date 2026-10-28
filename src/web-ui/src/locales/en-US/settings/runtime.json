@@ -106,6 +106,8 @@
     "rulesTitle": "Static project rules",
     "rulesEmpty": "No static project rules configured.",
     "rulesLoadFailed": "Failed to load static project rules",
+    "rulesUnreadableTitle": "The rules file cannot be parsed",
+    "rulesUnreadableMessage": "{{path}} is not valid JSON, which blocks tool execution. Fix the JSON in that file and reopen this dialog, or save rules here to overwrite the broken file.",
     "addRule": "Add rule",
     "effect": "Effect",
     "action": "Action",

@@ -67,6 +67,22 @@ describe('aiErrorPresenter', () => {
     }
   });
 
+  it('presents a workspace config parse failure as a local file problem', () => {
+    const detail = normalizeAiErrorDetail({
+      rawMessage:
+        "Configuration error: Failed to parse project permission config '/project/.bitfun/config/tool_permissions.json': expected `,` or `}` at line 9 column 3",
+    });
+
+    const presentation = getAiErrorPresentation(detail);
+
+    expect(presentation.category).toBe('config_error');
+    expect(presentation.titleKey).toBe('errors:ai.configError.title');
+    expect(presentation.messageKey).toBe('errors:ai.configError.message');
+    expect(presentation.retryable).toBe(false);
+    // Retrying or switching models cannot repair a file, so neither is offered.
+    expect(presentation.actions.map((action) => action.code)).toEqual(['copy_diagnostics']);
+  });
+
   it('keeps overloaded provider errors retryable without exposing raw payloads', () => {
     const detail = normalizeAiErrorDetail({
       category: 'unknown',

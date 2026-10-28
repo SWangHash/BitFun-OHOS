@@ -636,18 +636,16 @@ const AssistantDefaultsPage: React.FC = () => {
         </div>
         <div role="cell" className="assistant-defaults-row__cell assistant-defaults-row__source" title={row.source}><OverflowText>{row.source}</OverflowText></div>
         <div role="cell" className="assistant-defaults-row__actions">
-          <Tooltip content={differenceHint} disabled={!changed} trigger="hover-focus">
-            <span className={`assistant-defaults-row__toggle${changed ? ' assistant-defaults-row__toggle--changed' : ''}`}>
-              <Switch
-                checked={row.enabled}
-                disabled={row.switchDisabled || Boolean(loadingRow)}
-                aria-busy={Boolean(loadingRow)}
-                aria-description={changed ? differenceHint : undefined}
-                onChange={() => toggleCapability(row)}
-                aria-label={t('nursery.template.toggleCapability', { name: row.name })}
-              />
-            </span>
-          </Tooltip>
+          <span className={`assistant-defaults-row__toggle${changed ? ' assistant-defaults-row__toggle--changed' : ''}`}>
+            <Switch
+              checked={row.enabled}
+              disabled={row.switchDisabled || Boolean(loadingRow)}
+              aria-busy={Boolean(loadingRow)}
+              aria-description={changed ? differenceHint : undefined}
+              onChange={() => toggleCapability(row)}
+              aria-label={t('nursery.template.toggleCapability', { name: row.name })}
+            />
+          </span>
           <IconButton
             type="button"
             size="sm"

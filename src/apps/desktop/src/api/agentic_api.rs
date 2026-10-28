@@ -51,7 +51,7 @@ use bitfun_core::agentic::tools::implementations::exec_command::{
     ReadBackgroundCommandOutputResponse,
 };
 use bitfun_core::service::config::project_permission_store::{
-    deserialize_project_permission_config, project_permission_file_path,
+    deserialize_project_permission_config_for_path, project_permission_file_path,
     project_permission_file_path_for_remote, ProjectPermissionConfig,
 };
 use bitfun_core::service::session::{
@@ -1161,6 +1161,19 @@ pub struct PermissionAuditPage {
 pub struct ProjectPermissionRulesResponse {
     pub rules: Vec<PermissionRule>,
     pub revision: String,
+    /// Present when the file exists but cannot be parsed. The rules list is then
+    /// empty and the revision still describes the unreadable content, so the
+    /// caller can show the parse failure and overwrite the file with valid JSON
+    /// instead of being unable to repair it from the product.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub load_error: Option<ProjectPermissionRulesLoadError>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectPermissionRulesLoadError {
+    pub path: String,
+    pub message: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -1356,16 +1369,26 @@ pub async fn get_project_permission_rules(
     let target =
         project_permission_config_target_for_workspace(&state, &request.workspace_id).await?;
     let content = read_project_permission_config_content(&state, &target).await?;
-    let rules = content
-        .as_deref()
-        .map(deserialize_project_permission_config)
-        .transpose()
-        .map_err(|error| error.to_string())?
-        .unwrap_or_default()
-        .rules;
+    let revision = project_permission_rules_revision(content.as_deref());
+    let (rules, load_error) = match content.as_deref() {
+        None => (Vec::new(), None),
+        Some(content) => {
+            match deserialize_project_permission_config_for_path(content, Some(&target.path)) {
+                Ok(config) => (config.rules, None),
+                Err(error) => (
+                    Vec::new(),
+                    Some(ProjectPermissionRulesLoadError {
+                        path: target.path.clone(),
+                        message: error.to_string(),
+                    }),
+                ),
+            }
+        }
+    };
     Ok(ProjectPermissionRulesResponse {
         rules,
-        revision: project_permission_rules_revision(content.as_deref()),
+        revision,
+        load_error,
     })
 }
 
@@ -1397,6 +1420,7 @@ pub async fn save_project_permission_rules(
     Ok(ProjectPermissionRulesResponse {
         rules: request.rules,
         revision: project_permission_rules_revision(Some(&content)),
+        load_error: None,
     })
 }
 

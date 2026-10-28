@@ -104,4 +104,32 @@ describe('project permissions dialog', () => {
     expect(removeGrant).not.toBeNull();
     expect(removeGrant!.hasAttribute('title')).toBe(false);
   });
+
+  it('surfaces an unparseable rules file and keeps saving available to repair it', async () => {
+    mocks.listGrants.mockResolvedValue([]);
+    mocks.getRules.mockResolvedValue({
+      rules: [],
+      revision: 'revision-broken',
+      loadError: {
+        path: '/project/.bitfun/config/tool_permissions.json',
+        message:
+          "Failed to parse project permission config '/project/.bitfun/config/tool_permissions.json': expected `,` or `}` at line 9 column 3",
+      },
+    });
+    await act(async () => root.render(
+      <WorkspaceProjectPermissionsDialog workspace={workspace} isOpen onClose={() => undefined} />,
+    ));
+
+    const issue = container.querySelector('[data-bitfun-part="empty"][role="alert"]');
+    expect(issue).not.toBeNull();
+    expect(issue!.textContent).toContain('projectPermissions.rulesUnreadableTitle');
+    expect(issue!.textContent).toContain('/project/.bitfun/config/tool_permissions.json');
+    expect(issue!.textContent).toContain('line 9 column 3');
+
+    // The draft is unchanged, but the repair action must still be reachable.
+    const save = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.textContent === 'projectPermissions.saveRules');
+    expect(save).toBeDefined();
+    expect(save!.hasAttribute('disabled')).toBe(false);
+  });
 });
