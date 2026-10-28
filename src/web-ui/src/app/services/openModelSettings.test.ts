@@ -1,35 +1,31 @@
 // @vitest-environment jsdom
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { openModelSettings } from './openModelSettings';
 
-const openTab = vi.fn();
-const preloadSettingsTabContent = vi.fn(() => Promise.resolve());
+const mocks = vi.hoisted(() => ({
+  openPage: vi.fn(),
+}));
 
 vi.mock('@/app/scenes/settings/settingsStore', () => ({
   useSettingsStore: {
-    getState: () => ({ openTab }),
+    getState: () => ({ openPage: mocks.openPage }),
   },
 }));
 
-vi.mock('@/app/scenes/settings/settingsContentRegistry', () => ({
-  preloadSettingsTabContent,
-}));
+import { openModelSettings } from './openModelSettings';
 
 describe('openModelSettings', () => {
   beforeEach(() => {
-    openTab.mockClear();
-    preloadSettingsTabContent.mockClear();
+    mocks.openPage.mockReset();
   });
 
-  it('sets model-create focus and preloads the settings tab before opening', async () => {
+  it('opens the canonical ai.models page before mounting the settings scene', async () => {
     const sceneOpen = vi.fn();
     window.addEventListener('scene:open', sceneOpen);
 
     await openModelSettings();
 
-    expect(openTab).toHaveBeenCalledWith('models', 'model-create');
-    expect(preloadSettingsTabContent).toHaveBeenCalledWith('models');
+    expect(mocks.openPage).toHaveBeenCalledWith('ai.models');
     expect(sceneOpen).toHaveBeenCalledOnce();
     expect(sceneOpen.mock.calls[0][0]).toMatchObject({
       type: 'scene:open',
@@ -38,13 +34,16 @@ describe('openModelSettings', () => {
     window.removeEventListener('scene:open', sceneOpen);
   });
 
-  it('opens the settings scene when preloading fails', async () => {
-    preloadSettingsTabContent.mockRejectedValueOnce(new Error('chunk unavailable'));
+  it('still opens the settings scene when the settings navigation fails', async () => {
+    mocks.openPage.mockImplementationOnce(() => {
+      throw new Error('settings store unavailable');
+    });
     const sceneOpen = vi.fn();
     window.addEventListener('scene:open', sceneOpen);
 
     await openModelSettings();
 
+    expect(mocks.openPage).toHaveBeenCalledOnce();
     expect(sceneOpen).toHaveBeenCalledOnce();
     window.removeEventListener('scene:open', sceneOpen);
   });
