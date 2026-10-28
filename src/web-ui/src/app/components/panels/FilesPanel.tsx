@@ -29,9 +29,11 @@ import { LoadingState } from '@bitfun/ui';
 import { openFileInBestTarget } from '@/shared/utils/tabUtils';
 import { resourcePathKey } from '@/shared/utils/resourcePath';
 import {
+  isFileResourceContent,
   sameContentResourceOwner,
   useContentResourceStore,
 } from '@/app/workbench/contentResourceStore';
+import { useAgentCanvasStore } from '@/app/components/panels/content-canvas/stores';
 import { PanelHeader } from './base';
 import { createLogger } from '@/shared/utils/logger';
 import { isPeerDeviceModeActive } from '@/infrastructure/peer-device/peerModeFlag';
@@ -335,7 +337,8 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
 
   const shouldOpenLargeFile = useCallback(async (filePath: string, nodeSize?: number): Promise<boolean> => {
     // Re-selecting a file that is already open in the workbench must not
-    // re-confirm (issue #327).
+    // re-confirm (issue #327). Files opened beside a session live as canvas
+    // tabs that never register a main-view resource, so check both stores.
     const resources = useContentResourceStore.getState().resources;
     const pathKey = resourcePathKey(filePath, resourceScope);
     const alreadyOpen = Object.values(resources).some(resource =>
@@ -344,6 +347,17 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
       && resourcePathKey(resource.target.path, resourceScope) === pathKey
     );
     if (alreadyOpen) return true;
+
+    const canvas = useAgentCanvasStore.getState();
+    const openInCanvas = [canvas.primaryGroup, canvas.secondaryGroup, canvas.tertiaryGroup]
+      .some(group => group.tabs.some(tab => {
+        if (!isFileResourceContent(tab.content)) return false;
+        const tabScope = tab.content.metadata?.resourceScope;
+        if (tabScope && !sameContentResourceOwner(tabScope, resourceScope)) return false;
+        return typeof tab.content.data?.filePath === 'string'
+          && resourcePathKey(tab.content.data.filePath, resourceScope) === pathKey;
+      }));
+    if (openInCanvas) return true;
 
     let fileSize: number | undefined = nodeSize;
 
@@ -370,7 +384,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
         cancelText: t('dialog.largeFile.cancel'),
       },
     );
-  }, [t, currentWorkspaceId]);
+  }, [t, currentWorkspaceId, resourceScope]);
 
   const handleOpenFile = useCallback((data: { path: string; line?: number; column?: number }) => {
     log.info('Opening file', { path: data.path, line: data.line, column: data.column });
