@@ -121,6 +121,7 @@ export interface ModernFlowChatState {
   visibleTurnInfo: VisibleTurnInfo | null;
 
   setActiveSession: (session: Session | null) => void;
+  updateActiveSessionReference: (session: Session) => void;
   updateVirtualItems: () => void;
   setVisibleTurnInfo: (info: VisibleTurnInfo | null) => void;
   clear: () => void;
@@ -290,7 +291,6 @@ function isStableTurnProjection(turn: DialogTurn): boolean {
 
 let cachedSession: Session | null = null;
 let cachedDialogTurnsRef: DialogTurn[] | null = null;
-let cachedTurnCatalogRef: Session['turnCatalog'] | undefined;
 let cachedIsPartial: boolean | undefined;
 let cachedTotalTurnCount: number | undefined;
 let cachedVirtualItems: VirtualItem[] = [];
@@ -313,7 +313,6 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
     if (cachedSession !== null) {
       cachedSession = null;
       cachedDialogTurnsRef = null;
-      cachedTurnCatalogRef = undefined;
       cachedIsPartial = undefined;
       cachedTotalTurnCount = undefined;
       cachedVirtualItems = [];
@@ -322,10 +321,14 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
     return cachedVirtualItems;
   }
   
+  // turnCatalog is excluded from the cache key: it is index/metadata for
+  // history paging, not a render-relevant field for virtualItems output.
+  // When only turnCatalog changes (e.g. background full-history load
+  // updates turnCatalog while deferring dialogTurns), the cache stays
+  // valid and virtualItems are not recomputed.
   if (
     cachedSession?.sessionId === session.sessionId && 
     cachedDialogTurnsRef === session.dialogTurns &&
-    cachedTurnCatalogRef === session.turnCatalog &&
     cachedIsPartial === session.isPartial &&
     cachedTotalTurnCount === session.totalTurnCount
   ) {
@@ -334,7 +337,6 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
 
   cachedSession = session;
   cachedDialogTurnsRef = session.dialogTurns;
-  cachedTurnCatalogRef = session.turnCatalog;
   cachedIsPartial = session.isPartial;
   cachedTotalTurnCount = session.totalTurnCount;
 
@@ -764,6 +766,17 @@ export const createModernFlowChatStore = (initialSession?: Session | null) => cr
       });
     },
 
+    updateActiveSessionReference: (session) => {
+      // Refresh the activeSession pointer without recomputing virtualItems.
+      // Used when the session object reference changed (e.g. a background
+      // turnCatalog update) but every render-relevant field is still the
+      // same — prevents a visible flicker from unnecessary virtualItems
+      // rebuild.
+      set((state) => {
+        state.activeSession = session;
+      });
+    },
+
     updateVirtualItems: () => {
       const session = get().activeSession;
       const items = sessionToVirtualItems(session);
@@ -782,7 +795,6 @@ export const createModernFlowChatStore = (initialSession?: Session | null) => cr
     clear: () => {
       cachedSession = null;
       cachedDialogTurnsRef = null;
-      cachedTurnCatalogRef = undefined;
       cachedIsPartial = undefined;
       cachedTotalTurnCount = undefined;
       cachedVirtualItems = [];

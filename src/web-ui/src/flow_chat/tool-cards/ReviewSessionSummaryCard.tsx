@@ -5,7 +5,7 @@ import type { ToolCardProps } from '../types/flow-chat';
 import { ReviewSummaryToolCard } from '@bitfun/ui/flow-chat';
 import { flowChatStore } from '../store/FlowChatStore';
 import { openBtwSessionInAuxPane } from '../services/btwSessionPane';
-import { openMainSession } from '../services/sessionActivation';
+import { ensureMainSessionActive } from '../services/sessionActivation';
 import { snapshotAPI } from '@/infrastructure/api';
 import {
   collectReviewChangedFiles,
@@ -118,7 +118,7 @@ export const ReviewSessionSummaryCard: React.FC<ToolCardProps> = React.memo(({
           size="sm"
           onClick={async () => {
             if (!childSessionId || !parentSessionId) return;
-            await openMainSession(parentSessionId);
+            ensureMainSessionActive(parentSessionId);
             openBtwSessionInAuxPane({
               childSessionId,
               parentSessionId,

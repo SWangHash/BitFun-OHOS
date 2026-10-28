@@ -5,6 +5,7 @@ import type { Session } from '@/flow_chat/types/flow-chat';
 const mocks = vi.hoisted(() => ({
   openBtwSessionInAuxPane: vi.fn(),
   openMainSession: vi.fn(() => Promise.resolve()),
+  ensureMainSessionActive: vi.fn(),
   activateMainSession: vi.fn(() => Promise.resolve(true)),
   clearSessionUnreadCompletion: vi.fn(),
   clearSessionNeedsAttention: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock('@/flow_chat/services/btwSessionPane', () => ({
 
 vi.mock('@/flow_chat/services/sessionActivation', () => ({
   openMainSession: (...args: unknown[]) => mocks.openMainSession(...args),
+  ensureMainSessionActive: (...args: unknown[]) => mocks.ensureMainSessionActive(...args),
   activateMainSession: (...args: unknown[]) => mocks.activateMainSession(...args),
 }));
 
@@ -109,7 +111,7 @@ describe('openAgentCompanionSession', () => {
     const opened = await openAgentCompanionSession('deep-review-child');
 
     expect(opened).toBe(true);
-    expect(mocks.openMainSession).toHaveBeenCalledWith('parent-session', {
+    expect(mocks.ensureMainSessionActive).toHaveBeenCalledWith('parent-session', {
       workspaceId: undefined,
       activateWorkspace: undefined,
     });

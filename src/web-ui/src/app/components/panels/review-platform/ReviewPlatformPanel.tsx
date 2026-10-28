@@ -48,7 +48,7 @@ import { reviewPlatformAPI, systemAPI, type ReviewPlatformAccount, type ReviewPl
 import { createLogger } from '@/shared/utils/logger';
 import { notificationService } from '@/shared/notification-system';
 import { i18nService, useI18n } from '@/infrastructure/i18n';
-import { openMainSession } from '@/flow_chat/services/sessionActivation';
+import { ensureMainSessionActive } from '@/flow_chat/services/sessionActivation';
 import { openBtwSessionInAuxPane } from '@/flow_chat/services/btwSessionPane';
 import {
   launchPreparedReviewSession,
@@ -1649,7 +1649,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
       return;
     }
 
-    await openMainSession(parentSession.sessionId);
+    ensureMainSessionActive(parentSession.sessionId);
     const context: PullRequestContext = {
       id: createContextId('pr'),
       type: 'pull-request',

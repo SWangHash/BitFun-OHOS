@@ -14,8 +14,7 @@ import type { AnchorPosition } from './types';
 import type { CanvasStoreMode } from './stores/canvasStore';
 import { selectActiveBtwSessionTab, type BtwSessionPanelData } from '@/flow_chat/services/btwSessionPane';
 import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext';
-import { openMainSession } from '@/flow_chat/services/sessionActivation';
-import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
+import { ensureMainSessionActive } from '@/flow_chat/services/sessionActivation';
 import { isSamePath } from '@/shared/utils/pathUtils';
 import './ContentCanvas.scss';
 export interface ContentCanvasProps {
@@ -115,22 +114,7 @@ export const ContentCanvas: React.FC<ContentCanvasProps> = ({
     }
 
     lastSyncedBtwTabIdRef.current = activeBtwSessionTab.id;
-
-    // Skip openMainSession if the parent session is already the active
-    // session and fully loaded — calling it again can race with
-    // activationRequest and trigger an unnecessary switchChatSession →
-    // hydrate cycle that resets historyState to 'hydrating' and reloads
-    // already-visible content.
-    const state = flowChatStore.getState();
-    const parentSession = state.sessions.get(activeBtwSessionData.parentSessionId);
-    const isParentActiveAndReady =
-      state.activeSessionId === activeBtwSessionData.parentSessionId &&
-      parentSession &&
-      !parentSession.isHistorical &&
-      parentSession.historyState === 'ready';
-    if (!isParentActiveAndReady) {
-      void openMainSession(activeBtwSessionData.parentSessionId);
-    }
+    ensureMainSessionActive(activeBtwSessionData.parentSessionId);
   }, [
     activeBtwSessionData?.parentSessionId,
     activeBtwSessionData?.projectWorkspaceId,

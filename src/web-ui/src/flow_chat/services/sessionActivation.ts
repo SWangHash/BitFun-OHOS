@@ -1,6 +1,7 @@
 import { appManager } from '@/app/services/AppManager';
 import { useSceneStore } from '@/app/stores/sceneStore';
 import { flowChatStore } from '../store/FlowChatStore';
+import type { Session } from '../types/flow-chat';
 import { flowChatManager } from './FlowChatManager';
 import { syncSessionToModernStore } from './storeSync';
 import { workspaceManager } from '@/infrastructure/services/business/workspaceManager';
@@ -85,4 +86,58 @@ export async function activateMainSession(sessionId: string, options?: SessionAc
   }
 
   return true;
+}
+
+/**
+ * Ensure the main session is active without forcing a re-activation when it
+ * is already the active session and already showing content to the user.
+ *
+ * Calling openMainSession unconditionally can trigger
+ * switchChatSession → loadSessionHistory, which reloads history from the
+ * backend for several seconds even when the user is already viewing
+ * persisted turns (isHistorical: true, historyState: 'metadata-only').
+ *
+ * Use this instead of openMainSession when the caller only needs to "make
+ * sure A is active" (e.g. opening a child review/btw session), not "force
+ * activate A regardless of its state".
+ *
+ * Options are forwarded to openMainSession when activation is actually needed.
+ */
+export function ensureMainSessionActive(
+  sessionId: string,
+  options?: SessionActivationOptions,
+): void {
+  const state = flowChatStore.getState();
+  const session = state.sessions.get(sessionId);
+  // A workspaceId option only matters when it differs from the currently
+  // active workspace. When the target workspace is already active, the
+  // option is a no-op for activation purposes and must not defeat the
+  // guard (the log trace showed SessionsSection always passes
+  // targetWorkspaceId, which made the guard miss on every review click).
+  const needsWorkspaceSwitch = Boolean(
+    options?.workspaceId &&
+    workspaceManager.getState().activeWorkspaceId !== options.workspaceId
+  );
+  if (
+    state.activeSessionId === sessionId &&
+    session &&
+    !needsWorkspaceSwitch &&
+    hasRenderableSessionContent(session)
+  ) {
+    return;
+  }
+  void openMainSession(sessionId, options);
+}
+
+/**
+ * Whether the session has any turns that would produce visible content.
+ * When true, the user is already viewing content and re-activating the
+ * session would only cause a needless reload.
+ */
+function hasRenderableSessionContent(session: Session): boolean {
+  return session.dialogTurns.some(turn =>
+    Boolean(turn.userMessage) ||
+    (turn.status === 'image_analyzing' && turn.modelRounds.length === 0) ||
+    turn.modelRounds.some(round => round.items.length > 0)
+  );
 }

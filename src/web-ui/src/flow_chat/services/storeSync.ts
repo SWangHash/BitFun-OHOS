@@ -8,23 +8,56 @@ import { flowChatStore } from '../store/FlowChatStore';
 import { useModernFlowChatStore } from '../store/modernFlowChatStore';
 import type { Session } from '../types/flow-chat';
 
-function isSessionAlreadySynced(
+type SyncStatus = 'synced' | 'reference-only' | 'rebuild';
+
+/**
+ * Determine whether the modern store needs a full virtualItems rebuild or
+ * just a reference refresh.
+ *
+ * - 'synced': the active session reference is identical — nothing to do.
+ * - 'reference-only': the session object changed (e.g. a background
+ *   turnCatalog update produced a new reference) but every field that
+ *   affects virtualItems output is still the same. Only the activeSession
+ *   pointer is refreshed; virtualItems are left untouched to avoid a
+ *   visible flicker.
+ * - 'rebuild': a render-relevant field changed (or the session switched,
+ *   or virtualItems were erroneously cleared) — setActiveSession must
+ *   recompute virtualItems.
+ */
+function checkSessionSync(
   sessionId: string,
   session: Session,
   modernStore: ReturnType<typeof useModernFlowChatStore.getState>
-): boolean {
-  if (
-    modernStore.activeSession?.sessionId !== sessionId ||
-    modernStore.activeSession !== session
-  ) {
-    return false;
+): SyncStatus {
+  const cached = modernStore.activeSession;
+
+  if (cached?.sessionId !== sessionId) {
+    return 'rebuild';
   }
 
-  if (session.historyState === 'ready' && hasRenderableContent(session) && modernStore.virtualItems.length === 0) {
-    return false;
+  if (cached === session) {
+    if (session.historyState === 'ready' && hasRenderableContent(session) && modernStore.virtualItems.length === 0) {
+      return 'rebuild';
+    }
+    return 'synced';
   }
 
-  return true;
+  // Reference changed — check whether render-relevant fields are the same.
+  // turnCatalog is excluded: it is index/metadata for history paging
+  // navigation, not a render-relevant field for virtualItems output
+  // (virtualItems are derived from dialogTurns). A turnCatalog-only update
+  // (e.g. background completeSessionHistoryLoad updating turnCatalog while
+  // deferring dialogTurns) must not trigger a virtualItems rebuild.
+  const renderFieldsEqual =
+    cached.dialogTurns === session.dialogTurns &&
+    cached.isPartial === session.isPartial &&
+    cached.totalTurnCount === session.totalTurnCount;
+
+  if (renderFieldsEqual) {
+    return 'reference-only';
+  }
+
+  return 'rebuild';
 }
 
 function hasRenderableContent(session: Session): boolean {
@@ -58,9 +91,15 @@ function syncActiveSessionToModernStore(): void {
     return;
   }
 
-  if (!isSessionAlreadySynced(session.sessionId, session, modernStore)) {
-    modernStore.setActiveSession(session);
+  const syncStatus = checkSessionSync(session.sessionId, session, modernStore);
+  if (syncStatus === 'synced') {
+    return;
   }
+  if (syncStatus === 'reference-only') {
+    modernStore.updateActiveSessionReference(session);
+    return;
+  }
+  modernStore.setActiveSession(session);
 }
 
 const syncConsumers = new Set<symbol>();

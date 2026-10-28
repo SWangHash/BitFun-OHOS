@@ -1,6 +1,6 @@
 import { FlowChatStore } from '@/flow_chat/store/FlowChatStore';
 import { openBtwSessionInAuxPane } from '@/flow_chat/services/btwSessionPane';
-import { openMainSession } from '@/flow_chat/services/sessionActivation';
+import { ensureMainSessionActive, openMainSession } from '@/flow_chat/services/sessionActivation';
 import { resolveSessionRelationship } from '@/flow_chat/utils/sessionMetadata';
 import { findWorkspaceForSession as resolveWorkspace } from '@/flow_chat/utils/workspaceScope';
 import { workspaceManager } from '@/infrastructure/services/business/workspaceManager';
@@ -39,7 +39,7 @@ export async function openAgentCompanionSession(sessionId: string): Promise<bool
       : undefined;
 
   if (relationship.canOpenInAuxPane && parentSessionId) {
-    await openMainSession(parentSessionId, {
+    ensureMainSessionActive(parentSessionId, {
       workspaceId,
       activateWorkspace,
     });

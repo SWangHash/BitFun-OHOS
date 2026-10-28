@@ -56,6 +56,15 @@ gradlew             text eol=lf
 gradlew.bat         text eol=crlf
 *.jar               binary
 
+# Frontend sources keep LF: the web-ui corpus is 99.8% LF and Windows editors
+# have repeatedly flipped whole .ts/.tsx files to CRLF, polluting diffs with
+# thousands of newline-only lines (commit 8db6e0b04 carried 7808 such lines).
+# Pinned so a CRLF rewrite is normalized back to LF on add.
+*.ts                text eol=lf
+*.tsx               text eol=lf
+*.scss              text eol=lf
+*.css               text eol=lf
+
 Dockerfile          text eol=lf
 Dockerfile.*        text eol=lf
 *.Dockerfile        text eol=lf

@@ -32,6 +32,24 @@ export function startSessionSceneLifecycle(): () => void {
     },
     activate: async (target, isCurrent) => {
       if (target.surfaceId !== getActiveSurfaceId() || !isCurrent()) return false;
+      // Defense-in-depth: if the target session is already the active session
+      // and already showing content to the user, skip activateMainSession.
+      // Otherwise it can trigger switchChatSession → loadSessionHistory,
+      // which reloads history from the backend for several seconds even
+      // when the user is already viewing persisted turns.
+      const state = flowChatStore.getState();
+      const session = state.sessions.get(target.sessionId);
+      if (
+        state.activeSessionId === target.sessionId &&
+        session &&
+        session.dialogTurns.some(turn =>
+          Boolean(turn.userMessage) ||
+          (turn.status === 'image_analyzing' && turn.modelRounds.length === 0) ||
+          turn.modelRounds.some(round => round.items.length > 0)
+        )
+      ) {
+        return true;
+      }
       try {
         const { activateMainSession } = await import('@/flow_chat/services/sessionActivation');
         if (!isCurrent()) return false;

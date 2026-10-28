@@ -24,7 +24,7 @@ import {
   openBtwSessionInAuxPane,
   selectActiveBtwSessionTab,
 } from '@/flow_chat/services/btwSessionPane';
-import { openMainSession } from '@/flow_chat/services/sessionActivation';
+import { ensureMainSessionActive, openMainSession } from '@/flow_chat/services/sessionActivation';
 import {
   dispatchHistorySessionOpenIntent,
   shouldShowHistorySessionOpenIntent,
@@ -1087,7 +1087,7 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
           ? flowChatStore.getState().sessions.get(parentSessionId)
           : undefined;
         if (relationship.canOpenInAuxPane && parentSessionId && parentSession && session) {
-          await openMainSession(parentSessionId, {
+          ensureMainSessionActive(parentSessionId, {
             workspaceId: targetWorkspaceId,
             activateWorkspace,
           });

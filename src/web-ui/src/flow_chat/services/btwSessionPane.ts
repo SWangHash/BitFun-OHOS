@@ -7,6 +7,7 @@ import { flowChatStore } from '../store/FlowChatStore';
 import type { Session } from '../types/flow-chat';
 import { resolveSessionTitle } from '../utils/sessionTitle';
 import { flowChatManager } from './FlowChatManager';
+import { clearHistorySessionOpenTransition } from './sessionOpenIntent';
 
 export const BTW_SESSION_PANEL_TYPE = 'btw-session' as const;
 
@@ -283,6 +284,15 @@ export function openBtwSessionInAuxPane(params: {
   includeInternal?: boolean;
   viewKind?: BtwSessionViewKind;
 }): void {
+  // The child session opens in the aux pane, never as the main active
+  // session. If a history-open intent/transition was dispatched for it
+  // (e.g. clicking it in the session list), that transition would keep
+  // the main session view's loading overlay visible until its 4s timeout,
+  // because ModernFlowChatContainer only clears the overlay when the
+  // pending session becomes the active session. Clear it here so the
+  // main view is never blocked by an aux-pane open.
+  clearHistorySessionOpenTransition(params.childSessionId);
+
   const ensureResult = ensureBtwSessionAvailableInternal(params);
   const childSession = flowChatStore.getState().sessions.get(params.childSessionId);
   const isSubagentSession =

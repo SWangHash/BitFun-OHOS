@@ -14,6 +14,9 @@ const syncMocks = vi.hoisted(() => {
     setActiveSession: vi.fn((session: Session | null) => {
       modernState.activeSession = session;
     }),
+    updateActiveSessionReference: vi.fn((session: Session) => {
+      modernState.activeSession = session;
+    }),
     clear: vi.fn(() => {
       modernState.activeSession = null;
       modernState.virtualItems = [];
@@ -87,6 +90,7 @@ describe('storeSync history session state', () => {
 
     const unsubscribe = startAutoSync();
     syncMocks.modernState.setActiveSession.mockClear();
+    syncMocks.modernState.updateActiveSessionReference.mockClear();
 
     const updated = { ...initial, lastActiveAt: 2 };
     syncMocks.flowState.sessions = new Map([[updated.sessionId, updated]]);
@@ -95,8 +99,11 @@ describe('storeSync history session state', () => {
     }
     unsubscribe();
 
-    expect(syncMocks.modernState.setActiveSession).toHaveBeenCalledTimes(1);
-    expect(syncMocks.modernState.setActiveSession).toHaveBeenCalledWith(updated);
+    // lastActiveAt changed but dialogTurns/turnCatalog/isPartial/totalTurnCount
+    // are the same — only a reference refresh is needed, not a full rebuild.
+    expect(syncMocks.modernState.setActiveSession).not.toHaveBeenCalled();
+    expect(syncMocks.modernState.updateActiveSessionReference).toHaveBeenCalledTimes(1);
+    expect(syncMocks.modernState.updateActiveSessionReference).toHaveBeenCalledWith(updated);
   });
 
   it('skips a manual sync when the modern store already has the same session reference', () => {
