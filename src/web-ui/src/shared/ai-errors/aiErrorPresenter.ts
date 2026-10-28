@@ -12,6 +12,7 @@ export type AiErrorCategory =
   | 'permission'
   | 'invalid_request'
   | 'content_policy'
+  | 'config_error'
   | 'model_error'
   | 'unknown';
 
@@ -119,6 +120,11 @@ const PRESENTATION_KEYS: Record<AiErrorCategory, { titleKey: string; messageKey:
     messageKey: 'errors:ai.contentPolicy.message',
     severity: 'warning',
   },
+  config_error: {
+    titleKey: 'errors:ai.configError.title',
+    messageKey: 'errors:ai.configError.message',
+    severity: 'error',
+  },
   model_error: {
     titleKey: 'errors:ai.executionFailed',
     messageKey: 'errors:ai.genericSuggestion',
@@ -143,6 +149,7 @@ const DEFAULT_ACTIONS: Record<AiErrorCategory, AiErrorActionCode[]> = {
   permission: ['open_model_settings', 'copy_diagnostics'],
   invalid_request: ['copy_diagnostics'],
   content_policy: ['copy_diagnostics'],
+  config_error: ['copy_diagnostics'],
   model_error: ['retry', 'switch_model', 'copy_diagnostics'],
   unknown: ['retry', 'switch_model', 'copy_diagnostics'],
 };
@@ -199,6 +206,16 @@ function normalizeCategory(
   const status = detail?.httpStatus;
   const code = `${detail?.providerCode ?? ''}`.toLowerCase();
   const message = `${detail?.providerMessage ?? ''} ${rawMessage}`.toLowerCase();
+
+  // Workspace config failures are local, actionable file problems. Reporting
+  // them as a model/network failure sends the user to the wrong place. Keep the
+  // markers file-specific so provider errors are never swallowed here.
+  if (includesAny(`${code} ${message}`, [
+    'project permission config',
+    'tool_permissions.json',
+  ])) {
+    return 'config_error';
+  }
 
   if (
     status === 402 ||

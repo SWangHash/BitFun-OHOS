@@ -94,6 +94,10 @@
       "title": "Model safety policy blocked the request",
       "message": "The provider blocked the input or output for policy reasons. Adjust the prompt or review scope before trying again."
     },
+    "configError": {
+      "title": "Workspace configuration is invalid",
+      "message": "A workspace configuration file cannot be parsed, so tool execution was blocked. Expand the details for the file path and error position, fix that file, then retry."
+    },
     "actions": {
       "retry": "Retry",
       "continue": "Continue",

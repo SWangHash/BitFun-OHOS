@@ -9,9 +9,16 @@ export interface ProjectPermissionRule {
   effect: ProjectPermissionEffect;
 }
 
+export interface ProjectPermissionRulesLoadError {
+  path: string;
+  message: string;
+}
+
 export interface ProjectPermissionRulesResponse {
   rules: ProjectPermissionRule[];
   revision: string;
+  /** Set when the file exists but cannot be parsed; saving replaces the broken content. */
+  loadError?: ProjectPermissionRulesLoadError;
 }
 
 export interface PermissionGrant {

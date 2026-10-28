@@ -146,6 +146,33 @@
     line-height: var(--bitfun-type-body-sm-line-height);
     text-align: center;
   }
+
+  &__empty--issue {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    text-align: start;
+    border-block: 1px solid var(--bitfun-color-status-warning-border);
+    background: var(--bitfun-color-status-warning-surface);
+    color: var(--bitfun-color-content-primary);
+  }
+
+  &__issue-title {
+    color: var(--bitfun-color-status-warning-content);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+  }
+
+  &__issue-message {
+    color: var(--bitfun-color-content-secondary);
+  }
+
+  &__issue-detail {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    white-space: nowrap;
+  }
 }
 
 @media (max-width: 760px) {

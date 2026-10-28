@@ -33,21 +33,39 @@ pub fn project_permission_file_path_for_remote(remote_root: &str) -> String {
 pub fn deserialize_project_permission_config(
     content: &str,
 ) -> BitFunResult<ProjectPermissionConfig> {
+    deserialize_project_permission_config_for_path(content, None)
+}
+
+/// Parse a project permission config while naming the file it came from.
+///
+/// A malformed workspace file blocks every agent tool call, so the failure has
+/// to point at an editable file and an exact position instead of surfacing as a
+/// generic configuration error the user cannot act on.
+pub fn deserialize_project_permission_config_for_path(
+    content: &str,
+    path: Option<&str>,
+) -> BitFunResult<ProjectPermissionConfig> {
     let value: Value = serde_json::from_str(content).map_err(|error| {
-        BitFunError::config(format!(
-            "Failed to parse project permission config: {error}"
-        ))
+        BitFunError::config(match path {
+            Some(path) => format!(
+                "Failed to parse project permission config '{path}': {error}. Fix the JSON syntax in that file, or delete the file to fall back to the built-in defaults"
+            ),
+            None => format!("Failed to parse project permission config: {error}"),
+        })
     })?;
 
     if value.is_array() {
-        Err(BitFunError::config(
+        return Err(BitFunError::config(
             "Project permission config uses the pre-BitFun array format; use the explicit data migration tool instead",
-        ))
-    } else {
-        serde_json::from_value(value).map_err(|error| {
-            BitFunError::config(format!("Invalid project permission config: {error}"))
-        })
+        ));
     }
+
+    serde_json::from_value(value).map_err(|error| {
+        BitFunError::config(match path {
+            Some(path) => format!("Invalid project permission config '{path}': {error}"),
+            None => format!("Invalid project permission config: {error}"),
+        })
+    })
 }
 
 pub async fn load_project_permission_config_local(
@@ -55,7 +73,10 @@ pub async fn load_project_permission_config_local(
 ) -> BitFunResult<ProjectPermissionConfig> {
     let path = project_permission_file_path(workspace_root);
     match tokio::fs::read_to_string(&path).await {
-        Ok(content) => deserialize_project_permission_config(&content),
+        Ok(content) => deserialize_project_permission_config_for_path(
+            &content,
+            Some(&path.to_string_lossy()),
+        ),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             Ok(ProjectPermissionConfig::default())
         }
@@ -81,12 +102,15 @@ pub async fn load_project_permission_config_remote(
             path
         ))
     })?;
-    deserialize_project_permission_config(&content)
+    deserialize_project_permission_config_for_path(&content, Some(&path))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{deserialize_project_permission_config, project_permission_file_path_for_remote};
+    use super::{
+        deserialize_project_permission_config, deserialize_project_permission_config_for_path,
+        project_permission_file_path_for_remote,
+    };
     use bitfun_runtime_ports::{PermissionEffect, PermissionRule};
 
     #[test]
@@ -100,6 +124,23 @@ mod tests {
             config.rules,
             vec![PermissionRule::new("edit", "src/*", PermissionEffect::Deny)]
         );
+    }
+
+    #[test]
+    fn malformed_config_error_names_the_file_and_position() {
+        let error = deserialize_project_permission_config_for_path(
+            "{\n  \"rules\": [\n    {\"action\": \"read\", \"resource\": \"secret/*\"\n  ]\n}\n",
+            Some("/work/.bitfun/config/tool_permissions.json"),
+        )
+        .expect_err("malformed config must fail");
+
+        let message = error.to_string();
+        assert!(
+            message.contains("/work/.bitfun/config/tool_permissions.json"),
+            "{message}"
+        );
+        assert!(message.contains("line "), "{message}");
+        assert!(message.contains("delete the file"), "{message}");
     }
 
     #[test]

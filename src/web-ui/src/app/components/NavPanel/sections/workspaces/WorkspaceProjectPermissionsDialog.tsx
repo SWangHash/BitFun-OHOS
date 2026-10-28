@@ -22,6 +22,7 @@ import {
   type PermissionGrant,
   type ProjectPermissionEffect,
   type ProjectPermissionRule,
+  type ProjectPermissionRulesLoadError,
 } from '@/infrastructure/api/service-api/PermissionAPI';
 import { useI18n } from '@/infrastructure/i18n';
 import { notificationService } from '@/shared/notification-system';
@@ -90,6 +91,7 @@ export const WorkspaceProjectPermissionsDialog: React.FC<WorkspaceProjectPermiss
   const [savedRules, setSavedRules] = useState<ProjectPermissionRule[]>([]);
   const [draftRules, setDraftRules] = useState<DraftRule[]>([]);
   const [rulesRevision, setRulesRevision] = useState<string | null>(null);
+  const [rulesLoadError, setRulesLoadError] = useState<ProjectPermissionRulesLoadError | null>(null);
   const effectOptions = useMemo<SelectOption[]>(
     () => EFFECTS.map((effect) => ({
       value: effect,
@@ -117,9 +119,11 @@ export const WorkspaceProjectPermissionsDialog: React.FC<WorkspaceProjectPermiss
       setSavedRules(response.rules);
       setDraftRules(response.rules.map(toDraftRule));
       setRulesRevision(response.revision);
+      setRulesLoadError(response.loadError ?? null);
     } catch (error) {
       log.error('Failed to load project permission rules', { workspaceId: workspace.id, error });
       setRulesRevision(null);
+      setRulesLoadError(null);
       notificationService.error(t('projectPermissions.rulesLoadFailed'));
     } finally {
       setRulesLoading(false);
@@ -210,6 +214,9 @@ export const WorkspaceProjectPermissionsDialog: React.FC<WorkspaceProjectPermiss
   const rulesDirty = !rulesEqual(projectRules, savedRules);
   const rulesValid = projectRules.every((rule) => rule.action.trim() && rule.resource.trim());
   const isBusy = grantsLoading || rulesLoading || rulesSaving || isMutationRunning;
+  // An unreadable file blocks every agent tool call, so the repair action must
+  // stay reachable even though the draft did not change.
+  const rulesUnreadable = rulesLoadError !== null;
 
   const handleSaveRules = async () => {
     if (!rulesValid || rulesRevision === null) {
@@ -222,6 +229,7 @@ export const WorkspaceProjectPermissionsDialog: React.FC<WorkspaceProjectPermiss
       setSavedRules(response.rules);
       setDraftRules(response.rules.map(toDraftRule));
       setRulesRevision(response.revision);
+      setRulesLoadError(null);
       notificationService.success(t('projectPermissions.rulesSaveSuccess'));
     } catch (error) {
       log.error('Failed to save project permission rules', { workspaceId: workspace.id, error });
@@ -323,6 +331,16 @@ export const WorkspaceProjectPermissionsDialog: React.FC<WorkspaceProjectPermiss
             </Button>
           </div>
 
+          {rulesLoadError ? (
+            <div data-bitfun-component="workspace-project-permissions-dialog" data-bitfun-part="empty" className="workspace-project-permissions-dialog__empty workspace-project-permissions-dialog__empty--issue" role="alert">
+              <span className="workspace-project-permissions-dialog__issue-title">{t('projectPermissions.rulesUnreadableTitle')}</span>
+              <span className="workspace-project-permissions-dialog__issue-message">
+                {t('projectPermissions.rulesUnreadableMessage', { path: rulesLoadError.path })}
+              </span>
+              <code className="workspace-project-permissions-dialog__issue-detail"><OverflowText>{rulesLoadError.message}</OverflowText></code>
+            </div>
+          ) : null}
+
           {rulesLoading ? (
             <div data-bitfun-component="workspace-project-permissions-dialog" data-bitfun-part="empty" className="workspace-project-permissions-dialog__empty">{t('loading.text')}</div>
           ) : draftRules.length === 0 ? (
@@ -401,7 +419,7 @@ export const WorkspaceProjectPermissionsDialog: React.FC<WorkspaceProjectPermiss
             </div>
           )}
 
-          {rulesDirty ? (
+          {rulesDirty || rulesUnreadable ? (
             <div data-bitfun-component="workspace-project-permissions-dialog" data-bitfun-part="footer" className="workspace-project-permissions-dialog__footer">
               <Button type="button" variant="fill" onClick={handleDiscardRules} disabled={isBusy}>
                 {t('projectPermissions.cancel')}

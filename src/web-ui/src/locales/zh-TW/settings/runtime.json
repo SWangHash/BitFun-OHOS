@@ -106,6 +106,8 @@
     "rulesTitle": "靜態專案規則",
     "rulesEmpty": "尚未設定靜態專案規則。",
     "rulesLoadFailed": "載入靜態專案規則失敗",
+    "rulesUnreadableTitle": "規則檔案無法解析",
+    "rulesUnreadableMessage": "{{path}} 不是有效的 JSON，工具執行會被阻斷。修正該檔案的 JSON 格式後重新開啟本對話框，或直接在此儲存規則以覆寫損壞的檔案。",
     "addRule": "新增規則",
     "effect": "效果",
     "action": "操作",

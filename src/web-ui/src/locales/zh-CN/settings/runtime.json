@@ -106,6 +106,8 @@
     "rulesTitle": "静态项目规则",
     "rulesEmpty": "尚未配置静态项目规则。",
     "rulesLoadFailed": "加载静态项目规则失败",
+    "rulesUnreadableTitle": "规则文件无法解析",
+    "rulesUnreadableMessage": "{{path}} 不是有效的 JSON，工具执行会被阻断。修正该文件的 JSON 格式后重新打开本对话框，或直接在此保存规则以覆盖损坏的文件。",
     "addRule": "添加规则",
     "effect": "效果",
     "action": "操作",
