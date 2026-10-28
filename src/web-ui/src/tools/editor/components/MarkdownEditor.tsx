@@ -165,6 +165,31 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
     };
   }, []);
 
+  // Keep the caret across tab switches: TipTap/textarea keeps its own
+  // selection while the keep-alive tab is hidden, but the browser drops
+  // focus to <body> when the container is display:none. Refocusing on
+  // activation restores the caret at its remembered position.
+  const isActiveTabRef = useRef(isActiveTab);
+  useEffect(() => {
+    isActiveTabRef.current = isActiveTab;
+  }, [isActiveTab]);
+  useEffect(() => {
+    if (!isActiveTab) return;
+    const frame = requestAnimationFrame(() => {
+      editorRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [isActiveTab]);
+
+  // Second click on the already-selected tree file: focus this editor when
+  // it is the active tab.
+  useEffect(() => {
+    return globalEventBus.on('workbench:focus-active-editor', () => {
+      if (!isActiveTabRef.current) return;
+      editorRef.current?.focus();
+    });
+  }, []);
+
   useEffect(() => {
     // Reset the large-file flag on document switch so a previous document's
     // oversized state doesn't lock the next (small) document in source mode.

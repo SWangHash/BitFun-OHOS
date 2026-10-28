@@ -248,7 +248,7 @@ export const FILETREE_SHORTCUTS: ShortcutDef[] = [
   },
   {
     id: 'filetree.collapseAll',
-    config: mod('[', { shift: true, scope: 'filetree' }),
+    config: mod('{', { shift: true, scope: 'filetree' }),
     descriptionKey: 'keyboard.shortcuts.filetree.collapseAll',
   },
   {
