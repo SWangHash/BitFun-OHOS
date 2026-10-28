@@ -47,7 +47,7 @@ import {
   isLikelyFileNotFoundError,
 } from '@/shared/utils/fsErrorUtils';
 import { useI18n } from '@/infrastructure/i18n';
-import { attachMonacoChromeI18n, MonacoChromeI18nHandle } from '../services/monacoChromeI18n';
+import { attachMonacoChromeI18n, type MonacoChromeI18nHandle } from '../services/monacoChromeI18n';
 import { shouldFocusEditorOnTabActivation } from '../utils/activationFocus';
 import { buildMonacoChromeStrings } from '../services/monacoChromeStrings';
 import { type LineRange } from '@/shared/editor/LineRange';
