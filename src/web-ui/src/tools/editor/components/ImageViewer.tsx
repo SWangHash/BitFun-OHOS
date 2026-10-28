@@ -224,6 +224,15 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
   // Fullscreen renders through a portal on document.body: the editor-area
   // ancestors apply transforms/stacking that would otherwise contain a
   // position:fixed overlay inside the pane instead of covering the window.
+  const normalizedRotation = ((rotation % 360) + 360) % 360;
+  const isQuarterTurn = normalizedRotation === 90 || normalizedRotation === 270;
+  // The layout box carries the zoom and quarter-turn dimensions: a rotated
+  // image then exactly fills its layout box, so no phantom scrollable
+  // whitespace rotates along with it and the height is never stretched
+  // (issue #391). Only the rotation itself stays a transform.
+  const zoomedWidth = imageDimensions ? imageDimensions.width * displayScale * (zoom / 100) : undefined;
+  const zoomedHeight = imageDimensions ? imageDimensions.height * displayScale * (zoom / 100) : undefined;
+
   const viewerNode = (
     <div
       className={`bitfun-image-viewer ${className} ${isFullscreen ? 'fullscreen' : ''}`}
@@ -344,9 +353,13 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
               data-bitfun-component="image-viewer"
               data-bitfun-part="image"
               style={{
-                width: imageDimensions ? `${imageDimensions.width * displayScale}px` : undefined,
-                height: imageDimensions ? `${imageDimensions.height * displayScale}px` : undefined,
-                transform: `scale(${zoom / 100}) rotate(${rotation}deg)`,
+                width: zoomedWidth !== undefined
+                  ? `${isQuarterTurn ? zoomedHeight : zoomedWidth}px`
+                  : undefined,
+                height: zoomedHeight !== undefined
+                  ? `${isQuarterTurn ? zoomedWidth : zoomedHeight}px`
+                  : undefined,
+                transform: `rotate(${rotation}deg)`,
                 imageRendering: displayScale > 1 ? 'pixelated' : undefined,
               }}
               onLoad={handleImageLoad}
