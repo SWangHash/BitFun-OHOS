@@ -19,6 +19,13 @@
     bottom: 0;
     z-index: var(--bitfun-layer-fullscreen);
     background: var(--bitfun-color-surface-canvas);
+
+    // Shift toolbar buttons left to avoid OHOS system controls
+    // (minimize/maximize/close) in the top-right corner. Only the toolbar
+    // moves; the image still fills the entire viewport.
+    &__toolbar {
+      padding-inline-end: 160px;
+    }
   }
 
   // Toolbar layout comes from the design-system Toolbar; keep it pinned to the top.
