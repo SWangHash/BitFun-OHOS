@@ -270,8 +270,11 @@ $_icon-size: 16px;
 }
 
 .bitfun-search-results__highlight {
-  background: color-mix(in srgb, var(--bitfun-component-conversation-excerpt-accent) 55%, transparent);
-  color: var(--bitfun-component-conversation-excerpt-accent);
+  // The excerpt accent is only injected by appearance packages that ship it;
+  // fall back to the root semantic accent so the chip keeps its background
+  // and readable foreground on every theme (issue #329).
+  background: color-mix(in srgb, var(--bitfun-component-conversation-excerpt-accent, var(--bitfun-color-accent-default)) 55%, transparent);
+  color: var(--bitfun-component-conversation-excerpt-accent, var(--bitfun-color-accent-default));
   padding: 1px 2px;
   border-radius: 2px;
   font-weight: var(--bitfun-type-label-sm-font-weight);

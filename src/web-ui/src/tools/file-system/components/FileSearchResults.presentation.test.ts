@@ -51,7 +51,7 @@ describe('file search result presentation', () => {
       /className="bitfun-search-results__file-path"\s+data-overflow-trigger\s+marqueeTrigger="interaction"/,
     );
     expect(stylesheet).toMatch(
-      /\.bitfun-search-results__highlight\s*\{[^}]*background:\s*color-mix\(in srgb, var\(--bitfun-component-conversation-excerpt-accent\) 45%, transparent\);[^}]*color:\s*var\(--bitfun-component-conversation-excerpt-accent\);/s,
+      /\.bitfun-search-results__highlight\s*\{[^}]*background:\s*color-mix\(in srgb, var\(--bitfun-component-conversation-excerpt-accent, var\(--bitfun-color-accent-default\)\) 55%, transparent\);[^}]*color:\s*var\(--bitfun-component-conversation-excerpt-accent, var\(--bitfun-color-accent-default\)\);/s,
     );
   });
 
