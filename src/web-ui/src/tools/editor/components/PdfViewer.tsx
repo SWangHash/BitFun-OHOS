@@ -710,7 +710,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ isActiveTab = true,
 
   const rotateClockwise = useCallback(() => {
     captureReadingAnchor();
-    setRotation(current => (current + 90) % 360);
+    setRotation(current => current + 90);
   }, [captureReadingAnchor]);
 
   const handleRenderError = useCallback((failedPageNumber: number, renderError: unknown) => {
