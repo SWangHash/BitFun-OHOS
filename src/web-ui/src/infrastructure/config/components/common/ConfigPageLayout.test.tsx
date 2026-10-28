@@ -3,6 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
+  Button,
   Combobox,
   Input,
   MultiSelect,
@@ -211,6 +212,39 @@ describe('ConfigPageLayout', () => {
     expect(layout).toMatch(
       /@container config-panel \(max-width: 520px\)[\s\S]*?\.bitfun-config-page-section__extra > :where\([\s\S]*?inline-size:\s*100%;[\s\S]*?max-inline-size:\s*none;/,
     );
+  });
+
+  it('sizes a control column that holds an action group to its action labels', () => {
+    const layout = readStyleFixture('ConfigPageLayout.scss');
+    const actionGroupRule = layout.match(
+      /\):has\(> \.bitfun-config-page-row__control > button ~ button\)\s*{([^}]*)}/,
+    )?.[1] ?? '';
+    const controlRule = layout.match(/^\.bitfun-config-page-row__control\s*{([\s\S]*?)^}/m)?.[1] ?? '';
+
+    act(() => {
+      root.render(
+        <>
+          <ConfigPageRow label="Imported Hooks" align="center">
+            <Switch aria-label="Enable imported Hooks" />
+            <Button size="sm" variant="outline">Review update</Button>
+            <Button size="sm" variant="fill">Remove</Button>
+          </ConfigPageRow>
+          <ConfigPageRow label="Single action" align="center">
+            <Button size="sm" variant="outline">Retry</Button>
+          </ConfigPageRow>
+        </>,
+      );
+    });
+
+    const controls = container.querySelectorAll('[data-bitfun-part="rowControl"]');
+
+    expect(controls[0]?.children).toHaveLength(3);
+    expect(controls[0]?.querySelectorAll(':scope > button')).toHaveLength(2);
+    expect(controls[1]?.querySelectorAll(':scope > button')).toHaveLength(1);
+    // The standard 150px control measure squeezes intrinsic action buttons
+    // until their labels clip, so an action group needs the content measure.
+    expect(actionGroupRule).toContain('--row-grid-cols: minmax(0, 1fr) minmax(0, max-content);');
+    expect(controlRule).toContain('gap: var(--bitfun-space-2);');
   });
 
   it('renders required state as structured label anatomy with the shared semantic color', () => {

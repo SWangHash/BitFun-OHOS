@@ -3,6 +3,8 @@
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { HOOK_IMPORT_CHANGED } from '@/infrastructure/agent-hooks/importEvents';
+import { globalEventBus } from '@/infrastructure/event-bus';
 import HooksConfig from './HooksConfig';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -245,6 +247,33 @@ describe('HooksConfig imported Hook management', () => {
     expect(empty?.textContent).toContain('imports.empty');
   });
 
+  it('keeps the imported Hook switch and actions as direct children of one control column', async () => {
+    getSnapshotMock.mockResolvedValue({
+      ...snapshot,
+      imports: [{
+        importId: 'managed-1',
+        source,
+        enabled: true,
+        behaviorVersion: 'sha256:behavior',
+        state: 'current',
+      }],
+    });
+    await act(async () => root.render(<HooksConfig />));
+    await flush();
+
+    // The shared row layout sizes the control column to content only while the
+    // switch and both action buttons stay children of the same row control.
+    const row = Array.from(container.querySelectorAll('div')).find((node) => (
+      node.querySelectorAll(':scope > input[type="checkbox"]').length === 1
+      && node.querySelectorAll(':scope > button').length === 2
+    ));
+    expect(row).not.toBeUndefined();
+    expect(
+      Array.from(row!.children)
+        .map((child) => (child.tagName === 'BUTTON' ? child.textContent : child.tagName)),
+    ).toEqual(['STRONG', 'SPAN', 'INPUT', 'imports.update', 'imports.remove']);
+  });
+
   it('reviews exact commands before updating a previously imported Hook', async () => {
     getSnapshotMock.mockResolvedValue({ ...snapshot, imports: [{ importId: 'managed-1', source, enabled: true, behaviorVersion: 'old', state: 'update_available' }] });
     await act(async () => root.render(<HooksConfig />));
@@ -353,6 +382,38 @@ describe('HooksConfig imported Hook management', () => {
     expect(mutateImportMock).toHaveBeenCalledTimes(1);
     expect(getSnapshotMock).toHaveBeenCalledTimes(2);
     expect(notifyErrorMock).toHaveBeenCalledWith('imports.stateChanged');
+  });
+
+  it('follows a Hook import removed from the ecosystem catalog', async () => {
+    const imported = {
+      ...snapshot,
+      imports: [{
+        importId: 'managed-1',
+        source,
+        enabled: true,
+        behaviorVersion: 'sha256:behavior',
+        state: 'current',
+      }],
+    };
+    getSnapshotMock
+      .mockResolvedValueOnce(imported)
+      .mockResolvedValue({ ...imported, revision: 'sha256:revision-2', imports: [] });
+    await act(async () => root.render(<HooksConfig />));
+    await flush();
+    expect(container.textContent).toContain('imports.remove');
+
+    // Another surface's change and the revision already shown must not reread.
+    await act(async () => globalEventBus.emit(HOOK_IMPORT_CHANGED, { surfaceId: 'another-device', revision: 'sha256:revision-2' }));
+    await act(async () => globalEventBus.emit(HOOK_IMPORT_CHANGED, { surfaceId: 'local', revision: 'sha256:revision-1' }));
+    await flush();
+    expect(getSnapshotMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => globalEventBus.emit(HOOK_IMPORT_CHANGED, { surfaceId: 'local', revision: 'sha256:revision-2' }));
+    await flush();
+
+    expect(getSnapshotMock).toHaveBeenLastCalledWith(WORKSPACE_ID, true);
+    expect(container.textContent).not.toContain('imports.remove');
+    expect(container.textContent).toContain('imports.empty');
   });
 
   it('keeps a disabled import disabled after review and reports the authoritative state', async () => {

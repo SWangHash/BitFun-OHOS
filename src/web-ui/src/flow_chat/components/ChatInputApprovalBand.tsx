@@ -374,9 +374,11 @@ export const ChatInputApprovalBand: React.FC<ChatInputApprovalBandProps> = ({
                   </Button>
                 </Tooltip>
               ) : null}
-              {/* Saved grants apply only to the request the reader has seen. */}
+              {/* Saved grants apply only to the request the reader has seen.
+                  The scope can wrap to several lines, so the explanation has to
+                  stay reachable while it is being read. */}
               {saveResources.length > 0 && !answersAll ? (
-                <Tooltip content={alwaysAllowTooltip} placement="top">
+                <Tooltip content={alwaysAllowTooltip} placement="top" interactive>
                   <Button
                     variant="outline"
                     size="sm"

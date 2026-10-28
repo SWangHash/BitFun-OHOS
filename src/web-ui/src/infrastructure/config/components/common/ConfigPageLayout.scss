@@ -238,6 +238,17 @@
   max-inline-size: var(--bitfun-overlay-menu-inline-size);
 }
 
+// Rows whose control column carries an inline action group (two or more action
+// buttons, optionally next to an intrinsic control such as a Switch) need that
+// column to fit its content. The default 150px field measure squeezes the
+// intrinsic buttons until their labels clip.
+.bitfun-config-page-row:not(
+  .bitfun-config-page-row--multiline,
+  .bitfun-config-page-row--wide
+):has(> .bitfun-config-page-row__control > button ~ button) {
+  --row-grid-cols: minmax(0, 1fr) minmax(0, max-content);
+}
+
 .bitfun-config-page-row__meta {
   min-width: 0;
   max-width: 450px;
@@ -279,6 +290,7 @@
   align-items: center;
   justify-content: flex-end;
   justify-self: stretch;
+  gap: var(--bitfun-space-2);
 
   // Only field-like controls consume the full control column. Intrinsic
   // controls such as Switch, Button, Checkbox, and StatusPill keep the

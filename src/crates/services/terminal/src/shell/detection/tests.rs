@@ -196,3 +196,64 @@ fn windows_path_lookup_respects_pathext() {
 fn posix_path_lookup_uses_the_unmodified_executable_name() {
     assert_eq!(path::executable_names("pwsh"), vec!["pwsh"]);
 }
+
+#[test]
+fn discoverability_matches_the_platform_contract() {
+    #[cfg(target_env = "ohos")]
+    assert!(!ShellType::Bash.is_discoverable());
+    #[cfg(not(target_env = "ohos"))]
+    assert!(ShellType::Bash.is_discoverable());
+    for shell_type in [ShellType::Zsh, ShellType::Fish, ShellType::Sh] {
+        assert!(shell_type.is_discoverable());
+    }
+}
+
+#[cfg(not(windows))]
+#[test]
+fn posix_candidates_only_contain_discoverable_shell_types() {
+    assert!(super::platform::posix_shell_candidates()
+        .iter()
+        .all(|candidate| candidate.shell_type.is_discoverable()));
+}
+
+#[cfg(target_env = "ohos")]
+#[test]
+fn ohos_detection_never_offers_a_bash_terminal() {
+    assert!(!super::platform::posix_shell_candidates()
+        .iter()
+        .any(|candidate| candidate.shell_type == ShellType::Bash));
+    assert!(ShellDetector::find_shell(&ShellType::Bash).is_none());
+    assert!(!ShellDetector::detect_available_shells()
+        .iter()
+        .any(|shell| shell.shell_type == ShellType::Bash));
+    assert_ne!(
+        ShellDetector::get_default_shell().shell_type,
+        ShellType::Bash
+    );
+    assert_ohos_agent_shells_prefer_zsh();
+}
+
+#[cfg(target_env = "ohos")]
+#[test]
+fn ohos_ignores_a_configured_bash_shell() {
+    assert!(ShellDetector::resolve_configured_shell_without_probe("/bin/bash").is_none());
+    assert!(ShellDetector::resolve_configured_shell_without_probe("bash").is_none());
+}
+
+#[cfg(target_env = "ohos")]
+fn assert_ohos_agent_shells_prefer_zsh() {
+    let zsh_available = ShellDetector::find_shell(&ShellType::Zsh).is_some();
+    let default_shell = ShellDetector::get_default_shell();
+    if zsh_available {
+        assert_eq!(default_shell.shell_type, ShellType::Zsh);
+        assert_eq!(
+            ShellDetector::get_default_shell_without_probe().shell_type,
+            ShellType::Zsh
+        );
+        assert_eq!(
+            crate::exec_shell::resolve_local_exec_shell_without_probe(None).shell_type,
+            ShellType::Zsh
+        );
+    }
+    assert_ne!(default_shell.shell_type, ShellType::Bash);
+}

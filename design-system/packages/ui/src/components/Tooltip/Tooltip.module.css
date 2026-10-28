@@ -54,6 +54,13 @@
     -webkit-backdrop-filter: var(--bitfun-effect-blur-base);
   }
 
+  /* Invisible corridor across the placement gap. Its geometry comes from the
+     component so it always matches the gap used for positioning. */
+  .bridge {
+    position: absolute;
+    pointer-events: auto;
+  }
+
   .arrow {
     position: absolute;
     z-index: 0;

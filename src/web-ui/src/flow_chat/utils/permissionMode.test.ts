@@ -6,6 +6,7 @@ import {
   permissionModeFromConfig,
   permissionModeToConfig,
   replacedSessionPermissionMode,
+  sessionModeOverridesDefault,
   sessionPermissionMode,
 } from './permissionMode';
 import type { ToolPermissionConfig } from '@/infrastructure/config/types';
@@ -118,6 +119,28 @@ describe('permissionMode', () => {
         replacedSessionPermissionMode('auto', 'full_access'),
       ),
     ).toBe(true);
+  });
+
+  it('treats a session selection as an override only when it changes the mode', () => {
+    // Following the default is not an override, so no reset row is offered.
+    expect(sessionModeOverridesDefault(null, 'ask', true)).toBe(false);
+    expect(sessionModeOverridesDefault(null, 'full_access', true)).toBe(false);
+
+    // Writing back the value the default already selects moves nothing: the
+    // user picked full access, the default is full access, one scope remains.
+    expect(sessionModeOverridesDefault('full_access', 'full_access', true)).toBe(false);
+    expect(sessionModeOverridesDefault('ask', 'ask', true)).toBe(false);
+    expect(sessionModeOverridesDefault('auto_approve', 'auto_approve', true)).toBe(false);
+
+    // A genuinely different session mode stays resettable.
+    expect(sessionModeOverridesDefault('full_access', 'ask', true)).toBe(true);
+    expect(sessionModeOverridesDefault('ask', 'full_access', true)).toBe(true);
+    expect(sessionModeOverridesDefault('auto_approve', 'ask', true)).toBe(true);
+
+    // The built-in fallback default is full access, so before the real default
+    // loads an equal-looking session must not lose its reset row.
+    expect(sessionModeOverridesDefault('full_access', 'full_access', false)).toBe(true);
+    expect(sessionModeOverridesDefault('ask', 'full_access', false)).toBe(true);
   });
 
   it('arms a turn override on top of the mode that turn runs', () => {

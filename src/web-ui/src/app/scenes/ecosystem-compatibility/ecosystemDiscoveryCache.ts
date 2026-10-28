@@ -78,6 +78,21 @@ export function clearEcosystemDiscoveryCache(): void {
   caches.clear();
 }
 
+/**
+ * Drop cached import facts for every scope after an owner-side import change.
+ *
+ * The cached catalog stays: it is a discovery result. A cached import is not,
+ * because it is only a memory of a native copy that another surface may have
+ * removed since this view last read the owner.
+ */
+export function forgetEcosystemHookImports(): void {
+  for (const cache of caches.values()) {
+    if (cache.hooks && cache.hooks.imports.length > 0) {
+      cache.hooks = { ...cache.hooks, imports: [] };
+    }
+  }
+}
+
 export function rememberEcosystemSkills(cache: DiscoveryCache, skills: SkillInfo[], diagnostics: SkillScanDiagnostic[]): SkillInfo[] {
   const failedSources = new Set(diagnostics.map((entry) => entry.sourceId));
   const current = new Set(skills.map((skill) => skill.key));

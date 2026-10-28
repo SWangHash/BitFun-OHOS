@@ -6,7 +6,8 @@ import EcosystemPets from './EcosystemPets';
 import EcosystemAccounts, { ecosystemAccountProvider } from './EcosystemAccounts';
 import DevecoAccount from './DevecoAccount';
 import { presentEcosystemContent } from './ecosystemContentPresentation';
-import { ecosystemDiscoveryCache, rememberEcosystemHooks, rememberEcosystemSkills } from './ecosystemDiscoveryCache';
+import { ecosystemDiscoveryCache, forgetEcosystemHookImports, rememberEcosystemHooks, rememberEcosystemSkills } from './ecosystemDiscoveryCache';
+import { persistHookScan, readPersistedHookScan } from './ecosystemHookScanStorage';
 import { importErrorMessage } from './ecosystemSkillImport';
 import { applyEcosystemBatchUndo, type BatchUndoEntry, type BatchUndoResult } from './ecosystemBatchUndo';
 import { CircleUserRound, FileText, Package, PawPrint, Server, Webhook, Wrench } from 'lucide-react';
@@ -19,6 +20,7 @@ import { usePeerDeviceModeOptional } from '@/infrastructure/peer-device/peerDevi
 import { globalEventBus } from '@/infrastructure/event-bus';
 import { MCP_CONFIG_CHANGED, type MCPConfigChanged } from '@/infrastructure/mcp/configEvents';
 import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
+import { HOOK_IMPORT_CHANGED, type HookImportChanged } from '@/infrastructure/agent-hooks/importEvents';
 import { isTauriRuntime } from '@/infrastructure/runtime';
 import { WorkspaceKind } from '@/shared/types';
 import { configAPI } from '@/infrastructure/api/service-api/ConfigAPI';
@@ -79,14 +81,20 @@ export default function ExternalAgentContent({ scopeKey, refreshControlRef, onRe
   const notification = useNotification();
   const { workspace, workspacePath } = useCurrentWorkspace();
   const peer = usePeerDeviceModeOptional();
-  const cache = ecosystemDiscoveryCache(scopeKey ?? JSON.stringify([peer?.peerMode.active ? peer.peerMode.deviceId : undefined, workspace?.id]));
+  const discoveryScope = scopeKey ?? JSON.stringify([peer?.peerMode.active ? peer.peerMode.deviceId : undefined, workspace?.id]);
+  const cache = ecosystemDiscoveryCache(discoveryScope);
   const automaticDiscovery = snapshot !== null && (snapshot.discovery?.enabled ?? true);
   const localImportSupported = isTauriRuntime() && !peer?.peerMode.active
     && workspace?.workspaceKind !== WorkspaceKind.Remote;
   const [skills, setSkills] = useState<SkillInfo[]>(() => cache.skills ?? []);
   const [skillSettings, setSkillSettings] = useState<GlobalSkillSettings | null>(null);
   const [skillDiagnostics, setSkillDiagnostics] = useState<SkillScanDiagnostic[]>(() => cache.skillDiagnostics?.filter((entry) => entry.sourceId === runtime.spec.ecosystemId) ?? []);
-  const [hooks, setHooks] = useState<ExternalHookImportSnapshot | null>(() => cache.hooks ?? null);
+  // Paused discovery never rereads Hook sources, and the in-memory cache dies
+  // with the process, so the last successful read is the only memory a restart
+  // can show. Its import list is intentionally empty: a stored copy is not
+  // proof, so those rows stay "last known" until a live read lands.
+  const [hooks, setHooks] = useState<ExternalHookImportSnapshot | null>(() => cache.hooks
+    ?? (localImportSupported ? readPersistedHookScan(discoveryScope) : null));
   const [instructionSnapshot, setInstructionSnapshot] = useState<{ workspaceId: string | undefined; catalog: InstructionSourceCatalog | null } | null>(null);
   const instructions = localImportSupported && instructionSnapshot?.workspaceId === workspace?.id
     ? instructionSnapshot?.catalog ?? null : null;
@@ -116,6 +124,7 @@ export default function ExternalAgentContent({ scopeKey, refreshControlRef, onRe
   const [completed, setCompleted] = useState<Set<string>>(new Set());
   const alive = useRef(false);
   const loadSequence = useRef(0);
+  const hookSequence = useRef(0);
   const skillSettingsRevision = useRef(0);
   const reviewSequence = useRef(0);
   const mcpPlanSequence = useRef(0);
@@ -153,7 +162,10 @@ export default function ExternalAgentContent({ scopeKey, refreshControlRef, onRe
       setSkillDiagnostics(skillResult.value.diagnostics.filter((entry) => entry.sourceId === runtime.spec.ecosystemId));
     } else if (skillResult.status === 'rejected') { failures.push('skill'); }
     if (hookResult.status === 'fulfilled') {
-      if (hookResult.value) setHooks(rememberEcosystemHooks(cache, hookResult.value));
+      if (hookResult.value) {
+        setHooks(rememberEcosystemHooks(cache, hookResult.value));
+        if (localImportSupported) persistHookScan(discoveryScope, hookResult.value);
+      }
     } else { failures.push('hook'); }
     setInstructionSnapshot({ workspaceId: workspace?.id, catalog: instructionResult.status === 'fulfilled' ? instructionResult.value : null });
     if (instructionResult.status === 'rejected') failures.push('instruction');
@@ -162,16 +174,51 @@ export default function ExternalAgentContent({ scopeKey, refreshControlRef, onRe
     }
     setLoadFailures(failures);
     setLoading(false);
-  }, [automaticDiscovery, cache, localImportSupported, runtime.spec.ecosystemId, workspace?.id]);
+  }, [automaticDiscovery, cache, discoveryScope, localImportSupported, runtime.spec.ecosystemId, workspace?.id]);
 
   useEffect(() => {
     alive.current = true;
-    return () => { alive.current = false; loadSequence.current += 1; reviewSequence.current += 1; };
+    return () => { alive.current = false; loadSequence.current += 1; hookSequence.current += 1; reviewSequence.current += 1; };
   }, []);
 
   useEffect(() => {
     void loadSupplemental();
   }, [loadSupplemental]);
+
+  // Imported Hook copies are owned by the native Hooks manager as well as by
+  // this catalog. Reread only import facts, so a change made there never leaves
+  // a row claiming a copy this view can no longer verify, and never forces a
+  // provider scan the user did not ask for.
+  const reloadHookImports = useCallback(async () => {
+    if (!localImportSupported) return;
+    const sequence = ++hookSequence.current;
+    try {
+      const snapshot = await externalHooksAPI.getImportSnapshot(workspace?.id, false);
+      if (!alive.current || sequence !== hookSequence.current) return;
+      setHooks(rememberEcosystemHooks(cache, snapshot));
+      persistHookScan(discoveryScope, snapshot);
+    } catch {
+      // Keep the last owner result: a failed reread is not evidence of removal.
+    }
+  }, [cache, discoveryScope, localImportSupported, workspace?.id]);
+
+  useEffect(() => {
+    if (!localImportSupported) return;
+    const scope = getActiveSurfaceScope();
+    return globalEventBus.on<HookImportChanged>(HOOK_IMPORT_CHANGED, ({ surfaceId, revision }) => {
+      if (!scope.isCurrent() || surfaceId !== scope.surfaceId) return;
+      // This view already holds the acknowledged result of that write.
+      if (hooks?.revision === revision) return;
+      forgetEcosystemHookImports();
+      // A success from earlier in this session is not proof either: the copy it
+      // described may be the one that just disappeared.
+      setCompleted((current) => {
+        const next = new Set([...current].filter((id) => !id.startsWith('hook:')));
+        return next.size === current.size ? current : next;
+      });
+      void reloadHookImports();
+    });
+  }, [hooks?.revision, localImportSupported, reloadHookImports]);
 
   useEffect(() => {
     if (!localImportSupported) return;

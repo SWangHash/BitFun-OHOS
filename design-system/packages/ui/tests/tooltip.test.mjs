@@ -56,6 +56,29 @@ test("Tooltip owns delayed opening, viewport flipping, and pointer-anchored clos
   assert.doesNotMatch(source, /INTERACTIVE_HIDE_DELAY_MS/);
 });
 
+test("Interactive content stays reachable across the placement gap", async () => {
+  const source = await readFile(
+    new URL("../src/components/Tooltip/Tooltip.tsx", import.meta.url),
+    "utf8",
+  );
+  const styles = await readFile(
+    new URL("../src/components/Tooltip/Tooltip.module.css", import.meta.url),
+    "utf8",
+  );
+
+  // A pointer cannot jump the placement gap, so leaving the trigger would hide
+  // the tooltip before the pointer ever reaches its content.
+  assert.match(source, /function getBridgeStyle\(placement: TooltipPlacement\)/);
+  assert.match(source, /return \{ bottom: -GAP, left: 0, right: 0, height: GAP \};/);
+  assert.match(source, /return \{ right: -GAP, top: 0, bottom: 0, width: GAP \};/);
+  assert.match(source, /interactive && !followCursor && isShown \? \(/);
+  assert.match(source, /data-bitfun-part="bridge"/);
+  assert.match(source, /style=\{getBridgeStyle\(layout\.placement\)\}/);
+  // The corridor belongs to the tooltip surface so the trigger's own mouseleave
+  // reports a target inside the pair.
+  assert.match(styles, /\.bridge \{[^}]*position: absolute;[^}]*pointer-events: auto;/s);
+});
+
 test("Tooltip closes on scroll and refuses to reopen until the gesture settles", async () => {
   const source = await readFile(
     new URL("../src/components/Tooltip/Tooltip.tsx", import.meta.url),

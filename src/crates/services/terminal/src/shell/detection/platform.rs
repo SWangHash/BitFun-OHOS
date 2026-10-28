@@ -112,6 +112,7 @@ pub(super) fn posix_shell_candidates() -> Vec<ShellCandidate> {
         ShellType::Sh,
     ]
     .into_iter()
+    .filter(ShellType::is_discoverable)
     .flat_map(|shell_type| posix_shell_candidates_for(&shell_type))
     .collect()
 }
@@ -130,7 +131,12 @@ pub(super) fn posix_shell_candidates_for(shell_type: &ShellType) -> Vec<ShellCan
         .into_iter()
         .map(|path| ShellCandidate::new(path, shell_type.clone(), ShellDiscoverySource::Path))
         .collect::<Vec<_>>();
-    for directory in ["/usr/local/bin", "/usr/bin", "/bin"] {
+    // HarmonyOS PC keeps its system-wide executables under /system/bin.
+    #[cfg(target_env = "ohos")]
+    let directories = ["/usr/local/bin", "/usr/bin", "/bin", "/system/bin"];
+    #[cfg(not(target_env = "ohos"))]
+    let directories = ["/usr/local/bin", "/usr/bin", "/bin"];
+    for directory in directories {
         candidates.push(ShellCandidate::new(
             PathBuf::from(directory).join(executable),
             shell_type.clone(),

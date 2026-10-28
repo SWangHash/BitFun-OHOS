@@ -342,6 +342,85 @@ impl RoundExecutor {
         }
     }
 
+    /// One error result per committed tool call that will never get a real result.
+    ///
+    /// The provider response is committed before any tool runs, so every exit
+    /// path of the tool phase has to close its batch. Otherwise the session keeps
+    /// an assistant `tool_calls` message without results, and every later request
+    /// of that session is rejected as an invalid request.
+    fn unanswered_tool_results(
+        tool_calls: &[ToolCall],
+        reason: &str,
+    ) -> Vec<crate::agentic::core::ToolResult> {
+        tool_calls
+            .iter()
+            .map(|tool_call| crate::agentic::core::ToolResult {
+                tool_id: tool_call.tool_id.clone(),
+                tool_name: tool_call.tool_name.clone(),
+                effective_tool_name: None,
+                result: serde_json::json!({
+                    "error": reason,
+                    "aborted": true,
+                }),
+                result_for_assistant: Some(format!(
+                    "This tool call did not run: {reason}. Verify the current state before retrying, and do not assume it had no side effects."
+                )),
+                is_error: true,
+                duration_ms: None,
+                image_attachments: None,
+            })
+            .collect()
+    }
+
+    /// Persist results for a committed batch whose tools will never report back.
+    async fn commit_aborted_tool_results(
+        session_manager: Option<&SessionManager>,
+        context: &RoundContext,
+        round_id: &str,
+        results: Vec<crate::agentic::core::ToolResult>,
+    ) {
+        let Some(session_manager) = session_manager else {
+            return;
+        };
+        for result in results {
+            let message = Message::tool_result(result)
+                .with_turn_id(context.dialog_turn_id.clone())
+                .with_round_id(round_id.to_string());
+            if let Err(error) = session_manager
+                .add_message(&context.session_id, message)
+                .await
+            {
+                warn!(
+                    "Failed to record aborted tool result; the stored batch stays unanswered: session_id={}, round_id={}, error={}",
+                    context.session_id, round_id, error
+                );
+            }
+        }
+    }
+
+    /// Close the committed batch, then hand the original error back to the caller.
+    async fn abort_with_unanswered_tool_results(
+        session_manager: Option<&SessionManager>,
+        context: &RoundContext,
+        round_id: &str,
+        tool_calls: &[ToolCall],
+        error: BitFunError,
+    ) -> BitFunError {
+        warn!(
+            "Tool phase aborted before execution; recording unanswered tool results: session_id={}, round_id={}, tool_calls={}, error={}",
+            context.session_id,
+            round_id,
+            tool_calls.len(),
+            error
+        );
+        let results = Self::unanswered_tool_results(
+            tool_calls,
+            &format!("the tool phase failed before it ran ({error})"),
+        );
+        Self::commit_aborted_tool_results(session_manager, context, round_id, results).await;
+        error
+    }
+
     pub fn new(
         stream_processor: Arc<StreamProcessor>,
         event_queue: Arc<EventQueue>,
@@ -1454,6 +1533,13 @@ impl RoundExecutor {
                 "Cancel token detected before tool execution, stopping execution: session_id={}",
                 context.session_id
             );
+            // The provider response is already committed. Close its batch before
+            // aborting: an assistant `tool_calls` message without tool results
+            // makes every later request of this session an invalid request.
+            let unanswered =
+                Self::unanswered_tool_results(&tool_calls, "the run was cancelled before it ran");
+            Self::commit_aborted_tool_results(session_manager, &context, &round_id, unanswered)
+                .await;
             return Err(BitFunError::Cancelled("Execution cancelled".to_string()));
         }
 
@@ -1514,21 +1600,41 @@ impl RoundExecutor {
             let project_rules = match context.workspace.as_ref() {
                 Some(workspace) if workspace.is_remote() => {
                     match context.workspace_services.as_ref() {
-                        Some(services) => {
-                            load_project_permission_config_remote(
-                                services.fs.as_ref(),
-                                &workspace.root_path_string(),
-                            )
-                            .await?
-                            .rules
-                        }
+                        Some(services) => match load_project_permission_config_remote(
+                            services.fs.as_ref(),
+                            &workspace.root_path_string(),
+                        )
+                        .await
+                        {
+                            Ok(config) => config.rules,
+                            Err(error) => {
+                                return Err(Self::abort_with_unanswered_tool_results(
+                                    session_manager,
+                                    &context,
+                                    &round_id,
+                                    &tool_calls,
+                                    error,
+                                )
+                                .await);
+                            }
+                        },
                         None => Vec::new(),
                     }
                 }
                 Some(workspace) => {
-                    load_project_permission_config_local(workspace.root_path())
-                        .await?
-                        .rules
+                    match load_project_permission_config_local(workspace.root_path()).await {
+                        Ok(config) => config.rules,
+                        Err(error) => {
+                            return Err(Self::abort_with_unanswered_tool_results(
+                                session_manager,
+                                &context,
+                                &round_id,
+                                &tool_calls,
+                                error,
+                            )
+                            .await);
+                        }
+                    }
                 }
                 None => Vec::new(),
             };
@@ -1617,7 +1723,12 @@ impl RoundExecutor {
             tool_result_storage::apply_round_tool_result_budget(tool_results, &storage_context)
                 .await
         } else {
-            vec![]
+            // No pipeline to run the calls: still answer the committed batch so the
+            // provider does not reject this session on the next request.
+            Self::unanswered_tool_results(
+                &tool_calls,
+                "no tool execution pipeline is available in this runtime",
+            )
         };
         let tool_phase_ms = elapsed_ms_u64(tool_phase_started_at);
 
@@ -2168,6 +2279,104 @@ pub(super) mod tests {
             domain_state_store: None,
             recover_partial_on_cancel: false,
         }
+    }
+
+    fn test_tool_call(tool_id: &str, tool_name: &str) -> ToolCall {
+        ToolCall {
+            tool_id: tool_id.to_string(),
+            tool_name: tool_name.to_string(),
+            arguments: json!({}),
+            raw_arguments: None,
+            is_error: false,
+            parse_error: None,
+            recovered_from_truncation: false,
+            repair_kind: Default::default(),
+        }
+    }
+
+    #[test]
+    fn unanswered_tool_results_answer_every_committed_call() {
+        let tool_calls = vec![
+            test_tool_call("call-1", "Read"),
+            test_tool_call("call-2", "Grep"),
+        ];
+
+        let results = RoundExecutor::unanswered_tool_results(
+            &tool_calls,
+            "the run was cancelled before it ran",
+        );
+
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].tool_id, "call-1");
+        assert_eq!(results[1].tool_id, "call-2");
+        assert_eq!(results[0].tool_name, "Read");
+        assert!(results.iter().all(|result| result.is_error));
+        assert!(results.iter().all(|result| result
+            .result_for_assistant
+            .as_deref()
+            .is_some_and(|text| text.contains("did not run"))));
+    }
+
+    #[test]
+    fn unanswered_tool_results_is_empty_without_tool_calls() {
+        assert!(RoundExecutor::unanswered_tool_results(&[], "cancelled").is_empty());
+    }
+
+    #[tokio::test]
+    async fn aborted_tool_batch_is_recorded_so_the_next_request_stays_valid() {
+        use crate::agentic::persistence::PersistenceManager;
+        use crate::agentic::session::{SessionContextStore, SessionManager, SessionManagerConfig};
+        let temp = tempfile::tempdir().unwrap();
+        let context_store = Arc::new(SessionContextStore::new());
+        let manager = SessionManager::new(
+            context_store.clone(),
+            Arc::new(
+                PersistenceManager::new(Arc::new(
+                    crate::infrastructure::PathManager::with_user_root_for_tests(
+                        temp.path().into(),
+                    ),
+                ))
+                .unwrap(),
+            ),
+            SessionManagerConfig {
+                enable_persistence: false,
+                ..Default::default()
+            },
+        );
+        let context = test_round_context();
+        let tool_calls = vec![
+            test_tool_call("call-1", "Read"),
+            test_tool_call("call-2", "Grep"),
+        ];
+        let results = RoundExecutor::unanswered_tool_results(&tool_calls, "cancelled");
+
+        RoundExecutor::commit_aborted_tool_results(Some(&manager), &context, "round-1", results)
+            .await;
+
+        let messages = context_store.get_context_messages("session-1");
+        assert_eq!(messages.len(), 2);
+        for (message, expected_id) in messages.iter().zip(["call-1", "call-2"]) {
+            match &message.content {
+                crate::agentic::MessageContent::ToolResult {
+                    tool_id, is_error, ..
+                } => {
+                    assert_eq!(tool_id, expected_id);
+                    assert!(is_error);
+                }
+                other => panic!("expected a tool result, got {other:?}"),
+            }
+            assert_eq!(message.metadata.turn_id.as_deref(), Some("turn-1"));
+            assert_eq!(message.metadata.round_id.as_deref(), Some("round-1"));
+        }
+    }
+
+    #[tokio::test]
+    async fn aborted_tool_batch_is_skipped_without_a_session_manager() {
+        let context = test_round_context();
+        let tool_calls = vec![test_tool_call("call-1", "Read")];
+        let results = RoundExecutor::unanswered_tool_results(&tool_calls, "cancelled");
+
+        RoundExecutor::commit_aborted_tool_results(None, &context, "round-1", results).await;
     }
 
     pub(in crate::agentic::execution) struct RetryTestServer {

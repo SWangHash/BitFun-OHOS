@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { HOOK_IMPORT_CHANGED, type HookImportChanged } from '@/infrastructure/agent-hooks/importEvents';
+import { globalEventBus } from '@/infrastructure/event-bus';
 
 const invokeMock = vi.hoisted(() => vi.fn());
 
@@ -255,5 +257,62 @@ describe('ExternalHooksAPI', () => {
     await expect(externalHooksAPI.getImportSnapshot()).rejects.toMatchObject<ExternalSourceApiError>({
       code: 'invalid_response',
     });
+  });
+
+  it('publishes an acknowledged import change for the other owners of the same copy', async () => {
+    const events: HookImportChanged[] = [];
+    const unsubscribe = globalEventBus.on<HookImportChanged>(
+      HOOK_IMPORT_CHANGED,
+      (event) => events.push(event),
+    );
+    try {
+      invokeMock.mockResolvedValue(validImportSnapshot);
+
+      await externalHooksAPI.mutateImport(undefined, 'sha256:revision', {
+        kind: 'remove',
+        importId: 'sha256:source',
+      });
+
+      expect(invokeMock).toHaveBeenCalledWith('mutate_external_hook_import_command', {
+        request: {
+          workspaceId: undefined,
+          mutation: {
+            schemaVersion: 1,
+            expectedRevision: 'sha256:revision',
+            action: { kind: 'remove', importId: 'sha256:source' },
+          },
+        },
+      });
+      expect(events).toEqual([{ surfaceId: 'local', revision: 'sha256:revision' }]);
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it('publishes an applied import but never a stale plan that wrote nothing', async () => {
+    const events: HookImportChanged[] = [];
+    const unsubscribe = globalEventBus.on<HookImportChanged>(
+      HOOK_IMPORT_CHANGED,
+      (event) => events.push(event),
+    );
+    try {
+      invokeMock.mockResolvedValue({
+        schemaVersion: 1,
+        outcome: { kind: 'applied', snapshot: validImportSnapshot },
+      });
+      await externalHooksAPI.applyImport(undefined, validImportPlan);
+      expect(events).toEqual([{ surfaceId: 'local', revision: 'sha256:revision' }]);
+
+      events.length = 0;
+      invokeMock.mockResolvedValue({
+        schemaVersion: 1,
+        outcome: { kind: 'stale', refreshedPlan: validImportPlan },
+      });
+      const stale = await externalHooksAPI.applyImport(undefined, validImportPlan);
+      expect(stale.outcome.kind).toBe('stale');
+      expect(events).toEqual([]);
+    } finally {
+      unsubscribe();
+    }
   });
 });
