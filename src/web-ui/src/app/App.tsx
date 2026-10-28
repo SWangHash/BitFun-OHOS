@@ -38,6 +38,7 @@ import { fontPreferenceService } from '@/infrastructure/font-preference/core/Fon
 import { activateCreationRuntime } from '@/infrastructure/creation/creationRuntime';
 import { attachCreationRuntime, recordCreationActivationError } from '@/infrastructure/creation/creationBridge';
 import { createCreationUiApi } from './creation/creationUiApi';
+import { installLocalLinkGuard } from '@/shared/utils/localLinkGuard';
 import { usePeerDeviceModeOptional } from '@/infrastructure/peer-device/peerDeviceContextState';
 
 const log = createLogger('App');
@@ -196,6 +197,10 @@ function App() {
       }
     };
   }, []);
+
+  // Local file-path links must never reach the browser default: navigating
+  // the webview away from the app reads as an application restart (issue #376).
+  useEffect(() => installLocalLinkGuard(), []);
 
   // A Creative frontend candidate is not confirmable merely because its HTML
   // finished loading. Report readiness only after the real app layout and
