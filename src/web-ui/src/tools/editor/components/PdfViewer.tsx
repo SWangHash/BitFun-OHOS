@@ -211,6 +211,11 @@ const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
   const displaySize = displayedPageSize(size, zoom, rotation);
   const renderedDisplaySize = displayedPageSize(size, zoom, renderedRotationRef.current);
   const rotateTransitionActive = rendering && Math.abs(rotation - renderedRotationRef.current) % 180 !== 0;
+  // While the async re-render is in flight, the whole page element (bitmap +
+  // text layer) CSS-rotates as one rigid unit from the old orientation into
+  // the new one, so canvas and text rotate together instead of the bitmap
+  // turning while the text layer stays put (issue #378).
+  const pageBox = rotateTransitionActive ? renderedDisplaySize : displaySize;
   const setPageElement = useCallback((element: HTMLDivElement | null) => {
     onElementChange(pageNumber, element);
   }, [onElementChange, pageNumber]);
@@ -318,26 +323,23 @@ const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
       data-bitfun-part="page"
       data-bitfun-state={rendering ? 'rendering' : undefined}
       data-page-number={pageNumber}
-      style={{ width: displaySize.width, height: displaySize.height }}
+      style={{
+        width: pageBox.width,
+        height: pageBox.height,
+        ...(rotateTransitionActive
+          ? {
+              transform: `rotate(${rotation - renderedRotationRef.current}deg)`,
+              transition: 'transform 0.2s ease-out',
+            }
+          : {}),
+      }}
     >
       {shouldRender && (
         <>
           <canvas
             ref={canvasRef}
             aria-label={pageLabel}
-            style={
-              rotateTransitionActive
-                ? {
-                    // Bridge the async re-render: CSS-rotate the previous
-                    // bitmap into the new orientation instead of stretching
-                    // it across the swapped box.
-                    width: renderedDisplaySize.width,
-                    height: renderedDisplaySize.height,
-                    transform: `rotate(${rotation - renderedRotationRef.current}deg)`,
-                    transition: 'transform 0.2s ease-out',
-                  }
-                : { width: displaySize.width, height: displaySize.height }
-            }
+            style={{ width: pageBox.width, height: pageBox.height }}
           />
           <div
             ref={textLayerContainerRef}
