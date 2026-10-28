@@ -175,12 +175,12 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
   }, []);
 
   // Zoom/reset keyboard shortcuts (advertised in the toolbar tooltips).
-  // App-level Ctrl+= / Ctrl+- typography scaling is gated off while an image
-  // viewer holds the canvas.
-  useShortcut('imageViewer.zoomIn', { key: '=', ctrl: true, scope: 'canvas', allowInInput: true }, handleZoomIn, { enabled: isActiveTab });
-  useShortcut('imageViewer.zoomInPlus', { key: '+', ctrl: true, scope: 'canvas', allowInInput: true }, handleZoomIn, { enabled: isActiveTab });
-  useShortcut('imageViewer.zoomOut', { key: '-', ctrl: true, scope: 'canvas', allowInInput: true }, handleZoomOut, { enabled: isActiveTab });
-  useShortcut('imageViewer.zoomReset', { key: '0', ctrl: true, scope: 'canvas', allowInInput: true }, handleZoomReset, { enabled: isActiveTab });
+  // Alt avoids colliding with the app-level Ctrl+= / Ctrl+- typography
+  // scaling, which must keep working on tabs around the image (issue #389).
+  useShortcut('imageViewer.zoomIn', { key: '=', alt: true, scope: 'canvas', allowInInput: true }, handleZoomIn, { enabled: isActiveTab });
+  useShortcut('imageViewer.zoomInPlus', { key: '+', alt: true, scope: 'canvas', allowInInput: true }, handleZoomIn, { enabled: isActiveTab });
+  useShortcut('imageViewer.zoomOut', { key: '-', alt: true, scope: 'canvas', allowInInput: true }, handleZoomOut, { enabled: isActiveTab });
+  useShortcut('imageViewer.zoomReset', { key: '0', alt: true, scope: 'canvas', allowInInput: true }, handleZoomReset, { enabled: isActiveTab });
 
   const handleDownload = useCallback(() => {
     // Anchor-based downloads (href + download attribute) are silently dropped
