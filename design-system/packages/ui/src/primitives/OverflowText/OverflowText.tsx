@@ -37,6 +37,8 @@ export interface OverflowTextProps extends HTMLAttributes<HTMLElement> {
   lines?: number;
   /** Plain text defaults to marquee; rich composition defaults to a static fade. */
   behavior?: OverflowTextBehavior;
+  /** The owning control already provides a tooltip; never open the automatic one. */
+  overflowTooltip?: boolean;
   /** Single-line resting treatment; multiline clamps keep their existing layout. */
   overflowStyle?: "fade" | "ellipsis";
   /** Interaction-only text ignores virtual active state on itself and its owner. */
@@ -60,6 +62,7 @@ export const OverflowText = forwardRef<HTMLElement, OverflowTextProps>(
     marqueeActive = false,
     marqueeTrigger = "interaction-or-active",
     overflowStyle = "fade",
+    overflowTooltip = true,
     style,
     title,
     ...props
@@ -181,7 +184,7 @@ export const OverflowText = forwardRef<HTMLElement, OverflowTextProps>(
       } : {}),
     } as CSSProperties;
 
-    const hasOverflowTooltip = measurement.isOverflowing && !hasExplicitTooltip && title !== "";
+    const hasOverflowTooltip = overflowTooltip && measurement.isOverflowing && !hasExplicitTooltip && title !== "";
 
     return (
       <>

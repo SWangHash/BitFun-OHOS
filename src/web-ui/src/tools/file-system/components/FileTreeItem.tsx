@@ -263,7 +263,12 @@ export const FileTreeItem: React.FC<FileTreeItemProps> = ({
       ) : renderContent ? (
         renderContent(node, level)
       ) : (
-        <OverflowText className={`bitfun-file-explorer__node-name ${isCompressed ? 'bitfun-file-explorer__compressed-path' : ''}`}>
+        <OverflowText
+          className={`bitfun-file-explorer__node-name ${isCompressed ? 'bitfun-file-explorer__compressed-path' : ''}`}
+          // The row's native title (full path) is the single tooltip; a second
+          // name-only tooltip on long names duplicates it (issue #399).
+          overflowTooltip={false}
+        >
           {node.name}
         </OverflowText>
       )}

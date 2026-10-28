@@ -127,7 +127,12 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   const renderNodeContent = useCallback((node: FileSystemNode, _level: number) => {
     return (
       <div className="bitfun-file-explorer__node-wrapper">
-        <OverflowText className={`bitfun-file-explorer__node-name ${node.isCompressed ? 'bitfun-file-explorer__compressed-path' : ''}`}>
+        <OverflowText
+          className={`bitfun-file-explorer__node-name ${node.isCompressed ? 'bitfun-file-explorer__compressed-path' : ''}`}
+          // The row's native title (full path) is the single tooltip; a second
+          // name-only tooltip on long names duplicates it (issue #399).
+          overflowTooltip={false}
+        >
           {node.name}
         </OverflowText>
         
