@@ -10,7 +10,7 @@ use std::path::{Component, Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::detect::{
-    detect_project_qt_major, detect_qt_major, is_ohos_target_kit, kit_tools_run_on_host,
+    detect_qt_major, is_ohos_target_kit, kit_tools_run_on_host, measure_project_qt_major,
     probe_source_projects, resolve_kit_root, resolve_kit_root_above,
 };
 use crate::layout::{qt_managed_kit_roots, QT_MANAGED_TOOLCHAINS_DIR_NAME};
@@ -29,11 +29,14 @@ pub struct QtMigrationCandidateProbe {
     /// layer reads as "nothing to recommend" (and therefore as "offer the download
     /// option").
     pub toolchain_candidates: Vec<QtScanCandidate>,
-    /// Qt major version of each `source_project` candidate, keyed by the candidate
-    /// path. A separate list from the toolchain versions on purpose: the project
-    /// version is read from the C++ API the sources use
-    /// ([`detect_project_qt_major`]), not from a kit layout, and merging the two
-    /// "version" facts would let a toolchain answer a question about a project.
+    /// Qt major version of each measurable `source_project` candidate, keyed by
+    /// the candidate path. A candidate this host cannot measure (a named path that
+    /// does not exist) is absent: it stays listable, but carries no badge and no
+    /// say in which toolchain may serve the migration. A separate list from the
+    /// toolchain versions on purpose: the project version is read from the C++ API
+    /// the sources use ([`measure_project_qt_major`]), not from a kit layout, and
+    /// merging the two "version" facts would let a toolchain answer a question
+    /// about a project.
     pub project_versions: Vec<(String, u8)>,
 }
 
@@ -221,10 +224,15 @@ pub fn probe_qt_migration_candidates(
     );
     // Read the Qt version of every source candidate the list will render. The
     // candidate list is already capped, so this is at most [`MAX_SOURCE_PROJECTS`]
-    // bounded walks of one project each.
+    // bounded walks of one project each. A candidate this host cannot measure (a
+    // named path that does not exist) stays a candidate for the card to show, but
+    // contributes no version: no badge, and no say in which toolchain may serve
+    // the migration.
     let project_versions: Vec<(String, u8)> = source_candidates
         .iter()
-        .map(|path| (path.clone(), detect_project_qt_major(Path::new(path))))
+        .filter_map(|path| {
+            measure_project_qt_major(Path::new(path)).map(|qt_major| (path.clone(), qt_major))
+        })
         .collect();
     let usable_toolchains = scan
         .toolchains

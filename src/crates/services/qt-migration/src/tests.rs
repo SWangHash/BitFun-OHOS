@@ -276,8 +276,8 @@ fn named_source_candidates_are_filtered_sorted_deduped_and_capped() {
 
     let source = &probe.candidates["source_project"];
     assert_eq!(source.len(), 2, "capped at two like every field");
-    assert_eq!(path_key(Path::new(&source[0])), path_key(&model_b));
-    assert_eq!(path_key(Path::new(&source[1])), path_key(&model_c));
+    assert_eq!(path_key(Path::new(&source[0])), path_key(&model_d));
+    assert_eq!(path_key(Path::new(&source[1])), path_key(&model_b));
     assert!(source
         .iter()
         .all(|path| path_key(Path::new(path)) != path_key(&migrated)));
@@ -285,9 +285,7 @@ fn named_source_candidates_are_filtered_sorted_deduped_and_capped() {
 
 #[test]
 fn workspace_external_source_project_is_accepted() {
-    // 归属规则：prompt/模型显式给出的 source_project 候选本身是 Qt 工程时，
-    // 即使在当前工作区之外也是用户意图，必须成为候选并占默认位。工作区自己的
-    // 工程不参与：后端不扫工作区。
+    // 点名的工程占默认位，工作区扫到的排在它之后。
     let (_t, root) = tree();
     let inside = mkdir(&root, "inside-project");
     touch(&inside, "inside.pro");
@@ -304,8 +302,13 @@ fn workspace_external_source_project_is_accepted() {
     let source = &probe.candidates["source_project"];
     assert_eq!(
         keys(source),
-        keys(&[canonical_or_self(&project).to_string_lossy().into_owned()]),
-        "工作区外点名的工程保留，工作区里的工程不补位"
+        keys(&[
+            canonical_or_self(&project).to_string_lossy().into_owned(),
+            // The workspace tier never canonicalizes, so the fixture path is the
+            // expected form even under a symlinked temp dir.
+            inside.to_string_lossy().into_owned()
+        ]),
+        "工作区外点名的工程占默认位，工作区扫到的工程排在其后"
     );
 }
 #[test]
@@ -353,12 +356,11 @@ fn workspace_external_toolchain_and_template_are_kept() {
     );
 }
 #[test]
-fn only_named_source_projects_are_offered() {
-    // 工作区里另有 Qt 工程也不采：source_project 候选只来自模型点名，默认位
-    // （options[0]，前端预选）就是点名的那个。
+fn a_workspace_project_follows_the_named_one() {
+    // 模型只传点名路径时，工作区里的工程也要作为备选出现。
     let (_t, root) = tree();
-    let unscanned = mkdir(&root, "a-workspace-project");
-    touch(&unscanned, "a.pro");
+    let workspace_project = mkdir(&root, "a-workspace-project");
+    touch(&workspace_project, "a.pro");
     let prompt_named = mkdir(&root, "z-prompt-project");
     touch(&prompt_named, "z.pro");
     let model = candidate_map(
@@ -370,8 +372,25 @@ fn only_named_source_projects_are_offered() {
 
     assert_eq!(
         keys(&probe.candidates["source_project"]),
-        keys(&[prompt_named.to_string_lossy().into_owned()]),
-        "工作区里的工程不补位，候选只有点名的那一个"
+        keys(&[
+            prompt_named.to_string_lossy().into_owned(),
+            workspace_project.to_string_lossy().into_owned()
+        ]),
+        "点名的在前，工作区扫到的在后: {:?}",
+        probe.candidates["source_project"]
+    );
+}
+#[test]
+fn a_workspace_root_that_is_the_project_is_offered_as_itself() {
+    // 工作区根本身就是工程时，不能把 `src/` 这类源码容器当成工程交出去。
+    let (_t, root) = tree();
+    touch(&root, "app.pro");
+    let container = mkdir(&root, "src");
+    touch(&container, "inner.pro");
+
+    assert_eq!(
+        probe_source_projects(&root, &[]),
+        vec![root.to_string_lossy().into_owned()]
     );
 }
 #[test]
@@ -725,10 +744,10 @@ fn a_named_source_project_this_host_cannot_see_is_still_offered() {
     assert_eq!(
         keys(&candidates),
         keys(&[
-            real.to_string_lossy().into_owned(),
-            named.to_string_lossy().into_owned()
+            named.to_string_lossy().into_owned(),
+            real.to_string_lossy().into_owned()
         ]),
-        "验证过的工程是默认项，点名的路径仍可选：{candidates:?}"
+        "点名的路径占默认位（即使本机看不到），验证过的工程排在其后：{candidates:?}"
     );
 
     let plain = mkdir(&root, "plain-cmake");
@@ -737,7 +756,13 @@ fn a_named_source_project_this_host_cannot_see_is_still_offered() {
         "cmake_minimum_required(VERSION 3.16)\nproject(plain C)\n",
     )
     .unwrap();
-    assert!(probe_source_projects(&root, &[plain.to_string_lossy().into_owned()]).is_empty());
+    let named_plain = probe_source_projects(&root, &[plain.to_string_lossy().into_owned()]);
+    assert!(
+        named_plain
+            .iter()
+            .all(|path| path_key(Path::new(path)) != path_key(&plain)),
+        "点名的非 Qt 目录不成为候选: {named_plain:?}"
+    );
 }
 
 /// The measured project shape behind the "one project, two candidates" report:
@@ -774,14 +799,18 @@ fn a_vendored_subproject_is_not_offered_next_to_the_project_that_owns_it() {
         .unwrap();
     }
 
-    // 工作区里有多少 Qt 形状的目录都不采：候选只有点名的那个。
+    // vendored 子工程不采；根工程自己就是那个工程，所以工作区层也只给根。
     let named = probe_source_projects(&root, &[root.to_string_lossy().into_owned()]);
     assert_eq!(named, vec![root.to_string_lossy().into_owned()]);
     assert!(
         named.iter().all(|path| !path.contains("ThirdParty")),
         "vendored 子工程不得成为候选: {named:?}"
     );
-    assert_eq!(probe_source_projects(&root, &[]), Vec::<String>::new());
+    assert_eq!(
+        probe_source_projects(&root, &[]),
+        vec![root.to_string_lossy().into_owned()],
+        "工作区根就是工程时，工作区层给出的也是根"
+    );
 }
 
 #[test]
@@ -829,24 +858,25 @@ fn a_copied_qt_distribution_yields_no_source_project() {
     let module = mkdir(&fragment, "widgets");
     touch(&module, "widgets.pro");
 
+    // 安装树里的副本不是用户的工程，扫到或点名都不进候选。
     assert_eq!(
         probe_source_projects(&root, &[]),
-        Vec::<String>::new(),
-        "工作区不扫：真工程与发行版副本都不会自己成为候选"
+        vec![app.to_string_lossy().into_owned()],
+        "工作区层只认顶层真工程，发行版副本不进候选"
     );
     assert_eq!(
         probe_source_projects(&root, &[app.to_string_lossy().into_owned()]),
         vec![app.to_string_lossy().into_owned()],
         "点名的真工程仍然是候选"
     );
-    // 用户真机反馈（#355）：模型把工具链自带的示例集当成了原始工程，卡片因此给出
-    // 一条指向 Qt 安装树的"备选路径"。安装成员关系由磁盘决定（kit 根之下，或
-    // `<安装根>/Examples/` 之下），所以点名的示例集也必须被丢掉。
+    // 工作区层也会扫出 `app`，所以断言"点名的示例集不在候选里"而非"候选为空"。
     for installed in [kit_examples, examples, fragment] {
-        assert_eq!(
-            probe_source_projects(&root, &[installed.to_string_lossy().into_owned()]),
-            Vec::<String>::new(),
-            "点名的示例集不得成为候选: {}",
+        let candidates = probe_source_projects(&root, &[installed.to_string_lossy().into_owned()]);
+        assert!(
+            candidates
+                .iter()
+                .all(|path| path_key(Path::new(path)) != path_key(&installed)),
+            "点名的示例集不得成为候选: {} / {candidates:?}",
             installed.display()
         );
     }
@@ -1032,8 +1062,7 @@ fn source_projects_carry_their_own_project_version_in_the_probe() {
         "#include <QWidget>\n",
     );
 
-    // 原始工程由模型点名，后端不再扫工作区，所以两个工程必须以模型候选传入；
-    // 空候选下 `project_versions` 本来就是空的。
+    // 两个工程都要按源码测出版本。
     let model = candidate_map(
         "source_project",
         vec![
@@ -1044,11 +1073,10 @@ fn source_projects_carry_their_own_project_version_in_the_probe() {
     let probe = card_probe(&root, &root.join("managed"), &model);
 
     for (project, expected) in [(&qt6_project, 6), (&qt5_project, 5)] {
-        let key = path_key(project);
         let measured = probe
             .project_versions
             .iter()
-            .find(|(path, _)| path_key(Path::new(path)) == key)
+            .find(|(path, _)| path_key(Path::new(path)) == path_key(project))
             .map(|(_, qt_major)| *qt_major);
         assert_eq!(measured, Some(expected), "project {}", project.display());
     }

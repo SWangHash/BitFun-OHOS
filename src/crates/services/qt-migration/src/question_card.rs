@@ -55,9 +55,13 @@ fn merge_prompt_resolved_paths(candidates: &mut HashMap<String, Vec<String>>, re
             continue;
         };
         let entry = candidates.entry(field.to_string()).or_default();
-        if !entry.iter().any(|existing| existing == path) {
-            entry.push(path.to_string());
-        }
+        // The prompt's own path is the highest tier of the candidate policy
+        // (`输入 > 工作区 > 托管 > 已知安装根 > 会话探测`), so it takes the default
+        // slot: hoist it to the front instead of letting it trail whatever the
+        // model listed. A model that already echoed the same path keeps a single
+        // copy, in that same slot.
+        entry.retain(|existing| existing != path);
+        entry.insert(0, path.to_string());
     }
 }
 
@@ -665,6 +669,71 @@ mod tests {
         let source = &resolved.questions[0];
         assert_eq!(source.options.len(), 1);
         assert_eq!(source.options[0].description, "D:/work/myqt");
+    }
+
+    #[test]
+    fn a_prompt_resolved_path_takes_the_default_slot_ahead_of_the_model_list() {
+        // 用户真机反馈：prompt 里写明的原始工程在卡片里排在模型猜的工程之后。
+        // 提示解析出的路径属于最高层（输入），必须占默认位，而不是被追加到末尾。
+        let mut model = HashMap::new();
+        model.insert(
+            "source_project".to_string(),
+            vec!["D:/work/other-app".to_string()],
+        );
+        let owned = owned_context(
+            model,
+            vec![
+                (QT_MIGRATION_ENABLED_CONTEXT_KEY, Value::Bool(true)),
+                (
+                    QT_MIGRATION_RESOLVED_PATHS_CONTEXT_KEY,
+                    json!({ "source_project": "D:/work/myqt" }),
+                ),
+            ],
+            Vec::new(),
+        );
+        let resolved = card()
+            .render(&render_ctx(&owned))
+            .expect("a classified request renders the card");
+
+        let source = &resolved.questions[0];
+        assert_eq!(source.options.len(), 2, "two candidates, not three");
+        assert_eq!(source.options[0].description, "D:/work/myqt");
+        assert_eq!(source.options[1].description, "D:/work/other-app");
+    }
+
+    #[test]
+    fn a_model_echo_of_the_prompt_path_keeps_one_default_option() {
+        // 模型通常会把 prompt 的路径原样回显一遍：回显不得产生重复选项，也不得
+        // 把提示路径挤到第二位。
+        let mut model = HashMap::new();
+        model.insert(
+            "source_project".to_string(),
+            vec![
+                "D:/work/other-app".to_string(),
+                "D:/work/myqt".to_string(),
+            ],
+        );
+        let owned = owned_context(
+            model,
+            vec![
+                (QT_MIGRATION_ENABLED_CONTEXT_KEY, Value::Bool(true)),
+                (
+                    QT_MIGRATION_RESOLVED_PATHS_CONTEXT_KEY,
+                    json!({ "source_project": "D:/work/myqt" }),
+                ),
+            ],
+            Vec::new(),
+        );
+        let resolved = card()
+            .render(&render_ctx(&owned))
+            .expect("a classified request renders the card");
+
+        let paths: Vec<&str> = resolved.questions[0]
+            .options
+            .iter()
+            .map(|option| option.description.as_str())
+            .collect();
+        assert_eq!(paths, vec!["D:/work/myqt", "D:/work/other-app"]);
     }
 
     #[test]

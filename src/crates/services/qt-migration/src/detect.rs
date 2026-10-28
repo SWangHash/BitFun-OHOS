@@ -507,28 +507,14 @@ pub(crate) fn contains_qt6_only_type_name(haystack: &str, name: &str) -> bool {
     })
 }
 
-/// The `source_project` candidates of a request: the paths the model read out of
-/// the workspace, mechanically validated and ranked. The backend does not scan
-/// the workspace for Qt projects.
-///
-/// Which directory is the user's project is a judgement about intent, and the
-/// disk cannot carry it: a Qt installation root, the example containers shipped
-/// inside it (`Examples/<version>/` with its `examples.pro` subdirectory
-/// manifest), a build tree, and a real project all look alike to a file-level
-/// predicate. Naming the project is the model's job — it reads the workspace and
-/// sends what it found as `candidates.source_project`. A named path outside the
-/// workspace is accepted as sent (a project may live anywhere); nothing is
-/// harvested from its surroundings.
-///
-/// The one judgement the disk *does* carry is installation membership: a path
-/// under a kit root, or the installer's version-named `Examples/Qt-*` collection,
-/// is the Qt installation's own tree, never the user's application, so it is
-/// dropped rather than offered as a candidate the user has to recognize and
-/// reject.
+/// The `source_project` candidates of a request: the paths the model named plus
+/// the workspace's own top-level Qt projects, ranked as prompt input above
+/// workspace. A named path this host cannot see stays listable (a typo must be
+/// visible where the user wrote it) but measures no Qt generation.
 pub(crate) fn probe_source_projects(workspace: &Path, model_candidates: &[String]) -> Vec<String> {
-    let mut found: Vec<(usize, PathBuf)> = Vec::new();
-    let mut unconfirmed: Vec<PathBuf> = Vec::new();
-    for candidate in model_candidates {
+    // Tier 0 is the request, tier 1 the workspace scan; `order` is each tier's own.
+    let mut found: Vec<(u8, usize, usize, PathBuf)> = Vec::new();
+    for (index, candidate) in model_candidates.iter().enumerate() {
         let Some(path) = normalize_workspace_candidate(workspace, candidate) else {
             continue;
         };
@@ -547,30 +533,34 @@ pub(crate) fn probe_source_projects(workspace: &Path, model_candidates: &[String
         if is_inside_migrated_harmony_project(&path) || is_inside_qt_installation(&path) {
             continue;
         }
-        if !is_qt_source_project(&path) {
-            if !path.exists() {
-                unconfirmed.push(path);
-            }
-            continue;
-        }
         let depth = path
             .strip_prefix(workspace)
             .map(|relative| relative.components().count())
             .unwrap_or(MAX_PROBE_DEPTH + 1);
-        found.push((depth, path));
+        if !is_qt_source_project(&path) {
+            if !path.exists() {
+                found.push((0, index, depth, path));
+                continue;
+            }
+            if !has_qt_project_below(&path) {
+                continue;
+            }
+        }
+        found.push((0, index, depth, path));
     }
-    // The model's candidate is preferred as the default. The ranking keeps a
-    // migration artifact last (a project merely named `<app>-ohos` is still
-    // offered, just not as the default) and a workspace-resolved project ahead of
-    // one that lives outside.
+    for (order, path) in workspace_qt_projects(workspace).into_iter().enumerate() {
+        found.push((1, order, 1, path));
+    }
     found.sort_by(|a, b| {
-        (is_migration_artifact(&a.1) as u8)
-            .cmp(&(is_migration_artifact(&b.1) as u8))
+        (is_migration_artifact(&a.3) as u8)
+            .cmp(&(is_migration_artifact(&b.3) as u8))
             .then_with(|| a.0.cmp(&b.0))
-            .then_with(|| path_key(&a.1).cmp(&path_key(&b.1)))
+            .then_with(|| a.1.cmp(&b.1))
+            .then_with(|| a.2.cmp(&b.2))
+            .then_with(|| path_key(&a.3).cmp(&path_key(&b.3)))
     });
     let mut roots: Vec<PathBuf> = Vec::new();
-    for (_, path) in found {
+    for (_, _, _, path) in found {
         if roots
             .iter()
             .any(|root| is_inside_dir(&path, root) || is_inside_dir(root, &path))
@@ -583,11 +573,6 @@ pub(crate) fn probe_source_projects(workspace: &Path, model_candidates: &[String
         .into_iter()
         .map(|path| path.to_string_lossy().into_owned())
         .collect::<Vec<_>>();
-    candidates.extend(
-        unconfirmed
-            .into_iter()
-            .map(|path| path.to_string_lossy().into_owned()),
-    );
     dedup_paths(&mut candidates);
     candidates.truncate(MAX_SOURCE_PROJECTS);
     candidates
@@ -688,5 +673,73 @@ pub(crate) fn is_qt_source_project(dir: &Path) -> bool {
         }
     }
     has_cmake && is_qt_cmake_project(dir)
+}
+
+/// Top-level Qt projects of a local workspace, in path order. A workspace whose
+/// own root is the project yields that root, not one of its source folders.
+fn workspace_qt_projects(workspace: &Path) -> Vec<PathBuf> {
+    if is_inside_migrated_harmony_project(workspace) || is_inside_qt_installation(workspace) {
+        return Vec::new();
+    }
+    if is_qt_source_project(workspace) {
+        return vec![workspace.to_path_buf()];
+    }
+    let Ok(entries) = std::fs::read_dir(workspace) else {
+        return Vec::new();
+    };
+    let mut projects: Vec<PathBuf> = entries
+        .flatten()
+        .filter_map(|entry| {
+            if !entry
+                .file_type()
+                .map(|kind| kind.is_dir())
+                .unwrap_or(false)
+            {
+                return None;
+            }
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if crate::scan::is_noise_dir(&name) {
+                return None;
+            }
+            let path = entry.path();
+            if is_inside_migrated_harmony_project(&path) || is_inside_qt_installation(&path) {
+                return None;
+            }
+            (is_qt_source_project(&path) || has_qt_project_below(&path)).then_some(path)
+        })
+        .collect();
+    projects.sort_by(|a, b| path_key(a).cmp(&path_key(b)));
+    projects
+}
+
+/// Qt generation of a project, or `None` when this host cannot read one: an
+/// unreadable or empty directory must not report a generation that then decides
+/// which toolchain may serve the migration.
+pub(crate) fn measure_project_qt_major(project_dir: &Path) -> Option<u8> {
+    if !project_dir.exists() {
+        return None;
+    }
+    if !is_qt_source_project(project_dir) && !has_qt_project_below(project_dir) {
+        return None;
+    }
+    Some(detect_project_qt_major(project_dir))
+}
+
+/// Whether a direct child directory is a Qt source project root, for a named repo
+/// root whose Qt markers sit one level down (`src/<app>.pro`). The caller keeps
+/// the named directory itself as the project.
+fn has_qt_project_below(dir: &Path) -> bool {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return false;
+    };
+    entries.flatten().any(|entry| {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        entry
+            .file_type()
+            .map(|kind| kind.is_dir())
+            .unwrap_or(false)
+            && !crate::scan::is_noise_dir(&name)
+            && is_qt_source_project(&entry.path())
+    })
 }
 
