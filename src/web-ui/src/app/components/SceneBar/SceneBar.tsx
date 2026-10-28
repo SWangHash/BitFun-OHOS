@@ -280,10 +280,10 @@ const SceneBar: React.FC<SceneBarProps> = ({
           items={tabItems}
           renderItem={(item, node) => {
             const tabId = item.value as SceneTabId;
-            const tab = openTabs.find(candidate => candidate.id === tabId);
-            const resource = tab?.contentId ? resources[tab.contentId] : undefined;
-            const title = resource?.target.kind === 'file' ? [resource.scope.surfaceId, resource.scope.remoteConnectionId, resource.target.path].filter(Boolean).join(' · ') : undefined;
-            return <div className="bitfun-scene-bar__item" draggable title={title}
+            // No native title here: a scoped path tooltip on the tab body
+            // stacked with the close button's own tooltip (issue #400). The
+            // close action's "close <label>" title is the single tab tooltip.
+            return <div className="bitfun-scene-bar__item" draggable
               data-scene-tab-id={tabId}
               data-canvas-drop-position={activeCanvasDrop?.target?.tabId === tabId ? activeCanvasDrop.target.placement : undefined}
               onContextMenu={event => handleContextMenu(event, tabId)}

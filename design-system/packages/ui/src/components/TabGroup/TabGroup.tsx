@@ -152,6 +152,9 @@ export const TabGroup = forwardRef<HTMLDivElement, TabGroupProps>(function TabGr
               aria-disabled={item.disabled || undefined}
               aria-selected={selected}
               className={classNames(styles.tab, item.tabProps?.className)}
+              // The tab button owns its label's overflow tooltip; end actions
+              // keep their own tooltips instead of re-triggering the label's.
+              data-overflow-trigger
               data-bitfun-part="tab"
               data-bitfun-value={item.value}
               data-testid={item.tabProps?.["data-testid"] ?? `tab-${item.value}`}
