@@ -279,6 +279,33 @@ pub async fn get_clipboard_files() -> Result<Vec<String>, String> {
     }
 }
 
+/// Write file paths to the OHOS system pasteboard via the ArkTS bridge.
+///
+/// Mirrors [`get_clipboard_files`]: the ArkTS side
+/// (`CommonUtils.write_clipboard_files`) converts each path to a `file://`
+/// URI, writes one `text/uri` record per file plus a plain-text URI list
+/// (`read_clipboard_files` accepts the same shapes from third-party writers),
+/// and replaces the pasteboard content. Envelope:
+/// `{ "ok": true, "count": n }` / `{ "ok": false, "error": "..." }`.
+pub async fn write_clipboard_files(paths: &[String]) -> Result<(), String> {
+    if paths.is_empty() {
+        return Err("write_clipboard_files: no paths".to_owned());
+    }
+    let payload = serde_json::json!({ "paths": paths }).to_string();
+    let json = call_arkts_string_function("write_clipboard_files", payload).await?;
+    let value: serde_json::Value = serde_json::from_str(&json)
+        .map_err(|e| format!("write_clipboard_files: invalid json response: {e}: {json}"))?;
+    if let Some(error) = value.get("error").and_then(|v| v.as_str()) {
+        return Err(error.to_owned());
+    }
+    if !value.get("ok").and_then(|v| v.as_bool()).unwrap_or(false) {
+        return Err(format!(
+            "write_clipboard_files: bridge reported failure: {json}"
+        ));
+    }
+    Ok(())
+}
+
 /// Decode the JSON envelope returned by the ArkTS picker / clipboard bridge.
 ///
 /// Envelope shapes (shared by `CommonUtils.open_file_dialog` and

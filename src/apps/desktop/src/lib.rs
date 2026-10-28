@@ -1794,6 +1794,7 @@ pub async fn _run() {
             stop_file_watch,
             get_watched_paths,
             get_clipboard_files,
+            copy_files_to_clipboard,
             api::browser_file_drop_api::resolve_browser_dropped_file_paths,
             api::file_drop_preview_api::set_file_drop_preview_target,
             paste_files,

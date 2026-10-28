@@ -1520,6 +1520,16 @@ export class WorkspaceAPI {
     }
   }
 
+  async copyFilesToSystemClipboard(sourcePaths: string[], isCut: boolean): Promise<void> {
+    try {
+      await api.invoke('copy_files_to_clipboard', {
+        request: { sourcePaths, isCut },
+      });
+    } catch (error) {
+      throw createTauriCommandError('copy_files_to_clipboard', error, { sourcePaths, isCut });
+    }
+  }
+
   async resolveBrowserDroppedFilePaths(token: string, fileCount: number): Promise<string[]> {
     try {
       return await api.invoke('resolve_browser_dropped_file_paths', {

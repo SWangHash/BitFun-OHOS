@@ -230,12 +230,7 @@ export class CommonUtils {
               continue;
             }
             const destPath = (cacheDir.replace(/\/+$/, '')) + '/' + fileName;
-            const source = await fs.open(candidate, fs.OpenMode.READ_ONLY);
-            try {
-              await fs.copyFile(source.fd, destPath);
-            } finally {
-              await fs.close(source.fd);
-            }
+            await CommonUtils.copy_pasteboard_entry(candidate, destPath);
             hilog.info(0x0000, 'vnext', 'read_clipboard_files: cached ' + candidate + ' -> ' + destPath);
             paths.push(destPath);
           } catch (e) {
@@ -249,6 +244,85 @@ export class CommonUtils {
       return JSON.stringify({ paths });
     } catch (e) {
       return JSON.stringify({ error: 'read clipboard files failed: ' + e });
+    }
+  }
+
+  /// Copy one pasteboard URI (file or directory) into the app cache.
+  ///
+  /// Directories are walked recursively: the file manager writes the folder
+  /// itself as a single URI record, so the paste needs to expand it here or
+  /// the whole folder silently disappears. Any failure surfaces to the caller
+  /// so the outer per-candidate handler logs and skips loudly.
+  static async copy_pasteboard_entry(sourceUri: string, destPath: string): Promise<void> {
+    let isDirectory = false;
+    try {
+      const stat = await fs.stat(sourceUri);
+      isDirectory = stat.isDirectory();
+    } catch (e) {
+      // stat on a grant-less or unsupported URI falls through to the file copy
+      // attempt, which reproduces the pre-folder behavior for files.
+      hilog.warn(0x0000, 'vnext', 'copy_pasteboard_entry: stat failed for ' + sourceUri + ': ' + e);
+    }
+
+    if (isDirectory) {
+      await fs.mkdir(destPath, true);
+      const children = await fs.listFile(sourceUri);
+      for (const child of children) {
+        const childSource = sourceUri.endsWith('/') ? sourceUri + child : sourceUri + '/' + child;
+        await CommonUtils.copy_pasteboard_entry(childSource, destPath + '/' + child);
+      }
+      return;
+    }
+
+    const source = await fs.open(sourceUri, fs.OpenMode.READ_ONLY);
+    try {
+      await fs.copyFile(source.fd, destPath);
+    } finally {
+      await fs.close(source.fd);
+    }
+  }
+
+  /// Write file paths to the OHOS system pasteboard so external file managers
+  /// can paste them.
+  ///
+  /// Each workspace path is converted to a `file://` URI record plus one
+  /// plain-text record with the newline-joined URI list; the latter mirrors
+  /// what `read_clipboard_files` accepts from third-party writers. Payload
+  /// shape: `{ "paths": string[] }`; envelope: `{ ok: true, count }` or
+  /// `{ ok: false, error }`.
+  static async write_clipboard_files(payload: string): Promise<string> {
+    try {
+      const parsed = JSON.parse(payload) as ClipboardWritePayload;
+      let rawPaths: string[] = [];
+      if (parsed && parsed.paths) {
+        rawPaths = parsed.paths;
+      }
+      const uris: string[] = [];
+      for (const path of rawPaths) {
+        const trimmed = path.trim();
+        if (trimmed.length === 0) {
+          continue;
+        }
+        try {
+          uris.push(fileUri.getUriFromPath(trimmed));
+        } catch (e) {
+          hilog.warn(0x0000, 'vnext', 'write_clipboard_files: cannot resolve uri for ' + trimmed + ': ' + e);
+        }
+      }
+      if (uris.length === 0) {
+        return JSON.stringify({ ok: false, error: 'no valid file paths to copy' });
+      }
+
+      const data = pasteboard.createData(pasteboard.MIMETYPE_TEXT_URI, uris[0]);
+      for (let index = 1; index < uris.length; index++) {
+        data.addUriRecord(uris[index]);
+      }
+      data.addRecord(pasteboard.MIMETYPE_TEXT_PLAIN, uris.join('\n'));
+      await pasteboard.getSystemPasteboard().setData(data);
+      hilog.info(0x0000, 'vnext', 'write_clipboard_files: wrote ' + uris.length + ' uri record(s)');
+      return JSON.stringify({ ok: true, count: uris.length });
+    } catch (e) {
+      return JSON.stringify({ ok: false, error: 'write clipboard files failed: ' + e });
     }
   }
 
@@ -273,6 +347,11 @@ export class CommonUtils {
 interface PickerFilter {
   name: string;
   extensions: string[];
+}
+
+/// Payload written by the Rust clipboard bridge for `write_clipboard_files`.
+interface ClipboardWritePayload {
+  paths?: string[];
 }
 
 interface PickerOptions {

@@ -53,10 +53,22 @@ pub enum RemoteWorkspacePolicy {
 
 /// Declared remote-workspace policy for every registered Tauri command.
 pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = &[
-    ("deveco_account_cancel_login", RemoteWorkspacePolicy::RemoteUnsupported),
-    ("deveco_account_logout", RemoteWorkspacePolicy::RemoteUnsupported),
-    ("deveco_account_start_login", RemoteWorkspacePolicy::RemoteUnsupported),
-    ("deveco_account_status", RemoteWorkspacePolicy::RemoteUnsupported),
+    (
+        "deveco_account_cancel_login",
+        RemoteWorkspacePolicy::RemoteUnsupported,
+    ),
+    (
+        "deveco_account_logout",
+        RemoteWorkspacePolicy::RemoteUnsupported,
+    ),
+    (
+        "deveco_account_start_login",
+        RemoteWorkspacePolicy::RemoteUnsupported,
+    ),
+    (
+        "deveco_account_status",
+        RemoteWorkspacePolicy::RemoteUnsupported,
+    ),
     (
         "frontend_update_candidate_ready",
         RemoteWorkspacePolicy::LocalOnly,
@@ -344,6 +356,7 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         "control_deep_review_queue",
         RemoteWorkspacePolicy::LegacyUnaudited,
     ),
+    ("copy_files_to_clipboard", RemoteWorkspacePolicy::LocalOnly),
     (
         "create_acp_flow_session",
         RemoteWorkspacePolicy::LegacyUnaudited,
@@ -856,6 +869,8 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
         "hide_main_window_after_close_request",
         RemoteWorkspacePolicy::LocalOnly,
     ),
+    ("html_preview_create", RemoteWorkspacePolicy::RemoteRouted),
+    ("html_preview_release", RemoteWorkspacePolicy::WorkspaceAgnostic),
     ("i18n_get_config", RemoteWorkspacePolicy::WorkspaceAgnostic),
     (
         "i18n_get_current_language",

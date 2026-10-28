@@ -529,6 +529,9 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
       let res = await CommonUtils.read_clipboard_files(this.context.cacheDir);
       return res;
     });
+    RustModule.registerArktsFunction('write_clipboard_files', async (_err: Error, arg: string): Promise<string> => {
+      return await CommonUtils.write_clipboard_files(arg);
+    });
     RustModule.registerArktsFunction('handle_min_window', async (err: Error, arg: string): Promise<string> => {
       windowStage.getMainWindowSync().minimize();
       return '';

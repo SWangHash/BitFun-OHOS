@@ -754,13 +754,27 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     executePaste(data.targetDirectory);
   }, [executePaste]);
 
+  // Mirror every tree copy/cut into the OS file clipboard so external file
+  // managers can paste the same selection (issue #326). Remote paths do not
+  // exist on this machine; keep those in the internal clipboard only.
+  const mirrorTreeClipboardToSystem = useCallback((paths: string[], isCut: boolean) => {
+    if (paths.length === 0 || !currentWorkspace || isRemoteWorkspace(currentWorkspace)) {
+      return;
+    }
+    void workspaceAPI.copyFilesToSystemClipboard(paths, isCut).catch((error: unknown) => {
+      log.warn('Failed to mirror tree clipboard to system clipboard', { error: String(error) });
+    });
+  }, [currentWorkspace]);
+
   const handleCopyFromContextMenu = useCallback((data: { paths: string[] }) => {
     setFileTreeClipboard(data.paths, false);
-  }, []);
+    mirrorTreeClipboardToSystem(data.paths, false);
+  }, [mirrorTreeClipboardToSystem]);
 
   const handleCutFromContextMenu = useCallback((data: { paths: string[] }) => {
     setFileTreeClipboard(data.paths, true);
-  }, []);
+    mirrorTreeClipboardToSystem(data.paths, true);
+  }, [mirrorTreeClipboardToSystem]);
 
   const handlePaste = useCallback(() => {
     executePaste();
@@ -769,14 +783,16 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
   const handleCopy = useCallback(() => {
     if (selectedFile) {
       setFileTreeClipboard([selectedFile], false);
+      mirrorTreeClipboardToSystem([selectedFile], false);
     }
-  }, [selectedFile]);
+  }, [selectedFile, mirrorTreeClipboardToSystem]);
 
   const handleCut = useCallback(() => {
     if (selectedFile) {
       setFileTreeClipboard([selectedFile], true);
+      mirrorTreeClipboardToSystem([selectedFile], true);
     }
-  }, [selectedFile]);
+  }, [selectedFile, mirrorTreeClipboardToSystem]);
 
   // Register paste as a filetree-scoped shortcut (Windows/Linux primary path).
   useShortcut(
