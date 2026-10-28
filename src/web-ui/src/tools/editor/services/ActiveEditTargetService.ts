@@ -297,6 +297,13 @@ export class ActiveEditTargetService {
         return;
       }
     }
+    // Fall back to the last active target: on ArkWeb the hidden textarea may
+    // lose DOM focus during touch/tap interactions, and without this fallback
+    // Ctrl+F silently does nothing (issue #432).
+    const last = this.getLastActiveTarget();
+    if (last?.findInEditor) {
+      last.findInEditor();
+    }
   }
 
   executeAction(action: EditMenuAction): boolean {
