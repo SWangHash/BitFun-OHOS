@@ -13,6 +13,8 @@ export interface EditTarget {
   kind: EditTargetKind;
   focus: () => void;
   hasTextFocus: () => boolean;
+  /** Whether this target's surface is the currently visible/active one. */
+  isActive?: () => boolean;
   undo: () => boolean;
   redo: () => boolean;
   cut?: () => boolean;
@@ -21,6 +23,8 @@ export interface EditTarget {
   selectAll?: () => boolean;
   /** Monaco: open the in-editor find widget (Ctrl/Cmd+F). */
   findInEditor?: () => boolean;
+  /** Monaco: open the in-editor find widget with replace visible (Ctrl/Cmd+H). */
+  replaceInEditor?: () => boolean;
   containsElement?: (element: Element | null) => boolean;
 }
 
@@ -237,6 +241,15 @@ export function createMonacoEditTarget(editor: monaco.editor.IStandaloneCodeEdit
       editor.trigger('edit-target', 'editor.action.startFindWidget', null);
       return true;
     },
+    replaceInEditor: () => {
+      const findAction = editor.getAction('editor.action.startFindReplaceAction');
+      if (findAction) {
+        void findAction.run();
+        return true;
+      }
+      editor.trigger('edit-target', 'editor.action.startFindReplaceAction', null);
+      return true;
+    },
     containsElement: (element: Element | null) => {
       const domNode = editor.getDomNode();
       return !!domNode && !!element && domNode.contains(element);
@@ -286,14 +299,33 @@ export class ActiveEditTargetService {
    * Used by the editor shortcut scope (data-shortcut-scope="editor") via ShortcutManager.
    */
   openMonacoFind(): void {
+    this.openMonacoFindOrReplace('findInEditor');
+  }
+
+  /** Open Monaco find with the replace section visible (Ctrl/Cmd+H). */
+  openMonacoReplace(): void {
+    this.openMonacoFindOrReplace('replaceInEditor');
+  }
+
+  private openMonacoFindOrReplace(action: 'findInEditor' | 'replaceInEditor'): void {
     const focused = this.findFocusedTarget();
-    if (focused?.findInEditor) {
-      focused.findInEditor();
+    if (focused?.[action]) {
+      focused[action]!();
       return;
     }
     for (const target of this.targets.values()) {
-      if (target.hasTextFocus() && target.findInEditor) {
-        target.findInEditor();
+      if (target.hasTextFocus() && target[action]) {
+        target[action]!();
+        return;
+      }
+    }
+    // No editor holds DOM focus: a freshly opened home content scene never
+    // focuses its editor, and Ctrl+F/Ctrl+H used to die silently (issue #432).
+    // Fall back to the visible/active surface's editor instead.
+    for (const target of this.targets.values()) {
+      if (target.isActive?.() && target[action]) {
+        target.focus();
+        target[action]!();
         return;
       }
     }

@@ -292,7 +292,8 @@
         "maximize": "最大化编辑器"
       },
       "editor": {
-        "findInFile": "在文件中查找（Monaco）"
+        "findInFile": "在文件中查找（Monaco）",      
+      "replaceInFile": "文件中替换（Monaco）"
       },
       "tab": {
         "close": "关闭当前标签页",

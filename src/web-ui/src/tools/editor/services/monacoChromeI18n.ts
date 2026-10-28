@@ -109,6 +109,9 @@ export function attachMonacoChromeI18n(container: HTMLElement, initialStrings: M
     const widget = container.querySelector<HTMLElement>('.find-widget');
     const margin = container.querySelector<HTMLElement>('.margin-view-overlays');
     if (widget) {
+      // Include the widget root: its own title/aria-label (e.g. "Find / Replace")
+      // must not leave a persistent native bubble on ArkWeb (issue #432).
+      localizeAttributes(widget);
       widget.querySelectorAll<HTMLElement>('[title], [aria-label], [placeholder]').forEach(localizeAttributes);
       const count = widget.querySelector<HTMLElement>('.matchesCount');
       if (count) {
@@ -116,13 +119,6 @@ export function attachMonacoChromeI18n(container: HTMLElement, initialStrings: M
         if (localized !== null && localized !== count.textContent) {
           count.textContent = localized;
         }
-      }
-      // Remove managed hover tooltips from find widget buttons: their content
-      // was captured in English at construction time and cannot be updated by
-      // DOM attribute rewriting. The localized aria-label on each button
-      // already carries the accessible text (issue #432).
-      for (const hover of widget.querySelectorAll<HTMLElement>('.monaco-hover')) {
-        hover.style.display = 'none';
       }
     }
     if (margin) {
@@ -146,22 +142,9 @@ export function attachMonacoChromeI18n(container: HTMLElement, initialStrings: M
   });
   run();
 
-  // Force-hide managed hover widgets that ArkWeb fails to hide on mouse
-  // leave (issue #432).
-  const hideStaleHover = () => {
-    for (const hover of container.querySelectorAll('.monaco-hover')) {
-      const parent = hover.parentElement;
-      if (parent && parent.style.display !== 'none') {
-        parent.style.display = 'none';
-      }
-    }
-  };
-  container.addEventListener('mouseleave', hideStaleHover);
-
   return {
     detach: () => {
       observer.disconnect();
-      container.removeEventListener('mouseleave', hideStaleHover);
       if (pendingTimer !== undefined) {
         window.clearTimeout(pendingTimer);
         pendingTimer = undefined;

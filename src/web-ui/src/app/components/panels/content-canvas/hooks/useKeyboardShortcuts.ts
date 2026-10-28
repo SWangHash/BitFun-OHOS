@@ -60,6 +60,45 @@ export const useKeyboardShortcuts = (options: UseKeyboardShortcutsOptions = {}) 
     { enabled, priority: 20, description: 'keyboard.shortcuts.editor.findInFile' }
   );
 
+  // Replace in file (Monaco find widget with replace visible)
+  useShortcut(
+    'editor.replaceInFile',
+    { key: 'h', ctrl: true, scope: 'editor', allowInInput: true },
+    () => {
+      activeEditTargetService.openMonacoReplace();
+    },
+    { enabled, priority: 20, description: 'keyboard.shortcuts.editor.replaceInFile' }
+  );
+
+  // Canvas-scope fallback for find/replace (issue #432): files opened from the
+  // home scene render their editor inside a 'canvas' scope and the editor
+  // never receives DOM focus until clicked, so the 'editor'-scope bindings
+  // above never fired. Gated to an editor-type active tab.
+  const activeGroup = getActiveGroup();
+  const activeCanvasTab = activeGroup.tabs.find((t) => t.id === activeGroup.activeTabId);
+  const isEditorCanvasTabActive = Boolean(activeCanvasTab && (
+    activeCanvasTab.content.type === 'code-editor'
+    || activeCanvasTab.content.type === 'markdown-editor'
+  ));
+
+  useShortcut(
+    'editor.findInFileCanvasFallback',
+    { key: 'f', ctrl: true, scope: 'canvas', allowInInput: true },
+    () => {
+      activeEditTargetService.openMonacoFind();
+    },
+    { enabled: enabled && isEditorCanvasTabActive, priority: 5, description: 'keyboard.shortcuts.editor.findInFile' }
+  );
+
+  useShortcut(
+    'editor.replaceInFileCanvasFallback',
+    { key: 'h', ctrl: true, scope: 'canvas', allowInInput: true },
+    () => {
+      activeEditTargetService.openMonacoReplace();
+    },
+    { enabled: enabled && isEditorCanvasTabActive, priority: 5, description: 'keyboard.shortcuts.editor.replaceInFile' }
+  );
+
   // Mission control
   useShortcut(
     'canvas.missionControl',

@@ -191,6 +191,11 @@ export const EDITOR_SHORTCUTS: ShortcutDef[] = [
     config: mod('f', { scope: 'editor', allowInInput: true }),
     descriptionKey: 'keyboard.shortcuts.editor.findInFile',
   },
+  {
+    id: 'editor.replaceInFile',
+    config: mod('h', { scope: 'editor', allowInInput: true }),
+    descriptionKey: 'keyboard.shortcuts.editor.replaceInFile',
+  },
 ];
 
 // ─── Chat shortcuts (scope: 'chat') ───────────────────────────────────────

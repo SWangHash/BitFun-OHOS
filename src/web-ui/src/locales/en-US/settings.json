@@ -292,7 +292,8 @@
         "maximize": "Maximize Editor"
       },
       "editor": {
-        "findInFile": "Find in file (Monaco)"
+        "findInFile": "Find in file (Monaco)",      
+      "replaceInFile": "Replace in file (Monaco)"
       },
       "tab": {
         "close": "Close Current Tab",

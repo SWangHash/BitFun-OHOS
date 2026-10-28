@@ -912,7 +912,14 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         container.addEventListener('drop', interceptContextDrag, true);
         if (documentSession?.viewState) editor.restoreViewState(documentSession.viewState as monaco.editor.ICodeEditorViewState);
         const editTarget = createMonacoEditTarget(editor);
-        const unbindEditTarget = activeEditTargetService.bindTarget(editTarget);
+        // isActive reflects the owning document session's currency so the
+        // find/replace fallback can reach this editor even when it has never
+        // received DOM focus (files opened from the home scene, issue #432).
+        const editTargetWithVisibility: typeof editTarget = {
+          ...editTarget,
+          isActive: () => documentSession?.isCurrent() === true,
+        };
+        const unbindEditTarget = activeEditTargetService.bindTarget(editTargetWithVisibility);
         const focusDisposable = editor.onDidFocusEditorText(() => {
           activeEditTargetService.setActiveTarget(editTarget.id);
         });
