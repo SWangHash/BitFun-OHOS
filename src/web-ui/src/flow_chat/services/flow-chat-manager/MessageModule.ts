@@ -516,7 +516,7 @@ export async function sendMessage(
         if (latestSendBySession.get(sendCoordinationKey) === sendAttempt) {
           latestSendBySession.delete(sendCoordinationKey);
           notificationService.error(errorMessage, {
-            title: 'Thinking process error',
+            title: i18nService.t('flow-chat:errors.thinkingProcessError'),
             duration: 5000
           });
         }
