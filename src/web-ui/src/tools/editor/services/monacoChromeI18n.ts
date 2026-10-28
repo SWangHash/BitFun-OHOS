@@ -117,6 +117,13 @@ export function attachMonacoChromeI18n(container: HTMLElement, initialStrings: M
           count.textContent = localized;
         }
       }
+      // Remove managed hover tooltips from find widget buttons: their content
+      // was captured in English at construction time and cannot be updated by
+      // DOM attribute rewriting. The localized aria-label on each button
+      // already carries the accessible text (issue #432).
+      for (const hover of widget.querySelectorAll<HTMLElement>('.monaco-hover')) {
+        hover.style.display = 'none';
+      }
     }
     if (margin) {
       margin.querySelectorAll<HTMLElement>('[title]').forEach(localizeAttributes);

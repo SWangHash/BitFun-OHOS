@@ -1,7 +1,16 @@
 import { isImeOwnedKeyboardEvent } from '@/shared/utils/ime';
 
-export function shouldBlockBrowserShortcut(key: string, allowPageReload: boolean): boolean {
+export function shouldBlockBrowserShortcut(key: string, allowPageReload: boolean, event?: KeyboardEvent): boolean {
   const normalizedKey = key.toLowerCase();
+  // Allow Monaco to handle Ctrl+F (opens the built-in find widget) when the
+  // event target is inside a Monaco editor; otherwise block the browser's
+  // native find bar (issue #432).
+  if (normalizedKey === 'f' && event) {
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest?.('.monaco-editor')) {
+      return false;
+    }
+  }
   return normalizedKey === 'f' || normalizedKey === 'p' || (normalizedKey === 'r' && !allowPageReload);
 }
 
@@ -14,7 +23,7 @@ export function handleBrowserShortcut(
 ): void {
   if (!(event.ctrlKey || event.metaKey)) return;
 
-  if (shouldBlockBrowserShortcut(event.key, allowPageReload)) {
+  if (shouldBlockBrowserShortcut(event.key, allowPageReload, event)) {
     event.preventDefault();
     event.stopPropagation();
     return;
