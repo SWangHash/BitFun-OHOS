@@ -20,11 +20,14 @@
     z-index: var(--bitfun-layer-fullscreen);
     background: var(--bitfun-color-surface-canvas);
 
-    // Shift toolbar buttons left to avoid OHOS system controls
-    // (minimize/maximize/close) in the top-right corner. Only the toolbar
-    // moves; the image still fills the entire viewport.
-    &__toolbar {
-      padding-inline-end: 160px;
+    // Shift toolbar buttons left to avoid the app window controls
+    // (minimize/maximize/close, at most 3x46px) in the top-right corner.
+    // Only the toolbar moves; the image still fills the entire viewport.
+    // A nested `&__toolbar` would compile to
+    // `.bitfun-image-viewer.fullscreen__toolbar` and never match (issue #390),
+    // so the descendant selector is spelled out here.
+    .bitfun-image-viewer__toolbar {
+      padding-inline-end: 156px;
     }
   }
 
