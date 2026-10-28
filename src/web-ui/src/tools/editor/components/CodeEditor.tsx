@@ -1723,6 +1723,15 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           setHasChanges(false);
           hasChangesRef.current = false;
           applyExternalContentToModel(previewContent);
+          // The preview replaces the model's initial (empty) content; without
+          // re-baselining the saved version here the metadata compare reports
+          // a phantom dirty state on every oversized preview (issue #288).
+          queueMicrotask(() => {
+            if (modelRef.current && !isUnmountedRef.current) {
+              savedVersionIdRef.current = modelRef.current.getAlternativeVersionId();
+              monacoModelManager.markAsSaved(modelKey);
+            }
+          });
           return;
         }
         log.warn('Refusing to open oversized file: prefix preview unavailable', { filePath, size: sizeBefore });
