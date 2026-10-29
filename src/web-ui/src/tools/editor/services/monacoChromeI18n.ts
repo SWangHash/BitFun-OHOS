@@ -81,7 +81,7 @@ export interface MonacoChromeI18nHandle {
 
 export function attachMonacoChromeI18n(container: HTMLElement, initialStrings: MonacoChromeStrings): MonacoChromeI18nHandle {
   let scheduled = false;
-  let pendingTimer: number | undefined;
+  let scheduledFrame: number | undefined;
   let currentStrings = initialStrings;
 
   const localizeAttributes = (element: HTMLElement): void => {
@@ -129,7 +129,15 @@ export function attachMonacoChromeI18n(container: HTMLElement, initialStrings: M
   const schedule = (): void => {
     if (scheduled) return;
     scheduled = true;
-    window.setTimeout(run, 50);
+    // requestAnimationFrame runs BEFORE the next paint, so a title set while
+    // the find widget is created (or re-set on search updates) is removed
+    // before the browser can ever render the bubble. ArkWeb keeps a painted
+    // native bubble alive after the element is gone, so the cleanup must win
+    // the race against the paint — a setTimeout delay loses it (issue #432).
+    scheduledFrame = window.requestAnimationFrame(() => {
+      scheduledFrame = undefined;
+      run();
+    });
   };
 
   const observer = new MutationObserver(schedule);
@@ -145,9 +153,9 @@ export function attachMonacoChromeI18n(container: HTMLElement, initialStrings: M
   return {
     detach: () => {
       observer.disconnect();
-      if (pendingTimer !== undefined) {
-        window.clearTimeout(pendingTimer);
-        pendingTimer = undefined;
+      if (scheduledFrame !== undefined) {
+        window.cancelAnimationFrame(scheduledFrame);
+        scheduledFrame = undefined;
       }
     },
     // Re-applies all localized strings with a new translation set (e.g. after
