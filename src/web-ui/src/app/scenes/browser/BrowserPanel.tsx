@@ -285,6 +285,7 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({ isActive, initialUrl, openR
             {!browser.previewUrl && (
               <div data-bitfun-component="browser-panel" data-bitfun-part="placeholder" className="browser-panel__webview-placeholder">
                 <Icon name="browser" size="lg" />
+                <OverflowText data-testid="browser-current-url">{currentUrl}</OverflowText>
               </div>
             )}
             <BrowserPreview src={browser.previewUrl} bounds={browser.previewBounds} />
