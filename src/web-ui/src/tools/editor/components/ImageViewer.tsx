@@ -26,6 +26,31 @@ const log = createLogger('ImageViewer');
 /** Tiny images are blown up to at least this display size (pixels). */
 const MIN_SMALL_IMAGE_DISPLAY_SIZE = 32;
 
+/** Matches the image wrapper's padding; the fit computation reserves it. */
+const IMAGE_VIEWER_PANE_PADDING = 20;
+
+/**
+ * Zoom percentage that fits the image into the measured viewport without
+ * upscaling beyond its natural (small-image adjusted) size. The default
+ * display is a pane fit, not raw natural pixels: a 1920px screenshot in a
+ * 400px sidebar otherwise overflows both axes (issue #391 follow-up).
+ */
+export function computeFitZoom(
+  dimensions: { width: number; height: number },
+  displayScaleValue: number,
+  container: { width: number; height: number },
+): number {
+  const naturalWidth = dimensions.width * displayScaleValue;
+  const naturalHeight = dimensions.height * displayScaleValue;
+  const availableWidth = Math.max(0, container.width - IMAGE_VIEWER_PANE_PADDING * 2);
+  const availableHeight = Math.max(0, container.height - IMAGE_VIEWER_PANE_PADDING * 2);
+  if (availableWidth <= 0 || availableHeight <= 0 || naturalWidth <= 0 || naturalHeight <= 0) {
+    return 100;
+  }
+  const fit = Math.min(availableWidth / naturalWidth, availableHeight / naturalHeight, 1);
+  return Math.max(1, Math.round(fit * 100));
+}
+
 /**
  * Low-resolution images previously rendered at their natural 1:1 size and
  * looked broken (tiny blob in a large canvas). Returns the upscale factor
@@ -71,6 +96,11 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
   const [displayScale, setDisplayScale] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // Measured image viewport (sidebar pane, canvas, fullscreen) driving the
+  // default fit-to-pane zoom.
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [containerSize, setContainerSize] = useState<{ width: number; height: number } | null>(null);
+  const manualZoomRef = useRef(false);
   const [loadedOrigin, setLoadedOrigin] = useState<{ filePath: string; imageSource: typeof imageSource; documentSession: typeof documentSession }>();
   const originCurrent = loadedOrigin?.filePath === filePath && loadedOrigin.imageSource === imageSource && loadedOrigin.documentSession === documentSession;
   const [fileSize, setFileSize] = useState<number>(0);
@@ -146,8 +176,41 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
       width: img.naturalWidth,
       height: img.naturalHeight
     });
-    setDisplayScale(getSmallImageDisplayScale(img.naturalWidth, img.naturalHeight));
+    const nextDisplayScale = getSmallImageDisplayScale(img.naturalWidth, img.naturalHeight);
+    setDisplayScale(nextDisplayScale);
+    // A fresh image restarts at the pane fit, not the previous zoom level.
+    manualZoomRef.current = false;
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      setZoom(computeFitZoom({ width: img.naturalWidth, height: img.naturalHeight }, nextDisplayScale, { width: rect.width, height: rect.height }));
+    }
   }, []);
+
+  // Track the image viewport so the fit zoom follows pane resizes and the
+  // fullscreen switch (the portal re-creates the container element).
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') {
+      return;
+    }
+    const observer = new ResizeObserver(entries => {
+      const entry = entries[0];
+      if (entry) {
+        setContainerSize({ width: entry.contentRect.width, height: entry.contentRect.height });
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isFullscreen]);
+
+  // Re-fit while the user has not zoomed manually (issue #391 follow-up).
+  useEffect(() => {
+    if (manualZoomRef.current || !imageDimensions || !containerSize) {
+      return;
+    }
+    const fitZoom = computeFitZoom(imageDimensions, displayScale, containerSize);
+    setZoom(prev => (prev === fitZoom ? prev : fitZoom));
+  }, [imageDimensions, displayScale, containerSize]);
 
   const handleImageError = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
     log.error('Image load error', { filePath, srcLength: e.currentTarget.src.length });
@@ -156,16 +219,25 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
   }, [filePath, t]);
 
   const handleZoomIn = useCallback(() => {
+    manualZoomRef.current = true;
     setZoom(prev => Math.min(prev + 25, 500));
   }, []);
 
   const handleZoomOut = useCallback(() => {
+    manualZoomRef.current = true;
     setZoom(prev => Math.max(prev - 25, 25));
   }, []);
 
   const handleZoomReset = useCallback(() => {
+    // Reset means "fit the pane" (the IDE default), not a bare 100% of the
+    // natural pixels — a 1920px screenshot in a 400px sidebar would overflow.
+    manualZoomRef.current = false;
+    if (imageDimensions && containerSize) {
+      setZoom(computeFitZoom(imageDimensions, displayScale, containerSize));
+      return;
+    }
     setZoom(100);
-  }, []);
+  }, [imageDimensions, displayScale, containerSize]);
 
   const handleRotate = useCallback(() => {
     // Keep the angle cumulative instead of wrapping at 360: the CSS rotate
@@ -329,7 +401,12 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
         }
       />
 
-      <div data-bitfun-component="image-viewer" data-bitfun-part="container" className="bitfun-image-viewer__container">
+      <div
+        ref={containerRef}
+        data-bitfun-component="image-viewer"
+        data-bitfun-part="container"
+        className="bitfun-image-viewer__container"
+      >
         {(!originCurrent || loading) && (
           <div data-bitfun-component="image-viewer" data-bitfun-part="loading" className="bitfun-image-viewer__loading">
             <div className="bitfun-image-viewer__spinner" />
