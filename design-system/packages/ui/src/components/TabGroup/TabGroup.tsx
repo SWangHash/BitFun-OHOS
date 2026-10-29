@@ -191,7 +191,11 @@ export const TabGroup = forwardRef<HTMLDivElement, TabGroupProps>(function TabGr
                   behavior="marquee"
                   className={styles.label}
                   data-bitfun-part="label"
+                  // A label tooltip renders as a positioned styled tooltip
+                  // below the label instead of a native cursor-anchored one.
                   title={item.labelTooltip}
+                  tooltipMode={item.labelTooltip ? "always" : undefined}
+                  tooltipPlacement={item.labelTooltip ? "bottom" : undefined}
                 >
                   {item.label}
                 </OverflowText>

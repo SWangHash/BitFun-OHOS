@@ -12,7 +12,7 @@ import { useContextMenuStore } from '@/shared/context-menu-system/store/ContextM
 import { ContextType } from '@/shared/context-menu-system/types/context.types';
 import type { MenuItem } from '@/shared/context-menu-system/types/menu.types';
 
-import { Icon, TabGroup, type TabGroupItem } from '@bitfun/ui';
+import { Icon, TabGroup, Tooltip, type TabGroupItem } from '@bitfun/ui';
 import { useSceneTabNavigation } from './useSceneTabNavigation';
 import { useSceneManager } from '../../hooks/useSceneManager';
 import { useSessionTabLabels } from '../../hooks/useSessionTabLabels';
@@ -210,23 +210,27 @@ const SceneBar: React.FC<SceneBarProps> = ({
       labelTransitionKey: tab.session?.sessionId,
       // Keep the close hit target stationary between pointer down and up;
       // shrinking it can retarget the click at the button edge (issue #2210).
+      // The tooltip is a styled one placed below the button: native titles
+      // anchor at the cursor and, on ArkWeb, linger after mouse leave
+      // (issue #432 follow-up).
       endAction: closable ? (
-        <button
-          type="button"
-          aria-label={closeLabel}
-          title={closeLabel}
-          data-testid={`scene-tab-close-${tab.id}`}
-          data-motion="none"
-          data-scene-bar-part="closeTab"
-          data-scene-id={tab.id}
-          onClick={(event) => {
-            event.stopPropagation();
-            closeScene(tab.id);
-          }}
-          tabIndex={-1}
-        >
-          <Icon name="xmark" size="xs" aria-hidden="true" />
-        </button>
+        <Tooltip content={closeLabel} placement="bottom">
+          <button
+            type="button"
+            aria-label={closeLabel}
+            data-testid={`scene-tab-close-${tab.id}`}
+            data-motion="none"
+            data-scene-bar-part="closeTab"
+            data-scene-id={tab.id}
+            onClick={(event) => {
+              event.stopPropagation();
+              closeScene(tab.id);
+            }}
+            tabIndex={-1}
+          >
+            <Icon name="xmark" size="xs" aria-hidden="true" />
+          </button>
+        </Tooltip>
       ) : undefined,
     });
     return items;

@@ -13,7 +13,7 @@ import {
 } from "react";
 import { classNames } from "../../internal/classNames";
 import { TooltipTriggerContext } from "../../internal/tooltipTriggerContext";
-import { Tooltip } from "../../components/Tooltip";
+import { Tooltip, type TooltipPlacement } from "../../components/Tooltip";
 import styles from "./OverflowText.module.css";
 
 const useIsomorphicLayoutEffect = typeof window === "undefined"
@@ -39,6 +39,11 @@ export interface OverflowTextProps extends HTMLAttributes<HTMLElement> {
   behavior?: OverflowTextBehavior;
   /** The owning control already provides a tooltip; never open the automatic one. */
   overflowTooltip?: boolean;
+  /** Show the title tooltip even when the text does not overflow, so hosts can
+   * offer a positioned (e.g. below-the-element) hint instead of a native one. */
+  tooltipMode?: "overflow" | "always";
+  /** Placement of the automatic tooltip; defaults to the Tooltip's own. */
+  tooltipPlacement?: TooltipPlacement;
   /** Single-line resting treatment; multiline clamps keep their existing layout. */
   overflowStyle?: "fade" | "ellipsis";
   /** Interaction-only text ignores virtual active state on itself and its owner. */
@@ -63,6 +68,8 @@ export const OverflowText = forwardRef<HTMLElement, OverflowTextProps>(
     marqueeTrigger = "interaction-or-active",
     overflowStyle = "fade",
     overflowTooltip = true,
+    tooltipMode = "overflow",
+    tooltipPlacement,
     style,
     title,
     ...props
@@ -184,7 +191,10 @@ export const OverflowText = forwardRef<HTMLElement, OverflowTextProps>(
       } : {}),
     } as CSSProperties;
 
-    const hasOverflowTooltip = overflowTooltip && measurement.isOverflowing && !hasExplicitTooltip && title !== "";
+    const hasOverflowTooltip = overflowTooltip
+      && !hasExplicitTooltip
+      && title !== ""
+      && (tooltipMode === "always" || measurement.isOverflowing);
 
     return (
       <>
@@ -215,6 +225,7 @@ export const OverflowText = forwardRef<HTMLElement, OverflowTextProps>(
           content={tooltipText}
           interactive
           onBeforeShow={prepareTooltip}
+          placement={tooltipPlacement}
           trigger="hover-focus"
           triggerRef={triggerRef}
         />
