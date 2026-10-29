@@ -394,6 +394,38 @@ fn a_workspace_root_that_is_the_project_is_offered_as_itself() {
     );
 }
 #[test]
+fn a_template_container_binds_the_template_not_a_migrated_product() {
+    let (_t, root) = tree();
+    let container = mkdir(&root, "templates");
+    let migrated = mkdir(&container, "app-ohos");
+    create_template(&migrated);
+    let real = mkdir(&container, "qt5.12");
+    create_template(&real);
+
+    assert_eq!(
+        crate::scan::bindable_field_container("template", container.to_string_lossy().as_ref()),
+        Some(real)
+    );
+}
+#[test]
+fn a_toolchain_container_binds_one_kit_but_not_an_ambiguous_root() {
+    let (_t, root) = tree();
+    let single = mkdir(&root, "toolchains");
+    let bin = create_qt5_ohos_kit(&mkdir(&single, "qt5"));
+    assert_eq!(
+        crate::scan::bindable_field_container("toolchain", single.to_string_lossy().as_ref()),
+        Some(bin)
+    );
+
+    let both = mkdir(&root, "installer-root");
+    create_qt5_ohos_kit(&mkdir(&both, "qt5"));
+    create_qt6_ohos_kit(&mkdir(&both, "qt6"));
+    assert_eq!(
+        crate::scan::bindable_field_container("toolchain", both.to_string_lossy().as_ref()),
+        None
+    );
+}
+#[test]
 fn nonexistent_output_path_is_filtered_out() {
     let (_t, root) = tree();
     let nonexistent = root.join("does-not-exist");

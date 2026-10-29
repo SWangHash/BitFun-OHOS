@@ -30,13 +30,8 @@ pub struct QtMigrationCandidateProbe {
     /// option").
     pub toolchain_candidates: Vec<QtScanCandidate>,
     /// Qt major version of each measurable `source_project` candidate, keyed by
-    /// the candidate path. A candidate this host cannot measure (a named path that
-    /// does not exist) is absent: it stays listable, but carries no badge and no
-    /// say in which toolchain may serve the migration. A separate list from the
-    /// toolchain versions on purpose: the project version is read from the C++ API
-    /// the sources use ([`measure_project_qt_major`]), not from a kit layout, and
-    /// merging the two "version" facts would let a toolchain answer a question
-    /// about a project.
+    /// candidate path. A path this host cannot measure is absent: it stays
+    /// listable without a badge, and never decides which toolchain may serve it.
     pub project_versions: Vec<(String, u8)>,
 }
 
@@ -222,12 +217,8 @@ pub fn probe_qt_migration_candidates(
             .map(Vec::as_slice)
             .unwrap_or_default(),
     );
-    // Read the Qt version of every source candidate the list will render. The
-    // candidate list is already capped, so this is at most [`MAX_SOURCE_PROJECTS`]
-    // bounded walks of one project each. A candidate this host cannot measure (a
-    // named path that does not exist) stays a candidate for the card to show, but
-    // contributes no version: no badge, and no say in which toolchain may serve
-    // the migration.
+    // At most `MAX_SOURCE_PROJECTS` bounded walks; an unmeasurable candidate keeps
+    // its slot but contributes no version.
     let project_versions: Vec<(String, u8)> = source_candidates
         .iter()
         .filter_map(|path| {
@@ -565,6 +556,41 @@ pub(crate) fn is_qt_harmonyos_template(dir: &Path) -> bool {
     ]
     .iter()
     .all(|relative| dir.join(relative).is_file())
+}
+
+/// The kit / template a value stands for when the value is the folder holding it
+/// (`…/toolchains`, `…/templates`); `None` when the value is already concrete or
+/// the folder does not identify exactly one.
+pub(crate) fn bindable_field_container(field: &str, value: &str) -> Option<PathBuf> {
+    let path = Path::new(value);
+    if !path.is_dir() {
+        return None;
+    }
+    match field {
+        // A concrete kit or its `bin` is already the answer; only a folder holding
+        // kits is descended into, and only when it names exactly one generation.
+        "toolchain" if !is_concrete_toolchain(path) => {
+            let kit = crate::detect::resolve_bound_kit_root(path)?;
+            scan_qmake_hits(path)
+                .into_iter()
+                .find(|bin| crate::detect::resolve_kit_root(bin) == kit.as_path())
+                .or(Some(kit))
+        }
+        "template" if !is_qt_harmonyos_template(path) => scan_template_hits(path)
+            .into_iter()
+            .map(|(_, hit)| hit)
+            .find(|hit| !is_migration_artifact(hit) && !is_migration_artifact_location(hit)),
+        _ => None,
+    }
+}
+
+/// Whether a path is a kit root or the `bin` that holds its qmake.
+fn is_concrete_toolchain(path: &Path) -> bool {
+    crate::detect::detect_qt_major(path).is_some()
+        || crate::detect::is_ohos_target_kit(path)
+        || QMAKE_EXECUTABLES
+            .iter()
+            .any(|name| path.join(name).is_file())
 }
 
 /// A path that lives inside an output container (`output-project`, `迁移工程`,

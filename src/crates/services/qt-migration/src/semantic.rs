@@ -204,12 +204,15 @@ pub fn build_intent_decision(output: &str) -> Option<TurnIntentDecision> {
     resolved_paths.insert("unclassifiedPaths".to_string(), json!([]));
     resolved_paths.insert("unverifiedPaths".to_string(), json!(unverified));
 
+    let mut fields = Value::Object(fields);
+    let mut resolved = Value::Object(resolved_paths);
+    bind_container_values(&mut fields, &mut resolved);
     Some(decision_from_analyze_json(json!({
         "taskType": task_type,
         "secondaryTaskTypes": [],
         "requiresClarification": task_type == "ambiguous",
-        "fields": Value::Object(fields),
-        "resolvedPaths": Value::Object(resolved_paths),
+        "fields": fields,
+        "resolvedPaths": resolved,
         "reason": format!("LLM 语义分析：{}。", task_type),
         "source": "llm",
     })))
@@ -366,8 +369,10 @@ fn parse_json_payload(output: &str) -> Option<Value> {
 /// Full deterministic decision: taskType + per-field minimum-input state.
 /// Same JSON shape as the LLM-path decision (minus its `source: "llm"` mark).
 pub fn analyze_request(request: &str) -> Value {
-    let (task_type, secondary, requires_clarification, fields, reason) = analyze_internal(request);
-    let resolved_paths = extract_resolved_paths(request);
+    let (task_type, secondary, requires_clarification, mut fields, reason) =
+        analyze_internal(request);
+    let mut resolved_paths = extract_resolved_paths(request);
+    bind_container_values(&mut fields, &mut resolved_paths);
     json!({
         "taskType": task_type,
         "secondaryTaskTypes": secondary,
@@ -376,6 +381,53 @@ pub fn analyze_request(request: &str) -> Value {
         "resolvedPaths": resolved_paths,
         "reason": reason,
     })
+}
+
+/// Bind a field naming the folder that holds the kit or template to the item
+/// inside it, instead of leaving it an unconfirmed reference.
+fn bind_container_values(fields: &mut Value, resolved_paths: &mut Value) {
+    let Some(paths) = resolved_paths.as_object_mut() else {
+        return;
+    };
+    let mut replaced: Vec<String> = Vec::new();
+    for field in ["toolchain", "template"] {
+        let Some(value) = paths.get(field).and_then(Value::as_str).map(str::to_string) else {
+            continue;
+        };
+        if field_value_is_usable(field, &value) {
+            continue;
+        }
+        let Some(bound) = crate::scan::bindable_field_container(field, &value) else {
+            continue;
+        };
+        paths.insert(field.to_string(), json!(bound.to_string_lossy().into_owned()));
+        if let Some(fields) = fields.as_object_mut() {
+            fields.insert(field.to_string(), json!("resolved"));
+        }
+        replaced.push(value);
+    }
+    if replaced.is_empty() {
+        return;
+    }
+    // The container itself is bound now; leaving it listed as unverified would keep
+    // reporting the field as a mere reference.
+    if let Some(unverified) = paths.get_mut("unverifiedPaths").and_then(Value::as_array_mut) {
+        unverified.retain(|item| {
+            item.as_str()
+                .is_none_or(|path| !replaced.iter().any(|value| value == path))
+        });
+    }
+}
+
+fn field_value_is_usable(field: &str, value: &str) -> bool {
+    match field {
+        "toolchain" => crate::strategy::toolchain_value_is_measurable(value),
+        "template" => {
+            value == crate::state::QT_MIGRATION_OFFICIAL_VALUE
+                || crate::scan::is_qt_harmonyos_template(std::path::Path::new(value))
+        }
+        _ => true,
+    }
 }
 
 /// Case-insensitive word-boundary search for ASCII tokens. `report`,
@@ -603,8 +655,16 @@ fn absolute_path_at(chars: &[char], start: usize) -> Option<(String, usize)> {
         return None;
     }
     let mut end = start;
-    while end < chars.len() && !is_path_run_stop(chars[end]) {
-        end += 1;
+    while end < chars.len() {
+        if !is_path_run_stop(chars[end]) {
+            end += 1;
+            continue;
+        }
+        // `Application Support` is one segment; English prose is not.
+        match spaced_segment_after(chars, end) {
+            Some(next) => end = next,
+            None => break,
+        }
     }
     while end > start && is_cjk(chars[end - 1]) {
         end -= 1;
@@ -618,6 +678,32 @@ fn absolute_path_at(chars: &[char], start: usize) -> Option<(String, usize)> {
         .trim_end_matches(is_path_run_stop)
         .to_string();
     Some((path, end))
+}
+
+
+/// Where a path run continues past a space, if it does: the word after the space
+/// must be a directory segment itself (`Application Support/…`) or end the text.
+/// A prose word (`/app 2 个工程`, `/app Then output`) does neither.
+fn spaced_segment_after(chars: &[char], index: usize) -> Option<usize> {
+    if !chars.get(index)?.is_whitespace() {
+        return None;
+    }
+    let mut next = index;
+    while matches!(chars.get(next), Some(c) if c.is_whitespace()) {
+        next += 1;
+    }
+    if is_cjk(*chars.get(next)?) {
+        return None;
+    }
+    let mut word = next;
+    while matches!(chars.get(word), Some(c) if !is_path_run_stop(*c) && *c != '/' && *c != '\\') {
+        word += 1;
+    }
+    let ends_segment = matches!(chars.get(word), Some('/') | Some('\\'));
+    let ends_text = chars
+        .get(word)
+        .is_none_or(|c| c.is_whitespace() && chars[word..].iter().all(|c| c.is_whitespace()));
+    (ends_segment || ends_text).then_some(next)
 }
 
 fn is_path_run_stop(c: char) -> bool {
@@ -1075,6 +1161,34 @@ mod tests {
     fn bound_toolchain_path_resolves() {
         let d = analyze_request("把 D:/proj 迁移到鸿蒙，工具链用 D:/sdk/ohos");
         assert_eq!(d["fields"]["toolchain"], "resolved");
+    }
+
+    #[test]
+    fn a_spaced_directory_name_survives_the_space() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("Application Support").join("bitfun");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        assert_eq!(
+            find_absolute_paths(&format!("工具链是：{} 迁移", dir.display())),
+            vec![dir.display().to_string()]
+        );
+    }
+
+    #[test]
+    fn a_word_after_a_path_is_not_swallowed() {
+        let tmp = tempfile::tempdir().unwrap();
+        let app = tmp.path().join("app");
+        std::fs::create_dir_all(&app).unwrap();
+
+        assert_eq!(
+            find_absolute_paths(&format!("把 {} 2 个工程迁移", app.display())),
+            vec![app.display().to_string()]
+        );
+        assert_eq!(
+            find_absolute_paths(&format!("migrate {} Then output", app.display())),
+            vec![app.display().to_string()]
+        );
     }
 
     #[test]
