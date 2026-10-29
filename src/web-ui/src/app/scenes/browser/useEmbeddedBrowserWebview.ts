@@ -62,6 +62,8 @@ export interface UseEmbeddedBrowserWebviewOptions {
   labelPrefix: string;
   log: BrowserLogger;
   openRequestId?: string;
+  webviewLabel?: string;
+  adoptExisting?: boolean;
 }
 
 function isTauriEnvironment(): boolean {
@@ -222,7 +224,7 @@ async function createBrowserWebview(
 }
 
 export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOptions) {
-  const { defaultUrl, initialUrl, isVisible, labelPrefix, log, openRequestId } = options;
+  const { defaultUrl, initialUrl, isVisible, labelPrefix, log, openRequestId, webviewLabel: existingWebviewLabel, adoptExisting } = options;
   const isTauri = useMemo(() => isTauriEnvironment(), []);
   const startUrl = initialUrl ?? defaultUrl;
 
@@ -412,6 +414,33 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
     if (previous) await closeWebview(previous);
 
     const initialBounds = await waitForViewportBounds();
+    if (adoptExisting) {
+      if (!existingWebviewLabel) throw new Error('Browser adoption requires an exact native WebView label');
+      // Attach to the host-created page without creating or navigating it:
+      // navigation here would race automation and discard filled form state.
+      try {
+        await startPageLoadListener(existingWebviewLabel);
+        await setWebviewBounds(existingWebviewLabel, initialBounds);
+      } catch (adoptionError) {
+        pageLoadUnlistenRef.current?.();
+        pageLoadUnlistenRef.current = null;
+        throw adoptionError;
+      }
+      const handle = createCommandBasedBrowserWebviewHandle(existingWebviewLabel, api.invoke as TauriInvoke);
+      if (!mountedRef.current) {
+        await handle.close();
+        throw new Error('Browser surface disposed during webview adoption');
+      }
+      webviewRef.current = handle;
+      webviewLabelRef.current = existingWebviewLabel;
+      setWebviewLabel(existingWebviewLabel);
+      preview.setTarget(existingWebviewLabel);
+      lastBoundsRef.current = initialBounds;
+      void injectBrowserPageScripts(existingWebviewLabel).catch(injectionError => {
+        log.warn('Inject browser page scripts failed', injectionError);
+      });
+      return handle;
+    }
     let lastError: unknown = null;
 
     for (let attempt = 0; attempt < WEBVIEW_CREATE_RETRY_DELAYS_MS.length; attempt += 1) {
@@ -454,7 +483,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
     }
 
     throw lastError;
-  }, [closeWebview, labelPrefix, log, openRequestId, preview, startPageLoadListener, waitForViewportBounds]);
+  }, [adoptExisting, closeWebview, existingWebviewLabel, labelPrefix, log, openRequestId, preview, startPageLoadListener, waitForViewportBounds]);
 
   const navigateExistingWebview = useCallback(async (url: string): Promise<boolean> => {
     const label = webviewLabelRef.current;

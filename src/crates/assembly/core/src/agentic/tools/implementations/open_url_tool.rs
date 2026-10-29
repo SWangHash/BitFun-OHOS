@@ -6,9 +6,8 @@
 //! launch a browser on every platform, so it prints the authorization URL and
 //! the agent hands that URL to this tool.
 //!
-//! The built-in panel is **display-only** for the agent: it cannot be
-//! snapshotted or driven from here. Reading or driving a page stays in
-//! ControlHub's `browser` domain.
+//! Browser-enabled builds share ControlHub's correlated open path and return
+//! the same controllable page identity for later reading or interaction.
 
 use crate::agentic::tools::framework::{
     Tool, ToolRenderOptions, ToolResult, ToolUseContext, ValidationResult,
@@ -21,7 +20,7 @@ use serde_json::{json, Value};
 /// panel. Deliberately duplicated from ControlHub's `browser.open_builtin`
 /// constant (kept private there to avoid a cross-feature visibility coupling
 /// for one string): both tools must drive the same frontend path.
-#[cfg(feature = "runtime-services")]
+#[cfg(all(feature = "runtime-services", not(feature = "tools-browser-web")))]
 const OPEN_BUILT_IN_BROWSER_EVENT: &str = "agentic://open-built-in-browser";
 
 const DEFAULT_PANEL_TITLE: &str = "Browser";
@@ -132,7 +131,7 @@ impl OpenUrlTool {
             })
     }
 
-    #[cfg(feature = "runtime-services")]
+    #[cfg(all(feature = "runtime-services", not(feature = "tools-browser-web")))]
     async fn emit_builtin_browser_event(
         &self,
         url: &str,
@@ -164,7 +163,7 @@ impl OpenUrlTool {
             })
     }
 
-    #[cfg(not(feature = "runtime-services"))]
+    #[cfg(all(not(feature = "runtime-services"), not(feature = "tools-browser-web")))]
     async fn emit_builtin_browser_event(
         &self,
         _url: &str,
@@ -176,6 +175,50 @@ impl OpenUrlTool {
         ))
     }
 
+    #[cfg(feature = "tools-browser-web")]
+    async fn open_in_builtin_panel(
+        &self,
+        url: &str,
+        title: &str,
+        context: &ToolUseContext,
+    ) -> BitFunResult<ToolResult> {
+        use super::control_hub_tool::ControlHubTool;
+
+        let results = ControlHubTool::new()
+            .call_impl(
+                &json!({
+                    "domain": "browser",
+                    "action": "open_builtin",
+                    "params": { "url": url, "title": title },
+                }),
+                context,
+            )
+            .await?;
+        let envelope = results.first().map(ToolResult::content).ok_or_else(|| {
+            BitFunError::tool("Built-in browser open returned no result".to_string())
+        })?;
+        if envelope.get("ok").and_then(Value::as_bool) != Some(true) {
+            return Err(BitFunError::tool(envelope["error"].to_string()));
+        }
+        let mut data = envelope["data"].clone();
+        let session_id = data
+            .get("session_id")
+            .and_then(Value::as_str)
+            .filter(|id| !id.is_empty())
+            .ok_or_else(|| {
+                BitFunError::tool("Built-in browser open returned no page identity".to_string())
+            })?
+            .to_string();
+        data["mode"] = json!(OpenUrlMode::Builtin.as_str());
+        data["opened_with"] = json!("bitfun-builtin-browser");
+        data["controllable_by_agent"] = json!(true);
+        data["note"] = json!("Use ControlHub browser actions with target='builtin' and this session_id to snapshot or fill this same page. Do not open a second page to interact with it.");
+        Ok(ToolResult::ok(data, Some(format!(
+            "Opened {url} in BitFun's built-in browser (session {session_id}). Use ControlHub with target='builtin' and this session_id to read or interact with the same page."
+        ))))
+    }
+
+    #[cfg(not(feature = "tools-browser-web"))]
     async fn open_in_builtin_panel(
         &self,
         url: &str,
@@ -276,7 +319,7 @@ Parameters:
   * `system` - the OS browser only (HarmonyOS: the system browser; desktop: the default browser).
 - title (optional, string): panel title for `auto`/`builtin`. Defaults to the URL host.
 
-The built-in panel is display-only: the agent cannot snapshot, read, or click the page. To read or drive page content yourself, use ControlHub (domain "browser"). To open local files or non-web targets, use the OS or ExecCommand instead.
+When browser automation is available, the result includes target="builtin" and a session_id for the exact page shown to the user. For follow-up reading or filling, use ControlHub (domain "browser") with that target and session_id; do not call open_builtin again or switch to another browser. Only claim a field was filled after verifying its value. Builds without browser automation return observable_by_agent=false. To open local files or non-web targets, use the OS or ExecCommand instead.
 
 Example:
 - {"url": "https://developer.huawei.com/consumer/cn/"}
@@ -456,7 +499,7 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "runtime-services")]
+    #[cfg(all(feature = "runtime-services", not(feature = "tools-browser-web")))]
     #[tokio::test]
     async fn builtin_mode_emits_the_builtin_browser_event() {
         let tool = OpenUrlTool::new();

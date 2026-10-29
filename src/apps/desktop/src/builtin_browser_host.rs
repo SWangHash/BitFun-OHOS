@@ -72,6 +72,9 @@ impl BuiltInBrowserHost for DesktopBuiltInBrowserHost {
                 "url": request.url,
                 "title": request.title,
                 "replaceExisting": request.replace_existing,
+                "ownerSessionId": request.owner_session_id,
+                "ownerWorkspaceId": request.owner_workspace_id,
+                "ownerWorkspacePath": request.owner_workspace_path,
             }),
         })
         .await

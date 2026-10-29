@@ -153,6 +153,20 @@ describe('built-in browser open request projection', () => {
   it('rejects a request that cannot create a browser target', () => {
     expect(buildBuiltInBrowserTabOptions({ url: '   ' })).toBeNull();
   });
+
+  it('preserves the exact host-created page instead of opening another copy of its URL', () => {
+    const event = {
+      url: 'https://httpbin.org/forms/post',
+      automationId: 'automation-1',
+      webviewLabel: 'embedded-browser-panel-view-agent-automation-1',
+      adoptExisting: true,
+    };
+    const options = buildBuiltInBrowserTabOptions(event);
+    expect(options?.data).toMatchObject(event);
+    const second = buildBuiltInBrowserTabOptions({ ...event, webviewLabel: 'embedded-browser-panel-view-agent-automation-2' });
+    expect(second?.duplicateCheckKey).not.toBe(options?.duplicateCheckKey);
+    expect(buildBuiltInBrowserTabOptions({ ...event, webviewLabel: undefined })).toBeNull();
+  });
 });
 
 describe('interrupted turn lifecycle', () => {

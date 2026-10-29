@@ -43,6 +43,12 @@ pub struct BuiltInBrowserOpenRequest {
     pub url: String,
     pub title: String,
     pub replace_existing: bool,
+    #[serde(default)]
+    pub owner_session_id: Option<String>,
+    #[serde(default)]
+    pub owner_workspace_id: Option<String>,
+    #[serde(default)]
+    pub owner_workspace_path: Option<String>,
 }
 
 #[async_trait]
@@ -317,6 +323,18 @@ impl BrowserAutomationClient for BuiltInBrowserClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn legacy_open_requests_remain_readable() {
+        let legacy =
+            json!({ "url": "https://example.com", "title": "Example", "replace_existing": false });
+        let request: BuiltInBrowserOpenRequest = serde_json::from_value(legacy.clone()).unwrap();
+        assert_eq!(request.owner_session_id, None);
+        let round_trip: BuiltInBrowserOpenRequest =
+            serde_json::from_value(serde_json::to_value(&request).unwrap()).unwrap();
+        assert_eq!(request, round_trip);
+        assert_eq!(serde_json::to_value(request).unwrap()["url"], legacy["url"]);
+    }
 
     #[test]
     fn page_load_events_use_the_shared_lifecycle_shape() {

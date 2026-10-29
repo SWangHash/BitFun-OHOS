@@ -2,7 +2,7 @@
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { useEmbeddedBrowserWebview } from './useEmbeddedBrowserWebview';
+import { useEmbeddedBrowserWebview, type UseEmbeddedBrowserWebviewOptions } from './useEmbeddedBrowserWebview';
 
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => {}),
@@ -16,8 +16,8 @@ function invokeCount(command: string): number {
   return mocks.invoke.mock.calls.filter(call => call[0] === command).length;
 }
 let browser: ReturnType<typeof useEmbeddedBrowserWebview>;
-function Harness({ active }: { active: boolean }) {
-  browser = useEmbeddedBrowserWebview({ defaultUrl: 'https://example.com', isVisible: active, labelPrefix: 'test', log });
+function Harness({ active, options }: { active: boolean; options?: Partial<UseEmbeddedBrowserWebviewOptions> }) {
+  browser = useEmbeddedBrowserWebview({ defaultUrl: 'https://example.com', isVisible: active, labelPrefix: 'test', log, ...options });
   return <div ref={browser.viewportRef} />;
 }
 
@@ -190,6 +190,38 @@ it('does not invoke native APIs in the web surface', async () => {
   await act(async () => browser.loadUrl('https://example.com/next'));
   await mutate(() => document.body.append(overlay()));
   expect(mocks.invoke).not.toHaveBeenCalled();
+});
+
+it('adopts and displays the automation page without recreating or navigating its filled form', async () => {
+  const label = 'embedded-browser-panel-view-agent-existing';
+  const options = { webviewLabel: label, adoptExisting: true };
+  await act(async () => root.render(<Harness active options={options} />));
+  expect(browser.webviewLabel).toBe(label);
+  expect(invokeCount('browser_webview_create')).toBe(0);
+  expect(invokeCount('browser_webview_navigate')).toBe(0);
+  expect(mocks.invoke).toHaveBeenCalledWith('browser_webview_set_bounds', {
+    request: expect.objectContaining({ label, width: 200, height: 200 }),
+  });
+  expect(mocks.invoke).toHaveBeenCalledWith('browser_webview_show', { request: { label } });
+
+  await act(async () => root.render(<Harness active={false} options={options} />));
+  await act(async () => root.render(<Harness active options={options} />));
+  expect(invokeCount('browser_webview_create')).toBe(0);
+  expect(invokeCount('browser_webview_navigate')).toBe(0);
+  await act(async () => browser.loadUrl('https://example.com/next'));
+  expect(mocks.invoke).toHaveBeenCalledWith('browser_webview_navigate', {
+    request: expect.objectContaining({ label, url: 'https://example.com/next' }),
+  });
+});
+
+it('reports a stale automation page instead of displaying a fresh empty replacement', async () => {
+  mocks.invoke.mockImplementation(async command => {
+    if (command === 'browser_webview_set_bounds') throw new Error('Webview not found');
+  });
+  await act(async () => root.render(<Harness active options={{ webviewLabel: 'embedded-browser-panel-view-agent-closed', adoptExisting: true }} />));
+  expect(browser.error).toBe('Webview not found');
+  expect(invokeCount('browser_webview_create')).toBe(0);
+  expect(invokeCount('browser_webview_show')).toBe(0);
 });
 
 it.each(['pending', 'rejected'])('shows the first page even when script injection is %s', async (outcome) => {

@@ -1761,23 +1761,6 @@ Branch on `ok` and `error.code`, not on English messages.
                     // reuse explicitly with replace_existing=true.
                     .unwrap_or(false);
 
-                get_global_event_system()
-                    .emit(BackendEvent::Custom {
-                        event_name: OPEN_BUILT_IN_BROWSER_EVENT.to_string(),
-                        payload: json!({
-                            "url": url,
-                            "title": title,
-                            "replaceExisting": replace_existing,
-                            "ownerSessionId": context.session_id,
-                            "ownerWorkspaceId": context.workspace.as_ref().and_then(|workspace| workspace.workspace_id.as_ref()),
-                            "ownerWorkspacePath": context.workspace_root().map(|path| path.to_string_lossy().to_string()),
-                        }),
-                    })
-                    .await
-                    .map_err(|error| {
-                        BitFunError::tool(format!("failed to open built-in browser: {error}"))
-                    })?;
-
                 if !builtin_browser_host_available() {
                     return Ok(err_response(
                         "browser",
@@ -1795,6 +1778,14 @@ Branch on `ok` and `error.code`, not on English messages.
                     url: url.clone(),
                     title: title.clone(),
                     replace_existing,
+                    owner_session_id: context.session_id.clone(),
+                    owner_workspace_id: context
+                        .workspace
+                        .as_ref()
+                        .and_then(|workspace| workspace.workspace_id.clone()),
+                    owner_workspace_path: context
+                        .workspace_root()
+                        .map(|path| path.to_string_lossy().to_string()),
                 })
                 .await
                 {
@@ -2660,6 +2651,14 @@ Branch on `ok` and `error.code`, not on English messages.
                         url: url.clone(),
                         title: "Browser".to_string(),
                         replace_existing: false,
+                        owner_session_id: context.session_id.clone(),
+                        owner_workspace_id: context
+                            .workspace
+                            .as_ref()
+                            .and_then(|workspace| workspace.workspace_id.clone()),
+                        owner_workspace_path: context
+                            .workspace_root()
+                            .map(|path| path.to_string_lossy().to_string()),
                     })
                     .await
                     {
@@ -5114,6 +5113,25 @@ mod control_hub_tests {
                 || payload.to_string().contains("shared_action_contract"),
             "payload must identify the shared action contract: {payload}"
         );
+    }
+
+    #[tokio::test]
+    async fn open_url_returns_the_same_controllable_browser_identity() {
+        use crate::agentic::tools::implementations::open_url_tool::OpenUrlTool;
+        set_builtin_browser_host(Arc::new(FakeBuiltInBrowserHost));
+        let results = OpenUrlTool::new()
+            .call_impl(
+                &json!({ "url": "example.com", "mode": "builtin" }),
+                &empty_context(),
+            )
+            .await
+            .unwrap();
+        let payload = results[0].content();
+        assert_eq!(payload["session_id"], "embedded-browser-panel-view-test");
+        assert_eq!(payload["target"], "builtin");
+        assert_eq!(payload["observable_by_agent"], true);
+        assert_eq!(payload["controllable_by_agent"], true);
+        assert_eq!(payload["opened_with"], "bitfun-builtin-browser");
     }
 
     #[tokio::test]

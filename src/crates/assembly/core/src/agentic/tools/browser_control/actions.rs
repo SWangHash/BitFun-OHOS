@@ -394,10 +394,7 @@ impl<'a> BrowserActions<'a> {
     /// `with_backend_node_ids` is `true`, every snapshot element gets a
     /// `backend_node_id` field; pages where `DOM.getDocument` errors out
     /// (very rare — e.g. about:blank) silently fall back to no ids.
-    pub async fn snapshot_with_options(
-        &self,
-        with_backend_node_ids: bool,
-    ) -> BitFunResult<Value> {
+    pub async fn snapshot_with_options(&self, with_backend_node_ids: bool) -> BitFunResult<Value> {
         let result = self.evaluate(SNAPSHOT_SCRIPT).await?;
         let mut parsed = snapshot_context::parse_snapshot_result(&result).map_err(|message| {
             structured_error(
@@ -447,9 +444,7 @@ impl<'a> BrowserActions<'a> {
             .get("root")
             .and_then(|r| r.get("nodeId"))
             .and_then(|v| v.as_i64())
-            .ok_or_else(|| {
-                BitFunError::tool("DOM.getDocument: missing root nodeId".to_string())
-            })?;
+            .ok_or_else(|| BitFunError::tool("DOM.getDocument: missing root nodeId".to_string()))?;
         let qsa = self
             .client
             .send(
@@ -719,22 +714,62 @@ impl<'a> BrowserActions<'a> {
 
     /// Fill (clear + type) a text input identified by selector or `@eN` ref.
     pub async fn fill(&self, selector: &str, value: &str) -> BitFunResult<Value> {
-        let js = Self::resolve_element_js(selector);
-        let focus_js = format!(
-            r#"(function(){{ {} el.focus(); el.value = ''; el.dispatchEvent(new Event('input', {{ bubbles: true }})); return true; }})()"#,
-            js
-        );
-        self.evaluate(&focus_js).await?;
-
-        self.client
-            .send("Input.insertText", Some(json!({ "text": value })))
+        let prepared = self
+            .evaluate(&Self::fill_element_js(selector, value, false))
             .await?;
+        let prepared = Self::fill_result(&prepared)?;
+        match prepared.get("insert_text").and_then(Value::as_bool) {
+            Some(true) => {
+                self.client
+                    .send("Input.insertText", Some(json!({ "text": value })))
+                    .await?;
+            }
+            Some(false) => {}
+            None => return Err(Self::unverified_fill_error()),
+        }
+
+        let verified = self
+            .evaluate(&Self::fill_element_js(selector, value, true))
+            .await?;
+        if Self::fill_result(&verified)?
+            .get("verified")
+            .and_then(Value::as_bool)
+            != Some(true)
+        {
+            return Err(Self::unverified_fill_error());
+        }
 
         Ok(json!({
             "success": true,
             "action": "fill",
             "selector": selector,
+            "verified": true,
         }))
+    }
+
+    fn fill_element_js(selector: &str, value: &str, verify: bool) -> String {
+        format!(
+            "(function(){{ {resolve} return JSON.stringify(({fill})(el, {value}, {verify})); }})()",
+            resolve = Self::resolve_element_js(selector),
+            fill = include_str!("fill.js"),
+            value = json!(value),
+        )
+    }
+
+    fn fill_result(result: &Value) -> BitFunResult<Value> {
+        result
+            .pointer("/result/value")
+            .and_then(Value::as_str)
+            .and_then(|text| serde_json::from_str(text).ok())
+            .ok_or_else(Self::unverified_fill_error)
+    }
+
+    fn unverified_fill_error() -> BitFunError {
+        structured_error(
+            ErrorCode::GuardRejected,
+            "Fill could not be verified on the selected field",
+            &["Take a fresh snapshot and inspect the field before reporting completion; do not assume an accepted input command changed its value"],
+        )
     }
 
     /// Type text at the currently focused element (appends, does not clear).
@@ -1228,9 +1263,7 @@ impl<'a> BrowserActions<'a> {
             .get("root")
             .and_then(|r| r.get("nodeId"))
             .and_then(|v| v.as_i64())
-            .ok_or_else(|| {
-                BitFunError::tool("DOM.getDocument: missing root nodeId".to_string())
-            })?;
+            .ok_or_else(|| BitFunError::tool("DOM.getDocument: missing root nodeId".to_string()))?;
         let node = self
             .client
             .send(
@@ -1481,9 +1514,7 @@ mod shared_target_tests {
                     Ok(json!({ "result": { "type": "string", "value": value } }))
                 }
                 "Input.dispatchMouseEvent" => Ok(json!({})),
-                other => Err(BitFunError::tool(format!(
-                    "unexpected primitive: {other}"
-                ))),
+                other => Err(BitFunError::tool(format!("unexpected primitive: {other}"))),
             }
         }
 
@@ -1526,6 +1557,67 @@ mod shared_target_tests {
                 "Input.dispatchMouseEvent",
             ]
         );
+    }
+
+    struct FillClient {
+        verified: Option<Value>,
+        calls: Mutex<usize>,
+        events: broadcast::Sender<BrowserAutomationEvent>,
+    }
+
+    #[async_trait::async_trait]
+    impl BrowserAutomationClient for FillClient {
+        async fn send(&self, method: &str, _params: Option<Value>) -> BitFunResult<Value> {
+            let mut calls = self.calls.lock().unwrap();
+            *calls += 1;
+            match (method, *calls) {
+                ("Runtime.evaluate", 1) => {
+                    Ok(json!({ "result": { "value": "{\"insert_text\":true}" } }))
+                }
+                ("Input.insertText", 2) => Ok(json!({})),
+                ("Runtime.evaluate", 3) => Ok(
+                    json!({ "result": { "value": self.verified.as_ref().map(Value::to_string) } }),
+                ),
+                _ => panic!("unexpected fill primitive {method}"),
+            }
+        }
+        fn subscribe_events(&self) -> broadcast::Receiver<BrowserAutomationEvent> {
+            self.events.subscribe()
+        }
+        fn is_connected(&self) -> bool {
+            true
+        }
+        fn capabilities(&self) -> BrowserAutomationCapabilities {
+            BrowserAutomationCapabilities::cdp()
+        }
+        fn target_kind(&self) -> &'static str {
+            "external"
+        }
+    }
+
+    #[tokio::test]
+    async fn fill_requires_readback_even_when_input_command_succeeds() {
+        for verified in [
+            None,
+            Some(json!({})),
+            Some(json!({ "verified": false })),
+            Some(json!({ "verified": true })),
+        ] {
+            let should_succeed = verified
+                .as_ref()
+                .is_some_and(|value| value["verified"] == true);
+            let client = FillClient {
+                verified,
+                calls: Mutex::new(0),
+                events: broadcast::channel(8).0,
+            };
+            let result = BrowserActions::new(&client).fill("input", "secret").await;
+            assert_eq!(result.is_ok(), should_succeed);
+            if let Ok(result) = result {
+                assert_eq!(result["verified"], true);
+                assert!(!result.to_string().contains("secret"));
+            }
+        }
     }
 }
 
@@ -1590,9 +1682,8 @@ mod structured_error_tests {
 
     #[test]
     fn classify_transport_error_passes_through_other_errors() {
-        let msg =
-            classify_transport_error(BitFunError::tool("CDP error: some detail".to_string()))
-                .to_string();
+        let msg = classify_transport_error(BitFunError::tool("CDP error: some detail".to_string()))
+            .to_string();
         assert!(msg.contains("CDP error: some detail"), "got: {msg}");
         assert!(
             !msg.contains("[WRONG_TAB]") && !msg.contains("[TIMEOUT]"),
