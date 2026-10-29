@@ -40,10 +40,9 @@ pub const QT_MIGRATION_ENABLED_CONTEXT_KEY: &str = "qt_migration_enabled";
 /// Session context key the turn gate stashes the prompt-resolved paths under.
 pub const QT_MIGRATION_RESOLVED_PATHS_CONTEXT_KEY: &str = "qt_migration_resolved_paths";
 
-/// Merge prompt-resolved Qt migration paths into the model-provided candidate
-/// map. These paths come from the turn gate's semantic analyzer (stashed in
-/// [`QT_MIGRATION_RESOLVED_PATHS_CONTEXT_KEY`]) and must reach the option list
-/// even when the model calls the template without echoing them.
+/// Merge the turn gate's prompt-resolved paths ([`QT_MIGRATION_RESOLVED_PATHS_CONTEXT_KEY`])
+/// into the model-provided candidate map, so they reach the option list even when
+/// the model does not echo them.
 fn merge_prompt_resolved_paths(candidates: &mut HashMap<String, Vec<String>>, resolved: &Value) {
     for field in ["source_project", "output_project", "toolchain", "template"] {
         let Some(path) = resolved
@@ -55,11 +54,7 @@ fn merge_prompt_resolved_paths(candidates: &mut HashMap<String, Vec<String>>, re
             continue;
         };
         let entry = candidates.entry(field.to_string()).or_default();
-        // The prompt's own path is the highest tier of the candidate policy
-        // (`输入 > 工作区 > 托管 > 已知安装根 > 会话探测`), so it takes the default
-        // slot: hoist it to the front instead of letting it trail whatever the
-        // model listed. A model that already echoed the same path keeps a single
-        // copy, in that same slot.
+        // The prompt's path outranks the workspace tier, so it takes the default slot.
         entry.retain(|existing| existing != path);
         entry.insert(0, path.to_string());
     }
@@ -536,7 +531,10 @@ impl QuestionTemplateContribution for QtMigrationQuestionCard {
                         "qt_migration_output_is_source_project: field={field}; path={value}"
                     ));
                 }
-                if field == "toolchain" && !crate::strategy::toolchain_value_is_measurable(value) {
+                if field == "toolchain"
+                    && !crate::strategy::toolchain_value_is_measurable(value)
+                    && crate::scan::bindable_field_container(field, value).is_none()
+                {
                     return Err(format!(
                         "qt_migration_toolchain_not_a_kit: field={field}; path={value}"
                     ));
@@ -548,7 +546,15 @@ impl QuestionTemplateContribution for QtMigrationQuestionCard {
 
     fn apply_answers(&self, current: Value, normalized: &BTreeMap<String, String>) -> Value {
         let snapshot = intake_snapshot_from_slot_value(Some(current));
-        let updated = qt_migration_apply_validated_answers(&snapshot, normalized);
+        // A folder-level kit/template answer binds as the item inside it.
+        let normalized = normalized
+            .iter()
+            .map(|(field, value)| match crate::scan::bindable_field_container(field, value) {
+                Some(path) => (field.clone(), path.to_string_lossy().into_owned()),
+                None => (field.clone(), value.clone()),
+            })
+            .collect::<BTreeMap<_, _>>();
+        let updated = qt_migration_apply_validated_answers(&snapshot, &normalized);
         intake_snapshot_to_slot_value(&updated)
     }
 
@@ -673,8 +679,6 @@ mod tests {
 
     #[test]
     fn a_prompt_resolved_path_takes_the_default_slot_ahead_of_the_model_list() {
-        // 用户真机反馈：prompt 里写明的原始工程在卡片里排在模型猜的工程之后。
-        // 提示解析出的路径属于最高层（输入），必须占默认位，而不是被追加到末尾。
         let mut model = HashMap::new();
         model.insert(
             "source_project".to_string(),
