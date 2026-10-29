@@ -150,18 +150,11 @@ export class AppearanceService {
   private readonly seenSyncEvents = new Set<string>();
 
   private readonly handleSystemAppearanceChange = () => {
-    void this.initialize()
-      .then(() => this.enqueueMutation(async () => {
-        if (this.snapshot.selectedAppearanceId !== SYSTEM_APPEARANCE_ID) return;
-        await this.applySelectionTransaction(SYSTEM_APPEARANCE_ID, {
-          persist: false,
-          publish: false,
-          force: true,
-        });
-      }))
-      .catch(error => {
-        log.error('Failed to follow system appearance', { error });
-      });
+    // A media-query change is the engine's own resolution and it is what the web
+    // view will paint, so bind it before applying: the cached HarmonyOS host
+    // report must not outlive a fresher engine signal.
+    this.ohosSystemAppearanceId = getSystemAppearanceId();
+    this.followSystemAppearanceChange('media-query');
   };
   private readonly handleWindowFocus = () => this.scheduleReconciliation();
   private readonly handleVisibilityChange = () => {
@@ -706,15 +699,54 @@ export class AppearanceService {
     this.systemColorSchemeUnsubscribe = api.listen<{ scheme?: 'light' | 'dark' }>(
       SYSTEM_COLOR_SCHEME_CHANGED_EVENT,
       payload => {
-        if (this.snapshot.selectedAppearanceId !== SYSTEM_APPEARANCE_ID) return;
         const scheme = payload?.scheme;
         if (scheme !== 'light' && scheme !== 'dark') return;
+        // Log the receipt before the selection guard: whether the host event
+        // arrives at all is exactly what a "theme switch is slow" report needs,
+        // and the timestamp lines it up with the host-side report.
+        log.info('Host reported the system color scheme', { scheme, at: Date.now() });
+        if (this.snapshot.selectedAppearanceId !== SYSTEM_APPEARANCE_ID) return;
         this.ohosSystemAppearanceId = scheme === 'dark'
           ? DEFAULT_DARK_APPEARANCE_ID
           : DEFAULT_LIGHT_APPEARANCE_ID;
-        this.handleSystemAppearanceChange();
+        this.followSystemAppearanceChange('host');
       },
     );
+  }
+
+  /**
+   * Re-resolve the "follow system" selection after a color-scheme signal.
+   *
+   * Both the engine media query and the HarmonyOS host report the same switch,
+   * and the host also re-reports on an explicit theme-mode request and on the
+   * cold-start handshake. Applying an already resolved scheme again recompiles
+   * the appearance, replaces its stylesheet and restyles the whole document for
+   * no visible change, so only a real scheme change reaches the runtime.
+   */
+  private followSystemAppearanceChange(reason: 'media-query' | 'host'): void {
+    void this.initialize()
+      .then(() => this.enqueueMutation(async () => {
+        if (this.snapshot.selectedAppearanceId !== SYSTEM_APPEARANCE_ID) return;
+        const resolvedId = this.ohosSystemAppearanceId ?? getSystemAppearanceId();
+        if (this.snapshot.status === 'ready' && this.snapshot.resolvedAppearanceId === resolvedId) {
+          log.debug('System color scheme signal needs no appearance change', { reason, resolvedId });
+          return;
+        }
+        const startedAt = Date.now();
+        await this.applySelectionTransaction(SYSTEM_APPEARANCE_ID, {
+          persist: false,
+          publish: false,
+          force: true,
+        });
+        log.info('Applied the system color scheme change', {
+          reason,
+          resolvedId,
+          elapsedMs: Date.now() - startedAt,
+        });
+      }))
+      .catch(error => {
+        log.error('Failed to follow system appearance', { error });
+      });
   }
 
   private detachNativeSystemListener(): void {

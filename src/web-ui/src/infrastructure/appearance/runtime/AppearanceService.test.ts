@@ -17,8 +17,25 @@ const configMocks = vi.hoisted(() => ({
   setConfig: vi.fn(),
 }));
 
+const apiMocks = vi.hoisted(() => ({
+  listeners: new Map<string, (payload: unknown) => void>(),
+  invoke: vi.fn(),
+}));
+
 vi.mock('@/infrastructure/api/service-api/ConfigAPI', () => ({
   configAPI: configMocks,
+}));
+
+vi.mock('@/infrastructure/api/service-api/ApiClient', () => ({
+  api: {
+    invoke: apiMocks.invoke,
+    listen: (event: string, listener: (payload: unknown) => void) => {
+      apiMocks.listeners.set(event, listener);
+      return () => {
+        apiMocks.listeners.delete(event);
+      };
+    },
+  },
 }));
 
 function resolved(pkg: AppearancePackage, revision: number): ResolvedAppearance {
@@ -64,6 +81,13 @@ function createService() {
   };
 }
 
+/** Let the queued appearance mutation settle through its resolved awaits. */
+function flushPromises(): Promise<void> {
+  return new Promise(resolve => {
+    setTimeout(resolve, 0);
+  });
+}
+
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
   let reject!: (reason?: unknown) => void;
@@ -92,6 +116,9 @@ describe('AppearanceService', () => {
     configMocks.getConfig.mockReset();
     configMocks.setConfig.mockReset();
     configMocks.setConfig.mockResolvedValue(undefined);
+    apiMocks.listeners.clear();
+    apiMocks.invoke.mockReset();
+    apiMocks.invoke.mockRejectedValue(new Error('native api unavailable'));
     delete globalThis.__BITFUN_BOOTSTRAP_APPEARANCE_ID__;
     delete globalThis.__BITFUN_BOOTSTRAP_APPEARANCE_SELECTION__;
     vi.stubGlobal('window', {
@@ -814,5 +841,74 @@ describe('AppearanceService', () => {
       status: 'ready',
       current: expect.objectContaining({ name: 'Dynamic Updated', revision: 2 }),
     });
+  });
+
+  it('applies a host color-scheme report once and ignores the duplicate engine signal', async () => {
+    let mediaListener: (() => void) | undefined;
+    let mediaMatches = false;
+    vi.stubGlobal('window', {
+      matchMedia: vi.fn(() => ({
+        get matches() {
+          return mediaMatches;
+        },
+        addEventListener: vi.fn((type: string, listener: () => void) => {
+          if (type === 'change') mediaListener = listener;
+        }),
+        removeEventListener: vi.fn(),
+      })),
+    });
+    configMocks.getConfig.mockResolvedValue('system');
+    const { runtime, service } = createService();
+    await service.initialize();
+    const hostReport = apiMocks.listeners.get('bitfun:system-color-scheme-changed');
+    expect(hostReport).toBeTypeOf('function');
+
+    // The HarmonyOS host re-reports the scheme already applied on its cold-start
+    // handshake and on an explicit theme-mode request. Recompiling and restyling
+    // the whole document for that report is what made the switch feel slow.
+    hostReport?.({ scheme: 'light' });
+    await flushPromises();
+    expect(runtime.applyPackage).not.toHaveBeenCalled();
+
+    mediaMatches = true;
+    hostReport?.({ scheme: 'dark' });
+    await vi.waitFor(() => expect(service.getSnapshot().resolvedAppearanceId).toBe('bitfun-dark'));
+    expect(runtime.applyPackage).toHaveBeenCalledTimes(1);
+
+    // The engine's own media-query change reports the same switch afterwards.
+    mediaListener?.();
+    await flushPromises();
+    expect(runtime.applyPackage).toHaveBeenCalledTimes(1);
+  });
+
+  it('resolves the engine scheme when only the media query reports a switch', async () => {
+    let mediaListener: (() => void) | undefined;
+    let mediaMatches = false;
+    vi.stubGlobal('window', {
+      matchMedia: vi.fn(() => ({
+        get matches() {
+          return mediaMatches;
+        },
+        addEventListener: vi.fn((type: string, listener: () => void) => {
+          if (type === 'change') mediaListener = listener;
+        }),
+        removeEventListener: vi.fn(),
+      })),
+    });
+    configMocks.getConfig.mockResolvedValue('system');
+    const { runtime, service } = createService();
+    await service.initialize();
+    const hostReport = apiMocks.listeners.get('bitfun:system-color-scheme-changed');
+
+    // A host report binds the host scheme to light for the rest of the session.
+    hostReport?.({ scheme: 'light' });
+    await flushPromises();
+
+    // The system switches to dark but only the engine reports it. The cached host
+    // report must not win here, or the app keeps the previous appearance.
+    mediaMatches = true;
+    mediaListener?.();
+    await vi.waitFor(() => expect(service.getSnapshot().resolvedAppearanceId).toBe('bitfun-dark'));
+    expect(runtime.applyPackage).toHaveBeenCalledTimes(1);
   });
 });
