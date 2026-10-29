@@ -52,6 +52,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   selectedFile,
   revealTarget,
   onFileSelect,
+  onFileDoubleClick,
   className = '',
   showFileSize = false,
   showLastModified = false,
@@ -383,6 +384,13 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         revealTarget={revealTarget}
         expandedFolders={expandedFolders}
         onNodeSelect={(node: FlatFileNode) => emitFileSelect(node.path, node.name)}
+        onNodeDoubleClick={(node: FlatFileNode) => {
+          // Double-click hands the caret to the file's editor tab; folders and
+          // the row being renamed keep their regular single-click semantics.
+          if (node.isDirectory) return;
+          if (renamingPath && node.path === renamingPath) return;
+          onFileDoubleClick?.(node.path);
+        }}
         onToggleExpand={toggleExpandedState}
         className="bitfun-file-explorer__tree"
         workspacePath={workspacePath}

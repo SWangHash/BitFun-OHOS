@@ -137,6 +137,7 @@ export interface FileTreeItemProps {
   onRename?: (path: string, newName: string) => void;
   onCancelRename?: () => void;
   onSelect?: () => void;
+  onDoubleClick?: () => void;
   onToggleExpand?: () => void;
   renderContent?: (node: FileSystemNode, level: number) => React.ReactNode;
   renderActions?: (node: FileSystemNode) => React.ReactNode;
@@ -156,6 +157,7 @@ export const FileTreeItem: React.FC<FileTreeItemProps> = ({
   onRename,
   onCancelRename,
   onSelect,
+  onDoubleClick,
   onToggleExpand,
   renderContent,
   renderActions,
@@ -226,6 +228,7 @@ export const FileTreeItem: React.FC<FileTreeItemProps> = ({
       className={`bitfun-file-explorer__node-content ${isSelected ? 'bitfun-file-explorer__node-content--selected' : ''} ${node.isDirectory ? 'bitfun-file-explorer__node-content--directory' : ''} ${isCompressed ? 'bitfun-file-explorer__node-content--compressed' : ''} ${className}`}
       style={{ paddingLeft: `${indentPx}px` }}
       onClick={handleClick}
+      onDoubleClick={onDoubleClick}
       title={tooltip}
       draggable={true}
       onDragStart={handleDragStart}

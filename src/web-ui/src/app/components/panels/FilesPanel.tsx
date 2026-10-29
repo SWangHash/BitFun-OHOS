@@ -1056,6 +1056,10 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
   }, [selectFile, onFileSelect, workspacePath, fileTree, findNode, shouldOpenLargeFile, surface, resourceScope]);
 
   const handleFileDoubleClick = useCallback((filePath: string) => {
+    // Double-click hands the caret to the file's editor tab. The active-editor
+    // listeners (CodeEditor / MarkdownEditor) no-op unless that tab is active;
+    // the first single click has already activated it.
+    globalEventBus.emit('workbench:focus-active-editor', { filePath });
     onFileDoubleClick?.(filePath);
   }, [onFileDoubleClick]);
 

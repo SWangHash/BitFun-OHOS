@@ -12,6 +12,7 @@ interface VirtualFileRowProps {
   isSelected: boolean;
   isExpanded: boolean;
   onSelect: (node: FlatFileNode) => void;
+  onNodeDoubleClick?: (node: FlatFileNode) => void;
   onToggleExpand: (path: string) => void;
   renamingPath?: string | null;
   onRename?: (oldPath: string, newName: string) => void;
@@ -27,6 +28,7 @@ const VirtualFileRow = React.memo<VirtualFileRowProps>(({
   isSelected,
   isExpanded,
   onSelect,
+  onNodeDoubleClick,
   onToggleExpand,
   renamingPath,
   onRename,
@@ -61,6 +63,7 @@ const VirtualFileRow = React.memo<VirtualFileRowProps>(({
         onRename={onRename}
         onCancelRename={onCancelRename}
         onSelect={() => onSelect(node)}
+        onDoubleClick={() => onNodeDoubleClick?.(node)}
         onToggleExpand={() => onToggleExpand(node.path)}
         renderContent={renderContent}
         renderActions={renderActions}
@@ -80,6 +83,7 @@ export const VirtualFileTree = forwardRef<VirtuosoHandle, VirtualFileTreeProps>(
   workspacePath,
   expandedFolders,
   onNodeSelect,
+  onNodeDoubleClick,
   onToggleExpand,
   height = '100%',
   className = '',
@@ -109,6 +113,10 @@ export const VirtualFileTree = forwardRef<VirtuosoHandle, VirtualFileTreeProps>(
     onNodeSelect?.(node);
   }, [onNodeSelect]);
 
+  const handleNodeDoubleClick = useCallback((node: FlatFileNode) => {
+    onNodeDoubleClick?.(node);
+  }, [onNodeDoubleClick]);
+
   const handleToggleExpand = useCallback((path: string) => {
     onToggleExpand?.(path);
   }, [onToggleExpand]);
@@ -123,6 +131,7 @@ export const VirtualFileTree = forwardRef<VirtuosoHandle, VirtualFileTreeProps>(
         isSelected={isSelected}
         isExpanded={isExpanded}
         onSelect={handleNodeSelect}
+        onNodeDoubleClick={handleNodeDoubleClick}
         onToggleExpand={handleToggleExpand}
         renamingPath={renamingPath}
         onRename={onRename}
@@ -133,7 +142,7 @@ export const VirtualFileTree = forwardRef<VirtuosoHandle, VirtualFileTreeProps>(
         isRemoteWorkspace={isRemoteWorkspace}
       />
     );
-  }, [selectedFile, expandedFolders, handleNodeSelect, handleToggleExpand, renamingPath, onRename, onCancelRename, renderNodeContent, renderNodeActions, renameSiblings, isRemoteWorkspace]);
+  }, [selectedFile, expandedFolders, handleNodeSelect, handleNodeDoubleClick, handleToggleExpand, renamingPath, onRename, onCancelRename, renderNodeContent, renderNodeActions, renameSiblings, isRemoteWorkspace]);
 
   if (flatNodes.length === 0) {
     return (

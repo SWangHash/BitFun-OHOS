@@ -215,6 +215,7 @@ export interface VirtualFileTreeProps {
   revealTarget?: FileTreeRevealTarget;
   expandedFolders: Set<string>;
   onNodeSelect?: (node: FlatFileNode) => void;
+  onNodeDoubleClick?: (node: FlatFileNode) => void;
   onToggleExpand?: (path: string) => void;
   height?: number | string;
   className?: string;
