@@ -7,6 +7,10 @@ export { TerminalResizeDebouncer } from './TerminalResizeDebouncer';
 export type { ResizeCallback, ResizeDebounceOptions } from './TerminalResizeDebouncer';
 export { ResizeRepaintGuard, createResizeRepaintScreenSnapshot } from './resizeRepaintGuard';
 export { ReplayColumnGuard } from './replayColumnGuard';
+export { decideResizeUnderColumnGuard } from './columnGuardResize';
+export type { ColumnGuardResizeDecision, ColumnGuardResizeInput } from './columnGuardResize';
+export { decideFitResize } from './fitDimensions';
+export type { FitDimensionInput, FitResizeDecision } from './fitDimensions';
 export { dropShellOwnedPromptRegion } from './replayPromptTrim';
 export { terminalReplayHasScreenText } from './terminalReplay';
 export {
