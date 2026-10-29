@@ -61,3 +61,24 @@ it('drops a stale read after switching to an immutable dispatch result', async (
   await act(async () => complete('AQ=='));
   expect(container.querySelector('img')?.getAttribute('src')).toBe('data:image/png;base64,Ag==');
 });
+
+it('swaps the wrapper footprint on quarter turns while the img keeps its aspect-true box', async () => {
+  await act(async () => root.render(<ImageViewer filePath="dispatch-file://job/a.png" imageSource={{ dataUrl: 'data:image/png;base64,AP8B', size: 3 }} />));
+  const img = container.querySelector('img') as HTMLImageElement;
+  Object.defineProperty(img, 'naturalWidth', { value: 800 });
+  Object.defineProperty(img, 'naturalHeight', { value: 400 });
+  await act(async () => { img.dispatchEvent(new Event('load')); });
+  const wrapper = container.querySelector('[data-bitfun-part="imageWrapper"]') as HTMLElement;
+  expect(wrapper.style.width).toBe('840px');
+  expect(wrapper.style.height).toBe('440px');
+  expect(img.style.width).toBe('800px');
+  expect(img.style.height).toBe('400px');
+  expect(img.style.transform).toBe('rotate(0deg)');
+  const rotate = container.querySelector('button[aria-label="editor.imageViewer.rotate90"]') as HTMLButtonElement;
+  await act(async () => { rotate.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+  expect(wrapper.style.width).toBe('440px');
+  expect(wrapper.style.height).toBe('840px');
+  expect(img.style.width).toBe('800px');
+  expect(img.style.height).toBe('400px');
+  expect(img.style.transform).toBe('rotate(90deg)');
+});

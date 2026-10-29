@@ -303,16 +303,25 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
   // ancestors apply transforms/stacking that would otherwise contain a
   // position:fixed overlay inside the pane instead of covering the window.
   const isQuarterTurn = isQuarterTurnRotation(rotation);
-  // The layout box carries the zoom and quarter-turn dimensions: a rotated
-  // image then exactly fills its layout box, so no phantom scrollable
-  // whitespace rotates along with it and the height is never stretched
-  // (issue #391). Only the rotation itself stays a transform. The pane-fit
-  // factor is part of the base size; the toolbar percentage is relative to
-  // the fit (100% at default), not the natural pixels.
+  // The wrapper carries the zoomed, quarter-turn-swapped box (padding
+  // included under the global border-box reset), so the scrollable area is
+  // exactly the rotated footprint and the displayed height follows the
+  // rotation. The img keeps its unrotated, aspect-true box and rotates
+  // around its center: painting the image into a swapped box would distort
+  // it, and the rotation would swap the footprint right back, leaving the
+  // displayed height unchanged. The pane-fit factor is part of the base
+  // size; the toolbar percentage is relative to the fit (100% at default),
+  // not the natural pixels.
   const baseWidth = imageDimensions ? imageDimensions.width * displayScale * fitScale : undefined;
   const baseHeight = imageDimensions ? imageDimensions.height * displayScale * fitScale : undefined;
   const zoomedWidth = baseWidth !== undefined ? baseWidth * (zoom / 100) : undefined;
   const zoomedHeight = baseHeight !== undefined ? baseHeight * (zoom / 100) : undefined;
+  const wrapperWidth = zoomedWidth !== undefined && zoomedHeight !== undefined
+    ? (isQuarterTurn ? zoomedHeight : zoomedWidth) + IMAGE_VIEWER_PANE_PADDING * 2
+    : undefined;
+  const wrapperHeight = zoomedWidth !== undefined && zoomedHeight !== undefined
+    ? (isQuarterTurn ? zoomedWidth : zoomedHeight) + IMAGE_VIEWER_PANE_PADDING * 2
+    : undefined;
 
   const viewerNode = (
     <div
@@ -431,7 +440,15 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
         )}
 
         {originCurrent && !loading && !error && imageUrl && (
-          <div data-bitfun-component="image-viewer" data-bitfun-part="imageWrapper" className="bitfun-image-viewer__image-wrapper">
+          <div
+            data-bitfun-component="image-viewer"
+            data-bitfun-part="imageWrapper"
+            className="bitfun-image-viewer__image-wrapper"
+            style={{
+              width: wrapperWidth !== undefined ? `${wrapperWidth}px` : undefined,
+              height: wrapperHeight !== undefined ? `${wrapperHeight}px` : undefined,
+            }}
+          >
             <img
               src={imageUrl}
               alt={fileName || filePath}
@@ -439,12 +456,8 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
               data-bitfun-component="image-viewer"
               data-bitfun-part="image"
               style={{
-                width: zoomedWidth !== undefined
-                  ? `${isQuarterTurn ? zoomedHeight : zoomedWidth}px`
-                  : undefined,
-                height: zoomedHeight !== undefined
-                  ? `${isQuarterTurn ? zoomedWidth : zoomedHeight}px`
-                  : undefined,
+                width: zoomedWidth !== undefined ? `${zoomedWidth}px` : undefined,
+                height: zoomedHeight !== undefined ? `${zoomedHeight}px` : undefined,
                 transform: `rotate(${rotation}deg)`,
                 imageRendering: displayScale > 1 ? 'pixelated' : undefined,
               }}

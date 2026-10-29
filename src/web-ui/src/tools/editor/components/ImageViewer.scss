@@ -88,18 +88,25 @@
     align-items: center;
     justify-content: center;
     padding: 20px;
-    overflow: auto;
-    min-width: 0;
-    min-height: 0;
+    // The wrapper's explicit inline size (padding included under the global
+    // border-box reset) is the scrollable rotated footprint. `hidden` clips
+    // the img's unrotated layout overflow, which the rotation paints back
+    // inside the box exactly; `auto` would scroll to the phantom overflow.
+    // `margin: auto` centers the box and keeps oversized boxes reachable
+    // from their start edge instead of flex-centered clipping.
+    overflow: hidden;
+    flex-shrink: 0;
+    margin: auto;
   }
 
   &__image {
     display: block;
     flex-shrink: 0;
-    // The layout box carries zoom and rotation sizing. The global
-    // `img { max-width: 100% }` base rule would clamp the width while the
-    // explicit height keeps growing, stretching the image along Y
-    // (issue #391 follow-up); the viewer owns its sizing exclusively.
+    // The img keeps its unrotated, aspect-true box; the swapped rotated
+    // footprint lives on the wrapper. The global `img { max-width: 100% }`
+    // base rule would clamp the width while the explicit height keeps
+    // growing, stretching the image along Y (issue #391 follow-up); the
+    // viewer owns its sizing exclusively.
     max-width: none;
     max-height: none;
     transition: transform 0.2s ease-out;
