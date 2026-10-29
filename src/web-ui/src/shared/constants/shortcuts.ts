@@ -93,8 +93,10 @@ export const SCENE_SHORTCUTS: ShortcutDef[] = [
 
 // ─── Editor canvas shortcuts (scope: 'canvas') ────────────────────────────
 // Active only when focus is inside the editor canvas area
-// (data-shortcut-scope="canvas"). Tab-switch shortcuts retain allowInInput
-// so they continue to work while a Monaco editor is focused.
+// (data-shortcut-scope="canvas"). The tab-switch row below is registered
+// app-wide instead: switching tabs must not depend on canvas focus. Its
+// handler declines inside the terminal so xterm keeps Ctrl+2..8 as control
+// characters (Esc via Ctrl+3, ...).
 
 export const CANVAS_SHORTCUTS: ShortcutDef[] = [
   // View
@@ -136,47 +138,47 @@ export const CANVAS_SHORTCUTS: ShortcutDef[] = [
   },
   {
     id: 'tab.switch1',
-    config: mod('1', { scope: 'canvas', allowInInput: true }),
+    config: mod('1', { scope: 'app', allowInInput: true }),
     descriptionKey: 'keyboard.shortcuts.tab.switchMerged',
   },
   {
     id: 'tab.switch2',
-    config: mod('2', { scope: 'canvas', allowInInput: true }),
+    config: mod('2', { scope: 'app', allowInInput: true }),
     descriptionKey: 'keyboard.shortcuts.tab.switchMerged',
   },
   {
     id: 'tab.switch3',
-    config: mod('3', { scope: 'canvas', allowInInput: true }),
+    config: mod('3', { scope: 'app', allowInInput: true }),
     descriptionKey: 'keyboard.shortcuts.tab.switchMerged',
   },
   {
     id: 'tab.switch4',
-    config: mod('4', { scope: 'canvas', allowInInput: true }),
+    config: mod('4', { scope: 'app', allowInInput: true }),
     descriptionKey: 'keyboard.shortcuts.tab.switchMerged',
   },
   {
     id: 'tab.switch5',
-    config: mod('5', { scope: 'canvas', allowInInput: true }),
+    config: mod('5', { scope: 'app', allowInInput: true }),
     descriptionKey: 'keyboard.shortcuts.tab.switchMerged',
   },
   {
     id: 'tab.switch6',
-    config: mod('6', { scope: 'canvas', allowInInput: true }),
+    config: mod('6', { scope: 'app', allowInInput: true }),
     descriptionKey: 'keyboard.shortcuts.tab.switchMerged',
   },
   {
     id: 'tab.switch7',
-    config: mod('7', { scope: 'canvas', allowInInput: true }),
+    config: mod('7', { scope: 'app', allowInInput: true }),
     descriptionKey: 'keyboard.shortcuts.tab.switchMerged',
   },
   {
     id: 'tab.switch8',
-    config: mod('8', { scope: 'canvas', allowInInput: true }),
+    config: mod('8', { scope: 'app', allowInInput: true }),
     descriptionKey: 'keyboard.shortcuts.tab.switchMerged',
   },
   {
     id: 'tab.switchLast',
-    config: mod('9', { scope: 'canvas', allowInInput: true }),
+    config: mod('9', { scope: 'app', allowInInput: true }),
     descriptionKey: 'keyboard.shortcuts.tab.switchMerged',
   },
 ];

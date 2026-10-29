@@ -351,4 +351,30 @@ describe('ShortcutManager platform primary modifier', () => {
     expect(event.defaultPrevented).toBe(true);
     expect(downstream).not.toHaveBeenCalled();
   });
+
+  it('fires app-scoped Ctrl+digit tab switching from chat, file tree, and body focus', () => {
+    setPlatform('Win32');
+    const switchTab = vi.fn();
+    shortcutManager.register('tab.switch1', { key: '1', ctrl: true, scope: 'app', allowInInput: true }, switchTab);
+
+    dispatchScopedKey('chat', { key: '1', code: 'Digit1', ctrlKey: true });
+    dispatchScopedKey('filetree', { key: '1', code: 'Digit1', ctrlKey: true });
+    dispatchScopedKey('git', { key: '1', code: 'Digit1', ctrlKey: true });
+    document.body.dispatchEvent(new KeyboardEvent('keydown', {
+      key: '1', code: 'Digit1', ctrlKey: true, bubbles: true, cancelable: true,
+    }));
+
+    expect(switchTab).toHaveBeenCalledTimes(4);
+  });
+
+  it('does not fire canvas-scoped Ctrl+digit when chat or file tree has focus', () => {
+    setPlatform('Win32');
+    const switchTab = vi.fn();
+    shortcutManager.register('tab.switch1', { key: '1', ctrl: true, scope: 'canvas', allowInInput: true }, switchTab);
+
+    dispatchScopedKey('chat', { key: '1', code: 'Digit1', ctrlKey: true });
+    dispatchScopedKey('filetree', { key: '1', code: 'Digit1', ctrlKey: true });
+
+    expect(switchTab).not.toHaveBeenCalled();
+  });
 });

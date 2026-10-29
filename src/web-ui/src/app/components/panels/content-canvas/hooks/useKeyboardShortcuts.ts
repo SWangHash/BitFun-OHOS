@@ -19,6 +19,13 @@ interface UseKeyboardShortcutsOptions {
   onReveal?: () => void;
 }
 
+// Terminals consume Ctrl+2..8 as control characters (Esc via Ctrl+3, NUL via
+// Ctrl+2, ...); tab switching must decline there so the shell keeps them.
+function isTerminalFocused(event: KeyboardEvent): boolean {
+  const target = event.target;
+  return target instanceof Element && target.closest('[data-shortcut-scope="terminal"]') !== null;
+}
+
 export const useKeyboardShortcuts = (options: UseKeyboardShortcutsOptions = {}) => {
   const {
     enabled = true,
@@ -45,10 +52,6 @@ export const useKeyboardShortcuts = (options: UseKeyboardShortcutsOptions = {}) 
   const getActiveGroup = useCallback(() => {
     return activeGroupId === 'primary' ? primaryGroup : secondaryGroup;
   }, [activeGroupId, primaryGroup, secondaryGroup]);
-
-  const getVisibleTabs = useCallback(() => {
-    return getActiveGroup().tabs.filter((t) => !t.isHidden);
-  }, [getActiveGroup]);
 
   // Find in file (Monaco) — only when `data-shortcut-scope="editor"` is innermost
   useShortcut(
@@ -171,26 +174,37 @@ export const useKeyboardShortcuts = (options: UseKeyboardShortcutsOptions = {}) 
     { enabled, priority: 10, description: 'keyboard.shortcuts.tab.reopenClosed' }
   );
 
-  // Switch to tab by number: mod+1~9
+  // Switch to tab by number: mod+1~9. App scope so the keys fire regardless
+  // of where focus sits (chat input, file tree, git panel, <body>) — the
+  // previous canvas scope silently disabled them outside the canvas. The
+  // registration stays inside this hook because the canvas store resolves
+  // per scene through React context, which the app-shell hooks cannot see.
   const switchToTabByIndex = useCallback(
     (index: number) => {
-      const tabs = getVisibleTabs();
+      const tabs = getActiveGroup().tabs.filter((tab) => !tab.isHidden);
       const target = index === -1 ? tabs[tabs.length - 1] : tabs[index];
       if (target) switchToTab(target.id, activeGroupId);
     },
-    [getVisibleTabs, switchToTab, activeGroupId]
+    [getActiveGroup, switchToTab, activeGroupId]
   );
 
-  // allowInInput so Ctrl+1..9 still work while focus is in a Monaco editor
-  useShortcut('tab.switch1',    { key: '1', ctrl: true, scope: 'canvas', allowInInput: true }, () => switchToTabByIndex(0),  { enabled, description: 'keyboard.shortcuts.tab.switchMerged' });
-  useShortcut('tab.switch2',    { key: '2', ctrl: true, scope: 'canvas', allowInInput: true }, () => switchToTabByIndex(1),  { enabled, description: 'keyboard.shortcuts.tab.switchMerged' });
-  useShortcut('tab.switch3',    { key: '3', ctrl: true, scope: 'canvas', allowInInput: true }, () => switchToTabByIndex(2),  { enabled, description: 'keyboard.shortcuts.tab.switchMerged' });
-  useShortcut('tab.switch4',    { key: '4', ctrl: true, scope: 'canvas', allowInInput: true }, () => switchToTabByIndex(3),  { enabled, description: 'keyboard.shortcuts.tab.switchMerged' });
-  useShortcut('tab.switch5',    { key: '5', ctrl: true, scope: 'canvas', allowInInput: true }, () => switchToTabByIndex(4),  { enabled, description: 'keyboard.shortcuts.tab.switchMerged' });
-  useShortcut('tab.switch6',    { key: '6', ctrl: true, scope: 'canvas', allowInInput: true }, () => switchToTabByIndex(5),  { enabled, description: 'keyboard.shortcuts.tab.switchMerged' });
-  useShortcut('tab.switch7',    { key: '7', ctrl: true, scope: 'canvas', allowInInput: true }, () => switchToTabByIndex(6),  { enabled, description: 'keyboard.shortcuts.tab.switchMerged' });
-  useShortcut('tab.switch8',    { key: '8', ctrl: true, scope: 'canvas', allowInInput: true }, () => switchToTabByIndex(7),  { enabled, description: 'keyboard.shortcuts.tab.switchMerged' });
-  useShortcut('tab.switchLast', { key: '9', ctrl: true, scope: 'canvas', allowInInput: true }, () => switchToTabByIndex(-1), { enabled, description: 'keyboard.shortcuts.tab.switchMerged' });
+  const tabSwitchHandler = useCallback(
+    (index: number) => (event: KeyboardEvent): boolean | void => {
+      if (isTerminalFocused(event)) return false;
+      switchToTabByIndex(index);
+    },
+    [switchToTabByIndex]
+  );
+
+  useShortcut('tab.switch1',    { key: '1', ctrl: true, scope: 'app', allowInInput: true }, tabSwitchHandler(0),  { enabled, description: 'keyboard.shortcuts.tab.switchMerged' });
+  useShortcut('tab.switch2',    { key: '2', ctrl: true, scope: 'app', allowInInput: true }, tabSwitchHandler(1),  { enabled, description: 'keyboard.shortcuts.tab.switchMerged' });
+  useShortcut('tab.switch3',    { key: '3', ctrl: true, scope: 'app', allowInInput: true }, tabSwitchHandler(2),  { enabled, description: 'keyboard.shortcuts.tab.switchMerged' });
+  useShortcut('tab.switch4',    { key: '4', ctrl: true, scope: 'app', allowInInput: true }, tabSwitchHandler(3),  { enabled, description: 'keyboard.shortcuts.tab.switchMerged' });
+  useShortcut('tab.switch5',    { key: '5', ctrl: true, scope: 'app', allowInInput: true }, tabSwitchHandler(4),  { enabled, description: 'keyboard.shortcuts.tab.switchMerged' });
+  useShortcut('tab.switch6',    { key: '6', ctrl: true, scope: 'app', allowInInput: true }, tabSwitchHandler(5),  { enabled, description: 'keyboard.shortcuts.tab.switchMerged' });
+  useShortcut('tab.switch7',    { key: '7', ctrl: true, scope: 'app', allowInInput: true }, tabSwitchHandler(6),  { enabled, description: 'keyboard.shortcuts.tab.switchMerged' });
+  useShortcut('tab.switch8',    { key: '8', ctrl: true, scope: 'app', allowInInput: true }, tabSwitchHandler(7),  { enabled, description: 'keyboard.shortcuts.tab.switchMerged' });
+  useShortcut('tab.switchLast', { key: '9', ctrl: true, scope: 'app', allowInInput: true }, tabSwitchHandler(-1), { enabled, description: 'keyboard.shortcuts.tab.switchMerged' });
 };
 
 export default useKeyboardShortcuts;
