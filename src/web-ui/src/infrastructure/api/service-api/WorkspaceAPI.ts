@@ -1475,8 +1475,8 @@ export class WorkspaceAPI {
    * - `system` releases the override and the native side returns the real
    *   system color mode (`"light"` or `"dark"`), so the web-ui can resolve a
    *   concrete theme without relying on `prefers-color-scheme` (which the OHOS
-   *   webview does not update live). The Appearance runtime also polls this return value
-   *   to follow live system theme changes on platforms where matchMedia is inert.
+   *   webview does not update live). Live changes arrive through the
+   *   `bitfun:system-color-scheme-changed` event, not by polling this value.
    *
    * Note: this carries only the color mode, not the theme id. The full theme
    * (colors, typography, etc.) is applied independently via CSS variables.

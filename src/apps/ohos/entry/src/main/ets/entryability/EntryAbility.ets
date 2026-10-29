@@ -49,6 +49,9 @@ const STATUS_BAR_TAG = 'BitFunStatusBar';
 // Log tag for the download-directory save bridge so permission denials and
 // fallbacks filter as one component.
 const SAVE_FILE_TAG = 'BitFunSaveFile';
+// Log tag of the system light/dark mode bridge so the Ability-side report, the
+// native emit and the web-ui apply can be compared as one timeline.
+const THEME_MODE_TAG = 'BitFunThemeMode';
 // Permission required by `save_file_to_downloads_ohos` to write into the user
 // Download directory. Declared in module.json5 but only granted on first
 // `requestPermissionsFromUser` — see `ensureDownloadDirPermission`.
@@ -140,7 +143,6 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
   private appUpdater: AppUpdater = new AppUpdater();
   private voiceInputService: VoiceInputService = new VoiceInputService();
   private systemColorMode: 'light' | 'dark' = 'dark';
-  private nativeThemeMode: 'light' | 'dark' | 'system' = 'system';
   public shareStatus: boolean = false;
   private mainWindowStage: window.WindowStage | undefined = undefined;
   private statusBarTray: StatusBarTrayService | undefined = undefined;
@@ -152,7 +154,7 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
   async onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Promise<void> {
     super.onCreate(want, launchParam);
     this.commonEventListener = new CommonEventListener();
-    this.updateSystemColorMode(this.context?.config?.colorMode);
+    this.resolveSystemColorMode(this.context?.config?.colorMode);
     // Publish the launch-page mirror appearance for the ArkUI page (see
     // oh-rs-ability/.../DefaultXComponent), which renders it while the webview
     // boots. The system start window is drawn by the AbilityMgr process, which
@@ -258,29 +260,45 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
    * light/dark color mode. We forward the new mode to the native module, which
    * emits an event the web-ui listens for to re-resolve "follow system" live —
    * the OHOS webview does not fire prefers-color-scheme change events on its own.
+   *
+   * `newConfig.colorMode` is `COLOR_MODE_NOT_SET` whenever the application does
+   * not pin a color mode, which is exactly the "follow system" state this app
+   * runs in. Dropping that value left the web-ui waiting for the webview's own
+   * `prefers-color-scheme` flip instead, which ArkWeb commits well after the
+   * window has already repainted — the reported "colors change slowly" latency.
+   * Resolve through the resource configuration in that case, and report only an
+   * actual mode change so unrelated configuration updates (size, locale) do not
+   * re-apply the whole appearance.
    */
   onConfigurationUpdate(newConfig: Configuration): void {
-    if (this.nativeThemeMode === 'system') {
-      this.updateSystemColorMode(newConfig?.colorMode);
+    const previous = this.systemColorMode;
+    const mode = this.resolveSystemColorMode(newConfig?.colorMode);
+    if (mode.length === 0 || mode === previous) {
+      return;
     }
-    const mode = this.colorModeToString(newConfig?.colorMode);
-    if (mode.length > 0) {
-      try {
-        RustModule.notifySystemColorMode(mode);
-        hilog.info(DOMAIN, 'vnext', 'onConfigurationUpdate: system color mode -> ' + mode);
-      } catch (e) {
-        hilog.warn(DOMAIN, 'vnext', 'notifySystemColorMode failed: ' + JSON.stringify(e));
-      }
-    }
+    this.publishSystemColorMode(mode, 'configuration update');
   }
 
   /** Read the current Ability config color mode and push it to the web-ui. */
   private notifySystemColorMode(): void {
-    const mode = this.readSystemColorMode();
+    this.publishSystemColorMode(this.readSystemColorMode(), 'initial report');
+  }
+
+  /**
+   * Push a resolved system color mode to the web-ui through the native module.
+   * `reason` only tags the diagnostic log; the web-ui dedups a report that
+   * matches the appearance it already applied.
+   */
+  private publishSystemColorMode(mode: string, reason: string): void {
+    if (mode !== 'light' && mode !== 'dark') {
+      return;
+    }
     try {
       RustModule.notifySystemColorMode(mode);
+      hilog.info(DOMAIN, THEME_MODE_TAG,
+        reason + ': system color mode -> ' + mode + ' at ' + Date.now());
     } catch (e) {
-      hilog.warn(DOMAIN, 'vnext', 'notifySystemColorMode failed: ' + JSON.stringify(e));
+      hilog.warn(DOMAIN, THEME_MODE_TAG, 'notifySystemColorMode failed: ' + JSON.stringify(e));
     }
   }
 
@@ -352,11 +370,28 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     return '';
   }
 
-  private updateSystemColorMode(colorMode: number | undefined): void {
-    const mode = this.colorModeToString(colorMode);
-    if (mode === 'light' || mode === 'dark') {
-      this.systemColorMode = mode;
+  /**
+   * Resolve the system color mode from a configuration value, caching it.
+   *
+   * When the incoming value is not a concrete light/dark mode (the "follow
+   * system" application state reports `COLOR_MODE_NOT_SET` there), fall back to
+   * the Ability configuration and then to the resource configuration, which
+   * carry the mode the system actually resolved. Without the fallback the only
+   * signal left is the webview's own `prefers-color-scheme` flip, and ArkWeb
+   * commits that after it repaints, so the whole app looks a second late.
+   */
+  private resolveSystemColorMode(colorMode: number | undefined): string {
+    const direct = this.colorModeToString(colorMode);
+    if (direct === 'light' || direct === 'dark') {
+      this.systemColorMode = direct;
+      return direct;
     }
+    const fromAbilityConfig = this.colorModeToString(this.context?.config?.colorMode);
+    if (fromAbilityConfig === 'light' || fromAbilityConfig === 'dark') {
+      this.systemColorMode = fromAbilityConfig;
+      return fromAbilityConfig;
+    }
+    return this.readSystemColorMode();
   }
 
   /**
@@ -1143,23 +1178,21 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
       // - 'system' releases the override (COLOR_MODE_NOT_SET) and returns the real
       //   system color mode ('light' | 'dark') so the web-ui can resolve a concrete
       //   theme without relying on `prefers-color-scheme`, which the OHOS webview does
-      //   not update live (the web-ui also polls this return value to follow system).
+      //   not update live.
       // Fixed themes return '' — the web-ui already knows the resolved theme id.
       const appContext = this.context.getApplicationContext();
       if (arg === 'light') {
-        this.nativeThemeMode = 'light';
         appContext.setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT);
         return '';
       }
       if (arg === 'dark') {
-        this.nativeThemeMode = 'dark';
         appContext.setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_DARK);
         return '';
       }
-      this.nativeThemeMode = 'system';
       appContext.setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
-      this.notifySystemColorMode();
-      return this.readSystemColorMode();
+      const systemMode = this.readSystemColorMode();
+      this.publishSystemColorMode(systemMode, 'theme mode request');
+      return systemMode;
     });
     this.voiceInputService.setContext(this.context);
     // FileShareService needs the UIAbilityContext to call
@@ -1250,11 +1283,12 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
 
   /**
    * Resolve the current system color mode as a plain 'light' | 'dark' string.
-   * Reads the Ability config's colorMode; falls back to dark (the app's default
-   * appearance) when the config is unavailable or unset. Called right after
-   * releasing the native color override so the web-ui can resolve a concrete
-   * theme without depending on `prefers-color-scheme` (which the OHOS webview
-   * does not emit).
+   * Reads the resource configuration's colorMode; falls back to the last
+   * resolved mode (seeded with the app's default appearance) when the read fails
+   * or reports no concrete mode. Called after releasing the native color override
+   * and as the last fallback of a configuration update, so the web-ui can resolve
+   * a concrete theme without depending on `prefers-color-scheme` (which the OHOS
+   * webview does not emit).
    */
   private readSystemColorMode(): string {
     try {
@@ -1266,7 +1300,7 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
         return mode;
       }
     } catch (e) {
-      hilog.warn(DOMAIN, 'vnext', 'readSystemColorMode failed: ' + JSON.stringify(e));
+      hilog.warn(DOMAIN, THEME_MODE_TAG, 'readSystemColorMode failed: ' + JSON.stringify(e));
     }
     return this.systemColorMode;
   }

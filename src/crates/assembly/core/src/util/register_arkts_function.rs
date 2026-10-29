@@ -81,6 +81,15 @@ pub fn notify_system_color_mode(mode: String) {
         "light" | "dark" => mode,
         _ => return,
     };
+    // The web-ui reports the same switch from timestamps on its side, so log the
+    // receipt with an absolute one: a slow "follow system" theme switch is a
+    // latency question across the Ability, this emit and the web-ui apply, and
+    // without a shared clock the three logs cannot be lined up.
+    let received_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_millis())
+        .unwrap_or_default();
+    let scheme = normalized.clone();
     system_color_mode_runtime().block_on(async move {
         let payload = serde_json::json!({ "scheme": normalized });
         if let Err(error) = emit_global_event(BackendEvent::Custom {
@@ -90,7 +99,9 @@ pub fn notify_system_color_mode(mode: String) {
         .await
         {
             log::warn!("Failed to emit system color mode change: {error}");
+            return;
         }
+        log::info!("System color mode {scheme} emitted (received at {received_at})");
     });
 }
 
