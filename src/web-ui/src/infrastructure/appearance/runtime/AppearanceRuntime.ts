@@ -1,4 +1,5 @@
 import { createLogger } from '@/shared/utils/logger';
+import { elapsedMs, nowMs, roundDurationMs } from '@/shared/utils/timing';
 import { AppearanceCompiler } from '../compiler/AppearanceCompiler';
 import type { AppearanceRegistry } from '../registry/AppearanceRegistry';
 import type {
@@ -127,6 +128,7 @@ export class AppearanceRuntime {
     pkg: AppearancePackage,
     storedAssets: Readonly<Record<string, StoredAppearanceAsset>>,
   ): Promise<ResolvedAppearance> {
+    const startedAt = nowMs();
     const nextRevision = this.revision + 1;
     const compiled = this.preflight(pkg, storedAssets);
     const preparedAssets = this.prepareAssets(compiled, storedAssets);
@@ -140,6 +142,7 @@ export class AppearanceRuntime {
       }) : undefined,
       cssText: `${compiled.cssText}${preparedAssets.cssText ? `\n${preparedAssets.cssText}` : ''}`,
     });
+    const compiledAt = nowMs();
     const previous = this.snapshot;
     const nextStyle = document.createElement('style');
     nextStyle.setAttribute(STYLE_ATTRIBUTE, String(nextRevision));
@@ -155,10 +158,16 @@ export class AppearanceRuntime {
     };
     const rendererTransactions = this.prepareRendererTransactions(next, previous, context);
     const startedTransactions: PreparedRendererTransaction[] = [];
+    // A theme switch is one paint surface wide: every phase below runs before the
+    // browser can produce a frame, so a slow renderer adapter delays the colors
+    // the user sees exactly as much as a slow compile does. Keep the split.
+    const rendererTimings: Record<string, number> = {};
     try {
       for (const transaction of rendererTransactions) {
         startedTransactions.push(transaction);
+        const rendererStartedAt = nowMs();
         await transaction.commit();
+        rendererTimings[transaction.id] = elapsedMs(rendererStartedAt);
       }
     } catch (error) {
       nextStyle.remove();
@@ -167,6 +176,7 @@ export class AppearanceRuntime {
       log.error('Appearance transaction failed', { appearanceId: next.id, revision: next.revision, error });
       throw error;
     }
+    const renderersAt = nowMs();
 
     const root = document.documentElement;
     root.setAttribute('data-bitfun-appearance-root', 'true');
@@ -193,16 +203,45 @@ export class AppearanceRuntime {
     this.snapshot = next;
     this.emit();
     if (previousAssetRevision !== null) this.collectAssetGeneration(previousAssetRevision);
+    const commitMs = roundDurationMs(nowMs() - startedAt);
+    const commitTiming = {
+      appearanceId: next.id,
+      revision: next.revision,
+      mode: next.mode,
+      compileMs: roundDurationMs(compiledAt - startedAt),
+      renderersMs: roundDurationMs(renderersAt - compiledAt),
+      renderers: rendererTimings,
+      commitMs,
+    };
     if (next.diagnostics.length > 0) {
       log.warn('Appearance applied with diagnostics', {
-        appearanceId: next.id,
-        revision: next.revision,
+        ...commitTiming,
         diagnosticCount: next.diagnostics.length,
       });
     } else {
-      log.info('Appearance applied', { appearanceId: next.id, revision: next.revision });
+      log.info('Appearance applied', commitTiming);
     }
+    this.reportFirstFrame(next, startedAt);
     return next;
+  }
+
+  /**
+   * Log when the frame carrying the new appearance is actually produced. The
+   * commit above only queues style work; on a webview that repaints the whole
+   * document (HarmonyOS ArkWeb) the gap between "applied" and "painted" is the
+   * delay the user sees, so it has to be measured rather than inferred.
+   */
+  private reportFirstFrame(appearance: ResolvedAppearance, startedAt: number): void {
+    if (typeof requestAnimationFrame !== 'function') return;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        log.info('Appearance painted', {
+          appearanceId: appearance.id,
+          revision: appearance.revision,
+          totalMs: elapsedMs(startedAt),
+        });
+      });
+    });
   }
 
   private prepareRendererTransactions(

@@ -881,8 +881,40 @@ describe('AppearanceService', () => {
     expect(runtime.applyPackage).toHaveBeenCalledTimes(1);
   });
 
-  it('resolves the engine scheme when only the media query reports a switch', async () => {
-    let mediaListener: (() => void) | undefined;
+  it('pushes the host color mode once instead of on every window reconcile', async () => {
+    let focusListener: (() => void) | undefined;
+    vi.stubGlobal('window', {
+      matchMedia: vi.fn(() => ({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+      addEventListener: vi.fn((type: string, listener: () => void) => {
+        if (type === 'focus') focusListener = listener;
+      }),
+      removeEventListener: vi.fn(),
+    });
+    apiMocks.invoke.mockResolvedValue('dark');
+    configMocks.getConfig.mockResolvedValue('system');
+    const { service } = createService();
+    await service.initialize();
+
+    // The initial discovery is the one push the host needs: it releases a pinned
+    // fixed mode and answers with the scheme the host currently follows.
+    expect(apiMocks.invoke).toHaveBeenCalledTimes(1);
+
+    focusListener?.();
+    await vi.waitFor(() => expect(configMocks.getConfig).toHaveBeenCalledTimes(2));
+    focusListener?.();
+    await vi.waitFor(() => expect(configMocks.getConfig).toHaveBeenCalledTimes(3));
+
+    // Reconciles must not re-set the application-wide color mode; the host pushes
+    // live scheme changes instead.
+    expect(apiMocks.invoke).toHaveBeenCalledTimes(1);
+    expect(service.getSnapshot().resolvedAppearanceId).toBe('bitfun-dark');
+  });
+
+  it('resolves the engine scheme when only the media query reports a switch', async () => {    let mediaListener: (() => void) | undefined;
     let mediaMatches = false;
     vi.stubGlobal('window', {
       matchMedia: vi.fn(() => ({

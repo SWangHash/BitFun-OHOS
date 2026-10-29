@@ -142,6 +142,14 @@ export class AppearanceService {
   private systemMedia: MediaQueryList | null = null;
   private systemColorSchemeUnsubscribe: (() => void) | null = null;
   private ohosSystemAppearanceId: string | null = null;
+  /**
+   * Color mode this surface last pushed to the HarmonyOS host. `set_theme_mode`
+   * is the only way to read the host scheme, and it changes the application-wide
+   * color mode to do it, so re-issuing it for a mode that is already active makes
+   * the host reconfigure every native resource — including while a theme switch
+   * is being applied. `null` means "not pushed yet in this session".
+   */
+  private nativeThemeMode: 'light' | 'dark' | 'system' | null = null;
   private syncUnsubscribe: (() => void) | null = null;
   private reconciliationQueued = false;
   private activeSource: AppearanceSource | null = null;
@@ -640,7 +648,9 @@ export class AppearanceService {
       const selectedPackage = await this.resolvePackage(selected);
       const mode = selectedPackage?.pkg.mode;
       if (mode !== 'light' && mode !== 'dark') return;
+      if (this.nativeThemeMode === mode) return;
       await workspaceAPI.setThemeMode(mode);
+      this.nativeThemeMode = mode;
     } catch (error) {
       log.debug('Native appearance mode sync is unavailable', { error });
     }
@@ -754,9 +764,28 @@ export class AppearanceService {
     this.systemColorSchemeUnsubscribe = null;
   }
 
+  /**
+   * Resolve the scheme the host currently follows, releasing a pinned fixed mode
+   * first when this surface pinned one.
+   *
+   * `set_theme_mode` is the host's only color-mode accessor and it sets the
+   * application-wide color mode as a side effect, so it is pushed once per
+   * session transition and never as a repeated read: the host already reconfigures
+   * every native resource for it, and a window focus/visibility reconcile that
+   * re-issued it competed with the very theme switch it was trying to observe.
+   * Live changes arrive through `bitfun:system-color-scheme-changed` instead.
+   */
   private async refreshNativeSystemAppearance(): Promise<void> {
+    if (this.nativeThemeMode === 'system') {
+      // Keep a host-reported scheme: the engine media query is not a trustworthy
+      // replacement here, and it would overwrite the value the host just pushed
+      // on a reconcile that has nothing new to say.
+      this.ohosSystemAppearanceId = this.ohosSystemAppearanceId ?? getSystemAppearanceId();
+      return;
+    }
     try {
       const scheme = await workspaceAPI.setThemeMode('system');
+      this.nativeThemeMode = 'system';
       if (scheme === 'light' || scheme === 'dark') {
         this.ohosSystemAppearanceId = scheme === 'dark'
           ? DEFAULT_DARK_APPEARANCE_ID
