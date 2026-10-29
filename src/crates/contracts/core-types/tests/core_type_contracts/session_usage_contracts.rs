@@ -18,6 +18,11 @@ fn session_usage_report_is_a_shared_stable_contract() {
     );
     assert_eq!(json["sessionId"], "session-1");
     assert_eq!(report.coverage.level, UsageCoverageLevel::Partial);
+    assert_eq!(
+        report.files.changed_files, Some(0),
+        "partial_unavailable should report zero changed files, not None, \
+         so the frontend shows 'no file changes' instead of 'unavailable'"
+    );
 }
 
 #[test]

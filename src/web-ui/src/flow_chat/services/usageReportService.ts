@@ -237,11 +237,11 @@ export function renderUsageReportMarkdown(report: SessionUsageReport): string {
 }
 
 function formatNumber(value: number | undefined): string {
-  return value === undefined ? 'unavailable' : String(value);
+  return value == null ? 'unavailable' : String(value);
 }
 
 function formatUsageTokenCount(value: number | undefined): string {
-  return value === undefined
+  return value == null
     ? 'unavailable'
     : formatTokenCount(
         value,
@@ -250,7 +250,7 @@ function formatUsageTokenCount(value: number | undefined): string {
 }
 
 function formatDuration(value: number | undefined): string {
-  if (value === undefined) {
+  if (value == null) {
     return 'unavailable';
   }
   if (value < 1000) {

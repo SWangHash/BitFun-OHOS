@@ -1096,11 +1096,7 @@ fn build_file_breakdown_from_tool_inputs(
         } else {
             UsageFileScope::ToolInputsOnly
         },
-        changed_files: if rows.is_empty() {
-            None
-        } else {
-            Some(rows.len() as u64)
-        },
+        changed_files: Some(rows.len() as u64),
         added_lines: None,
         deleted_lines: None,
         files: rows,
@@ -2714,6 +2710,43 @@ mod tests {
         assert_eq!(row.session_id.as_deref(), Some("session-1"));
         assert_eq!(row.turn_indexes, vec![0, 2]);
         assert_eq!(row.operation_ids, vec!["op-1", "op-9"]);
+    }
+
+    #[test]
+    fn tool_inputs_path_reports_zero_changed_files_when_no_modification_tools() {
+        // When the snapshot source is unavailable and no file-modification tools
+        // were called, the report should still say "zero changed files" (Some(0))
+        // rather than None, so the frontend shows "no file changes" instead of
+        // "unavailable".
+        let request = test_request(None);
+        let turn = test_turn_with_tools(
+            "turn-1",
+            0,
+            DialogTurnKind::UserDialog,
+            vec![test_tool_item(
+                "tool-1",
+                "Read",
+                Some(true),
+                50,
+                "D:/workspace/bitfun/src/main.rs",
+            )],
+        );
+
+        let report = build_session_usage_report_from_sources(
+            request,
+            &[turn],
+            &[],
+            &UsageSnapshotFacts::default(),
+            1_778_347_200_000,
+        );
+
+        assert_eq!(report.files.scope, UsageFileScope::Unavailable);
+        assert_eq!(
+            report.files.changed_files,
+            Some(0),
+            "empty tool-inputs path should report Some(0), not None"
+        );
+        assert!(report.files.files.is_empty());
     }
 
     fn test_request(remote_connection_id: Option<&str>) -> SessionUsageReportRequest {

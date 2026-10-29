@@ -17,7 +17,7 @@ const usageRedactPathsPreferenceListeners = new Set<UsageRedactPathsPreferenceLi
 
 export function hasNoRecordedFileChanges(report: SessionUsageReport): boolean {
   return report.files.files.length === 0 &&
-    (report.files.changedFiles === undefined || report.files.changedFiles === 0);
+    (report.files.changedFiles == null || report.files.changedFiles === 0);
 }
 
 export function isSessionUsageReport(value: unknown): value is SessionUsageReport {

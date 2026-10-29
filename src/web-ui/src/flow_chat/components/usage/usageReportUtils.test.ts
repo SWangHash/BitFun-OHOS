@@ -151,6 +151,22 @@ describe('usageReportUtils', () => {
     expect(label).toBe('No file changes');
   });
 
+  it('labels empty file activity as no file changes when backend sends null', () => {
+    // Backend Option::None serializes to JSON null (no skip_serializing_if).
+    // The frontend must treat null the same as undefined for this check.
+    const label = getFileSummaryLabel(usageReport({
+      files: {
+        scope: 'unavailable',
+        changedFiles: null as unknown as undefined,
+        addedLines: null as unknown as undefined,
+        deletedLines: null as unknown as undefined,
+        files: [],
+      },
+    }), t);
+
+    expect(label).toBe('No file changes');
+  });
+
   it('orders file rows by changed lines before operation count', () => {
     const topFiles = getTopFiles(usageReport(), 2);
 

@@ -422,7 +422,7 @@ impl SessionUsageReport {
             tools: vec![],
             files: UsageFileBreakdown {
                 scope: UsageFileScope::Unavailable,
-                changed_files: None,
+                changed_files: Some(0),
                 added_lines: None,
                 deleted_lines: None,
                 files: vec![],

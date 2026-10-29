@@ -644,7 +644,7 @@ function UsageOverview({ report }: { report: SessionUsageReport }) {
 
 function UsageModels({ report, sessionId }: { report: SessionUsageReport; sessionId?: string }) {
   const { t } = useTranslation('flow-chat');
-  const hasModelDuration = report.models.some(model => model.durationMs !== undefined);
+  const hasModelDuration = report.models.some(model => model.durationMs != null);
   const headers: UsageTableHeader[] = [
     { id: 'model', label: t('usage.table.model') },
     { id: 'calls', label: t('usage.table.calls') },
@@ -681,7 +681,7 @@ function UsageModels({ report, sessionId }: { report: SessionUsageReport; sessio
         ];
         if (hasModelDuration) {
           cells.push(
-            model.durationMs === undefined
+            model.durationMs == null
               ? missingUsageValue(t('usage.status.timingNotRecorded'), t('usage.help.modelRoundTime'))
               : formatUsageDuration(model.durationMs, t)
           );
@@ -744,12 +744,12 @@ function UsageTools({ report, sessionId }: { report: SessionUsageReport; session
           formatUsageNumber(tool.callCount, t),
           formatUsageNumber(tool.successCount, t),
           formatUsageNumber(tool.errorCount, t),
-          tool.durationMs === undefined
+          tool.durationMs == null
             ? missingUsageValue(t('usage.status.timingNotRecorded'), t('usage.help.toolDuration'))
             : duration,
           tool.p95DurationMs === undefined
             ? missingUsageValue(
-              tool.durationMs === undefined
+              tool.durationMs == null
                 ? t('usage.status.timingNotRecorded')
                 : t('usage.status.p95SampleInsufficient'),
               t('usage.help.toolP95')
