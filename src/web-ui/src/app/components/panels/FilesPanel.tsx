@@ -54,6 +54,7 @@ import type {
 } from '@/infrastructure/api/service-api/tauri-commands';
 import {
   downloadWorkspaceFileToDisk,
+  normalizeClipboardLocalPaths,
   normalizeWorkspaceTargetDirectory,
   pasteClipboardFilesToWorkspaceDirectory,
   resolvePasteTargetDirectory,
@@ -63,7 +64,10 @@ import {
 import {
   clearFileTreeClipboard,
   getFileTreeClipboard,
+  getFileTreeClipboardSystemSnapshot,
   setFileTreeClipboard,
+  setFileTreeClipboardSystemSnapshot,
+  systemClipboardHasExternalCopy,
 } from '@/tools/file-system/services/fileTreeClipboard';
 import { useWorkspaceFileDrop } from '@/tools/file-system/hooks/useWorkspaceFileDrop';
 import { useShortcut } from '@/infrastructure/hooks/useShortcut';
@@ -666,16 +670,35 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
       targetDirectory = normalizeWorkspaceTargetDirectory(targetDirectory, currentWorkspace);
 
       // Prefer the in-app tree clipboard (context-menu / shortcut copy and
-      // cut). The OS pasteboard stays the fallback for files copied in
-      // external managers.
+      // cut) unless the OS pasteboard changed after the tree's copy/cut: a
+      // file copied in an external manager since then must win over the
+      // stale mirror shadow (the pasteboard snapshot detects the change).
       const internalClipboard = getFileTreeClipboard();
-      const result = internalClipboard
+      let pastePaths: string[] = [];
+      let pasteIsCut = false;
+      let pastedFromSystem = false;
+      if (internalClipboard) {
+        pastePaths = internalClipboard.paths;
+        pasteIsCut = internalClipboard.isCut;
+        try {
+          const { files, isCut } = await workspaceAPI.getClipboardFiles();
+          const externalPaths = normalizeClipboardLocalPaths(files);
+          if (systemClipboardHasExternalCopy(externalPaths, getFileTreeClipboardSystemSnapshot())) {
+            pastePaths = externalPaths;
+            pasteIsCut = isCut;
+            pastedFromSystem = true;
+          }
+        } catch {
+          // Pasteboard unreadable: keep the in-app clipboard.
+        }
+      }
+      const result = pastePaths.length > 0
         ? await uploadLocalPathsToWorkspaceDirectory(
-            internalClipboard.paths,
+            pastePaths,
             targetDirectory,
             currentWorkspace,
             onProgress,
-            { isCut: internalClipboard.isCut },
+            { isCut: pasteIsCut },
             id
           )
         : await pasteClipboardFilesToWorkspaceDirectory(
@@ -685,7 +708,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
             id
           );
 
-      if (internalClipboard?.isCut && result.successCount > 0) {
+      if (internalClipboard?.isCut && !pastedFromSystem && result.successCount > 0) {
         clearFileTreeClipboard();
       }
 
@@ -754,17 +777,33 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     executePaste(data.targetDirectory);
   }, [executePaste]);
 
+  // Read the OS pasteboard and remember it, so paste can tell a fresh
+  // external copy from the mirror a tree copy/cut just wrote.
+  const refreshClipboardSystemSnapshot = useCallback(() => {
+    workspaceAPI.getClipboardFiles()
+      .then(({ files }) => {
+        setFileTreeClipboardSystemSnapshot(normalizeClipboardLocalPaths(files));
+      })
+      .catch(() => {
+        setFileTreeClipboardSystemSnapshot(null);
+      });
+  }, []);
+
   // Mirror every tree copy/cut into the OS file clipboard so external file
   // managers can paste the same selection (issue #326). Remote paths do not
-  // exist on this machine; keep those in the internal clipboard only.
+  // exist on this machine; keep those in the internal clipboard only. Either
+  // way the pasteboard is snapshotted afterwards for paste-time comparison.
   const mirrorTreeClipboardToSystem = useCallback((paths: string[], isCut: boolean) => {
-    if (paths.length === 0 || !currentWorkspace || isRemoteWorkspace(currentWorkspace)) {
+    if (paths.length === 0 || !currentWorkspace) {
       return;
     }
-    void workspaceAPI.copyFilesToSystemClipboard(paths, isCut).catch((error: unknown) => {
-      log.warn('Failed to mirror tree clipboard to system clipboard', { error: String(error) });
-    });
-  }, [currentWorkspace]);
+    const mirror = isRemoteWorkspace(currentWorkspace)
+      ? Promise.resolve()
+      : workspaceAPI.copyFilesToSystemClipboard(paths, isCut).catch((error: unknown) => {
+        log.warn('Failed to mirror tree clipboard to system clipboard', { error: String(error) });
+      });
+    void mirror.then(() => refreshClipboardSystemSnapshot());
+  }, [currentWorkspace, refreshClipboardSystemSnapshot]);
 
   const handleCopyFromContextMenu = useCallback((data: { paths: string[] }) => {
     setFileTreeClipboard(data.paths, false);
