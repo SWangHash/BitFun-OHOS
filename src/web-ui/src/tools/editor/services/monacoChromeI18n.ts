@@ -80,8 +80,6 @@ export interface MonacoChromeI18nHandle {
 }
 
 export function attachMonacoChromeI18n(container: HTMLElement, initialStrings: MonacoChromeStrings): MonacoChromeI18nHandle {
-  let scheduled = false;
-  let scheduledFrame: number | undefined;
   let currentStrings = initialStrings;
 
   const localizeAttributes = (element: HTMLElement): void => {
@@ -105,7 +103,6 @@ export function attachMonacoChromeI18n(container: HTMLElement, initialStrings: M
   };
 
   const run = (): void => {
-    scheduled = false;
     const widget = container.querySelector<HTMLElement>('.find-widget');
     const margin = container.querySelector<HTMLElement>('.margin-view-overlays');
     if (widget) {
@@ -126,21 +123,37 @@ export function attachMonacoChromeI18n(container: HTMLElement, initialStrings: M
     }
   };
 
-  const schedule = (): void => {
-    if (scheduled) return;
-    scheduled = true;
-    // requestAnimationFrame runs BEFORE the next paint, so a title set while
-    // the find widget is created (or re-set on search updates) is removed
-    // before the browser can ever render the bubble. ArkWeb keeps a painted
-    // native bubble alive after the element is gone, so the cleanup must win
-    // the race against the paint — a setTimeout delay loses it (issue #432).
-    scheduledFrame = window.requestAnimationFrame(() => {
-      scheduledFrame = undefined;
-      run();
-    });
-  };
-
-  const observer = new MutationObserver(schedule);
+  const observer = new MutationObserver(mutations => {
+    // The cleanup must run SYNCHRONOUSLY in the observer microtask: mutation
+    // observers always deliver before the frame's rendering steps, so a title
+    // is stripped before the browser can paint the bubble. ArkWeb keeps a
+    // painted native bubble alive after its element is gone (and only a new
+    // bubble replaces it), so losing this race — as a deferred rAF cleanup
+    // does on click-driven re-renders that paint in the same frame — means a
+    // tooltip that never disappears (issue #432).
+    for (const mutation of mutations) {
+      if (mutation.type === 'attributes') {
+        run();
+        return;
+      }
+      if (mutation.type === 'childList') {
+        for (const node of mutation.addedNodes) {
+          if (node.nodeType === 1) {
+            run();
+            return;
+          }
+        }
+        continue;
+      }
+      // characterData: only the find widget's match count matters; editor
+      // typing must not trigger a full scan on every keystroke.
+      const host = mutation.target.parentElement ?? mutation.target;
+      if (host instanceof Element && host.closest('.find-widget')) {
+        run();
+        return;
+      }
+    }
+  });
   observer.observe(container, {
     childList: true,
     subtree: true,
@@ -153,10 +166,6 @@ export function attachMonacoChromeI18n(container: HTMLElement, initialStrings: M
   return {
     detach: () => {
       observer.disconnect();
-      if (scheduledFrame !== undefined) {
-        window.cancelAnimationFrame(scheduledFrame);
-        scheduledFrame = undefined;
-      }
     },
     // Re-applies all localized strings with a new translation set (e.g. after
     // the user switches the UI language). Called from CodeEditor when the
