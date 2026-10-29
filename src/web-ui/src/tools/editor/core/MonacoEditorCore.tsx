@@ -10,12 +10,15 @@
 import { useEffect, useRef, useCallback, useState, forwardRef, useImperativeHandle } from 'react';
 import type * as monaco from 'monaco-editor';
 import { createLogger } from '@/shared/utils/logger';
+import { useI18n } from '@/infrastructure/i18n';
 import { monacoInitManager } from '../services/MonacoInitManager';
 import { monacoApi } from '../services/monacoRuntime';
 import { monacoModelManager } from '../services/MonacoModelManager';
 import { editorExtensionManager } from '../services/EditorExtensionManager';
 import { buildEditorOptions } from '../services/EditorOptionsBuilder';
 import { activeEditTargetService, createMonacoEditTarget } from '../services/ActiveEditTargetService';
+import { attachMonacoChromeI18n, type MonacoChromeI18nHandle } from '../services/monacoChromeI18n';
+import { buildMonacoChromeStrings } from '../services/monacoChromeStrings';
 import type { MonacoEditorCoreProps } from './types';
 import type { EditorExtensionContext } from '../services/EditorExtensionManager';
 import type { EditorOptionsOverrides } from '../services/EditorOptionsBuilder';
@@ -85,6 +88,10 @@ export const MonacoEditorCore = forwardRef<MonacoEditorCoreRef, MonacoEditorCore
     
     const [isReady, setIsReady] = useState(false);
 
+    const { t } = useI18n('tools');
+    const tRef = useRef(t);
+    const monacoChromeI18nDetachRef = useRef<MonacoChromeI18nHandle | null>(null);
+
     filePathRef.current = filePath;
     workspacePathRef.current = workspacePath;
     languageRef.current = language;
@@ -100,6 +107,7 @@ export const MonacoEditorCore = forwardRef<MonacoEditorCoreRef, MonacoEditorCore
     onEditorReadyRef.current = onEditorReady;
     onEditorWillDisposeRef.current = onEditorWillDispose;
     onSaveRef.current = onSave;
+    tRef.current = t;
     
     useImperativeHandle(ref, () => ({
       getEditor: () => editorRef.current,
@@ -204,6 +212,9 @@ export const MonacoEditorCore = forwardRef<MonacoEditorCoreRef, MonacoEditorCore
             model,
           });
           editorRef.current = editor;
+          // Strip/translate Monaco chrome titles: native title bubbles persist
+          // on ArkWeb after the mouse leaves (issue #432).
+          monacoChromeI18nDetachRef.current = attachMonacoChromeI18n(container, buildMonacoChromeStrings(tRef.current));
           const editTarget = createMonacoEditTarget(editor);
           const unbindEditTarget = activeEditTargetService.bindTarget(editTarget);
           const focusDisposable = editor.onDidFocusEditorText(() => {
@@ -246,9 +257,14 @@ export const MonacoEditorCore = forwardRef<MonacoEditorCoreRef, MonacoEditorCore
       
       return () => {
         isUnmountedRef.current = true;
-        
+
+        if (monacoChromeI18nDetachRef.current) {
+          monacoChromeI18nDetachRef.current.detach();
+          monacoChromeI18nDetachRef.current = null;
+        }
+
         onEditorWillDisposeRef.current?.();
-        
+
         if (editorRef.current && modelRef.current && editorIdRef.current) {
           editorExtensionManager.notifyEditorWillDispose(
             editorIdRef.current,
@@ -279,7 +295,15 @@ export const MonacoEditorCore = forwardRef<MonacoEditorCoreRef, MonacoEditorCore
         setIsReady(false);
       };
     }, [filePath, createExtensionContext, registerEventListeners]);
-    
+
+    // Re-apply Monaco chrome localization when the UI language changes
+    // (issue #434: the find widget tooltips and fold hints must follow).
+    useEffect(() => {
+      if (monacoChromeI18nDetachRef.current) {
+        monacoChromeI18nDetachRef.current.update(buildMonacoChromeStrings(tRef.current));
+      }
+    }, [t]);
+
     useEffect(() => {
       if (!isReady || !editorRef.current || hasJumpedRef.current) return;
       

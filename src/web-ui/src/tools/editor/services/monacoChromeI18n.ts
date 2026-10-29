@@ -103,9 +103,9 @@ export function attachMonacoChromeI18n(container: HTMLElement, initialStrings: M
   };
 
   const run = (): void => {
-    const widget = container.querySelector<HTMLElement>('.find-widget');
-    const margin = container.querySelector<HTMLElement>('.margin-view-overlays');
-    if (widget) {
+    // A diff container hosts two inner editors, so every find widget and
+    // margin overlay under the container must be covered, not just the first.
+    container.querySelectorAll<HTMLElement>('.find-widget').forEach(widget => {
       // Include the widget root: its own title/aria-label (e.g. "Find / Replace")
       // must not leave a persistent native bubble on ArkWeb (issue #432).
       localizeAttributes(widget);
@@ -117,10 +117,10 @@ export function attachMonacoChromeI18n(container: HTMLElement, initialStrings: M
           count.textContent = localized;
         }
       }
-    }
-    if (margin) {
+    });
+    container.querySelectorAll<HTMLElement>('.margin-view-overlays').forEach(margin => {
       margin.querySelectorAll<HTMLElement>('[title]').forEach(localizeAttributes);
-    }
+    });
   };
 
   const observer = new MutationObserver(mutations => {

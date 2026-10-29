@@ -10,9 +10,12 @@
 import { useEffect, useRef, useState, forwardRef, useImperativeHandle, useCallback } from 'react';
 import type * as monaco from 'monaco-editor';
 import { createLogger } from '@/shared/utils/logger';
+import { useI18n } from '@/infrastructure/i18n';
 import { monacoInitManager } from '../services/MonacoInitManager';
 import { monacoApi } from '../services/monacoRuntime';
 import { buildDiffEditorOptions } from '../services/EditorOptionsBuilder';
+import { attachMonacoChromeI18n, type MonacoChromeI18nHandle } from '../services/monacoChromeI18n';
+import { buildMonacoChromeStrings } from '../services/monacoChromeStrings';
 import type { MonacoDiffCoreProps } from './types';
 import type { EditorOptionsOverrides } from '../services/EditorOptionsBuilder';
 
@@ -88,6 +91,10 @@ export const MonacoDiffCore = forwardRef<MonacoDiffCoreRef, MonacoDiffCoreProps>
     
     const [isReady, setIsReady] = useState(false);
 
+    const { t } = useI18n('tools');
+    const tRef = useRef(t);
+    const monacoChromeI18nDetachRef = useRef<MonacoChromeI18nHandle | null>(null);
+
     filePathRef.current = filePath;
     originalContentRef.current = originalContent;
     modifiedContentRef.current = modifiedContent;
@@ -105,6 +112,7 @@ export const MonacoDiffCore = forwardRef<MonacoDiffCoreRef, MonacoDiffCoreProps>
     onDiffChangeRef.current = onDiffChange;
     onEditorReadyRef.current = onEditorReady;
     onEditorWillDisposeRef.current = onEditorWillDispose;
+    tRef.current = t;
     
     useImperativeHandle(ref, () => ({
       getDiffEditor: () => diffEditorRef.current,
@@ -220,7 +228,11 @@ export const MonacoDiffCore = forwardRef<MonacoDiffCoreRef, MonacoDiffCoreProps>
             ignoreTrimWhitespace: ignoreTrimWhitespaceRef.current,
           });
           diffEditorRef.current = diffEditor;
-          
+          // Strip/translate Monaco chrome titles: native title bubbles persist
+          // on ArkWeb after the mouse leaves (issue #432). The bridge covers
+          // both inner editors of the diff container.
+          monacoChromeI18nDetachRef.current = attachMonacoChromeI18n(container, buildMonacoChromeStrings(tRef.current));
+
           diffEditor.setModel({
             original: originalModel,
             modified: modifiedModel,
@@ -241,7 +253,12 @@ export const MonacoDiffCore = forwardRef<MonacoDiffCoreRef, MonacoDiffCoreProps>
       
       return () => {
         isUnmountedRef.current = true;
-        
+
+        if (monacoChromeI18nDetachRef.current) {
+          monacoChromeI18nDetachRef.current.detach();
+          monacoChromeI18nDetachRef.current = null;
+        }
+
         onEditorWillDisposeRef.current?.();
         
         disposablesRef.current.forEach(d => d.dispose());
@@ -264,10 +281,18 @@ export const MonacoDiffCore = forwardRef<MonacoDiffCoreRef, MonacoDiffCoreProps>
         setIsReady(false);
       };
     }, [filePath, generateUri, registerEventListeners]);
-    
+
+    // Re-apply Monaco chrome localization when the UI language changes
+    // (issue #434: the find widget tooltips and fold hints must follow).
+    useEffect(() => {
+      if (monacoChromeI18nDetachRef.current) {
+        monacoChromeI18nDetachRef.current.update(buildMonacoChromeStrings(tRef.current));
+      }
+    }, [t]);
+
     useEffect(() => {
       if (!isReady) return;
-      
+
       if (originalModelRef.current && originalModelRef.current.getValue() !== originalContent) {
         originalModelRef.current.setValue(originalContent);
       }
