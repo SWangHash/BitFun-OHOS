@@ -29,13 +29,18 @@ const MIN_SMALL_IMAGE_DISPLAY_SIZE = 32;
 /** Matches the image wrapper's padding; the fit computation reserves it. */
 const IMAGE_VIEWER_PANE_PADDING = 20;
 
+function isQuarterTurnRotation(rotation: number): boolean {
+  return Math.abs(((rotation % 360) + 360) % 360) % 180 === 90;
+}
+
 /**
- * Zoom percentage that fits the image into the measured viewport without
- * upscaling beyond its natural (small-image adjusted) size. The default
- * display is a pane fit, not raw natural pixels: a 1920px screenshot in a
- * 400px sidebar otherwise overflows both axes (issue #391 follow-up).
+ * Scale factor that fits the (orientation-adjusted) image into the measured
+ * viewport without upscaling beyond its natural (small-image adjusted) size.
+ * The default display is a pane fit, not raw natural pixels: a 1920px
+ * screenshot in a 400px sidebar otherwise overflows both axes (issue #391
+ * follow-up). The toolbar percentage stays user-relative — 100% at fit.
  */
-export function computeFitZoom(
+function computeFitScale(
   dimensions: { width: number; height: number },
   displayScaleValue: number,
   container: { width: number; height: number },
@@ -45,10 +50,9 @@ export function computeFitZoom(
   const availableWidth = Math.max(0, container.width - IMAGE_VIEWER_PANE_PADDING * 2);
   const availableHeight = Math.max(0, container.height - IMAGE_VIEWER_PANE_PADDING * 2);
   if (availableWidth <= 0 || availableHeight <= 0 || naturalWidth <= 0 || naturalHeight <= 0) {
-    return 100;
+    return 1;
   }
-  const fit = Math.min(availableWidth / naturalWidth, availableHeight / naturalHeight, 1);
-  return Math.max(1, Math.round(fit * 100));
+  return Math.min(availableWidth / naturalWidth, availableHeight / naturalHeight, 1);
 }
 
 /**
@@ -100,7 +104,11 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
   // default fit-to-pane zoom.
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerSize, setContainerSize] = useState<{ width: number; height: number } | null>(null);
-  const manualZoomRef = useRef(false);
+  // Layout scale from the latest pane fit. The toolbar percentage is
+  // user-relative (100% at fit) and multiplies this factor; a manual zoom
+  // freezes the factor so pane resizes stop re-fitting.
+  const [fitScale, setFitScale] = useState(1);
+  const [isManualZoom, setIsManualZoom] = useState(false);
   const [loadedOrigin, setLoadedOrigin] = useState<{ filePath: string; imageSource: typeof imageSource; documentSession: typeof documentSession }>();
   const originCurrent = loadedOrigin?.filePath === filePath && loadedOrigin.imageSource === imageSource && loadedOrigin.documentSession === documentSession;
   const [fileSize, setFileSize] = useState<number>(0);
@@ -176,14 +184,11 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
       width: img.naturalWidth,
       height: img.naturalHeight
     });
-    const nextDisplayScale = getSmallImageDisplayScale(img.naturalWidth, img.naturalHeight);
-    setDisplayScale(nextDisplayScale);
-    // A fresh image restarts at the pane fit, not the previous zoom level.
-    manualZoomRef.current = false;
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      setZoom(computeFitZoom({ width: img.naturalWidth, height: img.naturalHeight }, nextDisplayScale, { width: rect.width, height: rect.height }));
-    }
+    setDisplayScale(getSmallImageDisplayScale(img.naturalWidth, img.naturalHeight));
+    // A fresh image restarts at the pane fit: the fit effect below recomputes
+    // the scale and the toolbar percentage stays at its 100% default.
+    setIsManualZoom(false);
+    setZoom(100);
   }, []);
 
   // Track the image viewport so the fit zoom follows pane resizes and the
@@ -204,13 +209,17 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
   }, [isFullscreen]);
 
   // Re-fit while the user has not zoomed manually (issue #391 follow-up).
+  // Rotation is part of the fit: after a quarter turn the effective box swaps,
+  // so the scale is recomputed for the new orientation.
   useEffect(() => {
-    if (manualZoomRef.current || !imageDimensions || !containerSize) {
+    if (isManualZoom || !imageDimensions || !containerSize) {
       return;
     }
-    const fitZoom = computeFitZoom(imageDimensions, displayScale, containerSize);
-    setZoom(prev => (prev === fitZoom ? prev : fitZoom));
-  }, [imageDimensions, displayScale, containerSize]);
+    const effectiveDimensions = isQuarterTurnRotation(rotation)
+      ? { width: imageDimensions.height, height: imageDimensions.width }
+      : imageDimensions;
+    setFitScale(computeFitScale(effectiveDimensions, displayScale, containerSize));
+  }, [imageDimensions, displayScale, containerSize, rotation, isManualZoom]);
 
   const handleImageError = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
     log.error('Image load error', { filePath, srcLength: e.currentTarget.src.length });
@@ -219,25 +228,22 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
   }, [filePath, t]);
 
   const handleZoomIn = useCallback(() => {
-    manualZoomRef.current = true;
+    setIsManualZoom(true);
     setZoom(prev => Math.min(prev + 25, 500));
   }, []);
 
   const handleZoomOut = useCallback(() => {
-    manualZoomRef.current = true;
+    setIsManualZoom(true);
     setZoom(prev => Math.max(prev - 25, 25));
   }, []);
 
   const handleZoomReset = useCallback(() => {
-    // Reset means "fit the pane" (the IDE default), not a bare 100% of the
-    // natural pixels — a 1920px screenshot in a 400px sidebar would overflow.
-    manualZoomRef.current = false;
-    if (imageDimensions && containerSize) {
-      setZoom(computeFitZoom(imageDimensions, displayScale, containerSize));
-      return;
-    }
+    // Reset means "fit the pane" (the IDE default): the fit effect above
+    // recomputes the scale for the current orientation once the manual flag
+    // clears, and the toolbar percentage returns to its 100% default.
+    setIsManualZoom(false);
     setZoom(100);
-  }, [imageDimensions, displayScale, containerSize]);
+  }, []);
 
   const handleRotate = useCallback(() => {
     // Keep the angle cumulative instead of wrapping at 360: the CSS rotate
@@ -296,14 +302,17 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
   // Fullscreen renders through a portal on document.body: the editor-area
   // ancestors apply transforms/stacking that would otherwise contain a
   // position:fixed overlay inside the pane instead of covering the window.
-  const normalizedRotation = ((rotation % 360) + 360) % 360;
-  const isQuarterTurn = normalizedRotation === 90 || normalizedRotation === 270;
+  const isQuarterTurn = isQuarterTurnRotation(rotation);
   // The layout box carries the zoom and quarter-turn dimensions: a rotated
   // image then exactly fills its layout box, so no phantom scrollable
   // whitespace rotates along with it and the height is never stretched
-  // (issue #391). Only the rotation itself stays a transform.
-  const zoomedWidth = imageDimensions ? imageDimensions.width * displayScale * (zoom / 100) : undefined;
-  const zoomedHeight = imageDimensions ? imageDimensions.height * displayScale * (zoom / 100) : undefined;
+  // (issue #391). Only the rotation itself stays a transform. The pane-fit
+  // factor is part of the base size; the toolbar percentage is relative to
+  // the fit (100% at default), not the natural pixels.
+  const baseWidth = imageDimensions ? imageDimensions.width * displayScale * fitScale : undefined;
+  const baseHeight = imageDimensions ? imageDimensions.height * displayScale * fitScale : undefined;
+  const zoomedWidth = baseWidth !== undefined ? baseWidth * (zoom / 100) : undefined;
+  const zoomedHeight = baseHeight !== undefined ? baseHeight * (zoom / 100) : undefined;
 
   const viewerNode = (
     <div
