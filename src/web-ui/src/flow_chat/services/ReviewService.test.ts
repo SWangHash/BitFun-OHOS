@@ -6,6 +6,7 @@ import zh from '@/locales/zh-CN/flow-chat.json';
 import tw from '@/locales/zh-TW/flow-chat.json';
 import { TauriCommandError } from '@/infrastructure/api/errors/TauriCommandError';
 import { resetGitTrustDecisions } from '@/shared/services/gitTrustService';
+import { getDeepReviewLaunchErrorMessage } from '../deep-review/launch/launchErrors';
 import type { ReviewTeamRunManifest } from '@/shared/services/reviewTeamService';
 import {
   launchPreparedReviewSession,
@@ -710,7 +711,7 @@ describe('ReviewService', () => {
     )).rejects.toThrow('There are no workspace changes to review.');
   });
 
-  it('blocks unresolved workspace evidence before spending reviewer capacity', async () => {
+  it.each([false, true])('blocks unresolved workspace evidence with the matching message (timeout: %s)', async (timedOut) => {
     const manifest = runManifest('normal');
     mocks.resolveSlashCommandReviewTarget.mockResolvedValue({
       target: {
@@ -725,12 +726,36 @@ describe('ReviewService', () => {
         completeness: 'unknown',
         workspaceBinding: 'unavailable',
         files: [],
-        limitations: ['review_target_unresolved'],
+        limitations: ['review_target_unresolved', ...(timedOut ? ['review_target_timeout'] : [])],
       },
     });
 
-    await expect(prepareReviewLaunchFromSlashCommand('/review focus on auth', 'workspace-1'))
-      .rejects.toThrow('files or code diff could not be read for Review');
+    const error = await prepareReviewLaunchFromSlashCommand('/review focus on auth', 'workspace-1')
+      .catch((error: unknown) => error);
+    expect(error).toMatchObject({
+      launchErrorMessageKey: timedOut ? 'error.timeout' : 'deepReviewActionBar.launchError.unresolvedTarget',
+    });
+    if (timedOut) {
+      const i18n = createInstance();
+      await i18n.init({
+        defaultNS: 'flow-chat',
+        resources: {
+          'en-US': { 'flow-chat': en },
+          'zh-CN': { 'flow-chat': zh },
+          'zh-TW': { 'flow-chat': tw },
+        },
+      });
+      for (const [locale, expected] of [
+        ['en-US', 'Request Timeout'],
+        ['zh-CN', '请求超时'],
+        ['zh-TW', '請求超時'],
+      ]) {
+        await i18n.changeLanguage(locale);
+        expect(getDeepReviewLaunchErrorMessage(error, (key, options) => i18n.t(key, options))).toBe(expected);
+      }
+    }
+    expect(mocks.createBtwChildSession).not.toHaveBeenCalled();
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
   });
 
   it('launches standard review as a read-only CodeReview child in the shared pane', async () => {
