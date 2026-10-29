@@ -819,13 +819,26 @@ describe('Deep Review target resolver', () => {
     ).rejects.toBe(untrusted);
   });
 
-  it('still degrades an ordinary Git failure into unknown evidence', async () => {
-    mockGitGetStatus.mockRejectedValue(new Error('Failed to get Git status: Permission denied'));
+  it.each([
+    ['Failed to get Git status: Permission denied', false],
+    ['Failed to get Git status: Git command failed: Git status timed out after 10s', true],
+    ['Request timeout', true],
+  ])('keeps failed evidence unavailable and distinguishes timeout: %s', async (message, timedOut) => {
+    mockGitGetStatus.mockRejectedValue(new Error(message));
 
     const target = classifyReviewTargetFromFiles(['src/lib.rs'], 'session_files');
-    const snapshot = await resolveCurrentFileReviewSnapshot({ workspaceId: 'review-workspace', repositoryPath: '/workspace' }, target);
+    const workspace = { workspaceId: 'review-workspace', repositoryPath: '/workspace' };
+    const snapshot = await resolveCurrentFileReviewSnapshot(workspace, target);
 
     expect(snapshot.targetEvidence.limitations).toContain('file_scope_target_evidence_failed');
+    for (const result of [
+      snapshot,
+      await resolveSlashCommandReviewTarget('', workspace),
+      await resolveSlashCommandReviewTarget('src/lib.rs', workspace),
+    ]) {
+      expect(result.targetEvidence.completeness).toBe('unknown');
+      expect(result.targetEvidence.limitations.includes('review_target_timeout')).toBe(timedOut);
+    }
   });
 
   it('preserves repository discovery failures from session files and slash commands', async () => {

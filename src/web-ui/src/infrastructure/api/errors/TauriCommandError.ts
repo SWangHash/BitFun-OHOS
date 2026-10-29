@@ -109,8 +109,8 @@ const GIT_REPOSITORY_UNTRUSTED_PREFIX = 'git_repository_untrusted:';
 const GIT_UNAVAILABLE_PREFIX = 'git_unavailable:';
 const REVIEW_PLATFORM_ERROR_PREFIX = 'review_platform_error:';
 
-/** Returns the payload carried after a stable error prefix, if present. */
-function stableErrorPayload(error: unknown, prefix: string): string | undefined {
+/** Finds matching error text through the supported transport wrappers. */
+function findErrorText(error: unknown, matches: (text: string) => boolean): string | undefined {
   const pending: unknown[] = [error];
   const seen = new Set<object>();
 
@@ -122,7 +122,7 @@ function stableErrorPayload(error: unknown, prefix: string): string | undefined 
     const current = pending.shift();
     if (typeof current === 'string') {
       const trimmed = current.trimStart();
-      if (trimmed.startsWith(prefix)) return trimmed.slice(prefix.length).trim();
+      if (matches(trimmed)) return trimmed;
       continue;
     }
     if (!current || typeof current !== 'object' || seen.has(current)) continue;
@@ -149,6 +149,18 @@ function stableErrorPayload(error: unknown, prefix: string): string | undefined 
   }
 
   return undefined;
+}
+
+/** Returns the payload carried after a stable error prefix, if present. */
+function stableErrorPayload(error: unknown, prefix: string): string | undefined {
+  return findErrorText(error, (text) => text.startsWith(prefix))?.slice(prefix.length).trim();
+}
+
+/** Recognizes timeout messages returned by the host or request transport. */
+export function isCommandTimeoutError(error: unknown): boolean {
+  return findErrorText(error, (text) =>
+    /(?:^|\s)(?:request timeout|timed out)(?=$|[\s:])/i.test(text)
+  ) !== undefined;
 }
 
 function hasStableErrorPrefix(error: unknown, prefix: string): boolean {

@@ -1,6 +1,7 @@
 import type { GitWorkspaceScope } from '@/infrastructure/api/service-api/GitAPI';
 import { gitAPI, globalAPI, systemAPI, workspaceAPI } from '@/infrastructure/api';
 import {
+  isCommandTimeoutError,
   isGitRepositoryNotFoundError,
   isGitRepositoryUntrustedError,
 } from '@/infrastructure/api/errors/TauriCommandError';
@@ -101,6 +102,18 @@ export function buildUnknownChangeStats(
     fileCount: countReviewTargetFiles(target),
     lineCountSource: 'unknown',
   };
+}
+
+function buildFailedReviewTargetEvidence(
+  target: ReviewTargetClassification,
+  limitation: string,
+  error: unknown,
+): ReviewTargetEvidence {
+  const evidence = buildUnknownReviewTargetEvidence(target, limitation);
+  if (isCommandTimeoutError(error)) {
+    evidence.limitations.push('review_target_timeout');
+  }
+  return evidence;
 }
 
 export function countChangedLinesFromUnifiedDiff(diff: string): number | undefined {
@@ -573,9 +586,10 @@ export async function resolveCurrentFileReviewSnapshot(
     return {
       target: workspaceTarget,
       changeStats: buildUnknownChangeStats(workspaceTarget),
-      targetEvidence: buildUnknownReviewTargetEvidence(
+      targetEvidence: buildFailedReviewTargetEvidence(
         workspaceTarget,
         'file_scope_target_evidence_failed',
+        error,
       ),
     };
   }
@@ -814,9 +828,10 @@ export async function resolveSlashCommandReviewTarget(
       return {
         target,
         changeStats: buildUnknownChangeStats(target),
-        targetEvidence: buildUnknownReviewTargetEvidence(
+        targetEvidence: buildFailedReviewTargetEvidence(
           target,
           'file_scope_target_evidence_failed',
+          error,
         ),
       };
     }
@@ -920,9 +935,10 @@ export async function resolveSlashCommandReviewTarget(
       return {
         target,
         changeStats: buildUnknownChangeStats(target),
-        targetEvidence: buildUnknownReviewTargetEvidence(
+        targetEvidence: buildFailedReviewTargetEvidence(
           target,
           'git_range_resolution_failed',
+          error,
         ),
       };
     }
@@ -940,6 +956,7 @@ export async function resolveSlashCommandReviewTarget(
     };
   }
 
+  let resolutionError: unknown;
   if (workspacePath) {
     try {
       const status = await gitAPI.getStatus(workspace!, 'deep_review_target_resolver');
@@ -960,6 +977,7 @@ export async function resolveSlashCommandReviewTarget(
       };
     } catch (error) {
       rethrowActionableGitError(error);
+      resolutionError = error;
       log.warn('Failed to resolve workspace diff for Deep Review target', {
         workspacePath,
         error,
@@ -973,9 +991,10 @@ export async function resolveSlashCommandReviewTarget(
   return {
     target,
     changeStats: buildUnknownChangeStats(target),
-    targetEvidence: buildUnknownReviewTargetEvidence(
+    targetEvidence: buildFailedReviewTargetEvidence(
       target,
       'review_target_unresolved',
+      resolutionError,
     ),
   };
 }
