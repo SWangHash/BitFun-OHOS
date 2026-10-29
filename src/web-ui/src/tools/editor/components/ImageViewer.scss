@@ -96,6 +96,12 @@
   &__image {
     display: block;
     flex-shrink: 0;
+    // The layout box carries zoom and rotation sizing. The global
+    // `img { max-width: 100% }` base rule would clamp the width while the
+    // explicit height keeps growing, stretching the image along Y
+    // (issue #391 follow-up); the viewer owns its sizing exclusively.
+    max-width: none;
+    max-height: none;
     transition: transform 0.2s ease-out;
     box-shadow: 0 4px 20px color-mix(in srgb, var(--bitfun-color-content-on-light) 80%, transparent);
   }
