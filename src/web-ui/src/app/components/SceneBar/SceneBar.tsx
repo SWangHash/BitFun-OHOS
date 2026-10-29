@@ -188,10 +188,18 @@ const SceneBar: React.FC<SceneBarProps> = ({
     const displayLabel = sessionLabel?.title || translatedLabel;
     const closeLabel = t('sceneBar.closeTab', { label: sessionLabel?.number ? `${displayLabel} ${sessionLabel.number}` : displayLabel });
     const closable = isSceneTabClosable(def);
+    // Non-stacking path tooltip (issue #400 follow-up): bound to the label
+    // text slot only, so hovering the close action still surfaces exactly one
+    // tooltip — the close action's own "close <label>".
+    const resource = tab.contentId ? resources[tab.contentId] : undefined;
+    const labelTooltip = resource?.target.kind === 'file'
+      ? [resource.scope.surfaceId, resource.scope.remoteConnectionId, resource.target.path].filter(Boolean).join(' · ')
+      : undefined;
 
     items.push({
       value: tab.id,
       label: displayLabel,
+      labelTooltip,
       tabProps: { 'data-testid': `scene-tab-${tab.id}` },
       labelSuffix: sessionLabel?.number || tab.pinned || (tab.contentId && (resources[tab.contentId]?.isDirty || resources[tab.contentId]?.fileMissing)) ? <>
         {sessionLabel?.number && <SessionTitleNumber number={sessionLabel.number} />}
@@ -280,9 +288,9 @@ const SceneBar: React.FC<SceneBarProps> = ({
           items={tabItems}
           renderItem={(item, node) => {
             const tabId = item.value as SceneTabId;
-            // No native title here: a scoped path tooltip on the tab body
-            // stacked with the close button's own tooltip (issue #400). The
-            // close action's "close <label>" title is the single tab tooltip.
+            // The wrapper carries no native title: the scoped path tooltip
+            // lives on the label text slot instead, so it never stacks with
+            // the close action's own tooltip (issue #400 follow-up).
             return <div className="bitfun-scene-bar__item" draggable
               data-scene-tab-id={tabId}
               data-canvas-drop-position={activeCanvasDrop?.target?.tabId === tabId ? activeCanvasDrop.target.placement : undefined}

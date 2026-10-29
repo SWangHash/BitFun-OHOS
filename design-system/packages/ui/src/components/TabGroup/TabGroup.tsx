@@ -19,6 +19,9 @@ export interface TabGroupItem {
   icon?: ReactNode;
   id?: string;
   label: ReactNode;
+  /** Tooltip text for the label text slot (e.g. a full file path). Bound to
+   * the label only, so end actions keep their own single tooltip. */
+  labelTooltip?: string;
   /** Non-interactive identity or metadata that stays outside label overflow. */
   labelSuffix?: ReactNode;
   /** Opt plain text into vertical replacement without remounting the tab. */
@@ -184,7 +187,12 @@ export const TabGroup = forwardRef<HTMLDivElement, TabGroupProps>(function TabGr
                   {item.label}
                 </RollingText>
               ) : (
-                <OverflowText behavior="marquee" className={styles.label} data-bitfun-part="label">
+                <OverflowText
+                  behavior="marquee"
+                  className={styles.label}
+                  data-bitfun-part="label"
+                  title={item.labelTooltip}
+                >
                   {item.label}
                 </OverflowText>
               )}
