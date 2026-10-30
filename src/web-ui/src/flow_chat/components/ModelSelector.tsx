@@ -1101,13 +1101,17 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
       const anchorRect = anchor.getBoundingClientRect();
       const submenuRect = submenu.getBoundingClientRect();
-      const submenuWidth = submenuRect.width
-        || submenu.offsetWidth
+      // Measure with transform-independent layout metrics: a freshly mounted
+      // submenu is still inside its @starting-style enter animation
+      // (scale(0.98)), so getBoundingClientRect() reports a shrunk box on
+      // the first frame and the left placement (parentLeft - GAP - width)
+      // would eat the design gap and overlap the parent menu. offsetWidth /
+      // offsetHeight never include transforms — the same guard the
+      // first-level dropdown measurement below already uses.
+      const submenuWidth = Math.max(submenuRect.width, submenu.offsetWidth)
         || submenu.scrollWidth
         || NATIVE_SUBMENU_FALLBACK_WIDTH;
-      const submenuHeight = submenuRect.height
-        || submenu.offsetHeight
-        || submenu.scrollHeight
+      const submenuHeight = Math.max(submenuRect.height, submenu.offsetHeight)
         || NATIVE_SUBMENU_FALLBACK_HEIGHT;
 
       if (directModelMenu) {
