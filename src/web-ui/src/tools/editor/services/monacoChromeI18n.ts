@@ -116,20 +116,25 @@ function isChromeHintText(text: string, strings: MonacoChromeStrings): boolean {
  * Monaco renders managed-hover widgets at the body level, outside the editor
  * container, so the capture-phase block on the container cannot cover every
  * trigger path — and a widget that already showed stays visible on ArkWeb
- * (issue #432). This watcher removes chrome hint hover widgets before they
+ * (issue #432). This watcher hides chrome hint hover widgets before they
  * paint: an added node is inspected only when it is a Monaco hover widget or
  * its context-view wrapper (cheap class check), and only exact chrome hint
- * texts are dropped.
+ * texts are hidden. The wrapper is hidden, not removed: Monaco owns that
+ * `.context-view` node for the editor's lifetime and reuses it for every
+ * context view (content hovers, context menus), so detaching it would leave
+ * Monaco rendering into a detached node and silence all of them. Monaco's
+ * own show() un-hides the wrapper for the next delegate.
  */
 function attachChromeHintHoverRemover(strings: () => MonacoChromeStrings): () => void {
-  const dropChromeHover = (hover: Element): void => {
+  const hideChromeHover = (hover: Element): void => {
     if (!isChromeHintText(hover.textContent ?? '', strings())) return;
-    const host = hover.closest<HTMLElement>('.context-view') ?? hover;
-    host.remove();
+    const target = hover.closest<HTMLElement>('.context-view') ?? (hover instanceof HTMLElement ? hover : null);
+    if (!target) return;
+    target.style.display = 'none';
   };
 
   const sweepExisting = (): void => {
-    document.querySelectorAll<HTMLElement>('.monaco-hover').forEach(dropChromeHover);
+    document.querySelectorAll<HTMLElement>('.monaco-hover').forEach(hideChromeHover);
   };
 
   const observer = new MutationObserver(mutations => {
@@ -139,7 +144,7 @@ function attachChromeHintHoverRemover(strings: () => MonacoChromeStrings): () =>
         const isHoverNode = node.classList.contains('monaco-hover');
         if (!isHoverNode && !node.classList.contains('context-view')) continue;
         const hover = isHoverNode ? node : node.querySelector<HTMLElement>('.monaco-hover');
-        if (hover) dropChromeHover(hover);
+        if (hover) hideChromeHover(hover);
       }
     }
   });
