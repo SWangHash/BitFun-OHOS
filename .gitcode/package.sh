@@ -73,6 +73,47 @@ if [ "$WITH_APP" = "1" ]; then
   [ -f /root/package-tools/cer-app.snippet ] || { echo "错误: cer-app.snippet 不存在（-a 需要 .app 签名材料）"; exit 1; }
   sed -i '/"signingConfigs": \[/r /root/package-tools/cer-app.snippet' "$workpath/$repo_dir/src/apps/ohos/build-profile.json5"
 fi
+
+# 注入结果必须在昂贵构建前校验：signingConfigs 内名称必须唯一，default
+# 恒需存在，-a 时 release 也必须存在。宿主 snippet 的 name 与约定不符时
+# （例如 cer-app.snippet 也写成 default），hvigor 要到三十多分钟构建后才
+# 报 Duplicated signingConfigs，这里在克隆后数秒内失败并打印签名区块。
+OHOS_PROFILE="$workpath/$repo_dir/src/apps/ohos/build-profile.json5"
+# 按括号深度计数提取 signingConfigs 区块：不依赖缩进宽度、也不依赖收尾
+# 是否带逗号；区块未闭合（扫到文件尾深度未归零）或锚点缺失时 awk 以非零
+# 退出，绝不用越界扫描到的 products/modules 名称做重名或缺失判断。
+signing_block="$(awk '
+  /"signingConfigs": \[/ { found = 1 }
+  found {
+    print
+    depth += gsub(/\[/, "")
+    depth -= gsub(/\]/, "")
+    if (depth <= 0) exit
+  }
+  END { if (!found || depth > 0) exit 1 }
+' "$OHOS_PROFILE")" || {
+  echo "错误: 未能完整解析 signingConfigs 区块（$OHOS_PROFILE 的锚点缺失或区块未闭合）。" >&2
+  exit 1
+}
+signing_names="$(printf '%s\n' "$signing_block" | grep -o '"name": "[^"]*"' || true)"
+duplicate_names="$(printf '%s\n' "$signing_names" | sort | uniq -d | tr -d '"' | tr '\n' ' ' || true)"
+if [ -n "$duplicate_names" ]; then
+  echo "错误: build-profile.json5 的 signingConfigs 重名（$duplicate_names）。" >&2
+  echo "请检查宿主 /root/package-tools/cer.snippet（应为 name: default）与 cer-app.snippet（应为 name: release）。" >&2
+  printf '%s\n' "$signing_block" >&2
+  exit 1
+fi
+printf '%s\n' "$signing_names" | grep -q '"name": "default"' || {
+  echo "错误: signingConfigs 中缺少 name: default（cer.snippet 注入未生效？）" >&2
+  exit 1
+}
+if [ "$WITH_APP" = "1" ]; then
+  printf '%s\n' "$signing_names" | grep -q '"name": "release"' || {
+    echo "错误: -a 模式下 signingConfigs 中缺少 name: release（cer-app.snippet 的 name 不是 release？）" >&2
+    printf '%s\n' "$signing_block" >&2
+    exit 1
+  }
+fi
 pnpm install
 # 前端构建按分支结构自适应：含 design-system 的分支（如 release/2.0.0）
 # 需要先构建设计系统包、再准备插件宿主，最后单独构建 mobile-web

@@ -68,6 +68,10 @@ else
   echo "[OK] $APP assembled and ad-hoc signed (set BITFUN_SIGN_IDENTITY + BITFUN_NOTARY_PROFILE for Developer ID signing)."
 fi
 
+if [ -z "$IDENTITY" ] && [ -n "$NOTARY_PROFILE" ]; then
+  echo "[!] BITFUN_NOTARY_PROFILE is set but BITFUN_SIGN_IDENTITY is empty: no Developer ID signing, so nothing is notarized." >&2
+fi
+
 if [ -n "$IDENTITY" ] && [ -n "$NOTARY_PROFILE" ]; then
   # Notarize the app itself (zipped) so the ticket stays with the app after
   # users drag it out of the mounted image. --wait blocks until Apple
