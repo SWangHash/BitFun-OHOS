@@ -82,6 +82,72 @@ const HOVER_TARGET_SELECTOR =
 
 const TOOLTIP_STYLE_ID = 'bitfun-editor-chrome-tooltip-style';
 
+/**
+ * Chrome hint texts whose Monaco managed-hover widget must never become
+ * visible: the localized labels plus the English NLS originals the buttons
+ * were constructed with. Editor content hovers (diagnostics, markdown) carry
+ * different text and stay untouched.
+ */
+function isChromeHintText(text: string, strings: MonacoChromeStrings): boolean {
+  const normalized = text.trim();
+  if (!normalized) return false;
+  const localized = [
+    strings.find,
+    strings.replace,
+    strings.replaceAll,
+    strings.toggleReplace,
+    strings.previousMatch,
+    strings.nextMatch,
+    strings.findInSelection,
+    strings.matchCase,
+    strings.matchWholeWord,
+    strings.useRegularExpression,
+    strings.preserveCase,
+    strings.close,
+    strings.noResults,
+    strings.expandRange,
+    strings.collapseRange,
+  ];
+  if (localized.includes(normalized)) return true;
+  return REPLACEMENT_RULES.some(rule => rule.english === normalized);
+}
+
+/**
+ * Monaco renders managed-hover widgets at the body level, outside the editor
+ * container, so the capture-phase block on the container cannot cover every
+ * trigger path — and a widget that already showed stays visible on ArkWeb
+ * (issue #432). This watcher removes chrome hint hover widgets before they
+ * paint: an added node is inspected only when it is a Monaco hover widget or
+ * its context-view wrapper (cheap class check), and only exact chrome hint
+ * texts are dropped.
+ */
+function attachChromeHintHoverRemover(strings: () => MonacoChromeStrings): () => void {
+  const dropChromeHover = (hover: Element): void => {
+    if (!isChromeHintText(hover.textContent ?? '', strings())) return;
+    const host = hover.closest<HTMLElement>('.context-view') ?? hover;
+    host.remove();
+  };
+
+  const sweepExisting = (): void => {
+    document.querySelectorAll<HTMLElement>('.monaco-hover').forEach(dropChromeHover);
+  };
+
+  const observer = new MutationObserver(mutations => {
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) {
+        if (!(node instanceof HTMLElement)) continue;
+        const isHoverNode = node.classList.contains('monaco-hover');
+        if (!isHoverNode && !node.classList.contains('context-view')) continue;
+        const hover = isHoverNode ? node : node.querySelector<HTMLElement>('.monaco-hover');
+        if (hover) dropChromeHover(hover);
+      }
+    }
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+  sweepExisting();
+  return () => observer.disconnect();
+}
+
 function ensureTooltipStyle(): void {
   if (typeof document === 'undefined' || document.getElementById(TOOLTIP_STYLE_ID)) {
     return;
@@ -184,6 +250,7 @@ export interface MonacoChromeI18nHandle {
 export function attachMonacoChromeI18n(container: HTMLElement, initialStrings: MonacoChromeStrings): MonacoChromeI18nHandle {
   let currentStrings = initialStrings;
   const detachHoverLayer = attachChromeHoverLayer(container);
+  const detachHintRemover = attachChromeHintHoverRemover(() => currentStrings);
 
   const localizeAttributes = (element: HTMLElement): void => {
     for (const attribute of ATTRIBUTES_TO_LOCALIZE) {
@@ -270,6 +337,7 @@ export function attachMonacoChromeI18n(container: HTMLElement, initialStrings: M
     detach: () => {
       observer.disconnect();
       detachHoverLayer();
+      detachHintRemover();
     },
     // Re-applies all localized strings with a new translation set (e.g. after
     // the user switches the UI language). Called from CodeEditor when the
