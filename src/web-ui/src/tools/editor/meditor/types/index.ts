@@ -83,6 +83,11 @@ export interface EditorOptions {
    * Used to resolve relative image paths.
    */
   basePath?: string
+  /**
+   * Workspace root of the Markdown document.
+   * Fallback anchor for workspace-root-relative links (issue #376).
+   */
+  workspacePath?: string
   /** Render preview in bounded chunks for large Markdown documents. */
   progressivePreview?: boolean
 }

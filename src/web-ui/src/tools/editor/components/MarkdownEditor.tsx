@@ -803,6 +803,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
           toolbar={false}
           filePath={filePath}
           basePath={basePath}
+          workspacePath={workspacePath}
         />
       </div>
     </div>

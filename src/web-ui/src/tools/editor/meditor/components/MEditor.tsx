@@ -239,7 +239,8 @@ const MEditorInner = forwardRef<EditorInstance, MEditorProps>((props, ref) => {
     className = '',
     style = {},
     filePath,
-    basePath
+    basePath,
+    workspacePath
   } = props
 
   const { t } = useI18n('tools')
@@ -458,6 +459,7 @@ const MEditorInner = forwardRef<EditorInstance, MEditorProps>((props, ref) => {
               autofocus={autofocus}
               filePath={filePath}
               basePath={basePath}
+              workspacePath={workspacePath}
             />
           </div>
         )}

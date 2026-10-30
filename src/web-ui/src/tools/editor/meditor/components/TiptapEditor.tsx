@@ -23,11 +23,12 @@ import { useI18n } from '@/infrastructure/i18n';
 import { editorAiAPI } from '@/infrastructure/api/service-api/EditorAiAPI';
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
 import { openFileInBestTarget } from '@/shared/utils/tabUtils';
-import path from 'path-browserify';
 import { notificationService } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
 import { getMotionAwareScrollBehavior } from '@/shared/utils/motionPreference';
 import { activeEditTargetService } from '@/tools/editor/services/ActiveEditTargetService';
+import { workspaceAPI } from '@/infrastructure/api';
+import { resolveMarkdownLinkCandidates } from '../utils/markdownLinks';
 import { MarkdownAlignmentExtension } from '../extensions/MarkdownAlignmentExtension';
 import { BlockIdExtension } from '../extensions/BlockIdExtension';
 import { SoftBreakExtension } from '../extensions/SoftBreakExtension';
@@ -82,6 +83,16 @@ interface TiptapEditorProps {
   onDirtyChange?: (isDirty: boolean) => void;
   filePath?: string;
   basePath?: string;
+  workspacePath?: string;
+}
+
+async function markdownLinkTargetExists(target: string, remoteConnectionId?: string): Promise<boolean> {
+  try {
+    await workspaceAPI.getFileMetadata(target, remoteConnectionId);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function executeContentEditableAction(action: 'copy' | 'cut'): boolean {
@@ -404,6 +415,7 @@ export const TiptapEditor = React.forwardRef<TiptapEditorHandle, TiptapEditorPro
   onDirtyChange,
   filePath,
   basePath,
+  workspacePath,
 }, ref) => {
   const fileAccess = useResourceFileAccess();
   const { t } = useI18n('tools');
@@ -656,11 +668,26 @@ export const TiptapEditor = React.forwardRef<TiptapEditorHandle, TiptapEditorPro
           void systemAPI.openExternal(href).catch(() => undefined);
           return true;
         }
-        // Relative or absolute file path (e.g. `./README.zh-CN.md`):
-        // resolve against the current file's directory and open in editor.
+        // Relative or absolute file path (e.g. `./README.zh-CN.md`): resolve
+        // against the current file's directory and open in editor. When the
+        // document-relative target misses, fall back to the workspace root —
+        // markdown authors often write root-relative links like
+        // `src/xxx/xxx.md` from documents deep in the tree (issue #376).
         if (filePath) {
-          const resolved = path.resolve(path.dirname(filePath), href);
-          openFileInBestTarget({ filePath: resolved });
+          const candidates = resolveMarkdownLinkCandidates(filePath, href, workspacePath);
+          if (candidates.length === 0) {
+            return false;
+          }
+          const remoteConnectionId = fileAccess?.scope.remoteConnectionId;
+          void (async () => {
+            for (const candidate of candidates) {
+              if (await markdownLinkTargetExists(candidate, remoteConnectionId)) {
+                openFileInBestTarget({ filePath: candidate });
+                return;
+              }
+            }
+            openFileInBestTarget({ filePath: candidates[0] });
+          })();
           return true;
         }
         return false;
