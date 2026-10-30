@@ -7,9 +7,8 @@ import { useEditorDocument } from '../services/EditorDocument';
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { ZoomIn, ZoomOut, RotateCw, Maximize2, Minimize2 } from 'lucide-react';
-import { OverflowText, Button, Icon, IconButton, Toolbar, ToolbarGroup, ToolbarSeparator, Tooltip } from '@bitfun/ui';
+import { OverflowText, Button, Icon, IconButton, Toolbar, ToolbarGroup, ToolbarSeparator, Tooltip, createOverlayPortal } from '@bitfun/ui';
 import { createLogger } from '@/shared/utils/logger';
 import { useNotification } from '@/shared/notification-system';
 
@@ -100,6 +99,9 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
   const [displayScale, setDisplayScale] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // Fullscreen surface root: handed to the overlay coordinator so tooltips
+  // opened from the toolbar rank above this layer (issue #390 follow-up).
+  const viewerRootRef = useRef<HTMLDivElement | null>(null);
   // Measured image viewport (sidebar pane, canvas, fullscreen) driving the
   // default fit-to-pane zoom.
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -325,6 +327,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
 
   const viewerNode = (
     <div
+      ref={viewerRootRef}
       className={`bitfun-image-viewer ${className} ${isFullscreen ? 'fullscreen' : ''}`}
       data-bitfun-component="image-viewer"
       data-bitfun-part="root"
@@ -477,7 +480,16 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
   );
 
   if (isFullscreen && typeof document !== 'undefined') {
-    return createPortal(viewerNode, getAppearanceOverlayHost());
+    // Join the document overlay coordinator instead of a bare portal: a raw
+    // host child with a positive z-index paints above every coordinator layer
+    // (they stack by open order with no z-index), which swallowed the toolbar
+    // tooltips in fullscreen (issue #390 follow-up). As a registered modal
+    // layer, later-opened tooltips rank above this surface, and Escape exits.
+    return createOverlayPortal(viewerNode, getAppearanceOverlayHost(), null, {
+      modal: true,
+      surfaceRef: viewerRootRef,
+      onDismiss: handleToggleFullscreen,
+    });
   }
   return viewerNode;
 };

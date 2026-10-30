@@ -23,6 +23,7 @@ vi.mock('@bitfun/ui', () => ({
   ToolbarGroup: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
   ToolbarSeparator: () => null,
   Tooltip: ({ children }: React.PropsWithChildren) => <>{children}</>,
+  createOverlayPortal: (node: React.ReactNode) => node,
 }));
 let root: Root;
 let container: HTMLDivElement;
