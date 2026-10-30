@@ -122,11 +122,21 @@ export type AppEvent =
   | { type: 'tab:selected'; payload: { tabId: string } }
   | { type: 'error:occurred'; payload: { error: string } };
 
+// Layout update options
+export interface LayoutUpdateOptions {
+  /**
+   * Persist panel sizes as the user's remembered layout. Automatic fits to the
+   * current window size must pass `false` so a temporarily narrow container
+   * cannot overwrite the width the user actually chose.
+   */
+  persistPanelSizes?: boolean;
+}
+
 // App manager interface
 export interface IAppManager {
   // State management
   getState(): AppState;
-  updateLayout(layout: Partial<LayoutState>): void;
+  updateLayout(layout: Partial<LayoutState>, options?: LayoutUpdateOptions): void;
   
   // Agent management - selectAgent removed in simplified flow
   updateAgentConfig(agentId: string, config: Partial<AgentConfig>): Promise<void>;

@@ -17,9 +17,12 @@ import ChatPane from './ChatPane';
 import AuxPane, { type AuxPaneRef } from './AuxPane';
 import BottomTerminalPane from './BottomTerminalPane';
 import {
+  applySessionAuxPaneWidth,
+  clampRightPanelPreferredWidth,
   collapseSessionBottomTerminalPane,
   expandSessionAuxPane,
   expandSessionBottomTerminalPane,
+  fitRightPanelWidth,
 } from './sessionPanelLayout';
 import {
   getCachedTerminalPanelPosition,
@@ -60,13 +63,13 @@ const SessionScene: React.FC<SessionSceneProps> = ({
   const { t } = useTranslation('flow-chat');
   const {
     state,
-    updateRightPanelWidth,
     toggleRightPanel,
     updateBottomTerminalPanelHeight,
   } = useApp();
   const auxPaneRef = useRef<AuxPaneRef>(null);
 
   const [isDraggingRight, setIsDraggingRight] = useState(false);
+  const isDraggingRightRef = useRef(false);
   const [isDraggingBottom, setIsDraggingBottom] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
   const [isHoveringBottom, setIsHoveringBottom] = useState(false);
@@ -76,7 +79,10 @@ const SessionScene: React.FC<SessionSceneProps> = ({
     getCachedTerminalPanelPosition(),
   );
 
-  const [, setLastRightWidth] = useState<number>(() =>
+  // Width the user chose for the right panel. It is the single source of truth
+  // across window resizes: the rendered width is this value fitted into the
+  // current scene box, so a maximize/restore cycle cannot lose it.
+  const [preferredRightWidth, setPreferredRightWidth] = useState<number>(() =>
     loadPanelWidth(STORAGE_KEYS.RIGHT_PANEL_LAST_WIDTH, RIGHT_PANEL_CONFIG.COMFORTABLE_DEFAULT)
   );
 
@@ -156,17 +162,11 @@ const SessionScene: React.FC<SessionSceneProps> = ({
     }
   }, [state.layout.chatCollapsed, state.layout.rightPanelCollapsed]);
 
-  const calculateValidRightWidth = useCallback((newWidth: number): number => {
-    if (!containerRef.current) return newWidth;
-    const containerWidth = containerRef.current.offsetWidth;
-    // When the container hasn't been laid out yet (e.g. window just restored from
-    // minimize), offsetWidth may be 0. Bail early to avoid clamping to a tiny value.
-    if (containerWidth <= 0) return newWidth;
-    // NavPanel (240px) is outside SessionScene — only account for resizer + min chat width
-    const reserved = PANEL_COMMON_CONFIG.RESIZER_WIDTH + PANEL_COMMON_CONFIG.MIN_CENTER_WIDTH;
-    const dynamicMax = containerWidth - reserved;
-    const maxWidth = Math.min(RIGHT_PANEL_CONFIG.MAX_WIDTH, dynamicMax);
-    return Math.min(maxWidth, Math.max(RIGHT_PANEL_CONFIG.COMPACT_WIDTH, newWidth));
+  const calculateValidRightWidth = useCallback((desiredWidth: number): number => {
+    // A scene box that is not laid out yet (offsetWidth 0, e.g. window restored
+    // from minimize) keeps the remembered width instead of clamping it away.
+    if (!containerRef.current) return clampRightPanelPreferredWidth(desiredWidth);
+    return fitRightPanelWidth(desiredWidth, containerRef.current.offsetWidth);
   }, []);
 
   const calculateValidBottomHeight = useCallback((newHeight: number): number => {
@@ -179,11 +179,81 @@ const SessionScene: React.FC<SessionSceneProps> = ({
     return Math.min(maxHeight, Math.max(BOTTOM_TERMINAL_PANEL_CONFIG.COMPACT_WIDTH, newHeight));
   }, []);
 
-  const saveAndUpdateRightWidth = useCallback((width: number) => {
-    updateRightPanelWidth(width);
-    setLastRightWidth(width);
-    savePanelWidth(STORAGE_KEYS.RIGHT_PANEL_LAST_WIDTH, width);
-  }, [updateRightPanelWidth]);
+  /**
+   * Write the rendered width straight to the pane element. Drags use this so a
+   * live resize does not re-render the panel subtree on every frame.
+   */
+  const setAuxPaneRenderedWidth = useCallback((width: number): boolean => {
+    const element = auxPaneElementRef.current;
+    if (!element || state.layout.rightPanelCollapsed || state.layout.chatCollapsed) return false;
+    element.style.width = `${width}px`;
+    return true;
+  }, [state.layout.chatCollapsed, state.layout.rightPanelCollapsed]);
+
+  /**
+   * Apply a fitted width to state and to the pane. The direct write also covers
+   * a fit that matches the current state (a drag that snapped back), where
+   * React would not touch the DOM again.
+   */
+  const applyFittedRightWidth = useCallback((fitted: number) => {
+    applySessionAuxPaneWidth(fitted);
+    setAuxPaneRenderedWidth(fitted);
+  }, [setAuxPaneRenderedWidth]);
+
+  /** Remember the width the user just chose, then render it fitted. */
+  const commitRightPanelWidth = useCallback((width: number) => {
+    const preferred = clampRightPanelPreferredWidth(width);
+    setPreferredRightWidth(preferred);
+    savePanelWidth(STORAGE_KEYS.RIGHT_PANEL_LAST_WIDTH, preferred);
+    applyFittedRightWidth(fitRightPanelWidth(preferred, containerRef.current?.offsetWidth ?? 0));
+  }, [applyFittedRightWidth]);
+
+  // Re-derive the rendered width from the remembered width whenever the scene
+  // box or the remembered width changes. Fitting never overwrites the
+  // remembered width, so a temporarily narrow container is reversible.
+  const fitRightPanelWidthToContainer = useCallback(() => {
+    if (state.layout.rightPanelCollapsed || state.layout.chatCollapsed) return;
+    if (isDraggingRightRef.current) return;
+    applyFittedRightWidth(
+      fitRightPanelWidth(preferredRightWidth, containerRef.current?.offsetWidth ?? 0),
+    );
+  }, [
+    applyFittedRightWidth,
+    preferredRightWidth,
+    state.layout.chatCollapsed,
+    state.layout.rightPanelCollapsed,
+  ]);
+
+  const fitRightPanelWidthRef = useRef(fitRightPanelWidthToContainer);
+
+  useEffect(() => {
+    fitRightPanelWidthRef.current = fitRightPanelWidthToContainer;
+  });
+
+  useEffect(() => {
+    fitRightPanelWidthToContainer();
+  }, [fitRightPanelWidthToContainer]);
+
+  // Observe the scene box itself: window maximize/restore and nav changes both
+  // land here after layout settles, which is what the fit needs to measure.
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node || typeof ResizeObserver === 'undefined') return undefined;
+    let frame = 0;
+    const scheduleFit = () => {
+      if (frame) cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        fitRightPanelWidthRef.current();
+      });
+    };
+    const observer = new ResizeObserver(scheduleFit);
+    observer.observe(node);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, []);
 
   const saveAndUpdateBottomHeight = useCallback((height: number) => {
     updateBottomTerminalPanelHeight(height);
@@ -192,9 +262,8 @@ const SessionScene: React.FC<SessionSceneProps> = ({
 
   const handleDoubleClick = useCallback(() => {
     const nextMode = getNextMode(rightPanelMode);
-    const targetWidth = getModeWidth(nextMode, RIGHT_PANEL_CONFIG);
-    saveAndUpdateRightWidth(calculateValidRightWidth(targetWidth));
-  }, [rightPanelMode, calculateValidRightWidth, saveAndUpdateRightWidth]);
+    commitRightPanelWidth(getModeWidth(nextMode, RIGHT_PANEL_CONFIG));
+  }, [rightPanelMode, commitRightPanelWidth]);
 
   const handleBottomDoubleClick = useCallback(() => {
     const nextMode = getNextMode(bottomTerminalPanelMode);
@@ -208,21 +277,20 @@ const SessionScene: React.FC<SessionSceneProps> = ({
 
     const startX = e.clientX;
     const startWidth = currentRightWidth;
-    let lastValidWidth = startWidth;
+    let desiredWidth = clampRightPanelPreferredWidth(startWidth);
 
     setIsDraggingRight(true);
+    isDraggingRightRef.current = true;
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
 
     const onMove = (ev: MouseEvent) => {
       if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = requestAnimationFrame(() => {
-        const valid = calculateValidRightWidth(startWidth + (startX - ev.clientX));
-        lastValidWidth = valid;
-        if (auxPaneElementRef.current && !state.layout.chatCollapsed) {
-          auxPaneElementRef.current.style.width = `${valid}px`;
-        } else {
-          updateRightPanelWidth(valid);
+        desiredWidth = clampRightPanelPreferredWidth(startWidth + (startX - ev.clientX));
+        const fitted = calculateValidRightWidth(desiredWidth);
+        if (!setAuxPaneRenderedWidth(fitted)) {
+          applySessionAuxPaneWidth(fitted);
         }
         animationFrameRef.current = null;
       });
@@ -235,20 +303,18 @@ const SessionScene: React.FC<SessionSceneProps> = ({
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
 
-      const snapped = getSnappedWidth(lastValidWidth, RIGHT_PANEL_CONFIG, false);
-      if (snapped !== lastValidWidth) {
-        saveAndUpdateRightWidth(snapped);
-      } else {
-        updateRightPanelWidth(lastValidWidth);
-        setLastRightWidth(lastValidWidth);
-        savePanelWidth(STORAGE_KEYS.RIGHT_PANEL_LAST_WIDTH, lastValidWidth);
-      }
+      isDraggingRightRef.current = false;
+      // Remember the width the user actually sees, so a scene box that limits
+      // the panel cannot leave a hidden, larger preference behind.
+      commitRightPanelWidth(
+        calculateValidRightWidth(getSnappedWidth(desiredWidth, RIGHT_PANEL_CONFIG, false)),
+      );
       requestAnimationFrame(() => requestAnimationFrame(() => setIsDraggingRight(false)));
     };
 
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
-  }, [currentRightWidth, calculateValidRightWidth, updateRightPanelWidth, saveAndUpdateRightWidth, state.layout.chatCollapsed]);
+  }, [currentRightWidth, setAuxPaneRenderedWidth, calculateValidRightWidth, commitRightPanelWidth]);
 
   const handleMouseDownBottomResizer = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -319,16 +385,13 @@ const SessionScene: React.FC<SessionSceneProps> = ({
     expandSessionBottomTerminalPane(calculateValidBottomHeight(saved));
   }, [calculateValidBottomHeight]);
 
-  // Responsive resize — also validate on mount to clamp widths restored from
-  // localStorage that may exceed the current (non-maximized) window size.
+  // Responsive resize — keep a restored bottom terminal height inside the
+  // current scene box. The right panel is fitted by the scene-box observer above.
   useEffect(() => {
+    if (!isTerminalDockedBottom) return undefined;
     const validate = () => {
-      const valid = calculateValidRightWidth(currentRightWidth);
-      if (valid !== currentRightWidth) updateRightPanelWidth(valid);
-      if (isTerminalDockedBottom) {
-        const validBottom = calculateValidBottomHeight(currentBottomHeight);
-        if (validBottom !== currentBottomHeight) updateBottomTerminalPanelHeight(validBottom);
-      }
+      const validBottom = calculateValidBottomHeight(currentBottomHeight);
+      if (validBottom !== currentBottomHeight) updateBottomTerminalPanelHeight(validBottom);
     };
     const rafId = requestAnimationFrame(validate);
     window.addEventListener('resize', validate);
@@ -337,33 +400,11 @@ const SessionScene: React.FC<SessionSceneProps> = ({
       window.removeEventListener('resize', validate);
     };
   }, [
-    currentRightWidth,
     currentBottomHeight,
-    calculateValidRightWidth,
     calculateValidBottomHeight,
     isTerminalDockedBottom,
-    updateRightPanelWidth,
     updateBottomTerminalPanelHeight,
   ]);
-
-  // Restore right panel width when window regains visibility (e.g. after minimize → restore).
-  // This acts as a safety net in case any layout recalculation during the restore
-  // cycle lost the user's manual width adjustment.
-  const prevVisibleRef = useRef(true);
-  useEffect(() => {
-    const handleVisibility = () => {
-      const nowVisible = document.visibilityState === 'visible';
-      if (nowVisible && !prevVisibleRef.current) {
-        const saved = loadPanelWidth(STORAGE_KEYS.RIGHT_PANEL_LAST_WIDTH, currentRightWidth);
-        if (saved !== currentRightWidth && !state.layout.rightPanelCollapsed) {
-          updateRightPanelWidth(saved);
-        }
-      }
-      prevVisibleRef.current = nowVisible;
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [currentRightWidth, updateRightPanelWidth, state.layout.rightPanelCollapsed]);
 
   // Cleanup animation frames
   useEffect(() => () => {

@@ -11,6 +11,7 @@ import {
   AppState,
   AppEvent,
   LayoutState,
+  LayoutUpdateOptions,
   AgentConfig,
   ChatSession,
   ChatMessage,
@@ -71,7 +72,7 @@ export class AppManager implements IAppManager {
     this.notifyStateChange();
   }
 
-  updateLayout(layout: Partial<LayoutState>): void {
+  updateLayout(layout: Partial<LayoutState>, options: LayoutUpdateOptions = {}): void {
     const hasLayoutChange = Object.entries(layout).some(([key, value]) => (
       this.state.layout[key as keyof LayoutState] !== value
     ));
@@ -79,11 +80,13 @@ export class AppManager implements IAppManager {
       return;
     }
 
-    if (typeof layout.rightPanelWidth === 'number') {
-      savePanelWidth(STORAGE_KEYS.RIGHT_PANEL_LAST_WIDTH, layout.rightPanelWidth);
-    }
-    if (typeof layout.bottomTerminalPanelHeight === 'number') {
-      savePanelWidth(STORAGE_KEYS.BOTTOM_TERMINAL_PANEL_LAST_HEIGHT, layout.bottomTerminalPanelHeight);
+    if (options.persistPanelSizes !== false) {
+      if (typeof layout.rightPanelWidth === 'number') {
+        savePanelWidth(STORAGE_KEYS.RIGHT_PANEL_LAST_WIDTH, layout.rightPanelWidth);
+      }
+      if (typeof layout.bottomTerminalPanelHeight === 'number') {
+        savePanelWidth(STORAGE_KEYS.BOTTOM_TERMINAL_PANEL_LAST_HEIGHT, layout.bottomTerminalPanelHeight);
+      }
     }
 
     const newLayout = { ...this.state.layout, ...layout };
