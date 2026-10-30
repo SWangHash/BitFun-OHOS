@@ -172,6 +172,7 @@ export class CommonUtils {
       const data = await systemPasteboard.getData();
       const recordCount = data.getRecordCount();
       const paths: string[] = [];
+      const errors: string[] = [];
       const seen = new Set<string>();
       for (let index = 0; index < recordCount; index++) {
         const record = data.getRecord(index);
@@ -234,14 +235,16 @@ export class CommonUtils {
             hilog.info(0x0000, 'vnext', 'read_clipboard_files: cached ' + candidate + ' -> ' + destPath);
             paths.push(destPath);
           } catch (e) {
-            // Directory URIs and grant-less URIs land here — surface loudly in
-            // the log instead of pretending the clipboard was empty.
+            // Grant-less URIs and unreadable directories land here — surface
+            // the reason in the envelope so a paste that silently misses a
+            // folder can be diagnosed from the frontend instead of the log.
             hilog.warn(0x0000, 'vnext', 'read_clipboard_files: skip uri ' + candidate + ': ' + e);
+            errors.push(candidate + ': ' + e);
           }
         }
       }
 
-      return JSON.stringify({ paths });
+      return JSON.stringify({ paths, errors });
     } catch (e) {
       return JSON.stringify({ error: 'read clipboard files failed: ' + e });
     }
@@ -249,10 +252,14 @@ export class CommonUtils {
 
   /// Copy one pasteboard URI (file or directory) into the app cache.
   ///
-  /// Directories are walked recursively: the file manager writes the folder
-  /// itself as a single URI record, so the paste needs to expand it here or
-  /// the whole folder silently disappears. Any failure surfaces to the caller
-  /// so the outer per-candidate handler logs and skips loudly.
+  /// Directories are expanded into the cache: the file manager writes the
+  /// folder itself as a single URI record, so the paste needs to materialize
+  /// the tree here or the whole folder silently disappears. `fs.copyDir` runs
+  /// first — it operates on the granted URI inside the fs layer, so no
+  /// per-child URI (and therefore no per-child pasteboard grant) is needed;
+  /// the manual walk stays as a fallback for engines where copyDir rejects
+  /// URI sources. Any failure surfaces to the caller so the outer
+  /// per-candidate handler records the reason instead of skipping silently.
   static async copy_pasteboard_entry(sourceUri: string, destPath: string): Promise<void> {
     let isDirectory = false;
     try {
@@ -264,7 +271,21 @@ export class CommonUtils {
       hilog.warn(0x0000, 'vnext', 'copy_pasteboard_entry: stat failed for ' + sourceUri + ': ' + e);
     }
 
+    // Re-pasting the same entry must not collide with a stale cache copy.
+    try {
+      await fs.rmdir(destPath);
+    } catch (e) {
+      // Absent destination is the common case; anything else is retried by
+      // the copy below and reported if it still fails.
+    }
+
     if (isDirectory) {
+      try {
+        await fs.copyDir(sourceUri, destPath);
+        return;
+      } catch (e) {
+        hilog.warn(0x0000, 'vnext', 'copy_pasteboard_entry: copyDir failed for ' + sourceUri + ': ' + e);
+      }
       await fs.mkdir(destPath, true);
       const children = await fs.listFile(sourceUri);
       for (const child of children) {
