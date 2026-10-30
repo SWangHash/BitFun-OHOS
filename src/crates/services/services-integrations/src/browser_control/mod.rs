@@ -12,11 +12,11 @@ pub mod launcher;
 
 #[cfg(any(target_env = "ohos", test))]
 pub use arkweb_host::{
-    arkweb_browser_host_available, close_arkweb_browser_webview, create_arkweb_browser_webview,
-    default_arkweb_automation_target, list_arkweb_automation_targets,
-    register_arkweb_automation_target, register_arkweb_browser_host_port,
-    remove_arkweb_automation_target, set_default_arkweb_automation_target, ArkWebAutomationTarget,
-    ArkWebBrowserHostPort,
+    arkweb_browser_host_available, arkweb_webview_is_active, close_arkweb_browser_webview,
+    create_arkweb_browser_webview, default_arkweb_automation_target,
+    list_arkweb_automation_targets, register_arkweb_automation_target,
+    register_arkweb_browser_host_port, remove_arkweb_automation_target, set_arkweb_webview_active,
+    set_default_arkweb_automation_target, ArkWebAutomationTarget, ArkWebBrowserHostPort,
 };
 pub use cdp::{CdpEndpoint, CdpEndpointProvider, CdpPageInfo, CdpVersionInfo};
 #[cfg(target_env = "ohos")]

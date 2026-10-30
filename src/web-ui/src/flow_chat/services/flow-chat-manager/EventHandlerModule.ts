@@ -2745,6 +2745,16 @@ function buildBuiltInBrowserTabOptions(
   const ownerWorkspacePath = typeof event?.ownerWorkspacePath === 'string' && event.ownerWorkspacePath.trim()
     ? event.ownerWorkspacePath.trim()
     : undefined;
+  const webviewLabel = typeof event?.webviewLabel === 'string' && event.webviewLabel.trim()
+    ? event.webviewLabel.trim()
+    : undefined;
+  const adoptExisting = event?.adoptExisting === true;
+  // An automation open already owns a native page. Dropping its identity here
+  // creates a second, empty page while the Agent edits the hidden original.
+  if (adoptExisting && !webviewLabel) {
+    log.error('Built-in browser adoption requires an exact native WebView label');
+    return null;
+  }
   // Frontend-side default matches the Rust tool default: each open request
   // creates a NEW tab unless the agent explicitly asked to reuse one.
   const replaceExisting = event?.replaceExisting === true;
@@ -2752,7 +2762,7 @@ function buildBuiltInBrowserTabOptions(
   // request-scoped key so identical URLs can still open as distinct targets.
   const duplicateCheckKey = replaceExisting
     ? `browser-panel:${ownerSessionId ?? 'unowned'}`
-    : `browser-panel:${ownerSessionId ?? 'unowned'}:${requestId ?? url}`;
+    : `browser-panel:${ownerSessionId ?? 'unowned'}:${requestId ?? webviewLabel ?? url}`;
 
   return {
     type: 'browser',
@@ -2760,6 +2770,9 @@ function buildBuiltInBrowserTabOptions(
     data: {
       url,
       openRequestId: requestId,
+      webviewLabel,
+      adoptExisting,
+      automationId: event.automationId,
       ownerSessionId,
       workspaceId: ownerWorkspaceId,
       workspacePath: ownerWorkspacePath,

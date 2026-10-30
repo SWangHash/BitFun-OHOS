@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, OnceLock, RwLock};
 
 #[async_trait]
@@ -22,6 +22,7 @@ pub struct ArkWebAutomationTarget {
 struct ArkWebAutomationTargetRegistry {
     targets: HashMap<String, ArkWebAutomationTarget>,
     default_target_id: Option<String>,
+    active_webview_labels: HashSet<String>,
 }
 
 static ARKWEB_AUTOMATION_TARGETS: OnceLock<RwLock<ArkWebAutomationTargetRegistry>> =
@@ -58,11 +59,33 @@ pub fn register_arkweb_automation_target(target: ArkWebAutomationTarget) {
 
 pub fn remove_arkweb_automation_target(target_id: &str) {
     if let Ok(mut registry) = arkweb_automation_targets().write() {
-        registry.targets.remove(target_id);
+        if let Some(target) = registry.targets.remove(target_id) {
+            registry.active_webview_labels.remove(&target.webview_label);
+        }
         if registry.default_target_id.as_deref() == Some(target_id) {
             registry.default_target_id = None;
         }
     }
+}
+
+/// Presentation acknowledgement from the native browser surface. Keep the
+/// exact label, including acknowledgements that arrive before CDP registration.
+pub fn set_arkweb_webview_active(label: &str, active: bool) {
+    if let Ok(mut registry) = arkweb_automation_targets().write() {
+        if active {
+            registry.active_webview_labels.clear();
+            registry.active_webview_labels.insert(label.to_string());
+        } else {
+            registry.active_webview_labels.remove(label);
+        }
+    }
+}
+
+pub fn arkweb_webview_is_active(label: &str) -> bool {
+    arkweb_automation_targets()
+        .read()
+        .map(|registry| registry.active_webview_labels.contains(label))
+        .unwrap_or(false)
 }
 
 pub fn set_default_arkweb_automation_target(target_id: &str) -> bool {

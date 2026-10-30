@@ -162,6 +162,54 @@ describe('Browser and desktop control settings', () => {
     expect(mocks.invoke).toHaveBeenCalledWith('browser_control_disconnect', expect.anything());
   });
 
+  it('unlocks browser preference after disconnecting built-in control with pages still open', async () => {
+    status = { ...readyStatus, cdpAvailable: true, browserKind: 'BitFun Built-in ArkWeb', selectedBrowser: 'builtin', defaultCdpSupported: false };
+    const invoke = mocks.invoke.getMockImplementation()!;
+    mocks.invoke.mockImplementation(async (command, ...args) => {
+      if (command === 'browser_control_list_browsers') return { options: [
+        { value: 'builtin', label: 'Built-in', installed: true },
+        { value: 'haitai', label: 'Haitai', installed: true },
+      ] };
+      if (command === 'browser_control_disconnect') {
+        status.cdpAvailable = false;
+        return { success: true, status: 'disconnected', browserKind: status.browserKind };
+      }
+      return invoke(command, ...args);
+    });
+    await render();
+    expect(container.querySelector('select')?.disabled).toBe(true);
+    await act(async () => button('browserControl.disconnect').click());
+    expect(container.querySelector('select')?.disabled).toBe(false);
+    expect(container.querySelector('select')?.value).toBe('builtin');
+    expect(container.textContent).toContain('browserControl.ready');
+    expect(container.textContent).not.toContain('browserControl.connected');
+  });
+
+  it('does not let an older connected response overwrite the post-disconnect status', async () => {
+    status.cdpAvailable = true;
+    await render();
+    let finishOldRefresh!: (value: typeof readyStatus) => void;
+    const oldStatus = { ...status };
+    const invoke = mocks.invoke.getMockImplementation()!;
+    let requests = 0;
+    mocks.invoke.mockImplementation(async (command, ...args) => {
+      if (command === 'browser_control_get_status' && ++requests === 1) {
+        return new Promise(resolve => { finishOldRefresh = resolve; });
+      }
+      return invoke(command, ...args);
+    });
+    const refresh = button('browserControl.refreshStatus');
+    // Both refreshes can start in the same browser event before React commits
+    // the loading state (e.g. two native refresh notifications).
+    await act(async () => { refresh.click(); refresh.click(); });
+    status.cdpAvailable = false;
+    await act(async () => button('browserControl.disconnect').click());
+    expect(container.querySelector('select')?.disabled).toBe(false);
+    await act(async () => finishOldRefresh(oldStatus));
+    expect(container.querySelector('select')?.disabled).toBe(false);
+    expect(container.textContent).not.toContain('browserControl.connected');
+  });
+
   it('does not show stale connected status as current after a refresh fails', async () => {
     status.cdpAvailable = true;
     await render();

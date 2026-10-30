@@ -3,6 +3,7 @@ import { globalEventBus } from '@/infrastructure/event-bus';
 import type { FileResourceRenamedEvent } from '@/shared/types/contentResource';
 import type { PanelContent } from '../components/panels/base/types';
 import type { ContentResource, ContentResourceScope, ContentResourceTarget } from '@/shared/types/contentResource';
+import { closeAdoptedBrowserPage } from '@/app/scenes/browser/closeAdoptedBrowserPage';
 import { resourceFilePath, resourcePathKey } from '@/shared/utils/resourcePath';
 export { resourceFilePath } from '@/shared/utils/resourcePath';
 
@@ -82,11 +83,15 @@ export const useContentResourceStore = create<ResourceState>((set, get) => ({
     if (!resource || Object.entries(patch).every(([key, value]) => resource[key as keyof ContentResource] === value)) return state;
     return { resources: { ...state.resources, [id]: { ...resource, ...patch } } };
   }),
-  remove: id => set(state => {
-    const resources = { ...state.resources };
-    delete resources[id];
-    return { resources };
-  }),
+  remove: id => {
+    const resource = get().resources[id];
+    set(state => {
+      const resources = { ...state.resources };
+      delete resources[id];
+      return { resources };
+    });
+    if (resource) closeAdoptedBrowserPage(resource.content, resource.scope.surfaceId);
+  },
   renameFile: (scope, oldPath, newPath) => set(state => {
     const resources = { ...state.resources };
     const oldRoot = resourceFilePath(oldPath, scope);

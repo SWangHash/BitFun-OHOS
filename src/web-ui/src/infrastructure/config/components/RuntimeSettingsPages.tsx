@@ -222,6 +222,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
   const [browserControlBusy, setBrowserControlBusy] = useState(false);
   const [browserStatusLoading, setBrowserStatusLoading] = useState(false);
   const [browserStatusError, setBrowserStatusError] = useState(false);
+  const browserStatusRequest = useRef(0);
   const [platform, setPlatform] = useState<string>('');
   const [browserRestartPrompt, setBrowserRestartPrompt] = useState<BrowserControlLaunchResponse | null>(null);
 
@@ -253,6 +254,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
 
   const refreshBrowserControlStatus = useCallback(async () => {
     if (!IS_TAURI_DESKTOP) return;
+    const request = ++browserStatusRequest.current;
     setBrowserStatusLoading(true);
     setBrowserStatusError(false);
     try {
@@ -271,6 +273,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
         }>('browser_control_get_status', { request: { port: 9222 } }),
         api.invoke<{ options: BrowserControlBrowserOption[] }>('browser_control_list_browsers'),
       ]);
+      if (request !== browserStatusRequest.current) return;
       setPeerBrowserControlUnsupported(false);
       setBrowserCdpAvailable(s.cdpAvailable);
       setBrowserDefaultCdpSupported(s.defaultCdpSupported);
@@ -283,6 +286,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
       setPreferredBrowser(s.selectedBrowser);
       setBrowserOptions(browsers.options);
     } catch (error) {
+      if (request !== browserStatusRequest.current) return;
       if (isPeerUnsupportedBrowserControlError(error)) {
         setPeerBrowserControlUnsupported(true);
         setBrowserStatusError(false);
@@ -291,7 +295,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
         log.error('browser_control_get_status failed', error);
       }
     } finally {
-      setBrowserStatusLoading(false);
+      if (request === browserStatusRequest.current) setBrowserStatusLoading(false);
     }
   }, []);
 

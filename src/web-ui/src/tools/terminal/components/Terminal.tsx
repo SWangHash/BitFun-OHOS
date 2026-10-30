@@ -11,6 +11,8 @@ import { WebglAddon } from '@xterm/addon-webgl';
 import {
   TerminalResizeDebouncer,
   DEFAULT_XTERM_MINIMUM_CONTRAST_RATIO,
+  decideFitResize,
+  decideResizeUnderColumnGuard,
   resolveUnmappedKeydownSequence,
 } from '../utils';
 import type { ReplayColumnGuard, TerminalPasteDecision } from '../utils';
@@ -30,6 +32,19 @@ import './Terminal.scss';
 
 const log = createLogger('Terminal');
 const MIN_STABLE_TERMINAL_ROWS = 3;
+/** Narrowest column count the terminal lays out at; below it the columns are kept. */
+const MIN_STABLE_TERMINAL_COLS = 40;
+/**
+ * Deferred fits that follow a layout event that is not trustworthy on its own.
+ *
+ * A host may deliver the final container size after the frame that observed the
+ * change, and a replay column guard refuses a column shrink for a while. Neither
+ * produces another ResizeObserver entry once the box stops moving, so a single fit
+ * can settle on a geometry the panel no longer has - or be skipped entirely, which
+ * also leaves a caller waiting for a measured size (and its shell) forever. These
+ * retries are idempotent: a fit that measures the current size does nothing.
+ */
+const SETTLE_REFIT_DELAYS_MS = [120, 420, 1_200, 2_400];
 const TERMINAL_FONT_WEIGHT = getTypographyTokenNumber('font.weight.regular');
 const TERMINAL_FONT_WEIGHT_BOLD = getTypographyTokenNumber('font.weight.bold');
 
@@ -54,6 +69,7 @@ type TerminalCoreWithMeasurement = XTerm & {
     };
     _renderService?: {
       handleDevicePixelRatioChange?: () => void;
+      handleResize?: (cols: number, rows: number) => void;
     };
   };
 };
@@ -76,6 +92,77 @@ function remeasureTerminal(terminal: XTerm): void {
   const rawTerminal = terminal as TerminalCoreWithMeasurement;
   rawTerminal._core?._charSizeService?.measure?.();
   rawTerminal._core?._renderService?.handleDevicePixelRatioChange?.();
+}
+
+/**
+ * Whether xterm still paints the geometry of the previous row/column count.
+ *
+ * The screen box is sized from the dimensions the render service caches, and the host
+ * applies that render one or more frames after `resize()` returned. A panel that was
+ * just mounted or re-parented therefore paints the previous row count inside its new
+ * box, and every later fit measures the same size and returns early, so nothing
+ * corrects it until the user resizes the panel by hand.
+ *
+ * The DOM box is the primary evidence - it is what the user sees - with the render
+ * service's own numbers as a fallback for hosts without a measurable screen element.
+ */
+function rendererGeometryIsStale(terminal: XTerm): boolean {
+  const cell = terminal.dimensions?.css?.cell;
+  if (!cell?.width || !cell?.height) {
+    return false;
+  }
+
+  const expectedWidth = terminal.cols * cell.width;
+  const expectedHeight = terminal.rows * cell.height;
+  const screenElement = terminal.element?.querySelector<HTMLElement>('.xterm-screen');
+
+  if (screenElement) {
+    return (
+      Math.abs(screenElement.offsetHeight - expectedHeight) > cell.height / 2
+      || Math.abs(screenElement.offsetWidth - expectedWidth) > cell.width / 2
+    );
+  }
+
+  const canvas = terminal.dimensions?.css?.canvas;
+  if (!canvas) return false;
+
+  return (
+    Math.abs(canvas.height - expectedHeight) > cell.height / 2
+    || Math.abs(canvas.width - expectedWidth) > cell.width / 2
+  );
+}
+
+/** Re-apply the buffer's geometry to the renderer. Returns true when it had to act. */
+function syncStaleRendererGeometry(terminal: XTerm): boolean {
+  if (!rendererGeometryIsStale(terminal)) {
+    return false;
+  }
+
+  const cell = terminal.dimensions?.css?.cell;
+  log.debug('Renderer geometry was stale, re-applying the buffer size', {
+    cols: terminal.cols,
+    rows: terminal.rows,
+    expectedHeight: cell ? Math.round(terminal.rows * cell.height) : null,
+    paintedHeight: terminal.element?.querySelector<HTMLElement>('.xterm-screen')?.offsetHeight ?? null,
+  });
+
+  // Re-measuring drops the cached cell metrics and redraws with them, which is what
+  // makes the screen box take the row count the buffer already has.
+  remeasureTerminal(terminal);
+
+  if (rendererGeometryIsStale(terminal)) {
+    // The measured cell is fine but the render service still holds the previous
+    // geometry; hand it the current size directly, the same call xterm itself makes
+    // on a buffer resize.
+    const rawTerminal = terminal as TerminalCoreWithMeasurement;
+    try {
+      rawTerminal._core?._renderService?.handleResize?.(terminal.cols, terminal.rows);
+    } catch {
+      // Internal API: a shape change only costs this extra attempt.
+    }
+  }
+
+  return true;
 }
 
 export interface TerminalOptions {
@@ -243,6 +330,10 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
   const onLayoutSettledRef = useRef(onLayoutSettled);
   const resizeSuspendedRef = useRef(resizeSuspended);
   const pendingFitAfterSuspendRef = useRef(false);
+  // Assigned once the fit scheduler below is created; callbacks that can run before
+  // that (a resize refused by the replay column guard) only schedule.
+  const scheduleSettleRefitsRef = useRef<() => void>(() => {});
+  const settleRefitTimersRef = useRef<number[]>([]);
   // Track key-pressed state to mirror xterm's internal _keyDownSeen flag.
   // Used by the input-event safety net (see below).
   const keyDownSeenRef = useRef(false);
@@ -295,6 +386,10 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
         // Already at the measured size: still report it, so a caller waiting for a
         // measured geometry is not left waiting for a resize that never happens.
         onSizeSettledRef.current?.({ cols, rows });
+        // The buffer can already hold this size while the renderer still paints the
+        // previous one. Returning here without checking froze that half-painted
+        // screen: the settle refits all bailed out as "already correct".
+        syncStaleRendererGeometry(terminal);
         return true;
       }
 
@@ -308,12 +403,34 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
       // The guard only protects actual screen text. Applying it to an empty new
       // terminal leaves xterm at 80x24 while the PTY moves to the panel size,
       // which creates blank scrollback during shell startup repaints.
-      if (minCols > 0 && cols < minCols && hasBufferedScreenText) {
+      const decision = decideResizeUnderColumnGuard({
+        targetCols: cols,
+        targetRows: rows,
+        currentCols: terminal.cols,
+        currentRows: terminal.rows,
+        protectedCols: minCols,
+        hasBufferedScreenText,
+      });
+
+      if (decision.kind === 'skip') {
+        // Nothing else retries a refused fit: the container may already have
+        // stopped moving, so the guard's expiry would go unnoticed. Ask for a
+        // settle refit that lands after it expires.
+        scheduleSettleRefitsRef.current?.();
         return false;
       }
 
-      terminal.resize(cols, rows);
-      onSizeSettledRef.current?.({ cols, rows });
+      if (decision.kind === 'rows-only') {
+        // The protected width stands, but the panel's height still belongs to the
+        // container. Freezing both axes left a tall panel showing a single row of
+        // its scrollback behind a scrollbar.
+        terminal.resize(decision.cols, decision.rows);
+        scheduleSettleRefitsRef.current?.();
+        return false;
+      }
+
+      terminal.resize(decision.cols, decision.rows);
+      onSizeSettledRef.current?.({ cols: decision.cols, rows: decision.rows });
 
       return true;
     } catch (error) {
@@ -372,6 +489,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
 
       const { clientWidth, clientHeight } = containerRef.current;
       if (clientWidth < 50 || clientHeight < 50) {
+        log.debug('Fit skipped: container not laid out yet', { clientWidth, clientHeight });
         return;
       }
 
@@ -380,18 +498,40 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
         return;
       }
 
+      const terminal = terminalRef.current;
+      if (!terminal) return;
+
       // Skip only unusably tiny dimensions. Panel animation and drag resizes are
       // suspended by the parent; the final compact bottom panel still needs to
       // resize to fewer than 10 rows so the prompt remains visible.
-      if (dims.cols < 40 || dims.rows < MIN_STABLE_TERMINAL_ROWS) {
+      //
+      // The two axes are decided independently: a panel narrow enough to fall below
+      // the minimum column count must not freeze the row count with it, otherwise a
+      // split terminal keeps the rows of its previous box.
+      const decision = decideFitResize({
+        measuredCols: dims.cols,
+        measuredRows: dims.rows,
+        currentCols: terminal.cols,
+        currentRows: terminal.rows,
+        minCols: MIN_STABLE_TERMINAL_COLS,
+        minRows: MIN_STABLE_TERMINAL_ROWS,
+      });
+
+      if (decision.kind === 'skip') {
+        log.debug('Fit skipped: measured size unusable', {
+          cols: dims.cols,
+          rows: dims.rows,
+          clientWidth,
+          clientHeight,
+        });
         return;
       }
 
       if (resizeDebouncerRef.current) {
-        resizeDebouncerRef.current.resize(dims.cols, dims.rows, immediate);
+        resizeDebouncerRef.current.resize(decision.cols, decision.rows, immediate);
       } else {
-        if (doXtermResize(dims.cols, dims.rows)) {
-          doBackendResize(dims.cols, dims.rows);
+        if (doXtermResize(decision.cols, decision.rows)) {
+          doBackendResize(decision.cols, decision.rows);
           handleResizeComplete();
         }
       }
@@ -426,6 +566,35 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
   fitRef.current = fit;
   forceRefreshRef.current = forceRefresh;
 
+  const cancelSettleRefits = useCallback(() => {
+    settleRefitTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
+    settleRefitTimersRef.current = [];
+  }, []);
+
+  /**
+   * Re-fit after a layout event whose measurement cannot be trusted yet.
+   * See SETTLE_REFIT_DELAYS_MS for why a single attempt is not enough. One of
+   * these fits succeeding is also what reports a measured size to the caller,
+   * and a caller that reserves a shell waits for exactly that report.
+   */
+  const scheduleSettleRefits = useCallback(() => {
+    cancelSettleRefits();
+
+    SETTLE_REFIT_DELAYS_MS.forEach((delayMs) => {
+      const timerId = window.setTimeout(() => {
+        settleRefitTimersRef.current = settleRefitTimersRef.current.filter(
+          (pending) => pending !== timerId,
+        );
+        fitRef.current(false);
+      }, delayMs);
+      settleRefitTimersRef.current.push(timerId);
+    });
+  }, [cancelSettleRefits]);
+
+  scheduleSettleRefitsRef.current = scheduleSettleRefits;
+
+  useEffect(() => () => cancelSettleRefits(), [cancelSettleRefits]);
+
   useEffect(() => {
     if (resizeSuspended) {
       return;
@@ -444,6 +613,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
     requestAnimationFrame(() => {
       resizeDebouncerRef.current?.flush();
       fitRef.current(true);
+      scheduleSettleRefitsRef.current();
     });
   }, [resizeSuspended]);
 
@@ -592,6 +762,10 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
 
     requestAnimationFrame(() => {
       fitRef.current(true);
+      // A freshly mounted terminal may be measured before the host finished laying
+      // out the panel it was placed into. Retry so the container's settled geometry
+      // wins, and so a caller waiting for a measured size is never left waiting.
+      scheduleSettleRefitsRef.current();
 
       setIsReady(true);
       onReadyRef.current?.(terminal);
@@ -615,6 +789,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
 
             remeasureTerminal(terminalRef.current);
             fitRef.current(true);
+            scheduleSettleRefitsRef.current();
 
             requestAnimationFrame(() => {
               if (!terminalRef.current) return;
@@ -790,6 +965,9 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
       requestAnimationFrame(() => {
         fitRef.current(false);
       });
+      // The observed box is not always the box the panel keeps: a re-parent or a
+      // split change moves it again without another entry. Retry after it settles.
+      scheduleSettleRefitsRef.current();
     });
     resizeObserver.observe(container);
     resizeObserverRef.current = resizeObserver;
@@ -807,6 +985,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
           resizeDebouncerRef.current?.flush();
           
           fitRef.current(true);
+          scheduleSettleRefitsRef.current();
           
           requestAnimationFrame(() => {
             const term = terminalRef.current;
@@ -853,6 +1032,8 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
       resizeObserver.disconnect();
       intersectionObserver.disconnect();
       fontLoadCancelled = true;
+      settleRefitTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
+      settleRefitTimersRef.current = [];
       resizeDebouncer.dispose();
       webglAddonRef.current?.dispose();
       terminal.dispose();

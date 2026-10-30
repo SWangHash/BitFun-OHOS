@@ -404,12 +404,12 @@ pub async fn browser_webview_create(
             )
             .map_err(|e| format!("failed to create browser webview: {e}"))?;
 
-    webview
-        .hide()
-        .map_err(|e| format!("failed to hide browser webview before positioning: {e}"))?;
-    let target_url = webview.url().map(|url| url.to_string()).unwrap_or_default();
-    register_browser_target(webview.label(), &target_url, request.open_request_id);
-    Ok(())
+        webview
+            .hide()
+            .map_err(|e| format!("failed to hide browser webview before positioning: {e}"))?;
+        let target_url = webview.url().map(|url| url.to_string()).unwrap_or_default();
+        register_browser_target(webview.label(), &target_url, request.open_request_id);
+        Ok(())
     }
 
     #[cfg(target_env = "ohos")]
@@ -435,6 +435,11 @@ pub async fn browser_webview_set_agent_target_state(
     request: BrowserAgentTargetStateRequest,
 ) -> Result<(), String> {
     validate_browser_label(&request.label)?;
+    #[cfg(target_env = "ohos")]
+    bitfun_services_integrations::browser_control::set_arkweb_webview_active(
+        &request.label,
+        request.active,
+    );
     let mut registry = lock_browser_targets();
     if request.active {
         registry.next_seq = registry.next_seq.saturating_add(1);
@@ -490,9 +495,9 @@ pub async fn browser_webview_navigate(
     #[cfg(not(target_env = "ohos"))]
     {
         let url = request
-        .url
-        .parse::<tauri::Url>()
-        .map_err(|e| format!("invalid url: {e}"))?;
+            .url
+            .parse::<tauri::Url>()
+            .map_err(|e| format!("invalid url: {e}"))?;
 
         match url.scheme() {
             "http" | "https" => {}
@@ -725,7 +730,10 @@ pub async fn browser_webview_close(
         let json = serde_json::to_string(&request)
             .map_err(|e| format!("failed to encode request: {e}"))?;
         let response = ohos_browser_call("browser_webview_close_ohos", &json).await?;
-        decode_ok_envelope(&response)
+        decode_ok_envelope(&response)?;
+        bitfun_core::agentic::tools::implementations::control_hub_tool::retire_builtin_browser_webview(&request.label).await;
+        unregister_browser_target(&request.label);
+        Ok(())
     }
 }
 

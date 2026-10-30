@@ -334,6 +334,10 @@ const ConnectedTerminal: React.FC<ConnectedTerminalProps> = memo(({
     if (isTerminalReadyRef.current && terminalRef.current) {
       terminalRef.current.flushResize();
       flushOutputQueue();
+      // The replay restored the geometry the session was recorded at, which is not
+      // necessarily the geometry of the panel this view now sits in. Ask for a fit so
+      // the container wins instead of waiting for the next user resize.
+      terminalRef.current.fit();
     }
   }, [flushOutputQueue, queueWrite, setReplayColumnGuard]);
 

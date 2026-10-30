@@ -26,6 +26,7 @@ import {
   clampAnchorSize,
 } from '../types';
 import { normalizePath } from '@/shared/utils/pathUtils';
+import { closeAdoptedBrowserPage, closedBrowserContent } from '@/app/scenes/browser/closeAdoptedBrowserPage';
 
 // ==================== Store State Types ====================
 
@@ -268,6 +269,7 @@ const createCanvasStoreHook = () => create<CanvasStore>()(
       }),
 
       closeTab: (tabId, groupId, options) => {
+        const closedContent = getGroup(get(), groupId).tabs.find(tab => tab.id === tabId)?.content;
         set((draft) => {
           const group = getGroup(draft, groupId);
           const tabIndex = group.tabs.findIndex(t => t.id === tabId);
@@ -283,7 +285,7 @@ const createCanvasStoreHook = () => create<CanvasStore>()(
           if (!(tab.content.type === 'terminal' && forceRemove)) {
             // Record in close history
             draft.closedTabs.unshift({
-              tab: { ...tab },
+              tab: { ...tab, content: closedBrowserContent(tab.content) },
               closedAt: Date.now(),
               groupId,
               index: tabIndex,
@@ -498,6 +500,7 @@ const createCanvasStoreHook = () => create<CanvasStore>()(
             }
           }
         });
+        if (closedContent) closeAdoptedBrowserPage(closedContent);
       },
 
       closeTerminalTabBySessionId: (sessionId) => {
@@ -523,6 +526,9 @@ const createCanvasStoreHook = () => create<CanvasStore>()(
       },
       
       closeAllTabs: (groupId) => {
+        const state = get();
+        const groups = groupId ? [getGroup(state, groupId)] : [state.primaryGroup, state.secondaryGroup, state.tertiaryGroup];
+        const closedContents = groups.flatMap(group => group.tabs.filter(tab => tab.state !== 'pinned').map(tab => tab.content));
         set((draft) => {
           if (groupId) {
             const group = getGroup(draft, groupId);
@@ -689,6 +695,7 @@ const createCanvasStoreHook = () => create<CanvasStore>()(
             }
           }
         });
+        for (const content of closedContents) closeAdoptedBrowserPage(content);
       },
       
       switchToTab: (tabId, groupId) => {

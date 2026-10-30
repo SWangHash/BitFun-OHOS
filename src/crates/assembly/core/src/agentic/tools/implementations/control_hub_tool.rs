@@ -39,17 +39,19 @@ use async_trait::async_trait;
 use bitfun_services_core::system::{truncate_with_marker, LocalSystemProvider};
 #[cfg(target_env = "ohos")]
 use bitfun_services_integrations::browser_control::{
-    arkweb_browser_host_available, close_arkweb_browser_webview, create_arkweb_browser_webview,
-    default_arkweb_automation_target, list_arkweb_automation_targets,
-    register_arkweb_automation_target, remove_arkweb_automation_target,
-    set_default_arkweb_automation_target, ArkWebAutomationTarget,
+    arkweb_browser_host_available, arkweb_webview_is_active, close_arkweb_browser_webview,
+    create_arkweb_browser_webview, default_arkweb_automation_target,
+    list_arkweb_automation_targets, register_arkweb_automation_target,
+    remove_arkweb_automation_target, set_default_arkweb_automation_target, ArkWebAutomationTarget,
 };
 #[cfg(target_env = "ohos")]
 use log::info;
 use serde_json::{json, Value};
 use std::sync::Arc;
 
-use super::control_hub::{err_response, ControlHubError, ErrorCode};
+use super::control_hub::{coded_tool_error, err_response, ControlHubError, ErrorCode};
+#[cfg(any(target_env = "ohos", test))]
+use crate::agentic::tools::browser_control::builtin_browser::select_builtin_browser_target;
 
 /// Process-wide registry of CDP sessions. Replaces the previous single
 /// global `Option<CdpClient>` slot whose `*slot = Some(client)` semantics
@@ -108,6 +110,35 @@ pub async fn disconnect_external_browser(port: u16) -> usize {
     }
     let browser_connection_removed = CdpClient::disconnect_browser_connection(port).await;
     sessions.len() + usize::from(browser_connection_removed)
+}
+
+/// ArkWeb sessions use the app-local socket (logical port zero), independently
+/// of the external browser's 9222 connection. Keep native pages intact so a
+/// later explicit Settings Connect can reattach to the same filled forms.
+#[cfg(target_env = "ohos")]
+pub async fn disconnect_builtin_browser() -> usize {
+    CdpClient::suppress_browser_connection(0).await;
+    let sessions = browser_sessions().remove_by_port(0).await;
+    for session in &sessions {
+        session.client.disconnect().await;
+    }
+    sessions.len()
+}
+
+/// A real native close retires the target; hiding/unmounting a presentation
+/// does not call this. Retiring both registries prevents recovery of dead tabs.
+#[cfg(target_env = "ohos")]
+pub async fn retire_builtin_browser_webview(webview_label: &str) {
+    for target in list_arkweb_automation_targets()
+        .into_iter()
+        .filter(|target| target.webview_label == webview_label)
+    {
+        if let Ok(session) = browser_sessions().registered(Some(&target.target_id)).await {
+            session.client.disconnect().await;
+        }
+        browser_sessions().remove(&target.target_id).await;
+        remove_arkweb_automation_target(&target.target_id);
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -188,6 +219,32 @@ impl ControlHubTool {
         .with_hint(
             "Use target='builtin' for BitFun's built-in browser when that surface is sufficient.",
         )
+    }
+
+    #[cfg(target_env = "ohos")]
+    fn builtin_disconnected_error() -> BitFunError {
+        coded_tool_error(ErrorCode::NotAvailable,
+            "Built-in Browser Control was disconnected by the user in Settings. Reconnect it in Settings before controlling built-in pages again.")
+    }
+
+    #[cfg(target_env = "ohos")]
+    async fn register_builtin_session(session: &BrowserSession) -> BitFunResult<()> {
+        if CdpClient::browser_connection_suppressed(0).await {
+            session.client.disconnect().await;
+            return Err(Self::builtin_disconnected_error());
+        }
+        browser_sessions().register(session.clone()).await;
+        let target_still_registered = list_arkweb_automation_targets()
+            .iter().any(|target| target.target_id == session.session_id);
+        if CdpClient::browser_connection_suppressed(0).await || !target_still_registered {
+            browser_sessions().remove(&session.session_id).await;
+            session.client.disconnect().await;
+            if !target_still_registered {
+                return Err(coded_tool_error(ErrorCode::WrongTab, "The built-in browser page was closed while connecting."));
+            }
+            return Err(Self::builtin_disconnected_error());
+        }
+        Ok(())
     }
 
     /// Register an external page only while the Settings-owned connection is
@@ -434,6 +491,21 @@ impl ControlHubTool {
 
     async fn resolve_browser_session(session_id: Option<&str>) -> BitFunResult<BrowserSession> {
         let registry = browser_sessions();
+        #[cfg(target_env = "ohos")]
+        if CdpClient::browser_connection_suppressed(0).await {
+            let is_builtin = match registry.registered(session_id).await {
+                Ok(session) => session.backend.is_builtin_arkweb(),
+                Err(_) => match session_id {
+                    Some(id) => list_arkweb_automation_targets()
+                        .iter()
+                        .any(|target| target.target_id == id),
+                    None => default_arkweb_automation_target().is_some(),
+                },
+            };
+            if is_builtin {
+                return Err(Self::builtin_disconnected_error());
+            }
+        }
         match registry.registered(session_id).await {
             Ok(session) if session.client.is_connected() => Ok(session),
             #[cfg(target_env = "ohos")]
@@ -476,6 +548,9 @@ impl ControlHubTool {
         previous_state: Option<Arc<BrowserSessionState>>,
     ) -> BitFunResult<BrowserSession> {
         let _reconnect_guard = builtin_arkweb_reconnect_lock().lock().await;
+        if CdpClient::browser_connection_suppressed(0).await {
+            return Err(Self::builtin_disconnected_error());
+        }
         let registry = browser_sessions();
         if let Ok(session) = registry.registered(Some(&target.target_id)).await {
             if session.client.is_connected() {
@@ -512,7 +587,7 @@ impl ControlHubTool {
             client: Arc::new(client),
             state: previous_state.unwrap_or_else(|| Arc::new(BrowserSessionState::new())),
         };
-        registry.register(session.clone()).await;
+        Self::register_builtin_session(&session).await?;
         let _ = BrowserActions::new(session.client.as_ref())
             .enable_observers()
             .await;
@@ -582,8 +657,58 @@ impl ControlHubTool {
     #[cfg(target_env = "ohos")]
     async fn cleanup_builtin_browser(automation_id: &str, webview_label: &str) -> Option<String> {
         let close_error = close_arkweb_browser_webview(webview_label).await.err();
+        if close_error.is_none() {
+            retire_builtin_browser_webview(webview_label).await;
+        }
         Self::notify_builtin_browser_closed(automation_id).await;
         close_error
+    }
+
+    #[cfg(target_env = "ohos")]
+    async fn wait_for_arkweb_presentation(webview_label: &str) -> BitFunResult<()> {
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(10);
+        loop {
+            if arkweb_webview_is_active(webview_label) {
+                return Ok(());
+            }
+            if tokio::time::Instant::now() >= deadline {
+                return Err(coded_tool_error(ErrorCode::NotAvailable,
+                    "The exact ArkWeb page was not adopted and activated by the browser panel; browser control is not ready. Open the browser panel and retry."));
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+    }
+
+    #[cfg(any(target_env = "ohos", test))]
+    fn select_arkweb_connect_target(
+        pages: &[crate::agentic::tools::browser_control::BuiltInBrowserTarget],
+        params: &Value,
+        default_target_id: Option<&str>,
+    ) -> BitFunResult<Option<String>> {
+        let requested_id = params.get("session_id").and_then(Value::as_str);
+        let target_url = params.get("target_url").and_then(Value::as_str);
+        let target_title = params.get("target_title").and_then(Value::as_str);
+        if pages.is_empty()
+            && requested_id.is_none()
+            && target_url.is_none()
+            && target_title.is_none()
+        {
+            return Ok(None);
+        }
+        // Prefer the page the user is looking at over an old background default.
+        let default_target_id = if pages.iter().any(|page| page.active) {
+            None
+        } else {
+            default_target_id
+        };
+        select_builtin_browser_target(
+            pages,
+            requested_id,
+            target_url,
+            target_title,
+            default_target_id,
+        )
+        .map(|target| Some(target.id))
     }
 
     #[cfg(target_env = "ohos")]
@@ -592,6 +717,9 @@ impl ControlHubTool {
         params: &Value,
         context: &ToolUseContext,
     ) -> BitFunResult<Vec<ToolResult>> {
+        if CdpClient::browser_connection_suppressed(0).await {
+            return Err(Self::builtin_disconnected_error());
+        }
         if Self::browser_connect_mode_from_params(params) == "headless" {
             return Ok(err_response(
                 "browser",
@@ -612,6 +740,83 @@ impl ControlHubTool {
                     "The built-in ArkWeb backend does not accept port or user_data_dir.",
                 ),
             ));
+        }
+
+        if response_action == "connect" {
+            let targets = list_arkweb_automation_targets();
+            let registered_pages = Self::registered_builtin_pages().await?;
+            let pages = registered_pages
+                .iter()
+                .filter_map(|page| {
+                    let target = targets.iter().find(|target| target.target_id == page.id)?;
+                    Some(
+                        crate::agentic::tools::browser_control::BuiltInBrowserTarget {
+                            id: page.id.clone(),
+                            url: page.url.clone(),
+                            title: page.title.clone(),
+                            active: arkweb_webview_is_active(&target.webview_label),
+                        },
+                    )
+                })
+                .collect::<Vec<_>>();
+            let default_target = default_arkweb_automation_target();
+            if let Some(target_id) = Self::select_arkweb_connect_target(
+                &pages,
+                params,
+                default_target
+                    .as_ref()
+                    .map(|target| target.target_id.as_str()),
+            )? {
+                let session = Self::resolve_browser_session(Some(&target_id)).await?;
+                let target = targets
+                    .iter()
+                    .find(|target| target.target_id == target_id)
+                    .ok_or_else(|| {
+                        coded_tool_error(
+                            ErrorCode::WrongTab,
+                            "The selected ArkWeb target was closed",
+                        )
+                    })?;
+                let actions = BrowserActions::new(session.client.as_ref());
+                if let Some(url) = params
+                    .get("url")
+                    .and_then(Value::as_str)
+                    .map(str::trim)
+                    .filter(|url| !url.is_empty())
+                {
+                    let computer_use = Self::computer_use_available(context).await;
+                    let url = Self::normalize_builtin_browser_url(url, computer_use)
+                        .map_err(|error| coded_tool_error(error.code, error.message))?;
+                    if actions.get_url().await? != url {
+                        actions.navigate(&url).await?;
+                    }
+                }
+                browser_sessions().set_default(&target_id).await?;
+                set_default_arkweb_automation_target(&target_id);
+                let url = actions.get_url().await?;
+                let title = actions.get_title().await?;
+                if !arkweb_webview_is_active(&target.webview_label) {
+                    get_global_event_system().emit(BackendEvent::Custom {
+                        event_name: OPEN_BUILT_IN_BROWSER_EVENT.to_string(),
+                        payload: json!({
+                            "url": url, "title": title,
+                            "ownerSessionId": context.session_id,
+                            "ownerWorkspaceId": context.workspace.as_ref().and_then(|workspace| workspace.workspace_id.as_ref()),
+                            "ownerWorkspacePath": context.workspace_root().map(|path| path.to_string_lossy().to_string()),
+                            "automationId": target.automation_id,
+                            "webviewLabel": target.webview_label,
+                            "adoptExisting": true,
+                        }),
+                    }).await.map_err(|error| BitFunError::tool(error.to_string()))?;
+                    Self::wait_for_arkweb_presentation(&target.webview_label).await?;
+                }
+                return Ok(vec![ToolResult::ok(json!({
+                    "success": true, "target": "builtin", "backend": "builtin",
+                    "session_id": target_id, "page_url": url, "page_title": title,
+                    "observable_by_agent": true, "controllable_by_agent": true,
+                    "webview_label": target.webview_label, "reused": true, "status": "attached",
+                }), Some(format!("Connected to the existing built-in ArkWeb page (session {target_id}); no new page was created.")))]);
+            }
         }
 
         let raw_url = params
@@ -716,6 +921,18 @@ impl ControlHubTool {
             return Ok(err_response("browser", response_action, error));
         };
 
+        if let Some(error) = frontend_event_error {
+            Self::cleanup_builtin_browser(&automation_id, &webview_label).await;
+            return Err(coded_tool_error(
+                ErrorCode::NotAvailable,
+                format!("The ArkWeb page could not be presented: {error}"),
+            ));
+        }
+        if let Err(error) = Self::wait_for_arkweb_presentation(&webview_label).await {
+            Self::cleanup_builtin_browser(&automation_id, &webview_label).await;
+            return Err(error);
+        }
+
         if let Err(error) = CdpClient::validate_ohos_protocol_at(&endpoint).await {
             Self::cleanup_builtin_browser(&automation_id, &webview_label).await;
             return Err(error);
@@ -755,7 +972,11 @@ impl ControlHubTool {
             webview_label: webview_label.clone(),
             target_id: session.session_id.clone(),
         });
-        browser_sessions().register(session.clone()).await;
+        if let Err(error) = Self::register_builtin_session(&session).await {
+            Self::cleanup_builtin_browser(&automation_id, &webview_label).await;
+            remove_arkweb_automation_target(&session.session_id);
+            return Err(error);
+        }
         let actions = BrowserActions::new(session.client.as_ref());
         let _ = actions.enable_observers().await;
         if let Err(error) = actions.navigate(&url).await {
@@ -766,7 +987,7 @@ impl ControlHubTool {
         }
         let page_title = actions.get_title().await.unwrap_or(title);
 
-        let mut result = json!({
+        let result = json!({
             "success": true,
             "target": "builtin",
             "backend": "builtin",
@@ -780,14 +1001,10 @@ impl ControlHubTool {
             "page_url": url,
             "page_title": page_title,
             "observable_by_agent": true,
+            "controllable_by_agent": true,
             "webview_label": webview_label,
             "status": "connected_builtin",
         });
-        if let Some(error) = frontend_event_error {
-            result["warning"] = json!(format!(
-                "The page is controllable but the panel event was not delivered: {error}"
-            ));
-        }
         Ok(vec![ToolResult::ok(
             result,
             Some(format!(
@@ -1664,6 +1881,16 @@ Branch on `ok` and `error.code`, not on English messages.
             .as_ref()
             .map(|session| session.backend.is_builtin_arkweb())
             .unwrap_or(false);
+        // A new connect without an exact target follows the current preference;
+        // previous ArkWeb tabs must not override a newly selected Haitai browser.
+        let requested_backend = if action == "connect" && !target_was_explicit {
+            match Self::configured_browser_connect_backend(params).await {
+                Ok(backend) => Some(backend),
+                Err(error) => return Ok(err_response("browser", action, error)),
+            }
+        } else {
+            requested_backend
+        };
         let use_builtin_backend = Self::use_builtin_browser_backend(
             cfg!(target_env = "ohos"),
             logical_browser_target_kind,
@@ -1707,6 +1934,11 @@ Branch on `ok` and `error.code`, not on English messages.
                 }
             }
         };
+
+        #[cfg(target_env = "ohos")]
+        if use_builtin_backend && CdpClient::browser_connection_suppressed(0).await {
+            return Err(Self::builtin_disconnected_error());
+        }
 
         if action != "open_builtin"
             && logical_browser_target_kind == BrowserTargetKind::External
@@ -1761,23 +1993,6 @@ Branch on `ok` and `error.code`, not on English messages.
                     // reuse explicitly with replace_existing=true.
                     .unwrap_or(false);
 
-                get_global_event_system()
-                    .emit(BackendEvent::Custom {
-                        event_name: OPEN_BUILT_IN_BROWSER_EVENT.to_string(),
-                        payload: json!({
-                            "url": url,
-                            "title": title,
-                            "replaceExisting": replace_existing,
-                            "ownerSessionId": context.session_id,
-                            "ownerWorkspaceId": context.workspace.as_ref().and_then(|workspace| workspace.workspace_id.as_ref()),
-                            "ownerWorkspacePath": context.workspace_root().map(|path| path.to_string_lossy().to_string()),
-                        }),
-                    })
-                    .await
-                    .map_err(|error| {
-                        BitFunError::tool(format!("failed to open built-in browser: {error}"))
-                    })?;
-
                 if !builtin_browser_host_available() {
                     return Ok(err_response(
                         "browser",
@@ -1795,6 +2010,14 @@ Branch on `ok` and `error.code`, not on English messages.
                     url: url.clone(),
                     title: title.clone(),
                     replace_existing,
+                    owner_session_id: context.session_id.clone(),
+                    owner_workspace_id: context
+                        .workspace
+                        .as_ref()
+                        .and_then(|workspace| workspace.workspace_id.clone()),
+                    owner_workspace_path: context
+                        .workspace_root()
+                        .map(|path| path.to_string_lossy().to_string()),
                 })
                 .await
                 {
@@ -2660,6 +2883,14 @@ Branch on `ok` and `error.code`, not on English messages.
                         url: url.clone(),
                         title: "Browser".to_string(),
                         replace_existing: false,
+                        owner_session_id: context.session_id.clone(),
+                        owner_workspace_id: context
+                            .workspace
+                            .as_ref()
+                            .and_then(|workspace| workspace.workspace_id.clone()),
+                        owner_workspace_path: context
+                            .workspace_root()
+                            .map(|path| path.to_string_lossy().to_string()),
                     })
                     .await
                     {
@@ -4508,6 +4739,48 @@ mod control_hub_tests {
 
     struct FakeBuiltInBrowserHost;
 
+    #[test]
+    fn arkweb_connect_reuses_visible_or_exact_pages_and_never_replaces_missing_targets() {
+        let target = |id: &str, url: &str, active: bool| BuiltInBrowserTarget {
+            id: id.to_string(),
+            url: url.to_string(),
+            title: "Form".to_string(),
+            active,
+        };
+        let pages = vec![
+            target("background", "https://example.com", false),
+            target("visible", "https://httpbin.org/forms/post", true),
+        ];
+        let select = |params| {
+            ControlHubTool::select_arkweb_connect_target(&pages, &params, Some("background"))
+        };
+        assert_eq!(select(json!({})).unwrap().as_deref(), Some("visible"));
+        assert_eq!(
+            select(json!({ "session_id": "background" }))
+                .unwrap()
+                .as_deref(),
+            Some("background")
+        );
+        assert_eq!(
+            select(json!({ "target_url": "httpbin.org", "target_title": "form" }))
+                .unwrap()
+                .as_deref(),
+            Some("visible")
+        );
+        assert!(select(json!({ "session_id": "closed" })).is_err());
+        assert!(select(json!({ "target_url": "missing.example" })).is_err());
+        assert!(ControlHubTool::select_arkweb_connect_target(
+            &[],
+            &json!({ "session_id": "closed" }),
+            None
+        )
+        .is_err());
+        assert_eq!(
+            ControlHubTool::select_arkweb_connect_target(&[], &json!({}), None).unwrap(),
+            None
+        );
+    }
+
     #[async_trait]
     impl BuiltInBrowserHost for FakeBuiltInBrowserHost {
         async fn open(
@@ -5114,6 +5387,25 @@ mod control_hub_tests {
                 || payload.to_string().contains("shared_action_contract"),
             "payload must identify the shared action contract: {payload}"
         );
+    }
+
+    #[tokio::test]
+    async fn open_url_returns_the_same_controllable_browser_identity() {
+        use crate::agentic::tools::implementations::open_url_tool::OpenUrlTool;
+        set_builtin_browser_host(Arc::new(FakeBuiltInBrowserHost));
+        let results = OpenUrlTool::new()
+            .call_impl(
+                &json!({ "url": "example.com", "mode": "builtin" }),
+                &empty_context(),
+            )
+            .await
+            .unwrap();
+        let payload = results[0].content();
+        assert_eq!(payload["session_id"], "embedded-browser-panel-view-test");
+        assert_eq!(payload["target"], "builtin");
+        assert_eq!(payload["observable_by_agent"], true);
+        assert_eq!(payload["controllable_by_agent"], true);
+        assert_eq!(payload["opened_with"], "bitfun-builtin-browser");
     }
 
     #[tokio::test]
