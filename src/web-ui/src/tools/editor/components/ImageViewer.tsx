@@ -252,6 +252,11 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
     // transition animates between consecutive values, and 270 → 0 would spin
     // counter-clockwise across three quarters instead of one quarter.
     setRotation(prev => prev + 90);
+    // Keep the displayed size across the turn (issue #467): re-fitting the
+    // new orientation would stretch the image to the pane on every rotate;
+    // freezing the fit ties the rotated height to the pre-rotation width.
+    // The reset button restores fit-to-pane.
+    setIsManualZoom(true);
   }, []);
 
   // Zoom/reset keyboard shortcuts (advertised in the toolbar tooltips).
