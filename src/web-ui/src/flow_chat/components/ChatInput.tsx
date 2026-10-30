@@ -72,6 +72,12 @@ import { useMessageSender } from '../hooks/useMessageSender';
 import { useChatInputState } from '../store/chatInputStateStore';
 import { useInputHistoryStore } from '../store/inputHistoryStore';
 import {
+  clearHistoryNavigationSnapshot,
+  resolveHistoryNavigationSnapshot,
+  saveHistoryNavigationSnapshot,
+  type HistoryNavigationSnapshotMap,
+} from './historyNavigationSnapshot';
+import {
   sessionComposerStore,
   type PendingLargePasteMap,
 } from '../store/sessionComposerStore';
@@ -583,6 +589,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   // History navigation state
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [savedDraft, setSavedDraft] = useState('');
+  // Per-session in-memory snapshots of history navigation. When the user
+  // browses history (ArrowUp) and switches sessions, the browsed message is
+  // already persisted as the session draft, so switching back restores it
+  // into the input — the snapshot lets navigation resume from the browsed
+  // index instead of restarting from index 0 (which re-showed the same
+  // message after one un-intercepted native caret jump).
+  const historyNavigationSnapshotsRef = useRef<HistoryNavigationSnapshotMap>(new Map());
   const [inputTarget, setInputTarget] = useState<ChatInputTarget>('main');
   const [toolPermissionConfig, setToolPermissionConfig] = useState<ToolPermissionConfig>(
     DEFAULT_TOOL_PERMISSION_CONFIG,
@@ -1389,11 +1402,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
   }, [activeBtwSessionId, showTargetSwitcher]);
 
-  // Reset history index when switching sessions
-  useEffect(() => {
-    setHistoryIndex(-1);
-  }, [effectiveTargetSessionId]);
-  
   const modeInfoById = useMemo(
     () => new Map(modeState.available.map(mode => [mode.id, mode])),
     [modeState.available],
@@ -1999,6 +2007,20 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     if (!isSceneActive) return;
     const previousSessionId = previousComposerSessionIdRef.current;
     const surfaceChanged = previousComposerSurfaceEpochRef.current !== deviceSurfaceScope.epoch;
+    // Save the outgoing session's history-navigation snapshot BEFORE this
+    // layout effect resets historyIndex below. This effect runs with the
+    // render's closure, where historyIndex still holds the old session's
+    // browsing index — a passive useEffect would already see the reset
+    // value (layout-effect state updates flush before passive effects run),
+    // so the snapshot would never be saved there.
+    if (previousSessionId !== null && previousSessionId !== effectiveTargetSessionId) {
+      saveHistoryNavigationSnapshot(
+        historyNavigationSnapshotsRef.current,
+        previousSessionId,
+        historyIndex,
+        savedDraft,
+      );
+    }
     const draft = sessionComposerStore.getState().activateDraft(
       previousSessionId,
       effectiveTargetSessionId,
@@ -2034,8 +2056,22 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     if (draft.presentation) {
       richTextInputRef.current?.restoreComposerPresentation?.(draft.presentation);
     }
-    setHistoryIndex(-1);
-    setSavedDraft('');
+    // Resume history navigation when the restored draft is still the browsed
+    // history entry; otherwise fall back to draft mode and drop the snapshot.
+    const restoredValue = presentationValue ?? draft.value;
+    const historySnapshot = resolveHistoryNavigationSnapshot(
+      historyNavigationSnapshotsRef.current,
+      effectiveTargetSessionId,
+      restoredValue,
+      inputHistory,
+    );
+    if (historySnapshot) {
+      setHistoryIndex(historySnapshot.historyIndex);
+      setSavedDraft(historySnapshot.savedDraft);
+    } else {
+      setHistoryIndex(-1);
+      setSavedDraft('');
+    }
     setContextTriggerState({ isActive: false, query: '', startOffset: 0 });
     setBoostEntryView('sources');
     setInlineTriggerState({
@@ -5349,6 +5385,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
     setHistoryIndex(-1);
     setSavedDraft('');
+    clearHistoryNavigationSnapshot(historyNavigationSnapshotsRef.current, effectiveTargetSessionId);
 
     clearComposerForSubmission({
       clearValue: () => dispatchInput({ type: 'CLEAR_VALUE' }),
@@ -5854,6 +5891,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           // Return to draft/empty
           setHistoryIndex(-1);
           dispatchInput({ type: 'SET_VALUE', payload: savedDraft });
+          clearHistoryNavigationSnapshot(historyNavigationSnapshotsRef.current, effectiveTargetSessionId);
         }
         return;
       }
