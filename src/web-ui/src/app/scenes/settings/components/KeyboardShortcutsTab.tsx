@@ -705,13 +705,13 @@ const KeyboardShortcutsTab: React.FC = () => {
         {/* Shortcuts grouped by scope */}
         {SCOPE_DISPLAY_ORDER.map((scope) => {
           const rawItems = filteredByScope(scope);
-          const showMergedTab = scope === 'canvas' && mergedTabSwitchRowVisible;
+          // The tab-switch row lives in the app group since the bindings are
+          // app-scoped (Ctrl+1..9 fire regardless of focus).
+          const showMergedTab = scope === 'app' && mergedTabSwitchRowVisible;
           const showMergedScene = scope === 'app' && mergedSceneRowVisible;
           const items =
             scope === 'app'
-              ? rawItems.filter((r) => !MERGED_SCENE_FOCUS_IDS.has(r.id))
-              : scope === 'canvas'
-              ? rawItems.filter((r) => !MERGED_TAB_SWITCH_IDS.has(r.id))
+              ? rawItems.filter((r) => !MERGED_SCENE_FOCUS_IDS.has(r.id) && !MERGED_TAB_SWITCH_IDS.has(r.id))
               : rawItems;
           if (items.length === 0 && !showMergedScene && !showMergedTab) return null;
 
