@@ -220,6 +220,8 @@ describe('SessionFilesBadge', () => {
     expect(toggle?.querySelector('[data-bitfun-name="chevron-up"]')).not.toBeNull();
 
     const filesPopover = dom.window.document.querySelector<HTMLElement>('.session-files-badge__popover');
+    // Floating surfaces must occlude the native browser child view.
+    expect(filesPopover?.hasAttribute('data-bitfun-native-webview-occlusion')).toBe(true);
     expect(filesPopover?.parentElement?.getAttribute('data-bitfun-overlay-host')).toBe('true');
     expect(filesPopover?.style.visibility).toBe('visible');
     expect(dom.window.document.body.textContent).toContain('2 files');
@@ -262,6 +264,8 @@ describe('SessionFilesBadge', () => {
     });
 
     const reviewPopover = dom.window.document.querySelector<HTMLElement>('.session-files-badge__review-menu-popover');
+    // The actions menu sits above the native browser child view and must occlude it.
+    expect(reviewPopover?.hasAttribute('data-bitfun-native-webview-occlusion')).toBe(true);
     expect(reviewPopover?.parentElement?.getAttribute('data-bitfun-overlay-host')).toBe('true');
     expect(reviewPopover?.style.visibility).toBe('visible');
     expect(dom.window.document.body.textContent).toContain('Review');

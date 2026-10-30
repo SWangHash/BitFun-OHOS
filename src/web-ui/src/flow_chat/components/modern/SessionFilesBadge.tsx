@@ -856,6 +856,7 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
             className="session-files-badge__review-menu-popover"
             data-bitfun-component="session-files-badge"
             data-bitfun-part="reviewPopover"
+            data-bitfun-native-webview-occlusion
             data-testid="session-files-badge-actions-menu"
             data-bitfun-placement={reviewPopoverLayout?.placement ?? 'bottom'}
             style={{
@@ -952,6 +953,7 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
           className="session-files-badge__popover"
           data-bitfun-component="session-files-badge"
           data-bitfun-part="popover"
+          data-bitfun-native-webview-occlusion
           data-bitfun-placement={filePopoverLayout?.placement ?? 'bottom'}
           style={{
             top: `${filePopoverLayout?.top ?? 0}px`,
