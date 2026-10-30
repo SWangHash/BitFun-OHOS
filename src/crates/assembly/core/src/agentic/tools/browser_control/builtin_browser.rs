@@ -213,7 +213,7 @@ pub async fn connect_builtin_browser_matching(
     })
 }
 
-fn select_builtin_browser_target(
+pub(crate) fn select_builtin_browser_target(
     targets: &[BuiltInBrowserTarget],
     requested_target_id: Option<&str>,
     target_url: Option<&str>,

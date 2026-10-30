@@ -4,6 +4,8 @@ use bitfun_core::agentic::tools::browser_control::browser_launcher::{
     BrowserKind, BrowserLauncher, LaunchResult, DEFAULT_CDP_PORT,
 };
 use bitfun_core::agentic::tools::browser_control::cdp_client::CdpClient;
+#[cfg(target_env = "ohos")]
+use bitfun_core::agentic::tools::implementations::control_hub_tool::disconnect_builtin_browser;
 use bitfun_core::agentic::tools::implementations::control_hub_tool::disconnect_external_browser;
 use bitfun_core::service::config::{get_global_config_service, GlobalConfig};
 #[cfg(target_env = "ohos")]
@@ -254,7 +256,7 @@ async fn builtin_browser_status(preference: &str) -> Result<BrowserControlStatus
         .ok()
         .and_then(|version| version.browser);
     Ok(BrowserControlStatusResponse {
-        cdp_available: page_count > 0,
+        cdp_available: page_count > 0 && !CdpClient::browser_connection_suppressed(0).await,
         default_cdp_supported: false,
         default_cdp_enabled: false,
         browser_ready: true,
@@ -558,6 +560,7 @@ pub async fn browser_control_launch(
     let port = request.port;
     let preference = selected_browser_preference().await?;
     if is_builtin_browser_preference(&preference) {
+        CdpClient::allow_browser_connection(0).await;
         return Ok(builtin_ready_response(None));
     }
     let kind = BrowserLauncher::resolve_browser_kind(Some(&preference))
@@ -610,6 +613,7 @@ pub async fn browser_control_enable_default_cdp(
     let port = request.port;
     let preference = selected_browser_preference().await?;
     if is_builtin_browser_preference(&preference) {
+        CdpClient::allow_browser_connection(0).await;
         return Ok(builtin_ready_response(None));
     }
     let kind = selected_browser_kind().await?;
@@ -653,6 +657,7 @@ pub async fn browser_control_restart_with_cdp(
     let port = request.port;
     let preference = selected_browser_preference().await?;
     if is_builtin_browser_preference(&preference) {
+        CdpClient::allow_browser_connection(0).await;
         return Ok(builtin_ready_response(None));
     }
     let kind = selected_browser_kind().await?;
@@ -679,6 +684,19 @@ pub struct BrowserControlDisconnectResponse {
 pub async fn browser_control_disconnect(
     request: BrowserControlLaunchRequest,
 ) -> Result<BrowserControlDisconnectResponse, String> {
+    #[cfg(target_env = "ohos")]
+    if is_builtin_browser_preference(&selected_browser_preference().await?) {
+        let disconnected_count = disconnect_builtin_browser().await;
+        return Ok(BrowserControlDisconnectResponse {
+            success: true,
+            status: if disconnected_count > 0 {
+                "disconnected".into()
+            } else {
+                "already_disconnected".into()
+            },
+            browser_kind: BUILTIN_BROWSER_LABEL.to_string(),
+        });
+    }
     let kind = selected_browser_kind().await?;
     let disconnected_count = disconnect_external_browser(request.port).await;
 

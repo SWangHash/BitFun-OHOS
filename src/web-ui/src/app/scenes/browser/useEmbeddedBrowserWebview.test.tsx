@@ -224,6 +224,44 @@ it('reports a stale automation page instead of displaying a fresh empty replacem
   expect(invokeCount('browser_webview_show')).toBe(0);
 });
 
+it('adopts a blank automation page before its first navigation without creating another page', async () => {
+  const label = 'embedded-browser-panel-view-agent-blank';
+  await act(async () => root.render(<Harness active options={{
+    initialUrl: 'about:blank', webviewLabel: label, adoptExisting: true,
+  }} />));
+  expect(browser.error).toBeNull();
+  expect(browser.webviewLabel).toBe(label);
+  expect(invokeCount('browser_webview_create')).toBe(0);
+  expect(invokeCount('browser_webview_navigate')).toBe(0);
+  expect(mocks.invoke).toHaveBeenCalledWith('browser_webview_show', { request: { label } });
+  await act(async () => browser.loadUrl('https://httpbin.org/forms/post'));
+  expect(mocks.invoke).toHaveBeenCalledWith('browser_webview_navigate', {
+    request: expect.objectContaining({ label, url: 'https://httpbin.org/forms/post' }),
+  });
+  await act(async () => browser.loadUrl('about:blank'));
+  expect(browser.error).toContain('Unsupported protocol');
+});
+
+it('preserves the adopted native page across project unmount/remount and reads its current URL', async () => {
+  const label = 'embedded-browser-panel-view-agent-project-switch';
+  const options = { initialUrl: 'about:blank', webviewLabel: label, adoptExisting: true };
+  mocks.invoke.mockImplementation(async command => command === 'browser_get_url'
+    ? 'https://httpbin.org/forms/post' : undefined);
+  await act(async () => root.render(<Harness active options={options} />));
+  expect(browser.currentUrl).toBe('https://httpbin.org/forms/post');
+  mocks.invoke.mockClear();
+  await act(async () => root.render(null));
+  expect(mocks.invoke).toHaveBeenCalledWith('browser_webview_hide', { request: { label } });
+  expect(invokeCount('browser_webview_close')).toBe(0);
+  await act(async () => root.render(<Harness active options={options} />));
+  expect(browser.error).toBeNull();
+  expect(browser.webviewLabel).toBe(label);
+  expect(browser.currentUrl).toBe('https://httpbin.org/forms/post');
+  expect(invokeCount('browser_webview_create')).toBe(0);
+  expect(invokeCount('browser_webview_navigate')).toBe(0);
+  expect(mocks.invoke).toHaveBeenCalledWith('browser_webview_show', { request: { label } });
+});
+
 it.each(['pending', 'rejected'])('shows the first page even when script injection is %s', async (outcome) => {
   let pageLoadListener: ((event: { payload: { label: string; event: 'finished'; url: string } }) => void) | undefined;
   mocks.listen.mockImplementation(async (_event: string, listener: typeof pageLoadListener) => {

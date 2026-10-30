@@ -428,7 +428,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
       }
       const handle = createCommandBasedBrowserWebviewHandle(existingWebviewLabel, api.invoke as TauriInvoke);
       if (!mountedRef.current) {
-        await handle.close();
+        await handle.hide();
         throw new Error('Browser surface disposed during webview adoption');
       }
       webviewRef.current = handle;
@@ -436,6 +436,14 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
       setWebviewLabel(existingWebviewLabel);
       preview.setTarget(existingWebviewLabel);
       lastBoundsRef.current = initialBounds;
+      // The host may have navigated while this project's surface was unmounted.
+      // Read its current location without resetting form or login state.
+      const adoptedUrl = await api.invoke<string>('browser_get_url', { request: { label: existingWebviewLabel } });
+      if (adoptedUrl && mountedRef.current && handle === webviewRef.current) {
+        currentUrlRef.current = adoptedUrl;
+        setInputValue(adoptedUrl);
+        setCurrentUrl(adoptedUrl);
+      }
       void injectBrowserPageScripts(existingWebviewLabel).catch(injectionError => {
         log.warn('Inject browser page scripts failed', injectionError);
       });
@@ -513,7 +521,11 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
     }
 
     try {
-      validateUrl(nextUrl);
+      // A host-created blank page is already loaded and is about to be
+      // adopted, not navigated. Manual navigation still accepts only http(s).
+      const adoptingBlankPage = adoptExisting && existingWebviewLabel
+        && !webviewRef.current && nextUrl === 'about:blank';
+      if (!adoptingBlankPage) validateUrl(nextUrl);
       let handle = webviewRef.current;
       if (!handle) {
         handle = await createWebview(nextUrl);
@@ -535,7 +547,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
     } finally {
       setIsLoading(false);
     }
-  }, [createWebview, defaultUrl, isTauri, log, navigateExistingWebview, openRequestId, preview, syncWebviewBounds, visibility]);
+  }, [adoptExisting, createWebview, defaultUrl, existingWebviewLabel, isTauri, log, navigateExistingWebview, openRequestId, preview, syncWebviewBounds, visibility]);
 
   const queueSync = useCallback(() => {
     resizeSyncPendingRef.current = true;
@@ -620,11 +632,18 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
       resizeSyncPendingRef.current = false;
       const handle = webviewRef.current;
       if (handle) {
-        // Drain pending show/focus operations before closing the native view.
-        void visibility(handle).catch(() => {}).then(() => closeWebview(handle));
+        // Adopted pages belong to the browser host/Agent session. Project and
+        // scene switches unmount this presentation but must preserve the page.
+        void visibility(handle).catch(() => {}).then(async () => {
+          if (adoptExisting) {
+            await setAgentTargetState(handle.label, false).catch(() => {});
+          } else {
+            await closeWebview(handle);
+          }
+        });
       }
     };
-  }, [closeWebview, preview, visibility]);
+  }, [adoptExisting, closeWebview, preview, visibility]);
 
   useEffect(() => {
     if (!isTauri) return;
