@@ -1,6 +1,118 @@
 # BitFun HarmonyOS PC Release Notes
 
-本仓库是 [BitFun](https://github.com/GCWing/BitFun) 在 HarmonyOS PC 上的移植版本。每个版本由 `release/1.0.x` 分支维护,并同步对应的上游 BitFun 产品版本。下方按时间倒序列出各版本的 HarmonyOS PC 适配进展与同步进入的关键特性/修复。
+本仓库是 [BitFun](https://github.com/GCWing/BitFun) 在 HarmonyOS PC 上的移植版本。每个版本由 `release/1.0.x`、`release/2.0.x` 分支维护,并同步对应的上游 BitFun 产品版本。下方按时间倒序列出各版本的 HarmonyOS PC 适配进展与同步进入的关键特性/修复。
+
+---
+
+## v2.0.0 (2026-10-31) — 基于 BitFun 2.0.0
+
+### 版本概览
+
+2.0.0 是一次大版本升级,与 1.0.9 差异显著,建议升级前先阅读下方「破坏性变更与升级说明」:
+
+- **Agent 引擎重构**:新增 Ultra/Swarm 多智能体编排(planner/worker/reviewer 分工,最多 128 个 Agent、5 层深度)、权限系统 V2(三档模式 + 批量批准)、记忆提取/整合流水线、跨客户端 Steering 与持久化回合日志。
+- **鸿蒙 PC 生态**:ACP 智能体一键配置(DevEco Code、Claude Code、Codex、DeepSeek Harness、Kimi、Qwen、CodeBuddy、OpenCode);行业智能体阵容(Qt→HarmonyOS 迁移专家、鸿蒙构建专家、鸿蒙上架预检助手);鸿蒙手机端账号远程控制与折叠屏适配。
+- **产品面**:皮肤/外观市场、审核制 MiniApp 市场、OpenHarmony Matrix 技能市场、编辑器升级(Markdown 富文本预览、PDF 查看器、HTML 预览)、键盘快捷键中心、繁体中文支持、AI 桌宠、自动更新。
+- **账号与远程**:账号体系迁移为 GitHub 身份 + 多设备同步 + Peer Device Mode;SSH 远程工作区(多跳/容器/SFTP)、离线任务分发(Detached Dispatch)、微信/飞书/Telegram 机器人控制、原生 iOS/Android 客户端。
+
+### 破坏性变更与升级说明
+
+**Agent 工具与模式**
+
+- Bash、Git、TerminalControl 不再注册为 Agent 工具:执行 shell 命令与本地 Git 操作改用 **ExecCommand**,终端生命周期控制改用 **ControlHub**。依赖旧工具的自定义智能体/提示词需调整;旧会话记录做了兼容清理,历史回放不受影响 (`refactor(agent): remove legacy command tools`)。
+- Plan 模式与 Multitask 模式退役,规划能力改为内置 plan 技能(产出 `.plan.md` 工件);旧的模式选择自动回退到 agentic 模式 (`feat(agent): replace Plan mode with skill`)。
+- 权限系统迁移到 V2:旧的 `ai.skip_tool_confirmation` 自动迁移为 `tool_permissions`;`skip-confirmation`、`confirmation-timeout` 等旧配置已删除,需在新三档模式(询问确认/自动批准/完全访问)中重新选择 (`feat(permissions): unify permission modes and migrate legacy config`)。
+
+**账号与远程**
+
+- 账号云同步被替换为 GitHub 身份 + 设备自主的远程控制:同账号多设备注册/路由、会话与设置加密云同步;移动端配对改为账号密码方式 (`feat: account sync, multi-device control, and Peer Device Mode`)。
+- SSH 移除 Agent 认证,旧 Agent 认证迁移为私钥认证 (`feat(remote-ssh): remove SSH Agent auth; migrate legacy Agent to private key`)。
+- 旧版本自部署 Relay 服务端将被拒答(410 relay_version_retired),需升级 Relay;官方端点迁移,旧端点需重新认证 (`feat(relay): answer retired Relay versions with an actionable 410`)。
+- 远程控制要求客户端构建版本与主版本匹配 (`feat(account): gate remote control on matching client builds`)。
+
+**编辑器与 UI**
+
+- Markdown 编辑器预览精简:移除「分屏」「预览」模式,富文本成为唯一渲染视图;Mermaid 交互式编辑器移除(Markdown 内 Mermaid 块渲染保留) (`fix(editor): make rich text the only Markdown preview mode`)。
+- Review 从聊天「附加模式」列表移除,改为独立场景入口;语音能力收拢为输入框语音控件,语音设置页入口不再展示。
+
+**HarmonyOS 专项**
+
+- 品牌统一为 BitFun:数据目录 `~/.openbitfun` → `~/.bitfun`,bundle id 更新为 `com.bitfun.*`;旧安装数据保留在 `~/.openbitfun`,不做自动迁移,需要保留历史数据的用户请手动处理 (`refactor(brand): rename crates, paths, and identity to BitFun`)。
+- 鸿蒙上应用内更新停用,更新由 AppGallery 负责;About 手动检查跳转 AppGallery (`Fix HarmonyOS version sync and update gating`)。
+
+**生态开发者**
+
+- Task 工具每次调用必须提供 `agent_id`,不再接受 `description`;AgentSpawn 同样要求 `agent_id` (`feat(agent): require caller-defined Task ids`)。
+- 派发协议升级到 v4(每回合模型/审批策略覆盖),旧 SSH 目标需通过一键安装升级 CLI 后才能派发 (`feat(dispatch): protocol v4 per-turn model and approval-policy overrides`)。
+
+### 重点新特性
+
+**Agent 引擎**
+
+- **Ultra/Swarm 多智能体编排**:Ultra 模式作为递归规划 Swarm 执行入口,内置 planner/worker/reviewer 角色分工,子 Agent 生命周期工具、后台结果等待与批量执行、可配置子 Agent 模型 (`feat(agent): add Ultra swarm orchestration`)。
+- **权限系统 V2**:统一文件/命令/MCP/MiniApp/Computer Use 审批,支持「本轮及后续」原子批量批准、按会话隔离的权限模式、子 Agent 请求路由到父会话并展示委派沿袭 (`feat(permission): add v2 rule contracts and evaluator`)。
+- **记忆与上下文**:端到端记忆提取/整合流水线(敏感信息脱敏、启动注入与引用记录);上下文压缩交接重构、手动压缩入口、会话级 prompt cache (`feat(memory): add end-to-end memory extraction and consolidation workflow`)。
+- **跨客户端 Steering 与持久化回合**:活跃回合可跨客户端统一转向;运行中回合事件写入持久日志,回合投影可超越 Host 进程存活;SDK 支持持久化会话恢复 (`feat(runtime): unify active-turn steering across clients`)。
+- **MCP 扩展**:远程服务器 OAuth(含重新认证)、prompt 命令与资源访问、MCP APPS、按模式/工作区作用域的聊天内目录与 @ 服务器提及胶囊 (`feat: add MCP OAuth support for remote servers`)。
+- **模型与订阅生态**:接入 models.dev 作为内置 Provider/模型权威目录;新增 Hermes、SuperGrok、OpenCode Zen/Go、TokenDance 等订阅,应用内订阅 OAuth 取代本地凭据扫描 (`feat(ai): integrate models.dev provider catalog`)。
+
+**产品面**
+
+- **皮肤/外观市场**:GitHub 账号共享登录提交、审核管理、内置皮肤创作技能;外观类型化包运行时,选择持久化并在桌面启动与嵌入表面间投影 (`feat: add Skin marketplace with shared GitHub account`)。
+- **编辑器升级**:Markdown 富文本预览(支持 frontmatter)、集成 PDF 查看器(缩放/旋转/页导航/文本选择)、HTML/HTM 在内置浏览器预览并保留源码编辑 (`feat(editor): add PDF viewer`)。
+- **键盘快捷键中心**:设置新增快捷键 Tab,画布/Git/FlowChat/文件等场景级快捷键与快捷键参考面板 (`feat(web-ui): keyboard shortcuts hub, ShortcutManager, settings reference`)。
+- **多语言**:统一 locale 注册表并新增繁体中文(zh-TW);会话标题按用户语言生成 (`feat(i18n): unify locale registry and add zh-TW support`)。
+- **AI 桌宠**:默认接入 Bifang 吉祥物,新增宠物气泡输入器、宠物切换设置、Petdex 导入,提问待答复时宠物提示关注 (`feat(web-ui): add Bitfun Bifang mascot as default companion pet`)。
+- **自动更新**:应用自动更新与每日后台静默下载,更新源增加 openbitfun.com 兜底端点 (`feat(auto-update): add auto-update`)。
+
+**远程与多设备**
+
+- **SSH 远程工作区**:多跳 ProxyJump、容器工作区、SFTP 文件浏览/传输、端口转发;新增原生 Windows WSL 工作区 (`feat(remote-ssh): complete multi-hop and container workspaces`)。
+- **离线任务分发(Detached Dispatch)**:任务派发到 SSH 目标机离线执行,基于 Git worktree 隔离,支持多设备工作流与事件回放 (`feat(dispatch): add detached SSH task execution`)。
+- **IM 机器人控制**:微信/飞书/Telegram 机器人驱动桌面会话;Relay 提供一键自部署向导 (`feat(remote-connect): WeChat bot, router, desktop and web-ui integration`)。
+- **原生移动客户端**:全新 iOS 与 Android 客户端,与鸿蒙手机端对齐远程控制、会话、账号体验 (`feat(mobile): add native iOS client surface`)。
+
+**内容生态与会话**
+
+- **MiniApp 市场**:审核制小程序市场(提交/审核/下载排行),Agent 可经 PublishMiniApp 一键发布,鸿蒙端以可视化库呈现并支持原生 ArkWeb 预览 (`feat(miniapp): add reviewed MiniApp marketplace`)。
+- **OpenHarmony Matrix 技能市场**:技能中心按设计稿重构(卡片画廊、详情弹窗、无限滚动),接入 Matrix 市场源 (`feat(skills): add OpenHarmony Matrix market integration`)。
+- **会话与工作区**:递归 Agent 会话树、会话归档/恢复、回合页脚分支新会话、托管 worktree 会话(自动清理)、批量管理器 (`feat(flow-chat): add recursive agent session tree`)。
+- **设计系统**:独立 UI 基础库落地(Menu/Modal/Tooltip/ScrollArea/Field 等数十个组件与 Design Lab),产品侧大面积迁移,交互与视觉一致性重构 (`feat(design-system): establish independent UI foundation`)。
+
+### HarmonyOS PC 适配
+
+- **Qt→HarmonyOS 迁移专家**:全新 QtMigration 智能体模式——intake 卡片收集源项目/输出容器/工具链/模板绑定输入,官方 Qt 工具链一键下载配置,迁移进度面板实时展示阶段,配套 ohos-qt-skills 知识库 (`feat(qt-migration): register the QtMigration agent mode and surface it in the UI`)。
+- **ACP 智能体生态**:DevEco Code(原生 npm 预设)、Claude Code、Codex、DeepSeek Harness(含 dsh-acp IDE 桥接、每会话模型选择、历史续聊)一键配置;Kimi Code、Qwen Code、CodeBuddy、OpenCode 经 HarmonyBrew 托管安装并复用已检测安装 (`feat(acp): add DevEco Code support on HarmonyOS`)。
+- **行业智能体**:注册 HarmonyBuild 鸿蒙构建专家及子智能体、鸿蒙功能增强智能体、鸿蒙上架预检助手(对比度/完整性/隐私同意检查,支持选择修复与复检);Agent 选择器新增行业分类 (`feat(agents): register HarmonyBuild industry agent and its subagents`)。
+- **鸿蒙原生能力**:会话产物经系统 Share Kit 分享到附近设备、系统截屏、状态栏托盘图标(左键恢复主窗口、右键宠物开关)、任务运行锁阻止自动休眠、窗口失焦即推送完成/待审批通知、开机自启显示系统托管状态 (`feat(ohos): add status bar tray menu with desktop pet toggle`)。
+- **手机端**:原生鸿蒙手机 App 架构重构,接入账号远程控制(侧边栏按设备组织、查看每台桌面的工作区),折叠屏折痕感知布局与三折叠适配,界面中英文切换 (`feat(harmonyos): integrate account remote control`)。
+- **ArkWeb 适配**:主窗口启用 DOM Storage(修复重启后输入历史/i18n/工作区状态丢失);修复内嵌浏览器白屏、滚动条不可拖拽、PDF worker;mailto 链接改跳系统应用 (`fix(ohos): enable domStorageAccess on ArkWeb main webview`)。
+- **文件交互**:OHOS 原生文件拖拽入聊天、文件树剪贴板与系统粘贴板缓存复制、图片/评审报告独立下载走 OHOS 保存对话框、写下载目录前主动申请权限 (`feat(drag-drop): wire useNativeFileDrop for OHOS native file drag-drop support`)。
+- **性能**:启动路径削减与前端包瘦身;会话切换防抖降至 50ms 并丢弃过期响应;Git 轮询降频至 10 秒且仅刷新活动工作区;请求队列隔离与会话初始化恢复 (`perf(ohos): speed up HarmonyOS PC startup and shrink the frontend bundle`)。
+- **订阅与凭据**:修复鸿蒙订阅登录与模型发现(不再依赖 D-Bus keyring,DNS 经 netmanager);Codex 登录适配 AssetStore 密钥长度限制并展示 GPT-5.6;保留旧版市场凭据 (`fix(ohos): keep subscription login and model discovery working`)。
+- **打包与交付**:GitCode 统一三平台打包流水线(OHOS 签名 HAP/.app 默认构建)与每日定时签名包;LAN 控制器资源单独打包进 HAP 并校验;新增 beta 打包渠道 (`ci: add and harden the unified GitCode package pipeline`)。
+- **权限与设备**:新增平板设备类型,移除无效的 `WINDOW_TOPMOST` 权限,新增 `ALLOW_USE_BM` 权限申请 (`feat(ohos): add tablet device type and drop invalid WINDOW_TOPMOST permission`)。
+
+### 变更与新特性(同步上游)
+
+- **语音输入重做**:输入框语音录入与识别链路整体重构,录音控件新增实时电平条,浮动对话与语音历史统一整合 (`fix(voice-input): rework composer voice input and speech pipeline`)。
+- **聊天导出**:新增多种图片导出模式(紧凑图、带思考图、详尽模式含完整推理),修复导出中断与思考图标丢失 (`feat(flow-chat): Add image export modes`)。
+- **DeepReview**:多角色评审 Agent 团队与自适应编排、证据收集与容量/成本控制、可指定评审模型;评审平台新增 Gitee 支持(Pull Requests、issue 证据、评论与审批)与跨页 PR 检索 (`feat(deep-review): add review agents and policy`)。
+- **终端与输入法**:修复 ArkWeb/Chromium 下 IME 激活时方向键丢失(keyCode 229)导致的历史翻页失效,组合键交还输入法 (`fix(terminal): rebuild keys xterm drops on IME key codes`)。
+- **文件历史**:按文件粒度的提交历史与 Agent 变更时间线,并绑定工作区作用域 (`feat(git): add per-file commit history and agent change timeline to file history view`)。
+- **工作区**:多工作区、会话级托管 worktree(隔离到首次提问、自动清理、工作区管理器)、仓库信任确认与相关目录支持 (`feat(worktrees): add managed worktree sessions`)。
+- **扩展兼容**:OpenCode 插件 hooks/子代理/workspace 引用兼容,Claude/Codex 配置导入,Codex 兼容的 Agent 生命周期 hooks (`feat(extensions): add OpenCode subagent compatibility`)。
+- **反馈**:反馈收件箱恢复并接入共享登录认证,界面对齐设计系统 (`feat(feedback): restore feedback inbox and shared authentication`)。
+- **FlowChat 打磨**:用户消息时间戳与并排操作、大段粘贴胶囊可编辑、MCP 工具入参展示、深度研究协议渲染为结构化 UI (`feat(flow-chat): show user message send time`)。
+
+### 重要修复
+
+- 修复 OHOS 请求队列争用与会话初始化失败后不可恢复的问题 (`fix(ohos): isolate requests and recover session initialization`)。
+- 修复系统深浅色「跟随系统」切换延迟 1-2 秒的问题 (`fix(ohos): apply system theme changes without the follow-system delay`)。
+- 修复原生文件拖拽白屏、图片重复与文件丢失 (`fix(drag-drop): fix OHOS native file drag-drop white screen, duplicate images, and missing files`)。
+- 修复 Share Kit 分享取消被误报为成功 (`fix(ui): share cancel title, session reuse, global file dialog`)。
+- 修复鸿蒙上订阅登录与模型发现失败的问题 (`fix(ohos): keep subscription login and model discovery working`)。
+- 大量交互与视觉打磨:滚动锚定、tooltip 时序、弹窗层级、会话切换卡顿、i18n 文案治理等。
 
 ---
 
