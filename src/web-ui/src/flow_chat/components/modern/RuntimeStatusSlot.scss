@@ -1,3 +1,5 @@
+@use '../../transcript-layout' as transcriptLayout;
+
 .runtime-status-slot {
   width: 100%;
   height: 24px;
@@ -45,11 +47,12 @@
   }
 
   &--footer &__content {
-    width: 100%;
-    max-width: 900px;
-    margin: 0 auto;
+    // Share the transcript reading-column geometry (turn-rail lane +
+    // 900px column) so the status hint aligns with the user-message
+    // leading edge instead of a plain centered column that overlaps the
+    // turn rail on narrow panes.
+    @include transcriptLayout.reading-column;
     padding: 0 var(--bitfun-control-flow-chat-content-padding-inline);
-    box-sizing: border-box;
   }
 
   @media (max-width: 768px) {

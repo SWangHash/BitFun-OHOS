@@ -600,8 +600,11 @@
       "permissionDenied": "麥克風權限被拒絕",
       "deviceDisconnected": "所選麥克風已中斷連線",
       "lowVolume": "沒有偵測到聲音，請檢查所選麥克風。",
-      "failed": "語音輸入失敗"
-    }
+      "failed": "語音輸入失敗",
+      "recording": "正在錄音，點擊停止按鈕可結束錄製"
+    },
+    "nativeDropFailed": "無法附加拖入的檔案。",
+    "nativeDropRemoteUnsupported": "無法將本機檔案直接附加到遠端工作區，請先透過檔案面板上傳。"
   },
   "workspaceStrip": {
     "branchSwitchLabel": "切換分支。目前分支：{{branch}}",
@@ -1560,7 +1563,8 @@
     "exportSuccessPrefix": "圖片已導出：",
     "exportFailed": "導出圖片失敗，請重試",
     "exporting": "正在導出...",
-    "exportToImage": "導出為圖片"
+    "exportToImage": "導出為圖片",
+    "exportDownloaded": "圖片已下載"
   },
   "turnFailure": {
     "showDetails": "顯示技術詳情",
@@ -1655,7 +1659,8 @@
       "tokens": "Token",
       "tokensUnavailable": "不可用",
       "tokenBreakdown": "共 {{total}}，輸入 {{input}}，輸出 {{output}}"
-    }
+    },
+    "aiDisclaimer": "以上內容均由 AI 生成，僅供參考"
   },
   "exploreRegion": {
     "readFiles_one": "讀取了 {{count}} 個檔案",
@@ -2668,7 +2673,8 @@
       "agentPromptLabel": "上次請求輸入上下文",
       "acpContext": "ACP 回報上下文: {{usage}}",
       "acpContextLabel": "ACP 回報上下文"
-    }
+    },
+    "openSettings": "模型設定"
   },
   "reasoningEffort": {
     "title": "推理深度",
@@ -2870,5 +2876,34 @@
     "button": "工作階段檔案",
     "title": "本工作階段寫入的檔案",
     "footerHint": "本工作階段內 agent 寫入或編輯的檔案"
+  },
+  "selection": {
+    "numbered": "批註 {{number}}",
+    "removeNumbered": "移除{{annotation}}",
+    "save": "儲存",
+    "saveAndLocate": "儲存並定位",
+    "editUnavailable": "批註狀態已變更，請重新開啟後編輯。",
+    "queueEditUnavailable": "暫時無法修改這則待傳送批註，請從待傳送清單編輯訊息。",
+    "inheritedSettings": "此裝置版本的首次側邊提問沿用主對話設定。傳送後可調整模型。",
+    "actions": "選取文字操作",
+    "annotate": "新增批註",
+    "moveEditor": "移動批註輸入框",
+    "resizeEditor": "調整批註輸入框大小",
+    "annotation": "批註",
+    "annotationPlaceholder": "寫下你的批註…",
+    "editAnnotation": "批註選取文字",
+    "addToSession": "加入對話",
+    "addToMain": "加入主對話",
+    "currentSession": "目前對話",
+    "askSide": "側邊提問",
+    "askHere": "在此追問",
+    "sideUnsupported": "目前執行端不支援側邊提問",
+    "cancel": "取消",
+    "remove": "移除批註",
+    "locate": "定位原文",
+    "sourceUnavailable": "原文已變更或暫時無法定位，引用內容已保留。",
+    "count": "{{count}} 條批註",
+    "submitAnnotations": "請處理這些批註。",
+    "questionRequired": "請補充針對選取文字的問題或意見。"
   }
 }

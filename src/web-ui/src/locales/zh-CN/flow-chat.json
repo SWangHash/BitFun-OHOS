@@ -2770,6 +2770,11 @@
         "title": "做个预算规划",
         "description": "把预算拆到类别与时间，并给出控制与复盘方法。",
         "prompt": "请帮我做一个预算规划。\n\n背景：\n- 预算周期（按月/按季度/按项目）：\n- 总预算：\n- 固定支出：\n- 可变支出：\n- 目标（省钱/更可控/为某目标攒钱）：\n\n请输出：\n1) 预算分类与比例建议\n2) 具体到类别的预算表（可复制到表格）\n3) 超支预案与调整规则\n4) 每周/每月复盘清单"
+      },
+      "desktop_cleanup": {
+        "title": "整理桌面截图",
+        "description": "重命名、分组并归档最近的截图。",
+        "prompt": "帮我整理桌面上最近的截图。\n\n首先，扫描桌面并统计有多少截图/图片。向我展示：\n\n- 总数\n\n- 日期范围（最早到最新）\n\n然后，只关注最近 14 天内的截图。对每一张：\n\n- 识别它显示的内容\n\n- 建议一个描述性文件名\n\n- 提议它应归入哪个文件夹（或是否可以删除）\n\n将相似的截图分组。在做出任何更改之前先向我展示计划。\n\n我确认后，先只整理 10 个文件作为预览。如果超过 10 个文件，继续处理其余文件之前先与我确认。"
       }
     }
   },
@@ -2856,5 +2861,34 @@
     "button": "会话文件",
     "title": "本会话写入的文件",
     "footerHint": "本会话内 agent 写入或编辑的文件"
+  },
+  "selection": {
+    "numbered": "批注 {{number}}",
+    "removeNumbered": "移除{{annotation}}",
+    "save": "保存",
+    "saveAndLocate": "保存并定位",
+    "editUnavailable": "批注状态已变化，请重新打开后编辑。",
+    "queueEditUnavailable": "暂时无法修改这条待发送批注，请从待发送列表编辑消息。",
+    "inheritedSettings": "此设备版本的首次侧边提问沿用主会话设置。发送后可调整模型。",
+    "actions": "选中文本操作",
+    "annotate": "添加批注",
+    "moveEditor": "移动批注输入框",
+    "resizeEditor": "调整批注输入框大小",
+    "annotation": "批注",
+    "annotationPlaceholder": "写下你的批注…",
+    "editAnnotation": "批注选中文本",
+    "addToSession": "添加到会话",
+    "addToMain": "添加到主会话",
+    "currentSession": "当前会话",
+    "askSide": "侧边提问",
+    "askHere": "在此追问",
+    "sideUnsupported": "当前运行端不支持侧边提问",
+    "cancel": "取消",
+    "remove": "移除批注",
+    "locate": "定位原文",
+    "sourceUnavailable": "原文已变化或暂时无法定位，引用内容已保留。",
+    "count": "{{count}} 条批注",
+    "submitAnnotations": "请处理这些批注。",
+    "questionRequired": "请补充针对选中文字的问题或意见。"
   }
 }

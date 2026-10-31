@@ -2074,6 +2074,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
     setContextTriggerState({ isActive: false, query: '', startOffset: 0 });
     setBoostEntryView('sources');
+    // Close the whole boost-menu stack (dropdown + any open submenu flyout).
+    // The draft handover resets every other transient picker below; without
+    // this the first-level menu survived session switches while a single
+    // outside click had already closed only the top submenu layer.
+    dispatchMode({ type: 'CLOSE_DROPDOWN' });
     setInlineTriggerState({
       isActive: false,
       trigger: null,

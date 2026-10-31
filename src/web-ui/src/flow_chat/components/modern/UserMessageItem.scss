@@ -373,7 +373,11 @@
 
 .user-message-item__lightbox-close {
   position: absolute;
-  top: 16px;
+  // Stay below the host window's native decor buttons (OpenHarmony draws
+  // min/max/close over the top-right corner of the webview). On hosts
+  // without native window controls the inset variable resolves to 0 and
+  // the button keeps its original 16px offset.
+  top: calc(16px + var(--bitfun-viewport-host-chrome-inset-block-start, 0px));
   right: 16px;
   background: color-mix(in srgb, var(--bitfun-color-content-on-dark) 15%, transparent);
   border: none;
