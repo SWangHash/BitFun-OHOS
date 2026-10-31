@@ -66,7 +66,11 @@ function catalogLucide(name: IconName): LucideIcon {
 
 const log = createLogger('GlobalSearch');
 const SEARCH_DEBOUNCE_MS = 90;
-const SEARCH_LIMIT_PER_GROUP = 20;
+/** Results fetched per group per search run (issue #468: the 20-item page is
+ * a UI slice; the fetch budget behind "load more" is intentionally larger). */
+const SEARCH_FETCH_LIMIT_PER_GROUP = 100;
+/** Visible results per group before the "load more" button. */
+const SEARCH_PAGE_SIZE_PER_GROUP = 20;
 const SEARCH_QUERY_MAX_LENGTH = 512;
 
 const EMPTY_SNAPSHOT: GlobalSearchSnapshot = {
@@ -175,6 +179,9 @@ export const GlobalSearchContent: React.FC<GlobalSearchContentProps> = ({
   const [snapshot, setSnapshot] = useState<GlobalSearchSnapshot>(EMPTY_SNAPSHOT);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [drilldownGroup, setDrilldownGroup] = useState<GlobalSearchDrilldownGroupId | null>(null);
+  // Per-group "load more" page counts (issue #468): key is the group id,
+  // value is how many results of that group are visible.
+  const [groupVisibleCounts, setGroupVisibleCounts] = useState<Record<string, number>>({});
   const inputRef = useRef<HTMLInputElement>(null);
   const inputCompositionActiveRef = useRef(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -208,6 +215,7 @@ export const GlobalSearchContent: React.FC<GlobalSearchContentProps> = ({
   useEffect(() => {
     if (!active) return;
     const controller = new AbortController();
+    setGroupVisibleCounts({});
     const delay = parsedQuery.query ? SEARCH_DEBOUNCE_MS : 0;
     const timer = window.setTimeout(() => {
       void runFederatedSearch(
@@ -218,7 +226,7 @@ export const GlobalSearchContent: React.FC<GlobalSearchContentProps> = ({
           scope: parsedQuery.scope,
           workspaces: openedWorkspacesList,
           currentWorkspace,
-          limitPerGroup: SEARCH_LIMIT_PER_GROUP,
+          limitPerGroup: SEARCH_FETCH_LIMIT_PER_GROUP,
           tCommon,
           tSettings,
         },
@@ -244,12 +252,26 @@ export const GlobalSearchContent: React.FC<GlobalSearchContentProps> = ({
   ]);
 
   const items = snapshot.items;
+  // Per-group page slice: the fetched list is shown SEARCH_PAGE_SIZE_PER_GROUP
+  // entries at a time with a "load more" button per group (issue #468).
+  const visibleItems = useMemo(() => {
+    const used = new Map<string, number>();
+    return items.filter((item) => {
+      const consumed = used.get(item.group) ?? 0;
+      const cap = groupVisibleCounts[item.group] ?? SEARCH_PAGE_SIZE_PER_GROUP;
+      if (consumed >= cap) {
+        return false;
+      }
+      used.set(item.group, consumed + 1);
+      return true;
+    });
+  }, [groupVisibleCounts, items]);
   const resultPresentation = useMemo(
-    () => buildGlobalSearchResultPresentation(items, {
+    () => buildGlobalSearchResultPresentation(visibleItems, {
       hasQuery: Boolean(parsedQuery.query),
       drilldownGroup,
     }),
-    [drilldownGroup, items, parsedQuery.query],
+    [drilldownGroup, visibleItems, parsedQuery.query],
   );
   const navigableItems = resultPresentation.navigableItems;
   const activeIndex = activeId
@@ -449,6 +471,8 @@ export const GlobalSearchContent: React.FC<GlobalSearchContentProps> = ({
           ) : resultPresentation.groups.map((groupView) => {
             const groupId = groupView.id;
             const groupItems = groupView.items;
+            const groupFetchedTotal = items.filter((item) => item.group === groupId).length;
+            const canLoadMore = groupFetchedTotal > groupItems.length;
             const labelId = `${instanceId}-group-${groupId}`;
             const defaultActionGroup = groupId === 'actions' && !parsedQuery.query;
             const groupLabel = defaultActionGroup
@@ -613,14 +637,31 @@ export const GlobalSearchContent: React.FC<GlobalSearchContentProps> = ({
                         {item.context ? (
                           <OverflowText className="global-search__result-context">{item.context}</OverflowText>
                         ) : null}
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-            );
-          })}
-        </ScrollArea>
+                       </button>
+                     );
+                   })}
+                   {canLoadMore && (
+                     <button
+                       type="button"
+                       className="global-search__load-more"
+                       data-bitfun-component="global-search"
+                       data-bitfun-part="loadMore"
+                       data-testid={`${testIdPrefix}-load-more-${groupId}`}
+                       onClick={() => {
+                         setGroupVisibleCounts((prev) => ({
+                           ...prev,
+                           [groupId]: groupItems.length + SEARCH_PAGE_SIZE_PER_GROUP,
+                         }));
+                       }}
+                     >
+                       {tCommon('nav.search.loadMore')} · {groupFetchedTotal - groupItems.length}
+                     </button>
+                   )}
+                 </div>
+               </section>
+             );
+           })}
+         </ScrollArea>
 
         {(Boolean(parsedQuery.query)
           || Boolean(drilldownGroup)

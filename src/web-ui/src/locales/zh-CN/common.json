@@ -285,6 +285,7 @@
       "sessionSearchHintDefault": "输入关键词，搜索所有会话",
       "sessionWorkspaceHint": "位于 {{workspace}}",
       "resultCount": "{{count}} 个",
+      "loadMore": "加载更多结果",
       "back": "返回",
       "backToOverview": "返回搜索概览",
       "openGroup": "查看全部{{group}}，共 {{count}} 个",

@@ -285,6 +285,7 @@
       "sessionSearchHintDefault": "Type a keyword to search all sessions",
       "sessionWorkspaceHint": "in {{workspace}}",
       "resultCount": "{{count}} items",
+      "loadMore": "Load more results",
       "back": "Back",
       "backToOverview": "Back to search overview",
       "openGroup": "View all {{count}} {{group}}",
