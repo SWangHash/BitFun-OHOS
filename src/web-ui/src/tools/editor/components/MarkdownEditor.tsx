@@ -384,7 +384,18 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
       }
       const nextContent = raw;
       if (nextContent === contentRef.current) {
+        // The buffer already matches disk (issue #456): adopt the disk state
+        // as the clean baseline — a stale dirty badge here would misreport
+        // the next external write as a save conflict.
         diskVersionRef.current = currentVersion;
+        documentSession?.capture(contentRef.current, false, contentRef.current);
+        editorRef.current?.markSaved?.();
+        if (!isUnmountedRef.current) {
+          setHasChanges(false);
+          hasChangesRef.current = false;
+          lastReportedDirtyRef.current = false;
+          onContentChangeRef.current?.(contentRef.current, false);
+        }
         outcome = 'content-match';
         return;
       }
@@ -525,6 +536,23 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
         const baseline = diskVersionRef.current;
 
         if (diskNow && baseline && diskVersionsDiffer(diskNow, baseline)) {
+          // The buffer may already match the disk state (session edits were
+          // adopted into the buffer between the two writes): adopt silently
+          // instead of popping the conflict dialog (issue #456, mirroring the
+          // code editor's hash-match acceptance from issue #359).
+          const diskRaw = await workspaceAPI.readFileContent(filePath);
+          if (diskRaw === contentRef.current) {
+            diskVersionRef.current = diskNow;
+            documentSession?.capture(contentRef.current, false, contentRef.current);
+            editorRef.current?.markSaved?.();
+            if (!isUnmountedRef.current) {
+              setHasChanges(false);
+              hasChangesRef.current = false;
+              lastReportedDirtyRef.current = false;
+              onContentChangeRef.current?.(contentRef.current, false);
+            }
+            return;
+          }
           const overwrite = await confirmDialog({
             title: t('editor.codeEditor.saveConflictTitle'),
             message: t('editor.codeEditor.saveConflictDetail'),
