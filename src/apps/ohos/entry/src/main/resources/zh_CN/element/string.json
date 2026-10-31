@@ -57,6 +57,10 @@
             "value": "用于采集麦克风音频以进行对话框语音输入转写"
         },
         {
+            "name": "permission_use_bm_reason",
+            "value": "用于访问包管理服务以获取应用信息"
+        },
+        {
             "name": "status_bar_title",
             "value": "BitFun"
         },

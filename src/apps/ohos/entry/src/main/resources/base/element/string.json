@@ -60,6 +60,10 @@
             "value": "Used to capture the application window screenshot for MiniApp market submissions"
         },
         {
+            "name": "permission_use_bm_reason",
+            "value": "Used to access bundle manager services for application information"
+        },
+        {
             "name": "status_bar_title",
             "value": "BitFun"
         },
