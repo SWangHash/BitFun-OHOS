@@ -2093,6 +2093,32 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     });
   }, [deviceSurfaceScope.epoch, effectiveTargetSessionId, replaceContexts, isSceneActive, contextStore]);
 
+  // Fold transient composer menus when the scene deactivates. They portal to
+  // the global appearance overlay host, so without this they stay floating
+  // above other scenes (settings, other canvas tabs) after a scene switch.
+  // Keyboard scene shortcuts (Alt+1..3, Ctrl+Shift+A) carry no pointer
+  // gesture, so nothing else closes them on that path; the draft handover
+  // above only runs while the scene is active.
+  useEffect(() => {
+    if (isSceneActive) return;
+    dispatchMode({ type: 'CLOSE_DROPDOWN' });
+    setSlashCommandState({ isActive: false, kind: 'all', query: '', selectedIndex: 0 });
+    setContextTriggerState({ isActive: false, query: '', startOffset: 0 });
+    setInlineTriggerState({ isActive: false, trigger: null, query: '', startOffset: 0 });
+  }, [isSceneActive]);
+
+  // Fold the stack when a review (btw-session) canvas tab becomes the active
+  // tab. The scene stays active in this case, so the deactivation fold above
+  // does not fire; and switching to the btw tab is a no-op for session
+  // activation (the parent session is already active), so the draft handover
+  // does not re-run either — leaving the menus floating over the review view.
+  const activeBtwSessionTabId = activeBtwSessionTab?.id ?? null;
+  useEffect(() => {
+    if (activeBtwSessionTabId) {
+      dispatchMode({ type: 'CLOSE_DROPDOWN' });
+    }
+  }, [activeBtwSessionTabId]);
+
   const applyAssistantBootstrapDraft = useCallback((value: string) => {
     dispatchInput({ type: 'SET_VALUE', payload: value });
   }, [dispatchInput]);
@@ -3310,7 +3336,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     dispatchInput,
   ]);
 
-  React.useEffect(() => {
+  // useLayoutEffect: the menu portal registers its overlay layer in a layout
+  // effect; subscribing the outside-mousedown handler in the same
+  // synchronous phase closes the window where the layer is registered but
+  // this handler is not attached yet.
+  React.useLayoutEffect(() => {
     let removeOverlayMousedown0: (() => void) | undefined;
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;

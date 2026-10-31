@@ -1,6 +1,6 @@
 import { HARNESS_IDS, canonicalAgentId, type HarnessId } from '@/shared/agents/identity';
 import { HARNESS_PRESENTATION } from '@/shared/agents/harnessPresentation';
-import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
+import React, { useCallback, useId, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { subscribeOverlayInteraction, createOverlayPortal, OverflowText, Icon, Menu, MenuItem, MenuSection, MenuSeparator, Tooltip } from '@bitfun/ui';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
@@ -197,7 +197,11 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
     await onStartNewSession?.(selection);
   }, [finishSelection, onStartNewSession, t]);
 
-  useEffect(() => {
+  // useLayoutEffect: the portal registers its overlay layer in a layout
+  // effect; subscribing the outside interactions in the same synchronous
+  // phase closes the window where the layer is registered but no handler is
+  // attached yet.
+  useLayoutEffect(() => {
     if (!open) return;
 
     const handlePointerInteraction = (event: MouseEvent) => {

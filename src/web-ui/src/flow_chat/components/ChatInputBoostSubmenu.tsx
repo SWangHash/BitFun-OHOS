@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useId, useRef } from 'react';
+import React, { useCallback, useId, useLayoutEffect, useRef } from 'react';
 
 import { createOverlayPortal, Menu, MenuItem, Icon, subscribeOverlayInteraction } from '@bitfun/ui';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
@@ -32,7 +32,12 @@ export const ChatInputBoostSubmenu: React.FC<ChatInputBoostSubmenuProps> = ({
     layoutRevision: React.Children.count(children),
   });
 
-  useEffect(() => {
+  // useLayoutEffect: the portal registers its overlay layer in a layout
+  // effect; subscribing the outside interactions in the same synchronous
+  // phase closes the window where the layer is registered but no interaction
+  // handler is attached yet (a click landing in that window dismissed
+  // nothing and left the whole menu stack floating).
+  useLayoutEffect(() => {
     if (!open) return;
     const handlePointerInteraction = (event: MouseEvent) => {
       const target = event.target as Node | null;

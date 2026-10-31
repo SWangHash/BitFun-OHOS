@@ -138,7 +138,11 @@ export function FlowChatSelectionBar({ rootRef, sessionId, parentSessionId, acti
         clear();
         return [
           { id: `${menuId}-annotate`, label: t(parentSessionId ? 'selection.addToMain' : 'selection.annotate'),
-            icon: 'Pencil', onClick: () => {
+            // 'Edit' resolves through the context-menu icon catalog to the
+            // design-system "edit" icon (the Pencil glyph), matching the
+            // floating-toolbar annotate button. The original 'Pencil' string
+            // had no catalog entry and rendered an empty icon slot.
+            icon: 'Edit', onClick: () => {
               if (!scope.isCurrent()) return;
               setSelection(next); beginEditing(); setPosition(null);
             } },
