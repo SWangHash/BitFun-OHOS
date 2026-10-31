@@ -6,6 +6,17 @@ const listenMock = vi.hoisted(() => vi.fn(() => vi.fn()));
 const waitForListenerRegistrationsMock = vi.hoisted(() => vi.fn());
 const streamCapabilityMock = vi.hoisted(() => ({ supported: false }));
 const dialogOpenMock = vi.hoisted(() => vi.fn());
+const tauriWindowMock = vi.hoisted(() => ({
+  close: vi.fn(),
+  isMaximized: vi.fn(),
+  maximize: vi.fn(),
+  minimize: vi.fn(),
+  unmaximize: vi.fn(),
+}));
+
+vi.mock('@tauri-apps/api/window', () => ({
+  getCurrentWindow: () => tauriWindowMock,
+}));
 
 vi.mock('./ApiClient', () => ({
   api: {
@@ -33,6 +44,44 @@ describe('WorkspaceAPI', () => {
     streamCapabilityMock.supported = false;
     dialogOpenMock.mockReset();
     vi.unstubAllGlobals();
+  });
+
+  it('controls the window through the Tauri API outside OpenHarmony', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (Windows NT 10.0)', platform: 'Win32' });
+    tauriWindowMock.isMaximized.mockResolvedValue(true);
+
+    await workspaceAPI.handle_min_window();
+    await workspaceAPI.handle_max_window();
+    await workspaceAPI.handle_restore_window();
+    await workspaceAPI.close_window();
+
+    expect(await workspaceAPI.window_is_maximized()).toBe(true);
+    expect(tauriWindowMock.minimize).toHaveBeenCalledOnce();
+    expect(tauriWindowMock.maximize).toHaveBeenCalledOnce();
+    expect(tauriWindowMock.unmaximize).toHaveBeenCalledOnce();
+    expect(tauriWindowMock.close).toHaveBeenCalledOnce();
+    expect(invokeMock).not.toHaveBeenCalled();
+  });
+
+  it('controls the window through host commands on OpenHarmony', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (Phone; OpenHarmony 5.0)', platform: '' });
+    Object.values(tauriWindowMock).forEach((mock) => mock.mockClear());
+    invokeMock.mockResolvedValue(false);
+
+    await workspaceAPI.handle_min_window();
+    await workspaceAPI.handle_max_window();
+    await workspaceAPI.handle_restore_window();
+    await workspaceAPI.close_window();
+
+    expect(await workspaceAPI.window_is_maximized()).toBe(false);
+    expect(invokeMock.mock.calls.map(([command]) => command)).toEqual([
+      'handle_min_window',
+      'handle_max_window',
+      'handle_restore_window',
+      'close_window',
+      'window_is_maximized',
+    ]);
+    Object.values(tauriWindowMock).forEach((mock) => expect(mock).not.toHaveBeenCalled());
   });
 
   it('sends workspace IDs for file IO without caller path or SSH identity', async () => {

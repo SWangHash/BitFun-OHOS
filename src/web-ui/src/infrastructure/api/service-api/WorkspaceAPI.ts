@@ -1268,9 +1268,21 @@ export class WorkspaceAPI {
     await getCurrentWindow().startDragging();
   }
 
-  async close_window(): Promise<string> {
+  // The close/maximize/minimize commands below exist only in the OpenHarmony
+  // build, where the ArkTS host owns the window. Other desktops use the Tauri
+  // window API directly.
+  private async desktopWindow() {
+    const { getCurrentWindow } = await import('@tauri-apps/api/window');
+    return getCurrentWindow();
+  }
+
+  async close_window(): Promise<void> {
     try {
-      return await api.invoke("close_window")
+      if (isOpenHarmonyRuntime()) {
+        await api.invoke("close_window")
+      } else {
+        await (await this.desktopWindow()).close();
+      }
     } catch (error) {
       throw createTauriCommandError('close_window', error)
     }
@@ -1278,31 +1290,46 @@ export class WorkspaceAPI {
 
   async window_is_maximized(): Promise<boolean> {
     try {
-      return await api.invoke("window_is_maximized")
+      if (isOpenHarmonyRuntime()) {
+        return await api.invoke("window_is_maximized")
+      }
+      return await (await this.desktopWindow()).isMaximized();
     } catch (error) {
       throw createTauriCommandError('window_is_maximized', error)
     }
   }
 
-  async handle_min_window(): Promise<string> {
+  async handle_min_window(): Promise<void> {
     try {
-      return await api.invoke("handle_min_window")
+      if (isOpenHarmonyRuntime()) {
+        await api.invoke("handle_min_window")
+      } else {
+        await (await this.desktopWindow()).minimize();
+      }
     } catch (error) {
       throw createTauriCommandError('handle_min_window', error)
     }
   }
 
-  async handle_max_window(): Promise<string> {
+  async handle_max_window(): Promise<void> {
     try {
-      return await api.invoke("handle_max_window")
+      if (isOpenHarmonyRuntime()) {
+        await api.invoke("handle_max_window")
+      } else {
+        await (await this.desktopWindow()).maximize();
+      }
     } catch (error) {
       throw createTauriCommandError('handle_max_window', error)
     }
   }
 
-  async handle_restore_window(): Promise<string> {
+  async handle_restore_window(): Promise<void> {
     try {
-      return await api.invoke("handle_restore_window")
+      if (isOpenHarmonyRuntime()) {
+        await api.invoke("handle_restore_window")
+      } else {
+        await (await this.desktopWindow()).unmaximize();
+      }
     } catch (error) {
       throw createTauriCommandError('handle_restore_window', error)
     }

@@ -1358,13 +1358,13 @@ pub async fn _run() {
             // the task above publishes one and `initialize_workspace_startup_state`
             // serves it from that prefetch.
             //
-            // Which side wins the race is host shape, not a decision made here: the
-            // base `tauri.conf.json` declares a window labelled "main", and whether
-            // the OHOS host creates it before this hook runs is fork behavior that
-            // this crate cannot pin. So create the window only when the label is
-            // still free, and report the other case explicitly instead of leaving it
-            // silent, because in that shape the window keeps its own initialization
-            // and never receives the bootstrap script or the navigation allow-list.
+            // `tauri.conf.json` declares no windows, but whether the OHOS host
+            // creates one labelled "main" before this hook runs is fork behavior
+            // that this crate cannot pin. So create the window only when the label
+            // is still free, and report the other case explicitly instead of leaving
+            // it silent, because in that shape the window keeps its own
+            // initialization and never receives the bootstrap script or the
+            // navigation allow-list.
             #[cfg(target_env = "ohos")]
             {
                 if app_handle.get_webview_window("main").is_none() {

@@ -507,6 +507,18 @@ test('static configs retain the OHOS asset entry and the desktop development boo
   }
 });
 
+test('static configs declare no windows', () => {
+  for (const name of ['tauri.conf.json', 'tauri.dev.conf.json']) {
+    const config = JSON.parse(
+      readFileSync(join(ROOT, 'src', 'apps', 'desktop', name), 'utf8')
+    );
+    // A window declared here is created first and takes the "main" label, so
+    // appearance::create_main_window fails and the app runs without its
+    // frameless window, startup script, or navigation allow-list.
+    assert.deepEqual(config.app.windows, []);
+  }
+});
+
 test('Desktop release config bundles models.dev notices and provenance', () => {
   const config = JSON.parse(
     readFileSync(join(ROOT, 'src', 'apps', 'desktop', 'tauri.conf.json'), 'utf8')
