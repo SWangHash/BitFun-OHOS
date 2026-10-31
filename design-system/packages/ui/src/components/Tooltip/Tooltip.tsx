@@ -405,17 +405,28 @@ export function Tooltip({
       if (trigger === "click" && !visible) showTooltip();
       else hideTooltip();
     };
+    const onPointerDown = () => {
+      // Right-click (or any press) must dismiss the tooltip so it cannot sit
+      // over the context menu that the press opens (issue #465).
+      if (showTimeoutRef.current) {
+        clearTimeout(showTimeoutRef.current);
+        showTimeoutRef.current = null;
+      }
+      if (visible) hideTooltip();
+    };
     element.addEventListener("mouseenter", onEnter);
     element.addEventListener("mouseleave", onLeave);
     element.addEventListener("focusin", onFocus);
     element.addEventListener("focusout", onBlur);
     element.addEventListener("click", onClick);
+    element.addEventListener("mousedown", onPointerDown);
     return () => {
       element.removeEventListener("mouseenter", onEnter);
       element.removeEventListener("mouseleave", onLeave);
       element.removeEventListener("focusin", onFocus);
       element.removeEventListener("focusout", onBlur);
       element.removeEventListener("click", onClick);
+      element.removeEventListener("mousedown", onPointerDown);
     };
   }, [externalTriggerRef, hideTooltip, keepsPointerInside, showTooltip, trigger, visible]);
 
@@ -490,6 +501,19 @@ export function Tooltip({
     (childProps.onClick as ((event: ReactMouseEvent) => void) | undefined)?.(event);
   };
 
+  // Any pointer-down interaction dismisses the tooltip immediately — a
+  // right-click opens a context menu on the trigger, and a tooltip that
+  // outlives the press sits over that menu (issue #465).
+  const handlePointerDownDismiss = () => {
+    if (showTimeoutRef.current) {
+      clearTimeout(showTimeoutRef.current);
+      showTimeoutRef.current = null;
+    }
+    if (visible) {
+      hideTooltip();
+    }
+  };
+
   const handleFocus = (event: ReactFocusEvent) => {
     if (trigger === "focus" || trigger === "hover-focus") showTooltip();
     (childProps.onFocus as ((event: ReactFocusEvent) => void) | undefined)?.(event);
@@ -520,6 +544,7 @@ export function Tooltip({
     onMouseEnter: handleMouseEnter,
     onMouseLeave: handleMouseLeave,
     onMouseMove: followCursor ? handleMouseMove : childProps.onMouseMove,
+    onMouseDown: handlePointerDownDismiss,
     onClick: handleClick,
     onFocus: handleFocus,
     onBlur: handleBlur,
