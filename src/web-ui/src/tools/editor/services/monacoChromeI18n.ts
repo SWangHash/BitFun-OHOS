@@ -55,6 +55,29 @@ export function localizeMonacoText(text: string, strings: MonacoChromeStrings): 
   return text;
 }
 
+/**
+ * Maps previously-localized chrome text back to its English source. Language
+ * switches re-run localization over DOM that already carries the previous
+ * language, so the restore pass must run before the new localization
+ * (issue #434: en→zh worked, zh→en left stale Chinese labels). Longest-first
+ * so compound labels win over their prefixes.
+ */
+function buildEnglishRestoreLookup(strings: MonacoChromeStrings): ReadonlyArray<{ localized: string; english: string }> {
+  return REPLACEMENT_RULES
+    .map(rule => ({ localized: strings[rule.key], english: rule.english }))
+    .sort((a, b) => b.localized.length - a.localized.length);
+}
+
+function restoreEnglishText(text: string, lookup: ReadonlyArray<{ localized: string; english: string }>): string {
+  let result = text;
+  for (const entry of lookup) {
+    if (entry.localized && result.includes(entry.localized)) {
+      result = result.split(entry.localized).join(entry.english);
+    }
+  }
+  return result;
+}
+
 function localizeMatchesCount(text: string, strings: MonacoChromeStrings): string | null {
   const trimmed = text.trim();
   if (trimmed === 'No results') {
@@ -85,8 +108,9 @@ const TOOLTIP_STYLE_ID = 'bitfun-editor-chrome-tooltip-style';
 /**
  * Chrome hint texts whose Monaco managed-hover widget must never become
  * visible: the localized labels plus the English NLS originals the buttons
- * were constructed with. Editor content hovers (diagnostics, markdown) carry
- * different text and stay untouched.
+ * were constructed with. Monaco appends keybinding hints to hover content,
+ * so the comparison is prefix-based rather than exact. Editor content hovers
+ * (diagnostics, markdown) carry different text and stay untouched.
  */
 function isChromeHintText(text: string, strings: MonacoChromeStrings): boolean {
   const normalized = text.trim();
@@ -108,8 +132,8 @@ function isChromeHintText(text: string, strings: MonacoChromeStrings): boolean {
     strings.expandRange,
     strings.collapseRange,
   ];
-  if (localized.includes(normalized)) return true;
-  return REPLACEMENT_RULES.some(rule => rule.english === normalized);
+  if (localized.some(label => label.length > 0 && normalized.startsWith(label))) return true;
+  return REPLACEMENT_RULES.some(rule => normalized.startsWith(rule.english));
 }
 
 /**
@@ -254,14 +278,20 @@ export interface MonacoChromeI18nHandle {
 
 export function attachMonacoChromeI18n(container: HTMLElement, initialStrings: MonacoChromeStrings): MonacoChromeI18nHandle {
   let currentStrings = initialStrings;
+  // The strings used for the last localization pass: language switches must
+  // first restore their output back to English before applying the new
+  // language, otherwise already-localized labels never re-localize (issue
+  // #434).
+  let previousStrings = initialStrings;
   const detachHoverLayer = attachChromeHoverLayer(container);
   const detachHintRemover = attachChromeHintHoverRemover(() => currentStrings);
 
   const localizeAttributes = (element: HTMLElement): void => {
+    const restoreLookup = buildEnglishRestoreLookup(previousStrings);
     for (const attribute of ATTRIBUTES_TO_LOCALIZE) {
       const value = element.getAttribute(attribute);
       if (!value) continue;
-      const localized = localizeMonacoText(value, currentStrings);
+      const localized = localizeMonacoText(restoreEnglishText(value, restoreLookup), currentStrings);
       if (localized !== value) {
         element.setAttribute(attribute, localized);
       }
@@ -346,8 +376,11 @@ export function attachMonacoChromeI18n(container: HTMLElement, initialStrings: M
     },
     // Re-applies all localized strings with a new translation set (e.g. after
     // the user switches the UI language). Called from CodeEditor when the
-    // i18n `languageChanged` event fires.
+    // i18n `languageChanged` event fires. The previously applied strings are
+    // kept so the restore pass can map them back to English first (issue
+    // #434).
     update: (strings: MonacoChromeStrings) => {
+      previousStrings = currentStrings;
       currentStrings = strings;
       run();
     },
