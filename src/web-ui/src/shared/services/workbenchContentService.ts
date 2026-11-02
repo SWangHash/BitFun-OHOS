@@ -7,6 +7,7 @@ import { resolveSessionSceneWorkspace } from '@/app/services/sessionSceneTarget'
 import { expandSessionAuxPane } from '@/app/scenes/session/sessionPanelLayout';
 import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
 import type { Session } from '@/flow_chat/types/flow-chat';
+import { sessionExecutionWorkspacePath, sessionWorkspaceId } from '@/flow_chat/utils/sessionWorkspace';
 import { resolveLegacySessionWorkspace } from '@/infrastructure/api/service-api/legacyWorkspaceCompatibility';
 import { workspaceManager } from '@/infrastructure/services/business/workspaceManager';
 import { getActiveSurfaceId, getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
@@ -23,6 +24,19 @@ export function captureContentScope(data?: { workspaceId?: string; workspacePath
       ? resolveLegacySessionWorkspace(data, records.filter((record, index) => records.findIndex(candidate => candidate.id === record.id) === index))
       : state.currentWorkspace;
   if ((data?.workspaceId || data?.workspacePath) && !workspace) {
+    // A session's registered execution workspace can be absent from the UI's
+    // opened/recent catalog after worktree binding. Resolve its explicit ID
+    // from the current surface's sessions, never from a matching path.
+    if (data.workspaceId) {
+      for (const session of flowChatStore.getState().sessions.values()) {
+        if (sessionWorkspaceId(session) !== data.workspaceId) continue;
+        return {
+          surfaceId: getActiveSurfaceId(), workspaceId: data.workspaceId,
+          workspacePath: sessionExecutionWorkspacePath(session),
+          remoteConnectionId: session.remoteConnectionId || session.config?.remoteConnectionId,
+        };
+      }
+    }
     throw new Error('Workspace identity is unavailable or ambiguous; select its workspace ID.');
   }
   return {
