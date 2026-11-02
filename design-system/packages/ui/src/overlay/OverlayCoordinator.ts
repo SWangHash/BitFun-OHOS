@@ -61,6 +61,9 @@ export class OverlayLayerStack {
   private listening = false;
   private redirectingFocus = false;
   private pointerGesture?: { target: EventTarget | null; top?: OverlayLayerRegistration };
+  // The target of the last touchstart, so the compatible pointerdown can stand
+  // down after touchstart already routed the outside check (issue #435).
+  private touchGestureTarget: Node | null = null;
   private pendingFocusRestores: Array<{ scope: OverlayFocusRegistration; layer?: OverlayLayerRegistration }> = [];
 
   constructor(readonly ownerDocument?: Document) {}
@@ -391,12 +394,31 @@ export class OverlayLayerStack {
     return true;
   }
   private handlePointerDown = (event: PointerEvent) => {
+    // A touch tap already routed its outside check through touchstart; the
+    // compatible pointer event must not dismiss the next surface in the same
+    // gesture (issue #435).
+    const touchTarget = this.touchGestureTarget;
+    this.touchGestureTarget = null;
+    const fromTouch = touchTarget !== null
+      && (touchTarget === event.target
+        || Boolean(event.target instanceof Node && touchTarget.contains(event.target)));
     const top = this.interactionTop(event.target as Node | null);
     this.pointerGesture = { target: event.target, top };
-    const descriptor = this.topDismissible(undefined, top);
+    const descriptor = fromTouch ? undefined : this.topDismissible(undefined, top);
     if (!descriptor) this.routeInteraction("pointerdown", event, top);
     if (event.defaultPrevented) return;
     if (descriptor) this.dismissOutside(descriptor, event.target as Node | null);
+  };
+  private handleTouchStart = (event: TouchEvent) => {
+    // Some touch hosts deliver taps to the document capture path without a
+    // compatible pointer event reaching it; route the outside check here so a
+    // tap outside still dismisses the top layer (issue #435). The following
+    // pointer gesture sees the recorded target and stands down.
+    const target = event.target as Node | null;
+    this.touchGestureTarget = target;
+    const top = this.interactionTop(target);
+    const descriptor = this.topDismissible(undefined, top);
+    if (descriptor) this.dismissOutside(descriptor, target);
   };
   private handleMouseDown = (event: MouseEvent) => {
     const gesture = this.pointerGesture;
@@ -478,6 +500,7 @@ export class OverlayLayerStack {
       // Local menu/input keyboard behavior runs before the document fallback.
       this.ownerDocument[operation]("keydown", this.handleKeyDown as EventListener);
       this.ownerDocument[operation]("pointerdown", this.handlePointerDown as EventListener, true);
+      this.ownerDocument[operation]("touchstart", this.handleTouchStart as EventListener, true);
       this.ownerDocument[operation]("mousedown", this.handleMouseDown as EventListener, true);
       this.ownerDocument[operation]("focusin", this.handleFocusIn as EventListener, true);
     }
