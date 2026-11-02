@@ -3,7 +3,7 @@
  * Supports preview/active/pinned tab states.
  */
 
-import React, { useCallback, useContext, useRef } from 'react';
+import React, { useCallback, useContext, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { commandExecutor } from '@/shared/context-menu-system/commands/CommandExecutor';
@@ -121,6 +121,13 @@ export const Tab: React.FC<TabProps> = ({
 
   // Handle drag start
   const dragImageRef = useRef<HTMLDivElement | null>(null);
+  // Hovering the end action (close/pin) suppresses the wrapping path tooltip
+  // so only the close button's own tooltip is visible (issue #465).
+  const [suppressPathTooltip, setSuppressPathTooltip] = useState(false);
+  const handleTooltipScopeMouseOver = useCallback((event: React.MouseEvent) => {
+    const target = event.target instanceof Element ? event.target : null;
+    setSuppressPathTooltip(Boolean(target?.closest('[data-bitfun-product-part="action"]')));
+  }, []);
   const handleDragStart = useCallback((e: React.DragEvent) => {
     // Themed drag image: the default element snapshot loses themed CSS
     // variables on some webviews and paints an unstyled white block
@@ -349,9 +356,10 @@ export const Tab: React.FC<TabProps> = ({
   ].filter(Boolean).join(' ');
 
   return (
-    <Tooltip content={tooltipText} placement="bottom">
+    <Tooltip content={tooltipText} placement="bottom" disabled={suppressPathTooltip}>
       <div data-bitfun-product-component="canvas-tab" data-bitfun-product-part="root" data-bitfun-group={groupId}
         data-overflow-trigger
+        onMouseOver={handleTooltipScopeMouseOver}
         data-bitfun-state={[
           isActive && 'active',
           isDragging && 'dragging',

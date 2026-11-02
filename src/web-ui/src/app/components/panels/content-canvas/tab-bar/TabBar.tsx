@@ -287,22 +287,23 @@ export const TabBar: React.FC<TabBarProps> = ({
       </span>
     ) : undefined,
     endAction: (
-      <IconButton
-        data-bitfun-product-component="canvas-tab"
-        data-bitfun-product-part="action"
-        className="canvas-tab__action-btn"
-        data-motion="none"
-        size="xs"
-        aria-label={`${t(tab.state === 'pinned' ? 'tabs.unpin' : 'tabs.close')} ${tab.title}`}
-        title={t(tab.state === 'pinned' ? 'tabs.unpin' : 'tabs.close')}
-        icon={<Icon name={tab.state === 'pinned' ? 'pin' : 'xmark'} size="xs" />}
-        onClick={(event) => {
-          event.stopPropagation();
-          if (tab.state === 'pinned') onTabPin(tab.id);
-          else void onTabClose(tab.id);
-        }}
-        onDoubleClick={(event) => event.stopPropagation()}
-      />
+      <Tooltip content={`${t(tab.state === 'pinned' ? 'tabs.unpin' : 'tabs.close')} ${tab.title}`} placement="bottom">
+        <IconButton
+          data-bitfun-product-component="canvas-tab"
+          data-bitfun-product-part="action"
+          className="canvas-tab__action-btn"
+          data-motion="none"
+          size="xs"
+          aria-label={`${t(tab.state === 'pinned' ? 'tabs.unpin' : 'tabs.close')} ${tab.title}`}
+          icon={<Icon name={tab.state === 'pinned' ? 'pin' : 'xmark'} size="xs" />}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (tab.state === 'pinned') onTabPin(tab.id);
+            else void onTabClose(tab.id);
+          }}
+          onDoubleClick={(event) => event.stopPropagation()}
+        />
+      </Tooltip>
     ),
   }));
 
