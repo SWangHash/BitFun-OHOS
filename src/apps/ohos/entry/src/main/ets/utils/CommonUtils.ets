@@ -271,26 +271,46 @@ export class CommonUtils {
       hilog.warn(0x0000, 'vnext', 'copy_pasteboard_entry: stat failed for ' + sourceUri + ': ' + e);
     }
 
-    // Re-pasting the same entry must not collide with a stale cache copy.
+    // Re-pasting the same entry must not collide with a stale cache copy in
+    // either form (directory or file).
     try {
       await fs.rmdir(destPath);
     } catch (e) {
-      // Absent destination is the common case; anything else is retried by
-      // the copy below and reported if it still fails.
+      // Absent, or a stale file — handled by unlink below.
+    }
+    try {
+      await fs.unlink(destPath);
+    } catch (e) {
+      // Absent, or a stale directory — handled by rmdir above.
     }
 
     if (isDirectory) {
+      // Strategy 1: native recursive copy — operates on the granted URI inside
+      // the fs layer, so no per-child URI (and no per-child pasteboard grant)
+      // is needed. Some OHOS builds reject URI sources here ("no such file or
+      // directory"), which is why the manual walk stays as a fallback.
       try {
         await fs.copyDir(sourceUri, destPath);
         return;
       } catch (e) {
         hilog.warn(0x0000, 'vnext', 'copy_pasteboard_entry: copyDir failed for ' + sourceUri + ': ' + e);
       }
+      // Strategy 2: manual walk. One unreadable child must not drop the whole
+      // folder, so per-child failures are logged and tolerated.
       await fs.mkdir(destPath, true);
       const children = await fs.listFile(sourceUri);
+      let copied = 0;
       for (const child of children) {
         const childSource = sourceUri.endsWith('/') ? sourceUri + child : sourceUri + '/' + child;
-        await CommonUtils.copy_pasteboard_entry(childSource, destPath + '/' + child);
+        try {
+          await CommonUtils.copy_pasteboard_entry(childSource, destPath + '/' + child);
+          copied += 1;
+        } catch (e) {
+          hilog.warn(0x0000, 'vnext', 'copy_pasteboard_entry: skip child ' + childSource + ': ' + e);
+        }
+      }
+      if (children.length > 0 && copied === 0) {
+        throw new Error('no child of ' + sourceUri + ' could be copied into the cache');
       }
       return;
     }
