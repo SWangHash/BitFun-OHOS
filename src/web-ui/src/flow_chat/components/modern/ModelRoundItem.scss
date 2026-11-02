@@ -388,12 +388,16 @@
   }
 }
 
-/* Focus highlight for programmatic "jump to marker" navigation. */
+/* Focus highlight for programmatic "jump to marker" navigation. The ring is
+   inset because the flow item is a virtualized row: an outside outline plus
+   its offset was clipped left/right/bottom by the virtual wrapper
+   (issue #441). */
 .flowchat-flow-item.flowchat-flow-item--focused {
-  outline: 2px solid color-mix(in srgb, var(--bitfun-color-accent-hover) 40%, transparent);
-  outline-offset: 2px;
+  outline: none;
   border-radius: var(--bitfun-control-flow-chat-card-radius);
-  box-shadow: var(--bitfun-shadow-accent-glow);
+  box-shadow:
+    inset 0 0 0 2px color-mix(in srgb, var(--bitfun-color-accent-hover) 55%, transparent),
+    var(--bitfun-shadow-accent-glow);
 }
 
 @media (prefers-reduced-motion: reduce) {
