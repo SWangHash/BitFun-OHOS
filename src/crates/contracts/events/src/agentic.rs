@@ -115,6 +115,9 @@ pub enum AgenticEvent {
         /// Main project root that owns persistence for this session.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         project_workspace_path: Option<String>,
+        /// Stable project identity that owns this session, distinct from execution.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        project_workspace_id: Option<String>,
         /// Resolved local/worktree execution target.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         execution_target: Option<SessionExecutionTarget>,

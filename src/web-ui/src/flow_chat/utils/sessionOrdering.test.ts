@@ -125,26 +125,29 @@ describe('sessionOrdering', () => {
     const otherPath = '/home/u/project-b';
 
     const sessionA = {
+      workspaceId: 'remote-project-a',
       workspacePath: rowPath,
       remoteConnectionId: conn,
       remoteSshHost: host,
     };
     const sessionB = {
+      workspaceId: 'remote-project-b',
       workspacePath: otherPath,
       remoteConnectionId: conn,
       remoteSshHost: host,
     };
 
     expect(
-      sessionBelongsToWorkspaceNavRow(sessionA, rowPath, conn, host)
+      sessionBelongsToWorkspaceNavRow(sessionA, 'remote-project-a')
     ).toBe(true);
     expect(
-      sessionBelongsToWorkspaceNavRow(sessionB, rowPath, conn, host)
+      sessionBelongsToWorkspaceNavRow(sessionB, 'remote-project-a')
     ).toBe(false);
   });
 
-  it('remote SSH: parses stable connection ids without ports when host metadata is absent', () => {
+  it('remote SSH: uses the registered workspace ID when host metadata is absent', () => {
     const session = {
+      workspaceId: 'remote-project-a',
       workspacePath: '/home/u/project-a',
       remoteConnectionId: 'ssh-user@myserver.example.com:22',
       remoteSshHost: undefined,
@@ -153,15 +156,14 @@ describe('sessionOrdering', () => {
     expect(
       sessionBelongsToWorkspaceNavRow(
         session,
-        '/home/u/project-a',
-        'ssh-user@myserver.example.com',
-        undefined
+        'remote-project-a',
       )
     ).toBe(true);
   });
 
-  it('remote SSH: matches persisted metadata that only has workspaceHostname', () => {
+  it('remote SSH: hostname alone does not identify a navigation row', () => {
     const session = {
+      workspaceId: undefined,
       workspacePath: '/home/u/project-a',
       remoteConnectionId: undefined,
       remoteSshHost: undefined,
@@ -171,15 +173,15 @@ describe('sessionOrdering', () => {
     expect(
       sessionBelongsToWorkspaceNavRow(
         session,
-        '/home/u/project-a',
-        'ssh-user@myserver.example.com:22',
-        undefined
+        'remote-project-a',
       )
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('groups a worktree execution session under its main project', () => {
     const session = {
+      workspaceId: 'worktree-id',
+      projectWorkspaceId: 'project-id',
       workspacePath: '/worktrees/project/wt-1',
       projectWorkspacePath: '/projects/project',
       remoteConnectionId: undefined,
@@ -187,15 +189,16 @@ describe('sessionOrdering', () => {
     };
 
     expect(
-      sessionBelongsToWorkspaceNavRow(session, '/projects/project')
+      sessionBelongsToWorkspaceNavRow(session, 'project-id')
     ).toBe(true);
     expect(
-      sessionBelongsToWorkspaceNavRow(session, '/projects/other')
+      sessionBelongsToWorkspaceNavRow(session, 'other-project-id')
     ).toBe(false);
   });
 
   it('does not assign a workspace-less session to every navigation row', () => {
     const session = {
+      workspaceId: undefined,
       workspacePath: undefined,
       projectWorkspacePath: undefined,
       remoteConnectionId: undefined,
@@ -203,10 +206,10 @@ describe('sessionOrdering', () => {
     };
 
     expect(
-      sessionBelongsToWorkspaceNavRow(session, '/assistants/default')
+      sessionBelongsToWorkspaceNavRow(session, 'assistant-id')
     ).toBe(false);
     expect(
-      sessionBelongsToWorkspaceNavRow(session, '/projects/BitFun')
+      sessionBelongsToWorkspaceNavRow(session, 'project-id')
     ).toBe(false);
   });
 });
