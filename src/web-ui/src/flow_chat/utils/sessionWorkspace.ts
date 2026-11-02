@@ -8,18 +8,24 @@ type SessionWorkspaceBinding = Pick<
 >;
 
 function sessionWorkspaceRecord(
-  session: Partial<Pick<Session, 'workspaceId' | 'config'>> | undefined,
+  session: Partial<Pick<Session, 'workspaceId' | 'projectWorkspaceId' | 'config'>> | undefined,
   workspace: WorkspaceInfo | null | undefined,
 ): WorkspaceInfo | undefined {
-  const workspaceId = session?.workspaceId || session?.config?.workspaceId;
-  if (!workspaceId) return session ? undefined : workspace ?? undefined;
+  if (!session) return workspace ?? undefined;
   const state = workspaceManager.getState();
-  return workspace?.id === workspaceId ? workspace
-    : state.openedWorkspaces.get(workspaceId) || state.recentWorkspaces.find(item => item.id === workspaceId);
+  // Use the execution record when available. A hidden managed worktree can
+  // inherit its host kind from the owning project.
+  for (const id of [sessionWorkspaceId(session), sessionProjectWorkspaceId(session)]) {
+    if (!id) continue;
+    const record = workspace?.id === id ? workspace
+      : state.openedWorkspaces.get(id) || state.recentWorkspaces.find(item => item.id === id);
+    if (record) return record;
+  }
+  return undefined;
 }
 
 export function isRemoteWorkspaceSession(
-  session: Partial<Pick<Session, 'workspaceId' | 'config'>> | undefined,
+  session: Partial<Pick<Session, 'workspaceId' | 'projectWorkspaceId' | 'config'>> | undefined,
   workspace: WorkspaceInfo | null | undefined,
 ): boolean {
   return isRemoteWorkspace(sessionWorkspaceRecord(session, workspace));
@@ -27,7 +33,7 @@ export function isRemoteWorkspaceSession(
 
 /** Local-only actions require an available object with an explicit local kind. */
 export function isLocalWorkspaceSession(
-  session: Partial<Pick<Session, 'workspaceId' | 'config'>> | undefined,
+  session: Partial<Pick<Session, 'workspaceId' | 'projectWorkspaceId' | 'config'>> | undefined,
   workspace: WorkspaceInfo | null | undefined,
 ): boolean {
   const record = sessionWorkspaceRecord(session, workspace);

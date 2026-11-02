@@ -58,6 +58,7 @@ import { useDeepReviewConsent } from '@/flow_chat/components/DeepReviewConsentDi
 import { deriveDeepReviewSessionConcurrencyGuard } from '@/flow_chat/utils/deepReviewCapacityGuard';
 import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
 import type { FlowToolItem, Session } from '@/flow_chat/types/flow-chat';
+import { sessionProjectWorkspaceId, sessionWorkspaceId } from '@/flow_chat/utils/sessionWorkspace';
 import { findLatestCodeReviewResultState, summarizeCodeReviewResult } from '@/flow_chat/utils/reviewSessionSummary';
 import { parsePullRequestUrl, remoteMatchesPullRequestLink } from '@/shared/utils/pullRequestLinks';
 import { useContextStore } from '@/shared/stores/contextStore';
@@ -1340,7 +1341,8 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
       ? flowState.sessions.get(flowState.activeSessionId)
       : undefined;
     const sameWorkspace = (session?: Session) =>
-      Boolean(session && session.workspaceId === workspaceId);
+      Boolean(session && workspaceId
+        && (sessionWorkspaceId(session) === workspaceId || sessionProjectWorkspaceId(session) === workspaceId));
 
     if (activeSession?.sessionKind === 'normal' && sameWorkspace(activeSession)) {
       return activeSession;

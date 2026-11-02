@@ -4,8 +4,12 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReviewPlatformPullRequest, ReviewPlatformPullRequestDetailPage, ReviewPlatformWorkspaceSnapshot } from '@/infrastructure/api/service-api/ReviewPlatformAPI';
 import { ReviewPlatformPanel } from './ReviewPlatformPanel';
+import type { Session } from '@/flow_chat/types/flow-chat';
 
-const mocks = vi.hoisted(() => ({ snapshot: vi.fn(), detail: vi.fn(), t: (key: string) => key }));
+const mocks = vi.hoisted(() => ({
+  snapshot: vi.fn(), detail: vi.fn(), t: (key: string) => key,
+  state: { sessions: new Map<string, Session>(), activeSessionId: null as string | null },
+}));
 vi.mock('@/infrastructure/api', () => ({ reviewPlatformAPI: { getWorkspaceSnapshot: mocks.snapshot, getPullRequestDetailPage: mocks.detail }, systemAPI: {} }));
 vi.mock('@/infrastructure/markdown', () => ({ MarkdownRenderer: () => null }));
 vi.mock('@/shared/notification-system', () => ({ notificationService: {} }));
@@ -14,7 +18,7 @@ vi.mock('@/flow_chat/services/sessionActivation', () => ({ openMainSession: vi.f
 vi.mock('@/flow_chat/services/btwSessionPane', () => ({ openBtwSessionInAuxPane: vi.fn() }));
 vi.mock('@/flow_chat/services/ReviewService', () => ({ launchPreparedReviewSession: vi.fn(), prepareReviewLaunchFromPullRequest: vi.fn() }));
 vi.mock('@/flow_chat/components/DeepReviewConsentDialog', () => ({ useDeepReviewConsent: () => ({ confirmDeepReviewLaunch: vi.fn(), deepReviewConsentDialog: null }) }));
-vi.mock('@/flow_chat/store/FlowChatStore', () => ({ flowChatStore: { getState: () => ({ sessions: new Map(), activeSessionId: null }), subscribe: () => () => {} } }));
+vi.mock('@/flow_chat/store/FlowChatStore', () => ({ flowChatStore: { getState: () => mocks.state, subscribe: () => () => {} } }));
 vi.mock('@/shared/stores/contextStore', () => ({ useContextStore: {} }));
 vi.mock('@/shared/services/ide-control', () => ({ quickActions: {} }));
 vi.mock('@bitfun/ui', async (importOriginal) => {
@@ -95,9 +99,9 @@ function statisticText(owner: Element, id: string) {
   }
   return owner.querySelector(`[data-testid="review-platform-${id}"]`)?.textContent;
 }
-async function mount() {
+async function mount(workspaceId?: string) {
   const path = `/gitee-panel-test-${++testNumber}`;
-  await act(async () => { root.render(<ReviewPlatformPanel workspacePath={path} workspaceId={path} />); });
+  await act(async () => { root.render(<ReviewPlatformPanel workspacePath={path} workspaceId={workspaceId ?? path} />); });
   return path;
 }
 
@@ -118,8 +122,26 @@ describe('Gitee panel state and asynchronous request ordering', () => {
     root = createRoot(host);
     mocks.snapshot.mockReset().mockImplementation((path, _remote, page, _size, state) => Promise.resolve(snapshot(path, page, state)));
     mocks.detail.mockReset().mockImplementation(() => new Promise(() => {}));
+    mocks.state = { sessions: new Map(), activeSessionId: null };
   });
   afterEach(async () => { await act(async () => root.unmount()); host.remove(); });
+
+  it.each(['project', 'worktree'])('enables Review for a worktree session from its %s workspace', async (workspaceId) => {
+    const session: Session = {
+      sessionId: 'worktree-parent', title: 'Worktree session', sessionKind: 'normal',
+      workspaceId: 'worktree', projectWorkspaceId: 'project',
+      config: {}, dialogTurns: [], status: 'idle', error: null,
+      createdAt: 1, lastActiveAt: 1,
+    };
+    mocks.state = { sessions: new Map([[session.sessionId, session]]), activeSessionId: session.sessionId };
+    mocks.detail.mockImplementation(({ pullRequestId, section }) => Promise.resolve(detail(Number(pullRequestId), section)));
+
+    await mount(workspaceId);
+
+    const review = [...host.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Review');
+    expect(review).toBeTruthy();
+    expect(review!.disabled).toBe(false);
+  });
 
   it('searches beyond the loaded page and merges batches before paginating matching results', async () => {
     mocks.snapshot.mockImplementation((path, _remote, page, _size, state, search) => {

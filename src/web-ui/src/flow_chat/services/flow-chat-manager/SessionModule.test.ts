@@ -26,6 +26,8 @@ import {
 } from '../sessionOpenIntent';
 import type { Session } from '../../types/flow-chat';
 import type { ReviewTeamRunManifest } from '@/shared/services/reviewTeamService';
+import { workspaceManager } from '@/infrastructure/services/business/workspaceManager';
+import type { WorkspaceInfo } from '@/shared/types';
 
 const agentApiMocks = vi.hoisted(() => ({
   ensureCoordinatorSession: vi.fn(),
@@ -96,10 +98,11 @@ vi.mock('@/infrastructure/i18n', () => ({
 
 vi.mock('@/infrastructure/services/business/workspaceManager', () => ({
   workspaceManager: {
-    getState: () => ({
+    getState: vi.fn(() => ({
       currentWorkspace: null,
       openedWorkspaces: new Map(),
-    }),
+      recentWorkspaces: [],
+    })),
   },
 }));
 
@@ -147,6 +150,7 @@ function createSession(overrides: Partial<Session> = {}): Session {
     historyState: 'metadata-only',
     todos: [],
     mode: 'Standard',
+    workspaceId: 'workspace-1',
     workspacePath: 'D:/workspace/BitFun',
     sessionKind: 'normal',
     parentSessionId: undefined,
@@ -178,6 +182,18 @@ function createContext(
     [session.sessionId, session],
     ...((options?.additionalSessions ?? []).map(extra => [extra.sessionId, extra] as const)),
   ]);
+  const workspace = {
+    id: session.workspaceId,
+    rootPath: session.workspacePath,
+    workspaceKind: session.remoteConnectionId ? 'remote' : 'normal',
+    connectionId: session.remoteConnectionId,
+    sshHost: session.remoteSshHost,
+  } as WorkspaceInfo;
+  vi.mocked(workspaceManager.getState).mockReturnValue({
+    currentWorkspace: workspace,
+    openedWorkspaces: new Map([[workspace.id, workspace]]),
+    recentWorkspaces: [],
+  } as ReturnType<typeof workspaceManager.getState>);
   let state = {
     sessions: initialSessions,
     activeSessionId: options?.activeSessionId ?? null as string | null,
@@ -207,6 +223,7 @@ function createContext(
           agentType: agentType ?? (config?.agentType as string | undefined) ?? 'Standard',
         },
         mode: agentType ?? 'Standard',
+        workspaceId: (config?.workspaceId as string | undefined) ?? session.workspaceId,
         workspacePath: workspacePath ?? (config?.workspacePath as string | undefined) ?? session.workspacePath,
         remoteConnectionId,
         remoteSshHost,
@@ -355,6 +372,37 @@ describe('createChatSession', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('preserves the project owner when creating a session inside an already opened worktree', async () => {
+    const project = { id: 'project', rootPath: '/repo', workspaceKind: 'normal' } as WorkspaceInfo;
+    const worktree = {
+      id: 'worktree', rootPath: '/worktrees/existing', workspaceKind: 'normal',
+      worktree: { isMain: false, mainWorkspaceId: project.id },
+    } as WorkspaceInfo;
+    const catalog = {
+      currentWorkspace: worktree,
+      openedWorkspaces: new Map([[worktree.id, worktree], [project.id, project]]),
+      recentWorkspaces: [],
+    };
+    vi.mocked(workspaceManager.getState).mockReturnValueOnce(catalog as ReturnType<typeof workspaceManager.getState>)
+      .mockReturnValueOnce(catalog as ReturnType<typeof workspaceManager.getState>);
+    const { context, flowChatStore } = createContext(createSession());
+    agentApiMocks.createSession.mockResolvedValueOnce({
+      sessionId: 'created-1', workspaceId: worktree.id, workspacePath: worktree.rootPath,
+      projectWorkspacePath: project.rootPath,
+      executionTarget: { kind: 'existingWorktree', worktreeId: 'wt-1', rootPath: worktree.rootPath },
+    });
+
+    await createChatSession(context, { workspaceId: worktree.id }, 'Standard');
+
+    expect(flowChatStore.createSession).toHaveBeenCalledWith(
+      'created-1', expect.objectContaining({
+        workspaceId: worktree.id, projectWorkspaceId: project.id,
+        workspacePath: worktree.rootPath, projectWorkspacePath: project.rootPath,
+      }), undefined, expect.any(String), expect.any(Number), 'Standard', worktree.rootPath,
+      undefined, undefined, expect.any(Object),
+    );
   });
 
   it('dedupes concurrent creates before model config loading resolves', async () => {
@@ -577,12 +625,14 @@ describe('forkChatSession', () => {
   it('keeps the source SSH identity through fork creation and history restore', async () => {
     const source = createSession({
       sessionId: 'remote-source',
+      workspaceId: 'remote-source-workspace',
       workspacePath: '/workspace/repo',
       remoteConnectionId: 'ssh-source',
       remoteSshHost: 'source-host',
     });
     const other = createSession({
       sessionId: 'other-host-session',
+      workspaceId: 'other-host-workspace',
       workspacePath: '/workspace/repo',
       remoteConnectionId: 'ssh-other',
       remoteSshHost: 'other-host',
@@ -601,7 +651,7 @@ describe('forkChatSession', () => {
       .resolves.toBe('remote-fork');
 
     expect(sessionApiMocks.forkSession).toHaveBeenCalledWith(
-      'remote-source', 'turn-1', '/workspace/repo', 'ssh-source', 'source-host',
+      'remote-source', 'turn-1', 'remote-source-workspace',
     );
     expect(flowChatStore.getState().sessions.get('remote-fork')).toMatchObject({
       workspacePath: '/workspace/repo',
@@ -609,7 +659,7 @@ describe('forkChatSession', () => {
       remoteSshHost: 'source-host',
     });
     expect(flowChatStore.loadSessionHistory).toHaveBeenCalledWith(
-      'remote-fork', '/workspace/repo', undefined, 'ssh-source', 'source-host',
+      'remote-fork',
       { deferFullHistoryUntilActive: true },
     );
   });
@@ -624,6 +674,7 @@ describe('reloadSessionTitle', () => {
     const dialogTurns = [{ id: 'turn-1' }] as Session['dialogTurns'];
     const session = createSession({
       title: 'Stale title',
+      workspaceId: 'remote-worktree',
       dialogTurns,
       workspacePath: '/remote/worktree',
       projectWorkspacePath: '/remote/project',
@@ -642,9 +693,7 @@ describe('reloadSessionTitle', () => {
 
     expect(sessionApiMocks.loadSessionMetadata).toHaveBeenCalledWith(
       session.sessionId,
-      '/remote/project',
-      'connection-1',
-      'ssh.example.test',
+      'remote-worktree',
     );
     const updated = flowChatStore.getState().sessions.get(session.sessionId);
     expect(updated?.title).toBe('Authoritative title');
@@ -674,7 +723,7 @@ describe('SessionModule historical session coordination', () => {
     persistenceMocks.touchSessionActivity.mockResolvedValueOnce(undefined);
 
     const switching = switchChatSession(context, 'history-1');
-    await Promise.resolve();
+    await vi.advanceTimersToNextTimerAsync();
 
     expect(flowChatStore.switchSession).not.toHaveBeenCalled();
     expect(flowChatStore.loadSessionHistory).toHaveBeenCalledTimes(1);
@@ -691,7 +740,7 @@ describe('SessionModule historical session coordination', () => {
     flowChatStore.loadSessionHistory.mockReturnValueOnce(load.promise);
     let relevant = true;
     const switching = switchChatSession(context, 'history-1', () => relevant);
-    await Promise.resolve();
+    await vi.advanceTimersToNextTimerAsync();
     relevant = false;
     load.resolve();
     await switching;
@@ -706,7 +755,7 @@ describe('SessionModule historical session coordination', () => {
 
     dispatchHistorySessionOpenIntent('history-1', 'Saved session');
     const switching = switchChatSession(context, 'history-1');
-    await Promise.resolve();
+    await vi.advanceTimersToNextTimerAsync();
 
     expect(flowChatStore.switchSession).toHaveBeenCalledWith('history-1');
     expect(flowChatStore.loadSessionHistory).toHaveBeenCalledTimes(1);
@@ -726,7 +775,7 @@ describe('SessionModule historical session coordination', () => {
     persistenceMocks.touchSessionActivity.mockResolvedValueOnce(undefined);
 
     const switching = switchChatSession(context, 'history-1');
-    await Promise.resolve();
+    await vi.advanceTimersToNextTimerAsync();
 
     expect(flowChatStore.loadSessionHistory).toHaveBeenCalledTimes(1);
     expect(flowChatStore.switchSession).not.toHaveBeenCalled();
@@ -744,7 +793,7 @@ describe('SessionModule historical session coordination', () => {
     persistenceMocks.touchSessionActivity.mockResolvedValueOnce(undefined);
 
     const switching = switchChatSession(context, 'history-1');
-    await Promise.resolve();
+    await vi.advanceTimersToNextTimerAsync();
 
     expect(persistenceMocks.touchSessionActivity).not.toHaveBeenCalled();
 
@@ -761,9 +810,7 @@ describe('SessionModule historical session coordination', () => {
     await vi.advanceTimersByTimeAsync(1);
     expect(persistenceMocks.touchSessionActivity).toHaveBeenCalledWith(
       'history-1',
-      'D:/workspace/BitFun',
-      undefined,
-      undefined,
+      'workspace-1',
     );
   });
 
@@ -781,10 +828,12 @@ describe('SessionModule historical session coordination', () => {
     flowChatStore.loadSessionHistory.mockReturnValueOnce(load.promise);
     persistenceMocks.touchSessionActivity.mockResolvedValueOnce(undefined);
 
-    await switchChatSession(context, 'history-1');
+    const switching = switchChatSession(context, 'history-1');
+    await vi.advanceTimersToNextTimerAsync();
+    await switching;
 
     expect(flowChatStore.switchSession).toHaveBeenCalledWith('history-1');
-    expect(flowChatStore.loadSessionHistory).toHaveBeenCalledTimes(1);
+    expect(flowChatStore.loadSessionHistory).not.toHaveBeenCalled();
 
     load.resolve();
     await load.promise;
@@ -809,8 +858,12 @@ describe('SessionModule historical session coordination', () => {
     flowChatStore.loadSessionHistory.mockResolvedValue(undefined);
     persistenceMocks.touchSessionActivity.mockResolvedValue(undefined);
 
-    await switchChatSession(context, 'history-1');
-    await switchChatSession(context, 'history-2');
+    const firstSwitch = switchChatSession(context, 'history-1');
+    await vi.advanceTimersToNextTimerAsync();
+    await firstSwitch;
+    const secondSwitch = switchChatSession(context, 'history-2');
+    await vi.advanceTimersToNextTimerAsync();
+    await secondSwitch;
 
     expect(flowChatStore.switchSession).toHaveBeenNthCalledWith(1, 'history-1');
     expect(flowChatStore.switchSession).toHaveBeenNthCalledWith(2, 'history-2');
@@ -821,9 +874,7 @@ describe('SessionModule historical session coordination', () => {
     expect(persistenceMocks.touchSessionActivity).toHaveBeenCalledTimes(1);
     expect(persistenceMocks.touchSessionActivity).toHaveBeenCalledWith(
       'history-2',
-      'D:/workspace/BitFun',
-      undefined,
-      undefined,
+      'workspace-1',
     );
   });
 
@@ -835,7 +886,9 @@ describe('SessionModule historical session coordination', () => {
     const { context, flowChatStore } = createContext(session);
     persistenceMocks.touchSessionActivity.mockResolvedValue(undefined);
 
-    await switchChatSession(context, 'history-1');
+    const switching = switchChatSession(context, 'history-1');
+    await vi.advanceTimersToNextTimerAsync();
+    await switching;
     flowChatStore.setState((prev: any) => ({
       ...prev,
       sessions: new Map(),
@@ -856,7 +909,9 @@ describe('SessionModule historical session coordination', () => {
 
     try {
       activateSurface('peer-a');
-      await switchChatSession(context, 'history-1');
+      const switching = switchChatSession(context, 'history-1');
+      await vi.advanceTimersToNextTimerAsync();
+      await switching;
 
       activateSurface('peer-b');
       await vi.advanceTimersByTimeAsync(SESSION_ACTIVITY_TOUCH_DELAY_MS);
@@ -876,7 +931,9 @@ describe('SessionModule historical session coordination', () => {
     flowChatStore.loadSessionHistory.mockReturnValueOnce(load.promise);
     persistenceMocks.touchSessionActivity.mockResolvedValueOnce(undefined);
 
-    await switchChatSession(context, 'history-1');
+    const switching = switchChatSession(context, 'history-1');
+    await vi.advanceTimersToNextTimerAsync();
+    await switching;
 
     expect(flowChatStore.switchSession).toHaveBeenCalledWith('history-1');
     expect(flowChatStore.loadSessionHistory).toHaveBeenCalledTimes(1);
@@ -917,10 +974,6 @@ describe('SessionModule historical session coordination', () => {
     expect(flowChatStore.loadSessionHistory).toHaveBeenCalledTimes(1);
     expect(flowChatStore.loadSessionHistory).toHaveBeenCalledWith(
       'history-1',
-      'D:/workspace/BitFun',
-      undefined,
-      undefined,
-      undefined,
       { includeInternal: true, deferFullHistoryUntilActive: false },
     );
 
@@ -968,54 +1021,47 @@ describe('SessionModule historical session coordination', () => {
     }
   });
 
-  it('uses the owning panel scope when a legacy child is missing its workspace location', async () => {
+  it('hydrates child details by workspace identity without a frontend path projection', async () => {
     const { context, flowChatStore } = createContext(createSession({
+      workspaceId: 'hidden-worktree',
       workspacePath: undefined,
-      remoteConnectionId: undefined,
-      remoteSshHost: undefined,
       sessionKind: 'subagent',
     }));
 
-    await hydrateSessionHistoryForDetail(context, 'history-1', {
-      workspacePath: 'D:/workspace/BitFun',
-      remoteConnectionId: 'remote-current',
-      remoteSshHost: 'host-current',
-    });
+    await hydrateSessionHistoryForDetail(context, 'history-1');
 
+    expect(flowChatStore.getState().sessions.get('history-1')?.workspaceId).toBe('hidden-worktree');
     expect(flowChatStore.loadSessionHistory).toHaveBeenCalledWith(
       'history-1',
-      'D:/workspace/BitFun',
-      undefined,
-      'remote-current',
-      'host-current',
       { includeInternal: true, deferFullHistoryUntilActive: false },
     );
   });
 
-  it('retries with a stronger location after a reused weak hydrate fails', async () => {
+  it('retries a failed reused hydrate after the session workspace identity changes', async () => {
+    const initialLoad = createDeferred<void>();
     const { context, flowChatStore } = createContext(createSession({
-      workspacePath: undefined,
-      remoteConnectionId: undefined,
-      remoteSshHost: undefined,
       sessionKind: 'subagent',
     }));
+    flowChatStore.loadSessionHistory
+      .mockReturnValueOnce(initialLoad.promise)
+      .mockResolvedValueOnce(undefined);
 
-    const weakHydrate = hydrateSessionHistoryForDetail(context, 'history-1');
-    const strongHydrate = hydrateSessionHistoryForDetail(context, 'history-1', {
-      workspacePath: 'D:/workspace/BitFun',
-      remoteConnectionId: 'remote-current',
-      remoteSshHost: 'host-current',
-    });
+    const firstHydrate = hydrateSessionHistoryForDetail(context, 'history-1');
+    flowChatStore.setState((previous: any) => ({
+      ...previous,
+      sessions: new Map(previous.sessions).set('history-1', createSession({
+        workspaceId: 'worktree-1',
+        sessionKind: 'subagent',
+      })),
+    }));
+    const worktreeHydrate = hydrateSessionHistoryForDetail(context, 'history-1');
+    initialLoad.reject(new Error('Previous workspace is unavailable'));
 
-    await expect(weakHydrate).rejects.toThrow('Workspace path is required');
-    await expect(strongHydrate).resolves.toBeUndefined();
-    expect(flowChatStore.loadSessionHistory).toHaveBeenCalledTimes(1);
-    expect(flowChatStore.loadSessionHistory).toHaveBeenCalledWith(
+    await expect(firstHydrate).rejects.toThrow('Previous workspace is unavailable');
+    await expect(worktreeHydrate).resolves.toBeUndefined();
+    expect(flowChatStore.loadSessionHistory).toHaveBeenCalledTimes(2);
+    expect(flowChatStore.loadSessionHistory).toHaveBeenLastCalledWith(
       'history-1',
-      'D:/workspace/BitFun',
-      undefined,
-      'remote-current',
-      'host-current',
       { includeInternal: true, deferFullHistoryUntilActive: false },
     );
   });
@@ -1043,10 +1089,6 @@ describe('SessionModule historical session coordination', () => {
     expect(flowChatStore.loadSessionHistory).toHaveBeenNthCalledWith(
       2,
       'history-1',
-      'D:/workspace/BitFun',
-      undefined,
-      undefined,
-      undefined,
       { includeInternal: true, deferFullHistoryUntilActive: false },
     );
   });
@@ -1087,7 +1129,7 @@ describe('SessionModule historical session coordination', () => {
 
     dispatchHistorySessionOpenIntent('history-1', 'Saved session');
     const switching = switchChatSession(context, 'history-1');
-    await Promise.resolve();
+    await vi.advanceTimersToNextTimerAsync();
 
     expect(flowChatStore.switchSession).toHaveBeenCalledWith('history-1');
 
@@ -1147,11 +1189,11 @@ describe('SessionModule historical session coordination', () => {
 
     dispatchHistorySessionOpenIntent('history-1', 'Saved session');
     const firstSwitch = switchChatSession(context, 'history-1');
-    await Promise.resolve();
+    await vi.advanceTimersToNextTimerAsync();
     expect(flowChatStore.switchSession).toHaveBeenCalledWith('history-1');
 
     const secondSwitch = switchChatSession(context, 'history-2');
-    await Promise.resolve();
+    await vi.advanceTimersToNextTimerAsync();
     expect(flowChatStore.loadSessionHistory).toHaveBeenCalledTimes(2);
 
     stalePreload.resolve();
@@ -1413,9 +1455,7 @@ describe('SessionModule historical session coordination', () => {
 
     expect(sessionApiMocks.archiveSession).toHaveBeenCalledWith(
       'active-1',
-      'D:/workspace/BitFun',
-      undefined,
-      undefined,
+      'workspace-1',
     );
     expect(flowChatStore.removeSession).toHaveBeenCalledWith(
       'active-1',
@@ -1449,6 +1489,8 @@ describe('SessionModule historical session coordination', () => {
 
   it('restores pending backend context for a view-restored session before send', async () => {
     const { context } = createContext(createSession({
+      workspaceId: 'hidden-worktree', projectWorkspaceId: 'project',
+      workspacePath: '/worktrees/saved', projectWorkspacePath: '/repo',
       isHistorical: false,
       historyState: 'ready',
       contextRestoreState: 'pending',
@@ -1458,7 +1500,9 @@ describe('SessionModule historical session coordination', () => {
 
     await ensureBackendSession(context, 'history-1');
 
-    expect(agentApiMocks.ensureCoordinatorSession).toHaveBeenCalledTimes(1);
+    expect(agentApiMocks.ensureCoordinatorSession).toHaveBeenCalledWith({
+      sessionId: 'history-1', workspaceId: 'hidden-worktree', includeInternal: false,
+    });
     expect(agentApiMocks.createSession).not.toHaveBeenCalled();
     expect(context.flowChatStore.getState().sessions.get('history-1')).toMatchObject({
       contextRestoreState: 'ready',
@@ -1624,12 +1668,13 @@ describe('SessionModule historical session coordination', () => {
     expect(agentApiMocks.createSession).not.toHaveBeenCalled();
   });
 
-  it('keeps recreate fallback for empty pending context sessions', async () => {
+  it.each([false, true])('keeps recreate fallback for empty pending context sessions (remoteInConfig=%s)', async (remoteInConfig) => {
     const { context } = createContext(createSession({
       isHistorical: false,
       historyState: 'ready',
       contextRestoreState: 'pending',
       dialogTurns: [],
+      config: remoteInConfig ? { remoteConnectionId: 'remote-1', remoteSshHost: 'remote-host' } : {},
     } as any));
     agentApiMocks.ensureCoordinatorSession.mockRejectedValueOnce(
       new Error('Session metadata not found')
@@ -1640,6 +1685,14 @@ describe('SessionModule historical session coordination', () => {
 
     expect(agentApiMocks.ensureCoordinatorSession).toHaveBeenCalledTimes(1);
     expect(agentApiMocks.createSession).toHaveBeenCalledTimes(1);
+    expect(agentApiMocks.createSession).toHaveBeenCalledWith(expect.objectContaining({
+      remoteConnectionId: remoteInConfig ? 'remote-1' : undefined,
+      remoteSshHost: remoteInConfig ? 'remote-host' : undefined,
+      config: expect.objectContaining({
+        remoteConnectionId: remoteInConfig ? 'remote-1' : undefined,
+        remoteSshHost: remoteInConfig ? 'remote-host' : undefined,
+      }),
+    }));
     expect(context.flowChatStore.getState().sessions.get('history-1')).toMatchObject({
       contextRestoreState: 'ready',
     });
@@ -1722,9 +1775,11 @@ describe('SessionModule historical session coordination', () => {
     );
   });
 
-  it('retries child sessions with structured subagent relationship', async () => {
+  it.each([false, true])('retries child sessions with structured subagent relationship (workspaceIdInConfig=%s)', async (workspaceIdInConfig) => {
     const { context } = createContext(createSession({
       sessionId: 'subagent-1',
+      workspaceId: workspaceIdInConfig ? undefined : 'workspace-1',
+      config: { workspaceId: 'workspace-1' },
       isHistorical: false,
       historyState: 'ready',
       sessionKind: 'subagent',
@@ -1744,6 +1799,7 @@ describe('SessionModule historical session coordination', () => {
     expect(agentApiMocks.createSession).toHaveBeenCalledWith(
       expect.objectContaining({
         sessionId: 'subagent-1',
+        workspaceId: 'workspace-1',
         relationship: {
           kind: 'subagent',
           parentSessionId: 'parent-1',

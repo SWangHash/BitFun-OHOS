@@ -135,6 +135,7 @@ describe('localSessionDriver.startTurn on an ACP session', () => {
       workspacePath: '/worktrees/new',
       projectWorkspacePath: WORKSPACE_PATH,
       workspaceId: 'new-workspace',
+      projectWorkspaceId: 'project-workspace',
       executionTarget: { kind: 'managedWorktree', worktreeId: 'wt-1', rootPath: '/worktrees/new' },
     });
     mockTrust.mockResolvedValueOnce(true);
@@ -149,6 +150,10 @@ describe('localSessionDriver.startTurn on an ACP session', () => {
     expect(mockBindWorktree.mock.calls[0][2]).toBe('pending-request');
     expect(mockBindWorktree.mock.calls[1]).toEqual(mockBindWorktree.mock.calls[0]);
     expect(context.flowChatStore.updateSessionExecutionTarget).toHaveBeenCalledTimes(1);
+    expect(context.flowChatStore.updateSessionExecutionTarget).toHaveBeenCalledWith(
+      SESSION_ID,
+      expect.objectContaining({ workspaceId: 'new-workspace', projectWorkspaceId: 'project-workspace' }),
+    );
     expect(mockStartAcpDialogTurn).toHaveBeenCalledTimes(1);
   });
 

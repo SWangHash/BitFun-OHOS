@@ -428,12 +428,7 @@ export const localSessionDriver: SessionDriver = {
           result = await bind();
         }
         surfaceScope.assertCurrent('bind session worktree');
-        context.flowChatStore.updateSessionExecutionTarget(sessionId, {
-          workspacePath: result.workspacePath,
-          projectWorkspacePath: result.projectWorkspacePath,
-          workspaceId: result.workspaceId,
-          executionTarget: result.executionTarget,
-        });
+        context.flowChatStore.updateSessionExecutionTarget(sessionId, result);
         if (result.retainedWorktreePath) {
           log.warn('Released worktree retained because it contains local work', {
             sessionId,

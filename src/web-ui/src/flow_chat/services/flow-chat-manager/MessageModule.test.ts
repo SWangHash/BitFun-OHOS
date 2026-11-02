@@ -31,6 +31,7 @@ const mockGetStateMachine = vi.fn(() => null);
 const mockResetForSurface = vi.fn();
 const mockUpdateSessionModel = vi.fn();
 const mockStartDialogTurn = vi.fn();
+const mockEnsureCoordinatorSession = vi.fn();
 const mockGetConfigs = vi.fn();
 const mockDispatchSubmit = vi.fn();
 const mockDispatchAppend = vi.fn();
@@ -68,6 +69,7 @@ vi.mock('../../state-machine', () => ({
 vi.mock('@/infrastructure/api/service-api/AgentAPI', () => ({
   agentAPI: {
     startDialogTurn: (...args: unknown[]) => mockStartDialogTurn(...args),
+    ensureCoordinatorSession: (...args: unknown[]) => mockEnsureCoordinatorSession(...args),
     updateSessionModel: (...args: unknown[]) => mockUpdateSessionModel(...args),
   },
 }));
@@ -279,6 +281,53 @@ describe('MessageModule session writer conflict', () => {
     await vi.waitFor(() => {
       expect(mockEnsureBackendSession).toHaveBeenCalledTimes(3);
     });
+  });
+
+  it('sends consecutive messages after materializing a worktree through the real readiness and store paths', async () => {
+    const { ensureBackendSession } = await vi.importActual<typeof import('./SessionModule')>('./SessionModule');
+    const { flowChatStore } = await import('../../store/FlowChatStore');
+    const { workspaceManager } = await import('@/infrastructure/services/business/workspaceManager');
+    const project = { id: 'project', rootPath: '/repo', workspaceKind: 'normal' };
+    const catalog = vi.spyOn(workspaceManager, 'getState').mockReturnValue({
+      openedWorkspaces: new Map([[project.id, project]]), recentWorkspaces: [], currentWorkspace: project,
+    } as ReturnType<typeof workspaceManager.getState>);
+    const sessionId = 'worktree-consecutive-messages';
+    const { context, session } = conflictContext(sessionId);
+    const previousState = flowChatStore.getState();
+    flowChatStore.setState(state => ({ ...state, sessions: new Map([[sessionId, {
+      ...session, workspaceId: project.id, workspacePath: project.rootPath,
+      config: { ...session.config, worktreeIsolationRequested: true },
+    } as any]]) }));
+    context.flowChatStore = flowChatStore;
+    mockEnsureBackendSession.mockImplementation(ensureBackendSession);
+    mockEnsureCoordinatorSession.mockResolvedValue(undefined);
+    mockGetConfigs.mockResolvedValue({});
+    mockBindSession.mockResolvedValue({
+      workspaceId: 'hidden-worktree', workspacePath: '/worktrees/new',
+      projectWorkspaceId: project.id, projectWorkspacePath: project.rootPath,
+      executionTarget: { kind: 'managedWorktree', worktreeId: 'wt-1', rootPath: '/worktrees/new' },
+    });
+
+    try {
+      await sendMessage(context, 'first message', sessionId);
+      await sendMessage(context, 'second message', sessionId);
+      await sendMessage(context, 'third message', sessionId);
+
+      expect(mockBindSession).toHaveBeenCalledTimes(1);
+      expect(mockStartDialogTurn).toHaveBeenCalledTimes(3);
+      expect(mockEnsureCoordinatorSession.mock.calls.map(([request]) => request.workspaceId))
+        .toEqual(['project', 'hidden-worktree', 'hidden-worktree']);
+      for (const [request] of mockStartDialogTurn.mock.calls) {
+        expect(request).toMatchObject({
+          workspaceId: 'hidden-worktree', workspacePath: '/worktrees/new', projectWorkspacePath: '/repo',
+        });
+      }
+      expect(flowChatStore.getState().sessions.get(sessionId)?.projectWorkspaceId).toBe(project.id);
+      expect(mockNotificationError).not.toHaveBeenCalled();
+    } finally {
+      flowChatStore.setState(() => previousState);
+      catalog.mockRestore();
+    }
   });
 
   it('does not let an older retry failure replace a newer conflict', async () => {
