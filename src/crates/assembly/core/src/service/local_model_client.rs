@@ -305,25 +305,29 @@ pub async fn pull_model(
                         info!("[local-model] Pull chunk #{}: {} bytes, buffer len: {}", chunk_count, chunk.len(), buffer.len());
                     }
 
-                    // Process complete lines from the buffer.
-                    while let Some(newline_pos) = buffer.find('\n') {
-                        let line = buffer[..newline_pos].trim().to_string();
-                        buffer = buffer[newline_pos + 1..].to_string();
-
-                        if line.is_empty() {
+                    // Process complete JSON objects from the buffer. Some
+                    // local model services answer `/api/pull` with
+                    // pretty-printed multi-line objects instead of NDJSON, so
+                    // framing is by balanced braces rather than by newline —
+                    // line framing read each indented fragment as a broken
+                    // object and never emitted progress (issue #346).
+                    while let Some(object_end) = find_json_object_end(&buffer) {
+                        let object = buffer[..object_end].trim().to_string();
+                        buffer.drain(..object_end);
+                        if object.is_empty() {
                             continue;
                         }
 
                         if progress_sent_count < 5 {
-                            info!("[local-model] Parsing pull line: {}", &line[..line.len().min(200)]);
+                            info!("[local-model] Parsing pull object: {}", &object[..object.len().min(200)]);
                         }
 
-                        match parse_pull_progress_line(&line, &model_name_owned) {
+                        match parse_pull_progress_line(&object, &model_name_owned) {
                             Ok(progress) => {
                                 progress_sent_count += 1;
                                 let is_success = progress.status == "success";
                                 let is_paused = progress.status == "paused";
-                                if progress_sent_count <= 5 || is_success || is_paused { 
+                                if progress_sent_count <= 5 || is_success || is_paused {
                                     info!(
                                         "[local-model] Pull progress #{}: model={}, status={}, total={}, completed={}",
                                         progress_sent_count, progress.model_name, progress.status,
@@ -344,8 +348,13 @@ pub async fn pull_model(
                                 }
                             }
                             Err(e) => {
-                                warn!("[local-model] Failed to parse pull progress line: {}, raw: {}", e, &line[..line.len().min(200)]);
+                                warn!("[local-model] Failed to parse pull progress object: {}, raw: {}", e, &object[..object.len().min(200)]);
                             }
+                        }
+
+                        let trim_start = buffer.len() - buffer.trim_start().len();
+                        if trim_start > 0 {
+                            buffer.drain(..trim_start);
                         }
                     }
                 }
@@ -535,7 +544,7 @@ fn parse_modellist_response(body: &str) -> Result<Vec<LocalModel>, LocalModelErr
     Ok(models)
 }
 
-// Parse a single JSON line from the `/api/pull` streaming response.
+// Parse a single JSON object from the `/api/pull` streaming response.
 fn parse_pull_progress_line(
     line: &str,
     model_name: &str,
@@ -562,6 +571,36 @@ fn parse_pull_progress_line(
         total: parsed.total,
         completed: parsed.completed,
     })
+}
+
+/// Returns the byte offset just past the first complete top-level JSON object
+/// in `buffer`, tracking string and escape state so braces inside values do
+/// not count. `None` means the buffer holds no complete object yet and the
+/// caller must keep buffering.
+fn find_json_object_end(buffer: &str) -> Option<usize> {
+    let bytes = buffer.as_bytes();
+    let mut depth: usize = 0;
+    let mut in_string = false;
+    let mut escape_next = false;
+    for (index, byte) in bytes.iter().enumerate() {
+        if escape_next {
+            escape_next = false;
+            continue;
+        }
+        match byte {
+            b'\\' if in_string => escape_next = true,
+            b'"' => in_string = !in_string,
+            b'{' if !in_string => depth += 1,
+            b'}' if !in_string => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return Some(index + 1);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 /// Returns the default local model service port.
