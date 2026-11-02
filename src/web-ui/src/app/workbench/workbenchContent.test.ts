@@ -5,10 +5,19 @@ import { useContentResourceStore } from './contentResourceStore';
 import { registerContentCloseGuard } from './contentResourceLifecycle';
 import { fileTabManager } from '@/shared/services/FileTabManager';
 import { openFileInBestTarget, createTerminalTab, createGitCodeEditorTab, createCodeEditorTab, createTab } from '@/shared/utils/tabUtils';
-import { openContentInBestTarget, openWorkbenchContent } from '@/shared/services/workbenchContentService';
+import { captureContentScope, openContentInBestTarget, openWorkbenchContent } from '@/shared/services/workbenchContentService';
 import { clearAgentCanvasForPeerSwitch, switchAgentCanvasWorkspace, useAgentCanvasStore, useGitCanvasStore } from '../components/panels/content-canvas/stores';
 import { appManager } from '../services/AppManager';
 import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
+import { openBtwSessionInAuxPane } from '@/flow_chat/services/btwSessionPane';
+import { createBtwChildSession, createBtwSessionPlaceholder } from '@/flow_chat/services/BtwThreadService';
+import { agentAPI } from '@/infrastructure/api/service-api/AgentAPI';
+import { api } from '@/infrastructure/api/service-api/ApiClient';
+import { initializeEventListeners } from '@/flow_chat/services/flow-chat-manager/EventHandlerModule';
+import { agenticEventListener } from '@/flow_chat/services/AgenticEventListener';
+import type { FlowChatContext } from '@/flow_chat/services/flow-chat-manager/types';
+import { sessionBelongsToWorkspaceNavRow } from '@/flow_chat/utils/sessionOrdering';
+import { resolveSessionRelationship } from '@/flow_chat/utils/sessionMetadata';
 import type { Session } from '@/flow_chat/types/flow-chat';
 import { getEditorDocument, releaseEditorDocument } from '@/tools/editor/services/EditorDocument';
 import { cancelPendingSettingsNavigation, discardAndContinueSettingsNavigation, registerSettingsDraft,
@@ -28,6 +37,7 @@ vi.mock('@/infrastructure/services/business/workspaceManager', () => ({
 }));
 
 describe('workbench content navigation', () => {
+  let stopEventListeners: (() => void) | undefined;
   function selectSession(sessionId = 'session-a', overrides: Partial<Session> = {}) {
     const session: Session = { sessionId, title: sessionId, dialogTurns: [], status: 'idle', config: {},
       sessionKind: 'normal', createdAt: 1, lastActiveAt: 1, error: null,
@@ -54,6 +64,9 @@ describe('workbench content navigation', () => {
   });
 
   afterEach(() => {
+    stopEventListeners?.();
+    stopEventListeners = undefined;
+    vi.restoreAllMocks();
     activateSurface('local');
     flowChatStore.setState(state => ({ ...state, sessions: new Map(), activeSessionId: null }));
     clearAgentCanvasForPeerSwitch();
@@ -202,7 +215,97 @@ describe('workbench content navigation', () => {
     expect(useSceneStore.getState().activeTabId).toBe(getSessionSceneTabId(target));
     expect(useAgentCanvasStore.getState().workspaceKey).toBe('project');
     expect(useAgentCanvasStore.getState().primaryGroup.tabs).toHaveLength(1);
+
+    fileTabManager.openFile({ filePath: 'a.ts', workspaceId: 'worktree-id' });
+    const tabs = useAgentCanvasStore.getState().primaryGroup.tabs;
+    expect(tabs).toHaveLength(2);
+    expect(tabs.find(tab => tab.content.data.filePath === '/worktrees/a/a.ts')?.content.metadata?.resourceScope)
+      .toEqual({ surfaceId: 'local', workspaceId: 'worktree-id', workspacePath: '/worktrees/a', remoteConnectionId: undefined });
+    expect(useAgentCanvasStore.getState().workspaceKey).toBe('project');
+    expect(() => fileTabManager.openFile({ filePath: 'a.ts', workspaceId: 'missing-id', workspacePath: '/worktrees/a' }))
+      .toThrow('Workspace identity');
   });
+
+  it.each([
+    { sessionKind: 'review', eventFirst: true },
+    { sessionKind: 'review', eventFirst: false },
+    { sessionKind: 'deep_review', eventFirst: true },
+    { sessionKind: 'deep_review', eventFirst: false },
+    { sessionKind: 'btw', eventFirst: false },
+  ] as const)(
+    'keeps a $sessionKind child visible and openable when the creation event arrives first: $eventFirst', async ({ sessionKind, eventFirst }) => {
+      const target = openSession('worktree-parent', {
+        workspaceId: 'worktree-id', workspacePath: '/worktrees/a',
+        projectWorkspaceId: 'project', projectWorkspacePath: '/project',
+      });
+      const listeners = new Map<string, (event: any) => void>();
+      vi.spyOn(api, 'listen').mockImplementation((name, callback) => {
+        listeners.set(name, callback);
+        return () => { listeners.delete(name); };
+      });
+      vi.spyOn(api, 'waitForListenerRegistrations').mockResolvedValue();
+      agenticEventListener.stopListening();
+      stopEventListeners = await initializeEventListeners({
+        flowChatStore, currentWorkspaceId: 'project', currentWorkspacePath: '/project',
+      } as FlowChatContext, vi.fn());
+      // Older hosts emit the execution identity before resolving create_session.
+      const createdSession = {
+        sessionId: 'worktree-child', sessionName: 'Review', agentType: 'Standard',
+        workspaceId: 'worktree-id', workspacePath: '/worktrees/a', projectWorkspacePath: '/project',
+      };
+      vi.spyOn(agentAPI, 'createSession').mockImplementation(async () => {
+        if (eventFirst) listeners.get('agentic://session-created')!(createdSession);
+        return createdSession;
+      });
+      const createParams = { parentSessionId: 'worktree-parent', childSessionName: 'Review', sessionKind };
+      const { childSessionId } = sessionKind === 'btw'
+        ? createBtwSessionPlaceholder(createParams)
+        : await createBtwChildSession(createParams);
+      if (!eventFirst && sessionKind !== 'btw') {
+        listeners.get('agentic://session-created')!(createdSession);
+      }
+      const child = flowChatStore.getState().sessions.get(childSessionId)!;
+      expect(sessionBelongsToWorkspaceNavRow(child, 'project')).toBe(true);
+      expect(resolveSessionRelationship(child)).toMatchObject({
+        kind: sessionKind, parentSessionId: 'worktree-parent', displayAsChild: true,
+      });
+      const params = { childSessionId, parentSessionId: 'worktree-parent', sessionKind };
+
+      openBtwSessionInAuxPane(params);
+
+      const canvas = useAgentCanvasStore.getState();
+      expect(useSceneStore.getState().activeTabId).toBe(getSessionSceneTabId(target));
+      expect(canvas.workspaceKey).toBe('project');
+      expect(canvas.primaryGroup.tabs).toHaveLength(1);
+      expect(canvas.primaryGroup.tabs[0].content).toMatchObject({
+        type: 'btw-session',
+        data: { childSessionId, parentSessionId: 'worktree-parent',
+          workspaceId: 'worktree-id', workspacePath: '/worktrees/a', projectWorkspaceId: 'project' },
+        metadata: { resourceScope: { surfaceId: 'local', workspaceId: 'worktree-id', workspacePath: '/worktrees/a' } },
+      });
+      expect(flowChatStore.getState().activeSessionId).toBe('worktree-parent');
+      expect(Object.values(useContentResourceStore.getState().resources)).toHaveLength(0);
+
+      openBtwSessionInAuxPane(params);
+      expect(useAgentCanvasStore.getState().primaryGroup.tabs.map(tab => tab.id))
+        .toEqual([canvas.primaryGroup.tabs[0].id]);
+
+      expect(flowChatStore.getState().sessions.get(childSessionId)).toMatchObject({
+        workspaceId: 'worktree-id', projectWorkspaceId: 'project',
+        config: { workspaceId: 'worktree-id', projectWorkspaceId: 'project' },
+      });
+      useAgentCanvasStore.getState().closeTab(canvas.primaryGroup.tabs[0].id, 'primary');
+      expect(useAgentCanvasStore.getState().primaryGroup.tabs).toHaveLength(0);
+      expect(sessionBelongsToWorkspaceNavRow(flowChatStore.getState().sessions.get(childSessionId)!, 'project'))
+        .toBe(true);
+      openBtwSessionInAuxPane(params);
+      expect(useAgentCanvasStore.getState().primaryGroup.tabs).toHaveLength(1);
+      expect(useAgentCanvasStore.getState().primaryGroup.tabs[0].content.data)
+        .toMatchObject({ childSessionId, workspaceId: 'worktree-id', projectWorkspaceId: 'project' });
+      expect(flowChatStore.removeSessionsForWorkspace({ id: 'project' }).sort())
+        .toEqual([childSessionId, 'worktree-parent'].sort());
+    },
+  );
 
   it('keeps a draft and replaces stale navigation when reopening an inline file', () => {
     openSession();
@@ -329,6 +432,26 @@ describe('workbench content navigation', () => {
     expect(useSceneStore.getState().activeTabId).toMatch(/^content:/);
     expect(useAgentCanvasStore.getState().primaryGroup.tabs).toHaveLength(0);
     expect(() => fileTabManager.openFile({ filePath: '/project/b.ts', scope: { surfaceId: 'local' } })).toThrow('another device');
+  });
+
+  it('resolves uncatalogued workspace IDs only from the current device session bindings', () => {
+    selectSession('same-session', { workspaceId: undefined, workspacePath: undefined,
+      config: { workspaceId: 'same-workspace', workspacePath: '/worktrees/local' } });
+    expect(captureContentScope({ workspaceId: 'same-workspace', workspacePath: '/stale' }))
+      .toMatchObject({ surfaceId: 'local', workspaceId: 'same-workspace', workspacePath: '/worktrees/local' });
+
+    activateSurface('worktree-peer');
+    expect(() => captureContentScope({ workspaceId: 'same-workspace', workspacePath: '/worktrees/local' }))
+      .toThrow('Workspace identity');
+    selectSession('same-session', { workspaceId: 'same-workspace', workspacePath: '/srv/worktree',
+      remoteConnectionId: 'peer-ssh' });
+    expect(captureContentScope({ workspaceId: 'same-workspace' })).toEqual({
+      surfaceId: 'worktree-peer', workspaceId: 'same-workspace', workspacePath: '/srv/worktree', remoteConnectionId: 'peer-ssh',
+    });
+    flowChatStore.setState(state => ({ ...state, sessions: new Map(), activeSessionId: null }));
+    activateSurface('local');
+    expect(captureContentScope({ workspaceId: 'same-workspace' }))
+      .toMatchObject({ surfaceId: 'local', workspaceId: 'same-workspace', workspacePath: '/worktrees/local' });
   });
 
   it.each(['superseded', 'device-change'])('waits for session activation and abandons a stale content request: %s', async reason => {

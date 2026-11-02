@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SessionFilesBadge } from './SessionFilesBadge';
 import { prepareReviewLaunchFromSessionFiles } from '../../services/ReviewService';
 import { notificationService } from '../../../shared/notification-system';
+import { createDiffEditorTab } from '../../../shared/utils/tabUtils';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -184,6 +185,7 @@ describe('SessionFilesBadge', () => {
       changeKind: 'modify',
     });
     mocks.getOperationDiff.mockReset();
+    vi.mocked(createDiffEditorTab).mockClear();
     vi.mocked(prepareReviewLaunchFromSessionFiles).mockReset();
     vi.mocked(notificationService.error).mockReset();
   });
@@ -246,6 +248,17 @@ describe('SessionFilesBadge', () => {
     expect(dom.window.document.body.textContent).not.toContain('stale-session.ts');
     expect(toggle?.querySelector('.session-files-badge__stats--add')?.textContent).toBe('+1');
 
+    mocks.getOperationDiff.mockResolvedValue({ originalContent: 'before', modifiedContent: 'after' });
+    await act(async () => {
+      dom.window.document.querySelector('.session-files-badge__file-item')
+        ?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    });
+    await act(async () => { vi.advanceTimersByTime(250); });
+    expect(createDiffEditorTab).toHaveBeenCalledWith(
+      'src/current-session.ts', 'current-session.ts', 'before', 'after', false,
+      'agent', 'D:/workspace/session', undefined, false,
+      { titleKind: 'diff', duplicateKeyPrefix: 'diff', workspaceId: 'local_workspace' },
+    );
   });
 
   it('presents one adaptive Review action instead of asking users to choose a depth', async () => {

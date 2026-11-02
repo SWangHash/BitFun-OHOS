@@ -608,6 +608,9 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
       }
       const fileName = filePath.split(/[/\\]/).pop() || filePath;
       const session = flowChatStore.getState().sessions.get(sessionId);
+      const workspaceId = sessionWorkspaceId(session)
+        || flowChatWorkspaceId
+        || currentWorkspace?.id;
       const workspacePath = (session && sessionExecutionWorkspacePath(session))
         || flowChatWorkspacePath
         || currentWorkspace?.rootPath;
@@ -628,7 +631,8 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
           false,
           {
             titleKind: 'diff',
-            duplicateKeyPrefix: 'diff'
+            duplicateKeyPrefix: 'diff',
+            workspaceId,
           }
         );
       }, 250);
@@ -637,7 +641,7 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
     } catch (error) {
       log.error('Failed to open diff', { filePath, error });
     }
-  }, [sessionId, flowChatWorkspacePath, currentWorkspace?.rootPath]);
+  }, [sessionId, flowChatWorkspaceId, flowChatWorkspacePath, currentWorkspace?.id, currentWorkspace?.rootPath]);
 
   // Prepare and launch the least costly sufficient Review path.
   const handleReviewClick = useCallback(async (e: React.MouseEvent) => {
