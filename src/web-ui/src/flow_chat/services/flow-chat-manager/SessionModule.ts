@@ -52,6 +52,8 @@ import {
 import type { AppFlowChatConfig } from '@/infrastructure/config/types';
 import {
   requireSessionProjectWorkspacePath,
+  sessionExecutionWorkspacePath,
+  sessionWorkspaceId,
 } from '../../utils/sessionWorkspace';
 import { driverForCreation, driverForSession } from '../../session-drivers/registry';
 import {
@@ -479,7 +481,7 @@ export async function createChatSession(
 
       const sessionId = await driverForCreation(config).createSession(context, {
         surfaceScope,
-        config,
+        config: { ...config, projectWorkspaceId: projectId },
         agentType,
         sessionName,
         titleDescriptor,
@@ -901,11 +903,6 @@ export async function ensureBackendSession(
 
   const latestSession = context.flowChatStore.getState().sessions.get(sessionId) ?? session;
   const workspaceId = requireSessionWorkspaceId(latestSession);
-  const workspace = resolveSessionWorkspace({ workspaceId });
-  const workspacePath = workspace.rootPath;
-  const projectWorkspacePath = requireSessionProjectWorkspacePath(latestSession, sessionId);
-  const effectiveConnectionId = workspace.workspaceKind === WorkspaceKind.Remote ? workspace.connectionId : undefined;
-  const effectiveSshHost = workspace.workspaceKind === WorkspaceKind.Remote ? workspace.sshHost : undefined;
 
   const isHistoricalSession = latestSession.isHistorical === true;
   const isFirstTurn = isProjectedFirstRuntimeTurn(latestSession);
@@ -1019,6 +1016,12 @@ export async function ensureBackendSession(
 
     log.debug('Coordinator session missing, creating backend session', { sessionId, error: e });
     surfaceScope.assertCurrent('recreate backend session');
+    // A managed execution workspace need not appear in the frontend project
+    // catalog. Route by its ID and preserve the session's execution projection.
+    const workspacePath = requireSessionWorkspacePath(sessionExecutionWorkspacePath(latestSession), sessionId);
+    const projectWorkspacePath = requireSessionProjectWorkspacePath(latestSession, sessionId);
+    const effectiveConnectionId = latestSession.remoteConnectionId || latestSession.config.remoteConnectionId;
+    const effectiveSshHost = latestSession.remoteSshHost || latestSession.config.remoteSshHost;
     await agentAPI.createSession({
       sessionId: sessionId,
       sessionName:
@@ -1034,7 +1037,7 @@ export async function ensureBackendSession(
               worktreeId: latestSession.config.executionTarget.worktreeId,
             }
           : { kind: 'local' },
-      workspaceId: latestSession.workspaceId,
+      workspaceId,
       remoteConnectionId: effectiveConnectionId,
       remoteSshHost: effectiveSshHost,
       relationship: buildCreateSessionRelationship(latestSession),
@@ -1086,7 +1089,7 @@ export async function retryCreateBackendSession(
             worktreeId: session.config.executionTarget.worktreeId,
           }
         : { kind: 'local' },
-    workspaceId: session.workspaceId,
+    workspaceId: sessionWorkspaceId(session),
     remoteConnectionId: session.remoteConnectionId,
     remoteSshHost: session.remoteSshHost,
     relationship: buildCreateSessionRelationship(session),

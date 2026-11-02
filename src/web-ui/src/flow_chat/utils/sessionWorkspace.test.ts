@@ -50,6 +50,22 @@ describe('sessionWorkspace', () => {
     expect(requireSessionProjectWorkspacePath(worktreeSession, 'session-1')).toBe('/repo');
   });
 
+  it('classifies a worktree by its owning project without using an unrelated current workspace', () => {
+    const local = { id: 'project', workspaceKind: WorkspaceKind.Normal } as WorkspaceInfo;
+    const remote = { id: 'remote-project', workspaceKind: WorkspaceKind.Remote } as WorkspaceInfo;
+    const bound = { workspaceId: 'hidden-worktree', projectWorkspaceId: local.id, config: {} };
+    const openedWorktree = { id: bound.workspaceId, workspaceKind: WorkspaceKind.Normal } as WorkspaceInfo;
+    expect(isLocalWorkspaceSession(bound, openedWorktree)).toBe(true);
+    expect(isRemoteWorkspaceSession(bound, openedWorktree)).toBe(false);
+    expect(isLocalWorkspaceSession(bound, local)).toBe(true);
+    expect(isRemoteWorkspaceSession(bound, local)).toBe(false);
+    expect(isLocalWorkspaceSession(bound, remote)).toBe(false);
+    expect(isRemoteWorkspaceSession(bound, remote)).toBe(false);
+    expect(isRemoteWorkspaceSession({
+      workspaceId: 'remote-execution', config: { projectWorkspaceId: remote.id },
+    }, remote)).toBe(true);
+  });
+
   it('treats legacy sessions as local to their execution root', () => {
     const legacySession = session({
       config: { workspacePath: '/repo' },

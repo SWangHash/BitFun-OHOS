@@ -83,7 +83,7 @@ import {
   deriveSessionRelationshipFromMetadata,
   normalizeSessionRelationship,
 } from '../utils/sessionMetadata';
-import { sessionProjectWorkspacePath } from '../utils/sessionWorkspace';
+import { sessionProjectWorkspaceId, sessionProjectWorkspacePath } from '../utils/sessionWorkspace';
 import type { SessionTitleDescriptor } from '../utils/sessionTitle';
 import { deriveContextUsageFromTurns } from '../utils/tokenUsageDisplay';
 import { isAcpAgentType } from '../utils/acpSession';
@@ -4677,6 +4677,7 @@ export class FlowChatStore {
       workspacePath: string;
       projectWorkspacePath: string;
       workspaceId?: string;
+      projectWorkspaceId?: string;
       executionTarget: Session['config']['executionTarget'];
     },
   ): void {
@@ -4684,17 +4685,22 @@ export class FlowChatStore {
       const session = prev.sessions.get(sessionId);
       if (!session) return prev;
 
+      // Older hosts omit the project ID. Preserve the owner before replacing
+      // the execution workspace, so the session remains visible and reopenable.
+      const projectWorkspaceId = binding.projectWorkspaceId ?? sessionProjectWorkspaceId(session);
       const newSessions = new Map(prev.sessions);
       newSessions.set(sessionId, {
         ...session,
         workspacePath: binding.workspacePath,
         projectWorkspacePath: binding.projectWorkspacePath,
         workspaceId: binding.workspaceId ?? session.workspaceId,
+        projectWorkspaceId,
         config: {
           ...session.config,
           workspacePath: binding.workspacePath,
           projectWorkspacePath: binding.projectWorkspacePath,
           workspaceId: binding.workspaceId ?? session.config.workspaceId,
+          projectWorkspaceId,
           executionTarget: binding.executionTarget,
         },
         lastActiveAt: Date.now(),
