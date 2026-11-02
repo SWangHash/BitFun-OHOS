@@ -11,9 +11,9 @@ use crate::service::workspace_runtime::{
     get_workspace_runtime_service_arc, WorkspaceRuntimeContext, WorkspaceRuntimeTarget,
 };
 use async_trait::async_trait;
-use log::{debug, info, warn};
 use bitfun_runtime_ports::{WorkspaceFileSystem, WorkspacePathKind};
 use bitfun_services_core::workspace_identity::WorkspaceSessionIdentity;
+use log::{debug, info, warn};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -1161,7 +1161,13 @@ impl WrappedTool {
             )
         })?;
         let workspace_fs = context.file_system_for_path(&resolved)?;
-        let runtime_context = context.ensure_current_workspace_runtime().await?;
+        // File history belongs to the execution workspace. The generic tool
+        // runtime keeps session artifacts in the owning project for worktrees.
+        let runtime_context = if binding.is_remote() {
+            context.ensure_current_workspace_runtime().await?
+        } else {
+            get_workspace_runtime_service_arc().context_for_local_workspace(binding.root_path())
+        };
         let snapshot_manager = get_or_create_snapshot_manager_with_workspace(
             binding.workspace_id.as_deref().ok_or_else(|| {
                 crate::BitFunError::service("Workspace ID is required for snapshot tracking")
@@ -1452,6 +1458,7 @@ mod tests {
     };
     use crate::agentic::tools::framework::{Tool, ToolResult, ToolUseContext};
     use crate::agentic::tools::implementations::delete_file_tool::DeleteFileTool;
+    use crate::agentic::tools::implementations::file_edit_tool::FileEditTool;
     use crate::agentic::tools::implementations::file_write_tool::FileWriteTool;
     use crate::agentic::tools::ToolRuntimeRestrictions;
     use crate::agentic::WorkspaceBinding;
@@ -1475,10 +1482,8 @@ mod tests {
 
     impl TestWorkspace {
         async fn new() -> Self {
-            let path = std::env::temp_dir().join(format!(
-                "bitfun-snapshot-manager-test-{}",
-                Uuid::new_v4()
-            ));
+            let path = std::env::temp_dir()
+                .join(format!("bitfun-snapshot-manager-test-{}", Uuid::new_v4()));
             std::fs::create_dir_all(&path).expect("test workspace should be created");
             let record =
                 crate::service::workspace::legacy_compat::register_local_fixture(&path, None).await;
@@ -1914,6 +1919,132 @@ mod tests {
             .await
             .expect("rollback created file");
         assert!(!file.exists());
+    }
+
+    #[tokio::test]
+    async fn worktree_file_tools_preserve_history_stats_and_rollback_in_execution_workspace() {
+        let project = TestWorkspace::new().await;
+        let worktree = TestWorkspace::new().await;
+        let runtime = Arc::new(WorkspaceRuntimeService::new(Arc::new(
+            PathManager::with_user_root_for_tests(project.path().join("user-root")),
+        )));
+        let _runtime_guard = set_workspace_runtime_service_for_current_test(runtime.clone());
+        let mut context = tool_context(worktree.path().to_path_buf(), "worktree-session").await;
+        let record = crate::service::workspace::legacy_compat::register_local_fixture(
+            worktree.path(),
+            Some(project.path()),
+        )
+        .await;
+        let binding = WorkspaceBinding::resolve(&record.id).await.unwrap();
+        assert_eq!(
+            binding.project_workspace_id.as_deref(),
+            Some(project.id.as_str())
+        );
+        context.workspace = Some(binding);
+        let session_runtime = context.ensure_current_workspace_runtime().await.unwrap();
+        assert_eq!(
+            session_runtime.sessions_dir,
+            runtime
+                .context_for_local_workspace(project.path())
+                .sessions_dir,
+        );
+
+        let edited = worktree.path().join("README.md");
+        let created = worktree.path().join("created.txt");
+        let deleted = worktree.path().join("deleted.txt");
+        std::fs::write(project.path().join("README.md"), "project content\n").unwrap();
+        std::fs::write(&edited, "first\nsecond\n").unwrap();
+        std::fs::write(&deleted, "remove me\n").unwrap();
+
+        let operations: Vec<(&str, Arc<dyn Tool>, serde_json::Value)> = vec![
+            (
+                "worktree-edit",
+                Arc::new(FileEditTool::new()),
+                serde_json::json!({
+                    "file_path": "README.md",
+                    "old_string": "second\n",
+                    "new_string": "changed\nadded\n",
+                }),
+            ),
+            (
+                "worktree-write",
+                Arc::new(FileWriteTool::new()),
+                serde_json::json!({"payload": "+++ created.txt\ncreated\n"}),
+            ),
+            (
+                "worktree-delete",
+                Arc::new(DeleteFileTool::new()),
+                serde_json::json!({"path": "deleted.txt"}),
+            ),
+        ];
+        for (call_id, tool, input) in operations {
+            context.tool_call_id = Some(call_id.into());
+            let results = wrap_tool_for_snapshot_tracking(tool)
+                .call(&input, &context)
+                .await
+                .expect("file mutation succeeds with snapshot tracking");
+            assert_eq!(
+                results.last().unwrap().content().get("snapshot_recorded"),
+                Some(&serde_json::Value::Bool(true)),
+                "{call_id}: {results:?}",
+            );
+        }
+        assert_eq!(
+            std::fs::read_to_string(&edited).unwrap(),
+            "first\nchanged\nadded\n"
+        );
+        assert!(created.exists());
+        assert!(!deleted.exists());
+
+        // Reopening a view exercises the persisted history used after switching
+        // sessions or restarting the host, rather than just the writer's cache.
+        clear_snapshot_manager_for_test(&record.id);
+        let view = open_snapshot_manager_for_view(&record.id).await.unwrap();
+        let mut files = view.get_session_files("worktree-session").await.unwrap();
+        files.sort();
+        let mut expected_files = vec![edited.clone(), created.clone(), deleted.clone()];
+        expected_files.sort();
+        assert_eq!(files, expected_files);
+        let service = view.get_snapshot_service();
+        let service = service.read().await;
+        for (file, call_id, added, removed, kind) in [
+            (&edited, "worktree-edit", 2, 1, "modify"),
+            (&created, "worktree-write", 1, 0, "create"),
+            (&deleted, "worktree-delete", 0, 1, "delete"),
+        ] {
+            let stats = service
+                .get_session_file_diff_stats("worktree-session", file)
+                .await
+                .unwrap();
+            assert_eq!((stats.lines_added, stats.lines_removed), (added, removed));
+            assert_eq!(stats.change_kind, kind);
+            let operation = service
+                .get_operation_summary("worktree-session", call_id)
+                .await
+                .unwrap();
+            assert_eq!(operation.completed, Some(true));
+        }
+        drop(service);
+        let project_view = open_snapshot_manager_for_view(&project.id).await.unwrap();
+        assert!(project_view
+            .get_session_files("worktree-session")
+            .await
+            .unwrap()
+            .is_empty());
+
+        get_or_create_snapshot_manager(&record.id, None)
+            .await
+            .unwrap()
+            .rollback_session("worktree-session")
+            .await
+            .expect("rollback uses the worktree history after reopening");
+        assert_eq!(std::fs::read_to_string(&edited).unwrap(), "first\nsecond\n");
+        assert_eq!(std::fs::read_to_string(&deleted).unwrap(), "remove me\n");
+        assert!(!created.exists());
+        assert_eq!(
+            std::fs::read_to_string(project.path().join("README.md")).unwrap(),
+            "project content\n",
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
