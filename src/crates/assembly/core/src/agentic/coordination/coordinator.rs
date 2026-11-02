@@ -2824,6 +2824,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             agent_type: session.agent_type.clone(),
             workspace_path: Some(workspace_path),
             project_workspace_path: session.config.project_workspace_path.clone(),
+            project_workspace_id: session.config.project_workspace_id.clone(),
             execution_target: session.config.execution_target.clone(),
             workspace_id: session.config.workspace_id.clone(),
             remote_connection_id: session.config.remote_connection_id.clone(),

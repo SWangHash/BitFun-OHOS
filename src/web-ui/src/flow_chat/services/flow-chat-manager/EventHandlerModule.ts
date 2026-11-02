@@ -1079,7 +1079,7 @@ function handleSessionCreated(context: FlowChatContext, event: any): void {
   if (agentType === 'BitFun') return; // The control host registers its dedicated presentation reference.
 
   const store = FlowChatStore.getInstance();
-  const existing = store.getState().sessions.get(sessionId);
+  if (store.getState().sessions.has(sessionId)) return;
   const { workspaceId, workspacePath } = resolveExternalSessionWorkspace(context, event);
   const projectWorkspacePath =
     (typeof event.projectWorkspacePath === 'string' && event.projectWorkspacePath)
@@ -1093,8 +1093,12 @@ function handleSessionCreated(context: FlowChatContext, event: any): void {
         : undefined;
   const remoteConnectionId = extractEventRemoteConnectionId(event);
   const remoteSshHost = extractEventRemoteSshHost(event);
-
-  if (existing) return;
+  const projectWorkspaceId =
+    (typeof event.projectWorkspaceId === 'string' && event.projectWorkspaceId)
+    || (typeof event.project_workspace_id === 'string' && event.project_workspace_id)
+    || resolveLegacySessionWorkspace({
+      workspacePath: projectWorkspacePath, remoteConnectionId, remoteSshHost,
+    }, [...workspaceManager.getState().openedWorkspaces.values()])?.id;
 
   store.addExternalSession(
     sessionId,
@@ -1103,6 +1107,7 @@ function handleSessionCreated(context: FlowChatContext, event: any): void {
     workspacePath,
     {
       projectWorkspacePath,
+      projectWorkspaceId,
       executionTarget,
       workspaceId,
     },
@@ -1112,7 +1117,7 @@ function handleSessionCreated(context: FlowChatContext, event: any): void {
 }
 
 interface ExternalSessionWorkspace {
-  /** Owning workspace ID; the identity every projection is keyed by. */
+  /** Execution workspace ID used by runtime and file operations. */
   workspaceId?: string;
   /** Execution root of the session; an IO operand, never identity. */
   workspacePath?: string;

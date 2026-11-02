@@ -11,7 +11,7 @@ import type {
 } from '@/shared/services/reviewTeamService';
 import type { ImagePayload } from '../utils/imagePayload';
 import { absoluteSessionTurnIndexForId } from '../utils/flowChatTurnOrdinal';
-import { requireSessionWorkspaceId, sessionWorkspaceId } from '../utils/sessionWorkspace';
+import { requireSessionWorkspaceId, sessionProjectWorkspaceId, sessionWorkspaceId } from '../utils/sessionWorkspace';
 import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 
 export function createBtwRequestId(prefix = 'btw'): string {
@@ -183,6 +183,7 @@ export async function createBtwChildSession(params: {
       reviewTargetFilePaths: params.reviewTargetFilePaths,
       projectWorkspacePath:
         createdSession?.projectWorkspacePath || projectWorkspacePath,
+      projectWorkspaceId: parentSession ? sessionProjectWorkspaceId(parentSession) : undefined,
       executionTarget:
         createdSession?.executionTarget || inheritedExecutionTarget,
       workspaceId: createdSession?.workspaceId || workspaceId,
@@ -262,6 +263,7 @@ export function createBtwSessionPlaceholder(params: {
         parentSession.projectWorkspacePath
         || parentSession.config.projectWorkspacePath
         || workspacePath,
+      projectWorkspaceId: sessionProjectWorkspaceId(parentSession),
       executionTarget: parentSession.config.executionTarget,
       workspaceId,
     },
