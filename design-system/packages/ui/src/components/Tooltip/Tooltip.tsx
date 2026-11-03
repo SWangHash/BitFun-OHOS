@@ -385,9 +385,11 @@ export function Tooltip({
     const element = externalTriggerRef?.current;
     if (!element) return;
     const onEnter = (event: MouseEvent) => {
+      if (suppressUntilLeaveRef.current) return;
       if (trigger === "hover" || trigger === "hover-focus") showTooltip(event);
     };
     const onLeave = (event: MouseEvent) => {
+      suppressUntilLeaveRef.current = false;
       // React can deliver the portal's mouse-enter before this native
       // mouse-leave; that transition keeps the tooltip open.
       if (keepsPointerInside(event)) return;
@@ -395,7 +397,7 @@ export function Tooltip({
       if (trigger === "hover" || trigger === "hover-focus") hideTooltip();
     };
     const onFocus = () => {
-      if (trigger === "focus" || trigger === "hover-focus") showTooltip();
+      if (!suppressUntilLeaveRef.current && (trigger === "focus" || trigger === "hover-focus")) showTooltip();
     };
     const onBlur = (event: FocusEvent) => {
       if (event.relatedTarget && element.contains(event.relatedTarget as Node)) return;
@@ -465,11 +467,16 @@ export function Tooltip({
   }, [childRef]);
 
   const handleMouseEnter = (event: ReactMouseEvent) => {
+    if (suppressUntilLeaveRef.current) {
+      (childProps.onMouseEnter as ((event: ReactMouseEvent) => void) | undefined)?.(event);
+      return;
+    }
     if (trigger === "hover" || trigger === "hover-focus") showTooltip(event);
     (childProps.onMouseEnter as ((event: ReactMouseEvent) => void) | undefined)?.(event);
   };
 
   const handleMouseLeave = (event: ReactMouseEvent) => {
+    suppressUntilLeaveRef.current = false;
     if (trigger === "hover" || (trigger === "hover-focus" && !event.currentTarget.contains(event.currentTarget.ownerDocument.activeElement))) {
       // Hiding is immediate: a tooltip that outlives the pointer sits over
       // whatever the user moved on to.
@@ -503,19 +510,23 @@ export function Tooltip({
 
   // Any pointer-down interaction dismisses the tooltip immediately — a
   // right-click opens a context menu on the trigger, and a tooltip that
-  // outlives the press sits over that menu (issue #465).
+  // outlives the press sits over that menu (issue #465). The dismissal stays
+  // effective until the pointer leaves the trigger: focus/enter must not
+  // re-show the tooltip right after the press (issue #465 main tab bar).
+  const suppressUntilLeaveRef = useRef(false);
   const handlePointerDownDismiss = () => {
     if (showTimeoutRef.current) {
       clearTimeout(showTimeoutRef.current);
       showTimeoutRef.current = null;
     }
+    suppressUntilLeaveRef.current = true;
     if (visible) {
       hideTooltip();
     }
   };
 
   const handleFocus = (event: ReactFocusEvent) => {
-    if (trigger === "focus" || trigger === "hover-focus") showTooltip();
+    if (!suppressUntilLeaveRef.current && (trigger === "focus" || trigger === "hover-focus")) showTooltip();
     (childProps.onFocus as ((event: ReactFocusEvent) => void) | undefined)?.(event);
   };
 
