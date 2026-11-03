@@ -39,18 +39,26 @@ const SCROLL_SUPPRESS_MS = 300;
  * A hover can arrive without the pointer moving: browsers re-run hover hit
  * testing while a scroll area slides content under a stationary pointer. Nobody
  * aimed at that row, and its anchor is easy to measure mid-gesture, so a
- * pointer-driven open requires pointer movement inside this window.
+ * pointer-driven open needs pointer movement that is both recent and newer than
+ * the content movement that produced the hover.
  */
 const POINTER_INTENT_MS = 200;
 let tooltipWarmUntil = 0;
 const activeTooltips = new WeakMap<Document, { id: string; hide: () => void }>();
+interface PointerState {
+  /** Last real pointer movement; null until the document reports one. */
+  lastMoveAt: number | null;
+  /** Last time content moved under the pointer (scroll, wheel, or touch drag). */
+  lastGestureAt: number;
+}
 /**
  * Shared per-document pointer tracking: the gesture that manufactures a hover
  * belongs to the document, not to one tooltip. `lastMoveAt` stays null until the
  * document reports a real pointer movement, so a host that never reports one
  * keeps opening tooltips on hover instead of losing all of them.
  */
-const pointerMovements = new WeakMap<Document, { lastMoveAt: number | null }>();
+const pointerStates = new WeakMap<Document, PointerState>();
+
 
 /** Cursor offset when followCursor: right and down so the tooltip never covers the cursor. */
 const CURSOR_OFFSET_X = 12;
@@ -93,15 +101,20 @@ function assignRef<T>(ref: Ref<T> | undefined, value: T | null): void {
   (ref as { current: T | null }).current = value;
 }
 
-function getPointerMovement(ownerDocument: Document): { lastMoveAt: number | null } {
-  const existing = pointerMovements.get(ownerDocument);
+function getPointerState(ownerDocument: Document): PointerState {
+  const existing = pointerStates.get(ownerDocument);
   if (existing) return existing;
 
-  const state: { lastMoveAt: number | null } = { lastMoveAt: null };
-  pointerMovements.set(ownerDocument, state);
+  const state: PointerState = { lastMoveAt: null, lastGestureAt: 0 };
+  pointerStates.set(ownerDocument, state);
   const noteMovement = (event: Event) => {
     // Touch drags are a gesture, not a pointer that came to rest on a trigger.
+    // Compat mouse events synthesized from a touch say so in sourceCapabilities.
     if (typeof PointerEvent !== "undefined" && event instanceof PointerEvent && event.pointerType === "touch") {
+      return;
+    }
+    if ((event as MouseEvent & { sourceCapabilities?: { firesTouchEvents?: boolean } })
+      .sourceCapabilities?.firesTouchEvents) {
       return;
     }
     state.lastMoveAt = Date.now();
@@ -111,10 +124,19 @@ function getPointerMovement(ownerDocument: Document): { lastMoveAt: number | nul
   return state;
 }
 
-/** Whether the pointer came to rest on the trigger instead of arriving there on its own. */
+/** Content moving under the pointer, in any input that scrolls it. */
+function noteContentMovement(ownerDocument: Document): void {
+  getPointerState(ownerDocument).lastGestureAt = Date.now();
+}
+
+/**
+ * Whether the pointer came to rest on the trigger, instead of the trigger
+ * arriving under a pointer that has not moved since the content did.
+ */
 function pointedRecently(ownerDocument: Document): boolean {
-  const { lastMoveAt } = getPointerMovement(ownerDocument);
-  return lastMoveAt === null || Date.now() - lastMoveAt <= POINTER_INTENT_MS;
+  const { lastMoveAt, lastGestureAt } = getPointerState(ownerDocument);
+  if (lastMoveAt === null) return true;
+  return lastMoveAt >= lastGestureAt && Date.now() - lastMoveAt <= POINTER_INTENT_MS;
 }
 
 /**
@@ -395,7 +417,7 @@ export function Tooltip({
   useEffect(() => {
     const ownerDocument = triggerRef.current?.ownerDocument
       ?? (typeof document === "undefined" ? null : document);
-    if (ownerDocument) getPointerMovement(ownerDocument);
+    if (ownerDocument) getPointerState(ownerDocument);
   }, [triggerRef]);
 
   // Scrolling slides other rows under a stationary pointer and browsers re-run
@@ -409,6 +431,7 @@ export function Tooltip({
     if (!ownerDocument) return undefined;
     const beginGesture = () => {
       scrollSuppressUntilRef.current = Date.now() + SCROLL_SUPPRESS_MS;
+      noteContentMovement(ownerDocument);
     };
     const onScroll = (event: Event) => {
       const target = event.target;

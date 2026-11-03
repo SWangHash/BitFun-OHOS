@@ -37,6 +37,11 @@ describe('interactive tooltip pointer transfer', () => {
     document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
   });
 
+  /** Scrolling moves the content, not the pointer. */
+  const scrollContent = () => act(() => {
+    document.dispatchEvent(new Event('wheel'));
+  });
+
   /**
    * React derives mouseenter/mouseleave from delegated over/out pairs, so the
    * pointer is reported the way a browser reports it: one event naming the
@@ -126,6 +131,25 @@ describe('interactive tooltip pointer transfer', () => {
     reveal();
 
     expect(tooltip()).toBeNull();
+  });
+
+  it('ignores a hover that content movement produced under a resting pointer', () => {
+    renderTooltip(false);
+    const trigger = withRect(host.querySelector<HTMLElement>('button')!, { top: 240, left: 160, width: 180, height: 28 });
+    pointerMove();
+    // The row slid under the pointer: the last real movement predates the
+    // content movement, so the hover belongs to the gesture.
+    scrollContent();
+    act(() => vi.advanceTimersByTime(400));
+    pointerEnter(trigger);
+    reveal();
+    expect(tooltip()).toBeNull();
+
+    // Aiming at the row afterwards is intent again.
+    pointerMove();
+    pointerEnter(trigger);
+    reveal();
+    expect(tooltip()).not.toBeNull();
   });
 
   it('leaves the bubble hidden when the trigger has no placeable rect', () => {

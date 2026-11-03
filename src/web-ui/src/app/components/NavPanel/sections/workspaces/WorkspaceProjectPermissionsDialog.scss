@@ -21,7 +21,7 @@
     flex-direction: column;
     min-height: 0;
     overflow-x: hidden;
-    // Fallback for viewports too short to honor the pane floors below.
+    // Fallback for viewports too short to give each pane a readable height.
     overflow-y: auto;
   }
 
@@ -49,14 +49,16 @@
     }
   }
 
-  // Pane heights follow their content share: both panes keep their natural
-  // height while they fit, and the overflow is split in proportion to it.
+  // Fallback split, used until the dialog measures both panes: they keep their
+  // natural height while they fit and share the overflow by content size. The
+  // measured heights then stop a short pane from claiming empty space.
   &__section {
+    box-sizing: border-box;
     display: flex;
     flex: 0 1 auto;
     flex-direction: column;
     min-width: 0;
-    min-height: 116px;
+    min-height: 88px;
     border: 1px solid var(--bitfun-color-border-subtle);
     border-radius: 8px;
     overflow: hidden;
@@ -83,12 +85,6 @@
     flex-direction: column;
     min-width: 0;
     overflow-y: auto;
-  }
-
-  // A section keeps its header plus roughly one visible row before the pane
-  // floor gives up; below that the modal itself scrolls instead of clipping.
-  &__rules-section {
-    min-height: 176px;
   }
 
   &__grant-row {

@@ -1320,7 +1320,7 @@
     "checkFailed": "檢查更新失敗。",
     "availableTitle": "發現新版本",
     "availableSubtitle": "有新版本可供安裝。",
-    "availableVersion": "有新版本 {{version}} 可更新",
+    "availableVersion": "發現新版本 {{version}}",
     "currentVersion": "目前版本",
     "latestVersion": "最新版本",
     "releaseNotes": "更新說明",

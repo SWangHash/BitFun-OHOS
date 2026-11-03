@@ -28,6 +28,7 @@ import { useI18n } from '@/infrastructure/i18n';
 import { notificationService } from '@/shared/notification-system';
 import type { WorkspaceInfo } from '@/shared/types';
 import { createLogger } from '@/shared/utils/logger';
+import { distributePaneHeights, naturalSectionHeight } from './workspaceProjectPermissionsPanes';
 import './WorkspaceProjectPermissionsDialog.scss';
 
 const log = createLogger('WorkspaceProjectPermissionsDialog');
@@ -94,6 +95,10 @@ export const WorkspaceProjectPermissionsDialog: React.FC<WorkspaceProjectPermiss
   const [rulesLoadError, setRulesLoadError] = useState<ProjectPermissionRulesLoadError | null>(null);
   const rulesListRef = useRef<HTMLDivElement | null>(null);
   const pendingNewRuleIdRef = useRef<string | null>(null);
+  const dialogRootRef = useRef<HTMLDivElement | null>(null);
+  const grantsSectionRef = useRef<HTMLElement | null>(null);
+  const rulesSectionRef = useRef<HTMLElement | null>(null);
+  const [paneHeights, setPaneHeights] = useState<{ grants: number; rules: number } | null>(null);
   const effectOptions = useMemo<SelectOption[]>(
     () => EFFECTS.map((effect) => ({
       value: effect,
@@ -240,6 +245,79 @@ export const WorkspaceProjectPermissionsDialog: React.FC<WorkspaceProjectPermiss
   // An unreadable file blocks every agent tool call, so the repair action must
   // stay reachable even though the draft did not change.
   const rulesUnreadable = rulesLoadError !== null;
+  const rulesFooterVisible = rulesDirty || rulesUnreadable;
+
+  // Both panes scroll inside the dialog, so their heights come from the room the
+  // dialog can spare and from what each pane actually holds. A pane that fits
+  // keeps only its natural height; the rest goes to the pane that overflows.
+  const syncPaneHeights = useCallback(() => {
+    const root = dialogRootRef.current;
+    const grantsSection = grantsSectionRef.current;
+    const rulesSection = rulesSectionRef.current;
+    if (!root || !grantsSection || !rulesSection) {
+      return;
+    }
+
+    const rootStyle = window.getComputedStyle(root);
+    const rowGap = Number.parseFloat(rootStyle.rowGap) || 0;
+    const paddingBlock = (Number.parseFloat(rootStyle.paddingTop) || 0)
+      + (Number.parseFloat(rootStyle.paddingBottom) || 0);
+    const intro = root.querySelector<HTMLElement>('[data-bitfun-part="intro"]');
+    // The intro and the two panes are the only children, so two row gaps sit
+    // outside the panes.
+    const available = root.clientHeight - paddingBlock - (intro?.offsetHeight ?? 0) - rowGap * 2;
+    const [grantsHeight, rulesHeight] = distributePaneHeights(
+      [naturalSectionHeight(grantsSection), naturalSectionHeight(rulesSection)],
+      available,
+    );
+
+    if (grantsHeight === 0 || rulesHeight === 0) {
+      // No layout to measure (tests, hidden dialog): leave the stylesheet in charge.
+      setPaneHeights(null);
+      return;
+    }
+    setPaneHeights((previous) => (
+      previous && previous.grants === grantsHeight && previous.rules === rulesHeight
+        ? previous
+        : { grants: grantsHeight, rules: rulesHeight }
+    ));
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!isOpen) {
+      setPaneHeights(null);
+      return;
+    }
+    syncPaneHeights();
+  }, [
+    isOpen,
+    syncPaneHeights,
+    permissionGrants,
+    draftRules,
+    rulesLoadError,
+    rulesFooterVisible,
+    grantsLoading,
+    rulesLoading,
+  ]);
+
+  // The surface only enters the DOM one commit after `open` flips, so measure as
+  // soon as the root is attached instead of waiting for the next data change.
+  const attachRootRef = useCallback((node: HTMLDivElement | null) => {
+    dialogRootRef.current = node;
+    if (node) {
+      syncPaneHeights();
+    }
+  }, [syncPaneHeights]);
+
+  useEffect(() => {
+    const root = dialogRootRef.current;
+    if (!isOpen || !root || typeof ResizeObserver === 'undefined') {
+      return;
+    }
+    const observer = new ResizeObserver(() => syncPaneHeights());
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, [isOpen, syncPaneHeights]);
 
   const handleSaveRules = async () => {
     if (!rulesValid || rulesRevision === null) {
@@ -270,6 +348,15 @@ export const WorkspaceProjectPermissionsDialog: React.FC<WorkspaceProjectPermiss
     setDraftRules(savedRules.map(toDraftRule));
   };
 
+  // A measured pane keeps exactly the height it was given, so the pane that
+  // fits its content never stretches over the one that scrolls.
+  const grantsSectionStyle = paneHeights
+    ? { height: paneHeights.grants, flexShrink: 0 }
+    : undefined;
+  const rulesSectionStyle = paneHeights
+    ? { height: paneHeights.rules, flexShrink: 0 }
+    : undefined;
+
   return (
     <Dialog
       open={isOpen}
@@ -286,13 +373,13 @@ export const WorkspaceProjectPermissionsDialog: React.FC<WorkspaceProjectPermiss
       </DialogHeader>
       <DialogBody className="workspace-project-permissions-dialog__body">
         <div className="workspace-project-permissions-dialog__modal">
-      <div data-bitfun-component="workspace-project-permissions-dialog" data-bitfun-part="root" className="workspace-project-permissions-dialog">
+      <div data-bitfun-component="workspace-project-permissions-dialog" data-bitfun-part="root" ref={attachRootRef} className="workspace-project-permissions-dialog">
         <div data-bitfun-component="workspace-project-permissions-dialog" data-bitfun-part="intro" className="workspace-project-permissions-dialog__intro">
           <ShieldCheck size={18} aria-hidden="true" />
           <p>{t('projectPermissions.description')}</p>
         </div>
 
-        <section data-bitfun-component="workspace-project-permissions-dialog" data-bitfun-part="section" className="workspace-project-permissions-dialog__section">
+        <section data-bitfun-component="workspace-project-permissions-dialog" data-bitfun-part="section" ref={grantsSectionRef} style={grantsSectionStyle} className="workspace-project-permissions-dialog__section">
           <div data-bitfun-component="workspace-project-permissions-dialog" data-bitfun-part="sectionHeader" className="workspace-project-permissions-dialog__section-header">
             <span>{t('projectPermissions.grantsTitle')}</span>
             {permissionGrants.length > 0 ? (
@@ -339,7 +426,7 @@ export const WorkspaceProjectPermissionsDialog: React.FC<WorkspaceProjectPermiss
           </div>
         </section>
 
-        <section data-bitfun-component="workspace-project-permissions-dialog" data-bitfun-part="section" className="workspace-project-permissions-dialog__section workspace-project-permissions-dialog__rules-section">
+        <section data-bitfun-component="workspace-project-permissions-dialog" data-bitfun-part="section" ref={rulesSectionRef} style={rulesSectionStyle} className="workspace-project-permissions-dialog__section workspace-project-permissions-dialog__rules-section">
           <div data-bitfun-component="workspace-project-permissions-dialog" data-bitfun-part="sectionHeader" className="workspace-project-permissions-dialog__section-header">
             <span>{t('projectPermissions.rulesTitle')}</span>
             <Button
@@ -442,7 +529,7 @@ export const WorkspaceProjectPermissionsDialog: React.FC<WorkspaceProjectPermiss
             </div>
           )}
 
-          {rulesDirty || rulesUnreadable ? (
+          {rulesFooterVisible ? (
             <div data-bitfun-component="workspace-project-permissions-dialog" data-bitfun-part="footer" className="workspace-project-permissions-dialog__footer">
               <Button type="button" variant="fill" onClick={handleDiscardRules} disabled={isBusy}>
                 {t('projectPermissions.cancel')}

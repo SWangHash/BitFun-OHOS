@@ -104,6 +104,10 @@ test("Tooltip only opens for an aimed pointer and never paints a corner slot", a
   // Content sliding under a stationary pointer reports a hover nobody aimed at.
   assert.match(source, /if \(event && !pointedRecently\(element\.ownerDocument\)\) return;/);
   assert.match(source, /function pointedRecently\(ownerDocument: Document\): boolean/);
+  assert.match(source, /return lastMoveAt >= lastGestureAt && Date\.now\(\) - lastMoveAt <= POINTER_INTENT_MS;/);
+  assert.match(source, /function noteContentMovement\(ownerDocument: Document\): void/);
+  // Touch drags and compat mouse events are the gesture, not pointer intent.
+  assert.match(source, /sourceCapabilities\?\.firesTouchEvents/);
   // A detached or scrolled-away trigger must close its bubble instead of being
   // boundary-clamped into a viewport corner far from the pointer.
   assert.match(source, /function isAnchorPlaceable\(triggerRect: DOMRect\): boolean/);
