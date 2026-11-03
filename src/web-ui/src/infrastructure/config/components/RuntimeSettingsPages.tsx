@@ -116,6 +116,8 @@ type BrowserControlBrowserOption = {
   installed: boolean;
 };
 
+type BrowserConnectionIssue = 'launch_failed' | 'control_unavailable' | 'connection_lost';
+
 type SubagentBatchExecutionPolicy = 'safe_only' | 'force_parallel' | 'serial';
 type ToolPermissionMode = 'ask' | 'auto' | 'full_access';
 
@@ -209,7 +211,6 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
 
   // ── Browser control state ───────────────────────────────────────────────
   const [browserCdpAvailable, setBrowserCdpAvailable] = useState(false);
-  const [browserReady, setBrowserReady] = useState(false);
   const [browserAutoConnectOnStartup, setBrowserAutoConnectOnStartup] = useState(false);
   const [browserDefaultCdpSupported, setBrowserDefaultCdpSupported] = useState(false);
   const [browserDefaultCdpEnabled, setBrowserDefaultCdpEnabled] = useState(false);
@@ -222,6 +223,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
   const [browserControlBusy, setBrowserControlBusy] = useState(false);
   const [browserStatusLoading, setBrowserStatusLoading] = useState(false);
   const [browserStatusError, setBrowserStatusError] = useState(false);
+  const [browserConnectionIssue, setBrowserConnectionIssue] = useState<BrowserConnectionIssue | null>(null);
   const browserStatusRequest = useRef(0);
   const [platform, setPlatform] = useState<string>('');
   const [browserRestartPrompt, setBrowserRestartPrompt] = useState<BrowserControlLaunchResponse | null>(null);
@@ -265,6 +267,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
           defaultCdpEnabled: boolean;
           setupUrl?: string;
           browserReady: boolean;
+          connectionIssue?: BrowserConnectionIssue;
           browserKind: string;
           browserVersion: string | null;
           port: number;
@@ -279,7 +282,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
       setBrowserDefaultCdpSupported(s.defaultCdpSupported);
       setBrowserDefaultCdpEnabled(s.defaultCdpEnabled);
       setBrowserSetupUrl(s.setupUrl ?? browserSetupUrlFallback(s.browserKind));
-      setBrowserReady(s.browserReady);
+      setBrowserConnectionIssue(s.connectionIssue ?? null);
       setBrowserKind(s.browserKind);
       setBrowserVersion(s.browserVersion);
       setBrowserPageCount(s.pageCount);
@@ -291,6 +294,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
         setPeerBrowserControlUnsupported(true);
         setBrowserStatusError(false);
       } else {
+        setBrowserCdpAvailable(false);
         setBrowserStatusError(true);
         log.error('browser_control_get_status failed', error);
       }
@@ -792,20 +796,6 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
     }
   };
 
-  const handleBrowserControlLaunch = async () => {
-    setBrowserControlBusy(true);
-    try {
-      const result = await api.invoke<BrowserControlLaunchResponse>('browser_control_launch', { request: { port: 9222 } });
-      presentBrowserControlLaunchResult(result);
-      await refreshBrowserControlStatus();
-    } catch (error) {
-      log.error('browser_control_launch failed', error);
-      notificationService.error(t('browserControl.connectFailed'));
-    } finally {
-      setBrowserControlBusy(false);
-    }
-  };
-
   const handleBrowserControlEnableDefaultCdp = async () => {
     setBrowserControlBusy(true);
     const setupUrl = browserSetupUrl || browserSetupUrlFallback(browserKind);
@@ -923,20 +913,23 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
           : computerUsePlatformNote
             ? t('computerUse.platformNotes.generic')
             : null;
-  const browserStatusLabel = browserStatusLoading
+  const browserStatusLabel = browserCdpAvailable
+    ? t('browserControl.connected')
+    : t('browserControl.notConnected');
+  const browserIssueDescription = browserConnectionIssue === 'launch_failed'
+    ? t('browserControl.connectionIssues.launch_failed')
+    : browserConnectionIssue === 'control_unavailable'
+      ? t('browserControl.connectionIssues.control_unavailable')
+      : browserConnectionIssue === 'connection_lost'
+        ? t('browserControl.connectionIssues.connection_lost')
+        : null;
+  const browserStatusDescription = browserStatusLoading
     ? t('loading.text')
     : browserStatusError
-      ? t('browserControl.statusUnavailable')
+      ? t('browserControl.statusLoadFailed')
       : browserCdpAvailable
-        ? t('browserControl.connected')
-        : browserReady
-          ? t('browserControl.ready')
-          : t('browserControl.notConnected');
-  const browserStatusDescription = !browserStatusLoading && !browserStatusError
-    ? browserCdpAvailable
-      ? `${browserKind} · ${i18nService.formatNumber(browserPageCount)} ${t('browserControl.tabs')}`
-      : browserReady ? t('browserControl.readyNotConnected') : undefined
-    : undefined;
+        ? `${browserKind} · ${i18nService.formatNumber(browserPageCount)} ${t('browserControl.tabs')}`
+        : browserIssueDescription ?? t('browserControl.connectOnUse');
   const browserSelectOptions: ComboboxOption[] = browserOptions.map((option) => {
     const label = option.value === DEFAULT_BROWSER_CONTROL_BROWSER
       ? t('browserControl.defaultBrowser')
@@ -1537,6 +1530,17 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                         ? 'browserControl.defaultCdpEnabled'
                         : 'browserControl.defaultCdpDisabled')}
                     </StatusPill>
+                    {!browserDefaultCdpEnabled && (
+                      <Button
+                        className="bitfun-runtime-settings__row-action-btn"
+                        size="sm"
+                        variant="outline"
+                        disabled={browserControlBusy || browserStatusLoading || browserStatusError}
+                        onClick={() => void handleBrowserControlEnableDefaultCdp()}
+                      >
+                        {t('browserControl.enableDefaultCdp')}
+                      </Button>
+                    )}
                   </div>
                 </ConfigPageRow>
               )}
@@ -1568,7 +1572,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                   data-bitfun-part="control"
                 >
                   <StatusPill
-                    tone={browserStatusLoading ? 'neutral' : browserStatusError ? 'warning' : browserCdpAvailable ? 'success' : 'neutral'}
+                    tone={browserStatusError || browserConnectionIssue ? 'warning' : browserCdpAvailable ? 'success' : 'neutral'}
                     role="status"
                     title={browserCdpAvailable && browserVersion ? `${browserKind} ${browserVersion}` : undefined}
                   >
@@ -1585,22 +1589,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
                     >
                       {t('browserControl.disconnect')}
                     </Button>
-                  ) : (
-                    <Button
-                      className="bitfun-runtime-settings__row-action-btn"
-                      size="sm"
-                      variant="outline"
-                      data-testid="settings-browser-connect-btn"
-                      disabled={browserControlBusy || browserStatusLoading || browserStatusError}
-                      onClick={() => void (browserDefaultCdpSupported
-                        ? handleBrowserControlEnableDefaultCdp()
-                        : handleBrowserControlLaunch())}
-                    >
-                      {t(browserDefaultCdpSupported && !browserDefaultCdpEnabled
-                        ? 'browserControl.enableDefaultCdp'
-                        : 'browserControl.connect')}
-                    </Button>
-                  )}
+                  ) : null}
                 </div>
               </ConfigPageRow>
             </>

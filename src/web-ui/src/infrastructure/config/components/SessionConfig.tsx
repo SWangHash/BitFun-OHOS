@@ -88,11 +88,19 @@ type BrowserControlLaunchResponse = {
   fallbackFrom?: string;
 };
 
+type BrowserControlDisconnectResponse = {
+  success: boolean;
+  status: string;
+  browserKind: string;
+};
+
 type BrowserControlBrowserOption = {
   value: string;
   label: string;
   installed: boolean;
 };
+
+type BrowserConnectionIssue = 'launch_failed' | 'control_unavailable' | 'connection_lost';
 
 type SubagentBatchExecutionPolicy = 'safe_only' | 'force_parallel' | 'serial';
 type ToolPermissionMode = 'ask' | 'auto' | 'full_access';
@@ -166,7 +174,6 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
 
   // ── Browser control state ───────────────────────────────────────────────
   const [browserCdpAvailable, setBrowserCdpAvailable] = useState(false);
-  const [browserReady, setBrowserReady] = useState(false);
   const [browserAutoConnectOnStartup, setBrowserAutoConnectOnStartup] = useState(false);
   const [browserDefaultCdpSupported, setBrowserDefaultCdpSupported] = useState(false);
   const [browserDefaultCdpEnabled, setBrowserDefaultCdpEnabled] = useState(false);
@@ -177,6 +184,8 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
   const [preferredBrowser, setPreferredBrowser] = useState(DEFAULT_BROWSER_CONTROL_BROWSER);
   const [browserControlBusy, setBrowserControlBusy] = useState(false);
   const [browserStatusLoading, setBrowserStatusLoading] = useState(false);
+  const [browserStatusError, setBrowserStatusError] = useState(false);
+  const [browserConnectionIssue, setBrowserConnectionIssue] = useState<BrowserConnectionIssue | null>(null);
   const [platform, setPlatform] = useState<string>('');
   const [browserRestartPrompt, setBrowserRestartPrompt] = useState<BrowserControlLaunchResponse | null>(null);
 
@@ -213,6 +222,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
   const refreshBrowserControlStatus = useCallback(async () => {
     if (!IS_TAURI_DESKTOP) return;
     setBrowserStatusLoading(true);
+    setBrowserStatusError(false);
     try {
       const [s, browsers] = await Promise.all([
         api.invoke<{
@@ -220,6 +230,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
           defaultCdpSupported: boolean;
           defaultCdpEnabled: boolean;
           browserReady: boolean;
+          connectionIssue?: BrowserConnectionIssue;
           browserKind: string;
           browserVersion: string | null;
           port: number;
@@ -232,7 +243,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
       setBrowserCdpAvailable(s.cdpAvailable);
       setBrowserDefaultCdpSupported(s.defaultCdpSupported);
       setBrowserDefaultCdpEnabled(s.defaultCdpEnabled);
-      setBrowserReady(s.browserReady);
+      setBrowserConnectionIssue(s.connectionIssue ?? null);
       setBrowserKind(s.browserKind);
       setBrowserVersion(s.browserVersion);
       setBrowserPageCount(s.pageCount);
@@ -242,9 +253,10 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
       if (isPeerUnsupportedBrowserControlError(error)) {
         setPeerBrowserControlUnsupported(true);
       } else {
+        setBrowserStatusError(true);
+        setBrowserCdpAvailable(false);
         log.error('browser_control_get_status failed', error);
       }
-      log.error('browser_control_get_status failed', error);
     } finally {
       setBrowserStatusLoading(false);
     }
@@ -736,20 +748,6 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
     }
   };
 
-  const handleBrowserControlLaunch = async () => {
-    setBrowserControlBusy(true);
-    try {
-      const result = await api.invoke<BrowserControlLaunchResponse>('browser_control_launch', { request: { port: 9222 } });
-      presentBrowserControlLaunchResult(result);
-      await refreshBrowserControlStatus();
-    } catch (error) {
-      log.error('browser_control_launch failed', error);
-      notificationService.error(t('browserControl.connectFailed'));
-    } finally {
-      setBrowserControlBusy(false);
-    }
-  };
-
   const handleBrowserControlEnableDefaultCdp = async () => {
     setBrowserControlBusy(true);
     try {
@@ -771,6 +769,26 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
     } catch (error) {
       log.error('browser_control_enable_default_cdp failed', error);
       notificationService.error(t('browserControl.connectFailed'));
+    } finally {
+      setBrowserControlBusy(false);
+    }
+  };
+
+  const handleBrowserControlDisconnect = async () => {
+    setBrowserControlBusy(true);
+    try {
+      const result = await api.invoke<BrowserControlDisconnectResponse>(
+        'browser_control_disconnect',
+        { request: { port: 9222 } },
+      );
+      notificationService.success(
+        t('browserControl.disconnectSuccess', { browser: result.browserKind }),
+        { duration: 4000 },
+      );
+      await refreshBrowserControlStatus();
+    } catch (error) {
+      log.error('browser_control_disconnect failed', error);
+      notificationService.error(t('browserControl.disconnectFailed'));
     } finally {
       setBrowserControlBusy(false);
     }
@@ -965,16 +983,22 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
   // A ready browser is not a failure state: BitFun attaches to it the moment
   // something needs it, so say that rather than the bare "not connected".
   const browserStatusLabel = browserCdpAvailable
-    ? preferredBrowser === 'builtin'
-      ? `${t('browserControl.builtinConnected')} · ${browserPageCount} ${t('browserControl.tabs')}`
-      : `${browserKind} · ${browserPageCount} ${t('browserControl.tabs')}`
-    : browserStatusLoading
-      ? t('loading.text')
-      : preferredBrowser === 'builtin' && browserReady
-        ? t('browserControl.builtinReady')
-        : browserReady
-        ? t('browserControl.readyNotConnected')
-        : t('browserControl.notConnected');
+    ? t('browserControl.connected')
+    : t('browserControl.notConnected');
+  const browserIssueDescription = browserConnectionIssue === 'launch_failed'
+    ? t('browserControl.connectionIssues.launch_failed')
+    : browserConnectionIssue === 'control_unavailable'
+      ? t('browserControl.connectionIssues.control_unavailable')
+      : browserConnectionIssue === 'connection_lost'
+        ? t('browserControl.connectionIssues.connection_lost')
+        : null;
+  const browserStatusDescription = browserStatusLoading
+    ? t('loading.text')
+    : browserStatusError
+      ? t('browserControl.statusLoadFailed')
+      : browserCdpAvailable
+        ? `${browserKind} · ${browserPageCount} ${t('browserControl.tabs')}`
+        : browserIssueDescription ?? t('browserControl.connectOnUse');
   const browserSelectOptions: SelectOption[] = browserOptions.map((option) => ({
     value: option.value,
     label: option.installed
@@ -1531,7 +1555,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
             <>
               <ConfigPageRow
                 label={t('browserControl.preferredBrowser')}
-                description={t('browserControl.preferredBrowserDesc')}
+                description={t(browserCdpAvailable ? 'browserControl.preferredBrowserConnectedDesc' : 'browserControl.preferredBrowserDesc')}
                 align="center"
                 balanced
               >
@@ -1540,7 +1564,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
                     value={preferredBrowser}
                     options={browserSelectOptions}
                     size="sm"
-                    disabled={browserControlBusy || browserStatusLoading || browserSelectOptions.length === 0}
+                    disabled={browserCdpAvailable || browserControlBusy || browserStatusLoading || browserStatusError || browserSelectOptions.length === 0}
                     onValueChange={handleBrowserControlBrowserChange}
                   />
                 </div>
@@ -1570,17 +1594,15 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
                         ? 'browserControl.defaultCdpEnabled'
                         : 'browserControl.defaultCdpDisabled')}
                     </span>
-                    {!browserCdpAvailable && (
+                    {!browserDefaultCdpEnabled && (
                       <Button
                         className="bitfun-func-agent-config__row-action-btn"
                         size="small"
                         variant="secondary"
-                        disabled={browserControlBusy || browserStatusLoading}
+                        disabled={browserControlBusy || browserStatusLoading || browserStatusError}
                         onClick={() => void handleBrowserControlEnableDefaultCdp()}
                       >
-                        {t(browserDefaultCdpEnabled
-                          ? 'browserControl.connect'
-                          : 'browserControl.enableDefaultCdp')}
+                        {t('browserControl.enableDefaultCdp')}
                       </Button>
                     )}
                   </div>
@@ -1604,7 +1626,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
               )}
               <ConfigPageRow
                 label={t('browserControl.status')}
-                description={t('browserControl.statusDesc') || undefined}
+                description={browserStatusDescription}
                 align="center"
                 balanced
               >
@@ -1633,7 +1655,7 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
                     title={browserCdpAvailable && browserVersion ? `${browserKind} ${browserVersion}` : undefined}
                   >
                     <span
-                      className={!browserStatusLoading && browserCdpAvailable ? 'bitfun-func-agent-config__perm-status--granted' : undefined}
+                      className={!browserStatusError && browserCdpAvailable ? 'bitfun-func-agent-config__perm-status--granted' : undefined}
                       style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}
                     >
                       {browserStatusLabel}
@@ -1650,15 +1672,15 @@ const SessionSettingsPanels: React.FC<SessionSettingsPanelsProps> = ({ variant }
                       <RefreshCw size={14} />
                     </IconButton>
                   </span>
-                  {!browserCdpAvailable && !browserDefaultCdpSupported && (
+                  {browserCdpAvailable && (
                     <Button
                       className="bitfun-func-agent-config__row-action-btn"
                       size="small"
                       variant="secondary"
-                      disabled={browserControlBusy || browserStatusLoading}
-                      onClick={() => void handleBrowserControlLaunch()}
+                      disabled={browserControlBusy || browserStatusLoading || browserStatusError}
+                      onClick={() => void handleBrowserControlDisconnect()}
                     >
-                      {t('browserControl.connect')}
+                      {t('browserControl.disconnect')}
                     </Button>
                   )}
                 </div>

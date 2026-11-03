@@ -21,6 +21,8 @@ use crate::agentic::tools::browser_control::builtin_browser::{
     set_default_builtin_browser_target, BuiltInBrowserClient, BuiltInBrowserOpenRequest,
 };
 #[cfg(target_env = "ohos")]
+use crate::agentic::tools::browser_control::cdp_client::BrowserConnectionIssue;
+#[cfg(target_env = "ohos")]
 use crate::agentic::tools::browser_control::cdp_client::CdpEndpoint;
 use crate::agentic::tools::browser_control::cdp_client::{CdpClient, CdpPageInfo, CdpVersionInfo};
 use crate::agentic::tools::browser_control::session_registry::{
@@ -235,12 +237,16 @@ impl ControlHubTool {
         }
         browser_sessions().register(session.clone()).await;
         let target_still_registered = list_arkweb_automation_targets()
-            .iter().any(|target| target.target_id == session.session_id);
+            .iter()
+            .any(|target| target.target_id == session.session_id);
         if CdpClient::browser_connection_suppressed(0).await || !target_still_registered {
             browser_sessions().remove(&session.session_id).await;
             session.client.disconnect().await;
             if !target_still_registered {
-                return Err(coded_tool_error(ErrorCode::WrongTab, "The built-in browser page was closed while connecting."));
+                return Err(coded_tool_error(
+                    ErrorCode::WrongTab,
+                    "The built-in browser page was closed while connecting.",
+                ));
             }
             return Err(Self::builtin_disconnected_error());
         }
@@ -449,22 +455,13 @@ impl ControlHubTool {
     async fn connect_builtin_after_external_failure(
         params: &Value,
         context: &ToolUseContext,
+        issue: BrowserConnectionIssue,
         reason: impl std::fmt::Display,
     ) -> BitFunResult<Vec<ToolResult>> {
         let reason = reason.to_string();
-        if let Ok(service) = get_global_config_service().await {
-            if let Err(error) = service
-                .set_config("ai.browser_control_preferred_browser", "")
-                .await
-            {
-                log::warn!(
-                    "Could not persist built-in browser fallback preference: {}",
-                    error
-                );
-            }
-        }
+        CdpClient::record_browser_connection_issue(DEFAULT_CDP_PORT, issue).await;
         log::warn!(
-            "OHOS external browser connection failed; using built-in ArkWeb: {}",
+            "OHOS external browser connection failed; using built-in ArkWeb for this request: {}",
             reason
         );
         let builtin_params = Self::builtin_fallback_params(params);
@@ -1935,6 +1932,13 @@ Branch on `ok` and `error.code`, not on English messages.
             }
         };
 
+        // Settings disconnects the current transport so the browser choice can
+        // be changed without closing tabs. A later session request is the new
+        // explicit reconnect action, so it clears the process-local guard.
+        if action == "connect" {
+            CdpClient::allow_browser_connection(if use_builtin_backend { 0 } else { port }).await;
+        }
+
         #[cfg(target_env = "ohos")]
         if use_builtin_backend && CdpClient::browser_connection_suppressed(0).await {
             return Err(Self::builtin_disconnected_error());
@@ -2234,7 +2238,10 @@ Branch on `ok` and `error.code`, not on English messages.
                             #[cfg(target_env = "ohos")]
                             {
                                 return Self::connect_builtin_after_external_failure(
-                                    params, context, error,
+                                    params,
+                                    context,
+                                    BrowserConnectionIssue::LaunchFailed,
+                                    error,
                                 )
                                 .await;
                             }
@@ -2259,7 +2266,10 @@ Branch on `ok` and `error.code`, not on English messages.
                         {
                             #[cfg(target_env = "ohos")]
                             return Self::connect_builtin_after_external_failure(
-                                params, context, error,
+                                params,
+                                context,
+                                BrowserConnectionIssue::ControlUnavailable,
+                                error,
                             )
                             .await;
 
@@ -2289,6 +2299,7 @@ Branch on `ok` and `error.code`, not on English messages.
                         return Self::connect_builtin_after_external_failure(
                             params,
                             context,
+                            BrowserConnectionIssue::ControlUnavailable,
                             instructions,
                         )
                         .await;
@@ -2342,7 +2353,10 @@ Branch on `ok` and `error.code`, not on English messages.
                             Err(error) => {
                                 #[cfg(target_env = "ohos")]
                                 return Self::connect_builtin_after_external_failure(
-                                    params, context, error,
+                                    params,
+                                    context,
+                                    BrowserConnectionIssue::ControlUnavailable,
+                                    error,
                                 )
                                 .await;
 
@@ -2353,7 +2367,10 @@ Branch on `ok` and `error.code`, not on English messages.
                         #[cfg(target_env = "ohos")]
                         if let Err(error) = CdpClient::validate_ohos_protocol(port).await {
                             return Self::connect_builtin_after_external_failure(
-                                params, context, error,
+                                params,
+                                context,
+                                BrowserConnectionIssue::ControlUnavailable,
+                                error,
                             )
                             .await;
                         }
@@ -2367,7 +2384,10 @@ Branch on `ok` and `error.code`, not on English messages.
                             Err(error) => {
                                 #[cfg(target_env = "ohos")]
                                 return Self::connect_builtin_after_external_failure(
-                                    params, context, error,
+                                    params,
+                                    context,
+                                    BrowserConnectionIssue::ControlUnavailable,
+                                    error,
                                 )
                                 .await;
 
@@ -2387,7 +2407,10 @@ Branch on `ok` and `error.code`, not on English messages.
                                     Err(error) => {
                                         #[cfg(target_env = "ohos")]
                                         return Self::connect_builtin_after_external_failure(
-                                            params, context, error,
+                                            params,
+                                            context,
+                                            BrowserConnectionIssue::ControlUnavailable,
+                                            error,
                                         )
                                         .await;
 
@@ -2406,7 +2429,10 @@ Branch on `ok` and `error.code`, not on English messages.
                                 Err(error) => {
                                     #[cfg(target_env = "ohos")]
                                     return Self::connect_builtin_after_external_failure(
-                                        params, context, error,
+                                        params,
+                                        context,
+                                        BrowserConnectionIssue::ControlUnavailable,
+                                        error,
                                     )
                                     .await;
 
@@ -2490,7 +2516,10 @@ Branch on `ok` and `error.code`, not on English messages.
                             Err(error) => {
                                 #[cfg(target_env = "ohos")]
                                 return Self::connect_builtin_after_external_failure(
-                                    params, context, error,
+                                    params,
+                                    context,
+                                    BrowserConnectionIssue::ControlUnavailable,
+                                    error,
                                 )
                                 .await;
 
@@ -2508,6 +2537,7 @@ Branch on `ok` and `error.code`, not on English messages.
                         if let Err(error) = Self::register_external_session(&session).await {
                             return Ok(err_response("browser", "connect", error));
                         }
+                        CdpClient::clear_browser_connection_issue(port).await;
 
                         // Enable CDP observers so network/console/error events
                         // start recording immediately for later query via
@@ -2612,6 +2642,7 @@ Branch on `ok` and `error.code`, not on English messages.
                         return Self::connect_builtin_after_external_failure(
                             params,
                             context,
+                            BrowserConnectionIssue::ControlUnavailable,
                             instructions,
                         )
                         .await;
@@ -2635,7 +2666,10 @@ Branch on `ok` and `error.code`, not on English messages.
                     LaunchResult::LaunchedButCdpNotReady { message, .. } => {
                         #[cfg(target_env = "ohos")]
                         return Self::connect_builtin_after_external_failure(
-                            params, context, message,
+                            params,
+                            context,
+                            BrowserConnectionIssue::ControlUnavailable,
+                            message,
                         )
                         .await;
 
@@ -2652,6 +2686,7 @@ Branch on `ok` and `error.code`, not on English messages.
                         return Self::connect_builtin_after_external_failure(
                             params,
                             context,
+                            BrowserConnectionIssue::ControlUnavailable,
                             instructions,
                         )
                         .await;
@@ -5554,7 +5589,7 @@ mod control_hub_tests {
     }
 
     #[tokio::test]
-    async fn settings_disconnect_blocks_external_actions_until_user_reconnects() {
+    async fn browser_connect_resumes_after_settings_disconnect() {
         let port = 61_337;
         CdpClient::suppress_browser_connection(port).await;
 
@@ -5568,15 +5603,13 @@ mod control_hub_tests {
                 &ctx,
             )
             .await
-            .expect("disconnect is returned as a structured error");
+            .expect("connect should return a structured result");
         let payload = results[0].content();
         assert_eq!(payload["ok"], false);
         assert_eq!(payload["error"]["code"], "NOT_AVAILABLE");
-        assert!(payload["error"]["message"]
+        assert!(!payload["error"]["message"]
             .as_str()
             .is_some_and(|message| message.contains("disconnected by the user")));
-
-        CdpClient::allow_browser_connection(port).await;
         assert!(!CdpClient::browser_connection_suppressed(port).await);
     }
 

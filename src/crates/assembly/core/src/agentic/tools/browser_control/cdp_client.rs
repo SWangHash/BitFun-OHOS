@@ -109,8 +109,29 @@ pub struct CdpBrowserConnection {
     pub client: Arc<CdpClient>,
 }
 
+/// Last user-visible reason why an on-demand browser connection is unavailable.
+/// This is process-local diagnostic state, not persisted user configuration.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BrowserConnectionIssue {
+    LaunchFailed,
+    ControlUnavailable,
+    ConnectionLost,
+}
+
+impl BrowserConnectionIssue {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::LaunchFailed => "launch_failed",
+            Self::ControlUnavailable => "control_unavailable",
+            Self::ConnectionLost => "connection_lost",
+        }
+    }
+}
+
 static BROWSER_CONNECTIONS: OnceLock<RwLock<HashMap<u16, CdpBrowserConnection>>> = OnceLock::new();
 static SUPPRESSED_BROWSER_CONNECTIONS: OnceLock<RwLock<HashSet<u16>>> = OnceLock::new();
+static BROWSER_CONNECTION_ISSUES: OnceLock<RwLock<HashMap<u16, BrowserConnectionIssue>>> =
+    OnceLock::new();
 
 fn browser_connections() -> &'static RwLock<HashMap<u16, CdpBrowserConnection>> {
     BROWSER_CONNECTIONS.get_or_init(|| RwLock::new(HashMap::new()))
@@ -118,6 +139,10 @@ fn browser_connections() -> &'static RwLock<HashMap<u16, CdpBrowserConnection>> 
 
 fn suppressed_browser_connections() -> &'static RwLock<HashSet<u16>> {
     SUPPRESSED_BROWSER_CONNECTIONS.get_or_init(|| RwLock::new(HashSet::new()))
+}
+
+fn browser_connection_issues() -> &'static RwLock<HashMap<u16, BrowserConnectionIssue>> {
+    BROWSER_CONNECTION_ISSUES.get_or_init(|| RwLock::new(HashMap::new()))
 }
 
 impl CdpClient {
@@ -312,6 +337,7 @@ impl CdpClient {
             .write()
             .await
             .insert(logical_port, connection.clone());
+        Self::clear_browser_connection_issue(logical_port).await;
         Ok(connection)
     }
 
@@ -327,6 +353,11 @@ impl CdpClient {
             Some(connection) if connection.client.is_connected() => Some(connection),
             Some(_) => {
                 browser_connections().write().await.remove(&logical_port);
+                Self::record_browser_connection_issue(
+                    logical_port,
+                    BrowserConnectionIssue::ConnectionLost,
+                )
+                .await;
                 None
             }
             None => None,
@@ -367,9 +398,9 @@ impl CdpClient {
         }
     }
 
-    /// Prevent agent-driven actions from silently reattaching after the user
-    /// explicitly disconnected Browser Control in Settings. An explicit user
-    /// connect action clears this process-local guard.
+    /// Mark the current transport as disconnected for status reads and stale
+    /// follow-up actions. The next explicit `browser.connect` clears this guard
+    /// before establishing an on-demand connection.
     pub async fn suppress_browser_connection(logical_port: u16) {
         suppressed_browser_connections()
             .write()
@@ -391,6 +422,27 @@ impl CdpClient {
             .contains(&logical_port)
     }
 
+    pub async fn record_browser_connection_issue(logical_port: u16, issue: BrowserConnectionIssue) {
+        browser_connection_issues()
+            .write()
+            .await
+            .insert(logical_port, issue);
+    }
+
+    pub async fn clear_browser_connection_issue(logical_port: u16) {
+        browser_connection_issues()
+            .write()
+            .await
+            .remove(&logical_port);
+    }
+
+    pub async fn browser_connection_issue(logical_port: u16) -> Option<BrowserConnectionIssue> {
+        browser_connection_issues()
+            .read()
+            .await
+            .get(&logical_port)
+            .copied()
+    }
 
     async fn connect_with_timeout(
         ws_url: &str,
@@ -947,6 +999,23 @@ impl BrowserAutomationClient for CdpClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn browser_connection_issue_is_process_local_and_clearable() {
+        let port = 61_341;
+        CdpClient::record_browser_connection_issue(
+            port,
+            BrowserConnectionIssue::ControlUnavailable,
+        )
+        .await;
+        assert_eq!(
+            CdpClient::browser_connection_issue(port).await,
+            Some(BrowserConnectionIssue::ControlUnavailable)
+        );
+
+        CdpClient::clear_browser_connection_issue(port).await;
+        assert_eq!(CdpClient::browser_connection_issue(port).await, None);
+    }
 
     #[test]
     fn browser_target_metadata_maps_to_page_info() {

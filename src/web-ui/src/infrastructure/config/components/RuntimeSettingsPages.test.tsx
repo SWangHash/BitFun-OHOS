@@ -43,7 +43,7 @@ vi.mock('@bitfun/ui', async (original) => ({
   ),
 }));
 
-const readyStatus = { cdpAvailable: false, defaultCdpSupported: true, defaultCdpEnabled: true, browserReady: true, browserKind: 'Chrome', browserVersion: '146', pageCount: 3, selectedBrowser: 'default' };
+const readyStatus = { cdpAvailable: false, defaultCdpSupported: true, defaultCdpEnabled: true, browserReady: true, connectionIssue: null as 'launch_failed' | 'control_unavailable' | 'connection_lost' | null, browserKind: 'Chrome', browserVersion: '146', pageCount: 3, selectedBrowser: 'default' };
 let status = { ...readyStatus };
 let container: HTMLDivElement;
 let root: Root;
@@ -118,15 +118,13 @@ describe('Tool execution concurrency settings', () => {
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); });
 
 describe('Browser and desktop control settings', () => {
-  it('localizes the browser choice and puts the single connect action next to connection status', async () => {
+  it('shows on-demand connection copy without a manual connect action', async () => {
     await render();
     expect(container.querySelector('option')?.textContent).toBe('browserControl.defaultBrowser');
-    const connect = button('browserControl.connect');
-    expect(connect.closest('[data-bitfun-part="row"]')?.textContent).toContain('browserControl.status');
-    expect(container.textContent).toContain('browserControl.readyNotConnected');
-    expect(Array.from(container.querySelectorAll('button')).filter(el => el.textContent === 'browserControl.connect')).toHaveLength(1);
-    await act(async () => connect.click());
-    expect(mocks.invoke).toHaveBeenCalledWith('browser_control_enable_default_cdp', expect.anything());
+    expect(container.textContent).toContain('browserControl.notConnected');
+    expect(container.textContent).toContain('browserControl.connectOnUse');
+    expect(button('browserControl.connect')).toBeUndefined();
+    expect(button('browserControl.enableDefaultCdp')).toBeUndefined();
   });
 
   it('shows the host default browser when a fresh install has no saved preference', async () => {
@@ -144,12 +142,12 @@ describe('Browser and desktop control settings', () => {
     expect(container.querySelector('option')?.textContent).toBe('BitFun Built-in ArkWeb');
   });
 
-  it('uses the existing launch path when the browser cannot reuse its current profile', async () => {
-    status.defaultCdpSupported = false;
+  it('keeps one-time guarded-CDP setup separate from ordinary connection', async () => {
+    status.defaultCdpEnabled = false;
     await render();
-    await act(async () => button('browserControl.connect').click());
-    expect(mocks.invoke).toHaveBeenCalledWith('browser_control_launch', { request: { port: 9222 } });
-    expect(mocks.invoke).not.toHaveBeenCalledWith('browser_control_enable_default_cdp', expect.anything());
+    await act(async () => button('browserControl.enableDefaultCdp').click());
+    expect(mocks.invoke).toHaveBeenCalledWith('browser_control_enable_default_cdp', { request: { port: 9222 } });
+    expect(mocks.invoke).not.toHaveBeenCalledWith('browser_control_launch', expect.anything());
   });
 
   it('keeps the selected browser visible while connected and disconnects through the existing command', async () => {
@@ -181,8 +179,17 @@ describe('Browser and desktop control settings', () => {
     await act(async () => button('browserControl.disconnect').click());
     expect(container.querySelector('select')?.disabled).toBe(false);
     expect(container.querySelector('select')?.value).toBe('builtin');
-    expect(container.textContent).toContain('browserControl.ready');
+    expect(container.textContent).toContain('browserControl.notConnected');
+    expect(container.textContent).toContain('browserControl.connectOnUse');
     expect(container.textContent).not.toContain('browserControl.connected');
+  });
+
+  it('keeps the primary state binary and explains a failed connection separately', async () => {
+    status.connectionIssue = 'control_unavailable';
+    await render();
+    expect(container.textContent).toContain('browserControl.notConnected');
+    expect(container.textContent).toContain('browserControl.connectionIssues.control_unavailable');
+    expect(container.textContent).not.toContain('browserControl.ready');
   });
 
   it('does not let an older connected response overwrite the post-disconnect status', async () => {
@@ -215,10 +222,12 @@ describe('Browser and desktop control settings', () => {
     await render();
     mocks.invoke.mockRejectedValue(new Error('Host is offline'));
     await act(async () => button('browserControl.refreshStatus').click());
-    const connectionRow = button('browserControl.disconnect').closest('[data-bitfun-part="row"]');
-    expect(connectionRow?.textContent).toContain('browserControl.statusUnavailable');
+    const connectionRow = Array.from(container.querySelectorAll('[data-bitfun-part="row"]'))
+      .find(row => row.textContent?.includes('browserControl.notConnected'));
+    expect(connectionRow?.textContent).toContain('browserControl.statusLoadFailed');
+    expect(connectionRow?.textContent).toContain('browserControl.notConnected');
     expect(connectionRow?.textContent).not.toContain('browserControl.connected');
-    expect(button('browserControl.disconnect').disabled).toBe(true);
+    expect(button('browserControl.disconnect')).toBeUndefined();
     expect(button('browserControl.refreshStatus').disabled).toBe(false);
   });
 
