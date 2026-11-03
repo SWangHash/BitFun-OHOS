@@ -5,9 +5,7 @@
 
 use std::path::Path;
 
-use crate::detect::{
-    detect_project_qt_major, is_qt_source_project, kit_qt_major, resolve_bound_kit_root,
-};
+use crate::detect::{is_ohos_target_kit, kit_qt_major, measure_project_qt_major, resolve_bound_kit_root};
 use crate::scan::{QtScanCandidate, MAX_TOOLCHAINS};
 use crate::state::{
     qt_migration_is_skill_managed_value, qt_migration_set_version_strategy,
@@ -339,16 +337,7 @@ pub fn compare_bound_generations(
     toolchain: &str,
     official_qt_major: Option<u8>,
 ) -> QtMigrationGenerationMismatch {
-    let project_major = {
-        // A bound path that is not a Qt project has no project generation to
-        // compare; `detect_project_qt_major` answers 5 or 6 by construction, so the
-        // Qt-project predicate is what keeps a mistyped path from asking a question.
-        if is_qt_source_project(source_project) {
-            Some(detect_project_qt_major(source_project))
-        } else {
-            None
-        }
-    };
+    let project_major = measure_project_qt_major(source_project);
     let toolchain_major = if qt_migration_is_skill_managed_value(toolchain) {
         official_qt_major
     } else {
@@ -362,7 +351,8 @@ pub fn compare_bound_generations(
 
 pub fn toolchain_value_is_measurable(toolchain: &str) -> bool {
     qt_migration_is_skill_managed_value(toolchain)
-        || resolve_bound_kit_root(Path::new(toolchain)).is_some()
+        || resolve_bound_kit_root(Path::new(toolchain))
+            .is_some_and(|kit| is_ohos_target_kit(&kit))
 }
 
 /// The `toolchain` options of the card, in option order.
