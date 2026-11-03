@@ -25,7 +25,7 @@ each missing what the other had.
 | `../../../infrastructure/markdown/useStreamingTextReveal.test.tsx` | appended-glyph-only fading, independent batch clocks and renderers, history/remount stability, stream completion and reduced motion |
 | `UserMessageItem.test.tsx` | sent and reloaded MCP references, mixed reference capsules, failed-message presentation, and message actions |
 | `UserMessageItemActions.test.ts` | metadata visibility, bubble outsets from the shared reading column, and normal-flow action layout |
-| `MessageExportControls.test.tsx` | copy/export menus, authored thinking-icon rasterization before capture, continued capture with original icons after rasterization failure or timeout, late rasterization isolation, image capture fallback after timeouts, final failure feedback and temporary render cleanup; mocked capture/save boundaries, not native WebView or filesystem validation |
+| `MessageExportControls.test.tsx` | copy/export menus, thinking-icon rasterization and optional-preparation failure recovery, one canvas capture/PNG encoding, adaptive resolution/deadline and logo placement, task yields, timeout ownership until settlement, resource abort/cleanup with real context creation/destruction, late-result disposal, stage feedback, localized known failures and original external error reasons; mocked capture/save boundaries, not native WebView or filesystem validation |
 | `../../services/submittedMessagePresentation.test.ts` | explicit-send receipts, one-shot claims, expiry, device activation isolation, and initial status paint delay |
 | `useSubmittedMessageMotion.test.tsx` | submission clock, remount stability, StrictMode, reduced motion, focus, and surface-change cancellation; lifecycle only, not visual acceptance |
 | `RuntimeStatusSlot.test.tsx` | resident status slot identity and removal of a pending submission paint delay when real status clears |
@@ -90,6 +90,27 @@ settings as editable. Older hosts retain inherited settings and readable quotes.
 **Agents must not perform UI interaction verification.** Report these as pending
 unless a human confirms them. They are grouped so that adding a check to one
 group does not renumber the others.
+
+### Image export
+
+1. Export short and long Turns with thinking collapsed and expanded, including
+   Markdown, code, tables and tool cards. Check the full image through its footer,
+   text wrapping, thinking artwork and logo placement in light and dark themes.
+2. Compare the same content before and after a change: total generation time,
+   longest UI stall, image dimensions and readability. Exercise scrolling and
+   another session while export is pending. Mocked capture tests cannot establish
+   responsiveness or native WebView canvas limits.
+3. Check preparation/generation/save feedback and an actual failure reason.
+   A timeout enters the stopping state until the current browser work settles;
+   it must not launch another capture or save a late result. The deadline is a
+   bounded workload estimate, not an ETA or a hard interruption of browser code.
+4. `ExportImageButton` diagnostics report render/save durations and capture
+   geometry, scale, deadline, node count and phase durations without transcript
+   contents. Use these to distinguish cloning, resources, rasterization and PNG
+   encoding costs; do not classify an unknown failure as an out-of-memory error.
+5. Verify HarmonyOS saving separately from browser downloads, and repeat with
+   remote-workspace and Peer Device transcripts on their driving surface.
+   Local synthetic rendering is not evidence of these host/remote paths.
 
 ### Opening a session
 

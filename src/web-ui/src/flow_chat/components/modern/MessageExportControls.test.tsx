@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import React, { act } from 'react';
+import type { Context, Options } from 'modern-screenshot';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppearanceCompiler } from '@/infrastructure/appearance/compiler/AppearanceCompiler';
@@ -19,8 +20,12 @@ const mocks = vi.hoisted(() => ({
   copyText: vi.fn(() => 'Full transcript'),
   clipboard: vi.fn(async (_text: string) => undefined),
   error: vi.fn(),
-  capturePng: vi.fn(),
-  captureBlob: vi.fn(),
+  createContext: vi.fn(),
+  captureCanvas: vi.fn(),
+  destroyContext: vi.fn(),
+  loading: vi.fn(),
+  updateProgress: vi.fn(),
+  dismissProgress: vi.fn(),
   savePng: vi.fn(),
   notifyExportSuccess: vi.fn(),
   drawImage: vi.fn(),
@@ -32,15 +37,18 @@ vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
   useTranslation: () => ({ t: (key: string) => key }),
 }));
-vi.mock('@/infrastructure/i18n', () => ({
-  i18nService: { t: (key: string) => key, formatDate: () => '10/23 12:00' },
-  useI18n: () => ({ t: (key: string) => key, formatDate: () => '12:00' }),
-}));
+vi.mock('@/infrastructure/i18n', () => {
+  const translate = (key: string, params?: Record<string, unknown>) => params ? `${key} ${JSON.stringify(params)}` : key;
+  return {
+    i18nService: { t: translate, formatDate: () => '10/23 12:00', formatNumber: String },
+    useI18n: () => ({ t: translate, formatDate: () => '12:00' }),
+  };
+});
 vi.mock('../../store/FlowChatStore', () => ({
   FlowChatStore: { getInstance: () => ({ getState: mocks.store }) },
 }));
 vi.mock('@/shared/notification-system', () => ({
-  notificationService: { error: mocks.error, warning: vi.fn(), success: vi.fn() },
+  notificationService: { error: mocks.error, warning: vi.fn(), success: vi.fn(), loading: mocks.loading },
 }));
 vi.mock('@/shared/utils/useAnchoredPopoverPosition', () => ({
   useAnchoredPopoverPosition: ({ open, anchorRef }: {
@@ -55,7 +63,9 @@ vi.mock('@/infrastructure/appearance/runtime/AppearanceOverlayHost', () => ({
   getAppearanceOverlayHost: () => document.body,
 }));
 vi.mock('@/infrastructure/api', () => ({ workspaceAPI: {} }));
-vi.mock('modern-screenshot', () => ({ domToPng: mocks.capturePng, domToBlob: mocks.captureBlob }));
+vi.mock('modern-screenshot', () => ({
+  createContext: mocks.createContext, domToCanvas: mocks.captureCanvas, destroyContext: mocks.destroyContext,
+}));
 vi.mock('../../utils/saveExportedPng', () => ({
   savePngBlob: mocks.savePng,
   notifyPngExportSuccess: mocks.notifyExportSuccess,
@@ -131,13 +141,16 @@ describe('message copy and image export controls', () => {
   let root: Root;
   let container: HTMLDivElement;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
     vi.useFakeTimers();
     mocks.revealing = false;
     mocks.anchor = null;
     mocks.copyText.mockReturnValue('Full transcript');
     mocks.store.mockReturnValue({ sessions: new Map() });
+    const actualCapture = await vi.importActual<typeof import('modern-screenshot')>('modern-screenshot');
+    mocks.createContext.mockReset().mockImplementation(actualCapture.createContext);
+    mocks.destroyContext.mockReset().mockImplementation(actualCapture.destroyContext);
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: mocks.clipboard } });
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -196,8 +209,7 @@ describe('message copy and image export controls', () => {
     },
   );
 
-  async function startImageExport(expandThinking = false, deferThinkingIcon = false) {
-    const pngDataUrl = `data:image/png;base64,${'A'.repeat(120)}`;
+  async function startImageExport(expandThinking = false, deferThinkingIcon = false, height = 600) {
     const iconDataUrl = `data:image/png;base64,${'B'.repeat(120)}`;
     const png = new Blob(['png'], { type: 'image/png' });
     const turn: DialogTurn = {
@@ -216,19 +228,26 @@ describe('message copy and image export controls', () => {
     mocks.store.mockReturnValue({
       sessions: new Map([['review-session', { title: 'Code review', dialogTurns: [turn] }]]),
     });
-    mocks.capturePng.mockReset().mockResolvedValue(pngDataUrl);
-    mocks.captureBlob.mockReset().mockImplementation(async (element: HTMLElement) => {
-      expect(element.isConnected).toBe(true);
-      expect(element.textContent).toContain('Answer');
-      return png;
+    mocks.loading.mockReturnValue({
+      id: 'image-export', updateMessage: mocks.updateProgress, cancel: mocks.dismissProgress,
     });
-    mocks.savePng.mockResolvedValue({ filePath: '/downloads/review.png', downloaded: false });
+    const canvas = document.createElement('canvas');
+    mocks.captureCanvas.mockReset().mockImplementation(async (capture: Context<HTMLElement>) => {
+      expect(capture.node.isConnected).toBe(true);
+      await capture.onCloneEachNode?.(capture.node);
+      await capture.onCloneNode?.(capture.node);
+      await capture.onEmbedNode?.(capture.node);
+      await capture.onCreateForeignObjectSvg?.(document.createElementNS('http://www.w3.org/2000/svg', 'svg'));
+      canvas.width = Math.floor(capture.width * capture.scale);
+      canvas.height = Math.floor(capture.height * capture.scale);
+      return canvas;
+    });
+    mocks.savePng.mockReset().mockResolvedValue({ filePath: '/downloads/review.png', downloaded: false });
     const pendingThinkingImages: (() => void)[] = [];
     vi.stubGlobal('Image', class {
-      naturalWidth = 1600;
-      naturalHeight = 1200;
       onload: (() => void) | null = null;
       onerror: (() => void) | null = null;
+      removeAttribute() {}
       set src(value: string) {
         if (deferThinkingIcon && value.startsWith('data:image/svg+xml')) {
           pendingThinkingImages.push(() => this.onload?.());
@@ -237,18 +256,13 @@ describe('message copy and image export controls', () => {
         queueMicrotask(() => this.onload?.());
       }
     });
-    vi.stubGlobal('FileReader', class {
-      result = pngDataUrl;
-      onload: (() => void) | null = null;
-      readAsDataURL() { queueMicrotask(() => this.onload?.()); }
-    });
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function () {
       if (this.getAttribute('data-bitfun-name') === 'thinking') {
         return { left: 24, top: 80, width: 16, height: 16 } as DOMRect;
       }
       return this.classList.contains('export-content__logo-placeholder')
         ? { left: 24, top: 24, width: 32, height: 32 } as DOMRect
-        : { left: 0, top: 0, width: 800, height: 600 } as DOMRect;
+        : { left: 0, top: 0, width: 800, height } as DOMRect;
     });
     const context = {
       drawImage: mocks.drawImage, save: vi.fn(), restore: vi.fn(),
@@ -266,18 +280,24 @@ describe('message copy and image export controls', () => {
         ? 'exportImage.expandedThinking' : 'exportImage.collapsedThinking'))!;
     act(() => action.click());
     await act(async () => vi.advanceTimersByTimeAsync(50));
-    return { trigger, png, pngDataUrl, iconDataUrl, context, pendingThinkingImages };
+    return { trigger, png, iconDataUrl, context, canvas, pendingThinkingImages };
   }
 
-  it('rasterizes the authored thinking artwork before capture, saves the image and releases the render', async () => {
-    const { trigger, png, pngDataUrl, iconDataUrl, context } = await startImageExport();
-    let capturedIcons: HTMLElement[] = [];
-    mocks.capturePng.mockImplementationOnce(async (element: HTMLElement) => {
-      capturedIcons = Array.from(element.querySelectorAll<HTMLElement>('[data-bitfun-name="thinking"]'));
-      return pngDataUrl;
-    });
+  async function renderForCapture() {
     await act(async () => vi.advanceTimersByTimeAsync(400));
     await act(async () => vi.dynamicImportSettled());
+    await act(async () => vi.advanceTimersByTimeAsync(20));
+  }
+
+  it('captures once, preserves thinking artwork, encodes once and releases the bitmap and render', async () => {
+    const { trigger, png, iconDataUrl, context, canvas } = await startImageExport();
+    let capturedIcons: HTMLElement[] = [];
+    const actualCapture = await vi.importActual<typeof import('modern-screenshot')>('modern-screenshot');
+    mocks.createContext.mockImplementationOnce(async (node: HTMLElement, options: Options) => {
+      capturedIcons = Array.from(node.querySelectorAll<HTMLElement>('[data-bitfun-name="thinking"]'));
+      return actualCapture.createContext(node, options);
+    });
+    await renderForCapture();
 
     expect(capturedIcons).toHaveLength(2);
     for (const icon of capturedIcons) {
@@ -286,60 +306,87 @@ describe('message copy and image export controls', () => {
       expect(icon.style.backgroundColor).toBe('transparent');
       expect(icon.style.backgroundImage).toContain(iconDataUrl);
     }
-    expect(HTMLCanvasElement.prototype.toDataURL).toHaveBeenCalledExactlyOnceWith('image/png');
+    expect(vi.mocked(HTMLCanvasElement.prototype.toDataURL).mock.calls.filter(([type]) => type === 'image/png'))
+      .toHaveLength(1);
     expect(context.globalCompositeOperation).toBe('source-in');
     expect(context.fillStyle).toBe('rgb(51, 51, 51)');
     expect(context.fillRect).toHaveBeenCalledExactlyOnceWith(0, 0, 32, 32);
-    expect(mocks.captureBlob).not.toHaveBeenCalled();
-    expect(mocks.savePng).toHaveBeenCalledExactlyOnceWith(png, 'Code review_10-23-12-00.png');
-    expect(mocks.notifyExportSuccess).toHaveBeenCalledExactlyOnceWith({
-      filePath: '/downloads/review.png', downloaded: false,
-    });
-    expect(mocks.error).not.toHaveBeenCalled();
-    expect(document.querySelector('#export-image-wrapper')).toBeNull();
-    expect(trigger.disabled).toBe(false);
-  });
-
-  it('keeps the rendered review available to the fallback after the first capture times out', async () => {
-    const { trigger, png } = await startImageExport();
-    mocks.capturePng.mockImplementationOnce(() => new Promise(() => {}));
-    await act(async () => vi.advanceTimersByTimeAsync(400));
-    await act(async () => vi.dynamicImportSettled());
-    await act(async () => vi.advanceTimersByTimeAsync(15_000));
-
-    expect(mocks.captureBlob).toHaveBeenCalledOnce();
+    expect(mocks.captureCanvas).toHaveBeenCalledOnce();
+    expect(HTMLCanvasElement.prototype.toBlob).toHaveBeenCalledExactlyOnceWith(expect.any(Function), 'image/png');
+    expect(mocks.drawImage).toHaveBeenLastCalledWith(expect.any(Object), 48, 48, 64, 64);
     expect(mocks.savePng).toHaveBeenCalledExactlyOnceWith(png, 'Code review_10-23-12-00.png');
     expect(mocks.notifyExportSuccess).toHaveBeenCalledOnce();
     expect(mocks.error).not.toHaveBeenCalled();
+    expect(mocks.updateProgress.mock.calls.map(call => call[0])).toEqual([
+      'exportImage.preparing', 'exportImage.preparing', 'exportImage.loadingImages',
+      'exportImage.generating', 'exportImage.encoding', 'exportImage.saving',
+    ]);
+    expect(mocks.dismissProgress).toHaveBeenCalledOnce();
+    expect(mocks.destroyContext).toHaveBeenCalledOnce();
+    expect(document.querySelector('iframe')).toBeNull();
+    expect(canvas.width).toBe(0);
+    expect(canvas.height).toBe(0);
     expect(document.querySelector('#export-image-wrapper')).toBeNull();
     expect(trigger.disabled).toBe(false);
   });
 
+  it('holds ownership on timeout, aborts resource requests and discards a late capture before allowing retry', async () => {
+    const { trigger, canvas } = await startImageExport();
+    let finishCapture!: (canvas: HTMLCanvasElement) => void;
+    mocks.captureCanvas.mockImplementationOnce(() => new Promise<HTMLCanvasElement>(resolve => { finishCapture = resolve; }));
+    await renderForCapture();
+    const capture = mocks.captureCanvas.mock.calls[0][0] as Context<HTMLElement>;
+    await act(async () => vi.advanceTimersByTimeAsync(capture.timeout));
+
+    expect(capture.fetch.requestInit?.signal?.aborted).toBe(true);
+    expect(mocks.updateProgress).toHaveBeenLastCalledWith('exportImage.stopping');
+    expect(mocks.captureCanvas).toHaveBeenCalledOnce();
+    expect(mocks.savePng).not.toHaveBeenCalled();
+    expect(mocks.error).not.toHaveBeenCalled();
+    expect(trigger.disabled).toBe(true);
+    expect(capture.node.isConnected).toBe(true);
+    act(() => trigger.click());
+    expect(document.querySelector('.export-image-menu')).toBeNull();
+    await expect(capture.onCloneEachNode?.(capture.node)).rejects.toThrow('timed out');
+
+    canvas.width = 1600;
+    canvas.height = 1200;
+    await act(async () => finishCapture(canvas));
+    expect(mocks.savePng).not.toHaveBeenCalled();
+    expect(HTMLCanvasElement.prototype.toBlob).not.toHaveBeenCalled();
+    expect(mocks.error).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('exportImage.timedOut'));
+    expect(mocks.notifyExportSuccess).not.toHaveBeenCalled();
+    expect(mocks.destroyContext).toHaveBeenCalledOnce();
+    expect(mocks.dismissProgress).toHaveBeenCalledOnce();
+    expect(canvas.width).toBe(0);
+    expect(document.querySelector('#export-image-wrapper')).toBeNull();
+    expect(trigger.disabled).toBe(false);
+    act(() => trigger.click());
+    expect(document.querySelector('.export-image-menu')).not.toBeNull();
+  });
+
   it.each(['error', 'timeout'] as const)(
-    'preserves the original icons and capture fallback after a rasterization %s',
+    'preserves original icons and continues capture after icon rasterization %s',
     async failure => {
-      const { trigger, png, pendingThinkingImages } = await startImageExport(false, failure === 'timeout');
+      const { trigger, png, canvas, pendingThinkingImages } = await startImageExport(false, failure === 'timeout');
       if (failure === 'error') {
         vi.mocked(HTMLCanvasElement.prototype.toDataURL).mockImplementationOnce(() => {
           throw new DOMException('Canvas is tainted', 'SecurityError');
         });
       }
       let capturedIcons: HTMLElement[] = [];
-      let finishCapture!: (blob: Blob) => void;
-      mocks.capturePng.mockRejectedValueOnce(new Error('Capture failed'));
-      mocks.captureBlob.mockImplementationOnce((element: HTMLElement) => {
-        expect(element.isConnected).toBe(true);
-        capturedIcons = Array.from(element.querySelectorAll<HTMLElement>('[data-bitfun-name="thinking"]'));
-        return new Promise<Blob>(resolve => { finishCapture = resolve; });
+      let finishCapture!: (canvas: HTMLCanvasElement) => void;
+      mocks.captureCanvas.mockImplementationOnce((capture: Context<HTMLElement>) => {
+        expect(capture.node.isConnected).toBe(true);
+        capturedIcons = Array.from(capture.node.querySelectorAll<HTMLElement>('[data-bitfun-name="thinking"]'));
+        return new Promise<HTMLCanvasElement>(resolve => { finishCapture = resolve; });
       });
-      await act(async () => vi.advanceTimersByTimeAsync(400));
-      await act(async () => vi.dynamicImportSettled());
+      await renderForCapture();
       if (failure === 'timeout') {
         await act(async () => vi.advanceTimersByTimeAsync(15_000));
       }
 
-      expect(mocks.capturePng).toHaveBeenCalledOnce();
-      expect(mocks.captureBlob).toHaveBeenCalledOnce();
+      expect(mocks.captureCanvas).toHaveBeenCalledOnce();
       expect(capturedIcons).toHaveLength(2);
       for (const icon of capturedIcons) {
         expect(icon.style.getPropertyValue('mask-image')).toContain('data:image/svg+xml');
@@ -350,47 +397,100 @@ describe('message copy and image export controls', () => {
         expect(pendingThinkingImages).toHaveLength(1);
         await act(async () => { pendingThinkingImages.forEach(load => load()); });
         expect(capturedIcons.map(icon => icon.style.cssText)).toEqual(originalStyles);
+        expect(HTMLCanvasElement.prototype.toDataURL).not.toHaveBeenCalledWith('image/png');
       }
-      await act(async () => finishCapture(png));
+      canvas.width = 1600;
+      canvas.height = 1200;
+      await act(async () => finishCapture(canvas));
+      await act(async () => vi.advanceTimersByTimeAsync(20));
 
       expect(mocks.savePng).toHaveBeenCalledExactlyOnceWith(png, 'Code review_10-23-12-00.png');
-      expect(mocks.notifyExportSuccess).toHaveBeenCalledOnce();
       expect(mocks.error).not.toHaveBeenCalled();
       expect(document.querySelector('#export-image-wrapper')).toBeNull();
       expect(trigger.disabled).toBe(false);
     },
   );
 
-  it('retries at reduced scale after the blob capture times out', async () => {
-    const { trigger } = await startImageExport(true);
-    mocks.capturePng.mockRejectedValueOnce(new Error('Capture failed'));
-    mocks.captureBlob.mockImplementationOnce(() => new Promise(() => {}));
-    await act(async () => vi.advanceTimersByTimeAsync(400));
-    await act(async () => vi.dynamicImportSettled());
-    await act(async () => vi.advanceTimersByTimeAsync(15_000));
-
-    expect(mocks.capturePng).toHaveBeenCalledTimes(2);
-    expect(mocks.capturePng).toHaveBeenLastCalledWith(expect.any(HTMLElement), expect.objectContaining({ scale: 1 }));
+  it.each([12_000, 500_000])('sizes the first capture for height %i and positions the logo using the actual bitmap', async height => {
+    await startImageExport(true, false, height);
+    await renderForCapture();
+    const capture = mocks.captureCanvas.mock.calls[0][0] as Context<HTMLElement>;
+    const outputWidth = Math.floor(capture.width * capture.scale);
+    const outputHeight = Math.floor(capture.height * capture.scale);
+    expect(mocks.captureCanvas).toHaveBeenCalledOnce();
+    expect(capture.scale).toBeLessThan(2);
+    expect(outputWidth * outputHeight).toBeLessThanOrEqual(16_777_216);
+    expect(Math.max(outputWidth, outputHeight)).toBeLessThanOrEqual(32_768);
+    expect(capture.timeout).toBeGreaterThan(30_000);
+    expect(capture.timeout).toBeLessThanOrEqual(120_000);
+    expect(mocks.drawImage).toHaveBeenLastCalledWith(expect.any(Object),
+      24 * outputWidth / capture.width, 24 * outputHeight / capture.height,
+      32 * outputWidth / capture.width, 32 * outputHeight / capture.height);
     expect(mocks.savePng).toHaveBeenCalledOnce();
-    expect(mocks.error).not.toHaveBeenCalled();
+  });
+
+  it('yields a browser task while cloning so queued work can run', async () => {
+    const { canvas } = await startImageExport();
+    let finishCapture!: (canvas: HTMLCanvasElement) => void;
+    mocks.captureCanvas.mockImplementationOnce(() => new Promise<HTMLCanvasElement>(resolve => { finishCapture = resolve; }));
+    await renderForCapture();
+    const capture = mocks.captureCanvas.mock.calls[0][0] as Context<HTMLElement>;
+    let queuedWorkRan = false;
+    let cloneStepFinished = false;
+    setTimeout(() => { queuedWorkRan = true; }, 0);
+    const cloneStep = Promise.resolve(capture.onCloneEachNode?.(capture.node)).then(() => { cloneStepFinished = true; });
+    await Promise.resolve();
+    expect(cloneStepFinished).toBe(false);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    await cloneStep;
+    expect(queuedWorkRan).toBe(true);
+    canvas.width = 1600;
+    canvas.height = 1200;
+    await act(async () => finishCapture(canvas));
+    await act(async () => vi.advanceTimersByTimeAsync(20));
+    expect(mocks.savePng).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ['capture', 'Image decoding failed'],
+    ['size', 'exportImage.contentSizeUnavailable'],
+    ['canvas', 'exportImage.canvasUnavailable'],
+    ['encoding', 'exportImage.pngEncodingFailed'],
+  ] as const)('reports the %s failure with a localized known reason or the original external error', async (failure, reason) => {
+    const { trigger, canvas } = await startImageExport(false, false, failure === 'size' ? 0 : 600);
+    if (failure === 'capture') {
+      mocks.captureCanvas.mockRejectedValueOnce(new Error('Image decoding failed'));
+    } else if (failure === 'canvas') {
+      canvas.width = canvas.height = 0;
+      mocks.captureCanvas.mockResolvedValueOnce(canvas);
+    } else if (failure === 'encoding') {
+      vi.mocked(HTMLCanvasElement.prototype.toBlob).mockImplementationOnce(callback => callback(null));
+    }
+    await renderForCapture();
+    expect(mocks.captureCanvas).toHaveBeenCalledTimes(failure === 'size' ? 0 : 1);
+    expect(mocks.savePng).not.toHaveBeenCalled();
+    expect(mocks.error).toHaveBeenCalledExactlyOnceWith(`exportImage.exportFailedWithReason ${JSON.stringify({ reason })}`);
+    expect(mocks.destroyContext).toHaveBeenCalledTimes(failure === 'size' ? 0 : 1);
+    expect(mocks.dismissProgress).toHaveBeenCalledOnce();
+    expect(document.querySelector('iframe')).toBeNull();
     expect(document.querySelector('#export-image-wrapper')).toBeNull();
     expect(trigger.disabled).toBe(false);
   });
 
-  it('reports final capture failure, releases the render and enables retry without saving an image', async () => {
-    const { trigger } = await startImageExport();
-    mocks.capturePng.mockImplementation(() => new Promise(() => {}));
-    mocks.captureBlob.mockImplementation(() => new Promise(() => {}));
-    await act(async () => vi.advanceTimersByTimeAsync(400));
-    await act(async () => vi.dynamicImportSettled());
-    await act(async () => vi.advanceTimersByTimeAsync(45_000));
-
-    expect(mocks.capturePng).toHaveBeenCalledTimes(2);
-    expect(mocks.captureBlob).toHaveBeenCalledOnce();
+  it('discards PNG encoding that finishes after the deadline instead of saving it', async () => {
+    const { trigger, png, canvas } = await startImageExport();
+    let finishEncoding!: BlobCallback;
+    vi.mocked(HTMLCanvasElement.prototype.toBlob).mockImplementation(callback => { finishEncoding = callback; });
+    await renderForCapture();
+    const capture = mocks.captureCanvas.mock.calls[0][0] as Context<HTMLElement>;
+    await act(async () => vi.advanceTimersByTimeAsync(capture.timeout));
+    expect(trigger.disabled).toBe(true);
     expect(mocks.savePng).not.toHaveBeenCalled();
-    expect(mocks.notifyExportSuccess).not.toHaveBeenCalled();
-    expect(mocks.error).toHaveBeenCalledExactlyOnceWith('flow-chat:exportImage.exportFailed');
-    expect(document.querySelector('#export-image-wrapper')).toBeNull();
+    await act(async () => finishEncoding(png));
+    expect(mocks.savePng).not.toHaveBeenCalled();
+    expect(mocks.error).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('exportImage.timedOut'));
+    expect(mocks.destroyContext).toHaveBeenCalledOnce();
+    expect(canvas.width).toBe(0);
     expect(trigger.disabled).toBe(false);
   });
 
