@@ -13,7 +13,7 @@ import { OverflowText,
   DialogHeading,
   DialogTitle,
 } from '@bitfun/ui';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Save, ShieldCheck } from 'lucide-react';
 
 import { confirmDanger } from '@/infrastructure/confirm-dialog';
@@ -92,6 +92,8 @@ export const WorkspaceProjectPermissionsDialog: React.FC<WorkspaceProjectPermiss
   const [draftRules, setDraftRules] = useState<DraftRule[]>([]);
   const [rulesRevision, setRulesRevision] = useState<string | null>(null);
   const [rulesLoadError, setRulesLoadError] = useState<ProjectPermissionRulesLoadError | null>(null);
+  const rulesListRef = useRef<HTMLDivElement | null>(null);
+  const pendingNewRuleIdRef = useRef<string | null>(null);
   const effectOptions = useMemo<SelectOption[]>(
     () => EFFECTS.map((effect) => ({
       value: effect,
@@ -197,6 +199,27 @@ export const WorkspaceProjectPermissionsDialog: React.FC<WorkspaceProjectPermiss
     setDraftRules((rules) => rules.map((rule) => (rule.localId === localId ? { ...rule, ...update } : rule)));
   };
 
+  const appendDraftRule = () => {
+    // The rules pane scrolls on its own, so a freshly appended row would stay
+    // below the fold without the one-shot reveal below.
+    const appended = toDraftRule({ action: '', resource: '', effect: 'ask' });
+    pendingNewRuleIdRef.current = appended.localId;
+    setDraftRules((rules) => [...rules, appended]);
+  };
+
+  useLayoutEffect(() => {
+    const pendingId = pendingNewRuleIdRef.current;
+    if (pendingId === null) {
+      return;
+    }
+    pendingNewRuleIdRef.current = null;
+    const list = rulesListRef.current;
+    if (!list || !draftRules.some((rule) => rule.localId === pendingId)) {
+      return;
+    }
+    list.scrollTop = list.scrollHeight;
+  }, [draftRules]);
+
   const moveDraftRule = (index: number, direction: -1 | 1) => {
     const nextIndex = index + direction;
     if (nextIndex < 0 || nextIndex >= draftRules.length) {
@@ -261,7 +284,7 @@ export const WorkspaceProjectPermissionsDialog: React.FC<WorkspaceProjectPermiss
         </DialogHeading>
         <DialogClose />
       </DialogHeader>
-      <DialogBody>
+      <DialogBody className="workspace-project-permissions-dialog__body">
         <div className="workspace-project-permissions-dialog__modal">
       <div data-bitfun-component="workspace-project-permissions-dialog" data-bitfun-part="root" className="workspace-project-permissions-dialog">
         <div data-bitfun-component="workspace-project-permissions-dialog" data-bitfun-part="intro" className="workspace-project-permissions-dialog__intro">
@@ -323,7 +346,7 @@ export const WorkspaceProjectPermissionsDialog: React.FC<WorkspaceProjectPermiss
               size="sm"
               variant="outline"
               disabled={isBusy || rulesRevision === null}
-              onClick={() => setDraftRules((rules) => [...rules, toDraftRule({ action: '', resource: '', effect: 'ask' })])}
+              onClick={appendDraftRule}
               leadingIcon={<Icon name="plus" size="sm" />}
             >
 
@@ -346,7 +369,7 @@ export const WorkspaceProjectPermissionsDialog: React.FC<WorkspaceProjectPermiss
           ) : draftRules.length === 0 ? (
             <div data-bitfun-component="workspace-project-permissions-dialog" data-bitfun-part="empty" className="workspace-project-permissions-dialog__empty">{t('projectPermissions.rulesEmpty')}</div>
           ) : (
-            <div data-bitfun-component="workspace-project-permissions-dialog" data-bitfun-part="rules" className="workspace-project-permissions-dialog__rules">
+            <div data-bitfun-component="workspace-project-permissions-dialog" data-bitfun-part="rules" ref={rulesListRef} className="workspace-project-permissions-dialog__rules">
               <div className="workspace-project-permissions-dialog__rule-heading" aria-hidden="true">
                 <span>{t('projectPermissions.effect')}</span>
                 <span>{t('projectPermissions.action')}</span>

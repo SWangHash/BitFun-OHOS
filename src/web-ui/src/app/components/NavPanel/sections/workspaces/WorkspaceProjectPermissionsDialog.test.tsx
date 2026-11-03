@@ -73,11 +73,11 @@ describe('project permissions dialog', () => {
     vi.unstubAllGlobals();
   });
 
-  async function renderDialog() {
+  async function renderDialog(rules: Array<{ action: string; resource: string; effect: string }> = []) {
     mocks.listGrants.mockResolvedValue([
       { projectId: 'workspace-1', action: 'bash', resource: 'pnpm --dir src/web-ui run test', createdAtMs: 1 },
     ]);
-    mocks.getRules.mockResolvedValue({ rules: [], revision: 'revision-1' });
+    mocks.getRules.mockResolvedValue({ rules, revision: 'revision-1' });
     await act(async () => root.render(
       <WorkspaceProjectPermissionsDialog workspace={workspace} isOpen onClose={() => undefined} />,
     ));
@@ -103,6 +103,31 @@ describe('project permissions dialog', () => {
     const removeGrant = rows[0].querySelector('button[aria-label="projectPermissions.removeGrant"]');
     expect(removeGrant).not.toBeNull();
     expect(removeGrant!.hasAttribute('title')).toBe(false);
+  });
+
+  it('scrolls the rules pane to a newly appended rule', async () => {
+    await renderDialog([{ action: 'bash', resource: 'git status', effect: 'ask' }]);
+
+    const list = container.querySelector('[data-bitfun-part="rules"]') as HTMLElement;
+    expect(list).not.toBeNull();
+    // jsdom has no layout; stand in for a pane that is taller than its viewport.
+    let scrollTop = 0;
+    Object.defineProperty(list, 'scrollHeight', { configurable: true, value: 480 });
+    Object.defineProperty(list, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTop,
+      set: (value: number) => { scrollTop = value; },
+    });
+
+    const addRule = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.textContent === 'projectPermissions.addRule');
+    expect(addRule).toBeDefined();
+    await act(async () => {
+      addRule!.click();
+    });
+
+    expect(container.querySelectorAll('[data-bitfun-part="rule"]')).toHaveLength(2);
+    expect(scrollTop).toBe(480);
   });
 
   it('surfaces an unparseable rules file and keeps saving available to repair it', async () => {
