@@ -47,12 +47,17 @@ const REPLACEMENT_RULES: ReadonlyArray<{ key: MonacoChromeTextKey; english: stri
 ];
 
 export function localizeMonacoText(text: string, strings: MonacoChromeStrings): string {
+  // Apply every matching rule: compound labels like "Find / Replace" contain
+  // several chrome strings, and stopping at the first match produced
+  // half-localized text ("Find / 替换") that then defeated the reverse
+  // restore and the hover-remover matching (issue #432).
+  let result = text;
   for (const rule of REPLACEMENT_RULES) {
-    if (text.includes(rule.english)) {
-      return text.split(rule.english).join(strings[rule.key]);
+    if (result.includes(rule.english)) {
+      result = result.split(rule.english).join(strings[rule.key]);
     }
   }
-  return text;
+  return result;
 }
 
 /**
