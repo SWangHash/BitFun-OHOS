@@ -2,8 +2,7 @@ import type { AppearanceSurfaceDescriptor } from '@/infrastructure/appearance';
 export const floatingMiniChatAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   id: 'floating-mini-chat',
   parts: [
-    { id: 'root' }, { id: 'backdrop' }, { id: 'trigger' }, { id: 'triggerActivity' },
-    { id: 'triggerIcon' }, { id: 'panel' }, { id: 'header' }, { id: 'sessionIcon' },
+    { id: 'root' }, { id: 'backdrop' }, { id: 'panel' }, { id: 'header' }, { id: 'sessionIcon' },
     { id: 'headerAction' }, { id: 'title' }, { id: 'body' },
     { id: 'pending' }, { id: 'pendingIcon' },
   ],
