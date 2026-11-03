@@ -1320,6 +1320,7 @@
     "checkFailed": "Update check failed.",
     "availableTitle": "Update available",
     "availableSubtitle": "A newer release is ready to install.",
+    "availableVersion": "Version {{version}} is available",
     "currentVersion": "Current",
     "latestVersion": "Latest",
     "releaseNotes": "Release notes",

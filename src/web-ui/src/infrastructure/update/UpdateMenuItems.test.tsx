@@ -217,6 +217,11 @@ it('shows a known version on hover and opens the card only on click', async () =
   expect(reminder()).not.toBeNull();
   expect(check().textContent).toBe(common.update.checkForUpdates);
   expect(container.querySelectorAll('[role="menuitem"]')).toHaveLength(1);
+  // jsdom performs no layout, so the hover hint needs a real box to anchor to.
+  check().getBoundingClientRect = () => ({
+    x: 160, y: 280, top: 280, left: 160, width: 200, height: 26,
+    right: 360, bottom: 306, toJSON: () => ({}),
+  }) as DOMRect;
   act(() => check().dispatchEvent(new MouseEvent('mouseover', { bubbles: true })));
   await act(async () => vi.advanceTimersByTimeAsync(500));
   expect(document.querySelector('[role="tooltip"]')?.textContent).toContain('2.0.0');
