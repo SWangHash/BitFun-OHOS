@@ -94,6 +94,26 @@ test("Tooltip closes on scroll and refuses to reopen until the gesture settles",
   assert.match(source, /tooltipRef\.current\?\.contains\(target\)/);
 });
 
+test("Tooltip only opens for an aimed pointer and never paints a corner slot", async () => {
+  const source = await readFile(
+    new URL("../src/components/Tooltip/Tooltip.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(source, /const POINTER_INTENT_MS = 200;/);
+  // Content sliding under a stationary pointer reports a hover nobody aimed at.
+  assert.match(source, /if \(event && !pointedRecently\(element\.ownerDocument\)\) return;/);
+  assert.match(source, /function pointedRecently\(ownerDocument: Document\): boolean/);
+  // A detached or scrolled-away trigger must close its bubble instead of being
+  // boundary-clamped into a viewport corner far from the pointer.
+  assert.match(source, /function isAnchorPlaceable\(triggerRect: DOMRect\): boolean/);
+  assert.match(source, /if \(!triggerRef\.current\.isConnected \|\| !isAnchorPlaceable\(triggerRect\)\) \{/);
+  assert.match(source, /hideCurrentRef\.current\(\);\s*return;/);
+  // A gesture spans more than the scroll events it emits.
+  assert.match(source, /addEventListener\("wheel", onGesture, \{ capture: true, passive: true \}\)/);
+  assert.match(source, /addEventListener\("touchmove", onGesture, \{ capture: true, passive: true \}\)/);
+});
+
 test("Tooltip styling uses only public surface, geometry, and elevation tokens", async () => {
   const styles = await readFile(
     new URL("../src/components/Tooltip/Tooltip.module.css", import.meta.url),

@@ -43,6 +43,15 @@ describe('overflow text full-content access', () => {
     });
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => setTimeout(() => callback(0), 0));
     vi.stubGlobal('cancelAnimationFrame', clearTimeout);
+    // jsdom performs no layout, so every control reports an empty rect and the
+    // tooltip would have no placeable anchor. A mounted control has a box.
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const width = this.getAttribute('role') === 'tooltip' ? 240 : 180;
+      return {
+        x: 120, y: 240, top: 240, left: 120, width, height: 28,
+        right: 120 + width, bottom: 268, toJSON: () => ({}),
+      } as DOMRect;
+    });
     host = document.createElement('div');
     document.body.append(host);
     root = createRoot(host);

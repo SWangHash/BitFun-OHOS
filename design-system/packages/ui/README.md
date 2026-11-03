@@ -192,6 +192,11 @@ title and the automatic tooltip would open two bubbles on the same hover target,
 and the native bubble cannot track the row when the list scrolls.
 The tooltip closes as soon as the pointer leaves its trigger, and any scroll of
 the surrounding content closes it and keeps it closed until the gesture settles.
+A hover tooltip opens only for a pointer that moved onto its trigger: browsers
+re-run hover hit testing when a scroll area slides content under a stationary
+pointer, and that hover belongs to the gesture, not to the reader. A trigger
+without a placeable rect — detached, hidden, or scrolled out of view — closes its
+bubble instead of being boundary-clamped into a viewport corner.
 A bubble must never outlive the pointer or lag behind the row it describes.
 Do not use marquee as the sole way to access information on touch surfaces.
 

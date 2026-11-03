@@ -14,6 +14,30 @@ describe('interactive tooltip pointer transfer', () => {
   const tooltip = () => document.querySelector<HTMLElement>('[role="tooltip"]');
 
   /**
+   * jsdom performs no layout, so every element reports an empty rect. A real
+   * trigger always has a box; tests supply one where the tooltip needs it.
+   */
+  const withRect = (
+    element: HTMLElement,
+    rect: { top: number; left: number; width: number; height: number },
+  ): HTMLElement => {
+    element.getBoundingClientRect = () => ({
+      ...rect,
+      bottom: rect.top + rect.height,
+      right: rect.left + rect.width,
+      x: rect.left,
+      y: rect.top,
+      toJSON: () => ({}),
+    }) as DOMRect;
+    return element;
+  };
+
+  /** The pointer travelling onto the trigger is what arms a hover tooltip. */
+  const pointerMove = () => act(() => {
+    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+  });
+
+  /**
    * React derives mouseenter/mouseleave from delegated over/out pairs, so the
    * pointer is reported the way a browser reports it: one event naming the
    * element the pointer left and the one it entered.
@@ -56,7 +80,8 @@ describe('interactive tooltip pointer transfer', () => {
 
   it('keeps the content open when the pointer crosses the placement gap', () => {
     renderTooltip(true);
-    const trigger = host.querySelector('button')!;
+    const trigger = withRect(host.querySelector<HTMLElement>('button')!, { top: 240, left: 160, width: 180, height: 28 });
+    pointerMove();
     pointerEnter(trigger);
     reveal();
 
@@ -77,7 +102,8 @@ describe('interactive tooltip pointer transfer', () => {
 
   it('still closes immediately when the content is not meant to be entered', () => {
     renderTooltip(false);
-    const trigger = host.querySelector('button')!;
+    const trigger = withRect(host.querySelector<HTMLElement>('button')!, { top: 240, left: 160, width: 180, height: 28 });
+    pointerMove();
     pointerEnter(trigger);
     reveal();
 
@@ -86,6 +112,31 @@ describe('interactive tooltip pointer transfer', () => {
 
     pointerLeaveTo(trigger, popup);
     reveal();
+    expect(tooltip()).toBeNull();
+  });
+
+  it('ignores a hover the pointer never moved for', () => {
+    renderTooltip(false);
+    const trigger = withRect(host.querySelector<HTMLElement>('button')!, { top: 240, left: 160, width: 180, height: 28 });
+    // Content sliding under a stationary pointer reports a hover of its own; the
+    // last real pointer movement is minutes old and must not arm a bubble.
+    pointerMove();
+    act(() => vi.advanceTimersByTime(60_000));
+    pointerEnter(trigger);
+    reveal();
+
+    expect(tooltip()).toBeNull();
+  });
+
+  it('leaves the bubble hidden when the trigger has no placeable rect', () => {
+    renderTooltip(false);
+    // A zero-area anchor is what a detached or scrolled-away trigger measures
+    // as; clamping it used to paint the bubble in the viewport's top-left.
+    const trigger = host.querySelector<HTMLElement>('button')!;
+    pointerMove();
+    pointerEnter(trigger);
+    reveal();
+
     expect(tooltip()).toBeNull();
   });
 });

@@ -406,6 +406,11 @@ describeWithJsdom('RemediationSelectionPanel interactions', () => {
       );
       const trigger = container.querySelector<HTMLElement>('.deep-review-action-bar__remediation-text')!;
       expect(trigger.hasAttribute('title')).toBe(false);
+      // jsdom performs no layout, so the hint needs a real box to anchor to.
+      trigger.getBoundingClientRect = () => ({
+        x: 200, y: 320, top: 320, left: 200, width: 180, height: 24,
+        right: 380, bottom: 344, toJSON: () => ({}),
+      }) as DOMRect;
       act(() => {
         trigger.dispatchEvent(new dom.window.MouseEvent('mouseover', { bubbles: true }));
         vi.advanceTimersByTime(500);

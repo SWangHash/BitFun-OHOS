@@ -35,8 +35,22 @@ const WARM_WINDOW_MS = 300;
  * current tooltip and blocks new ones until the gesture has settled.
  */
 const SCROLL_SUPPRESS_MS = 300;
+/**
+ * A hover can arrive without the pointer moving: browsers re-run hover hit
+ * testing while a scroll area slides content under a stationary pointer. Nobody
+ * aimed at that row, and its anchor is easy to measure mid-gesture, so a
+ * pointer-driven open requires pointer movement inside this window.
+ */
+const POINTER_INTENT_MS = 200;
 let tooltipWarmUntil = 0;
 const activeTooltips = new WeakMap<Document, { id: string; hide: () => void }>();
+/**
+ * Shared per-document pointer tracking: the gesture that manufactures a hover
+ * belongs to the document, not to one tooltip. `lastMoveAt` stays null until the
+ * document reports a real pointer movement, so a host that never reports one
+ * keeps opening tooltips on hover instead of losing all of them.
+ */
+const pointerMovements = new WeakMap<Document, { lastMoveAt: number | null }>();
 
 /** Cursor offset when followCursor: right and down so the tooltip never covers the cursor. */
 const CURSOR_OFFSET_X = 12;
@@ -77,6 +91,45 @@ function assignRef<T>(ref: Ref<T> | undefined, value: T | null): void {
     return;
   }
   (ref as { current: T | null }).current = value;
+}
+
+function getPointerMovement(ownerDocument: Document): { lastMoveAt: number | null } {
+  const existing = pointerMovements.get(ownerDocument);
+  if (existing) return existing;
+
+  const state: { lastMoveAt: number | null } = { lastMoveAt: null };
+  pointerMovements.set(ownerDocument, state);
+  const noteMovement = (event: Event) => {
+    // Touch drags are a gesture, not a pointer that came to rest on a trigger.
+    if (typeof PointerEvent !== "undefined" && event instanceof PointerEvent && event.pointerType === "touch") {
+      return;
+    }
+    state.lastMoveAt = Date.now();
+  };
+  ownerDocument.addEventListener("pointermove", noteMovement, { capture: true, passive: true });
+  ownerDocument.addEventListener("mousemove", noteMovement, { capture: true, passive: true });
+  return state;
+}
+
+/** Whether the pointer came to rest on the trigger instead of arriving there on its own. */
+function pointedRecently(ownerDocument: Document): boolean {
+  const { lastMoveAt } = getPointerMovement(ownerDocument);
+  return lastMoveAt === null || Date.now() - lastMoveAt <= POINTER_INTENT_MS;
+}
+
+/**
+ * A trigger that is gone, hidden, or completely scrolled out of view has no
+ * place to anchor a bubble. Boundary clamping such a rect would paint the
+ * tooltip in a viewport corner far from the pointer, so the bubble stays hidden
+ * until it can describe something the reader can actually see.
+ */
+function isAnchorPlaceable(triggerRect: DOMRect): boolean {
+  const hasArea = triggerRect.width > 0 || triggerRect.height > 0;
+  return hasArea
+    && triggerRect.right > 0
+    && triggerRect.bottom > 0
+    && triggerRect.left < window.innerWidth
+    && triggerRect.top < window.innerHeight;
 }
 
 const OPPOSITE_PLACEMENT: Record<TooltipPlacement, TooltipPlacement> = {
@@ -250,6 +303,11 @@ export function Tooltip({
     if (!triggerRef.current) return;
 
     const triggerRect = triggerRef.current.getBoundingClientRect();
+    if (!triggerRef.current.isConnected || !isAnchorPlaceable(triggerRect)) {
+      // Nothing to describe: close instead of committing a clamped corner slot.
+      hideCurrentRef.current();
+      return;
+    }
     const bestPlacement = determineBestPlacement(triggerRect, tooltipRect, placement);
     const pos = applyBoundaryConstraints(
       getPositionForPlacement(triggerRect, tooltipRect, bestPlacement),
@@ -276,6 +334,11 @@ export function Tooltip({
     if (Date.now() < scrollSuppressUntilRef.current) return;
     const element = triggerRef.current;
     if (!element || element.closest('[hidden], [aria-hidden="true"]')) return;
+    // The same hit testing reports a hover when content slides under a
+    // stationary pointer. Nothing was aimed at, so only a pointer that moved
+    // recently opens; focus and virtual activation reach here without an event
+    // and keep their own path.
+    if (event && !pointedRecently(element.ownerDocument)) return;
     if (onBeforeShow && !onBeforeShow()) return;
     if (showTimeoutRef.current) clearTimeout(showTimeoutRef.current);
     if (followCursor && event) {
@@ -327,6 +390,14 @@ export function Tooltip({
       && (tooltipRef.current?.contains(event.relatedTarget) ?? false)
   ), [interactive]);
 
+  // Track pointer movement before the first hover, so a hover manufactured by a
+  // scroll gesture is already recognizable when it arrives.
+  useEffect(() => {
+    const ownerDocument = triggerRef.current?.ownerDocument
+      ?? (typeof document === "undefined" ? null : document);
+    if (ownerDocument) getPointerMovement(ownerDocument);
+  }, [triggerRef]);
+
   // Scrolling slides other rows under a stationary pointer and browsers re-run
   // hover hit testing while the content moves. An open tooltip then describes a
   // row the user is no longer looking at, so a document scroll closes it and
@@ -336,14 +407,31 @@ export function Tooltip({
     const ownerDocument = triggerRef.current?.ownerDocument
       ?? (typeof document === "undefined" ? null : document);
     if (!ownerDocument) return undefined;
+    const beginGesture = () => {
+      scrollSuppressUntilRef.current = Date.now() + SCROLL_SUPPRESS_MS;
+    };
     const onScroll = (event: Event) => {
       const target = event.target;
       if (target instanceof Node && tooltipRef.current?.contains(target)) return;
-      scrollSuppressUntilRef.current = Date.now() + SCROLL_SUPPRESS_MS;
+      beginGesture();
       hideCurrentRef.current();
     };
+    // Wheel and touch movement frame the same gesture: they can arrive before
+    // the first scroll event and outlive the last one, so they hold the window
+    // open on their own. An interactive tooltip's own content keeps its scroll.
+    const onGesture = (event: Event) => {
+      const target = event.target;
+      if (target instanceof Node && tooltipRef.current?.contains(target)) return;
+      beginGesture();
+    };
     ownerDocument.addEventListener("scroll", onScroll, { capture: true, passive: true });
-    return () => ownerDocument.removeEventListener("scroll", onScroll, true);
+    ownerDocument.addEventListener("wheel", onGesture, { capture: true, passive: true });
+    ownerDocument.addEventListener("touchmove", onGesture, { capture: true, passive: true });
+    return () => {
+      ownerDocument.removeEventListener("scroll", onScroll, true);
+      ownerDocument.removeEventListener("wheel", onGesture, true);
+      ownerDocument.removeEventListener("touchmove", onGesture, true);
+    };
   }, [triggerRef]);
 
   useEffect(() => {
