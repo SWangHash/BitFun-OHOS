@@ -423,8 +423,9 @@ impl ConfigManager {
                 "Configuration document cannot be adopted; continuing from defaults: error={}",
                 contract_error
             );
+            let detail = contract_error.to_string();
             return self
-                .replace_unusable_config(&content, "unadoptable-document", &contract_error)
+                .replace_unusable_config(&content, "unadoptable-document", &detail)
                 .await;
         }
 
@@ -1474,8 +1475,59 @@ mod tests {
         assert_eq!(tokio::fs::read_to_string(backup).await.unwrap(), original);
     }
 
+    /// The released 1.0.x line persisted telemetry consent as an object while this
+    /// schema stores a boolean. That document used to fail deserialization, which
+    /// left the device on a black launch surface; it now loads as-is.
     #[tokio::test]
-    async fn retired_product_id_still_requires_the_migration_tool() {
+    async fn released_1_0_config_loads_with_the_object_telemetry_shape() {
+        let temp = tempfile::tempdir().unwrap();
+        let path_manager = Arc::new(PathManager::with_user_root_for_tests(
+            temp.path().join("released-telemetry"),
+        ));
+        path_manager.initialize_user_directories().await.unwrap();
+
+        let mut released = serde_json::to_value(GlobalConfig::default()).unwrap();
+        released["app"]["language"] = serde_json::json!("ja-JP");
+        released["app"]["telemetry"] = serde_json::json!({
+            "level": "basic",
+            "sensitive_content_consent": false,
+            "version": 2
+        });
+        tokio::fs::write(
+            path_manager.app_config_file(),
+            serde_json::to_string_pretty(&released).unwrap(),
+        )
+        .await
+        .unwrap();
+
+        let manager = ConfigManager::new(manager_settings(path_manager.clone()))
+            .await
+            .expect("the released telemetry shape must not block startup");
+
+        assert_eq!(manager.config.app.language, "ja-JP");
+        assert!(manager.config.app.telemetry);
+        assert!(
+            !manager
+                .load_diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code
+                    == bitfun_config_contracts::CONFIG_LOAD_DEFAULTS_USED),
+            "the released shape is read, not discarded: {:?}",
+            manager.load_diagnostics
+        );
+        let persisted = serde_json::to_value(&manager.config).expect("config should serialize");
+        assert_eq!(
+            persisted["app"]["telemetry"],
+            serde_json::json!(true),
+            "the current schema carries the decision as a boolean and rewrites it on the next save"
+        );
+    }
+
+    /// A document that names another product is never adopted, but it must not
+    /// keep the host from starting either: the file is preserved and the runtime
+    /// continues from defaults with a diagnostic.
+    #[tokio::test]
+    async fn foreign_product_document_falls_back_to_defaults_and_preserves_the_file() {
         let temp = tempfile::tempdir().unwrap();
         let path_manager = Arc::new(PathManager::with_user_root_for_tests(
             temp.path().join("retired-product"),
@@ -1485,23 +1537,49 @@ mod tests {
   "product_id": "retired-product",
   "schema_version": 1,
   "version": "1.0.0",
-  "last_modified": "2026-01-01T00:00:00Z",
-  "app": { "language": "zh-CN" }
+  "last_modified": 1767225600000,
+  "app": { "language": "ja-JP" }
 }"#;
         tokio::fs::write(path_manager.app_config_file(), retired)
             .await
             .unwrap();
 
-        let error = match ConfigManager::new(manager_settings(path_manager.clone())).await {
-            Err(error) => error,
-            Ok(_) => panic!("retired-product config must not load"),
-        };
-        assert!(error.to_string().contains("product_id"));
+        let manager = ConfigManager::new(manager_settings(path_manager.clone()))
+            .await
+            .expect("a foreign document must not block startup");
+
         assert_eq!(
-            tokio::fs::read_to_string(path_manager.app_config_file())
+            manager.config.product_id,
+            product_identity::product_id().to_string()
+        );
+        assert_ne!(
+            manager.config.app.language, "ja-JP",
+            "another product's settings are not adopted"
+        );
+        assert!(manager.load_diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == bitfun_config_contracts::CONFIG_LOAD_DEFAULTS_USED
+                && diagnostic.message.contains("preserved")
+        }));
+
+        let mut backups = tokio::fs::read_dir(path_manager.user_config_dir().join("backups"))
+            .await
+            .unwrap();
+        let backup = backups.next_entry().await.unwrap().unwrap().path();
+        assert_eq!(
+            tokio::fs::read_to_string(backup).await.unwrap(),
+            retired,
+            "the previous document is preserved byte for byte"
+        );
+
+        let persisted: Value = serde_json::from_str(
+            &tokio::fs::read_to_string(path_manager.app_config_file())
                 .await
                 .unwrap(),
-            retired
+        )
+        .unwrap();
+        assert_eq!(
+            persisted["product_id"],
+            serde_json::json!(product_identity::product_id())
         );
     }
 
