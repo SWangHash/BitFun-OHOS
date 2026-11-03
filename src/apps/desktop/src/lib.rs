@@ -540,7 +540,6 @@ pub async fn _run() {
         show_fatal_startup_error(&format!(
             "BitFun could not initialize its configuration and cannot continue.\n\n{e}\n\nSee early-startup.log for details."
         ));
-        return;
     }
     if let Ok(config_service) = bitfun_core::service::config::get_global_config_service().await {
         for diagnostic in config_service.load_diagnostics().await {

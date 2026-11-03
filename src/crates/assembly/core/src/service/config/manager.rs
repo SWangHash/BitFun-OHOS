@@ -378,18 +378,30 @@ impl ConfigManager {
         Ok(())
     }
 
-    /// Loads an existing BitFun config, with narrow repairs for the sparse
-    /// document written by released standalone installers and for the
-    /// pre-identity document written before the config identity envelope
-    /// (product_id/schema_version/version/last_modified) was introduced.
+    /// Loads an existing config document.
+    ///
+    /// A persisted document must never keep the host from starting: on a device
+    /// the launch surface stays black and the user has no way to repair the file
+    /// from the UI. Every problem is therefore repaired, degraded, or replaced
+    /// with defaults, the original document is preserved first, and the outcome
+    /// is reported through the load diagnostics instead of a startup error.
     async fn load_existing_config(&mut self) -> BitFunResult<()> {
         let content = fs::read_to_string(&self.config_file)
             .await
             .map_err(|e| BitFunError::config(format!("Failed to read config file: {}", e)))?;
 
-        let config_value: Value = serde_json::from_str(&content).map_err(|error| {
-            BitFunError::config(format!("Failed to parse config file as JSON: {error}"))
-        })?;
+        let config_value: Value = match serde_json::from_str(&content) {
+            Ok(value) => value,
+            Err(error) => {
+                warn!(
+                    "Config file is not parseable JSON; continuing from defaults: error={}",
+                    error
+                );
+                return self
+                    .replace_unusable_config(&content, "unparseable-json", &error.to_string())
+                    .await;
+            }
+        };
         if let Err(contract_error) =
             validate_current_config_value(&config_value, "Configuration file")
         {
@@ -407,27 +419,98 @@ impl ConfigManager {
                 self.config = config;
                 return Ok(());
             }
-            return Err(contract_error);
+            warn!(
+                "Configuration document cannot be adopted; continuing from defaults: error={}",
+                contract_error
+            );
+            return self
+                .replace_unusable_config(&content, "unadoptable-document", &contract_error)
+                .await;
         }
 
-        let mut config: GlobalConfig = serde_json::from_value(config_value).map_err(|error| {
-            BitFunError::config(format!("Failed to deserialize config file: {error}"))
-        })?;
+        let root = config_value.as_object().cloned().unwrap_or_default();
+        let (mut config, salvaged) = bitfun_config_contracts::deserialize_config_leniently(&root);
         let mut diagnostics =
             bitfun_config_contracts::normalization::recover_persisted_config(&mut config);
+        for salvage in salvaged {
+            warn!(
+                "Config value could not be read and was replaced with its default: path={}, detail={}",
+                salvage.path, salvage.detail
+            );
+            diagnostics.push(ConfigDiagnostic {
+                path: self.config_file.display().to_string(),
+                message: format!(
+                    "'{}' could not be read and was replaced with its default: {}",
+                    salvage.path, salvage.detail
+                ),
+                code: bitfun_config_contracts::CONFIG_LOAD_DEFAULTS_USED.to_string(),
+                severity: ConfigDiagnosticSeverity::Warning,
+                recoverability: ConfigDiagnosticRecoverability::DefaultsUsed,
+            });
+        }
+
         let validation_result = self
             .validate_recovered_config(&mut config, &mut diagnostics)
             .await?;
         if !validation_result.valid {
-            return Err(invalid_config_error(
-                "Invalid configuration file",
-                &validation_result,
-            ));
+            // Semantic problems stay visible but never block startup: the runtime
+            // repairs what it can, and the frontend surfaces the diagnostics.
+            warn!(
+                "Loaded configuration reports unresolved problems: {:?}",
+                validation_result.errors
+            );
+            diagnostics.push(ConfigDiagnostic {
+                path: self.config_file.display().to_string(),
+                message: format!(
+                    "Configuration loaded with unresolved problems: {:?}",
+                    validation_result.errors
+                ),
+                code: "CONFIG_LOAD_UNRESOLVED_PROBLEMS".to_string(),
+                severity: ConfigDiagnosticSeverity::Warning,
+                recoverability: ConfigDiagnosticRecoverability::DefaultsUsed,
+            });
         }
 
         self.config = config;
         self.load_diagnostics = diagnostics;
         debug!("Loaded BitFun config from file without rewriting it");
+        Ok(())
+    }
+
+    /// Preserves a document this build cannot adopt and continues from defaults.
+    ///
+    /// Used only after every narrower repair declined the document, so the
+    /// settings it carried are unreachable for this build either way; keeping the
+    /// bytes guarantees they can be recovered by hand or by the migration tool.
+    async fn replace_unusable_config(
+        &mut self,
+        content: &str,
+        reason: &str,
+        detail: &str,
+    ) -> BitFunResult<()> {
+        let backup = self.backup_raw_config(content, reason).await?;
+        let mut config = GlobalConfig::default();
+        config.product_id = product_identity::product_id().to_string();
+        config.schema_version = CURRENT_CONFIG_SCHEMA_VERSION;
+        config.version = env!("CARGO_PKG_VERSION").to_string();
+        config.last_modified = chrono::Utc::now();
+        self.persist_config(&config).await?;
+        warn!(
+            "Configuration was replaced with defaults; the previous document is preserved: reason={}, backup={}",
+            reason,
+            backup.display()
+        );
+        self.load_diagnostics = vec![ConfigDiagnostic {
+            path: self.config_file.display().to_string(),
+            message: format!(
+                "Configuration was replaced with defaults ({reason}): {detail}. The previous document is preserved at {}",
+                backup.display()
+            ),
+            code: bitfun_config_contracts::CONFIG_LOAD_DEFAULTS_USED.to_string(),
+            severity: ConfigDiagnosticSeverity::Warning,
+            recoverability: ConfigDiagnosticRecoverability::DefaultsUsed,
+        }];
+        self.config = config;
         Ok(())
     }
 
