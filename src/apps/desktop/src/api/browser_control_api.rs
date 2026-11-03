@@ -3,7 +3,7 @@
 use bitfun_core::agentic::tools::browser_control::browser_launcher::{
     BrowserKind, BrowserLauncher, LaunchResult, DEFAULT_CDP_PORT,
 };
-use bitfun_core::agentic::tools::browser_control::cdp_client::CdpClient;
+use bitfun_core::agentic::tools::browser_control::cdp_client::{BrowserConnectionIssue, CdpClient};
 #[cfg(target_env = "ohos")]
 use bitfun_core::agentic::tools::implementations::control_hub_tool::disconnect_builtin_browser;
 use bitfun_core::agentic::tools::implementations::control_hub_tool::disconnect_external_browser;
@@ -232,6 +232,8 @@ pub struct BrowserControlStatusResponse {
     pub port: u16,
     pub page_count: usize,
     pub selected_browser: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub connection_issue: Option<String>,
 }
 
 #[cfg(target_env = "ohos")]
@@ -266,6 +268,7 @@ async fn builtin_browser_status(preference: &str) -> Result<BrowserControlStatus
         page_count,
         selected_browser: canonical_browser_preference(preference),
         setup_url: None,
+        connection_issue: None,
     })
 }
 
@@ -318,6 +321,16 @@ pub async fn browser_control_get_status(
     let available = !browser_connection_suppressed
         && (user_profile_connection.is_some() || legacy_matches_selection);
     let browser_ready = available || user_profile_endpoint.is_some() || legacy_matches_selection;
+    if available {
+        CdpClient::clear_browser_connection_issue(port).await;
+    }
+    let connection_issue = if available {
+        None
+    } else {
+        CdpClient::browser_connection_issue(port)
+            .await
+            .map(|issue| issue.as_str().to_string())
+    };
 
     let (version, page_count, actual_kind) = if available {
         let ver_info = if let Some(connection) = &user_profile_connection {
@@ -369,6 +382,7 @@ pub async fn browser_control_get_status(
         port,
         page_count,
         selected_browser: canonical_browser_preference(&preference),
+        connection_issue,
     })
 }
 
@@ -476,6 +490,11 @@ async fn complete_launch(
             )
             .await;
             if let Err(error) = connection {
+                CdpClient::record_browser_connection_issue(
+                    logical_port,
+                    BrowserConnectionIssue::ControlUnavailable,
+                )
+                .await;
                 return Ok(BrowserControlLaunchResponse {
                     success: false,
                     status: "user_profile_connection_failed".into(),
@@ -485,6 +504,7 @@ async fn complete_launch(
                     fallback_from: None,
                 });
             }
+            CdpClient::clear_browser_connection_issue(logical_port).await;
             Ok(BrowserControlLaunchResponse {
                 success: true,
                 status: "connected_user_profile".into(),
@@ -494,7 +514,19 @@ async fn complete_launch(
                 fallback_from: None,
             })
         }
-        other => Ok(to_launch_response(kind, other)),
+        other => {
+            let response = to_launch_response(kind, other);
+            if response.success {
+                CdpClient::clear_browser_connection_issue(logical_port).await;
+            } else if matches!(response.status.as_str(), "cdp_not_ready" | "needs_restart") {
+                CdpClient::record_browser_connection_issue(
+                    logical_port,
+                    BrowserConnectionIssue::ControlUnavailable,
+                )
+                .await;
+            }
+            Ok(response)
+        }
     }
 }
 
@@ -516,27 +548,12 @@ fn builtin_ready_response(fallback_from: Option<String>) -> BrowserControlLaunch
 #[cfg(target_env = "ohos")]
 async fn activate_builtin_fallback(
     fallback_from: &BrowserKind,
+    issue: BrowserConnectionIssue,
     reason: impl std::fmt::Display,
 ) -> Result<BrowserControlLaunchResponse, String> {
-    match get_global_config_service().await {
-        Ok(service) => {
-            if let Err(error) = service
-                .set_config("ai.browser_control_preferred_browser", "")
-                .await
-            {
-                log::warn!(
-                    "Could not persist built-in browser fallback preference: {}",
-                    error
-                );
-            }
-        }
-        Err(error) => log::warn!(
-            "Could not access browser preference while falling back to the built-in browser: {}",
-            error
-        ),
-    }
+    CdpClient::record_browser_connection_issue(DEFAULT_CDP_PORT, issue).await;
     log::warn!(
-        "Browser control falling back from {} to the built-in browser: {}",
+        "Browser control falling back from {} to the built-in browser for this request: {}",
         fallback_from,
         reason
     );
@@ -581,7 +598,8 @@ pub async fn browser_control_launch(
         Ok(result) => result,
         Err(error) => {
             #[cfg(target_env = "ohos")]
-            return activate_builtin_fallback(&kind, error).await;
+            return activate_builtin_fallback(&kind, BrowserConnectionIssue::LaunchFailed, error)
+                .await;
 
             #[cfg(not(target_env = "ohos"))]
             return Err(error.to_string());
@@ -593,6 +611,7 @@ pub async fn browser_control_launch(
     if !response.success {
         return activate_builtin_fallback(
             &kind,
+            BrowserConnectionIssue::ControlUnavailable,
             response
                 .message
                 .as_deref()
@@ -687,6 +706,7 @@ pub async fn browser_control_disconnect(
     #[cfg(target_env = "ohos")]
     if is_builtin_browser_preference(&selected_browser_preference().await?) {
         let disconnected_count = disconnect_builtin_browser().await;
+        CdpClient::clear_browser_connection_issue(0).await;
         return Ok(BrowserControlDisconnectResponse {
             success: true,
             status: if disconnected_count > 0 {
@@ -699,6 +719,7 @@ pub async fn browser_control_disconnect(
     }
     let kind = selected_browser_kind().await?;
     let disconnected_count = disconnect_external_browser(request.port).await;
+    CdpClient::clear_browser_connection_issue(request.port).await;
 
     Ok(BrowserControlDisconnectResponse {
         success: true,
@@ -716,7 +737,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn explicit_launch_clears_disconnect_suppression() {
+    async fn explicit_setup_clears_disconnect_suppression() {
         let port = 61_339;
         CdpClient::suppress_browser_connection(port).await;
         assert!(CdpClient::browser_connection_suppressed(port).await);
