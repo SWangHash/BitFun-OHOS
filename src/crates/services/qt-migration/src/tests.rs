@@ -927,6 +927,21 @@ fn a_copied_qt_distribution_yields_no_source_project() {
             installed.display()
         );
     }
+
+    // 构建脚本目录：`how_build/` 形状（只有 *.mk、打包 .cmake，和一个把源码
+    // 指向 `${PROJECT_SOURCE_DIR}/src`、自己却没有 src 的 CMakeLists.txt）。
+    let build_scripts = mkdir(&root, "how_build");
+    std::fs::write(
+        build_scripts.join("CMakeLists.txt"),
+        "find_package(Qt5 REQUIRED COMPONENTS Core)\nfile(GLOB UI_SRC ${PROJECT_SOURCE_DIR}/src/*.ui)\naux_source_directory(${PROJECT_SOURCE_DIR}/src SRC)\n",
+    )
+    .unwrap();
+    assert!(
+        probe_source_projects(&root, &[])
+            .iter()
+            .all(|path| path_key(Path::new(path)) != path_key(&build_scripts)),
+        "构建脚本目录不进原始工程候选"
+    );
 }
 
 #[test]
