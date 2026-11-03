@@ -163,11 +163,44 @@ fn default_close_button_behavior() -> String {
     "quit".to_string()
 }
 
+/// Reads the telemetry opt-in from either the current boolean or the object the
+/// released 1.0.x line wrote, where consent was `level != "off"`.
+fn deserialize_released_telemetry<'de, D>(deserializer: D) -> Result<bool, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(released_telemetry_enabled(&value))
+}
+
+fn released_telemetry_enabled(value: &serde_json::Value) -> bool {
+    match value {
+        serde_json::Value::Bool(enabled) => *enabled,
+        serde_json::Value::Object(fields) => {
+            if let Some(enabled) = fields.get("enabled").and_then(serde_json::Value::as_bool) {
+                return enabled;
+            }
+            match fields.get("level").and_then(serde_json::Value::as_str) {
+                Some(level) => !level.trim().eq_ignore_ascii_case("off"),
+                // A released document without a readable level opted in to the
+                // default (basic) level, which is what the object carried.
+                None => false,
+            }
+        }
+        _ => false,
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppConfig {
     pub language: String,
     pub auto_update: bool,
+    /// Telemetry opt-in. Released 1.0.x builds persisted a `TelemetryUserConfig`
+    /// object here (`level`, `sensitive_content_consent`, `version`) while this
+    /// schema stores the decision as a boolean, so the released object shape must
+    /// keep loading: an upgrade cannot rewrite the file before it is read.
+    #[serde(deserialize_with = "deserialize_released_telemetry")]
     pub telemetry: bool,
     pub startup_behavior: String,
     pub confirm_on_exit: bool,
@@ -3768,6 +3801,167 @@ pub fn validate_bitfun_product_identity(
     Ok(())
 }
 
+/// One part of a persisted config document that could not be read and was
+/// replaced with its default.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConfigLoadSalvage {
+    /// Dotted path of what was dropped, e.g. `app.sidebar`.
+    pub path: String,
+    /// Why it was dropped, for the log and the load diagnostics.
+    pub detail: String,
+}
+
+pub const CONFIG_LOAD_DEFAULTS_USED: &str = "CONFIG_LOAD_DEFAULTS_USED";
+
+/// Reads a persisted document section by section so one incompatible value
+/// cannot fail the whole load.
+///
+/// Released builds and the current schema disagree about individual value shapes
+/// inside the same `schema_version`, and a host that cannot read its config has
+/// nothing to show but a black window. A section that cannot be read falls back
+/// to its default, and its direct children are tried one at a time first so the
+/// rest of the section survives. Missing sections simply keep their default.
+/// Every replacement is reported to the caller.
+pub fn deserialize_config_leniently(
+    root: &serde_json::Map<String, Value>,
+) -> (GlobalConfig, Vec<ConfigLoadSalvage>) {
+    let mut config = GlobalConfig::default();
+    let mut salvaged = Vec::new();
+    let mut root = root.clone();
+
+    take_section(&mut root, "app", &mut config.app, &mut salvaged);
+    take_section(&mut root, "editor", &mut config.editor, &mut salvaged);
+    take_section(&mut root, "terminal", &mut config.terminal, &mut salvaged);
+    take_section(&mut root, "workspace", &mut config.workspace, &mut salvaged);
+    take_section(&mut root, "ai", &mut config.ai, &mut salvaged);
+    take_section(
+        &mut root,
+        "tool_permissions",
+        &mut config.tool_permissions,
+        &mut salvaged,
+    );
+    take_section(&mut root, "memories", &mut config.memories, &mut salvaged);
+    take_section(&mut root, "project", &mut config.project, &mut salvaged);
+    take_section(
+        &mut root,
+        "appearance",
+        &mut config.appearance,
+        &mut salvaged,
+    );
+    take_optional_section(
+        &mut root,
+        "mcp_servers",
+        &mut config.mcp_servers,
+        &mut salvaged,
+    );
+    take_optional_section(
+        &mut root,
+        "acp_clients",
+        &mut config.acp_clients,
+        &mut salvaged,
+    );
+    take_section(&mut root, "plugin", &mut config.plugin, &mut salvaged);
+    take_optional_section(&mut root, "font", &mut config.font, &mut salvaged);
+    take_optional_section(
+        &mut root,
+        "remote_connect_disclaimer",
+        &mut config.remote_connect_disclaimer,
+        &mut salvaged,
+    );
+
+    (config, salvaged)
+}
+
+fn take_section<T>(
+    root: &mut serde_json::Map<String, Value>,
+    key: &str,
+    target: &mut T,
+    salvaged: &mut Vec<ConfigLoadSalvage>,
+) where
+    T: serde::de::DeserializeOwned + Default,
+{
+    let Some(value) = root.remove(key) else {
+        // Missing section keeps the default this build ships with.
+        return;
+    };
+    match serde_json::from_value::<T>(value.clone()) {
+        Ok(parsed) => *target = parsed,
+        Err(error) => {
+            let detail = error.to_string();
+            match salvage_section::<T>(&value) {
+                Some((parsed, dropped)) => {
+                    *target = parsed;
+                    for child in dropped {
+                        salvaged.push(ConfigLoadSalvage {
+                            path: format!("{key}.{child}"),
+                            detail: detail.clone(),
+                        });
+                    }
+                }
+                None => salvaged.push(ConfigLoadSalvage {
+                    path: key.to_string(),
+                    detail,
+                }),
+            }
+        }
+    }
+}
+
+fn take_optional_section<T>(
+    root: &mut serde_json::Map<String, Value>,
+    key: &str,
+    target: &mut Option<T>,
+    salvaged: &mut Vec<ConfigLoadSalvage>,
+) where
+    T: serde::de::DeserializeOwned,
+{
+    let Some(value) = root.remove(key) else {
+        return;
+    };
+    if value.is_null() {
+        *target = None;
+        return;
+    }
+    match serde_json::from_value::<T>(value.clone()) {
+        Ok(parsed) => *target = Some(parsed),
+        Err(error) => salvaged.push(ConfigLoadSalvage {
+            path: key.to_string(),
+            detail: error.to_string(),
+        }),
+    }
+}
+
+/// Drop the direct children of a section object that prevent it from parsing,
+/// keeping everything else. A single incompatible child is the normal case; the
+/// cumulative pass covers a section that carries more than one.
+fn salvage_section<T>(value: &Value) -> Option<(T, Vec<String>)>
+where
+    T: serde::de::DeserializeOwned,
+{
+    let object = value.as_object()?;
+    let mut keys: Vec<String> = object.keys().cloned().collect();
+    keys.sort();
+
+    for key in &keys {
+        let mut trial = object.clone();
+        trial.remove(key);
+        if let Ok(parsed) = serde_json::from_value::<T>(Value::Object(trial)) {
+            return Some((parsed, vec![key.clone()]));
+        }
+    }
+
+    let mut working = object.clone();
+    let mut dropped = Vec::new();
+    for key in keys {
+        working.remove(&key);
+        dropped.push(key);
+        if let Ok(parsed) = serde_json::from_value::<T>(Value::Object(working.clone())) {
+            return Some((parsed, dropped));
+        }
+    }
+    None
+}
+
 pub fn validate_current_config_value(value: &Value, context: &str) -> Result<(), String> {
     let root = value
         .as_object()
@@ -3877,6 +4071,114 @@ fn reject_retired_config_fields(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod config_load_tolerance_tests {
+    use super::*;
+
+    /// The released 1.0.x line persisted telemetry consent as an object; this
+    /// schema stores it as a boolean. An upgrade cannot rewrite the file before
+    /// reading it, so both shapes have to load.
+    #[test]
+    fn released_telemetry_object_loads_as_consent() {
+        let enabled: AppConfig = serde_json::from_value(serde_json::json!({
+            "telemetry": {
+                "level": "basic",
+                "sensitive_content_consent": false,
+                "version": 2
+            }
+        }))
+        .expect("the released telemetry object must load");
+        assert!(enabled.telemetry);
+
+        let disabled: AppConfig = serde_json::from_value(serde_json::json!({
+            "telemetry": { "level": "off", "sensitive_content_consent": false, "version": 2 }
+        }))
+        .expect("a disabled released telemetry object must load");
+        assert!(!disabled.telemetry);
+
+        let current: AppConfig = serde_json::from_value(serde_json::json!({ "telemetry": true }))
+            .expect("the current boolean must load");
+        assert!(current.telemetry);
+        assert_eq!(
+            serde_json::to_value(&enabled).expect("app config should serialize")["telemetry"],
+            serde_json::json!(true),
+            "the current schema writes the decision as a boolean"
+        );
+    }
+
+    /// One unreadable value must not cost the rest of its section.
+    #[test]
+    fn lenient_load_keeps_every_readable_value_in_a_section() {
+        let root = serde_json::json!({
+            "app": {
+                "language": "en-US",
+                "sidebar": "collapsed",
+                "zoom_level": 1.25
+            }
+        });
+        let root = root.as_object().expect("fixture object").clone();
+
+        let (config, salvaged) = deserialize_config_leniently(&root);
+        assert_eq!(config.app.language, "en-US");
+        assert_eq!(config.app.zoom_level, 1.25);
+        assert_eq!(
+            serde_json::to_value(&config.app.sidebar).expect("sidebar should serialize"),
+            serde_json::to_value(SidebarConfig::default()).expect("sidebar should serialize"),
+            "only the unreadable value is replaced"
+        );
+        assert!(
+            salvaged.iter().any(|entry| entry.path == "app.sidebar"),
+            "the unreadable value must be reported: {salvaged:?}"
+        );
+    }
+
+    /// Missing sections keep the default this build ships with.
+    #[test]
+    fn lenient_load_defaults_missing_sections() {
+        let root = serde_json::json!({ "app": { "language": "ja-JP" } });
+        let root = root.as_object().expect("fixture object").clone();
+
+        let (config, salvaged) = deserialize_config_leniently(&root);
+        assert_eq!(config.app.language, "ja-JP");
+        assert!(salvaged.is_empty(), "missing sections are not failures");
+        for (section, current, default) in [
+            (
+                "editor",
+                serde_json::to_value(&config.editor).expect("editor should serialize"),
+                serde_json::to_value(EditorConfig::default()).expect("editor should serialize"),
+            ),
+            (
+                "terminal",
+                serde_json::to_value(&config.terminal).expect("terminal should serialize"),
+                serde_json::to_value(TerminalConfig::default()).expect("terminal should serialize"),
+            ),
+            (
+                "ai",
+                serde_json::to_value(&config.ai).expect("ai should serialize"),
+                serde_json::to_value(AIConfig::default()).expect("ai should serialize"),
+            ),
+        ] {
+            assert_eq!(current, default, "missing '{section}' keeps its default");
+        }
+        assert_eq!(config.product_id, product_identity::product_id());
+    }
+
+    /// A section whose every value is unreadable falls back as a whole.
+    #[test]
+    fn lenient_load_replaces_an_unreadable_section_entirely() {
+        let root = serde_json::json!({ "terminal": "not-an-object" });
+        let root = root.as_object().expect("fixture object").clone();
+
+        let (config, salvaged) = deserialize_config_leniently(&root);
+        assert_eq!(
+            serde_json::to_value(&config.terminal).expect("terminal should serialize"),
+            serde_json::to_value(TerminalConfig::default()).expect("terminal should serialize")
+        );
+        assert_eq!(salvaged.len(), 1);
+        assert_eq!(salvaged[0].path, "terminal");
+    }
 }
 
 #[cfg(test)]

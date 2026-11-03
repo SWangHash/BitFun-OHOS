@@ -740,6 +740,41 @@ mod tests {
         assert_eq!(data.workspaces[&id].id, id);
     }
 
+    /// The released line wrote neither envelope key, so the document has to be
+    /// readable from raw JSON with both fields absent, not only from a struct
+    /// this build constructed.
+    #[test]
+    fn released_json_without_envelope_keys_upgrades() {
+        let home = tempfile::tempdir().expect("temp home");
+        let home_root = canonical_temp_home(&home);
+        let root = home_root.join("released-json-workspace");
+        let id = canonical_root_id(&root);
+        let mut record = local_workspace_record(&id, &root);
+        record.id = id.clone();
+        let current = registry(&[(&id, record)], &[&id], Some(&id));
+
+        let mut released = serde_json::to_value(&current).expect("fixture should serialize");
+        {
+            let root_object = released.as_object_mut().expect("fixture object");
+            root_object.remove("format_version");
+            root_object.remove("product_id");
+        }
+
+        let mut parsed: WorkspacePersistenceData =
+            serde_json::from_value(released).expect("a released document still parses");
+        assert_eq!(parsed.format_version, 0);
+        assert!(parsed.product_id.is_empty());
+        validate_workspace_persistence_data(&parsed, &home_root)
+            .expect_err("a released document is rejected without the upgrade");
+
+        let upgrade = upgrade_legacy_workspace_persistence(&mut parsed)
+            .expect("a released document is upgraded");
+        assert!(upgrade.product_identity_was_absent);
+        validate_workspace_persistence_data(&parsed, &home_root)
+            .expect("the upgraded document validates");
+        assert_eq!(parsed.workspaces[&id].id, id);
+    }
+
     /// One interim build stamped the previous product id, so its registry is
     /// this product's data too.
     #[test]
