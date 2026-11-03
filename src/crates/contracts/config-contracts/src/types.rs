@@ -2320,8 +2320,17 @@ mod tests {
     }
 
     #[test]
-    fn current_config_rejects_retired_flow_chat_font_data() {
-        let value = current_global_config_with(serde_json::json!({
+    fn ohos_1_0_settings_are_dropped_instead_of_blocking_startup() {
+        // The OHOS 1.0.x release line always persisted the companion display
+        // mode and, once font preferences were saved, the FlowChat font
+        // snapshot. Upgrading in place must not fail validation on them.
+        let mut value = current_global_config_with(serde_json::json!({
+            "app": {
+                "ai_experience": {
+                    "enable_agent_companion": true,
+                    "agent_companion_display_mode": "desktop"
+                }
+            },
             "font": {
                 "uiSize": {
                     "level": "large"
@@ -2332,9 +2341,32 @@ mod tests {
                 }
             }
         }));
+        super::validate_current_config_value(&value, "Configuration fixture")
+            .expect("released BitFun 1.0 settings must still load");
+
+        let config: GlobalConfig = serde_json::from_value(value.clone())
+            .expect("released BitFun 1.0 settings must deserialize");
+        value = serde_json::to_value(config).expect("config should serialize");
+        assert!(value["app"]["ai_experience"]
+            .get("agent_companion_display_mode")
+            .is_none());
+        assert!(value["font"].get("flowChat").is_none());
+        assert!(value["app"]["ai_experience"]["enable_agent_companion"]
+            .as_bool()
+            .expect("the companion enable flag is still current schema"));
+        assert_eq!(value["font"]["uiSize"]["level"], "large");
+    }
+
+    #[test]
+    fn current_config_still_rejects_pre_bitfun_only_fields() {
+        let value = current_global_config_with(serde_json::json!({
+            "app": {
+                "session_config": { "defaultMode": "agent" }
+            }
+        }));
         let error = super::validate_current_config_value(&value, "Configuration fixture")
-            .expect_err("retired FlowChat font data must not enter the current runtime");
-        assert!(error.to_string().contains("font.flowChat"));
+            .expect_err("pre-BitFun data must require the explicit migration tool");
+        assert!(error.to_string().contains("app.session_config"));
     }
 
     #[test]
@@ -3781,6 +3813,17 @@ fn retired_config_field(context: &str, path: &str) -> String {
     ))
 }
 
+/// Rejects settings only a pre-BitFun document can carry, so those installs run
+/// the explicit data migration tool instead of being adopted implicitly.
+///
+/// A field belongs here only when no supported BitFun release persisted it.
+/// Fields the released BitFun line wrote itself must stay readable: they are
+/// unknown to the current schema, so serde drops them and the next save
+/// rewrites the document without them, while the raw file is backed up by the
+/// load-time repair. `app.ai_experience.agent_companion_display_mode` and
+/// `font.flowChat` are exactly that case — the OHOS 1.0.x release line
+/// serialized both unconditionally, and on-device installs cannot run the
+/// desktop migration tool at all.
 fn reject_retired_config_fields(
     root: &serde_json::Map<String, Value>,
     context: &str,
@@ -3791,23 +3834,6 @@ fn reject_retired_config_fields(
                 return Err(retired_config_field(context, &format!("app.{field}")));
             }
         }
-        if app
-            .get("ai_experience")
-            .and_then(Value::as_object)
-            .is_some_and(|ai_experience| ai_experience.contains_key("agent_companion_display_mode"))
-        {
-            return Err(retired_config_field(
-                context,
-                "app.ai_experience.agent_companion_display_mode",
-            ));
-        }
-    }
-    if root
-        .get("font")
-        .and_then(Value::as_object)
-        .is_some_and(|font| font.contains_key("flowChat"))
-    {
-        return Err(retired_config_field(context, "font.flowChat"));
     }
 
     let Some(ai) = root.get("ai").and_then(Value::as_object) else {

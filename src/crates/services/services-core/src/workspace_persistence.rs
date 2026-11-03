@@ -13,6 +13,11 @@ use std::path::{Path, PathBuf};
 
 pub const WORKSPACE_PERSISTENCE_FORMAT_VERSION: u32 = 1;
 
+/// Product ids that releases of this product line stamped into the registry
+/// before the product identity was finalized. A document carrying one of these
+/// ids holds this product's own data, not another product's.
+const LEGACY_PRODUCT_IDS: &[&str] = &["openbitfun"];
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkspacePersistenceData {
     #[serde(default)]
@@ -90,6 +95,62 @@ pub fn current_workspace_storage_id(workspace: &WorkspaceInfo) -> BitFunResult<S
             })
         }
     }
+}
+
+/// A registry document written by an acceptable earlier release and stamped
+/// with the current persistence contract during load.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UpgradedWorkspacePersistence {
+    pub previous_format_version: u32,
+    pub previous_product_id: String,
+    /// No product identity was persisted at all, i.e. the document predates the
+    /// identity envelope.
+    pub product_identity_was_absent: bool,
+}
+
+/// Stamp the current persistence contract onto a registry document written by an
+/// earlier release of this product line.
+///
+/// Released builds persisted [`WORKSPACE_PERSISTENCE_FORMAT_VERSION`] 0 without
+/// any product id (the OHOS 1.0.x line among them), and an interim build stamped
+/// `openbitfun`. Both are this product's own data and must keep loading: the
+/// records themselves are already converged by
+/// [`repair_local_workspace_identities`], so only the envelope needs the current
+/// values. A document from another product or from a newer format is left
+/// untouched, so [`validate_workspace_persistence_data`] still reports it
+/// instead of this upgrade adopting data this build cannot read.
+pub fn upgrade_legacy_workspace_persistence(
+    data: &mut WorkspacePersistenceData,
+) -> Option<UpgradedWorkspacePersistence> {
+    if data.format_version > WORKSPACE_PERSISTENCE_FORMAT_VERSION {
+        return None;
+    }
+
+    let format_is_current = data.format_version == WORKSPACE_PERSISTENCE_FORMAT_VERSION;
+    let identity_is_current = data.product_id == product_id();
+    let identity_is_legacy =
+        data.product_id.is_empty() || LEGACY_PRODUCT_IDS.contains(&data.product_id.as_str());
+    let identity_is_adoptable = identity_is_current || identity_is_legacy;
+
+    if format_is_current {
+        // A current document needs nothing unless its identity is a legacy one
+        // this product line wrote itself. Anything else is left to validation.
+        if identity_is_current || !identity_is_legacy {
+            return None;
+        }
+    } else if !identity_is_adoptable {
+        // An older format is adoptable only when the document names this product.
+        return None;
+    }
+
+    let upgrade = UpgradedWorkspacePersistence {
+        previous_format_version: data.format_version,
+        previous_product_id: data.product_id.clone(),
+        product_identity_was_absent: data.product_id.is_empty(),
+    };
+    data.format_version = WORKSPACE_PERSISTENCE_FORMAT_VERSION;
+    data.product_id = product_id().to_string();
+    Some(upgrade)
 }
 
 pub fn validate_workspace_persistence_data(
@@ -651,5 +712,86 @@ mod tests {
         assert_eq!(data.opened_workspace_ids, vec![canonical_id.clone()]);
         validate_workspace_persistence_data(&data, &home_root)
             .expect("repaired registry validates");
+    }
+
+    /// The OHOS 1.0.x line wrote `format_version` 0 with no product id at all.
+    /// An in-place upgrade must load that registry instead of black-screening.
+    #[test]
+    fn format_zero_registry_without_identity_is_stamped() {
+        let home = tempfile::tempdir().expect("temp home");
+        let home_root = canonical_temp_home(&home);
+        let root = home_root.join("upgraded-workspace");
+        let id = canonical_root_id(&root);
+        let mut record = local_workspace_record(&id, &root);
+        record.id = id.clone();
+        let mut data = registry(&[(&id, record)], &[&id], Some(&id));
+        data.format_version = 0;
+        data.product_id = String::new();
+
+        let upgrade = upgrade_legacy_workspace_persistence(&mut data)
+            .expect("a released older registry is upgraded");
+        assert_eq!(upgrade.previous_format_version, 0);
+        assert_eq!(upgrade.previous_product_id, "");
+        assert!(upgrade.product_identity_was_absent);
+        assert_eq!(data.format_version, WORKSPACE_PERSISTENCE_FORMAT_VERSION);
+        assert_eq!(data.product_id, product_id());
+        validate_workspace_persistence_data(&data, &home_root)
+            .expect("the upgraded registry validates");
+        assert_eq!(data.workspaces[&id].id, id);
+    }
+
+    /// One interim build stamped the previous product id, so its registry is
+    /// this product's data too.
+    #[test]
+    fn legacy_product_id_on_a_current_format_is_restamped() {
+        let home = tempfile::tempdir().expect("temp home");
+        let home_root = canonical_temp_home(&home);
+        let root = home_root.join("restamped-workspace");
+        let id = canonical_root_id(&root);
+        let mut record = local_workspace_record(&id, &root);
+        record.id = id.clone();
+        let mut data = registry(&[(&id, record)], &[], None);
+        data.product_id = "openbitfun".to_string();
+
+        let upgrade = upgrade_legacy_workspace_persistence(&mut data)
+            .expect("a previous product id is restamped");
+        assert_eq!(
+            upgrade.previous_format_version,
+            WORKSPACE_PERSISTENCE_FORMAT_VERSION
+        );
+        assert_eq!(upgrade.previous_product_id, "openbitfun");
+        assert!(!upgrade.product_identity_was_absent);
+        assert_eq!(data.product_id, product_id());
+        validate_workspace_persistence_data(&data, &home_root)
+            .expect("the restamped registry validates");
+    }
+
+    /// A registry from another product, or one written by a newer format, must
+    /// keep failing validation instead of being silently adopted.
+    #[test]
+    fn foreign_or_newer_registries_are_not_upgraded() {
+        let mut foreign = registry(&[], &[], None);
+        foreign.product_id = "other-product".to_string();
+        assert!(upgrade_legacy_workspace_persistence(&mut foreign).is_none());
+        assert_eq!(foreign.product_id, "other-product");
+
+        let mut newer = registry(&[], &[], None);
+        newer.format_version = WORKSPACE_PERSISTENCE_FORMAT_VERSION + 1;
+        assert!(upgrade_legacy_workspace_persistence(&mut newer).is_none());
+        assert_eq!(
+            newer.format_version,
+            WORKSPACE_PERSISTENCE_FORMAT_VERSION + 1
+        );
+
+        // An older document that names another product is not this product's.
+        let mut foreign_legacy = registry(&[], &[], None);
+        foreign_legacy.format_version = 0;
+        foreign_legacy.product_id = "other-product".to_string();
+        assert!(upgrade_legacy_workspace_persistence(&mut foreign_legacy).is_none());
+        assert_eq!(foreign_legacy.format_version, 0);
+        assert_eq!(foreign_legacy.product_id, "other-product");
+
+        let mut current = registry(&[], &[], None);
+        assert!(upgrade_legacy_workspace_persistence(&mut current).is_none());
     }
 }

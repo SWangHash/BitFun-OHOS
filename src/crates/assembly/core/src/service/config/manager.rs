@@ -574,8 +574,9 @@ impl ConfigManager {
             .or_insert_with(|| Value::from(product_identity::product_id()));
 
         if let Err(error) = validate_current_config_value(&stamped, "Configuration file") {
-            debug!(
-                "Pre-identity configuration still fails validation after stamping: {}",
+            warn!(
+                "Pre-identity configuration still fails validation after stamping: path={}, error={}",
+                self.config_file.display(),
                 error
             );
             return Ok(None);
@@ -601,6 +602,11 @@ impl ConfigManager {
             .validate_recovered_config(&mut config, &mut diagnostics)
             .await?;
         if !validation_result.valid {
+            warn!(
+                "Pre-identity configuration is still invalid after stamping: path={}, error={}",
+                self.config_file.display(),
+                invalid_config_error("Stamp repair", &validation_result)
+            );
             return Ok(None);
         }
 
@@ -1318,6 +1324,71 @@ mod tests {
             persisted["product_id"],
             serde_json::json!(product_identity::product_id())
         );
+    }
+
+    #[tokio::test]
+    async fn ohos_release_config_upgrades_in_place() {
+        // The OHOS 1.0.x line predates the config identity envelope and always
+        // persisted the companion display mode; saved font preferences also
+        // carried a FlowChat snapshot. An in-place upgrade must boot on that
+        // document instead of failing startup, and the retired keys must be
+        // dropped from the rewritten file while the original stays recoverable.
+        let temp = tempfile::tempdir().unwrap();
+        let path_manager = Arc::new(PathManager::with_user_root_for_tests(
+            temp.path().join("ohos-upgrade"),
+        ));
+        path_manager.initialize_user_directories().await.unwrap();
+        let mut released = serde_json::to_value(GlobalConfig::default()).unwrap();
+        {
+            let root = released.as_object_mut().unwrap();
+            for field in ["product_id", "schema_version", "version", "last_modified"] {
+                root.remove(field);
+            }
+            root["app"]["language"] = serde_json::json!("zh-CN");
+            root["app"]["ai_experience"] = serde_json::json!({
+                "enable_agent_companion": true,
+                "agent_companion_display_mode": "desktop"
+            });
+            root.insert(
+                "font".to_string(),
+                serde_json::json!({
+                    "uiSize": { "level": "large" },
+                    "flowChat": { "mode": "independent", "basePx": 20 }
+                }),
+            );
+        }
+        let original = serde_json::to_string_pretty(&released).unwrap();
+        tokio::fs::write(path_manager.app_config_file(), &original)
+            .await
+            .unwrap();
+
+        let manager = ConfigManager::new(manager_settings(path_manager.clone()))
+            .await
+            .unwrap();
+        assert_eq!(manager.config.app.language, "zh-CN");
+        assert!(manager.config.app.ai_experience.enable_agent_companion);
+        assert_eq!(
+            manager.config.product_id,
+            product_identity::product_id().to_string()
+        );
+
+        let persisted: Value = serde_json::from_str(
+            &tokio::fs::read_to_string(path_manager.app_config_file())
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert!(persisted["app"]["ai_experience"]
+            .get("agent_companion_display_mode")
+            .is_none());
+        assert!(persisted["font"].get("flowChat").is_none());
+        assert_eq!(persisted["font"]["uiSize"]["level"], "large");
+
+        let mut backups = tokio::fs::read_dir(path_manager.user_config_dir().join("backups"))
+            .await
+            .unwrap();
+        let backup = backups.next_entry().await.unwrap().unwrap().path();
+        assert_eq!(tokio::fs::read_to_string(backup).await.unwrap(), original);
     }
 
     #[tokio::test]
