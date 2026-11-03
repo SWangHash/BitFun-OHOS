@@ -10,34 +10,28 @@ import { isAbsolutePath } from './rehype-local-images';
  * and the document-relative target then misses. A leading `#` fragment never
  * participates in file resolution; a pure in-page anchor yields no candidates.
  */
+/**
+ * Candidate absolute paths for a clicked markdown link. Resolution is
+ * document-relative ONLY — relative to the CURRENT FILE's directory (issue
+ * #460: workspace-root-relative lookups were wrong). A workspace-relative
+ * filePath is anchored on the workspace root first so the document directory
+ * never degenerates to the browser's cwd. Absolute hrefs (drive-style or
+ * slash-rooted) are returned untouched; a pure in-page anchor yields no
+ * candidates.
+ */
 export function resolveMarkdownLinkCandidates(filePath: string, href: string, workspacePath?: string): string[] {
   const hrefPath = href.split('#')[0]?.trim() ?? '';
   if (!hrefPath) {
     return [];
   }
-  // Absolute targets (drive-style or slash-rooted) are already file paths;
-  // path-browserify is POSIX-flavoured and would glue a drive href onto the
-  // document directory, so hand them back untouched (same rule as images).
   if (isAbsolutePath(hrefPath)) {
     return [hrefPath.replace(/^\/([A-Za-z]:)/, '$1')];
   }
-  // Document-relative resolution must anchor on the CURRENT FILE's directory.
-  // A workspace-relative filePath joined against the browser's cwd would
-  // produce a bogus document directory and silently push every lookup onto
-  // the workspace-root fallback (issue #460).
   const absoluteFilePath = isAbsolutePath(filePath)
     ? filePath
     : (workspacePath ? path.join(workspacePath, filePath) : '');
   if (!absoluteFilePath) {
     return [];
   }
-  const documentRelative = path.resolve(path.dirname(absoluteFilePath), hrefPath);
-  const candidates = [documentRelative];
-  if (workspacePath) {
-    const rootRelative = path.join(workspacePath, hrefPath.replace(/^\/+/, ''));
-    if (!candidates.includes(rootRelative)) {
-      candidates.push(rootRelative);
-    }
-  }
-  return candidates;
+  return [path.resolve(path.dirname(absoluteFilePath), hrefPath)];
 }
