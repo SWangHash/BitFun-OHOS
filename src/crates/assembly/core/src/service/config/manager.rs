@@ -433,15 +433,16 @@ impl ConfigManager {
         let (mut config, salvaged) = bitfun_config_contracts::deserialize_config_leniently(&root);
         let mut diagnostics =
             bitfun_config_contracts::normalization::recover_persisted_config(&mut config);
-        for salvage in salvaged {
+        let salvaged_paths: Vec<String> = salvaged.iter().map(|entry| entry.path.clone()).collect();
+        for salvage in &salvaged {
             warn!(
-                "Config value could not be read and was replaced with its default: path={}, detail={}",
+                "Config value could not be read and was removed from the document: path={}, detail={}",
                 salvage.path, salvage.detail
             );
             diagnostics.push(ConfigDiagnostic {
                 path: self.config_file.display().to_string(),
                 message: format!(
-                    "'{}' could not be read and was replaced with its default: {}",
+                    "'{}' could not be read, so it was removed from the document and its default is used: {}",
                     salvage.path, salvage.detail
                 ),
                 code: bitfun_config_contracts::CONFIG_LOAD_DEFAULTS_USED.to_string(),
@@ -473,6 +474,23 @@ impl ConfigManager {
         }
 
         self.config = config;
+
+        // A value that could not be read is dropped from the document itself, not
+        // only from memory: otherwise every launch repeats the same warning and the
+        // file keeps a shape this build cannot read. The previous document is
+        // preserved first so the value stays recoverable.
+        if !salvaged_paths.is_empty() {
+            let backup = self
+                .backup_raw_config(&content, "unreadable-values")
+                .await?;
+            self.persist_config(&self.config.clone()).await?;
+            warn!(
+                "Removed unreadable configuration values from the document: paths={:?}, backup={}",
+                salvaged_paths,
+                backup.display()
+            );
+        }
+
         self.load_diagnostics = diagnostics;
         debug!("Loaded BitFun config from file without rewriting it");
         Ok(())
@@ -1520,6 +1538,60 @@ mod tests {
             persisted["app"]["telemetry"],
             serde_json::json!(true),
             "the current schema carries the decision as a boolean and rewrites it on the next save"
+        );
+    }
+
+    /// An unreadable value is dropped from the document itself, so the next launch
+    /// does not repeat the same warning, and the previous document is preserved.
+    #[tokio::test]
+    async fn unreadable_value_is_removed_from_the_document_and_backed_up() {
+        let temp = tempfile::tempdir().unwrap();
+        let path_manager = Arc::new(PathManager::with_user_root_for_tests(
+            temp.path().join("unreadable-value"),
+        ));
+        path_manager.initialize_user_directories().await.unwrap();
+
+        let mut broken = serde_json::to_value(GlobalConfig::default()).unwrap();
+        broken["app"]["language"] = serde_json::json!("ja-JP");
+        broken["app"]["zoom_level"] = serde_json::json!(1.25);
+        broken["app"]["sidebar"] = serde_json::json!("collapsed");
+        let broken_text = serde_json::to_string_pretty(&broken).unwrap();
+        tokio::fs::write(path_manager.app_config_file(), &broken_text)
+            .await
+            .unwrap();
+
+        let manager = ConfigManager::new(manager_settings(path_manager.clone()))
+            .await
+            .expect("an unreadable value must not block startup");
+
+        assert_eq!(manager.config.app.language, "ja-JP", "siblings survive");
+        assert_eq!(manager.config.app.zoom_level, 1.25);
+        assert!(manager.load_diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == bitfun_config_contracts::CONFIG_LOAD_DEFAULTS_USED
+                && diagnostic.message.contains("app.sidebar")
+        }));
+
+        let persisted: Value = serde_json::from_str(
+            &tokio::fs::read_to_string(path_manager.app_config_file())
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert!(
+            persisted["app"]["sidebar"].is_object(),
+            "the unreadable value is gone from the document: {}",
+            persisted["app"]["sidebar"]
+        );
+        assert_eq!(persisted["app"]["language"], serde_json::json!("ja-JP"));
+
+        let mut backups = tokio::fs::read_dir(path_manager.user_config_dir().join("backups"))
+            .await
+            .unwrap();
+        let backup = backups.next_entry().await.unwrap().unwrap().path();
+        assert_eq!(
+            tokio::fs::read_to_string(backup).await.unwrap(),
+            broken_text,
+            "the document is preserved byte for byte before it is rewritten"
         );
     }
 
