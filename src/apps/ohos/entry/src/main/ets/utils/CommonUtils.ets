@@ -289,37 +289,51 @@ export class CommonUtils {
       // the fs layer, so no per-child URI (and no per-child pasteboard grant)
       // is needed. Some OHOS builds reject URI sources here ("no such file or
       // directory"), which is why the manual walk stays as a fallback.
-      try {
-        await fs.copyDir(sourceUri, destPath);
-        return;
-      } catch (e) {
-        hilog.warn(0x0000, 'vnext', 'copy_pasteboard_entry: copyDir failed for ' + sourceUri + ': ' + e);
-      }
-      // Strategy 2: manual walk. One unreadable child must not drop the whole
-      // folder, so per-child failures are logged and tolerated.
-      await fs.mkdir(destPath, true);
-      const children = await fs.listFile(sourceUri);
-      let copied = 0;
-      for (const child of children) {
-        const childSource = sourceUri.endsWith('/') ? sourceUri + child : sourceUri + '/' + child;
-        try {
-          await CommonUtils.copy_pasteboard_entry(childSource, destPath + '/' + child);
-          copied += 1;
-        } catch (e) {
-          hilog.warn(0x0000, 'vnext', 'copy_pasteboard_entry: skip child ' + childSource + ': ' + e);
-        }
-      }
-      if (children.length > 0 && copied === 0) {
-        throw new Error('no child of ' + sourceUri + ' could be copied into the cache');
-      }
+      await CommonUtils.copy_pasteboard_directory(sourceUri, destPath);
       return;
     }
 
-    const source = await fs.open(sourceUri, fs.OpenMode.READ_ONLY);
     try {
-      await fs.copyFile(source.fd, destPath);
-    } finally {
-      await fs.close(source.fd);
+      const source = await fs.open(sourceUri, fs.OpenMode.READ_ONLY);
+      try {
+        await fs.copyFile(source.fd, destPath);
+      } finally {
+        await fs.close(source.fd);
+      }
+    } catch (fileError) {
+      // Folder URIs that stat cannot classify land here: opening the
+      // directory fails with ENOENT while the pasteboard grant is valid for
+      // the subtree. Retry the directory strategies before surfacing
+      // (issue #473 verification: "no such file or directory").
+      hilog.warn(0x0000, 'vnext', 'copy_pasteboard_entry: file copy failed for ' + sourceUri + ', retrying as directory: ' + fileError);
+      await CommonUtils.copy_pasteboard_directory(sourceUri, destPath);
+    }
+  }
+
+  /// Copy a pasteboard URI as a directory: copyDir first, then the manual
+  /// walk. Shared by the stat-detected directory path and the file-branch
+  /// retry for folder URIs that stat cannot classify.
+  private static async copy_pasteboard_directory(sourceUri: string, destPath: string): Promise<void> {
+    try {
+      await fs.copyDir(sourceUri, destPath);
+      return;
+    } catch (e) {
+      hilog.warn(0x0000, 'vnext', 'copy_pasteboard_directory: copyDir failed for ' + sourceUri + ': ' + e);
+    }
+    await fs.mkdir(destPath, true);
+    const children = await fs.listFile(sourceUri);
+    let copied = 0;
+    for (const child of children) {
+      const childSource = sourceUri.endsWith('/') ? sourceUri + child : sourceUri + '/' + child;
+      try {
+        await CommonUtils.copy_pasteboard_entry(childSource, destPath + '/' + child);
+        copied += 1;
+      } catch (e) {
+        hilog.warn(0x0000, 'vnext', 'copy_pasteboard_entry: skip child ' + childSource + ': ' + e);
+      }
+    }
+    if (children.length > 0 && copied === 0) {
+      throw new Error('no child of ' + sourceUri + ' could be copied into the cache');
     }
   }
 
