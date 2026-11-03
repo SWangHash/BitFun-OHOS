@@ -229,14 +229,6 @@ pub fn fallback_intent_decision(prompt: &str) -> TurnIntentDecision {
     decision_from_analyze_json(analyze_request(prompt))
 }
 
-pub fn merged_intent_decision(
-    model: TurnIntentDecision,
-    deterministic: &TurnIntentDecision,
-) -> TurnIntentDecision {
-    let _ = deterministic;
-    model
-}
-
 pub fn prompt_bindings(
     decision: &TurnIntentDecision,
 ) -> Option<std::collections::BTreeMap<String, String>> {
@@ -1005,14 +997,6 @@ impl IntentAnalysisContribution for QtMigrationIntentAnalyzer {
     fn fallback_decision(&self, prompt: &str) -> TurnIntentDecision {
         fallback_intent_decision(prompt)
     }
-
-    fn merge_with_deterministic(
-        &self,
-        model: TurnIntentDecision,
-        deterministic: TurnIntentDecision,
-    ) -> TurnIntentDecision {
-        merged_intent_decision(model, &deterministic)
-    }
 }
 
 #[cfg(test)]
@@ -1567,7 +1551,7 @@ mod tests {
         )
         .expect("usable analysis");
 
-        let merged = merged_intent_decision(model, &deterministic);
+        let merged = model;
         assert_eq!(
             merged.resolved_paths.get("output_project").and_then(Value::as_str),
             Some("/D/pro/out")
