@@ -55,13 +55,6 @@ pub trait IntentAnalysisContribution: Send + Sync {
     /// Deterministic decision used when the pre-filter rejects or the model
     /// call fails.
     fn fallback_decision(&self, prompt: &str) -> TurnIntentDecision;
-    fn merge_with_deterministic(
-        &self,
-        model: TurnIntentDecision,
-        _deterministic: TurnIntentDecision,
-    ) -> TurnIntentDecision {
-        model
-    }
 }
 
 /// Registry of intent-analysis contributions keyed by agent type. Assembly

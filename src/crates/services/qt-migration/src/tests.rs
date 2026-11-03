@@ -426,10 +426,11 @@ fn a_toolchain_container_binds_one_kit_but_not_an_ambiguous_root() {
     );
 
     // 桌面 kit 不是鸿蒙目标 kit：既不能凭它绑定，也不能算可用工具链。
-    let desktop = mkdir(&root, "Qt6.7.2");
-    let desktop_bin = create_qt6_host_kit(&desktop);
+    // 用户给的是装着桌面 kit 的安装根，容器分支必须靠目标 kit 校验把它挡住。
+    let desktop_root = mkdir(&root, "installer-desktop");
+    let desktop_bin = create_qt6_host_kit(&mkdir(&desktop_root, "6.7.2"));
     assert_eq!(
-        crate::scan::bindable_field_container("toolchain", desktop.to_string_lossy().as_ref()),
+        crate::scan::bindable_field_container("toolchain", desktop_root.to_string_lossy().as_ref()),
         None
     );
     assert!(!crate::strategy::toolchain_value_is_measurable(

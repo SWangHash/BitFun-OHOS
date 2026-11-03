@@ -55,8 +55,7 @@ pub async fn analyze_turn_intent(
     .await
     {
         Ok(output) => match contribution.build_decision(&output) {
-            Some(model) => contribution
-                .merge_with_deterministic(model, contribution.fallback_decision(prompt)),
+            Some(model) => model,
             None => contribution.fallback_decision(prompt),
         },
         Err(error) => {

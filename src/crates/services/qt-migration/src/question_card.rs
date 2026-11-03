@@ -56,12 +56,12 @@ fn drop_ledger_sourced_candidates(
     candidates
         .into_iter()
         .filter_map(|(field, values)| {
-            if field == crate::scan::SESSION_TOOLCHAIN_CANDIDATES_KEY {
-                return Some((field, values));
-            }
             let kept: Vec<String> = values
                 .into_iter()
-                .filter(|value| value.trim() != QT_MIGRATION_OFFICIAL_VALUE)
+                .filter(|value| {
+                    field == crate::scan::SESSION_TOOLCHAIN_CANDIDATES_KEY
+                        || value.trim() != QT_MIGRATION_OFFICIAL_VALUE
+                })
                 .filter(|value| {
                     candidate_provenance(raw_input, &field, value).as_deref() != Some("ledger")
                 })
@@ -511,6 +511,7 @@ impl QuestionTemplateContribution for QtMigrationQuestionCard {
             .get("candidates")
             .and_then(|value| serde_json::from_value(value.clone()).ok())
             .unwrap_or_default();
+        let candidates = drop_ledger_sourced_candidates(candidates, arguments);
         let resolved = resolve_question_template_full(template_id, &candidates)?;
         Some(Self::resolved_template(resolved))
     }
@@ -778,6 +779,52 @@ mod tests {
         );
         assert!(
             !offered("toolchain")
+                .iter()
+                .any(|path| path == "/Users/nobody/Qt-old")
+        );
+
+        // A replay rebuilds the card from the persisted tool-call arguments, so it
+        // must drop the same candidates the live render dropped.
+        let replayed = card()
+            .render_replay(&json!({
+                "templateId": QT_MIGRATION_PATHS_TEMPLATE_ID,
+                "candidates": {
+                    "source_project": [project.to_string_lossy().into_owned()],
+                    "output_project": ["/Users/nobody/Qt", fresh.to_string_lossy().into_owned()],
+                    "toolchain": ["/Users/nobody/Qt-old"]
+                },
+                "candidateSources": {
+                    "output_project": {
+                        "/Users/nobody/Qt": "ledger",
+                        fresh.to_string_lossy().into_owned(): "workspace"
+                    },
+                    "toolchain": { "/Users/nobody/Qt-old": "ledger" }
+                }
+            }))
+            .expect("replay succeeds");
+        let replayed_payload = replayed.payload.expect("replay payload present");
+        let replayed_offered = |field: &str| -> Vec<String> {
+            replayed_payload
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|question| question["field"] == field)
+                .and_then(|question| question["options"].as_array())
+                .map(|options| {
+                    options
+                        .iter()
+                        .filter_map(|option| option["path"].as_str())
+                        .map(str::to_string)
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        assert_eq!(
+            replayed_offered("output_project"),
+            vec![fresh.to_string_lossy().into_owned()]
+        );
+        assert!(
+            !replayed_offered("toolchain")
                 .iter()
                 .any(|path| path == "/Users/nobody/Qt-old")
         );
