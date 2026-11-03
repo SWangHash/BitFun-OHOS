@@ -571,6 +571,9 @@ pub(crate) fn bindable_field_container(field: &str, value: &str) -> Option<PathB
         // kits is descended into, and only when it names exactly one generation.
         "toolchain" if !is_concrete_toolchain(path) => {
             let kit = crate::detect::resolve_bound_kit_root(path)?;
+            if !crate::detect::is_ohos_target_kit(&kit) {
+                return None;
+            }
             scan_qmake_hits(path)
                 .into_iter()
                 .find(|bin| crate::detect::resolve_kit_root(bin) == kit.as_path())

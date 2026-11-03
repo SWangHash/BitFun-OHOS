@@ -414,7 +414,7 @@ fn a_toolchain_container_binds_one_kit_but_not_an_ambiguous_root() {
     let bin = create_qt5_ohos_kit(&mkdir(&single, "qt5"));
     assert_eq!(
         crate::scan::bindable_field_container("toolchain", single.to_string_lossy().as_ref()),
-        Some(bin)
+        Some(bin.clone())
     );
 
     let both = mkdir(&root, "installer-root");
@@ -424,6 +424,20 @@ fn a_toolchain_container_binds_one_kit_but_not_an_ambiguous_root() {
         crate::scan::bindable_field_container("toolchain", both.to_string_lossy().as_ref()),
         None
     );
+
+    // 桌面 kit 不是鸿蒙目标 kit：既不能凭它绑定，也不能算可用工具链。
+    let desktop = mkdir(&root, "Qt6.7.2");
+    let desktop_bin = create_qt6_host_kit(&desktop);
+    assert_eq!(
+        crate::scan::bindable_field_container("toolchain", desktop.to_string_lossy().as_ref()),
+        None
+    );
+    assert!(!crate::strategy::toolchain_value_is_measurable(
+        desktop_bin.to_string_lossy().as_ref()
+    ));
+    assert!(crate::strategy::toolchain_value_is_measurable(
+        bin.to_string_lossy().as_ref()
+    ));
 }
 #[test]
 fn nonexistent_output_path_is_filtered_out() {
@@ -1236,7 +1250,22 @@ fn a_launcher_script_does_not_hide_the_kits_real_binary() {
     let script_only = mkdir(&root, "script-only");
     let script_bin = mkdir(&script_only, "bin");
     std::fs::write(script_bin.join("qmake"), "#!/bin/sh\nexec real-qmake \"$@\"\n").unwrap();
-    assert_eq!(kit_tools_run_on_host(&script_only), None);
+    assert_eq!(kit_tools_run_on_host(&script_only), Some(false));
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let runnable = mkdir(&root, "runnable-wrapper");
+        let runnable_bin = mkdir(&runnable, "bin");
+        let script = runnable_bin.join("qmake");
+        std::fs::write(&script, "#!/bin/sh\necho 6.12.0\n").unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert_eq!(
+            kit_tools_run_on_host(&runnable),
+            Some(true),
+            "a wrapper script that runs is a usable kit"
+        );
+    }
 }
 
 #[test]
@@ -1345,6 +1374,26 @@ fn bound_generations_are_compared_from_disk_facts() {
         }
     );
     assert_eq!(older.measured_generations(), Some((5, 6)));
+
+    // 仓库根（Qt 标记在下一层）同样要测出代际，不能因为根目录没有 .pro 就当成未知。
+    let repo_root = mkdir(&root, "repo-root");
+    std::fs::write(
+        repo_root.join("CMakeLists.txt"),
+        "cmake_minimum_required(VERSION 3.16)\nadd_subdirectory(src)\n",
+    )
+    .unwrap();
+    create_version_fixture(
+        &mkdir(&repo_root, "src"),
+        "find_package(Qt5 COMPONENTS Widgets REQUIRED)",
+        "#include <QWidget>\n",
+    );
+    assert_eq!(
+        compare_bound_generations(&repo_root, &qt6_bin.to_string_lossy(), Some(5)),
+        QtMigrationGenerationMismatch::ProjectOlder {
+            project: 5,
+            toolchain: 6
+        }
+    );
 
     // 官方工具链是固定一代（由调用方传入），代相同则不算不一致。
     assert_eq!(

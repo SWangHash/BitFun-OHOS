@@ -256,6 +256,7 @@ pub(crate) fn kit_tools_run_on_host(kit_root: &Path) -> Option<bool> {
         if let Some(format) = executable_format(&path) {
             return Some(format == host_binary_format());
         }
+        return Some(probe_kit_qt_major(kit_root, &path).is_some());
     }
     None
 }
