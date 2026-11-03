@@ -491,19 +491,16 @@ export const AgentCompanionInAppPet: React.FC = () => {
   }, [activePetSize.height, activePetSize.width]);
 
   // Re-clamp a dragged pet after an app zoom so the scaled sprite stays on
-  // screen instead of drifting behind the enlarged UI. The x anchor stays
-  // pinned to the right edge (issue #401: vertical-only drag).
+  // screen instead of drifting behind the enlarged UI.
   useEffect(() => {
     setDragPosition(previous => {
       if (!previous) return previous;
-      const edgeGap = Math.round(PET_EDGE_GAP * uiScale);
-      const rightEdgeX = Math.max(0, window.innerWidth - dragSizeRef.current.width - edgeGap);
       return clampDragPosition(
-        rightEdgeX,
+        previous.x,
         previous.y,
         dragSizeRef.current.width,
         dragSizeRef.current.height,
-        edgeGap,
+        Math.round(PET_EDGE_GAP * uiScale),
       );
     });
   }, [uiScale]);
@@ -576,10 +573,7 @@ export const AgentCompanionInAppPet: React.FC = () => {
       return;
     }
     const size = dragSizeRef.current;
-    // The Hi button drags vertically along the right edge only (issue #401):
-    // the x anchor is pinned to the right border so the button never covers
-    // the editor status-bar controls mid-drag.
-    const nextX = Math.max(0, window.innerWidth - size.width - petEdgeGap);
+    const nextX = session.originX + (event.clientX - session.startX);
     const nextY = session.originY + (event.clientY - session.startY);
     setDragPosition(clampDragPosition(nextX, nextY, size.width, size.height, petEdgeGap));
     // Face the instantaneous movement direction (mirrors the desktop-window
