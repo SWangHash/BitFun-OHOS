@@ -10,8 +10,8 @@ use super::manager::{
 use super::manager::{WorkspaceIdentityRuntimeExt, WorkspaceInfoRuntimeExt};
 use super::persistence::{
     repair_local_workspace_identities, unsupported_workspace_persistence,
-    validate_workspace_persistence_data, WorkspacePersistenceData,
-    WORKSPACE_PERSISTENCE_FORMAT_VERSION,
+    upgrade_legacy_workspace_persistence, validate_workspace_persistence_data,
+    WorkspacePersistenceData, WORKSPACE_PERSISTENCE_FORMAT_VERSION,
 };
 use super::WorktreeTopologyFreshness;
 use crate::infrastructure::storage::{PersistenceService, StorageOptions};
@@ -1907,6 +1907,19 @@ impl WorkspaceService {
                     repaired.duplicate_record_removed
                 );
             }
+            // A registry written by an earlier release of this product line keeps
+            // its records; only the persistence envelope is stamped with the
+            // current format and product identity. Failing startup here instead
+            // would black-screen an in-place upgrade, and on a device there is no
+            // way to run the desktop data migration tool.
+            if let Some(upgraded) = upgrade_legacy_workspace_persistence(&mut data) {
+                info!(
+                    "Stamped the current workspace persistence contract onto registry data written by an earlier release: previous_format_version={}, previous_product_id='{}', product_identity_was_absent={}",
+                    upgraded.previous_format_version,
+                    upgraded.previous_product_id,
+                    upgraded.product_identity_was_absent
+                );
+            }
             validate_workspace_persistence_data(&data, &self.path_manager.miniapps_dir())?;
 
             let mut manager = self.manager.write().await;
@@ -2613,6 +2626,88 @@ mod tests {
         assert!(
             second_runtime.runtime_root.exists(),
             "non-active opened workspace runtime should also be ensured on startup"
+        );
+    }
+
+    /// The released OHOS 1.0.x line persisted no format version and no product
+    /// id. That registry must upgrade in place instead of failing startup: on a
+    /// device there is no way to run the desktop data migration tool, and the
+    /// fatal error afterwards leaves the app on a black window.
+    #[tokio::test]
+    async fn legacy_release_registry_upgrades_in_place_on_load() {
+        let env = TestEnvironment::new();
+        let service = build_test_workspace_service(env.path_manager.clone()).await;
+        let workspace_root = env.create_workspace_dir("legacy-release-workspace");
+        let workspace = WorkspaceInfo::new(
+            workspace_root,
+            WorkspaceOpenOptions {
+                auto_set_current: false,
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("workspace should initialize");
+
+        let fixture = WorkspacePersistenceData {
+            format_version: WORKSPACE_PERSISTENCE_FORMAT_VERSION,
+            product_id: product_id().to_string(),
+            workspaces: HashMap::from([(workspace.id.clone(), workspace.clone())]),
+            opened_workspace_ids: vec![workspace.id.clone()],
+            current_workspace_id: Some(workspace.id.clone()),
+            recent_workspaces: vec![workspace.id.clone()],
+            recent_assistant_workspaces: Vec::new(),
+            primary_assistant_key: None,
+            saved_at: chrono::Utc::now(),
+        };
+        let mut released_value = serde_json::to_value(&fixture).expect("fixture should serialize");
+        {
+            let root = released_value.as_object_mut().expect("fixture object");
+            root.insert("format_version".to_string(), serde_json::json!(0));
+            root.remove("product_id");
+        }
+        let released_bytes = serde_json::to_vec_pretty(&released_value).expect("fixture bytes");
+        let persistence_path = service.persistence.base_dir().join("workspace_data.json");
+        std::fs::write(&persistence_path, &released_bytes)
+            .expect("released registry should be written");
+
+        let rejected: WorkspacePersistenceData =
+            serde_json::from_slice(&released_bytes).expect("released registry parses");
+        validate_workspace_persistence_data(&rejected, &service.path_manager.miniapps_dir())
+            .expect_err("the released shape is rejected without the upgrade");
+
+        service
+            .load_workspace_history_only()
+            .await
+            .expect("a released registry must not block startup");
+
+        let restored = service
+            .require_workspace(&workspace.id)
+            .await
+            .expect("the workspace identity survives the upgrade");
+        assert_eq!(restored.id, workspace.id);
+
+        let upgraded: WorkspacePersistenceData = serde_json::from_slice(
+            &std::fs::read(&persistence_path).expect("upgraded registry should be readable"),
+        )
+        .expect("upgraded registry parses");
+        assert_eq!(
+            upgraded.format_version,
+            WORKSPACE_PERSISTENCE_FORMAT_VERSION
+        );
+        assert_eq!(upgraded.product_id, product_id());
+        assert!(upgraded.workspaces.contains_key(&workspace.id));
+
+        // The document the released build wrote stays recoverable.
+        let backup_dir = service.persistence.base_dir().join("backups");
+        let mut backups = std::fs::read_dir(&backup_dir).expect("backup directory should exist");
+        let preserved = backups.any(|entry| {
+            std::fs::read(entry.expect("backup entry").path())
+                .map(|bytes| bytes == released_bytes)
+                .unwrap_or(false)
+        });
+        assert!(
+            preserved,
+            "the released registry must be backed up before it is rewritten"
         );
     }
 

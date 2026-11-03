@@ -1,7 +1,8 @@
 use crate::util::errors::{BitFunError, BitFunResult};
 use bitfun_services_core::workspace_persistence as storage;
 pub(crate) use bitfun_services_core::workspace_persistence::{
-    RepairedLocalWorkspaceIdentity, WorkspacePersistenceData, WORKSPACE_PERSISTENCE_FORMAT_VERSION,
+    upgrade_legacy_workspace_persistence, RepairedLocalWorkspaceIdentity, WorkspacePersistenceData,
+    WORKSPACE_PERSISTENCE_FORMAT_VERSION,
 };
 use std::path::Path;
 
