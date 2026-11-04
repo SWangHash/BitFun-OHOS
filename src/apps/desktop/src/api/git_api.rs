@@ -1306,12 +1306,17 @@ pub async fn git_checkout_branch(
     )
     .await?
     {
-        return execute_remote_git_operation(
-            &state,
-            &target,
-            &["checkout".to_string(), request.branch_name],
-        )
-        .await;
+        let mut result = GitService::checkout_branch_with_executor(&request.branch_name, |args| {
+            let state = &state;
+            let target = &target;
+            async move { execute_remote_git_success(state, target, &args).await }
+        })
+        .await?;
+        if let Some(data) = result.data.as_mut() {
+            data["remoteExecution"] = serde_json::json!(true);
+            data["exitCode"] = serde_json::json!(0);
+        }
+        return Ok(result);
     }
 
     GitService::checkout_branch(&request.repository_path, &request.branch_name)

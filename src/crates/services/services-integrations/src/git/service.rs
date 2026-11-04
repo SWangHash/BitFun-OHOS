@@ -1000,21 +1000,153 @@ impl GitService {
         path: P,
         branch_name: &str,
     ) -> Result<GitOperationResult, GitError> {
-        let start_time = Instant::now();
         let repo_path = path.as_ref().to_string_lossy();
+        Self::checkout_branch_with_executor(branch_name, |args| {
+            let repo_path = &repo_path;
+            async move {
+                let args: Vec<&str> = args.iter().map(String::as_str).collect();
+                execute_git_command(repo_path, &args).await
+            }
+        })
+        .await
+    }
 
-        let args = vec!["checkout", branch_name];
-        let output = execute_git_command(&repo_path, &args).await?;
-        let duration = elapsed_ms_u64(start_time);
+    /// Shares branch checkout semantics across local and remote Git executors.
+    pub async fn checkout_branch_with_executor<F, Fut, E>(
+        branch_name: &str,
+        mut execute: F,
+    ) -> Result<GitOperationResult, E>
+    where
+        F: FnMut(Vec<String>) -> Fut,
+        Fut: std::future::Future<Output = Result<String, E>>,
+    {
+        let start_time = Instant::now();
+        let output = execute(vec![
+            "for-each-ref".to_string(),
+            "--format=%(refname)%09%(symref)".to_string(),
+            "refs/heads".to_string(),
+            "refs/remotes".to_string(),
+        ])
+        .await?;
+        let references: Vec<_> = output
+            .lines()
+            .filter_map(|line| {
+                let mut fields = line.split('\t');
+                Some((fields.next()?, fields.next()?))
+            })
+            .collect();
+        let local_name = branch_name
+            .strip_prefix("refs/heads/")
+            .unwrap_or(branch_name);
+        let local_ref = format!("refs/heads/{local_name}");
+        let remote_ref = format!(
+            "refs/remotes/{}",
+            branch_name
+                .strip_prefix("refs/remotes/")
+                .unwrap_or(branch_name)
+        );
+        let mut target_branch = local_name.to_string();
+        let mut args = vec!["checkout".to_string(), local_name.to_string()];
+        if !references.iter().any(|(name, _)| *name == local_ref) {
+            if let Some((name, target)) = references.iter().find(|(name, _)| *name == remote_ref) {
+                let remote_ref = if target.is_empty() { *name } else { *target };
+                let remote_name = remote_ref.trim_start_matches("refs/remotes/");
+                // Resolve the configured remote prefix, preserving slashes in
+                // the branch name and in remote names.
+                let remotes = execute(vec!["remote".to_string()]).await?;
+                let local_name = remotes
+                    .lines()
+                    .filter_map(|remote| remote_name.strip_prefix(remote)?.strip_prefix('/'))
+                    .min_by_key(|name| name.len());
+                let Some(local_name) = local_name else {
+                    return Ok(GitOperationResult {
+                        success: false,
+                        data: None,
+                        error: Some(format!("No configured remote owns branch '{remote_name}'")),
+                        output: None,
+                        duration: Some(elapsed_ms_u64(start_time)),
+                    });
+                };
+                target_branch = local_name.to_string();
+                let local_ref = format!("refs/heads/{local_name}");
+                if references.iter().any(|(name, _)| *name == local_ref) {
+                    let counts = execute(vec![
+                        "rev-list".to_string(),
+                        "--left-right".to_string(),
+                        "--count".to_string(),
+                        format!("{local_ref}...{remote_ref}"),
+                    ])
+                    .await?;
+                    let mut counts = counts.split_whitespace().map(str::parse::<u64>);
+                    let (Some(Ok(ahead)), Some(Ok(behind))) = (counts.next(), counts.next()) else {
+                        return Ok(GitOperationResult {
+                            success: false,
+                            data: None,
+                            error: Some(
+                                "Failed to compare local and remote branch history".to_string(),
+                            ),
+                            output: None,
+                            duration: Some(elapsed_ms_u64(start_time)),
+                        });
+                    };
+                    if ahead > 0 && behind > 0 {
+                        return Ok(GitOperationResult {
+                            success: false,
+                            data: None,
+                            error: Some(format!(
+                                "git_branch_diverged: Local branch '{local_name}' and remote branch '{remote_name}' have diverged; merge or rebase before switching"
+                            )),
+                            output: None,
+                            duration: Some(elapsed_ms_u64(start_time)),
+                        });
+                    }
+                    if behind > 0 {
+                        // Ancestry has proved this is a fast-forward. -B only
+                        // updates the branch if checkout succeeds, so a dirty
+                        // working tree cannot leave HEAD on another branch.
+                        args = vec![
+                            "checkout".to_string(),
+                            "--no-track".to_string(),
+                            "-B".to_string(),
+                            local_name.to_string(),
+                            remote_ref.to_string(),
+                        ];
+                    } else {
+                        args[1] = local_name.to_string();
+                    }
+                } else {
+                    args = vec![
+                        "checkout".to_string(),
+                        "--track".to_string(),
+                        "-b".to_string(),
+                        local_name.to_string(),
+                        remote_ref.to_string(),
+                    ];
+                }
+            }
+        }
+
+        let output = execute(args).await?;
+        // Checkout has succeeded; a failed name query must not turn the
+        // completed mutation into an operation failure.
+        let current_branch = execute(vec!["branch".to_string(), "--show-current".to_string()])
+            .await
+            .unwrap_or(target_branch);
+        let current_branch = current_branch.trim();
+        let current_branch = if current_branch.is_empty() {
+            "HEAD"
+        } else {
+            current_branch
+        };
 
         Ok(GitOperationResult {
             success: true,
             data: Some(serde_json::json!({
-                "branch": branch_name
+                "branch": current_branch
             })),
             error: None,
             output: Some(output),
-            duration: Some(duration),
+            duration: Some(elapsed_ms_u64(start_time)),
         })
     }
 

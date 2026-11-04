@@ -139,12 +139,12 @@ const BranchesView: React.FC<BranchesViewProps> = ({ workspacePath, workspaceId 
     async (name: string) => {
       const result = await checkoutBranch(name);
       if (result.success) {
-        notification.success(t('quickSwitch.notifications.switchSuccess', { branch: name }));
+        const checkedOutBranch = result.data?.branch ?? name;
         loadBranches();
-        setSelectedBranchName(name);
-      } else notification.error(result.error || t('quickSwitch.errors.switchFailed'));
+        setSelectedBranchName(checkedOutBranch);
+      }
     },
-    [checkoutBranch, notification, t, loadBranches]
+    [checkoutBranch, loadBranches]
   );
 
   const handleCreateFrom = useCallback((base: string) => {
