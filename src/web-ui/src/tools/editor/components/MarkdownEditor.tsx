@@ -420,8 +420,16 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
         setContent(nextContent);
         contentRef.current = nextContent;
         setHasChanges(false);
+        hasChangesRef.current = false;
         lastReportedDirtyRef.current = false;
         onContentChangeRef.current?.(nextContent, false);
+        // Re-anchor the session's clean baseline to the adopted disk content
+        // (the markdown counterpart of the code editor's acceptDiskState).
+        // The dirty guard recomputes isDirty against snapshot.savedContent, so
+        // leaving the baseline on the previous file content flips the freshly
+        // reloaded tab dirty again and misreports the next external write as
+        // a conflict (issue #456 residue).
+        documentSession?.capture(nextContent, false, nextContent);
         setTimeout(() => {
           editorRef.current?.setInitialContent?.(nextContent);
         }, 0);
@@ -564,13 +572,17 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
           if (!overwrite) {
             const raw = await workspaceAPI.readFileContent(filePath);
             const nextContent = raw;
-            if (!isUnmountedRef.current) {
-              setContent(nextContent);
-              contentRef.current = nextContent;
-              setHasChanges(false);
-              lastReportedDirtyRef.current = false;
-              editorRef.current?.markSaved?.();
-              onContentChangeRef.current?.(nextContent, false);
+          if (!isUnmountedRef.current) {
+            setContent(nextContent);
+            contentRef.current = nextContent;
+            setHasChanges(false);
+            hasChangesRef.current = false;
+            lastReportedDirtyRef.current = false;
+            // Re-anchor the session baseline before markSaved reports a clean
+            // state, mirroring the external-reload adoption above.
+            documentSession?.capture(nextContent, false, nextContent);
+            editorRef.current?.markSaved?.();
+            onContentChangeRef.current?.(nextContent, false);
               setTimeout(() => {
                 editorRef.current?.setInitialContent?.(nextContent);
               }, 0);
