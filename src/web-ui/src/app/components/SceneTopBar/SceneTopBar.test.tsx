@@ -153,13 +153,20 @@ describe('SceneTopBar', () => {
       act(() => target.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, detail: 2, cancelable: true })));
     }
 
-    async function pointerMove(clientX: number, clientY: number) {
+    async function pointerMove(clientX: number, clientY: number, screenX = clientX, screenY = clientY) {
       await act(async () => {
-        window.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX, clientY }));
+        window.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX, clientY, screenX, screenY }));
         await vi.dynamicImportSettled();
         // The host drag command travels through the API client on a later
         // macrotask, so let that settle before asserting on the calls.
         await new Promise(resolve => setTimeout(resolve, 0));
+      });
+    }
+
+    async function nextFrame() {
+      await act(async () => {
+        await new Promise(resolve => window.requestAnimationFrame(() => resolve(undefined)));
+        await vi.dynamicImportSettled();
       });
     }
 
@@ -289,27 +296,45 @@ describe('SceneTopBar', () => {
       expect(startDragging).not.toHaveBeenCalled();
     });
 
-    it('drives the OpenHarmony move loop once a maximized window is dragged', async () => {
-      // The ArkUI host owns window movement: tao reports drag_window() as
-      // unsupported there, so the gesture must reach window_start_dragging.
+    it('restores and tracks the pointer itself when a maximized OpenHarmony window is dragged', async () => {
+      // The ArkUI host cannot restart its move loop after the restore ends the
+      // original press, so the shell restores the window and applies the
+      // pointer delta with moveWindowTo.
       vi.stubGlobal('navigator', {
         userAgent: 'Mozilla/5.0 (Phone; OpenHarmony 5.0) AppleWebKit/537.36 ArkWeb/4.1',
         platform: '',
       });
-      const startWindowDragging = vi
-        .spyOn(workspaceAPI, 'startWindowDragging')
+      const beginWindowDrag = vi
+        .spyOn(workspaceAPI, 'beginWindowDragOhos')
+        .mockResolvedValue({ left: 100, top: 200, width: 800, height: 600 });
+      const setWindowPosition = vi
+        .spyOn(workspaceAPI, 'setWindowPositionOhos')
         .mockResolvedValue(undefined);
       try {
         const toolbar = renderBar(2, true);
         await mouseDown(toolbar);
         await pointerMove(3, 3);
-        expect(startWindowDragging).not.toHaveBeenCalled();
+        expect(beginWindowDrag).not.toHaveBeenCalled();
 
-        await pointerMove(9, 9);
-        expect(startWindowDragging).toHaveBeenCalledOnce();
+        await pointerMove(9, 9, 39, 39);
+        expect(beginWindowDrag).toHaveBeenCalledWith({ offsetX: 9, offsetY: 9 });
         expect(startDragging).not.toHaveBeenCalled();
+
+        // The restored window follows the pointer from the geometry the host
+        // reported, using screen deltas so the window moving under the pointer
+        // cannot cancel them out.
+        await pointerMove(19, 19, 49, 49);
+        await nextFrame();
+        expect(setWindowPosition).toHaveBeenCalledWith(110, 210);
+
+        act(() => window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true })));
+        setWindowPosition.mockClear();
+        await pointerMove(29, 29, 59, 59);
+        await nextFrame();
+        expect(setWindowPosition).not.toHaveBeenCalled();
       } finally {
-        startWindowDragging.mockRestore();
+        beginWindowDrag.mockRestore();
+        setWindowPosition.mockRestore();
       }
     });
 

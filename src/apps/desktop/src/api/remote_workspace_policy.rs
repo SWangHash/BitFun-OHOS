@@ -2117,6 +2117,7 @@ pub const REMOTE_WORKSPACE_COMMAND_POLICIES: &[(&str, RemoteWorkspacePolicy)] = 
     ("window_is_maximized", RemoteWorkspacePolicy::LocalOnly),
     ("window_is_minimized", RemoteWorkspacePolicy::LocalOnly),
     ("window_start_dragging", RemoteWorkspacePolicy::LocalOnly),
+    ("begin_window_drag_ohos", RemoteWorkspacePolicy::LocalOnly),
 ];
 
 pub fn remote_workspace_policy(command: &str) -> Option<RemoteWorkspacePolicy> {
