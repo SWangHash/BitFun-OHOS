@@ -1938,7 +1938,6 @@
       "pleaseSpecify": "请输入...",
       "submitPathNotFound": "{{field}}路径不存在：{{path}}",
       "submitOutputArtifact": "{{field}}指向历史迁移产物，禁止覆盖：{{path}}。请为本次迁移改用其他输出目录。",
-      "submitOutputSourceProject": "{{field}}不能是 Qt 原始工程本身：{{path}}。迁移后的鸿蒙工程会建在该容器下的 `<工程名>-ohos` 目录，请改选输出容器。",
       "submitToolchainNotAKit": "{{field}}不是可识别的 Qt 工具链：{{path}}。请填工具链 kit 根目录、它的 bin 目录，或 kit 上层的安装根目录。",
       "fieldName": {
         "source_project": "原始工程",

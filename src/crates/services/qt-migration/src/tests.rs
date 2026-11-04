@@ -490,6 +490,8 @@ fn the_workspace_root_survives_the_output_candidate_cap() {
     for name in ["output", "outputs"] {
         mkdir(&root, name);
     }
+    let app = mkdir(&root, "app");
+    touch(&app, "app.pro");
 
     let probe = card_probe(&root, &managed_root, &HashMap::new());
 
@@ -500,6 +502,23 @@ fn the_workspace_root_survives_the_output_candidate_cap() {
             root.to_string_lossy().into_owned(),
         ],
         "the probed container stays the default; the workspace root keeps the alternate slot"
+    );
+
+    // 工作区根同时被列为原始工程时，输出兜底不能跟着消失：迁移工程落在它的
+    // `<app-name>-ohos` 子目录里，根目录不是被覆盖的目标。
+    let named_root = candidate_map("source_project", vec![root.to_string_lossy().into_owned()]);
+    let named_probe = card_probe(&root, &managed_root, &named_root);
+    assert_eq!(
+        named_probe.candidates["source_project"],
+        vec![root.to_string_lossy().into_owned()]
+    );
+    assert_eq!(
+        named_probe.candidates["output_project"],
+        vec![
+            root.join("output").to_string_lossy().into_owned(),
+            root.to_string_lossy().into_owned(),
+        ],
+        "the workspace root stays the output fallback even when it is also the source project"
     );
 }
 

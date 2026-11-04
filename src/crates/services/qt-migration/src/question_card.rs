@@ -71,6 +71,35 @@ fn drop_ledger_sourced_candidates(
         .collect()
 }
 
+/// Drop source candidates whose own project description does not describe them,
+/// when the scan reported the path itself. A path the model echoes from the
+/// prompt stays: a typo the user wrote has to remain visible.
+fn drop_unfitted_source_candidates(
+    candidates: HashMap<String, Vec<String>>,
+    raw_input: &Value,
+) -> HashMap<String, Vec<String>> {
+    candidates
+        .into_iter()
+        .filter_map(|(field, values)| {
+            let kept: Vec<String> = values
+                .into_iter()
+                .filter(|value| {
+                    if field != "source_project" {
+                        return true;
+                    }
+                    match candidate_provenance(raw_input, &field, value).as_deref() {
+                        Some("prompt") | None => true,
+                        Some(_) => crate::detect::project_description_fits_directory(
+                            std::path::Path::new(value),
+                        ),
+                    }
+                })
+                .collect();
+            (!kept.is_empty()).then_some((field, kept))
+        })
+        .collect()
+}
+
 /// Merge the turn gate's prompt-resolved paths ([`QT_MIGRATION_RESOLVED_PATHS_CONTEXT_KEY`])
 /// into the model-provided candidate map, so they reach the option list even when
 /// the model does not echo them.
@@ -373,6 +402,7 @@ impl QuestionTemplateContribution for QtMigrationQuestionCard {
         // model-provided paths with paths discovered from local resources.
         // The backend validates, deduplicates, sorts, and caps the final list.
         let mut candidates = drop_ledger_sourced_candidates(ctx.candidates.clone(), ctx.raw_input);
+        candidates = drop_unfitted_source_candidates(candidates, ctx.raw_input);
 
         // Backend-owned seeding: prompt-resolved paths reach the option list
         // even when the model calls the template without echoing them in
@@ -554,13 +584,6 @@ impl QuestionTemplateContribution for QtMigrationQuestionCard {
                 {
                     return Err(format!(
                         "qt_migration_output_is_artifact: field={field}; path={value}"
-                    ));
-                }
-                if field == "output_project"
-                    && crate::detect::is_qt_source_project(std::path::Path::new(value))
-                {
-                    return Err(format!(
-                        "qt_migration_output_is_source_project: field={field}; path={value}"
                     ));
                 }
                 if field == "toolchain"
@@ -827,6 +850,63 @@ mod tests {
             !replayed_offered("toolchain")
                 .iter()
                 .any(|path| path == "/Users/nobody/Qt-old")
+        );
+
+        // A build-script directory the model reports as a workspace candidate is
+        // dropped at render time too; a prompt-typed path stays visible.
+        let build_scripts = tmp.path().join("how_build");
+        std::fs::create_dir_all(&build_scripts).unwrap();
+        std::fs::write(
+            build_scripts.join("CMakeLists.txt"),
+            "find_package(Qt5 REQUIRED COMPONENTS Core)\naux_source_directory(${PROJECT_SOURCE_DIR}/src SRC)\n",
+        )
+        .unwrap();
+        let typed = tmp.path().join("typed-project");
+        std::fs::create_dir_all(&typed).unwrap();
+        let build_scripts = build_scripts.to_string_lossy().into_owned();
+        let typed = typed.to_string_lossy().into_owned();
+
+        let mut shaped = HashMap::new();
+        shaped.insert(
+            "source_project".to_string(),
+            vec![build_scripts.clone(), typed.clone()],
+        );
+        let mut shaped_owned = owned_context(
+            shaped,
+            vec![(QT_MIGRATION_ENABLED_CONTEXT_KEY, Value::Bool(true))],
+            Vec::new(),
+        );
+        shaped_owned.raw = json!({
+            "templateId": QT_MIGRATION_PATHS_TEMPLATE_ID,
+            "candidateSources": {
+                "source_project": { build_scripts.clone(): "workspace", typed.clone(): "prompt" }
+            }
+        });
+        let shaped_resolved = card()
+            .render(&render_ctx(&shaped_owned))
+            .expect("render succeeds");
+        let shaped_payload = shaped_resolved.payload.expect("payload present");
+        let shaped_offered: Vec<String> = shaped_payload
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|question| question["field"] == "source_project")
+            .and_then(|question| question["options"].as_array())
+            .map(|options| {
+                options
+                    .iter()
+                    .filter_map(|option| option["path"].as_str())
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
+        assert!(
+            !shaped_offered.contains(&build_scripts),
+            "a build-script directory is not a source candidate: {shaped_offered:?}"
+        );
+        assert!(
+            shaped_offered.contains(&typed),
+            "a prompt-typed path stays visible: {shaped_offered:?}"
         );
     }
 
