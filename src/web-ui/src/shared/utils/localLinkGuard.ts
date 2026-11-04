@@ -67,6 +67,18 @@ async function openLocalLink(href: string): Promise<void> {
   openFileInBestTarget({ filePath });
 }
 
+/**
+ * Surfaces that render real `<a>` elements AND resolve their own local links.
+ * The rich markdown editor anchors relative hrefs on the CURRENT FILE's
+ * directory (issue #460). This guard runs in the capture phase, before any
+ * surface handler, so resolving a raw href against the workspace root here
+ * opened wrong targets for every document outside the workspace root and
+ * re-anchored home-page clicks on whatever workspace happened to be active.
+ * Their anchors are skipped; the editor's own handler still prevents the
+ * browser default, so the webview cannot navigate away.
+ */
+const SELF_HANDLING_LINK_SURFACE = '.ProseMirror, [data-bitfun-component="tiptap-editor"]';
+
 function handleDocumentClick(event: MouseEvent): void {
   if (event.defaultPrevented || event.button !== 0) {
     return;
@@ -78,6 +90,9 @@ function handleDocumentClick(event: MouseEvent): void {
   }
   const href = anchor.getAttribute('href');
   if (!href || !isLocalFileLinkHref(href)) {
+    return;
+  }
+  if (anchor.closest(SELF_HANDLING_LINK_SURFACE)) {
     return;
   }
   event.preventDefault();

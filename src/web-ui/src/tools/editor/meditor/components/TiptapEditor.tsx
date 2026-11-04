@@ -679,14 +679,18 @@ export const TiptapEditor = React.forwardRef<TiptapEditorHandle, TiptapEditorPro
             return false;
           }
           const remoteConnectionId = fileAccess?.scope.remoteConnectionId;
+          // Open in the document's own workspace: a scope-less open re-anchors
+          // on the currently active workspace, which misfiles the target in
+          // multi-workspace and home-page sessions.
+          const documentScope = fileAccess?.scope;
           void (async () => {
             for (const candidate of candidates) {
               if (await markdownLinkTargetExists(candidate, remoteConnectionId)) {
-                openFileInBestTarget({ filePath: candidate });
+                openFileInBestTarget({ filePath: candidate, ...(documentScope ? { scope: documentScope } : {}) });
                 return;
               }
             }
-            openFileInBestTarget({ filePath: candidates[0] });
+            notificationService.info(t('editor.markdownEditor.notice.linkTargetMissing'));
           })();
           return true;
         }
