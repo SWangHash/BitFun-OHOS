@@ -93,26 +93,6 @@ pub fn window_start_dragging() -> Result<(),String> {
     function.call(Ok("".to_string()), ThreadsafeFunctionCallMode::NonBlocking);
     Ok(())
 }
-/// Restore a maximized window next to the pointer and report the geometry the
-/// shell must track the pointer against (OpenHarmony only).
-#[tauri::command]
-pub async fn begin_window_drag_ohos(arg: String) -> Result<String, String> {
-    let function = {
-        let lock = JS_THREADSAFE_FUNCTION.read();
-        lock.get("begin_window_drag_ohos").cloned()
-    };
-    let Some(function) = function else {
-        return Err("The Arkts has not register the function".to_owned());
-    };
-    let res = function.call_async(Ok(arg)).await;
-    match res {
-        Ok(fut) => match fut.await {
-            Ok(result) => Ok(result),
-            Err(err) => Err(err.to_string()),
-        },
-        Err(err) => Err(err.to_string()),
-    }
-}
 #[tauri::command]
 pub fn close_window() -> Result<(),String> {
     let function = {
