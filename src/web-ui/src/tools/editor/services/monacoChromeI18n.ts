@@ -286,8 +286,7 @@ export function attachMonacoChromeI18n(container: HTMLElement, initialStrings: M
   const detachHoverLayer = attachChromeHoverLayer(container);
   const detachHintRemover = attachChromeHintHoverRemover(() => currentStrings);
 
-  const localizeAttributes = (element: HTMLElement): void => {
-    const restoreLookup = buildEnglishRestoreLookup(previousStrings);
+  const localizeAttributes = (element: HTMLElement, restoreLookup: ReadonlyArray<{ localized: string; english: string }>): void => {
     for (const attribute of ATTRIBUTES_TO_LOCALIZE) {
       const value = element.getAttribute(attribute);
       if (!value) continue;
@@ -308,16 +307,23 @@ export function attachMonacoChromeI18n(container: HTMLElement, initialStrings: M
   };
 
   const run = (): void => {
+    // One reverse lookup per pass: previously-localized text (attributes AND
+    // text nodes) is restored to English before the new language is applied.
+    const restoreLookup = buildEnglishRestoreLookup(previousStrings);
     // A diff container hosts two inner editors, so every find widget and
     // margin overlay under the container must be covered, not just the first.
     container.querySelectorAll<HTMLElement>('.find-widget').forEach(widget => {
       // Include the widget root: its own title/aria-label (e.g. "Find / Replace")
       // must not leave a persistent native bubble on ArkWeb (issue #432).
-      localizeAttributes(widget);
-      widget.querySelectorAll<HTMLElement>('[title], [aria-label], [placeholder]').forEach(localizeAttributes);
+      localizeAttributes(widget, restoreLookup);
+      widget.querySelectorAll<HTMLElement>('[title], [aria-label], [placeholder]').forEach(element => localizeAttributes(element, restoreLookup));
       const count = widget.querySelector<HTMLElement>('.matchesCount');
       if (count) {
-        const localized = localizeMatchesCount(count.textContent ?? '', currentStrings);
+        // The count text ("No results" / "N of M") is re-localized through the
+        // same restore pass, otherwise it never follows a language switch
+        // (issue #434: 无结果 ↔ No results).
+        const restored = restoreEnglishText(count.textContent ?? '', restoreLookup);
+        const localized = localizeMatchesCount(restored, currentStrings);
         if (localized !== null && localized !== count.textContent) {
           count.textContent = localized;
         }
