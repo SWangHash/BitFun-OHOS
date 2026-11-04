@@ -584,7 +584,12 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
       return '';
     });
     RustModule.registerArktsFunction('handle_restore_window', async (err: Error, arg: string): Promise<string> => {
-      windowStage.getMainWindowSync().recover();
+      try {
+        await windowStage.getMainWindowSync().recover();
+      } catch (e) {
+        const be = e as BusinessError;
+        hilog.warn(DOMAIN, TAG, `recover failed: ${be.message}`);
+      }
       return '';
     });
     RustModule.registerArktsFunction('window_is_maximized', async (err: Error, arg: string): Promise<string> => {
@@ -798,7 +803,22 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
       return '';
     });
     RustModule.registerArktsFunction('window_start_dragging', async (err: Error, arg: string): Promise<string> => {
-      windowStage.getMainWindowSync().startMoving();
+      const mainWin = windowStage.getMainWindowSync();
+      try {
+        // startMoving() only moves a normal window. A maximized or immersive
+        // window has no move handle, so the host used to restore it and leave
+        // it in place: dragging the maximized title bar moved nothing. Restore
+        // first, then hand the still-pressed gesture to the move loop so the
+        // window follows the pointer like other desktop hosts.
+        const state = mainWin.getWindowStatus();
+        if (state == window.WindowStatusType.MAXIMIZE || state == window.WindowStatusType.FULL_SCREEN) {
+          await mainWin.recover();
+        }
+        await mainWin.startMoving();
+      } catch (e) {
+        const be = e as BusinessError;
+        hilog.warn(DOMAIN, TAG, `startMoving failed (code=${be.code}): ${be.message}`);
+      }
       return '';
     });
     RustModule.registerArktsFunction('set_always_on_top_ohos', async (err: Error, arg: string): Promise<string> => {
