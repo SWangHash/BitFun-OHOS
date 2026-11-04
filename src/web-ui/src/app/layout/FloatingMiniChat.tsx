@@ -99,6 +99,12 @@ export const FloatingMiniChat: React.FC = () => {
     if (!dragState) return;
     const deltaY = dragState.startY - event.clientY;
     if (Math.abs(deltaY) < LAUNCHER_DRAG_THRESHOLD_PX) return;
+    if (!launcherClickSuppressedRef.current) {
+      // Drag start: drop the press focus so the launcher's overflow tooltip
+      // neither re-shows on focus nor lingers under the hover-focus
+      // retention guard until the next click elsewhere (issue #465).
+      (event.currentTarget as HTMLElement).blur?.();
+    }
     launcherClickSuppressedRef.current = true;
     const maxOffset = Math.max(0, window.innerHeight - 160);
     setLauncherOffsetY(Math.min(Math.max(0, dragState.originOffsetY + deltaY), maxOffset));

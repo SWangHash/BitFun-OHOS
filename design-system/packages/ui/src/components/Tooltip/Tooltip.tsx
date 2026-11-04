@@ -409,12 +409,18 @@ export function Tooltip({
     };
     const onPointerDown = () => {
       // Right-click (or any press) must dismiss the tooltip so it cannot sit
-      // over the context menu that the press opens (issue #465).
+      // over the context menu that the press opens (issue #465). The press
+      // also arms the no-re-show latch: a pressed trigger gains DOM focus,
+      // and without the latch the delegated focus/activation paths instantly
+      // re-show the tooltip (warm window makes it a visible flash) and the
+      // hover-focus retention guard then keeps it open until focus leaves.
+      // The React path arms the same latch on pointerdown.
       if (showTimeoutRef.current) {
         clearTimeout(showTimeoutRef.current);
         showTimeoutRef.current = null;
       }
       if (visible) hideTooltip();
+      suppressUntilLeaveRef.current = true;
     };
     element.addEventListener("mouseenter", onEnter);
     element.addEventListener("mouseleave", onLeave);
@@ -441,8 +447,14 @@ export function Tooltip({
       && element?.contains(element.ownerDocument.activeElement)));
     if (activated === activationRef.current) return;
     activationRef.current = activated;
-    if (activated) showTooltip();
-    else hideTooltip();
+    if (activated) {
+      // A press suppressed the tooltip until the pointer leaves; the focus
+      // containment that a press produces must not re-show it (issue #465).
+      if (suppressUntilLeaveRef.current) return;
+      showTooltip();
+    } else {
+      hideTooltip();
+    }
   }, [active, disabled, externalTriggerRef, hideTooltip, showTooltip, triggerRef]);
 
   useEffect(() => {
