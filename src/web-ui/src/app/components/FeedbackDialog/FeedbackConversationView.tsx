@@ -23,6 +23,7 @@ import { useRejectedInsertionCaret } from './useRejectedInsertionCaret';
 interface FeedbackConversationViewProps {
   record: FeedbackRecordSummary;
   resetDraftVersion: number;
+  focusDraftVersion: number;
   onInteractionStateChange: (state: { hasDraft: boolean; sending: boolean }) => void;
 }
 
@@ -31,6 +32,7 @@ type ReplyError = FeedbackApiError | 'PRIVACY_SAVE_FAILED' | null;
 export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> = ({
   record,
   resetDraftVersion,
+  focusDraftVersion,
   onInteractionStateChange,
 }) => {
   const { t, formatDate } = useI18n('common');
@@ -55,6 +57,8 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
   const [showConsent, setShowConsent] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const replyInputRef = useRef<HTMLTextAreaElement>(null);
+  const focusDraftVersionRef = useRef(focusDraftVersion);
   const nativePasteTruncatedRef = useRef(false);
   const { armRejectedInsertionCaret, restoreRejectedInsertionCaret } = useRejectedInsertionCaret();
   const topSentinelRef = useRef<HTMLDivElement>(null);
@@ -75,6 +79,13 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
     : undefined;
   const canReply = Boolean(draft.trim()) && !sending && record.status !== 'resolved';
 
+  const focusReplyInput = useCallback(() => {
+    requestAnimationFrame(() => {
+      const input = replyInputRef.current;
+      if (mountedRef.current && input && !input.disabled) input.focus();
+    });
+  }, []);
+
   useEffect(() => {
     onInteractionStateChange({ hasDraft: Boolean(draft.trim()), sending });
   }, [draft, onInteractionStateChange, sending]);
@@ -90,6 +101,12 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
     setReplyError(null);
     setShowConsent(false);
   }, [resetDraftVersion]);
+
+  useEffect(() => {
+    if (focusDraftVersionRef.current === focusDraftVersion) return;
+    focusDraftVersionRef.current = focusDraftVersion;
+    focusReplyInput();
+  }, [focusDraftVersion, focusReplyInput]);
 
   const handleConversationError = useCallback((caught: unknown) => {
     const normalized = caught instanceof FeedbackApiError
@@ -243,8 +260,11 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
     setSending(true);
     setReplyError(null);
     await executeReply(content);
-    if (mountedRef.current) setSending(false);
-  }, [draft, executeReply, record.status, sending]);
+    if (mountedRef.current) {
+      setSending(false);
+      focusReplyInput();
+    }
+  }, [draft, executeReply, focusReplyInput, record.status, sending]);
 
   const requestReply = (event: React.FormEvent) => {
     event.preventDefault();
@@ -334,7 +354,10 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
     }
     if (mountedRef.current) setShowConsent(false);
     await executeReply(content);
-    if (mountedRef.current) setSending(false);
+    if (mountedRef.current) {
+      setSending(false);
+      focusReplyInput();
+    }
   };
 
   const handleDraftChange = (textarea: HTMLTextAreaElement) => {
@@ -562,6 +585,7 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
       ) : (
         <form className="bitfun-feedback__reply" onSubmit={requestReply}>
           <Textarea
+            ref={replyInputRef}
             className="bitfun-feedback__reply-input"
             value={draft}
             maxLength={draftNativeMaxLength}

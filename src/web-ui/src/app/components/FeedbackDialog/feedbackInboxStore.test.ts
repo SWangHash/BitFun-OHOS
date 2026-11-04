@@ -185,4 +185,25 @@ describe('feedbackInboxStore', () => {
     expect(hasActionableUnreadReply(useFeedbackInboxStore.getState().records[0])).toBe(false);
     expect(useFeedbackInboxStore.getState().records[0].hasNewReply).toBe(true);
   });
+
+  it('keeps waiting-user feedback visible as Inbox attention after its message is read', async () => {
+    const { needsFeedbackInboxAttention } = await import('./feedbackInboxStore');
+
+    expect(needsFeedbackInboxAttention({
+      ...record(1),
+      status: 'waiting_user',
+      hasNewReply: false,
+    })).toBe(true);
+    expect(needsFeedbackInboxAttention({
+      ...record(1),
+      status: 'in_progress',
+      hasNewReply: false,
+    })).toBe(false);
+    expect(needsFeedbackInboxAttention({
+      ...record(1),
+      status: 'waiting_user',
+      hasNewReply: false,
+      canOpen: false,
+    })).toBe(false);
+  });
 });

@@ -67,6 +67,7 @@ const Harness: React.FC = () => {
       onVisibleCountChange={setVisibleCount}
       replySending={false}
       resetDraftVersion={0}
+      focusDraftVersion={0}
       onReplyStateChange={vi.fn()}
     />
   );

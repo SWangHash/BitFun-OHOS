@@ -17,6 +17,16 @@
   }
 }
 
+.bitfun-feedback__view-attention {
+  position: absolute;
+  top: 5px;
+  right: 8px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--bitfun-color-status-danger-content);
+}
+
 .bitfun-feedback__root {
   display: flex;
   flex: 1;
@@ -455,8 +465,8 @@
   line-height: 1.4;
 
   &.is-waiting_user {
-    border-color: var(--bf-appearance-token-color-warning);
-    color: var(--bf-appearance-token-color-warning);
+    border-color: var(--bitfun-color-status-warning-content);
+    color: var(--bitfun-color-status-warning-content);
   }
 
   &.is-resolved {
@@ -469,7 +479,7 @@
   flex-shrink: 0;
   align-items: center;
   gap: 5px;
-  color: var(--bf-appearance-token-color-error);
+  color: var(--bitfun-color-status-danger-content);
   font-weight: var(--bf-appearance-token-font-weight-medium);
 }
 

@@ -1564,7 +1564,7 @@ $_section-header-height: 22px;
   height: 6px;
   border: 1px solid var(--bitfun-color-surface-default);
   border-radius: 50%;
-  background: var(--bitfun-color-status-warning-content);
+  background: var(--bitfun-color-status-danger-content);
 }
 
 .bitfun-nav-panel__footer-menu-unread {
@@ -1572,7 +1572,7 @@ $_section-header-height: 22px;
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--bitfun-color-status-warning-content);
+  background: var(--bitfun-color-status-danger-content);
 }
 
 // Footer icon buttons: default icon fades to alternate on hover / focus-visible

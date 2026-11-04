@@ -22,6 +22,7 @@ interface FeedbackInboxViewProps {
   onVisibleCountChange: (count: number) => void;
   replySending: boolean;
   resetDraftVersion: number;
+  focusDraftVersion: number;
   onReplyStateChange: (state: { hasDraft: boolean; sending: boolean }) => void;
 }
 
@@ -33,6 +34,7 @@ export const FeedbackInboxView: React.FC<FeedbackInboxViewProps> = ({
   onVisibleCountChange,
   replySending,
   resetDraftVersion,
+  focusDraftVersion,
   onReplyStateChange,
 }) => {
   const { t, formatDate } = useI18n('common');
@@ -161,6 +163,7 @@ export const FeedbackInboxView: React.FC<FeedbackInboxViewProps> = ({
           onBack={() => onSelect(null)}
           replySending={replySending}
           resetDraftVersion={resetDraftVersion}
+          focusDraftVersion={focusDraftVersion}
           onReplyStateChange={onReplyStateChange}
         />
       ) : null}
@@ -174,6 +177,7 @@ interface FeedbackSummaryDetailProps {
   onBack: () => void;
   replySending: boolean;
   resetDraftVersion: number;
+  focusDraftVersion: number;
   onReplyStateChange: (state: { hasDraft: boolean; sending: boolean }) => void;
 }
 
@@ -183,6 +187,7 @@ const FeedbackSummaryDetail: React.FC<FeedbackSummaryDetailProps> = ({
   onBack,
   replySending,
   resetDraftVersion,
+  focusDraftVersion,
   onReplyStateChange,
 }) => {
   const { t, formatDate } = useI18n('common');
@@ -223,6 +228,7 @@ const FeedbackSummaryDetail: React.FC<FeedbackSummaryDetailProps> = ({
             key={record.feedbackId}
             record={record}
             resetDraftVersion={resetDraftVersion}
+            focusDraftVersion={focusDraftVersion}
             onInteractionStateChange={onReplyStateChange}
           />
         ) : (

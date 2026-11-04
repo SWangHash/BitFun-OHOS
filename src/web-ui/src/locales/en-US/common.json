@@ -147,6 +147,7 @@
       "updated": "Updated {{time}}",
       "newReply": "New reply",
       "entryUnread": "Feedback, new reply available",
+      "entryAttention": "Feedback needs attention",
       "selectRecord": "Select a feedback record",
       "detailTitle": "Feedback details",
       "back": "Back to feedback records",
