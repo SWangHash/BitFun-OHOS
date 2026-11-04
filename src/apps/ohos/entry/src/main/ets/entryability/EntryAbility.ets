@@ -93,6 +93,17 @@ interface SetWindowPositionArg {
   x: number;
   y: number;
 }
+interface BeginWindowDragArg {
+  /** Pointer position inside the window, in physical pixels. */
+  offsetX: number;
+  offsetY: number;
+}
+interface WindowDragGeometry {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
 interface SetMinSizeArg {
   width: number;
   height: number;
@@ -803,23 +814,61 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
       return '';
     });
     RustModule.registerArktsFunction('window_start_dragging', async (err: Error, arg: string): Promise<string> => {
-      const mainWin = windowStage.getMainWindowSync();
       try {
-        // startMoving() only moves a normal window. A maximized or immersive
-        // window has no move handle, so the host used to restore it and leave
-        // it in place: dragging the maximized title bar moved nothing. Restore
-        // first, then hand the still-pressed gesture to the move loop so the
-        // window follows the pointer like other desktop hosts.
-        const state = mainWin.getWindowStatus();
-        if (state == window.WindowStatusType.MAXIMIZE || state == window.WindowStatusType.FULL_SCREEN) {
-          await mainWin.recover();
-        }
-        await mainWin.startMoving();
+        // The host move loop only starts from the original press, so this path
+        // covers dragging a normal window: a maximized window has to be
+        // restored first, which ends that press; the shell drives that case
+        // with `begin_window_drag_ohos` + moveWindowTo instead.
+        await windowStage.getMainWindowSync().startMoving();
       } catch (e) {
         const be = e as BusinessError;
         hilog.warn(DOMAIN, TAG, `startMoving failed (code=${be.code}): ${be.message}`);
       }
       return '';
+    });
+    // Restores a maximized window next to the pointer and returns the resulting
+    // geometry, so the shell can drive the move itself.
+    //
+    // ArkUI enters its move loop from the original press only, and `recover()`
+    // ends that press: calling `startMoving()` afterwards restores the window
+    // but leaves it where it was, which made a maximized title-bar drag restore
+    // the window without following the pointer. This command restores the
+    // window, puts the grab point back under the cursor (the native
+    // restore-on-drag behavior of other desktop hosts) and reports the geometry
+    // the shell tracks the pointer against.
+    RustModule.registerArktsFunction('begin_window_drag_ohos', async (err: Error, arg: string): Promise<string> => {
+      const req: BeginWindowDragArg = JSON.parse(arg);
+      const mainWin = windowStage.getMainWindowSync();
+      try {
+        const before = mainWin.getWindowProperties().windowRect;
+        // Screen position of the grab point while the window still owns the
+        // coordinate space the web view measured against.
+        const pointerX = before.left + req.offsetX;
+        const pointerY = before.top + req.offsetY;
+        const grabRatio = before.width > 0 ? req.offsetX / before.width : 0;
+        let rect = before;
+        const state = mainWin.getWindowStatus();
+        if (state == window.WindowStatusType.MAXIMIZE || state == window.WindowStatusType.FULL_SCREEN) {
+          await mainWin.recover();
+          rect = mainWin.getWindowProperties().windowRect;
+          await mainWin.moveWindowTo(
+            Math.round(pointerX - grabRatio * rect.width),
+            Math.round(pointerY - req.offsetY),
+          );
+          rect = mainWin.getWindowProperties().windowRect;
+        }
+        const result: WindowDragGeometry = {
+          left: rect.left,
+          top: rect.top,
+          width: rect.width,
+          height: rect.height,
+        };
+        return JSON.stringify(result);
+      } catch (e) {
+        const be = e as BusinessError;
+        hilog.warn(DOMAIN, TAG, `begin_window_drag failed (code=${be.code}): ${be.message}`);
+        throw new Error(`begin_window_drag failed: ${be.message}`);
+      }
     });
     RustModule.registerArktsFunction('set_always_on_top_ohos', async (err: Error, arg: string): Promise<string> => {
       const req: SetAlwaysOnTopArg = JSON.parse(arg);

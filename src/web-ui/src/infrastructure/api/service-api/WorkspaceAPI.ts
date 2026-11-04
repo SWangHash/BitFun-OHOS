@@ -238,6 +238,14 @@ function mapWorkspaceSearchIndexTaskHandle(
   };
 }
 
+/** Window geometry (physical pixels) a host-driven window drag tracks against. */
+export interface OhosWindowDragGeometry {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
 export class WorkspaceAPI {
    
   async closeWorkspace(): Promise<void> {
@@ -1372,6 +1380,27 @@ export class WorkspaceAPI {
       await api.invoke('window_start_dragging');
     } catch (error) {
       throw createTauriCommandError('window_start_dragging', error);
+    }
+  }
+
+  /**
+   * OpenHarmony only: restore a maximized window next to the grab point and
+   * report the geometry a shell-driven drag tracks the pointer against.
+   *
+   * ArkUI cannot restart its move loop after a restore ends the original press,
+   * so the maximized title-bar drag is driven with `setWindowPositionOhos()`.
+   */
+  async beginWindowDragOhos(request: {
+    offsetX: number;
+    offsetY: number;
+  }): Promise<OhosWindowDragGeometry> {
+    try {
+      const raw = await api.invoke<string>('begin_window_drag_ohos', {
+        arg: JSON.stringify(request),
+      });
+      return JSON.parse(raw) as OhosWindowDragGeometry;
+    } catch (error) {
+      throw createTauriCommandError('begin_window_drag_ohos', error, request);
     }
   }
 

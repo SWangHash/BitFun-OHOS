@@ -32,7 +32,7 @@
 ### 1. 窗口拖拽
 
 - 拖动标题栏 / 拖拽区移动窗口，复用既有 `window_start_dragging` ArkTS 函数；
-- 最大化 / 还原态下拖动行为符合鸿蒙 PC 窗口管理语义：最大化状态下起拖时先 `recover()` 还原窗口，再把仍按下的手势交给 `startMoving()`，窗口跟随指针移动；单纯点击标题栏不还原窗口（Web UI 的 `useWindowChromeDrag` 需等指针移动超过阈值才请求拖动）。
+- 最大化 / 还原态下拖动行为符合鸿蒙 PC 窗口管理语义：普通窗口走宿主 `startMoving()` 移动循环；最大化窗口先由 `begin_window_drag_ohos` 还原并把抓取点放回指针下（`recover()` 会结束原始按下，ArkUI 无法再重启移动循环），随后由外壳按指针位移调用 `moveWindowTo` 跟随。单纯点击标题栏不还原窗口（Web UI 的 `useWindowChromeDrag` 需等指针移动超过阈值才请求拖动）。
 
 ### 2. 系统到应用拖入
 
