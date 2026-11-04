@@ -1,5 +1,4 @@
 import { appManager } from '../../services/AppManager';
-import { loadPanelWidth, RIGHT_PANEL_CONFIG, STORAGE_KEYS } from '../../layout/panelConfig';
 
 /** Explicit, synchronous layout writes remain safe when open requests repeat. */
 export function expandSessionAuxPane(): void {
@@ -9,10 +8,6 @@ export function expandSessionAuxPane(): void {
     detail: { noAnimation: true },
   }));
   appManager.updateLayout({
-    rightPanelWidth: loadPanelWidth(
-      STORAGE_KEYS.RIGHT_PANEL_LAST_WIDTH,
-      RIGHT_PANEL_CONFIG.COMFORTABLE_DEFAULT,
-    ),
     rightPanelCollapsed: false,
   });
 }

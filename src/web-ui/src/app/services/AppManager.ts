@@ -79,9 +79,9 @@ export class AppManager implements IAppManager {
       return;
     }
 
-    if (typeof layout.rightPanelWidth === 'number') {
-      savePanelWidth(STORAGE_KEYS.RIGHT_PANEL_LAST_WIDTH, layout.rightPanelWidth);
-    }
+    // rightPanelWidth is the responsive effective width. SessionScene owns the
+    // persisted user ratio and writes the legacy pixel fallback only on an
+    // explicit divider action, so window resizing cannot replace that intent.
     if (typeof layout.bottomTerminalPanelHeight === 'number') {
       savePanelWidth(STORAGE_KEYS.BOTTOM_TERMINAL_PANEL_LAST_HEIGHT, layout.bottomTerminalPanelHeight);
     }

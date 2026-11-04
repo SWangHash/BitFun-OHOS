@@ -200,9 +200,30 @@ export const STORAGE_KEYS = {
   LEFT_PANEL_COLLAPSED: 'bitfun:leftPanelCollapsed',
   RIGHT_PANEL_COLLAPSED: 'bitfun:rightPanelCollapsed',
   LEFT_PANEL_LAST_WIDTH: 'bitfun:leftPanelLastWidth',   // Remembered width before collapse
-  RIGHT_PANEL_LAST_WIDTH: 'bitfun:rightPanelLastWidth', // Remembered width before collapse
+  RIGHT_PANEL_LAST_WIDTH: 'bitfun:rightPanelLastWidth', // Legacy/fallback pixel width
+  RIGHT_PANEL_RATIO: 'bitfun:rightPanelRatio',         // User-selected share of SessionScene width
   BOTTOM_TERMINAL_PANEL_LAST_HEIGHT: 'bitfun:bottomTerminalPanelLastHeight',
 } as const;
+
+export function panelRatioFromWidth(width: number, referenceWidth: number): number | null {
+  if (!Number.isFinite(width) || !Number.isFinite(referenceWidth) || width <= 0 || referenceWidth <= 0) {
+    return null;
+  }
+  return Math.min(1, width / referenceWidth);
+}
+
+export function panelRatioReferenceWidth(viewportWidth: number, containerWidth: number): number | null {
+  if (Number.isFinite(viewportWidth) && viewportWidth > 0) return viewportWidth;
+  if (Number.isFinite(containerWidth) && containerWidth > 0) return containerWidth;
+  return null;
+}
+
+export function panelWidthFromRatio(ratio: number, referenceWidth: number): number | null {
+  if (!Number.isFinite(ratio) || !Number.isFinite(referenceWidth) || ratio <= 0 || ratio > 1 || referenceWidth <= 0) {
+    return null;
+  }
+  return ratio * referenceWidth;
+}
 
 /**
  * Save panel width to local storage.
@@ -231,5 +252,29 @@ export function loadPanelWidth(key: string, defaultValue: number): number {
     log.warn('Failed to load panel width', { key, defaultValue, error: e });
   }
   return defaultValue;
+}
+
+export function savePanelRatio(key: string, ratio: number): void {
+  if (!Number.isFinite(ratio) || ratio <= 0 || ratio > 1) return;
+  try {
+    storage.setItem(key, String(ratio));
+  } catch (e) {
+    log.warn('Failed to save panel ratio', { key, ratio, error: e });
+  }
+}
+
+export function loadPanelRatio(key: string): number | null {
+  try {
+    const stored = storage.getItem(key);
+    if (stored) {
+      const parsed = Number.parseFloat(stored);
+      if (Number.isFinite(parsed) && parsed > 0 && parsed <= 1) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    log.warn('Failed to load panel ratio', { key, error: e });
+  }
+  return null;
 }
 
