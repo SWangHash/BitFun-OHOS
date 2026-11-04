@@ -16,14 +16,28 @@ describe('OpenHarmony feedback submission contract', () => {
   });
 
   it('shows unread attention only for conversations that can be opened and acknowledged', () => {
-    const footer = readSource('../NavPanel/components/PersistentFooterActions.tsx');
     const inbox = readSource('./FeedbackInboxView.tsx');
     const store = readSource('./feedbackInboxStore.ts');
 
     expect(store).toContain('export function hasActionableUnreadReply');
     expect(store).toContain('record.canOpen && record.hasNewReply');
-    expect(footer).toContain('state.records.some(hasActionableUnreadReply)');
     expect(inbox).toContain('hasActionableUnreadReply(record)');
+  });
+
+  it('shows Inbox-tab attention for unread replies and waiting-user feedback', () => {
+    const dialog = readSource('./FeedbackDialog.tsx');
+    const footer = readSource('../NavPanel/components/PersistentFooterActions.tsx');
+    const store = readSource('./feedbackInboxStore.ts');
+    const styles = readSource('./FeedbackDialog.scss');
+
+    expect(store).toContain('export function needsFeedbackInboxAttention');
+    expect(store).toContain("record.hasNewReply || record.status === 'waiting_user'");
+    expect(dialog).toContain('state.records.some(needsFeedbackInboxAttention)');
+    expect(dialog).toContain('className="bitfun-feedback__view-attention"');
+    expect(styles).toContain('.bitfun-feedback__view-attention {');
+    expect(styles).toContain('color: var(--bitfun-color-status-warning-content);');
+    expect(styles).toContain('color: var(--bitfun-color-status-danger-content);');
+    expect(footer).toContain('className="bitfun-nav-panel__footer-more-unread"');
   });
 
   it('resets the feedback Inbox display window when the dialog closes', () => {

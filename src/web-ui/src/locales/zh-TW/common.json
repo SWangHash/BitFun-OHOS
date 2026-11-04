@@ -147,6 +147,7 @@
       "updated": "更新於 {{time}}",
       "newReply": "有新回覆",
       "entryUnread": "反饋，有新回覆",
+      "entryAttention": "反饋需要處理",
       "selectRecord": "請選擇一條反饋記錄",
       "detailTitle": "反饋詳情",
       "back": "返回反饋記錄",

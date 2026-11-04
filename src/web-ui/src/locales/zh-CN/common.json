@@ -147,6 +147,7 @@
       "updated": "更新于 {{time}}",
       "newReply": "有新回复",
       "entryUnread": "反馈，有新回复",
+      "entryAttention": "反馈需要处理",
       "selectRecord": "请选择一条反馈记录",
       "detailTitle": "反馈详情",
       "back": "返回反馈记录",

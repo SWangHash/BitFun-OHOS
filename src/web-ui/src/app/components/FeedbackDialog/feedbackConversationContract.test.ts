@@ -166,6 +166,19 @@ describe('feedback conversation contract', () => {
     expect(source).toContain('value.replace(/^\\s+/, \'\')');
   });
 
+  it('restores reply focus after sending and after choosing to continue editing', () => {
+    const conversation = readSource('./FeedbackConversationView.tsx');
+    const dialog = readSource('./FeedbackDialog.tsx');
+
+    expect(conversation).toContain('const replyInputRef = useRef<HTMLTextAreaElement>(null)');
+    expect(conversation).toContain('ref={replyInputRef}');
+    expect(conversation).toContain('focusReplyInput();');
+    expect(conversation).toContain('focusDraftVersionRef.current === focusDraftVersion');
+    expect(dialog).toContain('setReplyFocusVersion(current => current + 1)');
+    expect(dialog).toContain('focusDraftVersion={replyFocusVersion}');
+    expect(dialog).toContain('onOpenChange={continueEditingReply}');
+  });
+
   it('limits paste and beforeinput before changing the controlled draft', () => {
     const source = readSource('./FeedbackConversationView.tsx');
     const pasteHandler = source.slice(
