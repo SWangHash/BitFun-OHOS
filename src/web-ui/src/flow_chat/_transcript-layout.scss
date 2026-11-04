@@ -1,6 +1,8 @@
 // The transcript reserves a lane for turn navigation before sizing its column.
 // Keep the lane geometry shared with the rail so narrow panes cannot overlap it.
-$turn-rail-offset: 4px;
+// The rail sits flush on the pane's leading edge: its markers are the leftmost
+// thing in the transcript, so no offset is held back for a gutter.
+$turn-rail-offset: 0px;
 $turn-rail-width: 30px;
 
 @mixin viewport {
