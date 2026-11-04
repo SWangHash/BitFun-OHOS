@@ -67,8 +67,11 @@ function catalogLucide(name: IconName): LucideIcon {
 const log = createLogger('GlobalSearch');
 const SEARCH_DEBOUNCE_MS = 90;
 /** Results fetched per group per search run (issue #468: the 20-item page is
- * a UI slice; the fetch budget behind "load more" is intentionally larger). */
-const SEARCH_FETCH_LIMIT_PER_GROUP = 100;
+ * a UI slice; the fetch budget behind "load more" is intentionally larger.
+ * The file-search backend clamps at 2000; session content search is capped
+ * at 100 by the shared product-search contract, so message groups saturate
+ * earlier than file groups.) */
+const SEARCH_FETCH_LIMIT_PER_GROUP = 500;
 /** Visible results per group before the "load more" button. */
 const SEARCH_PAGE_SIZE_PER_GROUP = 20;
 const SEARCH_QUERY_MAX_LENGTH = 512;
