@@ -7,6 +7,8 @@ import {
   Context,
   Permissions,
   Want,
+  WantAgent,
+  wantAgent,
   wantConstant
 } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
@@ -21,6 +23,7 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import { buffer } from '@kit.ArkTS';
 import { DesktopSystemService } from '../services/DesktopSystemService';
 import { notificationManager } from '@kit.NotificationKit';
+import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
 import RustModule from 'libbitfun_desktop_lib.so';
 import { AppUpdater, UpdateCheckResult } from '../utils/AppUpdater';
 import { CommonUtils } from '../utils/CommonUtils';
@@ -52,6 +55,9 @@ const SAVE_FILE_TAG = 'BitFunSaveFile';
 // Log tag of the system light/dark mode bridge so the Ability-side report, the
 // native emit and the web-ui apply can be compared as one timeline.
 const THEME_MODE_TAG = 'BitFunThemeMode';
+// Log tag of the scheduled-job keep-alive bridge so ability lifecycle decisions,
+// task-cancel callbacks, and Rust-side cron ticks filter as one component.
+const SCHEDULED_JOB_TAG = 'BitFunScheduledJob';
 // Permission required by `save_file_to_downloads_ohos` to write into the user
 // Download directory. Declared in module.json5 but only granted on first
 // `requestPermissionsFromUser` — see `ensureDownloadDirPermission`.
@@ -150,6 +156,21 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
   // never reports its startup handoff. Any explicit chrome request from the
   // shell cancels it.
   private startupChromeWatchdog: number = -1;
+  // Scheduled jobs are triggered by an in-process timer, so the process must
+  // survive the background freeze. The keep-alive is held only while at least
+  // one enabled job exists; `continuousTaskCancel` fires when the user dismisses
+  // the required notification or the system stops the task.
+  private scheduledJobKeepAliveActive: boolean = false;
+  private scheduledJobCancelCallback = (info: backgroundTaskManager.ContinuousTaskCancelInfo): void => {
+    this.scheduledJobKeepAliveActive = false;
+    hilog.warn(
+      DOMAIN,
+      SCHEDULED_JOB_TAG,
+      'Continuous task cancelled: id=%{public}d reason=%{public}d',
+      info.id,
+      info.reason
+    );
+  };
 
   async onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Promise<void> {
     super.onCreate(want, launchParam);
@@ -174,10 +195,112 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     this.notifySystemColorMode();
   }
 
+  onBackground(): void {
+    this.acquireScheduledJobKeepAlive();
+  }
+
+  onForeground(): void {
+    this.releaseScheduledJobKeepAlive();
+  }
+
+  /**
+   * Hold a `taskKeeping` continuous task so the Rust cron loop keeps running
+   * while the app is backgrounded or the screen is off. Requesting in
+   * `onBackground` (instead of at startup) keeps the required notification out
+   * of the foreground experience.
+   */
+  private acquireScheduledJobKeepAlive(): void {
+    if (this.scheduledJobKeepAliveActive) return;
+    let hasEnabledJobs: boolean = false;
+    try {
+      hasEnabledJobs = RustModule.hasEnabledScheduledJobs();
+    } catch (error) {
+      const businessError = error as BusinessError;
+      hilog.warn(
+        DOMAIN,
+        SCHEDULED_JOB_TAG,
+        'Failed to query enabled scheduled jobs: %{public}s',
+        businessError.message
+      );
+      return;
+    }
+    if (!hasEnabledJobs) return;
+
+    const context = this.context;
+    if (context === undefined) return;
+    const agentInfo: wantAgent.WantAgentInfo = {
+      wants: [{
+        bundleName: context.abilityInfo.bundleName,
+        abilityName: context.abilityInfo.name,
+      }],
+      actionType: wantAgent.OperationType.START_ABILITY,
+      requestCode: 0,
+      actionFlags: [wantAgent.WantAgentFlags.UPDATE_PRESENT_FLAG],
+    };
+    try {
+      backgroundTaskManager.on('continuousTaskCancel', this.scheduledJobCancelCallback);
+    } catch (error) {
+      const businessError = error as BusinessError;
+      hilog.warn(
+        DOMAIN,
+        SCHEDULED_JOB_TAG,
+        'Failed to register continuous task cancel listener: %{public}s',
+        businessError.message
+      );
+    }
+    wantAgent.getWantAgent(agentInfo).then((agent: WantAgent) => {
+      return backgroundTaskManager.startBackgroundRunning(
+        context,
+        backgroundTaskManager.BackgroundMode.TASK_KEEPING,
+        agent
+      );
+    }).then(() => {
+      this.scheduledJobKeepAliveActive = true;
+      hilog.info(DOMAIN, SCHEDULED_JOB_TAG, 'Continuous task started for scheduled jobs');
+    }).catch((error: BusinessError) => {
+      this.removeScheduledJobCancelListener();
+      hilog.warn(
+        DOMAIN,
+        SCHEDULED_JOB_TAG,
+        'Failed to start continuous task: code=%{public}d message=%{public}s',
+        error.code,
+        error.message
+      );
+    });
+  }
+
+  private releaseScheduledJobKeepAlive(): void {
+    this.removeScheduledJobCancelListener();
+    if (!this.scheduledJobKeepAliveActive) return;
+    this.scheduledJobKeepAliveActive = false;
+    const context = this.context;
+    if (context === undefined) return;
+    backgroundTaskManager.stopBackgroundRunning(context).then(() => {
+      hilog.info(DOMAIN, SCHEDULED_JOB_TAG, 'Continuous task stopped');
+    }).catch((error: BusinessError) => {
+      hilog.warn(
+        DOMAIN,
+        SCHEDULED_JOB_TAG,
+        'Failed to stop continuous task: code=%{public}d message=%{public}s',
+        error.code,
+        error.message
+      );
+    });
+  }
+
+  private removeScheduledJobCancelListener(): void {
+    try {
+      backgroundTaskManager.off('continuousTaskCancel', this.scheduledJobCancelCallback);
+    } catch (error) {
+      // Off() only fails when the listener was never registered; nothing to undo.
+    }
+  }
+
   onDestroy(): void {
     try { this.desktopSystem.dispose(); } catch (error) {
       hilog.error(DOMAIN, 'DesktopSystem', 'Failed to release idle sleep lock: %{public}s', String(error));
     }
+    this.releaseScheduledJobKeepAlive();
     this.statusBarTray?.remove();
     RustModule.ohosMarkCleanShutdown();
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');

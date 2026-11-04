@@ -20,6 +20,9 @@
         "startWindowIcon": "$media:bitfun_start_window",
         "startWindowBackground": "$color:start_window_background",
         "exported": true,
+        "backgroundModes": [
+          "taskKeeping"
+        ],
         "skills": [
           {
             "entities": [
@@ -34,6 +37,7 @@
     ],
     "requestPermissions": [
       { "name": "ohos.permission.RUNNING_LOCK" },
+      { "name": "ohos.permission.KEEP_BACKGROUND_RUNNING" },
       {
         "name": "ohos.permission.INTERNET",
         "reason": "$string:permission_internet_reason"

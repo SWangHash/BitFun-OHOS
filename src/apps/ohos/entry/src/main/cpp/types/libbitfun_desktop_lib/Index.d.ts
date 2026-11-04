@@ -1,6 +1,7 @@
 export declare function registerArktsFunction(funcName: string, callback: ((err: Error | null, arg: string) => Promise<string>)): void;
 export declare function setBuildResult(msg: string): void;
 export declare function ohosMarkCleanShutdown(): void;
+export declare function hasEnabledScheduledJobs(): boolean;
 export declare function getAppConfigBool(path: string): boolean;
 export declare function getDesktopPetEnabled(): boolean;
 export declare function setDesktopPetEnabled(enabled: boolean): boolean;
