@@ -203,6 +203,8 @@ export interface VirtualMessageListRef {
 
 export interface VirtualMessageListProps {
   items?: VirtualItem[];
+  /** Reading-column width can change while the scroller keeps the same box. */
+  contentWidth?: number;
   isViewportActive?: boolean;
   presentationMode?: 'tail' | 'history-window';
   viewportMode?: 'live-tail' | 'history-reading';
@@ -354,6 +356,7 @@ function isElementVisibleInScroller(element: HTMLElement, scroller: HTMLElement)
 
 const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessageListProps>(({
   items,
+  contentWidth,
   isViewportActive = true,
   presentationMode = 'tail',
   viewportMode = presentationMode === 'history-window' ? 'history-reading' : 'live-tail',
@@ -523,6 +526,9 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
   }, [activeSessionId]);
 
   const reconcileOpeningMeasurementRef = useRef<() => boolean>(() => false);
+  const availableWidthPx = contentWidth === undefined
+    ? viewportWidthPx
+    : Math.min(viewportWidthPx || contentWidth, contentWidth);
   const virtualizer = useFlowChatVirtualizer({
     items: virtualItems,
     startAtTailOnMount: presentationMode !== 'history-window' && !shouldRestoreInitialSnapshot,
@@ -532,12 +538,12 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
     getItemKey: getVirtualItemStableKey,
     estimateItemHeightPx: estimateVirtualMessageItemHeightWithContext,
     estimateContext: {
-      availableWidthPx: viewportWidthPx > 0 ? viewportWidthPx : scrollerElement?.clientWidth,
+      availableWidthPx: availableWidthPx > 0 ? availableWidthPx : scrollerElement?.clientWidth,
       isHistorical: activeSession?.isHistorical === true,
       exploreGroupStates,
     } satisfies VirtualItemHeightEstimateContext,
     estimateContextRevision: [
-      viewportWidthPx,
+      availableWidthPx,
       activeSession?.isHistorical === true ? 'historical' : 'live',
       [...(exploreGroupStates?.entries() ?? [])]
         .sort(([left], [right]) => left.localeCompare(right))

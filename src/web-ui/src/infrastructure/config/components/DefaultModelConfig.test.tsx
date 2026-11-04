@@ -4,6 +4,7 @@ import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import DefaultModelConfig from './DefaultModelConfig';
+import type { AIModelConfig } from '../types';
 
 const mocks = vi.hoisted(() => ({
   getConfigs: vi.fn(),
@@ -49,6 +50,9 @@ vi.mock('@bitfun/ui', () => ({
       {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
     </select>
   ),
+  Icon: () => null,
+  IconButton: () => null,
+  Tooltip: ({ children }: React.PropsWithChildren) => <>{children}</>,
   Spinner: () => <span data-testid="spinner" />,
 }));
 vi.mock('./common', () => ({
@@ -58,7 +62,7 @@ vi.mock('./common', () => ({
   ),
 }));
 
-const models = [
+const models: AIModelConfig[] = [
   {
     id: 'model-a', name: 'Provider', provider: 'openai', api_key: '', base_url: 'https://example.test/v1',
     model_name: 'Alpha', enabled: true, category: 'general_chat', capabilities: ['text_chat'],
@@ -136,4 +140,16 @@ describe('DefaultModelConfig', () => {
     expect(mocks.getConfig).toHaveBeenCalledWith('ai.default_models');
     expect(select.value).toBe('model-b');
   });
+  it('uses the page snapshot without another read and reports confirmed defaults to the page', async () => {
+    const onDefaultModelsChange = vi.fn();
+    await act(async () => root.render(<DefaultModelConfig compact models={models}
+      defaultModels={{ primary: 'model-a', fast: null, image_understanding: null, speech_recognition: null }}
+      loading={false} onDefaultModelsChange={onDefaultModelsChange} />));
+    expect(mocks.getConfigs).not.toHaveBeenCalled();
+    expect(mocks.watchers.size).toBe(0);
+    const select = host.querySelector('[data-testid="default-primary-model-select"]') as HTMLSelectElement;
+    await act(async () => { select.value = 'model-b'; select.dispatchEvent(new Event('change', { bubbles: true })); });
+    expect(onDefaultModelsChange).toHaveBeenCalledWith(expect.objectContaining({ primary: 'model-b' }));
+  });
+
 });

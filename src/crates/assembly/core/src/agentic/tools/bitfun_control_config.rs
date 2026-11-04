@@ -219,9 +219,16 @@ impl SharedProductControlExecutor {
     /// option and share this executor's serialization and revision sequence.
     /// Unknown internal paths remain writable for upgrade compatibility, but
     /// they are never discoverable through ProductControl.
-    pub async fn configure_legacy_path(&self, path: &str, value: Value) -> Result<Value, String> {
+    pub async fn configure_legacy_path(
+        &self,
+        path: &str,
+        value: Value,
+        expected_models: Option<Value>,
+    ) -> Result<Value, String> {
         let _mutation = self.mutation_lock.lock().await;
-        let applied = apply_legacy_config_mutation(&self.config_service, path, value).await?;
+        let applied =
+            apply_legacy_config_mutation(&self.config_service, path, value, expected_models)
+                .await?;
         let revision = self.revision.fetch_add(1, Ordering::AcqRel) + 1;
         Ok(json!({
             "catalogDigest": product_control_catalog()?.digest.clone(),
@@ -451,11 +458,12 @@ pub async fn apply_legacy_config_mutation(
     config_service: &ConfigService,
     path: &str,
     value: Value,
+    expected_models: Option<Value>,
 ) -> Result<AppliedLegacyProductConfig, String> {
     let controlled_bindings = validate_legacy_config_mutation(path, &value)?;
     validate_config_semantics(path, &value)?;
     config_service
-        .set_config(path, value)
+        .set_config_with_snapshot(path, value, expected_models)
         .await
         .map_err(|error| error.to_string())?;
     let effective_value = config_service
@@ -719,7 +727,7 @@ mod tests {
             .await
             .expect("typed configure");
         let legacy = executor
-            .configure_legacy_path("ai.enable_deferred_tool_loading", Value::Bool(true))
+            .configure_legacy_path("ai.enable_deferred_tool_loading", Value::Bool(true), None)
             .await
             .expect("legacy configure");
 
@@ -872,7 +880,7 @@ mod tests {
                     ),
                     ProductCapabilityOptionHandler::Provider { .. } => unreachable!(),
                 };
-                let applied = apply_legacy_config_mutation(&gui_service, &path, legacy_value)
+                let applied = apply_legacy_config_mutation(&gui_service, &path, legacy_value, None)
                     .await
                     .unwrap_or_else(|error| {
                         panic!(

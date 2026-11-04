@@ -6,6 +6,8 @@ import { requireSessionWorkspaceId } from '../../utils/sessionWorkspace';
 
 import React, { useMemo, useCallback, useRef, useEffect, useLayoutEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useStore } from 'zustand';
+import { flowChatWidthStore } from '@/infrastructure/appearance/preferences/flowChatWidthStore';
 import { useShortcut } from '@/infrastructure/hooks/useShortcut';
 import { FlowChatManager } from '@/flow_chat/services/FlowChatManager';
 import {
@@ -303,6 +305,7 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
   onOpenVisualization,
 }) => {
   const { t } = useTranslation('flow-chat');
+  const contentWidth = useStore(flowChatWidthStore, state => state.preferredWidth);
   const canonicalVirtualItems = useVirtualItems();
   const activeSession = useActiveSession();
   const [historyPresentation, setHistoryPresentation] = useState<FlowChatHistoryPresentationState | null>(null);
@@ -2770,6 +2773,7 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
                 <VirtualMessageList
                   ref={virtualListRef}
                   items={renderedVirtualItems}
+                  contentWidth={contentWidth}
                   isViewportActive={isViewportActive}
                   presentationMode={isRenderingHistoryProjection ? 'history-window' : 'tail'}
                   viewportMode={isViewportDetachedFromLiveTail ? 'history-reading' : 'live-tail'}

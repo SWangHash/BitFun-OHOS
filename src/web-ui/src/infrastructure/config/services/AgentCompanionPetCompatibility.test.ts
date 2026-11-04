@@ -15,7 +15,7 @@ const legacy: AgentCompanionPetSelection = {
 /** Spritesheet bytes come from the host file service; only package enumeration is mocked per test. */
 function mockHost(listResponse: unknown) {
   invoke.mockImplementation(async (command: string) =>
-    command === 'read_file_binary' ? new Uint8Array([0]) : listResponse);
+    command === 'load_agent_companion_pet_spritesheet' ? new Uint8Array([0]) : listResponse);
 }
 
 const hostCommands = () => invoke.mock.calls.map(([command]) => command);
@@ -32,7 +32,7 @@ describe('saved pet version recovery', () => {
     const resolved = await resolveAgentCompanionPet(legacy);
     expect(resolved.layout.rows).toBe(11);
     // The spritesheet read may be served from the blob cache; nothing else may reach the host.
-    expect(hostCommands().filter(command => command !== 'read_file_binary'))
+    expect(hostCommands().filter(command => command !== 'load_agent_companion_pet_spritesheet'))
       .toEqual(['list_agent_companion_pets']);
     expect(legacy.spriteVersionNumber).toBeUndefined();
   });

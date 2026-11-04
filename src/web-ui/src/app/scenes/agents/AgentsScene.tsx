@@ -1,3 +1,4 @@
+import { isOpenHarmonyRuntime } from '@/infrastructure/runtime/environment';
 import { isPrimaryAgent, isOrdinaryAgent } from './agentVisibility';
 import {
   OverflowText, Button, Combobox, Dialog, DialogBody, DialogClose, DialogFooter,
@@ -281,7 +282,7 @@ const AgentsHomeView: React.FC = () => {
   );
 
   const catalogAgents = useMemo(
-    () => [...coreAgents, ...visibleAgents],
+    () => [...coreAgents, ...visibleAgents].filter(agent => !isOpenHarmonyRuntime() || agent.id !== 'ComputerUse'),
     [coreAgents, visibleAgents],
   );
 

@@ -247,6 +247,9 @@ export async function sendMessage(
     message,
     displayMessage,
     imageContexts: options?.imageContexts,
+    imageDisplayData: options?.imageDisplayData,
+    userMessageMetadata: options?.userMessageMetadata,
+    sendImmediately: options?.sendImmediately,
   };
 
   if (!options?.bypassPendingQueue) {
@@ -270,8 +273,16 @@ export async function sendMessage(
         throw new Error(plan.reason);
       }
       if (plan.kind === 'steer') {
-        await driverForSession(sessionId, session).steer(context, sessionId, draft);
-        return;
+        const driver = driverForSession(sessionId, session);
+        beginSubmission();
+        try {
+          await driver.steer(context, sessionId, draft);
+          completeSessionSend(sendCoordinationKey, sendAttempt);
+          return;
+        } catch (error) {
+          if (driver.id !== 'local' || !surfaceScopeAtSend.isCurrent()) throw error;
+          log.warn('Immediate submission was rejected; queueing the message', { sessionId, error });
+        } finally { endSubmission(); }
       }
       try {
         const item = pendingQueueManager.enqueue({
@@ -299,6 +310,7 @@ export async function sendMessage(
         });
         throw error;
       }
+      if (options?.sendImmediately) schedulePendingQueueDrain(sessionId);
       completeSessionSend(
         sendCoordinationKey,
         sendAttempt,

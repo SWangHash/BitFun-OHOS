@@ -31,6 +31,7 @@ const mocks = vi.hoisted(() => {
     peerActive: false,
     initialBtwModelSupported: false,
     onClearContexts: vi.fn(),
+    getSendPreference: vi.fn(),
   };
 });
 
@@ -41,6 +42,9 @@ vi.mock('../services/FlowChatManager', () => ({
 }));
 
 vi.mock('../services/BtwThreadService', () => ({ sendMessageToBtwSession: mocks.sendBtw }));
+vi.mock('@/infrastructure/config/services/ChatInputSendPreference', () => ({
+  getChatInputSendDuringTurn: mocks.getSendPreference,
+}));
 vi.mock('@/infrastructure/peer-device/peerDeviceContextState', () => ({
   usePeerDeviceModeOptional: () => ({
     peerMode: { active: mocks.peerActive },
@@ -114,6 +118,7 @@ describe('useMessageSender', () => {
     root = createRoot(container);
     mocks.createChatSession.mockResolvedValue('created-session');
     mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.getSendPreference.mockReset().mockResolvedValue('queue');
     mocks.sessions.clear();
     mocks.peerActive = false;
     mocks.initialBtwModelSupported = false;
@@ -161,6 +166,21 @@ describe('useMessageSender', () => {
       }),
     );
     expect(mocks.onClearContexts).toHaveBeenCalledOnce();
+  });
+
+  it.each(['queue', 'immediate'])('threads the current host sending preference into native submissions: %s', async preference => {
+    mocks.getSendPreference.mockResolvedValue(preference);
+    await act(async () => root.render(<Probe />));
+    await act(async () => sendFromProbe?.());
+    expect(mocks.sendMessage.mock.calls[0]?.[5]).toMatchObject({ sendImmediately: preference === 'immediate' });
+  });
+
+  it('does not send or clear composer context after a preference read fails', async () => {
+    mocks.getSendPreference.mockRejectedValue(new Error('Host unavailable'));
+    await act(async () => root.render(<Probe />));
+    await expect(sendFromProbe?.()).rejects.toThrow('Host unavailable');
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+    expect(mocks.onClearContexts).not.toHaveBeenCalled();
   });
 
   it('preserves the original large-paste composer draft for queued restoration', async () => {

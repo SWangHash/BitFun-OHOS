@@ -429,5 +429,8 @@
     "readOnly": "This host does not support changing these settings, or its policy version is incompatible.",
     "failed": "Could not save the setting. Check the latest state before retrying.",
     "empty": "No sources for this agent are available in the current snapshot."
+  },
+  "applications": {
+    "title": "External apps"
   }
 }

@@ -5,12 +5,13 @@ import { createRoot, type Root } from 'react-dom/client';
 import { Simulate } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SpeechRealtimeConfig } from '@/infrastructure/api';
-import VoiceInputConfig from './VoiceInputConfig';
+import RealtimeVoiceSettingsSection from './RealtimeVoiceSettingsSection';
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(), save: vi.fn(), error: vi.fn(), supported: true,
   t: (key: string) => key,
 }));
+vi.mock('@/infrastructure/i18n', () => ({ useI18n: () => ({ t: mocks.t }) }));
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: mocks.t }), Trans: () => null,
 }));
@@ -65,7 +66,7 @@ const change = async (input: HTMLInputElement, value: string | boolean) => {
   });
 };
 const mount = async () => {
-  await act(async () => root.render(<VoiceInputConfig />));
+  await act(async () => root.render(<RealtimeVoiceSettingsSection />));
 };
 
 beforeEach(() => {
@@ -87,10 +88,10 @@ describe('realtime voice autosave', () => {
   it('saves credentials while disabled, then saves the switch and voice without a save button', async () => {
     await mount();
     expect(mocks.save).not.toHaveBeenCalled();
-    expect(inputs()[2].disabled).toBe(false);
-    await change(inputs()[2], ' key ');
-    await change(inputs()[1], true);
-    await change(inputs()[3], 'new-voice');
+    expect(inputs()[1].disabled).toBe(false);
+    await change(inputs()[1], ' key ');
+    await change(inputs()[0], true);
+    await change(inputs()[2], 'new-voice');
     expect(mocks.save).toHaveBeenLastCalledWith({
       enabled: true, apiKey: 'key', voice: 'new-voice',
       speed: 0, loudness: 0, microphoneDeviceId: '',
@@ -105,15 +106,15 @@ describe('realtime voice autosave', () => {
       .mockImplementationOnce(() => new Promise(resolve => { resolveFirst = resolve; }))
       .mockImplementationOnce(() => new Promise(resolve => { resolveSecond = resolve; }));
     await mount();
-    await change(inputs()[2], 'first');
-    await change(inputs()[2], 'latest');
-    await change(inputs()[3], 'latest-voice');
+    await change(inputs()[1], 'first');
+    await change(inputs()[1], 'latest');
+    await change(inputs()[2], 'latest-voice');
     expect(mocks.save).toHaveBeenCalledTimes(1);
-    expect(inputs()[2].value).toBe('latest');
-    expect(inputs()[3].value).toBe('latest-voice');
+    expect(inputs()[1].value).toBe('latest');
+    expect(inputs()[2].value).toBe('latest-voice');
     await act(async () => resolveFirst({ ...initial, apiKey: 'first' }));
-    expect(inputs()[2].value).toBe('latest');
-    expect(inputs()[3].value).toBe('latest-voice');
+    expect(inputs()[1].value).toBe('latest');
+    expect(inputs()[2].value).toBe('latest-voice');
     await act(async () => root.render(null));
     await act(async () => resolveSecond({ ...initial, apiKey: 'latest' }));
     expect(mocks.save).toHaveBeenCalledTimes(3);
@@ -126,23 +127,23 @@ describe('realtime voice autosave', () => {
   it('shows a failed save, restores persisted values, and allows the next edit to save', async () => {
     mocks.save.mockRejectedValueOnce(new Error('offline'));
     await mount();
-    await change(inputs()[2], 'failed');
-    expect(inputs()[2].value).toBe('');
+    await change(inputs()[1], 'failed');
+    expect(inputs()[1].value).toBe('');
     expect(container.textContent).toContain('voiceCall.messages.saveFailed');
-    await change(inputs()[2], 'retry');
-    expect(inputs()[2].value).toBe('retry');
+    await change(inputs()[1], 'retry');
+    expect(inputs()[1].value).toBe('retry');
     expect(container.querySelector('[role="alert"]')).toBeNull();
   });
 
   it('keeps invalid values editable and refuses activation without credentials', async () => {
     await mount();
-    await change(inputs()[1], true);
-    expect(inputs()[1].checked).toBe(false);
+    await change(inputs()[0], true);
+    expect(inputs()[0].checked).toBe(false);
     expect(mocks.save).not.toHaveBeenCalled();
     expect(container.textContent).toContain('voiceCall.messages.required');
-    await change(inputs()[3], '');
+    await change(inputs()[2], '');
     expect(mocks.save).not.toHaveBeenCalled();
-    await change(inputs()[3], 'valid');
+    await change(inputs()[2], 'valid');
     expect(mocks.save).toHaveBeenCalledTimes(1);
   });
 

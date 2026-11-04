@@ -1,3 +1,4 @@
+import { useFieldAccessibility } from "../Field/FieldAccessibility";
 import {
   forwardRef,
   useCallback,
@@ -62,6 +63,8 @@ export interface SelectProps
   panelTestId?: string;
   placement?: SelectPlacement;
   placeholder?: string;
+  showGroupDividers?: boolean;
+  showGroupLabels?: boolean;
   size?: SelectSize;
   /** data-testid for the closed trigger button. */
   triggerTestId?: string;
@@ -146,6 +149,8 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
   placement = "bottom",
   placeholder,
   required = false,
+  showGroupDividers = false,
+  showGroupLabels = true,
   size = "md",
   style,
   tabIndex,
@@ -156,6 +161,11 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
 }, forwardedRef) {
   const designSystem = useDesignSystem();
   const fieldSurface = useFieldSurface();
+  const fieldAccessibility = useFieldAccessibility({
+    "aria-label": ariaLabel,
+    "aria-labelledby": ariaLabelledBy,
+    "aria-describedby": ariaDescribedBy,
+  });
   const generatedId = useId();
   const id = providedId ?? `bitfun-select-${generatedId}`;
   const listboxId = `${id}-listbox`;
@@ -381,12 +391,12 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
       <button
         data-overflow-trigger
         aria-controls={listboxId}
-        aria-describedby={ariaDescribedBy}
+        aria-describedby={fieldAccessibility["aria-describedby"]}
         aria-expanded="true"
         aria-haspopup="listbox"
         aria-invalid={invalid ? true : ariaInvalid}
         aria-label={ariaLabel}
-        aria-labelledby={ariaLabelledBy}
+        aria-labelledby={fieldAccessibility["aria-labelledby"]}
         aria-required={required || ariaRequired || undefined}
         className={classNames(styles.trigger, styles.popoverHeader)}
         data-bitfun-part="header"
@@ -404,7 +414,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
       <div className={styles.options} data-bitfun-part="options">
         <Listbox
           aria-label={ariaLabel}
-          aria-labelledby={ariaLabel ? undefined : ariaLabelledBy ?? id}
+          aria-labelledby={ariaLabel ? undefined : fieldAccessibility["aria-labelledby"] ?? id}
           autoFocusOption
           className={styles.listbox}
           id={listboxId}
@@ -415,8 +425,12 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
           ) : (
             <>
               {ungrouped.map(renderListboxOption)}
-              {[...groups].map(([label, groupedOptions]) => (
-                <ListboxGroup key={label} label={label}>
+              {[...groups].map(([label, groupedOptions], index) => (
+                <ListboxGroup
+                  className={showGroupDividers && (index > 0 || ungrouped.length > 0) ? styles.dividedGroup : undefined}
+                  key={label}
+                  label={showGroupLabels ? label : undefined}
+                >
                   {groupedOptions.map(renderListboxOption)}
                 </ListboxGroup>
               ))}
@@ -443,11 +457,11 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
       <select
         data-testid={triggerTestId ? `${triggerTestId}-native` : undefined}
         {...nativeProps}
-        aria-describedby={ariaDescribedBy}
+        aria-describedby={fieldAccessibility["aria-describedby"]}
         aria-hidden="true"
         aria-invalid={invalid ? true : ariaInvalid}
         aria-label={ariaLabel}
-        aria-labelledby={ariaLabelledBy}
+        aria-labelledby={fieldAccessibility["aria-labelledby"]}
         aria-required={required || ariaRequired || undefined}
         className={styles.native}
         disabled={disabled}
@@ -465,18 +479,18 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
         )}
         {ungrouped.map(renderNativeOption)}
         {[...groups].map(([label, groupedOptions]) => (
-          <optgroup key={label} label={label}>{groupedOptions.map(renderNativeOption)}</optgroup>
+          <optgroup key={label} label={showGroupLabels ? label : ""}>{groupedOptions.map(renderNativeOption)}</optgroup>
         ))}
       </select>
       <button data-overflow-trigger
         aria-controls={resolvedOpen ? undefined : listboxId}
-        aria-describedby={ariaDescribedBy}
+        aria-describedby={fieldAccessibility["aria-describedby"]}
         aria-expanded={resolvedOpen ? undefined : false}
         aria-hidden={resolvedOpen || undefined}
         aria-haspopup="listbox"
         aria-invalid={invalid ? true : ariaInvalid}
         aria-label={ariaLabel}
-        aria-labelledby={ariaLabelledBy}
+        aria-labelledby={fieldAccessibility["aria-labelledby"]}
         aria-required={required || ariaRequired || undefined}
         autoFocus={!resolvedOpen && autoFocus}
         className={styles.trigger}

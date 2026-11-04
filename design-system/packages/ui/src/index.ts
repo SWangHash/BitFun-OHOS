@@ -184,6 +184,7 @@ export {
   DialogFooter,
   DialogHeader,
   DialogHeaderActions,
+  DialogHeaderLeading,
   DialogHeading,
   DialogTitle,
   Sheet,
@@ -194,6 +195,7 @@ export {
   type DialogFooterProps,
   type DialogHeaderProps,
   type DialogProps,
+  type DialogPreset,
   type DialogSize,
   type SheetPlacement,
   type SheetProps,
@@ -298,3 +300,7 @@ export {
   type TokenOverrideName,
   type TokenOverrides,
 } from "./primitives/ThemeRoot";
+
+export { FieldAccessibilityProvider } from "./components/Field/FieldAccessibility";
+
+export { Capsule, type CapsuleProps } from "./components/Capsule";

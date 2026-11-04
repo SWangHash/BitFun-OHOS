@@ -1,3 +1,4 @@
+import { isOpenHarmonyRuntime } from '@/infrastructure/runtime/environment';
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import { configManager } from '../services/ConfigManager';
 
@@ -21,6 +22,7 @@ export function useComputerUseEnabled(): UseComputerUseEnabledResult {
   const [computerUseEnabled, setComputerUseEnabled] = useState(false);
 
   useEffect(() => {
+    if (isOpenHarmonyRuntime()) return;
     let cancelled = false;
     const load = () => {
       void configManager.getConfig<boolean>(COMPUTER_USE_ENABLED_CONFIG_PATH).then((enabled) => {
@@ -37,5 +39,5 @@ export function useComputerUseEnabled(): UseComputerUseEnabledResult {
     };
   }, []);
 
-  return { computerUseEnabled, setComputerUseEnabled };
+  return { computerUseEnabled: !isOpenHarmonyRuntime() && computerUseEnabled, setComputerUseEnabled };
 }

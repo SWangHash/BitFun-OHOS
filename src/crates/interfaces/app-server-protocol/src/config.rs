@@ -94,6 +94,8 @@ pub struct GetConfigsResponse {
 pub struct SetConfigMessage {
     pub path: String,
     pub value: serde_json::Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_models: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

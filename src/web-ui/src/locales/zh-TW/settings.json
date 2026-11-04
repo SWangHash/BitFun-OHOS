@@ -5,24 +5,25 @@
       "empty": "沒有匹配的設定"
     },
     "categories": {
-      "application": "應用與介面",
-      "ai": "AI 與模型",
+      "application": "應用程式與介面",
+      "ai": "模型與智慧體",
       "workspace": "會話與工作區",
       "tools": "工具與整合",
-      "data": "資料與維護"
+      "data": "資料與維護",
+      "development": "程式設計與開發"
     },
     "pages": {
       "general": {
-        "label": "通用",
-        "description": "啟動、更新、視窗、休眠與通知。"
+        "label": "一般",
+        "description": "調整介面語言、啟動、更新、休眠、視窗與通知行為"
       },
       "appearance": {
         "label": "外觀",
-        "description": "語言、主題、動效、外觀包與介面字體。"
+        "description": "調整主題、外觀套件與字型"
       },
       "pet": {
         "label": "寵物",
-        "description": "顯示位置、角色包、匯入與預覽。"
+        "description": "選擇寵物形象與顯示偏好。"
       },
       "voice": {
         "label": "語音",
@@ -34,15 +35,15 @@
       },
       "terminal": {
         "label": "終端",
-        "description": "預設 Shell。"
+        "description": "選擇新建終端機與本機工作區命令使用的 Shell"
       },
       "editor": {
         "label": "編輯器",
-        "description": "程式碼編輯器的外觀、縮排、顯示與格式化。"
+        "description": "調整程式碼的顯示、縮排與自動格式化"
       },
       "models": {
         "label": "模型",
-        "description": "預設模型、模型服務、訂閱帳戶、模型目錄與網路代理。"
+        "description": "連線模型服務，並選擇各類任務使用的模型"
       },
       "memory": {
         "label": "記憶",
@@ -57,40 +58,64 @@
         "description": "Git Worktree 隔離與平行會話預設值。"
       },
       "execution": {
-        "label": "執行與權限",
-        "description": "工具權限、執行參數、Review 與容錯設定。"
+        "label": "執行與協作",
+        "description": "設定工具執行時限、智慧體並行方式與審核容量"
       },
       "browserDesktopControl": {
         "label": "瀏覽器與桌面控制",
-        "description": "設定瀏覽器連線、桌面操作及所需的系統權限。"
+        "description": "連線瀏覽器，授權螢幕查看與桌面操作"
       },
       "automation": {
         "label": "自動化",
-        "description": "快捷動作與智能體生命週期 Hooks。"
+        "description": "設定常用 AI 指令與事件觸發的自動命令"
       },
       "webSearch": {
         "label": "網頁搜尋",
-        "description": "選擇 WebSearch 服務、端點與裝置本機憑據。"
+        "description": "選擇智能體上網查找資料時使用的搜尋服務"
       },
       "mcp": {
         "label": "MCP",
-        "description": "管理 MCP 伺服器、連線與對外提供的工具。"
+        "description": "連線 MCP 服務，為智能體提供外部工具與資料來源"
       },
       "acp": {
-        "label": "ACP 智能體",
-        "description": "設定透過 Agent Client Protocol 接入的外部智能體。"
+        "label": "ACP",
+        "description": "透過 ACP 接入本機或 SSH 主機上的外部智慧體"
       },
       "usage": {
         "label": "調用統計",
-        "description": "模型請求數、Token 用量與快取命中率。"
+        "description": "檢視模型請求數、Token 用量與快取命中率"
       },
       "archivedSessions": {
         "label": "已歸檔會話",
-        "description": "檢視、恢復或永久刪除已歸檔的會話。"
+        "description": "檢視、還原或永久刪除已封存的會話"
       },
       "diagnostics": {
         "label": "日誌與診斷",
-        "description": "日誌層級、執行資訊與故障排查。"
+        "description": "調整日誌記錄，匯出疑難排解資訊"
+      },
+      "externalImport": {
+        "description": "匯入並管理其他 AI 應用程式中的內容",
+        "label": "外部匯入"
+      },
+      "input": {
+        "description": "查看、自訂與重設鍵盤快捷鍵。",
+        "label": "輸入與互動"
+      },
+      "permissions": {
+        "description": "設定新工作階段的核准模式與全域工具權限規則",
+        "label": "權限規則"
+      },
+      "sessionMemory": {
+        "description": "設定新工作階段的執行模式、標題產生與記憶策略",
+        "label": "工作階段與記憶"
+      },
+      "workspaceGit": {
+        "description": "設定工作區搜尋與 Worktree 預設行為，管理隔離工作目錄。",
+        "label": "工作區與 Git"
+      },
+      "browserControl": {
+        "label": "瀏覽器控制",
+        "description": "選擇瀏覽器並管理連線。"
       }
     },
     "views": {
@@ -101,6 +126,20 @@
       "json": "進階 JSON",
       "quick-actions": "快捷動作",
       "hooks": "Hooks"
+    },
+    "sections": {
+      "hooks": "事件 Hooks",
+      "memory": "記憶",
+      "pet": "寵物",
+      "quick-actions": "快捷動作",
+      "session": "工作階段預設行為",
+      "shortcuts": "快捷鍵",
+      "workspace-search": "工作區搜尋",
+      "worktrees": "Worktrees",
+      "voiceCall": "語音通話",
+      "message-sending": "訊息傳送",
+      "text-selection": "文字選取",
+      "sidebar-navigation": "左側導覽列"
     }
   },
   "changeGuard": {
@@ -292,8 +331,8 @@
         "maximize": "最大化編輯器"
       },
       "editor": {
-        "findInFile": "在檔案中尋找（Monaco）",      
-      "replaceInFile": "檔案中取代（Monaco）"
+        "findInFile": "在檔案中尋找（Monaco）",
+        "replaceInFile": "檔案中取代（Monaco）"
       },
       "tab": {
         "close": "關閉目前標籤頁",

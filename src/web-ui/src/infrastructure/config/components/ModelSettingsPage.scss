@@ -144,135 +144,21 @@
     gap: var(--bitfun-space-4);
   }
 
-  &__provider-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-    border: 0;
-    border-radius: var(--bitfun-layout-field-group-radius);
-    overflow: hidden;
-    // Own one adaptive surface for both the provider header and its model rows,
-    // so expanded content remains distinct from the surrounding page in light
-    // and dark themes.
-    background: var(--bitfun-color-surface-tertiary);
-  }
 
-  &__provider-group-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--bitfun-space-3);
-    // Keep the leading inset inside the toggle so the space beside the chevron is clickable.
-    padding-block: 0;
-    padding-inline: 0 var(--bitfun-space-4);
-    background: transparent;
 
-    &[data-expanded='true'] {
-      border-bottom: 1px solid var(--bitfun-color-border-subtle);
-    }
-  }
 
-  &__provider-group-toggle {
-    display: flex;
-    flex: 1;
-    align-self: stretch;
-    align-items: center;
-    gap: var(--bitfun-space-2);
-    min-width: 0;
-    padding: 0;
-    padding-inline-start: var(--bitfun-space-4);
-    border: 0;
-    background: transparent;
-    color: inherit;
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
 
-    &:focus-visible {
-      outline-offset: calc(0px - var(--bitfun-focus-width));
-    }
-  }
 
-  &__provider-group-chevron {
-    flex-shrink: 0;
-    color: var(--bitfun-color-content-muted);
-  }
 
-  &__provider-group-title {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--bitfun-space-2);
-    min-width: 0;
-    font-size: var(--bitfun-type-label-md-font-size);
-    font-weight: var(--bitfun-type-label-selected-font-weight);
-    color: var(--bitfun-color-content-primary);
-  }
 
-  &__provider-group-count {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 20px;
-    height: 20px;
-    padding: 0 6px;
-    border-radius: 999px;
-    background: var(--bitfun-color-surface-subtle);
-    color: var(--bitfun-color-content-required-indicator);
-    font-size: var(--bitfun-type-meta-font-size);
-    font-weight: var(--bitfun-type-label-sm-font-weight);
-  }
 
-  &__provider-group-list {
-    display: flex;
-    flex-direction: column;
 
-    > .bitfun-collection-item {
-      border-radius: 0;
-    }
 
-    .bitfun-collection-item__row {
-      border: none;
-      border-radius: 0;
-    }
 
-    .bitfun-collection-item__details {
-      border-top: 1px solid var(--bitfun-color-border-subtle);
-      // The provider group owns the persistent surface. Reusing the shared
-      // translucent details tint here makes the dark-theme composite nearly
-      // identical to the surrounding scene, leaving a page-colored gutter
-      // around the dashed inset section.
-      background: transparent;
-    }
 
-    .bitfun-collection-item__details-toggle {
-      order: 2;
-      opacity: 0;
-      visibility: hidden;
-      pointer-events: none;
-      transition:
-        opacity var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
-        visibility 0s linear var(--bitfun-motion-duration-fast);
-    }
 
-    .bitfun-collection-item:hover,
-    .bitfun-collection-item:focus-within {
-      .bitfun-model-settings__model-actions,
-      .bitfun-collection-item__details-toggle {
-        opacity: 1;
-        visibility: visible;
-        pointer-events: auto;
-        transition-delay: 0s;
-      }
-    }
-  }
 
-  &__provider-group-actions {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--bitfun-space-1);
-    flex-shrink: 0;
-    padding-block: var(--bitfun-space-3);
-  }
+
 
   &__model-actions {
     display: flex;
@@ -430,6 +316,21 @@
       color: var(--bitfun-color-status-warning-emphasis);
       flex-shrink: 0;
       margin-top: 1px;
+    }
+  }
+
+  &__context-window-row.bitfun-config-page-row {
+    row-gap: var(--bitfun-space-1);
+
+    > .bitfun-config-page-row__meta {
+      display: contents;
+
+      > .bitfun-config-page-row__description {
+        grid-column: 1 / -1;
+        order: 1;
+        max-inline-size: none;
+        margin: 0;
+      }
     }
   }
 
@@ -1174,11 +1075,9 @@
   }
 
   &__model-picker-row {
-    display: grid;
-    grid-template-columns: subgrid;
+    display: inline-flex;
     gap: var(--bitfun-space-2);
-    width: 100%;
-    align-items: start;
+    align-items: center;
   }
 
   &__model-picker-value {
@@ -1216,9 +1115,19 @@
     }
   }
 
+  &__manual-model-input {
+    flex: 0 1 24ch;
+    width: 24ch;
+    min-width: 0;
+    max-width: 100%;
+  }
+
   &__selected-models-list {
     display: flex;
-    flex-direction: column;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    grid-column: 1 / -1;
+    min-width: 0;
     gap: var(--bitfun-space-2);
   }
 
@@ -1454,17 +1363,13 @@
     border-top: 1px dashed var(--bitfun-color-field-border-hover);
   }
 
-  &__editor-dialog {
-    max-block-size: min(
-      640px,
-      calc(100vh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - var(--bitfun-viewport-host-chrome-inset-block-start))
-    );
-  }
+
 
   &__form--modal {
     display: flex;
     flex-direction: column;
     flex: 0 0 auto;
+    container: config-panel / inline-size;
   }
 
   &__form-content {
@@ -2300,5 +2205,591 @@
   .bitfun-model-settings__selected-model-grid,
   .bitfun-model-settings__model-selection-row > .bitfun-config-page-row__control > .bitfun-model-settings__control-stack {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.bitfun-model-settings {
+  &__import-row,
+  &__import-heading,
+  &__import-summary,
+  &__pool-tags,
+  &__pool-card-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--bitfun-space-2);
+    min-width: 0;
+  }
+
+  &__import-row {
+    width: 100%;
+    justify-content: space-between;
+
+    > [data-bitfun-component='button'] {
+      flex-shrink: 0;
+    }
+  }
+
+  &__import-summary,
+  &__pool-tags {
+    flex-wrap: wrap;
+  }
+
+  &__pool-tags > [data-bitfun-component='status-pill'] {
+    max-inline-size: 100%;
+  }
+
+  &__pool-caption {
+    color: var(--bitfun-color-content-secondary);
+    font-size: var(--bitfun-type-label-sm-font-size);
+  }
+
+  &__pool-slots {
+    padding: var(--bitfun-space-4);
+    margin-bottom: var(--bitfun-space-4);
+    border-radius: var(--bitfun-layout-field-group-radius);
+    background: var(--bitfun-color-surface-tertiary);
+  }
+
+  &__pool-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--bitfun-space-3);
+    margin-block: var(--bitfun-space-4);
+
+    > [data-bitfun-component='search-field'] {
+      flex: 1 1 220px;
+      min-width: 0;
+    }
+
+    > [data-bitfun-component='select'] {
+      flex: 0 1 180px;
+      min-width: 0;
+    }
+  }
+
+  &__pool-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--bitfun-space-3);
+  }
+
+  &__pool-item {
+    min-width: 0;
+  }
+
+  &__pool-card {
+    height: 100%;
+  }
+
+  &__pool-card-header > [data-bitfun-part='header-content'] {
+    align-items: stretch;
+  }
+
+  &__pool-card-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: var(--bitfun-space-2);
+    min-width: 0;
+  }
+
+  &__pool-card-controls {
+    flex: 0 0 auto;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  &__pool-card:hover &__pool-card-controls,
+  &__pool-card:focus-within &__pool-card-controls,
+  &__pool-card-controls[data-menu-open='true'] {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  &__pool-card-source {
+    flex: 1 1 0;
+    min-width: 0;
+    text-align: start;
+    font-family: var(--bitfun-type-meta-font-family);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-meta-font-weight);
+    line-height: var(--bitfun-type-meta-line-height);
+    letter-spacing: var(--bitfun-type-meta-letter-spacing);
+  }
+
+  &__pool-card-footer {
+    margin-block-start: auto;
+    min-block-size: max(var(--bitfun-control-height-sm), var(--bitfun-control-switch-track-height));
+  }
+
+  &__more-settings {
+    min-width: 0;
+    width: 100%;
+  }
+
+  &__more-content {
+    // Expanded settings share the page's existing gutters, without a second inset.
+    padding-inline: 0;
+  }
+
+  &__connection-section > .bitfun-config-page-section__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bitfun-space-4);
+    overflow: visible;
+  }
+
+  &__connection-section &__connection-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: var(--bitfun-space-4);
+    min-width: 0;
+  }
+
+  &__connection-section &__connection-row:has(> .bitfun-config-page-row:only-child) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  &__connection-row > .bitfun-config-page-row,
+  &__connection-section &__endpoint-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--bitfun-space-2);
+    min-width: 0;
+    padding: 0;
+    border: 0;
+
+    > .bitfun-config-page-row__meta {
+      max-inline-size: none;
+    }
+
+    > .bitfun-config-page-row__control {
+      grid-column: 1;
+    }
+
+    &:hover {
+      background: transparent;
+    }
+  }
+
+  &__connection-value {
+    color: var(--bitfun-color-content-secondary);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    line-height: var(--bitfun-type-body-sm-line-height);
+  }
+
+  &__provider-identity {
+    display: flex;
+    align-items: center;
+    gap: var(--bitfun-space-2);
+    min-width: 0;
+
+    > [data-bitfun-component='status-pill'] {
+      flex: 0 0 auto;
+    }
+  }
+
+  &__connection-row--single &__provider-identity {
+    min-block-size: var(--bitfun-control-height-sm);
+  }
+
+  &__connection-section &__subscription-account-row {
+    row-gap: var(--bitfun-space-1);
+  }
+
+  &__subscription-account {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--bitfun-space-4);
+  }
+
+  &__subscription-account-heading {
+    display: flex;
+    align-items: center;
+    gap: var(--bitfun-space-2);
+    min-width: 0;
+
+    > [data-bitfun-component='status-pill'] {
+      flex: 0 0 auto;
+    }
+  }
+
+  &__subscription-account-name {
+    min-width: 0;
+    max-width: 100%;
+    color: var(--bitfun-color-content-primary);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    line-height: var(--bitfun-type-body-sm-line-height);
+  }
+
+  &__subscription-account-hint {
+    grid-column: 2 / -1;
+    min-width: 0;
+    color: var(--bitfun-color-content-secondary);
+    font-size: var(--bitfun-type-support-font-size);
+    line-height: var(--bitfun-type-support-line-height);
+    overflow-wrap: anywhere;
+  }
+
+  &__subscription-account-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--bitfun-space-2);
+  }
+
+  &__endpoint-inputs {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2.2fr);
+    gap: var(--bitfun-space-3);
+    min-width: 0;
+
+    > * {
+      width: 100%;
+      min-width: 0;
+    }
+
+    > :only-child {
+      grid-column: 1 / -1;
+    }
+  }
+
+  &__advanced-settings {
+    margin: 0;
+
+    .bitfun-config-page-row {
+      padding: var(--bitfun-space-3) var(--bitfun-space-4);
+      gap: var(--bitfun-space-2) var(--bitfun-space-4);
+    }
+
+    .bitfun-model-settings__toggle-row {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+  }
+
+  &__advanced-settings-trigger {
+    position: relative;
+    display: flex;
+    align-items: center;
+    inline-size: 100%;
+    min-block-size: var(--bitfun-layout-disclosure-trigger-min-block-size);
+    padding: var(--bitfun-space-1) 0;
+    padding-inline-end: calc(var(--bitfun-layout-disclosure-indicator-size) + var(--bitfun-space-2));
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+
+    &::before {
+      content: '';
+      position: absolute;
+      inset-block: calc(0px - var(--bitfun-space-1));
+      inset-inline: calc(0px - var(--bitfun-space-6)) calc(0px - var(--bitfun-space-2));
+      border-radius: var(--bitfun-layout-disclosure-trigger-radius);
+    }
+
+    &:hover:not(:disabled)::before {
+      background: var(--bitfun-color-action-neutral-surface-hover);
+    }
+
+    &:focus-visible::before {
+      outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+      outline-offset: var(--bitfun-focus-offset);
+    }
+
+    &[aria-expanded='true'] .bitfun-model-settings__advanced-settings-indicator {
+      transform: rotate(90deg);
+    }
+  }
+
+  &__advanced-settings-indicator {
+    position: absolute;
+    inset-inline-end: 0;
+    color: var(--bitfun-color-content-muted);
+    transition: transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+
+    @media (prefers-reduced-motion: reduce) { transition: none; }
+  }
+
+  &__advanced-settings-heading {
+    position: relative;
+    display: grid;
+    min-inline-size: 0;
+    gap: var(--bitfun-space-1);
+  }
+
+  &__advanced-settings-title {
+    color: var(--bitfun-color-content-primary);
+    font-family: var(--bitfun-type-heading-section-font-family);
+    font-size: var(--bitfun-type-heading-section-font-size);
+    font-weight: var(--bitfun-type-heading-section-font-weight);
+    line-height: var(--bitfun-type-heading-section-line-height);
+    letter-spacing: var(--bitfun-type-heading-section-letter-spacing);
+  }
+
+  &__model-discovery-body {
+    gap: var(--bitfun-space-3);
+    overflow: hidden;
+
+    > .bitfun-model-settings__model-fetch-hint,
+    > [data-bitfun-component='search-field'] {
+      flex-shrink: 0;
+    }
+  }
+
+  &__model-discovery-results {
+    flex: 1 1 auto;
+    // Leave room for capsule focus outlines within the scrolling viewport.
+    padding: var(--bitfun-space-1);
+  }
+
+  &__model-discovery-list {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--bitfun-space-2);
+
+    > [data-bitfun-component='button'] {
+      max-inline-size: 100%;
+    }
+  }
+
+  &__model-selection-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--bitfun-space-2);
+    min-block-size: var(--bitfun-control-height-sm);
+  }
+
+  &__model-capsule {
+    width: auto;
+  }
+
+  &__model-capsule-edit {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  &__selected-model-tags {
+    display: grid;
+    grid-column: 1 / -1;
+    gap: var(--bitfun-space-4);
+    min-width: 0;
+  }
+
+  &__tag-editor {
+    display: flex;
+    align-items: center;
+    gap: var(--bitfun-space-2);
+    min-block-size: var(--bitfun-control-height-sm);
+    min-width: 0;
+    width: 100%;
+  }
+
+  &__tag-list {
+    display: flex;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: var(--bitfun-space-2);
+    min-width: 0;
+
+    .bitfun-model-settings__model-capsule {
+      min-inline-size: min(100%, calc(4 * var(--bitfun-control-icon-button-xs-size)));
+    }
+
+    .bitfun-model-settings__model-capsule-edit > [data-bitfun-part='content'] {
+      flex: 1 1 auto;
+      justify-content: center;
+    }
+  }
+
+  &__tag-add {
+    flex: 0 0 auto;
+  }
+
+  &__tag-input {
+    width: 14ch;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  &__form--single-model {
+    .bitfun-model-settings__form-content {
+      gap: var(--bitfun-space-4);
+    }
+  }
+
+  &__single-model-fields .bitfun-config-page-row {
+    padding: var(--bitfun-space-3) var(--bitfun-space-4);
+  }
+
+  &__advanced-settings-content {
+    padding-inline: 0;
+
+    .bitfun-config-page-row {
+      border: 0;
+    }
+  }
+  &__provider-connections, &__import-heading {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--bitfun-space-2);
+    min-inline-size: 0;
+  }
+  &__provider-connections { inline-size: 100%; }
+  &__import-heading { align-items: baseline; }
+  &__provider-connection { min-inline-size: 0; max-inline-size: 100%; }
+  &__dialog-back { display: flex; align-items: center; }
+  &__single-model-advanced { grid-column: 1 / -1; }
+  &__selected-model-tags { grid-column: 1 / -1; }
+  @container config-panel (max-width: 760px) {
+    &__pool-grid { grid-template-columns: minmax(0, 1fr); }
+  }
+  @container config-panel (max-width: 520px) {
+    &__connection-section &__connection-row { grid-template-columns: minmax(0, 1fr); }
+    &__endpoint-inputs { grid-template-columns: minmax(0, 1fr); }
+  }
+}
+
+.bitfun-model-settings {
+  &__provider-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border: 0;
+    border-radius: var(--bitfun-layout-field-group-radius);
+    overflow: hidden;
+    // Own one adaptive surface for both the provider header and its model rows,
+    // so expanded content remains distinct from the surrounding page in light
+    // and dark themes.
+    background: var(--bitfun-color-surface-tertiary);
+  }
+
+  &__provider-group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--bitfun-space-3);
+    // Keep the leading inset inside the toggle so the space beside the chevron is clickable.
+    padding-block: 0;
+    padding-inline: 0 var(--bitfun-space-4);
+    background: transparent;
+
+    &[data-expanded='true'] {
+      border-bottom: 1px solid var(--bitfun-color-border-subtle);
+    }
+  }
+
+  &__provider-group-toggle {
+    display: flex;
+    flex: 1;
+    align-self: stretch;
+    align-items: center;
+    gap: var(--bitfun-space-2);
+    min-width: 0;
+    padding: 0;
+    padding-inline-start: var(--bitfun-space-4);
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+
+    &:focus-visible {
+      outline-offset: calc(0px - var(--bitfun-focus-width));
+    }
+  }
+
+  &__provider-group-chevron {
+    flex-shrink: 0;
+    color: var(--bitfun-color-content-muted);
+  }
+
+  &__provider-group-title {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--bitfun-space-2);
+    min-width: 0;
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    color: var(--bitfun-color-content-primary);
+  }
+
+  &__provider-group-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--bitfun-color-surface-subtle);
+    color: var(--bitfun-color-content-required-indicator);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
+  }
+
+  &__provider-group-list {
+    display: flex;
+    flex-direction: column;
+
+    > .bitfun-collection-item {
+      border-radius: 0;
+    }
+
+    .bitfun-collection-item__row {
+      border: none;
+      border-radius: 0;
+    }
+
+    .bitfun-collection-item__details {
+      border-top: 1px solid var(--bitfun-color-border-subtle);
+      // The provider group owns the persistent surface. Reusing the shared
+      // translucent details tint here makes the dark-theme composite nearly
+      // identical to the surrounding scene, leaving a page-colored gutter
+      // around the dashed inset section.
+      background: transparent;
+    }
+
+    .bitfun-collection-item__details-toggle {
+      order: 2;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition:
+        opacity var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+        visibility 0s linear var(--bitfun-motion-duration-fast);
+    }
+
+    .bitfun-collection-item:hover,
+    .bitfun-collection-item:focus-within {
+      .bitfun-model-settings__model-actions,
+      .bitfun-collection-item__details-toggle {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transition-delay: 0s;
+      }
+    }
+  }
+
+  &__provider-group-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--bitfun-space-1);
+    flex-shrink: 0;
+    padding-block: var(--bitfun-space-3);
   }
 }

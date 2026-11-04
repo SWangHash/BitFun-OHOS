@@ -11,6 +11,7 @@ import { ChatFileDropOverlay } from './ChatFileDropOverlay';
 import type { FileDropPreview, FileDropPosition } from '@/shared/types/fileDropPreview';
 import { ModernFlowChatContainer as FlowChatContainer } from '../../../flow_chat/components/modern/ModernFlowChatContainer';
 import { ChatInput } from '../../../flow_chat/components/ChatInput';
+import { FlowChatWidthBoundary } from '@/flow_chat/components/FlowChatWidthBoundary';
 import type { ChatInputRegistration } from '../../../flow_chat/components/chatInputRegistration';
 import { useCanvasStore } from '../../components/panels/content-canvas/stores/canvasStore';
 import { type LineRange } from '@/shared/editor/LineRange';
@@ -89,6 +90,7 @@ const ChatPaneInner: React.FC<ChatPaneProps> = ({
     && !isAcpFlowSession(activeSession);
   const addTab = useCanvasStore(state => state.addTab);
   const fileDropTargetRef = useRef<HTMLDivElement>(null);
+  const [isColumnResizing, setIsColumnResizing] = useState(false);
   const [isFileDragOver, setIsFileDragOver] = useState(false);
   const [filePreview, setFilePreview] = useState<FileDropPreview | null>(null);
   const fileDragPosition = useRef<FileDropPosition | null>(null);
@@ -257,9 +259,11 @@ const ChatPaneInner: React.FC<ChatPaneProps> = ({
           onFileDragPreviewChange={setFilePreview}
           onFileDragPositionChange={updateFileDragPosition}
           isSceneActive={isSceneActive}
+          layoutResizeSuspended={_isDragging || isColumnResizing}
           registration={chatInputRegistration}
         />
       )}
+      <FlowChatWidthBoundary paneRef={fileDropTargetRef} active={isSceneActive} onResizingChange={setIsColumnResizing} />
       {showChatInput && isSceneActive && isFileDragOver && (
         <ChatFileDropOverlay preview={filePreview} positionRef={fileDragPosition} />
       )}

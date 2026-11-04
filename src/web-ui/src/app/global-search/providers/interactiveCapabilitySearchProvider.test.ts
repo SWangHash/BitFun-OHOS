@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { INTERACTIVE_CAPABILITY_CATALOG } from '../interactiveCapabilityCatalog';
 import type { GlobalSearchRequest } from '../types';
 import { interactiveCapabilitySearchProvider } from './interactiveCapabilitySearchProvider';
@@ -17,6 +17,22 @@ function request(query: string): GlobalSearchRequest {
 }
 
 describe('interactiveCapabilitySearchProvider', () => {
+  it('omits HarmonyOS desktop controls while preserving browser discovery and connection entries', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'HarmonyOS' });
+    vi.resetModules();
+    const { interactiveCapabilitySearchProvider: provider } = await import('./interactiveCapabilitySearchProvider');
+    const { INTERACTIVE_CAPABILITY_CATALOG: harmonyCatalog } = await import('../interactiveCapabilityCatalog');
+    const result = await provider.search(request('Computer Use'), new AbortController().signal);
+    expect(result.items.some(item => item.target.kind === 'capability'
+      && ['feature.computer-use', 'setting.tools.desktop-control', 'setting.tools.execution'].includes(item.target.capabilityId))).toBe(false);
+    const browser = await provider.search(request('browser control'), new AbortController().signal);
+    expect(browser.items.some(item => item.target.kind === 'capability' && item.target.capabilityId === 'setting.tools.browser-control')).toBe(true);
+    expect(harmonyCatalog.capabilities.find(item => item.id === 'feature.computer-use')?.items.map(item => item.id))
+      .toEqual(['browser-discovery', 'launch-connect', 'default-cdp']);
+    expect(harmonyCatalog.definitions.some(definition => definition.itemIds.includes('computer-use-permissions'))).toBe(false);
+    vi.unstubAllGlobals();
+  });
+
   it('restores accelerated search in the settings catalog', () => {
     const capability = INTERACTIVE_CAPABILITY_CATALOG.capabilities.find(
       ({ id }) => id === 'setting.workspace.session',

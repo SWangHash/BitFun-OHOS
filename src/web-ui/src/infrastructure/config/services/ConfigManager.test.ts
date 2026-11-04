@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { configManager } from './ConfigManager';
+import { activateSurface } from '@/infrastructure/peer-device/deviceSurface';
 
 const configApiMocks = vi.hoisted(() => ({
   getConfig: vi.fn(),
@@ -37,6 +38,7 @@ function createDeferred<T>() {
 describe('ConfigManager', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    activateSurface('local');
     configManager.clearCache();
     delete globalThis.__BITFUN_BOOTSTRAP_KEYBINDINGS__;
   });
@@ -75,7 +77,33 @@ describe('ConfigManager', () => {
     await Promise.all([first, second]);
 
     expect(persisted).toEqual([fixture('existing'), fixture('first'), fixture('second')]);
-    expect(configApiMocks.getConfig).toHaveBeenCalledTimes(2);
+    expect(configApiMocks.getConfig).toHaveBeenCalledTimes(4);
+    expect(configManager.getCachedConfig('ai.models')).toEqual(persisted);
+  });
+
+  it('rejects an obsolete editor snapshot before writing and maps an atomic host conflict', async () => {
+    configApiMocks.getConfig.mockResolvedValue([]);
+    await expect(configManager.updateConfig('ai.models', () => [], { expectedValue: [{ id: 'old' }] }))
+      .rejects.toMatchObject({ name: 'ConfigConflictError' });
+    expect(configApiMocks.setConfig).not.toHaveBeenCalled();
+
+    configApiMocks.setConfig.mockRejectedValueOnce(new Error('CONFIG_MODELS_CONFLICT: changed'));
+    await expect(configManager.updateConfig('ai.models', () => [], { expectedValue: [] }))
+      .rejects.toMatchObject({ name: 'ConfigConflictError' });
+    expect(configApiMocks.setConfig).toHaveBeenCalledWith('ai.models', [], { expectedModels: [] });
+    expect(configManager.hasCachedConfig('ai.models')).toBe(false);
+  });
+
+  it('drops a previous device read and keeps only the active device snapshot', async () => {
+    const oldRead = createDeferred<string>();
+    configApiMocks.getConfig.mockReturnValueOnce(oldRead.promise).mockResolvedValueOnce('peer');
+    const pending = configManager.getConfig('app.logging.level');
+    const rejected = expect(pending).rejects.toMatchObject({ name: 'SurfaceChangedError' });
+    activateSurface('peer');
+    await expect(configManager.getConfig('app.logging.level')).resolves.toBe('peer');
+    oldRead.resolve('local');
+    await rejected;
+    expect(configManager.getCachedConfig('app.logging.level')).toBe('peer');
   });
 
   it('refuses a model edit when the host read fails instead of saving an empty-list fallback', async () => {
@@ -84,6 +112,19 @@ describe('ConfigManager', () => {
     await expect(configManager.updateConfig<unknown[]>('ai.models', models => models.filter(Boolean)))
       .rejects.toThrow('Host disconnected');
     expect(configApiMocks.setConfig).not.toHaveBeenCalled();
+  });
+
+  it('reads the committed model revision and does not cache an unconfirmed write', async () => {
+    const draft = [{ id: 'one', enabled: true, metadata: { provider_instance_id: 'one' } }];
+    const normalized = [{ ...draft[0], enabled: false }];
+    configApiMocks.getConfig.mockReset().mockResolvedValueOnce([]).mockResolvedValueOnce(normalized);
+    configApiMocks.setConfig.mockReset().mockResolvedValue(undefined);
+    await expect(configManager.updateConfig('ai.models', () => draft)).resolves.toEqual(normalized);
+    expect(configManager.getCachedConfig('ai.models')).toEqual(normalized);
+
+    configApiMocks.getConfig.mockResolvedValueOnce(normalized).mockRejectedValueOnce(new Error('readback unavailable'));
+    await expect(configManager.updateConfig('ai.models', () => draft)).resolves.toEqual(draft);
+    expect(configManager.hasCachedConfig('ai.models')).toBe(false);
   });
 
   it('deduplicates concurrent reads for the same config path', async () => {
@@ -416,7 +457,6 @@ describe('ConfigManager', () => {
         subagents: {
           default: { kind: 'fixed', model_id: 'fast' },
           builtin: {
-            GeneralPurpose: { kind: 'fixed', model_id: 'primary' },
           },
           fork: { kind: 'inherit' },
         },
@@ -428,7 +468,7 @@ describe('ConfigManager', () => {
     });
   });
 
-  it('returns the GeneralPurpose primary default when a single config read fails', async () => {
+  it('returns shared subagent defaults when a single config read fails', async () => {
     configApiMocks.getConfig.mockRejectedValueOnce(new Error('read failed'));
 
     await expect(configManager.getConfig('ai.agent_model_defaults')).resolves.toEqual({
@@ -436,7 +476,6 @@ describe('ConfigManager', () => {
       subagents: {
         default: { kind: 'fixed', model_id: 'fast' },
         builtin: {
-          GeneralPurpose: { kind: 'fixed', model_id: 'primary' },
         },
         fork: { kind: 'inherit' },
       },
@@ -451,7 +490,6 @@ describe('ConfigManager', () => {
         subagents: {
           default: { kind: 'fixed', model_id: 'fast' },
           builtin: {
-            GeneralPurpose: { kind: 'fixed', model_id: 'primary' },
           },
           fork: { kind: 'inherit' },
         },

@@ -853,6 +853,10 @@
       "appearanceSwitchFailed": "主题切换失败，请重试。",
       "openSettings": "$t(shared:features.settings)",
       "about": "关于"
+    },
+    "customization": {
+      "unavailableEntry": "暂不可用的入口（{{id}}）",
+      "openFailed": "无法打开{{name}}，请重试。"
     }
   },
   "window": {
@@ -1283,7 +1287,6 @@
     "disclaimerStatusPending": "未同意",
     "disclaimerDecline": "不同意",
     "disclaimerAgree": "同意并继续",
-    "disclaimerItemRelay": "官方中继与局域网中继用于连接和转发消息，不代替执行设备运行任务。执行设备需要保持在线；关闭连接窗口或取消邀请不会自动断开已建立的账号连接，请在连接管理中主动断开。",
     "overviewTitle": "概览"
   },
   "about": {
@@ -2184,5 +2187,10 @@
   },
   "fileAccess": {
     "remoteWaiting": "正在等待目标设备。如果该设备出现系统目录访问授权弹窗，请在该设备上确认；等待期间可以取消本次浏览。"
+  },
+  "peerHost": {
+    "unavailable": "此功能在该设备上不可用。",
+    "updateRequired": "该设备上的 BitFun 版本不支持此功能。请尝试在该设备上更新 BitFun。",
+    "withDetail": "{{message}}（{{detail}}）"
   }
 }

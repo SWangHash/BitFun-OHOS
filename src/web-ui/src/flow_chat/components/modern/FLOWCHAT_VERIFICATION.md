@@ -16,6 +16,7 @@ each missing what the other had.
 
 | Test | Contract it holds |
 |---|---|
+| `../FlowChatWidthBoundary.test.tsx`, `../../../infrastructure/appearance/preferences/flowChatWidthStore.test.ts`, `../../../app/scenes/settings/pages/application/FlowChatWidthSettingsSection.test.tsx` | column-edge pointer/keyboard resizing, existing rail spacing, cancellation, saved width retention in narrow panes, settings updates and reset; supplied DOM geometry only |
 | `../../hooks/useSessionReadOnOpen.test.tsx` | opening and foreground results mark read; inactive scenes, background windows, unmounts, and device switches cannot acknowledge from stale views |
 | `../../selection/conversationExcerptInventory.test.ts` | source session/device isolation, consumed draft/queue marks, sent-number retention without source marks, stable unrelated snapshots |
 | `../../selection/conversationExcerptMarkerPosition.test.ts` | full selection bounds, measured badge groups, persistent upper-right placement over occupied text, and clipping; geometry contracts only, not visual acceptance |

@@ -16,6 +16,7 @@ import {
   ConfigPageHeader,
   ConfigPageContent,
   ConfigMessage,
+  ConfigLoadingState,
   ConfigRefreshButton,
   ConfigPageSection,
 } from '@/infrastructure/config/components/common';
@@ -256,15 +257,8 @@ const ArchivedSessionsConfig: React.FC = () => {
       const key = workspaceIdentityKey(entry.workspaceId);
       let group = map.get(key);
       if (!group) {
-        const scopeLabel = workspaceScopeLabel(
-          entry.workspaceName,
-          entry.remoteConnectionId,
-          entry.remoteSshHost,
-        );
         group = {
-          label: scopeLabel === entry.workspacePath
-            ? entry.workspacePath
-            : `${scopeLabel} · ${entry.workspacePath}`,
+          label: entry.workspaceName,
           entries: [],
         };
         map.set(key, group);
@@ -479,7 +473,6 @@ const ArchivedSessionsConfig: React.FC = () => {
     <ConfigPageLayout data-bitfun-component="archived-sessions-config" data-bitfun-part="root" className="archived-sessions-config">
       <ConfigPageHeader
         title={t('nav.sessions.archivedSessions')}
-        subtitle={t('nav.sessions.archivedSessionsDescription')}
       />
       <ConfigPageContent>
         <ConfigPageSection
@@ -500,7 +493,7 @@ const ArchivedSessionsConfig: React.FC = () => {
           ))}
           {loading ? (
             <div data-bitfun-component="archived-sessions-config" data-bitfun-part="loading" className="archived-sessions-config__loading">
-              {t('nav.sessions.loading')}
+              <ConfigLoadingState label={t('nav.sessions.loading')} variant="list" />
             </div>
           ) : !hasEntries && loadFailures.length === 0 ? (
             <div data-bitfun-component="archived-sessions-config" data-bitfun-part="empty" className="archived-sessions-config__empty">

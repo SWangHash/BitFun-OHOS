@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { sidebarRegistry } from '../../navigation/sidebarContributions';
 
 describe('navigation icon integration', () => {
   it('uses the standard extension icon in the expandable entry', () => {
@@ -26,13 +27,15 @@ describe('navigation icon integration', () => {
       fileURLToPath(new URL('./MainNav.tsx', import.meta.url)),
       'utf8',
     );
-    const entryStart = source.indexOf('data-testid="nav-todos-btn"');
+    const entryStart = source.indexOf("'nav-todos-btn'");
     const entryEnd = source.indexOf('</button>', entryStart);
     const entryMarkup = source.slice(entryStart, entryEnd);
 
     expect(entryStart).toBeGreaterThanOrEqual(0);
     expect(entryEnd).toBeGreaterThan(entryStart);
-    expect(entryMarkup).toContain('<Icon name="clock" size="sm" />');
+    expect(sidebarRegistry.getSnapshot().find(entry => entry.id === 'builtin.todos')?.icon).toBe('clock');
+    expect(entryMarkup).toContain('name: entry.icon');
+    expect(entryMarkup).toContain('size="sm"');
     expect(source).not.toContain('CalendarClock');
   });
 

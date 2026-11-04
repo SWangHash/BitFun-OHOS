@@ -509,8 +509,12 @@
       "controlHeight": { "$value": "24px" }
     },
     "flowChat": {
-      "$description": "Shared FlowChat rhythm for product and package-owned conversation surfaces.",
+      "$description": "Shared FlowChat rhythm and reading-column geometry for conversation surfaces.",
       "$type": "dimension",
+      "transcriptMaxWidth": {
+        "$value": "900px",
+        "$description": "Default reading-column width, overridden by the controller's content-width preference. Spacing and control-size tokens do not represent a transcript column."
+      },
       "rowIconSize": { "$value": "{control.icon.sizeSm}" },
       "rowIconGap": { "$value": "{space.1}" },
       "flowItemGap": { "$value": "{space.2}" },
@@ -944,6 +948,10 @@
         "$value": "blur(10px)"
       },
       "footerActionMinWidth": { "$value": "100px" },
+      "panelBlockSize": {
+        "$description": "Fixed panel dialog height before viewport clamping; content-height dialogs cannot provide this geometry. Width reuses existing dialog scales.",
+        "$value": "640px"
+      },
       "maxInlineSizeSmall": { "$value": "420px" },
       "maxInlineSizeMedium": { "$value": "560px" },
       "maxInlineSizeLarge": { "$value": "600px" },

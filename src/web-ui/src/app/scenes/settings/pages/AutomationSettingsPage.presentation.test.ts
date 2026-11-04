@@ -11,9 +11,9 @@ function readSource(relativePath: string): string {
 
 describe('AutomationSettingsPage structure', () => {
   it('keeps quick actions and Hooks in one continuous page without tabs', () => {
-    const source = readSource('./AutomationSettingsPage.tsx');
-    const quickActionsIndex = source.indexOf('<QuickActionsConfig />');
-    const hooksIndex = source.indexOf('<HooksConfig />');
+    const source = readSource('./tools/AutomationSettingsPage.tsx');
+    const quickActionsIndex = source.indexOf('<QuickActionsSettingsSection />');
+    const hooksIndex = source.indexOf('<HooksSettingsSection />');
 
     expect(quickActionsIndex).toBeGreaterThan(-1);
     expect(hooksIndex).toBeGreaterThan(quickActionsIndex);

@@ -43,7 +43,8 @@
       "expand": "擴展",
       "solid": "常亮"
     },
-    "lineHeightDesc": "相對於字級的倍數（em）。例如，14 px 字級搭配 1.5 em 行高，實際為 21 px"
+    "lineHeightDesc": "相對於字級的倍數（em）。例如，14 px 字級搭配 1.5 em 行高，實際為 21 px",
+    "inheritGlobalFont": "繼承全域程式碼字型"
   },
   "behavior": {
     "tabSize": "Tab 寬度",

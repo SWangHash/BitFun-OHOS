@@ -2915,5 +2915,9 @@
     "count": "{{count}} 條批註",
     "submitAnnotations": "請處理這些批註。",
     "questionRequired": "請補充針對選取文字的問題或意見。"
+  },
+  "contentWidth": {
+    "resizeLeft": "從左側調整對話內容寬度",
+    "resizeRight": "從右側調整對話內容寬度"
   }
 }

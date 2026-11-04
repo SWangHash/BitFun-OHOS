@@ -295,6 +295,7 @@ import {
 } from '@/features/dispatch/appearance';
 import { voiceInputConfigAppearanceDescriptor } from '@/infrastructure/config/components/VoiceInputConfig.appearance';
 import { worktreeSettingsAppearanceDescriptor } from '@/infrastructure/config/components/WorktreeSettingsPage.appearance';
+import { usageActivityGridAppearanceDescriptor } from '@/infrastructure/config/components/UsageActivityGrid.appearance';
 import { usageStatisticsConfigAppearanceDescriptor } from '@/infrastructure/config/components/UsageStatisticsConfig.appearance';
 import { navSearchDialogAppearanceDescriptor } from '@/app/components/NavPanel/NavSearchDialog.appearance';
 import { turnCompletionNoticeAppearanceDescriptor } from '@/flow_chat/components/modern/TurnCompletionNoticeItem.appearance';
@@ -484,6 +485,7 @@ export function createDefaultAppearanceRegistry(): AppearanceRegistry {
     .registerComponent(workspaceSessionBatchModalAppearanceDescriptor)
     .registerComponent(archivedSessionsConfigAppearanceDescriptor)
     .registerComponent(usageStatisticsConfigAppearanceDescriptor)
+    .registerComponent(usageActivityGridAppearanceDescriptor)
     .registerComponent(settingsNavAppearanceDescriptor)
     .registerComponent(settingsViewPageAppearanceDescriptor)
     .registerComponent(automationSettingsPageAppearanceDescriptor)

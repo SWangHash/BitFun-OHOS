@@ -93,7 +93,17 @@
     "logoutNoAffectedModels": "No model configuration currently uses this subscription account.",
     "logoutConsequence": "Model configurations will not be deleted. Sign in to the same subscription account again to resume using them.",
     "confirmLogout": "Sign out",
-    "openCodeRemoved": "OpenCode Console OAuth supports Zen only. Select API key and enter a Go key. Your existing model configuration is preserved."
+    "openCodeRemoved": "OpenCode Console OAuth supports Zen only. Select API key and enter a Go key. Your existing model configuration is preserved.",
+    "accountState": {
+      "connected": "Signed in",
+      "loadFailed": "Status unavailable",
+      "refreshRequired": "Refresh required",
+      "unavailable": "Service unavailable",
+      "loading": "Reading status"
+    },
+    "accountLabel": "Account",
+    "manageAccount": "Manage account",
+    "accountUnavailable": "No account information"
   },
   "providerSelection": {
     "modelRoutingPending": "Refresh the model list to show protocols and endpoints. Models outside the catalog can be configured manually.",
@@ -137,7 +147,13 @@
     "unsavedModel": "Unsaved",
     "unsavedModelHint": "This model has changes that have not been saved. Use Save at the bottom of the model editor to persist them.",
     "urlHint": "Official API URL pre-filled, modify if using proxy or private deployment",
-    "formatHint": "Automatically selected based on provider, usually no need to change"
+    "formatHint": "Automatically selected based on provider, usually no need to change",
+    "presetModels": "Preset models · {{count}}",
+    "quickAdd": "Quick add",
+    "fetchedModels": "{{count}} models fetched",
+    "searchModels": "Search model name or ID",
+    "editModelSettings": "Edit model {{name}}",
+    "removeModelByName": "Remove model {{name}}"
   },
   "providers": {
     "opencode-go": {
@@ -296,7 +312,9 @@
     "maxTokens": "Max Output Tokens",
     "maxTokensHint": "Maximum tokens for model output per request (affects response length)",
     "description": "Description",
-    "descriptionPlaceholder": "Configuration description (optional)"
+    "descriptionPlaceholder": "Configuration description (optional)",
+    "openCodeZenApiKeyPlaceholder": "Optional for free models; enter your Zen API key for paid models",
+    "baseUrlPlaceholder": "https://api.example.com/v1"
   },
   "thinking": {
     "enable": "Enable Thinking",
@@ -457,7 +475,9 @@
     "newConfig": "New Configuration",
     "addModel": "Add Model",
     "addProvider": "Add Provider",
-    "createFirst": "Create First Configuration"
+    "createFirst": "Create First Configuration",
+    "back": "Back",
+    "done": "$t(shared:statuses.done)"
   },
   "deleteConfirm": {
     "title": "Delete model configuration?",
@@ -531,7 +551,9 @@
     "defaultDescription": "{{name}} model configuration",
     "cloneName": "{{name}} - Copy",
     "templateName": "{{provider}} - {{modelName}}",
-    "templateDescription": "{{description}} - {{modelName}}"
+    "templateDescription": "{{description}} - {{modelName}}",
+    "configConflict": "Model settings changed in another window. Reopen this editor to load the latest configuration.",
+    "providerRemoved": "This provider was removed. Close the editor and reopen model settings."
   },
   "modelsDevCatalog": {
     "title": "models.dev model catalog",
@@ -562,7 +584,8 @@
     "offlineTitle": "Updating without network access",
     "offlineDescription": "On a device with internet access, download the original models.dev file, name it catalog.json, and place it in the cache directory above. Restart BitFun to apply it; Update now may overwrite this file.",
     "downloadOriginal": "Download original catalog",
-    "openCacheDirectory": "Open cache directory"
+    "openCacheDirectory": "Open cache directory",
+    "fetchCatalog": "Get the models.dev catalog"
   },
   "advancedSettings": {
     "title": "Advanced Settings",
@@ -601,5 +624,53 @@
       "validJson": "JSON format is valid",
       "mergeHint": "Custom fields will override corresponding fields in the default request body"
     }
-  }
+  },
+  "library": {
+    "title": "Model library",
+    "search": "Search models",
+    "tags": "Tags",
+    "editConnection": "Edit connection"
+  },
+  "acquisition": {
+    "noneImported": "No subscriptions imported yet",
+    "subscriptions": "Subscriptions",
+    "addSubscription": "Add subscription",
+    "loadFailed": "Could not load subscriptions. Retry to refresh; existing model configurations are retained.",
+    "noneConfigured": "No API services configured yet",
+    "api": "API models",
+    "configuredSummary": "{{providers}} services configured, {{models}} models",
+    "importedSummary": "{{models}} models imported from {{providers}} services",
+    "configureProvider": "Configure {{provider}}"
+  },
+  "pool": {
+    "tagsLimitReached": "You can add up to {{max}} custom tags. Remove one to add another.",
+    "addTags": "Add tags",
+    "removeTag": "Remove tag {{tag}}",
+    "tagsLabel": "Custom tags",
+    "noMatches": "No models match these filters",
+    "capabilityFilter": "Filter model capabilities",
+    "recommendedTags": "Existing recommended tags",
+    "clearFilter": "Clear filters",
+    "moreActions": "More actions for {{model}}",
+    "enableModel": "Enable {{model}}",
+    "editTag": "Edit tag {{tag}}",
+    "providerFilter": "Filter providers",
+    "allCapabilities": "All capabilities",
+    "allProviders": "All providers",
+    "tagsCount": "{{count}} / {{max}}",
+    "tagsHint": "Type a tag and press Enter to add it, up to {{max}}. Slot labels such as Primary and Fast do not count toward this limit.",
+    "tagsPlaceholder": "Add tags",
+    "recommendationsUnavailable": "The recommended tag service has not launched, so sync is not connected yet. You can add model tags manually.",
+    "manageConnections": "Manage connections",
+    "acknowledge": "Got it",
+    "search": "Search models, sources, or tags",
+    "syncTags": "Sync recommended tags"
+  },
+  "editProviderSettingsTitle": "Service connection",
+  "sections": {
+    "more": "More settings",
+    "pool": "All models",
+    "acquisition": "Add or import models"
+  },
+  "modelEditorTitle": "{{model}} · {{provider}}"
 }

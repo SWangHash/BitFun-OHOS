@@ -40,16 +40,15 @@ vi.mock('./ecosystemCompatibilityStore', () => ({
 }));
 vi.mock('@bitfun/ui', async () => {
   const { createElement, forwardRef } = await import('react');
-  const { Alert, Switch, Tooltip } = await vi.importActual<typeof import('@bitfun/ui')>('@bitfun/ui');
+  const actual = await vi.importActual<typeof import('@bitfun/ui')>('@bitfun/ui');
   const Wrapper = forwardRef<HTMLDivElement, { children?: React.ReactNode }>(
     ({ children }, ref) => createElement('div', { ref }, children),
   );
   return {
-    Alert,
+    ...actual,
     ...Object.fromEntries(['LoadingState', 'NavigationPanel', 'NavigationPanelBody', 'NavigationPanelContent',
       'NavigationPanelFooter', 'NavigationPanelHeader', 'NavigationPanelSection',
       'OverflowText', 'ScrollArea', 'SearchField', 'Select', 'StatusPill', 'Textarea', 'DialogBody', 'DialogFooter', 'DialogHeader', 'DialogHeaderActions', 'DialogDescription', 'DialogHeading', 'DialogTitle'].map((name) => [name, Wrapper])),
-    Switch, Tooltip,
     NavigationPanelItem: ({ children, title, 'data-product-id': productId }: React.HTMLAttributes<HTMLDivElement> & { 'data-product-id'?: string }) => createElement('div', { title, 'data-product-id': productId }, children),
     IconButton: ({ icon, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { icon: React.ReactNode }) => createElement('button', props, icon),
     Checkbox: ({ size: _size, ...props }: React.InputHTMLAttributes<HTMLInputElement>) => createElement('input', { type: 'checkbox', ...props }),
@@ -58,6 +57,8 @@ vi.mock('@bitfun/ui', async () => {
     Button: ({ children, onClick, disabled, 'aria-label': label }: React.ButtonHTMLAttributes<HTMLButtonElement>) => createElement('button', { onClick, disabled, 'aria-label': label }, children),
   };
 });
+
+vi.mock('../settings/pages/shared/SettingsPage', () => ({ SettingsPage: ({ children }: React.PropsWithChildren) => <div>{children}</div> }));
 
 vi.mock('@/infrastructure/config/services/AgentCompanionPetService', () => ({
   listExternalAgentCompanionPets: async () => ({ candidates: [], diagnostics: [] }),
@@ -441,8 +442,6 @@ describe('compatibility discovery lifecycle', () => {
     mocks.getDiscoverySnapshot.mockResolvedValue(snapshot(true, false, true));
     await renderMcp();
     expect(container.querySelector('[data-product-id="codex"]')?.getAttribute('title')).toBe('Codex · assets:2');
-    expect(container.textContent).toContain('host.local');
-    expect(container.textContent).not.toContain('host.remote');
     mocks.ownerSurface = 'external-sources';
     await act(async () => root.render(<EcosystemCompatibilityScene />));
     expect(container.querySelector('[data-product-id="codex"]')?.getAttribute('title')).toBe('Codex · assets:2');

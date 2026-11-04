@@ -55,6 +55,7 @@ vi.mock('@/infrastructure/confirm-dialog', async () => {
 });
 vi.mock('../../api/service-api/MCPAPI', () => ({
   MCPAPI: {
+    getCachedServers: () => undefined,
     getServers: getServersMock,
     loadMCPJsonConfig: loadJsonConfigMock,
     saveMCPJsonConfig: saveJsonConfigMock,
@@ -426,7 +427,7 @@ describe('McpToolsConfig remote behavior', () => {
     expect(container.textContent).not.toContain('section.serverList.loadFailed');
   });
 
-  it.each(['Failed', 'Reconnecting'])('keeps %s server cards stable while polling and observes recovery', async (status) => {
+  it.each(['Failed', 'Reconnecting'])('keeps %s server cards stable while auto-start settles and observes recovery', async (status) => {
     vi.useFakeTimers();
     peerState.active = false;
     const server = {
@@ -446,6 +447,7 @@ describe('McpToolsConfig remote behavior', () => {
     }));
 
     await act(async () => root.render(<McpToolsConfig />));
+    await act(async () => { vi.advanceTimersByTime(200); });
     expect(container.textContent).toContain('loading');
     await act(async () => resolveServers([server]));
     const card = container.querySelector('[data-testid="mcp-server-item"]');
@@ -464,6 +466,41 @@ describe('McpToolsConfig remote behavior', () => {
     expect(container.querySelector('[data-testid="mcp-server-item"]')).toBe(card);
     expect(card?.textContent).toContain('status.connected');
     expect(container.textContent).not.toContain('loading');
+    await act(async () => { vi.advanceTimersByTime(2000); });
+    expect(getServersMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('observes a connected server failing in the background without replacing its card', async () => {
+    vi.useFakeTimers();
+    peerState.active = false;
+    const server = {
+      id: 'running', name: 'Running server', status: 'Connected',
+      serverType: 'local', transport: 'stdio', enabled: true, autoStart: true, startSupported: true,
+    };
+    getServersMock.mockResolvedValueOnce([server]).mockResolvedValue([{ ...server, status: 'Failed' }]);
+    await act(async () => root.render(<McpToolsConfig />));
+    const card = container.querySelector('[data-testid="mcp-server-item"]');
+    expect(card?.textContent).toContain('status.connected');
+    await act(async () => { vi.advanceTimersByTime(2000); });
+    expect(getServersMock).toHaveBeenCalledTimes(2);
+    expect(container.querySelector('[data-testid="mcp-server-item"]')).toBe(card);
+    expect(card?.textContent).toContain('status.failed');
+    expect(startServerMock).not.toHaveBeenCalled();
+    expect(restartServerMock).not.toHaveBeenCalled();
+  });
+
+  it('pauses background status reads while the settings scene is inactive', async () => {
+    vi.useFakeTimers();
+    peerState.active = false;
+    getServersMock.mockResolvedValue([{
+      id: 'running', name: 'Running server', status: 'Connected',
+      serverType: 'local', transport: 'stdio', enabled: true, autoStart: true, startSupported: true,
+    }]);
+    await act(async () => root.render(<McpToolsConfig />));
+    await act(async () => root.render(<McpToolsConfig isActive={false} />));
+    await act(async () => { vi.advanceTimersByTime(5000); });
+    expect(getServersMock).toHaveBeenCalledTimes(1);
+    await act(async () => root.render(<McpToolsConfig isActive />));
     await act(async () => { vi.advanceTimersByTime(2000); });
     expect(getServersMock).toHaveBeenCalledTimes(2);
   });

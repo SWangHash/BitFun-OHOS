@@ -3,10 +3,12 @@ import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BrowserDesktopControlSettingsPage, ExecutionSettingsPage, SessionWorkspaceSettingsPage } from './RuntimeSettingsPages';
+import PetSettingsSection from '@/app/scenes/settings/pages/application/PetSettingsSection';
 
 const mocks = vi.hoisted(() => {
   Object.defineProperty(window, '__TAURI__', { configurable: true, value: {} });
   return {
+    readSettings: vi.fn(), listPets: vi.fn(), cachedSettings: null as Record<string, unknown> | null,
     invoke: vi.fn(), setConfig: vi.fn(), setEnabled: vi.fn(), getConfig: vi.fn(), error: vi.fn(),
     t: (key: string) => key,
     workspace: null as { workspaceKind: string } | null,
@@ -15,15 +17,15 @@ const mocks = vi.hoisted(() => {
 vi.mock('@/infrastructure/api', () => ({ globalAPI: {}, workspaceAPI: {} }));
 vi.mock('@/infrastructure/contexts/WorkspaceContext', () => ({ useCurrentWorkspace: () => ({ workspace: mocks.workspace }) }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: mocks.t }) }));
-vi.mock('@/infrastructure/i18n', () => ({ i18nService: { formatNumber: String } }));
+vi.mock('@/infrastructure/i18n', () => ({ useI18n: () => ({ t: mocks.t }), i18nService: { formatNumber: String } }));
 vi.mock('@/infrastructure/api/service-api/ApiClient', () => ({ api: { invoke: mocks.invoke } }));
 vi.mock('@/infrastructure/api/service-api/SystemAPI', () => ({ systemAPI: { getSystemInfo: async () => ({ platform: 'macos' }) } }));
 vi.mock('../services/ConfigManager', () => ({ configManager: {
   getConfig: mocks.getConfig, getOptionalConfig: async () => true, setConfig: mocks.setConfig,
 } }));
 vi.mock('../hooks/useComputerUseEnabled', () => ({ useComputerUseEnabled: () => ({ computerUseEnabled: false, setComputerUseEnabled: mocks.setEnabled }) }));
-vi.mock('../services/AIExperienceConfigService', () => ({ aiExperienceConfigService: { getSettingsAsync: async () => ({ enable_workspace_search: true }) } }));
-vi.mock('../services/AgentCompanionPetService', () => ({ DEFAULT_AGENT_COMPANION_PET: 'default' }));
+vi.mock('../services/AIExperienceConfigService', () => ({ aiExperienceConfigService: { getSettingsAsync: mocks.readSettings, getCachedSettings: () => mocks.cachedSettings, saveSettings: mocks.setConfig } }));
+vi.mock('../services/AgentCompanionPetService', () => ({ DEFAULT_AGENT_COMPANION_PET: { id: 'blue-golden', source: 'preset', packagePath: 'preset/default', displayName: 'Default' }, listAgentCompanionPets: mocks.listPets }));
 vi.mock('../services/PermissionConfigService', async (original) => ({
   ...await original<typeof import('../services/PermissionConfigService')>(),
   permissionConfigService: { getConfig: async () => ({}) },
@@ -38,8 +40,8 @@ vi.mock('./ReviewCapacitySection', () => ({ default: () => null }));
 vi.mock('./ToolJsonRepairSection', () => ({ default: () => null }));
 vi.mock('@bitfun/ui', async (original) => ({
   ...await original<typeof import('@bitfun/ui')>(),
-  Select: ({ value, options, disabled }: { value: string; options: Array<{ value: string; label: string }>; disabled: boolean }) => (
-    <select value={value} disabled={disabled} onChange={() => {}}>{options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
+  Select: ({ value, options, disabled, onValueChange }: { value: string; options: Array<{ value: string; label: string }>; disabled: boolean; onValueChange: (value: string) => void }) => (
+    <select value={value} disabled={disabled} onChange={event => onValueChange(event.target.value)}>{options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
   ),
 }));
 
@@ -51,6 +53,9 @@ const button = (label: string) => Array.from(container.querySelectorAll('button'
 const render = async () => { await act(async () => root.render(<BrowserDesktopControlSettingsPage />)); };
 
 beforeEach(() => {
+  mocks.readSettings.mockReset().mockResolvedValue({ enable_workspace_search: true });
+  mocks.cachedSettings = null;
+  mocks.listPets.mockReset().mockResolvedValue([]);
   mocks.workspace = null;
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   status = { ...readyStatus };
@@ -118,6 +123,21 @@ describe('Tool execution concurrency settings', () => {
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); });
 
 describe('Browser and desktop control settings', () => {
+  it('hides desktop controls and status reads on HarmonyOS while keeping on-demand browser settings', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'HarmonyOS', platform: 'OHOS' });
+    vi.resetModules();
+    const { BrowserDesktopControlSettingsPage: HarmonyBrowserSettings } = await import('./RuntimeSettingsPages');
+    await act(async () => root.render(<HarmonyBrowserSettings />));
+    expect(container.textContent).not.toContain('computerUse.sectionTitle');
+    expect(container.textContent).toContain('browserControl.sectionTitle');
+    expect(container.textContent).toContain('navigation.pages.browserControl.label');
+    expect(mocks.invoke.mock.calls.some(([command]) => command.startsWith('computer_use_'))).toBe(false);
+    expect(mocks.getConfig).not.toHaveBeenCalledWith('ai.computer_use_enabled');
+    expect(container.textContent).toContain('browserControl.connectOnUse');
+    expect(mocks.invoke).toHaveBeenCalledWith('browser_control_get_status', expect.anything());
+    vi.unstubAllGlobals();
+  });
+
   it('shows on-demand connection copy without a manual connect action', async () => {
     await render();
     expect(container.querySelector('option')?.textContent).toBe('browserControl.defaultBrowser');
@@ -146,7 +166,7 @@ describe('Browser and desktop control settings', () => {
     status.defaultCdpEnabled = false;
     await render();
     await act(async () => button('browserControl.enableDefaultCdp').click());
-    expect(mocks.invoke).toHaveBeenCalledWith('browser_control_enable_default_cdp', { request: { port: 9222 } });
+    expect(mocks.invoke).toHaveBeenCalledWith('browser_control_enable_default_cdp', { request: { port: 9222 } }, { timeout: 190_000 });
     expect(mocks.invoke).not.toHaveBeenCalledWith('browser_control_launch', expect.anything());
   });
 
@@ -182,6 +202,13 @@ describe('Browser and desktop control settings', () => {
     expect(container.textContent).toContain('browserControl.notConnected');
     expect(container.textContent).toContain('browserControl.connectOnUse');
     expect(container.textContent).not.toContain('browserControl.connected');
+    await act(async () => {
+      const select = container.querySelector('select')!;
+      select.value = 'haitai';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(mocks.setConfig).toHaveBeenCalledWith('ai.browser_control_preferred_browser', 'haitai');
+    expect(mocks.invoke.mock.calls.filter(([command]) => command === 'browser_control_disconnect')).toHaveLength(2);
   });
 
   it('keeps the primary state binary and explains a failed connection separately', async () => {
@@ -247,5 +274,33 @@ describe('Flashgrep settings availability', () => {
     await act(async () => root.render(<SessionWorkspaceSettingsPage />));
     expect(container.textContent).toContain('default-harness-config');
     expect(container.textContent?.includes('features.workspaceSearch.enable')).toBe(workspaceKind === 'normal');
+  });
+});
+
+
+describe('pet settings loading and preview', () => {
+  it('locks editing after an initial read failure, then reuses the last successful collapsed preview on re-entry', async () => {
+    mocks.listPets.mockResolvedValue([{ id: 'blue-golden', source: 'preset', packagePath: 'preset/default', displayName: 'Default', previewSrc: '/fixture.png', spriteVersionNumber: 1 }]);
+    mocks.readSettings.mockRejectedValueOnce(new Error('Unavailable'));
+    await act(async () => root.render(<PetSettingsSection />));
+    expect(container.textContent).toContain('loading.failed');
+    expect(container.querySelector('input[type="checkbox"]')).toBeNull();
+    const settings = { enable_agent_companion: false, agent_companion_pet: { id: 'blue-golden', source: 'preset', packagePath: 'preset/default', displayName: 'Default' } };
+    mocks.readSettings.mockResolvedValue(settings);
+    await act(async () => button('loading.retry').click());
+    expect(container.querySelector('input[type="checkbox"]')).not.toBeNull();
+    const preview = () => container.querySelector<HTMLButtonElement>('[data-bitfun-part="petSummary"]')!;
+    expect(preview().getAttribute('aria-expanded')).toBe('false');
+    await act(async () => preview().click());
+    expect(preview().getAttribute('aria-expanded')).toBe('true');
+    await act(async () => root.render(<PetSettingsSection isActive={false} />));
+    expect(preview().getAttribute('aria-expanded')).toBe('false');
+    await act(async () => root.render(null));
+    mocks.cachedSettings = settings;
+    mocks.readSettings.mockRejectedValueOnce(new Error('Offline refresh'));
+    await act(async () => root.render(<PetSettingsSection />));
+    expect(preview().getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelector('[data-bitfun-part="loadingState"]')).toBeNull();
+    expect(container.querySelector('input[type="checkbox"]')).not.toBeNull();
   });
 });

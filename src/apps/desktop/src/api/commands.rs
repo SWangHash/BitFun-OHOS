@@ -510,6 +510,12 @@ pub struct DeleteAgentCompanionPetPackageRequest {
     pub package_path: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoadAgentCompanionPetSpritesheetRequest {
+    pub spritesheet_path: String,
+}
+
 pub use bitfun_services_core::pet_packages::PetPackage as AgentCompanionPetPackageDto;
 
 #[derive(Debug, Deserialize)]
@@ -2825,6 +2831,24 @@ mod pet_package_tests {
     }
 
     #[test]
+    fn preview_reads_the_installed_controller_pet_package() {
+        let temp = tempfile::tempdir().unwrap();
+        let packages = temp.path().join("pets");
+        std::fs::create_dir(&packages).unwrap();
+        let image = packages.join("spritesheet.png");
+        std::fs::write(&image, [1, 2, 3]).unwrap();
+        assert_eq!(
+            read_agent_companion_pet_spritesheet(&packages, &image).unwrap(),
+            vec![1, 2, 3]
+        );
+        let outside = temp.path().join("outside.png");
+        std::fs::write(&outside, [4]).unwrap();
+        assert!(read_agent_companion_pet_spritesheet(&packages, &outside)
+            .unwrap_err()
+            .contains("outside"));
+    }
+
+    #[test]
     fn bundled_pet_request_requires_review() {
         let temp = tempfile::tempdir().unwrap();
         let request =
@@ -3048,6 +3072,36 @@ pub(crate) async fn list_agent_companion_pets_impl(
         builtin_import_version: 1,
         external: None,
     })
+}
+
+#[tauri::command]
+pub async fn load_agent_companion_pet_spritesheet(
+    state: State<'_, AppState>,
+    request: LoadAgentCompanionPetSpritesheetRequest,
+) -> Result<tauri::ipc::Response, String> {
+    let packages_root = companion_user_packages_dir(&state);
+    let bytes = tokio::task::spawn_blocking(move || {
+        read_agent_companion_pet_spritesheet(&packages_root, Path::new(&request.spritesheet_path))
+    })
+    .await
+    .map_err(|error| error.to_string())??;
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
+fn read_agent_companion_pet_spritesheet(
+    packages_root: &Path,
+    spritesheet_path: &Path,
+) -> Result<Vec<u8>, String> {
+    let root = packages_root
+        .canonicalize()
+        .map_err(|error| error.to_string())?;
+    let requested = spritesheet_path
+        .canonicalize()
+        .map_err(|error| error.to_string())?;
+    if !requested.starts_with(root) {
+        return Err("Spritesheet is outside the companion pet directory".to_string());
+    }
+    std::fs::read(requested).map_err(|error| error.to_string())
 }
 
 #[tauri::command]

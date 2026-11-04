@@ -1,3 +1,4 @@
+import { capsuleMeta } from "./components/Capsule/Capsule.meta";
 import { actionItemMeta } from "./components/ActionItem/ActionItem.meta";
 import { actionCardMeta } from "./components/ActionCard/ActionCard.meta";
 import { activityItemMeta } from "./components/ActivityItem/ActivityItem.meta";
@@ -117,6 +118,7 @@ export const componentRegistry = [
   avatarMeta,
   buttonMeta,
   cardMeta,
+  capsuleMeta,
   checkboxMeta,
   chatComposerMeta,
   commandToolCardMeta,

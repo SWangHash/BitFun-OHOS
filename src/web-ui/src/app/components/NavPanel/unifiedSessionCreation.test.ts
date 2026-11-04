@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_SIDEBAR_PINS } from '../../navigation/sidebarPreferences';
 
 function source(relativePath: string): string {
   return readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), 'utf8');
@@ -89,10 +90,10 @@ describe('unified project session creation', () => {
 
     expect(mainNav).not.toContain('data-testid="nav-smart-members-btn"');
     expect(mainNav).not.toContain('data-testid="nav-long-term-tracking-btn"');
-    expect(mainNav).toContain('data-testid="nav-todos-btn"');
+    expect(mainNav).toContain("'nav-todos-btn'");
     expect(footerActions).not.toContain('data-testid="nav-todos-btn"');
     expect(mainNav).toContain('data-bitfun-part="todoEntry"');
-    expect(mainNav).toContain("activateProductAction('surface.todos.open')");
+    expect(source('../../navigation/sidebarContributions.ts')).toContain("'surface.todos.open'");
     expect(mainNav).not.toContain("new Set(['sessions'])");
     expect(mainNav).toContain('label={t(\'nav.items.sessions\')}');
     expect(mainNav).toContain('<WorkspaceListSection variant="all" />');
@@ -104,10 +105,10 @@ describe('unified project session creation', () => {
     expect(projection).toContain("WorkspaceBackedSessionGroupKind = 'assistant' | 'project'");
   });
 
-  it('places Task Board below AI Assistant, before Mini Apps and capability management', () => {
+  it('keeps the default Task Board pin below AI Assistant, before Mini Apps and capability management', () => {
     const mainNav = source('./MainNav.tsx');
     const assistantIndex = mainNav.indexOf('data-testid="nav-assistant-manager"');
-    const taskBoardIndex = mainNav.indexOf('data-testid="nav-todos-btn"');
+    const taskBoardIndex = mainNav.indexOf("'nav-todos-btn'");
     const miniAppsIndex = mainNav.indexOf('className="bitfun-nav-panel__miniapp-navigation"');
     const extensionIndex = mainNav.indexOf('data-testid="agent-skill-entry"');
     const sessionsIndex = mainNav.indexOf('data-bitfun-section="sessions"');
@@ -116,7 +117,8 @@ describe('unified project session creation', () => {
     expect(miniAppsIndex).toBeGreaterThan(taskBoardIndex);
     expect(extensionIndex).toBeGreaterThan(miniAppsIndex);
     expect(sessionsIndex).toBeGreaterThan(extensionIndex);
-    expect(mainNav).toContain("t('nav.items.todos')");
+    expect(DEFAULT_SIDEBAR_PINS).toEqual(['builtin.todos']);
+    expect(source('../../navigation/sidebarContributions.ts')).toContain("'common:nav.items.todos'");
     expect(mainNav).not.toContain('data-testid="nav-bottom-bar"');
     expect(mainNav).toContain('className="bitfun-nav-panel__top-action-expand"');
     expect(mainNav).toContain('data-testid="ecosystem-compatibility-tab"');

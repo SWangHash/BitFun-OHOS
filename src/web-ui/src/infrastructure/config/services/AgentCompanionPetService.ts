@@ -1,6 +1,5 @@
 import { globalEventBus } from '@/infrastructure/event-bus';
 import { api } from '@/infrastructure/api/service-api/ApiClient';
-import { workspaceAPI } from '@/infrastructure/api/service-api/WorkspaceAPI';
 import type { AgentCompanionPetSelection } from './AIExperienceConfigService';
 import { isTauriRuntime } from '@/infrastructure/runtime';
 import { createLogger } from '@/shared/utils/logger';
@@ -27,18 +26,15 @@ export const DEFAULT_AGENT_COMPANION_PET: AgentCompanionPetSelection = {
 /** Cache: absolute file path → blob URL (prevents re-reading the same file). */
 const blobUrlCache = new Map<string, string>();
 
-/**
- * Read a pet resource through the host file service (`read_file_binary`)
- * instead of the Tauri fs plugin: the fs-plugin scope rejects user pet
- * directories on some hosts (e.g. HarmonyOS), while the host command reads
- * them like any other local file.
- */
+/** Read previews on the controller that owns the imported pet packages. */
 async function readFileAsBlobUrl(absolutePath: string, mimeType: string): Promise<string> {
   const cached = blobUrlCache.get(absolutePath);
   if (cached) return cached;
 
-  const bytes = await workspaceAPI.readFileBinary(absolutePath);
-  const blob = new Blob([bytes], { type: mimeType });
+  const bytes = await api.invoke<ArrayBuffer | number[]>('load_agent_companion_pet_spritesheet', {
+    request: { spritesheetPath: absolutePath },
+  });
+  const blob = new Blob([new Uint8Array(bytes)], { type: mimeType });
   const url = URL.createObjectURL(blob);
   blobUrlCache.set(absolutePath, url);
   return url;

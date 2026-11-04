@@ -3,7 +3,7 @@
 //! Provides comprehensive configuration management functionality.
 
 use super::manager::{
-    validate_current_config_value, validate_bitfun_product_identity, ConfigManager,
+    validate_bitfun_product_identity, validate_current_config_value, ConfigManager,
     ConfigManagerSettings, ConfigStatistics,
 };
 use super::types::*;
@@ -184,8 +184,29 @@ impl ConfigService {
     where
         T: serde::Serialize,
     {
+        self.set_config_with_snapshot(path, value, None).await
+    }
+
+    /// Compare a caller's snapshot and persist under the same configuration lock.
+    /// Older callers omit the snapshot and retain ordinary write semantics.
+    pub async fn set_config_with_snapshot<T>(
+        &self,
+        path: &str,
+        value: T,
+        expected: Option<serde_json::Value>,
+    ) -> BitFunResult<()>
+    where
+        T: serde::Serialize,
+    {
         {
             let mut manager = self.manager.write().await;
+            if let Some(expected) = expected {
+                if manager.get::<serde_json::Value>(path)? != expected {
+                    return Err(BitFunError::config(
+                        "CONFIG_MODELS_CONFLICT: configuration changed while being edited",
+                    ));
+                }
+            }
             manager.set(path, value).await?;
         }
         self.after_config_change(path).await;
@@ -395,10 +416,7 @@ impl ConfigService {
     }
 
     /// Imports a complete current-format BitFun configuration export.
-    pub async fn import_config(
-        &self,
-        export: ConfigExport,
-    ) -> BitFunResult<ConfigImportResult> {
+    pub async fn import_config(&self, export: ConfigExport) -> BitFunResult<ConfigImportResult> {
         if let Err(error) = validate_config_export(&export) {
             return Ok(ConfigImportResult {
                 success: false,
@@ -535,18 +553,12 @@ impl ConfigService {
     }
 
     /// Updates an AI model configuration.
-    pub async fn update_ai_model(
-        &self,
-        model_id: &str,
-        model: AIModelConfig,
-    ) -> BitFunResult<()> {
+    pub async fn update_ai_model(&self, model_id: &str, model: AIModelConfig) -> BitFunResult<()> {
         self.update_config("ai.models", |models: &mut Vec<AIModelConfig>| {
             let existing = models
                 .iter_mut()
                 .find(|m| m.id == model_id)
-                .ok_or_else(|| {
-                    BitFunError::config(format!("AI model '{}' not found", model_id))
-                })?;
+                .ok_or_else(|| BitFunError::config(format!("AI model '{}' not found", model_id)))?;
             *existing = model;
             Ok(())
         })
@@ -2058,6 +2070,28 @@ mod tests {
         )
         .expect("valid persisted config");
         assert_eq!(persisted.ai.default_models.fast, None);
+    }
+
+    #[tokio::test]
+    async fn model_snapshot_write_rejects_stale_values_without_replacing_saved_models() {
+        let (service, _dir) = test_service("model-snapshot-write").await;
+        let original: serde_json::Value = service.get_config(Some("ai.models")).await.unwrap();
+        let first = vec![model("first", true, ModelCategory::GeneralChat)];
+        service
+            .set_config_with_snapshot("ai.models", &first, Some(original.clone()))
+            .await
+            .unwrap();
+        let second = vec![model("second", true, ModelCategory::GeneralChat)];
+        let error = service
+            .set_config_with_snapshot("ai.models", &second, Some(original))
+            .await
+            .expect_err("a stale model snapshot must not overwrite a completed edit");
+        assert!(error.to_string().contains("CONFIG_MODELS_CONFLICT"));
+        let saved: Vec<AIModelConfig> = service.get_config(Some("ai.models")).await.unwrap();
+        assert_eq!(saved[0].id, "first");
+        service.set_config("ai.models", &second).await.unwrap();
+        let legacy_saved: Vec<AIModelConfig> = service.get_config(Some("ai.models")).await.unwrap();
+        assert_eq!(legacy_saved[0].id, "second");
     }
 
     #[tokio::test]

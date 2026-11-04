@@ -853,6 +853,10 @@
       "appearanceSwitchFailed": "Could not switch the theme. Try again.",
       "openSettings": "Settings",
       "about": "About"
+    },
+    "customization": {
+      "unavailableEntry": "Unavailable entry ({{id}})",
+      "openFailed": "Could not open {{name}}. Try again."
     }
   },
   "window": {
@@ -1283,7 +1287,6 @@
     "disclaimerStatusPending": "Not agreed",
     "disclaimerDecline": "Decline",
     "disclaimerAgree": "Agree and Continue",
-    "disclaimerItemRelay": "Official and LAN relays connect devices and forward messages; tasks run on the execution device, which must remain online. Closing the connection window or cancelling an invitation does not disconnect an established account connection. Disconnect it explicitly in connection management.",
     "overviewTitle": "Overview"
   },
   "about": {
@@ -2184,5 +2187,10 @@
   },
   "fileAccess": {
     "remoteWaiting": "Waiting for the target device. If a system folder-access dialog appears there, confirm it on that device. You can cancel this browse while waiting."
+  },
+  "peerHost": {
+    "unavailable": "This feature is not available on that device.",
+    "updateRequired": "The BitFun version on that device does not support this feature. Try updating BitFun on that device.",
+    "withDetail": "{{message}} ({{detail}})"
   }
 }

@@ -26,6 +26,7 @@ import type {
   StartTurnInput,
   StartTurnResult,
   SubmissionPlan,
+  SubmissionDraft,
   TurnTracker,
   UsageReportUiParams,
 } from '../types';
@@ -45,6 +46,8 @@ import { cleanupSessionBuffers } from '../../services/flow-chat-manager/TextChun
 import { addSubmittedDialogTurn, applyGeneratingTitlePlaceholder } from '../shared';
 import { inheritReviewPermissionMode } from '../../services/inheritReviewPermissionMode';
 import { initializeSessionTitleMetadata } from '../../services/sessionTitleMetadata';
+import { isAcpFlowSession } from '../../utils/acpSession';
+import { insertSteeringItemIfAbsent } from '../../services/flow-chat-manager/EventHandlerModule';
 
 const log = createLogger('LocalSessionDriver');
 
@@ -244,7 +247,14 @@ export const localSessionDriver: SessionDriver = {
     return settledInFinishing;
   },
 
-  planSubmission(): SubmissionPlan {
+  planSubmission(context, sessionId, draft): SubmissionPlan {
+    const session = context.flowChatStore.getState().sessions.get(sessionId);
+    if (draft.sendImmediately && !isAcpFlowSession(session)
+      && !context.userCancelledSessionIds?.has(sessionId)
+      && stateMachineManager.getCurrentState(sessionId) === SessionExecutionState.PROCESSING
+      && stateMachineManager.get(sessionId)?.getContext().currentDialogTurnId) {
+      return { kind: 'steer' };
+    }
     // Local sessions park messages while busy; the drain listener replays
     // them when the state machine returns to IDLE.
     return { kind: 'queue' };
@@ -300,8 +310,23 @@ export const localSessionDriver: SessionDriver = {
     return agentAPI.respondPermissionBatch(requestId, reply, feedback);
   },
 
-  async steer(): Promise<void> {
-    throw new Error('Local sessions queue messages while a turn is running');
+  async steer(_context: FlowChatContext, sessionId: string, draft: SubmissionDraft): Promise<void> {
+    const scope = getActiveSurfaceScope();
+    const dialogTurnId = stateMachineManager.get(sessionId)?.getContext().currentDialogTurnId;
+    if (!dialogTurnId) throw new Error('No running turn accepts this message');
+    const response = await agentAPI.steerDialogTurn({
+      sessionId, dialogTurnId, content: draft.message,
+      displayContent: draft.displayMessage,
+      imageContexts: draft.imageContexts,
+      userMessageMetadata: draft.userMessageMetadata,
+    });
+    if (scope.isCurrent() && response.steeringId) {
+      insertSteeringItemIfAbsent({
+        sessionId, turnId: dialogTurnId, steeringId: response.steeringId,
+        content: draft.displayMessage ?? draft.message,
+        images: draft.imageDisplayData, status: 'pending',
+      });
+    }
   },
 
   async startTurn(

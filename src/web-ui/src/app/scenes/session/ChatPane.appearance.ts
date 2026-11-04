@@ -12,5 +12,7 @@ export const chatPaneAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'modelNotice', propertyProfile: 'paint', visualRole: 'content' },
     { id: 'modelNoticeCopy', propertyProfile: 'paint', visualRole: 'content' },
     { id: 'modelNoticeAction', propertyProfile: 'control', visualRole: 'control' },
+    { id: 'widthBoundary', propertyProfile: 'layout', visualRole: 'decoration' },
+    { id: 'widthHandle', propertyProfile: 'control', visualRole: 'control' },
   ],
 };

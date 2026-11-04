@@ -45,7 +45,9 @@
     "requests": "Requests",
     "tokens": "Total Tokens",
     "cachedTokens": "Cached Tokens",
-    "cacheHitRate": "Cache Hit Rate"
+    "cacheHitRate": "Cache Hit Rate",
+    "inputTokens": "Input Tokens",
+    "outputTokens": "Output Tokens"
   },
   "chart": {
     "totalTokens": "{{count}} tokens",
@@ -55,7 +57,8 @@
     "title": "Usage Distribution",
     "byModel": "Model Distribution",
     "byGroup": "Group Usage Distribution",
-    "byEndpoint": "Endpoint Distribution"
+    "byEndpoint": "Endpoint Distribution",
+    "more": "More sources"
   },
   "cacheHitRate": {
     "title": "Model Cache Hit Rate"
@@ -68,8 +71,8 @@
     "unknownEndpoint": "Unknown endpoint"
   },
   "trend": {
-    "title": "Token Usage Trend",
-    "description": "Track input, output, cache-write, cache-read tokens, and cache hit rate over time.",
+    "title": "Detailed Trend",
+    "description": "Input and output token usage over time",
     "dataTableCaption": "Token usage trend details",
     "time": "Time",
     "legend": {
@@ -77,7 +80,10 @@
       "output": "Output",
       "cacheRead": "Cache Read",
       "cacheHitRate": "Cache Hit Rate"
-    }
+    },
+    "partial": "Showing the most recent trend; the total covers the full selected period",
+    "range": "{{start}} to {{end}}",
+    "summary": "See how input and output changed during the selected period"
   },
   "table": {
     "caption": "{{dimension}} details",
@@ -85,6 +91,25 @@
     "group": "Group",
     "endpoint": "Endpoint",
     "requests": "Requests",
-    "tokens": "Token"
+    "tokens": "Token",
+    "requestsCount": "{{count}} requests",
+    "shareValue": "{{share}} of total"
+  },
+  "activity": {
+    "day": "{{date}}: {{tokens}} tokens",
+    "description": "Fixed six-month range · {{timeZone}}",
+    "less": "Less",
+    "more": "More",
+    "title": "Daily Usage: Past Six Months",
+    "total": "{{tokens}} tokens in total"
+  },
+  "cache": {
+    "note": "Cache read tokens are included in input tokens. The hit rate uses only requests with reported cache data.",
+    "unavailable": "Not provided",
+    "title": "Cache Data",
+    "description": "Calculated only when the model provider reports cache data"
+  },
+  "details": {
+    "title": "More Details"
   }
 }

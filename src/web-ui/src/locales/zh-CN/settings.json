@@ -6,23 +6,24 @@
     },
     "categories": {
       "application": "应用与界面",
-      "ai": "AI 与模型",
+      "ai": "模型与智能体",
       "workspace": "会话与工作区",
       "tools": "工具与集成",
-      "data": "数据与维护"
+      "data": "数据与维护",
+      "development": "编程与开发"
     },
     "pages": {
       "general": {
         "label": "通用",
-        "description": "启动、更新、窗口、休眠与通知。"
+        "description": "调整界面语言、启动、更新、休眠、窗口与通知行为"
       },
       "appearance": {
         "label": "外观",
-        "description": "语言、主题、动效、外观包与界面字体。"
+        "description": "调整主题、外观包与字体"
       },
       "pet": {
         "label": "宠物",
-        "description": "显示位置、角色包、导入与预览。"
+        "description": "选择宠物形象与显示偏好。"
       },
       "voice": {
         "label": "语音",
@@ -34,15 +35,15 @@
       },
       "terminal": {
         "label": "终端",
-        "description": "默认 Shell。"
+        "description": "选择新建终端和本地工作区命令使用的 Shell"
       },
       "editor": {
         "label": "编辑器",
-        "description": "代码编辑器的外观、缩进、显示与格式化。"
+        "description": "调整代码的显示、缩进与自动格式化"
       },
       "models": {
         "label": "模型",
-        "description": "默认模型、模型服务、订阅账户、模型目录与网络代理。"
+        "description": "连接模型服务，并选择各类任务使用的模型"
       },
       "memory": {
         "label": "记忆",
@@ -57,40 +58,64 @@
         "description": "Git Worktree 隔离与并行会话默认值。"
       },
       "execution": {
-        "label": "执行与权限",
-        "description": "工具权限、执行参数、Review 与容错设置。"
+        "label": "执行与协作",
+        "description": "设置工具运行时限、智能体并行方式与审核容量"
       },
       "browserDesktopControl": {
         "label": "浏览器与桌面控制",
-        "description": "配置浏览器连接、桌面操作及所需的系统权限。"
+        "description": "连接浏览器，授权屏幕查看和桌面操作"
       },
       "automation": {
         "label": "自动化",
-        "description": "快捷动作与智能体生命周期 Hooks。"
+        "description": "设置常用 AI 指令与事件触发的自动命令"
       },
       "webSearch": {
         "label": "网页搜索",
-        "description": "选择 WebSearch 服务、端点与设备本地凭据。"
+        "description": "选择智能体联网查找资料时使用的搜索服务"
       },
       "mcp": {
         "label": "MCP",
-        "description": "管理 MCP 服务器、连接与对外提供的工具。"
+        "description": "连接 MCP 服务，为智能体提供外部工具与数据源"
       },
       "acp": {
-        "label": "ACP 智能体",
-        "description": "配置通过 Agent Client Protocol 接入的外部智能体。"
+        "label": "ACP",
+        "description": "通过 ACP 接入本机或 SSH 主机上的外部智能体"
       },
       "usage": {
         "label": "调用统计",
-        "description": "模型请求数、Token 用量与缓存命中率。"
+        "description": "查看模型请求数、Token 用量与缓存命中率"
       },
       "archivedSessions": {
         "label": "已归档会话",
-        "description": "查看、恢复或永久删除已归档的会话。"
+        "description": "查看、恢复或永久删除已归档的会话"
       },
       "diagnostics": {
         "label": "日志与诊断",
-        "description": "日志级别、运行信息与故障排查。"
+        "description": "调整日志记录，导出故障排查信息"
+      },
+      "externalImport": {
+        "description": "导入并管理其他 AI 应用中的内容",
+        "label": "外部导入"
+      },
+      "input": {
+        "description": "查看、自定义与重置键盘快捷键。",
+        "label": "输入与交互"
+      },
+      "permissions": {
+        "description": "设置新会话的审批模式与全局工具权限规则",
+        "label": "权限规则"
+      },
+      "sessionMemory": {
+        "description": "设置新会话的执行模式、标题生成与记忆策略",
+        "label": "会话与记忆"
+      },
+      "workspaceGit": {
+        "description": "设置工作区搜索与 Worktree 默认行为，管理隔离工作目录。",
+        "label": "工作区与 Git"
+      },
+      "browserControl": {
+        "label": "浏览器控制",
+        "description": "选择浏览器并管理连接。"
       }
     },
     "views": {
@@ -101,6 +126,20 @@
       "json": "高级 JSON",
       "quick-actions": "快捷动作",
       "hooks": "Hooks"
+    },
+    "sections": {
+      "hooks": "事件 Hooks",
+      "memory": "记忆",
+      "pet": "宠物",
+      "quick-actions": "快捷动作",
+      "session": "会话默认行为",
+      "shortcuts": "快捷键",
+      "workspace-search": "工作区搜索",
+      "worktrees": "Worktrees",
+      "voiceCall": "语音通话",
+      "message-sending": "消息发送",
+      "text-selection": "文本选择",
+      "sidebar-navigation": "左侧导航栏"
     }
   },
   "changeGuard": {
@@ -292,8 +331,8 @@
         "maximize": "最大化编辑器"
       },
       "editor": {
-        "findInFile": "在文件中查找（Monaco）",      
-      "replaceInFile": "文件中替换（Monaco）"
+        "findInFile": "在文件中查找（Monaco）",
+        "replaceInFile": "文件中替换（Monaco）"
       },
       "tab": {
         "close": "关闭当前标签页",

@@ -1,3 +1,4 @@
+import { peerHostRefusalMessage } from '@/infrastructure/peer-device/peerHostRefusal';
 import { desktopDomainErrorMessage } from '@/shared/ai-errors/desktopDomainErrors';
 import { OverflowText,
   Alert,
@@ -502,6 +503,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
   const [savedConnections, setSavedConnections] = useState<SavedConnection[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
+  const [loadRefusal, setLoadRefusal] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [pendingPermissionMigration, setPendingPermissionMigration] = useState(false);
@@ -800,6 +802,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
       if (showLoading) {
         setLoading(true);
         setLoadFailed(false);
+        setLoadRefusal(null);
       }
       const [rawConfig, nextClients] = await Promise.all([
         ACPClientAPI.loadJsonConfig(),
@@ -852,8 +855,10 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
     } catch (error) {
       if (!scope.isCurrent() || configLoadRequestRef.current !== requestId) return false;
       log.error('Failed to load ACP agent config', error);
-      if (showLoading) setLoadFailed(true);
-      else {
+      if (showLoading) {
+        setLoadFailed(true);
+        setLoadRefusal(peerHostRefusalMessage(error, t));
+      } else {
         notifyError(desktopDomainErrorMessage(error instanceof Error ? error.message : String(error), t), {
           title: t('notifications.loadFailed'),
         });
@@ -1239,7 +1244,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
 
   useSettingsDraft({
     id: 'acp-agent-config',
-    pageId: 'tools.acp',
+    pageId: 'tools.external-agents',
     viewId: activeView === 'json' && jsonDirty ? 'json' : undefined,
     label: activeView === 'json' && jsonDirty ? t('json.title') : t('title'),
     dirty: dirty || jsonDirty,
@@ -1557,7 +1562,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
             <ConfigLoadingState label={t('clients.loading')} />
           ) : (
             <ConfigRetryState
-              message={t('notifications.loadFailedLocked')}
+              message={loadRefusal ?? t('notifications.loadFailedLocked')}
               retryLabel={t('actions.retry')}
               onRetry={() => void loadConfig()}
             />

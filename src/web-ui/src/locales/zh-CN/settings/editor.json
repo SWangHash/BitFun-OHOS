@@ -43,7 +43,8 @@
       "expand": "扩展",
       "solid": "常亮"
     },
-    "lineHeightDesc": "相对于字号的倍数（em）。例如，14 px 字号配合 1.5 em 行高，实际为 21 px"
+    "lineHeightDesc": "相对于字号的倍数（em）。例如，14 px 字号配合 1.5 em 行高，实际为 21 px",
+    "inheritGlobalFont": "继承全局代码字体"
   },
   "behavior": {
     "tabSize": "Tab 宽度",

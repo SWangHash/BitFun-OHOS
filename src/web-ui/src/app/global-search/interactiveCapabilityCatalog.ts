@@ -1,3 +1,4 @@
+import { isOpenHarmonyRuntime } from '@/infrastructure/runtime/environment';
 import type { SceneTabId } from '@/app/components/SceneBar/types';
 import type { SettingsDestination } from '@/app/scenes/settings/settingsTypes';
 import type { ProductActionId } from './productActionCatalog';
@@ -147,7 +148,7 @@ const suspendedSearchItems = new Set(['accelerated-search', 'search-index']);
 export function getInteractiveCapabilityCatalog(
   workspaceSearchAvailable = WORKSPACE_SEARCH_AVAILABLE,
 ): InteractiveCapabilityCatalog {
-  return workspaceSearchAvailable
+  const workspaceCatalog = workspaceSearchAvailable
   ? catalog
   : {
     ...catalog,
@@ -181,6 +182,52 @@ export function getInteractiveCapabilityCatalog(
     }),
   };
 
+  if (!isOpenHarmonyRuntime()) return workspaceCatalog;
+  const browser = catalog.capabilities.find(capability => capability.id === 'setting.tools.browser-control')!;
+  const desktopItems: Record<string, ReadonlySet<string>> = {
+    'feature.computer-use': new Set(['status', 'request-permissions', 'system-settings', 'agent-actions']),
+    'setting.tools.execution': new Set(['computer-use', 'computer-use-permissions']),
+  };
+  const capabilities = workspaceCatalog.capabilities
+    .filter(capability => capability.id !== 'setting.tools.desktop-control')
+    .map(capability => {
+      const hiddenItems = desktopItems[capability.id];
+      if (!hiddenItems) return capability;
+      const items = capability.items.filter(item => !hiddenItems.has(item.id));
+      const titlesZh = items.map(item => item.titleZh);
+      const titlesEn = items.map(item => item.titleEn);
+      const copy = capability.id === 'feature.computer-use' ? browser : capability;
+      return {
+        ...capability,
+        titleZh: copy.titleZh,
+        titleEn: copy.titleEn,
+        summaryZh: titlesZh[0],
+        summaryEn: titlesEn[0],
+        items,
+        options: capability.options.filter(option => option.id !== 'computer-use-enabled'),
+        keywordsZh: [copy.titleZh, ...titlesZh],
+        keywordsEn: [copy.titleEn, ...titlesEn],
+        highlightsZh: titlesZh,
+        highlightsEn: titlesEn,
+        stepsZh: titlesZh,
+        stepsEn: titlesEn,
+        agentExamplesZh: [],
+        agentExamplesEn: [],
+        searchTerms: [copy.titleZh, copy.titleEn, ...titlesZh, ...titlesEn],
+      };
+    });
+  const definitions = workspaceCatalog.definitions.flatMap(definition => {
+    if (definition.capabilityId === 'setting.tools.desktop-control') return [];
+    const hiddenItems = desktopItems[definition.capabilityId];
+    if (!hiddenItems) return [definition];
+    const itemIds = definition.itemIds.filter(id => !hiddenItems.has(id));
+    return itemIds.length || definition.itemIds.length === 0 ? [{ ...definition, itemIds }] : [];
+  });
+  return {
+    ...workspaceCatalog, capabilities, definitions,
+    counts: { ...workspaceCatalog.counts, userFacing: capabilities.length,
+      documentedItems: capabilities.reduce((count, capability) => count + capability.items.length, 0) },
+  };
 }
 
 export const INTERACTIVE_CAPABILITY_CATALOG = getInteractiveCapabilityCatalog();

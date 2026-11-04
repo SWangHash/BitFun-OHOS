@@ -1,0 +1,69 @@
+.kb-shortcuts {
+  &__toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--bitfun-space-3);
+    margin-bottom: var(--bitfun-space-4);
+  }
+
+  /** Design-system `SearchField` — align with settings nav capsule */
+  &__search {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--bitfun-space-2);
+    flex-shrink: 0;
+  }
+
+  &__error {
+    padding: var(--bitfun-space-4) var(--bitfun-space-5);
+    margin-bottom: var(--bitfun-space-4);
+    border-radius: var(--bitfun-radius-md);
+    background: var(--bitfun-color-status-danger-surface);
+    color: var(--bitfun-color-status-danger-content);
+    font-size: var(--bitfun-type-label-md-font-size);
+  }
+
+  &__list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__item {
+    &.kb-shortcuts__item--recording {
+      background: var(--bitfun-color-action-secondary-background);
+    }
+
+    &.kb-shortcuts__item--conflict {
+      background: var(--bitfun-color-status-warning-surface);
+    }
+
+    &--modified .kb-shortcuts__item-name {
+      font-style: italic;
+    }
+  }
+
+  &__item-conflict-hint {
+    display: block;
+    color: var(--bitfun-color-status-warning-content);
+  }
+
+  &__item-key {
+    display: flex;
+    align-items: center;
+    gap: var(--bitfun-space-2);
+    flex-shrink: 0;
+  }
+
+  &__empty {
+    padding: var(--bitfun-space-8);
+    text-align: center;
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-body-md-font-size);
+  }
+}

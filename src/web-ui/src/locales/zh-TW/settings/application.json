@@ -186,7 +186,8 @@
       "openFailed": "開啟日誌資料夾失敗",
       "pathUnavailable": "日誌資料夾路徑不可用",
       "diagnosticsExported": "診斷包已匯出",
-      "diagnosticsExportFailed": "匯出診斷包失敗"
+      "diagnosticsExportFailed": "匯出診斷包失敗",
+      "levelSavedNotApplied": "日誌級別已儲存，但該裝置仍按 {{level}} 級別記錄日誌。"
     }
   },
   "terminal": {
@@ -304,5 +305,27 @@
       "saveFailed": "無法儲存更新相關設定",
       "saved": "已儲存更新偏好"
     }
+  },
+  "messageSending": {
+    "title": "訊息傳送",
+    "duringTurn": "對話執行期間傳送訊息",
+    "immediate": "立即傳送",
+    "queue": "排隊傳送（預設）",
+    "immediateDescription": "原生工作階段中，新訊息會立即補充到目前任務。",
+    "queueDescription": "原生工作階段中，新訊息會在本輪結束後自動傳送。",
+    "loading": "正在載入訊息傳送偏好…",
+    "loadFailed": "載入訊息傳送偏好失敗",
+    "saveFailed": "儲存訊息傳送偏好失敗",
+    "unsupported": "目前裝置版本不支援修改傳送策略，將繼續沿用現有排隊行為。",
+    "description": "選擇原生對話在回覆期間傳送訊息的方式。ACP 對話繼續排隊，派發任務繼續向目標任務追加訊息。"
+  },
+  "textSelection": {
+    "title": "文字選取",
+    "autoShowToolbar": "自動顯示選取文字操作列",
+    "autoShowToolbarDescription": "選取對話文字後，顯示「新增批註」和「側邊提問」。關閉後仍可透過右鍵選單操作。",
+    "loading": "正在載入文字選取偏好…",
+    "loadFailed": "載入文字選取偏好失敗",
+    "saveFailed": "儲存文字選取偏好失敗",
+    "unsupported": "目前裝置版本不支援修改選取工具列開關，將保留原有選取行為。"
   }
 }

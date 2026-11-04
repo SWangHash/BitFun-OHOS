@@ -1752,6 +1752,7 @@ pub async fn _run() {
             appearance::hide_agent_companion_desktop_pet,
             appearance::resize_agent_companion_desktop_pet,
             list_agent_companion_pets,
+            load_agent_companion_pet_spritesheet,
             import_agent_companion_pet_package,
             delete_agent_companion_pet_package,
             read_file_content,

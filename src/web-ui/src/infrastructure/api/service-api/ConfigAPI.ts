@@ -157,10 +157,10 @@ export class ConfigAPI {
   }
 
    
-  async setConfig(path: string, value: any): Promise<void> {
+  async setConfig(path: string, value: any, options?: { expectedModels?: unknown }): Promise<void> {
     try {
       await api.invoke('set_config', { 
-        request: { path, value } 
+        request: { path, value, ...(options?.expectedModels !== undefined ? { expectedModels: options.expectedModels } : {}) }
       });
     } catch (error) {
       throw createTauriCommandError('set_config', error, { path, value });

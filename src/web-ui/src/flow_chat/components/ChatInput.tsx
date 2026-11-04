@@ -315,6 +315,8 @@ export interface ChatInputProps {
   presentation?: 'standard' | 'conversation';
   className?: string;
   isSceneActive?: boolean;
+  /** Defer capsule width measurement while the host's column is being dragged. */
+  layoutResizeSuspended?: boolean;
   /** The host conversation area that accepts files for this composer. */
   fileDropTargetRef?: React.RefObject<HTMLElement | null>;
   onFileDragOverChange?: (isOver: boolean) => void;
@@ -527,6 +529,7 @@ interface ExternalFileIntakeRequest {
 export const ChatInput: React.FC<ChatInputProps> = ({
   className = '',
   isSceneActive = true,
+  layoutResizeSuspended = false,
   fileDropTargetRef,
   onFileDragOverChange,
   onFileDragPreviewChange,
@@ -1057,6 +1060,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   }, [checkDomEmpty]);
 
   useEffect(() => {
+    if (layoutResizeSuspended) return;
     const containerEl = containerRef.current;
     const boxEl = containerEl?.querySelector('.bitfun-chat-input__box') as HTMLElement | null;
     const actionsLeftEl = containerEl?.querySelector('.bitfun-chat-input__actions-left') as HTMLElement | null;
@@ -1111,6 +1115,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     currentImageCount,
     derivedState?.sendButtonMode,
     isMultiLine,
+    layoutResizeSuspended,
     refreshCapsuleInputWidth,
     showTargetSwitcher,
   ]);
@@ -1336,7 +1341,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   });
 
   const mainAgentModes = useMemo(
-    () => resolveChatInputMainAgentModes(modeState.available),
+    () => resolveChatInputMainAgentModes(modeState.available).filter(mode => !isOpenHarmonyRuntime() || mode.id !== 'ComputerUse'),
     [modeState.available]
   );
   const publishModeSelectionRef = useRef<((modeId: string) => void) | null>(null);
@@ -2849,7 +2854,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   // The reset row follows the user-level default, so give it a way to reach the
   // page that owns that default instead of making the user hunt for it.
   const handleOpenPermissionDefaultSettings = useCallback(() => {
-    useSettingsStore.getState().openPage('tools.execution');
+    useSettingsStore.getState().openPage('ai.permissions');
     openScene('settings');
   }, [openScene]);
 

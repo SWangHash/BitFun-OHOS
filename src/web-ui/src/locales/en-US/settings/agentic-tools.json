@@ -80,5 +80,20 @@
     "autoExecuteDisabled": "Auto execute disabled",
     "saveSuccess": "Saved",
     "saveFailed": "Save failed"
+  },
+  "subagentModels": {
+    "loadFailed": "Failed to load subagent models.",
+    "options": {
+      "inherit": "Inherit parent model",
+      "fast": "Fast model",
+      "primary": "Primary model",
+      "auto": "Automatic"
+    },
+    "default": {
+      "label": "Default subagent model",
+      "description": "Used by subagents without an explicit model override.",
+      "configureTooltip": "Configure individual agents",
+      "updateFailed": "Failed to save the default subagent model."
+    }
   }
 }

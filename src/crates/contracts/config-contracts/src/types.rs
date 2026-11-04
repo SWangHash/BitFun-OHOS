@@ -160,7 +160,7 @@ impl ProjectConfig {
 
 /// App configuration.
 fn default_close_button_behavior() -> String {
-    "quit".to_string()
+    "minimize_to_tray".to_string()
 }
 
 /// Reads the telemetry opt-in from either the current boolean or the object the
@@ -343,7 +343,7 @@ pub struct AppLoggingConfig {
     /// Allowed values: trace, debug, info, warn, error, off.
     pub level: String,
     /// Whether diagnostic logs may include sensitive troubleshooting payloads.
-    #[serde(default = "default_true")]
+    #[serde(default)]
     pub include_sensitive_diagnostics: bool,
     /// Whether the local UI records detailed Flow Chat viewport diagnostics.
     #[serde(default)]
@@ -400,6 +400,11 @@ pub struct AppFlowChatConfig {
         skip_serializing_if = "is_permission_mode_control_visible"
     )]
     pub show_permission_mode_control: bool,
+    /// Composer submissions keep the existing queue policy unless changed.
+    /// Preserve unknown strings so a newer host's preference survives upgrades.
+    pub send_during_turn: String,
+    /// Automatic selection actions do not affect explicit context-menu actions.
+    pub auto_show_selection_toolbar: bool,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -424,6 +429,8 @@ impl Default for AppFlowChatConfig {
             default_mode_id: None,
             last_mode_id: None,
             show_permission_mode_control: default_show_permission_mode_control(),
+            send_during_turn: "queue".to_string(),
+            auto_show_selection_toolbar: true,
         }
     }
 }
@@ -844,16 +851,10 @@ impl Default for SubagentModelDefaultsConfig {
     fn default() -> Self {
         Self {
             default_selection: default_subagent_model_selection(),
-            builtin: HashMap::from([
-                (
-                    "GeneralPurpose".to_string(),
-                    SubagentModelSelection::fixed("primary"),
-                ),
-                (
-                    "ResearchSpecialist".to_string(),
-                    SubagentModelSelection::Inherit,
-                ),
-            ]),
+            builtin: HashMap::from([(
+                "ResearchSpecialist".to_string(),
+                SubagentModelSelection::Inherit,
+            )]),
             fork: SubagentModelSelection::Inherit,
         }
     }
@@ -1102,7 +1103,7 @@ pub struct AIConfig {
     pub allow_tool_json_repair: bool,
 
     /// Allow Computer use (desktop automation) when the desktop host is available (all session modes).
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub computer_use_enabled: bool,
 
     /// Preferred browser for CDP browser control. Empty/default uses the system default browser.
@@ -1869,17 +1870,8 @@ impl Default for AppConfig {
 impl Default for AppLoggingConfig {
     fn default() -> Self {
         Self {
-            // The initial log level follows the build profile: debug builds
-            // start at debug for easier diagnostics, release builds start at
-            // info to keep field logs quiet. Users can still override the
-            // level in Settings -> Logging & Diagnostics.
-            level: if cfg!(debug_assertions) {
-                "debug"
-            } else {
-                "info"
-            }
-            .to_string(),
-            include_sensitive_diagnostics: true,
+            level: "debug".to_string(),
+            include_sensitive_diagnostics: false,
             flow_chat_diagnostics: false,
             model_exchange_tracing: ModelExchangeTracingConfig::default(),
         }
@@ -2005,7 +1997,7 @@ impl Default for AIConfig {
             enable_context_compression_prefetch: true,
             enable_edit_constraint_guard: false,
             allow_tool_json_repair: true,
-            computer_use_enabled: false,
+            computer_use_enabled: true,
             browser_control_preferred_browser: String::new(),
             web_search: WebSearchConfig::default(),
             browser_control_auto_connect_on_startup: false,
@@ -2187,14 +2179,9 @@ impl AIModelConfig {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn app_logging_default_level_follows_build_profile() {
+    fn app_logging_default_level_is_debug() {
         let config = super::AppLoggingConfig::default();
-        let expected = if cfg!(debug_assertions) {
-            "debug"
-        } else {
-            "info"
-        };
-        assert_eq!(config.level, expected);
+        assert_eq!(config.level, "debug");
     }
 
     /// Upgrade compatibility: documents persisted by older builds do not carry
@@ -2335,12 +2322,38 @@ mod tests {
     }
 
     #[test]
-    fn close_button_behavior_defaults_to_quit() {
-        assert_eq!(AppConfig::default().close_button_behavior, "quit");
+    fn close_button_behavior_defaults_to_minimize_to_tray() {
+        assert_eq!(
+            AppConfig::default().close_button_behavior,
+            "minimize_to_tray"
+        );
 
         let config: AppConfig =
             serde_json::from_value(serde_json::json!({})).expect("empty app config should default");
-        assert_eq!(config.close_button_behavior, "quit");
+        assert_eq!(config.close_button_behavior, "minimize_to_tray");
+
+        let saved: AppConfig = serde_json::from_value(serde_json::json!({
+            "close_button_behavior": "quit"
+        }))
+        .expect("saved close behavior should deserialize");
+        assert_eq!(saved.close_button_behavior, "quit");
+    }
+
+    #[test]
+    fn computer_use_default_preserves_explicit_disabled_preference() {
+        let mut legacy = serde_json::to_value(AIConfig::default()).unwrap();
+        legacy
+            .as_object_mut()
+            .unwrap()
+            .remove("computer_use_enabled");
+        let defaulted: AIConfig = serde_json::from_value(legacy.clone()).unwrap();
+        assert!(defaulted.computer_use_enabled);
+        legacy["computer_use_enabled"] = serde_json::Value::Bool(false);
+        let saved: AIConfig = serde_json::from_value(legacy).unwrap();
+        assert!(!saved.computer_use_enabled);
+        let round_trip: AIConfig =
+            serde_json::from_value(serde_json::to_value(saved).unwrap()).unwrap();
+        assert!(!round_trip.computer_use_enabled);
     }
 
     #[test]
@@ -2924,6 +2937,8 @@ mod tests {
         assert_eq!(untouched.app.flow_chat.default_mode_strategy, None);
         assert_eq!(untouched.app.flow_chat.default_mode_id, None);
         assert_eq!(untouched.app.flow_chat.last_mode_id, None);
+        assert_eq!(untouched.app.flow_chat.send_during_turn, "queue");
+        assert!(untouched.app.flow_chat.auto_show_selection_toolbar);
 
         let configured: GlobalConfig =
             serde_json::from_value(current_global_config_with(serde_json::json!({
@@ -2931,7 +2946,9 @@ mod tests {
                     "flow_chat": {
                         "default_mode_strategy": "follow_last",
                         "default_mode_id": "Ultimate",
-                        "last_mode_id": "Creative"
+                        "last_mode_id": "Creative",
+                        "send_during_turn": "immediate",
+                        "auto_show_selection_toolbar": false
                     }
                 }
             })))
@@ -2955,6 +2972,22 @@ mod tests {
             "follow_last"
         );
         assert_eq!(serialized["app"]["flow_chat"]["last_mode_id"], "Creative");
+        assert_eq!(
+            serialized["app"]["flow_chat"]["send_during_turn"],
+            "immediate"
+        );
+        assert_eq!(
+            serialized["app"]["flow_chat"]["auto_show_selection_toolbar"],
+            false
+        );
+
+        let future: super::AppFlowChatConfig = serde_json::from_value(serde_json::json!({
+            "send_during_turn": "future_policy", "auto_show_selection_toolbar": false
+        }))
+        .unwrap();
+        let future = serde_json::to_value(future).unwrap();
+        assert_eq!(future["send_during_turn"], "future_policy");
+        assert_eq!(future["auto_show_selection_toolbar"], false);
     }
 
     #[test]
@@ -3094,7 +3127,7 @@ mod tests {
                 .subagents
                 .builtin
                 .get("GeneralPurpose"),
-            Some(&SubagentModelSelection::fixed("primary"))
+            None
         );
         assert_eq!(
             config
@@ -3215,21 +3248,26 @@ mod tests {
     }
 
     #[test]
-    fn general_purpose_uses_primary_unless_explicitly_overridden() {
+    fn general_purpose_uses_shared_default_and_keeps_persisted_overrides() {
         let mut defaults = AgentModelDefaultsConfig::default();
-
-        assert_eq!(
-            defaults.builtin_subagent_selection("GeneralPurpose"),
-            SubagentModelSelection::fixed("primary")
-        );
-
-        defaults.subagents.builtin.insert(
-            "GeneralPurpose".to_string(),
-            SubagentModelSelection::fixed("fast"),
-        );
         assert_eq!(
             defaults.builtin_subagent_selection("GeneralPurpose"),
             SubagentModelSelection::fixed("fast")
+        );
+        defaults.subagents.default_selection = SubagentModelSelection::Inherit;
+        assert_eq!(
+            defaults.builtin_subagent_selection("GeneralPurpose"),
+            SubagentModelSelection::Inherit
+        );
+        let legacy: AgentModelDefaultsConfig = serde_json::from_value(serde_json::json!({
+            "subagents": {"builtin": {"GeneralPurpose": {"kind": "fixed", "model_id": "primary"}}}
+        }))
+        .unwrap();
+        let round_trip: AgentModelDefaultsConfig =
+            serde_json::from_value(serde_json::to_value(legacy).unwrap()).unwrap();
+        assert_eq!(
+            round_trip.builtin_subagent_selection("GeneralPurpose"),
+            SubagentModelSelection::fixed("primary")
         );
     }
 
@@ -3482,18 +3520,25 @@ mod tests {
     }
 
     #[test]
-    fn app_logging_defaults_to_sensitive_diagnostics_enabled() {
+    fn app_logging_defaults_to_sensitive_diagnostics_disabled() {
         let config: AppLoggingConfig = serde_json::from_value(serde_json::json!({
             "level": "trace"
         }))
         .expect("logging config without sensitive preference should deserialize");
 
-        assert!(config.include_sensitive_diagnostics);
+        assert!(!config.include_sensitive_diagnostics);
         assert!(!config.flow_chat_diagnostics);
         assert_eq!(
             config.model_exchange_tracing.mode,
             ModelExchangeTracingMode::Off
         );
+        let saved: AppLoggingConfig = serde_json::from_value(serde_json::json!({
+            "level": "info",
+            "include_sensitive_diagnostics": true
+        }))
+        .unwrap();
+        assert_eq!(saved.level, "info");
+        assert!(saved.include_sensitive_diagnostics);
     }
 
     #[test]

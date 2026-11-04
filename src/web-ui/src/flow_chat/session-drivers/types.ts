@@ -38,6 +38,8 @@ export interface SendMessageOptions {
    * submission. Session drivers must not interpret it as transport input.
    */
   pendingQueueDraft?: QueuedComposerDraft;
+  /** Native composer policy; never bypasses the driver's busy-session rules. */
+  sendImmediately?: boolean;
   /**
    * When true, bypass the pending-queue check. Used by the queue drain path
    * to actually start a new dialog turn after the previous one finished.
@@ -59,6 +61,9 @@ export interface SendMessageOptions {
 export interface SubmissionDraft {
   message: string;
   displayMessage?: string;
+  sendImmediately?: boolean;
+  imageDisplayData?: SendMessageOptions['imageDisplayData'];
+  userMessageMetadata?: Record<string, unknown>;
   /**
    * Composer image contexts for this submission. Steering carries them just
    * like a turn submission does, so a message with attachments does not have

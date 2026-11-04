@@ -1,3 +1,4 @@
+import { isOpenHarmonyRuntime } from '@/infrastructure/runtime/environment';
 import { OverflowText,
   Button,
   Icon,
@@ -44,6 +45,7 @@ import {
 } from '../services/AgentCompanionPetService';
 import { getPetSpriteLayout } from '../services/agentCompanionPetSprite';
 import { configManager } from '../services/ConfigManager';
+import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 import { useComputerUseEnabled } from '../hooks/useComputerUseEnabled';
 import {
   DEFAULT_TOOL_PERMISSION_CONFIG,
@@ -75,6 +77,8 @@ type DescribedSelectOption = SelectOption & { description?: string };
 
 const log = createLogger('RuntimeSettings');
 
+const IS_OPEN_HARMONY = isOpenHarmonyRuntime();
+const BROWSER_CONTROL_SETUP_TIMEOUT_MS = 190_000;
 const IS_TAURI_DESKTOP = typeof window !== 'undefined' && '__TAURI__' in window;
 
 /**
@@ -211,6 +215,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
 
   // ── Browser control state ───────────────────────────────────────────────
   const [browserCdpAvailable, setBrowserCdpAvailable] = useState(false);
+  const [browserReady, setBrowserReady] = useState(false);
   const [browserAutoConnectOnStartup, setBrowserAutoConnectOnStartup] = useState(false);
   const [browserDefaultCdpSupported, setBrowserDefaultCdpSupported] = useState(false);
   const [browserDefaultCdpEnabled, setBrowserDefaultCdpEnabled] = useState(false);
@@ -229,7 +234,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
   const [browserRestartPrompt, setBrowserRestartPrompt] = useState<BrowserControlLaunchResponse | null>(null);
 
   const refreshComputerUseStatus = useCallback(async (): Promise<boolean> => {
-    if (!IS_TAURI_DESKTOP) return false;
+    if (!IS_TAURI_DESKTOP || IS_OPEN_HARMONY) return false;
     setComputerUseStatusLoading(true);
     setComputerUseStatusError(false);
     try {
@@ -282,6 +287,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
       setBrowserDefaultCdpSupported(s.defaultCdpSupported);
       setBrowserDefaultCdpEnabled(s.defaultCdpEnabled);
       setBrowserSetupUrl(s.setupUrl ?? browserSetupUrlFallback(s.browserKind));
+      setBrowserReady(s.browserReady);
       setBrowserConnectionIssue(s.connectionIssue ?? null);
       setBrowserKind(s.browserKind);
       setBrowserVersion(s.browserVersion);
@@ -382,7 +388,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
           computerUseCfg,
           browserControlAutoConnect,
         ] = await Promise.all([
-          configManager.getConfig<boolean>('ai.computer_use_enabled'),
+          IS_OPEN_HARMONY ? Promise.resolve(false) : configManager.getConfig<boolean>('ai.computer_use_enabled'),
           configManager.getConfig<boolean>('ai.browser_control_auto_connect_on_startup'),
         ]);
         if (!IS_TAURI_DESKTOP) {
@@ -722,17 +728,22 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
   };
 
   const handleBrowserControlBrowserChange = async (value: string | number) => {
+    const scope = getActiveSurfaceScope();
     const nextValue = String(value || DEFAULT_BROWSER_CONTROL_BROWSER);
+    if (nextValue === preferredBrowser) return;
     const previousValue = preferredBrowser;
     setPreferredBrowser(nextValue);
     setBrowserControlBusy(true);
     try {
+      if (browserReady) await api.invoke('browser_control_disconnect');
+      scope.assertCurrent('change preferred browser');
       await configManager.setConfig(
         'ai.browser_control_preferred_browser',
         nextValue === DEFAULT_BROWSER_CONTROL_BROWSER ? '' : nextValue,
       );
       await refreshBrowserControlStatus();
     } catch (error) {
+      if (!scope.isCurrent()) return;
       log.error('Failed to save browser_control_preferred_browser', error);
       setPreferredBrowser(previousValue);
       notificationService.error(
@@ -812,6 +823,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
       const result = await api.invoke<BrowserControlLaunchResponse>(
         'browser_control_enable_default_cdp',
         { request: { port: 9222 } },
+        { timeout: BROWSER_CONTROL_SETUP_TIMEOUT_MS },
       );
       notificationService.dismiss(promptNotificationId);
       presentBrowserControlLaunchResult(result);
@@ -851,7 +863,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
     try {
       const result = await api.invoke<BrowserControlLaunchResponse>('browser_control_restart_with_cdp', {
         request: { port: 9222 },
-      });
+      }, { timeout: BROWSER_CONTROL_SETUP_TIMEOUT_MS });
       if (result.success) {
         notificationService.success(
           t('browserControl.restartSuccess', { browser: result.browserKind }),
@@ -944,7 +956,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
   const pageCopyKey = page === 'session-workspace'
     ? 'sessionWorkspace'
     : page === 'browser-desktop-control'
-      ? 'browserDesktopControl'
+      ? IS_OPEN_HARMONY ? 'browserControl' : 'browserDesktopControl'
       : page;
   const pageTitle = tNavigation(`navigation.pages.${pageCopyKey}.label`);
   const pageSubtitle = tNavigation(`navigation.pages.${pageCopyKey}.description`);
@@ -1346,7 +1358,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
           <>
 
         {/* ── Computer use (desktop) ─────────────────────────────── */}
-        <ConfigPageSection
+        {!IS_OPEN_HARMONY && <ConfigPageSection
           title={t('computerUse.sectionTitle')}
           description={
             IS_TAURI_DESKTOP ? t('computerUse.sectionDescription') : t('computerUse.desktopOnly')
@@ -1468,7 +1480,7 @@ const RuntimeSettingsPage: React.FC<RuntimeSettingsPageProps> = ({
               <span />
             </ConfigPageRow>
           ) : null}
-        </ConfigPageSection>
+        </ConfigPageSection>}
 
         {/* ── Browser control (CDP) ──────────────────────────────── */}
         <ConfigPageSection

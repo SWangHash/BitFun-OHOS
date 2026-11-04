@@ -336,7 +336,7 @@ export class AppearanceCompiler {
       let targetSelector = `[${surfaceAttribute}="${surfaceId}"][${partAttribute}="${partId}"]`;
       Object.entries(facets).forEach(([facetId, option]) => {
         const facet = descriptor.facets?.find(candidate => candidate.id === facetId);
-        if (facet) targetSelector += `[${facet.attribute}="${option}"]`;
+        if (facet) targetSelector += `[${facet.attribute}="${facet.valueAliases?.[option] ?? option}"]`;
       });
       const ancestors: string[] = [];
       stateIds.forEach(stateId => {

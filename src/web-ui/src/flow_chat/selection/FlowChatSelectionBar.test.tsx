@@ -12,10 +12,14 @@ import { highlightExcerptRange } from './locateConversationExcerpt';
 const state = vi.hoisted(() => ({
   sessions: new Map([['main', { sessionId: 'main', title: 'Source session', workspacePath: '/workspace' }]]),
   t: (key: string) => key,
+  autoShowToolbar: true,
 }));
 vi.mock('../store/FlowChatStore', () => ({ flowChatStore: { getState: () => ({ sessions: state.sessions }) } }));
 vi.mock('../session-drivers/resolve', () => ({ resolveSessionDriverId: () => 'local' }));
 vi.mock('@/infrastructure/i18n', () => ({ useI18n: () => ({ t: state.t }) }));
+vi.mock('@/infrastructure/config/hooks/useSelectionToolbarPreference', () => ({
+  useSelectionToolbarPreference: () => ({ enabled: state.autoShowToolbar }),
+}));
 
 function Transcript() {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -32,6 +36,8 @@ describe('selection annotation dialog lifecycle', () => {
   let root: Root;
   const frames = new Map<number, FrameRequestCallback>();
   let frameId = 0;
+  const clientRectsDescriptor = Object.getOwnPropertyDescriptor(Range.prototype, 'getClientRects');
+  const boundingRectDescriptor = Object.getOwnPropertyDescriptor(Range.prototype, 'getBoundingClientRect');
   const requests: ExcerptActionRequest[] = [];
   const receive = (event: Event) => requests.push((event as CustomEvent<ExcerptActionRequest>).detail);
   const flushFrames = () => act(() => {
@@ -44,6 +50,10 @@ describe('selection annotation dialog lifecycle', () => {
   beforeEach(() => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
     vi.useFakeTimers();
+    state.autoShowToolbar = true;
+    const rect = { left: 10, right: 200, top: 20, bottom: 38, width: 190, height: 18 };
+    Object.defineProperty(Range.prototype, 'getClientRects', { configurable: true, value: () => [rect] });
+    Object.defineProperty(Range.prototype, 'getBoundingClientRect', { configurable: true, value: () => rect });
     activateSurface('local');
     frames.clear();
     requests.length = 0;
@@ -52,6 +62,7 @@ describe('selection annotation dialog lifecycle', () => {
       return frameId;
     });
     vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id));
+    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
     container = document.createElement('div');
     document.body.append(container);
     root = createRoot(container);
@@ -67,6 +78,10 @@ describe('selection annotation dialog lifecycle', () => {
     document.querySelectorAll('[data-bitfun-overlay-host]').forEach(host => host.remove());
     vi.useRealTimers();
     vi.unstubAllGlobals();
+    if (clientRectsDescriptor) Object.defineProperty(Range.prototype, 'getClientRects', clientRectsDescriptor);
+    else delete (Range.prototype as Partial<Range>).getClientRects;
+    if (boundingRectDescriptor) Object.defineProperty(Range.prototype, 'getBoundingClientRect', boundingRectDescriptor);
+    else delete (Range.prototype as Partial<Range>).getBoundingClientRect;
   });
 
   async function openAnnotation() {
@@ -133,6 +148,31 @@ describe('selection annotation dialog lifecycle', () => {
     expect(dialog()).toBe(surface);
     expect(textarea.value).toBe('Keep this note');
     expect(requests).toEqual([]);
+  });
+
+  it('retains explicit right-click annotation and its draft when automatic actions are disabled', async () => {
+    const target = container.querySelector('[data-flow-item-id]')!;
+    const range = document.createRange(); range.selectNodeContents(target);
+    act(() => {
+      window.getSelection()!.addRange(range);
+      document.dispatchEvent(new Event('selectionchange'));
+    });
+    flushFrames();
+    expect(document.querySelector('.conversation-excerpt__popover')).not.toBeNull();
+    state.autoShowToolbar = false;
+    act(() => root.render(<Transcript />));
+    expect(document.querySelector('.conversation-excerpt__popover')).toBeNull();
+    expect(window.getSelection()?.toString()).toBe('Selected source text');
+    const surface = await openAnnotation();
+    const textarea = enterComment('Explicit annotation');
+    expect(dialog()).toBe(surface);
+    expect(textarea.value).toBe('Explicit annotation');
+    state.autoShowToolbar = true;
+    act(() => root.render(<Transcript />));
+    state.autoShowToolbar = false;
+    act(() => root.render(<Transcript />));
+    expect(dialog()).toBe(surface);
+    expect(textarea.value).toBe('Explicit annotation');
   });
 
   it('contains keyboard focus and returns it to the transcript when cancelled', async () => {

@@ -200,7 +200,8 @@
       "openFailed": "Failed to open log folder",
       "pathUnavailable": "Log folder path is unavailable",
       "diagnosticsExported": "Diagnostics bundle exported",
-      "diagnosticsExportFailed": "Failed to export diagnostics bundle"
+      "diagnosticsExportFailed": "Failed to export diagnostics bundle",
+      "levelSavedNotApplied": "Logging level saved, but that device is still logging at {{level}}."
     }
   },
   "terminal": {
@@ -304,5 +305,27 @@
       "saveSuccess": "Notification settings saved",
       "saveFailed": "Failed to save notification settings"
     }
+  },
+  "messageSending": {
+    "title": "Message sending",
+    "duringTurn": "Send messages while a conversation is running",
+    "immediate": "Send immediately",
+    "queue": "Queue messages (default)",
+    "immediateDescription": "Native sessions add new messages to the current task immediately.",
+    "queueDescription": "Native sessions send queued messages after the current turn finishes.",
+    "loading": "Loading message sending preferences…",
+    "loadFailed": "Failed to load message sending preferences",
+    "saveFailed": "Failed to save message sending preferences",
+    "unsupported": "This host does not support changing the sending policy. Messages keep using its existing queue behavior.",
+    "description": "Choose how native conversations handle messages sent during a running turn. ACP conversations continue to queue messages; dispatched tasks keep appending to the target task."
+  },
+  "textSelection": {
+    "title": "Text selection",
+    "autoShowToolbar": "Automatically show text selection actions",
+    "autoShowToolbarDescription": "Show Add annotation and Ask in side chat after selecting conversation text. When disabled, these actions remain available in the right-click menu.",
+    "loading": "Loading text selection preferences…",
+    "loadFailed": "Failed to load text selection preferences",
+    "saveFailed": "Failed to save text selection preferences",
+    "unsupported": "This host does not support changing automatic selection actions. The current selection behavior is retained."
   }
 }

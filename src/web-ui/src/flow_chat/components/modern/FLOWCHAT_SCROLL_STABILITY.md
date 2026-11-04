@@ -58,6 +58,15 @@ runtime confirmation using the read-only reveal probes.
 
 ## Transcript Width
 
+The controller-local content-width preference is projected through
+`--bitfun-control-flow-chat-transcript-max-width`. The existing 900px default, leading rail lane,
+trailing inset and full-width scroller remain in place. Settings and the two
+column-edge handles share one store; narrow panes clamp only the displayed
+width and never shrink the saved preference. Drag previews stay inside their
+pane and commit once on release. Changing the preference invalidates the
+virtualizer's width estimate; existing row measurement and viewport owners
+continue to handle reflow without new scroll writes or height compensation.
+
 The scroller's `--_flow-chat-top-mask-start` is registered as non-inheriting:
 only its own edge mask consumes the value. An opening trace placed a 562.3ms
 forced style/layout read immediately after `data-scroll-at-start` changed this

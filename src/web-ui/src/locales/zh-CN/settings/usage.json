@@ -45,7 +45,9 @@
     "requests": "请求数",
     "tokens": "Token 总量",
     "cachedTokens": "缓存命中 Token",
-    "cacheHitRate": "缓存命中率"
+    "cacheHitRate": "缓存命中率",
+    "inputTokens": "输入 Token",
+    "outputTokens": "输出 Token"
   },
   "chart": {
     "totalTokens": "Token 总量：{{count}}",
@@ -55,7 +57,8 @@
     "title": "使用分布",
     "byModel": "模型分布",
     "byGroup": "分组使用分布",
-    "byEndpoint": "端点分布"
+    "byEndpoint": "端点分布",
+    "more": "更多来源"
   },
   "cacheHitRate": {
     "title": "模型缓存命中率"
@@ -68,16 +71,19 @@
     "unknownEndpoint": "未知端点"
   },
   "trend": {
-    "title": "Token 使用趋势",
-    "description": "按时间查看输入、输出、缓存写入、缓存读取 Token 与缓存命中率的变化",
+    "title": "详细趋势",
+    "description": "输入与输出 Token 用量变化",
     "dataTableCaption": "Token 使用趋势明细",
     "time": "时间",
     "legend": {
-      "input": "Input",
-      "output": "Output",
-      "cacheRead": "Cache Read",
+      "input": "输入",
+      "output": "输出",
+      "cacheRead": "缓存读取",
       "cacheHitRate": "缓存命中率"
-    }
+    },
+    "partial": "仅显示最近的趋势，总量仍按完整时段统计",
+    "range": "{{start}} 至 {{end}}",
+    "summary": "查看所选时段的输入与输出变化"
   },
   "table": {
     "caption": "{{dimension}}明细",
@@ -85,6 +91,25 @@
     "group": "分组",
     "endpoint": "端点",
     "requests": "请求",
-    "tokens": "Token"
+    "tokens": "Token",
+    "requestsCount": "{{count}} 次请求",
+    "shareValue": "占 {{share}}"
+  },
+  "activity": {
+    "day": "{{date}}：{{tokens}} Token",
+    "description": "固定近半年 · {{timeZone}}",
+    "less": "少",
+    "more": "多",
+    "title": "近半年每日用量",
+    "total": "累计 {{tokens}} Token"
+  },
+  "cache": {
+    "note": "缓存读取 Token 已包含在输入 Token 中；命中率仅按有缓存数据的请求计算。",
+    "unavailable": "未提供",
+    "title": "缓存数据",
+    "description": "仅在模型服务提供数据时计算"
+  },
+  "details": {
+    "title": "更多明细"
   }
 }

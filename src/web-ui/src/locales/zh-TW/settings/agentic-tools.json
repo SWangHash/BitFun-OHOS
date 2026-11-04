@@ -80,5 +80,20 @@
     "autoExecuteDisabled": "已關閉自動執行工具",
     "saveSuccess": "已儲存",
     "saveFailed": "儲存失敗"
+  },
+  "subagentModels": {
+    "loadFailed": "載入子 Agent 模型失敗。",
+    "options": {
+      "inherit": "繼承父對話模型",
+      "fast": "快速模型",
+      "primary": "主模型",
+      "auto": "自動選擇"
+    },
+    "default": {
+      "label": "預設子 Agent 模型",
+      "description": "供未單獨指定模型的子 Agent 使用。",
+      "configureTooltip": "設定各個 Agent",
+      "updateFailed": "儲存預設子 Agent 模型失敗。"
+    }
   }
 }

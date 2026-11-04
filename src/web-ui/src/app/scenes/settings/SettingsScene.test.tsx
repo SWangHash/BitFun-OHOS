@@ -25,7 +25,8 @@ vi.mock('./settingsRegistry', () => {
     'tools.automation': {
       id: 'tools.automation',
       categoryId: 'tools',
-      component: ({ viewId }: { viewId?: string }) => <div data-testid="automation-page" data-view={viewId} />,
+      sections: [{ id: 'hooks' }],
+      component: ({ sectionId }: { sectionId?: string }) => <div data-testid="automation-page" data-section={sectionId} />,
     },
   };
   return {
@@ -76,13 +77,13 @@ describe('SettingsScene canonical page routing', () => {
     expect(container.querySelector('[data-settings-page="application.general"]')).not.toBeNull();
   });
 
-  it('passes an internal view destination without creating a sidebar page', async () => {
+  it('passes a legacy view as a section destination without creating a sidebar page', async () => {
     useSettingsStore.getState().openDestination({
       pageId: 'tools.automation',
       viewId: 'hooks',
     });
     await act(async () => root.render(<SettingsScene />));
-    expect(container.querySelector('[data-testid="automation-page"]')?.getAttribute('data-view')).toBe('hooks');
+    expect(container.querySelector('[data-testid="automation-page"]')?.getAttribute('data-section')).toBe('hooks');
   });
 
   it('switches pages without retaining the outgoing page for instant navigation', async () => {
@@ -134,7 +135,7 @@ describe('SettingsScene canonical page routing', () => {
     expect(useSettingsStore.getState().activePageId).toBe('application.appearance');
   });
 
-  it('hides the save action after a failed save while keeping the dialog open', async () => {
+  it('keeps save available after failure and completes navigation after retry', async () => {
     const save = vi.fn(async () => false);
     registerSettingsDraft({
       id: 'general-form',
@@ -164,20 +165,15 @@ describe('SettingsScene canonical page routing', () => {
 
     expect(save).toHaveBeenCalledOnce();
     expect(dialog()).not.toBeNull();
-    expect(buttons()).toHaveLength(2);
-
-    // The hidden save button owned the dialog's initial focus; the anchor
-    // must move to the remaining keep-editing action instead of falling
-    // back to document.body.
-    expect(dialog()?.contains(document.activeElement)).toBe(true);
-    expect(document.activeElement).toBe(buttons()[0]);
-
-    // The remaining actions stay usable: discard commits the navigation.
+    expect(buttons()).toHaveLength(3);
+    expect(useSettingsStore.getState().activePageId).toBe('application.general');
+    save.mockResolvedValueOnce(true);
     await act(async () => {
-      buttons()[1]?.click();
+      buttons()[2]?.click();
       await Promise.resolve();
       await Promise.resolve();
     });
+    expect(save).toHaveBeenCalledTimes(2);
     expect(useSettingsStore.getState().activePageId).toBe('application.appearance');
   });
 });

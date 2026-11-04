@@ -21,3 +21,14 @@
   @media (prefers-reduced-motion: reduce) { .control { transition: none; } }
   @media (forced-colors: active) { .control { border-color: ButtonText; } .root .control:focus-within { border-color: Highlight; } }
 }
+
+@layer bitfun.components {
+  /* Filled fields keep standard borders over the grouped-field background. */
+  .root[data-field-surface="filled"] .control {
+    background: var(--bitfun-color-field-group-background);
+  }
+
+  .root[data-field-surface="filled"] .control:hover {
+    background: var(--bitfun-color-field-background-hover);
+  }
+}

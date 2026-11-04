@@ -1,6 +1,7 @@
  
 
 import { NumberInput, Select, Switch } from '@bitfun/ui';
+import { useConfigSeed } from '@/infrastructure/config/hooks/useConfigSeed';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import {
@@ -104,6 +105,7 @@ const renderLineHighlightOptions = [
 
  
 function getPrimaryFont(fontFamily: string): string {
+  if (!fontFamily.trim()) return 'inherit';
   
   const fonts = fontFamily.split(',').map(f => f.trim().replace(/^['"]|['"]$/g, ''));
   
@@ -113,6 +115,7 @@ function getPrimaryFont(fontFamily: string): string {
 
  
 function buildFontFamily(primaryFont: string): string {
+  if (primaryFont === 'inherit') return '';
   
   const fallbackFonts = ['Consolas', 'Monaco', 'Menlo', "'Courier New'", 'monospace'];
   const fonts = [primaryFont, ...fallbackFonts.filter(f => f !== primaryFont && f !== `'${primaryFont}'`)];
@@ -252,9 +255,10 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
   const renderLineHighlightOptionsTranslated = renderLineHighlightOptions.map(o => ({ ...o, label: t(o.labelKey) }));
   
   
-  const [config, setConfig] = useState<EditorConfigType>({ ...DEFAULT_EDITOR_CONFIG });
-  const [isLoading, setIsLoading] = useState(true);
-  const [supportsIndentDetection, setSupportsIndentDetection] = useState(false);
+  const seed = useConfigSeed(['editor']);
+  const [config, setConfig] = useState<EditorConfigType>(() => ({ ...DEFAULT_EDITOR_CONFIG, ...convertToCamelCase(seed.get('editor', {}) ?? {}) }));
+  const [isLoading, setIsLoading] = useState(!seed.loaded);
+  const [supportsIndentDetection, setSupportsIndentDetection] = useState(typeof seed.get<Record<string, unknown> | null>('editor', null)?.detect_indentation === 'boolean');
   const [loadFailed, setLoadFailed] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'warning'; text: string } | null>(null);
@@ -275,7 +279,7 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
   
   const loadConfig = useCallback(async () => {
     try {
-      setIsLoading(true);
+      setIsLoading(!seed.loaded);
       setLoadFailed(false);
       const backendConfig = await configManager.getConfig<Record<string, any>>('editor');
       if (backendConfig) {
@@ -292,11 +296,11 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [seed.loaded]);
 
   useEffect(() => {
-    loadConfig();
-  }, [loadConfig]);
+    if (!seed.loaded) void loadConfig();
+  }, [loadConfig, seed.loaded]);
 
   
   const doSave = useCallback((
@@ -454,7 +458,7 @@ const EditorConfig: React.FC<EditorConfigProps> = () => {
         >
           <ConfigPageRow label={t('appearance.font')} align="center">
             <Select
-              options={fontFamilyOptions}
+              options={[{ label: t('appearance.inheritGlobalFont'), value: 'inherit' }, ...fontFamilyOptions]}
               value={getPrimaryFont(config.fontFamily)}
               onValueChange={(v) => updateConfig('fontFamily', buildFontFamily(v as string))}
               placeholder={t('appearance.font')}

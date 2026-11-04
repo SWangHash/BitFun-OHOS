@@ -33,6 +33,24 @@ import { i18nAPI } from '@/infrastructure/api/service-api/I18nAPI';
 import { createLogger } from '@/shared/utils/logger';
 import { logDuration, measureSync, nowMs, elapsedMs } from '@/shared/utils/timing';
 
+/** Stable ISO calendar keys for aggregation in a named time zone. */
+export function createCalendarDateKeyFormatter(timeZone: string): (date: Date) => string {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    calendar: 'iso8601',
+    numberingSystem: 'latn',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return date => {
+    const parts = formatter.formatToParts(date);
+    return ['year', 'month', 'day']
+      .map(type => parts.find(part => part.type === type)!.value)
+      .join('-');
+  };
+}
+
 const log = createLogger('I18nService');
 
 const lazyLocaleModules = import.meta.glob('../../../locales/**/*.json', {

@@ -57,6 +57,8 @@ import {
   subscribeGlobalSearchShortcut,
 } from '@/app/global-search/globalSearchShortcut';
 import { useExternalAppAwareness } from '@/infrastructure/config/components/external-sources/useExternalAppAwareness';
+import { useSidebarNavigation } from '@/app/navigation/useSidebarNavigation';
+import { notificationService } from '@/shared/notification-system';
 
 import './NavPanel.scss';
 
@@ -82,6 +84,7 @@ const MainNav: React.FC<MainNavProps> = ({
 
   const { openScene } = useSceneManager();
   const activeTabId = useSceneStore(s => s.activeTabId);
+  const sidebar = useSidebarNavigation();
   const { t } = useI18n('common');
   const searchShortcutLabel = useSyncExternalStore(
     subscribeGlobalSearchShortcut,
@@ -248,10 +251,6 @@ const MainNav: React.FC<MainNavProps> = ({
     useSceneStore.getState().openScene('agents');
   }, []);
 
-  const handleOpenTodos = useCallback(() => {
-    void activateProductAction('surface.todos.open');
-  }, []);
-
   const handleOpenSkills = useCallback(() => {
     void activateProductAction('surface.skills.open');
   }, []);
@@ -360,10 +359,8 @@ const MainNav: React.FC<MainNavProps> = ({
     ? t('nav.tooltips.ecosystemCompatibilityUnseen')
     : t('nav.tooltips.ecosystemCompatibility');
   const assistantManagerLabel = t('nav.items.assistant');
-  const taskBoardLabel = t('nav.items.todos');
   const extensionsLabel = t('nav.sections.extensions');
   const isAssistantManagerActive = activeTabId === 'assistant' || activeTabId === 'profile';
-  const isTaskBoardActive = activeTabId === 'todos';
   return (
     <>
     <NavigationPanel
@@ -430,28 +427,42 @@ const MainNav: React.FC<MainNavProps> = ({
             </button>
           </Tooltip>
 
-          <Tooltip content={t('nav.tooltips.todos')} placement="right" followCursor>
-            <button data-overflow-trigger
-              type="button"
-              className={[
-                'bitfun-nav-panel__top-action-btn',
-                isTaskBoardActive ? 'is-active' : '',
-              ].filter(Boolean).join(' ')}
-              data-bitfun-component="nav-panel"
-              data-bitfun-part="todoEntry"
-              data-bitfun-action="todos"
-              data-bitfun-state={isTaskBoardActive ? 'active' : ''}
-              onClick={handleOpenTodos}
-              aria-label={taskBoardLabel}
-              aria-pressed={isTaskBoardActive}
-              data-testid="nav-todos-btn"
-            >
+          {sidebar.pinnedIds.map(id => {
+            const entry = sidebar.entries.find(candidate => candidate.id === id);
+            if (!entry) return null;
+            const label = t(entry.labelKey);
+            const reason = entry.unavailableReason?.(sidebar.context);
+            const selected = sidebar.selectedId === id;
+            const buttonProps = {
+              type: 'button' as const,
+              className: `bitfun-nav-panel__top-action-btn${selected ? ' is-active' : ''}`,
+              'data-overflow-trigger': '',
+              'data-bitfun-action': id.startsWith('builtin.') ? id.slice('builtin.'.length) : undefined,
+              'data-bitfun-state': selected ? 'active' : '',
+              onClick: () => {
+                void Promise.resolve(entry.open(sidebar.scope)).catch(error => {
+                  if (!sidebar.scope.isCurrent()) return;
+                  log.error('Failed to open pinned sidebar entry', { id, error });
+                  notificationService.error(t('nav.customization.openFailed', { name: label }));
+                });
+              },
+              disabled: !!reason,
+              'aria-label': label,
+              'aria-pressed': selected,
+              'data-testid': id === 'builtin.todos' ? 'nav-todos-btn' : `nav-pinned-${id}`,
+            };
+            const content = <>
               <span className="bitfun-nav-panel__top-action-icon-slot" aria-hidden="true">
-                <Icon name="clock" size="sm" />
+                <Icon {...(typeof entry.icon === 'string' ? { name: entry.icon } : { glyph: entry.icon })} size="sm" />
               </span>
-              <OverflowText>{taskBoardLabel}</OverflowText>
-            </button>
-          </Tooltip>
+              <OverflowText>{label}</OverflowText>
+            </>;
+            return <Tooltip key={id} content={reason ? t(reason) : label} placement="right" followCursor>
+              {id === 'builtin.todos'
+                ? <button {...buttonProps} data-bitfun-component="nav-panel" data-bitfun-part="todoEntry">{content}</button>
+                : <button {...buttonProps} data-bitfun-component="nav-panel" data-bitfun-part="topAction">{content}</button>}
+            </Tooltip>;
+          })}
 
           <div className="bitfun-nav-panel__miniapp-navigation" data-bitfun-component="nav-panel" data-bitfun-part="miniAppFooter">
             <MiniAppEntry

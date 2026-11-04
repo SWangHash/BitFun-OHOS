@@ -2900,5 +2900,9 @@
     "count": "{{count}} annotations",
     "submitAnnotations": "Please address these annotations.",
     "questionRequired": "Add a question or comment about the selected text."
+  },
+  "contentWidth": {
+    "resizeLeft": "Resize conversation from the left edge",
+    "resizeRight": "Resize conversation from the right edge"
   }
 }

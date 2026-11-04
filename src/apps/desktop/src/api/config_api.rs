@@ -2,11 +2,11 @@
 
 use crate::api::app_state::AppState;
 use crate::startup_trace::DesktopStartupTrace;
-use log::{error, info};
 use bitfun_core::service::config::{
     ConfigExport, SaveCloudSpeechConfigRequest, SaveCloudSpeechConfigResult,
 };
 use bitfun_core::util::errors::BitFunError;
+use log::{error, info};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -30,9 +30,12 @@ pub struct GetConfigsRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SetConfigRequest {
     pub path: String,
     pub value: Value,
+    #[serde(default)]
+    pub expected_models: Option<Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -200,6 +203,7 @@ pub async fn set_config(
         &app,
         &request.path,
         request.value,
+        request.expected_models,
     )
     .await
     {
@@ -440,11 +444,9 @@ pub async fn get_agent_profile_config(
     agent_id: String,
 ) -> Result<Value, String> {
     let config =
-        bitfun_core::service::config::mode_config_canonicalizer::get_agent_profile_view(
-            &agent_id,
-        )
-        .await
-        .map_err(|e| format!("Failed to get agent profile config: {}", e))?;
+        bitfun_core::service::config::mode_config_canonicalizer::get_agent_profile_view(&agent_id)
+            .await
+            .map_err(|e| format!("Failed to get agent profile config: {}", e))?;
 
     to_json_value(config, "agent profile config")
 }

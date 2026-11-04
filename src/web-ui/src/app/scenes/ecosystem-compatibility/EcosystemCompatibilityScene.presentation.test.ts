@@ -63,7 +63,7 @@ describe('ecosystem compatibility scene presentation contract', () => {
     expect(model).toContain("dsh: ['skill', 'hook', 'mcp']");
   });
 
-  it('retires the duplicate Settings page and redirects legacy management links', () => {
+  it('embeds the existing import owner in Settings while retaining standalone management', () => {
     const registry = source('../settings/settingsRegistry.ts');
     const settingsTypes = source('../settings/settingsTypes.ts');
     const destination = source('../settings/settingsDestination.ts');
@@ -75,8 +75,9 @@ describe('ecosystem compatibility scene presentation contract', () => {
     expect(settingsTypes).not.toContain("| 'tools.integrations'");
     expect(destination).toContain("'external-sources'");
     expect(destination).toContain("'tools.integrations'");
-    expect(quickActions).toContain('isLegacyEcosystemCompatibilityDestination(destination)');
-    expect(quickActions).toContain("ownerSurface: 'external-sources'");
+    expect(registry).toContain("id: 'tools.external-import'");
+    expect(quickActions).toContain('resolveSettingsDestination(destination)');
+    expect(source('../settings/pages/tools/ExternalImportSettingsPage.tsx')).toContain('<EcosystemCompatibilityScene embedded />');
     expect(agents).toContain("openEcosystemCompatibility({ ownerSurface: 'external-sources' })");
     expect(externalMcp).toContain("openEcosystemCompatibility({ ownerSurface: 'external-sources' })");
   });
@@ -280,7 +281,7 @@ describe('ecosystem compatibility scene presentation contract', () => {
     expect(importPosition).toBeGreaterThan(runPosition);
     expect(scene).toContain('ecosystem-compatibility__unified-stack');
     expect(scene).not.toContain('renderDiagnostics');
-    expect(scene).toContain('refreshControlRef={externalContentRef}');
+    expect(scene).toContain('actionsRef={externalContentRef}');
     expect(scene).not.toContain('<MoreHorizontal');
     expect(scene).not.toContain("t('diagnostics.refresh')");
     expect(scene).not.toContain('role="tablist"');
@@ -359,15 +360,16 @@ describe('ecosystem compatibility scene presentation contract', () => {
 
     for (const file of [
       'claude-code.svg',
-      'codex.svg',
+      'codex-icon.svg',
       'pi.svg',
       'deepseek-harness.svg',
-      'opencode.svg',
     ]) {
       expect(source(`${assetRoot}${file}`)).toContain('<svg');
       expect(scene).toContain(`/assets/ecosystem-compatibility/${file}`);
     }
-    expect(scene).toContain('<EcosystemProductIcon productId={runtime.spec.id} size={22} />');
+    expect(scene).toContain('/assets/ecosystem-compatibility/opencode-icon-light.png');
+    expect(scene).toContain('/assets/ecosystem-compatibility/opencode-icon-dark.png');
+    expect(scene).toContain('<EcosystemProductIcon productId={runtime.spec.id} size="100%" />');
     expect(scene).toContain('<EcosystemProductIcon productId={selectedRuntime.spec.id} size={38} />');
     expect(scene).not.toContain('PRODUCT_FALLBACK_ICONS');
     expect(scene).not.toContain("'other-acp'");

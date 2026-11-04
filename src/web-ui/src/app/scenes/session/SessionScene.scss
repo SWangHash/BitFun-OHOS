@@ -46,6 +46,7 @@
 
 
 .bitfun-session-scene__main-row {
+  position: relative;
   display: flex;
   flex-direction: row;
   flex: 1 1 auto;
@@ -53,6 +54,23 @@
   min-height: 0;
   width: 100%;
   overflow: hidden;
+}
+
+.bitfun-session-scene--overlay {
+  .bitfun-session-scene__aux-pane {
+    position: absolute;
+    inset-block: 0;
+    right: 0;
+    z-index: var(--bitfun-layer-overlay);
+    background: var(--bitfun-color-surface-scene);
+    border-inline-start: 1px solid var(--bitfun-color-border-subtle);
+  }
+
+  .bitfun-pane-resizer {
+    position: absolute;
+    inset-block: 0;
+    z-index: calc(var(--bitfun-layer-overlay) + 1);
+  }
 }
 
 

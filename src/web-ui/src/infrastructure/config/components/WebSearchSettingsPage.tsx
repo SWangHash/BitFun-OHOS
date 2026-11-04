@@ -341,7 +341,7 @@ const WebSearchSettingsPage: React.FC = () => {
 
   useSettingsDraft({
     id: 'web-search-settings',
-    pageId: 'tools.webSearch',
+    pageId: 'tools.web-search',
     label: t('title'),
     dirty: draftDirty,
     saving: saving || credentialBusy,
@@ -388,13 +388,18 @@ const WebSearchSettingsPage: React.FC = () => {
   }, [notifyError, notifySuccess, t]);
 
   if (loading) {
-    return <ConfigLoadingState label={t('messages.loading')} />;
+    return (
+      <ConfigPageLayout>
+        <ConfigPageHeader title={t('title')} />
+        <ConfigPageContent><ConfigLoadingState label={t('messages.loading')} rows={5} /></ConfigPageContent>
+      </ConfigPageLayout>
+    );
   }
 
   if (loadFailed) {
     return (
       <ConfigPageLayout data-bitfun-component="config" data-bitfun-part="root">
-        <ConfigPageHeader title={t('title')} subtitle={t('subtitle')} />
+        <ConfigPageHeader title={t('title')} />
         <ConfigPageContent>
           <ConfigRetryState
             message={t('messages.loadFailed')}
@@ -411,7 +416,6 @@ const WebSearchSettingsPage: React.FC = () => {
     <ConfigPageLayout data-bitfun-component="config" data-bitfun-part="root">
       <ConfigPageHeader
         title={t('title')}
-        subtitle={t('subtitle')}
       />
       <ConfigPageContent>
         <ConfigMessage message={operationMessage} />
@@ -471,7 +475,6 @@ const WebSearchSettingsPage: React.FC = () => {
         {selectedProvider === 'bitfun_search_http' ? (
           <ConfigPageSection
             title={t('sections.http.title')}
-            description={t('sections.http.description')}
           >
             <ConfigPageRow label={t('fields.endpoint.label')} description={t('fields.endpoint.description')}>
               <Input
@@ -491,7 +494,7 @@ const WebSearchSettingsPage: React.FC = () => {
                 }))}
               />
             </ConfigPageRow>
-            <ConfigPageRow label={t('fields.authMode.label')} description={t('fields.authMode.description')} align="center">
+            <ConfigPageRow label={t('fields.authMode.label')} align="center">
               <Select
                 value={httpConfig.auth.mode || 'none'}
                 options={authOptions}
@@ -539,8 +542,8 @@ const WebSearchSettingsPage: React.FC = () => {
         ) : null}
 
         {credentialRequired ? (
-          <ConfigPageSection title={t('sections.credential.title')} description={t('sections.credential.description')}>
-            <ConfigPageRow label={t('fields.credentialStatus.label')} description={t('fields.credentialStatus.description')} balanced>
+          <ConfigPageSection title={t('sections.credential.title')}>
+            <ConfigPageRow label={t('fields.credentialStatus.label')} balanced>
               <div className="web-search-settings__credential-status">
                 <span>{credentialConfigured ? t('status.configured') : t('status.missing')}</span>
                 <Button size="sm" variant="outline" disabled={!credentialConfigured || mutationBusy} onClick={() => void handleClearCredential()}>
@@ -567,7 +570,6 @@ const WebSearchSettingsPage: React.FC = () => {
         {selectedProvider === 'bitfun_search_http' ? (
           <ConfigPageSection
             title={t('sections.protocol.title')}
-            description={t('sections.protocol.description')}
             extra={(
               <Tooltip content={t('actions.copyProtocol')} placement="bottom">
                 <IconButton

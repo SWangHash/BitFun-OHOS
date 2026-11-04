@@ -8,6 +8,8 @@ export const runtimeSettingsAppearanceDescriptor: AppearanceSurfaceDescriptor = 
     { id: 'control' },
     { id: 'petPicker' },
     { id: 'petChooser' },
+    { id: 'petSummary' },
+    { id: 'petStack' },
     { id: 'petTrigger' },
     { id: 'petList' },
     { id: 'petGroup' },
@@ -25,7 +27,7 @@ export const runtimeSettingsAppearanceDescriptor: AppearanceSurfaceDescriptor = 
       values: [
         'pet',
         'session-workspace',
-        'execution',
+        'execution', 'permissions',
         'browser-desktop-control',
       ],
     },

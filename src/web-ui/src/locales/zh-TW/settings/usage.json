@@ -45,7 +45,9 @@
     "requests": "請求數",
     "tokens": "Token 總量",
     "cachedTokens": "快取命中 Token",
-    "cacheHitRate": "快取命中率"
+    "cacheHitRate": "快取命中率",
+    "inputTokens": "輸入 Token",
+    "outputTokens": "輸出 Token"
   },
   "chart": {
     "totalTokens": "Token 總量：{{count}}",
@@ -55,7 +57,8 @@
     "title": "使用分佈",
     "byModel": "模型分佈",
     "byGroup": "分組使用分佈",
-    "byEndpoint": "端點分佈"
+    "byEndpoint": "端點分佈",
+    "more": "更多來源"
   },
   "cacheHitRate": {
     "title": "模型快取命中率"
@@ -68,16 +71,19 @@
     "unknownEndpoint": "未知端點"
   },
   "trend": {
-    "title": "Token 使用趨勢",
-    "description": "依時間查看輸入、輸出、快取寫入、快取讀取 Token 與快取命中率的變化",
+    "title": "詳細趨勢",
+    "description": "輸入與輸出 Token 用量變化",
     "dataTableCaption": "Token 使用趨勢明細",
     "time": "時間",
     "legend": {
-      "input": "Input",
-      "output": "Output",
-      "cacheRead": "Cache Read",
+      "input": "輸入",
+      "output": "輸出",
+      "cacheRead": "快取讀取",
       "cacheHitRate": "快取命中率"
-    }
+    },
+    "partial": "僅顯示最近的趨勢，總量仍依完整時段統計",
+    "range": "{{start}} 至 {{end}}",
+    "summary": "查看所選時段的輸入與輸出變化"
   },
   "table": {
     "caption": "{{dimension}}明細",
@@ -85,6 +91,25 @@
     "group": "分組",
     "endpoint": "端點",
     "requests": "請求",
-    "tokens": "Token"
+    "tokens": "Token",
+    "requestsCount": "{{count}} 次請求",
+    "shareValue": "占 {{share}}"
+  },
+  "activity": {
+    "day": "{{date}}：{{tokens}} Token",
+    "description": "固定近半年 · {{timeZone}}",
+    "less": "少",
+    "more": "多",
+    "title": "近半年每日用量",
+    "total": "累計 {{tokens}} Token"
+  },
+  "cache": {
+    "note": "快取讀取 Token 已包含於輸入 Token；命中率僅依有快取資料的請求計算。",
+    "unavailable": "未提供",
+    "title": "快取資料",
+    "description": "僅在模型服務提供資料時計算"
+  },
+  "details": {
+    "title": "更多明細"
   }
 }

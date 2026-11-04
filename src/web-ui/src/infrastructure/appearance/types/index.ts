@@ -579,6 +579,8 @@ export interface AppearanceFacetDescriptor {
   id: string;
   attribute: `data-bitfun-${string}`;
   values: readonly string[];
+  /** Map legacy persisted options to their current DOM values without rewriting packages. */
+  valueAliases?: Readonly<Record<string, string>>;
 }
 
 export interface AppearanceStateDescriptor {

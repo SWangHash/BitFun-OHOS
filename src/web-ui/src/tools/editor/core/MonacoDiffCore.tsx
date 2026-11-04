@@ -14,6 +14,8 @@ import { useI18n } from '@/infrastructure/i18n';
 import { monacoInitManager } from '../services/MonacoInitManager';
 import { monacoApi } from '../services/monacoRuntime';
 import { buildDiffEditorOptions } from '../services/EditorOptionsBuilder';
+import { useEditorFontFamily } from '../hooks/useEditorFontFamily';
+import { resolveEditorFontFamily } from '../config/defaults';
 import { attachMonacoChromeI18n, type MonacoChromeI18nHandle } from '../services/monacoChromeI18n';
 import { buildMonacoChromeStrings } from '../services/monacoChromeStrings';
 import type { MonacoDiffCoreProps } from './types';
@@ -90,6 +92,7 @@ export const MonacoDiffCore = forwardRef<MonacoDiffCoreRef, MonacoDiffCoreProps>
     const onEditorWillDisposeRef = useRef(onEditorWillDispose);
     
     const [isReady, setIsReady] = useState(false);
+    const resolvedFontFamily = useEditorFontFamily(config?.fontFamily);
 
     const { t } = useI18n('tools');
     const tRef = useRef(t);
@@ -289,6 +292,12 @@ export const MonacoDiffCore = forwardRef<MonacoDiffCoreRef, MonacoDiffCoreProps>
         monacoChromeI18nDetachRef.current.update(buildMonacoChromeStrings(tRef.current));
       }
     }, [t]);
+
+    useEffect(() => {
+      if (isReady && config?.fontFamily !== undefined) {
+        diffEditorRef.current?.updateOptions({ fontFamily: resolveEditorFontFamily(config.fontFamily) });
+      }
+    }, [isReady, config?.fontFamily, resolvedFontFamily]);
 
     useEffect(() => {
       if (!isReady) return;

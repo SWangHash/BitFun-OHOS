@@ -4,6 +4,8 @@ const configManagerMock = vi.hoisted(() => ({
   getConfig: vi.fn(),
   setConfig: vi.fn(),
   watch: vi.fn(),
+  hasCachedConfig: vi.fn(() => false),
+  getCachedConfig: vi.fn(),
 }));
 
 const configApiMock = vi.hoisted(() => ({
@@ -64,6 +66,21 @@ describe('AIExperienceConfigService startup behavior', () => {
     expect(configManagerMock.getConfig).toHaveBeenCalledWith('app.ai_experience');
   });
 
+  it('keeps the last loaded preferences after a refresh failure and rejects an initial strict read failure', async () => {
+    const { aiExperienceConfigService } = await import('./AIExperienceConfigService');
+    configManagerMock.getConfig.mockRejectedValueOnce(new Error('unavailable'));
+    await expect(aiExperienceConfigService.getSettingsAsync({ requireLoaded: true }))
+      .rejects.toThrow('unavailable');
+    expect(aiExperienceConfigService.getCachedSettings()).toBeNull();
+
+    configManagerMock.getConfig.mockResolvedValueOnce({ enable_session_title_generation: false });
+    const loaded = await aiExperienceConfigService.getSettingsAsync({ requireLoaded: true });
+    configManagerMock.getConfig.mockRejectedValueOnce(new Error('refresh failed'));
+    await aiExperienceConfigService.reload();
+    expect(aiExperienceConfigService.getCachedSettings()).toEqual(loaded);
+    expect(aiExperienceConfigService.getSettings().enable_session_title_generation).toBe(false);
+  });
+
   it('uses the blue-golden cat when no companion pet has been configured', async () => {
     configManagerMock.getConfig.mockResolvedValueOnce({
       enable_agent_companion: true,
@@ -101,7 +118,7 @@ describe('AIExperienceConfigService startup behavior', () => {
   });
 
   it('drops the retired input display mode during cross-window refresh', async () => {
-    configApiMock.getConfig.mockResolvedValueOnce({
+    configManagerMock.getConfig.mockResolvedValueOnce({
       enable_agent_companion: true,
       agent_companion_display_mode: 'input',
     });
@@ -109,8 +126,7 @@ describe('AIExperienceConfigService startup behavior', () => {
 
     const settings = await aiExperienceConfigService.getSettingsAsync({ forceRefresh: true });
 
-    expect(configApiMock.getConfig).toHaveBeenCalledWith('app.ai_experience');
-    expect(configManagerMock.getConfig).not.toHaveBeenCalled();
+    expect(configManagerMock.getConfig).toHaveBeenCalledWith('app.ai_experience', { forceRefresh: true, requireLoaded: true });
     expect(settings.enable_agent_companion).toBe(true);
     expect(settings).not.toHaveProperty('agent_companion_display_mode');
   });

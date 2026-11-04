@@ -93,7 +93,17 @@
     "logoutNoAffectedModels": "目前沒有模型設定使用此訂閱賬號。",
     "logoutConsequence": "模型設定不會被刪除；重新登入同一訂閱賬號後可以繼續使用。",
     "confirmLogout": "確認登出",
-    "openCodeRemoved": "OpenCode Console OAuth 僅支援 Zen。Go 模型請選擇 API key 並填寫金鑰，既有模型設定保留。"
+    "openCodeRemoved": "OpenCode Console OAuth 僅支援 Zen。Go 模型請選擇 API key 並填寫金鑰，既有模型設定保留。",
+    "accountState": {
+      "loading": "正在讀取狀態",
+      "unavailable": "服務無法使用",
+      "refreshRequired": "憑據待重新整理",
+      "loadFailed": "狀態讀取失敗",
+      "connected": "已登入"
+    },
+    "accountLabel": "帳號",
+    "accountUnavailable": "暫無帳號資訊",
+    "manageAccount": "管理帳號"
   },
   "providerSelection": {
     "modelRoutingPending": "重新整理模型清單後顯示協定和端點；目錄外模型可手動設定。",
@@ -137,7 +147,13 @@
     "unsavedModel": "待儲存",
     "unsavedModelHint": "此模型包含尚未儲存的修改，請點擊模型編輯視窗底部的「儲存」完成持久化",
     "urlHint": "已預填官方 API 地址，如使用代理或私有部署可修改",
-    "formatHint": "已根據提供商自動選擇，通常無需修改"
+    "formatHint": "已根據提供商自動選擇，通常無需修改",
+    "quickAdd": "快速新增",
+    "presetModels": "預設模型 · {{count}}",
+    "fetchedModels": "已取得 {{count}} 個模型",
+    "searchModels": "搜尋模型名稱或 ID",
+    "editModelSettings": "編輯模型「{{name}}」",
+    "removeModelByName": "移除模型「{{name}}」"
   },
   "providers": {
     "opencode-go": {
@@ -296,7 +312,9 @@
     "maxTokens": "最大輸出Tokens",
     "maxTokensHint": "單次請求時限制模型輸出的最大token數量（影響響應長度）",
     "description": "描述",
-    "descriptionPlaceholder": "設定說明（可選）"
+    "descriptionPlaceholder": "設定說明（可選）",
+    "openCodeZenApiKeyPlaceholder": "免費模型可留空；付費模型請填寫 Zen API Key",
+    "baseUrlPlaceholder": "https://api.example.com/v1"
   },
   "thinking": {
     "enable": "啟用思考",
@@ -457,7 +475,9 @@
     "newConfig": "新增設定",
     "addModel": "新增模型",
     "addProvider": "新增服務商",
-    "createFirst": "建立第一個設定"
+    "createFirst": "建立第一個設定",
+    "back": "返回",
+    "done": "$t(shared:statuses.done)"
   },
   "deleteConfirm": {
     "title": "刪除模型設定？",
@@ -531,7 +551,9 @@
     "defaultDescription": "{{name}} 模型設定",
     "cloneName": "{{name}} - 副本",
     "templateName": "{{provider}} - {{modelName}}",
-    "templateDescription": "{{description}} - {{modelName}}"
+    "templateDescription": "{{description}} - {{modelName}}",
+    "configConflict": "模型設定已在其他視窗中修改。請重新開啟編輯器，載入最新設定。",
+    "providerRemoved": "此服務已被移除，請關閉編輯器後重新開啟模型設定。"
   },
   "modelsDevCatalog": {
     "title": "models.dev 模型目錄",
@@ -562,7 +584,8 @@
     "offlineTitle": "無法連線時如何更新",
     "offlineDescription": "在可連線的裝置上下載 models.dev 原始檔案，將其命名為 catalog.json 並放入上方快取目錄。替換後重新啟動 BitFun 即可生效；點擊立即更新可能會覆蓋該檔案。",
     "downloadOriginal": "下載原始目錄",
-    "openCacheDirectory": "開啟快取目錄"
+    "openCacheDirectory": "開啟快取目錄",
+    "fetchCatalog": "取得 models.dev 模型目錄"
   },
   "advancedSettings": {
     "title": "高級設置",
@@ -601,5 +624,53 @@
       "validJson": "JSON格式有效",
       "mergeHint": "自定義字段將覆蓋默認請求體中的對應字段"
     }
-  }
+  },
+  "library": {
+    "title": "模型庫",
+    "search": "搜尋模型",
+    "tags": "標籤",
+    "editConnection": "編輯連線"
+  },
+  "acquisition": {
+    "noneImported": "尚未匯入訂閱服務",
+    "addSubscription": "新增訂閱",
+    "loadFailed": "無法讀取訂閱服務，請重試；既有模型設定仍會保留",
+    "noneConfigured": "尚未設定 API 服務",
+    "subscriptions": "訂閱服務",
+    "api": "API 模型",
+    "configuredSummary": "已設定 {{providers}} 個服務，共 {{models}} 個模型",
+    "importedSummary": "已匯入 {{providers}} 個服務，共 {{models}} 個模型",
+    "configureProvider": "設定 {{provider}}"
+  },
+  "pool": {
+    "removeTag": "移除標籤「{{tag}}」",
+    "allCapabilities": "全部能力",
+    "tagsLabel": "自訂標籤",
+    "allProviders": "全部供應商",
+    "capabilityFilter": "篩選模型能力",
+    "tagsCount": "{{count}} / {{max}}",
+    "editTag": "編輯標籤「{{tag}}」",
+    "providerFilter": "篩選供應商",
+    "tagsHint": "輸入標籤後按 Enter 新增，最多 {{max}} 個；主力、快速等欄位標籤不占名額",
+    "clearFilter": "清除篩選",
+    "tagsLimitReached": "最多新增 {{max}} 個自訂標籤，移除一個後可繼續新增",
+    "addTags": "新增標籤",
+    "moreActions": "{{model}} 的更多操作",
+    "noMatches": "沒有符合條件的模型",
+    "recommendedTags": "既有推薦標籤",
+    "tagsPlaceholder": "新增標籤",
+    "enableModel": "啟用 {{model}}",
+    "recommendationsUnavailable": "推薦標籤服務尚未上線，目前尚未接入同步，你可以先手動為模型新增標籤",
+    "manageConnections": "管理連線",
+    "acknowledge": "知道了",
+    "search": "搜尋模型、來源或標籤",
+    "syncTags": "同步推薦標籤"
+  },
+  "editProviderSettingsTitle": "服務連線",
+  "sections": {
+    "more": "更多設定",
+    "pool": "全部模型",
+    "acquisition": "新增或匯入模型"
+  },
+  "modelEditorTitle": "{{model}} · {{provider}}"
 }

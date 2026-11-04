@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useI18n } from '@/infrastructure/i18n';
 import { Settings } from 'lucide-react';
 import { IconButton } from '@/component-library';
 import { Combobox } from '@bitfun/ui';
@@ -7,7 +7,7 @@ import { useSceneStore } from '@/app/stores/sceneStore';
 import { useNotification } from '@/shared/notification-system';
 import { configManager } from '../services/ConfigManager';
 import type { AgentModelDefaultsConfig, AIModelConfig, SubagentModelSelection } from '../types';
-import { ConfigPageRow } from './common';
+import { ConfigPageRow, ConfigRetryState } from './common';
 import { type ModelSelectOption, useModelSelectPresentation } from './ModelSelectPresentation';
 import './SubagentModelConfig.scss';
 
@@ -28,9 +28,10 @@ function selectionValue(selection: SubagentModelSelection): string {
 }
 
 export const SubagentModelConfig: React.FC = () => {
-  const { t } = useTranslation('settings/ai-model');
+  const { t } = useI18n('settings/agentic-tools');
   const { error: notifyError } = useNotification();
   const [isLoading, setIsLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [models, setModels] = useState<AIModelConfig[]>([]);
   const [selection, setSelection] = useState<SubagentModelSelection>(DEFAULT_SUBAGENT_SELECTION);
@@ -41,12 +42,14 @@ export const SubagentModelConfig: React.FC = () => {
     setIsLoading(true);
     try {
       const [configuredModels, defaults] = await Promise.all([
-        configManager.getConfig<AIModelConfig[]>('ai.models'),
-        configManager.getConfig<AgentModelDefaultsConfig>('ai.agent_model_defaults'),
+        configManager.getConfig<AIModelConfig[]>('ai.models', { requireLoaded: true }),
+        configManager.getConfig<AgentModelDefaultsConfig>('ai.agent_model_defaults', { requireLoaded: true }),
       ]);
       setModels(configuredModels ?? []);
       setSelection(defaults?.subagents?.default ?? DEFAULT_SUBAGENT_SELECTION);
+      setLoadFailed(false);
     } catch {
+      setLoadFailed(true);
       notifyError(t('subagentModels.loadFailed'));
     } finally {
       setIsLoading(false);
@@ -123,15 +126,24 @@ export const SubagentModelConfig: React.FC = () => {
       description={t('subagentModels.default.description')}
       align="center"
     >
-      <Combobox
-        size="sm"
-        className="model-select-presentation__select"
-        options={modelOptions}
-        value={selectionValue(selection)}
-        onValueChange={(value) => void handleChange(value)}
-        disabled={isLoading || isSaving}
-        data-testid="settings-subagent-default-model-select"
-      />
+      {loadFailed ? (
+        <ConfigRetryState
+          message={t('subagentModels.loadFailed')}
+          retryLabel={t('messages.retry')}
+          onRetry={() => void loadData()}
+          loading={isLoading}
+        />
+      ) : (
+        <Combobox
+          size="sm"
+          className="model-select-presentation__select"
+          options={modelOptions}
+          value={selectionValue(selection)}
+          onValueChange={(value) => void handleChange(value)}
+          disabled={isLoading || isSaving}
+          data-testid="settings-subagent-default-model-select"
+        />
+      )}
     </ConfigPageRow>
   );
 };

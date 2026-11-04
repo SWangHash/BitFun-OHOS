@@ -17,10 +17,13 @@ import { activeEditTargetService, createMonacoEditTarget } from '../services/Act
 import { DiffRevertTooltips } from './DiffRevertTooltips';
 import './DiffEditor.scss';
 import { Tooltip } from '@bitfun/ui';
+import { useEditorFontFamily } from '../hooks/useEditorFontFamily';
+import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 import {
   DEFAULT_EDITOR_FONT_FAMILY,
   DEFAULT_EDITOR_FONT_SIZE,
   DEFAULT_EDITOR_LINE_HEIGHT,
+  resolveEditorFontFamily,
 } from '../config/defaults';
 
 const log = createLogger('DiffEditor');
@@ -108,6 +111,7 @@ export const DiffEditor: React.FC<DiffEditorProps> = ({
   const originalContentRuntimeRef = useRef(originalContent);
   const modifiedContentRuntimeRef = useRef(modifiedContent);
   const editorConfigRuntimeRef = useRef(editorConfig);
+  const resolvedFontFamily = useEditorFontFamily(editorConfig.font_family);
   const renderIndicatorsRuntimeRef = useRef(renderIndicators);
   const onModifiedContentChangeRef = useRef(onModifiedContentChange);
   const onDiffChangeRef = useRef(onDiffChange);
@@ -138,10 +142,14 @@ export const DiffEditor: React.FC<DiffEditorProps> = ({
   const detectedLanguage = useMemo(() => detectLanguage(filePath), [filePath, detectLanguage]);
 
   useEffect(() => {
+    let cancelled = false;
+    let revision = 0;
     const loadEditorConfig = async () => {
+      const scope = getActiveSurfaceScope();
+      const requestRevision = ++revision;
       try {
         const config = await configManager.getConfig<EditorConfigType>('editor');
-        if (config) {
+        if (config && !cancelled && scope.isCurrent() && requestRevision === revision) {
           setEditorConfig(prev => ({
             ...prev,
             ...config,
@@ -156,7 +164,13 @@ export const DiffEditor: React.FC<DiffEditorProps> = ({
       }
     };
     loadEditorConfig();
+    const unwatch = configManager.watch('editor', () => void loadEditorConfig());
+    return () => { cancelled = true; unwatch(); };
   }, [showMinimap]);
+
+  useEffect(() => {
+    diffEditor?.updateOptions({ fontFamily: resolvedFontFamily });
+  }, [diffEditor, resolvedFontFamily]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -228,7 +242,7 @@ export const DiffEditor: React.FC<DiffEditorProps> = ({
           theme: themeId,
           automaticLayout: true,
           fontSize: editorConfigRuntimeRef.current.font_size || DEFAULT_EDITOR_FONT_SIZE,
-          fontFamily: editorConfigRuntimeRef.current.font_family || DEFAULT_EDITOR_FONT_FAMILY,
+          fontFamily: resolveEditorFontFamily(editorConfigRuntimeRef.current.font_family),
           lineHeight: editorConfigRuntimeRef.current.line_height 
             ? Math.round((editorConfigRuntimeRef.current.font_size || DEFAULT_EDITOR_FONT_SIZE) * editorConfigRuntimeRef.current.line_height)
             : 0,

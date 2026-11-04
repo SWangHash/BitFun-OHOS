@@ -12,24 +12,37 @@ const styles = readFileSync(
 );
 
 describe('ModelSettingsPage presentation', () => {
-  it('uses intentional separators instead of Unicode replacement characters', () => {
+  it('does not render Unicode replacement characters', () => {
     expect(source).not.toContain('\uFFFD');
-    expect(source.match(/\{' · '\}/g)).toHaveLength(2);
   });
 
   it('declares required model fields structurally instead of embedding asterisks in label copy', () => {
     expect(source).not.toMatch(/label=\{`[^`]*\*[^`]*`\}/);
-    expect(source.match(/<ConfigPageRow label=\{t\('form\.configName'\)\} required/g)).toHaveLength(2);
-    expect(source.match(/<ConfigPageRow label=\{t\('form\.modelSelection'\)\} required/g)).toHaveLength(2);
-    // Template and custom-provider editors both require an API URL.
-    expect(source.match(/<ConfigPageRow label=\{t\('form\.baseUrl'\)\} required/g)).toHaveLength(2);
-    expect(source).toContain('<ConfigPageRow label={label} required align="center" wide>');
+    expect(source.match(/<ConfigPageRow label=\{t\('form\.configName'\)\} required/g)).toHaveLength(1);
+    expect(source).toContain('data-testid="settings-model-name-input"');
+    expect(source).toMatch(/required\s+invalid=\{showModelValidation && !draft\.modelName\.trim\(\)\}/);
+    // Template and custom-provider connections share the required API URL field.
+    expect(source.match(/<ConfigPageRow label=\{t\('form\.baseUrl'\)\} required/g)).toHaveLength(1);
+    expect(source).toContain('<ConfigPageRow label={label} required={apiKeyRequired} align="center" wide>');
   });
 
   it('preserves the intrinsic width of design-system switches in edit rows', () => {
     expect(styles.match(/> :not\(\[data-bitfun-component='switch'\]\)/g)).toHaveLength(2);
     expect(styles).not.toMatch(/> \* \{\s*min-width: 0;\s*width: 100%/);
     expect(styles).not.toMatch(/> \* \{\s*width: auto;\s*max-width: none;/);
+  });
+
+  it('connects endpoint layout styles and keeps quick-add actions at their intrinsic width', () => {
+    expect(source).toContain('<ConfigPageRow label={t(\'form.baseUrl\')} required wide className="bitfun-model-settings__endpoint-row">');
+    expect(source).toContain('<span className="bitfun-model-settings__resolved-url-label">');
+    expect(source).toContain('<span className="bitfun-model-settings__resolved-url-value">');
+    const pickerStyles = styles.match(/&__model-picker-row\s*\{([^}]+)\}/)?.[1];
+    expect(pickerStyles).toContain('display: inline-flex;');
+    expect(pickerStyles).not.toContain('width: 100%');
+    expect(pickerStyles).not.toContain('subgrid');
+    expect(styles).toMatch(/&__connection-section &__connection-row:has\(> \.bitfun-config-page-row:only-child\)\s*\{\s*grid-template-columns: minmax\(0, 1fr\);/);
+    expect(styles).toMatch(/&__form--modal\s*\{[^}]*container: config-panel \/ inline-size;/);
+    expect(styles).toMatch(/@container config-panel \(max-width: 520px\)\s*\{\s*&__connection-section &__connection-row \{ grid-template-columns: minmax\(0, 1fr\); \}\s*&__endpoint-inputs \{ grid-template-columns: minmax\(0, 1fr\); \}/);
   });
 
   it('uses the shared overflow surface for models.dev cache metadata', () => {

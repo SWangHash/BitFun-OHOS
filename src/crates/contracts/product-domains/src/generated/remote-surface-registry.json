@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "digest": "fnv1a64:6252b1adf2b1234b",
+  "digest": "fnv1a64:fb37c23612f1762a",
   "retiredCommandPrefixes": [
     {
       "prefix": "lsp_",
@@ -1125,6 +1125,18 @@
       "id": "control_deep_review_queue",
       "surface": "tauri_command",
       "remoteWorkspace": "LegacyUnaudited",
+      "peer": {
+        "kind": "proxied"
+      },
+      "cliPeer": {
+        "kind": "unsupported",
+        "reason": "the CLI peer host has no handler for this command"
+      }
+    },
+    {
+      "id": "copy_files_to_clipboard",
+      "surface": "tauri_command",
+      "remoteWorkspace": "LocalOnly",
       "peer": {
         "kind": "proxied"
       },
@@ -4222,6 +4234,18 @@
       "cliPeer": {
         "kind": "unsupported",
         "reason": "the CLI peer host has no handler for this command"
+      }
+    },
+    {
+      "id": "load_agent_companion_pet_spritesheet",
+      "surface": "tauri_command",
+      "remoteWorkspace": "LocalOnly",
+      "peer": {
+        "kind": "controller_local"
+      },
+      "cliPeer": {
+        "kind": "unsupported",
+        "reason": "the controller keeps this command; peer hosts refuse it before dispatch"
       }
     },
     {

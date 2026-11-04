@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { savePanelRatio, STORAGE_KEYS } from '../../layout/panelConfig';
 import { storage } from '@/shared/utils/storageAdapter';
+import { sessionPaneLayoutStore } from './sessionPaneLayoutStore';
 
 const mocks = vi.hoisted(() => {
   const state = {
@@ -68,6 +69,9 @@ describe('SessionScene proportional right panel sizing', () => {
     viewportWidth = 1000;
     sessionWidth = 900;
     mocks.state.layout.rightPanelWidth = 400;
+    mocks.state.layout.chatCollapsed = false;
+    mocks.state.layout.rightPanelCollapsed = false;
+    sessionPaneLayoutStore.setState({ displayMode: 'split' });
     mocks.updateRightPanelWidth.mockClear();
     mocks.updateBottomTerminalPanelHeight.mockClear();
     savePanelRatio(STORAGE_KEYS.RIGHT_PANEL_RATIO, 0.4);
@@ -118,5 +122,18 @@ describe('SessionScene proportional right panel sizing', () => {
     sessionWidth = 900;
     await act(async () => window.dispatchEvent(new Event('resize')));
     expect(mocks.updateRightPanelWidth).toHaveBeenLastCalledWith(400);
+  });
+
+  it('applies overlay only to the side pane and keeps editor mode as the main content surface', async () => {
+    sessionPaneLayoutStore.setState({ displayMode: 'overlay' });
+    await render();
+    expect(container.querySelector('[data-testid="session-scene"]')?.classList.contains('bitfun-session-scene--overlay')).toBe(true);
+    expect(container.querySelector<HTMLElement>('[data-testid="session-right-pane-resizer"]')?.style.right).toBe('400px');
+    expect(container.querySelector('[data-testid="session-chat-pane"]')).not.toBeNull();
+    mocks.state.layout.chatCollapsed = true;
+    await render();
+    expect(container.querySelector('[data-testid="session-scene"]')?.classList.contains('bitfun-session-scene--overlay')).toBe(false);
+    expect(container.querySelector('[data-testid="session-aux-pane"]')?.classList.contains('bitfun-session-scene__aux-pane--editor-mode')).toBe(true);
+    expect(sessionPaneLayoutStore.getState().displayMode).toBe('overlay');
   });
 });

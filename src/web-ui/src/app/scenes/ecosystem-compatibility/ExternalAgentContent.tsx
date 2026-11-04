@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type Ref } from 'react';
-import { Alert, Button, Checkbox, DialogBody, DialogClose, DialogFooter, DialogHeader, DialogHeaderActions, DialogHeading, DialogTitle, Icon, IconButton, LoadingState, OverflowText, ScrollArea, SearchField, Switch, StatusPill, type IconSource } from '@bitfun/ui';
+import { Alert, Button, Checkbox, DialogBody, DialogClose, DialogFooter, DialogHeader, DialogHeaderActions, DialogHeading, DialogTitle, FieldGroup, Icon, IconButton, LoadingState, OverflowText, ScrollArea, SearchField, Switch, StatusPill, type IconSource } from '@bitfun/ui';
 import { EcosystemDialog as Dialog } from './EcosystemDialog';
 import { EcosystemBatchLayout } from './EcosystemBatchLayout';
 import EcosystemPets from './EcosystemPets';
@@ -10,7 +10,7 @@ import { ecosystemDiscoveryCache, forgetEcosystemHookImports, rememberEcosystemH
 import { persistHookScan, readPersistedHookScan } from './ecosystemHookScanStorage';
 import { importErrorMessage } from './ecosystemSkillImport';
 import { applyEcosystemBatchUndo, type BatchUndoEntry, type BatchUndoResult } from './ecosystemBatchUndo';
-import { CircleUserRound, FileText, Package, PawPrint, Server, Webhook, Wrench } from 'lucide-react';
+import { BookOpen, CircleUserRound, FileText, PawPrint, Server, Webhook, Wrench } from 'lucide-react';
 import { useSceneStore } from '@/app/stores/sceneStore';
 import { useSettingsStore } from '@/app/scenes/settings/settingsStore';
 import { useI18n } from '@/infrastructure/i18n';
@@ -45,7 +45,7 @@ const CONTENT_ICONS: Record<EcosystemImportItemKind, IconSource> = {
   command: { name: 'command-mac' },
   tool: { glyph: Wrench },
   subagent: { name: 'user' },
-  skill: { glyph: Package },
+  skill: { glyph: BookOpen },
   mcp: { glyph: Server },
   hook: { glyph: Webhook },
   instruction: { glyph: FileText },
@@ -60,12 +60,23 @@ type Review =
 
 export interface ExternalAgentContentHandle {
   refresh: () => Promise<void>;
+  importAll: () => Promise<void>;
+  undoAll: () => Promise<void>;
+}
+
+export interface ExternalAgentContentActionState {
+  canImport: boolean;
+  importDisabled: boolean;
+  undoDisabled: boolean;
+  refreshDisabled: boolean;
 }
 
 interface Props {
   scopeKey?: string;
   /** The scene owns placement; this catalog keeps the refresh lifecycle and disabled state. */
   refreshControlRef?: Ref<ExternalAgentContentHandle>;
+  actionsRef?: Ref<ExternalAgentContentHandle>;
+  onActionStateChange?: (state: ExternalAgentContentActionState) => void;
   onRefreshDisabledChange?: (disabled: boolean) => void;
   runtime: EcosystemProductRuntime;
   snapshot: ExternalSourceCatalogSnapshot | null;
@@ -75,7 +86,7 @@ interface Props {
 }
 
 /** An external catalog, never an embedded native manager. Mount separately for each host/workspace/agent. */
-export default function ExternalAgentContent({ scopeKey, refreshControlRef, onRefreshDisabledChange, runtime, snapshot, catalogFailed, onRefresh, onSupplementalCounts }: Props) {
+export default function ExternalAgentContent({ scopeKey, actionsRef, onActionStateChange, refreshControlRef, onRefreshDisabledChange, runtime, snapshot, catalogFailed, onRefresh, onSupplementalCounts }: Props) {
   const contentId = useId();
   const { t, formatNumber } = useI18n('scenes/ecosystem-compatibility');
   const notification = useNotification();
@@ -635,13 +646,26 @@ export default function ExternalAgentContent({ scopeKey, refreshControlRef, onRe
     setRefreshing(false);
   };
 
-  useImperativeHandle(refreshControlRef, () => ({ refresh: refreshContent }));
+  const canImport = localImportSupported && items.some((item) => ['mcp', 'hook'].includes(item.kind));
+  const importDisabled = busy || loading || planLoading || refreshing;
+  const undoDisabled = busy || loading || refreshing || !items.some((item) => contentState(item) === 'imported');
+  const refreshDisabled = busy || loading || refreshing;
+  useImperativeHandle(actionsRef ?? refreshControlRef, () => ({
+    refresh: refreshContent,
+    importAll: async () => { if (canImport && !importDisabled) await prepareBatch(); },
+    undoAll: async () => { if (canImport && !undoDisabled) await prepareBatchUndo(); },
+  }));
   useLayoutEffect(() => {
-    onRefreshDisabledChange?.(busy || loading || refreshing);
-  }, [busy, loading, refreshing, onRefreshDisabledChange]);
+    onActionStateChange?.({ canImport, importDisabled, undoDisabled, refreshDisabled });
+  }, [canImport, importDisabled, undoDisabled, refreshDisabled, onActionStateChange]);
+
+  useLayoutEffect(() => {
+    onRefreshDisabledChange?.(refreshDisabled);
+  }, [refreshDisabled, onRefreshDisabledChange]);
 
   return (
     <section className="ecosystem-compatibility__section" data-external-agent-content={runtime.spec.ecosystemId}>
+      {!actionsRef && (
       <div className="ecosystem-compatibility__section-heading ecosystem-compatibility__section-heading--actions">
         <div><h2>{t('content.title', { name: runtime.spec.name })}</h2><p>{t('content.description')}</p></div>
         {localImportSupported && items.some((item) => ['mcp', 'hook'].includes(item.kind)) ? (
@@ -651,12 +675,12 @@ export default function ExternalAgentContent({ scopeKey, refreshControlRef, onRe
           </div>
         ) : null}
       </div>
+      )}
       {notice && !kind && !review && !undo && !batch && !batchUndo ? <Alert className="ecosystem-compatibility__notice ecosystem-compatibility__feedback" role="status" showIcon={false} message={notice} /> : null}
       {loading ? <LoadingState size="sm">{t('loading')}</LoadingState> : null}
-      <div className="ecosystem-compatibility__content-overview" role="table" aria-label={t('content.title', { name: runtime.spec.name })}>
+      <FieldGroup appearance="subtle" fieldSurface="ambient" dividers={false} className="ecosystem-compatibility__content-overview" role="table" aria-label={t('content.title', { name: runtime.spec.name })}>
         <div className="ecosystem-compatibility__content-summary ecosystem-compatibility__content-summary--header" role="row">
           <span role="columnheader">{t('import.columns.item')}</span>
-          <span role="columnheader">{t('import.columns.source')}</span>
           <span role="columnheader">{t('import.columns.state')}</span>
         </div>
       {Array.from(new Set(items.map((item) => item.kind))).map((group) => {
@@ -680,10 +704,9 @@ export default function ExternalAgentContent({ scopeKey, refreshControlRef, onRe
               <span className="ecosystem-compatibility__import-item-icon"><Icon {...CONTENT_ICONS[group]} size="md" /></span>
               <span className="ecosystem-compatibility__import-item-copy">
                 <strong className="ecosystem-compatibility__content-title"><OverflowText>{t(`capabilities.${group}`)}</OverflowText></strong>
-                <small>{description}</small>
+                {(!discoverySupported || presentation(representative).descriptionKey === 'content.lastKnownResult') && <small>{description}</small>}
               </span>
             </span>
-            <span role="cell">{runtime.spec.name}</span>
             <span role="cell" className="ecosystem-compatibility__content-summary-state">
               {discoverySupported
                 ? <StatusPill tone="neutral" title={t('import.states.discoverySupported')}>
@@ -701,7 +724,7 @@ export default function ExternalAgentContent({ scopeKey, refreshControlRef, onRe
           </div>
         </div>;
       })}
-      </div>
+      </FieldGroup>
       <Dialog
         id={categoryDialogId}
         className="ecosystem-compatibility__catalog-dialog"
@@ -770,7 +793,7 @@ export default function ExternalAgentContent({ scopeKey, refreshControlRef, onRe
         </> : null}
       </Dialog>
       <Dialog className="ecosystem-compatibility__batch-dialog" open={batchUndo !== null} onOpenChange={(open) => { if (!open && !busy) { setBatchUndo(null); setNotice(null); } }} size="lg" closeOnPointerOutside={!busy}>
-        <DialogHeader><DialogHeading><DialogTitle>{t(batchUndoResults ? busy ? 'content.batchUndoing' : 'content.batchUndoResults' : 'content.batchUndoTitle')}</DialogTitle></DialogHeading>{!busy ? <DialogClose /> : null}</DialogHeader>
+        <DialogHeader><DialogHeading><DialogTitle>{t(batchUndoResults ? busy ? 'content.batchUndoing' : 'content.batchUndoResults' : 'content.batchUndoTitle')}</DialogTitle></DialogHeading><DialogHeaderActions>{!busy ? <DialogClose /> : null}</DialogHeaderActions></DialogHeader>
         <EcosystemBatchLayout entries={batchUndo ?? []} getKind={(entry) => entry.review.kind} busy={busy} processed={batchUndoResults?.length}
           summary={batchUndoResults ? t('content.batchUndoSummary', {
             removed: formatNumber(batchUndoResults.filter((result) => result.status === 'removed').length),
@@ -792,7 +815,7 @@ export default function ExternalAgentContent({ scopeKey, refreshControlRef, onRe
         </DialogFooter>
       </Dialog>
       <Dialog className="ecosystem-compatibility__batch-dialog" open={batch !== null} onOpenChange={(open) => { if (!open && !busy) { setBatch(null); setNotice(null); } }} size="lg" closeOnPointerOutside={!busy}>
-        <DialogHeader><DialogHeading><DialogTitle>{t(batchResults ? busy ? 'content.batchImporting' : 'content.batchResults' : 'content.batchTitle')}</DialogTitle></DialogHeading>{!busy ? <DialogClose /> : null}</DialogHeader>
+        <DialogHeader><DialogHeading><DialogTitle>{t(batchResults ? busy ? 'content.batchImporting' : 'content.batchResults' : 'content.batchTitle')}</DialogTitle></DialogHeading><DialogHeaderActions>{!busy ? <DialogClose /> : null}</DialogHeaderActions></DialogHeader>
         <EcosystemBatchLayout entries={batch ?? []} getKind={(entry) => entry.kind} busy={busy} processed={batchResults?.length}
           summary={batchResults ? t('content.batchResultSummary', {
             imported: formatNumber(batchResults.filter((result) => result.status === 'imported').length),
@@ -820,7 +843,7 @@ export default function ExternalAgentContent({ scopeKey, refreshControlRef, onRe
         </DialogFooter>
       </Dialog>
       <Dialog open={undo !== null} onOpenChange={(open) => { if (!open && !busy) { setUndo(null); setNotice(null); } }} size="md" closeOnPointerOutside={!busy}>
-        <DialogHeader><DialogHeading><DialogTitle>{t('content.undoTitle')}</DialogTitle></DialogHeading>{!busy ? <DialogClose /> : null}</DialogHeader>
+        <DialogHeader><DialogHeading><DialogTitle>{t('content.undoTitle')}</DialogTitle></DialogHeading><DialogHeaderActions>{!busy ? <DialogClose /> : null}</DialogHeaderActions></DialogHeader>
         <DialogBody>
           {undo ? <div className="ecosystem-compatibility__content-detail">
             <strong className="ecosystem-compatibility__detail-name">{undo.item.name}</strong><p className="ecosystem-compatibility__feedback">{t('content.undoWarning')}</p>
@@ -834,7 +857,7 @@ export default function ExternalAgentContent({ scopeKey, refreshControlRef, onRe
         </DialogFooter>
       </Dialog>
       <Dialog open={viewed !== null} onOpenChange={(open) => { if (!open && !busy) { reviewSequence.current += 1; setReview(null); setDetail(null); setNotice(null); } }} size="lg" closeOnPointerOutside={!busy}>
-        <DialogHeader><DialogHeading><DialogTitle>{review ? t('content.confirmTitle') : viewed?.name}</DialogTitle></DialogHeading>{!busy ? <DialogClose /> : null}</DialogHeader>
+        <DialogHeader><DialogHeading><DialogTitle>{review ? t('content.confirmTitle') : viewed?.name}</DialogTitle></DialogHeading><DialogHeaderActions>{!busy ? <DialogClose /> : null}</DialogHeaderActions></DialogHeader>
         <DialogBody>
           {viewed ? <div className="ecosystem-compatibility__content-detail">
             <div className="ecosystem-compatibility__detail-heading"><strong className="ecosystem-compatibility__detail-name">{viewed.name}</strong><StatusPill tone="neutral">{runtime.spec.name} · {t(`capabilities.${viewed.kind}`)}</StatusPill></div>

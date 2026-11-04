@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Layers } from 'lucide-react';
-import { Combobox } from '@bitfun/ui';
+import { Combobox, Icon, IconButton, Tooltip } from '@bitfun/ui';
 import { Spinner } from '@bitfun/ui';
 import { notificationService } from '@/shared/notification-system';
 import { configManager } from '../services/ConfigManager';
@@ -51,9 +51,27 @@ function mergeConfirmedDefaults(
   };
 }
 
-export const DefaultModelConfig: React.FC = () => {
+interface DefaultModelConfigProps {
+  compact?: boolean;
+  models?: AIModelConfig[];
+  defaultModels?: DefaultModels;
+  loading?: boolean;
+  disabled?: boolean;
+  onDefaultModelsChange?: (models: DefaultModels) => void;
+}
+
+export const DefaultModelConfig: React.FC<DefaultModelConfigProps> = ({
+  compact = false, models: providedModels, defaultModels: providedDefaults, loading: providedLoading,
+  disabled = false, onDefaultModelsChange,
+}) => {
+  const externallyLoaded = providedModels !== undefined && providedDefaults !== undefined;
   const { t } = useTranslation('settings/default-model');
   const { buildModelOption } = useModelSelectPresentation();
+  const renderSlotLabel = (label: string, description: string) => compact ? (
+    <span className="default-model-config__slot-label-content">{label}
+      <Tooltip content={description} placement="top"><IconButton size="xs" variant="quiet" aria-label={description} icon={<Icon name="info" size="xs" />} /></Tooltip>
+    </span>
+  ) : label;
   const renderOptionalLabel = (text: string) => (
     <>
       {text}
@@ -62,9 +80,9 @@ export const DefaultModelConfig: React.FC = () => {
   );
   
   
-  const [loading, setLoading] = useState(true);
-  const [models, setModels] = useState<AIModelConfig[]>([]);
-  const [defaultModels, setDefaultModels] = useState<DefaultModels>({
+  const [loading, setLoading] = useState(!externallyLoaded);
+  const [models, setModels] = useState<AIModelConfig[]>(providedModels ?? []);
+  const [defaultModels, setDefaultModels] = useState<DefaultModels>(providedDefaults ?? {
     primary: null,
     fast: null,
     image_understanding: null,
@@ -105,6 +123,14 @@ export const DefaultModelConfig: React.FC = () => {
   }, [t]);
 
   useEffect(() => {
+    if (!externallyLoaded) return;
+    setModels(providedModels!);
+    setDefaultModels(current => mergeConfirmedDefaults(current, providedDefaults!, pendingDefaultSlotsRef.current));
+    setLoading(providedLoading ?? false);
+  }, [externallyLoaded, providedModels, providedDefaults, providedLoading]);
+
+  useEffect(() => {
+    if (externallyLoaded) return;
     let disposed = false;
     let refreshQueued = false;
     void loadData(true);
@@ -126,7 +152,7 @@ export const DefaultModelConfig: React.FC = () => {
       unsubscribeModels();
       unsubscribeDefaultModels();
     };
-  }, [loadData]);
+  }, [loadData, externallyLoaded]);
 
   
   const getModelName = useCallback((modelId: string | null | undefined): string | undefined => {
@@ -165,6 +191,7 @@ export const DefaultModelConfig: React.FC = () => {
         await configManager.getConfig<Partial<DefaultModels>>('ai.default_models'),
       );
       if (slotMutationRevisionRef.current[slot] !== revision) return;
+      onDefaultModelsChange?.(confirmed);
       const pendingSlots = new Set(pendingDefaultSlotsRef.current);
       pendingSlots.delete(slot);
       setDefaultModels(current => mergeConfirmedDefaults(current, confirmed, pendingSlots));
@@ -218,7 +245,7 @@ export const DefaultModelConfig: React.FC = () => {
     isSelectableModelForCapability(model, 'speech_recognition')
   ));
 
-  if (loading) {
+  if (loading && !compact) {
     return (
       <div className="default-model-config__loading" data-bitfun-component="default-model-config" data-bitfun-part="loading" data-bitfun-state="loading">
         <Spinner size="sm" />
@@ -227,7 +254,7 @@ export const DefaultModelConfig: React.FC = () => {
     );
   }
 
-  if (models.length === 0) {
+  if (models.length === 0 && !compact) {
     return (
       <ConfigEmptyState
         data-bitfun-component="default-model-config"
@@ -240,10 +267,11 @@ export const DefaultModelConfig: React.FC = () => {
   }
 
   return (
-    <div className="default-model-config" data-bitfun-component="default-model-config" data-bitfun-part="root">
+    <div className={`default-model-config${compact ? ' default-model-config--compact' : ''}`} data-bitfun-component="default-model-config" data-bitfun-part="root">
       <ConfigPageRow
-        label={t('core.primary.label')}
-        description={t('core.primary.description')}
+        label={renderSlotLabel(t('core.primary.label'), t('core.primary.description'))}
+        description={compact ? undefined : t('core.primary.description')}
+        multiline={compact}
         required
         align="center"
       >
@@ -255,7 +283,7 @@ export const DefaultModelConfig: React.FC = () => {
           onValueChange={(value) => handleDefaultModelChange('primary', normalizeSelectValue(value))}
           placeholder={t('core.primary.placeholder')}
           options={enabledModels.map(buildModelOption)}
-          disabled={enabledModels.length === 0}
+          disabled={loading || disabled || enabledModels.length === 0}
           size="sm"
           triggerTestId="default-primary-model-select"
           panelTestId="default-primary-model-select-menu"
@@ -263,8 +291,9 @@ export const DefaultModelConfig: React.FC = () => {
       </ConfigPageRow>
 
       <ConfigPageRow
-        label={renderOptionalLabel(t('core.fast.label'))}
-        description={t('core.fast.description')}
+        label={compact ? renderSlotLabel(t('core.fast.label'), t('core.fast.description')) : renderOptionalLabel(t('core.fast.label'))}
+        description={compact ? undefined : t('core.fast.description')}
+        multiline={compact}
         align="center"
       >
         <Combobox
@@ -277,6 +306,7 @@ export const DefaultModelConfig: React.FC = () => {
             { label: t('core.fast.notSet'), value: '' },
             ...enabledModels.map(buildModelOption),
           ]}
+          disabled={loading || disabled || models.length === 0}
           size="sm"
           triggerTestId="default-fast-model-select"
           panelTestId="default-fast-model-select-menu"
@@ -284,8 +314,9 @@ export const DefaultModelConfig: React.FC = () => {
       </ConfigPageRow>
 
       <ConfigPageRow
-        label={renderOptionalLabel(t('optional.capabilities.image_understanding.label'))}
-        description={t('optional.capabilities.image_understanding.description')}
+        label={compact ? renderSlotLabel(t('optional.capabilities.image_understanding.label'), t('optional.capabilities.image_understanding.description')) : renderOptionalLabel(t('optional.capabilities.image_understanding.label'))}
+        description={compact ? undefined : t('optional.capabilities.image_understanding.description')}
+        multiline={compact}
         align="center"
       >
         <Combobox
@@ -293,6 +324,7 @@ export const DefaultModelConfig: React.FC = () => {
           data-bitfun-part="embeddingModel"
           value={defaultModels.image_understanding || ''}
           onValueChange={(value) => handleDefaultModelChange('image_understanding', normalizeSelectValue(value))}
+          disabled={loading || disabled || models.length === 0}
           placeholder={t('optional.selectModel')}
           options={[
             { label: t('optional.notSet'), value: '' },
@@ -303,8 +335,9 @@ export const DefaultModelConfig: React.FC = () => {
       </ConfigPageRow>
 
       <ConfigPageRow
-        label={renderOptionalLabel(t('optional.capabilities.speech_recognition.label'))}
-        description={t('optional.capabilities.speech_recognition.description')}
+        label={compact ? renderSlotLabel(t('optional.capabilities.speech_recognition.label'), t('optional.capabilities.speech_recognition.description')) : renderOptionalLabel(t('optional.capabilities.speech_recognition.label'))}
+        description={compact ? undefined : t('optional.capabilities.speech_recognition.description')}
+        multiline={compact}
         align="center"
       >
         <Combobox

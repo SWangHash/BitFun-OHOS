@@ -4,14 +4,14 @@ import { globalEventBus } from '@/infrastructure/event-bus';
 import { MCP_CONFIG_CHANGED } from '@/infrastructure/mcp/configEvents';
 
 const invokeMock = vi.hoisted(() => vi.fn());
-const scopeMock = vi.hoisted(() => ({ surfaceId: 'local', assertCurrent: vi.fn() }));
+const scopeMock = vi.hoisted(() => ({ surfaceId: 'local', epoch: 0, assertCurrent: vi.fn() }));
 vi.mock('./ApiClient', () => ({ api: { invoke: invokeMock } }));
 vi.mock('@/infrastructure/peer-device/deviceSurface', () => ({
   getActiveSurfaceScope: () => scopeMock,
 }));
 
 describe('MCP JSON save acknowledgement', () => {
-  beforeEach(() => { invokeMock.mockReset(); scopeMock.assertCurrent.mockReset(); });
+  beforeEach(() => { invokeMock.mockReset(); scopeMock.assertCurrent.mockReset(); scopeMock.epoch += 1; });
 
   it('enables one imported server with CAS and preserves origin, secrets and unrelated settings', async () => {
     const config = { mcpServers: {
@@ -136,5 +136,28 @@ describe('MCP JSON save acknowledgement', () => {
     invokeMock.mockRejectedValueOnce(Object.assign(new Error('Request timeout'), { code: 'REQUEST_TIMEOUT' }));
     await expect(MCPAPI.saveMCPJsonConfig('{}', 'revision')).rejects.toBe(changed);
     expect(invokeMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+describe('MCP server read cache', () => {
+  it('retains successful rows across failed refreshes and invalidates on configuration or device changes', async () => {
+    scopeMock.epoch += 1;
+    scopeMock.assertCurrent.mockReset();
+    invokeMock.mockReset().mockResolvedValue([{ id: 'server-a', name: 'Server A' }]);
+    const [first, shared] = await Promise.all([MCPAPI.getServers(), MCPAPI.getServers()]);
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    expect(shared).toBe(first);
+    expect(MCPAPI.getCachedServers()).toBe(first);
+    invokeMock.mockRejectedValueOnce(new Error('Offline'));
+    await expect(MCPAPI.getServers()).rejects.toThrow('Offline');
+    expect(MCPAPI.getCachedServers()).toBe(first);
+    globalEventBus.emit(MCP_CONFIG_CHANGED, { surfaceId: 'another-device' });
+    expect(MCPAPI.getCachedServers()).toBe(first);
+    globalEventBus.emit(MCP_CONFIG_CHANGED, { surfaceId: 'local' });
+    expect(MCPAPI.getCachedServers()).toBeUndefined();
+    await MCPAPI.getServers();
+    scopeMock.epoch += 1;
+    expect(MCPAPI.getCachedServers()).toBeUndefined();
   });
 });

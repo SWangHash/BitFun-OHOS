@@ -2,8 +2,8 @@
 
 import { configManager } from './ConfigManager';
 import { DEFAULT_AGENT_COMPANION_PET } from './AgentCompanionPetService';
-import { configAPI } from '@/infrastructure/api/service-api/ConfigAPI';
 import { createLogger } from '@/shared/utils/logger';
+import { getActiveSurfaceScope, isSurfaceChangedError, onSurfaceActivated } from '@/infrastructure/peer-device/deviceSurface';
 import type { VoiceInputSettings } from '../types';
 
 const log = createLogger('AIExperienceConfig');
@@ -120,17 +120,33 @@ function normalizeSettings(settings: PersistedAIExperienceSettings | null | unde
 export class AIExperienceConfigService {
   private static instance: AIExperienceConfigService;
   private cachedSettings: AIExperienceSettings | null = null;
+  private hasTrustedSettings = false;
+  private trustedEpoch = getActiveSurfaceScope().epoch;
   private listeners: Set<(settings: AIExperienceSettings) => void> = new Set();
   private unwatchConfig: (() => void) | null = null;
 
-  private constructor() {}
+  private constructor() {
+    onSurfaceActivated(() => {
+      this.cachedSettings = null;
+      this.hasTrustedSettings = false;
+    });
+  }
+
+  getCachedSettings(): AIExperienceSettings | null {
+    if (configManager.hasCachedConfig(CONFIG_PATH)) {
+      return normalizeSettings(configManager.getCachedConfig<PersistedAIExperienceSettings>(CONFIG_PATH));
+    }
+    return this.hasTrustedSettings && this.trustedEpoch === getActiveSurfaceScope().epoch ? this.cachedSettings : null;
+  }
 
   private ensureConfigWatcher(): void {
     if (this.unwatchConfig) {
       return;
     }
     this.unwatchConfig = configManager.watch(CONFIG_PATH, () => {
-      void this.reload();
+      void this.reload().catch(error => {
+        if (!isSurfaceChangedError(error)) log.warn('Failed to refresh AI experience settings', error);
+      });
     });
   }
 
@@ -144,14 +160,20 @@ export class AIExperienceConfigService {
 
    
   private async loadSettings(): Promise<void> {
+    const scope = getActiveSurfaceScope();
     this.ensureConfigWatcher();
     try {
       const settings = await configManager.getConfig<PersistedAIExperienceSettings>(CONFIG_PATH);
+      scope.assertCurrent('load AI experience settings');
       const merged = normalizeSettings(settings);
       this.cachedSettings = merged;
+      this.hasTrustedSettings = true;
+      this.trustedEpoch = scope.epoch;
     } catch (error) {
-      log.warn('Failed to load config, using defaults', error);
-      this.cachedSettings = { ...defaultSettings };
+      if (isSurfaceChangedError(error)) throw error;
+      log.warn('Failed to reload AI experience settings', error);
+      // A failed refresh must not replace a trusted setting with a default.
+      if (!this.hasTrustedSettings) this.cachedSettings = { ...defaultSettings };
     }
   }
 
@@ -165,16 +187,22 @@ export class AIExperienceConfigService {
   }
 
    
-  async getSettingsAsync(options?: { forceRefresh?: boolean }): Promise<AIExperienceSettings> {
+  async getSettingsAsync(options?: { forceRefresh?: boolean; requireLoaded?: boolean }): Promise<AIExperienceSettings> {
+    const scope = getActiveSurfaceScope();
     this.ensureConfigWatcher();
     try {
       const settings = options?.forceRefresh
-        ? await configAPI.getConfig(CONFIG_PATH) as PersistedAIExperienceSettings
+        ? await configManager.getConfig<PersistedAIExperienceSettings>(CONFIG_PATH, { forceRefresh: true, requireLoaded: true })
         : await configManager.getConfig<PersistedAIExperienceSettings>(CONFIG_PATH);
+      scope.assertCurrent('read AI experience settings');
       this.cachedSettings = normalizeSettings(settings);
+      this.hasTrustedSettings = true;
+      this.trustedEpoch = scope.epoch;
       return this.cachedSettings;
     } catch (error) {
+      if (isSurfaceChangedError(error)) throw error;
       log.error('Failed to get config', error);
+      if (options?.requireLoaded) throw error;
       return this.getSettings(); 
     }
   }
@@ -182,6 +210,7 @@ export class AIExperienceConfigService {
    
   /** Save only the fields the caller edited, never a cached settings snapshot. */
   async saveSettings(settings: AIExperienceSettingsPatch): Promise<void> {
+    const scope = getActiveSurfaceScope();
     this.ensureConfigWatcher();
     try {
       for (const [key, value] of Object.entries(settings)) {
@@ -189,13 +218,16 @@ export class AIExperienceConfigService {
         if (key === 'voice_input' && value && typeof value === 'object') {
           for (const [voiceKey, voiceValue] of Object.entries(value)) {
             if (voiceValue !== undefined) {
+              scope.assertCurrent('save AI experience settings');
               await configManager.setConfig(`${CONFIG_PATH}.voice_input.${voiceKey}`, voiceValue);
             }
           }
         } else {
+          scope.assertCurrent('save AI experience settings');
           await configManager.setConfig(`${CONFIG_PATH}.${key}`, value);
         }
       }
+      scope.assertCurrent('refresh saved AI experience settings');
       await this.loadSettings();
       this.notifyListeners();
     } catch (error) {

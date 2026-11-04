@@ -32,6 +32,8 @@ const mockResetForSurface = vi.fn();
 const mockUpdateSessionModel = vi.fn();
 const mockStartDialogTurn = vi.fn();
 const mockEnsureCoordinatorSession = vi.fn();
+const mockSteerDialogTurn = vi.fn();
+const mockInsertSteering = vi.fn();
 const mockGetConfigs = vi.fn();
 const mockDispatchSubmit = vi.fn();
 const mockDispatchAppend = vi.fn();
@@ -70,9 +72,12 @@ vi.mock('@/infrastructure/api/service-api/AgentAPI', () => ({
   agentAPI: {
     startDialogTurn: (...args: unknown[]) => mockStartDialogTurn(...args),
     ensureCoordinatorSession: (...args: unknown[]) => mockEnsureCoordinatorSession(...args),
+    steerDialogTurn: (...args: unknown[]) => mockSteerDialogTurn(...args),
     updateSessionModel: (...args: unknown[]) => mockUpdateSessionModel(...args),
   },
 }));
+
+vi.mock('./EventHandlerModule', () => ({ insertSteeringItemIfAbsent: (...args: unknown[]) => mockInsertSteering(...args) }));
 
 vi.mock('@/infrastructure/api/service-api/WorktreeAPI', () => ({
   worktreeAPI: {
@@ -166,6 +171,65 @@ describe('MessageModule Session mutation admission', () => {
       'history mutation',
     );
     expect(mockStartDialogTurn).not.toHaveBeenCalled();
+  });
+});
+
+describe('native composer sending policy', () => {
+  const session = { sessionId: 'sending-policy', mode: 'Standard', config: {}, dialogTurns: [] };
+  const context: any = { flowChatStore: { getState: () => ({ sessions: new Map([[session.sessionId, session]]) }) } };
+  const images = [{ id: 'image', image_path: '/workspace/image.png', mime_type: 'image/png' }];
+  const imageDisplayData = [{ id: 'image', name: 'image.png', imagePath: '/workspace/image.png' }];
+  const metadata = { permission_mode: 'default' };
+  beforeEach(() => {
+    vi.resetAllMocks();
+    activateSurface('local');
+    session.mode = 'Standard';
+    mockGetCurrentState.mockReturnValue('processing');
+    mockGetStateMachine.mockReturnValue({ getContext: () => ({ currentDialogTurnId: 'running-turn' }) } as never);
+    mockPendingList.mockReturnValue([]);
+    mockPendingEnqueue.mockReturnValue({ id: 'queued-message' });
+    mockSteerDialogTurn.mockResolvedValue({ success: true, steeringId: 'accepted-message' });
+  });
+  afterEach(() => activateSurface('local'));
+
+  it.each([false, true])('uses the chosen policy without losing text, attachments or metadata: immediate=%s', async sendImmediately => {
+    await sendMessage(context, 'expanded message', session.sessionId, 'Visible message', 'Standard', undefined, {
+      sendImmediately, imageContexts: images, imageDisplayData, userMessageMetadata: metadata,
+    });
+    if (sendImmediately) {
+      expect(mockSteerDialogTurn).toHaveBeenCalledWith({ sessionId: session.sessionId, dialogTurnId: 'running-turn',
+        content: 'expanded message', displayContent: 'Visible message', imageContexts: images, userMessageMetadata: metadata });
+      expect(mockInsertSteering).toHaveBeenCalledWith(expect.objectContaining({ steeringId: 'accepted-message', images: imageDisplayData, status: 'pending' }));
+      expect(mockPendingEnqueue).not.toHaveBeenCalled();
+    } else {
+      expect(mockSteerDialogTurn).not.toHaveBeenCalled();
+      expect(mockPendingEnqueue).toHaveBeenCalledWith(expect.objectContaining({ content: 'expanded message', imageContexts: images, userMessageMetadata: metadata }));
+    }
+  });
+
+  it('queues the original submission if the current turn stops accepting injection', async () => {
+    mockSteerDialogTurn.mockRejectedValue(new Error('Turn has finished'));
+    await sendMessage(context, 'next', session.sessionId, 'Next', 'Standard', undefined, { sendImmediately: true });
+    expect(mockPendingEnqueue).toHaveBeenCalledWith(expect.objectContaining({ content: 'next', displayMessage: 'Next' }));
+    expect(mockInsertSteering).not.toHaveBeenCalled();
+  });
+
+  it('keeps ACP submissions queued even when the native preference is immediate', async () => {
+    session.mode = 'acp:fixture';
+    await sendMessage(context, 'next', session.sessionId, undefined, undefined, undefined, { sendImmediately: true });
+    expect(mockSteerDialogTurn).not.toHaveBeenCalled();
+    expect(mockPendingEnqueue).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not project an accepted steering reply onto a newly activated device', async () => {
+    mockSteerDialogTurn.mockImplementation(async () => {
+      activateSurface('peer-device');
+      return { success: true, steeringId: 'accepted-message' };
+    });
+    await sendMessage(context, 'next', session.sessionId, undefined, undefined, undefined, { sendImmediately: true });
+    expect(mockSteerDialogTurn).toHaveBeenCalledTimes(1);
+    expect(mockInsertSteering).not.toHaveBeenCalled();
+    expect(mockPendingEnqueue).not.toHaveBeenCalled();
   });
 });
 
@@ -613,7 +677,7 @@ describe('MessageModule cancellation', () => {
     expect(mockStartDialogTurn).not.toHaveBeenCalled();
   });
 
-  it('sends a queued message once when snapshot replay became idle behind the attachment fence', async () => {
+  it.each(['attachment', 'immediate-injection'])('sends a queued message once when %s finishes after the idle event', async cause => {
     mockGetCurrentState.mockReturnValue('idle');
     mockEnsureBackendSession.mockResolvedValue(undefined);
     mockStartDialogTurn.mockResolvedValue({ sessionId: 'resume-session', turnId: 'next-turn', status: 'started' });
@@ -645,14 +709,26 @@ describe('MessageModule cancellation', () => {
       activeTextItems: new Map(),
     };
     installPendingQueueDrainListener(context);
-    const onIdle = mockSubscribeGlobal.mock.calls.at(-1)![0];
-    const attachment = beginRuntimeSessionAttachment(LOCAL_SURFACE_ID, session.sessionId);
-    onIdle(session.sessionId, { currentState: 'idle' });
-    await Promise.resolve();
-    expect(mockStartDialogTurn).not.toHaveBeenCalled();
-    attachment.finish({ streamId: 'host', cursor: 5 });
-    // A held terminal delivery may report IDLE as well; coalesce the wakeups.
-    onIdle(session.sessionId, { currentState: 'idle' });
+    if (cause === 'attachment') {
+      const onIdle = mockSubscribeGlobal.mock.calls.at(-1)![0];
+      const attachment = beginRuntimeSessionAttachment(LOCAL_SURFACE_ID, session.sessionId);
+      onIdle(session.sessionId, { currentState: 'idle' });
+      await Promise.resolve();
+      expect(mockStartDialogTurn).not.toHaveBeenCalled();
+      attachment.finish({ streamId: 'host', cursor: 5 });
+      // A held terminal delivery may report IDLE as well; coalesce the wakeups.
+      onIdle(session.sessionId, { currentState: 'idle' });
+    } else {
+      mockGetCurrentState.mockReturnValue('processing');
+      mockGetStateMachine.mockReturnValue({ getContext: () => ({ currentDialogTurnId: 'ending-turn' }) } as never);
+      mockPendingList.mockReturnValue([]);
+      mockPendingEnqueue.mockImplementation(() => { mockPendingList.mockReturnValue([pending]); return pending; });
+      mockSteerDialogTurn.mockImplementation(async () => {
+        mockGetCurrentState.mockReturnValue('idle');
+        throw new Error('Turn has finished');
+      });
+      await sendMessage(context, 'next', session.sessionId, undefined, undefined, undefined, { sendImmediately: true });
+    }
     await vi.waitFor(() => expect(mockStartDialogTurn).toHaveBeenCalledTimes(1));
     expect(mockPendingRemove).toHaveBeenCalledWith(session.sessionId, pending.id);
 

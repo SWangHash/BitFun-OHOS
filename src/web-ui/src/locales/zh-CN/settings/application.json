@@ -200,7 +200,8 @@
       "openFailed": "打开日志文件夹失败",
       "pathUnavailable": "日志文件夹路径不可用",
       "diagnosticsExported": "诊断包已导出",
-      "diagnosticsExportFailed": "导出诊断包失败"
+      "diagnosticsExportFailed": "导出诊断包失败",
+      "levelSavedNotApplied": "日志级别已保存，但该设备仍按 {{level}} 级别记录日志。"
     }
   },
   "terminal": {
@@ -304,5 +305,27 @@
       "saveSuccess": "通知设置已保存",
       "saveFailed": "保存通知设置失败"
     }
+  },
+  "messageSending": {
+    "title": "消息发送",
+    "duringTurn": "对话执行期间发送消息",
+    "immediate": "立即发送",
+    "queue": "排队发送（默认）",
+    "immediateDescription": "原生会话中，新消息会立即补充到当前任务。",
+    "queueDescription": "原生会话中，新消息会在本轮结束后自动发送。",
+    "loading": "正在加载消息发送偏好…",
+    "loadFailed": "加载消息发送偏好失败",
+    "saveFailed": "保存消息发送偏好失败",
+    "unsupported": "当前设备版本不支持修改发送策略，将继续沿用现有排队行为。",
+    "description": "选择原生会话在回复期间发送消息的方式。ACP 会话继续排队，派发任务继续向目标任务追加消息。"
+  },
+  "textSelection": {
+    "title": "文本选择",
+    "autoShowToolbar": "自动显示选中文字操作栏",
+    "autoShowToolbarDescription": "选中对话文本后，显示“添加批注”和“侧边提问”。关闭后仍可通过右键菜单操作。",
+    "loading": "正在加载文本选择偏好…",
+    "loadFailed": "加载文本选择偏好失败",
+    "saveFailed": "保存文本选择偏好失败",
+    "unsupported": "当前设备版本不支持修改选区工具栏开关，将保留原有选区行为。"
   }
 }

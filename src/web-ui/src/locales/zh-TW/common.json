@@ -853,6 +853,10 @@
       "appearanceSwitchFailed": "主題切換失敗，請重試。",
       "openSettings": "開啟設定",
       "about": "關於"
+    },
+    "customization": {
+      "unavailableEntry": "暫不可用的入口（{{id}}）",
+      "openFailed": "無法開啟{{name}}，請重試。"
     }
   },
   "window": {
@@ -1283,7 +1287,6 @@
     "disclaimerStatusPending": "未同意",
     "disclaimerDecline": "不同意",
     "disclaimerAgree": "同意並繼續",
-    "disclaimerItemRelay": "官方中繼與區域網路中繼用於連線和轉發訊息，不代替執行裝置執行任務。執行裝置需要保持上線；關閉連線視窗或取消邀請不會自動中斷已建立的帳號連線，請在連線管理中主動中斷。",
     "overviewTitle": "概覽"
   },
   "about": {
@@ -2184,5 +2187,10 @@
   },
   "fileAccess": {
     "remoteWaiting": "正在等待目標裝置。如果該裝置出現系統目錄存取授權視窗，請在該裝置上確認；等待期間可以取消此次瀏覽。"
+  },
+  "peerHost": {
+    "unavailable": "此功能在該裝置上無法使用。",
+    "updateRequired": "該裝置上的 BitFun 版本不支援此功能。請嘗試在該裝置上更新 BitFun。",
+    "withDetail": "{{message}}（{{detail}}）"
   }
 }

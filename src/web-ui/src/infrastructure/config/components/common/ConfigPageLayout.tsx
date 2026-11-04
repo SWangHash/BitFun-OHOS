@@ -1,5 +1,12 @@
-import { FieldGroup, FormSection, ScrollArea, type FieldGroupFieldSurface } from '@bitfun/ui';
-import React from 'react';
+import {
+  FieldGroup,
+  FieldAccessibilityProvider,
+  FormSection,
+  ScrollArea,
+  type FieldGroupFieldSurface,
+  type FormSectionProps,
+} from '@bitfun/ui';
+import React, { useId } from 'react';
 import { formatStandaloneUiCopy } from './standaloneUiCopy';
 import './ConfigPageLayout.scss';
 
@@ -79,6 +86,7 @@ export interface ConfigPageSectionProps extends Omit<React.HTMLAttributes<HTMLEl
   /** Renders inline after the title (e.g. status badge). */
   titleSuffix?: React.ReactNode;
   description?: React.ReactNode;
+  descriptionLayout?: FormSectionProps['descriptionLayout'];
   extra?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
@@ -86,7 +94,7 @@ export interface ConfigPageSectionProps extends Omit<React.HTMLAttributes<HTMLEl
   bodySurface?: boolean;
   /** Controls whether nested design-system fields are opaque or reuse the section surface. */
   fieldSurface?: FieldGroupFieldSurface;
-  /** Legacy mouse-glow surface toggle (retained for OHOS ConfigPage consumers). */
+  /** Compatibility property used by existing settings consumers. */
   mouseGlowSurface?: boolean;
 }
 
@@ -94,17 +102,23 @@ export const ConfigPageSection: React.FC<ConfigPageSectionProps> = ({
   title,
   titleSuffix,
   description,
+  descriptionLayout = 'stacked',
   extra,
   children,
   className = '',
   bodySurface = true,
   fieldSurface,
+  mouseGlowSurface: _mouseGlowSurface,
   ...props
 }) => {
   const hasBody = children !== null && children !== undefined && children !== false;
   const bodyClassName = [
     'bitfun-config-page-section__body',
     !bodySurface && 'bitfun-config-page-section__body--flush',
+  ].filter(Boolean).join(' ');
+  const descriptionClassName = [
+    'bitfun-config-page-section__description',
+    descriptionLayout === 'inline' && 'bitfun-config-page-section__description--inline',
   ].filter(Boolean).join(' ');
 
   return (
@@ -113,6 +127,7 @@ export const ConfigPageSection: React.FC<ConfigPageSectionProps> = ({
       data-bitfun-component="config"
       data-bitfun-part="section"
       headingAs="h3"
+      descriptionLayout={descriptionLayout}
       title={(
         <span className="bitfun-config-page-section__title-row" data-bitfun-component="config" data-bitfun-part="sectionHeader">
           <span className="bitfun-config-page-section__title" data-bitfun-component="config" data-bitfun-part="sectionTitle">{title}</span>
@@ -120,7 +135,9 @@ export const ConfigPageSection: React.FC<ConfigPageSectionProps> = ({
         </span>
       )}
       description={description ? (
-        <span className="bitfun-config-page-section__description" data-bitfun-component="config" data-bitfun-part="sectionDescription">{formatStandaloneUiCopy(description)}</span>
+        <span className={descriptionClassName} data-bitfun-component="config" data-bitfun-part="sectionDescription">
+          {formatStandaloneUiCopy(description)}
+        </span>
       ) : undefined}
       actions={extra ? (
         <div className="bitfun-config-page-section__extra">{extra}</div>
@@ -143,7 +160,7 @@ export const ConfigPageSection: React.FC<ConfigPageSectionProps> = ({
   );
 };
 
-export interface ConfigPageRowProps {
+export interface ConfigPageRowProps extends React.HTMLAttributes<HTMLDivElement> {
   label: React.ReactNode;
   /** Marks the row label as required. The control still owns its native required or aria-required state. */
   required?: boolean;
@@ -172,7 +189,11 @@ export const ConfigPageRow: React.FC<ConfigPageRowProps> = ({
   multiline = false,
   wide = false,
   balanced = false,
+  ...props
 }) => {
+  const fieldId = useId();
+  const labelId = `config-row-${fieldId}-label`;
+  const descriptionId = description ? `config-row-${fieldId}-description` : undefined;
   const hasControl = children !== null && children !== undefined && children !== false;
   const cls = [
     'bitfun-config-page-row',
@@ -187,15 +208,19 @@ export const ConfigPageRow: React.FC<ConfigPageRowProps> = ({
   return (
     <div
       className={cls}
+      role="group"
+      aria-labelledby={labelId}
+      aria-describedby={descriptionId}
       data-bitfun-component="config"
       data-bitfun-part="row"
       data-bitfun-align={align}
       data-bitfun-layout={wide ? 'wide' : balanced ? 'balanced' : multiline ? 'multiline' : 'default'}
       data-required={required ? 'true' : 'false'}
+      {...props}
     >
       <div className="bitfun-config-page-row__meta">
         {/* div (not p): label may contain buttons; button-in-p freezes React event path */}
-        <div className="bitfun-config-page-row__label" data-bitfun-component="config" data-bitfun-part="rowLabel">
+        <div id={labelId} className="bitfun-config-page-row__label" data-bitfun-component="config" data-bitfun-part="rowLabel">
           {label}
           {required ? (
             <span
@@ -209,12 +234,14 @@ export const ConfigPageRow: React.FC<ConfigPageRowProps> = ({
           ) : null}
         </div>
         {description ? (
-          <div className="bitfun-config-page-row__description" data-bitfun-component="config" data-bitfun-part="rowDescription">{formatStandaloneUiCopy(description)}</div>
+          <div id={descriptionId} className="bitfun-config-page-row__description" data-bitfun-component="config" data-bitfun-part="rowDescription">{formatStandaloneUiCopy(description)}</div>
         ) : null}
       </div>
       {hasControl ? (
         <div className="bitfun-config-page-row__control" data-bitfun-component="config" data-bitfun-part="rowControl">
-          {children}
+          <FieldAccessibilityProvider aria-labelledby={labelId} aria-describedby={descriptionId}>
+            {children}
+          </FieldAccessibilityProvider>
         </div>
       ) : null}
     </div>

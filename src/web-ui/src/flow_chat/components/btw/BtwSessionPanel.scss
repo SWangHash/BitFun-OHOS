@@ -163,7 +163,7 @@ $hello-launcher-corner-clearance: calc(
 
   &__runtime-status .runtime-status-slot__content {
     width: 100%;
-    max-width: 900px;
+    max-width: var(--bitfun-control-flow-chat-transcript-max-width);
     margin: 0 auto;
     padding: 0 var(--bitfun-control-flow-chat-content-padding-inline);
     box-sizing: border-box;

@@ -737,7 +737,7 @@ async fn rollback_legacy_config_transaction(
     commit: PresentationCommit,
 ) -> Result<(), String> {
     let rolled_back =
-        apply_legacy_config_mutation(&state.config_service, path, previous_value).await?;
+        apply_legacy_config_mutation(&state.config_service, path, previous_value, None).await?;
     apply_backend_config_effects(app, state, path, &rolled_back.effective_value).await?;
     apply_binding_backend_effects(app, state, &rolled_back.controlled_bindings).await?;
 
@@ -787,6 +787,7 @@ pub(crate) async fn set_config_from_gui(
     app: &AppHandle,
     path: &str,
     value: Value,
+    expected_models: Option<Value>,
 ) -> Result<Value, String> {
     if let Some((capability, option)) = exact_config_binding(path)? {
         return configure_option_transaction(
@@ -802,7 +803,8 @@ pub(crate) async fn set_config_from_gui(
     let _transaction = product_control_transaction().lock().await;
     let state = app.state::<AppState>();
     let previous_value = state.config_service.get_config(Some(path)).await.ok();
-    let applied = apply_legacy_config_mutation(&state.config_service, path, value).await?;
+    let applied =
+        apply_legacy_config_mutation(&state.config_service, path, value, expected_models).await?;
     let backend_effect_result =
         match apply_backend_config_effects(app, &state, path, &applied.effective_value).await {
             Ok(()) => {

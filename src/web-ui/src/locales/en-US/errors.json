@@ -560,5 +560,9 @@
     "preparingSession": "preparing the Review session",
     "startingReview": "starting the Review run",
     "launchingReview": "launching Review"
+  },
+  "moduleLoad": {
+    "description": "Try again, or reload the application if the problem persists. Save any unsaved work before reloading.",
+    "retry": "Try again"
   }
 }

@@ -11,6 +11,8 @@ import { GripHorizontal as LucideGripHorizontal, GripVertical as LucideGripVerti
  */
 
 import React, { useRef, useState, useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
+import { useStore } from 'zustand';
+import { sessionPaneLayoutStore } from './sessionPaneLayoutStore';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '../../hooks/useApp';
 import ChatPane from './ChatPane';
@@ -69,6 +71,8 @@ const SessionScene: React.FC<SessionSceneProps> = ({
     toggleRightPanel,
     updateBottomTerminalPanelHeight,
   } = useApp();
+  const displayMode = useStore(sessionPaneLayoutStore, value => value.displayMode);
+  const isPanelOverlay = displayMode === 'overlay' && !state.layout.chatCollapsed;
   const auxPaneRef = useRef<AuxPaneRef>(null);
 
   const [isDraggingRight, setIsDraggingRight] = useState(false);
@@ -171,11 +175,12 @@ const SessionScene: React.FC<SessionSceneProps> = ({
     // minimize), offsetWidth may be 0. Bail early to avoid clamping to a tiny value.
     if (containerWidth <= 0) return newWidth;
     // NavPanel (240px) is outside SessionScene — only account for resizer + min chat width
-    const reserved = PANEL_COMMON_CONFIG.RESIZER_WIDTH + PANEL_COMMON_CONFIG.MIN_CENTER_WIDTH;
+    const reserved = PANEL_COMMON_CONFIG.RESIZER_WIDTH
+      + (isPanelOverlay ? 0 : PANEL_COMMON_CONFIG.MIN_CENTER_WIDTH);
     const dynamicMax = containerWidth - reserved;
     const maxWidth = Math.min(RIGHT_PANEL_CONFIG.MAX_WIDTH, dynamicMax);
     return Math.min(maxWidth, Math.max(RIGHT_PANEL_CONFIG.COMPACT_WIDTH, newWidth));
-  }, []);
+  }, [isPanelOverlay]);
 
   const calculateValidBottomHeight = useCallback((newHeight: number): number => {
     if (!containerRef.current) return newHeight;
@@ -238,6 +243,7 @@ const SessionScene: React.FC<SessionSceneProps> = ({
         lastValidWidth = valid;
         if (auxPaneElementRef.current && !state.layout.chatCollapsed) {
           auxPaneElementRef.current.style.width = `${valid}px`;
+          if (isPanelOverlay && resizerRef.current) resizerRef.current.style.right = `${valid}px`;
         } else {
           updateRightPanelWidth(valid);
         }
@@ -263,7 +269,7 @@ const SessionScene: React.FC<SessionSceneProps> = ({
 
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
-  }, [currentRightWidth, calculateValidRightWidth, updateRightPanelWidth, saveAndUpdateRightWidth, state.layout.chatCollapsed]);
+  }, [currentRightWidth, calculateValidRightWidth, updateRightPanelWidth, saveAndUpdateRightWidth, state.layout.chatCollapsed, isPanelOverlay]);
 
   const handleMouseDownBottomResizer = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -508,6 +514,7 @@ const SessionScene: React.FC<SessionSceneProps> = ({
         isDragging && 'bitfun-session-scene--dragging',
         isDraggingBottom && 'bitfun-session-scene--dragging-bottom',
         isTerminalDockedBottom && 'bitfun-session-scene--terminal-bottom',
+        isPanelOverlay && 'bitfun-session-scene--overlay',
         isEntering && 'layout-entering',
       ].filter(Boolean).join(' ')}
       style={panelCollapseHintStyles}
@@ -546,6 +553,7 @@ const SessionScene: React.FC<SessionSceneProps> = ({
         {!isChatHidden && (
           <div
             ref={resizerRef}
+            style={isPanelOverlay ? { right: currentRightWidth } : undefined}
             className={[
               'bitfun-pane-resizer',
               state.layout.rightPanelCollapsed && 'bitfun-pane-resizer--collapsed',

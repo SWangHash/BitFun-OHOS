@@ -1,24 +1,68 @@
-import { forwardRef, type HTMLAttributes } from "react";
+import { forwardRef, useEffect, useRef, type HTMLAttributes } from "react";
 import { classNames } from "../../internal/classNames";
+import { createSpinnerAnimations } from "./spinnerMotion";
 import styles from "./Spinner.module.css";
 
 export type SpinnerSize = "xs" | "sm" | "md" | "lg";
-export type SpinnerVariant = "bars" | "matrix";
+export type SpinnerVariant = "logo" | "bars" | "matrix";
 
 export interface SpinnerProps
   extends Omit<HTMLAttributes<HTMLSpanElement>, "children"> {
   size?: SpinnerSize;
+  /** `matrix` is a compatibility alias for the logo presentation. */
   variant?: SpinnerVariant;
+  active?: boolean;
 }
 
 export const Spinner = forwardRef<HTMLSpanElement, SpinnerProps>(function Spinner({
   "aria-label": ariaLabel,
   className,
   size = "md",
-  variant = "matrix",
+  variant = "logo",
+  active = true,
   ...props
 }, ref) {
-  const cellCount = variant === "matrix" ? 9 : 3;
+  const presentation = variant === "matrix" ? "logo" : variant;
+  const glyphRef = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const glyph = glyphRef.current;
+    if (!active || presentation !== "logo" || !glyph) return;
+    const document = glyph.ownerDocument;
+    const window = document.defaultView;
+    if (!window?.matchMedia || typeof glyph.animate !== "function") return;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const forcedColors = window.matchMedia("(forced-colors: active)");
+    let animations: Animation[] = [];
+    let visible = true;
+    const synchronize = () => {
+      if (reducedMotion.matches || forcedColors.matches) {
+        animations.forEach(animation => animation.cancel());
+        animations = [];
+      } else if (document.hidden || !visible) {
+        animations.forEach(animation => animation.pause());
+      } else if (animations.length === 0) {
+        animations = createSpinnerAnimations(glyph);
+      } else {
+        animations.forEach(animation => animation.play());
+      }
+    };
+    const observer = typeof IntersectionObserver === "undefined" ? undefined : new IntersectionObserver(([entry]) => {
+      visible = entry?.isIntersecting ?? false;
+      synchronize();
+    });
+    observer?.observe(glyph);
+    synchronize();
+    reducedMotion.addEventListener("change", synchronize);
+    forcedColors.addEventListener("change", synchronize);
+    document.addEventListener("visibilitychange", synchronize);
+    return () => {
+      animations.forEach(animation => animation.cancel());
+      observer?.disconnect();
+      reducedMotion.removeEventListener("change", synchronize);
+      forcedColors.removeEventListener("change", synchronize);
+      document.removeEventListener("visibilitychange", synchronize);
+    };
+  }, [active, presentation]);
   return (
     <span
       {...props}
@@ -27,11 +71,16 @@ export const Spinner = forwardRef<HTMLSpanElement, SpinnerProps>(function Spinne
       className={classNames(styles.root, className)}
       data-bitfun-component="spinner"
       data-size={size}
-      data-variant={variant}
+      data-variant={presentation}
+      data-active={active}
       ref={ref}
       role={ariaLabel ? "status" : undefined}
     >
-      {Array.from({ length: cellCount }, (_, index) => (
+      {presentation === "logo" ? (
+        <span aria-hidden="true" className={styles.glyph} ref={glyphRef}>
+          <span className={styles.artwork} />
+        </span>
+      ) : Array.from({ length: 3 }, (_, index) => (
         <span aria-hidden="true" className={styles.cell} key={index} />
       ))}
     </span>

@@ -22,6 +22,7 @@ test("registry exposes only the formal stable components", () => {
       "Avatar",
       "Button",
       "Card",
+      "Capsule",
       "Checkbox",
       "ChatComposer",
       "CommandToolCard",

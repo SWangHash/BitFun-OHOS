@@ -5,24 +5,25 @@
       "empty": "No matching settings"
     },
     "categories": {
-      "application": "App & Interface",
-      "ai": "AI & Models",
+      "application": "Application & Interface",
+      "ai": "Models & Agents",
       "workspace": "Sessions & Workspace",
       "tools": "Tools & Integrations",
-      "data": "Data & Maintenance"
+      "data": "Data & Maintenance",
+      "development": "Programming & Development"
     },
     "pages": {
       "general": {
         "label": "General",
-        "description": "Startup, updates, window behavior, sleep, and notifications."
+        "description": "Configure language, startup, updates, sleep, window behavior, and notifications"
       },
       "appearance": {
         "label": "Appearance",
-        "description": "Language, themes, effects, appearance packages, and interface typography."
+        "description": "Customize themes, appearance packages, and fonts"
       },
       "pet": {
         "label": "Pet",
-        "description": "Display surface, character packages, import, and preview."
+        "description": "Choose the pet character and display preferences."
       },
       "voice": {
         "label": "Voice",
@@ -34,15 +35,15 @@
       },
       "terminal": {
         "label": "Terminal",
-        "description": "Default shell."
+        "description": "Choose the shell for new terminals and commands in local workspaces"
       },
       "editor": {
         "label": "Editor",
-        "description": "Code editor appearance, indentation, display, and formatting."
+        "description": "Adjust code display, indentation, and automatic formatting"
       },
       "models": {
         "label": "Models",
-        "description": "Default models, providers, subscriptions, catalog, and network proxy."
+        "description": "Connect model providers and choose models for each type of task"
       },
       "memory": {
         "label": "Memory",
@@ -57,40 +58,64 @@
         "description": "Git worktree isolation and parallel-session defaults."
       },
       "execution": {
-        "label": "Execution & Permissions",
-        "description": "Tool permissions, execution, review, and recovery settings."
+        "label": "Execution & Collaboration",
+        "description": "Configure tool timeouts, agent concurrency, and review capacity"
       },
       "browserDesktopControl": {
         "label": "Browser & Desktop Control",
-        "description": "Browser connections, desktop interaction, and required system permissions."
+        "description": "Connect a browser and allow screen access and desktop control"
       },
       "automation": {
         "label": "Automation",
-        "description": "Quick actions and Agent lifecycle hooks."
+        "description": "Set up reusable AI prompts and commands triggered by events"
       },
       "webSearch": {
         "label": "Web Search",
-        "description": "Choose the WebSearch provider, endpoint, and device-local credential."
+        "description": "Choose the service agents use to search the web"
       },
       "mcp": {
         "label": "MCP",
-        "description": "Manage MCP servers, connections, and exposed tools."
+        "description": "Connect MCP servers to give agents access to external tools and data"
       },
       "acp": {
-        "label": "ACP Agents",
-        "description": "Configure external agents that connect through Agent Client Protocol."
+        "label": "ACP",
+        "description": "Connect external agents on this host or an SSH host through ACP"
       },
       "usage": {
         "label": "Call Statistics",
-        "description": "Model requests, token usage, and cache hit rates."
+        "description": "View model request counts, token usage, and cache hit rates"
       },
       "archivedSessions": {
         "label": "Archived Sessions",
-        "description": "View, restore, or permanently delete archived sessions."
+        "description": "View, restore, or permanently delete archived sessions"
       },
       "diagnostics": {
         "label": "Logs & Diagnostics",
-        "description": "Log levels, runtime information, and troubleshooting."
+        "description": "Configure logging and export diagnostic information"
+      },
+      "externalImport": {
+        "description": "Import and manage content from other AI applications",
+        "label": "External import"
+      },
+      "input": {
+        "description": "Browse, customize, and reset keyboard shortcuts.",
+        "label": "Input & Interaction"
+      },
+      "permissions": {
+        "description": "Configure default approval behavior and global tool permission rules",
+        "label": "Permission Rules"
+      },
+      "sessionMemory": {
+        "description": "Configure default execution modes, session titles, and memory behavior",
+        "label": "Sessions & Memory"
+      },
+      "workspaceGit": {
+        "description": "Configure workspace search and Worktree defaults, and manage isolated work directories.",
+        "label": "Workspace & Git"
+      },
+      "browserControl": {
+        "label": "Browser control",
+        "description": "Choose a browser and manage its connection."
       }
     },
     "views": {
@@ -101,6 +126,20 @@
       "json": "Advanced JSON",
       "quick-actions": "Quick Actions",
       "hooks": "Hooks"
+    },
+    "sections": {
+      "hooks": "Event Hooks",
+      "memory": "Memory",
+      "pet": "Pet",
+      "quick-actions": "Quick Actions",
+      "session": "Session Defaults",
+      "shortcuts": "Keyboard Shortcuts",
+      "workspace-search": "Workspace Search",
+      "worktrees": "Worktrees",
+      "voiceCall": "Voice calls",
+      "message-sending": "Message sending",
+      "text-selection": "Text selection",
+      "sidebar-navigation": "Left sidebar"
     }
   },
   "changeGuard": {
@@ -292,8 +331,8 @@
         "maximize": "Maximize Editor"
       },
       "editor": {
-        "findInFile": "Find in file (Monaco)",      
-      "replaceInFile": "Replace in file (Monaco)"
+        "findInFile": "Find in file (Monaco)",
+        "replaceInFile": "Replace in file (Monaco)"
       },
       "tab": {
         "close": "Close Current Tab",

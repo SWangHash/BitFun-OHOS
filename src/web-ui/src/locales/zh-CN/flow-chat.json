@@ -2900,5 +2900,9 @@
     "count": "{{count}} 条批注",
     "submitAnnotations": "请处理这些批注。",
     "questionRequired": "请补充针对选中文字的问题或意见。"
+  },
+  "contentWidth": {
+    "resizeLeft": "从左侧调整对话内容宽度",
+    "resizeRight": "从右侧调整对话内容宽度"
   }
 }

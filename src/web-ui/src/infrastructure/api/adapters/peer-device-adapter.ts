@@ -285,6 +285,19 @@ const IDEMPOTENT_MUTATION_RPC_POLICY: PeerRpcPolicy = {
   retryKind: 'idempotent-mutation',
 };
 
+// Leave room for browser-owned consent prompts before the outer UI timeout.
+export const PEER_BROWSER_CONTROL_SETUP_TIMEOUT_MS = 185_000;
+const BROWSER_CONTROL_SETUP_COMMANDS = new Set([
+  'browser_control_launch',
+  'browser_control_enable_default_cdp',
+  'browser_control_restart_with_cdp',
+]);
+const BROWSER_CONTROL_SETUP_RPC_POLICY: PeerRpcPolicy = {
+  timeoutMs: PEER_BROWSER_CONTROL_SETUP_TIMEOUT_MS,
+  maxRetries: 0,
+  retryKind: 'none',
+};
+
 type DeviceRpcFn = (
   targetDeviceId: string,
   commandJson: string,
@@ -795,7 +808,9 @@ export class PeerDeviceTransportAdapter implements ITransportAdapter {
       command: action,
       args: translateAgentIdentityCommand(action, params ?? {}, 'legacy'),
     });
-    const rpcPolicy = isPeerRetryableReadCommand(action)
+    const rpcPolicy = BROWSER_CONTROL_SETUP_COMMANDS.has(action)
+      ? BROWSER_CONTROL_SETUP_RPC_POLICY
+      : isPeerRetryableReadCommand(action)
       ? READ_RPC_POLICY
       : this.hooks.supportsIdempotentDialogSubmit === true &&
           isPeerRetryableIdempotentMutation(action, params)

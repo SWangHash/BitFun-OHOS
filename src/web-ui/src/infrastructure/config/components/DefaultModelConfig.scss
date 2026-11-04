@@ -8,20 +8,20 @@
     font-weight: var(--bitfun-type-body-sm-font-weight);
     opacity: 0.75;
   }
-  
-  
-  
+
+
+
   &__section {
     display: flex;
     flex-direction: column;
     gap: var(--bitfun-space-3);
     margin-bottom: var(--bitfun-space-6);
-    
+
     &:last-child {
       margin-bottom: 0;
     }
   }
-  
+
   &__section-toggle {
     display: flex;
     align-items: center;
@@ -31,25 +31,25 @@
     color: var(--bitfun-color-content-muted);
     transition: color var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-standard);
   }
-  
+
   &__section-content {
     padding-left: var(--bitfun-space-1);
     animation: default-model-fade-in 0.2s ease;
   }
-  
-  
-  
+
+
+
   &__more-section {
     margin-top: 8px;
-    
-    
+
+
     &--expanded {
       .default-model-config__expand-line {
         border-top-style: solid;
       }
     }
   }
-  
+
   &__expand-trigger {
     display: flex;
     align-items: center;
@@ -59,26 +59,26 @@
     cursor: pointer;
     user-select: none;
     transition: opacity 0.15s ease;
-    
+
     &:hover {
       .default-model-config__expand-text {
         color: var(--bitfun-color-content-secondary);
       }
-      
+
       .default-model-config__expand-line {
         border-color: var(--bitfun-color-border-default);
       }
     }
-    
+
     &:focus-visible {
       outline: none;
-      
+
       .default-model-config__expand-text {
         text-decoration: underline;
       }
     }
   }
-  
+
   &__expand-line {
     width: calc(40% - 40px);
     height: 0;
@@ -86,7 +86,7 @@
     border-top: 1px dashed var(--bitfun-color-border-subtle);
     transition: border-color 0.15s ease;
   }
-  
+
   &__expand-text {
     flex-shrink: 0;
     font-size: var(--bitfun-type-label-sm-font-size);
@@ -94,7 +94,7 @@
     transition: color 0.15s ease;
     white-space: nowrap;
   }
-  
+
   &__expand-content {
     display: flex;
     flex-direction: column;
@@ -102,33 +102,33 @@
     margin-top: 8px;
     animation: default-model-fade-in 0.2s ease;
   }
-  
-  
-  
+
+
+
   &__core-section {
     display: flex;
     flex-direction: column;
     gap: var(--bitfun-space-5);
   }
-  
+
   &__model-slot {
     display: flex;
     flex-direction: column;
     gap: var(--bitfun-space-2);
   }
-  
+
   &__slot-header {
     display: flex;
     align-items: center;
     gap: var(--bitfun-space-2);
   }
-  
+
   &__slot-label {
     font-size: var(--bitfun-type-body-md-font-size);
     font-weight: var(--bitfun-type-label-selected-font-weight);
     color: var(--bitfun-color-content-primary);
   }
-  
+
   &__slot-badge {
     display: inline-flex;
     align-items: center;
@@ -139,39 +139,39 @@
     background: var(--bitfun-color-status-success-surface);
     border: none;
     color: var(--bitfun-color-content-secondary);
-    
+
     &--optional {
       background: var(--bitfun-color-status-warning-surface);
       color: var(--bitfun-color-content-muted);
     }
   }
-  
+
   &__slot-description {
     font-size: var(--bitfun-type-label-md-font-size);
     color: var(--bitfun-color-content-secondary);
     line-height: var(--bitfun-type-body-sm-line-height);
     margin: 0;
   }
-  
+
   &__slot-hint {
     font-size: var(--bitfun-type-label-sm-font-size);
     color: var(--bitfun-color-content-muted);
     margin: 0;
     font-style: italic;
   }
-  
+
   &__slot-select {
     max-width: 400px;
   }
 
-  
-  
+
+
   &__capability-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     gap: var(--bitfun-space-3);
   }
-  
+
   &__capability-item {
     display: flex;
     flex-direction: column;
@@ -183,7 +183,7 @@
       background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
       color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
       opacity var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
-    
+
     &--configured {
       .default-model-config__capability-status {
         color: var(--bitfun-color-accent-default);
@@ -191,14 +191,14 @@
       }
     }
   }
-  
+
   &__capability-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: var(--bitfun-space-2);
   }
-  
+
   &__capability-label {
     display: flex;
     align-items: center;
@@ -206,13 +206,13 @@
     font-size: var(--bitfun-type-label-md-font-size);
     font-weight: var(--bitfun-type-label-selected-font-weight);
     color: var(--bitfun-color-content-primary);
-    
+
     svg {
       color: var(--bitfun-color-content-secondary);
       flex-shrink: 0;
     }
   }
-  
+
   &__capability-status {
     font-size: var(--bitfun-type-label-sm-font-size);
     color: var(--bitfun-color-content-muted);
@@ -220,22 +220,22 @@
     overflow: hidden;
     max-width: 120px;
   }
-  
+
   &__capability-description {
     font-size: var(--bitfun-type-label-sm-font-size);
     color: var(--bitfun-color-content-secondary);
     line-height: var(--bitfun-type-modifier-leading-ui-line-height);
     margin: 0;
   }
-  
-  
-  
+
+
+
   &__advanced-settings {
     margin-top: var(--bitfun-space-4);
     border-top: 1px dashed var(--bitfun-color-border-default);
     padding-top: var(--bitfun-space-2);
   }
-  
+
   &__advanced-toggle {
     display: flex;
     align-items: center;
@@ -253,21 +253,21 @@
       color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
     border-radius: var(--bitfun-radius-sm);
-    
+
     &:hover {
       color: var(--bitfun-color-content-primary);
       background: var(--bitfun-color-surface-subtle);
     }
-    
+
     svg {
       flex-shrink: 0;
     }
-    
+
     span {
       flex-shrink: 0;
     }
   }
-  
+
   &__advanced-content {
     display: flex;
     flex-direction: column;
@@ -276,40 +276,40 @@
     padding-left: var(--bitfun-space-2);
     animation: default-model-fade-in 0.2s ease;
   }
-  
+
   &__override-section {
     margin-bottom: var(--bitfun-space-5);
-    
+
     &:last-child {
       margin-bottom: 0;
     }
   }
-  
+
   &__override-title {
     font-size: var(--bitfun-type-label-md-font-size);
     font-weight: var(--bitfun-type-label-selected-font-weight);
     color: var(--bitfun-color-content-primary);
     margin: 0 0 var(--bitfun-space-1) 0;
   }
-  
+
   &__override-description {
     font-size: var(--bitfun-type-label-sm-font-size);
     color: var(--bitfun-color-content-secondary);
     margin: 0 0 var(--bitfun-space-3) 0;
   }
-  
+
   &__override-list {
     display: flex;
     flex-direction: column;
     gap: var(--bitfun-space-2);
   }
-  
+
   &__override-row {
     display: flex;
     align-items: center;
     gap: var(--bitfun-space-4);
   }
-  
+
   &__override-name {
     flex: 0 0 140px;
     font-size: var(--bitfun-type-label-md-font-size);
@@ -318,24 +318,24 @@
     white-space: nowrap;
     overflow: hidden;
   }
-  
+
   &__override-selector {
     flex: 1;
     min-width: 0;
   }
-  
-  
-  
-  
-  
-  
+
+
+
+
+
+
   &__loading {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     padding: var(--bitfun-space-12) var(--bitfun-space-5);
-    
+
     p {
       margin-top: var(--bitfun-space-4);
       color: var(--bitfun-color-content-secondary);
@@ -365,41 +365,67 @@
       gap: var(--bitfun-space-2);
       margin-bottom: var(--bitfun-space-4);
     }
-    
+
     &__core-section {
       gap: var(--bitfun-space-3);
     }
-    
+
     &__model-slot {
       gap: var(--bitfun-space-2);
     }
-    
+
     &__slot-label {
       font-size: var(--bitfun-type-label-md-font-size);
     }
-    
+
     &__slot-description {
       font-size: var(--bitfun-type-label-sm-font-size);
     }
-    
+
     &__capability-grid {
       grid-template-columns: 1fr;
       gap: var(--bitfun-space-2);
     }
-    
+
     &__capability-item {
       padding: var(--bitfun-space-2) 0;
     }
-    
+
     &__override-row {
       flex-direction: column;
       align-items: stretch;
       gap: var(--bitfun-space-2);
     }
-    
+
     &__override-name {
       flex: none;
       font-size: var(--bitfun-type-label-sm-font-size);
     }
   }
+}
+
+.default-model-config {
+  &--compact {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+    gap: var(--bitfun-space-4);
+
+    > .bitfun-config-page-row {
+      min-width: 0;
+      padding: 0;
+      border: 0;
+      align-content: start;
+      background: transparent;
+    }
+  }
+
+  &__slot-label-content {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--bitfun-space-1);
+    min-width: 0;
+  }
+
+
+
 }

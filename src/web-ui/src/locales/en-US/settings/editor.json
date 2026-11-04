@@ -43,7 +43,8 @@
       "expand": "Expand",
       "solid": "Solid"
     },
-    "lineHeightDesc": "Line height relative to font size (em). For example, 1.5 em at 14 px is 21 px."
+    "lineHeightDesc": "Line height relative to font size (em). For example, 1.5 em at 14 px is 21 px.",
+    "inheritGlobalFont": "Follow global code font"
   },
   "behavior": {
     "tabSize": "Tab Width",

@@ -20,6 +20,7 @@ import { highlightExcerptRange } from './locateConversationExcerpt';
 import { contextMenuRegistry } from '@/shared/context-menu-system/core/ContextMenuRegistry';
 import { useContextMenuStore } from '@/shared/context-menu-system/store/ContextMenuStore';
 import { notificationService } from '@/shared/notification-system';
+import { useSelectionToolbarPreference } from '@/infrastructure/config/hooks/useSelectionToolbarPreference';
 
 export function FlowChatSelectionBar({ rootRef, sessionId, parentSessionId, active = true, onSelectionIntent }: {
   rootRef: RefObject<HTMLElement | null>;
@@ -29,6 +30,9 @@ export function FlowChatSelectionBar({ rootRef, sessionId, parentSessionId, acti
   onSelectionIntent?: () => void;
 }) {
   const { t } = useI18n('flow-chat');
+  const { enabled: autoShowToolbar } = useSelectionToolbarPreference();
+  const autoShowToolbarRef = useRef(autoShowToolbar);
+  autoShowToolbarRef.current = autoShowToolbar;
   const peer = usePeerDeviceModeOptional();
   const menuId = useId();
   const popupRef = useRef<HTMLDivElement>(null);
@@ -66,6 +70,10 @@ export function FlowChatSelectionBar({ rootRef, sessionId, parentSessionId, acti
   useDismissibleLayer({ enabled: !!selection && active && !editing, layerRef: popupRef, onDismiss: clear });
 
   useEffect(() => {
+    if (autoShowToolbar !== true && !editing) clear();
+  }, [autoShowToolbar, editing, clear]);
+
+  useEffect(() => {
     clear();
     const root = rootRef.current;
     if (!active || !sessionId || !root) return;
@@ -84,6 +92,7 @@ export function FlowChatSelectionBar({ rootRef, sessionId, parentSessionId, acti
     };
     const capture = () => {
       frame = 0;
+      if (autoShowToolbarRef.current !== true) return;
       if (pressed || editingRef.current || useContextMenuStore.getState().visible
         || popupRef.current?.contains(owner.activeElement)) return;
       const next = readSelection();

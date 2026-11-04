@@ -11,6 +11,11 @@ const styles = readFileSync(
   'utf8',
 );
 
+const dialogStyles = readFileSync(
+  fileURLToPath(new URL('../../../../../../design-system/packages/ui/src/components/Dialog/Dialog.module.css', import.meta.url)),
+  'utf8',
+);
+
 describe('ModelSettingsPage dialog presentation', () => {
   it('keeps model configuration editors at a moderate responsive size', () => {
     const editorDialogStart = source.indexOf('open={isEditing && !!editingConfig}');
@@ -24,32 +29,32 @@ describe('ModelSettingsPage dialog presentation', () => {
     expect(editorDialogStart).toBeGreaterThan(-1);
     expect(editingFormStart).toBeGreaterThan(-1);
     expect(editorDialog).toContain('className="bitfun-model-settings__editor-dialog"');
-    expect(editorDialog).toContain('size="xl"');
+    expect(editorDialog).toContain('preset="panel"');
     expect(editorDialog).not.toContain('size="2xl"');
     expect(editorDialog).toMatch(
       /\{!reasoningPanelDraft && \(\s*<DialogFooter appearance="floating">/,
     );
     expect(editorDialog).toContain('appearance="floating"');
     expect(editorDialog).toContain(
-      '<Button variant="fill" size="sm" onClick={requestCloseEditingModal} disabled={isEditorSaving}>',
+      '<Button variant="fill" size="sm" onClick={modelPanelDraft ? cancelModelPanel : requestCloseEditingModal} disabled={isEditorSaving}>',
     );
     expect(editorDialog).toMatch(
       /<Button\s+data-testid="settings-model-save-btn"\s+variant="primary"\s+size="sm"/,
     );
     expect(editorDialog).toContain('<DialogClose disabled={isEditorSaving} />');
     expect(editorDialog).toContain('loading={isEditorSaving}');
-    expect(editingForm.match(/fieldSurface="default"/g)).toHaveLength(2);
+    expect(editingForm.match(/fieldSurface="filled"/g)).toHaveLength(4);
     expect(editingForm).not.toContain('<ScrollArea');
     expect(editingForm).toContain('className="bitfun-model-settings__form-content"');
     expect(editorDialog).not.toContain('bitfun-model-settings__editor-dialog-footer');
     expect(editorDialog).not.toContain('bitfun-model-settings__editor-dialog-cancel');
-    expect(styles).toMatch(
-      /&__editor-dialog\s*{[\s\S]*?max-block-size:\s*min\(\s*640px,\s*calc\(100vh - 2 \* var\(--bitfun-overlay-dialog-viewport-gutter\) - var\(--bitfun-viewport-host-chrome-inset-block-start\)\)\s*\);/,
+    expect(dialogStyles).toMatch(
+      /\.surface\[data-preset="panel"\]\s*{[\s\S]*?block-size:\s*min\([\s\S]*?var\(--bitfun-overlay-dialog-panel-block-size\),[\s\S]*?var\(--bitfun-viewport-host-chrome-inset-block-start\)/,
     );
     expect(styles).not.toContain('&__editor-dialog-footer');
     expect(styles).not.toContain('&__editor-dialog-cancel');
-    expect(styles).toMatch(/&__selected-model-row\s*{[\s\S]*?background:\s*var\(--bitfun-color-surface-tertiary\);/);
-    expect(styles).toMatch(/&__reasoning-summary\s*{[\s\S]*?background:\s*transparent;/);
+    expect(editingForm).toContain('className="bitfun-model-settings__single-model-fields"');
+    expect(editingForm).toContain('<Capsule');
   });
 
   it('keeps unsaved editor state behind an explicit draft decision', () => {
@@ -69,7 +74,7 @@ describe('ModelSettingsPage dialog presentation', () => {
   });
 
   it('offers atomic provider deletion with provider-specific confirmation', () => {
-    expect(source).toContain("<Tooltip content={t('actions.deleteProvider')}>");
+    expect(source).toContain("aria-label={`${t('actions.deleteProvider')}: ${group.providerName}`}");
     expect(source).toContain('onClick={() => void requestProviderDelete(group)}');
     expect(source).toContain("kind: 'provider',");
     expect(source).toContain('removeProviderModelConfigs(current, request.groupKey)');

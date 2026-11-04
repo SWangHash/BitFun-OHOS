@@ -29,6 +29,7 @@ const EXIT_DURATION_MS = 180;
 
 export type DialogCloseReason = "close-button" | "escape-key" | "pointer-outside";
 export type DialogFooterAppearance = "attached" | "floating";
+export type DialogPreset = "default" | "panel";
 export type DialogSize = "sm" | "md" | "lg" | "xl" | "2xl";
 export type SheetPlacement = "left" | "right" | "bottom";
 export type SheetSize = "sm" | "md" | "lg";
@@ -72,6 +73,7 @@ interface OverlaySurfaceProps
   onExitComplete?: () => void;
   open: boolean;
   placement?: SheetPlacement;
+  preset?: DialogPreset;
   preventScroll?: boolean;
   role?: "dialog" | "alertdialog";
   size: DialogSize | SheetSize;
@@ -96,6 +98,7 @@ const OverlaySurface = forwardRef<HTMLDivElement, OverlaySurfaceProps>(function 
   onExitComplete,
   open,
   placement,
+  preset,
   preventScroll = true,
   role = "dialog",
   size,
@@ -207,6 +210,7 @@ const OverlaySurface = forwardRef<HTMLDivElement, OverlaySurfaceProps>(function 
             data-bitfun-component={kind}
             data-bitfun-part="surface"
             data-placement={placement}
+            data-preset={preset}
             data-size={size}
             data-state={exiting ? "exiting" : "open"}
             ref={setSurfaceRef}
@@ -227,14 +231,15 @@ export interface DialogProps
 }
 
 export const Dialog = forwardRef<HTMLDivElement, DialogProps>(function Dialog({
+  preset = "default",
   size = "md",
   ...props
 }, ref) {
-  return <OverlaySurface {...props} kind="dialog" ref={ref} size={size} />;
+  return <OverlaySurface {...props} kind="dialog" preset={preset} ref={ref} size={preset === "panel" ? "xl" : size} />;
 });
 
 export interface SheetProps
-  extends Omit<OverlaySurfaceProps, "kind" | "placement" | "size"> {
+  extends Omit<OverlaySurfaceProps, "kind" | "placement" | "preset" | "size"> {
   placement?: SheetPlacement;
   size?: SheetSize;
 }
@@ -292,6 +297,12 @@ export const DialogDescription = forwardRef<HTMLParagraphElement, HTMLAttributes
 export const DialogHeaderActions = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   function DialogHeaderActions({ className, ...props }, ref) {
     return <div {...props} className={classNames(styles.headerActions, className)} data-bitfun-part="header-actions" ref={ref} />;
+  },
+);
+
+export const DialogHeaderLeading = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+  function DialogHeaderLeading({ className, ...props }, ref) {
+    return <div {...props} className={classNames(styles.headerLeading, className)} data-bitfun-part="header-leading" ref={ref} />;
   },
 );
 

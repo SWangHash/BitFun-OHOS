@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+vi.mock('@/infrastructure/runtime', async () => await import('@/infrastructure/runtime/environment'));
 import {
   PEER_MUTATION_REQUEST_TIMEOUT_MS,
+  PEER_BROWSER_CONTROL_SETUP_TIMEOUT_MS,
   PEER_READ_MAX_RETRIES,
   PEER_READ_REQUEST_TIMEOUT_MS,
   PEER_RETRY_BASE_DELAY_MS,
@@ -82,6 +84,7 @@ describe('isPeerLocalOnlyCommand', () => {
 
   it('keeps companion-pet import and preview on the controller device', () => {
     expect(isPeerLocalOnlyCommand('list_agent_companion_pets')).toBe(true);
+    expect(isPeerLocalOnlyCommand('load_agent_companion_pet_spritesheet')).toBe(true);
     expect(isPeerLocalOnlyCommand('import_agent_companion_pet_package')).toBe(true);
     expect(isPeerLocalOnlyCommand('delete_agent_companion_pet_package')).toBe(true);
   });
@@ -267,6 +270,16 @@ describe('peerInvokePriorityFor', () => {
 });
 
 describe('PeerDeviceTransportAdapter queue', () => {
+  it.each(['browser_control_launch', 'browser_control_enable_default_cdp', 'browser_control_restart_with_cdp'])(
+    'waits for browser consent without replaying %s', async command => {
+      const deviceRpc = vi.fn().mockRejectedValue(new Error('approval timed out'));
+      const adapter = new PeerDeviceTransportAdapter('peer-1', deviceRpc);
+      await expect(adapter.request(command, { request: { port: 9222 } })).rejects.toThrow('approval timed out');
+      expect(deviceRpc).toHaveBeenCalledTimes(1);
+      expect(deviceRpc).toHaveBeenCalledWith('peer-1', expect.any(String), PEER_BROWSER_CONTROL_SETUP_TIMEOUT_MS);
+    },
+  );
+
   it('orders one dispatch burst with control first without capping in-flight data requests', async () => {
     const started: string[] = []; const gate = createDeferred<void>();
     const deviceRpc = vi.fn(async (_target: string, commandJson: string) => {

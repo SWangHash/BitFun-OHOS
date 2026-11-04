@@ -8,6 +8,7 @@ import {
   discardAndContinueSettingsNavigation,
   getSettingsDraftSnapshot,
   requestSettingsDraftExit,
+  requestSettingsNavigation,
   resetSettingsDraftRegistryForTests,
 } from '@/infrastructure/config/settingsDraftRegistry';
 
@@ -461,7 +462,11 @@ describe('GlobalPermissionRulesDialog', () => {
       addButton?.click();
     });
 
-    expect(requestSettingsDraftExit(['global-permission-rules'], onClose)).toBe(false);
+    expect(requestSettingsNavigation(
+      { pageId: 'ai.permissions' },
+      { kind: 'settings', pageId: 'application.general' },
+      onClose,
+    )).toBe(false);
     expect(getSettingsDraftSnapshot().pendingNavigation?.resourceLabels).toEqual([
       'Global tool permission rules',
     ]);

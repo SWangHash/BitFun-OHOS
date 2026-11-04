@@ -411,6 +411,22 @@ function validateSource(source) {
     [...settingsSource.matchAll(/definePage\(\{\s*id:\s*'([^']+)'/gu)].map((match) => match[1]),
   );
   const settingsViewIds = extractTypeUnionIds(readFileSync(SETTINGS_TYPES, 'utf8'), 'SettingsViewId');
+  const settingsSectionIds = extractTypeUnionIds(readFileSync(SETTINGS_TYPES, 'utf8'), 'SettingsSectionId');
+  const settingsMigrations = JSON.parse(readFileSync(
+    path.join(path.dirname(SETTINGS_REGISTRY), 'settingsDestinationMigrations.json'), 'utf8',
+  ));
+  for (const migration of [
+    ...Object.values(settingsMigrations.pages),
+    ...Object.values(settingsMigrations.views).flatMap(Object.values),
+    ...Object.values(settingsMigrations.capabilities).flatMap(entry => [
+      ...(entry.destination ? [entry.destination] : []), ...Object.values(entry.items ?? {}),
+    ]),
+  ]) {
+    if (!settingsIds.has(migration.pageId)
+      || (migration.sectionId && !settingsSectionIds.has(migration.sectionId))) {
+      throw new Error(`Settings migration targets an unknown destination: ${JSON.stringify(migration)}`);
+    }
+  }
   const actionIds = extractSingleQuotedIds(readFileSync(PRODUCT_ACTION_CATALOG, 'utf8'));
   const sceneIds = new Set([
     ...readFileSync(SCENE_TYPES, 'utf8').matchAll(/^\s*\|\s*'([^']+)'/gmu),
@@ -423,10 +439,11 @@ function validateSource(source) {
       throw new Error(`${owner} needs a presentation destination object`);
     }
     if (destination.kind === 'settings') {
-      if (!settingsIds.has(destination.pageId)) {
+      if (!settingsIds.has(destination.pageId) && !settingsMigrations.pages[destination.pageId]) {
         throw new Error(`${owner} targets unknown settings page ${destination.pageId}`);
       }
-      if (destination.viewId && !settingsViewIds.has(destination.viewId)) {
+      if (destination.viewId && !settingsViewIds.has(destination.viewId)
+        && !settingsMigrations.views[destination.pageId]?.[destination.viewId]) {
         throw new Error(`${owner} targets unknown settings view ${destination.viewId}`);
       }
       return;

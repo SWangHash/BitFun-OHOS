@@ -64,6 +64,8 @@ vi.mock('@bitfun/ui', async (importOriginal) => {
     Icon: () => <span data-icon="true" />,
     IconButton: ({ icon, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { icon: React.ReactNode }) => <button {...props}>{icon}</button>,
     Card: Wrapper, CardBody: Wrapper,
+    FieldGroup: ({ children, appearance: _appearance, fieldSurface: _surface, dividers: _dividers, ...props }:
+      React.HTMLAttributes<HTMLDivElement> & { appearance?: string; fieldSurface?: string; dividers?: boolean }) => <div {...props}>{children}</div>,
     CardHeader: ({ title, description }: { title?: React.ReactNode; description?: React.ReactNode }) => <div>{title}{description}</div>,
     ScrollArea: Wrapper, LoadingState: Wrapper, OverflowText: Wrapper, StatusPill: Wrapper,
   };
@@ -845,7 +847,8 @@ describe('external agent content and explicit import boundary', () => {
     expect(container.querySelectorAll('[data-content-group]').length).toBeGreaterThan(2);
     expect(container.querySelectorAll('[data-import-kind]')).toHaveLength(0);
     const overview = container.querySelector('.ecosystem-compatibility__content-overview')!;
-    expect(overview.querySelectorAll('[role="columnheader"]')).toHaveLength(3);
+    expect(overview.querySelectorAll('[role="columnheader"]')).toHaveLength(2);
+    expect(overview.textContent).not.toContain('import.columns.source');
     expect(overview.textContent).toContain('import.columns.state');
     expect(overview.querySelector('[data-content-group="skill"] [data-icon]')).not.toBeNull();
     expect(overview.querySelector('[data-content-group="skill"]')?.textContent).toContain('content.itemCount');

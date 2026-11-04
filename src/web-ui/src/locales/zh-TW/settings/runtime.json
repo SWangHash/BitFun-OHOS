@@ -38,7 +38,9 @@
         "blueGolden": {
           "name": "困困"
         }
-      }
+      },
+      "current": "目前使用",
+      "previewUnavailable": "預覽無法使用"
     },
     "workspaceSearch": {
       "title": "加速工作區搜尋",
@@ -83,7 +85,11 @@
     "removeGlobalRule": "刪除規則",
     "discardGlobalRules": "放棄變更",
     "saveGlobalRules": "儲存規則",
-    "globalRulesEffects": { "allow": "允許", "ask": "詢問", "deny": "拒絕" },
+    "globalRulesEffects": {
+      "allow": "允許",
+      "ask": "詢問",
+      "deny": "拒絕"
+    },
     "modeDescription": "作為新工作階段的預設設定，可在輸入框中暫時切換。"
   },
   "projectPermissions": {
@@ -122,7 +128,11 @@
     "rulesSaveFailed": "儲存靜態專案規則失敗",
     "rulesConflict": "規則檔案已在外部變更，請重新開啟專案權限後再儲存。",
     "cancel": "取消",
-    "effects": { "allow": "允許", "ask": "詢問", "deny": "拒絕" }
+    "effects": {
+      "allow": "允許",
+      "ask": "詢問",
+      "deny": "拒絕"
+    }
   },
   "deferredToolLoading": {
     "sectionTitle": "按需載入工具",
