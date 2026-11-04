@@ -291,6 +291,10 @@ pub async fn pull_model(
         let mut buffer = String::new();
         let mut chunk_count: u32 = 0;
         let mut progress_sent_count: u32 = 0;
+        // The on-device model service re-emits identical progress objects at a
+        // very high rate; forwarding every duplicate flooded the progress
+        // channel and the web-ui event stream. Forward only state changes.
+        let mut last_emitted: Option<(String, u64, u64)> = None;
 
         let mut stream = Box::pin(response.bytes_stream());
 
@@ -324,9 +328,18 @@ pub async fn pull_model(
 
                         match parse_pull_progress_line(&object, &model_name_owned) {
                             Ok(progress) => {
-                                progress_sent_count += 1;
                                 let is_success = progress.status == "success";
                                 let is_paused = progress.status == "paused";
+                                let fingerprint =
+                                    (progress.status.clone(), progress.total, progress.completed);
+                                if !is_success
+                                    && !is_paused
+                                    && last_emitted.as_ref() == Some(&fingerprint)
+                                {
+                                    continue;
+                                }
+                                last_emitted = Some(fingerprint);
+                                progress_sent_count += 1;
                                 if progress_sent_count <= 5 || is_success || is_paused {
                                     info!(
                                         "[local-model] Pull progress #{}: model={}, status={}, total={}, completed={}",
