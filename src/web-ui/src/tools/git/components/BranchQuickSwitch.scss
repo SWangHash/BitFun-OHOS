@@ -1,4 +1,4 @@
-/** Branch picker and its guarded-checkout recovery dialogs. */
+/** Searchable branch picker. */
 @use '@/shared/styles/overlay-layout' as overlay-layout;
 @use '@/shared/styles/surface-recipes' as surfaces;
 
@@ -76,93 +76,6 @@
 .branch-quick-switch__spinner {
   flex-shrink: 0;
   animation: branch-quick-switch-spin 1s linear infinite;
-}
-
-.branch-switch-conflict-dialog {
-  max-inline-size: min(520px, calc(100vw - 24px));
-}
-
-.branch-switch-conflict-dialog__content {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 18px;
-
-  p {
-    margin: 0;
-  }
-}
-
-.branch-switch-conflict-dialog__files {
-  display: flex;
-  max-height: min(220px, 30vh);
-  flex-direction: column;
-  gap: 8px;
-  overflow-y: auto;
-  padding: 2px 0;
-}
-
-.branch-switch-conflict-dialog__file {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  min-width: 0;
-  color: var(--bitfun-color-content-primary);
-}
-
-.branch-switch-conflict-dialog__file-path {
-  min-width: 0;
-  overflow: hidden;
-  flex: 1 1 auto;
-  font-family:var(--bitfun-type-code-md-font-family);
-  font-size: var(--bitfun-type-label-md-font-size);
-  white-space: nowrap;
-}
-
-.branch-switch-conflict-dialog__file-stats {
-  display: inline-flex;
-  flex: 0 0 auto;
-  gap: 7px;
-  font-family:var(--bitfun-type-code-md-font-family);
-  font-size: var(--bitfun-type-label-md-font-size);
-}
-
-.branch-switch-conflict-dialog__additions {
-  color: var(--bitfun-color-code-change-added);
-}
-
-.branch-switch-conflict-dialog__deletions {
-  color: var(--bitfun-color-code-change-removed);
-}
-
-.branch-switch-commit-dialog__error {
-  color: var(--bitfun-color-status-danger-content);
-}
-
-.branch-switch-commit-dialog {
-  max-inline-size: min(460px, calc(100vw - 24px));
-}
-
-.branch-switch-commit-dialog__content {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 14px;
-
-  p {
-    margin: 0;
-    color: var(--bitfun-color-content-secondary);
-    font-size: var(--bitfun-type-label-md-font-size);
-    line-height: var(--bitfun-type-body-sm-line-height);
-  }
-
-  > .branch-switch-commit-dialog__input {
-    width: 100%;
-  }
-
-  .branch-switch-commit-dialog__error {
-    color: var(--bitfun-color-status-danger-content);
-  }
 }
 
 @keyframes branch-quick-switch-spin {

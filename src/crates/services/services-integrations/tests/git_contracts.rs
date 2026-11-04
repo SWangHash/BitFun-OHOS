@@ -2,10 +2,11 @@
 
 use bitfun_runtime_ports::{GitPort, WorkspaceDiffContent, WorkspaceDiffFileStatus};
 use bitfun_services_integrations::git::{
-    build_git_changed_files_args, build_git_diff_args, parse_branch_line, parse_git_log_line,
-    parse_name_status_output, parse_worktree_list, GitAuthor, GitChangedFile, GitChangedFileStatus,
-    GitChangedFilesParams, GitCommandOutput, GitCommitParams, GitDiffParams, GitError, GitGraph,
-    GitLogParams, GitService, GitStatus, GitWorkspaceDiffPort, GitWorktreeInfo, GraphNode, GraphRef,
+    build_git_changed_files_args, build_git_diff_args, execute_git_command, parse_branch_line,
+    parse_git_log_line, parse_name_status_output, parse_worktree_list, GitAuthor, GitChangedFile,
+    GitChangedFileStatus, GitChangedFilesParams, GitCommandOutput, GitCommitParams, GitDiffParams,
+    GitError, GitGraph, GitLogParams, GitService, GitStatus, GitWorkspaceDiffPort, GitWorktreeInfo,
+    GraphNode, GraphRef,
 };
 use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -236,6 +237,292 @@ async fn git_service_preserves_repository_status_contract() {
         .untracked
         .iter()
         .any(|path| path == "new-file.txt" || path == "new-file.txt/"));
+}
+
+#[tokio::test]
+async fn git_checkout_remote_branch_creates_and_reuses_a_local_tracking_branch() {
+    let repo_dir = checkout_repo();
+
+    let result = GitService::checkout_branch(repo_dir.path(), "origin/feature/topic")
+        .await
+        .unwrap();
+    assert!(result.success);
+    assert_eq!(result.data.unwrap()["branch"], "feature/topic");
+    assert_eq!(
+        GitService::get_repository_basic(repo_dir.path())
+            .await
+            .unwrap()
+            .current_branch,
+        "feature/topic"
+    );
+    let branches = GitService::get_branches(repo_dir.path(), true)
+        .await
+        .unwrap();
+    let current = branches.iter().find(|branch| branch.current).unwrap();
+    assert_eq!(current.name, "feature/topic");
+    assert!(!current.remote);
+    assert_eq!(current.upstream.as_deref(), Some("origin/feature/topic"));
+
+    GitService::checkout_branch(repo_dir.path(), "main")
+        .await
+        .unwrap();
+    let result = GitService::checkout_branch(repo_dir.path(), "origin/feature/topic")
+        .await
+        .unwrap();
+    assert!(result.success);
+    assert_eq!(result.data.unwrap()["branch"], "feature/topic");
+
+    // A local branch ahead of the selected remote retains its commits.
+    commit_checkout_fixture(repo_dir.path());
+    let repository = git2::Repository::open(repo_dir.path()).unwrap();
+    let local_commit = repository.head().unwrap().target();
+    GitService::checkout_branch(repo_dir.path(), "main")
+        .await
+        .unwrap();
+
+    let result = GitService::checkout_branch(repo_dir.path(), "refs/remotes/origin/feature/topic")
+        .await
+        .unwrap();
+    assert_eq!(result.data.unwrap()["branch"], "feature/topic");
+    assert_eq!(repository.head().unwrap().target(), local_commit);
+    assert!(!repository.head_detached().unwrap());
+
+    run_git(
+        repo_dir.path(),
+        &[
+            "symbolic-ref",
+            "refs/remotes/origin/HEAD",
+            "refs/remotes/origin/feature/topic",
+        ],
+    );
+    GitService::checkout_branch(repo_dir.path(), "main")
+        .await
+        .unwrap();
+    let result = GitService::checkout_branch(repo_dir.path(), "origin/HEAD")
+        .await
+        .unwrap();
+    assert_eq!(result.data.unwrap()["branch"], "feature/topic");
+}
+
+#[tokio::test]
+async fn git_checkout_success_survives_a_failed_branch_name_query() {
+    let repo_dir = checkout_repo();
+    let repo_path = repo_dir.path().to_str().unwrap();
+    let repository = git2::Repository::open(repo_dir.path()).unwrap();
+
+    for branch in [
+        "refs/remotes/origin/feature/topic",
+        "refs/heads/feature/topic",
+    ] {
+        run_git(repo_dir.path(), &["checkout", "main"]);
+        let result = GitService::checkout_branch_with_executor(branch, |args| async move {
+            let args: Vec<&str> = args.iter().map(String::as_str).collect();
+            if args == ["branch", "--show-current"] {
+                return Err(GitError::CommandFailed(
+                    "Branch name query failed after checkout".to_string(),
+                ));
+            }
+            execute_git_command(repo_path, &args).await
+        })
+        .await
+        .unwrap();
+
+        assert!(result.success);
+        assert_eq!(result.data.unwrap()["branch"], "feature/topic");
+        assert_eq!(
+            repository.head().unwrap().name().unwrap(),
+            "refs/heads/feature/topic"
+        );
+    }
+}
+
+#[tokio::test]
+async fn git_checkout_remote_fast_forwards_the_same_name_and_keeps_unrelated_changes() {
+    let repo_dir = checkout_repo();
+    run_git(repo_dir.path(), &["branch", "feature/topic"]);
+    advance_checkout_remote(repo_dir.path(), &[("shared.txt", "remote revision\n")]);
+    fs::write(repo_dir.path().join("notes.txt"), "staged notes\n").unwrap();
+    run_git(repo_dir.path(), &["add", "notes.txt"]);
+    fs::write(repo_dir.path().join("notes.txt"), "unstaged notes\n").unwrap();
+    let repository = git2::Repository::open(repo_dir.path()).unwrap();
+    let staged_notes = repository
+        .index()
+        .unwrap()
+        .get_path(std::path::Path::new("notes.txt"), 0)
+        .unwrap()
+        .id;
+    let remote_commit = repository
+        .refname_to_id("refs/remotes/origin/feature/topic")
+        .unwrap();
+
+    let result = GitService::checkout_branch(repo_dir.path(), "origin/feature/topic")
+        .await
+        .unwrap();
+    assert!(result.success);
+    assert_eq!(result.data.unwrap()["branch"], "feature/topic");
+    assert_eq!(repository.head().unwrap().target(), Some(remote_commit));
+    assert_eq!(
+        repository
+            .index()
+            .unwrap()
+            .get_path(std::path::Path::new("notes.txt"), 0)
+            .unwrap()
+            .id,
+        staged_notes
+    );
+    assert_eq!(
+        fs::read_to_string(repo_dir.path().join("notes.txt")).unwrap(),
+        "unstaged notes\n"
+    );
+    assert!(repository
+        .find_branch("feature/topic", git2::BranchType::Local)
+        .unwrap()
+        .upstream()
+        .is_err());
+
+    // Updating an already-current tracking branch also preserves its upstream.
+    run_git(
+        repo_dir.path(),
+        &[
+            "branch",
+            "--set-upstream-to=origin/feature/topic",
+            "feature/topic",
+        ],
+    );
+    advance_checkout_remote(repo_dir.path(), &[("shared.txt", "next remote revision\n")]);
+    let result = GitService::checkout_branch(repo_dir.path(), "origin/feature/topic")
+        .await
+        .unwrap();
+    assert!(result.success);
+    assert_eq!(
+        repository.head().unwrap().target(),
+        Some(
+            repository
+                .refname_to_id("refs/remotes/origin/feature/topic")
+                .unwrap()
+        )
+    );
+    assert_eq!(
+        repository
+            .find_branch("feature/topic", git2::BranchType::Local)
+            .unwrap()
+            .upstream()
+            .unwrap()
+            .name()
+            .unwrap(),
+        Some("origin/feature/topic")
+    );
+}
+
+#[tokio::test]
+async fn git_checkout_remote_divergence_keeps_head_branch_and_changes() {
+    let repo_dir = checkout_repo();
+    run_git(repo_dir.path(), &["checkout", "-b", "feature/topic"]);
+    fs::write(repo_dir.path().join("local.txt"), "local commit\n").unwrap();
+    commit_checkout_fixture(repo_dir.path());
+    run_git(repo_dir.path(), &["checkout", "main"]);
+    // These changes could merge cleanly, but the histories still diverge.
+    advance_checkout_remote(repo_dir.path(), &[("remote.txt", "remote commit\n")]);
+    fs::write(repo_dir.path().join("notes.txt"), "staged notes\n").unwrap();
+    run_git(repo_dir.path(), &["add", "notes.txt"]);
+    fs::write(repo_dir.path().join("notes.txt"), "unstaged notes\n").unwrap();
+    fs::write(repo_dir.path().join("draft.txt"), "untracked draft\n").unwrap();
+    let repository = git2::Repository::open(repo_dir.path()).unwrap();
+    let head = repository.head().unwrap().target();
+    let local_commit = repository
+        .refname_to_id("refs/heads/feature/topic")
+        .unwrap();
+    let index_tree = repository.index().unwrap().write_tree().unwrap();
+
+    let result = GitService::checkout_branch(repo_dir.path(), "origin/feature/topic")
+        .await
+        .unwrap();
+    assert!(!result.success);
+    assert!(result.error.unwrap().starts_with("git_branch_diverged:"));
+    assert!(result.data.is_none());
+    assert_eq!(
+        repository.head().unwrap().name().unwrap(),
+        "refs/heads/main"
+    );
+    assert_eq!(repository.head().unwrap().target(), head);
+    assert_eq!(
+        repository
+            .refname_to_id("refs/heads/feature/topic")
+            .unwrap(),
+        local_commit
+    );
+    assert_eq!(
+        repository.index().unwrap().write_tree().unwrap(),
+        index_tree
+    );
+    assert_eq!(
+        fs::read_to_string(repo_dir.path().join("notes.txt")).unwrap(),
+        "unstaged notes\n"
+    );
+    assert_eq!(
+        fs::read_to_string(repo_dir.path().join("draft.txt")).unwrap(),
+        "untracked draft\n"
+    );
+    assert!(!repo_dir.path().join("remote.txt").exists());
+    assert!(!repo_dir.path().join("local.txt").exists());
+
+    // Explicit local checkout retains normal behavior, without remote syncing.
+    let result = GitService::checkout_branch(repo_dir.path(), "refs/heads/feature/topic")
+        .await
+        .unwrap();
+    assert!(result.success);
+    assert_eq!(result.data.unwrap()["branch"], "feature/topic");
+    assert_eq!(repository.head().unwrap().target(), Some(local_commit));
+}
+
+#[tokio::test]
+async fn git_checkout_remote_overwrite_failure_keeps_head_branch_and_changes() {
+    for untracked in [false, true] {
+        let repo_dir = checkout_repo();
+        // Cover both a blocked fast-forward and a blocked new tracking branch.
+        if !untracked {
+            run_git(repo_dir.path(), &["branch", "feature/topic"]);
+        }
+        let blocked_file = if untracked {
+            "incoming.txt"
+        } else {
+            "shared.txt"
+        };
+        advance_checkout_remote(repo_dir.path(), &[(blocked_file, "remote contents\n")]);
+        fs::write(repo_dir.path().join(blocked_file), "staged contents\n").unwrap();
+        if !untracked {
+            run_git(repo_dir.path(), &["add", blocked_file]);
+        }
+        fs::write(repo_dir.path().join(blocked_file), "local contents\n").unwrap();
+        let repository = git2::Repository::open(repo_dir.path()).unwrap();
+        let head = repository.head().unwrap().target();
+        let local_commit = repository.refname_to_id("refs/heads/feature/topic").ok();
+        let index_tree = repository.index().unwrap().write_tree().unwrap();
+
+        let error = GitService::checkout_branch(repo_dir.path(), "origin/feature/topic")
+            .await
+            .unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("would be overwritten by checkout"));
+        assert_eq!(
+            repository.head().unwrap().name().unwrap(),
+            "refs/heads/main"
+        );
+        assert_eq!(repository.head().unwrap().target(), head);
+        assert_eq!(
+            repository.refname_to_id("refs/heads/feature/topic").ok(),
+            local_commit
+        );
+        assert_eq!(
+            repository.index().unwrap().write_tree().unwrap(),
+            index_tree
+        );
+        assert_eq!(
+            fs::read_to_string(repo_dir.path().join(blocked_file)).unwrap(),
+            "local contents\n"
+        );
+    }
 }
 
 #[tokio::test]
@@ -781,6 +1068,69 @@ impl Drop for TempRepoDir {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.path);
     }
+}
+
+fn checkout_repo() -> TempRepoDir {
+    let repo_dir = TempRepoDir::new("git-checkout");
+    run_git(repo_dir.path(), &["init", "-b", "main"]);
+    fs::write(repo_dir.path().join("shared.txt"), "base revision\n").unwrap();
+    fs::write(repo_dir.path().join("notes.txt"), "base notes\n").unwrap();
+    commit_checkout_fixture(repo_dir.path());
+    run_git(
+        repo_dir.path(),
+        &[
+            "remote",
+            "add",
+            "origin",
+            "https://example.com/repository.git",
+        ],
+    );
+    run_git(
+        repo_dir.path(),
+        &["update-ref", "refs/remotes/origin/feature/topic", "HEAD"],
+    );
+    repo_dir
+}
+
+fn commit_checkout_fixture(repo_dir: &std::path::Path) {
+    run_git(repo_dir, &["add", "--all"]);
+    run_git(
+        repo_dir,
+        &[
+            "-c",
+            "user.name=BitFun Tests",
+            "-c",
+            "user.email=tests@bitfun.dev",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "--allow-empty",
+            "-m",
+            "test: update checkout fixture",
+            "-m",
+            "Prepare branch history for checkout verification.",
+        ],
+    );
+}
+
+fn advance_checkout_remote(repo_dir: &std::path::Path, files: &[(&str, &str)]) {
+    let repository = git2::Repository::open(repo_dir).unwrap();
+    let parent = repository
+        .find_reference("refs/remotes/origin/feature/topic")
+        .unwrap()
+        .peel_to_commit()
+        .unwrap();
+    let tree = parent.tree().unwrap();
+    let mut builder = repository.treebuilder(Some(&tree)).unwrap();
+    for (name, contents) in files {
+        let blob = repository.blob(contents.as_bytes()).unwrap();
+        builder.insert(name, blob, 0o100644).unwrap();
+    }
+    let tree = repository.find_tree(builder.write().unwrap()).unwrap();
+    let signature = git2::Signature::now("BitFun Tests", "tests@bitfun.dev").unwrap();
+    repository.commit(Some("refs/remotes/origin/feature/topic"), &signature, &signature,
+        "test: advance remote fixture\n\nPrepare fetched remote history for checkout verification.\n",
+        &tree, &[&parent]).unwrap();
 }
 
 fn run_git(repo_dir: &std::path::Path, args: &[&str]) {
