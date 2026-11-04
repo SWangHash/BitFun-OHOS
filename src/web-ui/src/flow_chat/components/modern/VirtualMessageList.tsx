@@ -720,6 +720,31 @@ const VirtualMessageListSession = forwardRef<VirtualMessageListRef, VirtualMessa
   };
 
   /**
+   * The floating composer is an overlay, but its height is transcript layout:
+   * the footer spacer mirrors it. Growing the composer therefore moves the
+   * content end away from a viewport that is already resting at the end while
+   * `scrollTop` keeps its old offset, and the newest Turn slides under the
+   * overlay with no correction — a long transcript plus a composer edited into
+   * several lines is the case that shows it. Realign to the content end
+   * instead, so the composer grows into the reserved blank rather than onto
+   * live output.
+   *
+   * Only a viewport that was already at the end moves; a reader who owns the
+   * viewport keeps it wherever the composer goes. A change that leaves the
+   * content end where it is (the tail spacer absorbs it) writes the offset it
+   * already holds and costs one no-op write.
+   */
+  const previousBottomLayoutInsetRef = useRef(bottomLayoutInsetPx);
+  useLayoutEffect(() => {
+    const previousInsetPx = previousBottomLayoutInsetRef.current;
+    previousBottomLayoutInsetRef.current = bottomLayoutInsetPx;
+    if (previousInsetPx === bottomLayoutInsetPx) return;
+    if (isViewportSuspendedRef.current || viewportMode === 'history-reading') return;
+    if (!isFollowingOutputNow() && !isAtTailRef.current) return;
+    scrollToContentEnd('auto');
+  }, [bottomLayoutInsetPx, isFollowingOutputNow, scrollToContentEnd, viewportMode]);
+
+  /**
    * The anchor stands down for anyone aiming at a target of their own — and for
    * nobody else, the reader included.
    *

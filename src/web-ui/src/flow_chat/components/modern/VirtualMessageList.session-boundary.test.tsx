@@ -47,6 +47,8 @@ const mocks = vi.hoisted(() => ({
   viewportOwner: null as null | { claim: (owner: string) => boolean },
   /** False stands in for a Turn the virtualizer can place but the DOM cannot. */
   renderItemMetadata: true,
+  /** Measured composer height; tests that grow it drive the footer spacer. */
+  inputHeight: 140,
 }));
 
 /** Input-stack footer produced by the mocked 140px composer. */
@@ -186,7 +188,7 @@ vi.mock('../../hooks/useActiveSessionState', () => ({
 
 vi.mock('../../store/chatInputStateStore', () => ({
   useChatInputState: (selector: (state: Record<string, unknown>) => unknown) => selector({
-    inputHeight: 140,
+    inputHeight: mocks.inputHeight,
   }),
 }));
 
@@ -356,6 +358,7 @@ describe('VirtualMessageList natural scroll contract', () => {
     mocks.viewportOwner = null;
     mocks.setVisibleTurnInfo.mockReset();
     mocks.renderItemMetadata = true;
+    mocks.inputHeight = 140;
     vi.stubGlobal('ResizeObserver', TestResizeObserver);
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
       nextAnimationFrameId += 1;
@@ -415,6 +418,62 @@ describe('VirtualMessageList natural scroll contract', () => {
     const footer = container.querySelector<HTMLElement>('.message-list-footer');
     expect(footer?.style.height).toBe(`${BOTTOM_INSET}px`);
     expect(footer?.style.minHeight).toBe(`${BOTTOM_INSET}px`);
+  });
+
+  it('keeps a resting transcript on the content end when the composer grows', () => {
+    const restore = fakeLayout({
+      clientHeight: 600,
+      scrollHeight: 2000,
+      turnTopFromScrollerTop: 0,
+    });
+    try {
+      act(() => root.render(<VirtualMessageList />));
+      const scroller = container.querySelector<HTMLElement>('[data-flowchat-scroller="true"]')!;
+      // Rest at the end of real content, which is where the tail spacer puts it.
+      scroller.scrollTop = 2000 - tailSpacerPxForViewport(600, BOTTOM_INSET) - 600;
+      act(() => {
+        scroller.dispatchEvent(new Event('scroll'));
+      });
+
+      mocks.inputHeight = 400;
+      act(() => root.render(<VirtualMessageList />));
+
+      // The taller composer eats the whole tail reservation, so the content end
+      // moves down while `scrollTop` would otherwise stay put — which is the
+      // state that hides the newest Turn behind the composer.
+      const grownInset = computeFlowChatInputStackFooterPx(400);
+      expect(tailSpacerPxForViewport(600, grownInset)).toBe(0);
+      expect(container.querySelector<HTMLElement>('.message-list-footer')?.style.height)
+        .toBe(`${grownInset}px`);
+      expect(scroller.scrollTop).toBe(2000 - 600);
+    } finally {
+      restore();
+    }
+  });
+
+  it('leaves a reader who owns the viewport where the composer grows', () => {
+    const restore = fakeLayout({
+      clientHeight: 600,
+      scrollHeight: 2000,
+      turnTopFromScrollerTop: 0,
+    });
+    try {
+      act(() => root.render(<VirtualMessageList />));
+      const scroller = container.querySelector<HTMLElement>('[data-flowchat-scroller="true"]')!;
+      scroller.scrollTop = 400;
+      act(() => {
+        scroller.dispatchEvent(new Event('scroll'));
+      });
+
+      mocks.inputHeight = 400;
+      act(() => root.render(<VirtualMessageList />));
+
+      expect(container.querySelector<HTMLElement>('.message-list-footer')?.style.height)
+        .toBe(`${computeFlowChatInputStackFooterPx(400)}px`);
+      expect(scroller.scrollTop).toBe(400);
+    } finally {
+      restore();
+    }
   });
 
   it('reserves a tail spacer from the viewport and input-stack inset', () => {
