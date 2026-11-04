@@ -269,6 +269,21 @@ export class CommonUtils {
       // stat on a grant-less or unsupported URI falls through to the file copy
       // attempt, which reproduces the pre-folder behavior for files.
       hilog.warn(0x0000, 'vnext', 'copy_pasteboard_entry: stat failed for ' + sourceUri + ': ' + e);
+      // Directory URIs under file://docs/ cannot be stat'ed through the fs URI
+      // layer on every build; their path form is directly readable in this
+      // sandbox (the picker uses the same conversion), so classify through it
+      // before treating the entry as a file (issue #473).
+      const pathForm = CommonUtils.docsUriPathForm(sourceUri);
+      if (pathForm !== null) {
+        try {
+          const stat = await fs.stat(pathForm);
+          isDirectory = stat.isDirectory();
+          hilog.info(0x0000, 'vnext', 'copy_pasteboard_entry: classified via path form ' + pathForm
+            + ' (isDirectory=' + isDirectory + ')');
+        } catch (pathError) {
+          hilog.warn(0x0000, 'vnext', 'copy_pasteboard_entry: path-form stat failed for ' + pathForm + ': ' + pathError);
+        }
+      }
     }
 
     // Re-pasting the same entry must not collide with a stale cache copy in
@@ -300,7 +315,26 @@ export class CommonUtils {
       } finally {
         await fs.close(source.fd);
       }
+      return;
     } catch (fileError) {
+      // docs-domain URIs whose fs URI layer rejects the open still have a
+      // directly readable path form; retry the plain file copy with it before
+      // the directory strategies (issue #473).
+      const pathForm = CommonUtils.docsUriPathForm(sourceUri);
+      if (pathForm !== null) {
+        try {
+          const source = await fs.open(pathForm, fs.OpenMode.READ_ONLY);
+          try {
+            await fs.copyFile(source.fd, destPath);
+            hilog.info(0x0000, 'vnext', 'copy_pasteboard_entry: file copy via path form ' + pathForm);
+            return;
+          } finally {
+            await fs.close(source.fd);
+          }
+        } catch (pathFileError) {
+          hilog.warn(0x0000, 'vnext', 'copy_pasteboard_entry: path-form file copy failed for ' + pathForm + ': ' + pathFileError);
+        }
+      }
       // Folder URIs that stat cannot classify land here: opening the
       // directory fails with ENOENT while the pasteboard grant is valid for
       // the subtree. Retry the directory strategies before surfacing
@@ -310,15 +344,67 @@ export class CommonUtils {
     }
   }
 
-  /// Copy a pasteboard URI as a directory: copyDir first, then the manual
-  /// walk. Shared by the stat-detected directory path and the file-branch
-  /// retry for folder URIs that stat cannot classify.
+  /// `file://docs/...` URIs name user-storage entries whose path form this
+  /// app can access directly (the same conversion the picker applies). The fs
+  /// URI layer cannot resolve directory URIs on every build, so the paste
+  /// chain retries stat/copy/list through the path form. Returns null for
+  /// every other URI shape (media URIs have no usable path form; their
+  /// grant-based flow must stay).
+  static docsUriPathForm(uri: string): string | null {
+    if (!uri.startsWith('file://docs/')) {
+      return null;
+    }
+    try {
+      const path = new fileUri.FileUri(uri).path;
+      return path.length > 0 ? path : null;
+    } catch (e) {
+      hilog.warn(0x0000, 'vnext', 'docsUriPathForm: failed to convert ' + uri + ': ' + e);
+      return null;
+    }
+  }
+
+  /// Copy a pasteboard URI as a directory: copyDir first (URI, then the docs
+  /// path form), then the manual walk in the same order. Shared by the
+  /// stat-detected directory path and the file-branch retry for folder URIs
+  /// that stat cannot classify.
   private static async copy_pasteboard_directory(sourceUri: string, destPath: string): Promise<void> {
     try {
       await fs.copyDir(sourceUri, destPath);
       return;
     } catch (e) {
       hilog.warn(0x0000, 'vnext', 'copy_pasteboard_directory: copyDir failed for ' + sourceUri + ': ' + e);
+    }
+    const pathForm = CommonUtils.docsUriPathForm(sourceUri);
+    if (pathForm !== null) {
+      try {
+        await fs.copyDir(pathForm, destPath);
+        return;
+      } catch (e) {
+        hilog.warn(0x0000, 'vnext', 'copy_pasteboard_directory: path-form copyDir failed for ' + pathForm + ': ' + e);
+      }
+      try {
+        const children = await fs.listFile(pathForm);
+        await fs.mkdir(destPath, true);
+        if (children.length === 0) {
+          return;
+        }
+        let copied = 0;
+        for (const child of children) {
+          const childSource = pathForm.endsWith('/') ? pathForm + child : pathForm + '/' + child;
+          try {
+            await CommonUtils.copy_pasteboard_entry(childSource, destPath + '/' + child);
+            copied += 1;
+          } catch (e) {
+            hilog.warn(0x0000, 'vnext', 'copy_pasteboard_entry: skip path child ' + childSource + ': ' + e);
+          }
+        }
+        if (copied === 0) {
+          throw new Error('no child of ' + pathForm + ' could be copied into the cache');
+        }
+        return;
+      } catch (e) {
+        hilog.warn(0x0000, 'vnext', 'copy_pasteboard_directory: path-form walk failed for ' + pathForm + ': ' + e);
+      }
     }
     await fs.mkdir(destPath, true);
     const children = await fs.listFile(sourceUri);
