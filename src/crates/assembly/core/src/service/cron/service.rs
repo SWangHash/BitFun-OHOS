@@ -33,6 +33,12 @@ use uuid::Uuid;
 
 static GLOBAL_CRON_SERVICE: OnceLock<Arc<CronService>> = OnceLock::new();
 
+/// Upper bound for one scheduler sleep. A host can be frozen in the background
+/// (screen off or app switch on OHOS), so a single long sleep would delay an
+/// overdue trigger by the whole background interval. Re-reading the wall clock
+/// every `MAX_CRON_SLEEP_MS` bounds that catch-up latency.
+const MAX_CRON_SLEEP_MS: u64 = 30_000;
+
 pub struct CronService {
     coordinator: Arc<ConversationCoordinator>,
     runtime: AgentRuntime,
@@ -41,6 +47,9 @@ pub struct CronService {
     mutation_lock: Arc<Mutex<()>>,
     wakeup: Arc<Notify>,
     runner_started: AtomicBool,
+    /// Mirrors "at least one enabled job" so a host can ask synchronously, e.g.
+    /// the OHOS ability deciding whether to hold a background keep-alive.
+    has_enabled_jobs: AtomicBool,
 }
 
 impl CronService {
@@ -89,6 +98,8 @@ impl CronService {
         )
         .map_err(BitFunError::service)?;
 
+        let has_enabled_jobs = jobs.values().any(|job| job.enabled);
+
         let service = Arc::new(Self {
             coordinator,
             runtime,
@@ -97,6 +108,7 @@ impl CronService {
             mutation_lock: Arc::new(Mutex::new(())),
             wakeup: Arc::new(Notify::new()),
             runner_started: AtomicBool::new(false),
+            has_enabled_jobs: AtomicBool::new(has_enabled_jobs),
         });
 
         if needs_save {
@@ -124,6 +136,16 @@ impl CronService {
     pub async fn list_jobs(&self) -> Vec<CronJob> {
         let jobs = self.jobs.read().await;
         jobs.values().cloned().collect::<Vec<_>>()
+    }
+
+    /// Whether at least one enabled scheduled job exists.
+    ///
+    /// Synchronous by design: a host may ask from a thread that cannot await
+    /// (the OHOS ability lifecycle deciding whether to hold a keep-alive), so
+    /// this reads a mirror updated on every persisted snapshot instead of the
+    /// async jobs lock.
+    pub fn has_enabled_jobs(&self) -> bool {
+        self.has_enabled_jobs.load(Ordering::Relaxed)
     }
 
     pub async fn list_jobs_filtered(
@@ -376,7 +398,8 @@ impl CronService {
                 Some(next_wakeup_ms) => {
                     let current_ms = now_ms();
                     if next_wakeup_ms > current_ms {
-                        let sleep_ms = (next_wakeup_ms - current_ms) as u64;
+                        let sleep_ms =
+                            ((next_wakeup_ms - current_ms) as u64).min(MAX_CRON_SLEEP_MS);
                         tokio::select! {
                             _ = tokio::time::sleep(Duration::from_millis(sleep_ms)) => {}
                             _ = self.wakeup.notified() => {
@@ -794,6 +817,8 @@ impl CronService {
     }
 
     async fn persist_jobs_locked(&self, jobs: &HashMap<String, CronJob>) -> BitFunResult<()> {
+        self.has_enabled_jobs
+            .store(jobs.values().any(|job| job.enabled), Ordering::Relaxed);
         self.store
             .save_jobs(jobs.values().cloned().collect::<Vec<_>>())
             .await
