@@ -4,6 +4,8 @@ import { Tooltip } from '@bitfun/ui';
 import type { TurnRailCapsulePreview } from '@/shared/types/session-history';
 import { MessageReferenceCapsule } from './MessageReferenceCapsule';
 import { observeElementResize } from '@/shared/utils/sharedResizeObserver';
+import { useChatInputState } from '../../store/chatInputStateStore';
+import { computeFlowChatInputOverlayInsetPx } from '../../utils/flowChatScrollLayout';
 import {
   FLOWCHAT_TURN_RAIL_ROW_HEIGHT_PX,
   FLOWCHAT_TURN_RAIL_VERTICAL_PADDING_PX,
@@ -43,6 +45,17 @@ export const FlowChatTurnRail: React.FC<FlowChatTurnRailProps> = ({
   const { t } = useTranslation('flow-chat');
   const railRef = useRef<HTMLElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
+  /*
+   * The composer is an overlay, so its footprint has to be subtracted from the
+   * rail instead of from the transcript: without it a multi-line input covers
+   * the newest markers on a narrow pane, where the composer spans the whole
+   * width. Zero until the composer has been measured, so the rail keeps its CSS
+   * band during the first frames.
+   */
+  const inputHeight = useChatInputState(state => state.inputHeight);
+  const composerClearancePx = inputHeight > 0
+    ? computeFlowChatInputOverlayInsetPx(inputHeight)
+    : 0;
   const itemRefs = useRef(new Map<number, HTMLButtonElement>());
   const pendingFocusOrdinalRef = useRef<number | null>(null);
   const currentTurnOrdinal = useMemo(
@@ -251,6 +264,9 @@ export const FlowChatTurnRail: React.FC<FlowChatTurnRailProps> = ({
       data-bitfun-part="root"
       aria-label={navigationLabel}
       data-testid="flowchat-turn-rail"
+      style={{
+        '--_flow-chat-turn-rail-clearance': `${composerClearancePx}px`,
+      } as React.CSSProperties}
       data-rendered-start-ordinal={renderedRange.startOrdinal}
       data-rendered-end-ordinal={renderedRange.endOrdinalExclusive}
       data-total-turn-count={totalOrdinalCount}
