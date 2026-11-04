@@ -40,6 +40,11 @@ import {
   getNextMode,
   savePanelWidth,
   loadPanelWidth,
+  loadPanelRatio,
+  panelRatioFromWidth,
+  panelRatioReferenceWidth,
+  panelWidthFromRatio,
+  savePanelRatio,
 } from '../../layout/panelConfig';
 
 import './SessionScene.scss';
@@ -89,6 +94,9 @@ const SessionScene: React.FC<SessionSceneProps> = ({
   const bottomPanelTransitionTimerRef = useRef<number | null>(null);
   const previousRightTransitionKeyRef = useRef<string | null>(null);
   const previousBottomTransitionKeyRef = useRef<string | null>(null);
+  const rightPanelRatioRef = useRef<number | null>(
+    loadPanelRatio(STORAGE_KEYS.RIGHT_PANEL_RATIO),
+  );
 
   const currentRightWidth = state.layout.rightPanelWidth || RIGHT_PANEL_CONFIG.COMFORTABLE_DEFAULT;
   const currentBottomHeight = state.layout.bottomTerminalPanelHeight || BOTTOM_TERMINAL_PANEL_CONFIG.COMFORTABLE_DEFAULT;
@@ -180,6 +188,15 @@ const SessionScene: React.FC<SessionSceneProps> = ({
   }, []);
 
   const saveAndUpdateRightWidth = useCallback((width: number) => {
+    const referenceWidth = panelRatioReferenceWidth(
+      window.innerWidth,
+      containerRef.current?.offsetWidth ?? 0,
+    );
+    const ratio = panelRatioFromWidth(width, referenceWidth ?? 0);
+    if (ratio !== null) {
+      rightPanelRatioRef.current = ratio;
+      savePanelRatio(STORAGE_KEYS.RIGHT_PANEL_RATIO, ratio);
+    }
     updateRightPanelWidth(width);
     setLastRightWidth(width);
     savePanelWidth(STORAGE_KEYS.RIGHT_PANEL_LAST_WIDTH, width);
@@ -239,9 +256,7 @@ const SessionScene: React.FC<SessionSceneProps> = ({
       if (snapped !== lastValidWidth) {
         saveAndUpdateRightWidth(snapped);
       } else {
-        updateRightPanelWidth(lastValidWidth);
-        setLastRightWidth(lastValidWidth);
-        savePanelWidth(STORAGE_KEYS.RIGHT_PANEL_LAST_WIDTH, lastValidWidth);
+        saveAndUpdateRightWidth(lastValidWidth);
       }
       requestAnimationFrame(() => requestAnimationFrame(() => setIsDraggingRight(false)));
     };
@@ -319,32 +334,47 @@ const SessionScene: React.FC<SessionSceneProps> = ({
     expandSessionBottomTerminalPane(calculateValidBottomHeight(saved));
   }, [calculateValidBottomHeight]);
 
-  // Responsive resize — also validate on mount to clamp widths restored from
-  // localStorage that may exceed the current (non-maximized) window size.
-  useEffect(() => {
-    const validate = () => {
-      const valid = calculateValidRightWidth(currentRightWidth);
-      if (valid !== currentRightWidth) updateRightPanelWidth(valid);
-      if (isTerminalDockedBottom) {
-        const validBottom = calculateValidBottomHeight(currentBottomHeight);
-        if (validBottom !== currentBottomHeight) updateBottomTerminalPanelHeight(validBottom);
+  const applyResponsivePanelSizes = useCallback(() => {
+    const containerWidth = containerRef.current?.offsetWidth ?? 0;
+    if (containerWidth > 0) {
+      const referenceWidth = panelRatioReferenceWidth(window.innerWidth, containerWidth);
+      let ratio = rightPanelRatioRef.current;
+      if (ratio === null) {
+        ratio = panelRatioFromWidth(currentRightWidth, referenceWidth ?? 0);
+        if (ratio !== null) {
+          rightPanelRatioRef.current = ratio;
+          savePanelRatio(STORAGE_KEYS.RIGHT_PANEL_RATIO, ratio);
+        }
       }
-    };
-    const rafId = requestAnimationFrame(validate);
-    window.addEventListener('resize', validate);
+      const proportionalWidth = ratio === null
+        ? currentRightWidth
+        : panelWidthFromRatio(ratio, referenceWidth ?? 0) ?? currentRightWidth;
+      const valid = calculateValidRightWidth(proportionalWidth);
+      if (valid !== currentRightWidth) updateRightPanelWidth(valid);
+    }
+    if (isTerminalDockedBottom) {
+      const validBottom = calculateValidBottomHeight(currentBottomHeight);
+      if (validBottom !== currentBottomHeight) updateBottomTerminalPanelHeight(validBottom);
+    }
+  }, [
+    calculateValidBottomHeight,
+    calculateValidRightWidth,
+    currentBottomHeight,
+    currentRightWidth,
+    isTerminalDockedBottom,
+    updateBottomTerminalPanelHeight,
+    updateRightPanelWidth,
+  ]);
+
+  // Preserve the user's split ratio while the native window changes size.
+  useEffect(() => {
+    const rafId = requestAnimationFrame(applyResponsivePanelSizes);
+    window.addEventListener('resize', applyResponsivePanelSizes);
     return () => {
       cancelAnimationFrame(rafId);
-      window.removeEventListener('resize', validate);
+      window.removeEventListener('resize', applyResponsivePanelSizes);
     };
-  }, [
-    currentRightWidth,
-    currentBottomHeight,
-    calculateValidRightWidth,
-    calculateValidBottomHeight,
-    isTerminalDockedBottom,
-    updateRightPanelWidth,
-    updateBottomTerminalPanelHeight,
-  ]);
+  }, [applyResponsivePanelSizes]);
 
   // Restore right panel width when window regains visibility (e.g. after minimize → restore).
   // This acts as a safety net in case any layout recalculation during the restore
@@ -354,16 +384,13 @@ const SessionScene: React.FC<SessionSceneProps> = ({
     const handleVisibility = () => {
       const nowVisible = document.visibilityState === 'visible';
       if (nowVisible && !prevVisibleRef.current) {
-        const saved = loadPanelWidth(STORAGE_KEYS.RIGHT_PANEL_LAST_WIDTH, currentRightWidth);
-        if (saved !== currentRightWidth && !state.layout.rightPanelCollapsed) {
-          updateRightPanelWidth(saved);
-        }
+        applyResponsivePanelSizes();
       }
       prevVisibleRef.current = nowVisible;
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [currentRightWidth, updateRightPanelWidth, state.layout.rightPanelCollapsed]);
+  }, [applyResponsivePanelSizes]);
 
   // Cleanup animation frames
   useEffect(() => () => {
