@@ -756,7 +756,7 @@ fn has_qt_project_below(dir: &Path) -> bool {
 /// elsewhere, so the directory is not itself a migration source. A description
 /// that names no sources, or at least one that exists where it points, stays a
 /// candidate.
-fn project_description_fits_directory(dir: &Path) -> bool {
+pub(crate) fn project_description_fits_directory(dir: &Path) -> bool {
     let declared = declared_source_paths(dir);
     declared.is_empty()
         || declared

@@ -66,7 +66,7 @@ pub(crate) fn merge_output_candidates(
             .then_with(|| path_key(Path::new(&a.1)).cmp(&path_key(Path::new(&b.1))))
     });
     let mut candidates = ranked.into_iter().map(|(_, p)| p).collect::<Vec<_>>();
-    candidates = filter_output_candidates(candidates, source_candidates);
+    candidates = filter_output_candidates(candidates, source_candidates, workspace);
     dedup_paths(&mut candidates);
     // The workspace root is the alternate the card promises, so the cap must not
     // drop it: give it its own slot and let a probed container go instead. It is
@@ -93,15 +93,26 @@ pub(crate) fn merge_output_candidates(
 pub fn filter_output_candidates(
     candidates: Vec<String>,
     source_candidates: &[String],
+    workspace: &Path,
 ) -> Vec<String> {
+    let workspace_key = path_key(workspace);
     candidates
         .into_iter()
         .filter(|candidate| {
             let path = Path::new(candidate);
-            !is_qt_source_project(path)
-                && !source_candidates
-                    .iter()
-                    .any(|source| path_key(Path::new(source)) == path_key(path))
+            if is_qt_source_project(path) {
+                return false;
+            }
+            let named_as_source = source_candidates
+                .iter()
+                .any(|source| path_key(Path::new(source)) == path_key(path));
+            if !named_as_source {
+                return true;
+            }
+            // Source and output may both be the current workspace: the migrated
+            // project lands in its `<app-name>-ohos` subdirectory, so nothing is
+            // overwritten.
+            path_key(path) == workspace_key
         })
         .collect()
 }
