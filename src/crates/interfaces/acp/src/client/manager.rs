@@ -10,8 +10,8 @@ use std::sync::{
 use std::time::{Duration, Instant};
 
 use agent_client_protocol::schema::{
-    AgentCapabilities, CancelNotification, ClientCapabilities, CloseSessionRequest, Implementation,
-    InitializeRequest, LoadSessionRequest, LoadSessionResponse, NewSessionRequest,
+    AgentCapabilities, CancelNotification, ClientCapabilities, CloseSessionRequest, ContentBlock,
+    Implementation, InitializeRequest, LoadSessionRequest, LoadSessionResponse, NewSessionRequest,
     NewSessionResponse, PermissionOption, PermissionOptionKind, ProtocolVersion,
     RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
     ResumeSessionRequest, ResumeSessionResponse, SelectedPermissionOutcome, SessionConfigOption,
@@ -1591,7 +1591,7 @@ impl AcpClientService {
                 .active
                 .as_mut()
                 .ok_or_else(|| BitFunError::service("ACP session was not initialized"))?;
-            let mut prompt = AcpPrompt::start(active, prompt);
+            let mut prompt = AcpPrompt::start(active, vec![prompt.into()]);
             read_turn_to_string(&mut session, &mut prompt).await
         };
 
@@ -1609,7 +1609,7 @@ impl AcpClientService {
     pub async fn prompt_agent_stream<F>(
         self: &Arc<Self>,
         client_id: &str,
-        prompt: String,
+        prompt: Vec<ContentBlock>,
         workspace_path: Option<String>,
         remote_connection_id: Option<String>,
         bitfun_session_id: String,
@@ -1628,6 +1628,22 @@ impl AcpClientService {
                 &bitfun_session_id,
             )
             .await?;
+
+        if prompt
+            .iter()
+            .any(|block| matches!(block, ContentBlock::Image(_)))
+            && !resolved
+                .client
+                .agent_capabilities
+                .read()
+                .await
+                .as_ref()
+                .is_some_and(|capabilities| capabilities.prompt_capabilities.image)
+        {
+            return Err(BitFunError::validation(
+                "This ACP agent does not support image attachments",
+            ));
+        }
 
         let run = async {
             let mut session = resolved.session.lock().await;

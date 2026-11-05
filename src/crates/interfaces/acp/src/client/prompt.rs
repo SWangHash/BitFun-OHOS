@@ -1,7 +1,7 @@
 use std::future::Future;
 use std::pin::Pin;
 
-use agent_client_protocol::schema::{PromptRequest, PromptResponse};
+use agent_client_protocol::schema::{ContentBlock, PromptRequest, PromptResponse};
 use agent_client_protocol::{ActiveSession, Agent, Error, SessionMessage};
 
 /// Own the prompt response separately from the session notification queue.
@@ -12,8 +12,8 @@ pub(super) struct AcpPrompt {
 }
 
 impl AcpPrompt {
-    pub(super) fn start(active: &ActiveSession<'_, Agent>, prompt: String) -> Self {
-        let request = PromptRequest::new(active.session_id().clone(), vec![prompt.into()]);
+    pub(super) fn start(active: &ActiveSession<'_, Agent>, prompt: Vec<ContentBlock>) -> Self {
+        let request = PromptRequest::new(active.session_id().clone(), prompt);
         let response = active.connection().send_request(request).block_task();
         Self {
             response: Box::pin(response),
