@@ -45,7 +45,7 @@ cargo test -p bitfun-acp --no-default-features --features client,bitfun-core/git
 ```
 
 The focused client prompt tests cover protocol errors, retry, cancellation,
-partial output, and transport termination with in-memory agent streams. These
-fixtures do not require a live provider or a device connection. The explicit
+images, partial output, and transport termination with in-memory agent streams.
+These fixtures do not require a live provider or a device connection. The explicit
 Core `git` feature satisfies the worktree tool dependency in the current client
 closure without enabling the server role or `product-full`.

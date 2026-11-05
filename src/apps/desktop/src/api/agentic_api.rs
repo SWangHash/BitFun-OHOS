@@ -3072,7 +3072,7 @@ fn is_blank_text(value: Option<&String>) -> bool {
     value.map(|s| s.trim().is_empty()).unwrap_or(true)
 }
 
-fn resolve_missing_image_payloads(
+pub(crate) fn resolve_missing_image_payloads(
     image_contexts: Vec<ImageContextData>,
 ) -> Result<Vec<ImageContextData>, String> {
     let mut resolved = Vec::with_capacity(image_contexts.len());

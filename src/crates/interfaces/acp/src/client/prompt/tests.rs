@@ -1,6 +1,8 @@
 use std::time::Duration;
 
-use agent_client_protocol::schema::{CancelNotification, NewSessionResponse, StopReason};
+use agent_client_protocol::schema::{
+    CancelNotification, ContentBlock, ImageContent, NewSessionResponse, StopReason,
+};
 use agent_client_protocol::{ActiveSession, Agent, ByteStreams, Client, Error, SessionMessage};
 use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, DuplexStream, ReadHalf, WriteHalf};
@@ -86,9 +88,40 @@ impl Drop for Harness {
 }
 
 #[tokio::test]
+async fn prompt_sends_images_as_content_blocks_alongside_text() {
+    let mut harness = Harness::new().await;
+    let mut prompt = AcpPrompt::start(
+        &harness.active,
+        vec![
+            "describe the screenshot".into(),
+            ContentBlock::Image(ImageContent::new("aW1hZ2U=", "image/png")),
+        ],
+    );
+    let request = harness.request().await;
+    assert_eq!(
+        request["params"]["prompt"],
+        json!([
+            { "type": "text", "text": "describe the screenshot" },
+            { "type": "image", "data": "aW1hZ2U=", "mimeType": "image/png" }
+        ])
+    );
+    harness
+        .send(json!({
+            "jsonrpc": "2.0",
+            "id": request["id"],
+            "result": { "stopReason": "end_turn" }
+        }))
+        .await;
+    assert!(matches!(
+        harness.next(&mut prompt).await.unwrap(),
+        SessionMessage::StopReason(StopReason::EndTurn)
+    ));
+}
+
+#[tokio::test]
 async fn prompt_error_is_reported_and_the_same_session_can_retry() {
     let mut harness = Harness::new().await;
-    let mut prompt = AcpPrompt::start(&harness.active, "offline request".into());
+    let mut prompt = AcpPrompt::start(&harness.active, vec!["offline request".into()]);
     let request = harness.request().await;
     assert_eq!(request["method"], "session/prompt");
     assert_eq!(request["params"]["sessionId"], "test-session");
@@ -109,7 +142,7 @@ async fn prompt_error_is_reported_and_the_same_session_can_retry() {
     assert_eq!(error.data.unwrap()["code"], "ENETUNREACH");
     assert!(!harness.connection_task.is_finished());
 
-    let mut retry = AcpPrompt::start(&harness.active, "retry after reconnect".into());
+    let mut retry = AcpPrompt::start(&harness.active, vec!["retry after reconnect".into()]);
     let request = harness.request().await;
     harness
         .send(json!({
@@ -127,7 +160,7 @@ async fn prompt_error_is_reported_and_the_same_session_can_retry() {
 #[tokio::test]
 async fn partial_output_is_preserved_before_a_prompt_error() {
     let mut harness = Harness::new().await;
-    let mut prompt = AcpPrompt::start(&harness.active, "request".into());
+    let mut prompt = AcpPrompt::start(&harness.active, vec!["request".into()]);
     let request = harness.request().await;
     harness
         .send(json!({
@@ -162,7 +195,7 @@ async fn partial_output_is_preserved_before_a_prompt_error() {
 #[tokio::test]
 async fn cancellation_still_returns_the_agent_stop_reason() {
     let mut harness = Harness::new().await;
-    let mut prompt = AcpPrompt::start(&harness.active, "request".into());
+    let mut prompt = AcpPrompt::start(&harness.active, vec!["request".into()]);
     let request = harness.request().await;
     harness
         .active
@@ -186,7 +219,7 @@ async fn cancellation_still_returns_the_agent_stop_reason() {
 #[tokio::test]
 async fn agent_output_eof_fails_a_pending_prompt_even_if_its_input_is_open() {
     let mut harness = Harness::new().await;
-    let mut prompt = AcpPrompt::start(&harness.active, "request".into());
+    let mut prompt = AcpPrompt::start(&harness.active, vec!["request".into()]);
     let _ = harness.request().await;
     harness.writer.shutdown().await.unwrap();
     assert!(harness.next(&mut prompt).await.is_err());
@@ -195,7 +228,7 @@ async fn agent_output_eof_fails_a_pending_prompt_even_if_its_input_is_open() {
 #[tokio::test]
 async fn stopping_the_connection_wakes_a_pending_prompt() {
     let mut harness = Harness::new().await;
-    let mut prompt = AcpPrompt::start(&harness.active, "request".into());
+    let mut prompt = AcpPrompt::start(&harness.active, vec!["request".into()]);
     let _ = harness.request().await;
     harness.connection_task.abort();
     assert!(harness.next(&mut prompt).await.is_err());
@@ -204,7 +237,7 @@ async fn stopping_the_connection_wakes_a_pending_prompt() {
 #[tokio::test]
 async fn a_final_response_is_preserved_when_the_agent_immediately_closes_output() {
     let mut harness = Harness::new().await;
-    let mut prompt = AcpPrompt::start(&harness.active, "request".into());
+    let mut prompt = AcpPrompt::start(&harness.active, vec!["request".into()]);
     let request = harness.request().await;
     harness
         .send(json!({
@@ -223,7 +256,7 @@ async fn a_final_response_is_preserved_when_the_agent_immediately_closes_output(
 #[tokio::test]
 async fn an_error_response_is_preserved_when_the_agent_immediately_closes_output() {
     let mut harness = Harness::new().await;
-    let mut prompt = AcpPrompt::start(&harness.active, "request".into());
+    let mut prompt = AcpPrompt::start(&harness.active, vec!["request".into()]);
     let request = harness.request().await;
     harness
         .send(json!({
