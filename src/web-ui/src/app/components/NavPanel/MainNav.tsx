@@ -282,12 +282,14 @@ const MainNav: React.FC<MainNavProps> = ({
       <MenuItem
         leading={<FolderOpen size={13} />}
         onClick={() => { closeWorkspaceMenu(); void handleOpenProject(); }}
+        data-testid="nav-workspace-menu-open-project"
       >
         {t('header.openProject')}
       </MenuItem>
       <MenuItem
         leading={<FolderPlus size={13} />}
         onClick={() => { closeWorkspaceMenu(); handleNewProject(); }}
+        data-testid="nav-workspace-menu-new-project"
       >
         {t('header.newProject')}
       </MenuItem>
@@ -301,6 +303,7 @@ const MainNav: React.FC<MainNavProps> = ({
       <MenuItem
         leading={<Icon glyph={Server} />}
         onClick={handleOpenRemoteSSH}
+        data-testid="nav-workspace-menu-remote-ssh"
       >
         {t('ssh.remote.connect')}
       </MenuItem>
