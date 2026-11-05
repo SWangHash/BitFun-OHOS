@@ -78,6 +78,12 @@ vi.mock('./sessionPanelLayout', () => ({
 
 import { appManager } from '@/app/services/AppManager';
 import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
+import {
+  cacheAgentCanvasTabForWorkspace,
+  clearAgentCanvasForPeerSwitch,
+  switchAgentCanvasWorkspace as switchActualCanvasWorkspace,
+  useAgentCanvasStore,
+} from '../../components/panels/content-canvas/stores/canvasStore';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -274,5 +280,126 @@ describe('AuxPane workspace canvas switching', () => {
     });
 
     expect(mocks.collapseSessionAuxPane).not.toHaveBeenCalled();
+  });
+
+  describe('background browser reveal', () => {
+    beforeEach(() => {
+      clearAgentCanvasForPeerSwitch();
+      mocks.switchAgentCanvasWorkspace.mockImplementation(switchActualCanvasWorkspace);
+      mocks.canvasStore.syncSessionOwnedBrowserTabs.mockImplementation((sessionId, options) => (
+        useAgentCanvasStore.getState().syncSessionOwnedBrowserTabs(sessionId, options)
+      ));
+      mocks.expandSessionAuxPane.mockImplementation(() => appManager.updateLayout({ rightPanelCollapsed: false }));
+      mocks.collapseSessionAuxPane.mockImplementation(() => appManager.updateLayout({ rightPanelCollapsed: true }));
+    });
+
+    afterEach(() => clearAgentCanvasForPeerSwitch());
+
+    function openBackgroundBrowser() {
+      cacheAgentCanvasTabForWorkspace('workspace-a', {
+        content: { type: 'browser', title: 'A browser', data: {
+          ownerSessionId: 'session-a', url: 'https://example.com',
+          webviewLabel: 'embedded-browser-panel-view-a', adoptExisting: true,
+        } },
+        focus: false,
+      });
+    }
+
+    it('reveals a browser first opened in the background after A finishes, once the user returns to A', () => {
+      flowChatStore.setState(state => ({ ...state, activeSessionId: 'session-a' }));
+      act(() => root.render(<AuxPane isSceneActive={false} isSessionSceneActive />));
+      act(() => flowChatStore.setState(state => ({ ...state, activeSessionId: 'session-b' })));
+      useAgentCanvasStore.getState().addTab({ type: 'code-editor', title: 'B editor', data: {} }, 'active');
+      const previousTab = useAgentCanvasStore.getState().primaryGroup.activeTabId;
+
+      openBackgroundBrowser();
+      // Completion notifications do not select or present the background session.
+      act(() => flowChatStore.notifyListeners());
+      expect(flowChatStore.getState().activeSessionId).toBe('session-b');
+      expect(appManager.getState().layout.rightPanelCollapsed).toBe(true);
+      expect(useAgentCanvasStore.getState().primaryGroup.activeTabId).toBe(previousTab);
+      expect(mocks.expandSessionAuxPane).not.toHaveBeenCalled();
+
+      act(() => flowChatStore.setState(state => ({ ...state, activeSessionId: 'session-a' })));
+      const canvas = useAgentCanvasStore.getState();
+      const browser = canvas.primaryGroup.tabs.find(tab => tab.content.type === 'browser')!;
+      expect(mocks.expandSessionAuxPane).toHaveBeenCalledTimes(1);
+      expect(appManager.getState().layout.rightPanelCollapsed).toBe(false);
+      expect(canvas.primaryGroup.activeTabId).toBe(browser.id);
+      expect(browser.content.metadata?.pendingSessionReveal).toBeUndefined();
+
+      appManager.updateLayout({ rightPanelCollapsed: true });
+      mocks.expandSessionAuxPane.mockClear();
+      act(() => {
+        flowChatStore.setState(state => ({ ...state, activeSessionId: 'session-b' }));
+        flowChatStore.setState(state => ({ ...state, activeSessionId: 'session-a' }));
+      });
+      expect(mocks.expandSessionAuxPane).not.toHaveBeenCalled();
+      expect(appManager.getState().layout.rightPanelCollapsed).toBe(true);
+    });
+
+    it.each(['workspace-first', 'session-first'])('reveals the pending browser across workspace switches: %s', order => {
+      flowChatStore.setState(state => ({ ...state, activeSessionId: 'session-a' }));
+      act(() => root.render(<AuxPane />));
+      act(() => {
+        mocks.workspaceEventListener?.({ type: 'workspace:switched', workspace: { id: 'workspace-b' } });
+        flowChatStore.setState(state => ({ ...state, activeSessionId: 'session-b' }));
+      });
+      openBackgroundBrowser();
+      expect(useAgentCanvasStore.getState().primaryGroup.tabs).toHaveLength(0);
+      expect(mocks.expandSessionAuxPane).not.toHaveBeenCalled();
+
+      const selectSession = () => flowChatStore.setState(state => ({ ...state, activeSessionId: 'session-a' }));
+      const selectWorkspace = () => mocks.workspaceEventListener?.({
+        type: 'workspace:switched', workspace: { id: 'workspace-a' },
+      });
+      act(() => {
+        if (order === 'workspace-first') { selectWorkspace(); selectSession(); }
+        else { selectSession(); selectWorkspace(); }
+      });
+      expect(mocks.expandSessionAuxPane).toHaveBeenCalledTimes(1);
+      expect(appManager.getState().layout.rightPanelCollapsed).toBe(false);
+      expect(useAgentCanvasStore.getState().primaryGroup.tabs[0].isHidden).toBe(false);
+    });
+
+    it('waits for the session scene to be visible before consuming its pending reveal', () => {
+      flowChatStore.setState(state => ({ ...state, activeSessionId: 'session-a' }));
+      act(() => root.render(<AuxPane isSceneActive={false} />));
+      openBackgroundBrowser();
+      act(() => flowChatStore.notifyListeners());
+      expect(mocks.expandSessionAuxPane).not.toHaveBeenCalled();
+      expect(useAgentCanvasStore.getState().primaryGroup.tabs[0].content.metadata?.pendingSessionReveal).toBe(true);
+
+      act(() => root.render(<AuxPane isSceneActive={false} isSessionSceneActive />));
+      expect(mocks.expandSessionAuxPane).toHaveBeenCalledTimes(1);
+      expect(appManager.getState().layout.rightPanelCollapsed).toBe(false);
+    });
+
+    it('preserves a manual collapse when returning from another scene after an earlier reveal', () => {
+      flowChatStore.setState(state => ({ ...state, activeSessionId: 'session-b' }));
+      act(() => root.render(<AuxPane />));
+      openBackgroundBrowser();
+      act(() => flowChatStore.setState(state => ({ ...state, activeSessionId: 'session-a' })));
+      act(() => {
+        flowChatStore.setState(state => ({ ...state, activeSessionId: 'session-b' }));
+        flowChatStore.setState(state => ({ ...state, activeSessionId: 'session-a' }));
+      });
+      appManager.updateLayout({ rightPanelCollapsed: true });
+      mocks.expandSessionAuxPane.mockClear();
+      act(() => root.render(<AuxPane isSceneActive={false} isSessionSceneActive={false} />));
+      act(() => root.render(<AuxPane isSceneActive={false} isSessionSceneActive />));
+      expect(mocks.expandSessionAuxPane).not.toHaveBeenCalled();
+      expect(appManager.getState().layout.rightPanelCollapsed).toBe(true);
+    });
+
+    it('does not reveal a browser removed before the user returns', () => {
+      flowChatStore.setState(state => ({ ...state, activeSessionId: 'session-b' }));
+      act(() => root.render(<AuxPane />));
+      openBackgroundBrowser();
+      const tab = useAgentCanvasStore.getState().primaryGroup.tabs[0];
+      useAgentCanvasStore.getState().detachTab(tab.id, 'primary');
+      act(() => flowChatStore.setState(state => ({ ...state, activeSessionId: 'session-a' })));
+      expect(mocks.expandSessionAuxPane).not.toHaveBeenCalled();
+    });
   });
 });

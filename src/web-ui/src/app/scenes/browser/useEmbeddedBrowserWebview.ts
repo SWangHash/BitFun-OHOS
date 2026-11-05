@@ -203,7 +203,7 @@ export function createCommandBasedBrowserWebviewHandle(
   return { close, hide, label, setFocus, show };
 }
 
-async function createBrowserWebview(
+export async function createBrowserWebview(
   label: string,
   url: string,
   bounds: WebviewBounds,

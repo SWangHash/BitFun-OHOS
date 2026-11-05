@@ -20,8 +20,9 @@ observation/targeting helpers, used by both built-in and external browser client
   creating or navigating a second page loses the automation state.
 - ArkWeb `connect` reuses a registered visible/exact target. Missing requested
   ids or filters must fail rather than create replacement pages. A newly created
-  blank page must be adopted without navigation, and its native activation must
-  be acknowledged before the tool reports success.
+  blank page must be adopted without navigation. Tool readiness requires the
+  exact host-created CDP target, independently of presentation, so background
+  work never requires changing the selected chat session.
 - Fill success requires reading the requested value back from the same field.
   Date/time controls use native value setters and events; input-command success
   alone is not completion evidence. Keep password values out of results.

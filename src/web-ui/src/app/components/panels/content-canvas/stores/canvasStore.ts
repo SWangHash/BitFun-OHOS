@@ -96,9 +96,10 @@ interface CanvasStoreActions {
   showTab: (tabId: string, groupId: EditorGroupId) => void;
 
   /** Show only Agent browser tabs owned by the active chat session. */
-  syncSessionOwnedBrowserTabs: (activeSessionId: string | null) => {
+  syncSessionOwnedBrowserTabs: (activeSessionId: string | null, options?: { revealPending?: boolean }) => {
     hasVisibleOwnedBrowserTab: boolean;
     hasVisibleTab: boolean;
+    shouldRevealBrowser: boolean;
   };
   
   // ==================== Drag Operations ====================
@@ -856,15 +857,18 @@ const createCanvasStoreHook = () => create<CanvasStore>()(
         });
       },
 
-      syncSessionOwnedBrowserTabs: (activeSessionId) => {
+      syncSessionOwnedBrowserTabs: (activeSessionId, options) => {
         let hasVisibleOwnedBrowserTab = false;
         let hasVisibleTab = false;
+        let shouldRevealBrowser = false;
         set((draft) => {
           const groups = [draft.primaryGroup, draft.secondaryGroup, draft.tertiaryGroup];
-          for (const group of groups) {
+          const groupIds: EditorGroupId[] = ['primary', 'secondary', 'tertiary'];
+          for (const [index, group] of groups.entries()) {
             const activeTab = group.tabs.find(tab => tab.id === group.activeTabId);
             const activeOwner = activeTab ? browserOwnerSessionId(activeTab) : null;
             let preferredOwnedBrowser: typeof group.tabs[number] | undefined;
+            let pendingBrowser: typeof group.tabs[number] | undefined;
 
             for (const tab of group.tabs) {
               const owner = browserOwnerSessionId(tab);
@@ -878,10 +882,18 @@ const createCanvasStoreHook = () => create<CanvasStore>()(
               }
               if (!tab.isHidden) {
                 hasVisibleOwnedBrowserTab = true;
+                if (options?.revealPending && tab.content.metadata?.pendingSessionReveal === true) {
+                  delete tab.content.metadata.pendingSessionReveal;
+                  shouldRevealBrowser = true;
+                  if (!pendingBrowser || tab.lastAccessedAt > pendingBrowser.lastAccessedAt) pendingBrowser = tab;
+                }
               }
             }
 
-            if (activeOwner !== null) {
+            if (pendingBrowser) {
+              group.activeTabId = pendingBrowser.id;
+              draft.activeGroupId = groupIds[index];
+            } else if (activeOwner !== null) {
               group.activeTabId = preferredOwnedBrowser?.id
                 ?? group.tabs.find(tab => !tab.isHidden)?.id
                 ?? null;
@@ -893,7 +905,7 @@ const createCanvasStoreHook = () => create<CanvasStore>()(
             }
           }
         });
-        return { hasVisibleOwnedBrowserTab, hasVisibleTab };
+        return { hasVisibleOwnedBrowserTab, hasVisibleTab, shouldRevealBrowser };
       },
       
       // ==================== Drag Operations ====================
@@ -1342,6 +1354,7 @@ export interface AgentCanvasWorkspaceTabRequest {
   checkDuplicate?: boolean;
   duplicateCheckKey?: string;
   replaceExisting?: boolean;
+  focus?: boolean;
 }
 
 function applyAgentCanvasWorkspaceTab(
@@ -1349,31 +1362,50 @@ function applyAgentCanvasWorkspaceTab(
   request: AgentCanvasWorkspaceTabRequest,
 ): void {
   const state = store.getState();
+  const content = request.focus === false && browserOwnerSessionId({ content: request.content })
+    ? { ...request.content, metadata: { ...request.content.metadata, pendingSessionReveal: true } }
+    : request.content;
   if (request.checkDuplicate && request.duplicateCheckKey) {
     const existing = state.findTabByMetadata({
       duplicateCheckKey: request.duplicateCheckKey,
     });
     if (existing) {
       if (request.replaceExisting) {
-        state.updateTabContent(existing.tab.id, existing.groupId, request.content);
+        if (existing.tab.content.data?.webviewLabel !== request.content.data?.webviewLabel) {
+          closeAdoptedBrowserPage(existing.tab.content);
+        }
+        state.updateTabContent(existing.tab.id, existing.groupId, content);
       }
-      store.getState().switchToTab(existing.tab.id, existing.groupId);
+      if (request.focus !== false) store.getState().switchToTab(existing.tab.id, existing.groupId);
       return;
     }
   }
-  state.addTab(request.content, 'active', state.activeGroupId);
+  if (request.focus === false) {
+    // Background session pages must not replace the visible tab, even briefly.
+    const groupId = state.layout.splitMode === 'none' ? 'primary' : state.activeGroupId;
+    const group = { ...getGroup(state, groupId), tabs: [...getGroup(state, groupId).tabs] };
+    const tab = createTab(content, 'active');
+    tab.isHidden = true;
+    insertTabRespectingPinnedBoundary(group, tab);
+    store.setState({ [`${groupId}Group`]: group });
+    return;
+  }
+  state.addTab(content, 'active', state.activeGroupId);
 }
 
 /**
- * Add a tab to an inactive workspace's cached Agent canvas without mutating
- * the canvas currently shown to the user. The snapshot is restored normally
- * when that workspace becomes active.
+ * Commit a tab to its workspace without switching workspaces. Background opens
+ * preserve selection in both the live canvas and inactive workspace snapshots.
  */
 export function cacheAgentCanvasTabForWorkspace(
-  workspaceId: string,
+  workspaceId: string | undefined,
   request: AgentCanvasWorkspaceTabRequest,
 ): void {
   const key = normalizeAgentWorkspaceKey(workspaceId);
+  if (useAgentCanvasStore.getState().workspaceKey === key) {
+    applyAgentCanvasWorkspaceTab(useAgentCanvasStore, request);
+    return;
+  }
   const scratchStore = createCanvasStoreHook();
   const existingSnapshot = agentWorkspaceSnapshots.get(key);
   if (existingSnapshot) {
