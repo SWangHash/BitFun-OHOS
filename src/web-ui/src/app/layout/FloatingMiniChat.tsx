@@ -86,7 +86,11 @@ export const FloatingMiniChat: React.FC = () => {
   const launcherClickSuppressedRef = useRef(false);
   const LAUNCHER_DRAG_THRESHOLD_PX = 6;
   const handleLauncherPointerDown = (event: React.PointerEvent) => {
-    handleTriggerPointerDown(event);
+    // Pressing must NOT open the panel: the launcher hides itself while the
+    // panel is open, which would make a drag invisible. The panel opens via
+    // the click that follows a press without enough movement (issue #401
+    // verification).
+    if (event.button !== 0) return;
     launcherDragStateRef.current = { startY: event.clientY, originOffsetY: launcherOffsetY };
     (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
   };
@@ -463,11 +467,6 @@ export const FloatingMiniChat: React.FC = () => {
   // panel animation, a stray pointer move on a trackpad) silently swallows the
   // press — which is what made the button need several tries. onClick is kept
   // for keyboard and assistive activation, where no pointer events fire.
-  const handleTriggerPointerDown = useCallback((e: React.PointerEvent) => {
-    if (e.button !== 0) return;
-    handleOpen();
-  }, [handleOpen]);
-
   // Mount the session surface only once the open transition has been handed to
   // the compositor, so ChatPane's mount cost can no longer stall the animation.
   useEffect(() => {
