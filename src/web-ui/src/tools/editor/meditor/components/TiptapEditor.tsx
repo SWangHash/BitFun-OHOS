@@ -582,15 +582,16 @@ export const TiptapEditor = React.forwardRef<TiptapEditorHandle, TiptapEditorPro
               // webview's anchor click handling cannot tell them apart from
               // links that already worked (issue #460 follow-up). The mark
               // attribute — and therefore saved content — keeps the authored
-              // href; only the rendered DOM anchor is normalized.
+              // href; only the rendered DOM anchor is normalized. NOTE: the
+              // return must be an attribute OBJECT — tiptap merges it into
+              // the rendered attributes; an array shape drops the href and
+              // kills every link click.
               renderHTML: (attributes: Record<string, unknown>) => {
                 const value = attributes.href;
-                return [
-                  'href',
-                  typeof value === 'string' && value !== ''
-                    ? toExplicitRelativeHref(value)
-                    : value,
-                ];
+                if (typeof value !== 'string' || value === '') {
+                  return {};
+                }
+                return { href: toExplicitRelativeHref(value) };
               },
             },
           };
