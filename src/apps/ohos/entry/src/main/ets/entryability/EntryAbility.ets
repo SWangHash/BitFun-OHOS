@@ -189,6 +189,14 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
       'bitfunStartupSplashBackground',
       $r('app.color.start_window_background'),
     );
+    // Files dragged out of another app (WeChat and other sandboxes) only carry a
+    // URI that is valid inside the source app, so the vendored ArkWeb drop
+    // bridge stages those URIs into this cache dir before handing the web-ui a
+    // path it can actually read. Same rule as `read_clipboard_files` below.
+    const dropCacheDir: string | undefined = this.context?.cacheDir;
+    if (dropCacheDir) {
+      AppStorage.setOrCreate<string>('bitfunDropCacheDir', dropCacheDir);
+    }
     // Cold-start best-effort report of the current system color mode so the
     // web-ui "follow system" selection resolves correctly without waiting for
     // the first system change. web-ui dedups when it equals the resolved theme.
