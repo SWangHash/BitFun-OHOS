@@ -669,7 +669,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
   React.useEffect(() => {
     const handleDragStart = (e: DragEvent) => {
       if (e.dataTransfer) {
-        if (e.dataTransfer.types.length === 0) e.dataTransfer.setData('text/plain', 'dragging');
+        // Empty drags need a payload to stay valid, but never text/plain:
+        // the browser would otherwise let drop targets (Monaco buffers,
+        // inputs) insert the literal marker text (issues #409 #410).
+        if (e.dataTransfer.types.length === 0) e.dataTransfer.setData('application/x-bitfun-drag', 'dragging');
         e.dataTransfer.effectAllowed = 'copy';
       }
     };

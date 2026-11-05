@@ -45,6 +45,16 @@
     animation: bitfun-dialog-surface-enter var(--bitfun-motion-duration-base) var(--bitfun-motion-easing-enter) both;
   }
 
+  /* Transparent interception layer behind the surface: taps anywhere outside
+     the panel land here and dismiss the dialog, independent of host pointer
+     routing (issue #435). The surface sits above it in DOM order. */
+  .scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background: transparent;
+  }
+
   .surface[data-size="sm"] { max-inline-size: var(--bitfun-overlay-dialog-max-inline-size-small); }
   .surface[data-size="md"] { max-inline-size: var(--bitfun-overlay-dialog-max-inline-size-medium); }
   .surface[data-size="lg"] { max-inline-size: var(--bitfun-overlay-dialog-max-inline-size-large); }

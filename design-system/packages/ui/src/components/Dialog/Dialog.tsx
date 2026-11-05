@@ -177,6 +177,23 @@ const OverlaySurface = forwardRef<HTMLDivElement, OverlaySurfaceProps>(function 
         data-placement={placement}
         data-state={exiting ? "exiting" : "open"}
       >
+        {/* Deterministic outside-dismiss scrim: touch taps over app content
+            (e.g. the editor) reach this layer directly instead of depending on
+            host-specific pointer routing (issue #435). Sits behind the surface,
+            so the panel keeps its own hit target. */}
+        {open && !exiting && closeOnPointerOutside && (
+          <div
+            aria-hidden="true"
+            className={classNames(styles.scrim)}
+            data-bitfun-component={kind}
+            data-bitfun-part="scrim"
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              close("pointer-outside");
+            }}
+            onTouchStart={(event) => event.stopPropagation()}
+          />
+        )}
         <DialogContext.Provider value={context}>
           <div
             {...surfaceProps}

@@ -75,6 +75,9 @@ export const TabGroup = forwardRef<HTMLDivElement, TabGroupProps>(function TabGr
 }, ref) {
   const generatedId = useId();
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  // Tabs whose end action (close button) is hovered: the label tooltip steps
+  // aside so the end action keeps its own single tooltip (issue #465).
+  const [endActionHoverValues, setEndActionHoverValues] = useState<ReadonlySet<string>>(() => new Set());
   const [uncontrolledValue, setUncontrolledValue] = useState(
     () => defaultValue ?? getFirstEnabledValue(items),
   );
@@ -193,8 +196,10 @@ export const TabGroup = forwardRef<HTMLDivElement, TabGroupProps>(function TabGr
                   data-bitfun-part="label"
                   // A label tooltip renders as a positioned styled tooltip
                   // below the label instead of a native cursor-anchored one.
-                  title={item.labelTooltip}
-                  tooltipMode={item.labelTooltip ? "always" : undefined}
+                  // Hovering the end action suppresses it so the close button
+                  // keeps its own single tooltip (issue #465).
+                  title={endActionHoverValues.has(item.value) ? undefined : item.labelTooltip}
+                  tooltipMode={!endActionHoverValues.has(item.value) && item.labelTooltip ? "always" : undefined}
                   tooltipPlacement={item.labelTooltip ? "bottom" : undefined}
                 >
                   {item.label}
@@ -207,7 +212,26 @@ export const TabGroup = forwardRef<HTMLDivElement, TabGroupProps>(function TabGr
               )}
             </button>
             {hasEndAction && (
-              <span className={styles.endAction} data-bitfun-part="endAction">
+              <span
+                className={styles.endAction}
+                data-bitfun-part="endAction"
+                onMouseEnter={() => {
+                  setEndActionHoverValues((prev) => {
+                    if (prev.has(item.value)) return prev;
+                    const next = new Set(prev);
+                    next.add(item.value);
+                    return next;
+                  });
+                }}
+                onMouseLeave={() => {
+                  setEndActionHoverValues((prev) => {
+                    if (!prev.has(item.value)) return prev;
+                    const next = new Set(prev);
+                    next.delete(item.value);
+                    return next;
+                  });
+                }}
+              >
                 {item.endAction}
               </span>
             )}

@@ -22,6 +22,7 @@ import { calendarManager } from '@kit.CalendarKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { buffer } from '@kit.ArkTS';
 import { DesktopSystemService } from '../services/DesktopSystemService';
+import { LocalModelKeepAliveService } from '../services/LocalModelKeepAliveService';
 import { notificationManager } from '@kit.NotificationKit';
 import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
 import RustModule from 'libbitfun_desktop_lib.so';
@@ -146,6 +147,7 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
   public commonEventListener: CommonEventListener | undefined = undefined;
   public remoteUrl: string = "";
   private desktopSystem: DesktopSystemService = new DesktopSystemService();
+  private localModelKeepAlive: LocalModelKeepAliveService = new LocalModelKeepAliveService();
   private appUpdater: AppUpdater = new AppUpdater();
   private voiceInputService: VoiceInputService = new VoiceInputService();
   private systemColorMode: 'light' | 'dark' = 'dark';
@@ -175,6 +177,11 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
   async onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Promise<void> {
     super.onCreate(want, launchParam);
     this.commonEventListener = new CommonEventListener();
+    // Hold the on-device model service resident from app start so local model
+    // APIs are usable without the system settings page or another model app.
+    if (this.context !== undefined) {
+      this.localModelKeepAlive.start(this.context);
+    }
     this.resolveSystemColorMode(this.context?.config?.colorMode);
     // Publish the launch-page mirror appearance for the ArkUI page (see
     // oh-rs-ability/.../DefaultXComponent), which renders it while the webview
@@ -309,6 +316,7 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
       hilog.error(DOMAIN, 'DesktopSystem', 'Failed to release idle sleep lock: %{public}s', String(error));
     }
     this.releaseScheduledJobKeepAlive();
+    this.localModelKeepAlive.dispose();
     this.statusBarTray?.remove();
     RustModule.ohosMarkCleanShutdown();
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');

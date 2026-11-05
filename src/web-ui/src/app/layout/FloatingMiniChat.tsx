@@ -35,7 +35,6 @@ import { postMiniAppComposerMessage } from '@/app/scenes/miniapps/miniAppCompose
 import { pickLocalizedString } from '@/app/scenes/miniapps/utils/pickLocalizedString';
 import { renderMiniAppIcon } from '@/app/scenes/miniapps/utils/miniAppIcons';
 import MiniAppBubbleWelcome from './MiniAppBubbleWelcome';
-import { isFloatingMiniChatSessionExecuting } from './floatingMiniChatActivity';
 import {
   canRenderFloatingMiniChatSession,
   isFloatingMiniChatIsolated,
@@ -79,6 +78,47 @@ export const FloatingMiniChat: React.FC = () => {
     sessionId?: string;
   } | null>(null);
   const composerPrefillIdRef = useRef(0);
+  // Hi launcher vertical drag (issue #401): the button moves up and down
+  // along the right edge so it never covers the editor status-bar controls.
+  // A press that moves past the drag threshold suppresses the open click.
+  const [launcherOffsetY, setLauncherOffsetY] = useState(0);
+  const launcherDragStateRef = useRef<{ startY: number; originOffsetY: number } | null>(null);
+  const launcherClickSuppressedRef = useRef(false);
+  const LAUNCHER_DRAG_THRESHOLD_PX = 6;
+  const handleLauncherPointerDown = (event: React.PointerEvent) => {
+    // Pressing must NOT open the panel: the launcher hides itself while the
+    // panel is open, which would make a drag invisible. The panel opens via
+    // the click that follows a press without enough movement (issue #401
+    // verification).
+    if (event.button !== 0) return;
+    launcherDragStateRef.current = { startY: event.clientY, originOffsetY: launcherOffsetY };
+    (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
+  };
+  const handleLauncherPointerMove = (event: React.PointerEvent) => {
+    const dragState = launcherDragStateRef.current;
+    if (!dragState) return;
+    const deltaY = dragState.startY - event.clientY;
+    if (Math.abs(deltaY) < LAUNCHER_DRAG_THRESHOLD_PX) return;
+    if (!launcherClickSuppressedRef.current) {
+      // Drag start: drop the press focus so the launcher's overflow tooltip
+      // neither re-shows on focus nor lingers under the hover-focus
+      // retention guard until the next click elsewhere (issue #465).
+      (event.currentTarget as HTMLElement).blur?.();
+    }
+    launcherClickSuppressedRef.current = true;
+    const maxOffset = Math.max(0, window.innerHeight - 160);
+    setLauncherOffsetY(Math.min(Math.max(0, dragState.originOffsetY + deltaY), maxOffset));
+  };
+  const handleLauncherPointerUp = () => {
+    launcherDragStateRef.current = null;
+  };
+  const handleLauncherClick = () => {
+    if (launcherClickSuppressedRef.current) {
+      launcherClickSuppressedRef.current = false;
+      return;
+    }
+    handleOpen();
+  };
   /** True while a press that may legitimately close the panel is in flight. */
   const backdropArmedRef = useRef(false);
   const isOpen = phase !== 'closed';
@@ -176,10 +216,6 @@ export const FloatingMiniChat: React.FC = () => {
       || lastTurn?.status === 'image_analyzing'
     );
   }, [displayedSession]);
-  const isMiniAppSessionExecuting = Boolean(
-    activeComposerClaim
-    && isFloatingMiniChatSessionExecuting(activeMiniAppSession),
-  );
 
   // Idempotent so it is safe to fire from several input paths at once, and so a
   // repeat press during the open animation can never toggle the panel back.
@@ -437,11 +473,6 @@ export const FloatingMiniChat: React.FC = () => {
   // panel animation, a stray pointer move on a trackpad) silently swallows the
   // press — which is what made the button need several tries. onClick is kept
   // for keyboard and assistive activation, where no pointer events fire.
-  const handleTriggerPointerDown = useCallback((e: React.PointerEvent) => {
-    if (e.button !== 0) return;
-    handleOpen();
-  }, [handleOpen]);
-
   // Mount the session surface only once the open transition has been handed to
   // the compositor, so ChatPane's mount cost can no longer stall the animation.
   useEffect(() => {
@@ -563,49 +594,24 @@ export const FloatingMiniChat: React.FC = () => {
 
       {/* Hello trigger — sits above the backdrop and the collapsed panel via
           an explicit z-index, and is taken out of hit testing with
-          `visibility` (not just pointer-events) while the panel is open. */}
-      {isMiniAppBubbleIsolated ? (
-        <button
-          data-bitfun-component="floating-mini-chat"
-          data-bitfun-part="trigger"
-          type="button"
-          data-testid="fmc-trigger-btn"
-          className={[
-            'bitfun-fmc__button',
-            'bitfun-fmc__button--miniapp',
-            isMiniAppSessionExecuting && 'bitfun-fmc__button--processing',
-          ].filter(Boolean).join(' ')}
-          onPointerDown={handleTriggerPointerDown}
-          onClick={handleOpen}
-          aria-expanded={isOpen}
-          aria-busy={isMiniAppSessionExecuting || undefined}
-          aria-label={displayedTitle}
-        >
-          {isMiniAppSessionExecuting && (
-            <span
-              className="bitfun-fmc__button-activity"
-              data-bitfun-component="floating-mini-chat"
-              data-bitfun-part="triggerActivity"
-              aria-hidden="true"
-            />
-          )}
-          <span
-            className="bitfun-fmc__miniapp-trigger-icon"
-            data-bitfun-component="floating-mini-chat"
-            data-bitfun-part="triggerIcon"
-            aria-hidden="true"
-          >
-            {renderMiniAppIcon(activeMiniAppIcon, 20)}
-          </span>
-        </button>
-      ) : (
+          `visibility` (not just pointer-events) while the panel is open.
+
+          The MiniApp trigger variant is intentionally gone: opening a MiniApp
+          used to swap this launcher for an app-chip button that outlived the
+          app; the launcher now stays the ordinary Hi button at all times
+          (issues #457 #475). */}
+      {(
         <LauncherButton
           aria-expanded={isOpen}
           aria-label={t('toolCards.toolbar.startNewChat')}
           data-testid="fmc-trigger-btn"
           className="bitfun-fmc__button bitfun-fmc__button--hello"
-          onClick={handleOpen}
-          onPointerDown={handleTriggerPointerDown}
+          onClick={handleLauncherClick}
+          onPointerDown={handleLauncherPointerDown}
+          onPointerMove={handleLauncherPointerMove}
+          onPointerUp={handleLauncherPointerUp}
+          onPointerCancel={handleLauncherPointerUp}
+          style={launcherOffsetY > 0 ? { bottom: `calc(20px + ${launcherOffsetY}px)` } : undefined}
         >
           <span
             aria-hidden="true"

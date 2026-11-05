@@ -210,7 +210,13 @@ const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
   const renderedRotationRef = useRef(rotation);
   const displaySize = displayedPageSize(size, zoom, rotation);
   const renderedDisplaySize = displayedPageSize(size, zoom, renderedRotationRef.current);
-  const rotateTransitionActive = rendering && Math.abs(rotation - renderedRotationRef.current) % 180 !== 0;
+  // Derived at render time from the ref (not from the async `rendering`
+  // state): the first commit carrying the new rotation must already keep the
+  // old box and CSS-rotate it, otherwise that one frame paints the previous
+  // bitmap stretched across the swapped box — the "font squashes first"
+  // artifact (issue #378).
+  const rotationPending = rotation !== renderedRotationRef.current;
+  const rotateTransitionActive = rotationPending && Math.abs(rotation - renderedRotationRef.current) % 180 !== 0;
   // While the async re-render is in flight, the whole page element (bitmap +
   // text layer) CSS-rotates as one rigid unit from the old orientation into
   // the new one, so canvas and text rotate together instead of the bitmap

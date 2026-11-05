@@ -57,6 +57,23 @@ test("the overlay kernel centralizes portal, stack, dismissal, focus, scroll loc
   assert.match(files[5], /PresenceState/);
 });
 
+test("a touch tap outside routes to mousedown interactions when the host suppresses the mouse sequence", async () => {
+  const source = await readFile(
+    new URL("../src/overlay/OverlayCoordinator.ts", import.meta.url),
+    "utf8",
+  );
+
+  // Issue #435: surfaces that own their outside dismissal through
+  // subscribeOverlayInteraction('mousedown') — for example the breadcrumb
+  // file dropdown — never saw a tap outside on touch hosts that consume the
+  // gesture on content surfaces and suppress the synthesized mousedown. The
+  // touchstart capture handler must route the tap to those interactions
+  // after the dismissible-layer check.
+  assert.match(source, /private handleTouchStart = \(event: TouchEvent\) => \{/);
+  assert.match(source, /if \(descriptor && this\.dismissOutside\(descriptor, target\)\) return;/);
+  assert.match(source, /this\.routeInteraction\("mousedown", event, top\);/);
+});
+
 test("overlay components consume the shared kernel instead of owning document dismissal", async () => {
   const [dialog, combobox, menu, tooltip] = await Promise.all([
     readFile(new URL("../src/components/Dialog/Dialog.tsx", import.meta.url), "utf8"),
