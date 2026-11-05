@@ -20,7 +20,7 @@ on:
       - open
       - update
       - reopen
-    branches: [main, release/2.0.0]
+    branches: [main]
   # Manual runs still allowed (e.g. first fetch warm-up or runner checks);
   # push triggers are intentionally absent.
   workflow_dispatch:
