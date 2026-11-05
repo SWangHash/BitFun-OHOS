@@ -53,7 +53,7 @@ import {
 } from '../utils/inlineAi';
 import { getCachedLocalImageDataUrl, loadLocalImages } from '../utils/loadLocalImages';
 import { isLocalPath, resolveImagePath } from '../utils/rehype-local-images';
-import { markdownToEditableTiptapDoc, tiptapDocToMarkdown, tiptapDocToTopLevelMarkdownBlocks } from '../utils/tiptapMarkdown';
+import { markdownToEditableTiptapDoc, tiptapDocToMarkdown, tiptapDocToTopLevelMarkdownBlocks, toExplicitRelativeHref } from '../utils/tiptapMarkdown';
 import '@/infrastructure/markdown/Markdown.scss';
 import './TiptapEditor.scss';
 
@@ -572,7 +572,28 @@ export const TiptapEditor = React.forwardRef<TiptapEditorHandle, TiptapEditorPro
       }),
       Link.extend({
         addAttributes() {
-          return { ...this.parent?.(), title: { default: null } };
+          const parent = (this.parent?.() ?? {}) as Record<string, unknown>;
+          return {
+            ...parent,
+            title: { default: null },
+            href: {
+              ...((parent.href ?? {}) as Record<string, unknown>),
+              // Bare relative hrefs render as the explicit "./" form so the
+              // webview's anchor click handling cannot tell them apart from
+              // links that already worked (issue #460 follow-up). The mark
+              // attribute — and therefore saved content — keeps the authored
+              // href; only the rendered DOM anchor is normalized.
+              renderHTML: (attributes: Record<string, unknown>) => {
+                const value = attributes.href;
+                return [
+                  'href',
+                  typeof value === 'string' && value !== ''
+                    ? toExplicitRelativeHref(value)
+                    : value,
+                ];
+              },
+            },
+          };
         },
       }).configure({
         openOnClick: false,
