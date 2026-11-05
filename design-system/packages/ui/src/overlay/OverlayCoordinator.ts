@@ -418,7 +418,15 @@ export class OverlayLayerStack {
     this.touchGestureTarget = target;
     const top = this.interactionTop(target);
     const descriptor = this.topDismissible(undefined, top);
-    if (descriptor) this.dismissOutside(descriptor, target);
+    if (descriptor && this.dismissOutside(descriptor, target)) return;
+    // Touch hosts that consume the gesture on content surfaces (the editor)
+    // never deliver the synthesized mousedown that
+    // subscribeOverlayInteraction('mousedown') surfaces — for example the
+    // breadcrumb file dropdown — rely on for outside dismissal (issue #435).
+    // Route the touchstart as that tap's mousedown; handlers that only read
+    // event.target behave identically. If the host also synthesizes the mouse
+    // sequence, the layer is already closed and the duplicate is a no-op.
+    this.routeInteraction("mousedown", event, top);
   };
   private handleMouseDown = (event: MouseEvent) => {
     const gesture = this.pointerGesture;
