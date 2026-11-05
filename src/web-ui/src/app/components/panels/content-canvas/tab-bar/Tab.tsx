@@ -3,7 +3,7 @@
  * Supports preview/active/pinned tab states.
  */
 
-import React, { useCallback, useContext } from 'react';
+import React, { useCallback, useContext, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { commandExecutor } from '@/shared/context-menu-system/commands/CommandExecutor';
@@ -120,7 +120,22 @@ export const Tab: React.FC<TabProps> = ({
   }, [onDoubleClick]);
 
   // Handle drag start
+  const dragImageRef = useRef<HTMLDivElement | null>(null);
   const handleDragStart = useCallback((e: React.DragEvent) => {
+    // Themed drag image: the default element snapshot loses themed CSS
+    // variables on some webviews and paints an unstyled white block
+    // (issue #409).
+    const dragImage = document.createElement('div');
+    dragImage.textContent = tab.title;
+    dragImage.style.position = 'absolute';
+    dragImage.style.top = '-1000px';
+    dragImage.style.padding = '6px 10px';
+    dragImage.style.background = 'var(--bitfun-color-surface-raised)';
+    dragImage.style.color = 'var(--bitfun-color-content-primary)';
+    dragImage.style.borderRadius = '6px';
+    document.body.appendChild(dragImage);
+    dragImageRef.current = dragImage;
+    e.dataTransfer.setDragImage(dragImage, 0, 0);
     e.dataTransfer.setData('application/json', JSON.stringify({
       tabId: tab.id,
       sourceGroupId: groupId,
@@ -128,7 +143,15 @@ export const Tab: React.FC<TabProps> = ({
     e.dataTransfer.effectAllowed = 'move';
     if (onPopOut && mode === 'agent') writeSessionTabDrag(e.dataTransfer, tab.id, groupId);
     onDragStart(e);
-  }, [tab.id, groupId, onDragStart, onPopOut, mode]);
+  }, [tab.id, tab.title, groupId, onDragStart, onPopOut, mode]);
+
+  const handleDragEndCleanup = useCallback(() => {
+    if (dragImageRef.current && document.body.contains(dragImageRef.current)) {
+      document.body.removeChild(dragImageRef.current);
+      dragImageRef.current = null;
+    }
+    onDragEnd();
+  }, [onDragEnd]);
 
   const runCommand = useCallback((commandId: string, context: TabContext) => {
     void commandExecutor.execute(commandId, context);
@@ -358,7 +381,7 @@ export const Tab: React.FC<TabProps> = ({
         }}
         draggable
         onDragStart={handleDragStart}
-        onDragEnd={onDragEnd}
+        onDragEnd={handleDragEndCleanup}
       >
         {children}
       </div>
