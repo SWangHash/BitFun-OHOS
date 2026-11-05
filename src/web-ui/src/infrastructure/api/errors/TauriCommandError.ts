@@ -206,6 +206,22 @@ export function isGitUnavailableError(error: unknown): boolean {
   return hasStableErrorPrefix(error, GIT_UNAVAILABLE_PREFIX);
 }
 
+const REMOTE_WORKSPACE_CONNECTION_CONFLICT_PREFIX = 'remote_workspace_connection_conflict:';
+
+/**
+ * Identifies a remote workspace record bound to another saved SSH connection.
+ * The host keeps the record until the user confirms moving it.
+ */
+export function isRemoteWorkspaceConnectionConflictError(error: unknown): boolean {
+  return hasStableErrorPrefix(error, REMOTE_WORKSPACE_CONNECTION_CONFLICT_PREFIX);
+}
+
+/** Connection that currently owns the conflicting remote workspace record. */
+export function remoteWorkspaceConnectionConflictOwner(error: unknown): string | undefined {
+  const payload = stableErrorPayload(error, REMOTE_WORKSPACE_CONNECTION_CONFLICT_PREFIX);
+  return payload?.match(/bound to SSH connection (\S+);/)?.[1];
+}
+
 /** Stable Review-platform failure kind, preserved through transport wrappers. */
 export function reviewPlatformErrorCode(error: unknown): string | undefined {
   return stableErrorPayload(error, REVIEW_PLATFORM_ERROR_PREFIX)?.split(':', 1)[0].trim();
