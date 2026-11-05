@@ -17,6 +17,7 @@ import {
   resolveStorageTurnIndex,
 } from '../utils/flowChatTurnIdentity';
 import type { Session } from '../types/flow-chat';
+import { isAcpFlowSession } from '../utils/acpSession';
 import type { SessionTurnCatalog } from '@/shared/types/session-history';
 import { pendingQueueManager } from './flow-chat-manager/PendingQueueModule';
 import { resolveSessionDriverId } from '../session-drivers/resolve';
@@ -102,6 +103,9 @@ export async function rollbackSessionToTurn(
     const session = flowChatStore.getState().sessions.get(request.sessionId);
     if (!session) {
       throw new Error(`Session does not exist: ${request.sessionId}`);
+    }
+    if (isAcpFlowSession(session)) {
+      throw new Error('History rollback is unavailable for ACP sessions');
     }
     const target = resolveMaterializedSessionTurnIdentity(
       session,

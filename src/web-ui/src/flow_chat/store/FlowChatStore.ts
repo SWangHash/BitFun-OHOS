@@ -86,7 +86,7 @@ import {
 import { sessionProjectWorkspaceId, sessionProjectWorkspacePath } from '../utils/sessionWorkspace';
 import type { SessionTitleDescriptor } from '../utils/sessionTitle';
 import { deriveContextUsageFromTurns } from '../utils/tokenUsageDisplay';
-import { isAcpAgentType } from '../utils/acpSession';
+import { acpAgentTypeFromMetadata, isAcpAgentType } from '../utils/acpSession';
 import {
   deriveSessionTitleState,
   deriveSessionTitleStateFromMetadata,
@@ -7244,7 +7244,7 @@ export class FlowChatStore {
             return { ...prev, sessions };
           }
 
-          const rawAgentType = metadata.agentType || 'Standard';
+          const rawAgentType = acpAgentTypeFromMetadata(metadata) ?? (metadata.agentType || 'Standard');
           const validatedAgentType = isValidPersistedAgentType(rawAgentType) ? rawAgentType : 'Standard';
           const restoredCurrentTokenUsage = isAcpAgentType(validatedAgentType)
             ? undefined
@@ -7702,7 +7702,7 @@ export class FlowChatStore {
               return { ...prev, sessions };
             }
 
-            const rawAgentType = metadata.agentType || 'Standard';
+            const rawAgentType = acpAgentTypeFromMetadata(metadata) ?? (metadata.agentType || 'Standard');
             const validatedAgentType = isValidPersistedAgentType(rawAgentType) ? rawAgentType : 'Standard';
             const restoredCurrentTokenUsage = isAcpAgentType(validatedAgentType)
               ? undefined

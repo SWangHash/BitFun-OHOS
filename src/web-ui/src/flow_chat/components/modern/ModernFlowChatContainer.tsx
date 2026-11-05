@@ -976,6 +976,7 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
     isHistoricalSession: activeSessionIsHistorical,
     contextRestoreState: activeSessionContextRestoreState,
     allowUserMessageRollback,
+    allowUserMessageEdit: allowUserMessageRollback,
     onExploreGroupToggle: handleExploreGroupToggle,
     onExpandGroup: handleExpandGroup,
     onExpandAllInTurn: handleExpandAllInTurn,

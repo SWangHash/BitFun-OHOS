@@ -2472,9 +2472,6 @@ pub async fn update_session_title(
 fn desktop_update_session_title_error(error: DesktopSessionApplicationError) -> String {
     match error {
         DesktopSessionApplicationError::Validation(message) => message,
-        DesktopSessionApplicationError::RestoreBeforeRename(message) => {
-            format!("Failed to restore session before renaming: {message}")
-        }
         DesktopSessionApplicationError::OutcomeUnknown(message) => {
             format!("outcome_unknown: {message}")
         }

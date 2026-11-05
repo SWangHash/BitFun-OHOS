@@ -1,4 +1,5 @@
 import type { Session } from '../types/flow-chat';
+import type { SessionMetadata } from '@/shared/types/session-history';
 
 const ACP_AGENT_TYPE_PREFIX = 'acp:';
 
@@ -12,6 +13,19 @@ export function acpClientIdFromAgentType(agentType: string | null | undefined): 
 
 export function isAcpAgentType(agentType: string | null | undefined): boolean {
   return acpClientIdFromAgentType(agentType) !== null;
+}
+
+export function acpAgentTypeFromMetadata(
+  metadata: Pick<SessionMetadata, 'agentType' | 'customMetadata'>,
+): string | null {
+  const persistedClientId = acpClientIdFromAgentType(metadata.agentType);
+  if (persistedClientId) return `${ACP_AGENT_TYPE_PREFIX}${persistedClientId}`;
+  if (metadata.customMetadata?.provider !== 'acp') return null;
+
+  const clientId = metadata.customMetadata.acpClientId;
+  return typeof clientId === 'string' && clientId.trim()
+    ? `${ACP_AGENT_TYPE_PREFIX}${clientId.trim()}`
+    : null;
 }
 
 export function acpAgentTypeFromSession(
