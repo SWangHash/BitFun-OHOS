@@ -318,7 +318,7 @@ mod tests {
         let workspace = temp.path().join("workspace");
         let runtime_root = temp.path().join("runtime");
         let terminal_root = temp.path().join("terminals");
-        let plan = workspace.join(".openbitfun/plans/plan.plan.md");
+        let plan = workspace.join(".bitfun/plans/plan.plan.md");
         let reference = runtime_root.join("sessions/session-1/artifacts/session-references/ref.md");
         let compression =
             runtime_root.join("sessions/session-1/artifacts/compression-transcripts/turn.md");
@@ -378,7 +378,7 @@ mod tests {
         let temp = tempfile::tempdir().expect("temp dir");
         let workspace = temp.path().join("workspace");
         let runtime_root = temp.path().join("runtime");
-        let plan = workspace.join(".openbitfun/plans/plan.plan.md");
+        let plan = workspace.join(".bitfun/plans/plan.plan.md");
         let transcript =
             runtime_root.join("sessions/session-1/artifacts/compression-transcripts/turn.md");
         fs::create_dir_all(&workspace).expect("workspace dir");
@@ -445,7 +445,7 @@ mod tests {
     fn project_bitfun_files_are_not_globally_exempt_from_edit_permission() {
         let temp = tempfile::tempdir().expect("temp dir");
         let workspace = temp.path().join("workspace");
-        let config_file = workspace.join(".openbitfun/config/settings.json");
+        let config_file = workspace.join(".bitfun/config/settings.json");
         fs::create_dir_all(config_file.parent().expect("config parent")).expect("config dir");
         fs::write(&config_file, "{}").expect("config file");
 

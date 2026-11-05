@@ -138,8 +138,7 @@ if [ "$DEBUG_BUILD" = "1" ]; then
 fi
 cargo tauri ohos build $TAURI_BUILD_ARGS || echo "==> cargo tauri ohos build 非零退出（打包阶段失败可忽略），继续执行"
 
-# so 名按分支自动适配：main 分支为 libbitfun_desktop_lib.so，
-# 2.0.0 分支已改名为 libopenbitfun_desktop_lib.so，这里用通配探测，无需写死；
+# so 名按分支自动适配：main 分支与 2.0.0 分支均为 libbitfun_desktop_lib.so，这里用通配探测，无需写死；
 # so 所在 profile 目录跟随 --debug：release 或 debug
 if [ "$DEBUG_BUILD" = "1" ]; then
   SO_DIR=$workpath/$repo_dir/target/aarch64-unknown-linux-ohos/debug

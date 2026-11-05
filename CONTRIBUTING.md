@@ -75,7 +75,7 @@ pnpm run e2e:test
 
 Both launchers use the installed app's data by default, including existing model
 settings, workspaces, and sessions. Use `--isolated-data` for persistent test data
-under the current checkout's `.openbitfun/desktop-dev/` directory. Explicit
+under the current checkout's `.bitfun/desktop-dev/` directory. Explicit
 storage environment overrides still take precedence; `--shared-data` remains a
 compatible way to request the default mode.
 

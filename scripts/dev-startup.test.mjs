@@ -56,8 +56,8 @@ test('explicitly isolated desktop development uses persistent storage scoped to 
   const storage = resolveDesktopDevStorageEnvironment({}, root, 'isolated');
   assert.deepEqual(storage, {
     BITFUN_DESKTOP_HOST_CHANNEL: 'development',
-    BITFUN_USER_ROOT: join(root, '.openbitfun', 'desktop-dev', 'user'),
-    BITFUN_HOME: join(root, '.openbitfun', 'desktop-dev', 'home'),
+    BITFUN_USER_ROOT: join(root, '.bitfun', 'desktop-dev', 'user'),
+    BITFUN_HOME: join(root, '.bitfun', 'desktop-dev', 'home'),
   });
   assert.deepEqual(resolveDesktopDevStorageEnvironment({}, root, 'isolated'), storage);
   const other = resolveDesktopDevStorageEnvironment({}, join(root, 'worktree'), 'isolated');
@@ -87,7 +87,7 @@ test('desktop development preserves explicit and legacy isolated storage overrid
   }, root, 'isolated'), {
     ...channel,
     BITFUN_USER_ROOT: explicit.BITFUN_USER_ROOT,
-    BITFUN_HOME: join(root, '.openbitfun', 'desktop-dev', 'home'),
+    BITFUN_HOME: join(root, '.bitfun', 'desktop-dev', 'home'),
   });
 });
 

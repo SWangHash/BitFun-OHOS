@@ -10,7 +10,7 @@ BitFun 是一个开源的跨平台 Agent 工作台：高效稳健的 **Rust Agen
 
 它原生支持 **Windows**、**macOS** 与 **HarmonyOS PC**，并自带鸿蒙宿主、平台桥接与鸿蒙开发工具链。
 
-[官网](https://www.bitfun.work/) | [下载](https://www.openbitfun.com/download) | [参与共建](./CONTRIBUTING_CN.md) | [版本说明](./RELEASE_NOTES.md)
+[官网](https://www.bitfun.work/) | [下载](https://gitcode.com/OpenBitFun/bitfun_ade/releases) | [参与共建](./CONTRIBUTING_CN.md) | [版本说明](./RELEASE_NOTES.md)
 
 [![Core code: MIT](https://img.shields.io/badge/core_code-MIT-yellow?style=flat-square)](./LICENSE)
 [![官网](https://img.shields.io/badge/%E5%AE%98%E7%BD%91-bitfun.work-0b7285?style=flat-square)](https://www.bitfun.work/)

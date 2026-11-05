@@ -564,7 +564,7 @@
               "built-in-actions": "Enable and tune the built-in Commit and Create Pull Request quick actions",
               "custom-actions": "Add, edit, and delete custom post-coding quick actions and prompts",
               "hooks-enabled": "Enable or disable agent lifecycle hooks globally",
-              "project-hooks": "Enable project-level .openbitfun/config/hooks.json separately for trusted repositories",
+              "project-hooks": "Enable project-level .bitfun/config/hooks.json separately for trusted repositories",
               "hook-files": "Locate user and project hook configuration files and apply edits without restarting",
               "hook-events": "Run handlers on Codex hook events for sessions, agents, tools, permissions, and user input",
               "external-hooks": "Inspect read-only external-AI hook catalogs and choose entries to import",

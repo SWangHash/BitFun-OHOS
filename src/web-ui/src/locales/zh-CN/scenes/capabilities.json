@@ -564,7 +564,7 @@
               "built-in-actions": "启用和调整内置的提交与创建 Pull Request 快捷操作",
               "custom-actions": "添加、编辑和删除自定义编码后快捷操作及 Prompt",
               "hooks-enabled": "整体启用或停用智能体生命周期 Hooks",
-              "project-hooks": "对可信仓库单独启用项目级 .openbitfun/config/hooks.json",
+              "project-hooks": "对可信仓库单独启用项目级 .bitfun/config/hooks.json",
               "hook-files": "定位用户级和项目级 Hooks 配置文件并在修改后即时生效",
               "hook-events": "在会话、智能体、工具、权限和用户输入等 Codex Hook 事件上运行处理器",
               "external-hooks": "查看外部 AI 应用的只读 Hook 目录并选择导入项",

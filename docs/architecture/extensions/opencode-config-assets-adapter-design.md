@@ -232,7 +232,7 @@ OpenCode adapter 在来源发现、解析和审批前不 import module、不读�
 `~/.claude/CLAUDE.md`；再按 `config.json`、`opencode.json`、`opencode.jsonc` 顺序合并，后出现的 `instructions`
 数组覆盖前者。最终数组支持 workspace 相对、`~/`、绝对本地精确文件和有界 glob；HTTP/HTTPS 项直接拒绝，不下载、
 缓存或探测网络。Product Assembly 依次合成 OpenCode、BitFun 原生或 Codex、Claude Code 用户来源，再追加项目来源，并按 canonical path
-保留首项。BitFun 从既有 product home（默认 `~/.openbitfun`，遵循 `BITFUN_HOME`）读取 `AGENTS.md`：非空时跳过
+保留首项。BitFun 从既有 product home（默认 `~/.bitfun`，遵循 `BITFUN_HOME`）读取 `AGENTS.md`：非空时跳过
 整个 Codex 用户指令来源，缺失或仅含空白时回退 Codex 原有的 override/base 选择。原生文件读取失败时隔离该来源、记录诊断并禁止缓存，
 不静默替换成 Codex 指令；下次消息重试。来源目录复用同一选择逻辑，原生来源标记为 `bitfun`。
 非递归 glob 只遍历模式所需层级；递归 glob 超出固定扫描预算时只跳过该项，保留此前已读取的用户来源。

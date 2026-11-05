@@ -610,7 +610,7 @@ pnpm run desktop:preview:debug
 ```
 
 Use `--isolated-data` for separate development data under the current checkout's
-`.openbitfun/desktop-dev/{user,home}` directories. Existing isolated data stays in
+`.bitfun/desktop-dev/{user,home}` directories. Existing isolated data stays in
 place and remains accessible with this flag; switching modes does not move or
 delete sessions. Explicit storage environment overrides remain authoritative,
 and `--shared-data` is still accepted as an explicit alias for the default.

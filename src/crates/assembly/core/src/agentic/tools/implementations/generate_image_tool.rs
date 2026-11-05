@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 use tokio::fs;
 
 /// Workspace-relative directory that receives generated images.
-const OUTPUT_DIR_COMPONENTS: [&str; 2] = [".openbitfun", "generated-images"];
+const OUTPUT_DIR_COMPONENTS: [&str; 2] = [".bitfun", "generated-images"];
 
 pub struct GenerateImageTool;
 
@@ -501,7 +501,7 @@ mod tests {
         assert_eq!(
             directory,
             std::path::Path::new("/repo")
-                .join(".openbitfun")
+                .join(".bitfun")
                 .join("generated-images")
         );
     }

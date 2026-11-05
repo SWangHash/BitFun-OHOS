@@ -72,7 +72,7 @@ pnpm run e2e:test
 
 两种启动器默认使用安装版的日常数据，包括已有模型设置、工作区和会话。
 需要独立测试数据时，显式添加 `--isolated-data`，数据保存在当前仓库的
-`.openbitfun/desktop-dev/` 下。显式设置的数据目录环境变量仍优先生效；
+`.bitfun/desktop-dev/` 下。显式设置的数据目录环境变量仍优先生效；
 `--shared-data` 保留为默认模式的兼容写法。
 
 > 完整脚本列表见 [`package.json`](package.json)。agent 专用命令、验证与架构规则见 [`AGENTS.md`](AGENTS.md)。

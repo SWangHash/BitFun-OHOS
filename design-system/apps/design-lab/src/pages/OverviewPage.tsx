@@ -91,7 +91,7 @@ export function OverviewPage({ onNavigate, colorScheme, contrast, density, token
   const previewSessions: readonly PreviewSessionRow[] = [
     { id: "claw", icon: "user", name: "Claw" },
     { id: "claw-session", indent: true, name: "New Claw Session" },
-    { id: "openbitfun", icon: "folder", name: "BitFun" },
+    { id: "bitfun", icon: "folder", name: "BitFun" },
     { id: "bitfun-session", indent: true, name: "New Code Session" },
     { id: "bitfun-welcome", indent: true, name: t("design.homePreview.welcome"), selected: true },
     { id: "bitfun-more", name: t("design.homePreview.showMore"), metadata: <NumberBadge value="+14" /> },

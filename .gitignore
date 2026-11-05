@@ -118,7 +118,6 @@ src/apps/mobile/android/local.properties
 src/apps/mobile/android/.kotlin/
 /src/apps/mobile/ios/build/
 .bitfun/
-.bitfun/
 
 # Downloaded Flashgrep release assets (metadata stays tracked).
 /resources/flashgrep/flashgrep-*

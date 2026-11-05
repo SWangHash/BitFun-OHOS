@@ -345,7 +345,7 @@ By default (or with `--shared-data`), both desktop development launchers leave
 storage selection to the app so existing settings, workspaces and sessions are
 visible. Only `--isolated-data` sets `BITFUN_USER_ROOT` and `BITFUN_HOME`
 before spawning children, defaulting to the checkout-local
-`.openbitfun/desktop-dev/{user,home}` directories. Keep existing isolated data in
+`.bitfun/desktop-dev/{user,home}` directories. Keep existing isolated data in
 place; switching modes must not move, merge or delete it. The two flags are mutually exclusive. Preserve explicit
 overrides and the legacy E2E aliases in both modes. Development launchers set
 `BITFUN_DESKTOP_HOST_CHANNEL=development`: its MiniApp lease, discovery and

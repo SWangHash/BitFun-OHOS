@@ -10,7 +10,7 @@ BitFun is an open-source, cross-platform Agent workspace. A fast, reliable **Rus
 
 It runs natively on **Windows**, **macOS**, and **HarmonyOS PC**, with a HarmonyOS host, platform bridges, and a HarmonyOS development toolchain of its own.
 
-[Website](https://www.bitfun.work/) | [Download](https://www.openbitfun.com/download) | [Contribute](./CONTRIBUTING.md) | [Release notes](./RELEASE_NOTES.md)
+[Website](https://www.bitfun.work/) | [Download](https://gitcode.com/OpenBitFun/bitfun_ade/releases) | [Contribute](./CONTRIBUTING.md) | [Release notes](./RELEASE_NOTES.md)
 
 [![Core code: MIT](https://img.shields.io/badge/core_code-MIT-yellow?style=flat-square)](./LICENSE)
 [![Website](https://img.shields.io/badge/website-bitfun.work-0b7285?style=flat-square)](https://www.bitfun.work/)
