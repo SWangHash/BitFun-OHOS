@@ -101,6 +101,7 @@ use bitfun_agent_runtime::remote_file_delivery::{
 };
 use bitfun_agent_runtime::sdk::PermissionReply;
 use bitfun_agent_runtime::user_questions::USER_INPUT_AVAILABLE_CONTEXT_KEY;
+use bitfun_core_types::{SESSION_PROVIDER_ACP, SESSION_PROVIDER_METADATA_KEY};
 use bitfun_events::{ToolEventData, ToolEventIdentity};
 use bitfun_observability::domains::{
     record_session_config, start_session, CompletionFacts, SessionClass, SessionConfigFacts,
@@ -2742,7 +2743,10 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         config.workspace_path = Some(workspace_path.clone());
         crate::agentic::workspace::normalize_session_workspace(&mut config).await?;
         let normalize_ms = perf_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
-        info!("session_perf create_session phase=normalize_workspace duration_ms={}", normalize_ms);
+        info!(
+            "session_perf create_session phase=normalize_workspace duration_ms={}",
+            normalize_ms
+        );
         let resolve_agent_start = Instant::now();
         self.ensure_runtime_ownership(
             Path::new(&workspace_path),
@@ -2764,8 +2768,14 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             expected_route_key.as_deref(),
         )
         .await?;
-        let resolve_agent_ms = resolve_agent_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
-        info!("session_perf create_session phase=resolve_primary_agent duration_ms={}", resolve_agent_ms);
+        let resolve_agent_ms = resolve_agent_start
+            .elapsed()
+            .as_millis()
+            .min(u64::MAX as u128) as u64;
+        info!(
+            "session_perf create_session phase=resolve_primary_agent duration_ms={}",
+            resolve_agent_ms
+        );
         config.agent_route_owner = primary_agent_binding.route_owner;
         config.agent_route_key = primary_agent_binding.route_key.clone();
         apply_primary_agent_model_default(
@@ -2797,8 +2807,14 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 )
                 .await?
         };
-        let session_create_ms = session_create_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
-        info!("session_perf create_session phase=session_manager_create duration_ms={}", session_create_ms);
+        let session_create_ms = session_create_start
+            .elapsed()
+            .as_millis()
+            .min(u64::MAX as u128) as u64;
+        info!(
+            "session_perf create_session phase=session_manager_create duration_ms={}",
+            session_create_ms
+        );
 
         let track_start = Instant::now();
         if !transient {
@@ -2810,7 +2826,10 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .await;
         }
         let track_ms = track_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
-        info!("session_perf create_session phase=track_workspace_activity duration_ms={}", track_ms);
+        info!(
+            "session_perf create_session phase=track_workspace_activity duration_ms={}",
+            track_ms
+        );
 
         // SessionManager::create_session_with_id_and_creator already persists the
         // session into the effective workspace session storage path. Avoid writing
@@ -2834,9 +2853,15 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         let hooks_start = Instant::now();
         Self::dispatch_session_start_hooks(&session, "startup").await;
         let hooks_ms = hooks_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
-        info!("session_perf create_session phase=dispatch_session_start_hooks duration_ms={}", hooks_ms);
+        info!(
+            "session_perf create_session phase=dispatch_session_start_hooks duration_ms={}",
+            hooks_ms
+        );
         let total_ms = perf_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
-        info!("session_perf create_session total_duration_ms={} session_id={}", total_ms, session.session_id);
+        info!(
+            "session_perf create_session total_duration_ms={} session_id={}",
+            total_ms, session.session_id
+        );
         Ok(session)
     }
 
@@ -13814,6 +13839,55 @@ impl bitfun_runtime_ports::AgentSessionManagementPort for ConversationCoordinato
             .map_err(runtime_port_error_preserving_message)?;
 
         let session_manager = self.get_session_manager();
+        let metadata = session_manager
+            .load_session_metadata(&effective_storage_path, &request.session_id)
+            .await
+            .map_err(runtime_port_error_preserving_message)?;
+        if metadata.as_ref().is_some_and(|metadata| {
+            metadata.agent_type.starts_with("acp:")
+                || metadata
+                    .custom_metadata
+                    .as_ref()
+                    .and_then(|custom| custom.get(SESSION_PROVIDER_METADATA_KEY))
+                    .and_then(serde_json::Value::as_str)
+                    == Some(SESSION_PROVIDER_ACP)
+        }) {
+            let title = request.session_name.trim();
+            if title.is_empty() {
+                return Err(bitfun_runtime_ports::PortError::new(
+                    bitfun_runtime_ports::PortErrorKind::InvalidRequest,
+                    "Session title must not be empty",
+                ));
+            }
+            let _mutation = session_manager
+                .acquire_session_mutation(&request.session_id)
+                .await
+                .map_err(runtime_port_error_preserving_message)?;
+            session_manager
+                .validate_session_storage_path_binding(&request.session_id, &effective_storage_path)
+                .map_err(runtime_port_error_preserving_message)?;
+            let last_active_at = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as u64;
+            session_manager
+                .persistence_manager()
+                .update_session_title_metadata(
+                    &effective_storage_path,
+                    &request.session_id,
+                    title,
+                    last_active_at,
+                )
+                .await
+                .map_err(runtime_port_error_preserving_message)?;
+            self.emit_event(AgenticEvent::SessionTitleGenerated {
+                session_id: request.session_id,
+                title: title.to_string(),
+                method: "manual".to_string(),
+            })
+            .await;
+            return Ok(());
+        }
         if !session_manager
             .is_session_loaded_from_storage_path(&effective_storage_path, &request.session_id)
             .map_err(runtime_port_error_preserving_message)?
@@ -19934,6 +20008,78 @@ mod tests {
         assert_eq!(created.config.model_id.as_deref(), Some("explicit-model"));
 
         let _ = std::fs::remove_dir_all(workspace_path);
+    }
+
+    #[tokio::test]
+    async fn agent_session_management_port_renames_acp_without_native_restore() {
+        let (coordinator, session_manager) = test_coordinator();
+        let workspace = tempfile::tempdir().expect("workspace");
+        let workspace_record =
+            crate::service::workspace::legacy_compat::register_local_fixture_blocking(
+                workspace.path(),
+            );
+        let storage_path = coordinator
+            .session_storage_for_reference(Some(&workspace_record.id), "", None, None)
+            .await
+            .unwrap();
+        let session_id = uuid::Uuid::new_v4().to_string();
+        let session = crate::agentic::core::Session::new_with_id(
+            session_id.clone(),
+            "ACP session".to_string(),
+            "acp:codex".to_string(),
+            SessionConfig {
+                workspace_id: Some(workspace_record.id.clone()),
+                workspace_path: Some(workspace.path().to_string_lossy().to_string()),
+                ..Default::default()
+            },
+        );
+        let persistence = session_manager.persistence_manager();
+        persistence
+            .save_session(&storage_path, &session)
+            .await
+            .unwrap();
+        let binding = serde_json::json!({
+            "provider": "acp",
+            "acpClientId": "codex",
+            "acpRemoteSessionId": "saved-remote-session",
+            "extra": { "retained": true }
+        });
+        persistence
+            .update_session_metadata(&storage_path, &session_id, |metadata| {
+                metadata.custom_metadata = Some(binding.clone());
+            })
+            .await
+            .unwrap();
+
+        bitfun_runtime_ports::AgentSessionManagementPort::rename_session(
+            &coordinator,
+            bitfun_runtime_ports::AgentSessionRenameRequest {
+                workspace_id: Some(workspace_record.id),
+                workspace_path: String::new(),
+                session_id: session_id.clone(),
+                session_name: "  Renamed ACP  ".to_string(),
+                remote_connection_id: None,
+                remote_ssh_host: None,
+            },
+        )
+        .await
+        .expect("ACP rename should update only metadata");
+
+        let metadata = persistence
+            .load_session_metadata(&storage_path, &session_id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(metadata.session_name, "Renamed ACP");
+        assert_eq!(metadata.agent_type, "acp:codex");
+        assert_eq!(metadata.custom_metadata, Some(binding));
+        assert!(session_manager.get_session(&session_id).is_none());
+        let events = coordinator.event_queue.dequeue_batch(10).await;
+        assert!(events.iter().any(|envelope| matches!(
+            &envelope.event,
+            AgenticEvent::SessionTitleGenerated { session_id: id, title, method }
+                if id == &session_id && title == "Renamed ACP" && method == "manual"
+        )));
     }
 
     #[tokio::test]

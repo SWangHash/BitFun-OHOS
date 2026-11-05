@@ -1,8 +1,27 @@
 import { describe, expect, it } from 'vitest';
 
-import { acpAgentTypeFromSession, isAcpFlowSession } from './acpSession';
+import { acpAgentTypeFromMetadata, acpAgentTypeFromSession, isAcpFlowSession } from './acpSession';
 
 describe('acpSession utilities', () => {
+  it('uses an explicit persisted ACP binding only when no ACP agent type remains', () => {
+    expect(acpAgentTypeFromMetadata({
+      agentType: 'acp:opencode',
+      customMetadata: { provider: 'acp', acpClientId: 'codex' },
+    })).toBe('acp:opencode');
+    expect(acpAgentTypeFromMetadata({
+      agentType: 'Standard',
+      customMetadata: { provider: 'acp', acpClientId: 'codex' },
+    })).toBe('acp:codex');
+    expect(acpAgentTypeFromMetadata({
+      agentType: 'Standard',
+      customMetadata: { acpClientId: 'codex' },
+    })).toBeNull();
+    expect(acpAgentTypeFromMetadata({
+      agentType: 'Standard',
+      customMetadata: { provider: 'acp' },
+    })).toBeNull();
+  });
+
   it('resolves ACP agent type from session config first', () => {
     expect(
       acpAgentTypeFromSession({

@@ -66,8 +66,6 @@ pub(crate) enum DesktopSessionApplicationError {
     Core(String),
     #[error("{0}")]
     Runtime(String),
-    #[error("{0}")]
-    RestoreBeforeRename(String),
     #[error("outcome_unknown: {0}")]
     OutcomeUnknown(String),
     #[error("session_in_use: {0}")]
@@ -78,11 +76,9 @@ pub(crate) type DesktopSessionApplicationResult<T> = Result<T, DesktopSessionApp
 
 fn desktop_core_session_error(error: BitFunError) -> DesktopSessionApplicationError {
     match error {
-        BitFunError::SessionInUse { session_id } => {
-            DesktopSessionApplicationError::SessionInUse(format!(
-                "Session is already open for writing: {session_id}"
-            ))
-        }
+        BitFunError::SessionInUse { session_id } => DesktopSessionApplicationError::SessionInUse(
+            format!("Session is already open for writing: {session_id}"),
+        ),
         BitFunError::OutcomeUnknown(message) => {
             DesktopSessionApplicationError::OutcomeUnknown(message)
         }
@@ -695,19 +691,6 @@ impl DesktopSessionApplication {
         if let Some(request) = request {
             let scope = self.resolved_scope(request).await?;
             self.ensure_runtime_ownership(&scope)?;
-            if !self
-                .compatibility
-                .is_session_loaded_in_memory(&session_id)
-                .map_err(|error| DesktopSessionApplicationError::Core(error.to_string()))?
-            {
-                let storage_path = self.storage_path(&scope);
-                self.compatibility
-                    .restore_session_from_storage_path(&storage_path, &session_id, false)
-                    .await
-                    .map_err(|error| {
-                        DesktopSessionApplicationError::RestoreBeforeRename(error.to_string())
-                    })?;
-            }
             self.agent_runtime
                 .rename_session(AgentSessionRenameRequest {
                     workspace_id: Some(scope.workspace_id.clone()),
@@ -962,11 +945,10 @@ mod tests {
 
     #[test]
     fn session_writer_conflict_keeps_a_stable_desktop_transport_code() {
-        let error = desktop_core_session_error(
-            bitfun_core::util::errors::BitFunError::SessionInUse {
+        let error =
+            desktop_core_session_error(bitfun_core::util::errors::BitFunError::SessionInUse {
                 session_id: "session-1".to_string(),
-            },
-        );
+            });
 
         assert!(matches!(
             error,
@@ -1240,10 +1222,7 @@ mod tests {
         let tauri_state = ["tauri", "::", "State"].concat();
         assert!(!source.contains(&tauri_namespace));
         assert!(!source.contains(&tauri_state));
-        for forbidden in [
-            ["crate", "::", "api"].concat(),
-            ["bitfun", "_acp"].concat(),
-        ] {
+        for forbidden in [["crate", "::", "api"].concat(), ["bitfun", "_acp"].concat()] {
             assert!(!source.contains(&forbidden), "unexpected {forbidden}");
         }
         for forbidden in [

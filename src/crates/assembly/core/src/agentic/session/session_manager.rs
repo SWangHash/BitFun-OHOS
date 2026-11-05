@@ -52,7 +52,10 @@ use crate::service::workspace::{get_global_workspace_service, WorkspaceInfo};
 use crate::util::errors::{BitFunError, BitFunResult};
 use crate::util::sanitize_plain_model_output;
 use crate::util::timing::elapsed_ms_u64;
-use bitfun_core_types::{ModelRequestContext, SessionExecutionTarget};
+use bitfun_core_types::{
+    ModelRequestContext, SessionExecutionTarget, SESSION_PROVIDER_ACP,
+    SESSION_PROVIDER_METADATA_KEY,
+};
 pub use bitfun_runtime_ports::SessionViewRestoreTiming;
 use bitfun_runtime_ports::{
     AgentTurnSettlementResult, PermissionMode, SessionStoragePathRequest, SessionStorePort,
@@ -5973,6 +5976,19 @@ impl SessionManager {
                 "Session not found: {}",
                 session_id
             )));
+        }
+        if session_metadata.as_ref().is_some_and(|metadata| {
+            metadata.agent_type.starts_with("acp:")
+                || metadata
+                    .custom_metadata
+                    .as_ref()
+                    .and_then(|custom| custom.get(SESSION_PROVIDER_METADATA_KEY))
+                    .and_then(serde_json::Value::as_str)
+                    == Some(SESSION_PROVIDER_ACP)
+        }) {
+            return Err(BitFunError::validation(
+                "ACP sessions must be restored by the ACP client",
+            ));
         }
         let listing_baseline_rebuild_turn_index =
             Self::listing_baseline_rebuild_turn_index_from_metadata(session_metadata.as_ref());
@@ -13971,6 +13987,91 @@ mod tests {
             .expect("active session after update");
         assert_eq!(after.updated_at, before_updated_at);
         assert_eq!(after.last_activity_at, before_last_activity_at);
+    }
+
+    #[tokio::test]
+    async fn native_restore_rejects_acp_without_changing_metadata_or_history() {
+        for (agent_type, custom_metadata) in [
+            ("acp:codex", None),
+            (
+                "Standard",
+                Some(json!({
+                    "provider": "acp",
+                    "acpClientId": "codex",
+                    "acpRemoteSessionId": "saved-remote-session"
+                })),
+            ),
+        ] {
+            let workspace = TestWorkspace::new();
+            let persistence_manager = Arc::new(
+                PersistenceManager::new(workspace.path_manager()).expect("persistence manager"),
+            );
+            let manager = test_manager(persistence_manager.clone());
+            let session_id = Uuid::new_v4().to_string();
+            let session = Session::new_with_id(
+                session_id.clone(),
+                "ACP history".to_string(),
+                agent_type.to_string(),
+                SessionConfig {
+                    workspace_path: Some(workspace.path().to_string_lossy().to_string()),
+                    ..Default::default()
+                },
+            );
+            persistence_manager
+                .save_session(workspace.path(), &session)
+                .await
+                .unwrap();
+            persistence_manager
+                .update_session_metadata(workspace.path(), &session_id, |metadata| {
+                    metadata.custom_metadata = custom_metadata;
+                })
+                .await
+                .unwrap();
+            let turn = DialogTurnData::new(
+                "turn-1".to_string(),
+                0,
+                session_id.clone(),
+                UserMessageData {
+                    id: "user-1".to_string(),
+                    content: "saved message".to_string(),
+                    timestamp: 1,
+                    metadata: None,
+                },
+            );
+            persistence_manager
+                .save_dialog_turn(workspace.path(), &turn)
+                .await
+                .unwrap();
+            let original_metadata = persistence_manager
+                .load_session_metadata(workspace.path(), &session_id)
+                .await
+                .unwrap();
+
+            let error = manager
+                .restore_session(workspace.path(), &session_id)
+                .await
+                .expect_err("ACP sessions must not enter native restore");
+            assert!(error.to_string().contains("restored by the ACP client"));
+            assert!(manager.get_session(&session_id).is_none());
+            assert_eq!(
+                serde_json::to_value(
+                    persistence_manager
+                        .load_session_metadata(workspace.path(), &session_id)
+                        .await
+                        .unwrap()
+                )
+                .unwrap(),
+                serde_json::to_value(original_metadata).unwrap()
+            );
+            let (view, turns) = manager
+                .restore_session_view(workspace.path(), &session_id)
+                .await
+                .expect("ACP history remains readable");
+            assert_eq!(view.agent_type, agent_type);
+            assert_eq!(turns.len(), 1);
+            assert_eq!(turns[0].user_message.content, "saved message");
+            assert!(manager.get_session(&session_id).is_none());
+        }
     }
 
     #[tokio::test]

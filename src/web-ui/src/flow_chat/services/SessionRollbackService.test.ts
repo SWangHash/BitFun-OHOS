@@ -17,6 +17,7 @@ vi.mock('../store/FlowChatStore', () => ({
 }));
 
 import { rollbackSessionToTurn } from './SessionRollbackService';
+import { editAndRerunUserMessage } from './UserMessageEditService';
 import {
   isSessionTurnRetired,
   useSessionMutationStore,
@@ -65,6 +66,34 @@ describe('SessionRollbackService', () => {
     await expect(rollbackSessionToTurn({ sessionId: 'session-1', targetTurnId: 'turn-7', kind: 'rollback' }))
       .rejects.toThrow('workspace ID is unavailable');
     expect(agentApiMock.rollbackSessionToTurn).not.toHaveBeenCalled();
+  });
+
+  it('rejects editing an ACP message before native rollback or resubmission', async () => {
+    const session = sessions.get('session-1');
+    session.config.agentType = 'acp:codex';
+    session.mode = 'acp:codex';
+    session.dialogTurns[0].userMessage = { metadata: { triggerSource: 'desktop_ui' } };
+    agentApiMock.rollbackSessionToTurn.mockResolvedValue({
+      status: 'completed',
+      restoredFiles: [],
+      retiredTurnIds: ['turn-7'],
+      composer: { kind: 'preserve' },
+    });
+    const rerun = vi.fn(async () => undefined);
+
+    await expect(editAndRerunUserMessage({
+      sessionId: 'session-1',
+      turnId: 'turn-7',
+      originalContent: 'original',
+      editedContent: 'edited',
+      rerun,
+    })).rejects.toThrow('History rollback is unavailable for ACP sessions');
+
+    expect(agentApiMock.rollbackSessionToTurn).not.toHaveBeenCalled();
+    expect(rerun).not.toHaveBeenCalled();
+    expect(session.config.agentType).toBe('acp:codex');
+    expect(session.dialogTurns).toHaveLength(1);
+    expect(useSessionMutationStore.getState().mutations.size).toBe(0);
   });
 
   it('submits stable persisted identity and reloads only after completion', async () => {
