@@ -21,6 +21,9 @@ use agent_client_protocol::schema::{
 use agent_client_protocol::{
     ActiveSession, Agent, ByteStreams, Client, ConnectionTo, Error, SessionMessage,
 };
+use agent_client_protocol_schema::{
+    ElicitationCapabilities, ElicitationFormCapabilities, ElicitationScope,
+};
 use bitfun_agent_tools::ACP_TOOL_PREFIX;
 use bitfun_core::agentic::tools::registry::get_global_tool_registry;
 use bitfun_core::infrastructure::events::{emit_global_event, BackendEvent};
@@ -35,7 +38,7 @@ use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::process::{Child, Command};
-use tokio::sync::{oneshot, Mutex, RwLock};
+use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 use super::builtin_clients::{
@@ -50,6 +53,7 @@ use super::config::{
 use super::dsh_profile::{
     check_bundled_profile_requirement, ensure_bundled_profile, ensure_bundled_profile_remote,
 };
+use super::elicitation::{cancel_elicitations, handle_elicitation, AcpElicitationRequest};
 #[cfg(target_env = "ohos")]
 use super::managed_provisioning::probe_existing_managed_client;
 use super::managed_provisioning::{
@@ -75,8 +79,8 @@ use super::session_options::{
 use super::session_persistence::AcpSessionPersistence;
 pub use super::session_persistence::CreateAcpFlowSessionRecordResponse;
 use super::stream::{
-    acp_dispatch_to_stream_events_with_tracker, AcpClientStreamEvent, AcpStreamRoundTracker,
-    AcpToolCallTracker,
+    acp_dispatch_to_stream_events_with_tracker, AcpClientStreamEvent, AcpInteractiveEvent,
+    AcpInteractiveSession, AcpStreamRoundTracker, AcpToolCallTracker,
 };
 use super::tool::AcpAgentTool;
 use super::transport::{handle_transport_closed, AcpTransport};
@@ -192,6 +196,7 @@ struct AcpClientConnection {
     connection: RwLock<Option<ConnectionTo<Agent>>>,
     agent_capabilities: RwLock<Option<AgentCapabilities>>,
     sessions: DashMap<String, Arc<Mutex<AcpRemoteSession>>>,
+    interactive_sessions: DashMap<String, AcpInteractiveSession>,
     cancel_handles: DashMap<String, AcpCancelHandle>,
     shutdown_tx: Mutex<Option<oneshot::Sender<()>>>,
     child: Mutex<Option<Child>>,
@@ -1058,6 +1063,35 @@ impl AcpClientService {
                 )
                 .on_receive_request(
                     {
+                        let client = connection_for_task.clone();
+                        async move |request: AcpElicitationRequest, responder, cx| {
+                            let client = client.clone();
+                            cx.spawn(async move {
+                                let result = match request.0.scope() {
+                                    ElicitationScope::Session(scope) => client
+                                        .interactive_sessions
+                                        .get(&scope.session_id.to_string())
+                                        .map(|session| session.clone())
+                                        .ok_or_else(|| {
+                                            Error::invalid_params()
+                                                .data("ACP question has no active interactive turn")
+                                        }),
+                                    _ => Err(Error::invalid_params()
+                                        .data("Only session-scoped ACP questions are supported")),
+                                };
+                                let result = match result {
+                                    Ok(session) => handle_elicitation(request.0, session).await,
+                                    Err(error) => Err(error),
+                                };
+                                responder.respond_with_result(result)
+                            })?;
+                            Ok(())
+                        }
+                    },
+                    agent_client_protocol::on_receive_request!(),
+                )
+                .on_receive_request(
+                    {
                         let service = service.clone();
                         async move |request: RequestPermissionRequest, responder, cx| {
                             let service = service.clone();
@@ -1073,7 +1107,9 @@ impl AcpClientService {
                 )
                 .connect_with(transport, async move |cx| {
                     let init = InitializeRequest::new(ProtocolVersion::V1)
-                        .client_capabilities(ClientCapabilities::new())
+                        .client_capabilities(ClientCapabilities::new().elicitation(
+                            ElicitationCapabilities::new().form(ElicitationFormCapabilities::new()),
+                        ))
                         .client_info(Implementation::new(
                             "bitfun-desktop",
                             env!("CARGO_PKG_VERSION"),
@@ -1645,6 +1681,7 @@ impl AcpClientService {
             ));
         }
 
+        let mut interactive_session_id = None;
         let run = async {
             let mut session = resolved.session.lock().await;
             self.ensure_remote_session(
@@ -1658,11 +1695,21 @@ impl AcpClientService {
             .await?;
 
             discard_pending_session_updates_if_needed(&mut session).await;
+            let (question_tx, mut question_rx) = mpsc::unbounded_channel();
             let mut prompt = {
                 let active = session
                     .active
                     .as_mut()
                     .ok_or_else(|| BitFunError::service("ACP session was not initialized"))?;
+                let remote_session_id = active.session_id().to_string();
+                resolved.client.interactive_sessions.insert(
+                    remote_session_id.clone(),
+                    AcpInteractiveSession {
+                        bitfun_session_id: bitfun_session_id.clone(),
+                        events: question_tx,
+                    },
+                );
+                interactive_session_id = Some(remote_session_id);
                 AcpPrompt::start(active, prompt)
             };
             let mut round_tracker = AcpStreamRoundTracker::new();
@@ -1674,7 +1721,17 @@ impl AcpClientService {
                         .active
                         .as_mut()
                         .ok_or_else(|| BitFunError::service("ACP session was not initialized"))?;
-                    prompt.read_update(active).await.map_err(protocol_error)?
+                    tokio::select! {
+                        biased;
+                        Some(interaction) = question_rx.recv() => {
+                            let AcpInteractiveEvent::Stream(event) = interaction;
+                            for event in round_tracker.apply(event) {
+                                on_event(event)?;
+                            }
+                            continue;
+                        }
+                        message = prompt.read_update(active) => message.map_err(protocol_error)?,
+                    }
                 };
 
                 match message {
@@ -1713,15 +1770,26 @@ impl AcpClientService {
             Ok(())
         };
 
-        if let Some(seconds) = timeout_seconds.filter(|seconds| *seconds > 0) {
+        let result = if let Some(seconds) = timeout_seconds.filter(|seconds| *seconds > 0) {
             tokio::time::timeout(Duration::from_secs(seconds), run)
                 .await
-                .map_err(|_| {
-                    BitFunError::tool(format!("ACP client timed out after {}s", seconds))
-                })?
+                .unwrap_or_else(|_| {
+                    Err(BitFunError::tool(format!(
+                        "ACP client timed out after {}s",
+                        seconds
+                    )))
+                })
         } else {
             run.await
+        };
+        if let Some(remote_session_id) = interactive_session_id {
+            resolved
+                .client
+                .interactive_sessions
+                .remove(&remote_session_id);
         }
+        cancel_elicitations(&bitfun_session_id);
+        result
     }
 
     pub async fn cancel_agent_session(
@@ -1730,6 +1798,7 @@ impl AcpClientService {
         workspace_path: Option<String>,
         bitfun_session_id: String,
     ) -> BitFunResult<()> {
+        cancel_elicitations(&bitfun_session_id);
         let connection_id = session_client_connection_id(client_id, &bitfun_session_id);
         let client = self
             .clients
@@ -2667,6 +2736,7 @@ impl AcpClientConnection {
             connection: RwLock::new(None),
             agent_capabilities: RwLock::new(None),
             sessions: DashMap::new(),
+            interactive_sessions: DashMap::new(),
             cancel_handles: DashMap::new(),
             shutdown_tx: Mutex::new(None),
             child: Mutex::new(None),

@@ -313,6 +313,7 @@ rmcp = { version = "1.7", default-features = false, features = [
     "server",
 ] }
 agent-client-protocol = { version = "0.12", features = ["unstable"] }
+agent-client-protocol-schema = "0.13.2"
 russh = "0.45"
 russh-sftp = "2.1"
 russh-keys = "0.45"

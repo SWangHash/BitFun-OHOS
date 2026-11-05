@@ -819,6 +819,9 @@ export const acpClosedFeatureProfileRules = [
     featureName: 'client',
     requiredFeatureRefs: [
       'bitfun-agent-tools/acp-bridge',
+      // Form elicitation is an ACP client protocol capability. It shares the
+      // existing schema version and does not select another Runtime owner.
+      'dep:agent-client-protocol-schema',
       'dep:futures',
       'dep:serde',
       // The bundled DeepSeek Harness profile: `dirs` locates $DSH_HOME,

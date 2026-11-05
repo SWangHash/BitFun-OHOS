@@ -42,10 +42,13 @@ cargo check -p bitfun-acp --no-default-features --features client
 cargo check -p bitfun-acp --no-default-features --features server
 cargo test -p bitfun-acp
 cargo test -p bitfun-acp --no-default-features --features client,bitfun-core/git --lib client::prompt::tests
+cargo test -p bitfun-acp --no-default-features --features client,bitfun-core/git --lib client::elicitation::tests
 ```
 
 The focused client prompt tests cover protocol errors, retry, cancellation,
-images, partial output, and transport termination with in-memory agent streams.
-These fixtures do not require a live provider or a device connection. The explicit
+images, question replies, partial output, and transport termination with
+in-memory agent streams. The elicitation tests cover question form projection
+and option semantics. These
+fixtures do not require a live provider or a device connection. The explicit
 Core `git` feature satisfies the worktree tool dependency in the current client
 closure without enabling the server role or `product-full`.
