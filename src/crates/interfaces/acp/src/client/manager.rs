@@ -1093,11 +1093,16 @@ impl AcpClientService {
                 .on_receive_request(
                     {
                         let service = service.clone();
+                        let client = connection_for_task.clone();
                         async move |request: RequestPermissionRequest, responder, cx| {
                             let service = service.clone();
+                            let session = client
+                                .interactive_sessions
+                                .get(&request.session_id.to_string())
+                                .map(|session| session.clone());
                             cx.spawn(async move {
                                 responder.respond_with_result(
-                                    service.handle_permission_request(request).await,
+                                    service.handle_permission_request(request, session).await,
                                 )
                             })?;
                             Ok(())
@@ -1724,9 +1729,26 @@ impl AcpClientService {
                     tokio::select! {
                         biased;
                         Some(interaction) = question_rx.recv() => {
-                            let AcpInteractiveEvent::Stream(event) = interaction;
-                            for event in round_tracker.apply(event) {
-                                on_event(event)?;
+                            let (events, permission_request) = match interaction {
+                                AcpInteractiveEvent::Stream(event) => (vec![event], None),
+                                AcpInteractiveEvent::PermissionRequested { permission_id, request } => {
+                                    let (events, payload) = tool_call_tracker.permission_request_events(permission_id, request);
+                                    (events, Some(payload))
+                                }
+                                AcpInteractiveEvent::PermissionResolved { permission_id, response } => (
+                                    tool_call_tracker.permission_response_events(permission_id, response), None,
+                                ),
+                            };
+                            for event in events {
+                                for event in round_tracker.apply(event) {
+                                    on_event(event)?;
+                                }
+                            }
+                            if let Some(payload) = permission_request {
+                                emit_global_event(BackendEvent::Custom {
+                                    event_name: "backend-event-acppermissionrequest".to_string(),
+                                    payload,
+                                }).await.map_err(|error| BitFunError::service(error.to_string()))?;
                             }
                             continue;
                         }
@@ -2154,6 +2176,7 @@ impl AcpClientService {
     async fn handle_permission_request(
         self: Arc<Self>,
         request: RequestPermissionRequest,
+        session: Option<AcpInteractiveSession>,
     ) -> Result<RequestPermissionResponse, Error> {
         let session_id = request.session_id.to_string();
         let permission_mode = self.permission_mode_for_session(&session_id);
@@ -2185,34 +2208,52 @@ impl AcpClientService {
             },
         );
 
-        let payload = json!({
-            "permissionId": permission_id,
-            "sessionId": session_id,
-            "toolCall": request.tool_call,
-            "options": request.options,
-        });
-
-        if let Err(error) = emit_global_event(BackendEvent::Custom {
-            event_name: "backend-event-acppermissionrequest".to_string(),
-            payload,
-        })
-        .await
-        {
-            warn!("Failed to emit ACP permission request: {}", error);
-        }
-
-        match tokio::time::timeout(PERMISSION_TIMEOUT, rx).await {
-            Ok(Ok(response)) => Ok(response),
-            Ok(Err(_)) => Ok(RequestPermissionResponse::new(
-                RequestPermissionOutcome::Cancelled,
-            )),
-            Err(_) => {
+        if let Some(session) = &session {
+            if let Err(error) = session
+                .events
+                .send(AcpInteractiveEvent::PermissionRequested {
+                    permission_id: permission_id.clone(),
+                    request,
+                })
+            {
                 self.pending_permissions.remove(&permission_id);
-                Ok(RequestPermissionResponse::new(
-                    RequestPermissionOutcome::Cancelled,
-                ))
+                return Err(Error::into_internal_error(error));
+            }
+        } else {
+            let payload = json!({
+                "permissionId": permission_id,
+                "sessionId": session_id,
+                "toolCall": request.tool_call,
+                "options": request.options,
+            });
+
+            if let Err(error) = emit_global_event(BackendEvent::Custom {
+                event_name: "backend-event-acppermissionrequest".to_string(),
+                payload,
+            })
+            .await
+            {
+                warn!("Failed to emit ACP permission request: {}", error);
             }
         }
+
+        let response = match tokio::time::timeout(PERMISSION_TIMEOUT, rx).await {
+            Ok(Ok(response)) => response,
+            Ok(Err(_)) => RequestPermissionResponse::new(RequestPermissionOutcome::Cancelled),
+            Err(_) => {
+                self.pending_permissions.remove(&permission_id);
+                RequestPermissionResponse::new(RequestPermissionOutcome::Cancelled)
+            }
+        };
+        if let Some(session) = session {
+            let _ = session
+                .events
+                .send(AcpInteractiveEvent::PermissionResolved {
+                    permission_id,
+                    response: response.clone(),
+                });
+        }
+        Ok(response)
     }
 
     fn permission_mode_for_session(&self, session_id: &str) -> AcpClientPermissionMode {

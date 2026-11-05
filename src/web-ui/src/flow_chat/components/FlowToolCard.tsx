@@ -47,7 +47,10 @@ export const FlowToolCard: React.FC<FlowToolCardProps> = React.memo(({
   const { t } = useTranslation('flow-chat');
   const effectiveToolItem = projectEffectiveToolItem(toolItem);
   const { pendingPermissionToolCallIds } = useFlowChatVolatileContext();
-  const config = getToolItemCardConfig(effectiveToolItem);
+  const baseConfig = getToolItemCardConfig(effectiveToolItem);
+  const config = effectiveToolItem.toolName === 'ACP Permission'
+    ? { ...baseConfig, displayName: t('toolCards.approval.ariaLabel') }
+    : baseConfig;
   const CardComponent = getToolCardComponent(effectiveToolItem.toolName);
   const interruptionNote = getToolInterruptionNote(effectiveToolItem, t);
   const cardHandlesInterruptionNote = effectiveToolItem.toolName === 'Task';

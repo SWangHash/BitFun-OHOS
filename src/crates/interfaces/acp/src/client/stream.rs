@@ -2,12 +2,14 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use agent_client_protocol::schema::{
-    ContentBlock, ContentChunk, SessionConfigOption, SessionNotification, SessionUpdate, ToolCall,
-    ToolCallContent, ToolCallStatus, ToolCallUpdate,
+    ContentBlock, ContentChunk, PermissionOption, PermissionOptionKind, RequestPermissionOutcome,
+    RequestPermissionRequest, RequestPermissionResponse, SessionConfigOption, SessionNotification,
+    SessionUpdate, ToolCall, ToolCallContent, ToolCallStatus, ToolCallUpdate,
 };
 use agent_client_protocol::util::MatchDispatch;
 use bitfun_core::util::errors::{BitFunError, BitFunResult};
 use bitfun_events::ToolEventData;
+use serde_json::json;
 use tokio::sync::mpsc;
 
 use super::session_options::{AcpAvailableCommand, AcpPlanEntry, AcpSessionContextUsage};
@@ -34,6 +36,14 @@ pub enum AcpClientStreamEvent {
 #[derive(Debug)]
 pub(super) enum AcpInteractiveEvent {
     Stream(AcpClientStreamEvent),
+    PermissionRequested {
+        permission_id: String,
+        request: RequestPermissionRequest,
+    },
+    PermissionResolved {
+        permission_id: String,
+        response: RequestPermissionResponse,
+    },
 }
 
 #[derive(Clone)]
@@ -57,6 +67,7 @@ pub(super) struct AcpStreamRoundTracker {
 #[derive(Debug, Default)]
 pub(super) struct AcpToolCallTracker {
     calls: HashMap<String, AcpToolCallSnapshot>,
+    permission_cards: HashMap<String, Vec<PermissionOption>>,
 }
 
 #[derive(Debug, Clone)]
@@ -195,6 +206,116 @@ fn content_chunk_text(chunk: ContentChunk) -> Option<String> {
 impl AcpToolCallTracker {
     pub(super) fn new() -> Self {
         Self::default()
+    }
+
+    pub(super) fn permission_request_events(
+        &mut self,
+        permission_id: String,
+        mut request: RequestPermissionRequest,
+    ) -> (Vec<AcpClientStreamEvent>, serde_json::Value) {
+        let source_tool_id = request.tool_call.tool_call_id.to_string();
+        let known_tool = self.calls.get(&source_tool_id);
+        let (tool_id, tool_name, params) = match known_tool {
+            Some(snapshot) => (
+                source_tool_id,
+                snapshot.tool_name.clone(),
+                normalize_tool_params(
+                    &snapshot.tool_name,
+                    snapshot
+                        .raw_input
+                        .as_deref()
+                        .cloned()
+                        .or_else(|| request.tool_call.fields.raw_input.clone())
+                        .unwrap_or_else(|| json!({"title": snapshot.title})),
+                ),
+            ),
+            None => {
+                self.permission_cards
+                    .insert(permission_id.clone(), request.options.clone());
+                (
+                    permission_id.clone(),
+                    "ACP Permission".to_string(),
+                    json!({"title": request.tool_call.fields.title, "input": request.tool_call.fields.raw_input}),
+                )
+            }
+        };
+        let mut events = Vec::new();
+        if known_tool.is_none() {
+            events.push(AcpClientStreamEvent::ToolEvent(ToolEventData::Started {
+                identity: bitfun_events::ToolEventIdentity::direct(
+                    tool_id.clone(),
+                    tool_name.clone(),
+                ),
+                params: params.clone(),
+                timeout_seconds: None,
+            }));
+        }
+        events.push(AcpClientStreamEvent::ToolEvent(
+            ToolEventData::ConfirmationNeeded {
+                identity: bitfun_events::ToolEventIdentity::direct(tool_id.clone(), tool_name),
+                params,
+                timeout_at: None,
+            },
+        ));
+        // This is the UI projection of the permission request. Its tool id
+        // identifies the confirmation entry; the ACP response still uses the
+        // original request and the agent's unmodified option ids.
+        request.tool_call.tool_call_id = tool_id.into();
+        let payload = json!({
+            "permissionId": permission_id,
+            "sessionId": request.session_id,
+            "toolCall": request.tool_call,
+            "options": request.options,
+        });
+        (events, payload)
+    }
+
+    pub(super) fn permission_response_events(
+        &mut self,
+        permission_id: String,
+        response: RequestPermissionResponse,
+    ) -> Vec<AcpClientStreamEvent> {
+        let Some(options) = self.permission_cards.remove(&permission_id) else {
+            return Vec::new();
+        };
+        let identity = bitfun_events::ToolEventIdentity::direct(permission_id, "ACP Permission");
+        let event = match response.outcome {
+            RequestPermissionOutcome::Selected(selected) => {
+                let option = options
+                    .iter()
+                    .find(|option| option.option_id == selected.option_id);
+                if option.is_some_and(|option| {
+                    matches!(
+                        option.kind,
+                        PermissionOptionKind::RejectOnce | PermissionOptionKind::RejectAlways
+                    )
+                }) {
+                    ToolEventData::Rejected { identity }
+                } else {
+                    ToolEventData::Completed {
+                        identity,
+                        result: json!({"option": option.map(|option| option.name.clone()).unwrap_or_else(|| selected.option_id.to_string())}),
+                        result_for_assistant: None,
+                        image_attachments: None,
+                        duration_ms: 0,
+                        queue_wait_ms: None,
+                        preflight_ms: None,
+                        confirmation_wait_ms: None,
+                        execution_ms: None,
+                    }
+                }
+            }
+            _ => ToolEventData::Cancelled {
+                identity,
+                reason: "ACP permission request cancelled".to_string(),
+                duration_ms: None,
+                queue_wait_ms: None,
+                preflight_ms: None,
+                confirmation_wait_ms: None,
+                execution_ms: None,
+            },
+        };
+        vec![AcpClientStreamEvent::ToolEvent(event)]
     }
 
     fn upsert_from_call(
@@ -470,7 +591,9 @@ fn protocol_error(error: impl std::fmt::Display) -> BitFunError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent_client_protocol::schema::{ToolCallUpdateFields, ToolKind};
+    use agent_client_protocol::schema::{
+        SelectedPermissionOutcome, ToolCallUpdateFields, ToolKind,
+    };
     use serde_json::json;
 
     fn tool_event(id: &str) -> AcpClientStreamEvent {
@@ -694,6 +817,96 @@ mod tests {
     }
 
     #[test]
+    fn standalone_permission_has_an_actionable_card_and_records_its_outcome() {
+        for (option_id, expected_status) in [
+            (Some("allow-once"), "completed"),
+            (Some("reject-once"), "rejected"),
+            (None, "cancelled"),
+        ] {
+            let mut tracker = AcpToolCallTracker::new();
+            let options = vec![
+                PermissionOption::new("allow-once", "Allow", PermissionOptionKind::AllowOnce),
+                PermissionOption::new("reject-once", "Reject", PermissionOptionKind::RejectOnce),
+            ];
+            let request = RequestPermissionRequest::new(
+                "session-1",
+                ToolCallUpdate::new(
+                    "tool-1",
+                    ToolCallUpdateFields::new()
+                        .title("Run command")
+                        .raw_input(json!({"command": "pwd"})),
+                ),
+                options.clone(),
+            );
+            let (events, payload) =
+                tracker.permission_request_events("permission-1".into(), request);
+            assert!(matches!(
+                events.as_slice(),
+                [
+                    AcpClientStreamEvent::ToolEvent(ToolEventData::Started { identity, params, .. }),
+                    AcpClientStreamEvent::ToolEvent(ToolEventData::ConfirmationNeeded { identity: confirmation, .. }),
+                ] if identity.tool_id == "permission-1"
+                    && identity.tool_name == "ACP Permission"
+                    && confirmation.tool_id == identity.tool_id
+                    && params["title"] == "Run command"
+                    && params["input"]["command"] == "pwd"
+            ));
+            assert_eq!(payload["permissionId"], "permission-1");
+            assert_eq!(payload["sessionId"], "session-1");
+            assert_eq!(payload["toolCall"]["toolCallId"], "permission-1");
+            assert_eq!(payload["options"], json!(options));
+
+            let outcome = option_id
+                .map(|id| RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new(id)))
+                .unwrap_or(RequestPermissionOutcome::Cancelled);
+            let resolved = tracker.permission_response_events(
+                "permission-1".into(),
+                RequestPermissionResponse::new(outcome),
+            );
+            let status = match resolved.as_slice() {
+                [AcpClientStreamEvent::ToolEvent(ToolEventData::Completed {
+                    identity,
+                    result,
+                    ..
+                })] => {
+                    assert_eq!(identity.tool_id, "permission-1");
+                    assert_eq!(result["option"], "Allow");
+                    "completed"
+                }
+                [AcpClientStreamEvent::ToolEvent(ToolEventData::Rejected { identity })] => {
+                    assert_eq!(identity.tool_id, "permission-1");
+                    "rejected"
+                }
+                [AcpClientStreamEvent::ToolEvent(ToolEventData::Cancelled { identity, .. })] => {
+                    assert_eq!(identity.tool_id, "permission-1");
+                    "cancelled"
+                }
+                other => panic!("expected a terminal permission event, got {other:?}"),
+            };
+            assert_eq!(status, expected_status);
+
+            if option_id == Some("allow-once") {
+                let events = acp_tool_call_update_events(
+                    ToolCallUpdate::new(
+                        "tool-1",
+                        ToolCallUpdateFields::new()
+                            .title("Run command")
+                            .kind(ToolKind::Execute)
+                            .status(ToolCallStatus::InProgress)
+                            .raw_input(json!({"command": "pwd"})),
+                    ),
+                    &mut tracker,
+                );
+                assert!(matches!(
+                    events.as_slice(),
+                    [AcpClientStreamEvent::ToolEvent(ToolEventData::Started { identity, .. })]
+                        if identity.tool_id == "tool-1" && identity.tool_name == "ExecCommand"
+                ));
+            }
+        }
+    }
+
+    #[test]
     fn tool_call_tracker_replays_cached_input_before_completed_update() {
         let mut tracker = AcpToolCallTracker::new();
         let in_progress = ToolCallUpdate::new(
@@ -722,6 +935,36 @@ mod tests {
                 ToolEventData::Started { .. }
             ))
         ));
+
+        let (permission_events, payload) = tracker.permission_request_events(
+            "permission-1".into(),
+            RequestPermissionRequest::new(
+                "session-1",
+                ToolCallUpdate::new("tool-1", ToolCallUpdateFields::new()),
+                vec![PermissionOption::new(
+                    "allow-once",
+                    "Allow",
+                    PermissionOptionKind::AllowOnce,
+                )],
+            ),
+        );
+        assert_eq!(payload["toolCall"]["toolCallId"], "tool-1");
+        assert!(matches!(
+            permission_events.as_slice(),
+            [AcpClientStreamEvent::ToolEvent(ToolEventData::ConfirmationNeeded {
+                identity, params, ..
+            })] if identity.tool_id == "tool-1"
+                && identity.tool_name == "Edit"
+                && params["file_path"] == "src/lib.rs"
+        ));
+        assert!(tracker
+            .permission_response_events(
+                "permission-1".into(),
+                RequestPermissionResponse::new(RequestPermissionOutcome::Selected(
+                    SelectedPermissionOutcome::new("allow-once"),
+                )),
+            )
+            .is_empty());
 
         let second = acp_tool_call_update_events(completed, &mut tracker);
         assert_eq!(second.len(), 2);
