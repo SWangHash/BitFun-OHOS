@@ -155,11 +155,18 @@ function isChromeHintText(text: string, strings: MonacoChromeStrings): boolean {
  * own show() un-hides the wrapper for the next delegate.
  */
 function attachChromeHintHoverRemover(strings: () => MonacoChromeStrings): () => void {
+  // Wrappers hidden by this watcher: ContextView.show() clears the wrapper's
+  // inline display for the next delegate, and the hover widget itself may be
+  // re-rendered as CHILD mutations inside the (now visible) wrapper — nodes
+  // that carry no `.monaco-hover` class and slip past the class guard. Any
+  // mutation inside a hidden wrapper therefore re-hides it.
+  const hiddenWrappers = new WeakSet<HTMLElement>();
   const hideChromeHover = (hover: Element): void => {
     if (!isChromeHintText(hover.textContent ?? '', strings())) return;
     const target = hover.closest<HTMLElement>('.context-view') ?? (hover instanceof HTMLElement ? hover : null);
     if (!target) return;
     target.style.display = 'none';
+    hiddenWrappers.add(target);
   };
 
   const sweepExisting = (): void => {
@@ -168,8 +175,17 @@ function attachChromeHintHoverRemover(strings: () => MonacoChromeStrings): () =>
 
   const observer = new MutationObserver(mutations => {
     for (const mutation of mutations) {
+      const mutatedInHiddenWrapper = mutation.target instanceof HTMLElement
+        && hiddenWrappers.has((mutation.target.closest<HTMLElement>('.context-view')) ?? mutation.target);
       for (const node of mutation.addedNodes) {
         if (!(node instanceof HTMLElement)) continue;
+        if (mutatedInHiddenWrapper) {
+          const wrapper = node.closest<HTMLElement>('.context-view') ?? node;
+          if (hiddenWrappers.has(wrapper)) {
+            wrapper.style.display = 'none';
+          }
+          continue;
+        }
         const isHoverNode = node.classList.contains('monaco-hover');
         if (!isHoverNode && !node.classList.contains('context-view')) continue;
         const hover = isHoverNode ? node : node.querySelector<HTMLElement>('.monaco-hover');
@@ -260,12 +276,26 @@ function attachChromeHoverLayer(container: HTMLElement): () => void {
     hide();
   };
 
+  // Monaco's managed hover ALSO shows when a chrome element receives FOCUS
+  // (clicking a button or tabbing into the find widget — capture-phase focus
+  // listener on the target, issue #432 verification). Blocking focus descent
+  // at the container removes that path the same way the mouseover path is
+  // blocked; keyboard operation of the buttons is unaffected.
+  const onFocus = (event: FocusEvent): void => {
+    const node = event.target instanceof Element ? event.target : null;
+    const target = node?.closest(HOVER_TARGET_SELECTOR) ?? null;
+    if (!target || !container.contains(target)) return;
+    event.stopPropagation();
+  };
+
   container.addEventListener('mouseover', onOver, true);
   container.addEventListener('mouseout', onOut, true);
+  container.addEventListener('focus', onFocus, true);
   container.addEventListener('scroll', hide, true);
   return () => {
     container.removeEventListener('mouseover', onOver, true);
     container.removeEventListener('mouseout', onOut, true);
+    container.removeEventListener('focus', onFocus, true);
     container.removeEventListener('scroll', hide, true);
     tooltip.remove();
   };
