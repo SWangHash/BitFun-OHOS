@@ -324,7 +324,10 @@ export function attachMonacoChromeI18n(container: HTMLElement, initialStrings: M
       }
     });
     container.querySelectorAll<HTMLElement>('.margin-view-overlays').forEach(margin => {
-      margin.querySelectorAll<HTMLElement>('[title]').forEach(localizeAttributes);
+      // Glyphs carry their hint in aria-label after the first pass removed
+      // the native title, so re-localization must scan aria-labels too
+      // (issue #434: fold hints did not follow language switches).
+      margin.querySelectorAll<HTMLElement>('[title], [aria-label]').forEach(localizeAttributes);
     });
   };
 
