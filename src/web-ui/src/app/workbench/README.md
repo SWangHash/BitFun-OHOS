@@ -64,6 +64,12 @@ termination policies keep using the existing terminal service.
   switches hide other sessions' browser tabs without destroying them. If this
   empties and auto-collapses the AuxPane, returning to a session whose browser pane
   was open restores it; a pane the user explicitly collapsed stays collapsed.
+  Agent opens from a background session never activate a scene or change the
+  visible canvas selection/layout. They prepare the hidden native page and commit
+  its exact identity to the owning workspace without requiring a mounted panel.
+  A background browser carries a pending reveal until its owning session is
+  presented. That first visit selects the browser and expands the AuxPane; later
+  visits respect a panel the user has manually collapsed.
 - Closing a dirty main document offers Save, Discard and Cancel. Failed/canceled saves
   preserve the tab; repeated close gestures share one pending operation. Resource
   removal releases its retained document model.

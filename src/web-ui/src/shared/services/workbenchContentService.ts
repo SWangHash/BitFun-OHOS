@@ -1,6 +1,6 @@
 import { useSceneStore } from '@/app/stores/sceneStore';
 import { useContentResourceStore, contentResourceIdentity, mergeContentOpenIntent } from '@/app/workbench/contentResourceStore';
-import { switchAgentCanvasWorkspace, useAgentCanvasStore, useGitCanvasStore } from '@/app/components/panels/content-canvas/stores';
+import { cacheAgentCanvasTabForWorkspace, switchAgentCanvasWorkspace, useAgentCanvasStore, useGitCanvasStore } from '@/app/components/panels/content-canvas/stores';
 import type { EditorGroupId } from '@/app/components/panels/content-canvas/types';
 import type { SessionSceneTarget } from '@/app/components/SceneBar/types';
 import { resolveSessionSceneWorkspace } from '@/app/services/sessionSceneTarget';
@@ -13,6 +13,7 @@ import { workspaceManager } from '@/infrastructure/services/business/workspaceMa
 import { getActiveSurfaceId, getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 import type { PanelContent } from '@/app/components/panels/base/types';
 import type { ContentResourceScope, OpenContentOptions } from '@/shared/types/contentResource';
+import { closeAdoptedBrowserPage } from '@/app/scenes/browser/closeAdoptedBrowserPage';
 
 export function captureContentScope(data?: { workspaceId?: string; workspacePath?: string; remoteConnectionId?: string }): ContentResourceScope {
   const state = workspaceManager.getState();
@@ -55,7 +56,7 @@ export function openWorkbenchContent(content: PanelContent, options: OpenContent
   return id;
 }
 
-export interface ContentOpenOptions extends Pick<OpenContentOptions, 'scope' | 'resourceKey' | 'replaceExisting'> {
+export interface ContentOpenOptions extends Pick<OpenContentOptions, 'scope' | 'resourceKey' | 'replaceExisting' | 'focus'> {
   isCurrent?: () => boolean;
   targetGroup?: EditorGroupId;
   splitView?: boolean;
@@ -77,7 +78,7 @@ export function openCanvasContent(mode: 'agent' | 'git', input: PanelContent, op
   const syncBrowserOwner = () => {
     const ownerSessionId = browserOwnerSessionId(content);
     if (mode === 'agent' && ownerSessionId) {
-      store.syncSessionOwnedBrowserTabs(ownerSessionId);
+      store.syncSessionOwnedBrowserTabs(ownerSessionId, { revealPending: true });
     }
   };
   const groups = [store.primaryGroup, store.secondaryGroup, store.tertiaryGroup];
@@ -88,8 +89,9 @@ export function openCanvasContent(mode: 'agent' | 'git', input: PanelContent, op
         ?? captureContentScope(tab.content.data)).key) === key);
     if (!existing) continue;
     const groupId = groupIds[index];
-    store.updateTabContent(existing.id, groupId,
-      mergeContentOpenIntent(existing.content, content, options.replaceExisting, existing.isDirty));
+    const nextContent = mergeContentOpenIntent(existing.content, content, options.replaceExisting, existing.isDirty);
+    if (existing.content.data?.webviewLabel !== nextContent.data?.webviewLabel) closeAdoptedBrowserPage(existing.content);
+    store.updateTabContent(existing.id, groupId, nextContent);
     store.switchToTab(existing.id, groupId);
     store.promoteTab(existing.id, groupId);
     syncBrowserOwner();
@@ -172,6 +174,28 @@ export function openContentInBestTarget(content: PanelContent, options: ContentO
   }
   const identity = contentResourceIdentity(ownedContent, scope, resourceKey);
   const mainView = Object.values(useContentResourceStore.getState().resources).find(resource => resource.key === identity.key);
+  if (mainView && options.replaceExisting && !mainView.isDirty
+    && mainView.content.data?.webviewLabel !== ownedContent.data?.webviewLabel) {
+    closeAdoptedBrowserPage(mainView.content, scope.surfaceId);
+  }
+  if (options.focus === false && requestedOwnerSessionId && !mainView) {
+    const session = flowChatStore.getState().sessions.get(requestedOwnerSessionId);
+    if (session && sessionMatchesContentScope(session, scope)) {
+      cacheAgentCanvasTabForWorkspace(scope.workspaceId, {
+        content: { ...ownedContent, metadata: { ...ownedContent.metadata,
+          resourceScope: scope, contentResourceKey: identity.key, duplicateCheckKey: resourceKey ?? identity.key } },
+        checkDuplicate: true,
+        duplicateCheckKey: resourceKey ?? identity.key,
+        replaceExisting: options.replaceExisting,
+        focus: false,
+      });
+      return;
+    }
+  }
+  if (options.focus === false) {
+    openWorkbenchContent(ownedContent, { ...options, scope, resourceKey });
+    return;
+  }
   if (mainView || !target) {
     openWorkbenchContent(ownedContent, { ...options, scope, resourceKey });
     return;

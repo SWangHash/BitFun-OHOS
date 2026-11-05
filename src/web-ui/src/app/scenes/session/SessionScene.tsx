@@ -598,6 +598,7 @@ const SessionScene: React.FC<SessionSceneProps> = ({
             ref={auxPaneRef}
             workspacePath={workspacePath}
             isSceneActive={isActive && !state.layout.rightPanelCollapsed}
+            isSessionSceneActive={isActive}
             terminalResizeSuspended={isRightPanelTransitioning || isDraggingRight}
           />
         </div>

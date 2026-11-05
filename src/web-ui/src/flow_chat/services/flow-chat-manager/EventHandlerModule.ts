@@ -101,6 +101,12 @@ import {
 import { isAcpFlowSession } from '../../utils/acpSession';
 import { workspaceManager } from '@/infrastructure/services/business/workspaceManager';
 import { resolveLegacySessionWorkspace } from '@/infrastructure/api/service-api/legacyWorkspaceCompatibility';
+import { isTauriRuntime } from '@/infrastructure/runtime/environment';
+import { getActiveSurfaceScope, isLocalSurface } from '@/infrastructure/peer-device/deviceSurface';
+import { useSceneStore } from '@/app/stores/sceneStore';
+import { createBrowserWebview, createBrowserWebviewLabel } from '@/app/scenes/browser/useEmbeddedBrowserWebview';
+import { captureContentScope } from '@/shared/services/workbenchContentService';
+import { api } from '@/infrastructure/api/service-api/ApiClient';
 
 const pendingImageAnalysisTurns = new Map<string, string>();
 
@@ -258,6 +264,7 @@ export const __test_only__ = {
   handleDialogTurnRecovered,
   handleDialogTurnCancelled,
   buildBuiltInBrowserTabOptions,
+  handleOpenBuiltInBrowser,
 };
 
 function eventOwnsLatestSessionTurn(
@@ -968,7 +975,10 @@ export async function initializeEventListeners(
       handleThreadGoalUpdatedEvent(event);
     },
     onOpenBuiltInBrowser: (event) => {
-      handleOpenBuiltInBrowser(event);
+      void handleOpenBuiltInBrowser(event).catch(error => {
+        log.error('Failed to open built-in browser', { requestId: event.requestId, error });
+        notificationService.error(error instanceof Error ? error.message : String(error));
+      });
     },
     onSessionTitleGenerated: (event) => {
       handleSessionTitleGenerated(event);
@@ -2790,13 +2800,42 @@ function buildBuiltInBrowserTabOptions(
   };
 }
 
-function handleOpenBuiltInBrowser(event: OpenBuiltInBrowserEvent): void {
+async function handleOpenBuiltInBrowser(event: OpenBuiltInBrowserEvent): Promise<void> {
   const options = buildBuiltInBrowserTabOptions(event);
   if (!options) {
     log.warn('OpenBuiltInBrowser missing url', { event });
     return;
   }
-  createTab(options);
+  const surface = getActiveSurfaceScope();
+  const scope = captureContentScope(options.data);
+  const ownerSessionId = options.data.ownerSessionId;
+  const ownerIsPresented = () => {
+    if (!ownerSessionId) return false;
+    const scenes = useSceneStore.getState();
+    return !scenes.pendingTabId
+      && scenes.openTabs.find(tab => tab.id === scenes.activeTabId)?.session?.sessionId === ownerSessionId
+      && FlowChatStore.getInstance().getState().activeSessionId === ownerSessionId;
+  };
+  // Hidden session tabs do not mount a browser viewport. Prepare the native
+  // page independently so the Agent can continue without navigating the UI.
+  if (!ownerIsPresented() && !options.data.adoptExisting && isTauriRuntime() && isLocalSurface(surface.surfaceId)) {
+    const label = createBrowserWebviewLabel('embedded-browser-panel-view');
+    let page: Awaited<ReturnType<typeof createBrowserWebview>>;
+    try {
+      page = await createBrowserWebview(label, options.data.url,
+        { left: 0, top: 0, width: 1280, height: 720 }, options.data.openRequestId);
+    } catch (error) {
+      await api.invoke('browser_webview_close', { request: { label } }).catch(() => {});
+      throw error;
+    }
+    if (!surface.isCurrent()) {
+      await page.close();
+      return;
+    }
+    options.data = { ...options.data, webviewLabel: label, adoptExisting: true };
+  }
+  if (!surface.isCurrent()) return;
+  createTab({ ...options, scope, focus: ownerIsPresented(), isCurrent: surface.isCurrent });
 }
 
 export function handleDialogTurnComplete(

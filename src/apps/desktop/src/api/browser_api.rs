@@ -146,10 +146,9 @@ struct BrowserTargetRegistry {
 }
 
 impl BrowserTargetRegistry {
-    fn active_label_for_open_request(&self, request_id: &str) -> Option<String> {
+    fn label_for_open_request(&self, request_id: &str) -> Option<String> {
         self.records.iter().find_map(|(label, record)| {
-            (record.active && record.open_request_id.as_deref() == Some(request_id))
-                .then(|| label.clone())
+            (record.open_request_id.as_deref() == Some(request_id)).then(|| label.clone())
         })
     }
 }
@@ -221,13 +220,13 @@ pub(crate) fn list_browser_targets(app: &tauri::AppHandle) -> Vec<BuiltInBrowser
     let mut registry = lock_browser_targets();
     registry
         .records
-        .retain(|label, _| app.get_webview_window(label).is_some());
+        .retain(|label, _| app.get_webview(label).is_some());
     let mut targets = registry
         .records
         .iter()
         .map(|(label, record)| {
             let url = app
-                .get_webview_window(label)
+                .get_webview(label)
                 .and_then(|webview| {
                     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| webview.url()))
                         .ok()
@@ -251,20 +250,19 @@ pub(crate) fn list_browser_targets(app: &tauri::AppHandle) -> Vec<BuiltInBrowser
     targets.into_iter().map(|(_, target)| target).collect()
 }
 
-/// Resolve the exact active WebView that acknowledged one browser-open
-/// request. The request ID is presentation lifecycle metadata and is kept out
-/// of the public browser target DTO.
+/// Resolve the exact created WebView for a browser-open request, including a
+/// background session's hidden page. Visibility is not automation readiness.
 pub(crate) fn browser_target_for_open_request(
     app: &tauri::AppHandle,
     request_id: &str,
 ) -> Option<BuiltInBrowserTarget> {
     let label = {
         let registry = lock_browser_targets();
-        registry.active_label_for_open_request(request_id)
+        registry.label_for_open_request(request_id)
     }?;
     list_browser_targets(app)
         .into_iter()
-        .find(|target| target.id == label && target.active)
+        .find(|target| target.id == label)
 }
 
 fn validate_webview_bounds(x: f64, y: f64, width: f64, height: f64) -> Result<(), String> {
@@ -388,6 +386,7 @@ pub async fn browser_webview_create(
         let mut builder =
             tauri::webview::WebviewBuilder::new(request.label, tauri::WebviewUrl::External(url))
                 .initialization_script(video_decoder_compatibility_script())
+                .focused(false)
                 .transparent(false)
                 .background_color(tauri::window::Color(0, 0, 0, 255));
 
@@ -817,7 +816,7 @@ mod tests {
     }
 
     #[test]
-    fn open_request_correlation_requires_the_exact_active_target() {
+    fn open_request_correlation_resolves_the_exact_target_without_activating_it() {
         let mut registry = BrowserTargetRegistry::default();
         registry.records.insert(
             "embedded-browser-panel-view-old".to_string(),
@@ -837,23 +836,15 @@ mod tests {
         );
 
         assert_eq!(
-            registry
-                .active_label_for_open_request("old-request")
-                .as_deref(),
+            registry.label_for_open_request("old-request").as_deref(),
             Some("embedded-browser-panel-view-old")
         );
-        assert_eq!(registry.active_label_for_open_request("new-request"), None);
-
-        registry
-            .records
-            .get_mut("embedded-browser-panel-view-new")
-            .expect("new target")
-            .active = true;
         assert_eq!(
-            registry
-                .active_label_for_open_request("new-request")
-                .as_deref(),
+            registry.label_for_open_request("new-request").as_deref(),
             Some("embedded-browser-panel-view-new")
         );
+        assert_eq!(registry.label_for_open_request("missing-request"), None);
+        assert!(registry.records["embedded-browser-panel-view-old"].active);
+        assert!(!registry.records["embedded-browser-panel-view-new"].active);
     }
 }

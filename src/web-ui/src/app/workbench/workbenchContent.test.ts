@@ -30,6 +30,8 @@ import { getSessionSceneTabId } from '../components/SceneBar/types';
 import { resolveSessionSceneTarget } from '../services/sessionSceneTarget';
 import { workspaceManager } from '@/infrastructure/services/business/workspaceManager';
 import type { WorkspaceInfo } from '@/shared/types';
+import { __test_only__ } from '@/flow_chat/services/flow-chat-manager/EventHandlerModule';
+import { api } from '@/infrastructure/api/service-api/ApiClient';
 
 vi.mock('@/infrastructure/services/business/workspaceManager', () => ({
   workspaceManager: { getState: vi.fn(() => ({ currentWorkspace: { id: 'project', rootPath: '/project' }, recentWorkspaces: [],
@@ -369,6 +371,191 @@ describe('workbench content navigation', () => {
       .toBe(true);
     expect(state.primaryGroup.tabs.find(tab => tab.content.data.ownerSessionId === 'session-b')?.isHidden)
       .toBe(false);
+  });
+
+  describe('Agent browser opens', () => {
+    beforeEach(() => {
+      vi.stubGlobal('__TAURI_INTERNALS__', { invoke: () => {} });
+      vi.spyOn(api, 'invoke').mockResolvedValue(undefined);
+    });
+    afterEach(() => {
+      vi.mocked(api.invoke).mockRestore();
+      vi.unstubAllGlobals();
+    });
+
+    const request = {
+      url: 'https://example.com/agent', ownerSessionId: 'session-a',
+      ownerWorkspaceId: 'project', requestId: 'request-a', replaceExisting: true,
+    };
+
+    it.each([false, true])('keeps B selected while A prepares a hidden browser, typing=%s', async typing => {
+      openSession('session-a');
+      openSession('session-b');
+      switchAgentCanvasWorkspace(undefined, 'project');
+      createCodeEditorTab('/project/draft.ts', 'draft.ts');
+      const input = document.createElement('textarea');
+      document.body.append(input);
+      if (typing) { input.value = 'unfinished draft'; input.focus(); }
+      const scenes = useSceneStore.getState();
+      const previousTab = useAgentCanvasStore.getState().primaryGroup.activeTabId;
+      const layout = appManager.getState().layout;
+
+      try {
+        await __test_only__.handleOpenBuiltInBrowser(request);
+        expect(flowChatStore.getState().activeSessionId).toBe('session-b');
+        expect(useSceneStore.getState().activeTabId).toBe(scenes.activeTabId);
+        expect(useSceneStore.getState().navHistory).toEqual(scenes.navHistory);
+        expect(appManager.getState().layout).toEqual(layout);
+        if (typing) { expect(document.activeElement).toBe(input); expect(input.value).toBe('unfinished draft'); }
+        const canvas = useAgentCanvasStore.getState();
+        expect(canvas.primaryGroup.activeTabId).toBe(previousTab);
+        const browser = canvas.primaryGroup.tabs.find(tab => tab.content.type === 'browser')!;
+        expect(browser.isHidden).toBe(true);
+        expect(browser.content.data).toMatchObject({ ownerSessionId: 'session-a', adoptExisting: true });
+        expect(api.invoke).toHaveBeenCalledExactlyOnceWith('browser_webview_create', {
+          request: expect.objectContaining({ label: browser.content.data.webviewLabel,
+            url: request.url, openRequestId: request.requestId }),
+        });
+
+        openSession('session-a');
+        expect(canvas.syncSessionOwnedBrowserTabs('session-a').hasVisibleOwnedBrowserTab).toBe(true);
+        expect(useAgentCanvasStore.getState().primaryGroup.tabs.find(tab => tab.id === browser.id)?.isHidden).toBe(false);
+      } finally { input.remove(); }
+    });
+
+    it.each(['local', 'peer-test'])('stores A in its remote workspace without switching B on surface %s', async surfaceId => {
+      activateSurface(surfaceId);
+      const remote: WorkspaceInfo = { id: 'remote-a', name: 'Remote', rootPath: '/remote/a',
+        workspaceKind: 'remote', connectionId: 'ssh-a', filesystemScopeKey: 'ssh:ssh-a',
+        createdAt: '', lastAccessed: '' };
+      vi.mocked(workspaceManager.getState).mockReturnValueOnce({
+        currentWorkspace: { id: 'project', rootPath: '/project' }, recentWorkspaces: [],
+        openedWorkspaces: new Map([['remote-a', remote], ['project', { id: 'project', rootPath: '/project' }]]),
+      } as any);
+      const sessionA = openSession('session-a', { workspaceId: remote.id, workspacePath: remote.rootPath });
+      openSession('session-b');
+      switchAgentCanvasWorkspace(undefined, 'project');
+      createCodeEditorTab('/project/b.ts', 'b.ts');
+      const scenes = useSceneStore.getState();
+      const before = useAgentCanvasStore.getState();
+      // An OHOS/peer host already owns this page; the controller only records its view.
+      vi.mocked(workspaceManager.getState).mockReturnValueOnce({
+        currentWorkspace: { id: 'project', rootPath: '/project' }, recentWorkspaces: [],
+        openedWorkspaces: new Map([['remote-a', remote], ['project', { id: 'project', rootPath: '/project' }]]),
+      } as any);
+      await __test_only__.handleOpenBuiltInBrowser({ ...request, ownerWorkspaceId: remote.id,
+        webviewLabel: 'embedded-browser-panel-view-agent-existing', adoptExisting: true });
+      expect(flowChatStore.getState().activeSessionId).toBe('session-b');
+      expect(useSceneStore.getState().activeTabId).toBe(scenes.activeTabId);
+      expect(useSceneStore.getState().openTabs.some(tab => tab.session === sessionA)).toBe(true);
+      expect(useAgentCanvasStore.getState()).toBe(before);
+      expect(api.invoke).not.toHaveBeenCalled();
+      switchAgentCanvasWorkspace('project', remote.id);
+      const browser = useAgentCanvasStore.getState().primaryGroup.tabs[0];
+      expect(browser.content.data).toMatchObject({ ownerSessionId: 'session-a',
+        webviewLabel: 'embedded-browser-panel-view-agent-existing', adoptExisting: true });
+      expect(browser.content.metadata?.resourceScope).toMatchObject({ surfaceId, workspaceId: remote.id,
+        remoteConnectionId: 'ssh-a' });
+    });
+
+    it('opens the browser panel normally when A is already presented', async () => {
+      openSession('session-a');
+      await __test_only__.handleOpenBuiltInBrowser(request);
+      expect(useAgentCanvasStore.getState().primaryGroup.tabs[0].content.type).toBe('browser');
+      expect(appManager.getState().layout.rightPanelCollapsed).toBe(false);
+      expect(api.invoke).not.toHaveBeenCalled();
+    });
+
+    it('does not cancel a user navigation from A to B while preparing A', async () => {
+      const sessionA = openSession('session-a');
+      const sessionB = openSession('session-b', { workspaceId: 'other', workspacePath: '/other' });
+      selectSession('session-a');
+      useSceneStore.getState().activateScene(getSessionSceneTabId(sessionA));
+      switchAgentCanvasWorkspace(undefined, 'project');
+      let finish!: (activated: boolean) => void;
+      const stop = registerSessionSceneNavigation({
+        current: () => sessionA, isActive: () => false,
+        activate: () => new Promise<boolean>(resolve => { finish = resolve; }),
+      });
+      try {
+        useSceneStore.getState().activateScene(getSessionSceneTabId(sessionB));
+        await __test_only__.handleOpenBuiltInBrowser(request);
+        expect(useSceneStore.getState().pendingTabId).toBe(getSessionSceneTabId(sessionB));
+        selectSession('session-b', { workspaceId: 'other', workspacePath: '/other' });
+        finish(true);
+        await vi.waitFor(() => expect(useSceneStore.getState().activeTabId).toBe(getSessionSceneTabId(sessionB)));
+        expect(flowChatStore.getState().activeSessionId).toBe('session-b');
+      } finally { stop(); }
+    });
+
+    it('replaces a background page without changing selection or retaining the old native page', async () => {
+      selectSession('session-a');
+      openSession('session-b');
+      switchAgentCanvasWorkspace(undefined, 'project');
+      createCodeEditorTab('/project/b.ts', 'b.ts');
+      const selected = useAgentCanvasStore.getState().primaryGroup.activeTabId;
+      await __test_only__.handleOpenBuiltInBrowser(request);
+      const first = useAgentCanvasStore.getState().primaryGroup.tabs.find(tab => tab.content.type === 'browser')!;
+      await __test_only__.handleOpenBuiltInBrowser({ ...request, requestId: 'replacement', url: 'https://example.com/new' });
+      const canvas = useAgentCanvasStore.getState();
+      const browsers = canvas.primaryGroup.tabs.filter(tab => tab.content.type === 'browser');
+      expect(browsers).toHaveLength(1);
+      expect(browsers[0].content.data.url).toBe('https://example.com/new');
+      expect(browsers[0].content.data.webviewLabel).not.toBe(first.content.data.webviewLabel);
+      expect(canvas.primaryGroup.activeTabId).toBe(selected);
+      expect(flowChatStore.getState().activeSessionId).toBe('session-b');
+      await vi.waitFor(() => expect(api.invoke).toHaveBeenCalledWith('browser_webview_close', {
+        request: { label: first.content.data.webviewLabel },
+      }));
+    });
+
+    it('keeps legacy requests without an owner in the background', async () => {
+      openSession('session-b');
+      const activeTab = useSceneStore.getState().activeTabId;
+      await __test_only__.handleOpenBuiltInBrowser({ url: 'https://example.com/legacy' });
+      expect(useSceneStore.getState().activeTabId).toBe(activeTab);
+      expect(flowChatStore.getState().activeSessionId).toBe('session-b');
+      expect(Object.values(useContentResourceStore.getState().resources)[0].content.data)
+        .toMatchObject({ url: 'https://example.com/legacy', adoptExisting: true });
+    });
+
+    it('keeps an existing main browser view in the background', async () => {
+      openSession('session-b');
+      const id = openWorkbenchContent({ type: 'browser', title: 'A',
+        data: { url: request.url, ownerSessionId: 'session-a' } },
+      { resourceKey: 'browser-panel:session-a:session:session-a', focus: false });
+      const activeTab = useSceneStore.getState().activeTabId;
+      await __test_only__.handleOpenBuiltInBrowser({ ...request,
+        webviewLabel: 'embedded-browser-panel-view-agent-main', adoptExisting: true });
+      expect(useSceneStore.getState().activeTabId).toBe(activeTab);
+      expect(useContentResourceStore.getState().resources[id].content.data.webviewLabel)
+        .toBe('embedded-browser-panel-view-agent-main');
+    });
+
+    it('does not navigate if native browser preparation fails', async () => {
+      openSession('session-b');
+      const activeTab = useSceneStore.getState().activeTabId;
+      vi.mocked(api.invoke).mockRejectedValueOnce(new Error('Native browser unavailable'));
+      await expect(__test_only__.handleOpenBuiltInBrowser(request)).rejects.toThrow('Native browser unavailable');
+      expect(useSceneStore.getState().activeTabId).toBe(activeTab);
+      expect(useAgentCanvasStore.getState().primaryGroup.tabs).toHaveLength(0);
+      expect(useContentResourceStore.getState().resources).toEqual({});
+    });
+
+    it('abandons a prepared page when the device surface changes', async () => {
+      openSession('session-b');
+      let finish!: () => void;
+      vi.mocked(api.invoke).mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
+      const opening = __test_only__.handleOpenBuiltInBrowser(request);
+      activateSurface('another-device');
+      finish();
+      await opening;
+      expect(api.invoke).toHaveBeenLastCalledWith('browser_webview_close', {
+        request: { label: expect.stringMatching(/^embedded-browser-panel-view-/) },
+      });
+      expect(useAgentCanvasStore.getState().primaryGroup.tabs).toHaveLength(0);
+      expect(useContentResourceStore.getState().resources).toEqual({});
+    });
   });
 
   it('keeps explicit Git opens in Git even with a selected session', () => {

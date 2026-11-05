@@ -39,11 +39,13 @@ export interface AuxPaneRef {
 interface AuxPaneProps {
   workspacePath?: string;
   isSceneActive?: boolean;
+  /** Session presentation remains active while the right pane is collapsed. */
+  isSessionSceneActive?: boolean;
   terminalResizeSuspended?: boolean;
 }
 
 const AuxPane = forwardRef<AuxPaneRef, AuxPaneProps>(
-  ({ workspacePath, isSceneActive = true, terminalResizeSuspended = false }, ref) => {
+  ({ workspacePath, isSceneActive = true, isSessionSceneActive = isSceneActive, terminalResizeSuspended = false }, ref) => {
     const { t } = useI18n('components');
     const { workspace } = useCurrentWorkspace();
     const workspaceId = workspace?.id;
@@ -122,15 +124,18 @@ const AuxPane = forwardRef<AuxPaneRef, AuxPaneProps>(
 
     const prevWorkspaceIdRef = useRef<string | undefined>(undefined);
     const panelOpenBySessionRef = useRef(new Map<string, boolean>());
+    const isSessionSceneActiveRef = useRef(isSessionSceneActive);
+    isSessionSceneActiveRef.current = isSessionSceneActive;
 
     const restoreRememberedBrowserPanel = useCallback((
       sessionId: string | null,
       hasVisibleOwnedBrowserTab: boolean,
+      shouldRevealBrowser = false,
     ) => {
       if (
         sessionId
         && hasVisibleOwnedBrowserTab
-        && panelOpenBySessionRef.current.get(sessionId) === true
+        && (shouldRevealBrowser || panelOpenBySessionRef.current.get(sessionId) === true)
       ) {
         expandSessionAuxPane();
       }
@@ -146,8 +151,9 @@ const AuxPane = forwardRef<AuxPaneRef, AuxPaneProps>(
       });
       switchAgentCanvasWorkspace(prev ?? null, next ?? null);
       const sessionId = flowChatStore.getState().activeSessionId;
-      const { hasVisibleOwnedBrowserTab } = syncSessionOwnedBrowserTabs(sessionId);
-      restoreRememberedBrowserPanel(sessionId, hasVisibleOwnedBrowserTab);
+      const { hasVisibleOwnedBrowserTab, shouldRevealBrowser } = syncSessionOwnedBrowserTabs(sessionId,
+        { revealPending: isSessionSceneActiveRef.current });
+      restoreRememberedBrowserPanel(sessionId, hasVisibleOwnedBrowserTab, shouldRevealBrowser);
       prevWorkspaceIdRef.current = next;
     }, [restoreRememberedBrowserPanel, syncSessionOwnedBrowserTabs]);
 
@@ -168,17 +174,26 @@ const AuxPane = forwardRef<AuxPaneRef, AuxPaneProps>(
             !appManager.getState().layout.rightPanelCollapsed,
           );
         }
-        const { hasVisibleOwnedBrowserTab, hasVisibleTab } = syncSessionOwnedBrowserTabs(sessionId);
+        const { hasVisibleOwnedBrowserTab, hasVisibleTab, shouldRevealBrowser } = syncSessionOwnedBrowserTabs(sessionId,
+          { revealPending: isSessionSceneActiveRef.current });
         if (isSessionTransition && !hasVisibleTab) {
           collapseSessionAuxPane();
         }
-        restoreRememberedBrowserPanel(sessionId, hasVisibleOwnedBrowserTab);
+        restoreRememberedBrowserPanel(sessionId, hasVisibleOwnedBrowserTab, shouldRevealBrowser);
         previousSessionId = sessionId;
       };
 
       sync(flowChatStore.getState().activeSessionId);
       return flowChatStore.subscribe(state => sync(state.activeSessionId));
     }, [restoreRememberedBrowserPanel, syncSessionOwnedBrowserTabs]);
+
+    useEffect(() => {
+      if (!isSessionSceneActive) return;
+      const sessionId = flowChatStore.getState().activeSessionId;
+      const { hasVisibleOwnedBrowserTab, shouldRevealBrowser } = syncSessionOwnedBrowserTabs(sessionId,
+        { revealPending: true });
+      if (shouldRevealBrowser) restoreRememberedBrowserPanel(sessionId, hasVisibleOwnedBrowserTab, true);
+    }, [isSessionSceneActive, restoreRememberedBrowserPanel, syncSessionOwnedBrowserTabs]);
 
     useEffect(() => {
       const removeListener = workspaceManager.addEventListener((event) => {

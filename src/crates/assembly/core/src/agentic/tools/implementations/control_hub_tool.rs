@@ -661,21 +661,6 @@ impl ControlHubTool {
         close_error
     }
 
-    #[cfg(target_env = "ohos")]
-    async fn wait_for_arkweb_presentation(webview_label: &str) -> BitFunResult<()> {
-        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(10);
-        loop {
-            if arkweb_webview_is_active(webview_label) {
-                return Ok(());
-            }
-            if tokio::time::Instant::now() >= deadline {
-                return Err(coded_tool_error(ErrorCode::NotAvailable,
-                    "The exact ArkWeb page was not adopted and activated by the browser panel; browser control is not ready. Open the browser panel and retry."));
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        }
-    }
-
     #[cfg(any(target_env = "ohos", test))]
     fn select_arkweb_connect_target(
         pages: &[crate::agentic::tools::browser_control::BuiltInBrowserTarget],
@@ -805,7 +790,6 @@ impl ControlHubTool {
                             "adoptExisting": true,
                         }),
                     }).await.map_err(|error| BitFunError::tool(error.to_string()))?;
-                    Self::wait_for_arkweb_presentation(&target.webview_label).await?;
                 }
                 return Ok(vec![ToolResult::ok(json!({
                     "success": true, "target": "builtin", "backend": "builtin",
@@ -925,11 +909,8 @@ impl ControlHubTool {
                 format!("The ArkWeb page could not be presented: {error}"),
             ));
         }
-        if let Err(error) = Self::wait_for_arkweb_presentation(&webview_label).await {
-            Self::cleanup_builtin_browser(&automation_id, &webview_label).await;
-            return Err(error);
-        }
-
+        // The host-created CDP target is ready independently of whether its
+        // owning chat session is currently presented by a controller.
         if let Err(error) = CdpClient::validate_ohos_protocol_at(&endpoint).await {
             Self::cleanup_builtin_browser(&automation_id, &webview_label).await;
             return Err(error);

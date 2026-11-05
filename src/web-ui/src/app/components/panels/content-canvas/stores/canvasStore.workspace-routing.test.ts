@@ -58,6 +58,7 @@ describe('Agent canvas workspace routing', () => {
     expect(store.syncSessionOwnedBrowserTabs('session-1')).toEqual({
       hasVisibleOwnedBrowserTab: true,
       hasVisibleTab: true,
+      shouldRevealBrowser: false,
     });
     let state = useAgentCanvasStore.getState();
     let sessionOne = state.primaryGroup.tabs.find(tab => tab.content.data?.ownerSessionId === 'session-1');
@@ -71,6 +72,7 @@ describe('Agent canvas workspace routing', () => {
     expect(state.syncSessionOwnedBrowserTabs('session-2')).toEqual({
       hasVisibleOwnedBrowserTab: true,
       hasVisibleTab: true,
+      shouldRevealBrowser: false,
     });
     state = useAgentCanvasStore.getState();
     sessionOne = state.primaryGroup.tabs.find(tab => tab.content.data?.ownerSessionId === 'session-1');
@@ -81,6 +83,7 @@ describe('Agent canvas workspace routing', () => {
     expect(state.syncSessionOwnedBrowserTabs(null)).toEqual({
       hasVisibleOwnedBrowserTab: false,
       hasVisibleTab: true,
+      shouldRevealBrowser: false,
     });
   });
 });
