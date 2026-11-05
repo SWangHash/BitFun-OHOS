@@ -4,11 +4,9 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::detect::is_qt_source_project;
 use crate::scan::{
-    dedup_paths, is_migration_artifact_location, is_noise_dir, is_qt_harmonyos_template,
-    normalize_workspace_candidate, path_key, MAX_OUTPUT_PROJECTS, MAX_PROBE_DEPTH,
-    TEMPLATE_MARKER_DIR,
+    dedup_paths, is_migration_artifact_location, is_noise_dir, is_qt_harmonyos_template, path_key,
+    MAX_OUTPUT_PROJECTS, MAX_PROBE_DEPTH, TEMPLATE_MARKER_DIR,
 };
 
 pub fn merge_workspace_output_candidates(
@@ -16,12 +14,14 @@ pub fn merge_workspace_output_candidates(
     model_candidates: &[String],
     source_candidates: &[String],
     workspace_output_candidates: &[String],
+    prompt_paths: &[String],
 ) -> Vec<String> {
     merge_output_candidates(
         workspace,
         model_candidates,
         source_candidates,
         workspace_output_candidates,
+        prompt_paths,
     )
 }
 
@@ -30,6 +30,7 @@ pub(crate) fn merge_output_candidates(
     model_candidates: &[String],
     source_candidates: &[String],
     workspace_output_candidates: &[String],
+    prompt_paths: &[String],
 ) -> Vec<String> {
     let mut ranked: Vec<(u8, String)> = Vec::new();
     // Prompt-named candidates rank first (explicit user intent); only real
@@ -38,15 +39,13 @@ pub(crate) fn merge_output_candidates(
     // The check also rejects an official template dir as an output target,
     // which is equally unintended by the workflow.
     for candidate in model_candidates {
-        let Some(path) = normalize_workspace_candidate(workspace, candidate) else {
+        let origin = crate::candidates::origin(Some(workspace), candidate, prompt_paths);
+        let Some(admitted) =
+            crate::candidates::admit("output_project", Some(workspace), candidate, origin, None)
+        else {
             continue;
         };
-        if path.is_dir()
-            && !is_migration_artifact_location(&path)
-            && !is_inside_migrated_harmony_project(&path)
-        {
-            ranked.push((0, path.to_string_lossy().into_owned()));
-        }
+        ranked.push((0, admitted));
     }
     for path in workspace_output_candidates {
         ranked.push((1, path.clone()));
@@ -100,9 +99,6 @@ pub fn filter_output_candidates(
         .into_iter()
         .filter(|candidate| {
             let path = Path::new(candidate);
-            if is_qt_source_project(path) {
-                return false;
-            }
             let named_as_source = source_candidates
                 .iter()
                 .any(|source| path_key(Path::new(source)) == path_key(path));
