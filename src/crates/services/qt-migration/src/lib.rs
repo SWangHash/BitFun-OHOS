@@ -4,6 +4,7 @@
 //! `bitfun_product_domains`.
 
 pub mod admission;
+pub mod candidates;
 pub mod detect;
 pub mod instructions;
 pub mod layout;

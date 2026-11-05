@@ -164,7 +164,7 @@ fn card_probe(
     managed_root: &Path,
     model: &HashMap<String, Vec<String>>,
 ) -> QtMigrationCandidateProbe {
-    probe_qt_migration_candidates(workspace, managed_root, model, &[], &[])
+    probe_qt_migration_candidates(workspace, managed_root, model, &[], &[], &HashMap::new())
 }
 
 /// Shared scan of a fixture tree (the probe above is a card-facing view of it).
@@ -389,7 +389,8 @@ fn a_workspace_root_that_is_the_project_is_offered_as_itself() {
     touch(&container, "inner.pro");
 
     assert_eq!(
-        probe_source_projects(&root, &[]),
+        probe_source_projects(&root, &[], &[]
+                ),
         vec![root.to_string_lossy().into_owned()]
     );
 }
@@ -770,7 +771,8 @@ fn cmake_qt_project_is_a_source_candidate() {
     touch(&root, "main.cpp");
     let named = vec![root.to_string_lossy().into_owned()];
 
-    assert_eq!(probe_source_projects(&root, &named), named);
+    assert_eq!(probe_source_projects(&root, &named, &[]
+                ), named);
 }
 
 #[test]
@@ -783,14 +785,16 @@ fn cmake_without_qt_is_not_a_source_candidate() {
     .unwrap();
     let named = vec![root.to_string_lossy().into_owned()];
 
-    assert_eq!(probe_source_projects(&root, &named), Vec::<String>::new());
+    assert_eq!(probe_source_projects(&root, &named, &[]
+                ), Vec::<String>::new());
 }
 
 #[test]
 fn a_named_source_project_this_host_cannot_see_is_still_offered() {
     let (_t, root) = tree();
     let named = root.join("no-such-calculator");
-    let candidates = probe_source_projects(&root, &[named.to_string_lossy().into_owned()]);
+    let named_value = named.to_string_lossy().into_owned();
+    let candidates = probe_source_projects(&root, &[named_value.clone()], &[named_value.clone()]);
 
     assert_eq!(keys(&candidates), keys(&[named.to_string_lossy().into_owned()]));
 
@@ -800,12 +804,11 @@ fn a_named_source_project_this_host_cannot_see_is_still_offered() {
         "find_package(Qt6 COMPONENTS Widgets REQUIRED)",
         "QAnyStringView view;\n",
     );
+    let named_value = named.to_string_lossy().into_owned();
     let candidates = probe_source_projects(
         &root,
-        &[
-            named.to_string_lossy().into_owned(),
-            real.to_string_lossy().into_owned(),
-        ],
+        &[named_value.clone(), real.to_string_lossy().into_owned()],
+        &[named_value],
     );
     assert_eq!(
         keys(&candidates),
@@ -822,7 +825,8 @@ fn a_named_source_project_this_host_cannot_see_is_still_offered() {
         "cmake_minimum_required(VERSION 3.16)\nproject(plain C)\n",
     )
     .unwrap();
-    let named_plain = probe_source_projects(&root, &[plain.to_string_lossy().into_owned()]);
+    let named_plain = probe_source_projects(&root, &[plain.to_string_lossy().into_owned()], &[]
+                );
     assert!(
         named_plain
             .iter()
@@ -866,14 +870,16 @@ fn a_vendored_subproject_is_not_offered_next_to_the_project_that_owns_it() {
     }
 
     // vendored 子工程不采；根工程自己就是那个工程，所以工作区层也只给根。
-    let named = probe_source_projects(&root, &[root.to_string_lossy().into_owned()]);
+    let named = probe_source_projects(&root, &[root.to_string_lossy().into_owned()], &[]
+                );
     assert_eq!(named, vec![root.to_string_lossy().into_owned()]);
     assert!(
         named.iter().all(|path| !path.contains("ThirdParty")),
         "vendored 子工程不得成为候选: {named:?}"
     );
     assert_eq!(
-        probe_source_projects(&root, &[]),
+        probe_source_projects(&root, &[], &[]
+                ),
         vec![root.to_string_lossy().into_owned()],
         "工作区根就是工程时，工作区层给出的也是根"
     );
@@ -926,18 +932,21 @@ fn a_copied_qt_distribution_yields_no_source_project() {
 
     // 安装树里的副本不是用户的工程，扫到或点名都不进候选。
     assert_eq!(
-        probe_source_projects(&root, &[]),
+        probe_source_projects(&root, &[], &[]
+                ),
         vec![app.to_string_lossy().into_owned()],
         "工作区层只认顶层真工程，发行版副本不进候选"
     );
     assert_eq!(
-        probe_source_projects(&root, &[app.to_string_lossy().into_owned()]),
+        probe_source_projects(&root, &[app.to_string_lossy().into_owned()], &[]
+                ),
         vec![app.to_string_lossy().into_owned()],
         "点名的真工程仍然是候选"
     );
     // 工作区层也会扫出 `app`，所以断言"点名的示例集不在候选里"而非"候选为空"。
     for installed in [kit_examples, examples, fragment] {
-        let candidates = probe_source_projects(&root, &[installed.to_string_lossy().into_owned()]);
+        let candidates = probe_source_projects(&root, &[installed.to_string_lossy().into_owned()], &[]
+                );
         assert!(
             candidates
                 .iter()
@@ -956,7 +965,8 @@ fn a_copied_qt_distribution_yields_no_source_project() {
     )
     .unwrap();
     assert!(
-        probe_source_projects(&root, &[])
+        probe_source_projects(&root, &[], &[]
+                )
             .iter()
             .all(|path| path_key(Path::new(path)) != path_key(&build_scripts)),
         "构建脚本目录不进原始工程候选"
@@ -1238,6 +1248,7 @@ fn a_kit_whose_tools_are_not_built_for_this_host_is_not_a_candidate() {
         &HashMap::new(),
         &[],
         &[],
+        &HashMap::new(),
     );
 
     assert_eq!(kit_tools_run_on_host(&foreign_root), Some(false));
@@ -1261,6 +1272,7 @@ fn a_kit_whose_tools_are_not_built_for_this_host_is_not_a_candidate() {
         &HashMap::new(),
         &[],
         &[],
+        &HashMap::new(),
     );
     assert_eq!(kit_tools_run_on_host(&native), Some(true));
     assert!(
@@ -1330,7 +1342,7 @@ fn a_prompt_named_toolchain_is_the_default_over_the_installed_kit() {
         vec![named.to_string_lossy().into_owned()],
     );
 
-    let probe = probe_qt_migration_candidates(&workspace, &managed_root, &model, &[], &[]);
+    let probe = probe_qt_migration_candidates(&workspace, &managed_root, &model, &[], &[], &HashMap::new());
 
     assert_eq!(
         keys(&probe.candidates["toolchain"]),

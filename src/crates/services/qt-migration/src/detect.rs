@@ -512,41 +512,27 @@ pub(crate) fn contains_qt6_only_type_name(haystack: &str, name: &str) -> bool {
 /// the workspace's own top-level Qt projects, ranked as prompt input above
 /// workspace. A named path this host cannot see stays listable (a typo must be
 /// visible where the user wrote it) but measures no Qt generation.
-pub(crate) fn probe_source_projects(workspace: &Path, model_candidates: &[String]) -> Vec<String> {
+pub(crate) fn probe_source_projects(
+    workspace: &Path,
+    model_candidates: &[String],
+    prompt_paths: &[String],
+) -> Vec<String> {
     // Tier 0 is the request, tier 1 the workspace scan; `order` is each tier's own.
     let mut found: Vec<(u8, usize, usize, PathBuf)> = Vec::new();
     for (index, candidate) in model_candidates.iter().enumerate() {
-        let Some(path) = normalize_workspace_candidate(workspace, candidate) else {
+        let origin = crate::candidates::origin(Some(workspace), candidate, prompt_paths);
+        let Some(admitted) =
+            crate::candidates::admit("source_project", Some(workspace), candidate, origin, None)
+        else {
             continue;
         };
-        let path = if path.is_file()
-            && path
-                .file_name()
-                .map(|name| name.to_string_lossy().to_lowercase().ends_with(".pro"))
-                .unwrap_or(false)
-        {
-            path.parent().unwrap_or(&path).to_path_buf()
-        } else {
-            path
-        };
-        // A named path only has to be a Qt project, not a migration artifact, and
-        // not part of a Qt installation.
-        if is_inside_migrated_harmony_project(&path) || is_inside_qt_installation(&path) {
+        let Some(path) = normalize_workspace_candidate(workspace, &admitted) else {
             continue;
-        }
+        };
         let depth = path
             .strip_prefix(workspace)
             .map(|relative| relative.components().count())
             .unwrap_or(MAX_PROBE_DEPTH + 1);
-        if !is_qt_source_project(&path) {
-            if !path.exists() {
-                found.push((0, index, depth, path));
-                continue;
-            }
-            if !has_qt_project_below(&path) {
-                continue;
-            }
-        }
         found.push((0, index, depth, path));
     }
     for (order, path) in workspace_qt_projects(workspace).into_iter().enumerate() {
@@ -731,7 +717,7 @@ pub(crate) fn measure_project_qt_major(project_dir: &Path) -> Option<u8> {
 /// Whether a direct child directory is a Qt source project root, for a named repo
 /// root whose Qt markers sit one level down (`src/<app>.pro`). The caller keeps
 /// the named directory itself as the project.
-fn has_qt_project_below(dir: &Path) -> bool {
+pub(crate) fn has_qt_project_below(dir: &Path) -> bool {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return false;
     };

@@ -198,6 +198,7 @@ pub fn probe_qt_migration_candidates(
     model_candidates: &HashMap<String, Vec<String>>,
     session_probe_dirs: &[String],
     extra_known_install_roots: &[PathBuf],
+    prompt_paths: &HashMap<String, Vec<String>>,
 ) -> QtMigrationCandidateProbe {
     let scan = scan_qt_migration_candidates(
         workspace,
@@ -213,6 +214,10 @@ pub fn probe_qt_migration_candidates(
     let source_candidates = probe_source_projects(
         workspace,
         model_candidates
+            .get("source_project")
+            .map(Vec::as_slice)
+            .unwrap_or_default(),
+        prompt_paths
             .get("source_project")
             .map(Vec::as_slice)
             .unwrap_or_default(),
@@ -257,6 +262,10 @@ pub fn probe_qt_migration_candidates(
             .unwrap_or_default(),
         &source_candidates,
         &[],
+        prompt_paths
+            .get("output_project")
+            .map(Vec::as_slice)
+            .unwrap_or_default(),
     );
     out.insert("source_project".to_string(), source_candidates);
     out.insert("output_project".to_string(), output_candidates);
