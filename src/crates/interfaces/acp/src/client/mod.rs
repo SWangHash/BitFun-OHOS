@@ -1,6 +1,7 @@
 mod builtin_clients;
 mod config;
 mod dsh_profile;
+mod elicitation;
 mod managed_provisioning;
 mod manager;
 mod ohos_node_compat;
@@ -19,8 +20,7 @@ mod transport;
 pub use config::{
     AcpClientConfig, AcpClientConfigFile, AcpClientInfo, AcpClientPermissionMode,
     AcpClientRequirementProbe, AcpClientRuntimeOverride, AcpClientStatus, AcpClientSubagentConfig,
-    AcpRequirementProbeItem,
-    RemoteAcpClientRequirementSnapshot,
+    AcpRequirementProbeItem, RemoteAcpClientRequirementSnapshot,
 };
 pub use managed_provisioning::{
     AcpClientInstallOutcome, AcpClientInstallStatus, AcpManagedProvisioningProgress,

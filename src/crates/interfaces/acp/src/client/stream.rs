@@ -8,6 +8,7 @@ use agent_client_protocol::schema::{
 use agent_client_protocol::util::MatchDispatch;
 use bitfun_core::util::errors::{BitFunError, BitFunResult};
 use bitfun_events::ToolEventData;
+use tokio::sync::mpsc;
 
 use super::session_options::{AcpAvailableCommand, AcpPlanEntry, AcpSessionContextUsage};
 use super::tool_card_bridge::{acp_tool_name, normalize_tool_params, normalize_tool_result};
@@ -28,6 +29,17 @@ pub enum AcpClientStreamEvent {
     ConfigOptionsUpdated(Vec<SessionConfigOption>),
     Completed,
     Cancelled,
+}
+
+#[derive(Debug)]
+pub(super) enum AcpInteractiveEvent {
+    Stream(AcpClientStreamEvent),
+}
+
+#[derive(Clone)]
+pub(super) struct AcpInteractiveSession {
+    pub bitfun_session_id: String,
+    pub events: mpsc::UnboundedSender<AcpInteractiveEvent>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

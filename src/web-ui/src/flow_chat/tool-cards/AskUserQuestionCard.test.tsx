@@ -239,6 +239,22 @@ describe('AskUserQuestionCard', () => {
     expect(container.querySelector('button[data-bitfun-part="summary"]')).not.toBeNull();
   });
 
+  it('submits ACP option values by field and respects a form that disallows custom answers', async () => {
+    const tool = questionTool('running');
+    tool.questionRequest = { questions: [{
+      field: 'database', header: 'Database', question: 'Which database?',
+      allowCustomInput: false,
+      options: [{ label: 'SQLite', value: 'sqlite' }, { label: 'PostgreSQL', value: 'postgres' }],
+    }] };
+    act(() => root.render(<AskUserQuestionCard toolItem={tool} config={config} sessionId="acp-session" isLastItem />));
+    expect(container.querySelector('input[value="Other"]')).toBeNull();
+    act(() => container.querySelector<HTMLInputElement>('input[value="sqlite"]')?.click());
+    const submitButton = container.querySelector<HTMLButtonElement>('[data-bitfun-part="submit"] button');
+    expect(submitButton?.disabled).toBe(false);
+    await act(async () => submitButton?.click());
+    expect(toolAPI.submitUserAnswers).toHaveBeenCalledWith('question-tool-1', { database: 'sqlite' }, 'acp-session');
+  });
+
   it('restores an unsubmitted answer after the session card is remounted', () => {
     act(() => {
       root.render(

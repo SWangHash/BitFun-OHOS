@@ -75,6 +75,7 @@ export interface AskUserCardQuestion {
   /** Free-text input placeholder, already localized. */
   inputPlaceholder?: string;
   multiSelect: boolean;
+  allowCustomInput?: boolean;
   options: AskUserCardOption[];
   /** Prompt, already localized. Also used as the path picker title. */
   prompt: string;
@@ -679,7 +680,7 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
 
   const designQuestions = useMemo<AskUserQuestion[]>(
     () => questions.map((question, questionIndex) => ({
-      customOption: {
+      customOption: question.allowCustomInput === false ? undefined : {
         description: t('toolCards.askUser.customInputHint'),
         inputLabel: t('toolCards.askUser.pleaseSpecify'),
         label: t('toolCards.askUser.other'),

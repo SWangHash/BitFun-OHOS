@@ -73,6 +73,7 @@ interface QuestionOption {
 interface QuestionData {
   header: string;
   multiSelect: boolean;
+  allowCustomInput?: boolean;
   options: QuestionOption[];
   question: string;
   /** When present, the question shows a text input below the options. */
@@ -121,6 +122,9 @@ function normalizeQuestionsFromParams(input: unknown): QuestionData[] {
       field: rawField || undefined,
       header: typeof rawQuestion.header === 'string' ? rawQuestion.header : '',
       inputPlaceholder: rawPlaceholder || undefined,
+      allowCustomInput: typeof rawQuestion.allowCustomInput === 'boolean'
+        ? rawQuestion.allowCustomInput
+        : undefined,
       multiSelect: Boolean(rawQuestion.multiSelect),
       options,
       question: typeof rawQuestion.question === 'string'
@@ -156,6 +160,7 @@ function resolveGenericQuestions(toolItem: FlowToolItem): AskUserCardQuestion[] 
     header: question.header || undefined,
     inputPlaceholder: question.inputPlaceholder,
     multiSelect: question.multiSelect,
+    allowCustomInput: question.allowCustomInput,
     prompt: question.question,
     options: question.options.map((option) => ({
       // A template option carries its own value when the display label is not
