@@ -10,6 +10,8 @@ const repo = requireArg(args, 'repo');
 const out = requireArg(args, 'out');
 const requiredPlatforms = parseListArg(args['required-platforms'] || '');
 const manualAssetsDir = args['manual-assets-dir'];
+const installerAssetsDir = args['installer-assets-dir'];
+const notesFile = args['notes-file'];
 
 if (!existsSync(assetsDir)) {
   fail(`Assets directory does not exist: ${assetsDir}`);
@@ -41,7 +43,7 @@ for (const sigPath of walkFiles(assetsDir).filter((file) => file.endsWith('.sig'
 
 const platformNames = Object.keys(platforms);
 if (platformNames.length === 0) {
-  fail('No signed updater artifacts were found. Expected .AppImage.sig, .app.tar.gz.sig, .tar.gz.sig, .zip.sig, or .exe.sig files.');
+  fail('No signed updater artifacts were found. Expected .AppImage.sig, .app.tar.gz.sig, .tar.gz.sig, .zip.sig, .exe.sig, .deb.sig, or .rpm.sig files.');
 }
 
 const missingPlatforms = requiredPlatforms.filter((platform) => !platforms[platform]);
@@ -51,24 +53,52 @@ if (missingPlatforms.length > 0) {
 
 const manifest = {
   version,
-  notes: '',
+  notes: notesFile && existsSync(notesFile) ? readFileSync(notesFile, 'utf8').trim() : '',
   pub_date: new Date().toISOString(),
   platforms,
 };
 
+const manualInstallers = {};
+
 if (manualAssetsDir) {
-  const installerName = `BitFun_${version}_windows-x86_64-installer.exe`;
-  const installerPath = join(manualAssetsDir, installerName);
+  addManualInstaller('windows-x86_64', join(manualAssetsDir, `BitFun_${version}_windows-x86_64-installer.exe`));
+}
+
+// The macOS updater artifact is a .app.tar.gz: an update payload with no
+// installer UI, which a browser unpacks into a bare .app wherever downloads
+// land. The signed .dmg published beside it is the thing a person installs.
+// Declaring it here is what lets the website and the mirror offer it instead of
+// deriving the filename themselves and silently missing a rename.
+if (installerAssetsDir) {
+  const dmgPaths = new Map(
+    walkFiles(installerAssetsDir)
+      .filter((file) => file.endsWith('.dmg'))
+      .map((file) => [basename(file), file])
+  );
+  for (const [platform, arch] of [['darwin-aarch64', 'aarch64'], ['darwin-x86_64', 'x64']]) {
+    const installerName = `BitFun_${version}_${arch}.dmg`;
+    const installerPath = dmgPaths.get(installerName);
+    if (!installerPath) {
+      fail(`Missing macOS installer ${installerName} under ${installerAssetsDir}`);
+    }
+    addManualInstaller(platform, installerPath);
+  }
+}
+
+if (Object.keys(manualInstallers).length > 0) {
+  manifest.manual_installers = manualInstallers;
+}
+
+function addManualInstaller(platform, installerPath) {
   const signaturePath = `${installerPath}.sig`;
   if (!existsSync(installerPath) || !existsSync(signaturePath)) {
     fail(`Missing signed manual installer pair: ${installerPath} and ${signaturePath}`);
   }
-  const assetUrl = `https://github.com/${repo}/releases/download/${encodeURIComponent(tag)}/${encodeURIComponent(installerName)}`;
-  manifest.manual_installers = {
-    'windows-x86_64': {
-      url: assetUrl,
-      signature_url: `${assetUrl}.sig`,
-    },
+  const assetName = basename(installerPath);
+  const assetUrl = `https://github.com/${repo}/releases/download/${encodeURIComponent(tag)}/${encodeURIComponent(assetName)}`;
+  manualInstallers[platform] = {
+    url: assetUrl,
+    signature_url: `${assetUrl}.sig`,
   };
 }
 
@@ -132,7 +162,9 @@ function isUpdaterBundle(file) {
     lower.endsWith('.app.tar.gz') ||
     lower.endsWith('.tar.gz') ||
     lower.endsWith('.zip') ||
-    lower.endsWith('.exe')
+    lower.endsWith('.exe') ||
+    lower.endsWith('.deb') ||
+    lower.endsWith('.rpm')
   );
 }
 
@@ -154,6 +186,16 @@ function inferPlatform(file) {
   }
   if (lower.includes('.appimage.tar.gz')) {
     return `linux-${arch}`;
+  }
+  if (lower.endsWith('.deb')) {
+    // Bundle-type key: tauri-plugin-updater installs a deb payload via dpkg only
+    // when the running install is itself a deb, so these clients must receive a
+    // dedicated `linux-<arch>-deb` entry instead of the AppImage the bare key
+    // serves.
+    return `linux-${arch}-deb`;
+  }
+  if (lower.endsWith('.rpm')) {
+    return `linux-${arch}-rpm`;
   }
   if (lower.includes('.app.tar.gz')) {
     return `darwin-${arch}`;

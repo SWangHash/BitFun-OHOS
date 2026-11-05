@@ -29,6 +29,27 @@ html, body {
   overflow: hidden;
 }
 
+// The Linux desktop window is transparent because WebKitGTK keeps the GTK frame
+// square on Wayland. The desktop bootstrap advertises that the shell owns the
+// frame; the root element then owns both the frame radius and the background the
+// frame used to paint, and everything below it stays transparent so the corners
+// show through.
+html[data-bitfun-native-frame='client'],
+html[data-bitfun-native-frame='client'] body,
+html[data-bitfun-native-frame='client'] #root,
+html[data-bitfun-native-frame='client'] .bitfun-app-layout {
+  background: transparent;
+}
+
+html[data-bitfun-native-frame='client'] #root {
+  border-radius: 12px;
+  background: var(--bitfun-color-surface-canvas);
+}
+
+html[data-bitfun-native-frame='client'][data-bitfun-window-maximized] #root {
+  border-radius: 0;
+}
+
 html[data-bitfun-native-material='sidebar'],
 html[data-bitfun-native-material='sidebar'] body {
   background: transparent;

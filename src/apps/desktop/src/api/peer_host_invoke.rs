@@ -2,238 +2,49 @@
 //!
 //! Commands are executed through the same frontend invoke surface as local UI
 //! (peer webview → `invoke`), so handler signatures stay single-sourced.
-//! Local-only / controller-only commands are denied before any bridge call.
+//! Which commands may run here on a controller's behalf is decided by the
+//! Product Operation Registry (`bitfun_product_domains::remote_surface`); this
+//! module only applies its verdict before any bridge call. The frontend and
+//! the CLI peer host derive their tables from the same registry, so the three
+//! surfaces cannot drift apart. See `docs/architecture/remote-surface-contract.md`.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
-use bitfun_product_domains::remote_surface::{peer_stance, PeerStance};
+use bitfun_product_domains::remote_surface::{
+    capability_map, digest as remote_surface_digest, peer_host_verdict, peer_stance,
+    retired_reason, PeerHostKind, PeerHostVerdict, PeerStance,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::oneshot;
 
-use super::remote_connect_api::{account_app_handle, current_device_id_for_peer};
+use super::remote_connect_api::{account_app_handle, current_device_id_for_peer, RelayRoute};
 
 const DEFAULT_INVOKE_TIMEOUT: Duration = Duration::from_secs(120);
+/// Browser Control setup waits for browser-owned consent: up to one minute for
+/// the Remote debugging toggle plus up to 90 seconds for the connection
+/// approval prompt. The controller adapter uses the same budget.
+pub(crate) const BROWSER_CONTROL_SETUP_INVOKE_TIMEOUT: Duration = Duration::from_secs(180);
 
-/// Commands that must never run on a peer on behalf of a controller.
-///
-/// Keep aligned with:
-/// - FE deny list in `src/web-ui/.../adapters/peer-device-adapter.ts`
-/// - CLI deny list in `src/apps/cli/src/peer_host/deny.rs`
-/// - invariants in `src/web-ui/src/infrastructure/peer-device/README.md`
-///
-/// Account identity + cloud session/turn APIs stay on the controller. Peer
-/// history is restored via HostInvoke (`restore_session_view`), not by
-/// forwarding `account_fetch_session_turns` to the peer host.
-static LOCAL_ONLY_COMMANDS: &[&str] = &[
-    // Window / tray / process chrome
-    "show_main_window",
-    "hide_main_window_after_close_request",
-    "frontend_update_candidate_ready",
-    "get_frontend_update_status",
-    "confirm_frontend_update",
-    "rollback_frontend_update",
-    "quit_app",
-    "minimize_to_tray",
-    "initialize_tray_after_startup",
-    "startup_window_control",
-    "toggle_main_window_fullscreen",
-    "set_main_window_transient_geometry",
-    "get_prevent_sleep_enabled",
-    "set_prevent_sleep_enabled",
-    "restart_app",
-    "check_for_updates",
-    "install_update",
-    // Native save dialogs and their destinations belong to the controller.
-    "save_text_file_dialog",
-    "appearance_market_browse",
-    "appearance_market_download_release",
-    "appearance_market_get_listing",
-    "appearance_market_get_review_submission",
-    "appearance_market_list_review_submissions",
-    "appearance_market_list_submissions",
-    "appearance_market_review_submission",
-    "appearance_market_submit_package",
-    "appearance_market_withdraw_submission",
-    // Account identity / peer mode control (stay on controller)
-    "account_login",
-    "account_finalize_login",
-    "account_cancel_pending_login",
-    "account_logout",
-    "account_status",
-    "account_get_credential_hint",
-    "account_token_expired",
-    "account_connect_devices",
-    "account_online_devices",
-    "account_list_devices",
-    "account_delete_device",
-    "account_device_rpc",
-    "account_delegate_to_paired",
-    "account_auto_sync",
-    "account_sync_settings",
-    "account_fetch_settings",
-    "account_sync_session",
-    "account_fetch_synced_sessions",
-    "account_delete_synced_session",
-    "account_export_local_session",
-    "account_export_all_sessions",
-    "account_import_remote_sessions",
-    "account_fetch_session_turns",
-    "account_send_session_to_device",
-    "account_execute_on_device",
-    "peer_host_invoke_complete",
-    "peer_control_attach",
-    "peer_control_detach",
-    "peer_mode_ping",
-    "peer_controller_set_active",
-    // Remote-connect control plane (must not run on peer for a controller)
-    "remote_connect_get_device_info",
-    "remote_connect_get_lan_ip",
-    "remote_connect_get_lan_network_info",
-    "remote_connect_get_methods",
-    "remote_connect_start",
-    "remote_connect_stop",
-    "remote_connect_stop_bot",
-    "remote_connect_status",
-    "remote_connect_get_form_state",
-    "remote_connect_set_form_state",
-    "remote_connect_configure_custom_server",
-    "remote_connect_configure_bot",
-    "remote_connect_weixin_qr_start",
-    "remote_connect_weixin_qr_poll",
-    "remote_connect_get_bot_verbose_mode",
-    "remote_connect_set_bot_verbose_mode",
-    // Computer-use OS permission prompts + system-settings are intentionally NOT
-    // local-only: under Desktop Peer Mode they must run on the peer host B (B
-    // surfaces B's own OS permission prompts / settings), reached via
-    // bridge_via_webview. CLI Peer refuses them in deny.rs. See SessionConfig.
-    // Native child-WebView lifecycle belongs to the controller window.
-    "browser_webview_set_agent_target_state",
-    // ProductControl presentation readiness and transaction acknowledgements
-    // belong to this window. The product command itself is intentionally not
-    // local-only: `product_control_invoke` follows the selected peer data plane.
-    "mark_bitfun_control_surface_ready",
-    "mark_bitfun_control_surface_unready",
-    "report_bitfun_control_result",
-    // Detached dispatch uses controller-owned SSH credentials and observers.
-    "dispatch_list_targets",
-    "dispatch_probe_target",
-    "dispatch_install_cli_start",
-    "dispatch_install_cli_poll",
-    "dispatch_install_cli_cancel",
-    "dispatch_provision_target",
-    "dispatch_sync_model_config",
-    "dispatch_submit",
-    "dispatch_status",
-    "dispatch_query",
-    "dispatch_cancel",
-    "dispatch_sync_result",
-    "dispatch_list_jobs",
-    "dispatch_answer",
-    "dispatch_append",
-    "dispatch_continue",
-    "dispatch_load_transcript",
-    "dispatch_save_transcript",
-    // One-click relay deploy SSHes from the controller to a user host
-    "relay_deploy_preflight",
-    "relay_deploy_install_docker",
-    "relay_deploy_start",
-    "relay_deploy_poll",
-    "relay_deploy_cancel",
-    "relay_deploy_register",
-    "relay_deploy_verify",
-    // Speech capture and model files belong to the machine the user speaks at.
-    "speech_list_models",
-    "speech_download_model",
-    "speech_cancel_model_download",
-    "speech_delete_model",
-    "speech_verify_model",
-    "speech_start_input_session",
-    "speech_append_audio_chunk",
-    "speech_finish_input_session",
-    "speech_cancel_input_session",
-    "speech_start_realtime_session",
-    "speech_append_realtime_audio",
-    "speech_commit_realtime_audio",
-    "speech_send_realtime_tool_result",
-    "speech_speak_realtime_text",
-    "speech_cancel_realtime_response",
-    "speech_close_realtime_session",
-    "speech_get_realtime_config",
-    "speech_save_realtime_config",
-    // Granting Git ownership trust writes to the peer user's global Git
-    // configuration and tells Git to run hooks from a tree they do not own.
-    // That decision stays with the person at that machine; a controller can
-    // still read `git_get_repository_trust` and relay the manual command.
-    "git_trust_repository",
-    // Controller app-shell state mirrored from the FE deny list. An older or
-    // non-Web-UI controller can still HostInvoke these onto this peer, so the
-    // peer host must refuse them independently of the FE optimization. Keep in
-    // sync with `src/web-ui/.../adapters/peer-device-adapter.ts`
-    // LOCAL_ONLY_COMMANDS and `src/apps/cli/src/peer_host/deny.rs`.
-    // UI locale writes the controller's config and rebuilds THIS machine's
-    // macOS menubar/tray; routing it to a peer writes the wrong config.
-    "i18n_get_current_language",
-    "i18n_set_language",
-    "i18n_get_supported_languages",
-    "i18n_get_config",
-    "i18n_set_config",
-    // Announcement scheduler/state: get_pending / get_tips run the scheduler
-    // (mutate app_open_count + persist); seen / dismiss / never-show write
-    // controller announcement state. Refused on the peer.
-    "get_pending_announcements",
-    "get_announcement_tips",
-    "mark_announcement_seen",
-    "dismiss_announcement",
-    "never_show_announcement",
-    "trigger_announcement",
-    // Companion pets live on the controller's desktop; the import zip path is
-    // picked by a local dialog on the controller and is not readable here.
-    "list_agent_companion_pets",
-    "import_agent_companion_pet_package",
-    "delete_agent_companion_pet_package",
-    // Insights is the controller's own usage report: it reads the controller's
-    // session history and writes the HTML to the controller's user_data_dir.
-    "generate_insights",
-    "get_latest_insights",
-    "load_insights_report",
-    "has_insights_data",
-    "cancel_insights_generation",
-    // IDE control events drive the controller window's panels; the result
-    // report must settle on the controller's transport, not here.
-    "report_ide_control_result",
-    // Controller app-shell / local-device commands (embedded webview/DevTools/
-    // desktop-pet/diagnostics) operate on the controller's OWN surfaces and a
-    // peer host has no implementation for them, so they stay local-only.
-    //
-    // NOTE: the runtime-owning Browser Control and Computer Use commands are
-    // NOT local-only — they run the agent Tool, so under Desktop Peer Mode they
-    // route to the peer host B via bridge_via_webview (reads B's own browser
-    // and OS). CLI Peer refuses them in deny.rs and the UI gates the section on
-    // host type. See SessionConfig + cli deny.rs.
-    "browser_webview_create",
-    "browser_webview_eval",
-    "browser_webview_navigate",
-    "browser_webview_reload",
-    "browser_webview_set_bounds",
-    "debug_devtools_available",
-    "debug_open_devtools",
-    "resize_agent_companion_desktop_pet",
-    "show_agent_companion_desktop_pet",
-    "hide_agent_companion_desktop_pet",
-    "append_flow_chat_diagnostics",
-];
+fn invoke_timeout_for(command: &str) -> Duration {
+    match command {
+        "browser_control_launch"
+        | "browser_control_enable_default_cdp"
+        | "browser_control_restart_with_cdp" => BROWSER_CONTROL_SETUP_INVOKE_TIMEOUT,
+        _ => DEFAULT_INVOKE_TIMEOUT,
+    }
+}
 
 static PENDING: OnceLock<Mutex<HashMap<String, oneshot::Sender<HostInvokeBridgeResult>>>> =
     OnceLock::new();
 
 #[derive(Default)]
 struct PeerControlState {
-    controllers: HashSet<String>,
+    controllers: HashSet<(RelayRoute, String)>,
     permission_request_ids: HashSet<String>,
 }
 
@@ -279,30 +90,45 @@ struct HostInvokeBridgeRequest {
     args: Value,
 }
 
+/// Whether this host must refuse the command on a controller's behalf.
+///
+/// Covers both registry stances that a peer host never executes:
+/// `ControllerLocal` (the controller keeps it) and `OperatorOnly` (only the
+/// machine that owns the workspace may decide it, e.g. `git_trust_repository`).
 pub fn is_local_only_command(command: &str) -> bool {
-    let stance = peer_stance(command);
-    LOCAL_ONLY_COMMANDS.contains(&command)
-        || matches!(stance, Some(PeerStance::OperatorOnly))
-        // Account requests belong to the controller's authenticated Relay,
-        // including metadata operations added after the compatibility list.
-        || (command.starts_with("account_")
-            && matches!(stance, Some(PeerStance::ControllerLocal)))
+    matches!(
+        peer_stance(command),
+        Some(PeerStance::ControllerLocal | PeerStance::OperatorOnly)
+    )
 }
 
 /// Commands kept as protocol tombstones after their runtime owner was removed.
 pub fn is_retired_command(command: &str) -> bool {
-    command.starts_with("lsp_")
+    retired_reason(command).is_some()
 }
 
 /// Register a controller device id to receive peer UI events.
 pub fn attach_controller(device_id: String) {
+    attach_route_controller(RelayRoute::Official, device_id);
+}
+
+pub(crate) fn attach_route_controller(route: RelayRoute, device_id: String) {
     if let Ok(mut state) = peer_control_state().lock() {
-        state.controllers.insert(device_id);
+        state.controllers.insert((route, device_id));
     }
 }
 
+#[cfg(test)]
 fn detach_from_state(state: &mut PeerControlState, device_id: &str) -> Vec<String> {
-    let removed = state.controllers.remove(device_id);
+    detach_route_from_state(state, RelayRoute::Official, device_id)
+}
+
+fn detach_route_from_state(
+    state: &mut PeerControlState,
+    route: RelayRoute,
+    device_id: &str,
+) -> Vec<String> {
+    let removed = state.controllers.remove(&(route, device_id.to_string()));
     if removed && state.controllers.is_empty() {
         return state.permission_request_ids.drain().collect();
     }
@@ -312,42 +138,46 @@ fn detach_from_state(state: &mut PeerControlState, device_id: &str) -> Vec<Strin
 /// Detach one controller and return requests that must fail closed when it was
 /// the final controller.
 pub fn detach_controller(device_id: &str) -> Vec<String> {
+    detach_route_controller(RelayRoute::Official, device_id)
+}
+
+pub(crate) fn detach_route_controller(route: RelayRoute, device_id: &str) -> Vec<String> {
     let Ok(mut state) = peer_control_state().lock() else {
         return Vec::new();
     };
-    detach_from_state(&mut state, device_id)
+    detach_route_from_state(&mut state, route, device_id)
 }
 
 fn retain_online_in_state(
     state: &mut PeerControlState,
+    route: RelayRoute,
     online_device_ids: &HashSet<String>,
-) -> Vec<String> {
-    let had_controllers = !state.controllers.is_empty();
+) {
     state
         .controllers
-        .retain(|device_id| online_device_ids.contains(device_id));
-    if had_controllers && state.controllers.is_empty() {
-        return state.permission_request_ids.drain().collect();
-    }
-    Vec::new()
+        .retain(|(owner, device_id)| *owner != route || online_device_ids.contains(device_id));
 }
 
-/// Remove controllers missing from account presence and return requests that
-/// lost their final control surface.
-pub fn retain_online_controllers(online_device_ids: &HashSet<String>) -> Vec<String> {
+/// Remove offline delivery subscribers only on the reporting route. Presence
+/// loss does not revoke pending permissions; reconnect recovers the mailbox.
+pub(crate) fn retain_online_controllers(route: RelayRoute, online_device_ids: &HashSet<String>) {
     let Ok(mut state) = peer_control_state().lock() else {
-        return Vec::new();
+        return;
     };
-    retain_online_in_state(&mut state, online_device_ids)
+    retain_online_in_state(&mut state, route, online_device_ids);
 }
 
 /// Clear all attached controllers after the device-routing stream closes.
-pub fn disconnect_controllers() -> Vec<String> {
+pub(crate) fn disconnect_route_controllers(route: RelayRoute) -> Vec<String> {
     let Ok(mut state) = peer_control_state().lock() else {
         return Vec::new();
     };
-    state.controllers.clear();
-    state.permission_request_ids.drain().collect()
+    state.controllers.retain(|(owner, _)| *owner != route);
+    if state.controllers.is_empty() {
+        state.permission_request_ids.drain().collect()
+    } else {
+        Vec::new()
+    }
 }
 
 pub fn track_permission_event(event: &bitfun_agent_runtime::sdk::PermissionRequestEvent) -> bool {
@@ -410,7 +240,21 @@ pub async fn fail_closed_permission_requests(
 pub fn attached_controllers() -> Vec<String> {
     peer_control_state()
         .lock()
-        .map(|state| state.controllers.iter().cloned().collect())
+        .map(|state| state.controllers.iter().map(|(_, id)| id.clone()).collect())
+        .unwrap_or_default()
+}
+
+pub(crate) fn attached_route_controllers(route: RelayRoute) -> Vec<String> {
+    peer_control_state()
+        .lock()
+        .map(|state| {
+            state
+                .controllers
+                .iter()
+                .filter(|(owner, _)| *owner == route)
+                .map(|(_, id)| id.clone())
+                .collect()
+        })
         .unwrap_or_default()
 }
 
@@ -464,22 +308,15 @@ pub async fn peer_mode_ping() -> Result<Value, String> {
         // reports `host_type: "cli"` and never implemented them, so the
         // controller gates them off instead of showing an action that silently
         // fails. See PR #2428 round 5 #1.
-        "host_type": "desktop",
-        "capabilities": {
-            "idempotent_dialog_submit": true,
-            "targeted_session_rollback": true,
-            "token_usage_statistics": true,
-            "miniapp_agent_context_files_v1": true,
-            "product_control_v1": true,
-            "product_control_native_v1": true,
-            "product_control_presentation_v1": true,
-            // Desktop implements both per-tool cancel and the tool catalog
-            // (agentic_api::cancel_tool, tool_api::get_all_tools_info), so the
-            // controller can gate the Terminal Interrupt button and the tool
-            // catalog UI on these the same way it does on the CLI peer host.
-            "cancel_tool": true,
-            "tool_catalog": true,
-        },
+        "host_type": PeerHostKind::Desktop.as_wire_str(),
+        // Only advertised keys, all `true`: a missing key means "older host",
+        // which the controller resolves through `host_type`. The list is the
+        // registry's, shared with the CLI host and the generated frontend
+        // artifact, so a controller cannot probe a key no host will send.
+        "capabilities": Value::Object(capability_map(PeerHostKind::Desktop)),
+        // Additive: lets a controller detect that this host and its own
+        // generated tables were built from different registries.
+        "surface_registry_digest": remote_surface_digest(),
     }))
 }
 
@@ -490,32 +327,59 @@ pub async fn peer_controller_set_active(active: bool) -> Result<(), String> {
     Ok(())
 }
 
-/// Dispatch an allowlisted (non-local-only) product command on this peer.
+/// Dispatch a product command on this peer according to the registry verdict.
 pub async fn dispatch(command: &str, args: Value) -> HostInvokeBridgeResult {
-    if command.is_empty() {
-        return HostInvokeBridgeResult {
-            ok: false,
-            value: None,
-            error: Some("HostInvoke command is empty".to_string()),
-        };
+    match peer_host_verdict(command, PeerHostKind::Desktop) {
+        PeerHostVerdict::Refuse(refusal) => {
+            return HostInvokeBridgeResult {
+                ok: false,
+                value: None,
+                error: Some(refusal.message(command)),
+            };
+        }
+        // Attach/detach/ping and the dispatch target verbs are answered by
+        // `remote_connect_api::execute_local_remote_command` before this
+        // function is reached; a direct call is a wiring bug, not a product
+        // command to bridge.
+        PeerHostVerdict::HostControlPlane => {
+            return HostInvokeBridgeResult {
+                ok: false,
+                value: None,
+                error: Some(format!(
+                    "command '{command}' belongs to the peer host control plane and is not bridged as a product command"
+                )),
+            };
+        }
+        PeerHostVerdict::Execute => {}
     }
-    if is_retired_command(command) {
-        return HostInvokeBridgeResult {
-            ok: false,
-            value: None,
-            error: Some(format!(
-                "command '{command}' is unsupported because the BitFun LSP runtime has been retired"
-            )),
+
+    if command == "product_control_invoke" {
+        use bitfun_product_domains::{
+            product_control::{ProductControlAction, ProductControlRequest},
+            remote_control::RemoteControlRequest,
         };
-    }
-    if is_local_only_command(command) {
-        return HostInvokeBridgeResult {
-            ok: false,
-            value: None,
-            error: Some(format!(
-                "command '{command}' is local-only and cannot run on peer"
-            )),
-        };
+        let payload = args.get("request").unwrap_or(&args);
+        let validation = serde_json::from_value::<ProductControlRequest>(payload.clone())
+            .map_err(|error| error.to_string())
+            .and_then(|request| {
+                if request.capability_id.as_deref() == Some("feature.remote-connect")
+                    && request.action == ProductControlAction::Execute
+                {
+                    RemoteControlRequest::from_operation(
+                        request.operation_id.as_deref().unwrap_or_default(),
+                        request.arguments.as_ref(),
+                    )?
+                    .ensure_direct_peer_safe()?;
+                }
+                Ok(())
+            });
+        if let Err(error) = validation {
+            return HostInvokeBridgeResult {
+                ok: false,
+                value: None,
+                error: Some(error),
+            };
+        }
     }
 
     let app = match account_app_handle() {
@@ -594,14 +458,15 @@ async fn bridge_via_webview(
         return Err(format!("failed to emit peer host invoke request: {e}"));
     }
 
-    match tokio::time::timeout(DEFAULT_INVOKE_TIMEOUT, rx).await {
+    let invoke_timeout = invoke_timeout_for(command);
+    match tokio::time::timeout(invoke_timeout, rx).await {
         Ok(Ok(result)) => Ok(result),
         Ok(Err(_)) => Err("peer host invoke channel closed".to_string()),
         Err(_) => {
             pending_map().lock().ok().map(|mut map| map.remove(&id));
             Err(format!(
                 "peer host invoke timed out after {}s for '{command}'",
-                DEFAULT_INVOKE_TIMEOUT.as_secs()
+                invoke_timeout.as_secs()
             ))
         }
     }
@@ -613,9 +478,45 @@ mod tests {
 
     fn control_state(controllers: &[&str], requests: &[&str]) -> PeerControlState {
         PeerControlState {
-            controllers: controllers.iter().map(|value| value.to_string()).collect(),
+            controllers: controllers
+                .iter()
+                .map(|value| (RelayRoute::Official, value.to_string()))
+                .collect(),
             permission_request_ids: requests.iter().map(|value| value.to_string()).collect(),
         }
+    }
+
+    #[test]
+    fn browser_control_setup_commands_get_the_consent_budget() {
+        for command in [
+            "browser_control_launch",
+            "browser_control_enable_default_cdp",
+            "browser_control_restart_with_cdp",
+        ] {
+            assert_eq!(
+                invoke_timeout_for(command),
+                BROWSER_CONTROL_SETUP_INVOKE_TIMEOUT
+            );
+        }
+        assert_eq!(
+            invoke_timeout_for("browser_control_get_status"),
+            DEFAULT_INVOKE_TIMEOUT
+        );
+    }
+
+    #[test]
+    fn detaching_one_route_preserves_the_other_controller_and_permissions() {
+        let mut state = control_state(&["same-device"], &["pending-approval"]);
+        state
+            .controllers
+            .insert((RelayRoute::Lan, "same-device".into()));
+        assert!(detach_route_from_state(&mut state, RelayRoute::Lan, "same-device").is_empty());
+        assert_eq!(state.permission_request_ids.len(), 1);
+        assert_eq!(state.controllers.len(), 1);
+        assert_eq!(
+            detach_from_state(&mut state, "same-device"),
+            vec!["pending-approval"]
+        );
     }
 
     #[tokio::test]
@@ -679,21 +580,25 @@ mod tests {
                 .and_then(Value::as_bool),
             Some(true)
         );
-        assert_eq!(
-            value
-                .pointer("/capabilities/token_usage_statistics")
-                .and_then(Value::as_bool),
-            Some(true)
+        let capabilities = value
+            .get("capabilities")
+            .and_then(Value::as_object)
+            .expect("capabilities object");
+        assert!(
+            capabilities.values().all(|v| v == &Value::Bool(true)),
+            "advertised capabilities are published as true only"
         );
         assert_eq!(
-            value
-                .pointer("/capabilities/cancel_tool")
-                .and_then(Value::as_bool),
-            Some(true)
+            capabilities.len(),
+            bitfun_product_domains::remote_surface::advertised_by(PeerHostKind::Desktop).len()
         );
+        assert!(value
+            .get("surface_registry_digest")
+            .and_then(Value::as_str)
+            .is_some_and(|d| d.starts_with("fnv1a64:")));
         assert_eq!(
             value
-                .pointer("/capabilities/tool_catalog")
+                .pointer("/capabilities/user_question_response")
                 .and_then(Value::as_bool),
             Some(true)
         );
@@ -785,22 +690,64 @@ mod tests {
         assert!(!is_local_only_command("git_get_repository_trust"));
     }
 
-    #[tokio::test]
-    async fn account_metadata_and_operator_only_commands_are_refused_before_the_webview_bridge() {
+    /// `remote_connect_api::execute_local_remote_command` special-cases these
+    /// three names before the deny check; the registry must agree so the CLI
+    /// host and the frontend derive the same control plane.
+    #[test]
+    fn control_plane_commands_are_host_control_plane_in_registry() {
+        use bitfun_product_domains::remote_surface::operation;
         for command in [
-            "account_relay_capabilities",
-            "account_update_device_alias",
-            "deveco_account_status",
-            "deveco_account_start_login",
-            "deveco_account_cancel_login",
-            "deveco_account_logout",
+            "peer_control_attach",
+            "peer_control_detach",
+            "peer_mode_ping",
         ] {
-            let result = dispatch(command, serde_json::json!({ "request": {} })).await;
-            assert!(!result.ok, "{command}");
-            assert!(result.value.is_none(), "{command}");
-            let expected = format!("command '{command}' is local-only and cannot run on peer");
-            assert_eq!(result.error.as_deref(), Some(expected.as_str()));
+            assert_eq!(
+                operation(command).map(|op| op.peer),
+                Some(PeerStance::HostControlPlane),
+                "{command}"
+            );
+            assert!(
+                !is_local_only_command(command),
+                "{command} is answered by the control plane, not refused as local-only"
+            );
         }
+    }
+
+    #[tokio::test]
+    async fn local_only_commands_fail_before_the_webview_bridge() {
+        let result = dispatch("account_login", serde_json::json!({})).await;
+        assert!(!result.ok);
+        assert_eq!(
+            result.error.as_deref(),
+            Some("command 'account_login' is local-only and cannot run on peer")
+        );
+        let result = dispatch("git_trust_repository", serde_json::json!({})).await;
+        assert_eq!(
+            result.error.as_deref(),
+            Some("command 'git_trust_repository' is local-only and cannot run on peer")
+        );
+    }
+
+    #[tokio::test]
+    async fn cli_only_aliases_are_refused_with_a_host_reason() {
+        let result = dispatch("list_files", serde_json::json!({})).await;
+        assert!(!result.ok);
+        let error = result.error.unwrap_or_default();
+        assert!(
+            error.starts_with("command 'list_files' is not supported on desktop peer host:"),
+            "{error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn unknown_commands_report_a_host_version_mismatch() {
+        let result = dispatch("not_an_bitfun_command", serde_json::json!({})).await;
+        assert!(!result.ok);
+        let error = result.error.unwrap_or_default();
+        assert!(
+            error.contains("is unknown to this BitFun desktop peer host version"),
+            "{error}"
+        );
     }
 
     #[tokio::test]
@@ -828,14 +775,46 @@ mod tests {
     }
 
     #[test]
-    fn presence_loss_drains_requests_only_when_every_controller_is_offline() {
+    fn presence_loss_preserves_pending_permissions_after_the_last_controller_leaves() {
         let mut state = control_state(&["controller-a", "controller-b"], &["request-1"]);
         let online = HashSet::from(["controller-b".to_string()]);
-        assert!(retain_online_in_state(&mut state, &online).is_empty());
+        retain_online_in_state(&mut state, RelayRoute::Official, &online);
+        assert_eq!(state.controllers.len(), 1);
 
-        assert_eq!(
-            retain_online_in_state(&mut state, &HashSet::new()),
-            vec!["request-1".to_string()]
-        );
+        retain_online_in_state(&mut state, RelayRoute::Official, &HashSet::new());
+        assert!(state.controllers.is_empty());
+        assert!(state.permission_request_ids.contains("request-1"));
+    }
+
+    #[test]
+    fn presence_updates_only_remove_subscribers_from_the_reporting_route() {
+        for route in [RelayRoute::Official, RelayRoute::Lan] {
+            let other = if route == RelayRoute::Official {
+                RelayRoute::Lan
+            } else {
+                RelayRoute::Official
+            };
+            let mut state = PeerControlState::default();
+            state.controllers.extend([
+                (route, "shared-device".to_string()),
+                (other, "shared-device".to_string()),
+                (route, "online-device".to_string()),
+            ]);
+            state.permission_request_ids.insert("request-1".to_string());
+
+            retain_online_in_state(
+                &mut state,
+                route,
+                &HashSet::from(["online-device".to_string()]),
+            );
+            assert_eq!(state.controllers.len(), 2);
+            assert!(state
+                .controllers
+                .contains(&(other, "shared-device".to_string())));
+            assert!(state
+                .controllers
+                .contains(&(route, "online-device".to_string())));
+            assert!(state.permission_request_ids.contains("request-1"));
+        }
     }
 }

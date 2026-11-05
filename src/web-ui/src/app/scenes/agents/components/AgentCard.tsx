@@ -2,8 +2,7 @@ import React from 'react';
 import { CardBody, CardFooter, CardHeader, Icon, OverflowText } from '@bitfun/ui';
 import { useTranslation } from 'react-i18next';
 import type { AgentWithCapabilities } from '../agentsStore';
-import { getAgentIcon } from '../agentsIcons';
-import { getAgentBadge, getAgentDescription, getCapabilityLabel } from '../utils';
+import { getAgentDescription } from '../utils';
 import AgentCatalogCard, { AgentCatalogMetrics } from './AgentCatalogCard';
 import './AgentCatalogCard.scss';
 
@@ -18,9 +17,6 @@ interface AgentCardProps {
 
 const AgentCard: React.FC<AgentCardProps> = ({ agent, disabledReason, onOpenDetails, ...metrics }) => {
   const { t } = useTranslation('scenes/agents');
-  const badge = getAgentBadge(t, agent.agentKind, agent.source ?? agent.subagentSource);
-  const agentIcon = getAgentIcon(agent.iconKey);
-  const capabilities = agent.capabilities.slice(0, 2).map(cap => getCapabilityLabel(t, cap.category)).join(' · ');
 
   return (
     <AgentCatalogCard
@@ -40,17 +36,11 @@ const AgentCard: React.FC<AgentCardProps> = ({ agent, disabledReason, onOpenDeta
               <OverflowText className="agent-catalog-card__name" data-bitfun-product-component="agent-card" data-bitfun-product-part="name" data-testid="agent-list-item-title">
                 {agent.name}
               </OverflowText>
-              <span className="agent-catalog-card__identity">
-                <span className="agent-catalog-card__icon" data-bitfun-product-component="agent-card" data-bitfun-product-part="iconArea" aria-hidden="true">
-                  <span data-bitfun-product-component="agent-card" data-bitfun-product-part="icon">
-                    <Icon {...agentIcon} size="sm" />
-                  </span>
+              {agent.agentKind === 'subagent' && (
+                <span className="agent-catalog-card__identity" data-bitfun-product-component="agent-card" data-bitfun-product-part="badges">
+                  {t('agentCard.badges.subagent')}
                 </span>
-                <OverflowText behavior="marquee">
-                  <span data-bitfun-product-component="agent-card" data-bitfun-product-part="badges">{badge.label}</span>
-                  <span data-bitfun-product-component="agent-card" data-bitfun-product-part="capabilities">{capabilities ? ` · ${capabilities}` : null}</span>
-                </OverflowText>
-              </span>
+              )}
             </div>
           </div>
         )}

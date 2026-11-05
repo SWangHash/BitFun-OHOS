@@ -66,15 +66,12 @@ describe('SettingsNav typography and layout ownership', () => {
     expect(root.getPropertyValue('--bitfun-color-action-neutral-content')).toBe('');
   });
 
-  it('leaves group spacing, heading typography, and item states to NavigationPanel while indenting child items', () => {
+  it('leaves group spacing, heading typography, and item geometry and states to NavigationPanel', () => {
     const content = declarations('.bitfun-settings-nav__content');
-    const item = declarations('.bitfun-settings-nav__item');
     expect(content.getPropertyValue('padding')).toBe('0px');
     expect(content.getPropertyValue('padding-inline-end')).toBe('var(--bitfun-space-2)');
     expect(content.getPropertyValue('gap')).toBe('');
-    expect(item.getPropertyValue('padding-inline-start')).toBe(
-      'calc(var(--bitfun-layout-navigation-panel-item-padding-inline) + 30px)',
-    );
+    expect(rules.some((rule) => rule.selectorText === '.bitfun-settings-nav__item')).toBe(false);
     expect(rules.some((rule) => rule.selectorText.includes('.bitfun-settings-nav__category'))).toBe(false);
     expect(readSettingsNavStylesheet()).not.toContain('element-bg-soft');
   });

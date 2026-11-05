@@ -1,4 +1,4 @@
-import { ActionCard, Button, Textarea } from '@bitfun/ui';
+import { ActionCard, Button, Textarea, Icon } from '@bitfun/ui';
 import React, { useEffect, useId, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle } from 'lucide-react';
@@ -36,7 +36,7 @@ export const DecisionExecutionGate: React.FC<DecisionExecutionGateProps> = ({
   return (
     <div className="deep-review-action-bar__decision-gate" role="dialog" aria-modal="false" aria-labelledby={titleId}>
       <div className="deep-review-action-bar__decision-gate-header">
-        <AlertTriangle size={16} className="deep-review-action-bar__decision-gate-icon" />
+        <Icon glyph={AlertTriangle} size="md" className="deep-review-action-bar__decision-gate-icon" />
         <div>
           <div id={titleId} ref={titleRef} tabIndex={-1} className="deep-review-action-bar__decision-gate-title">
             {t('deepReviewActionBar.decisionGate.title')}
@@ -58,6 +58,16 @@ export const DecisionExecutionGate: React.FC<DecisionExecutionGateProps> = ({
               <div className="deep-review-action-bar__decision-question">
                 {decision?.question ?? item.plan}
               </div>
+              {decision?.plan && decision.plan !== decision.question && (
+                <div className="deep-review-action-bar__decision-plan">
+                  {decision.plan}
+                </div>
+              )}
+              {decision?.tradeoffs && (
+                <div className="deep-review-action-bar__decision-tradeoffs">
+                  {decision.tradeoffs}
+                </div>
+              )}
               {options.length > 0 ? (
                 <div className="deep-review-action-bar__decision-gate-options">
                   {options.map((option, optionIndex) => {
@@ -92,16 +102,6 @@ export const DecisionExecutionGate: React.FC<DecisionExecutionGateProps> = ({
               ) : (
                 <div className="deep-review-action-bar__decision-gate-note">
                   {t('deepReviewActionBar.decisionGate.noOptionsHint')}
-                </div>
-              )}
-              {decision?.plan && decision.plan !== decision.question && (
-                <div className="deep-review-action-bar__decision-plan">
-                  {decision.plan}
-                </div>
-              )}
-              {decision?.tradeoffs && (
-                <div className="deep-review-action-bar__decision-tradeoffs">
-                  {decision.tradeoffs}
                 </div>
               )}
             </section>

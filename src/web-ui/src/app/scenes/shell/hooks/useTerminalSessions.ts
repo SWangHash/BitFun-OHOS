@@ -12,6 +12,8 @@ import { isSessionRunning, type ShellEntry } from './shellEntryTypes';
 interface UseTerminalSessionsOptions {
   workspaceId?: string;
   workspacePath?: string;
+  /** cwd of a terminal created without an explicit directory. */
+  defaultDirectory?: string;
   isRemote: boolean;
   currentConnectionId: string | null;
   scope: SurfaceScope;
@@ -27,7 +29,7 @@ interface SessionSnapshot {
 const snapshots = new Map<string, SessionResponse[]>();
 
 export function useTerminalSessions(options: UseTerminalSessionsOptions) {
-  const { workspaceId, workspacePath, isRemote, currentConnectionId, scope, savedSessionIds } = options;
+  const { workspaceId, workspacePath, defaultDirectory, isRemote, currentConnectionId, scope, savedSessionIds } = options;
   const key = scope.key('workspace-terminals', workspaceId);
   const activation = useMemo(() => ({ key, scope }), [key, scope]);
   const currentActivation = useRef<typeof activation | null>(activation);
@@ -37,6 +39,7 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     return () => { currentActivation.current = null; };
   }, [activation]);
   const requestVersion = useRef(0);
+  const trackingOwner = useRef({}).current;
   const [snapshot, setSnapshot] = useState<SessionSnapshot>(() => ({
     key, sessions: snapshots.get(key) ?? [], loading: true, error: null,
   }));
@@ -78,6 +81,7 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
         || terminalBelongsToWorkspace(session, target),
       );
       snapshots.set(key, filtered);
+      service.setTrackedSessions(trackingOwner, filtered.map(session => session.id));
       setSnapshot({ key, sessions: filtered, loading: false, error: null });
     } catch (error) {
       if (!scope.isCurrent() || currentActivation.current !== activation || version !== requestVersion.current) return;
@@ -86,7 +90,7 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
         loading: false, error: error instanceof Error ? error.message : String(error),
       }));
     }
-  }, [activation, assertCurrent, key, savedSessionIds, scope, target, workspaceId]);
+  }, [activation, assertCurrent, key, savedSessionIds, scope, target, trackingOwner, workspaceId]);
 
   useEffect(() => {
     const service = getTerminalService();
@@ -110,9 +114,10 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     return () => {
       requestVersion.current += 1;
       unsubscribe();
+      service.clearTrackedSessions(trackingOwner);
       window.removeEventListener('focus', refreshSessions);
     };
-  }, [activation, key, refreshSessions, scope]);
+  }, [activation, key, refreshSessions, scope, trackingOwner]);
 
   const closeSessionIfPresent = useCallback(async (sessionId: string) => {
     assertCurrent();
@@ -147,7 +152,7 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     assertCurrent();
     const prepared = await prepareManualTerminalSession({
       workspaceId: workspaceId!,
-      workspacePath: directory ?? workspacePath, shellType, shellId,
+      workspacePath: directory ?? defaultDirectory ?? workspacePath, shellType, shellId,
     });
     assertCurrent();
     // The shell is created by the terminal panel once it has measured its own geometry;

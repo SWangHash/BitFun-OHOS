@@ -5,8 +5,6 @@
 //! session restore, terminal pre-warm, remote image conversion, and runtime-port
 //! implementations until a reviewed port/provider migration proves equivalence.
 
-#[cfg(feature = "remote-connect")]
-use log::{debug, info};
 use bitfun_agent_runtime::sdk::{
     AgentEventSource, AgentInteractionResponsePort, AgentModeCatalogEntry, AgentModeCatalogPort,
     AgentModeCatalogQuery, AgentRuntime, AgentRuntimeBuilder, AgentSessionCompactionPort,
@@ -22,11 +20,11 @@ use bitfun_agent_runtime::sdk::{
 use bitfun_events::AgenticEvent;
 #[cfg(feature = "remote-connect")]
 use bitfun_runtime_ports::{
-    AgentDialogSteerRequest, AgentInputAttachment, AgentSubmissionSource,
-    AgentTurnCancellationRequest, DialogSteerOutcome, PermissionPolicyPreset,
-    RemoteControlStatePort, RemoteControlStateRequest, RemoteControlStateSnapshot,
-    RemoteSessionWorkspaceIdentity, RuntimeServiceCapability, RuntimeServicePort,
-    ToolPermissionConfig,
+    AgentDialogSteerRequest, AgentInputAttachment, AgentSessionComposerUpdate,
+    AgentSubmissionSource, AgentTurnCancellationRequest, DialogSteerOutcome,
+    PermissionPolicyPreset, RemoteControlStatePort, RemoteControlStateRequest,
+    RemoteControlStateSnapshot, RemoteSessionWorkspaceIdentity, RuntimeServiceCapability,
+    RuntimeServicePort, ToolPermissionConfig,
 };
 use bitfun_runtime_ports::{
     AgentDialogTurnPort, AgentDialogTurnRequest, AgentLifecycleDeliveryPort,
@@ -40,10 +38,11 @@ use bitfun_runtime_ports::{
 #[cfg(feature = "remote-connect")]
 use bitfun_services_integrations::remote_connect::{
     agent_input_attachment_from_remote_image_context, build_remote_chat_messages,
-    build_remote_model_catalog,
+    build_remote_model_catalog, file_projection::controller_file_read_scope,
     normalize_remote_model_selection as normalize_remote_model_selection_contract,
     normalize_remote_session_model_id, project_remote_chat_user,
-    remote_dialog_submit_outcome_from_scheduler, remote_model_selection_needs_config, ChatMessage,
+    remote_dialog_submit_outcome_from_scheduler, remote_model_selection_needs_config,
+    resolve_remote_model_default_slot, ChatMessage, LocalModelsDevCatalogs,
     RemoteAssistantWorkspaceFacts, RemoteCancelRuntimeHost, RemoteChatHistoryRound,
     RemoteChatHistoryTextItem, RemoteChatHistoryThinkingItem, RemoteChatHistoryToolCall,
     RemoteChatHistoryToolItem, RemoteChatHistoryTurn, RemoteConnectSubmissionSource,
@@ -54,11 +53,13 @@ use bitfun_services_integrations::remote_connect::{
     RemoteInteractionRuntimeHost, RemoteModelCapabilityFact, RemoteModelCatalog,
     RemoteModelCatalogFacts, RemoteModelFacts, RemotePermissionMode, RemotePollRuntimeHost,
     RemoteRecentWorkspaceFacts, RemoteSessionMetadata, RemoteSessionModelSelection,
-    RemoteSessionRuntimeHost, RemoteSessionStateTracker, RemoteSessionTrackerHost,
-    RemoteTerminalPrewarmRequest, RemoteWorkspaceFacts, RemoteWorkspaceFileRuntimeHost,
-    RemoteWorkspaceKind as RemoteConnectWorkspaceKind, RemoteWorkspaceRuntimeHost,
-    RemoteWorkspaceUpdate,
+    RemoteSessionRollbackOutcome, RemoteSessionRuntimeHost, RemoteSessionStateTracker,
+    RemoteSessionTrackerHost, RemoteTerminalPrewarmRequest, RemoteWorkspaceFacts,
+    RemoteWorkspaceFileRuntimeHost, RemoteWorkspaceKind as RemoteConnectWorkspaceKind,
+    RemoteWorkspaceRuntimeHost, RemoteWorkspaceUpdate,
 };
+#[cfg(feature = "remote-connect")]
+use log::{debug, info};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -86,9 +87,90 @@ use crate::infrastructure::ai::reasoning_catalog::{
 use crate::service::remote_connect::remote_server::RemoteExecutionDispatcher;
 
 #[cfg(feature = "remote-connect")]
-use crate::service::config::types::{AIConfig, GlobalConfig, ModelCapability};
+use crate::service::config::types::{AIConfig, DefaultModelsConfig, GlobalConfig, ModelCapability};
 #[cfg(feature = "remote-connect")]
 use crate::service::session::{DialogTurnData, ToolItemIdentityExt, TurnStatus};
+
+/// Host-local catalog projection. Discovery never activates a workspace or SSH.
+#[derive(Default)]
+pub(crate) struct CoreWorkspaceCatalogPort;
+
+impl CoreWorkspaceCatalogPort {
+    pub(crate) async fn list_from_service(
+        service: &crate::service::workspace::WorkspaceService,
+    ) -> Vec<bitfun_runtime_ports::AgentWorkspaceCatalogEntry> {
+        use crate::service::workspace::WorkspaceKind;
+        use bitfun_runtime_ports::{AgentWorkspaceCatalogEntry, AgentWorkspaceRemoteInfo};
+        service
+            .list_workspace_infos()
+            .await
+            .into_iter()
+            .map(|record| {
+                let project = record.project_workspace_id().map(str::to_owned);
+                let remote = (record.workspace_kind == WorkspaceKind::Remote).then(|| {
+                    AgentWorkspaceRemoteInfo {
+                        connection_id: record.remote_ssh_connection_id().map(str::to_owned),
+                        host: record
+                            .metadata
+                            .get("sshHost")
+                            .and_then(serde_json::Value::as_str)
+                            .map(str::to_owned),
+                    }
+                });
+                let binding_error = project.as_ref().err().cloned().or_else(|| {
+                    remote.as_ref().and_then(|route| {
+                        (route
+                            .connection_id
+                            .as_deref()
+                            .is_none_or(|id| id.trim().is_empty())
+                            || route
+                                .host
+                                .as_deref()
+                                .is_none_or(|host| host.trim().is_empty()))
+                        .then(|| {
+                            "Remote workspace is missing its saved SSH connection ID or host"
+                                .to_string()
+                        })
+                    })
+                });
+                let root_path = if record.workspace_kind == WorkspaceKind::Remote {
+                    bitfun_services_core::workspace_identity::normalize_remote_workspace_path(
+                        &record.root_path.to_string_lossy(),
+                    )
+                } else {
+                    record.root_path.to_string_lossy().into_owned()
+                };
+                AgentWorkspaceCatalogEntry {
+                    workspace_id: record.id,
+                    project_workspace_id: project.ok(),
+                    name: record.name,
+                    kind: record.workspace_kind,
+                    root_path,
+                    last_accessed_at_ms: record.last_accessed.timestamp_millis(),
+                    remote,
+                    binding_error,
+                }
+            })
+            .collect()
+    }
+}
+
+#[async_trait::async_trait]
+impl bitfun_runtime_ports::AgentWorkspaceCatalogPort for CoreWorkspaceCatalogPort {
+    async fn list_workspaces(
+        &self,
+    ) -> bitfun_runtime_ports::PortResult<Vec<bitfun_runtime_ports::AgentWorkspaceCatalogEntry>>
+    {
+        let service =
+            crate::service::workspace::get_global_workspace_service().ok_or_else(|| {
+                bitfun_runtime_ports::PortError::new(
+                    bitfun_runtime_ports::PortErrorKind::NotAvailable,
+                    "Workspace service is unavailable",
+                )
+            })?;
+        Ok(Self::list_from_service(&service).await)
+    }
+}
 
 #[cfg(feature = "opencode-plugin-host")]
 #[derive(Clone)]
@@ -169,6 +251,7 @@ async fn configured_plugin_execution_root(
     request: &AgentSessionCreateRequest,
 ) -> PortResult<Option<std::path::PathBuf>> {
     let mut config = crate::agentic::core::SessionConfig {
+        tool_presentation_mode: Default::default(),
         workspace_id: request.workspace_id.clone(),
         workspace_path: request.workspace_path.clone(),
         project_workspace_path: request.project_workspace_path.clone(),
@@ -324,6 +407,20 @@ struct ConfiguredPluginDialogTurnPort {
 #[cfg(feature = "opencode-plugin-host")]
 #[async_trait::async_trait]
 impl AgentDialogTurnPort for ConfiguredPluginDialogTurnPort {
+    async fn manage_dialog_queue(
+        &self,
+        request: bitfun_runtime_ports::DialogQueueRequest,
+    ) -> PortResult<bitfun_runtime_ports::DialogQueueSnapshot> {
+        if matches!(
+            &request.action,
+            bitfun_runtime_ports::DialogQueueAction::Submit { .. }
+                | bitfun_runtime_ports::DialogQueueAction::Promote { .. }
+        ) {
+            self.submission.ensure_session(&request.session_id).await;
+        }
+        self.inner.manage_dialog_queue(request).await
+    }
+
     async fn submit_dialog_turn(
         &self,
         request: AgentDialogTurnRequest,
@@ -384,6 +481,78 @@ fn remote_workspace_kind(
 }
 
 #[cfg(feature = "remote-connect")]
+fn provider_catalog_source(
+    source: bitfun_services_integrations::models_dev::ModelsDevSnapshotSource,
+) -> bitfun_core_types::ProviderCatalogSource {
+    use bitfun_services_integrations::models_dev::ModelsDevSnapshotSource;
+    match source {
+        ModelsDevSnapshotSource::Cache => bitfun_core_types::ProviderCatalogSource::Cache,
+        ModelsDevSnapshotSource::Bundled => bitfun_core_types::ProviderCatalogSource::Bundle,
+        ModelsDevSnapshotSource::Empty => bitfun_core_types::ProviderCatalogSource::BitFun,
+    }
+}
+
+#[cfg(feature = "remote-connect")]
+fn reasoning_catalog_source(
+    source: bitfun_services_integrations::models_dev::ModelsDevSnapshotSource,
+) -> bitfun_core_types::ModelsDevCatalogSource {
+    use bitfun_services_integrations::models_dev::ModelsDevSnapshotSource;
+    match source {
+        ModelsDevSnapshotSource::Cache => bitfun_core_types::ModelsDevCatalogSource::Cache,
+        ModelsDevSnapshotSource::Bundled => bitfun_core_types::ModelsDevCatalogSource::Bundle,
+        ModelsDevSnapshotSource::Empty => bitfun_core_types::ModelsDevCatalogSource::Empty,
+    }
+}
+
+/// The models.dev projections that enrich model configuration.
+///
+/// These bodies cover every provider and every reasoning model of the public
+/// models.dev catalog, and every host keeps its own refreshed snapshot. Only an
+/// in-process local reader (TUI/app-server projections, the plugin host) or a
+/// controller's own Model Settings surface needs them, so a catalog that crosses
+/// a machine boundary is built without them.
+///
+/// The slim build still reports the built-in provider catalog's revision,
+/// because that revision participates in `RemoteModelCatalog::version`: a
+/// controller that already knows the version must not see it move just because
+/// the bodies stopped travelling.
+#[cfg(feature = "remote-connect")]
+fn remote_provider_catalog(
+    models_dev: &crate::infrastructure::ai::reasoning_catalog::ModelsDevReasoningCatalogSnapshot,
+    include_providers: bool,
+) -> bitfun_core_types::ProviderCatalog {
+    let source = provider_catalog_source(models_dev.source);
+    if include_providers {
+        return resolve_builtin_provider_catalog(
+            models_dev.catalog.as_deref(),
+            models_dev.sha256.clone(),
+            source,
+        );
+    }
+    crate::infrastructure::ai::provider_catalog::builtin_provider_catalog_identity(
+        models_dev.catalog.as_deref(),
+        models_dev.sha256.clone(),
+        source,
+    )
+}
+
+#[cfg(feature = "remote-connect")]
+fn remote_models_dev_reasoning_catalog(
+    models_dev: &crate::infrastructure::ai::reasoning_catalog::ModelsDevReasoningCatalogSnapshot,
+    include_catalog: bool,
+) -> Option<bitfun_core_types::ModelsDevReasoningCatalog> {
+    if !include_catalog {
+        return None;
+    }
+    models_dev.catalog.as_deref().map(|catalog| {
+        catalog.reasoning_binding_catalog(
+            models_dev.sha256.clone(),
+            reasoning_catalog_source(models_dev.source),
+        )
+    })
+}
+
+#[cfg(feature = "remote-connect")]
 fn git_branch_for_workspace_path(path: &std::path::Path) -> Option<String> {
     let path_str = path.to_string_lossy();
     bitfun_services_integrations::git::execute_git_command_sync(
@@ -425,18 +594,49 @@ pub(crate) fn remote_workspace_metadata(
 #[cfg(feature = "remote-connect")]
 pub(crate) fn remote_workspace_display_name(
     workspace: &crate::service::workspace::WorkspaceInfo,
-) -> &str {
-    if workspace.workspace_kind == crate::service::workspace::WorkspaceKind::Assistant {
-        workspace
-            .identity
-            .as_ref()
-            .and_then(|identity| identity.name.as_deref())
-            .map(str::trim)
-            .filter(|name| !name.is_empty())
-            .unwrap_or(&workspace.name)
-    } else {
-        &workspace.name
+) -> String {
+    let preferred =
+        if workspace.workspace_kind == crate::service::workspace::WorkspaceKind::Assistant {
+            workspace
+                .identity
+                .as_ref()
+                .and_then(|identity| identity.name.as_deref())
+                .map(str::trim)
+                .filter(|name| !name.is_empty())
+                .unwrap_or(workspace.name.trim())
+        } else {
+            workspace.name.trim()
+        };
+    let normalized = preferred.to_ascii_lowercase();
+    if !preferred.is_empty()
+        && normalized != "unknown"
+        && normalized != "unknown project"
+        && preferred != "未知"
+        && preferred != "未知项目"
+    {
+        return preferred.to_string();
     }
+
+    let path_name = workspace
+        .root_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .unwrap_or("");
+    if !path_name.is_empty() {
+        return path_name.to_string();
+    }
+
+    for key in ["connectionName", "sshHost"] {
+        if let Some(value) = workspace_metadata_string(&workspace.metadata, key) {
+            return value;
+        }
+    }
+    if workspace.workspace_kind == crate::service::workspace::WorkspaceKind::Remote {
+        return "Remote workspace".to_string();
+    }
+    "Workspace".to_string()
 }
 
 #[cfg(feature = "remote-connect")]
@@ -449,7 +649,7 @@ pub(crate) async fn remote_opened_workspace_catalog(
         .into_iter()
         .map(|workspace| RemoteRecentWorkspaceFacts {
             workspace_id: workspace.id.clone(),
-            name: remote_workspace_display_name(&workspace).to_string(),
+            name: remote_workspace_display_name(&workspace),
             path: workspace.root_path.to_string_lossy().to_string(),
             last_opened: workspace.last_accessed.to_rfc3339(),
             kind: remote_workspace_kind(workspace.workspace_kind.clone()),
@@ -478,7 +678,7 @@ async fn current_remote_workspace_facts() -> Option<RemoteWorkspaceFacts> {
             RemoteWorkspaceFacts {
                 workspace_id: workspace.id.clone(),
                 path: root_path.to_string_lossy().to_string(),
-                name: workspace.name,
+                name: remote_workspace_display_name(&workspace),
                 git_branch: git_branch_for_workspace_path(&root_path),
                 kind: remote_workspace_kind(workspace.workspace_kind.clone()),
                 assistant_id: workspace.assistant_id,
@@ -523,7 +723,7 @@ async fn open_workspace_with_snapshot(
     Ok(RemoteWorkspaceUpdate {
         workspace_id: info.id.clone(),
         path: info.root_path.to_string_lossy().to_string(),
-        name: info.name,
+        name: remote_workspace_display_name(&info),
         remote_connection_id,
         remote_ssh_host,
     })
@@ -559,7 +759,7 @@ fn remote_workspace_facts_from_record(
     RemoteWorkspaceFacts {
         workspace_id: workspace.id.clone(),
         path: workspace.root_path.to_string_lossy().into_owned(),
-        name: workspace.name.clone(),
+        name: remote_workspace_display_name(workspace),
         git_branch: None,
         kind: remote_workspace_kind(workspace.workspace_kind.clone()),
         assistant_id: workspace.assistant_id.clone(),
@@ -616,6 +816,11 @@ async fn load_remote_session_metadata_for_workspace(
         })?;
 
     use bitfun_services_core::session::SessionRelationshipKind;
+    let default_title = crate::service::i18n::generated_locale_contract::generated_shared_term(
+        crate::service::config::app_language::get_app_language().await,
+        "sessions.new",
+    )
+    .unwrap_or("New Session");
 
     Ok(metadata
         .into_iter()
@@ -639,13 +844,18 @@ async fn load_remote_session_metadata_for_workspace(
                 });
             let parent_session_id =
                 relationship.and_then(|relationship| relationship.parent_session_id);
+            let name = if bitfun_services_core::session::naming::is_default_title(&session) {
+                default_title.to_string()
+            } else {
+                session.session_name.clone()
+            };
             RemoteSessionMetadata {
                 workspace_id: session
                     .workspace_id
                     .clone()
                     .or_else(|| Some(workspace_id.clone())),
                 session_id: session.session_id,
-                name: session.session_name,
+                name,
                 agent_type: session.agent_type,
                 created_at_ms: session.created_at,
                 last_active_at_ms: session.last_active_at,
@@ -687,6 +897,93 @@ fn remote_model_capability_fact(capability: ModelCapability) -> RemoteModelCapab
         ModelCapability::CodeSpecialized => RemoteModelCapabilityFact::CodeSpecialized,
         ModelCapability::FunctionCalling => RemoteModelCapabilityFact::FunctionCalling,
         ModelCapability::SpeechRecognition => RemoteModelCapabilityFact::SpeechRecognition,
+    }
+}
+
+/// Project the device `ai.default_models` object for a remote caller. Every
+/// slot travels because a controller renders the whole role mapping, including
+/// the slots only this device may write.
+#[cfg(feature = "remote-connect")]
+fn remote_default_models_config(defaults: &DefaultModelsConfig) -> RemoteDefaultModelsConfig {
+    RemoteDefaultModelsConfig {
+        primary: defaults.primary.clone(),
+        fast: defaults.fast.clone(),
+        search: defaults.search.clone(),
+        image_understanding: defaults.image_understanding.clone(),
+        image_generation: defaults.image_generation.clone(),
+        speech_recognition: defaults.speech_recognition.clone(),
+    }
+}
+
+/// Merge a controller's three managed role defaults over the device's current
+/// `ai` section, taken from the config write lock that will store the result.
+///
+/// Each managed slot is a patch: `None` keeps the stored value without
+/// validating it, `Some(None)` clears the slot, and `Some(Some(id))` must name a
+/// model this device already configures. The other slots are carried over
+/// untouched. Enablement and
+/// capability validity are deliberately not decided here: the config reconcile
+/// owns that repair and the caller reports its result.
+#[cfg(feature = "remote-connect")]
+fn merge_remote_model_defaults(
+    ai_config: &AIConfig,
+    primary: Option<Option<&str>>,
+    fast: Option<Option<&str>>,
+    image_understanding: Option<Option<&str>>,
+) -> Result<DefaultModelsConfig, String> {
+    let is_known_model = |model_id: &str| ai_config.models.iter().any(|model| model.id == model_id);
+    let patched =
+        |slot: &str, requested: Option<Option<&str>>, current: &Option<String>| match requested {
+            Some(model_id) => resolve_remote_model_default_slot(slot, model_id, &is_known_model),
+            None => Ok(current.clone()),
+        };
+    let current = &ai_config.default_models;
+    Ok(DefaultModelsConfig {
+        primary: patched("primary", primary, &current.primary)?,
+        fast: patched("fast", fast, &current.fast)?,
+        image_understanding: patched(
+            "image_understanding",
+            image_understanding,
+            &current.image_understanding,
+        )?,
+        economy: ai_config.default_models.economy.clone(),
+        search: ai_config.default_models.search.clone(),
+        image_generation: ai_config.default_models.image_generation.clone(),
+        speech_recognition: ai_config.default_models.speech_recognition.clone(),
+    })
+}
+
+/// Merge, validate, and persist the remote-managed role slots.
+///
+/// The `ai` section is read, changed, and written inside one config write lock,
+/// so a desktop save to `ai.default_models` — or to `ai.models`, which the id
+/// check reads — cannot be reverted by a snapshot taken before it. A rejected
+/// id returns before anything is stored, and the manager's own `set` path
+/// reconciles the object before it commits.
+#[cfg(feature = "remote-connect")]
+async fn persist_remote_model_defaults(
+    config_service: &crate::service::config::ConfigService,
+    primary: Option<Option<&str>>,
+    fast: Option<Option<&str>>,
+    image_understanding: Option<Option<&str>>,
+) -> Result<(), String> {
+    let rejection = config_service
+        .update_config("ai", |ai: &mut AIConfig| {
+            match merge_remote_model_defaults(ai, primary, fast, image_understanding) {
+                Ok(merged) => {
+                    ai.default_models = merged;
+                    Ok(None)
+                }
+                // An unusable id is not a config failure: report it to the
+                // caller unchanged and leave the stored section alone.
+                Err(message) => Ok(Some(message)),
+            }
+        })
+        .await
+        .map_err(|e| format!("Failed to persist device model defaults: {e}"))?;
+    match rejection {
+        Some(message) => Err(message),
+        None => Ok(()),
     }
 }
 
@@ -793,7 +1090,14 @@ fn remote_chat_history_turn_from_core_turn(
         .collect();
 
     RemoteChatHistoryTurn {
+        background_delivery:
+            bitfun_core_types::background_delivery::BackgroundDelivery::from_metadata(
+                turn.user_message.metadata.as_ref(),
+                &turn.turn_id,
+            )
+            .filter(|delivery| delivery.execution_generation == turn.recovery_epoch.unwrap_or(0)),
         turn_id: turn.turn_id.clone(),
+        turn_index: turn.turn_index,
         user_message_id: turn.user_message.id.clone(),
         user_display_content: user_projection.content,
         user_timestamp_ms: turn.user_message.timestamp,
@@ -813,35 +1117,40 @@ fn remote_chat_history_turn_from_core_turn(
 }
 
 #[cfg(feature = "remote-connect")]
-async fn resolve_session_model_selection(session_id: &str) -> (Option<String>, Option<String>) {
-    let Some(coordinator) = get_global_coordinator() else {
-        return (None, None);
-    };
+async fn resolve_session_model_selection(session_id: &str) -> Result<Session, String> {
+    let coordinator = get_global_coordinator()
+        .ok_or_else(|| "Runtime is unavailable for session model selection".to_string())?;
     let session_manager = coordinator.get_session_manager();
 
     if let Some(session) = session_manager.get_session(session_id) {
-        return (
-            normalize_remote_session_model_id(session.config.model_id.as_deref()),
-            session.config.reasoning_preset.clone(),
-        );
+        return Ok(session);
     }
 
-    let Some(session_storage_dir) =
-        CoreServiceAgentRuntime::resolve_session_storage_dir(session_id).await
-    else {
-        return (None, None);
-    };
+    let session_storage_dir = CoreServiceAgentRuntime::resolve_session_storage_dir(session_id)
+        .await
+        .ok_or_else(|| format!("Session storage is unavailable: {session_id}"))?;
     coordinator
         .restore_session_view_from_storage_path_timed(&session_storage_dir, session_id)
         .await
-        .ok()
-        .map(|(session, _, _)| {
-            (
-                normalize_remote_session_model_id(session.config.model_id.as_deref()),
-                session.config.reasoning_preset,
-            )
-        })
-        .unwrap_or_default()
+        .map(|(session, _, _)| session)
+        .map_err(|error| format!("Failed to read session model selection: {error}"))
+}
+
+#[cfg(feature = "remote-connect")]
+fn ensure_remote_model_strategy_editable(session: &Session) -> Result<(), String> {
+    use crate::agentic::execution::round_model_routing::configuration::{
+        routing_enabled, session_eligible,
+    };
+    if session.kind == SessionKind::Subagent {
+        return Err("Subagent models are configured independently. Editing them is not supported from mobile or bot controls; use the GUI model selector".into());
+    }
+    if session_eligible(session)
+        && routing_enabled(session.config.model_routing.as_deref())
+            .map_err(|error| error.to_string())?
+    {
+        return Err("Smart routing is active. Model strategy editing is not supported from mobile or bot controls; use the GUI model selector".into());
+    }
+    Ok(())
 }
 
 #[cfg(feature = "remote-connect")]
@@ -1193,7 +1502,12 @@ impl AgentSessionRevertPort for ScheduledSessionManagementPort {
             .map_err(map_session_close_error)?;
         let maintenance = self
             .scheduler
-            .begin_session_maintenance(&request.session_id, &storage_path, Duration::from_secs(30))
+            .begin_session_maintenance_with_policy(
+                &request.session_id,
+                &storage_path,
+                Duration::from_secs(30),
+                request.require_idle,
+            )
             .await
             .map_err(map_session_close_error)?;
         let _mutation = session_manager
@@ -1329,8 +1643,7 @@ impl AgentSessionManagementPort for ScheduledSessionManagementPort {
     async fn list_sessions(
         &self,
         request: bitfun_runtime_ports::AgentSessionListRequest,
-    ) -> bitfun_runtime_ports::PortResult<Vec<bitfun_runtime_ports::AgentSessionSummary>>
-    {
+    ) -> bitfun_runtime_ports::PortResult<Vec<bitfun_runtime_ports::AgentSessionSummary>> {
         AgentSessionManagementPort::list_sessions(self.coordinator.as_ref(), request).await
     }
 
@@ -1427,9 +1740,8 @@ impl AgentSessionManagementPort for ScheduledSessionManagementPort {
     async fn resolve_session_workspace_binding(
         &self,
         request: bitfun_runtime_ports::AgentSessionWorkspaceRequest,
-    ) -> bitfun_runtime_ports::PortResult<
-        Option<bitfun_runtime_ports::AgentSessionWorkspaceBinding>,
-    > {
+    ) -> bitfun_runtime_ports::PortResult<Option<bitfun_runtime_ports::AgentSessionWorkspaceBinding>>
+    {
         AgentSessionManagementPort::resolve_session_workspace_binding(
             self.coordinator.as_ref(),
             request,
@@ -1672,6 +1984,7 @@ impl CoreServiceAgentRuntime {
                 return Err("Remote workspace connection identity is unavailable".to_string());
             }
             let config = crate::agentic::core::SessionConfig {
+                tool_presentation_mode: Default::default(),
                 workspace_path: Some(current.path),
                 remote_connection_id: current.remote_connection_id,
                 remote_ssh_host: current.remote_ssh_host,
@@ -1746,6 +2059,7 @@ impl CoreServiceAgentRuntime {
         }
         if let Some(workspace_id) = workspace_id {
             let config = crate::agentic::core::SessionConfig {
+                tool_presentation_mode: Default::default(),
                 workspace_id: Some(workspace_id.to_string()),
                 ..Default::default()
             };
@@ -1815,6 +2129,7 @@ impl CoreServiceAgentRuntime {
             }
         }
         let config = crate::agentic::core::SessionConfig {
+            tool_presentation_mode: Default::default(),
             workspace_path: Some(workspace_path.into()),
             remote_connection_id: remote_connection_id.map(str::to_string),
             ..Default::default()
@@ -1930,6 +2245,36 @@ impl CoreServiceAgentRuntime {
         image_context_from_remote_image_context(context)
     }
 
+    /// Read just one persisted historical turn for the host's backward cursor.
+    #[cfg(feature = "remote-connect")]
+    pub(crate) async fn load_relay_history_batch(
+        session_id: &str,
+        before: Option<usize>,
+    ) -> anyhow::Result<bitfun_services_integrations::remote_connect::host_stream::HistoryBatch>
+    {
+        let directory = Self::resolve_session_storage_dir(session_id)
+            .await
+            .ok_or_else(|| anyhow::anyhow!("Session storage is unavailable on this host"))?;
+        let coordinator =
+            get_global_coordinator().ok_or_else(|| anyhow::anyhow!("Runtime is unavailable"))?;
+        let (turns, before) = coordinator
+            .load_relay_history_turn(&directory, session_id, before)
+            .await?;
+        let records = tokio::task::spawn_blocking(move || {
+            bitfun_services_integrations::remote_connect::session_records::records_from_turns(
+                &turns,
+                &read_remote_chat_image_pixels,
+            )
+        })
+        .await??;
+        Ok(
+            bitfun_services_integrations::remote_connect::host_stream::HistoryBatch {
+                records,
+                before,
+            },
+        )
+    }
+
     /// One source read/commit owner for both migration and live block updates.
     #[cfg(feature = "remote-connect")]
     pub(crate) async fn synchronize_relay_session(
@@ -1937,17 +2282,30 @@ impl CoreServiceAgentRuntime {
         session_id: &str,
         turn_id: Option<&str>,
     ) -> Result<(), String> {
-        hub.synchronize_records(session_id.to_owned(),turn_id.is_none(),||async {
-            let directory=Self::resolve_session_storage_dir(session_id).await
-                .ok_or_else(||anyhow::anyhow!("Session storage is unavailable on this host"))?;
-            let coordinator=get_global_coordinator().ok_or_else(||anyhow::anyhow!("Runtime is unavailable"))?;
-            let turns=coordinator.load_relay_session_turns(&directory,session_id,turn_id).await?;
+        if turn_id.is_none() && hub.invalidate_paged_history(session_id).await {
+            return Ok(());
+        }
+        hub.synchronize_records(session_id.to_owned(), turn_id.is_none(), || async {
+            let directory = Self::resolve_session_storage_dir(session_id)
+                .await
+                .ok_or_else(|| anyhow::anyhow!("Session storage is unavailable on this host"))?;
+            let coordinator = get_global_coordinator()
+                .ok_or_else(|| anyhow::anyhow!("Runtime is unavailable"))?;
+            let turns = coordinator
+                .load_relay_session_turns(&directory, session_id, turn_id)
+                .await?;
             // Attachment paths are read and images re-encoded here, so the work
             // leaves the reactor rather than stalling the session's other events.
-            tokio::task::spawn_blocking(move||{
-                bitfun_services_integrations::remote_connect::session_records::records_from_turns(&turns,&read_remote_chat_image_pixels)
-            }).await?
-        }).await.map_err(|error|error.to_string())
+            tokio::task::spawn_blocking(move || {
+                bitfun_services_integrations::remote_connect::session_records::records_from_turns(
+                    &turns,
+                    &read_remote_chat_image_pixels,
+                )
+            })
+            .await?
+        })
+        .await
+        .map_err(|error| error.to_string())
     }
 
     #[cfg(feature = "remote-connect")]
@@ -1973,9 +2331,28 @@ impl CoreServiceAgentRuntime {
         Ok((messages, false))
     }
 
+    /// Model catalog for a caller on another machine: configured models,
+    /// defaults and the session selection, never the models.dev bodies.
     #[cfg(feature = "remote-connect")]
     pub(crate) async fn load_remote_model_catalog(
         session_id: Option<&str>,
+    ) -> Result<RemoteModelCatalog, String> {
+        Self::build_model_catalog(session_id, false).await
+    }
+
+    /// Model catalog for an in-process local reader (TUI/app-server
+    /// projections, the plugin host), which does render the models.dev bodies.
+    #[cfg(feature = "remote-connect")]
+    pub(crate) async fn load_local_model_catalog(
+        session_id: Option<&str>,
+    ) -> Result<RemoteModelCatalog, String> {
+        Self::build_model_catalog(session_id, true).await
+    }
+
+    #[cfg(feature = "remote-connect")]
+    async fn build_model_catalog(
+        session_id: Option<&str>,
+        include_host_catalogs: bool,
     ) -> Result<RemoteModelCatalog, String> {
         let config_service = crate::service::config::get_global_config_service()
             .await
@@ -1986,37 +2363,9 @@ impl CoreServiceAgentRuntime {
             .map_err(|e| format!("Failed to load global config: {e}"))?;
         let ai_config: AIConfig = global_config.ai;
         let models_dev = load_models_dev_reasoning_catalog().await;
-        let models_dev_reasoning_catalog = models_dev.catalog.as_deref().map(|catalog| {
-            catalog.reasoning_binding_catalog(
-                models_dev.sha256.clone(),
-                match models_dev.source {
-                    bitfun_services_integrations::models_dev::ModelsDevSnapshotSource::Cache => {
-                        bitfun_core_types::ModelsDevCatalogSource::Cache
-                    }
-                    bitfun_services_integrations::models_dev::ModelsDevSnapshotSource::Bundled => {
-                        bitfun_core_types::ModelsDevCatalogSource::Bundle
-                    }
-                    bitfun_services_integrations::models_dev::ModelsDevSnapshotSource::Empty => {
-                        bitfun_core_types::ModelsDevCatalogSource::Empty
-                    }
-                },
-            )
-        });
-        let provider_catalog = resolve_builtin_provider_catalog(
-            models_dev.catalog.as_deref(),
-            models_dev.sha256.clone(),
-            match models_dev.source {
-                bitfun_services_integrations::models_dev::ModelsDevSnapshotSource::Cache => {
-                    bitfun_core_types::ProviderCatalogSource::Cache
-                }
-                bitfun_services_integrations::models_dev::ModelsDevSnapshotSource::Bundled => {
-                    bitfun_core_types::ProviderCatalogSource::Bundle
-                }
-                bitfun_services_integrations::models_dev::ModelsDevSnapshotSource::Empty => {
-                    bitfun_core_types::ProviderCatalogSource::BitFun
-                }
-            },
-        );
+        let models_dev_reasoning_catalog =
+            remote_models_dev_reasoning_catalog(&models_dev, include_host_catalogs);
+        let provider_catalog = remote_provider_catalog(&models_dev, include_host_catalogs);
 
         let models: Vec<RemoteModelFacts> = ai_config
             .models
@@ -2043,7 +2392,14 @@ impl CoreServiceAgentRuntime {
             .collect();
 
         let (session_model_id, session_reasoning_preset) = if let Some(session_id) = session_id {
-            resolve_session_model_selection(session_id).await
+            let session = resolve_session_model_selection(session_id).await?;
+            if !include_host_catalogs {
+                ensure_remote_model_strategy_editable(&session)?;
+            }
+            (
+                normalize_remote_session_model_id(session.config.model_id.as_deref()),
+                session.config.reasoning_preset,
+            )
         } else {
             (None, None)
         };
@@ -2053,17 +2409,21 @@ impl CoreServiceAgentRuntime {
             models,
             provider_catalog,
             models_dev_reasoning_catalog,
-            default_models: RemoteDefaultModelsConfig {
-                primary: ai_config.default_models.primary,
-                fast: ai_config.default_models.fast,
-                search: ai_config.default_models.search,
-                image_understanding: ai_config.default_models.image_understanding,
-                image_generation: ai_config.default_models.image_generation,
-                speech_recognition: ai_config.default_models.speech_recognition,
-            },
+            default_models: remote_default_models_config(&ai_config.default_models),
             session_model_id,
             session_reasoning_preset,
         }))
+    }
+
+    /// Project this machine's own models.dev snapshot for a controller that
+    /// renders the Model Settings surface while a peer is selected.
+    #[cfg(feature = "remote-connect")]
+    pub(crate) async fn load_local_models_dev_catalogs() -> Result<LocalModelsDevCatalogs, String> {
+        let models_dev = load_models_dev_reasoning_catalog().await;
+        Ok(LocalModelsDevCatalogs {
+            provider_catalog: remote_provider_catalog(&models_dev, true),
+            models_dev_reasoning_catalog: remote_models_dev_reasoning_catalog(&models_dev, true),
+        })
     }
 
     #[cfg(feature = "remote-connect")]
@@ -2074,6 +2434,8 @@ impl CoreServiceAgentRuntime {
         model_id: &str,
         reasoning_preset: Option<Option<&str>>,
     ) -> Result<RemoteSessionModelSelection, String> {
+        let session = resolve_session_model_selection(session_id).await?;
+        ensure_remote_model_strategy_editable(&session)?;
         let ai_config = if remote_model_selection_needs_config(model_id)
             || reasoning_preset.is_some_and(|preset| preset.is_some())
         {
@@ -2137,10 +2499,25 @@ impl CoreServiceAgentRuntime {
             .get_session(session_id)
             .is_none()
         {
-            coordinator
-                .restore_session_for_workspace_binding(&binding, session_id)
+            let session = coordinator
+                .update_session_model_selection_from_storage_path(
+                    &binding.session_storage_dir(),
+                    session_id,
+                    &normalized_model_id,
+                    normalized_reasoning_preset
+                        .as_ref()
+                        .and_then(|value| value.as_deref()),
+                    false,
+                )
                 .await
-                .map_err(|e| format!("Failed to restore session: {e}"))?;
+                .map_err(|error| format!("Failed to update session model: {error}"))?;
+            if session_uses_shared_mode_default(&session) {
+                Self::persist_mode_model(&normalized_model_id).await;
+            }
+            return Ok(RemoteSessionModelSelection {
+                model_id: session.config.model_id.unwrap_or(normalized_model_id),
+                reasoning_preset: session.config.reasoning_preset,
+            });
         }
 
         let previous_model_id = coordinator
@@ -2165,6 +2542,7 @@ impl CoreServiceAgentRuntime {
                     selection: AgentSessionModelSelection {
                         model_id: normalized_model_id.clone(),
                         reasoning_preset: normalized_reasoning_preset.clone().flatten(),
+                        routing_mode: None,
                     },
                 })
                 .await
@@ -2205,8 +2583,37 @@ impl CoreServiceAgentRuntime {
             return;
         };
         let _ = config_service
-            .set_config("ai.agent_model_defaults.mode", model_id)
+            .set_config(
+                "ai.agent_model_selections.mode",
+                serde_json::json!({"kind":"model", "model_ref": model_id}),
+            )
             .await;
+    }
+
+    /// Apply a controller's three device role defaults and report the device's
+    /// reconciled six-slot mapping.
+    ///
+    /// The merge, its validation, and the persist share one config write lock
+    /// (see [`persist_remote_model_defaults`]), so a concurrent desktop save to
+    /// the same section cannot be reverted. The reply is read back from the
+    /// reconciled config: a slot whose model is disabled or lacks the capability
+    /// its role needs reports the repaired value rather than what was requested.
+    #[cfg(feature = "remote-connect")]
+    pub(crate) async fn update_remote_model_defaults(
+        primary: Option<Option<&str>>,
+        fast: Option<Option<&str>>,
+        image_understanding: Option<Option<&str>>,
+    ) -> Result<RemoteDefaultModelsConfig, String> {
+        let config_service = crate::service::config::get_global_config_service()
+            .await
+            .map_err(|_| "Config service not available".to_string())?;
+        persist_remote_model_defaults(&config_service, primary, fast, image_understanding).await?;
+
+        let reconciled: AIConfig = config_service
+            .get_config(Some("ai"))
+            .await
+            .map_err(|e| format!("Failed to reload AI config: {e}"))?;
+        Ok(remote_default_models_config(&reconciled.default_models))
     }
 
     #[cfg(feature = "remote-connect")]
@@ -2681,6 +3088,23 @@ impl<'a> CoreRemoteDialogRuntimeHost<'a> {
         })
     }
 
+    pub(crate) async fn manage_dialog_queue(
+        &self,
+        request: bitfun_runtime_ports::DialogQueueRequest,
+    ) -> Result<bitfun_runtime_ports::DialogQueueSnapshot, String> {
+        let binding = self.resolve_binding_workspace(&request.session_id).await;
+        if !self.remote_session_exists(&request.session_id).await? {
+            let binding = binding
+                .ok_or_else(|| "Session workspace is unavailable on this host".to_string())?;
+            self.restore_remote_session(&request.session_id, binding)
+                .await?;
+        }
+        self.runtime
+            .manage_dialog_queue(request)
+            .await
+            .map_err(CoreServiceAgentRuntime::runtime_error_message)
+    }
+
     pub(crate) async fn steer_dialog(
         &self,
         request: RemoteDialogSteerRequest<ImageContextData>,
@@ -2779,7 +3203,19 @@ impl CoreRemoteSessionRuntimeHost {
     pub(crate) fn new() -> Result<Self, String> {
         let coordinator = get_global_coordinator()
             .ok_or_else(|| "Desktop session system not ready".to_string())?;
-        let runtime = CoreServiceAgentRuntime::agent_runtime(coordinator.clone())?;
+        let scheduler = get_global_scheduler()
+            .ok_or_else(|| "Dialog scheduler is not initialized".to_string())?;
+        Self::from_owners(coordinator, scheduler)
+    }
+
+    fn from_owners(
+        coordinator: Arc<ConversationCoordinator>,
+        scheduler: Arc<DialogScheduler>,
+    ) -> Result<Self, String> {
+        let runtime = CoreServiceAgentRuntime::agent_runtime_with_lifecycle_delivery(
+            coordinator.clone(),
+            scheduler,
+        )?;
         Ok(Self {
             coordinator,
             runtime,
@@ -3005,6 +3441,22 @@ impl RemoteDialogRuntimeHost for CoreRemoteDialogRuntimeHost<'_> {
 #[cfg(feature = "remote-connect")]
 #[async_trait::async_trait]
 impl RemoteWorkspaceFileRuntimeHost for CoreRemoteWorkspaceFileRuntimeHost {
+    async fn store_session_attachment(
+        &self,
+        session_id: &str,
+        attachment: bitfun_runtime_ports::RemoteSessionAttachment,
+    ) -> Result<bitfun_runtime_ports::RemoteStoredAttachment, String> {
+        let target = CoreServiceAgentRuntime::remote_file_target(".", Some(session_id)).await?;
+        let session_id = session_id.to_owned();
+        // Once admitted, storage finishes on the execution host even if its
+        // controller disconnects. A retry with the same attachment id is safe.
+        tokio::spawn(async move {
+            bitfun_services_integrations::remote_connect::bot::inbound_files::store_session_attachment(
+                &target, &session_id, attachment,
+            ).await.map_err(|error| error.to_string())
+        }).await.map_err(|error| error.to_string())?
+    }
+
     async fn resolve_remote_file_workspace_root(
         &self,
         session_id: Option<&str>,
@@ -3020,7 +3472,7 @@ impl RemoteWorkspaceFileRuntimeHost for CoreRemoteWorkspaceFileRuntimeHost {
     ) -> Result<Option<bitfun_runtime_ports::RemoteWorkspaceFileContent>, String> {
         CoreServiceAgentRuntime::remote_file_target(path, session_id)
             .await?
-            .read(max_bytes)
+            .read_with_scope(max_bytes, controller_file_read_scope(path)?)
             .await
             .map(Some)
     }
@@ -3043,7 +3495,7 @@ impl RemoteWorkspaceFileRuntimeHost for CoreRemoteWorkspaceFileRuntimeHost {
             remote_connection_id,
         )
         .await?
-        .read_chunk(offset, limit)
+        .read_chunk_with_scope(offset, limit, controller_file_read_scope(path)?)
         .await
         .map(Some)
     }
@@ -3064,7 +3516,7 @@ impl RemoteWorkspaceFileRuntimeHost for CoreRemoteWorkspaceFileRuntimeHost {
             remote_connection_id,
         )
         .await?
-        .info()
+        .info_with_scope(controller_file_read_scope(path)?)
         .await
         .map(Some)
     }
@@ -3073,6 +3525,25 @@ impl RemoteWorkspaceFileRuntimeHost for CoreRemoteWorkspaceFileRuntimeHost {
 #[cfg(feature = "remote-connect")]
 #[async_trait::async_trait]
 impl RemoteWorkspaceRuntimeHost for CoreRemoteWorkspaceRuntimeHost {
+    fn supports_workspace_icons(&self) -> bool {
+        cfg!(feature = "workspace-icons")
+    }
+    async fn workspace_icon(
+        &self,
+        workspace_id: &str,
+    ) -> Result<bitfun_core_types::workspace_icon::WorkspaceIconSnapshot, String> {
+        #[cfg(feature = "workspace-icons")]
+        {
+            let service = crate::service::workspace::get_global_workspace_service()
+                .ok_or("Workspace service unavailable")?;
+            service.get_workspace_icon(workspace_id).await
+        }
+        #[cfg(not(feature = "workspace-icons"))]
+        {
+            let _ = workspace_id;
+            Err("This host does not support workspace icons".into())
+        }
+    }
     async fn current_workspace(&self) -> Option<RemoteWorkspaceFacts> {
         current_remote_workspace_facts().await
     }
@@ -3089,7 +3560,7 @@ impl RemoteWorkspaceRuntimeHost for CoreRemoteWorkspaceRuntimeHost {
             .map(|workspace| RemoteRecentWorkspaceFacts {
                 workspace_id: workspace.id.clone(),
                 path: workspace.root_path.to_string_lossy().to_string(),
-                name: workspace.name.clone(),
+                name: remote_workspace_display_name(&workspace),
                 last_opened: workspace.last_accessed.to_rfc3339(),
                 kind: remote_workspace_kind(workspace.workspace_kind.clone()),
                 remote_connection_id: remote_workspace_metadata(
@@ -3197,6 +3668,9 @@ impl RemoteWorkspaceRuntimeHost for CoreRemoteWorkspaceRuntimeHost {
 #[cfg(feature = "remote-connect")]
 #[async_trait::async_trait]
 impl RemoteInitialSyncRuntimeHost for CoreRemoteWorkspaceRuntimeHost {
+    fn supports_workspace_icons(&self) -> bool {
+        cfg!(feature = "workspace-icons")
+    }
     async fn current_workspace(&self) -> Option<RemoteWorkspaceFacts> {
         current_remote_workspace_facts().await
     }
@@ -3295,6 +3769,18 @@ impl RemoteSessionRuntimeHost for CoreRemoteSessionRuntimeHost {
         .await
     }
 
+    /// Device-level role defaults: no session or workspace is involved, and the
+    /// reply is the device's reconciled mapping rather than the request.
+    async fn set_model_defaults(
+        &self,
+        primary: Option<Option<&str>>,
+        fast: Option<Option<&str>>,
+        image_understanding: Option<Option<&str>>,
+    ) -> Result<RemoteDefaultModelsConfig, String> {
+        CoreServiceAgentRuntime::update_remote_model_defaults(primary, fast, image_understanding)
+            .await
+    }
+
     async fn ensure_session_loaded(&self, session_id: &str) -> Result<(), String> {
         let binding = CoreServiceAgentRuntime::resolve_session_workspace_binding(session_id)
             .await
@@ -3335,6 +3821,61 @@ impl RemoteSessionRuntimeHost for CoreRemoteSessionRuntimeHost {
         session_id: &str,
     ) -> Result<(Vec<ChatMessage>, bool), String> {
         CoreServiceAgentRuntime::load_remote_chat_messages(session_storage_dir, session_id).await
+    }
+
+    /// Reuse the desktop targeted-rollback transaction so a remote client
+    /// retires turns and restores files for real instead of hiding messages in
+    /// its own transcript.
+    async fn rollback_session_to_turn(
+        &self,
+        session_id: &str,
+        target_turn_id: &str,
+        expected_storage_turn_index: Option<usize>,
+    ) -> Result<RemoteSessionRollbackOutcome, String> {
+        let binding = CoreServiceAgentRuntime::resolve_session_workspace_binding(session_id)
+            .await
+            .ok_or_else(|| {
+                format!("Session workspace binding not available for session: {session_id}")
+            })?;
+        if binding.is_remote() {
+            return Err("Session rollback is unavailable for remote workspaces".to_string());
+        }
+        ensure_remote_binding_runtime_ownership(self.coordinator.as_ref(), &binding).await?;
+
+        let outcome = self
+            .runtime
+            .rollback_session_to_turn(AgentSessionRollbackToTurnRequest {
+                workspace_path: binding.logical_workspace_path_string(),
+                workspace_id: binding.workspace_id.clone(),
+                workspace_hostname: Some(binding.session_identity.hostname.clone()),
+                session_id: session_id.to_string(),
+                target_turn_id: target_turn_id.to_string(),
+                require_idle: true,
+                expected_storage_turn_index,
+                expected_catalog_revision: None,
+                remote_connection_id: None,
+                remote_ssh_host: None,
+            })
+            .await
+            .map_err(|error| error.into_message())?;
+
+        match outcome {
+            AgentSessionRollbackToTurnOutcome::Completed { result } => {
+                Ok(RemoteSessionRollbackOutcome {
+                    retired_turn_ids: result.retired_turn_ids,
+                    restored_files: result.restored_files,
+                    composer_text: match result.composer {
+                        AgentSessionComposerUpdate::Replace { text } => Some(text),
+                        AgentSessionComposerUpdate::Preserve
+                        | AgentSessionComposerUpdate::Clear => None,
+                    },
+                    changed: result.changed,
+                })
+            }
+            AgentSessionRollbackToTurnOutcome::RecoveryRequired { reason, .. } => Err(format!(
+                "Session rollback requires recovery before it can continue: {reason}"
+            )),
+        }
     }
 
     async fn delete_session(
@@ -3394,6 +3935,9 @@ impl RemotePollRuntimeHost for CoreRemotePollRuntimeHost<'_> {
     }
 
     async fn load_model_catalog(&self, session_id: &str) -> Option<RemoteModelCatalog> {
+        // A session poll runs per attached controller, so it reads the remote
+        // catalog: only the configured-model facts and the version reach a poll
+        // client, and the models.dev bodies stay local to the settings surface.
         CoreServiceAgentRuntime::load_remote_model_catalog(Some(session_id))
             .await
             .ok()
@@ -3425,9 +3969,7 @@ impl RemoteInteractionRuntimeHost for CoreRemoteInteractionRuntimeHost {
                 tool_id,
                 match updated_input {
                     Some(updated_input) => {
-                        bitfun_agent_runtime::sdk::PermissionReply::OnceWithInput {
-                            updated_input,
-                        }
+                        bitfun_agent_runtime::sdk::PermissionReply::OnceWithInput { updated_input }
                     }
                     None => bitfun_agent_runtime::sdk::PermissionReply::Once,
                 },
@@ -3590,6 +4132,89 @@ mod tests {
     };
     use crate::BitFunError;
 
+    #[tokio::test]
+    async fn remote_session_host_registers_targeted_rollback_port() {
+        use crate::agentic::events::{EventQueue, EventQueueConfig, EventRouter};
+        use crate::agentic::execution::{
+            ExecutionEngine, ExecutionEngineConfig, RoundExecutor, StreamProcessor,
+        };
+        use crate::agentic::persistence::PersistenceManager;
+        use crate::agentic::session::{ContextCompressor, SessionContextStore, SessionManager};
+        use crate::agentic::tools::{registry::ToolRegistry, ToolPipeline, ToolStateManager};
+
+        let directory = tempfile::tempdir().expect("runtime fixture");
+        let paths = Arc::new(
+            crate::infrastructure::PathManager::with_user_root_for_tests(
+                directory.path().join("user-root"),
+            ),
+        );
+        let sessions = Arc::new(SessionManager::new(
+            Arc::new(SessionContextStore::new()),
+            Arc::new(PersistenceManager::new(paths).expect("persistence manager")),
+            Default::default(),
+        ));
+        let events = Arc::new(EventQueue::new(EventQueueConfig::default()));
+        let tools = Arc::new(ToolPipeline::new(
+            Arc::new(tokio::sync::RwLock::new(ToolRegistry::new())),
+            Arc::new(ToolStateManager::new(events.clone())),
+            None,
+        ));
+        let engine = Arc::new(ExecutionEngine::new(
+            Arc::new(RoundExecutor::new(
+                Arc::new(StreamProcessor::new(events.clone())),
+                events.clone(),
+                tools.clone(),
+            )),
+            events.clone(),
+            sessions.clone(),
+            Arc::new(ContextCompressor::new()),
+            ExecutionEngineConfig::default(),
+        ));
+        let coordinator = Arc::new(ConversationCoordinator::new(
+            sessions.clone(),
+            engine,
+            tools,
+            events,
+            Arc::new(EventRouter::new()),
+            Arc::new(
+                crate::runtime_ownership::CoreRuntimeOwnership::embedded_with_facts(
+                    directory.path().join("ownership"),
+                    "bitfun".to_string(),
+                    "test",
+                ),
+            ),
+        ));
+        let scheduler = DialogScheduler::new(coordinator.clone(), sessions);
+        let host = CoreRemoteSessionRuntimeHost::from_owners(coordinator, scheduler)
+            .expect("remote session host");
+
+        // Invalid identity must reach the registered revert provider's validation.
+        let error = host
+            .runtime
+            .rollback_session_to_turn(AgentSessionRollbackToTurnRequest {
+                workspace_path: String::new(),
+                workspace_id: None,
+                workspace_hostname: None,
+                session_id: "../invalid-session".to_string(),
+                target_turn_id: "turn-1".to_string(),
+                require_idle: true,
+                expected_storage_turn_index: None,
+                expected_catalog_revision: None,
+                remote_connection_id: None,
+                remote_ssh_host: None,
+            })
+            .await
+            .expect_err("invalid session identity");
+        assert!(
+            matches!(
+                error,
+                bitfun_agent_runtime::sdk::RuntimeError::Port(ref port)
+                    if port.kind == bitfun_runtime_ports::PortErrorKind::InvalidRequest
+            ),
+            "expected revert provider validation, got {error}"
+        );
+    }
+
     #[test]
     fn local_workspace_marker_is_not_remote_routing_authority() {
         use crate::service::workspace::WorkspaceKind;
@@ -3618,6 +4243,43 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn controller_file_reads_support_absolute_and_relative_paths_outside_workspace() {
+        use bitfun_services_integrations::remote_connect::file_projection::controller_file_read_scope;
+        let tmp = tempfile::tempdir().unwrap();
+        let workspace = tmp.path().join("project");
+        std::fs::create_dir(&workspace).unwrap();
+        let file = tmp.path().join("qr.png");
+        std::fs::write(&file, b"png-data").unwrap();
+        for reference in [file.to_string_lossy().into_owned(), "../qr.png".to_string()] {
+            let target = CoreServiceAgentRuntime::file_target_for_binding(
+                &reference,
+                None,
+                WorkspaceBinding::new(None, workspace.clone()),
+            )
+            .await
+            .unwrap();
+            let scope = controller_file_read_scope(&reference).unwrap();
+            assert_eq!(target.info_with_scope(scope).await.unwrap().name, "qr.png");
+            assert_eq!(
+                target.read_with_scope(100, scope).await.unwrap().bytes,
+                b"png-data"
+            );
+            assert_eq!(
+                target
+                    .read_chunk_with_scope(4, 100, scope)
+                    .await
+                    .unwrap()
+                    .bytes,
+                b"data"
+            );
+            assert!(
+                target.read(100).await.is_err(),
+                "automatic delivery keeps its scope"
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn missing_output_session_cannot_borrow_the_selected_workspace() {
         let missing = "missing-output-session-route-test";
         assert!(
@@ -3630,6 +4292,15 @@ mod tests {
         assert!(
             matches!(result, Err(error) if error.contains("output session workspace is unavailable"))
         );
+        let attachment = bitfun_runtime_ports::RemoteSessionAttachment {
+            attachment_id: uuid::Uuid::new_v4().to_string(),
+            name: "fixture.pem".into(),
+            content_base64: "Zml4dHVyZQ==".into(),
+        };
+        let stored = CoreRemoteWorkspaceFileRuntimeHost
+            .store_session_attachment(missing, attachment)
+            .await;
+        assert!(matches!(stored, Err(error) if error.contains("no current-workspace fallback")));
     }
 
     #[tokio::test]
@@ -3883,7 +4554,6 @@ mod tests {
         assert!(!open_workspace.contains("initialize_snapshot_manager_for_workspace"));
 
         for (start, end) in [
-            ("pub(crate) async fn update_remote_session_model", "/// Persist the shared selector"),
             ("async fn restore_remote_session(\n        &self,\n        session_id: &str,\n        workspace: RemoteDialogWorkspaceBinding", "fn prewarm_remote_terminal"),
             ("async fn ensure_session_loaded(&self, session_id: &str)", "async fn update_session_title"),
             ("async fn restore_remote_session(\n        &self,\n        session_id: &str,\n        _restore_path_hint: &str", "async fn cancel_remote_turn"),
@@ -3903,6 +4573,17 @@ mod tests {
             );
         }
 
+        let selector = source
+            .split("pub(crate) async fn update_remote_session_model")
+            .nth(1)
+            .and_then(|source| source.split("/// Persist the shared selector").next())
+            .unwrap();
+        assert!(selector.contains("ensure_remote_binding_runtime_ownership"));
+        assert!(selector.contains(
+            "coordinator\n                .update_session_model_selection_from_storage_path"
+        ));
+        assert!(!selector.contains("restore_session"));
+
         let remote_session_host = source
             .split("impl RemoteSessionRuntimeHost for CoreRemoteSessionRuntimeHost")
             .nth(1)
@@ -3914,6 +4595,14 @@ mod tests {
             .and_then(|source| source.split("fn remove_tracker").next())
             .expect("remote session delete");
         assert!(delete.contains("ensure_remote_binding_runtime_ownership"));
+
+        let rollback = remote_session_host
+            .split("async fn rollback_session_to_turn")
+            .nth(1)
+            .and_then(|source| source.split("async fn delete_session").next())
+            .expect("remote session rollback");
+        assert!(rollback.contains("ensure_remote_binding_runtime_ownership"));
+        assert!(rollback.contains("binding.is_remote()"));
     }
 
     #[test]
@@ -3927,6 +4616,331 @@ mod tests {
 
         assert!(body.contains("restore_session_view_from_storage_path_timed"));
         assert!(!body.contains("restore_session_from_storage_path"));
+    }
+
+    fn device_default_model_catalog() -> GlobalConfig {
+        let mut config = GlobalConfig::default();
+        config.ai = serde_json::from_value(serde_json::json!({
+            "models": [
+                {"id": "text-1", "name": "Text", "provider": "openai", "enabled": true,
+                 "capabilities": ["text_chat"]},
+                {"id": "vision-1", "name": "Vision", "provider": "openai", "enabled": true,
+                 "capabilities": ["image_understanding"]},
+                {"id": "retired-fast", "name": "Retired", "provider": "openai", "enabled": false,
+                 "capabilities": ["text_chat"]},
+                {"id": "search-1", "name": "Search", "provider": "openai", "enabled": true,
+                 "capabilities": ["search"]},
+                {"id": "image-1", "name": "Image", "provider": "openai", "enabled": true,
+                 "capabilities": ["image_generation"]},
+                {"id": "speech-1", "name": "Speech", "provider": "openai", "enabled": true,
+                 "capabilities": ["speech_recognition"]}
+            ],
+            "default_models": {
+                "primary": "text-1",
+                "search": "search-1",
+                "image_generation": "image-1",
+                "speech_recognition": "speech-1"
+            }
+        }))
+        .expect("device model catalog fixture");
+        config
+    }
+
+    #[test]
+    fn device_model_defaults_merge_owns_three_slots_and_preserves_host_slots() {
+        let mut config = device_default_model_catalog();
+        config.ai.default_models.fast = Some("retired-fast".to_string());
+        config.ai.default_models.image_understanding = Some("vision-1".to_string());
+        config.ai.default_models.economy = Some("text-1".to_string());
+
+        // An absent slot keeps its stored value, even one a write would reject.
+        config.ai.default_models.primary = Some("model-gone".to_string());
+        let unchanged = merge_remote_model_defaults(&config.ai, None, None, None).unwrap();
+        assert_eq!(
+            serde_json::to_value(&unchanged).unwrap(),
+            serde_json::to_value(&config.ai.default_models).unwrap()
+        );
+        config.ai.default_models.primary = Some("text-1".to_string());
+
+        // Only an explicit null clears a slot.
+        let cleared =
+            merge_remote_model_defaults(&config.ai, Some(None), Some(None), Some(None)).unwrap();
+        assert_eq!(cleared.economy.as_deref(), Some("text-1"));
+        assert_eq!(cleared.primary, None);
+        assert_eq!(cleared.fast, None);
+        assert_eq!(cleared.image_understanding, None);
+        // The three slots only this device writes survive untouched.
+        assert_eq!(cleared.search.as_deref(), Some("search-1"));
+        assert_eq!(cleared.image_generation.as_deref(), Some("image-1"));
+        assert_eq!(cleared.speech_recognition.as_deref(), Some("speech-1"));
+
+        let assigned = merge_remote_model_defaults(
+            &config.ai,
+            Some(Some("text-1")),
+            None,
+            Some(Some("vision-1")),
+        )
+        .unwrap();
+        assert_eq!(assigned.primary.as_deref(), Some("text-1"));
+        assert_eq!(assigned.fast.as_deref(), Some("retired-fast"));
+        assert_eq!(assigned.image_understanding.as_deref(), Some("vision-1"));
+        assert_eq!(assigned.search.as_deref(), Some("search-1"));
+        assert_eq!(assigned.image_generation.as_deref(), Some("image-1"));
+        assert_eq!(assigned.speech_recognition.as_deref(), Some("speech-1"));
+
+        // A model this device does not configure, a semantic session selector,
+        // and an empty value are all rejected before anything is persisted.
+        assert_eq!(
+            merge_remote_model_defaults(&config.ai, Some(Some("model-gone")), None, None)
+                .unwrap_err(),
+            "Unknown model selection: model-gone"
+        );
+        assert!(merge_remote_model_defaults(&config.ai, None, Some(Some("fast")), None).is_err());
+        assert!(merge_remote_model_defaults(&config.ai, None, None, Some(Some("  "))).is_err());
+    }
+
+    #[test]
+    fn device_model_defaults_echo_the_reconciled_device_state() {
+        use crate::service::config::reconcile_model_references;
+
+        let mut config = device_default_model_catalog();
+        // `retired-fast` exists but is disabled, and `text-1` cannot understand
+        // images: both pass the verb's existence check, so the request is a real
+        // write and only the reconcile can repair it.
+        let requested = merge_remote_model_defaults(
+            &config.ai,
+            Some(Some("text-1")),
+            Some(Some("retired-fast")),
+            Some(Some("text-1")),
+        )
+        .unwrap();
+        assert_eq!(requested.fast.as_deref(), Some("retired-fast"));
+        assert_eq!(requested.image_understanding.as_deref(), Some("text-1"));
+
+        config.ai.default_models = requested.clone();
+        reconcile_model_references(&mut config);
+
+        let echo = remote_default_models_config(&config.ai.default_models);
+        // The reply is the device's repaired truth, not what was requested.
+        assert_ne!(echo.fast, requested.fast);
+        assert_eq!(echo.fast.as_deref(), Some("text-1"));
+        assert_ne!(echo.image_understanding, requested.image_understanding);
+        assert_eq!(echo.image_understanding.as_deref(), Some("vision-1"));
+        assert_eq!(echo.primary.as_deref(), Some("text-1"));
+        // Host-only slots stay out of the repair entirely.
+        assert_eq!(echo.search.as_deref(), Some("search-1"));
+        assert_eq!(echo.image_generation.as_deref(), Some("image-1"));
+        assert_eq!(echo.speech_recognition.as_deref(), Some("speech-1"));
+    }
+
+    /// The write path against a real config service and a real reconcile: the
+    /// stored section is read inside the same critical section as the store, the
+    /// device-owned slots survive, a cleared `primary` is re-filled, and a
+    /// rejected id is never a partial write.
+    #[tokio::test]
+    async fn device_model_defaults_write_behavior_against_a_real_config_service() {
+        use crate::service::config::{ConfigManagerSettings, ConfigService};
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path_manager = Arc::new(
+            crate::infrastructure::PathManager::with_user_root_for_tests(
+                dir.path().join("remote-device-model-defaults"),
+            ),
+        );
+        let service = ConfigService::with_settings(ConfigManagerSettings {
+            path_manager: Some(path_manager.clone()),
+            auto_save: true,
+            backup_count: 0,
+        })
+        .await
+        .expect("config service");
+
+        let seeded = device_default_model_catalog();
+        service
+            .set_config("ai.models", seeded.ai.models)
+            .await
+            .expect("seed device models");
+        service
+            .set_config(
+                "ai.default_models",
+                serde_json::to_value(&seeded.ai.default_models).expect("seed defaults"),
+            )
+            .await
+            .expect("seed device role defaults");
+
+        persist_remote_model_defaults(
+            &service,
+            Some(Some("text-1")),
+            Some(None),
+            Some(Some("vision-1")),
+        )
+        .await
+        .expect("remote device defaults write");
+
+        let ai: AIConfig = service.get_config(Some("ai")).await.expect("ai config");
+        assert_eq!(ai.default_models.primary.as_deref(), Some("text-1"));
+        assert_eq!(ai.default_models.fast, None);
+        assert_eq!(
+            ai.default_models.image_understanding.as_deref(),
+            Some("vision-1")
+        );
+        // The device-owned slots came from the section the write lock read, not
+        // from a snapshot taken before it, and reached disk.
+        assert_eq!(ai.default_models.search.as_deref(), Some("search-1"));
+        assert_eq!(
+            ai.default_models.image_generation.as_deref(),
+            Some("image-1")
+        );
+        assert_eq!(
+            ai.default_models.speech_recognition.as_deref(),
+            Some("speech-1")
+        );
+        let persisted: GlobalConfig = serde_json::from_slice(
+            &tokio::fs::read(path_manager.app_config_file())
+                .await
+                .expect("persisted config"),
+        )
+        .expect("valid persisted config");
+        assert_eq!(
+            persisted.ai.default_models.image_understanding.as_deref(),
+            Some("vision-1")
+        );
+        assert_eq!(
+            persisted.ai.default_models.search.as_deref(),
+            Some("search-1")
+        );
+
+        // An empty request changes nothing and writes nothing.
+        let file_before = tokio::fs::read(path_manager.app_config_file())
+            .await
+            .expect("persisted config");
+        persist_remote_model_defaults(&service, None, None, None)
+            .await
+            .expect("empty device defaults request");
+        assert_eq!(
+            tokio::fs::read(path_manager.app_config_file())
+                .await
+                .expect("persisted config"),
+            file_before
+        );
+
+        // A cleared primary does not stay unset: the reconcile re-fills it with
+        // the first enabled text-capable model, while the optional slots stay
+        // unconfigured.
+        persist_remote_model_defaults(&service, Some(None), Some(None), Some(None))
+            .await
+            .expect("clear device roles");
+        let ai: AIConfig = service.get_config(Some("ai")).await.expect("ai config");
+        assert_eq!(ai.default_models.primary.as_deref(), Some("text-1"));
+        assert_eq!(ai.default_models.fast, None);
+        assert_eq!(ai.default_models.image_understanding, None);
+
+        // A rejected id is reported before anything is stored.
+        let before: AIConfig = service.get_config(Some("ai")).await.expect("ai config");
+        assert_eq!(
+            persist_remote_model_defaults(&service, Some(Some("model-gone")), None, None)
+                .await
+                .expect_err("unknown model ids are rejected"),
+            "Unknown model selection: model-gone"
+        );
+        let after: AIConfig = service.get_config(Some("ai")).await.expect("ai config");
+        assert_eq!(
+            serde_json::to_value(&after.default_models).expect("defaults json"),
+            serde_json::to_value(&before.default_models).expect("defaults json")
+        );
+    }
+
+    #[test]
+    fn device_model_defaults_write_merges_and_persists_under_one_config_lock() {
+        let source = include_str!("service_agent_runtime.rs");
+        let merge_and_persist = source
+            .split("async fn persist_remote_model_defaults")
+            .nth(1)
+            .and_then(|source| {
+                source
+                    .split("/// An attachment recorded before pixels travelled inline")
+                    .next()
+            })
+            .expect("device model defaults writer");
+
+        // The merge, its validation, and the store happen inside one
+        // `update_config` closure: a read before the write lock would let a
+        // concurrent desktop save be reverted by a stale snapshot.
+        assert!(merge_and_persist.contains(r#".update_config("ai", |ai: &mut AIConfig|"#));
+        assert!(merge_and_persist.contains("merge_remote_model_defaults(ai, primary, fast"));
+        assert!(merge_and_persist.contains("ai.default_models = merged;"));
+        assert!(!merge_and_persist.contains("get_config("));
+        assert!(!merge_and_persist.contains("set_config("));
+
+        let caller = source
+            .split("pub(crate) async fn update_remote_model_defaults")
+            .nth(1)
+            .and_then(|source| {
+                source
+                    .split("pub(crate) fn remote_control_state_port")
+                    .next()
+            })
+            .expect("device model defaults verb");
+        // The echo is read back from the committed, reconciled config rather
+        // than built from the merged request.
+        assert!(caller.contains("persist_remote_model_defaults(&config_service"));
+        assert!(caller.contains("remote_default_models_config(&reconciled.default_models)"));
+        for slot in ["search", "image_generation", "speech_recognition"] {
+            assert!(
+                !caller.contains(&format!("ai.default_models.{slot}")),
+                "host-only slot {slot} must not be written by the remote verb"
+            );
+        }
+    }
+
+    #[test]
+    fn remote_model_strategy_guard_preserves_stored_intent_in_closed_release() {
+        use crate::agentic::core::SessionConfig;
+        use crate::agentic::execution::round_model_routing::configuration::available;
+
+        assert!(!available());
+
+        let mut session = Session::new(
+            "Model selection".into(),
+            "Standard".into(),
+            SessionConfig {
+                model_id: Some("saved-model".into()),
+                model_routing: Some("smart".into()),
+                ..Default::default()
+            },
+        );
+        // Persisted Smart intent must not block explicit model selection while
+        // routing is unavailable, or be rewritten by this read-only guard.
+        for mode in [None, Some("manual"), Some("smart")] {
+            session.config.model_routing = mode.map(str::to_owned);
+            let before = serde_json::to_value(&session).unwrap();
+            assert_eq!(ensure_remote_model_strategy_editable(&session), Ok(()));
+            assert_eq!(serde_json::to_value(&session).unwrap(), before);
+        }
+
+        session.config.model_routing = Some("future-mode".into());
+        let before = serde_json::to_value(&session).unwrap();
+        assert!(ensure_remote_model_strategy_editable(&session)
+            .unwrap_err()
+            .contains("Unsupported model routing strategy"));
+        assert_eq!(serde_json::to_value(&session).unwrap(), before);
+
+        session.kind = SessionKind::Subagent;
+        session.config.delegation_model_routing = Some("smart".into());
+        for mode in [None, Some("smart"), Some("manual"), Some("future-mode")] {
+            session.config.model_routing = mode.map(str::to_owned);
+            let before = serde_json::to_value(&session).unwrap();
+            let error = ensure_remote_model_strategy_editable(&session).unwrap_err();
+            assert!(error.contains("Subagent models are configured independently"));
+            assert!(!error.contains("Smart routing is active"));
+            assert_eq!(serde_json::to_value(&session).unwrap(), before);
+        }
+    }
+
+    #[tokio::test]
+    async fn remote_model_strategy_lookup_never_treats_an_unknown_session_as_editable() {
+        let result = resolve_session_model_selection(&uuid::Uuid::new_v4().to_string()).await;
+        assert!(result.is_err());
     }
 
     #[test]
@@ -4358,9 +5372,11 @@ mod tests {
                 provider_id: None,
                 model_config_id: None,
                 effective_model_name: None,
+                routing: None,
                 first_chunk_ms: None,
                 first_visible_output_ms: None,
                 stream_duration_ms: None,
+                ttft_ms: None,
                 attempt_count: None,
                 attempt_diagnostics: vec![],
                 failure_category: None,
@@ -4389,6 +5405,7 @@ async fn resolve_history_workspace(
     ssh_host: Option<&str>,
 ) -> PortResult<WorkspaceBinding> {
     let mut config = crate::agentic::core::SessionConfig {
+        tool_presentation_mode: Default::default(),
         workspace_id: workspace_id.map(str::to_owned),
         workspace_path: Some(path.to_owned()),
         remote_connection_id: connection_id.map(str::to_owned),
@@ -4448,5 +5465,38 @@ mod history_workspace_identity_tests {
         )
         .await
         .is_err());
+    }
+}
+
+/// The models.dev projections are opt-in, and the revision they carry is what
+/// keeps the catalog version stable for a controller that stays slim.
+#[cfg(all(test, feature = "remote-connect"))]
+mod remote_model_catalog_tests {
+    use super::{remote_models_dev_reasoning_catalog, remote_provider_catalog};
+    use crate::infrastructure::ai::reasoning_catalog::ModelsDevReasoningCatalogSnapshot;
+    use bitfun_services_integrations::models_dev::ModelsDevSnapshotSource;
+
+    fn empty_snapshot() -> ModelsDevReasoningCatalogSnapshot {
+        ModelsDevReasoningCatalogSnapshot {
+            catalog: None,
+            version: 7,
+            sha256: "revision-7".to_string(),
+            source: ModelsDevSnapshotSource::Empty,
+        }
+    }
+
+    #[test]
+    fn slim_projection_keeps_the_identity_without_the_catalog_bodies() {
+        let snapshot = empty_snapshot();
+        let slim = remote_provider_catalog(&snapshot, false);
+        let full = remote_provider_catalog(&snapshot, true);
+
+        assert!(slim.providers.is_empty());
+        // A controller that already knows this catalog version must not see the
+        // version move just because the bodies stopped travelling.
+        assert_eq!(full.revision, slim.revision);
+        assert_eq!(full.source, slim.source);
+        assert!(!full.providers.is_empty());
+        assert!(remote_models_dev_reasoning_catalog(&snapshot, false).is_none());
     }
 }

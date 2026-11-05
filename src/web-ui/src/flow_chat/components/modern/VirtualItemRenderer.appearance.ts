@@ -13,6 +13,7 @@ export const virtualItemAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'qtToolchainProvision' },
   ],
   states: [
+    { id: 'itemFocus', selector: { kind: 'self', suffix: '[data-bitfun-state~="itemFocus"]' } },
     { id: 'searchMatch', selector: { kind: 'self', suffix: '[data-bitfun-state~="searchMatch"]' } },
     { id: 'searchCurrent', selector: { kind: 'self', suffix: '[data-bitfun-state~="searchCurrent"]' } },
   ],

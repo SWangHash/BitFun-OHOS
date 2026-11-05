@@ -25,7 +25,7 @@ use bitfun_services_integrations::miniapp_market::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
+use tauri::{AppHandle, Emitter, Manager, State, Webview};
 use tokio::io::AsyncWriteExt;
 
 const MARKET_UPLOAD_PROGRESS_EVENT: &str = "miniapp-market-upload-progress";
@@ -451,13 +451,15 @@ pub async fn miniapp_market_inspect_package(
 #[cfg_attr(target_env = "ohos", allow(unused_variables))]
 pub async fn miniapp_market_capture_window(
     app: AppHandle,
-    window: WebviewWindow,
+    webview: Webview,
 ) -> Result<String, String> {
-    // Resolve the BitFun window geometry. On non-OHOS targets the Tauri
-    // `WebviewWindow` exposes the outer rect; on OHOS the Tauri webview is
-    // backed by `@ohos-rs/ability` and its geometry is unreliable, so the
-    // ArkTS backend resolves the application window itself via
-    // `capture_application_window`.
+    let window = webview.window();
+    if webview.label() != window.label() {
+        return Err("Window capture requires a top-level application WebView".into());
+    }
+    // On OHOS the Tauri webview is backed by `@ohos-rs/ability` and its
+    // geometry is unreliable, so the ArkTS backend resolves the application
+    // window itself via `capture_application_window`.
     #[cfg(not(target_env = "ohos"))]
     let (window_x, window_y, window_width, window_height) = {
         let position = window

@@ -20,6 +20,7 @@ import { OverflowText,
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import { isOpenHarmonyRuntime } from '@/infrastructure/runtime/environment';
+import { peerHostRefusalMessage } from '@/infrastructure/peer-device/peerHostRefusal';
 import { CircleAlert, EyeOff, FileJson, Save, Server, X } from 'lucide-react';
 import {
   ConfigPageContent,
@@ -502,6 +503,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
   const [savedConnections, setSavedConnections] = useState<SavedConnection[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
+  const [loadRefusal, setLoadRefusal] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [pendingPermissionMigration, setPendingPermissionMigration] = useState(false);
@@ -800,6 +802,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
       if (showLoading) {
         setLoading(true);
         setLoadFailed(false);
+        setLoadRefusal(null);
       }
       const [rawConfig, nextClients] = await Promise.all([
         ACPClientAPI.loadJsonConfig(),
@@ -852,8 +855,10 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
     } catch (error) {
       if (!scope.isCurrent() || configLoadRequestRef.current !== requestId) return false;
       log.error('Failed to load ACP agent config', error);
-      if (showLoading) setLoadFailed(true);
-      else {
+      if (showLoading) {
+        setLoadFailed(true);
+        setLoadRefusal(peerHostRefusalMessage(error, t));
+      } else {
         notifyError(desktopDomainErrorMessage(error instanceof Error ? error.message : String(error), t), {
           title: t('notifications.loadFailed'),
         });
@@ -1239,7 +1244,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
 
   useSettingsDraft({
     id: 'acp-agent-config',
-    pageId: 'tools.acp',
+    pageId: 'tools.external-agents',
     viewId: activeView === 'json' && jsonDirty ? 'json' : undefined,
     label: activeView === 'json' && jsonDirty ? t('json.title') : t('title'),
     dirty: dirty || jsonDirty,
@@ -1551,13 +1556,13 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
         data-bitfun-component="acp-agents-config"
         data-bitfun-part="root"
       >
-        {presentation === 'page' ? <ConfigPageHeader title={t('title')} subtitle={t('subtitle')} /> : null}
+        {presentation === 'page' ? <ConfigPageHeader title={t('title')} /> : null}
         <Content className={contentClassName}>
           {loading ? (
             <ConfigLoadingState label={t('clients.loading')} />
           ) : (
             <ConfigRetryState
-              message={t('notifications.loadFailedLocked')}
+              message={loadRefusal ?? t('notifications.loadFailedLocked')}
               retryLabel={t('actions.retry')}
               onRetry={() => void loadConfig()}
             />
@@ -1576,7 +1581,6 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
     >
       {presentation === 'page' ? <ConfigPageHeader
         title={t('title')}
-        subtitle={t('subtitle')}
         extra={documentationAction}
       /> : null}
 
@@ -1641,7 +1645,6 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
           {activeView === 'json' && (
             <ConfigPageSection
               title={t('json.title')}
-              description={t('json.description')}
             >
               <div className="bitfun-acp-agents__json-editor">
                 <Textarea
@@ -2048,7 +2051,6 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
           {activeView === 'ssh' && (
           <ConfigPageSection
             title={t('remote.title')}
-            description={t('remote.description')}
             extra={hiddenRemoteConnectionRows.length > 0 ? (
               <Button
                 variant="outline"

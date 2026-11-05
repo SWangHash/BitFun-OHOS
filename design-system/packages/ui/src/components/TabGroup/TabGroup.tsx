@@ -9,6 +9,8 @@ import {
   type ReactNode,
 } from "react";
 import { classNames } from "../../internal/classNames";
+import { FloatingAction } from "../../internal/FloatingAction";
+import actionStyles from "../../internal/FloatingAction.module.css";
 import { OverflowText } from "../../primitives/OverflowText";
 import { RollingText } from "../RollingText";
 import styles from "./TabGroup.module.css";
@@ -28,7 +30,7 @@ export interface TabGroupItem {
   labelTransitionKey?: string | number;
   panelId?: string;
   /** Presentation and product data attributes on the native tab; selection stays owned by TabGroup. */
-  tabProps?: Pick<HTMLAttributes<HTMLButtonElement>, "className" | "style" | "title" | "aria-label" | "aria-describedby">
+  tabProps?: Pick<HTMLAttributes<HTMLButtonElement>, "className" | "style" | "title" | "aria-label" | "aria-describedby" | "aria-haspopup" | "aria-expanded">
     & Record<`data-${string}`, string | number | boolean | undefined>;
   value: string;
 }
@@ -142,7 +144,7 @@ export const TabGroup = forwardRef<HTMLDivElement, TabGroupProps>(function TabGr
         const hasIcon = Boolean(item.icon);
         const node = (
           <div
-            className={styles.item}
+            className={classNames(actionStyles.host, styles.item)}
             data-bitfun-part="item"
             data-overflow-trigger
             data-has-end-action={hasEndAction ? "true" : "false"}
@@ -207,9 +209,9 @@ export const TabGroup = forwardRef<HTMLDivElement, TabGroupProps>(function TabGr
               )}
             </button>
             {hasEndAction && (
-              <span className={styles.endAction} data-bitfun-part="endAction">
+              <FloatingAction className={styles.endAction} data-bitfun-part="endAction">
                 {item.endAction}
-              </span>
+              </FloatingAction>
             )}
           </div>
         );

@@ -40,6 +40,15 @@ pub struct BackgroundRoutingOwnerRetirementError {
 
 #[async_trait]
 pub trait AccountRuntimeHost: Send + Sync {
+    /// Whether this host is headless (the CLI/TUI delivery profiles).
+    ///
+    /// Such a host reports itself as a CLI device, but only to a Relay that
+    /// advertises the capability for it — see
+    /// `AccountClient::reported_device_kind`. A Desktop host keeps the default.
+    fn is_cli_host(&self) -> bool {
+        false
+    }
+
     async fn retire_background_routing_owner(
         &self,
     ) -> std::result::Result<bool, BackgroundRoutingOwnerRetirementError>;
@@ -51,6 +60,12 @@ pub trait AccountRuntimeHost: Send + Sync {
     async fn start_device_routing(&self, request: AccountRoutingStartRequest) -> Result<()>;
 
     async fn stop_device_routing(&self);
+
+    /// Whether started routing is standing by because another host on this
+    /// machine serves the shared device on the Relay.
+    async fn device_routing_is_standby(&self) -> bool {
+        false
+    }
 }
 
 pub enum AccountLoginProgress {
@@ -65,6 +80,8 @@ pub struct AccountLoginResult {
     pub relay_url: String,
     pub routing_owner_replaced: bool,
     pub routing_connected: bool,
+    /// Routing started but waits for another local host to release the device.
+    pub routing_standby: bool,
     pub routing_error: Option<String>,
 }
 
@@ -80,6 +97,9 @@ pub struct AccountInfo {
 pub struct AccountDevice {
     pub device_id: String,
     pub device_name: String,
+    /// Kind the device reported to the Relay (`desktop`, `cli`, …). Absent on
+    /// legacy devices and older Relays.
+    pub device_kind: Option<String>,
     pub device_alias: Option<String>,
     pub device_model: Option<String>,
     pub device_os: Option<String>,
@@ -211,7 +231,7 @@ impl AccountRuntime {
 
     pub async fn try_restore_session(self: &Arc<Self>) -> Option<String> {
         if let Ok(Some(loaded)) = session_store::load_session_detailed() {
-            if bitfun_services_integrations::remote_connect::account::is_retired_official_relay(
+            if bitfun_services_integrations::remote_connect::account::persisted_relay_requires_migration(
                 &loaded.relay_url,
             ) {
                 if let Some(device_id) = loaded.device_id.as_deref() {
@@ -348,8 +368,11 @@ impl AccountRuntime {
 
         let device = current_device_identity()?;
         let client = AccountClient::new();
+        let device_kind = client
+            .reported_device_kind(&relay_url, self.host.is_cli_host())
+            .await;
         let (session, profile) = client
-            .login_with_identity(&relay_url, &device)
+            .login_with_identity(&relay_url, &device, device_kind)
             .await
             .map_err(|error| anyhow!("login failed: {error}"))?;
         let previous_account_context = self.account_context.read().await.clone();
@@ -383,7 +406,7 @@ impl AccountRuntime {
                 log::warn!("Failed to clean up retired account uploads: {error}");
             }
         }
-        session_store::clear_session();
+        // Atomic replacement preserves the previous credential if saving fails.
 
         let user_id = session.user_id.clone();
         let token = session.token.clone();
@@ -416,12 +439,14 @@ impl AccountRuntime {
             .await;
         revoke_replaced_account_context(&client, previous_account_context, &relay_url, &token)
             .await;
+        let routing_standby = routing.is_ok() && self.host.device_routing_is_standby().await;
 
         Ok(AccountLoginResult {
             user_id,
             relay_url,
             routing_owner_replaced: retired_background_owner,
-            routing_connected: routing.is_ok(),
+            routing_connected: routing.is_ok() && !routing_standby,
+            routing_standby,
             routing_error: routing.err().map(|error| error.to_string()),
         })
     }
@@ -550,6 +575,7 @@ impl AccountRuntime {
             .map(|device| AccountDevice {
                 device_id: device.device_id,
                 device_name: device.device_name,
+                device_kind: device.device_kind,
                 device_alias: device.device_alias,
                 device_model: device.device_model,
                 device_os: device.device_os,

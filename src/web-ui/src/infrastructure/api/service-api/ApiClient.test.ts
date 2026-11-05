@@ -252,27 +252,28 @@ describe('ApiClient', () => {
     }
   });
 
-  it('waits beyond the default deadline when timeout is explicitly disabled', async () => {
+  it('lets a streamed transfer opt out of the request deadline', async () => {
     vi.useFakeTimers();
     try {
-      let complete!: (value: string) => void;
-      adapterMocks.request.mockReturnValueOnce(new Promise<string>(resolve => {
-        complete = resolve;
-      }));
+      let settle: (value: unknown) => void = () => {};
+      adapterMocks.request.mockReturnValueOnce(
+        new Promise((resolve) => {
+          settle = resolve;
+        }),
+      );
       const client = new ApiClient({ enableLogging: false, retries: 0 });
-      const outcome = client.invoke('open_oh_file_dialog', {}, { timeout: 0 });
-      const settled = vi.fn();
-      void outcome.then(settled, settled);
 
-      await vi.advanceTimersByTimeAsync(60_000);
-      expect(settled).not.toHaveBeenCalled();
-      expect(client.getStats()).toMatchObject({
-        successfulRequests: 0,
-        failedRequests: 0,
-      });
+      const pending = client.invoke(
+        'remote_download_to_local_path',
+        {},
+        { timeout: 0 },
+      );
+      // Any wall-clock budget is longer than the default 30s deadline, so a
+      // transfer that is still running must not be aborted.
+      await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000);
+      settle('transferred');
 
-      complete('/data/storage/selected-file');
-      await expect(outcome).resolves.toBe('/data/storage/selected-file');
+      await expect(pending).resolves.toBe('transferred');
       expect(client.getStats()).toMatchObject({
         successfulRequests: 1,
         failedRequests: 0,

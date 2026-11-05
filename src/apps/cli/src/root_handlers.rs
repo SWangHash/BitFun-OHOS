@@ -52,6 +52,7 @@ pub(crate) async fn handle_dispatch_action(action: DispatchAction) -> Result<()>
         bitfun_core::product_assembly::DeliveryProfile::Cli,
     )?;
     let verb = match action {
+        DispatchAction::Outbound { action } => return crate::dispatch::outbound::run(action).await,
         DispatchAction::Run { job } => return crate::dispatch::run_worker(job).await,
         DispatchAction::WorkspaceProvisionRun { job } => {
             return crate::dispatch::run_workspace_provision(job)
@@ -944,6 +945,8 @@ pub(crate) async fn serve_acp_stdio() -> Result<()> {
     let agentic_system = crate::agent::agentic_system::init_agentic_system(
         bitfun_core::product_assembly::DeliveryProfile::Acp,
         std::sync::Arc::new(runtime_ownership),
+        // This protocol host has no negotiated native GUI provider.
+        None,
     )
     .await
     .context("Failed to initialize agentic system")?;

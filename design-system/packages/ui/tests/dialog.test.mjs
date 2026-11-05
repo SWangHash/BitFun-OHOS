@@ -26,6 +26,7 @@ test("Dialog and Sheet compose the shared overlay kernel and compound anatomy", 
     "title",
     "description",
     "header-actions",
+    "header-leading",
     "close",
     "body",
     "footer",
@@ -88,6 +89,20 @@ test("DialogFooter exposes a centered frosted floating action layer", async () =
   assert.match(styles, /\[data-appearance=floating\]:before\{[^}]*backdrop-filter:var\(--bitfun-overlay-dialog-footer-blur\)/);
   assert.match(styles, /\[data-appearance=floating\]\{[^}]*pointer-events:auto/);
   assert.match(styles, /--bitfun-overlay-dialog-footer-action-min-width/);
+});
+
+test("Panel Dialog publishes fixed viewport-safe geometry and centered header spacing", async () => {
+  const styles = await readFile(new URL("../dist/styles.css", import.meta.url), "utf8");
+  const panelRules = styles.match(/\[data-preset=panel\][^{}]*\{[^}]*\}/g)?.join("\n") ?? "";
+
+  assert.match(panelRules, /\[data-preset=panel\]\{[^}]*grid-template-rows:auto minmax\(0,max-content\) auto;align-content:center/);
+  assert.match(panelRules, /--_dialog-panel-title-gap:\s*calc\(var\(--bitfun-overlay-dialog-header-padding-block-start\) \+ var\(--bitfun-space-4\)\)/);
+  assert.match(panelRules, /\[data-preset=panel\]\{[^}]*padding-block:var\(--_dialog-panel-title-gap\);block-size:min\(var\(--bitfun-overlay-dialog-panel-block-size\),calc\(100dvh/);
+  assert.match(panelRules, /\[data-preset=panel\]>[^{}]+\{padding-block-start:0;padding-block-end:var\(--_dialog-panel-title-gap\)/);
+  assert.match(panelRules, /\[data-preset=panel\]>[^{}]+\{[^}]*min-block-size:var\(--bitfun-control-height-sm\);[^}]*text-align:center/);
+  assert.match(panelRules, /padding-block-end:max\([^}]*var\(--bitfun-overlay-dialog-footer-height\)/);
+  assert.doesNotMatch(panelRules, /--bitfun-overlay-dialog-footer-content-inset/);
+  assert.match(panelRules, /\[data-preset=panel\]>[^{}]+\{[^}]*padding-inline:max\(var\(--bitfun-overlay-dialog-content-padding-lg\),calc\(\(100% - var\(--bitfun-overlay-dialog-max-inline-size-large\)\)\s*\/\s*2\)\)/);
 });
 
 test("dialog separators are explicit and do not leak native attributes", () => {

@@ -68,6 +68,7 @@ export class TerminalMenuProvider implements IMenuProvider {
       label: i18nService.t('common:actions.selectAll'),
       // Ctrl+A stays a shell shortcut (readline beginning-of-line), so select
       // all only answers to the terminal-specific combination.
+      icon: 'SelectAll',
       shortcut: 'Ctrl+Shift+A',
       onClick: () => {
         globalEventBus.emit('terminal:select-all', {

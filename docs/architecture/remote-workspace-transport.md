@@ -115,6 +115,45 @@ unsupported by the Product Operation Registry. Existing Remote Control sessions
 reuse the bound workspace providers, and Detached Dispatch does not create WSL
 profiles. Native WSL has no SSH transport for port forwarding.
 
+## ProxyCommand
+
+The additive `proxyCommand` profile field carries the SSH transport over a
+local process's stdin/stdout, as OpenSSH does (for example
+`coder ssh --stdio %h`). The Services layer and the port-forward tool's
+`~/.ssh/config` path honor it; the desktop connection dialog does not send
+`proxyCommand` yet, so profiles created there still dial directly. When such a
+profile targets a `~/.ssh/config` alias that has a ProxyCommand, the host logs
+a warning and a failed dial names the ignored ProxyCommand instead of
+reporting only a network error. Missing `proxyCommand` preserves direct
+dialing; connection drift includes the field.
+
+`%h`, `%p`, `%r`, and `%%` are expanded first, and a host or user that would be
+substituted must match `[A-Za-z0-9._\-@:%\[\]]` (OpenSSH 9.6, CVE-2023-51385)
+or the connection fails before anything runs. Unix runs `sh -c "exec …"` in its
+own process group; Windows runs `cmd.exe /d /v:off /s /c "…"` inside a
+kill-on-close Job. Disconnect, failed handshakes, and reconnect tear the whole
+process tree down; a reconnect keeps a displaced proxy only until its old
+transport has no users left.
+
+A saved profile with both ProxyCommand and ProxyJump, or with a container or
+WSL target, is rejected. A ProxyJump hop whose `~/.ssh/config` alias resolves
+to a ProxyCommand fails with an explicit unsupported error instead of dialing
+the hop directly.
+
+`~/.ssh/config` values come from a line-based resolver over the
+`Include`-merged text. Include runs inside the includer's `Host`/`Match`
+context, which is restored afterwards. Host patterns support `*`, `?`, `!`,
+and inline `#` comments. The first value wins, except that `IdentityFile` and
+`CertificateFile` accumulate; single-key consumers take the first value from a
+block that names the host exactly. `ProxyCommand` is kept verbatim (`none`
+disables it), and ProxyJump and ProxyCommand compete: whichever is obtained
+first wins.
+
+The host advertises `ssh_proxy_command_v1`. Older hosts ignore the unknown
+field and would dial directly, so a future controller UI must not send
+`proxyCommand` to a peer that lacks the capability. CLI peer setup is
+unsupported, as for WSL.
+
 ## ProxyJump
 
 The comma-separated jump chain is resolved left to right. Each token can be a
@@ -183,6 +222,29 @@ through the destination to preserve existing links and permissions. The final
 write is not an atomic transaction against other writers; interruption during
 that phase can have a partial or unknown outcome.
 
+Both providers publish an upload only after the transfer completed: the SFTP
+path streams into a same-directory `<hidden data dir>-upload-<id>.tmp` sibling
+and renames it over the destination, the container command does the same after
+its size check, and a downloaded file is staged beside its local destination
+the same way. A failed or cancelled transfer therefore leaves any previous
+destination unchanged, and staging temporaries are removed when the owning side
+can still reach the path. For directory transfers, files already published and
+directories already created remain when a later entry fails or is stopped.
+Because a published upload replaces its destination
+rather than writing through it, the result takes the staging file's mode and
+ownership, and a replaced symlink or hard link is not followed; that is what
+distinguishes a transfer from a workspace tool write above. A hard kill between
+staging and commit can leave one orphaned temporary, which the container
+commands sweep by age and the SFTP path leaves to the user.
+
+The desktop upload and download commands opt out of the shared 30-second
+controller deadline when their caller provides a progress and stop surface.
+Every SFTP request retains its own response timeout, the SSH transport drops a
+stalled connection, and the transfer ends when it completes, fails, or is
+stopped. File reads, writes, listings, and transfers without a stop surface keep
+the default controller deadline. A short deadline on a stoppable transfer only
+reported a slow-but-healthy operation as failed while the host kept working.
+
 Directory and stat records use NUL-separated fields. File names containing
 newlines or the delimiters used by older implementations remain round-trippable.
 The records are decoded only after the full byte stream is assembled; invalid
@@ -223,7 +285,11 @@ to searching the controller filesystem.
 ## Authentication and secrets
 
 Supported target methods are password, private key, private key plus OpenSSH
-certificate, OpenSSH agent, and keyboard-interactive responses.
+certificate, OpenSSH agent, keyboard-interactive responses, and the SSH `none`
+method for endpoints whose transport is already authenticated (a Coder
+workspace agent, for example). `none` is an explicit profile choice: it is
+never tried as a fallback, and a rejected `none` profile never turns into a
+credential prompt.
 
 - Passwords use the existing encrypted password vault.
 - Private-key paths, certificate paths, and auth method metadata may be saved.
@@ -267,6 +333,65 @@ new-folder creation. They must not key workspace catalogs, subscriptions, routin
 selection, or cache ownership. UI events retain workspace IDs through every
 adapter; session operations recover their workspace from the session's stored ID.
 Across devices, IDs are interpreted only by the selected owning host.
+
+Request ownership also includes the device activation epoch. In the Web UI,
+`invokePrepared` captures `SurfaceScope` before asynchronous parameter preparation
+(including legacy capability negotiation), checks it before dispatch, and preserves
+`SurfaceChangedError` through service error translation. `ApiClient` retains the
+same activation through middleware, transport, retries and response handling.
+Pending reads belong to one epoch through scoped keys or activation-owned caches;
+returning to the same device does not revive an earlier activation's pending work.
+Settled caches are keyed by the rendered device as well as the workspace ID,
+because same-path local workspaces hash to the same ID on every device.
+Multi-step preparation must
+check the captured scope before starting another host request. Stream listeners
+are detached on activation change and must never send cancellation to the newly
+selected host for a search started elsewhere. Controller-local commands keep
+their authority across activation in `invokePrepared` exactly as in `ApiClient`.
+The Web UI lint configuration rejects `await` inside `api.invoke(...)`
+arguments, because the activation would be captured after they resolve.
+
+`CoreSessionStorePort` owns session storage resolution. The temporary path adapter
+converts a legacy selector to a catalog ID once, then uses the same ID resolver as
+current requests. It must not reconstruct identity from local filesystem
+existence, choose a worktree's parent when its execution record is missing, or
+return an execution path when resolution fails. A registered but unavailable
+folder can still own readable persisted history.
+
+After session admission, `SessionManager` retains the committed storage binding.
+History restore, persistence, autosave, idle eviction and internal continuations
+reuse that binding. The binding survives in-memory session eviction; a process
+restart re-admits the session from its persisted ID and storage owner. Internal
+queued turns retain the session's workspace ID, while external legacy submissions
+still validate their locator at the compatibility boundary. All resolution uses
+the persistence owner's `PathManager`. Readers never commit a binding: before
+admission they resolve from the session's workspace configuration, and a pending
+claim for a different location makes them fail instead of following an
+uncommitted index entry.
+
+The supported SSH history layout remains host plus remote root for upgrade
+compatibility, so two saved connections to one host and root share a workspace
+record and session mirror. Activation never rejects such records: imported or
+persisted records for each connection stay listed and activatable, and session
+identity verification, not workspace activation, keeps their histories apart.
+
+Reopening an existing remote record with a different connection rebinds the
+record only for an allowed reason:
+
+- the two connection IDs are equivalent (the legacy `ssh-user@host:port` form and
+  the current `ssh-user@host` form);
+- the previous owner is no longer a saved SSH connection;
+- the user confirmed the rebind, sent as `rebindConnection` on
+  `open_remote_workspace` by Desktop and the CLI peer host.
+
+Otherwise the open fails with the stable code
+`remote_workspace_connection_conflict` as the whole error message, so remote
+controllers can match it. The interactive Web UI asks the user and retries with
+`rebindConnection`; startup restore defers with a localized notification instead
+of rebinding silently. Older hosts ignore the field and keep their previous
+behavior. Supporting multiple simultaneous endpoints for one host and root
+requires a versioned storage-identity migration covering sessions and mirrors;
+changing the directory hash alone is not a safe migration.
 
 Persisted IDs are opaque. Catalog validation checks record/map-key agreement and
 reference integrity; it must not recompute IDs from paths or require a working
@@ -382,6 +507,15 @@ password-vault and workspace references.
 Local Docker profiles may legitimately retain an empty legacy password
 placeholder. Connection, testing, and local container discovery do not require
 a password-vault entry for those profiles.
+
+`SavedAuthType::None` is unknown to earlier builds, which parse
+`ssh_connections.json` as one list and rewrite it from memory. Those profiles
+therefore live in `ssh_connections_extended.json`, which earlier builds neither
+read nor write; the primary file keeps the shape they understand. Loading merges
+both files, and the primary entry wins when an earlier build recreated the same
+ID. An earlier build does not list these profiles until the user upgrades again.
+Peer controllers reject `None` before RPC unless the host advertises
+`ssh_none_auth_v1`.
 
 Startup recovery never deletes a profile or workspace merely because a
 credential is unavailable, a connection times out, or a remote host is

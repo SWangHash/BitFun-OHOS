@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { createHash } from 'node:crypto';
 import {
   cssVariables as systemCssVariables,
@@ -10,7 +11,7 @@ import { widgetAppearanceAdapter } from '@/infrastructure/appearance/adapters/Wi
 import {
   WIDGET_APPEARANCE_FALLBACK_VARS,
   WIDGET_APPEARANCE_VAR_NAMES,
-  WIDGET_TYPOGRAPHY_VARIABLE_NAMES,
+  WIDGET_SYSTEM_VARIABLE_NAMES,
   createWidgetAppearanceFallbackCss,
   readWidgetAppearancePayload,
 } from './appearancePayload';
@@ -61,6 +62,46 @@ const COMPOSER_THEME_VARIABLE_NAMES = [
   '--bitfun-color-composer-border',
   '--bitfun-color-composer-context-background',
 ] as const;
+// Read-only diffs need distinct line, gutter, marker, word, and syntax roles.
+// Generic added/removed colors cannot express those layered surfaces.
+const CODE_DIFF_THEME_VARIABLE_NAMES = [
+  '--bitfun-color-code-diff-added-gutter',
+  '--bitfun-color-code-diff-added-line',
+  '--bitfun-color-code-diff-added-marker',
+  '--bitfun-color-code-diff-added-word',
+  '--bitfun-color-code-diff-foreground',
+  '--bitfun-color-code-diff-gutter-border',
+  '--bitfun-color-code-diff-line-number',
+  '--bitfun-color-code-diff-removed-gutter',
+  '--bitfun-color-code-diff-removed-line',
+  '--bitfun-color-code-diff-removed-marker',
+  '--bitfun-color-code-diff-removed-word',
+  '--bitfun-color-code-diff-syntax-comment',
+  '--bitfun-color-code-diff-syntax-declaration',
+  '--bitfun-color-code-diff-syntax-function',
+  '--bitfun-color-code-diff-syntax-keyword',
+  '--bitfun-color-code-diff-syntax-number',
+  '--bitfun-color-code-diff-syntax-operator',
+  '--bitfun-color-code-diff-syntax-property',
+  '--bitfun-color-code-diff-syntax-punctuation',
+  '--bitfun-color-code-diff-syntax-string',
+  '--bitfun-color-code-diff-syntax-variable',
+] as const;
+// Project identity is a user-selected palette, independent of status and accents.
+// Assert its exact owner contract while keeping the shared fingerprint unchanged.
+const PROJECT_IDENTITY_THEME_VARIABLE_NAMES = [
+  '--bitfun-color-identity-project-blue',
+  '--bitfun-color-identity-project-cyan',
+  '--bitfun-color-identity-project-green',
+  '--bitfun-color-identity-project-orange',
+  '--bitfun-color-identity-project-pink',
+  '--bitfun-color-identity-project-purple',
+  '--bitfun-color-identity-project-red',
+  '--bitfun-color-identity-project-yellow',
+] as const;
+// Translucent floating panels such as global search need a wider frost than the
+// shared blur scale; assert this addition without changing the shared baseline.
+const STRONG_BLUR_THEME_VARIABLE_NAME = '--bitfun-effect-blur-strong';
 const RETIRED_WIDGET_VARIABLE_NAMES = [
   '--background-primary',
   '--bg-primary',
@@ -107,6 +148,8 @@ describe('generated widget appearance payload contract', () => {
     const fieldStateNames = WIDGET_APPEARANCE_VAR_NAMES.filter(name => FIELD_STATE_THEME_VARIABLE_NAMES.some(fieldName => fieldName === name));
     const indicatorNames = WIDGET_APPEARANCE_VAR_NAMES.filter(name => INDICATOR_THEME_VARIABLE_NAMES.some(indicatorName => indicatorName === name));
     const composerNames = WIDGET_APPEARANCE_VAR_NAMES.filter(name => COMPOSER_THEME_VARIABLE_NAMES.some(composerName => composerName === name));
+    const codeDiffNames = WIDGET_APPEARANCE_VAR_NAMES.filter(name => name.startsWith('--bitfun-color-code-diff-'));
+    const projectIdentityNames = WIDGET_APPEARANCE_VAR_NAMES.filter(name => name.startsWith('--bitfun-color-identity-project-'));
     const sharedNames = WIDGET_APPEARANCE_VAR_NAMES.filter(name => (
       !name.startsWith('--bitfun-component-button-')
       && !FIELD_STATE_THEME_VARIABLE_NAMES.some(fieldName => fieldName === name)
@@ -115,14 +158,20 @@ describe('generated widget appearance payload contract', () => {
       && name !== ACTION_CARD_THEME_VARIABLE_NAME
       && !INDICATOR_THEME_VARIABLE_NAMES.some(indicatorName => indicatorName === name)
       && !COMPOSER_THEME_VARIABLE_NAMES.some(composerName => composerName === name)
+      && !name.startsWith('--bitfun-color-code-diff-')
+      && !name.startsWith('--bitfun-color-identity-project-')
+      && name !== STRONG_BLUR_THEME_VARIABLE_NAME
     ));
     expect(buttonNames).toEqual(BUTTON_THEME_VARIABLE_NAMES);
     expect(fieldStateNames).toEqual(FIELD_STATE_THEME_VARIABLE_NAMES);
     expect(indicatorNames).toEqual(INDICATOR_THEME_VARIABLE_NAMES);
     expect(composerNames).toEqual(COMPOSER_THEME_VARIABLE_NAMES);
+    expect(codeDiffNames.sort()).toEqual(CODE_DIFF_THEME_VARIABLE_NAMES);
+    expect(projectIdentityNames.sort()).toEqual(PROJECT_IDENTITY_THEME_VARIABLE_NAMES);
     expect(WIDGET_APPEARANCE_VAR_NAMES).toContain(FIELD_GROUP_THEME_VARIABLE_NAME);
     expect(WIDGET_APPEARANCE_VAR_NAMES).toContain(CAPTION_THEME_VARIABLE_NAME);
     expect(WIDGET_APPEARANCE_VAR_NAMES).toContain(ACTION_CARD_THEME_VARIABLE_NAME);
+    expect(WIDGET_APPEARANCE_VAR_NAMES).toContain(STRONG_BLUR_THEME_VARIABLE_NAME);
     expect({
       count: sharedNames.length,
       hash: hashNames(sharedNames),
@@ -143,9 +192,29 @@ describe('generated widget appearance payload contract', () => {
     expect(Object.keys(WIDGET_APPEARANCE_FALLBACK_VARS)).toEqual(WIDGET_APPEARANCE_VAR_NAMES);
     expect(Object.keys(payload?.vars ?? {}).sort()).toEqual([
       ...WIDGET_APPEARANCE_VAR_NAMES,
-      ...WIDGET_TYPOGRAPHY_VARIABLE_NAMES,
+      ...WIDGET_SYSTEM_VARIABLE_NAMES,
     ].sort());
     expect(WIDGET_APPEARANCE_FALLBACK_VARS['--bitfun-color-surface-canvas']).toBe('transparent');
+  });
+
+  it('projects host system tokens over the static fallbacks', () => {
+    const computedStyle = new Map<string, string>([
+      ['--bitfun-radius-base', '6px'],
+      ['--bitfun-space-4', '12px'],
+      ['--bitfun-type-body-sm-font-size', '15px'],
+    ]);
+    vi.stubGlobal('getComputedStyle', () => ({
+      getPropertyValue: (name: string) => computedStyle.get(name) ?? '',
+    }));
+
+    const payload = readWidgetAppearancePayload();
+
+    expect(payload?.vars['--bitfun-radius-base']).toBe('6px');
+    expect(payload?.vars['--bitfun-space-4']).toBe('12px');
+    expect(payload?.vars['--bitfun-type-body-sm-font-size']).toBe('15px');
+    expect(payload?.vars['--bitfun-radius-lg']).toBe(
+      String(systemTokens['radius.lg']),
+    );
   });
 
   it('exports canonical state and status semantics without legacy aliases', () => {

@@ -201,6 +201,7 @@
     "current": "Current"
   },
   "quickSwitch": {
+    "refresh": "Refresh branches",
     "menuLabel": "Switch branch",
     "searchLabel": "Search branches",
     "searchPlaceholder": "Search branches...",
@@ -229,6 +230,7 @@
     },
     "errors": {
       "title": "Branch switch failed",
+      "refreshFailed": "Could not refresh branches. Showing the previous list.",
       "loadFailed": "Could not load branches",
       "switchFailed": "Failed to switch branch",
       "switchFailedWithMessage": "Failed to switch branch: {{error}}",
@@ -484,5 +486,17 @@
       "delete": "Deleted",
       "rename": "Renamed"
     }
+  },
+  "workingCopy": {
+    "openWorkspace": "Open a workspace to see changes.",
+    "currentHost": "Current host",
+    "clean": "Working tree is clean",
+    "cleanDescription": "There are no uncommitted changes in this repository.",
+    "upstreamComparison": "Compared with upstream: {{ahead}} ahead · {{behind}} behind",
+    "unpushed": "Local commits are waiting to be pushed. Use Push above when you are ready.",
+    "remoteSnapshot": "Check branch tracking and remote synchronization in Branches.",
+    "statusUnavailable": "Git status is unavailable",
+    "selectFile": "Select a file to review its changes",
+    "conflicts": "{{count}} files have unresolved conflicts."
   }
 }

@@ -11,8 +11,9 @@ use crate::service::workspace_runtime::WorkspaceRuntimeService;
 pub use bitfun_services_integrations::remote_ssh::{
     local_workspace_stable_storage_id, normalize_remote_workspace_path,
     remote_root_to_mirror_subpath, remote_workspace_stable_id,
-    sanitize_remote_mirror_path_component, sanitize_ssh_connection_id_for_local_dir,
-    sanitize_ssh_hostname_for_mirror, unresolved_remote_session_storage_key, workspace_logical_key,
+    remote_workspace_stable_id_for_connection, sanitize_remote_mirror_path_component,
+    sanitize_ssh_connection_id_for_local_dir, sanitize_ssh_hostname_for_mirror,
+    ssh_workspace_identity_host, unresolved_remote_session_storage_key, workspace_logical_key,
     workspace_session_identity, RemoteWorkspaceEntry, RemoteWorkspaceRegistry,
     RemoteWorkspaceState, WorkspaceSessionIdentity, LOCAL_WORKSPACE_SSH_HOST,
 };
@@ -75,22 +76,16 @@ pub async fn resolve_workspace_session_identity(
 
     None
 }
-/// Local directory where persisted sessions for this remote workspace root are stored.
+/// Runtime directory for this remote workspace root.
 pub fn remote_workspace_runtime_root(ssh_host: &str, remote_root_norm: &str) -> PathBuf {
-    bitfun_services_integrations::remote_ssh::remote_workspace_runtime_root(
-        get_path_manager_arc().remote_ssh_mirror_root_dir(),
-        ssh_host,
-        remote_root_norm,
-    )
+    get_path_manager_arc().remote_workspace_runtime_root(ssh_host, remote_root_norm)
 }
 
-/// Local directory where persisted sessions for this remote workspace root are stored.
+/// Runtime sessions directory for this remote workspace root.
 pub fn remote_workspace_session_mirror_dir(ssh_host: &str, remote_root_norm: &str) -> PathBuf {
-    bitfun_services_integrations::remote_ssh::remote_workspace_session_mirror_dir(
-        get_path_manager_arc().remote_ssh_mirror_root_dir(),
-        ssh_host,
-        remote_root_norm,
-    )
+    WorkspaceRuntimeService::new(get_path_manager_arc())
+        .context_for_remote_workspace(ssh_host, remote_root_norm)
+        .sessions_dir
 }
 
 /// Canonical local root [`PathBuf`] plus normalized string form (single `canonicalize` call).
@@ -296,7 +291,7 @@ impl RemoteWorkspaceStateManager {
 
     // ── Session storage ────────────────────────────────────────────
 
-    /// Local mirror directory for persisted sessions (`~/.bitfun/remote_ssh/.../sessions`).
+    /// Runtime directory for persisted sessions (`~/.bitfun/projects/<24-hex>/sessions`).
     pub fn get_remote_session_mirror_path(
         &self,
         ssh_host: &str,
@@ -306,8 +301,7 @@ impl RemoteWorkspaceStateManager {
     }
 
     /// Map a workspace path to the final on-disk sessions directory.
-    /// Local roots map to `~/.bitfun/projects/<workspace-slug>/sessions`;
-    /// remote roots map to the local SSH mirror sessions dir.
+    /// Local and remote roots map to their compact runtime-key sessions dir.
     pub async fn get_effective_session_path(
         &self,
         workspace_path: &str,
@@ -326,13 +320,23 @@ impl RemoteWorkspaceStateManager {
         let path_norm = normalize_remote_workspace_path(workspace_path);
         if let Some(host) = remote_ssh_host.map(str::trim).filter(|s| !s.is_empty()) {
             return runtime_service
-                .context_for_remote_workspace(host, &path_norm)
+                .context_for_remote_workspace(
+                    &ssh_workspace_identity_host(host, remote_id, &path_norm),
+                    &path_norm,
+                )
                 .sessions_dir;
         }
         if let Some(entry) = self.lookup_connection(workspace_path, remote_id).await {
             if !entry.ssh_host.trim().is_empty() {
                 return runtime_service
-                    .context_for_remote_workspace(&entry.ssh_host, &entry.remote_root)
+                    .context_for_remote_workspace(
+                        &ssh_workspace_identity_host(
+                            &entry.ssh_host,
+                            Some(&entry.connection_id),
+                            &entry.remote_root,
+                        ),
+                        &entry.remote_root,
+                    )
                     .sessions_dir;
             }
             return unresolved_remote_session_storage_dir(remote_id.unwrap(), &path_norm);
@@ -388,7 +392,10 @@ pub async fn get_effective_session_path(
                 .sessions_dir;
         }
         return runtime_service
-            .context_for_remote_workspace(&identity.hostname, identity.logical_workspace_path())
+            .context_for_remote_workspace(
+                &identity.identity_host(),
+                identity.logical_workspace_path(),
+            )
             .sessions_dir;
     }
 
@@ -620,6 +627,53 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn effective_session_path_is_port_scoped_only_for_port_scoped_connections() {
+        let root = "/home/wsp/projects/port-scope";
+        let legacy = remote_workspace_session_mirror_dir("cluster", root);
+        // Ids written by released builds keep the legacy session directory.
+        for connection_id in ["ssh-root@cluster", "ssh-root@cluster:2201"] {
+            let actual =
+                super::get_effective_session_path(root, Some(connection_id), Some("cluster")).await;
+            assert_eq!(actual, legacy, "{connection_id}");
+        }
+        let port_a =
+            super::get_effective_session_path(root, Some("ssh-root@cluster#2201"), Some("cluster"))
+                .await;
+        let port_b =
+            super::get_effective_session_path(root, Some("ssh-root@cluster#2202"), Some("cluster"))
+                .await;
+        assert_ne!(port_a, legacy);
+        assert_ne!(port_b, legacy);
+        assert_ne!(port_a, port_b);
+        assert_eq!(
+            port_a,
+            remote_workspace_session_mirror_dir("cluster#2201", root)
+        );
+
+        let manager = super::RemoteWorkspaceStateManager::new();
+        manager
+            .register_remote_workspace(
+                root.to_string(),
+                "ssh-root@cluster#2201".to_string(),
+                "Node 1".to_string(),
+                "cluster".to_string(),
+            )
+            .await;
+        assert_eq!(
+            manager
+                .get_effective_session_path(root, Some("ssh-root@cluster#2201"), None)
+                .await,
+            port_a
+        );
+        assert_eq!(
+            manager
+                .get_effective_session_path(root, Some("ssh-root@cluster#2201"), Some("cluster"))
+                .await,
+            port_a
+        );
+    }
+
+    #[tokio::test]
     async fn manager_effective_session_path_returns_local_sessions_dir() {
         let workspace_root = std::env::temp_dir().join(format!(
             "bitfun-manager-local-session-path-test-{}",
@@ -652,8 +706,7 @@ pub async fn ensure_saved_connection_services() -> Result<Arc<RemoteWorkspaceSta
     }
     INITIALIZED
         .get_or_try_init(|| async {
-            let data_dir = if std::env::var_os("BITFUN_HOME").is_some()
-                || cfg!(target_env = "ohos")
+            let data_dir = if std::env::var_os("BITFUN_HOME").is_some() || cfg!(target_env = "ohos")
             {
                 // On HarmonyOS the dirs fallback resolves outside the app
                 // sandbox, so saved SSH profiles always go through the

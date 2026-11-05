@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { agentAPI } from '@/infrastructure/api/service-api/AgentAPI';
 import type { AgenticEvent } from '@/infrastructure/api/service-api/AgentAPI';
+import { agentAPI } from '@/infrastructure/api';
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
 import { configManager } from '@/infrastructure/config/services/ConfigManager';
 import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
@@ -15,16 +15,16 @@ import {
 const log = createLogger('useDialogCompletionNotify');
 
 /**
- * Listens for dialog turn completion AND failure events and sends an OS-level
- * desktop notification (Windows toast / macOS notification center / HarmonyOS
- * Notification Kit) when the window is not focused and the feature is enabled
- * in config.
+ * Listens for dialog turn completion, failure, and cancellation events and
+ * sends an OS-level desktop notification (Windows toast / macOS notification
+ * center / HarmonyOS Notification Kit) when the window is not focused and the
+ * feature is enabled in config.
  *
- * Notification title = product title, success vs. failure variant.
- * Notification body  = session-aware "is ready" / "stopped unexpectedly" copy.
+ * Notification title = product title, success vs. failure vs. cancelled variant.
+ * Notification body  = session-aware copy for the terminal state.
  *
  * "Not focused" means: the page is hidden (minimized / tab switched) OR the
- * window has lost focus to another OS-level application. On HarmonyOS the
+ * window has lost OS focus to another OS-level application. On HarmonyOS the
  * webview does not reliably update document.hidden / fire window blur on
  * minimize, so the native window focus is queried from the host instead.
  */
@@ -42,14 +42,18 @@ export const useDialogCompletionNotify = () => {
     window.addEventListener('blur', handleBlur);
 
     const resolveIsBackground = async (): Promise<boolean> => {
+      if (!isOpenHarmonyRuntime()) {
+        return document.hidden || !windowFocusedRef.current;
+      }
       try {
         return await systemAPI.isNotificationWindowBackground();
       } catch (error) {
         log.warn('Failed to query notification window focus', error);
-        return false;
+        return document.hidden || !windowFocusedRef.current;
       }
     };
 
+    const notified = new Map<string, string>();
     const notify = async (
       event: AgenticEvent,
       outcome: { success?: boolean; cancelled?: boolean; finishReason?: string | null },
@@ -104,13 +108,25 @@ export const useDialogCompletionNotify = () => {
         t,
       });
 
-      if (isOpenHarmonyRuntime()) {
-        log.info('Sending dialog completion notification', { title: notificationCopy.title });
+      const turnId = event.turnId ?? event.turn_id;
+      const turn = session?.dialogTurns.find(turn => turn.id === turnId);
+      const outcomeKey = outcome.cancelled
+        ? 'cancelled'
+        : outcome.success === false
+          ? 'failed'
+          : 'completed';
+      const receipt = `${turnId}:${turn?.recovery?.executionGeneration ?? turn?.recoveryEpoch ?? 0}:${outcomeKey}`;
+      if (notified.get(sessionId) === receipt) return;
+      notified.set(sessionId, receipt);
+      try {
+        if (isOpenHarmonyRuntime()) {
+          log.info('Sending dialog completion notification', { title: notificationCopy.title });
+        }
+        await systemAPI.sendSystemNotification(notificationCopy.title, notificationCopy.body);
+      } catch (error) {
+        if (notified.get(sessionId) === receipt) notified.delete(sessionId);
+        log.warn('Failed to send dialog result notification', { sessionId, turnId, error });
       }
-      await systemAPI.sendSystemNotification(
-        notificationCopy.title,
-        notificationCopy.body,
-      );
     };
 
     // A completed turn may itself be unsuccessful (success === false). A
@@ -124,16 +140,18 @@ export const useDialogCompletionNotify = () => {
     const unlistenFailed = agentAPI.onDialogTurnFailed((event) =>
       notify(event, { success: false, finishReason: event?.error })
     );
-    const unlistenCancelled = agentAPI.onDialogTurnCancelled((event) =>
-      notify(event, { cancelled: true })
-    );
+    // Older hosts do not expose the cancellation channel; keep notifying the
+    // other terminal states there instead of failing the whole hook.
+    const unlistenCancelled = typeof agentAPI.onDialogTurnCancelled === 'function'
+      ? agentAPI.onDialogTurnCancelled((event) => notify(event, { cancelled: true }))
+      : undefined;
 
     return () => {
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('blur', handleBlur);
       unlistenCompleted();
       unlistenFailed();
-      unlistenCancelled();
+      unlistenCancelled?.();
     };
   }, [t]);
 };

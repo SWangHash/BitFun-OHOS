@@ -1,4 +1,6 @@
-export const FLOWCHAT_TURN_RAIL_ROW_HEIGHT_PX = 12;
+// Match the design-system chat indicator: a 2px marker followed by 7px of
+// breathing room, for a 9px center-to-center rhythm.
+export const FLOWCHAT_TURN_RAIL_ROW_HEIGHT_PX = 9;
 export const FLOWCHAT_TURN_RAIL_VERTICAL_PADDING_PX = 3;
 export const FLOWCHAT_TURN_RAIL_OVERSCAN_ROWS = 6;
 

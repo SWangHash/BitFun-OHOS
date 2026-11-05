@@ -2,6 +2,8 @@
  * SSH Remote Feature - Types
  */
 
+export type WorkspaceConnectionTarget = 'ssh' | 'remoteDocker' | 'localDocker' | 'containerSshd' | 'wsl';
+
 export interface SSHConnectionConfig {
   id: string;
   name: string;
@@ -11,6 +13,8 @@ export interface SSHConnectionConfig {
   auth: SSHAuthMethod;
   defaultWorkspace?: string;
   proxyJump?: string;
+  /** Host-owned value carried through unchanged; no form edits it yet. */
+  proxyCommand?: string;
   container?: ContainerWorkspaceConfig;
   wsl?: WslWorkspaceConfig;
   options?: SSHConnectionOptions;
@@ -39,13 +43,16 @@ export type SSHAuthMethod =
   | { type: 'Password'; password: string }
   | { type: 'PrivateKey'; keyPath: string; passphrase?: string; certificatePath?: string }
   | { type: 'Agent'; keyFingerprint?: string; fallbackKeyPath?: string }
-  | { type: 'KeyboardInteractive'; responses: string[] };
+  | { type: 'KeyboardInteractive'; responses: string[] }
+  /** Server accepts the connection without credentials (already-authenticated tunnels). */
+  | { type: 'None' };
 
 export type SavedAuthType =
   | { type: 'Password' }
   | { type: 'PrivateKey'; keyPath: string; certificatePath?: string }
   | { type: 'Agent'; keyFingerprint?: string; fallbackKeyPath?: string }
-  | { type: 'KeyboardInteractive' };
+  | { type: 'KeyboardInteractive' }
+  | { type: 'None' };
 
 export interface SavedConnection {
   id: string;
@@ -57,6 +64,7 @@ export interface SavedConnection {
   defaultWorkspace?: string;
   lastConnected?: number;
   proxyJump?: string;
+  proxyCommand?: string;
   container?: ContainerWorkspaceConfig;
   wsl?: WslWorkspaceConfig;
   options?: SSHConnectionOptions;

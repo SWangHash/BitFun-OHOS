@@ -158,6 +158,10 @@ it('does not offer an update check in a runtime that cannot install updates', as
   await act(async () => { root.render(<AccountPanel onCloseDialog={() => {}} />); });
   expect(container.textContent).toContain('accountLogin.relayFailureVersionRetired');
   expect(container.textContent).not.toContain('update.checkForUpdates');
+  // Without a banner action the section heading still offers a way forward.
+  const retryButtons = Array.from(container.querySelectorAll('button'))
+    .filter(node => node.textContent === 'accountLogin.retryConnect');
+  expect(retryButtons).toHaveLength(1);
 });
 
 it('offers a retry when the Relay is temporarily unavailable', async () => {
@@ -167,7 +171,10 @@ it('offers a retry when the Relay is temporarily unavailable', async () => {
   await act(async () => { root.render(<AccountPanel onCloseDialog={() => {}} />); });
   expect(container.textContent).toContain('accountLogin.relayFailureUnavailable');
   expect(container.textContent).not.toContain('502');
-  expect(container.textContent).toContain('accountLogin.retryConnect');
+  const retryButtons = Array.from(container.querySelectorAll('button'))
+    .filter(node => node.textContent === 'accountLogin.retryConnect');
+  expect(retryButtons).toHaveLength(1);
+  expect(retryButtons[0]!.closest('[data-bitfun-part="error"]')).not.toBeNull();
 });
 
 async function retryConnection() {
@@ -403,6 +410,44 @@ it('accepts the negotiated alias capability and displays only alias plus metadat
   expect(container.textContent).not.toContain('technical');
   expect(container.textContent).toContain('Studio');
   expect(container.textContent).toContain('Model');
+});
+it('marks each row with the system it reported, a server for a CLI host, and the neutral mark when it is unknown', async () => {
+  mocks.accountRelayCapabilities.mockResolvedValue(['device_alias_v1']);
+  mocks.accountListDevices.mockResolvedValue([
+    { device_id: 'win', device_name: 'lwb_winpc', device_os: 'Windows 11', device_kind: 'desktop', online: true },
+    { device_id: 'mac', device_name: 'lwb_macbook', device_os: 'macOS 15.7.3', device_kind: 'desktop', online: true },
+    { device_id: 'srv', device_name: 'lwb_server', device_os: 'Linux', device_kind: 'cli', online: true },
+    { device_id: 'legacy', device_name: 'lwb_legacy', online: true },
+  ]);
+  await act(async () => { root.render(<AccountPanel onCloseDialog={() => {}} />); });
+
+  const rowFor = (name: string) => Array.from(
+    container.querySelectorAll('[data-bitfun-part="deviceCard"]'),
+  ).find(row => row.textContent?.includes(name));
+
+  expect(rowFor('lwb_winpc')?.querySelector('[data-system]')?.getAttribute('data-system')).toBe('windows');
+  expect(rowFor('lwb_macbook')?.querySelector('[data-system]')?.getAttribute('data-system')).toBe('macos');
+  // A CLI host has no system silhouette to draw, whatever machine it runs on.
+  expect(rowFor('lwb_server')?.querySelector('[data-system]')?.getAttribute('data-system')).toBe('server');
+  // No system reported: this list keeps the neutral mark it always drew.
+  expect(rowFor('lwb_legacy')?.querySelector('[data-system]')).toBeNull();
+  expect(rowFor('lwb_legacy')?.querySelector('svg')).not.toBeNull();
+});
+
+it('keeps the unsupported notice hidden while the capability answer is pending', async () => {
+  // An unanswered capability read used to render as an unsupported relay, which
+  // flashed the notice on every panel entry while `/api/info` was in flight.
+  mocks.accountRelayCapabilities.mockImplementation(() => new Promise(() => {}));
+  await act(async () => { root.render(<AccountPanel onCloseDialog={() => {}} />); });
+  expect(container.textContent).toContain('My computer');
+  expect(container.textContent).not.toContain('accountLogin.deviceAliasUnsupported');
+});
+it('keeps the unsupported notice hidden when the capability read fails', async () => {
+  // Relay reachability owns its own banner; a transport error is not evidence
+  // that the relay lacks the capability.
+  mocks.accountRelayCapabilities.mockRejectedValue(new Error('network down'));
+  await act(async () => { root.render(<AccountPanel onCloseDialog={() => {}} />); });
+  expect(container.textContent).not.toContain('accountLogin.deviceAliasUnsupported');
 });
 
 it('keeps aliases readable without flashing unsupported while the capability answer is pending', async () => {
@@ -732,4 +777,35 @@ it('cannot reopen a pre-save alias while its older snapshot is still pending', a
   expect(editor.value).toBe('Workshop');
   await act(async () => { editor.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
   expect(mocks.accountUpdateDevice.mock.calls.every(([, alias]) => alias === 'Workshop')).toBe(true);
+});
+
+it('groups the account and its devices into titled sections with fixed row columns', async () => {
+  mocks.accountConnectDevices.mockResolvedValue([]);
+  mocks.getDeviceInfo.mockReset().mockResolvedValue({ device_id: 'local' });
+  mocks.accountListDevices.mockResolvedValue([
+    { device_id: 'local', device_name: 'My computer', online: true },
+    { device_id: 'peer', device_name: 'Peer build', online: false },
+  ]);
+  await act(async () => { root.render(<AccountPanel onCloseDialog={() => {}} />); });
+  const titles = Array.from(container.querySelectorAll('.account-panel__section-title')).map(node => node.textContent);
+  expect(titles).toEqual(['accountLogin.accountSectionTitle', 'accountLogin.linkedDevices']);
+  const statuses = Array.from(container.querySelectorAll('.account-panel__device-status'))
+    .map(node => node.getAttribute('data-bitfun-state'));
+  expect(statuses).toEqual(['online', 'offline']);
+  for (const row of container.querySelectorAll('[data-bitfun-part="deviceCard"]')) {
+    const children = Array.from(row.children).map(node => node.className);
+    expect(children).toEqual([
+      'account-panel__device-select',
+      'account-panel__device-actions',
+      'account-panel__device-chevron',
+    ]);
+  }
+});
+
+it('shows the sign-in action inside the account section when signed out', async () => {
+  mocks.identity = { resolved: true, status: 'signed-out', me: null };
+  mocks.accountStatus.mockReset().mockResolvedValue({ logged_in: false });
+  await act(async () => { root.render(<AccountPanel onCloseDialog={() => {}} />); });
+  expect(container.querySelector('.account-panel__section-title')?.textContent).toBe('accountLogin.accountSectionTitle');
+  expect(container.querySelector('[data-bitfun-part="form"]')?.textContent).toContain('accountLogin.login');
 });

@@ -6,7 +6,9 @@ import {
   compareSessionsForNavStable,
   getSessionMetadataSortTimestamp,
   getSessionSortTimestamp,
+  requireSessionOwningWorkspaceId,
   sessionBelongsToWorkspaceNavRow,
+  sessionOwningWorkspaceId,
 } from './sessionOrdering';
 
 function createSession(overrides: Partial<Session> = {}): Session {
@@ -118,95 +120,92 @@ describe('sessionOrdering', () => {
     })).toBe(3000);
   });
 
-  it('remote SSH: same host but different remote root does not share nav row', () => {
-    const conn = 'ssh-user@myserver.example.com:22';
-    const host = 'myserver.example.com';
-    const rowPath = '/home/u/project-a';
-    const otherPath = '/home/u/project-b';
-
-    const sessionA = {
-      workspacePath: rowPath,
-      remoteConnectionId: conn,
-      remoteSshHost: host,
-    };
-    const sessionB = {
-      workspacePath: otherPath,
-      remoteConnectionId: conn,
-      remoteSshHost: host,
-    };
-
-    expect(
-      sessionBelongsToWorkspaceNavRow(sessionA, rowPath, conn, host)
-    ).toBe(true);
-    expect(
-      sessionBelongsToWorkspaceNavRow(sessionB, rowPath, conn, host)
-    ).toBe(false);
+  it('keeps same-path workspaces on different hosts separate by ID', () => {
+    expect(sessionBelongsToWorkspaceNavRow({ workspaceId: 'host-a-project' }, 'host-a-project')).toBe(true);
+    expect(sessionBelongsToWorkspaceNavRow({ workspaceId: 'host-b-project' }, 'host-a-project')).toBe(false);
   });
 
-  it('remote SSH: parses stable connection ids without ports when host metadata is absent', () => {
+  it('keeps a session whose execution workspace is not a worktree in its own group', () => {
     const session = {
-      workspacePath: '/home/u/project-a',
-      remoteConnectionId: 'ssh-user@myserver.example.com:22',
-      remoteSshHost: undefined,
+      workspaceId: 'worktree-cli',
+      projectWorkspaceId: 'main-project',
     };
-
-    expect(
-      sessionBelongsToWorkspaceNavRow(
-        session,
-        '/home/u/project-a',
-        'ssh-user@myserver.example.com',
-        undefined
-      )
-    ).toBe(true);
+    expect(sessionBelongsToWorkspaceNavRow(session, 'worktree-cli')).toBe(true);
+    expect(sessionBelongsToWorkspaceNavRow(session, 'main-project')).toBe(false);
+    expect(sessionBelongsToWorkspaceNavRow(session, 'sibling-worktree')).toBe(false);
   });
 
-  it('remote SSH: matches persisted metadata that only has workspaceHostname', () => {
-    const session = {
-      workspacePath: '/home/u/project-a',
-      remoteConnectionId: undefined,
-      remoteSshHost: undefined,
-      workspaceHostname: 'myserver.example.com',
+  it('keeps a worktree-isolated session under the project that owns it', () => {
+    const worktreeSession = {
+      workspaceId: 'worktree-cli',
+      projectWorkspaceId: 'main-project',
+      config: {
+        executionTarget: {
+          kind: 'managedWorktree' as const,
+          worktreeId: 'worktree-cli',
+          rootPath: '/tmp/worktrees/cli',
+        },
+      },
     };
-
-    expect(
-      sessionBelongsToWorkspaceNavRow(
-        session,
-        '/home/u/project-a',
-        'ssh-user@myserver.example.com:22',
-        undefined
-      )
-    ).toBe(true);
+    expect(sessionBelongsToWorkspaceNavRow(worktreeSession, 'main-project')).toBe(true);
+    expect(sessionBelongsToWorkspaceNavRow(worktreeSession, 'worktree-cli')).toBe(false);
+    expect(sessionBelongsToWorkspaceNavRow(worktreeSession, 'sibling-worktree')).toBe(false);
   });
 
-  it('groups a worktree execution session under its main project', () => {
-    const session = {
-      workspacePath: '/worktrees/project/wt-1',
-      projectWorkspacePath: '/projects/project',
-      remoteConnectionId: undefined,
-      remoteSshHost: undefined,
+  it('falls back to the execution workspace when a worktree session has no project ID', () => {
+    const worktreeSession = {
+      workspaceId: 'worktree-only',
+      config: {
+        executionTarget: {
+          kind: 'existingWorktree' as const,
+          worktreeId: 'worktree-only',
+          rootPath: '/tmp/worktrees/only',
+        },
+      },
     };
-
-    expect(
-      sessionBelongsToWorkspaceNavRow(session, '/projects/project')
-    ).toBe(true);
-    expect(
-      sessionBelongsToWorkspaceNavRow(session, '/projects/other')
-    ).toBe(false);
+    expect(sessionBelongsToWorkspaceNavRow(worktreeSession, 'worktree-only')).toBe(true);
+    expect(sessionBelongsToWorkspaceNavRow(worktreeSession, 'main-project')).toBe(false);
   });
 
-  it('does not assign a workspace-less session to every navigation row', () => {
-    const session = {
-      workspacePath: undefined,
-      projectWorkspacePath: undefined,
-      remoteConnectionId: undefined,
-      remoteSshHost: undefined,
-    };
+  it('still attributes a legacy record that only carries the project ID', () => {
+    const legacySession = { projectWorkspaceId: 'main-project' };
+    expect(sessionBelongsToWorkspaceNavRow(legacySession, 'main-project')).toBe(true);
+    expect(sessionBelongsToWorkspaceNavRow(legacySession, 'other-project')).toBe(false);
+  });
 
-    expect(
-      sessionBelongsToWorkspaceNavRow(session, '/assistants/default')
-    ).toBe(false);
-    expect(
-      sessionBelongsToWorkspaceNavRow(session, '/projects/BitFun')
-    ).toBe(false);
+  it('does not guess membership from a missing or stale ID', () => {
+    expect(sessionBelongsToWorkspaceNavRow({}, 'known')).toBe(false);
+    expect(sessionBelongsToWorkspaceNavRow({ workspaceId: 'stale' }, 'known')).toBe(false);
+    expect(sessionBelongsToWorkspaceNavRow({ workspaceId: 'known' }, undefined)).toBe(false);
+  });
+
+  it('names one owning workspace ID per session shape', () => {
+    expect(sessionOwningWorkspaceId({
+      workspaceId: 'worktree-cli', projectWorkspaceId: 'main-project',
+      config: {
+        executionTarget: { kind: 'managedWorktree', worktreeId: 'worktree-cli', rootPath: '/tmp/tree' },
+      },
+    })).toBe('main-project');
+    expect(sessionOwningWorkspaceId({
+      workspaceId: 'worktree-ws', projectWorkspaceId: 'main-project',
+      config: { executionTarget: { kind: 'local', rootPath: '/tmp/tree' } },
+    })).toBe('worktree-ws');
+    expect(sessionOwningWorkspaceId({ config: { projectWorkspaceId: 'main-project' } }))
+      .toBe('main-project');
+    expect(sessionOwningWorkspaceId({})).toBeUndefined();
+  });
+
+  it('addresses session commands through the owning project, not the execution worktree', () => {
+    expect(requireSessionOwningWorkspaceId({
+      workspaceId: 'worktree-cli', projectWorkspaceId: 'main-project',
+      config: {
+        executionTarget: { kind: 'managedWorktree', worktreeId: 'worktree-cli', rootPath: '/tmp/tree' },
+      },
+    })).toBe('main-project');
+    expect(requireSessionOwningWorkspaceId({ workspaceId: 'main-project' })).toBe('main-project');
+  });
+
+  it('refuses to address session commands when the session carries no workspace identity', () => {
+    expect(() => requireSessionOwningWorkspaceId({})).toThrow('Session workspace ID is unavailable');
   });
 });

@@ -11,6 +11,7 @@ import { requireSessionWorkspaceId } from '../utils/sessionWorkspace';
 import { processingStatusManager } from './ProcessingStatusManager';
 import { FlowChatStore } from '../store/FlowChatStore';
 import { useModernFlowChatStore } from '../store/modernFlowChatStore';
+import { usePromptSuggestionStore } from '../store/promptSuggestionStore';
 import { ACPClientAPI } from '@/infrastructure/api/service-api/ACPClientAPI';
 import { stateMachineManager } from '../state-machine';
 import { EventBatcher } from './EventBatcher';
@@ -50,6 +51,7 @@ import {
   renameChatSessionTitle as renameChatSessionTitleModule,
   reloadSessionTitle as reloadSessionTitleModule,
   forkChatSession as forkChatSessionModule,
+  duplicateChatSession as duplicateChatSessionModule,
   cleanupSaveState,
   cleanupSessionBuffers,
   sendMessage as sendMessageModule,
@@ -68,6 +70,7 @@ import {
   updateSessionMetadata,
 } from './flow-chat-manager';
 import { ensureBackendSession } from './flow-chat-manager/SessionModule';
+import { prepareSessionDraftForCommand, selectDraftWorkspace } from './sessionDraftService';
 import { installPeerSessionRefresh } from './flow-chat-manager/PeerSessionRefreshModule';
 import { installDispatchJobObserver } from '../session-drivers/dispatch/install';
 import { driverForSession } from '../session-drivers/registry';
@@ -81,12 +84,15 @@ type FlowChatSendMessageOptions = Pick<
   | 'imageContexts'
   | 'imageDisplayData'
   | 'pendingQueueDraft'
+  | 'foregroundSubmission'
+  | 'sendImmediately'
   | 'userMessageMetadata'
   | 'execution'
   | 'turnId'
   | 'preserveTurnOnStartError'
   | 'onSessionConflictRetryStart'
   | 'onSessionConflictRetrySuccess'
+  | 'onSessionForked'
   | 'sessionMutationLeaseId'
 >;
 
@@ -184,7 +190,7 @@ export class FlowChatManager {
     }
 
     const scope = getActiveSurfaceScope();
-    const requestKey = JSON.stringify([scope.surfaceId, scope.epoch, workspace.id, preferredMode ?? '']);
+    const requestKey = scope.key(scope.epoch, workspace.id, preferredMode ?? '');
     const existingRequest = this.initializationRequests.get(requestKey);
     this.latestInitializationRequestKey = requestKey;
     if (existingRequest) {
@@ -218,7 +224,8 @@ export class FlowChatManager {
         return false;
       }
 
-      scope.assertCurrent('initializeWorkspace');
+      scope.assertCurrent('initialize workspace listeners');
+
       const initialMetadataPage = await this.context.flowChatStore.loadSessionMetadataPage(
         workspaceId, 5, undefined,
         'flow_chat_manager'
@@ -556,6 +563,7 @@ export class FlowChatManager {
 
   /** Permanently forget a peer that was explicitly detached or became lost. */
   public discardDeviceSurface(surfaceId: DeviceSurfaceId): void {
+    usePromptSuggestionStore.getState().removeSurfaceSuggestions(surfaceId);
     this.context.flowChatStore.discardSurfaceState(surfaceId);
     sessionNavStatusService.clearSurface(surfaceId);
     stateMachineManager.clearSurface(surfaceId);
@@ -602,6 +610,15 @@ export class FlowChatManager {
 
   async createChatSession(config: SessionConfig, mode?: string): Promise<string> {
     return createChatSessionModule(this.context, config, mode);
+  }
+
+  /** User-facing new conversations acquire their host session on first submission. */
+  async createChatDraft(config: SessionConfig, mode?: string): Promise<string> {
+    return createChatSessionModule(this.context, config, mode, true);
+  }
+
+  selectDraftWorkspace(sessionId: string, workspaceId: string): void {
+    selectDraftWorkspace(this.context, sessionId, workspaceId);
   }
 
   async createAcpChatSession(clientId: string, config: SessionConfig = {}): Promise<string> {
@@ -687,7 +704,7 @@ export class FlowChatManager {
   }
 
   public discardLocalSession(sessionId: string): string[] {
-    const removedSessionIds = this.context.flowChatStore.removeSession(sessionId);
+    const removedSessionIds = this.context.flowChatStore.removeDeletedSession(sessionId);
     removedSessionIds.forEach(id => {
       stateMachineManager.delete(id);
       this.context.processingManager.clearSessionStatus(id);
@@ -733,6 +750,12 @@ export class FlowChatManager {
 
   async forkChatSession(sourceSessionId: string, sourceTurnId: string): Promise<string> {
     return forkChatSessionModule(this.context, sourceSessionId, sourceTurnId);
+  }
+
+  async duplicateChatSession(
+    sourceSessionId: string,
+  ): Promise<{ sessionId: string; sessionName: string; metadataProjected: boolean }> {
+    return duplicateChatSessionModule(this.context, sourceSessionId);
   }
 
   async resetWorkspaceSessions(
@@ -817,6 +840,8 @@ export class FlowChatManager {
 
   /** Manually compact a session's context through its driver. */
   async compactSession(sessionId: string): Promise<void> {
+    const draft = this.context.flowChatStore.getState().sessions.get(sessionId);
+    if (draft?.draft) await prepareSessionDraftForCommand(draft);
     const session = this.context.flowChatStore.getState().sessions.get(sessionId);
     return driverForSession(sessionId, session).compactSession(this.context, sessionId);
   }
@@ -826,7 +851,8 @@ export class FlowChatManager {
     sessionId: string,
     uiParams: import('../session-drivers/types').UsageReportUiParams,
   ): Promise<{ shown: boolean }> {
-    const session = this.context.flowChatStore.getState().sessions.get(sessionId);
+    let session = this.context.flowChatStore.getState().sessions.get(sessionId);
+    if (session?.draft) session = await prepareSessionDraftForCommand(session);
     return driverForSession(sessionId, session).runUsageReport(this.context, sessionId, uiParams);
   }
 

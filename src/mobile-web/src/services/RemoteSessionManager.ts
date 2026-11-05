@@ -1,4 +1,5 @@
-import { normalizeWorkspaceRouting } from './workspaceIdentity';
+import { HostDialogQueue, type QueueSnapshot } from '../../../shared/dialog-queue/HostDialogQueue';
+import { normalizeWorkspaceRouting, workspaceDisplayName } from './workspaceIdentity';
 import {
   REMOTE_CAPABILITY_HOST_STREAM_V1, UNSUPPORTED_HOST_MESSAGE,
   type HostStreamOptions, type SessionStreamHandle,
@@ -13,6 +14,7 @@ import { translateAgentIdentityFields } from '../../../shared/agent-harness/wire
 
 import {
   RelayHttpClient,
+  RemoteHostCommandError,
   type ControlTargetSnapshot,
 } from './RelayHttpClient';
 import { getControlClientIdentity } from './controlClientIdentity';
@@ -53,6 +55,7 @@ export function isWorkspaceIdReferencesUnsupportedError(
 }
 
 const RETRYABLE_REMOTE_READ_COMMANDS = new Set([
+  'get_workspace_icon',
   'get_workspace_info',
   'list_recent_workspaces',
   'list_assistants',
@@ -65,13 +68,27 @@ const RETRYABLE_REMOTE_READ_COMMANDS = new Set([
   'read_file_chunk',
 ]);
 
-// Session settings are small, idempotent writes. Keeping their deadline well
+/** RemoteCommand aliases are not runtime mode IDs. Queue RPCs bypass the
+ * host's create/send alias resolver; harness dialect translation follows below. */
+function remoteQueueAgentType(agentType: string): string {
+  switch (agentType) {
+    case 'code': return 'Standard';
+    case 'cowork': return 'Cowork';
+    case 'claw':
+    case 'assistant':
+    case 'chat': return 'Claw';
+    default: return agentType;
+  }
+}
+
+// Session settings are small writes. Keeping their deadline well
 // below turn execution prevents a lost relay response from making the selector
 // look frozen for the generic 65/130-second command timeout.
 const REMOTE_SETTING_WRITE_TIMEOUT_MS = 20_000;
 
 interface RemoteRequestOptions {
   timeoutMs?: number;
+  onHostSettled?: () => void;
 }
 
 /** A runtime workspace or device location that scopes a file command. */
@@ -81,6 +98,15 @@ export interface RuntimeFileWorkspace {
   /** Root or browsed directory used as the legacy projection / IO operand. */
   path: string;
   remoteConnectionId?: string;
+}
+
+export interface MobileWorkspaceIcon {
+  workspaceId: string;
+  icon: { version: number; revision: number; mode: string; color: string; glyph?: string };
+  imageData?: string;
+  imageUnavailable: boolean;
+  darkImageData?: string;
+  darkImageUnavailable?: boolean;
 }
 
 export interface WorkspaceInfo {
@@ -190,6 +216,8 @@ export interface RemoteModelCatalog {
   models: RemoteModelConfig[];
   default_models: RemoteDefaultModels;
   reasoning_preset_selection_supported?: boolean;
+  session_model_write_fence_supported?: boolean;
+  session_model_write_token?: string;
   session_model_id?: string | null;
   session_reasoning_preset?: string | null;
 }
@@ -214,6 +242,8 @@ export interface ChatImageAttachment {
 
 export interface ChatMessage {
   turn_id?: string;
+  /** Storage turn index for `turn_id`, used as the rollback staleness guard. */
+  turn_index?: number;
   status?: string;
   error?: string;
   id: string;
@@ -227,6 +257,13 @@ export interface ChatMessage {
   images?: ChatImageAttachment[];
 }
 
+export interface SessionRollbackResult {
+  retired_turn_ids: string[];
+  restored_files: string[];
+  composer_text?: string;
+  changed: boolean;
+}
+
 export interface ActiveTurnSnapshot {
   turn_id: string;
   status: string;
@@ -235,6 +272,7 @@ export interface ActiveTurnSnapshot {
   tools: RemoteToolStatus[];
   round_index: number;
   items?: ChatMessageItem[];
+  backgroundDelivery?: unknown;
 }
 
 export interface RemoteToolStatus {
@@ -261,6 +299,8 @@ export interface PollResponse {
   message_snapshot?: ChatMessage[];
   active_turn?: ActiveTurnSnapshot | null;
   model_catalog?: RemoteModelCatalog;
+  /** Next-input suggestion for the settled latest turn; `null` retires it, absence keeps it. */
+  prompt_suggestion?: string | null;
 }
 
 export interface InitialSyncData {
@@ -327,10 +367,28 @@ interface HostCapabilitySnapshot {
   capabilities: Set<string>;
 }
 
+interface SessionModelWrite {
+  epoch: number;
+  promise: Promise<unknown>;
+  uncertain: boolean;
+  token?: string;
+}
+
+export class RemoteSessionModelWriteUnconfirmedError extends Error {
+  readonly messageKey = 'chat.modelWriteUnconfirmed';
+
+  constructor() {
+    super('The model update outcome is unknown; reconnect and reload the session model before continuing');
+    this.name = 'RemoteSessionModelWriteUnconfirmedError';
+  }
+}
+
 export class RemoteSessionManager {
   private client: RelayHttpClient;
   private hostCapabilities: HostCapabilitySnapshot;
   private hostCapabilityProbe: Promise<void> | null = null;
+  private sessionModelWrites = new Map<string, Set<SessionModelWrite>>();
+  private modelWriteFenceCapability: { epoch: number; supported: boolean } | null = null;
 
   constructor(client: RelayHttpClient, capabilities?: string[]) {
     this.client = client;
@@ -468,9 +526,10 @@ export class RemoteSessionManager {
     const commandName = (cmd as { cmd?: unknown }).cmd;
     const retryable = typeof commandName === 'string'
       && RETRYABLE_REMOTE_READ_COMMANDS.has(commandName);
-    const relayOptions = options.timeoutMs === undefined
-      ? { retryable }
-      : { retryable, timeoutMs: options.timeoutMs };
+    const relayOptions = { retryable,
+      ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
+      ...(options.onHostSettled ? { onHostSettled: options.onHostSettled } : {}),
+    };
     const targetDeviceId = target.deviceId;
     if (!targetDeviceId) throw new Error('Select an account device to continue');
     try {
@@ -479,10 +538,11 @@ export class RemoteSessionManager {
         translateAgentIdentityFields(cmdWithId, 'legacy'),
         relayOptions,
       );
+      options.onHostSettled?.();
       this.ensureControlTargetCurrent(target);
       const respAny = resp as any;
       if (respAny.resp === 'error') {
-        throw new Error(respAny.message || 'Unknown error');
+        throw new RemoteHostCommandError(respAny.message || 'Unknown error');
       }
       return translateAgentIdentityFields(resp, 'canonical');
     } catch (error: unknown) {
@@ -492,6 +552,25 @@ export class RemoteSessionManager {
       this.ensureControlTargetCurrent(target);
       throw error;
     }
+  }
+
+  async getWorkspaceIcon(workspaceId: string): Promise<MobileWorkspaceIcon | null> {
+    const target = this.client.getControlTargetSnapshot();
+    await this.ensureHostCapabilitiesKnown(target);
+    if (!this.supportsHostCapability('workspace_icon_read_v1')) return null;
+    const response = await this.request<{ snapshot: MobileWorkspaceIcon }>({ cmd: 'get_workspace_icon', workspace_id: workspaceId }, target);
+    const snapshot = response.snapshot;
+    if (!snapshot || !snapshot.workspaceId || snapshot.icon?.version !== 1
+      || !Number.isSafeInteger(snapshot.icon.revision) || snapshot.icon.revision < 0
+      || !['default', 'image'].includes(snapshot.icon.mode)
+      || (snapshot.icon.glyph !== undefined && typeof snapshot.icon.glyph !== 'string')
+      || !/^(default|blue|cyan|green|yellow|orange|red|purple|pink|#[\da-f]{6})$/i.test(snapshot.icon.color)
+      || (snapshot.darkImageUnavailable !== undefined && typeof snapshot.darkImageUnavailable !== 'boolean')
+      || [snapshot.imageData, snapshot.darkImageData].some(image => image !== undefined
+        && (typeof image !== 'string' || !image.startsWith('data:image/png;base64,') || image.length > 720_000))) {
+      throw new Error('Unsupported workspace icon response');
+    }
+    return snapshot;
   }
 
   async getWorkspaceInfo(): Promise<WorkspaceInfo> {
@@ -504,7 +583,7 @@ export class RemoteSessionManager {
       workspace_id: resp.workspace_id,
       has_workspace: resp.has_workspace,
       path: resp.path,
-      project_name: resp.project_name,
+      project_name: workspaceDisplayName(resp.project_name, resp.path, resp.remote_ssh_host, resp.remote_connection_id),
       git_branch: resp.git_branch,
       workspace_kind: resp.workspace_kind,
       assistant_id: resp.assistant_id,
@@ -519,7 +598,15 @@ export class RemoteSessionManager {
       resp: string;
       workspaces: RecentWorkspaceEntry[];
     }>({ cmd: 'list_recent_workspaces' });
-    return (resp.workspaces || []).map(normalizeWorkspaceRouting);
+    return (resp.workspaces || []).map((workspace) => ({
+      ...workspace,
+      name: workspaceDisplayName(
+        workspace.name,
+        workspace.path,
+        workspace.remote_ssh_host,
+        workspace.remote_connection_id,
+      ),
+    })).map(normalizeWorkspaceRouting);
   }
 
   async listWorkspaceCatalog(): Promise<WorkspaceCatalog> {
@@ -547,7 +634,24 @@ export class RemoteSessionManager {
       remoteConnectionId: workspace.remote_connection_id,
       remoteSshHost: workspace.remote_ssh_host,
     }, 'path', target);
-    return this.request({ cmd: 'set_workspace', ...reference }, target);
+    const response = await this.request<{
+      success: boolean;
+      workspace_id?: string;
+      path?: string;
+      project_name?: string;
+      remote_connection_id?: string;
+      remote_ssh_host?: string;
+      error?: string;
+    }>({ cmd: 'set_workspace', ...reference }, target);
+    return {
+      ...response,
+      project_name: workspaceDisplayName(
+        response.project_name,
+        response.path || workspace.path,
+        response.remote_ssh_host ?? workspace.remote_ssh_host,
+        response.remote_connection_id ?? workspace.remote_connection_id,
+      ),
+    };
   }
 
   /** True when the connected host serves session, terminal and catalog
@@ -698,28 +802,144 @@ export class RemoteSessionManager {
     };
   }
 
+  // Host writes outlive page mounts and target epochs. Returning to the same
+  // account/device/session must wait for them before trusting a catalog.
+  private async writeSessionModel<T>(
+    sessionId: string,
+    write: (target: ControlTargetSnapshot, pending: SessionModelWrite) => Promise<T>,
+  ): Promise<T> {
+    const target = this.client.getControlTargetSnapshot();
+    this.ensureControlTargetCurrent(target);
+    const key = JSON.stringify([this.client.accountUserId, target.deviceId, sessionId]);
+    const pending = this.sessionModelWrites.get(key) ?? new Set<SessionModelWrite>();
+    this.sessionModelWrites.set(key, pending);
+    const pendingWrite: SessionModelWrite = {
+      epoch: target.epoch, promise: Promise.resolve(), uncertain: false,
+    };
+    pending.add(pendingWrite);
+    const operation = (async () => {
+      await this.waitForSessionModelWrites(sessionId, target, true, pendingWrite);
+      return write(target, pendingWrite);
+    })();
+    pendingWrite.promise = operation;
+    try {
+      return await operation;
+    } finally {
+      // A transport failure settles the caller, not necessarily the host write.
+      // Only a fenced host read may retire an unknown delivery outcome.
+      if (!pendingWrite.uncertain) pending.delete(pendingWrite);
+      if (pending.size === 0) this.sessionModelWrites.delete(key);
+    }
+  }
+
+  private async waitForSessionModelWrites(
+    sessionId: string,
+    target: ControlTargetSnapshot,
+    requireSuccess = false,
+    beforeWrite?: SessionModelWrite,
+  ): Promise<boolean> {
+    this.ensureControlTargetCurrent(target);
+    const key = JSON.stringify([this.client.accountUserId, target.deviceId, sessionId]);
+    let needsReconciliation = false;
+    let pending = this.sessionModelWrites.get(key);
+    while (pending?.size) {
+      let writes = [...pending];
+      if (beforeWrite) {
+        const position = writes.indexOf(beforeWrite);
+        if (position < 0) break;
+        writes = writes.slice(0, position);
+      }
+      if (writes.length === 0) break;
+      const results = await Promise.allSettled(writes.map(write => write.promise));
+      this.ensureControlTargetCurrent(target);
+      if (writes.some(write => write.uncertain)) {
+        try {
+          for (const write of writes.filter(write => write.uncertain)) {
+            const catalog = await this.readModelCatalog(sessionId, target, { model_write_fence: write.token });
+            if (catalog.session_model_write_fence_supported !== true) throw new RemoteSessionModelWriteUnconfirmedError();
+          }
+        } catch (error) {
+          this.ensureControlTargetCurrent(target);
+          throw new RemoteSessionModelWriteUnconfirmedError();
+        }
+        for (const write of writes) {
+          if (write.uncertain) { write.uncertain = false; pending.delete(write); }
+        }
+        if (pending.size === 0) this.sessionModelWrites.delete(key);
+      }
+      if (requireSuccess) {
+        for (const [index, result] of results.entries()) {
+          if (writes[index].epoch !== target.epoch) needsReconciliation = true;
+          else if (result.status === 'rejected') throw result.reason;
+        }
+      }
+      pending = this.sessionModelWrites.get(key);
+    }
+    return needsReconciliation;
+  }
+
+  private async readModelCatalog(
+    sessionId: string | undefined,
+    target: ControlTargetSnapshot,
+    barrier: { prepare_model_write?: true; model_write_fence?: string } = {},
+  ): Promise<RemoteModelCatalog> {
+    const { catalog } = await this.request<{ catalog: RemoteModelCatalog }>({
+      cmd: 'get_model_catalog', session_id: sessionId, ...barrier,
+    }, target, { timeoutMs: REMOTE_SETTING_WRITE_TIMEOUT_MS });
+    this.modelWriteFenceCapability = { epoch: target.epoch,
+      supported: catalog.session_model_write_fence_supported === true };
+    return catalog;
+  }
+
   async getModelCatalog(sessionId?: string): Promise<RemoteModelCatalog> {
-    const resp = await this.request<{
-      resp: string;
-      catalog: RemoteModelCatalog;
-    }>({
-      cmd: 'get_model_catalog',
-      session_id: sessionId ?? undefined,
+    const target = this.client.getControlTargetSnapshot();
+    if (sessionId) await this.waitForSessionModelWrites(sessionId, target);
+    return this.readModelCatalog(sessionId, target);
+  }
+
+  private updateSessionModelSelection(
+    sessionId: string,
+    modelId: string,
+    reasoningPreset?: string | null,
+  ): Promise<RemoteSessionModelSelection> {
+    return this.writeSessionModel(sessionId, async (target, pending) => {
+      // Preparations are per explicit intent. Ordinary readers cannot revoke
+      // them; only a targeted barrier can settle an unknown delivery outcome.
+      let supportsFence = this.modelWriteFenceCapability?.epoch === target.epoch
+        ? this.modelWriteFenceCapability.supported : undefined;
+      if (supportsFence === undefined) {
+        supportsFence = (await this.readModelCatalog(sessionId, target)).session_model_write_fence_supported === true;
+      }
+      if (supportsFence) {
+        const catalog = await this.readModelCatalog(sessionId, target, { prepare_model_write: true });
+        if (catalog.session_model_write_fence_supported !== true
+          || typeof catalog.session_model_write_token !== 'string'
+          || !catalog.session_model_write_token) throw new RemoteSessionModelWriteUnconfirmedError();
+        pending.token = catalog.session_model_write_token;
+      }
+      let hostSettled = false;
+      try {
+        const response = await this.request<RemoteSessionModelSelection>({
+          cmd: 'set_session_model', session_id: sessionId, model_id: modelId,
+          ...(reasoningPreset !== undefined ? { reasoning_preset: reasoningPreset } : {}),
+          ...(pending.token ? { model_write_token: pending.token } : {}),
+        }, target, {
+          timeoutMs: REMOTE_SETTING_WRITE_TIMEOUT_MS,
+          onHostSettled: () => { hostSettled = true; },
+        });
+        return { model_id: response.model_id, reasoning_preset: response.reasoning_preset ?? null };
+      } catch (error) {
+        // A host without fencing cannot settle an unknown outcome, so holding the
+        // write would block this session until reload. It stays on the earlier
+        // last-write-wins path: report the failure and let the next read reconcile.
+        pending.uncertain = !!pending.token && !hostSettled && !(error instanceof RemoteHostCommandError);
+        throw error;
+      }
     });
-    return resp.catalog;
   }
 
   async setSessionModel(sessionId: string, modelId: string): Promise<string> {
-    const resp = await this.request<{
-      resp: string;
-      session_id: string;
-      model_id: string;
-    }>({
-      cmd: 'set_session_model',
-      session_id: sessionId,
-      model_id: modelId,
-    }, undefined, { timeoutMs: REMOTE_SETTING_WRITE_TIMEOUT_MS });
-    return resp.model_id;
+    return (await this.updateSessionModelSelection(sessionId, modelId)).model_id;
   }
 
   async setSessionModelSelection(
@@ -727,21 +947,35 @@ export class RemoteSessionManager {
     modelId: string,
     reasoningPreset: string | null,
   ): Promise<RemoteSessionModelSelection> {
-    const resp = await this.request<{
-      resp: string;
-      session_id: string;
-      model_id: string;
-      reasoning_preset: string | null;
-    }>({
-      cmd: 'set_session_model',
-      session_id: sessionId,
-      model_id: modelId,
-      reasoning_preset: reasoningPreset,
-    }, undefined, { timeoutMs: REMOTE_SETTING_WRITE_TIMEOUT_MS });
-    return {
-      model_id: resp.model_id,
-      reasoning_preset: resp.reasoning_preset ?? null,
-    };
+    return this.updateSessionModelSelection(sessionId, modelId, reasoningPreset);
+  }
+
+  private queueClients = new Map<string, HostDialogQueue>();
+
+  dialogQueue(sessionId: string): HostDialogQueue {
+    const target = this.client.getControlTargetSnapshot();
+    const account = this.client.accountUserId;
+    const epoch = this.controlTargetEpoch;
+    const scope = JSON.stringify([account, target.deviceId, sessionId]);
+    const key = JSON.stringify([scope, this.controlTargetEpoch]);
+    let queue = this.queueClients.get(key);
+    if (!queue) {
+      queue = new HostDialogQueue(scope, sessionId, async request => {
+        if (this.client.accountUserId !== account || this.controlTargetEpoch !== epoch) throw new Error('Queue target changed');
+        if (!this.supportsHostCapability('dialog_queue_v1')) throw new Error('Host message queue is unsupported');
+        // Translate at the transport boundary so pre-fix outbox retries are
+        // repaired too, without rewriting stored drafts or their stable IDs.
+        const wireRequest = request.action === 'submit' ? {
+          ...request,
+          message: { ...request.message, agentType: remoteQueueAgentType(request.message.agentType) },
+        } : request;
+        const response = await this.request<{ snapshot: QueueSnapshot }>({ cmd: 'dialog_queue', request: wireRequest }, target);
+        if (this.client.accountUserId !== account || this.controlTargetEpoch !== epoch) throw new Error('Queue target changed');
+        return response.snapshot;
+      });
+      this.queueClients.set(key, queue);
+    }
+    return queue;
   }
 
   async sendMessage(
@@ -756,13 +990,31 @@ export class RemoteSessionManager {
       metadata?: Record<string, unknown>;
     }>,
   ): Promise<string> {
+    const target = this.client.getControlTargetSnapshot();
+    const needsReconciliation = await this.waitForSessionModelWrites(sessionId, target, true);
+    this.ensureControlTargetCurrent(target);
+    if (needsReconciliation) {
+      // A retired caller's epoch error does not invalidate this send. Confirm
+      // the host's final selection before submitting from the current target.
+      await this.getModelCatalog(sessionId);
+      this.ensureControlTargetCurrent(target);
+    }
+    if (this.supportsHostCapability('dialog_queue_v1')) {
+      const result = await this.dialogQueue(sessionId).submit({ content, agentType: agentType || 'Standard',
+        attachments: (imageContexts ?? []).map(image => ({ kind: 'remote_image', id: image.id,
+          metadata: { ...(image.data_url ? { dataUrl: image.data_url } : {}),
+            ...(image.image_path ? { imagePath: image.image_path } : {}), mimeType: image.mime_type,
+            metadata: image.metadata } })), metadata: {} });
+      if (!result.receipt) throw new Error('Host did not acknowledge the submitted message');
+      return result.receipt.turnId;
+    }
     const resp = await this.request<{ resp: string; turn_id: string }>({
       cmd: 'send_message',
       session_id: sessionId,
       content,
       agent_type: agentType || undefined,
       image_contexts: imageContexts && imageContexts.length > 0 ? imageContexts : undefined,
-    });
+    }, target);
     return resp.turn_id;
   }
 
@@ -796,6 +1048,49 @@ export class RemoteSessionManager {
 
   async deleteSession(sessionId: string): Promise<void> {
     await this.request({ cmd: 'delete_session', session_id: sessionId });
+  }
+
+  /**
+   * Retire `targetTurnId` and every turn after it on the host and restore the files
+   * those turns wrote. `expectedStorageTurnIndex` comes from the same message
+   * the user targeted, so a transcript that moved since it was loaded fails
+   * instead of rolling back a different turn.
+   */
+  async rollbackSessionToTurn(
+    sessionId: string,
+    targetTurnId: string,
+    expectedStorageTurnIndex?: number,
+  ): Promise<SessionRollbackResult> {
+    if (!this.supportsHostCapability('session_rollback_v1')) {
+      throw new Error('This host does not support session rollback. Update the host to use this action.');
+    }
+    const resp = await this.request<{
+      resp: string;
+      session_id: string;
+      retired_turn_ids?: string[];
+      restored_files?: string[];
+      composer_text?: string;
+      changed?: boolean;
+    }>({
+      cmd: 'rollback_session_to_turn',
+      session_id: sessionId,
+      target_turn_id: targetTurnId,
+      expected_storage_turn_index: expectedStorageTurnIndex,
+    });
+    if (resp.resp !== 'session_rolled_back' || resp.session_id !== sessionId
+      || !Array.isArray(resp.retired_turn_ids) || !Array.isArray(resp.restored_files)
+      || !resp.retired_turn_ids.every(id => typeof id === 'string')
+      || !resp.restored_files.every(path => typeof path === 'string')
+      || (resp.composer_text !== undefined && typeof resp.composer_text !== 'string')
+      || typeof resp.changed !== 'boolean') {
+      throw new Error('Invalid session rollback response');
+    }
+    return {
+      retired_turn_ids: resp.retired_turn_ids,
+      restored_files: resp.restored_files,
+      composer_text: resp.composer_text,
+      changed: resp.changed ?? false,
+    };
   }
 
   async renameSession(sessionId: string, title: string): Promise<void> {

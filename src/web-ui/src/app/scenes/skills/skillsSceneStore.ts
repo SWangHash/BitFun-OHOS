@@ -1,11 +1,15 @@
 import { create } from 'zustand';
 
 export type InstalledFilter = 'all' | 'builtin' | 'user' | 'project' | `source:${string}`;
-export type SkillsView = InstalledFilter | 'groups' | 'market' | 'matrix';
+export type SkillsView = InstalledFilter | 'groups' | 'matrix';
+export type SkillTab = 'installed' | 'discover';
 
 interface SkillsSceneState {
+  activeTab: SkillTab;
+  setActiveTab: (tab: SkillTab) => void;
   nativeNavigationRequest: number;
-  openNativeSkills: () => void;
+  nativeNavigationTarget: SkillTab;
+  openNativeSkills: (target?: SkillTab) => void;
   searchDraft: string;
   marketQuery: string;
   installedView: SkillsView;
@@ -20,8 +24,18 @@ interface SkillsSceneState {
 }
 
 export const useSkillsSceneStore = create<SkillsSceneState>((set) => ({
+  activeTab: 'installed',
+  setActiveTab: activeTab => set({ activeTab }),
   nativeNavigationRequest: 0,
-  openNativeSkills: () => set((state) => ({ nativeNavigationRequest: state.nativeNavigationRequest + 1, installedView: 'all', hideDuplicates: false })),
+  nativeNavigationTarget: 'installed',
+  openNativeSkills: (target = 'installed') => set((state) => ({
+    activeTab: target,
+    nativeNavigationRequest: state.nativeNavigationRequest + 1,
+    nativeNavigationTarget: target,
+    installedView: 'all',
+    hideDuplicates: false,
+    ...(target === 'discover' ? { searchDraft: '', marketQuery: '' } : {}),
+  })),
   searchDraft: '',
   marketQuery: '',
   installedView: 'all',

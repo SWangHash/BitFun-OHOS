@@ -6,10 +6,11 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { FilePlus, SearchCheck, Zap, GitPullRequest } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { OverflowText, Icon, IconButton, Menu, MenuItem, MenuSeparator, Tooltip, createOverlayPortal } from '@bitfun/ui';
+import { useI18n } from '@/infrastructure/i18n';
+import { createOverlayPortal, useDismissibleLayer, OverflowText, Icon, IconButton, Menu, MenuItem, MenuSeparator, Tooltip } from '@bitfun/ui';
 import { useSnapshotState } from '../../../tools/snapshot_system/hooks/useSnapshotState';
 import { createDiffEditorTab } from '../../../shared/utils/tabUtils';
-import { snapshotAPI } from '../../../infrastructure/api';
+import { snapshotAPI } from '../../../infrastructure/api/service-api/SnapshotAPI';
 import { useWorkspaceContext } from '../../../infrastructure/contexts/WorkspaceContext';
 import { notificationService } from '../../../shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
@@ -25,11 +26,6 @@ import {
   shouldTriggerReviewReadyGlint,
 } from './reviewReadyGlint';
 import { flowChatStore } from '../../store/FlowChatStore';
-import { useFlowChatContext } from './FlowChatContext';
-import {
-  sessionExecutionWorkspacePath,
-  sessionWorkspaceId,
-} from '../../utils/sessionWorkspace';
 import type { DialogTurn } from '../../types/flow-chat';
 import { useSessionReviewActivity } from '../../hooks/useSessionReviewActivity';
 import { useSessionStateMachine } from '../../hooks/useSessionStateMachine';
@@ -46,6 +42,9 @@ import { scheduleAfterStartupSignal } from '@/shared/utils/startupTaskScheduling
 import { isTauriRuntime } from '@/infrastructure/runtime';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { useAnchoredPopoverPosition } from '@/shared/utils/useAnchoredPopoverPosition';
+import { sessionWorkspaceId } from '../../session-drivers/sessionFileNavigation';
+import { sessionExecutionWorkspacePath } from '../../utils/sessionWorkspace';
+import { useFlowChatContext } from './FlowChatContext';
 import './SessionFilesBadge.scss';
 
 const log = createLogger('SessionFilesBadge');
@@ -159,6 +158,7 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
   disabled = false,
 }) => {
   const { t } = useTranslation('flow-chat');
+  const { t: tQuickActions } = useI18n('settings/quick-actions');
   const canLaunchReview = isTauriRuntime();
   const { files } = useSnapshotState(sessionId);
   const { currentWorkspace } = useWorkspaceContext();
@@ -172,6 +172,27 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
   const [launchingReviewMode, setLaunchingReviewMode] = useState<'review' | null>(null);
   const [fileStats, setFileStats] = useState<Map<string, FileStats>>(new Map());
   const [loadingStats, setLoadingStats] = useState(false);
+  /**
+   * Resolve the workspace a session's files belong to. The session record wins
+   * because an isolated session executes in its own worktree; the active
+   * workspace is only a fallback for sessions created before workspace IDs.
+   */
+  const resolveSessionWorkspace = useCallback(() => {
+    const session = sessionId ? flowChatStore.getState().sessions.get(sessionId) : undefined;
+    return {
+      workspaceId: flowChatWorkspaceId || sessionWorkspaceId(sessionId) || currentWorkspace?.id,
+      workspacePath:
+        flowChatWorkspacePath
+        || (session ? sessionExecutionWorkspacePath(session) : undefined)
+        || currentWorkspace?.rootPath,
+    };
+  }, [
+    currentWorkspace?.id,
+    currentWorkspace?.rootPath,
+    flowChatWorkspaceId,
+    flowChatWorkspacePath,
+    sessionId,
+  ]);
   const reviewActivity = useSessionReviewActivity(sessionId);
   const sessionMachine = useSessionStateMachine(sessionId ?? null);
   const isSessionProcessing =
@@ -349,37 +370,14 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
     }
   }, [clearReviewReadyGlint, latestTurnSnapshot]);
 
-  // Close the popovers when clicking outside.
-  useEffect(() => {
-    if (!isExpanded && !isReviewMenuOpen) return;
-
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      const clickedBadge = !!badgeRef.current?.contains(target);
-      const clickedFilesPopover = !!filePopoverRef.current?.contains(target);
-      const clickedReviewMenu = !!reviewPopoverRef.current?.contains(target);
-      if (!clickedBadge && !clickedFilesPopover && !clickedReviewMenu) {
-        setIsExpanded(false);
-        setIsReviewMenuOpen(false);
-      }
-    };
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      event.stopPropagation();
-      setIsExpanded(false);
-      setIsReviewMenuOpen(false);
-    };
-
-    document.addEventListener('pointerdown', handleClickOutside, true);
-    document.addEventListener('keydown', handleEscape, true);
-
-    return () => {
-      document.removeEventListener('pointerdown', handleClickOutside, true);
-      document.removeEventListener('keydown', handleEscape, true);
-    };
-  }, [isExpanded, isReviewMenuOpen]);
+  useDismissibleLayer({
+    enabled: isExpanded, layerRef: filePopoverRef, branchRefs: [badgeRef],
+    onDismiss: () => setIsExpanded(false),
+  });
+  useDismissibleLayer({
+    enabled: isReviewMenuOpen, layerRef: reviewPopoverRef, branchRefs: [badgeRef],
+    onDismiss: () => setIsReviewMenuOpen(false),
+  });
 
   /**
    * Fetch per-file diff stats with caching.
@@ -413,11 +411,7 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
         loadingFilesRef.current.add(file.filePath);
       });
 
-      const session = flowChatStore.getState().sessions.get(sessionId);
-      const workspaceId = sessionWorkspaceId(session)
-        || flowChatWorkspaceId
-        || currentWorkspace?.id;
-
+      const { workspaceId } = resolveSessionWorkspace();
       const batchResults = await runWithConcurrencyLimit(
         newFilesToLoad,
         DIFF_STATS_MAX_CONCURRENCY,
@@ -492,7 +486,7 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
     } finally {
       setLoadingStats(false);
     }
-  }, [sessionId, t, flowChatWorkspaceId, currentWorkspace?.id]);
+  }, [resolveSessionWorkspace, sessionId, t]);
 
   // Reload stats when the file list changes.
   useEffect(() => {
@@ -607,10 +601,7 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
         return;
       }
       const fileName = filePath.split(/[/\\]/).pop() || filePath;
-      const session = flowChatStore.getState().sessions.get(sessionId);
-      const workspacePath = (session && sessionExecutionWorkspacePath(session))
-        || flowChatWorkspacePath
-        || currentWorkspace?.rootPath;
+      const { workspaceId, workspacePath } = resolveSessionWorkspace();
 
       // Expand the right panel.
       window.dispatchEvent(new CustomEvent('expand-right-panel'));
@@ -628,7 +619,8 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
           false,
           {
             titleKind: 'diff',
-            duplicateKeyPrefix: 'diff'
+            duplicateKeyPrefix: 'diff',
+            workspaceId,
           }
         );
       }, 250);
@@ -637,7 +629,7 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
     } catch (error) {
       log.error('Failed to open diff', { filePath, error });
     }
-  }, [sessionId, flowChatWorkspacePath, currentWorkspace?.rootPath]);
+  }, [resolveSessionWorkspace, sessionId]);
 
   // Prepare and launch the least costly sufficient Review path.
   const handleReviewClick = useCallback(async (e: React.MouseEvent) => {
@@ -680,18 +672,12 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
         .map((filePath) => fileStats.get(filePath))
         .filter((stat): stat is FileStats => Boolean(stat));
       const hasUnknownLineStats = reviewableStats.some((stat) => Boolean(stat.error));
-      const session = flowChatStore.getState().sessions.get(sessionId);
-      const workspaceId = sessionWorkspaceId(session)
-        || flowChatWorkspaceId
-        || currentWorkspace?.id;
-      const workspacePath = (session && sessionExecutionWorkspacePath(session))
-        || flowChatWorkspacePath
-        || currentWorkspace?.rootPath;
+      const { workspaceId, workspacePath } = resolveSessionWorkspace();
       const prepared = await prepareReviewLaunchFromSessionFiles(
         reviewableFilePaths,
         {
-          workspaceId,
           workspacePath,
+          workspaceId,
           changeStats: {
             fileCount: reviewableFilePaths.length,
             ...(!hasUnknownLineStats
@@ -752,22 +738,12 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
     } finally {
       setLaunchingReviewMode(null);
     }
-  }, [
-    confirmDeepReviewLaunch,
-    fileStats,
-    flowChatWorkspaceId,
-    flowChatWorkspacePath,
-    isReviewActionLocked,
-    sessionId,
-    t,
-    currentWorkspace?.id,
-    currentWorkspace?.rootPath,
-  ]);
+  }, [confirmDeepReviewLaunch, fileStats, isReviewActionLocked, resolveSessionWorkspace, sessionId, t]);
 
   const handleQuickActionClick = useCallback(async (action: QuickAction) => {
     if (!sessionId || isSessionProcessing) return;
     setIsReviewMenuOpen(false);
-    const actionText = resolveQuickActionText(action, t);
+    const actionText = resolveQuickActionText(action, tQuickActions);
     try {
       const { FlowChatManager } = await import('../../services/FlowChatManager');
       await FlowChatManager.getInstance().sendMessage(
@@ -778,12 +754,12 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
     } catch (error) {
       log.error('Failed to trigger quick action', { actionId: action.id, error });
     }
-  }, [sessionId, isSessionProcessing, t]);
+  }, [sessionId, isSessionProcessing, tQuickActions]);
 
   const getOperationIcon = (operationType: 'write' | 'edit' | 'delete') => {
     switch (operationType) {
       case 'write':
-        return <FilePlus size={12} className="icon-write" />;
+        return <Icon glyph={FilePlus} size="xs" className="icon-write" />;
       case 'delete':
         return <Icon name="delete" size="xs" className="icon-delete" />;
       default:
@@ -830,7 +806,6 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
                 activeReviewMode && 'session-files-badge__review-btn--running',
               ].filter(Boolean).join(' ')}
               size="xs"
-              data-testid="session-files-badge-actions-btn"
               icon={<Icon name="commit" size="sm" className="session-files-badge__review-main-icon" />}
               loading={Boolean(activeReviewMode)}
               onClick={(event) => {
@@ -857,7 +832,6 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
             data-bitfun-component="session-files-badge"
             data-bitfun-part="reviewPopover"
             data-bitfun-native-webview-occlusion
-            data-testid="session-files-badge-actions-menu"
             data-bitfun-placement={reviewPopoverLayout?.placement ?? 'bottom'}
             style={{
               top: `${reviewPopoverLayout?.top ?? 0}px`,
@@ -880,11 +854,10 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
             )}
 
             {quickActions.filter(a => a.enabled).map(action => {
-              const actionText = resolveQuickActionText(action, t);
+              const actionText = resolveQuickActionText(action, tQuickActions);
               return (
                 <MenuItem data-bitfun-component="session-files-badge" data-bitfun-part="reviewItem"
                   key={action.id}
-                  data-testid={`session-files-action-${action.id}`}
                   onClick={() => { void handleQuickActionClick(action); }}
                   type="button"
                   disabled={isSessionProcessing}

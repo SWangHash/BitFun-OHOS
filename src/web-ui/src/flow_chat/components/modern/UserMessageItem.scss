@@ -2,32 +2,32 @@
  * User message item styles (BEM).
  */
 .user-message-item-shell {
-  position: relative;
-  margin:
-    0.06rem
-    var(--bitfun-control-flow-chat-content-padding-inline)
-    var(--bitfun-control-flow-chat-flow-item-gap)
-    var(--bitfun-control-flow-chat-content-padding-inline);
+  @include transcriptLayout.content-column;
 
-  @media (max-width: 768px) {
-    margin-left: var(--bitfun-control-flow-chat-content-padding-inline-mobile);
-    margin-right: var(--bitfun-control-flow-chat-content-padding-inline-mobile);
-  }
+  --_user-message-radius: var(--bitfun-control-flow-chat-user-message-radius);
+  --_user-message-padding-inline: var(--_user-message-radius);
+
+  position: relative;
+  margin: var(--bitfun-control-flow-chat-user-message-margin-block-start) 0 var(--bitfun-control-flow-chat-flow-item-gap);
 }
 
 .user-message-item {
   box-sizing: border-box;
   /*
-   * Fills the reading column instead of hugging its text: the bubble shares the
-   * exact leading and trailing edge as the tool-call bars and body text below
-   * it, so a turn reads as one column rather than a right-floating chat bubble.
+   * The shell owns the same reading column as replies. Keep the bubble surface
+   * on that column's content edge — the edge the tool cards and the composer
+   * card end on. Extending the bubble by its radius instead (so the rounded
+   * surface overhung the column while its text met the column) left the sent
+   * message one radius past the trailing edge of both.
    */
-  width: auto;
-  padding: 0.46rem 0.68rem;
-  background: var(--bitfun-color-action-quiet-hover);
-  border: 1px solid color-mix(in srgb, var(--bitfun-color-border-default) 72%, transparent);
-  border-radius: calc(var(--bitfun-control-flow-chat-card-radius) + 2px);
-  margin: 0;
+  width: fit-content;
+  max-width: var(--bitfun-control-flow-chat-user-message-max-width);
+  padding: var(--bitfun-control-flow-chat-user-message-padding-block) var(--_user-message-padding-inline);
+  background: transparent;
+  border: none;
+  border-radius: var(--_user-message-radius);
+  margin-block: 0;
+  margin-inline: auto 0;
   box-shadow: none;
   transition: opacity 140ms ease;
   /*
@@ -37,15 +37,66 @@
    */
   position: relative;
 
-  &:hover {
-    background: var(--bitfun-color-action-quiet-hover);
-    border-color: color-mix(in srgb, var(--bitfun-color-border-subtle) 56%, transparent);
-  }
+.user-message-item:not(.user-message-item--expanded):not(.user-message-item--editing) {
+  // Wrapped previews stay compact; explicit lines beyond the preview leave
+  // layout below, so shorter visible lines determine the content-fit width.
+  max-width: min(28rem, var(--bitfun-control-flow-chat-user-message-max-width));
+}
 
-  &:focus-within {
-    border-color: color-mix(in srgb, color-mix(in srgb, var(--bitfun-color-accent-hover) 40%, transparent) 68%, var(--bitfun-color-border-default));
-  }
+.user-message-item__surface {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--bitfun-color-action-quiet-hover);
+  pointer-events: none;
+  transform-origin: right center;
+}
 
+.user-message-item--editing .user-message-item__surface {
+  display: none;
+}
+
+.user-message-item--forming .user-message-item__surface::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--bitfun-color-action-quiet-hover);
+  pointer-events: none;
+  animation: user-message-forming-fill 3.4s ease-in-out 260ms infinite;
+}
+
+@keyframes user-message-forming-fill {
+  0%, 100% { opacity: 0.08; }
+  50% { opacity: 0.16; }
+}
+
+.user-message-item__submission-error {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--bitfun-control-flow-chat-inline-gap);
+  width: fit-content;
+  max-width: var(--bitfun-control-flow-chat-user-message-max-width);
+  margin-block-start: var(--bitfun-space-1);
+  margin-inline: auto 0;
+  color: var(--bitfun-color-status-danger-content);
+  font-size: var(--bitfun-type-flow-meta-font-size);
+  line-height: var(--bitfun-type-flow-meta-line-height);
+}
+
+.user-message-item__submission-error-icon {
+  flex: none;
+}
+
+.user-message-item--editing {
+  width: auto;
+  max-width: none;
+  margin-inline: 0;
+  padding: 0;
+  // Composer owns the edit surface and focus treatment on the reading column.
+  background: transparent;
 }
 
 .user-message-item__timestamp {
@@ -76,6 +127,7 @@
 }
 
 .user-message-item__main {
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: var(--bitfun-control-flow-chat-inline-gap);
@@ -107,10 +159,15 @@
 }
 
 .user-message-item__actions {
-  display: flex;
-  align-items: center;
-  gap: 0.125rem;
-  flex-shrink: 0;
+  @include transcriptLayout.metadata-actions;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+}
+
+.user-message-item-shell:hover .user-message-item__actions,
+.user-message-item__actions[data-menu-open],
+.user-message-item-shell:focus-within .user-message-item__actions {
   opacity: 1;
   pointer-events: auto;
   /* Controls remain available without requiring hover or keyboard focus. */
@@ -141,10 +198,34 @@
   transition: none;
 }
 
+// Keep the full text in DOM order for selection offsets and source references,
+// but remove hidden lines from intrinsic sizing. The ellipsis is paint only.
+.user-message-item__content-preview::after {
+  content: '\2026';
+}
+
+.user-message-item__content-overflow {
+  display: none;
+}
+
+.user-message-item--expanded .user-message-item__content-preview::after {
+  content: none;
+}
+
+.user-message-item--expanded .user-message-item__content-overflow {
+  display: contents;
+}
+
 // Expanded state (outer scroll area).
 .user-message-item--expanded {
   max-height: 60vh;
   overflow-y: auto;
+}
+
+.user-message-item--expanded:not(.user-message-item--editing) {
+  background: var(--bitfun-color-action-quiet-hover);
+
+  .user-message-item__surface { display: none; }
 }
 
 // Failed messages keep the message fill and mark the failed state through text styling.
@@ -205,8 +286,8 @@
 }
 
 .user-message-item__copy-btn,
-.user-message-item__edit-btn,
-.user-message-item__rollback-btn {
+.user-message-item__edit-rollback-btn {
+  @include transcriptLayout.metadata-action;
   // Keep the message action feedback and original pending indicator.
   display: inline-flex;
   align-items: center;
@@ -284,7 +365,9 @@
 
 .user-message-edit-composer__rich-input {
   position: relative;
-  min-height: 5.5rem;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--bitfun-control-height-sm);
   max-height: 45vh;
   overflow-y: auto;
 
@@ -303,10 +386,6 @@
   width: 100%;
 }
 
-.user-message-edit-composer__spinner {
-  animation: user-message-item-spin 1s linear infinite;
-}
-
 .user-message-item__rollback-spinner {
   animation: user-message-item-spin 1s linear infinite;
 }
@@ -320,12 +399,13 @@
   }
 }
 
-// Image thumbnails (WeChat-style).
+// Image thumbnails (WeChat-style). The gallery is a sibling of the bubble, so it
+// ends on the same reading-column content edge the bubble surface ends on.
 .user-message-item__images {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 6px;
+  margin-block: 0 6px;
 }
 
 .user-message-item__image-thumb {
@@ -407,12 +487,15 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .user-message-item--forming .user-message-item__surface::after {
+    animation: none;
+    opacity: 0.08;
+  }
   .user-message-item,
   .user-message-item__timestamp,
   .user-message-item__actions,
   .user-message-item__copy-btn,
-  .user-message-item__edit-btn,
-  .user-message-item__rollback-btn,
+  .user-message-item__edit-rollback-btn,
     .user-message-item__image-thumb,
   .user-message-item__lightbox-close {
     transition-duration: 0ms;

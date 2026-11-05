@@ -15,15 +15,16 @@ use bitfun_services_integrations::remote_connect::{
     build_remote_image_submission_request, build_remote_model_catalog,
     build_remote_session_create_request, build_remote_submission_request, cancel_remote_task,
     handle_remote_command, handle_remote_workspace_file_command, make_slim_tool_params,
-    normalize_remote_model_selection, normalize_remote_session_model_id, project_remote_chat_user,
-    project_remote_plan_tool, read_remote_workspace_file, read_remote_workspace_file_chunk,
-    read_remote_workspace_file_info, remote_answer_question_response,
-    remote_assistant_list_response, remote_assistant_updated_response,
-    remote_dialog_steer_response, remote_dialog_submit_outcome_from_scheduler,
-    remote_dialog_submit_response, remote_file_chunk_response, remote_file_content_response,
-    remote_file_display_name, remote_file_info_response, remote_initial_sync_response,
-    remote_interaction_accepted_response, remote_messages_response,
-    remote_model_catalog_poll_delta, remote_model_selection_needs_config,
+    no_host_image_pixels, normalize_remote_model_selection, normalize_remote_session_model_id,
+    project_remote_chat_user, project_remote_plan_tool, read_remote_workspace_file,
+    read_remote_workspace_file_chunk, read_remote_workspace_file_info,
+    remote_answer_question_response, remote_assistant_list_response,
+    remote_assistant_updated_response, remote_dialog_steer_response,
+    remote_dialog_submit_outcome_from_scheduler, remote_dialog_submit_response,
+    remote_file_chunk_response, remote_file_content_response, remote_file_display_name,
+    remote_file_info_response, remote_initial_sync_response, remote_interaction_accepted_response,
+    remote_messages_response, remote_model_catalog_poll_delta,
+    remote_model_defaults_updated_response, remote_model_selection_needs_config,
     remote_no_change_poll_response, remote_persisted_poll_response, remote_plan_build_content,
     remote_recent_workspaces_response, remote_session_created_response,
     remote_session_deleted_response, remote_session_info, remote_session_list_response,
@@ -31,9 +32,10 @@ use bitfun_services_integrations::remote_connect::{
     remote_snapshot_poll_response, remote_task_cancel_response, remote_workspace_info_response,
     remote_workspace_updated_response, resolve_remote_agent_type, resolve_remote_cancel_decision,
     resolve_remote_execution_image_contexts, resolve_remote_file_chunk_range,
-    resolve_remote_workspace_path, should_send_remote_model_catalog, submit_remote_dialog,
-    ActiveTurnSnapshot, ChatImageAttachment, ChatMessage, ChatMessageItem, ImageAttachment,
-    QrGenerator, RemoteAssistantWorkspaceFacts, RemoteCancelDecision, RemoteCancelRuntimeHost,
+    resolve_remote_model_default_slot, resolve_remote_workspace_path,
+    should_send_remote_model_catalog, submit_remote_dialog, ActiveTurnSnapshot,
+    ChatImageAttachment, ChatMessage, ChatMessageItem, ImageAttachment, QrGenerator,
+    RemoteAssistantWorkspaceFacts, RemoteCancelDecision, RemoteCancelRuntimeHost,
     RemoteCancelTaskRequest, RemoteChatHistoryRound, RemoteChatHistoryTextItem,
     RemoteChatHistoryThinkingItem, RemoteChatHistoryToolCall, RemoteChatHistoryToolItem,
     RemoteChatHistoryTurn, RemoteCommand, RemoteCommandRuntimeHost, RemoteConnectSubmissionSource,
@@ -47,8 +49,10 @@ use bitfun_services_integrations::remote_connect::{
     RemoteSessionTrackerHost, RemoteSessionTrackerRegistry, RemoteSessionWorkspaceIdentity,
     RemoteTerminalPrewarmRequest, RemoteToolStatus, RemoteWorkspaceFacts, RemoteWorkspaceFileChunk,
     RemoteWorkspaceFileContent, RemoteWorkspaceFileInfo, RemoteWorkspaceFileRuntimeHost,
-    RemoteWorkspaceKind, RemoteWorkspaceUpdate, TrackerEvent, REMOTE_CAPABILITY_DIALOG_STEER_V1,
-    REMOTE_CAPABILITY_HARNESS_PROFILES_V1, REMOTE_CAPABILITY_PLAN_BUILD_V1,
+    RemoteWorkspaceKind, RemoteWorkspaceUpdate, TrackerEvent,
+    REMOTE_CAPABILITY_DEVICE_MODEL_DEFAULTS_V1, REMOTE_CAPABILITY_DIALOG_STEER_V1,
+    REMOTE_CAPABILITY_HARNESS_PROFILES_V1, REMOTE_CAPABILITY_HOST_STREAM_V1,
+    REMOTE_CAPABILITY_PLAN_BUILD_V1, REMOTE_CAPABILITY_SESSION_ROLLBACK_V1,
     REMOTE_FILE_MAX_CHUNK_BYTES, REMOTE_FILE_MAX_READ_BYTES,
 };
 use std::path::PathBuf;
@@ -312,6 +316,76 @@ fn remote_chat_projection_owner_extracts_images_and_display_text() {
 }
 
 #[test]
+fn relay_item_records_carry_the_subagent_session_link() {
+    let turn: bitfun_services_core::session::DialogTurnData = serde_json::from_value(
+        serde_json::json!({
+            "turnId": "turn-1",
+            "turnIndex": 0,
+            "sessionId": "session-1",
+            "timestamp": 1_700_000_000_u64,
+            "startTime": 1_700_000_000_u64,
+            "status": "inprogress",
+            "userMessage": {
+                "id": "message-user-1",
+                "content": "delegate the audit",
+                "timestamp": 1_700_000_000_u64
+            },
+            "modelRounds": [{
+                "id": "round-1",
+                "turnId": "turn-1",
+                "roundIndex": 0,
+                "timestamp": 1_700_000_000_u64,
+                "startTime": 1_700_000_000_u64,
+                "status": "completed",
+                "textItems": [],
+                "thinkingItems": [],
+                "toolItems": [{
+                    "id": "tool-call-agent-spawn",
+                    "toolName": "AgentSpawn",
+                    "toolCall": {"id": "tool-call-agent-spawn", "input": {"run_in_background": true}},
+                    "toolResult": {"result": {"status": "started"}, "success": true},
+                    "startTime": 1_700_000_000_u64,
+                    "endTime": 1_700_000_001_u64,
+                    "orderIndex": 0,
+                    "status": "completed",
+                    "subagentSessionId": "child-session",
+                    "subagentDialogTurnId": "child-turn",
+                    "subagentModelId": "child-model"
+                }]
+            }]
+        }),
+    )
+    .expect("turn fixture deserializes");
+
+    let records =
+        bitfun_services_integrations::remote_connect::session_records::records_from_turns(
+            std::slice::from_ref(&turn),
+            &|_| None,
+        )
+        .expect("records build");
+    let item_record = records
+        .iter()
+        .find(|record| record["id"] == "item/tool-call-agent-spawn")
+        .expect("the spawning tool item is published as its own record");
+
+    // The record keeps the persisted item shape, so the child Session link rides
+    // the wire without a protocol change and without a client-side join.
+    assert_eq!(item_record["item"]["type"], "tool");
+    assert_eq!(
+        item_record["item"]["data"]["subagentSessionId"],
+        "child-session"
+    );
+    assert_eq!(
+        item_record["item"]["data"]["subagentDialogTurnId"],
+        "child-turn"
+    );
+    assert_eq!(
+        item_record["item"]["data"]["subagentModelId"],
+        "child-model"
+    );
+}
+
+#[test]
 fn remote_image_context_to_agent_attachment_preserves_metadata_contract() {
     let attachment = agent_input_attachment_from_remote_image_context(RemoteImageContext {
         id: "remote-img-1".to_string(),
@@ -358,6 +432,8 @@ fn remote_chat_history_assembly_preserves_message_shape_and_item_order() {
     assert_eq!(messages[0].role, "user");
     assert_eq!(messages[0].content, "original question");
     assert_eq!(messages[0].timestamp, "1");
+    assert_eq!(messages[0].turn_id.as_deref(), Some("turn-1"));
+    assert_eq!(messages[0].turn_index, Some(4));
     assert_eq!(
         messages[0].images.as_ref().unwrap()[0],
         ChatImageAttachment {
@@ -368,6 +444,7 @@ fn remote_chat_history_assembly_preserves_message_shape_and_item_order() {
 
     assert_eq!(messages[1].id, "turn-1_assistant");
     assert_eq!(messages[1].role, "assistant");
+    assert_eq!(messages[1].turn_index, None);
     assert_eq!(messages[1].content, "visible text");
     assert_eq!(messages[1].timestamp, "1");
     assert_eq!(messages[1].thinking.as_deref(), Some("visible thought"));
@@ -385,6 +462,39 @@ fn remote_chat_history_assembly_preserves_message_shape_and_item_order() {
         Some(r#"{"question":"confirm?"}"#)
     );
     assert_eq!(tool.tool_input.as_ref().unwrap()["question"], "confirm?");
+}
+
+#[test]
+fn background_delivery_crosses_remote_history_without_rewriting_the_execution() {
+    use bitfun_core_types::background_delivery::{
+        BackgroundDelivery, BackgroundReportDisposition, BackgroundReportPolicy,
+    };
+    let mut turn = remote_history_contract_turn(false);
+    let mut delivery = BackgroundDelivery::pending(
+        "monitor".into(),
+        turn.turn_id.clone(),
+        BackgroundReportPolicy::Conditional,
+    );
+    delivery.disposition = BackgroundReportDisposition::Quiet;
+    delivery.resolved_at_ms = Some(2);
+    turn.background_delivery = Some(delivery.clone());
+    let messages = build_remote_chat_messages(vec![turn.clone()]);
+    assert_eq!(messages[1].content, "visible text");
+    for message in &messages {
+        assert_eq!(
+            message.metadata.as_ref().unwrap()["backgroundDelivery"]["disposition"],
+            "quiet"
+        );
+        assert_eq!(message.turn_id.as_deref(), Some("turn-1"));
+    }
+    turn.rounds.clear();
+    let empty = build_remote_chat_messages(vec![turn]);
+    assert_eq!(empty.len(), 1);
+    assert_eq!(empty[0].status.as_deref(), Some("done"));
+    assert_eq!(
+        empty[0].metadata.as_ref().unwrap()["backgroundDelivery"]["runId"],
+        "turn-1"
+    );
 }
 
 #[test]
@@ -479,7 +589,9 @@ fn remote_connect_cancel_and_restore_policy_preserve_runtime_decisions() {
 
 fn remote_history_contract_turn(is_in_progress: bool) -> RemoteChatHistoryTurn {
     RemoteChatHistoryTurn {
+        background_delivery: None,
         turn_id: "turn-1".to_string(),
+        turn_index: 4,
         user_message_id: "user-1".to_string(),
         user_display_content: "original question".to_string(),
         user_timestamp_ms: 1_000,
@@ -785,6 +897,7 @@ impl RemoteCancelRuntimeHost for RecordingCancelHost {
 
 #[derive(Default)]
 struct RecordingCommandHost {
+    plan_language: Option<String>,
     events: Mutex<Vec<String>>,
     submitted_dialog: Mutex<Option<RemoteDialogSubmissionRequest<String>>>,
     steered_dialog: Mutex<Option<RemoteDialogSteerRequest<String>>>,
@@ -826,6 +939,10 @@ impl RecordingCommandHost {
 #[async_trait::async_trait]
 impl RemoteCommandRuntimeHost for RecordingCommandHost {
     type ImageContext = String;
+
+    async fn plan_build_language(&self) -> Option<String> {
+        self.plan_language.clone()
+    }
 
     async fn handle_workspace_command(&self, _command: &RemoteCommand) -> RemoteResponse {
         self.events.lock().unwrap().push("workspace".to_string());
@@ -993,7 +1110,10 @@ async fn remote_connect_command_owner_routes_send_message_and_prefers_explicit_i
 
 #[tokio::test]
 async fn remote_connect_command_owner_builds_a_projected_plan_with_hidden_execution_copy() {
-    let host = RecordingCommandHost::default();
+    let host = RecordingCommandHost {
+        plan_language: Some("Simplified Chinese (zh-CN)".into()),
+        ..Default::default()
+    };
     let response = handle_remote_command(
         &host,
         &RemoteCommand::BuildPlan {
@@ -1016,13 +1136,31 @@ async fn remote_connect_command_owner_builds_a_projected_plan_with_hidden_execut
     let submitted = host.submitted_dialog();
     assert_eq!(
         submitted.content,
-        remote_plan_build_content("/repo/.bitfun/plans/mobile.plan.md")
+        remote_plan_build_content(
+            "/repo/.bitfun/plans/mobile.plan.md",
+            host.plan_language.as_deref(),
+        )
     );
+    assert!(submitted
+        .content
+        .contains("Language Preference: Use Simplified Chinese (zh-CN)"));
+    assert!(!submitted.content.contains("TodoWrite"));
+    assert!(!submitted.content.contains("todo IDs"));
     assert_eq!(
         submitted.display_content.as_deref(),
         Some("Build Plan: Mobile plan")
     );
     assert!(submitted.image_contexts.is_empty());
+}
+
+#[test]
+fn remote_plan_build_without_host_language_defers_to_system_preference() {
+    let prompt = remote_plan_build_content("/repo/example.plan.md", None);
+    assert!(
+        prompt.contains("Use the language specified by the system prompt's Language Preference")
+    );
+    assert!(prompt.contains("unless the user explicitly requests another language"));
+    assert!(prompt.is_ascii());
 }
 
 #[test]
@@ -1174,6 +1312,25 @@ async fn remote_connect_command_owner_preserves_cancel_and_group_routing() {
             requested_turn_id: Some("turn-1".to_string()),
         }
     );
+}
+
+#[tokio::test]
+async fn remote_connect_command_owner_routes_rollback_to_the_session_group() {
+    let host = RecordingCommandHost::default();
+
+    let response = handle_remote_command(
+        &host,
+        &RemoteCommand::RollbackSessionToTurn {
+            session_id: "session-1".to_string(),
+            target_turn_id: "turn-7".to_string(),
+            expected_storage_turn_index: Some(6),
+        },
+        RemoteConnectSubmissionSource::Relay,
+    )
+    .await;
+
+    assert!(matches!(response, RemoteResponse::SessionCreated { .. }));
+    assert_eq!(host.events(), vec!["session"]);
 }
 
 #[tokio::test]
@@ -1944,8 +2101,14 @@ fn remote_connect_workspace_response_helpers_own_wire_shape() {
         serde_json::json!([
             REMOTE_CAPABILITY_HARNESS_PROFILES_V1,
             REMOTE_CAPABILITY_DIALOG_STEER_V1,
+            "dialog_queue_v1",
             REMOTE_CAPABILITY_PLAN_BUILD_V1,
-            "user_question_interaction_v1"
+            "session_attachments_v1",
+            REMOTE_CAPABILITY_SESSION_ROLLBACK_V1,
+            "user_question_interaction_v1",
+            "background_result_delivery_v1",
+            REMOTE_CAPABILITY_HOST_STREAM_V1,
+            REMOTE_CAPABILITY_DEVICE_MODEL_DEFAULTS_V1
         ])
     );
     let mut legacy_info_json = info_json.clone();
@@ -2112,8 +2275,14 @@ fn remote_connect_session_response_helpers_own_pagination_and_timestamps() {
         serde_json::json!([
             REMOTE_CAPABILITY_HARNESS_PROFILES_V1,
             REMOTE_CAPABILITY_DIALOG_STEER_V1,
+            "dialog_queue_v1",
             REMOTE_CAPABILITY_PLAN_BUILD_V1,
-            "user_question_interaction_v1"
+            "session_attachments_v1",
+            REMOTE_CAPABILITY_SESSION_ROLLBACK_V1,
+            "user_question_interaction_v1",
+            "background_result_delivery_v1",
+            REMOTE_CAPABILITY_HOST_STREAM_V1,
+            REMOTE_CAPABILITY_DEVICE_MODEL_DEFAULTS_V1
         ])
     );
     let mut legacy_initial_json = initial_json;
@@ -2221,6 +2390,7 @@ fn remote_connect_message_dtos_keep_current_wire_shape() {
         timestamp: "1".to_string(),
         metadata: None,
         turn_id: Some("turn-1".to_string()),
+        turn_index: None,
         status: Some("done".to_string()),
         error: None,
         tools: Some(vec![RemoteToolStatus {
@@ -2467,6 +2637,82 @@ fn remote_connect_response_wire_shape_lives_in_owner_contract() {
     assert_eq!(title_updated["title"], "Renamed session");
 }
 
+#[test]
+fn remote_connect_rollback_wire_shape_lives_in_owner_contract() {
+    let with_guard: RemoteCommand = serde_json::from_value(serde_json::json!({
+        "cmd": "rollback_session_to_turn",
+        "session_id": "session-1",
+        "target_turn_id": "turn-7",
+        "expected_storage_turn_index": 6
+    }))
+    .expect("deserialize rollback command with guard");
+    let without_guard: RemoteCommand = serde_json::from_value(serde_json::json!({
+        "cmd": "rollback_session_to_turn",
+        "session_id": "session-1",
+        "target_turn_id": "turn-7"
+    }))
+    .expect("deserialize rollback command without guard");
+
+    assert!(matches!(
+        with_guard,
+        RemoteCommand::RollbackSessionToTurn {
+            expected_storage_turn_index: Some(6),
+            ref target_turn_id,
+            ..
+        } if target_turn_id == "turn-7"
+    ));
+    assert!(matches!(
+        without_guard,
+        RemoteCommand::RollbackSessionToTurn {
+            expected_storage_turn_index: None,
+            ..
+        }
+    ));
+
+    let rolled_back = serde_json::to_value(RemoteResponse::SessionRolledBack {
+        session_id: "session-1".to_string(),
+        retired_turn_ids: vec!["turn-8".to_string(), "turn-9".to_string()],
+        restored_files: vec!["src/main.rs".to_string()],
+        composer_text: Some("original question".to_string()),
+        changed: true,
+    })
+    .expect("serialize rollback response");
+
+    assert_eq!(rolled_back["resp"], "session_rolled_back");
+    assert_eq!(rolled_back["retired_turn_ids"][1], "turn-9");
+    assert_eq!(rolled_back["restored_files"][0], "src/main.rs");
+    assert_eq!(rolled_back["composer_text"], "original question");
+    assert_eq!(rolled_back["changed"], true);
+
+    let without_composer = serde_json::to_value(RemoteResponse::SessionRolledBack {
+        session_id: "session-1".to_string(),
+        retired_turn_ids: Vec::new(),
+        restored_files: Vec::new(),
+        composer_text: None,
+        changed: false,
+    })
+    .expect("serialize rollback response without composer text");
+    assert!(without_composer.get("composer_text").is_none());
+}
+
+#[test]
+fn remote_connect_user_message_carries_rollback_turn_identity_on_the_wire() {
+    let messages = build_remote_chat_messages(vec![remote_history_contract_turn(false)]);
+    let user = serde_json::to_value(&messages[0]).expect("serialize user message");
+    let assistant = serde_json::to_value(&messages[1]).expect("serialize assistant message");
+
+    assert_eq!(user["turn_id"], "turn-1");
+    assert_eq!(user["turn_index"], 4);
+    assert!(assistant.get("turn_index").is_none());
+
+    // Existing hosts and saved messages omit the additive storage index.
+    let mut legacy = user;
+    legacy.as_object_mut().unwrap().remove("turn_index");
+    let decoded: ChatMessage = serde_json::from_value(legacy.clone()).unwrap();
+    assert_eq!(decoded.turn_index, None);
+    assert_eq!(serde_json::to_value(decoded).unwrap(), legacy);
+}
+
 fn sample_remote_model_catalog(version: u64) -> RemoteModelCatalog {
     RemoteModelCatalog {
         version,
@@ -2488,6 +2734,8 @@ fn sample_remote_model_catalog(version: u64) -> RemoteModelCatalog {
             ..RemoteDefaultModelsConfig::default()
         },
         reasoning_preset_selection_supported: true,
+        session_model_write_fence_supported: false,
+        session_model_write_token: None,
         session_model_id: Some("model-1".to_string()),
         session_reasoning_preset: None,
     }
@@ -2522,6 +2770,7 @@ fn remote_connect_model_catalog_builder_preserves_config_shape() {
                         value: "high".to_string(),
                     }],
                     source: ReasoningPresetSource::ModelsDev,
+                    effective_effort: None,
                     execution_provider: None,
                     execution_model: None,
                 }],
@@ -2728,6 +2977,7 @@ fn remote_connect_tracker_preserves_streaming_snapshot_contract() {
         round_index: 3,
         model_config_id: "model-config".to_string(),
         effective_model_name: "provider-model".to_string(),
+        routing: None,
     });
     tracker.handle_agentic_event(&AgenticEvent::ThinkingChunk {
         session_id: "session-1".to_string(),
@@ -2830,6 +3080,7 @@ fn remote_connect_tracker_keeps_subagent_items_out_of_parent_accumulators() {
         agent_type: None,
         model_id: None,
         focused_review_display_label: None,
+        continuation_policy: None,
     });
     tracker.handle_agentic_event(&AgenticEvent::TextChunk {
         session_id: "child-session".to_string(),
@@ -2936,6 +3187,7 @@ fn remote_connect_tracker_keeps_finished_turn_snapshot_until_persistence_finaliz
         success: Some(true),
         finish_reason: Some("stop".to_string()),
         has_final_response: Some(true),
+        background_delivery: None,
     });
 
     assert_eq!(tracker.session_state(), "idle");
@@ -3092,6 +3344,7 @@ fn remote_connect_poll_helpers_preserve_delta_and_completion_policy() {
         success: Some(true),
         finish_reason: Some("stop".to_string()),
         has_final_response: Some(true),
+        background_delivery: None,
     });
 
     let waiting_for_persistence = serde_json::to_value(remote_persisted_poll_response(
@@ -3117,6 +3370,7 @@ fn remote_connect_poll_helpers_preserve_delta_and_completion_policy() {
         timestamp: "2".to_string(),
         metadata: None,
         turn_id: Some("turn-1".to_string()),
+        turn_index: None,
         status: Some("done".to_string()),
         error: None,
         tools: None,
@@ -3225,4 +3479,219 @@ fn file_chunk_revision_is_additive_for_legacy_peers() {
     current["revision"] = serde_json::json!("1:123");
     let response: RemoteResponse = serde_json::from_value(current.clone()).unwrap();
     assert_eq!(serde_json::to_value(response).unwrap(), current);
+}
+
+#[test]
+fn dialog_queue_wire_keeps_legacy_send_messages_readable() {
+    let legacy: RemoteCommand = serde_json::from_value(serde_json::json!({
+        "cmd": "send_message", "session_id": "session", "content": "hello"
+    }))
+    .unwrap();
+    assert!(matches!(
+        legacy,
+        RemoteCommand::SendMessage { turn_id: None, .. }
+    ));
+    let queue = serde_json::json!({"cmd":"dialog_queue", "request":{
+        "sessionId":"session", "queueEpoch":"epoch", "action":"cancel",
+        "turnId":"queued", "operationId":"cancel-1"
+    }});
+    let command: RemoteCommand = serde_json::from_value(queue.clone()).unwrap();
+    assert_eq!(serde_json::to_value(command).unwrap(), queue);
+}
+
+#[test]
+fn device_model_defaults_command_patches_slots_and_only_null_clears() {
+    // An absent field keeps its slot, so an empty request changes nothing.
+    let empty: RemoteCommand =
+        serde_json::from_value(serde_json::json!({ "cmd": "set_model_defaults" }))
+            .expect("deserialize empty device defaults command");
+    assert_eq!(
+        empty,
+        RemoteCommand::SetModelDefaults {
+            primary: None,
+            fast: None,
+            image_understanding: None,
+        }
+    );
+    assert_eq!(
+        serde_json::to_value(&empty).expect("serialize empty device defaults command"),
+        serde_json::json!({ "cmd": "set_model_defaults" })
+    );
+    let explicit_nulls: RemoteCommand = serde_json::from_value(serde_json::json!({
+        "cmd": "set_model_defaults",
+        "primary": null,
+        "fast": "fast-model",
+        "image_understanding": null
+    }))
+    .expect("deserialize explicit null slots");
+    assert_eq!(
+        explicit_nulls,
+        RemoteCommand::SetModelDefaults {
+            primary: Some(None),
+            fast: Some(Some("fast-model".to_string())),
+            image_understanding: Some(None),
+        }
+    );
+    let host_slots_are_ignored: RemoteCommand = serde_json::from_value(serde_json::json!({
+        "cmd": "set_model_defaults",
+        "primary": "model-1",
+        "search": "search-model",
+        "speech_recognition": "speech-model"
+    }))
+    .expect("host-only slots are not part of the request");
+    assert_eq!(
+        host_slots_are_ignored,
+        RemoteCommand::SetModelDefaults {
+            primary: Some(Some("model-1".to_string())),
+            fast: None,
+            image_understanding: None,
+        }
+    );
+
+    let serialized = serde_json::to_value(RemoteCommand::SetModelDefaults {
+        primary: Some(Some("model-1".to_string())),
+        fast: Some(None),
+        image_understanding: None,
+    })
+    .expect("serialize device defaults command");
+    assert_eq!(
+        serialized,
+        serde_json::json!({
+            "cmd": "set_model_defaults",
+            "primary": "model-1",
+            "fast": null
+        })
+    );
+}
+
+#[test]
+fn device_model_defaults_response_carries_role_mappings_only() {
+    let default_models = RemoteDefaultModelsConfig {
+        primary: Some("model-1".to_string()),
+        fast: Some("fast-model".to_string()),
+        search: Some("search-model".to_string()),
+        image_understanding: Some("vision-model".to_string()),
+        image_generation: Some("image-model".to_string()),
+        speech_recognition: Some("speech-model".to_string()),
+    };
+    let response = remote_model_defaults_updated_response(default_models.clone());
+    assert_eq!(
+        response,
+        RemoteResponse::ModelDefaultsUpdated {
+            default_models: default_models.clone(),
+        }
+    );
+
+    let json = serde_json::to_value(&response).expect("serialize device defaults response");
+    assert_eq!(json["resp"], "model_defaults_updated");
+    let mut response_keys: Vec<String> = json
+        .as_object()
+        .expect("response is an object")
+        .keys()
+        .cloned()
+        .collect();
+    response_keys.sort();
+    assert_eq!(response_keys, ["default_models", "resp"]);
+
+    // All six slots travel; the three host-only slots are reported even though
+    // the request never carries them.
+    let slots = json["default_models"]
+        .as_object()
+        .expect("default models is an object");
+    let mut slot_keys: Vec<String> = slots.keys().cloned().collect();
+    slot_keys.sort();
+    assert_eq!(
+        slot_keys,
+        [
+            "fast",
+            "image_generation",
+            "image_understanding",
+            "primary",
+            "search",
+            "speech_recognition"
+        ]
+    );
+    assert!(slots.values().all(serde_json::Value::is_string));
+    assert_eq!(slots["search"], "search-model");
+
+    // The payload is a role mapping, never a model record: no credential,
+    // endpoint, or provider field may appear anywhere in it.
+    let body = serde_json::to_string(&response).expect("serialize device defaults response");
+    for forbidden in [
+        "api_key",
+        "apikey",
+        "secret",
+        "token",
+        "credential",
+        "password",
+        "base_url",
+        "provider",
+    ] {
+        assert!(
+            !body.contains(forbidden),
+            "device model defaults response must not carry {forbidden}: {body}"
+        );
+    }
+}
+
+fn device_default_known_model(model_id: &str) -> bool {
+    matches!(model_id, "text-1" | "vision-1")
+}
+
+#[test]
+fn device_model_default_slots_reject_unknown_and_semantic_ids() {
+    assert_eq!(
+        resolve_remote_model_default_slot("primary", None, device_default_known_model)
+            .expect("a cleared slot is valid"),
+        None
+    );
+    assert_eq!(
+        resolve_remote_model_default_slot(
+            "primary",
+            Some("  text-1  "),
+            device_default_known_model
+        )
+        .expect("a catalog model is valid"),
+        Some("text-1".to_string())
+    );
+    assert_eq!(
+        resolve_remote_model_default_slot("fast", Some("model-gone"), device_default_known_model)
+            .expect_err("unknown model ids are rejected"),
+        "Unknown model selection: model-gone"
+    );
+    assert_eq!(
+        resolve_remote_model_default_slot(
+            "image_understanding",
+            Some("model-gone"),
+            device_default_known_model
+        )
+        .expect_err("unknown model ids are rejected"),
+        "Unknown model selection: model-gone"
+    );
+    // The semantic selectors name a session role, never a device default value.
+    for semantic in ["primary", "fast", "auto", "default"] {
+        assert!(
+            resolve_remote_model_default_slot("fast", Some(semantic), device_default_known_model)
+                .is_err(),
+            "{semantic} must not be accepted as a device default model id"
+        );
+    }
+    assert_eq!(
+        resolve_remote_model_default_slot("primary", Some("   "), device_default_known_model)
+            .expect_err("an empty model id is not a cleared slot"),
+        "primary model id is required"
+    );
+}
+
+#[test]
+fn device_model_defaults_capability_is_advertised_by_the_host() {
+    assert_eq!(
+        REMOTE_CAPABILITY_DEVICE_MODEL_DEFAULTS_V1,
+        "device_model_defaults_v1"
+    );
+    let RemoteResponse::WorkspaceInfo { capabilities, .. } = remote_workspace_info_response(None)
+    else {
+        panic!("workspace info response");
+    };
+    assert!(capabilities.contains(&REMOTE_CAPABILITY_DEVICE_MODEL_DEFAULTS_V1.to_string()));
 }

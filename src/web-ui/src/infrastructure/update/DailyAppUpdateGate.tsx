@@ -1,193 +1,193 @@
-import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
-import { systemAPI } from '@/infrastructure/api';
+import { lazyWithRecovery } from '@/shared/utils/lazyWithRecovery';
+import { Suspense, useEffect, useRef, useState, type ReactElement } from 'react';
+import { useHasModalOverlay } from '@bitfun/ui';
+import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
 import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
-import { configManager } from '@/infrastructure/config/services/ConfigManager';
 import { createLogger } from '@/shared/utils/logger';
 import { scheduleAfterStartupSignal } from '@/shared/utils/startupTaskScheduling';
-import type { CheckForUpdatesResponse } from '@/infrastructure/api/service-api/SystemAPI';
-import { canCheckForAppUpdates, isTauriRuntime } from './tauriEnv';
-import {
-  recordDailyPromptDismissed,
-  recordSkipThisVersion,
-  shouldShowDailyUpdatePrompt
-} from './appUpdateStorage';
-import { UpdateAvailableDialog } from './UpdateAvailableDialog';
+import { canAutoCheckForAppUpdates, canCheckForAppUpdates } from './tauriEnv';
+import { getSkippedVersion, getAppUpdateReminderAt, recordAppUpdatePresented, shouldShowDailyUpdatePrompt } from './appUpdateStorage';
 import { UpdateInstallProgressModal } from './UpdateInstallProgressModal';
 import { useUpdateInstallStore } from './updateInstallStore';
-import { useI18n } from '@/infrastructure/i18n';
-import { notificationService } from '@/shared/notification-system';
+import { APP_UPDATE_CHECK_INTERVAL, getNextAppUpdateCheckAt } from './appUpdateSchedule';
+import { RetainedMountBoundary } from '@/shared/presence';
+
+const AppUpdateDetailsDialog = lazyWithRecovery(() => import('./AppUpdateDetailsDialog'));
 
 const log = createLogger('DailyAppUpdate');
 
-/**
- * On first launch after a short delay, checks for updates and may show the daily prompt.
- * Renders update dialogs; mount once near the app root (e.g. inside AppLayout).
- */
+/** One shell-owned scheduler; discovery, notices and installation have separate state. */
 export function DailyAppUpdateGate(): ReactElement | null {
-  const { t } = useI18n('common');
-  const [dailyOpen, setDailyOpen] = useState(false);
-  const [dailyData, setDailyData] = useState<CheckForUpdatesResponse | null>(null);
-  const dailyCheckTimerRef = useRef<number | null>(null);
-  const updateStatus = useUpdateInstallStore(state => state.status);
-  const updateProgress = useUpdateInstallStore(state => state.progress);
-  const updateError = useUpdateInstallStore(state => state.error);
-  const startUpdateInstall = useUpdateInstallStore(state => state.startInstall);
-  const clearUpdateError = useUpdateInstallStore(state => state.clearError);
-  const promptOpen = useUpdateInstallStore(state => state.promptOpen);
-  const updateVersion = useUpdateInstallStore(state => state.version);
-  const deferInstall = useUpdateInstallStore(state => state.deferInstall);
-  const confirmInstall = useUpdateInstallStore(state => state.confirmInstall);
+  const state = useUpdateInstallStore();
+  const modalOpen = useHasModalOverlay();
+  const ohos = isOpenHarmonyRuntime();
+  const [started, setStarted] = useState(false);
+  const startupCheckPending = useRef(true);
 
   useEffect(() => {
-    if (!canCheckForAppUpdates()) {
-      return;
-    }
-    let cancelled = false;
-    const runDailyCheck = async () => {
-      let autoUpdate = true;
-      try {
-        const v = await configManager.getConfig<boolean>('app.auto_update');
-        if (v === false) {
-          autoUpdate = false;
-        }
-      } catch (e) {
-        log.warn('Failed to read app.auto_update; defaulting to enabled', e);
-      }
-      if (cancelled || !autoUpdate) {
-        return;
-      }
-      dailyCheckTimerRef.current = window.setTimeout(() => {
-        void (async () => {
-          try {
-            const autoAtCheck = await configManager.getConfig<boolean>('app.auto_update');
-            if (cancelled || autoAtCheck === false) {
-              return;
-            }
-            if (isOpenHarmonyRuntime()) {
-              // OHOS updates are handled by the system AppGallery flow: the
-              // check itself shows the system update dialog when an update
-              // exists, and HAP installs happen there. Keep the BitFun
-              // in-app install/progress UI out of the OHOS path entirely and
-              // never restore staged desktop updates there: a failed
-              // `get_pending_update` read must not surface as a startup
-              // "update failed" dialog on OHOS.
-              const ohosRes = await systemAPI.checkForUpdatesOhos();
-              if (cancelled) {
-                return;
-              }
-              if (ohosRes.error) {
-                log.warn('OHOS daily update check failed', ohosRes.error);
-              }
-              return;
-            }
-            await useUpdateInstallStore.getState().initialize();
-            if (cancelled || useUpdateInstallStore.getState().status !== 'idle') {
-              return;
-            }
-            const res = await systemAPI.checkForUpdates();
-            if (cancelled || useUpdateInstallStore.getState().status !== 'idle') {
-              return;
-            }
-            if (!res.updateAvailable || !res.latestVersion) {
-              return;
-            }
-            if (!shouldShowDailyUpdatePrompt(res.latestVersion)) {
-              return;
-            }
-            setDailyData(res);
-            setDailyOpen(true);
-          } catch (e) {
-            log.warn('Daily update check failed', e);
-          }
-        })();
-      }, 900);
+    if (ohos || !canCheckForAppUpdates()) return;
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== null && !event.key.startsWith('bitfun:update:')) return;
+      const skippedVersion = getSkippedVersion();
+      const current = useUpdateInstallStore.getState();
+      useUpdateInstallStore.setState({
+        skippedVersion,
+        reminderRevision: current.reminderRevision + 1,
+        ...(current.notice === 'available' && current.availableUpdate?.latestVersion && !shouldShowDailyUpdatePrompt(current.availableUpdate.latestVersion)
+          ? { notice: null } : {}),
+        ...(current.status === 'ready' && current.version && (getAppUpdateReminderAt('ready', current.version) ?? 0) > Date.now()
+          ? { promptOpen: false } : {}),
+      });
     };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [ohos]);
+
+  // OHOS updates are handled by the system AppGallery flow: the check itself
+  // shows the system update dialog when an update exists, and HAP installs
+  // happen there. Keep the BitFun in-app install/progress UI out of the OHOS
+  // path entirely and never restore staged desktop updates there: a failed
+  // `get_pending_update` read must not surface as a startup "update failed"
+  // dialog on OHOS.
+  useEffect(() => {
+    if (!ohos || !canCheckForAppUpdates()) return;
+    let cancelled = false;
     const cancelStartupSchedule = scheduleAfterStartupSignal(() => {
-      void runDailyCheck();
+      void systemAPI.checkForUpdatesOhos().then((result) => {
+        if (cancelled) return;
+        if (result.error) log.warn('OHOS daily update check failed', result.error);
+      }).catch((error) => {
+        if (!cancelled) log.warn('OHOS daily update check failed', error);
+      });
     }, {
       signalName: 'bitfun:interactive-shell-ready',
       fallbackTimeoutMs: 10000,
       frameCount: 1,
-      onError: error => {
-        log.warn('Failed to schedule daily update check after startup', error);
-      },
+      onError: error => log.warn('Failed to schedule OHOS update check after startup', error),
     });
     return () => {
       cancelled = true;
       cancelStartupSchedule();
-      if (dailyCheckTimerRef.current != null) {
-        window.clearTimeout(dailyCheckTimerRef.current);
-        dailyCheckTimerRef.current = null;
-      }
     };
-  }, []);
+  }, [ohos]);
 
-  const closeDaily = useCallback(() => {
-    setDailyOpen(false);
-    setDailyData(null);
-  }, []);
+  useEffect(() => {
+    if (ohos || !canAutoCheckForAppUpdates()) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const cancelStartupSchedule = scheduleAfterStartupSignal(() => {
+      timer = setTimeout(() => {
+        void useUpdateInstallStore.getState().initialize().then(() => {
+          if (!cancelled) setStarted(true);
+        });
+      }, 5000);
+    }, {
+      signalName: 'bitfun:interactive-shell-ready',
+      fallbackTimeoutMs: 10000,
+      frameCount: 1,
+      onError: error => log.warn('Failed to schedule update checks after startup', error),
+    });
+    return () => {
+      cancelled = true;
+      cancelStartupSchedule();
+      clearTimeout(timer);
+    };
+  }, [ohos]);
 
-  const onLater = useCallback(() => {
-    const v = dailyData?.latestVersion;
-    if (v) {
-      recordDailyPromptDismissed(v);
-    }
-    closeDaily();
-  }, [closeDaily, dailyData]);
+  useEffect(() => {
+    if (ohos || !started) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const foreground = () => document.visibilityState !== 'hidden' && document.hasFocus();
+    const schedule = (afterAttempt = false) => {
+      clearTimeout(timer);
+      if (cancelled || !foreground() || navigator.onLine === false) return;
+      const current = useUpdateInstallStore.getState();
+      if (current.checkStatus === 'checking' || current.status === 'downloading' || current.status === 'installing') return;
+      const source = startupCheckPending.current ? 'startup' : 'automatic';
+      const delay = startupCheckPending.current ? 0 : Math.max(0, getNextAppUpdateCheckAt(current, source) - Date.now());
+      // A disabled/unavailable preference must not create a zero-delay retry loop.
+      timer = setTimeout(() => {
+        if (cancelled || !foreground() || navigator.onLine === false) return;
+        startupCheckPending.current = false;
+        void useUpdateInstallStore.getState().checkForUpdates(source).finally(() => schedule(true));
+      }, afterAttempt && delay === 0 ? APP_UPDATE_CHECK_INTERVAL : delay);
+    };
+    // Startup freshness is checked once, even when its cached result is reused.
+    if (startupCheckPending.current && foreground() && navigator.onLine !== false) {
+      startupCheckPending.current = false;
+      void useUpdateInstallStore.getState().checkForUpdates('startup').finally(() => schedule(true));
+    } else schedule();
+    const onResume = () => schedule();
+    const unsubscribe = systemAPI.onAutoUpdateEnabledChange(enabled => {
+      if (enabled && foreground() && navigator.onLine !== false) {
+        void useUpdateInstallStore.getState().checkForUpdates('automatic', true).finally(() => schedule(true));
+      } else if (!enabled && useUpdateInstallStore.getState().notice === 'available') {
+        useUpdateInstallStore.setState({ notice: null });
+      }
+    });
+    window.addEventListener('online', onResume);
+    window.addEventListener('offline', onResume);
+    window.addEventListener('focus', onResume);
+    window.addEventListener('blur', onResume);
+    document.addEventListener('visibilitychange', onResume);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      unsubscribe();
+      window.removeEventListener('online', onResume);
+      window.removeEventListener('offline', onResume);
+      window.removeEventListener('focus', onResume);
+      window.removeEventListener('blur', onResume);
+      document.removeEventListener('visibilitychange', onResume);
+    };
+  }, [ohos, started, state.checkStatus, state.lastCheckedAt, state.lastCheckAttemptAt, state.consecutiveCheckFailures, state.status]);
 
-  const onSkip = useCallback(() => {
-    const v = dailyData?.latestVersion;
-    if (v) {
-      recordSkipThisVersion(v);
-    }
-    closeDaily();
-  }, [closeDaily, dailyData]);
+  useEffect(() => {
+    if (ohos || !canCheckForAppUpdates() || !state.initialized) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const present = () => {
+      clearTimeout(timer);
+      if (document.visibilityState === 'hidden' || !document.hasFocus()) return;
+      const current = useUpdateInstallStore.getState();
+      if (current.promptOpen && current.version) recordAppUpdatePresented('ready', current.version);
+      if (modalOpen || current.detailsOpen || current.promptOpen || current.status === 'downloading' || current.status === 'installing') return;
+      current.presentPendingInstall();
+      void useUpdateInstallStore.getState().refreshAvailableReminder();
+      const next = useUpdateInstallStore.getState();
+      const deadlines = [
+        next.version && next.getReminderAt('ready', next.version),
+        next.availableUpdate?.latestVersion && next.getReminderAt('available', next.availableUpdate.latestVersion),
+      ].filter((at): at is number => typeof at === 'number' && at > Date.now());
+      if (deadlines.length) timer = setTimeout(present, Math.min(...deadlines) - Date.now());
+    };
+    present();
+    window.addEventListener('focus', present);
+    document.addEventListener('visibilitychange', present);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('focus', present);
+      document.removeEventListener('visibilitychange', present);
+    };
+  }, [modalOpen, ohos, state.initialized, state.status, state.version, state.availableUpdate, state.detailsOpen, state.promptOpen, state.reminderRevision]);
 
-  const onInstall = useCallback(() => {
-    const v = dailyData?.latestVersion;
-    if (v) {
-      recordDailyPromptDismissed(v);
-    }
-    setDailyOpen(false);
-    setDailyData(null);
-    void startUpdateInstall();
-  }, [dailyData, startUpdateInstall]);
-
-  const onCloseProgressError = useCallback(() => {
-    clearUpdateError();
-  }, [clearUpdateError]);
-
-  const onCloseInstalled = useCallback(() => {
-    if (useUpdateInstallStore.getState().status !== 'ready') return;
-    deferInstall();
-    notificationService.info(t('update.deferredMessage'));
-  }, [deferInstall, t]);
-
-  if (!isTauriRuntime() || isOpenHarmonyRuntime()) {
-    return null;
-  }
+  if (ohos || !canCheckForAppUpdates()) return null;
 
   return (
     <>
-      <UpdateAvailableDialog
-        isOpen={dailyOpen}
-        variant="daily"
-        data={dailyData}
-        onLater={onLater}
-        onSkip={onSkip}
-        onInstall={onInstall}
-      />
+      <RetainedMountBoundary present={state.detailsOpen}>
+        <Suspense fallback={null}><AppUpdateDetailsDialog /></Suspense>
+      </RetainedMountBoundary>
       <UpdateInstallProgressModal
-        isOpen={updateStatus === 'error' || promptOpen}
-        error={updateError}
-        installed={updateStatus === 'ready' || updateStatus === 'installing'}
-        installing={updateStatus === 'installing'}
-        version={updateVersion}
-        progress={updateProgress}
-        onCloseError={onCloseProgressError}
-        onCloseInstalled={onCloseInstalled}
-        onRestart={() => void confirmInstall()}
-        onDownloadAgain={() => void startUpdateInstall(true)}
+        isOpen={state.promptOpen}
+        error={state.error}
+        installed={state.status === 'ready' || state.status === 'installing'}
+        installing={state.status === 'installing'}
+        version={state.version}
+        progress={state.progress}
+        onCloseInstalled={state.deferInstall}
+        onRestart={() => void state.confirmInstall()}
+        onDownloadAgain={() => void state.startInstall(true, state.version ?? undefined)}
       />
     </>
   );

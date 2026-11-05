@@ -148,6 +148,7 @@ impl ConversationCoordinator {
                     "BitFun".to_string(),
                     "BitFun".to_string(),
                     SessionConfig {
+                        tool_presentation_mode: Default::default(),
                         workspace_id: Some(workspace_record.id.clone()),
                         workspace_path: Some(workspace_path.clone()),
                         ..SessionConfig::default()

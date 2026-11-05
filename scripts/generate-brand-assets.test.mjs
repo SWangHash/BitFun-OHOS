@@ -8,7 +8,7 @@ import { canonicalizeIcns } from './icns-container.mjs';
 const GENERATED_ICNS_FILES = [
   'src/apps/desktop/icons/bitfun-app-icon.icns',
   'BitFun-Installer/src-tauri/icons/bitfun-app-icon.icns',
-  'src/apps/data-migrator/icons/bitfun-app-icon.icns',
+  'src/apps/data-tools/icons/bitfun-app-icon.icns',
 ];
 
 const ANDROID_LAUNCHER_SIZES = { mdpi: 48, hdpi: 72, xhdpi: 96, xxhdpi: 144, xxxhdpi: 192 };
@@ -51,7 +51,7 @@ test('ICNS canonicalization is independent of Tauri chunk order', () => {
 });
 
 test('application ICNS files use the canonical ICNS layout', () => {
-  // Every bundled product (desktop, installer, data migrator) ships one icon
+  // Every bundled product (desktop, installer, data tools) ships one icon
   // family, so the three containers must stay byte-identical and canonical.
   const [desktop, ...rest] = GENERATED_ICNS_FILES.map(filePath => readFileSync(filePath));
 
@@ -213,14 +213,14 @@ test('browser entry points reference generated application favicons', () => {
   }
 });
 
-test('installer, data migrator, and Mini App Market icons reuse the application exports', () => {
+test('installer, data tools, and Mini App Market icons reuse the application exports', () => {
   const exportedPng = size => readFileSync(`assets/brand/exports/bitfun-app-icon-${size}.png`);
   const exportedIco = readFileSync('assets/brand/exports/bitfun-app-icon.ico');
   const exportedIcns = readFileSync('assets/brand/exports/bitfun-app-icon.icns');
 
   for (const directory of [
     'BitFun-Installer/src-tauri/icons',
-    'src/apps/data-migrator/icons',
+    'src/apps/data-tools/icons',
   ]) {
     assert.deepEqual(readFileSync(`${directory}/bitfun-app-icon.png`), exportedPng(1024), directory);
     assert.deepEqual(readFileSync(`${directory}/bitfun-app-icon.ico`), exportedIco, directory);

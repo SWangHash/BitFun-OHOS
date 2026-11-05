@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { activateSurface } from '@/infrastructure/peer-device/deviceSurface';
 import { TauriCommandError } from '@/infrastructure/api/errors/TauriCommandError';
+import { activateSurface, isSurfaceChangedError } from '@/infrastructure/peer-device/deviceSurface';
 import {
   describeGitTrustFailure,
   requestGitRepositoryTrust,
@@ -75,6 +75,15 @@ function trustRequiredReport() {
   };
 }
 
+function trustedReport() {
+  return {
+    state: 'trusted' as const,
+    repositoryPath: REPOSITORY_PATH,
+    detail: null,
+    manualCommand: null,
+  };
+}
+
 beforeEach(() => {
   activateSurface('local');
   resetGitTrustDecisions();
@@ -135,29 +144,157 @@ describe('requestGitRepositoryTrust', () => {
     expect(trustRepositoryMock).toHaveBeenCalledTimes(1);
   });
 
-  it('allows immediate approval after a declined request', async () => {
-    confirmWarningMock.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+  it('never grants an answer from a departed device to the device rendered now', async () => {
+    let resolveConfirm!: (value: boolean) => void;
+    confirmWarningMock.mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        resolveConfirm = resolve;
+      }),
+    );
     trustRepositoryMock.mockResolvedValue(grantedOutcome());
 
-    await expect(requestGitRepositoryTrust(WORKSPACE)).resolves.toBe(false);
-    expect(trustRepositoryMock).not.toHaveBeenCalled();
-    await expect(requestGitRepositoryTrust(WORKSPACE)).resolves.toBe(true);
+    const departed = requestGitRepositoryTrust(WORKSPACE);
+    await vi.waitFor(() => expect(confirmWarningMock).toHaveBeenCalledTimes(1));
+    activateSurface('peer-b');
+    resolveConfirm(true);
 
-    expect(confirmWarningMock).toHaveBeenCalledTimes(2);
+    await expect(departed).rejects.toSatisfy(isSurfaceChangedError);
+    expect(trustRepositoryMock).not.toHaveBeenCalled();
+    expect(warningMock).not.toHaveBeenCalled();
+  });
+
+  it('does not ask again in the quiet period after a decline', async () => {
+    confirmWarningMock.mockResolvedValue(false);
+
+    await requestGitRepositoryTrust(WORKSPACE);
+    await expect(requestGitRepositoryTrust(WORKSPACE)).resolves.toBe(false);
+
+    expect(confirmWarningMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not ask again in the quiet period after a failed grant', async () => {
+    confirmWarningMock.mockResolvedValue(true);
+    trustRepositoryMock.mockRejectedValue(new Error('config is read-only'));
+
+    await requestGitRepositoryTrust(WORKSPACE);
+    await expect(requestGitRepositoryTrust(WORKSPACE)).resolves.toBe(false);
+
+    expect(confirmWarningMock).toHaveBeenCalledTimes(1);
     expect(trustRepositoryMock).toHaveBeenCalledTimes(1);
   });
 
-  it('allows immediate retry after a failed grant', async () => {
+  // The Trust button is visible and enabled after a failure. Returning false
+  // without a dialog would read as a dead button, and would strand a user who
+  // just fixed safe.directory in a terminal or reconnected a remote host.
+  it('answers an explicit user request during the quiet period', async () => {
     confirmWarningMock.mockResolvedValue(true);
-    trustRepositoryMock
-      .mockRejectedValueOnce(new Error('config is read-only'))
-      .mockResolvedValueOnce(grantedOutcome());
+    trustRepositoryMock.mockRejectedValueOnce(new Error('config is read-only'));
 
+    await requestGitRepositoryTrust(WORKSPACE);
+    expect(confirmWarningMock).toHaveBeenCalledTimes(1);
+
+    trustRepositoryMock.mockResolvedValueOnce(grantedOutcome());
+    await expect(
+      requestGitRepositoryTrust(WORKSPACE, { userInitiated: true }),
+    ).resolves.toBe(true);
+    expect(confirmWarningMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('still absorbs the automatic burst that follows a user request', async () => {
+    confirmWarningMock.mockResolvedValue(false);
+
+    await requestGitRepositoryTrust(WORKSPACE, { userInitiated: true });
     await expect(requestGitRepositoryTrust(WORKSPACE)).resolves.toBe(false);
-    await expect(requestGitRepositoryTrust(WORKSPACE)).resolves.toBe(true);
+
+    expect(confirmWarningMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('dedupes a burst across Windows spellings of one repository', async () => {
+    let resolveConfirm!: (value: boolean) => void;
+    confirmWarningMock.mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        resolveConfirm = resolve;
+      }),
+    );
+    trustRepositoryMock.mockResolvedValue(grantedOutcome());
+
+    const first = requestGitRepositoryTrust({ workspaceId: 'workspace-1', repositoryPath: 'D:/workspace/project/BitFun' });
+    const second = requestGitRepositoryTrust({ workspaceId: 'workspace-1', repositoryPath: 'd:\\workspace\\project\\BitFun' });
+    await vi.waitFor(() => expect(confirmWarningMock).toHaveBeenCalledTimes(1));
+    resolveConfirm(true);
+
+    await expect(Promise.all([first, second])).resolves.toEqual([true, true]);
+    expect(confirmWarningMock).toHaveBeenCalledTimes(1);
+    expect(trustRepositoryMock).toHaveBeenCalledTimes(1);
+  });
+
+  // The backend folds the whole path on Windows (`safe_directory_entry_matches`),
+  // so a key that folded only the drive letter prompted twice for one entry.
+  it('dedupes a burst across the case of a Windows path', async () => {
+    let resolveConfirm!: (value: boolean) => void;
+    confirmWarningMock.mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        resolveConfirm = resolve;
+      }),
+    );
+    trustRepositoryMock.mockResolvedValue(grantedOutcome());
+
+    const first = requestGitRepositoryTrust({ workspaceId: 'workspace-1', repositoryPath: 'D:/Workspace/Project/BitFun' });
+    const second = requestGitRepositoryTrust({ workspaceId: 'workspace-1', repositoryPath: 'd:/workspace/project/bitfun' });
+    await vi.waitFor(() => expect(confirmWarningMock).toHaveBeenCalledTimes(1));
+    resolveConfirm(true);
+
+    await expect(Promise.all([first, second])).resolves.toEqual([true, true]);
+    expect(confirmWarningMock).toHaveBeenCalledTimes(1);
+  });
+
+  // A share mounted from another machine is the classic way a Windows folder
+  // ends up owned by someone else, so UNC is a likely spelling here, not a rare one.
+  it('dedupes a burst across the case of a UNC path', async () => {
+    let resolveConfirm!: (value: boolean) => void;
+    confirmWarningMock.mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        resolveConfirm = resolve;
+      }),
+    );
+    trustRepositoryMock.mockResolvedValue(grantedOutcome());
+
+    const first = requestGitRepositoryTrust({ workspaceId: 'workspace-1', repositoryPath: '\\\\Build01\\Shared\\BitFun' });
+    const second = requestGitRepositoryTrust({ workspaceId: 'workspace-1', repositoryPath: '//build01/shared/bitfun' });
+    await vi.waitFor(() => expect(confirmWarningMock).toHaveBeenCalledTimes(1));
+    resolveConfirm(true);
+
+    await expect(Promise.all([first, second])).resolves.toEqual([true, true]);
+    expect(confirmWarningMock).toHaveBeenCalledTimes(1);
+  });
+
+  // The backend drops the trailing separator before comparing, so a key that
+  // kept it made one repository two and prompted a second time in one burst.
+  it('dedupes a burst across a trailing separator', async () => {
+    let resolveConfirm!: (value: boolean) => void;
+    confirmWarningMock.mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        resolveConfirm = resolve;
+      }),
+    );
+    trustRepositoryMock.mockResolvedValue(grantedOutcome());
+
+    const first = requestGitRepositoryTrust({ workspaceId: 'workspace-1', repositoryPath: '/srv/shared/repo' });
+    const second = requestGitRepositoryTrust({ workspaceId: 'workspace-1', repositoryPath: '/srv/shared/repo/' });
+    await vi.waitFor(() => expect(confirmWarningMock).toHaveBeenCalledTimes(1));
+    resolveConfirm(true);
+
+    await expect(Promise.all([first, second])).resolves.toEqual([true, true]);
+    expect(confirmWarningMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps case-sensitive POSIX paths apart', async () => {
+    confirmWarningMock.mockResolvedValue(false);
+
+    await requestGitRepositoryTrust({ workspaceId: '/srv/Repo', repositoryPath: '/srv/Repo' });
+    await requestGitRepositoryTrust({ workspaceId: '/srv/repo', repositoryPath: '/srv/repo' });
 
     expect(confirmWarningMock).toHaveBeenCalledTimes(2);
-    expect(trustRepositoryMock).toHaveBeenCalledTimes(2);
   });
 
   it('dedupes display path aliases by workspace identity', async () => {
@@ -187,14 +324,13 @@ describe('requestGitRepositoryTrust', () => {
     expect(warningMock).toHaveBeenCalledTimes(1);
   });
 
-  it.each(['workspace', 'surface'])('does not write trust after the requesting %s expires', async kind => {
+  it('does not write trust after the requesting workspace activation expires', async () => {
     let current = true;
     let resolveConfirm!: (value: boolean) => void;
     confirmWarningMock.mockReturnValue(new Promise<boolean>(resolve => { resolveConfirm = resolve; }));
     const pending = requestGitRepositoryTrust(WORKSPACE, { isCurrent: () => current });
     await vi.waitFor(() => expect(confirmWarningMock).toHaveBeenCalledTimes(1));
-    if (kind === 'surface') activateSurface('peer-1');
-    else current = false;
+    current = false;
     resolveConfirm(true);
     await expect(pending).resolves.toBe(false);
     expect(trustRepositoryMock).not.toHaveBeenCalled();
@@ -249,7 +385,7 @@ describe('requestGitRepositoryTrust', () => {
 
   // A peer host denies granting on purpose. The read-only probe still answers
   // there, so the controller must end up showing the command instead of a
-  // dead end.
+  // dead end — and without asking for consent it cannot act on.
   it('falls back to the read-only probe for the command when granting is refused', async () => {
     getRepositoryTrustMock.mockResolvedValue({
       state: 'trust_required',
@@ -292,12 +428,7 @@ describe('requestGitRepositoryTrust', () => {
     );
     getRepositoryTrustMock
       .mockResolvedValueOnce(trustRequiredReport())
-      .mockResolvedValueOnce({
-        state: 'trusted',
-        repositoryPath: REPOSITORY_PATH,
-        detail: null,
-        manualCommand: null,
-      });
+      .mockResolvedValueOnce(trustedReport());
 
     await expect(requestGitRepositoryTrust(WORKSPACE)).resolves.toBe(true);
     expect(warningMock).not.toHaveBeenCalled();
@@ -305,17 +436,14 @@ describe('requestGitRepositoryTrust', () => {
     expect(successMock.mock.calls[0][0]).toContain('trust.alreadyTrusted');
   });
 
+  // ...and the recovery it reports must be a real one: the next automatic call
+  // gets a fresh prompt rather than the quiet period a failure would have set.
   it('does not silence the next caller after recovering outside the product', async () => {
     confirmWarningMock.mockResolvedValue(true);
     trustRepositoryMock.mockRejectedValueOnce(new Error('config is read-only'));
     getRepositoryTrustMock
       .mockResolvedValueOnce(trustRequiredReport())
-      .mockResolvedValueOnce({
-        state: 'trusted',
-        repositoryPath: REPOSITORY_PATH,
-        detail: null,
-        manualCommand: null,
-      })
+      .mockResolvedValueOnce(trustedReport())
       .mockResolvedValueOnce(trustRequiredReport());
 
     await expect(requestGitRepositoryTrust(WORKSPACE)).resolves.toBe(true);
@@ -368,7 +496,10 @@ describe('withGitRepositoryTrustRecovery', () => {
     expect(operation).toHaveBeenCalledTimes(2);
   });
 
-  it('prompts and replays an immediate retry after a decline', async () => {
+  // The quiet period absorbs a burst of automatic Git reads. It must not answer
+  // a deliberate launch with a silent refusal plus an error telling the user to
+  // trust the folder "when prompted".
+  it('still prompts a user-initiated recovery during the quiet period', async () => {
     confirmWarningMock.mockResolvedValue(false);
     await requestGitRepositoryTrust(WORKSPACE);
     expect(confirmWarningMock).toHaveBeenCalledTimes(1);
@@ -381,9 +512,20 @@ describe('withGitRepositoryTrustRecovery', () => {
       .mockResolvedValueOnce('status');
 
     await expect(
-      withGitRepositoryTrustRecovery(operation, WORKSPACE),
+      withGitRepositoryTrustRecovery(operation, WORKSPACE, { userInitiated: true }),
     ).resolves.toBe('status');
     expect(confirmWarningMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('stays quiet for an automatic recovery during the quiet period', async () => {
+    confirmWarningMock.mockResolvedValue(false);
+    await requestGitRepositoryTrust(WORKSPACE);
+
+    const error = untrustedError();
+    const operation = vi.fn().mockRejectedValue(error);
+
+    await expect(withGitRepositoryTrustRecovery(operation, WORKSPACE)).rejects.toBe(error);
+    expect(confirmWarningMock).toHaveBeenCalledTimes(1);
   });
 
   // The whole point of handing over a manual command on a host that cannot
@@ -391,12 +533,9 @@ describe('withGitRepositoryTrustRecovery', () => {
   it('replays after the user fixed trust in a terminal', async () => {
     confirmWarningMock.mockResolvedValue(true);
     trustRepositoryMock.mockRejectedValue(new Error('config is read-only'));
-    getRepositoryTrustMock.mockResolvedValue({
-      state: 'trusted',
-      repositoryPath: REPOSITORY_PATH,
-      detail: null,
-      manualCommand: null,
-    });
+    getRepositoryTrustMock
+      .mockResolvedValueOnce(trustRequiredReport())
+      .mockResolvedValueOnce(trustedReport());
     const operation = vi
       .fn()
       .mockRejectedValueOnce(untrustedError())

@@ -38,7 +38,7 @@
     background: var(--bitfun-color-status-warning-surface);
     border-color: var(--bitfun-color-status-warning-border);
 
-    > svg {
+    > :is(svg, [data-bitfun-component='icon']) {
       color: var(--bitfun-color-status-warning-emphasis);
     }
   }
@@ -55,7 +55,7 @@
     background: var(--bitfun-color-status-success-surface);
     border-color: var(--bitfun-color-status-success-border);
 
-    > svg {
+    > :is(svg, [data-bitfun-component='icon']) {
       color: var(--bitfun-color-status-success-emphasis);
     }
   }

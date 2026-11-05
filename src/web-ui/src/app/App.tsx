@@ -1,14 +1,15 @@
+import { lazyWithRecovery } from '@/shared/utils/lazyWithRecovery';
+import { importWithRetry } from '@/shared/utils/moduleLoader';
 import { lazy, Suspense, useEffect, useCallback, useLayoutEffect, useState, useRef } from 'react';
 import { ChatProvider } from '../infrastructure/contexts/ChatProvider';
 import { ViewModeProvider } from '../infrastructure/contexts/ViewModeProvider';
 import { SSHRemoteProvider } from '../features/ssh-remote';
 import { ContextMenuRenderer } from '../shared/context-menu-system/components/ContextMenuRenderer';
 import { NotificationContainer, notificationService } from '../shared/notification-system';
+import { ComputerUseControlCard } from './components/ComputerUseControlCard';
 import { UpdateNotificationCard } from '@/infrastructure/update/UpdateNotificationCard';
 import { NotificationCenter } from '../shared/notification-system/components/NotificationCenter';
-import { AnnouncementProvider } from '../shared/announcement-system';
 import { ConfirmDialogRenderer } from '@/infrastructure/confirm-dialog';
-import { SessionUsageModal } from '../flow_chat/components/usage/SessionUsageModal';
 import { createLogger } from '@/shared/utils/logger';
 import { startupTrace } from '@/shared/utils/startupTrace';
 import { isTauriRuntime, isOpenHarmonyRuntime } from '@/infrastructure/runtime';
@@ -91,7 +92,7 @@ const LazyAppLayout = lazy(async () => {
   }
 });
 
-const LazyGlobalSearchRoot = lazy(() => import('./global-search/GlobalSearchRoot'));
+const LazyGlobalSearchRoot = lazyWithRecovery(() => import('./global-search/GlobalSearchRoot'));
 
 /**
  * BitFun main application component.
@@ -112,7 +113,7 @@ const DEFERRED_TRAY_INIT_DELAY_MS = 1500;
 function App() {
   const { t } = useI18n('settings/application');
 
-  // Workspace loading state ??drives splash exit timing
+  // Workspace loading state — drives splash exit timing
   const { loading: workspaceLoading } = useWorkspaceContext();
   const peerSurfaceActive = usePeerDeviceModeOptional()?.peerMode.active ?? false;
 
@@ -997,19 +998,11 @@ function App() {
               <ContextMenuRenderer />
 
               {/* Notification system */}
-              <NotificationContainer><UpdateNotificationCard /></NotificationContainer>
+              <NotificationContainer><ComputerUseControlCard /><UpdateNotificationCard /></NotificationContainer>
               <NotificationCenter />
 
               {/* Confirm dialog */}
               <ConfirmDialogRenderer />
-
-              {/* Session usage report. Mounted here rather than in a chat view:
-                  the request runs below any component, and the report outlives
-                  whichever session view is on screen. */}
-              <SessionUsageModal />
-
-              {/* Announcement / feature-demo / tips system */}
-              <AnnouncementProvider ready={interactiveShellReady && !startupOverlayVisible} />
 
               {/* AskUserQuestion waiting-state aria-live announcer.
                   Mounted here (inside ToolbarModeProvider, outside LazyAppLayout)

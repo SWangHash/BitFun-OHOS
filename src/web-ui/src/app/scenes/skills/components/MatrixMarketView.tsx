@@ -406,7 +406,7 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
         </div>
       </div>
 
-      <ScrollArea ref={setContentScrollRoot} className="skills-discover__content">
+      <ScrollArea ref={setContentScrollRoot} className="skills-matrix__scroll">
         {skillsLoading && (
           <div className="skills-discover__grid" aria-busy="true" aria-label={t('list.loading')}>
             {Array.from({ length: 12 }).map((_, i) => (
@@ -455,10 +455,9 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
                         {skill.download ?? 0}
                       </span>
                     )}
-                    actions={[{
-                      id: 'install',
+                    action={{
                       icon: isInstalled ? <CheckCircle2 size={13} /> : <Download size={13} />,
-                      ariaLabel: isInstalled ? t('matrix.item.installed') : t('market.item.downloadProject'),
+                      label: isInstalled ? t('matrix.item.installed') : t('market.item.downloadProject'),
                       title: isInstalling
                         ? t('matrix.item.installing')
                         : isInstalled
@@ -466,15 +465,15 @@ const MatrixMarketView: React.FC<MatrixMarketViewProps> = ({
                           : (!hasWorkspace || isAssistantWorkspace)
                             ? t('messages.noWorkspace')
                             : t('market.item.downloadProject'),
+                      loading: isInstalling,
                       disabled:
                         isInstalling
                         || isInstalled
                         || !hasWorkspace
                         || isRemoteWorkspace
                         || isAssistantWorkspace,
-                      tone: isInstalled ? 'success' : 'primary',
                       onClick: () => void onInstall(skill, 'project'),
-                    }]}
+                    }}
                     onOpenDetails={() => onOpenDetails(skill)}
                   />
                 );

@@ -306,7 +306,12 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
       : knownSelectedProfile
         ? t(`chatInput.harness.profiles.${knownSelectedProfile}.name`)
         : t('chatInput.harness.unsupportedProfile', { id: selectedProfile });
-  const triggerLabel = primaryLabel;
+  const triggerLabel = presentation === 'standalone'
+    && !legacySession
+    && knownSelectedProfile
+    && isSelectableProfile(knownSelectedProfile)
+    ? t('chatInput.harness.modeLabel', { name: primaryLabel })
+    : primaryLabel;
   const triggerTooltip = legacySession
     ? t('chatInput.harness.legacySessionNotice')
     : !selectedProfileAvailable
@@ -371,7 +376,7 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
           leading={<Icon name="user" size="md" aria-hidden />}
           metadata={(
             <span className="bitfun-harness-selector__profile-status">
-              {connected ? <Icon name="check-line" size="sm" style={{ width: 13, height: 13 }} aria-hidden /> : null}
+              {connected ? <Icon name="check-line" size="sm" aria-hidden /> : null}
               {agent.available === false
                 ? t('chatInput.harness.unavailable')
                 : null}
@@ -510,7 +515,7 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
                         leading={<HarnessProfileMark profile={id} />}
                         metadata={(
                           <span className="bitfun-harness-selector__profile-status">
-                            {connected ? <Icon name="check-line" size="sm" style={{ width: 13, height: 13 }} aria-hidden /> : null}
+                            {connected ? <Icon name="check-line" size="sm" aria-hidden /> : null}
                             {isNavigationProfile(id) ? (
                               <>
                                 <span className="bitfun-harness-selector__agent-count">

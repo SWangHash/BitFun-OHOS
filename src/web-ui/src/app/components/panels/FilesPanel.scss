@@ -446,6 +446,52 @@
     background: transparent;
   }
 
+  // ==================== File Watch Notice ====================
+  // Occupies its own row between the header and the tree: a stopped watcher
+  // leaves the tree rendered, so the notice must not replace or cover it.
+  .bitfun-file-watch-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--bitfun-space-2);
+    padding: var(--bitfun-space-2) var(--bitfun-space-3);
+    border-bottom: 1px solid var(--bitfun-color-border-subtle);
+    background: var(--bitfun-color-status-warning-surface);
+    color: var(--bitfun-color-status-warning-content);
+
+    &__body {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+
+    &__title {
+      font-size: var(--bitfun-type-label-md-font-size);
+      font-weight: var(--bitfun-type-heading-section-font-weight);
+    }
+
+    &__reason,
+    &__hint-label {
+      font-size: var(--bitfun-type-meta-font-size);
+      line-height: var(--bitfun-type-modifier-leading-ui-line-height);
+    }
+
+    &__hint {
+      display: block;
+      margin-top: 2px;
+      padding: var(--bitfun-space-1) var(--bitfun-space-2);
+      border-radius: var(--bitfun-radius-sm);
+      background: var(--bitfun-color-surface-canvas);
+      color: var(--bitfun-color-content-primary);
+      font-family: var(--bitfun-type-code-md-font-family);
+      font-size: var(--bitfun-type-meta-font-size);
+      white-space: pre-wrap;
+      word-break: break-all;
+      user-select: text;
+    }
+  }
+
   // ==================== Loading State ====================
   &__loading {
     display: flex;

@@ -3,11 +3,10 @@ use super::visibility::SubagentVisibilityPolicy;
 use crate::agentic::agents::{
     harmony_goal_agent, harmony_spec_implementation_agent, harmony_spec_verify_agent, Agent,
     BitFunAgent, ClawMode, CodeReviewAgent, ComputerUseMode, CoworkMode, CreativeHarness,
-    DeepResearchMode, DeepReviewAgent, ExploreAgent, GeneralPurposeAgent, GenerateDocAgent,
-    HarmonyBuildMode, HarmonyFeatureMode, HarmonyPlanAgent, HarmonyReleaseAuditMode,
-    MinimalHarness, QtMigrationMode, ResearchSpecialistAgent, ReviewFixerAgent, ReviewJudgeAgent,
-    ReviewWorkerAgent, StandardHarness, SwarmPlannerAgent, SwarmReviewerAgent, SwarmWorkerAgent,
-    UltimateHarness,
+    DeepResearchMode, DeepReviewAgent, ExploreAgent, GeneralPurposeAgent, HarmonyBuildMode,
+    HarmonyFeatureMode, HarmonyPlanAgent, HarmonyReleaseAuditMode, MinimalHarness, QtMigrationMode,
+    ResearchSpecialistAgent, ReviewFixerAgent, ReviewJudgeAgent, ReviewWorkerAgent,
+    StandardHarness, SwarmPlannerAgent, SwarmReviewerAgent, SwarmWorkerAgent, UltimateHarness,
 };
 use crate::agentic::memories::MemoryPhase2Agent;
 use bitfun_agent_runtime::agents as runtime_agents;
@@ -75,7 +74,6 @@ fn builtin_agent_factory(id: &str) -> fn() -> Arc<dyn Agent> {
         "ReviewFixer" => || Arc::new(ReviewFixerAgent::new()),
         "CodeReview" => || Arc::new(CodeReviewAgent::new()),
         "DeepReview" => || Arc::new(DeepReviewAgent::new()),
-        "GenerateDoc" => || Arc::new(GenerateDocAgent::new()),
         "MemoryPhase2" => || Arc::new(MemoryPhase2Agent::new()),
         _ => panic!("missing legacy Agent factory for builtin agent {id}"),
     }

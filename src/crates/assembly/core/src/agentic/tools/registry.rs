@@ -5,12 +5,12 @@ use crate::agentic::tools::product_runtime::{
     resolve_product_readonly_enabled_tools, ProductToolRuntime,
 };
 use crate::util::errors::BitFunResult;
-use log::{debug, info, trace, warn};
 use bitfun_agent_tools::{
     DynamicToolDescriptor, DynamicToolProvider, PortResult, ToolDecoratorRef,
     ToolRegistry as AgentToolRegistry,
 };
 use bitfun_product_capabilities::DeliveryProfile;
+use log::{debug, info, trace, warn};
 use std::sync::Arc;
 
 pub(in crate::agentic::tools) type ToolRef = Arc<dyn Tool>;
@@ -559,6 +559,7 @@ mod tests {
             "Read",
             "view_image",
             "analyze_image",
+            "generate_image",
             "Glob",
             "Grep",
             "Write",
@@ -573,9 +574,8 @@ mod tests {
             "Task",
             "AgentSpawn",
             "AgentSendInput",
-            "AgentInterrupt",
+            "AgentControl",
             "AgentList",
-            "AgentDelete",
             "AgentWait",
             "LaunchReviewAgent",
             "Skill",
@@ -589,11 +589,17 @@ mod tests {
             "CallDeferredTool",
             "BitFunControl",
             "GetFileDiff",
+            "CreateCanvas",
+            "ReadCanvas",
+            "UpdateCanvas",
+            "PatchCanvas",
+            "ListWorkspaces",
             "SessionControl",
             "SessionMessage",
             "SessionHistory",
             "Cron",
             "PortForward",
+            "DesktopCard",
             "WebSearch",
             "WebFetch",
             "ListMCPResources",
@@ -606,8 +612,10 @@ mod tests {
             "InitMiniApp",
             "FinalizeMiniApp",
             "PublishMiniApp",
+            "MiniAppBrowser",
             "FrontendWorkbench",
             "PublishAppearance",
+            "PageManage",
             "PageDeploy",
             "PagePublish",
             "ControlHub",
@@ -827,6 +835,7 @@ mod tests {
             vec![
                 "ListModels",
                 "GetFileDiff",
+                "ListWorkspaces",
                 "SessionControl",
                 "SessionMessage",
                 "SessionHistory",
@@ -839,8 +848,8 @@ mod tests {
                 "GenerativeUI",
                 "Worktree",
                 "ReviewPlatform",
+                "MiniAppBrowser",
                 "ControlHub",
-                "ComputerUse",
                 "Playbook",
             ],
             "deferred tool manifest must stay stable before moving registry or manifest ownership"
@@ -877,6 +886,8 @@ mod tests {
                 "submit_code_review",
                 "GetToolSpec",
                 "GetFileDiff",
+                "ReadCanvas",
+                "ListWorkspaces",
                 "SessionHistory",
                 "WebSearch",
                 "WebFetch",

@@ -18,6 +18,7 @@ pub mod anonymous_auth;
     feature = "remote-ssh-concrete",
     feature = "review-platform",
     feature = "speech",
+    feature = "skillhub",
     feature = "web-tools",
 ))]
 pub(crate) fn reqwest_client_builder() -> reqwest::ClientBuilder {
@@ -26,7 +27,6 @@ pub(crate) fn reqwest_client_builder() -> reqwest::ClientBuilder {
 }
 
 #[cfg(any(
-    feature = "announcement",
     feature = "browser-control",
     feature = "mcp",
     feature = "remote-connect",
@@ -35,9 +35,6 @@ pub(crate) fn reqwest_client() -> reqwest::Client {
     bitfun_services_core::tls_provider::ensure_ring_crypto_provider();
     reqwest::Client::new()
 }
-
-#[cfg(feature = "announcement")]
-pub mod announcement;
 
 #[cfg(feature = "miniapp-market")]
 pub mod appearance_market;
@@ -118,6 +115,11 @@ pub(crate) mod review_platform_http;
 
 #[cfg(feature = "script-tool-runtime")]
 pub mod script_tool;
+
+#[cfg(feature = "ptc-runtime")]
+pub mod ptc_runtime;
+#[cfg(feature = "ptc-runtime")]
+pub mod python_ptc_runtime;
 #[cfg(feature = "speech")]
 pub mod speech;
 
@@ -133,3 +135,6 @@ unsafe extern "system" {}
 
 #[cfg(feature = "account-identity")]
 pub mod account_identity;
+
+#[cfg(feature = "skillhub")]
+pub mod skillhub;

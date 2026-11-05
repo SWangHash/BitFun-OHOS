@@ -98,11 +98,14 @@ export const SCENE_SHORTCUTS: ShortcutDef[] = [
 // handler declines inside the terminal so xterm keeps Ctrl+2..8 as control
 // characters (Esc via Ctrl+3, ...).
 
+// Shared by registration and settings. Mod+Tab is intercepted by macOS.
+export const CANVAS_OVERVIEW_SHORTCUT = mod('E', { shift: true, scope: 'canvas', allowInInput: true });
+
 export const CANVAS_SHORTCUTS: ShortcutDef[] = [
   // View
   {
     id: 'canvas.missionControl',
-    config: mod('Tab', { scope: 'canvas', allowInInput: true }),
+    config: CANVAS_OVERVIEW_SHORTCUT,
     descriptionKey: 'keyboard.shortcuts.canvas.missionControl',
   },
   {
@@ -204,6 +207,11 @@ export const EDITOR_SHORTCUTS: ShortcutDef[] = [
 
 export const CHAT_SHORTCUTS: ShortcutDef[] = [
   {
+    id: 'chat.search',
+    config: mod('F', { scope: 'chat', allowInInput: false }),
+    descriptionKey: 'keyboard.shortcuts.chat.search',
+  },
+  {
     id: 'btw-fill',
     config: { key: 'B', ctrl: true, alt: true, scope: 'chat', allowInInput: true },
     descriptionKey: 'keyboard.shortcuts.chat.btwFill',
@@ -292,7 +300,7 @@ export function getShortcutDescriptionI18nKey(id: string): string | undefined {
 }
 
 /** Scope display order for the settings UI. */
-export const SCOPE_ORDER: ShortcutScope[] = ['app', 'chat', 'editor', 'terminal', 'canvas', 'filetree', 'git'];
+export const SCOPE_ORDER: ShortcutScope[] = ['app', 'chat', 'editor', 'terminal', 'canvas', 'workbench-content', 'filetree', 'git'];
 
 /** i18n keys for scope group labels in the settings UI. */
 export const SCOPE_LABEL_KEYS: Record<ShortcutScope, string> = {
@@ -301,6 +309,7 @@ export const SCOPE_LABEL_KEYS: Record<ShortcutScope, string> = {
   editor:   'keyboard.scopes.editor',
   terminal: 'keyboard.scopes.terminal',
   canvas:   'keyboard.scopes.canvas',
+  'workbench-content': 'keyboard.scopes.canvas',
   filetree: 'keyboard.scopes.filetree',
   git:      'keyboard.scopes.git',
 };

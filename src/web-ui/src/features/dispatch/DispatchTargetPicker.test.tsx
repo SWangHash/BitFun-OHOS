@@ -183,4 +183,36 @@ describe('DispatchTargetPicker overlay', () => {
     expect(onSelectLocal).toHaveBeenCalledTimes(2);
     expect(onWorktreeChange).toHaveBeenLastCalledWith(false);
   });
+
+  it('lists a confirmed-incompatible device but never offers it as a target', async () => {
+    pickerState.loggedIn = true;
+    pickerState.targets = [
+      { kind: 'device', deviceId: 'peer', displayName: 'Old build', online: true, incompatible: true },
+    ];
+
+    await act(async () => {
+      root.render(
+        <DispatchTargetPicker
+          target={{ kind: 'local' }}
+          locked={false}
+          onSelectTarget={vi.fn()}
+        />,
+      );
+    });
+
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-testid="chat-input-dispatch-trigger"]',
+    );
+    await act(async () => trigger?.click());
+
+    const option = Array.from(
+      document.querySelectorAll<HTMLButtonElement>('[data-bitfun-menu-item]'),
+    ).find(node => node.textContent?.includes('Old build'));
+    expect(option).toBeDefined();
+    // The device is visible with its reason but cannot be selected.
+    expect(option?.textContent).toContain('accountLogin.deviceClientIncompatibleTag');
+    expect(option?.querySelector('[data-bitfun-component="status-pill"]')?.getAttribute('aria-label'))
+      .toBe('chatInput.dispatch.deviceIncompatible');
+    expect(option?.disabled).toBe(true);
+  });
 });

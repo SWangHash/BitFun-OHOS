@@ -11,7 +11,8 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 
 import { useTranslation } from 'react-i18next';
-import { OverflowText, Menu, MenuItem, Tooltip, Icon, createOverlayPortal, subscribeOverlayInteraction } from '@bitfun/ui';
+import { subscribeOverlayInteraction, createOverlayPortal, OverflowText, Menu, MenuItem } from '@bitfun/ui';
+import { Tooltip, Icon } from '@bitfun/ui';
 import { RetainedMountBoundary } from '@/shared/presence';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import type { AcpModeState } from '../utils/acpSessionConfig';
@@ -70,8 +71,8 @@ export const AcpModeSelector: React.FC<AcpModeSelectorProps> = ({
         setKeyboardOpen(false);
       }
     };
-    const removeMousedown = subscribeOverlayInteraction(menuRef, 'mousedown', handlePointerDown);
-    return () => removeMousedown();
+    const removeOverlayMousedown0 = subscribeOverlayInteraction(menuRef, 'mousedown', handlePointerDown);
+    return () => removeOverlayMousedown0?.();
   }, [open]);
 
   useEffect(() => {
@@ -171,7 +172,7 @@ export const AcpModeSelector: React.FC<AcpModeSelectorProps> = ({
           >
             {currentLabel}
           </OverflowText>
-          <Icon name="chevron-down" size="lg" style={{ width: 10, height: 10 }} aria-hidden="true" />
+          <Icon name="chevron-down" size="xs" aria-hidden="true" />
         </button>
       </Tooltip>
 
@@ -238,6 +239,8 @@ export const AcpModeSelector: React.FC<AcpModeSelectorProps> = ({
             })}
           </Menu>,
           getAppearanceOverlayHost(),
+          null,
+          { open, ownerRef: triggerRef },
         )}
       </RetainedMountBoundary>
     </div>

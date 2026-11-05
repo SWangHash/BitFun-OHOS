@@ -2,7 +2,7 @@ import { WorkspaceCatalog, projectWorkspaceCatalog } from './WorkspaceCatalog';
 import { RuntimeFileLocation } from '../model/RemoteModels';
 import { HostSessionCallbacks, HostSessionStream, REMOTE_CAPABILITY_HOST_STREAM_V1 } from './HostSessionStream';
 import { SavedRuntimeConnection, SavedRuntimeConnectionsResponse } from '../model/RemoteModels';
-import { AssistantEntry, AssistantListResponse, ChatMessageItemResponse, ChatMessageResponse, CommandStatusResponse, CreateSessionOptions, CreateSessionResponse, FileInfo, FileInfoResponse, InitialSyncResult, ModelCatalogResponse, PermissionModeResponse, PollSessionResponse, PollSessionResult, ReadFileChunkResponse, ReadFileChunkResult, ReadFileResult, RecentWorkspaceEntry, RecentWorkspaceListResponse, RemoteCommand, RemoteImageContext, RemoteModelCatalog, RemotePermissionMode, RemoteQuestionAnswerPayload, RemoteSession, RemoteWorkspaceIdentity, REMOTE_CAPABILITY_WORKSPACE_ID_REFERENCES_V1, SendMessageResponse, SessionListResponse, SessionListResult, SessionMessagesResponse, SessionMessagesResult, SessionSummary, SetAssistantResponse, SetSessionModelResponse, SetWorkspaceResponse, SteerTurnResponse, SteerTurnResult, WorkspaceInfo, WorkspaceInfoResponse } from '../model/RemoteModels';
+import { AssistantEntry, AssistantListResponse, ChatMessageItemResponse, ChatMessageResponse, CommandStatusResponse, CreateSessionOptions, CreateSessionResponse, FileInfo, FileInfoResponse, InitialSyncResult, ModelCatalogResponse, ModelDefaultsUpdatedResponse, PermissionModeResponse, PollSessionResponse, PollSessionResult, REMOTE_CAPABILITY_WORKSPACE_ID_REFERENCES_V1, ReadFileChunkResponse, ReadFileChunkResult, ReadFileResult, RecentWorkspaceEntry, RecentWorkspaceListResponse, RemoteCommand, RemoteCommandCatalog, RemoteDefaultModels, RemoteImageContext, RemoteModelCatalog, RemotePermissionMode, RemoteQuestionAnswerPayload, RemoteSession, RemoteSessionUsageReport, RemoteTurnAcceptedValue, RemoteWorkspaceIdentity, SendMessageResponse, SessionListResponse, SessionListResult, SessionMessagesResponse, SessionMessagesResult, SessionRolledBackResponse, SessionRolledBackResult, SessionSummary, SetAssistantResponse, SetSessionModelResponse, SetWorkspaceResponse, SteerTurnResponse, SteerTurnResult, WorkspaceInfo, WorkspaceInfoResponse } from '../model/RemoteModels';
 import { Encoding } from './Encoding';
 import { CloudAccountClient, CloudAccountRequestError, CloudAccountSession } from './CloudAccountClient';
 import { RemoteI18n } from '../i18n/RemoteI18n';
@@ -16,10 +16,15 @@ import { RemoteChatCommandClient } from './RemoteChatCommandController';
 import { RemoteFileDownloadClient } from './RemoteFileDownloadController';
 import { RemoteLogger } from './RemoteLogger';
 import { RemoteModelClient } from './RemoteModelController';
+import { RemoteModelDefaultsClient } from './RemoteModelDefaultsController';
+import { RemoteCommandPaletteClient, RemoteCommandPaletteScope, RemoteSkillCatalogQuery } from './RemoteCommandPaletteController';
+import { HostInvokeRefusal } from './HostInvokeRefusal';
+import { CommandCatalogProjection, RemoteModeSkillRow } from './CommandCatalogProjection';
 import { RemoteResponseMapper } from './RemoteResponseMapper';
 import { stampRemoteSessionsWorkspace } from './RemoteSessionIdentity';
 import { TranscriptIntegrityPolicy } from './TranscriptIntegrityPolicy';
 import { RemoteSessionClient } from './RemoteSessionController';
+import { SubagentStreamSource } from './SubagentStreamCoordinator';
 import { RemoteToolActionClient } from './RemoteToolActionController';
 
 /**
@@ -38,7 +43,42 @@ const ACCOUNT_HANDSHAKE_TIMEOUT_MS: number = 15000;
 interface PermissionReplyArgs { request: PermissionReplyRequest; }
 interface PermissionReplyRequest { requestId: string; reply: string; feedback?: string; updatedInput?: Object; }
 
-export class RemoteSessionManager implements RemoteChatCommandClient, RemoteFileDownloadClient, RemoteModelClient, RemoteSessionClient, RemoteToolActionClient {
+/**
+ * HostInvoke arguments for the composer palette's verbs.
+ *
+ * Shapes are per-command, not a shared envelope: `get_mode_skill_configs` takes
+ * flat arguments, and the three session verbs take a `request` object whose
+ * field spelling differs between their two Rust structs.
+ */
+interface ModeSkillConfigArgs {
+  modeId: string;
+  forceRefresh?: boolean;
+  workspaceId?: string;
+  workspacePath?: string;
+}
+
+interface SessionRequest {
+  sessionId: string;
+  workspaceId?: string;
+  workspacePath?: string;
+  remoteConnectionId?: string;
+  remoteSshHost?: string;
+}
+
+interface SessionRequestArgs { request: SessionRequest; }
+
+/** `GetSessionUsageReportRequest` is declared without `rename_all`. */
+interface SessionUsageRequest {
+  session_id: string;
+  workspace_id?: string;
+  workspace_path?: string;
+  remote_connection_id?: string;
+  remote_ssh_host?: string;
+}
+
+interface SessionUsageArgs { request: SessionUsageRequest; }
+
+export class RemoteSessionManager implements RemoteChatCommandClient, RemoteFileDownloadClient, RemoteModelClient, RemoteSessionClient, RemoteToolActionClient, RemoteCommandPaletteClient, SubagentStreamSource, RemoteModelDefaultsClient {
   private transport?: RemoteCommandTransport;
   private transportGeneration: number = 0;
   private workspace?: WorkspaceInfo;
@@ -64,9 +104,16 @@ export class RemoteSessionManager implements RemoteChatCommandClient, RemoteFile
     return (this.hostCapabilities || []).indexOf(REMOTE_CAPABILITY_HOST_STREAM_V1) >= 0;
   }
 
+  /**
+   * Sends one product command through the host bridge.
+   *
+   * A refusal is thrown as `HostInvokeRefusal` rather than a bare `Error` so the
+   * caller can tell a host that answered from a connection that did not: only the
+   * first may be described to the user as the host's own decision.
+   */
   async hostInvoke<T>(command: string, args: Object): Promise<T> {
     const response = await this.send<HostInvokeResponse<T>>({ cmd: 'host_invoke', command: command, args: args });
-    if (!response.ok) throw new Error(response.error || 'Remote host operation failed');
+    if (!response.ok) throw new HostInvokeRefusal(command, response.error || '');
     return response.value as T;
   }
 
@@ -309,10 +356,7 @@ export class RemoteSessionManager implements RemoteChatCommandClient, RemoteFile
       (requestedPath ? options.remoteConnectionId : undefined);
     const remoteSshHost = response.workspace_path !== undefined ? response.remote_ssh_host :
       (requestedPath ? options.remoteSshHost : undefined);
-    const normalizedAgentType = options.agentType.toLowerCase();
-    const fallbackTitle = normalizedAgentType === 'claw' || normalizedAgentType === 'assistant' || normalizedAgentType === 'chat' ?
-      'Assistant Session' : normalizedAgentType === 'cowork' ? 'Cowork Session' : 'Code Session';
-    const title = response.title || fallbackTitle;
+    const title = response.title || options.title.trim() || RemoteI18n.t('session.newTitle');
     if (onAllocated) {
       await onAllocated({
         sessionId,
@@ -447,6 +491,145 @@ export class RemoteSessionManager implements RemoteChatCommandClient, RemoteFile
     return response.model_id || modelId;
   }
 
+  /**
+   * Writes the desktop's model role defaults and answers with what is stored.
+   *
+   * All six slots come back because the desktop reconciles on every write: a
+   * model that was removed can leave a role pointing at another model, and the
+   * caller must show the result rather than the request. A host that only
+   * acknowledges the command without echoing the slots leaves the answer to an
+   * authoritative read, exactly like a legacy permission-mode acknowledgement.
+   */
+  async setModelDefaults(
+    primary: string | null,
+    fast: string | null,
+    imageUnderstanding: string | null
+  ): Promise<RemoteDefaultModels> {
+    const response = await this.send<ModelDefaultsUpdatedResponse>(
+      RemoteCommandFactory.setModelDefaults(primary, fast, imageUnderstanding)
+    );
+    const defaults = response.default_models;
+    if (!defaults) {
+      const catalog = await this.getModelCatalog();
+      return RemoteSessionManager.modelDefaults(catalog.default_models);
+    }
+    return RemoteSessionManager.modelDefaults(defaults);
+  }
+
+  /**
+   * Normalizes an echoed defaults projection into all six slots.
+   *
+   * A slot that is neither a string nor null cannot be a stored selection, so
+   * it is refused instead of being shown as a configured model.
+   */
+  private static modelDefaults(defaults: RemoteDefaultModels): RemoteDefaultModels {
+    return {
+      primary: RemoteSessionManager.modelDefaultsSlot(defaults.primary),
+      fast: RemoteSessionManager.modelDefaultsSlot(defaults.fast),
+      search: RemoteSessionManager.modelDefaultsSlot(defaults.search),
+      image_understanding: RemoteSessionManager.modelDefaultsSlot(defaults.image_understanding),
+      image_generation: RemoteSessionManager.modelDefaultsSlot(defaults.image_generation),
+      speech_recognition: RemoteSessionManager.modelDefaultsSlot(defaults.speech_recognition)
+    };
+  }
+
+  private static modelDefaultsSlot(value: string | null | undefined): string | null {
+    if (value === undefined || value === null) {
+      return null;
+    }
+    if (typeof value !== 'string') {
+      throw new Error('Model defaults unavailable');
+    }
+    return value;
+  }
+
+  /**
+   * The skill catalog the palette's picker shows.
+   *
+   * `get_mode_skill_configs` takes flat arguments and answers with the mode's
+   * skill rows; without `includeDiagnostics` the value is that rows array, which
+   * the projection turns into palette entries. A host that does not serve the
+   * command rejects the invoke, and that rejection is the palette's probe.
+   */
+  async skillCatalog(query: RemoteSkillCatalogQuery): Promise<RemoteCommandCatalog> {
+    const args: ModeSkillConfigArgs = {
+      modeId: query.modeId,
+      forceRefresh: query.forceRefresh
+    };
+    if (query.workspaceId) {
+      args.workspaceId = query.workspaceId;
+    }
+    if (query.workspacePath) {
+      args.workspacePath = query.workspacePath;
+    }
+    const rows = await this.hostInvoke<RemoteModeSkillRow[]>('get_mode_skill_configs', args);
+    return CommandCatalogProjection.parseHostCatalog(rows);
+  }
+
+  /**
+   * `compact_session`, whose handler answers with the turn it started.
+   *
+   * The workspace locator is an upgrade projection: a host that still has the
+   * session in memory ignores it, and one that does not needs it to restore the
+   * session before compacting.
+   */
+  async compactSession(query: RemoteCommandPaletteScope): Promise<string> {
+    const args: SessionRequestArgs = { request: RemoteSessionManager.sessionRequest(query) };
+    const value = await this.hostInvoke<RemoteTurnAcceptedValue>('compact_session', args);
+    RemoteLogger.info(
+      `compact_session accepted session=${RemoteSessionManager.shortId(query.sessionId)}`);
+    return value?.message || '';
+  }
+
+  async runInitAgentsMd(query: RemoteCommandPaletteScope): Promise<string> {
+    const args: SessionRequestArgs = { request: RemoteSessionManager.sessionRequest(query) };
+    const value = await this.hostInvoke<RemoteTurnAcceptedValue>('run_init_agents_md', args);
+    RemoteLogger.info(
+      `run_init_agents_md accepted session=${RemoteSessionManager.shortId(query.sessionId)}`);
+    return value?.message || '';
+  }
+
+  /**
+   * `get_session_usage_report`, whose request keeps its snake_case spelling.
+   *
+   * Unlike the two turn verbs this struct carries no `rename_all`, so its fields
+   * travel exactly as the desktop declares them.
+   */
+  async sessionUsageReport(query: RemoteCommandPaletteScope): Promise<RemoteSessionUsageReport | undefined> {
+    const request: SessionUsageRequest = { session_id: query.sessionId };
+    if (query.workspaceId) {
+      request.workspace_id = query.workspaceId;
+    }
+    if (query.workspacePath) {
+      request.workspace_path = query.workspacePath;
+    }
+    if (query.remoteConnectionId) {
+      request.remote_connection_id = query.remoteConnectionId;
+    }
+    if (query.remoteSshHost) {
+      request.remote_ssh_host = query.remoteSshHost;
+    }
+    const args: SessionUsageArgs = { request };
+    return await this.hostInvoke<RemoteSessionUsageReport>('get_session_usage_report', args);
+  }
+
+  private static sessionRequest(query: RemoteCommandPaletteScope): SessionRequest {
+    const request: SessionRequest = { sessionId: query.sessionId };
+    if (query.workspaceId) {
+      request.workspaceId = query.workspaceId;
+    }
+    if (query.workspacePath) {
+      request.workspacePath = query.workspacePath;
+    }
+    if (query.remoteConnectionId) {
+      request.remoteConnectionId = query.remoteConnectionId;
+    }
+    if (query.remoteSshHost) {
+      request.remoteSshHost = query.remoteSshHost;
+    }
+    return request;
+  }
+
   async pollSession(
     sessionId: string,
     sinceVersion: number,
@@ -482,6 +665,34 @@ export class RemoteSessionManager implements RemoteChatCommandClient, RemoteFile
 
   async cancelTask(sessionId: string, turnId?: string): Promise<void> {
     await this.send<CommandStatusResponse>(RemoteCommandFactory.cancelTask(sessionId, turnId));
+  }
+
+  /**
+   * Retires one turn and everything the host recorded after it.
+   *
+   * The reply is decoded through the mapper rather than read off the response, so
+   * a host that answers with something other than `session_rolled_back` — an older
+   * build replying with a generic error, say — throws instead of arriving here as
+   * an empty success. The stale-view guard is deliberately not sent: this client
+   * has no storage index for the turn, and inventing one would only widen the race
+   * window without changing which turn is addressed.
+   */
+  async rollbackSessionToTurn(sessionId: string, targetTurnId: string): Promise<SessionRolledBackResult> {
+    const startedAt = Date.now();
+    RemoteLogger.info(
+      `rollback_session_to_turn start session=${RemoteSessionManager.shortId(sessionId)} ` +
+        `target=${RemoteSessionManager.shortId(targetTurnId)}`
+    );
+    const response = await this.send<SessionRolledBackResponse>(
+      RemoteCommandFactory.rollbackSessionToTurn(sessionId, targetTurnId)
+    );
+    const result = RemoteResponseMapper.sessionRolledBack(response);
+    RemoteLogger.info(
+      `rollback_session_to_turn done session=${RemoteSessionManager.shortId(result.sessionId)} ` +
+        `retired=${result.retiredTurnIds.length} restored=${result.restoredFiles.length} ` +
+        `changed=${result.changed ? '1' : '0'} ms=${Date.now() - startedAt}`
+    );
+    return result;
   }
 
   async renameSession(sessionId: string, title: string): Promise<void> {

@@ -3,7 +3,8 @@ members = [
     "src/apps/cli",
     "src/apps/sdk-host",
     "src/apps/desktop",
-    "src/apps/data-migrator",
+    "src/apps/miniapp-shell",
+    "src/apps/data-tools",
     "src/apps/server",
     "src/apps/relay-server",
     "src/apps/miniapp-market-server",
@@ -14,6 +15,7 @@ members = [
     "src/crates/interfaces/app-server-protocol",
     "src/crates/interfaces/sdk-host",
     "src/crates/adapters/agent-runtime-ipc",
+    "src/crates/adapters/miniapp-ipc",
     "src/crates/assembly/agent-content",
     "src/crates/assembly/core",
     "src/crates/assembly/external-sources",
@@ -26,10 +28,13 @@ members = [
     "src/crates/adapters/deveco-code-adapter",
     "src/crates/adapters/codex-adapter",
     "src/crates/adapters/matrix-adapter",
+    "src/crates/adapters/cursor-adapter",
+    "src/crates/adapters/zcode-adapter",
     "src/crates/adapters/static-hook-support",
     "src/crates/adapters/webdriver",
     "src/crates/adapters/transport",
     "src/crates/services/services-core",
+    "src/crates/services/computer-use",
     "src/crates/services/services-integrations",
     "src/crates/services/legacy-migration",
     "src/crates/services/legacy-migration-adapters",
@@ -45,8 +50,8 @@ members = [
     "src/crates/execution/agent-runtime",
     "src/crates/execution/agent-workflows",
     "src/crates/execution/observability",
-    "src/crates/execution/agent-stream",
     "src/crates/execution/tool-call-jsonrepair",
+    "src/crates/execution/agent-stream",
     "src/crates/execution/tool-contracts",
     "src/crates/execution/plugin-runtime-client",
     "src/crates/execution/runtime-services",
@@ -61,11 +66,13 @@ members = [
 exclude = [
     "BitFun-Installer/src-tauri",
     "third_party/eioc",
+    "third_party/tao",
+    "third_party/wry",
 ]
 
 resolver = "2"
 
-# Shared package metadata 鈥?single source of truth for version
+# Shared package metadata — single source of truth for version
 [workspace.package]
 version = "2.0.0" # x-release-please-version
 authors = ["BitFun Team"]
@@ -90,6 +97,8 @@ undocumented_unsafe_blocks = "warn"
 
 # Shared dependency versions to keep all crates aligned
 [workspace.dependencies]
+pkg-config = "0.3"
+x11rb = { version = "0.13", default-features = false }
 # Async runtime
 tokio = { version = "1.52", default-features = false }
 tokio-stream = { version = "0.1.18", default-features = false }
@@ -101,10 +110,13 @@ futures-util = "0.3.31"
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+jsonrepair-rs = { version = "0.2.6", default-features = false }
 serde_yaml = "0.9"
 
 # Document conversion
-anydoc = "=0.1.6"
+anydoc = "=0.2.4"
+pdf-inspector = { version = "1.17.0", default-features = false }
+roxmltree = { version = "0.21.1", default-features = false }
 
 # TypeScript binding generation (schema-first; gated by per-crate `ts` features)
 ts-rs = { version = "12", features = ["serde-json-impl", "no-serde-warnings"] }
@@ -136,6 +148,7 @@ brotli-decompressor = "=5.0.0"
 alloc-no-stdlib = "=2.0.4"
 alloc-stdlib = "=0.2.2"
 regex = "1"
+tokenizers = { version = "0.22.2", default-features = false }
 base64 = "0.22"
 # Keep macOS Tauri's dispatch2/bitflags expansion on the known-good bitflags release.
 bitflags = "=2.11.1"
@@ -224,21 +237,37 @@ oxc-parse = { package = "oxc", version = "0.138.0", default-features = false }
 sqlx = { version = "0.8", default-features = false }
 rusqlite = { version = "0.32", default-features = false }
 
-# Tauri (desktop only)
-# Keep the OpenHarmony fork of tauri/tauri-build: the OHOS delivery profile
-# depends on the feat/open-harmony branch, and crates.io tauri cannot build
-# the OHOS targets.
-tauri = { git = "https://github.com/richerfu/tauri", branch = "feat/open-harmony", features = [] }
-tauri-plugin-dialog = "2"
+# Tauri (desktop only) -- dual stack.
+#
+# Windows/macOS use the upstream crates.io Tauri stack, pinned by the `[patch]`
+# block at the end of this file. OHOS builds select the OpenHarmony forks with
+# `.cargo/ohos.toml`, passed on the command line (`.cargo/ohos.toml` cannot be
+# merged into `.cargo/config.toml` because `[patch]` is workspace-global and
+# cannot be target-gated).
+#
+# Version specs therefore stay at the lowest minor that both stacks satisfy:
+# crates.io resolves the newest compatible release for Windows/macOS, while the
+# OHOS forks (tauri 2.8.x, tauri-build 2.4.x) remain valid candidates. Plugin
+# requirements stay open for the same reason; Windows/macOS exact versions are
+# held by the committed Cargo.lock.
+tauri = { version = "2.8" }
+tauri-build = { version = "2.4" }
+wry = { version = "0.56.0", default-features = false }
 tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-log = "2"
 tauri-plugin-autostart = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-single-instance = "2"
-tauri-build = { git = "https://github.com/richerfu/tauri", branch = "feat/open-harmony", features = [] }
+# Upstream holds this below 2.4 because tauri 2.12 pulls webview2-com 0.39,
+# which breaks the webview2-com 0.38 COM types bitfun-webdriver is built
+# against. OHOS also needs an older release (the fork is tauri 2.8), so the
+# requirement stays open and Cargo.lock pins Windows/macOS.
+tauri-plugin-clipboard-manager = "2"
 tauri-plugin-global-shortcut = "2.3"
+# ArkTS bridge crates, built only for `cfg(target_env = "ohos")` members.
 napi-ohos = { version = "1.1" }
 napi-derive-ohos = { version = "1.1" }
 notify-rust = { version = "4.18", default-features = false }
@@ -246,10 +275,10 @@ keepawake = "0.6.0"
 
 # Desktop support
 screenshots = "0.8"
-enigo = "0.2"
+enigo = { version = "0.2", default-features = false }
 resvg = { version = "0.47", default-features = false }
 atspi = "0.29"
-leptess = "0.14"
+cc = { version = "1", default-features = false }
 core-foundation = "0.9"
 core-graphics = { version = "0.23", features = ["elcapitan", "highsierra"] }
 foreign-types = "0.5"
@@ -317,25 +346,25 @@ russh = "0.45"
 russh-sftp = "2.1"
 russh-keys = "0.45"
 shellexpand = "3"
-ssh_config = "0.1"
 rustls = { version = "0.23", default-features = false }
 
 [patch.crates-io]
 # Keep Socket.IO on the product-owned ring provider; see the patch note.
 eioc = { path = "third_party/eioc" }
-# Keep the OpenHarmony forks of tao/wry/tauri: the OHOS delivery profile depends
-# on these branches, and crates.io tauri cannot build the OHOS targets.
-# The feat-ohos-webview tao pin also carries the fix for the Windows input
-# deadlock (tao 0.35.3 re-enters its window callback while holding input locks),
-# which supersedes the upstream tauri-runtime rev pin for that issue.
-wry = { git = "https://github.com/richerfu/wry"}
-tao = { git = "https://github.com/richerfu/tao", branch = "feat-ohos-webview"}
-openharmony-ability = {git = "https://github.com/harmony-contrib/openharmony-ability.git"}
-openharmony-ability-derive = {git = "https://github.com/harmony-contrib/openharmony-ability.git"}
-tauri = { git = "https://github.com/richerfu/tauri", branch = "feat/open-harmony"}
-tauri-runtime = { git = "https://github.com/richerfu/tauri", branch = "feat/open-harmony"}
-tauri-macros = { git = "https://github.com/richerfu/tauri", branch = "feat/open-harmony"}
-tauri-runtime-wry = { git = "https://github.com/richerfu/tauri", branch = "feat/open-harmony"}
+# Windows/macOS Tauri stack. OHOS overrides these through `.cargo/ohos.toml`.
+#
+# Restore macOS traffic-light geometry after the queued native style reset.
+# See third_party/tao/BITFUN-PATCH.md for the upstream source and removal condition.
+tao = { path = "third_party/tao" }
+# Keep macOS HTML drags in WebKit while preserving native file-drop paths.
+# See third_party/wry/BITFUN-PATCH.md for source and removal conditions.
+wry = { path = "third_party/wry" }
+# Tauri 2.11 loses keyboard focus for child webviews after Windows reactivates
+# an `unstable` multi-webview window. Use the upstream fix until released;
+# this revision also adopts tao 0.36, which includes the Windows input deadlock fix.
+tauri-runtime = { git = "https://github.com/tauri-apps/tauri.git", rev = "7cc68e74ff6981f5c50a52a67d56c5eb2d227188" }
+tauri-runtime-wry = { git = "https://github.com/tauri-apps/tauri.git", rev = "7cc68e74ff6981f5c50a52a67d56c5eb2d227188" }
+tauri-utils = { git = "https://github.com/tauri-apps/tauri.git", rev = "7cc68e74ff6981f5c50a52a67d56c5eb2d227188" }
 
 [profile.dev]
 # Line tables only: keeps panic backtrace line numbers while shrinking PDB/DWARF
@@ -352,11 +381,9 @@ opt-level = 3
 lto = "thin"
 codegen-units = 1
 strip = true
-# NOTE: do not set `panic = "abort"` here. Several production paths rely on
-# `catch_unwind` to contain third-party panics instead of taking down the app:
-# `browser_api::browser_get_url` (known wry bug where WKWebView URL is nil) and
-# the relay client's TLS connector construction. Aborting would turn those
-# recoverable failures into process crashes.
+# Keep unwinding enabled for scoped `catch_unwind` recovery, such as the relay
+# client's TLS connector construction. Aborting would turn those recoverable
+# failures into process crashes.
 
 [profile.release-fast]
 inherits = "release"
@@ -364,3 +391,12 @@ lto = false
 codegen-units = 16
 strip = false
 incremental = true
+
+# Build the window-only sidecar independently, including during Desktop dev.
+# Never inherit Desktop's large debug artifact or its unified dependency features.
+[profile.miniapp-shell]
+inherits = "release"
+opt-level = "z"
+lto = "fat"
+debug = false
+strip = true

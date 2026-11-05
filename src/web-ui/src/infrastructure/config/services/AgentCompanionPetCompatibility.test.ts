@@ -12,13 +12,23 @@ const legacy: AgentCompanionPetSelection = {
   spritesheetPath: '/pets/sample/spritesheet.webp', spritesheetMimeType: 'image/webp',
 };
 
-/** Spritesheet bytes come from the host file service; only package enumeration is mocked per test. */
-function mockHost(listResponse: unknown) {
-  invoke.mockImplementation(async (command: string) =>
-    command === 'read_file_binary' ? new Uint8Array([0]) : listResponse);
+/**
+ * The host answers both the pet enumeration and the spritesheet read, so the
+ * mock dispatches by command instead of returning one fixed value.
+ */
+function mockHost(petsResponse: unknown): void {
+  invoke.mockImplementation((command: string) => {
+    if (command === 'list_agent_companion_pets') return Promise.resolve(petsResponse);
+    if (command === 'load_agent_companion_pet_spritesheet') {
+      return Promise.resolve(new Uint8Array([0]).buffer);
+    }
+    return Promise.reject(new Error(`unexpected command: ${command}`));
+  });
 }
 
-const hostCommands = () => invoke.mock.calls.map(([command]) => command);
+function invokedCommands(): string[] {
+  return invoke.mock.calls.map(([command]) => command as string);
+}
 
 describe('saved pet version recovery', () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -31,9 +41,10 @@ describe('saved pet version recovery', () => {
     mockHost({ pets: [{ ...legacy, spriteVersionNumber: 2 }] });
     const resolved = await resolveAgentCompanionPet(legacy);
     expect(resolved.layout.rows).toBe(11);
-    // The spritesheet read may be served from the blob cache; nothing else may reach the host.
-    expect(hostCommands().filter(command => command !== 'read_file_binary'))
-      .toEqual(['list_agent_companion_pets']);
+    expect(invokedCommands()).toEqual([
+      'list_agent_companion_pets',
+      'load_agent_companion_pet_spritesheet',
+    ]);
     expect(legacy.spriteVersionNumber).toBeUndefined();
   });
 
@@ -43,15 +54,15 @@ describe('saved pet version recovery', () => {
   });
 
   it('does not require package enumeration for explicit v1 or v2 selections', async () => {
-    mockHost({ pets: [] });
+    mockHost({ pets: [legacy] });
     for (const version of [1, 2]) {
       expect((await resolveAgentCompanionPet({ ...legacy, spriteVersionNumber: version })).layout.version).toBe(version);
     }
-    expect(hostCommands()).not.toContain('list_agent_companion_pets');
+    expect(invokedCommands()).not.toContain('list_agent_companion_pets');
   });
 
   it('retains an unavailable selection and reports failure instead of guessing v1', async () => {
-    invoke.mockResolvedValue({ pets: [] });
+    mockHost({ pets: [] });
     await expect(resolveAgentCompanionPet(legacy)).rejects.toThrow('unavailable');
     invoke.mockRejectedValue(new Error('Host unavailable'));
     await expect(resolveAgentCompanionPet(legacy)).rejects.toThrow('Host unavailable');

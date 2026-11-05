@@ -26,6 +26,11 @@
   }
 
   .root {
+    --_combobox-trailing-width: calc(
+      var(--bitfun-control-select-trailing-inset)
+      + var(--bitfun-control-select-indicator-size)
+      + var(--bitfun-control-select-content-gap)
+    );
     position: relative;
     display: flex;
     inline-size: 100%;
@@ -33,6 +38,14 @@
     flex-direction: column;
     gap: var(--bitfun-space-1);
     color: var(--bitfun-color-content-primary);
+  }
+
+  .root[data-show-indicator="false"] {
+    --_combobox-trailing-width: var(--bitfun-control-select-padding-inline);
+  }
+
+  .root[data-show-indicator="false"][data-variant="pill"] {
+    --_combobox-trailing-width: var(--bitfun-control-status-pill-padding-inline);
   }
 
   .root[data-size="sm"],
@@ -83,11 +96,7 @@
     margin: 0;
     padding-block: 0;
     padding-inline-start: var(--bitfun-control-select-padding-inline);
-    padding-inline-end: calc(
-      var(--bitfun-control-select-trailing-inset)
-      + var(--bitfun-control-select-indicator-size)
-      + var(--bitfun-control-select-content-gap)
-    );
+    padding-inline-end: var(--_combobox-trailing-width);
     border: var(--bitfun-border-width-default) solid var(--bitfun-color-field-border);
     border-radius: var(--bitfun-control-select-radius);
     outline: 0;
@@ -106,18 +115,48 @@
       box-shadow var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
   }
 
+  .root[data-variant="pill"] .trigger {
+    padding-inline-start: var(--bitfun-control-status-pill-padding-inline);
+    border-radius: var(--bitfun-control-status-pill-radius);
+    background: var(--bitfun-color-action-neutral-surface);
+    font-family: var(--bitfun-type-meta-font-family);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-meta-font-weight);
+    line-height: var(--bitfun-type-status-pill-line-height);
+    letter-spacing: var(--bitfun-type-meta-letter-spacing);
+  }
+
   .root:has(.clear) .trigger {
-    padding-inline-end: calc(
-      var(--bitfun-control-select-trailing-inset)
-      + var(--bitfun-control-select-indicator-size)
-      + var(--bitfun-control-select-content-gap)
-      + var(--bitfun-control-height-sm)
-    );
+    padding-inline-end: calc(var(--_combobox-trailing-width) + var(--bitfun-control-height-sm));
+  }
+
+  .root[data-bordered="false"] .trigger {
+    border: 0;
+  }
+
+  .root[data-bordered="hover"] .trigger {
+    border-color: transparent;
+  }
+
+  .root[data-hit-area="expanded"] .trigger {
+    position: relative;
+  }
+
+  .root[data-hit-area="expanded"]:not([data-open="true"]) .trigger::after {
+    content: "";
+    position: absolute;
+    inset-block: calc(-1 * var(--bitfun-space-1));
+    inset-inline: calc(-1 * var(--bitfun-space-2));
+    border-radius: inherit;
   }
 
   .trigger:not(:disabled):hover {
     border-color: var(--bitfun-color-field-border-hover);
     background: var(--bitfun-color-field-background-hover);
+  }
+
+  .root[data-variant="pill"] .trigger:not(:disabled):hover {
+    background: var(--bitfun-color-action-neutral-surface-hover);
   }
 
   .root[data-field-surface="ambient"] .trigger,
@@ -160,6 +199,23 @@
 
   .singleValue {
     gap: var(--bitfun-control-select-content-gap);
+  }
+
+  .root[data-has-value-prefix="true"] .value {
+    gap: var(--bitfun-control-select-content-gap);
+  }
+
+  .root[data-has-value-prefix="true"][data-variant="pill"] .value {
+    gap: var(--bitfun-control-status-pill-gap);
+  }
+
+  .root[data-has-value-prefix="true"] .singleValue {
+    flex: 0 1 auto;
+  }
+
+  .valuePrefix {
+    flex: 0 0 auto;
+    white-space: nowrap;
   }
 
   .valueLeading {
@@ -225,7 +281,7 @@
     overflow: hidden;
     align-items: center;
     max-inline-size: 10rem;
-    min-block-size: var(--bitfun-control-icon-button-xs-size);
+    block-size: var(--bitfun-control-button-xs-height);
     gap: var(--bitfun-space-1);
     padding-inline: var(--bitfun-space-2);
     border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
@@ -234,10 +290,6 @@
     background: var(--bitfun-color-surface-tertiary);
     pointer-events: auto;
     white-space: nowrap;
-  }
-
-  .tag:has(button) {
-    padding-inline-end: 0;
   }
 
   .tag > span {
@@ -253,11 +305,7 @@
   }
 
   .clear {
-    margin-inline-end: calc(
-      var(--bitfun-control-select-trailing-inset)
-      + var(--bitfun-control-select-indicator-size)
-      + var(--bitfun-control-select-content-gap)
-    );
+    margin-inline-end: var(--_combobox-trailing-width);
   }
 
   .indicator {
@@ -304,8 +352,12 @@
     flex-direction: column-reverse;
   }
 
+  .popover[data-popup-width="content"] {
+    inline-size: max-content;
+  }
+
   .popover:focus-within {
-    border-color: var(--bitfun-color-field-border-focus);
+    border-color: var(--bitfun-color-border-default);
   }
 
   .popover[data-invalid="true"] {
@@ -436,5 +488,14 @@
   @keyframes bitfun-combobox-in {
     from { opacity: 0; }
     to { opacity: 1; }
+  }
+
+  /* Filled fields keep standard borders over the grouped-field background. */
+  .root[data-field-surface="filled"] .trigger {
+    background: var(--bitfun-color-field-group-background);
+  }
+
+  .root[data-field-surface="filled"] .trigger:hover:not(:disabled) {
+    background: var(--bitfun-color-field-background-hover);
   }
 }

@@ -82,6 +82,47 @@ pub struct MessageMetadata {
     pub activated_instruction_sources: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_response_replay: Option<ModelResponseReplay>,
+    /// Execution identity for provider-private replay data produced by a pool member.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_pool_replay_fingerprint: Option<String>,
+    /// Deferred tool definitions loaded from inside a PTC RunCode call.
+    /// This is history-scoped: compaction drops it together with the outer
+    /// RunCode message, requiring the model to load the definition again.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ptc_loaded_deferred_tool_specs: Vec<bitfun_agent_tools::LoadedDeferredToolSpec>,
+    /// Execution facts survive headless turns and UI reconnection. Never sent to providers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_execution: Option<ModelExecutionMetadata>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelExecutionMetadata {
+    pub model_config_id: String,
+    pub effective_model_name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub routing: Option<bitfun_events::agentic::ModelRoutingDecision>,
+    /// Accepted-attempt timing of the model round that produced this message.
+    /// Durable Turn rounds are rebuilt from the generation journal, so the
+    /// Runtime keeps these facts here instead of relying on a client checkpoint
+    /// of `ModelRoundCompleted` having landed before the Turn completes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timing: Option<ModelRoundTimingMetadata>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ModelRoundTimingMetadata {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub first_chunk_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub first_visible_output_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stream_duration_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ttft_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attempt_count: Option<u32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -630,6 +671,11 @@ impl Message {
         self
     }
 
+    pub fn with_model_pool_replay_fingerprint(mut self, fingerprint: Option<String>) -> Self {
+        self.metadata.model_pool_replay_fingerprint = fingerprint;
+        self
+    }
+
     pub fn with_model_response_replay(
         mut self,
         model_response_replay: Option<ModelResponseReplay>,
@@ -797,6 +843,58 @@ mod tests {
     use serde_json::json;
 
     #[test]
+    fn ptc_specs_and_routed_execution_metadata_round_trip_together_with_legacy_defaults() {
+        let mut message = Message::assistant("Synthetic reply".into());
+        message.metadata.ptc_loaded_deferred_tool_specs =
+            vec![bitfun_agent_tools::LoadedDeferredToolSpec {
+                tool_name: "Read".into(),
+                catalog_generation: 4,
+            }];
+        message.metadata.model_execution = Some(super::ModelExecutionMetadata {
+            model_config_id: "economy".into(),
+            effective_model_name: "economy-wire-model".into(),
+            routing: Some(bitfun_events::agentic::ModelRoutingDecision {
+                route: "economy".into(),
+                latency_ms: 10,
+                fallback_reason: None,
+            }),
+            timing: Some(super::ModelRoundTimingMetadata {
+                duration_ms: Some(1200),
+                ttft_ms: Some(300),
+                attempt_count: Some(1),
+                ..Default::default()
+            }),
+        });
+        let value = serde_json::to_value(&message).unwrap();
+        let restored: Message = serde_json::from_value(value.clone()).unwrap();
+        assert_eq!(
+            restored.metadata.ptc_loaded_deferred_tool_specs,
+            message.metadata.ptc_loaded_deferred_tool_specs
+        );
+        let execution = restored.metadata.model_execution.unwrap();
+        assert_eq!(execution.model_config_id, "economy");
+        assert_eq!(
+            execution.timing.and_then(|timing| timing.ttft_ms),
+            Some(300)
+        );
+        let mut legacy = value;
+        // Journals written before round timing existed still deserialize.
+        let mut untimed = legacy.clone();
+        untimed["metadata"]["model_execution"]
+            .as_object_mut()
+            .unwrap()
+            .remove("timing");
+        let untimed: Message = serde_json::from_value(untimed).unwrap();
+        assert!(untimed.metadata.model_execution.unwrap().timing.is_none());
+        let metadata = legacy["metadata"].as_object_mut().unwrap();
+        metadata.remove("ptc_loaded_deferred_tool_specs");
+        metadata.remove("model_execution");
+        let restored: Message = serde_json::from_value(legacy).unwrap();
+        assert!(restored.metadata.ptc_loaded_deferred_tool_specs.is_empty());
+        assert!(restored.metadata.model_execution.is_none());
+    }
+
+    #[test]
     fn preserves_empty_reasoning_content_for_provider_replay() {
         let msg = Message::assistant_with_reasoning(Some(String::new()), String::new(), vec![])
             .with_thinking_signature(Some("sig_1".to_string()));
@@ -844,6 +942,9 @@ mod tests {
         let message = Message::assistant("done".to_string()).with_model_response_replay(Some(
             ModelResponseReplay {
                 protocol: "openai_responses".to_string(),
+                channel_origin: None,
+                channel_fingerprint: None,
+                account_origin: None,
                 items: vec![ModelResponseReplayItem::OpaqueReasoning {
                     item_id: Some("rs_1".to_string()),
                     summary: vec![],
@@ -885,6 +986,9 @@ mod tests {
         let message = Message::assistant("done".to_string()).with_model_response_replay(Some(
             ModelResponseReplay {
                 protocol: "openai_responses".to_string(),
+                channel_origin: None,
+                channel_fingerprint: None,
+                account_origin: None,
                 items: vec![ModelResponseReplayItem::AssistantMessage],
             },
         ));

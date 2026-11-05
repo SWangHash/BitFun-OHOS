@@ -9,74 +9,29 @@ use super::{request as gemini_request, GeminiMessageConverter};
 use crate::client::sse::execute_sse_request;
 use crate::client::{AIClient, StreamResponse};
 use crate::providers::shared;
-use crate::stream::handle_gemini_stream_with_empty_tools;
+use crate::stream::handle_gemini_code_assist_stream;
 use crate::trace::ModelExchangeTraceConfig;
 use crate::types::{Message, RemoteModelInfo, ToolDefinition};
 use anyhow::{anyhow, Context, Result};
+use bitfun_core_types::errors::AiProviderError;
 use log::{debug, warn};
 use reqwest::RequestBuilder;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
+use std::time::Duration;
 use tokio::sync::Mutex;
 
 const CODE_ASSIST_BASE: &str = "https://cloudcode-pa.googleapis.com";
+pub(crate) const ANTIGRAVITY_DAILY_BASE: &str = "https://daily-cloudcode-pa.googleapis.com";
+const ANTIGRAVITY_SANDBOX_BASE: &str = "https://daily-cloudcode-pa.sandbox.googleapis.com";
 const STREAM_ENDPOINT: &str = "/v1internal:streamGenerateContent?alt=sse";
-const LOAD_CODE_ASSIST_ENDPOINT: &str = "/v1internal:loadCodeAssist";
-const ONBOARD_USER_ENDPOINT: &str = "/v1internal:onboardUser";
 const AVAILABLE_MODELS_ENDPOINT: &str = "/v1internal:fetchAvailableModels";
 
-struct CachedProject {
-    credential: [u8; 32],
-    antigravity: bool,
-    project: String,
-}
-
-fn cached_project() -> &'static Mutex<Option<CachedProject>> {
-    static CACHE: OnceLock<Mutex<Option<CachedProject>>> = OnceLock::new();
+fn cached_project() -> &'static Mutex<Option<(String, String)>> {
+    static CACHE: OnceLock<Mutex<Option<(String, String)>>> = OnceLock::new();
     CACHE.get_or_init(|| Mutex::new(None))
-}
-
-fn is_antigravity(client: &AIClient) -> bool {
-    client
-        .config
-        .custom_headers
-        .as_ref()
-        .is_some_and(|headers| {
-            headers.iter().any(|(name, value)| {
-                name.eq_ignore_ascii_case("Client-Metadata") && value.contains("ANTIGRAVITY")
-            })
-        })
-}
-
-async fn project_for(client: &AIClient) -> Option<String> {
-    let credential: [u8; 32] = Sha256::digest(client.config.api_key.as_bytes()).into();
-    cached_project()
-        .lock()
-        .await
-        .as_ref()
-        .filter(|entry| {
-            entry.credential == credential && entry.antigravity == is_antigravity(client)
-        })
-        .map(|entry| entry.project.clone())
-}
-
-async fn remember_project(client: &AIClient, project: String) -> String {
-    *cached_project().lock().await = Some(CachedProject {
-        credential: Sha256::digest(client.config.api_key.as_bytes()).into(),
-        antigravity: is_antigravity(client),
-        project: project.clone(),
-    });
-    project
-}
-
-fn client_metadata(client: &AIClient) -> serde_json::Value {
-    serde_json::json!({
-        "ideType": if is_antigravity(client) { "ANTIGRAVITY" } else { "IDE_UNSPECIFIED" },
-        "platform": "PLATFORM_UNSPECIFIED",
-        "pluginType": "GEMINI",
-    })
 }
 
 pub(crate) fn apply_headers(client: &AIClient, builder: RequestBuilder) -> RequestBuilder {
@@ -106,375 +61,73 @@ struct LoadCodeAssistResponse {
     #[serde(default, rename = "cloudaicompanionProject")]
     cloudaicompanion_project: Option<serde_json::Value>,
     #[serde(default, rename = "allowedTiers")]
-    allowed_tiers: Option<Vec<CodeAssistTier>>,
+    allowed_tiers: Vec<CodeAssistTier>,
+    #[serde(default, rename = "ineligibleTiers")]
+    ineligible_tiers: Vec<IneligibleTier>,
+}
+
+#[derive(Debug, Deserialize)]
+struct IneligibleTier {
+    #[serde(default, rename = "reasonMessage")]
+    reason_message: String,
+    #[serde(default, rename = "validationUrl")]
+    validation_url: Option<String>,
+}
+
+impl LoadCodeAssistResponse {
+    fn ineligibility_error(&self) -> Option<AiProviderError> {
+        if self.ineligible_tiers.is_empty() {
+            return None;
+        }
+        let reasons = self
+            .ineligible_tiers
+            .iter()
+            .map(|tier| match &tier.validation_url {
+                Some(url) => format!("{} ({url})", tier.reason_message),
+                None => tier.reason_message.clone(),
+            })
+            .collect::<Vec<_>>()
+            .join("; ");
+        let mut error = AiProviderError::classified(
+            format!("Antigravity account is not eligible: {reasons}"),
+            bitfun_core_types::errors::ErrorCategory::Permission,
+        );
+        error.provider = Some("Antigravity".to_string());
+        Some(error)
+    }
 }
 
 #[derive(Debug, Deserialize)]
 struct CodeAssistTier {
+    #[serde(default)]
     id: Option<String>,
     #[serde(default, rename = "isDefault")]
-    is_default: bool,
-}
-
-fn extract_project(value: Option<&serde_json::Value>) -> Option<String> {
-    value
-        .and_then(|value| {
-            value
-                .as_str()
-                .or_else(|| value.get("id").and_then(serde_json::Value::as_str))
-        })
-        .filter(|project| !project.trim().is_empty())
-        .map(str::to_string)
+    is_default: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
 struct OnboardOperation {
     #[serde(default)]
-    name: Option<String>,
-    #[serde(default)]
-    error: Option<serde_json::Value>,
-    #[serde(default)]
     done: Option<bool>,
     #[serde(default)]
     response: Option<OnboardResponse>,
+    #[serde(default)]
+    error: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
 struct OnboardResponse {
     #[serde(default, rename = "cloudaicompanionProject")]
-    cloudaicompanion_project: Option<OnboardProject>,
+    cloudaicompanion_project: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Deserialize)]
-struct OnboardProject {
-    #[serde(default)]
-    id: Option<String>,
-}
-
-async fn discover_project(client: &AIClient) -> Result<String> {
-    if let Some(project) = project_for(client).await {
-        return Ok(project);
-    }
-    if let Ok(project) = std::env::var("GOOGLE_CLOUD_PROJECT") {
-        if !project.is_empty() {
-            return Ok(remember_project(client, project).await);
-        }
-    }
-    let project = load_project(client, CODE_ASSIST_BASE).await?;
-    Ok(remember_project(client, project).await)
-}
-
-async fn load_project(client: &AIClient, base_url: &str) -> Result<String> {
-    let metadata = client_metadata(client);
-    let load_body = serde_json::json!({ "metadata": metadata });
-    let load_resp = post_code_assist(
-        client,
-        base_url,
-        LOAD_CODE_ASSIST_ENDPOINT,
-        &load_body,
-        None,
-    )
-    .await?;
-    let load_status = load_resp.status();
-    if !load_status.is_success() {
-        let body = load_resp.text().await.unwrap_or_default();
-        return Err(anyhow!("loadCodeAssist failed: HTTP {load_status}: {body}"));
-    }
-    let load_parsed: LoadCodeAssistResponse = load_resp.json().await?;
-    if let Some(project) = extract_project(load_parsed.cloudaicompanion_project.as_ref()) {
-        return Ok(project);
-    }
-
-    // Use the account's default tier when provisioning its managed project.
-    let tier = load_parsed
-        .allowed_tiers
-        .as_deref()
-        .unwrap_or_default()
-        .iter()
-        .find(|tier| tier.is_default)
-        .and_then(|tier| tier.id.as_deref())
-        .filter(|id| !id.trim().is_empty())
-        .unwrap_or("free-tier");
-    let onboard_body = serde_json::json!({
-        "tierId": tier,
-        "metadata": metadata,
-    });
-    let onboard_resp =
-        post_code_assist(client, base_url, ONBOARD_USER_ENDPOINT, &onboard_body, None).await?;
-    let onboard_status = onboard_resp.status();
-    if !onboard_status.is_success() {
-        let body = onboard_resp.text().await.unwrap_or_default();
-        return Err(anyhow!("onboardUser failed: HTTP {onboard_status}: {body}"));
-    }
-    let operation_url = onboard_resp.url().clone();
-    let parsed: OnboardOperation = onboard_resp.json().await?;
-    let completion = complete_onboarding(client, operation_url, parsed);
-    let parsed = if let Some(timeout) = client.stream_options.ttft_timeout {
-        tokio::time::timeout(timeout, completion)
-            .await
-            .context("Timed out waiting for the Code Assist project to finish onboarding")??
-    } else {
-        completion.await?
-    };
-    let project = parsed
-        .response
-        .and_then(|r| r.cloudaicompanion_project)
-        .and_then(|p| p.id)
-        .filter(|project| !project.trim().is_empty())
-        .ok_or_else(|| anyhow!("onboardUser response missing project id"))?;
-    Ok(project)
-}
-
-async fn complete_onboarding(
-    client: &AIClient,
-    mut operation_url: reqwest::Url,
-    mut operation: OnboardOperation,
-) -> Result<OnboardOperation> {
-    if let Some(error) = operation.error.as_ref().filter(|error| !error.is_null()) {
-        return Err(anyhow!("onboardUser operation failed: {error}"));
-    }
-    if operation.done.unwrap_or(false) {
-        return Ok(operation);
-    }
-    let name = operation
-        .name
-        .as_deref()
-        .filter(|name| !name.trim().is_empty())
-        .ok_or_else(|| anyhow!("Pending onboardUser operation has no operation name"))?;
-    operation_url.set_query(None);
-    operation_url
-        .path_segments_mut()
-        .map_err(|_| anyhow!("Invalid Code Assist operation URL"))?
-        .clear()
-        .push("v1internal")
-        .extend(name.split('/'));
-    while !operation.done.unwrap_or(false) {
-        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-        let response = apply_headers(client, client.client().get(operation_url.clone()))
-            .send()
-            .await?;
-        let status = response.status();
-        if !status.is_success() {
-            let body = response.text().await.unwrap_or_default();
-            return Err(anyhow!(
-                "Code Assist operation failed: HTTP {status}: {body}"
-            ));
-        }
-        operation = response.json().await?;
-        if let Some(error) = operation.error.as_ref().filter(|error| !error.is_null()) {
-            return Err(anyhow!("onboardUser operation failed: {error}"));
-        }
-    }
-    Ok(operation)
-}
-
-pub(crate) async fn send_stream(
-    client: &AIClient,
-    messages: Vec<Message>,
-    tools: Option<Vec<ToolDefinition>>,
-    extra_body: Option<serde_json::Value>,
-    max_tries: usize,
-    trace: Option<ModelExchangeTraceConfig>,
-) -> Result<StreamResponse> {
-    let (mut request_body, empty_tools) = build_request_body(client, messages, tools, extra_body)?;
-    let project = discover_project(client).await?;
-    request_body["project"] = serde_json::json!(project);
-    let url = if client.config.request_url.is_empty() {
-        format!("{}{}", CODE_ASSIST_BASE, STREAM_ENDPOINT)
-    } else {
-        client.config.request_url.clone()
-    };
-    debug!(
-        "Gemini Code Assist config: model={}, request_url={}, project={}, max_tries={}",
-        client.config.model, url, project, max_tries
-    );
-    let urls = endpoint_urls(&url, is_antigravity(client));
-    stream_from_urls(client, &request_body, &urls, max_tries, trace, empty_tools).await
-}
-
-fn build_request_body(
-    client: &AIClient,
-    messages: Vec<Message>,
-    tools: Option<Vec<ToolDefinition>>,
-    extra_body: Option<serde_json::Value>,
-) -> Result<(serde_json::Value, Vec<String>)> {
-    let antigravity = is_antigravity(client);
-    let (system_instruction, contents) =
-        GeminiMessageConverter::convert_messages(messages, &client.config.model);
-    let gemini_tools = if antigravity {
-        GeminiMessageConverter::convert_code_assist_tools(tools)
-    } else {
-        GeminiMessageConverter::convert_tools(tools)
-    };
-    let mut inner = gemini_request::try_build_code_assist_request_body(
-        client,
-        system_instruction,
-        contents,
-        gemini_tools,
-        extra_body,
-        antigravity,
-    )?;
-    let route = antigravity.then(|| resolve_antigravity_model(&client.config.model, &inner));
-    let model = route
+fn is_antigravity(client: &AIClient) -> bool {
+    client
+        .config
+        .custom_headers
         .as_ref()
-        .map(|route| route.model.clone())
-        .unwrap_or_else(|| client.config.model.clone());
-    if let Some(route) = route {
-        if inner["generationConfig"]["thinkingConfig"].is_null() {
-            let action = if let Some(level) = route.thinking_level {
-                Some(crate::types::ReasoningPresetAction::Effort { value: level })
-            } else if route.thinking_budget.is_some() {
-                let (_, tier) = strip_thinking_tier(client.config.model.trim());
-                tier.map(|tier| crate::types::ReasoningPresetAction::Effort {
-                    value: if tier == "max" { "high" } else { tier }.to_string(),
-                })
-            } else {
-                None
-            };
-            if let Some(action) = action {
-                super::antigravity::compile_reasoning_action(
-                    &action,
-                    &mut inner,
-                    &model,
-                    client.config.max_tokens,
-                )?;
-            }
-        }
-    }
-    let empty_tools = if antigravity {
-        super::antigravity::prepare_request(&model, &mut inner)?
-    } else {
-        Vec::new()
-    };
-    let mut request_body = serde_json::json!({
-        "model": model,
-        "request": inner,
-    });
-    if antigravity {
-        if let Some(obj) = request_body.as_object_mut() {
-            obj.insert(
-                "userAgent".to_string(),
-                serde_json::Value::String("antigravity".to_string()),
-            );
-        }
-    }
-
-    Ok((request_body, empty_tools))
-}
-
-fn endpoint_urls(primary: &str, antigravity: bool) -> Vec<String> {
-    let mut urls = vec![primary.to_string()];
-    if !antigravity {
-        return urls;
-    }
-    let Ok(mut parsed) = reqwest::Url::parse(primary) else {
-        return urls;
-    };
-    const HOSTS: &[&str] = &[
-        "cloudcode-pa.googleapis.com",
-        "daily-cloudcode-pa.sandbox.googleapis.com",
-        "autopush-cloudcode-pa.sandbox.googleapis.com",
-    ];
-    if parsed.scheme() != "https"
-        || parsed.port_or_known_default() != Some(443)
-        || !parsed.path().starts_with("/v1internal:")
-        || !parsed.host_str().is_some_and(|host| HOSTS.contains(&host))
-    {
-        return urls;
-    }
-    let primary_host = parsed.host_str().unwrap_or_default().to_string();
-    for host in HOSTS {
-        if *host != primary_host && parsed.set_host(Some(host)).is_ok() {
-            urls.push(parsed.to_string());
-        }
-    }
-    urls
-}
-
-fn compatible_endpoint_error(error: &anyhow::Error) -> bool {
-    if let Some(error) = error.downcast_ref::<bitfun_core_types::errors::AiProviderError>() {
-        return error.http_status.is_some_and(compatible_endpoint_status);
-    }
-    error
-        .downcast_ref::<reqwest::Error>()
-        .is_some_and(|error| error.is_connect() || error.is_timeout())
-}
-
-fn compatible_endpoint_status(status: u16) -> bool {
-    matches!(status, 403 | 404 | 500..=599)
-}
-
-async fn stream_from_urls(
-    client: &AIClient,
-    body: &serde_json::Value,
-    urls: &[String],
-    max_tries: usize,
-    trace: Option<ModelExchangeTraceConfig>,
-    empty_tools: Vec<String>,
-) -> Result<StreamResponse> {
-    let mut last_error = None;
-    for (index, url) in urls.iter().enumerate() {
-        let idle_timeout = client.stream_options.idle_timeout;
-        let result = execute_sse_request(
-            "Gemini Code Assist Streaming API",
-            url,
-            body,
-            max_tries,
-            client.stream_options.ttft_timeout,
-            trace.clone(),
-            || apply_headers(client, client.client().post(url)),
-            |response, tx, tx_raw, remaining_ttft_timeout| {
-                handle_gemini_stream_with_empty_tools(
-                    response,
-                    tx,
-                    tx_raw,
-                    remaining_ttft_timeout,
-                    idle_timeout,
-                    empty_tools.clone(),
-                )
-            },
-        )
-        .await;
-        match result {
-            Ok(stream) => return Ok(stream),
-            Err(error) if index + 1 < urls.len() && compatible_endpoint_error(&error) => {
-                warn!("Code Assist endpoint failed; trying the next compatible endpoint");
-                last_error = Some(error);
-            }
-            Err(error) => return Err(error),
-        }
-    }
-    Err(last_error.unwrap_or_else(|| anyhow!("No Code Assist endpoint is configured")))
-}
-
-async fn post_code_assist(
-    client: &AIClient,
-    base_url: &str,
-    endpoint: &str,
-    body: &serde_json::Value,
-    timeout: Option<std::time::Duration>,
-) -> Result<reqwest::Response> {
-    let urls = endpoint_urls(&format!("{base_url}{endpoint}"), is_antigravity(client));
-    for (index, url) in urls.iter().enumerate() {
-        let mut request = apply_headers(client, client.client().post(url)).json(body);
-        if let Some(timeout) = timeout {
-            request = request.timeout(timeout);
-        }
-        match request.send().await {
-            Ok(response)
-                if index + 1 < urls.len()
-                    && compatible_endpoint_status(response.status().as_u16()) =>
-            {
-                continue
-            }
-            Ok(response) => return Ok(response),
-            Err(error) if index + 1 < urls.len() && (error.is_connect() || error.is_timeout()) => {
-                continue
-            }
-            Err(error) => return Err(error.into()),
-        }
-    }
-    Err(anyhow!("No Code Assist endpoint is configured"))
+        .and_then(|headers| headers.get("Client-Metadata"))
+        .is_some_and(|value| value.contains("ANTIGRAVITY"))
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -588,6 +241,606 @@ fn resolve_antigravity_model(
     }
 }
 
+fn configure_antigravity_claude_tools(request: &mut serde_json::Value) {
+    let request = request
+        .as_object_mut()
+        .expect("Gemini request body must be an object");
+    let tool_config = request
+        .entry("toolConfig")
+        .or_insert_with(|| serde_json::json!({}));
+    if !tool_config.is_object() {
+        *tool_config = serde_json::json!({});
+    }
+    let tool_config = tool_config
+        .as_object_mut()
+        .expect("toolConfig must be an object");
+    let function_calling = tool_config
+        .entry("functionCallingConfig")
+        .or_insert_with(|| serde_json::json!({}));
+    if !function_calling.is_object() {
+        *function_calling = serde_json::json!({});
+    }
+    function_calling
+        .as_object_mut()
+        .expect("functionCallingConfig must be an object")
+        .insert(
+            "mode".to_string(),
+            serde_json::Value::String("VALIDATED".to_string()),
+        );
+
+    let Some(tools) = request
+        .get_mut("tools")
+        .and_then(serde_json::Value::as_array_mut)
+    else {
+        return;
+    };
+    for declarations in tools.iter_mut().filter_map(|tool| {
+        tool.get_mut("functionDeclarations")
+            .and_then(serde_json::Value::as_array_mut)
+    }) {
+        for declaration in declarations {
+            let Some(declaration) = declaration.as_object_mut() else {
+                continue;
+            };
+            let parameters = declaration
+                .entry("parameters")
+                .or_insert_with(|| serde_json::json!({ "type": "object" }));
+            if !parameters.is_object() {
+                *parameters = serde_json::json!({ "type": "object" });
+            }
+            let parameters = parameters
+                .as_object_mut()
+                .expect("tool parameters must be an object");
+            let has_properties = parameters
+                .get("properties")
+                .and_then(serde_json::Value::as_object)
+                .is_some_and(|properties| !properties.is_empty());
+            if has_properties {
+                continue;
+            }
+            parameters.insert("type".to_string(), serde_json::json!("object"));
+            parameters.insert(
+                "properties".to_string(),
+                serde_json::json!({
+                    "_placeholder": {
+                        "type": "boolean",
+                        "description": "Placeholder. Always pass true."
+                    }
+                }),
+            );
+            parameters.insert("required".to_string(), serde_json::json!(["_placeholder"]));
+        }
+    }
+}
+
+fn apply_antigravity_thinking(request: &mut serde_json::Value, route: &AntigravityModelRoute) {
+    if route.model.starts_with("claude-") {
+        configure_antigravity_claude_tools(request);
+    }
+    if route.thinking_level.is_none() && route.thinking_budget.is_none() {
+        return;
+    }
+    if !request
+        .get("generationConfig")
+        .is_some_and(serde_json::Value::is_object)
+    {
+        request["generationConfig"] = serde_json::json!({});
+    }
+    let generation = request["generationConfig"]
+        .as_object_mut()
+        .expect("generationConfig must be an object");
+    let thinking = generation
+        .entry("thinkingConfig")
+        .or_insert_with(|| serde_json::json!({}));
+    if !thinking.is_object() {
+        *thinking = serde_json::json!({});
+    }
+    let thinking = thinking
+        .as_object_mut()
+        .expect("thinkingConfig must be an object");
+
+    if let Some(level) = &route.thinking_level {
+        thinking.remove("thinkingBudget");
+        thinking.remove("thinking_budget");
+        thinking.insert("includeThoughts".to_string(), serde_json::Value::Bool(true));
+        thinking.insert(
+            "thinkingLevel".to_string(),
+            serde_json::Value::String(level.clone()),
+        );
+    } else if let Some(budget) = route.thinking_budget {
+        let include_thoughts = thinking
+            .remove("includeThoughts")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(true);
+        thinking.remove("thinkingLevel");
+        thinking.remove("thinkingBudget");
+        thinking.insert(
+            "include_thoughts".to_string(),
+            serde_json::Value::Bool(include_thoughts),
+        );
+        thinking.insert(
+            "thinking_budget".to_string(),
+            serde_json::Value::Number(budget.into()),
+        );
+        let max_output_tokens = generation
+            .get("maxOutputTokens")
+            .and_then(serde_json::Value::as_i64);
+        if max_output_tokens.is_none_or(|limit| limit <= budget) {
+            generation.insert(
+                "maxOutputTokens".to_string(),
+                serde_json::Value::Number(64_000.into()),
+            );
+        }
+    }
+}
+
+// HTTP Client-Metadata fingerprints are not the protobuf metadata accepted by
+// loadCodeAssist. In particular, MACOS/WINDOWS are invalid body platform enums.
+fn antigravity_metadata() -> serde_json::Value {
+    serde_json::json!({ "ideType": "ANTIGRAVITY" })
+}
+
+fn antigravity_onboard_body(client: &AIClient, tier: &str) -> serde_json::Value {
+    let mut metadata = serde_json::json!({
+        "ide_type": "ANTIGRAVITY",
+        "ide_name": "antigravity",
+    });
+    if let Some(version) = client
+        .config
+        .custom_headers
+        .as_ref()
+        .and_then(|headers| headers.get("User-Agent"))
+        .and_then(|ua| ua.strip_prefix("antigravity/hub/"))
+        .and_then(|ua| ua.split_whitespace().next())
+    {
+        metadata["ide_version"] = serde_json::json!(version);
+    }
+    serde_json::json!({ "tier_id": tier, "metadata": metadata })
+}
+
+fn antigravity_session_id(request: &serde_json::Value) -> String {
+    let contents = request
+        .get("contents")
+        .and_then(serde_json::Value::as_array);
+    let first_user =
+        contents.and_then(|contents| contents.iter().find(|content| content["role"] == "user"));
+    let text = first_user
+        .and_then(|content| content["parts"].as_array())
+        .and_then(|parts| {
+            parts
+                .iter()
+                .find_map(|part| part["text"].as_str().filter(|text| !text.is_empty()))
+        });
+    // Match Magpie's conversation identity without keeping host/session state in
+    // the adapter. Image-only requests still get a stable, content-derived id.
+    let fallback = first_user.unwrap_or(&serde_json::Value::Null).to_string();
+    let digest = Sha256::digest(text.unwrap_or(&fallback).as_bytes());
+    let value =
+        u64::from_be_bytes(digest[..8].try_into().expect("SHA-256 prefix")) & i64::MAX as u64;
+    format!("-{value}")
+}
+
+fn extract_project(value: Option<&serde_json::Value>) -> Option<String> {
+    value
+        .and_then(|value| {
+            value.as_str().map(str::to_string).or_else(|| {
+                value
+                    .get("id")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_string)
+            })
+        })
+        .filter(|project| !project.trim().is_empty())
+}
+
+fn default_tier(load: &LoadCodeAssistResponse) -> String {
+    load.allowed_tiers
+        .iter()
+        .find(|tier| tier.is_default.unwrap_or(false))
+        .or_else(|| load.allowed_tiers.first())
+        .and_then(|tier| tier.id.clone())
+        .filter(|tier| !tier.trim().is_empty())
+        .unwrap_or_else(|| "free-tier".to_string())
+}
+
+async fn remember_project(client: &AIClient, project: String) -> String {
+    *cached_project().lock().await = Some((client.config.api_key.clone(), project.clone()));
+    project
+}
+
+fn code_assist_error(label: &str, status: u16, body: &str) -> anyhow::Error {
+    let code = serde_json::from_str::<serde_json::Value>(body)
+        .ok()
+        .and_then(|value| value["error"]["status"].as_str().map(str::to_string));
+    AiProviderError::from_parts(
+        format!("{label} failed: HTTP {status}: {body}"),
+        Some("Gemini Code Assist".to_string()),
+        code,
+        Some(status),
+    )
+    .into()
+}
+
+// Only an unavailable route/transport may select another discovery endpoint.
+// Account denials and invalid payloads must retain their structured cause.
+fn should_try_next_discovery_endpoint(error: &anyhow::Error) -> bool {
+    match error.downcast_ref::<AiProviderError>() {
+        Some(error) => matches!(error.http_status, Some(404 | 500..=599)),
+        None => error.downcast_ref::<reqwest::Error>().is_some(),
+    }
+}
+
+async fn post_code_assist(
+    client: &AIClient,
+    endpoint: &str,
+    method: &str,
+    body: &serde_json::Value,
+) -> Result<serde_json::Value> {
+    validate_control_request(client).await?;
+    let url = format!("{endpoint}/v1internal:{method}");
+    let mut request =
+        apply_headers(client, client.client().post(&url)).timeout(Duration::from_secs(30));
+    if is_antigravity(client) && method == "onboardUser" {
+        let mut headers = reqwest::header::HeaderMap::new();
+        if let Some(ua) = client
+            .config
+            .custom_headers
+            .as_ref()
+            .and_then(|headers| headers.get("User-Agent"))
+        {
+            headers.insert(
+                reqwest::header::USER_AGENT,
+                format!("{ua} google-api-nodejs-client/10.3.0").parse()?,
+            );
+        }
+        headers.insert("x-goog-api-client", "gl-node/22.21.1".parse()?);
+        request = request.headers(headers);
+    }
+    let response = request
+        .json(body)
+        .send()
+        .await
+        .with_context(|| format!("{method} connection failed at {endpoint}"))?;
+    let status = response.status();
+    if !status.is_success() {
+        let body = response.text().await?;
+        return Err(code_assist_error(method, status.as_u16(), &body));
+    }
+    response
+        .json()
+        .await
+        .with_context(|| format!("parse {method} response"))
+}
+
+async fn validate_control_request(client: &AIClient) -> Result<()> {
+    if let Some(authorization) = client.request_authorization.as_ref() {
+        authorization.validate().await?;
+    }
+    #[cfg(feature = "subscription-auth")]
+    if let Some(identity) = client.account_identity.as_ref() {
+        identity.validate(client).await?;
+    }
+    Ok(())
+}
+
+async fn post_code_assist_at(
+    client: &AIClient,
+    endpoints: &[&str],
+    method: &str,
+    body: &serde_json::Value,
+) -> Result<serde_json::Value> {
+    for (index, endpoint) in endpoints.iter().enumerate() {
+        match post_code_assist(client, endpoint, method, body).await {
+            Ok(value) => return Ok(value),
+            Err(error)
+                if index + 1 < endpoints.len() && should_try_next_discovery_endpoint(&error) =>
+            {
+                warn!("Code Assist control endpoint unavailable: endpoint={endpoint}, error={error:#}");
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    Err(anyhow!("No Code Assist control endpoint was available"))
+}
+
+async fn discover_project_at(
+    client: &AIClient,
+    load_endpoints: &[&str],
+    onboard_endpoints: &[&str],
+) -> Result<String> {
+    let antigravity = is_antigravity(client);
+    let metadata = if antigravity {
+        antigravity_metadata()
+    } else {
+        serde_json::json!({
+            "ideType": "IDE_UNSPECIFIED", "platform": "PLATFORM_UNSPECIFIED",
+            "pluginType": "GEMINI",
+        })
+    };
+    let load_body = serde_json::json!({ "metadata": metadata });
+    let load: LoadCodeAssistResponse = serde_json::from_value(
+        post_code_assist_at(client, load_endpoints, "loadCodeAssist", &load_body).await?,
+    )
+    .context("parse loadCodeAssist response")?;
+    if let Some(project) = extract_project(load.cloudaicompanion_project.as_ref()) {
+        return Ok(project);
+    }
+    if antigravity && load.allowed_tiers.is_empty() && !load.ineligible_tiers.is_empty() {
+        return Err(load
+            .ineligibility_error()
+            .expect("nonempty ineligible tiers")
+            .into());
+    }
+    let tier = default_tier(&load);
+    let body = if antigravity {
+        antigravity_onboard_body(client, &tier)
+    } else {
+        serde_json::json!({ "tierId": tier, "metadata": metadata })
+    };
+    let attempts = if antigravity { 5 } else { 10 };
+    for attempt in 0..attempts {
+        let value = post_code_assist_at(client, onboard_endpoints, "onboardUser", &body).await?;
+        let operation: OnboardOperation =
+            serde_json::from_value(value).context("parse onboardUser response")?;
+        if let Some(error) = operation.error {
+            let status = error["code"]
+                .as_u64()
+                .and_then(|code| match code {
+                    // google.rpc.Code uses canonical RPC codes, not HTTP status.
+                    3 => Some(400),
+                    7 => Some(403),
+                    8 => Some(429),
+                    16 => Some(401),
+                    14 => Some(503),
+                    _ => None,
+                })
+                .unwrap_or(500);
+            return Err(code_assist_error(
+                "onboardUser",
+                status,
+                &serde_json::json!({ "error": error }).to_string(),
+            ));
+        }
+        if operation.done.unwrap_or(false) {
+            let setup = if antigravity {
+                "Antigravity app"
+            } else {
+                "Code Assist"
+            };
+            return operation
+                .response
+                .and_then(|response| extract_project(response.cloudaicompanion_project.as_ref()))
+                .ok_or_else(|| {
+                    if antigravity {
+                        if let Some(error) = load.ineligibility_error() {
+                            return error.into();
+                        }
+                    }
+                    AiProviderError::classified(
+                        format!("Code Assist onboardUser completed without a project; sign in to {setup} to finish account setup"),
+                        bitfun_core_types::errors::ErrorCategory::InvalidRequest,
+                    ).into()
+                });
+        }
+        if attempt + 1 < attempts {
+            tokio::time::sleep(Duration::from_secs(if antigravity { 2 } else { 5 })).await;
+        }
+    }
+    Err(anyhow!(
+        "Code Assist onboardUser did not complete; try again shortly"
+    ))
+}
+
+async fn discover_project(client: &AIClient) -> Result<String> {
+    {
+        let guard = cached_project().lock().await;
+        if let Some((credential, project)) = guard.as_ref() {
+            if credential == &client.config.api_key {
+                return Ok(project.clone());
+            }
+        }
+    }
+    if let Ok(project) = std::env::var("GOOGLE_CLOUD_PROJECT") {
+        if !project.trim().is_empty() {
+            return Ok(remember_project(client, project).await);
+        }
+    }
+    let antigravity = is_antigravity(client);
+    // Magpie discovers the managed project at production but sends Antigravity
+    // onboarding/inference to daily. Never invent a project after discovery fails.
+    let load_endpoints: &[&str] = if antigravity {
+        &[
+            CODE_ASSIST_BASE,
+            ANTIGRAVITY_DAILY_BASE,
+            ANTIGRAVITY_SANDBOX_BASE,
+        ]
+    } else {
+        &[CODE_ASSIST_BASE]
+    };
+    let onboard: &[&str] = if antigravity {
+        &[ANTIGRAVITY_DAILY_BASE, ANTIGRAVITY_SANDBOX_BASE]
+    } else {
+        &[CODE_ASSIST_BASE]
+    };
+    let discovery = discover_project_at(client, load_endpoints, onboard);
+    let project = if antigravity {
+        tokio::time::timeout(Duration::from_secs(30), discovery)
+            .await
+            .map_err(|_| {
+                AiProviderError::classified(
+                    "Code Assist project discovery timed out after 30s".to_string(),
+                    bitfun_core_types::errors::ErrorCategory::Timeout,
+                )
+            })??
+    } else {
+        discovery.await?
+    };
+    Ok(remember_project(client, project).await)
+}
+
+pub(crate) async fn send_stream(
+    client: &AIClient,
+    messages: Vec<Message>,
+    tools: Option<Vec<ToolDefinition>>,
+    extra_body: Option<serde_json::Value>,
+    max_tries: usize,
+    trace: Option<ModelExchangeTraceConfig>,
+) -> Result<StreamResponse> {
+    let project = discover_project(client).await?;
+
+    let (system_instruction, contents) =
+        GeminiMessageConverter::convert_messages(messages, &client.config.model);
+    let gemini_tools = GeminiMessageConverter::convert_tools(tools);
+    let mut inner = gemini_request::try_build_request_body(
+        client,
+        system_instruction,
+        contents,
+        gemini_tools,
+        extra_body,
+    )?;
+
+    let antigravity = is_antigravity(client);
+    let model = if antigravity {
+        let route = resolve_antigravity_model(&client.config.model, &inner);
+        apply_antigravity_thinking(&mut inner, &route);
+        inner["sessionId"] = serde_json::json!(antigravity_session_id(&inner));
+        route.model
+    } else {
+        client.config.model.clone()
+    };
+    let mut request_body = serde_json::json!({
+        "model": model,
+        "project": project,
+        "request": inner,
+    });
+    if antigravity {
+        if let Some(obj) = request_body.as_object_mut() {
+            obj.insert(
+                "userAgent".to_string(),
+                serde_json::Value::String("antigravity".to_string()),
+            );
+            obj.insert(
+                "requestType".to_string(),
+                serde_json::Value::String("agent".to_string()),
+            );
+            #[cfg(feature = "subscription-auth")]
+            obj.insert(
+                "requestId".to_string(),
+                serde_json::Value::String(format!("agent-{}", uuid::Uuid::new_v4())),
+            );
+        }
+    }
+
+    let configured_url = if client.config.request_url.is_empty() {
+        format!("{}{}", CODE_ASSIST_BASE, STREAM_ENDPOINT)
+    } else {
+        client.config.request_url.clone()
+    };
+    // Hub clients use daily first, with the legacy sandbox as a transport/route
+    // fallback. Production Code Assist inference serves a different product.
+    let urls = if antigravity {
+        vec![
+            format!("{ANTIGRAVITY_DAILY_BASE}{STREAM_ENDPOINT}"),
+            format!("{ANTIGRAVITY_SANDBOX_BASE}{STREAM_ENDPOINT}"),
+        ]
+    } else {
+        vec![configured_url]
+    };
+    debug!(
+        "Gemini Code Assist config: model={}, configured_model={}, request_url={}, max_tries={}",
+        model, client.config.model, urls[0], max_tries
+    );
+    send_code_assist_stream(client, &urls, &request_body, max_tries, trace).await
+}
+
+async fn send_code_assist_stream(
+    client: &AIClient,
+    urls: &[String],
+    request_body: &serde_json::Value,
+    max_tries: usize,
+    trace: Option<ModelExchangeTraceConfig>,
+) -> Result<StreamResponse> {
+    let idle_timeout = client.stream_options.idle_timeout;
+    let mut prior_error: Option<anyhow::Error> = None;
+    for (index, url) in urls.iter().enumerate() {
+        let result = execute_sse_request(
+            Some(client),
+            "Gemini Code Assist Streaming API",
+            url,
+            request_body,
+            max_tries,
+            client.stream_options.ttft_timeout,
+            trace.clone(),
+            || apply_headers(client, client.client().post(url)),
+            move |response, tx, tx_raw, remaining_ttft_timeout| {
+                handle_gemini_code_assist_stream(
+                    response,
+                    tx,
+                    tx_raw,
+                    remaining_ttft_timeout,
+                    idle_timeout,
+                )
+            },
+        )
+        .await;
+        match result {
+            Ok(response) => return Ok(response),
+            Err(error) if index + 1 < urls.len() && should_try_next_stream_endpoint(&error) => {
+                warn!(
+                    "Antigravity inference endpoint unavailable: endpoint={url}, error={error:#}"
+                );
+                prior_error = Some(error);
+            }
+            Err(error) => {
+                if error
+                    .downcast_ref::<AiProviderError>()
+                    .and_then(|e| e.http_status)
+                    .is_none()
+                {
+                    if let Some(prior) = prior_error {
+                        if prior
+                            .downcast_ref::<AiProviderError>()
+                            .and_then(|e| e.http_status)
+                            .is_some()
+                        {
+                            return Err(prior
+                                .context(format!("Antigravity fallback also failed: {error:#}")));
+                        }
+                    }
+                }
+                return Err(error);
+            }
+        }
+    }
+    Err(anyhow!("No Code Assist inference endpoint was available"))
+}
+
+fn should_try_next_stream_endpoint(error: &anyhow::Error) -> bool {
+    match error.downcast_ref::<AiProviderError>() {
+        Some(error) => match error.http_status {
+            Some(404 | 500..=599) => true,
+            None => matches!(
+                error.category,
+                bitfun_core_types::errors::ErrorCategory::Network
+                    | bitfun_core_types::errors::ErrorCategory::Timeout
+            ),
+            _ => false,
+        },
+        // The shared SSE executor currently returns untyped transport/TTFT errors.
+        None => true,
+    }
+}
+
+const DEFAULT_CODE_ASSIST_MODELS: &[(&str, &str)] = &[
+    ("gemini-3.1-pro-preview", "Gemini 3.1 Pro"),
+    ("gemini-3-pro-preview", "Gemini 3 Pro"),
+    ("gemini-3-flash-preview", "Gemini 3 Flash"),
+    ("gemini-3.1-flash-lite-preview", "Gemini 3.1 Flash Lite"),
+    ("gemini-2.5-pro", "Gemini 2.5 Pro"),
+    ("gemini-2.5-flash", "Gemini 2.5 Flash"),
+    ("gemini-2.5-flash-lite", "Gemini 2.5 Flash-Lite"),
+];
+
 #[derive(Deserialize)]
 struct AvailableModelsResponse {
     models: std::collections::BTreeMap<String, AvailableModel>,
@@ -601,63 +854,68 @@ struct AvailableModel {
 
 async fn list_antigravity_models(
     client: &AIClient,
-    base_url: &str,
+    endpoints: &[&str],
 ) -> Result<Vec<RemoteModelInfo>> {
-    // Opening a model picker must not provision a project or reuse another account's project.
+    // The hub catalog accepts an optional project. Listing must not provision a project just to open a
+    // picker, or borrow a different account's cached project.
     let mut body = serde_json::json!({});
-    if let Some(project) = project_for(client).await {
-        body["project"] = serde_json::json!(project);
+    if let Some((credential, project)) = cached_project().lock().await.as_ref() {
+        if credential == &client.config.api_key {
+            body["project"] = serde_json::json!(project);
+        }
     }
-    let response = post_code_assist(
-        client,
-        base_url,
-        AVAILABLE_MODELS_ENDPOINT,
-        &body,
-        Some(std::time::Duration::from_secs(
-            AIClient::STREAM_CONNECT_TIMEOUT_SECS,
-        )),
-    )
-    .await
-    .context("fetch Antigravity account models")?;
-    let status = response.status();
-    if !status.is_success() {
-        let body = response.text().await.unwrap_or_default();
-        return Err(anyhow!(
-            "Antigravity model discovery failed: HTTP {status}: {body}"
-        ));
+    let mut last_error = None;
+    for endpoint in endpoints {
+        validate_control_request(client).await?;
+        let url = format!("{endpoint}{AVAILABLE_MODELS_ENDPOINT}");
+        let response = match apply_headers(client, client.client().post(&url))
+            .timeout(std::time::Duration::from_secs(10))
+            .json(&body)
+            .send()
+            .await
+        {
+            Ok(response) => response,
+            Err(error) => {
+                last_error = Some(anyhow!(error).context("fetch Antigravity model catalog"));
+                continue;
+            }
+        };
+        let status = response.status();
+        if !status.is_success() {
+            let body = response.text().await?;
+            let error = code_assist_error("Antigravity model discovery", status.as_u16(), &body);
+            if status.as_u16() == 404 || status.is_server_error() {
+                last_error = Some(error);
+                continue;
+            }
+            return Err(error);
+        }
+        let payload = response
+            .json::<AvailableModelsResponse>()
+            .await
+            .context("parse Antigravity model catalog")?;
+        let models = crate::client::utils::dedupe_remote_models(
+            payload
+                .models
+                .into_iter()
+                .map(|(id, model)| RemoteModelInfo {
+                    routing: None,
+                    // Map keys are wire IDs. Display names and quota state must
+                    // never rename or hide newly published/account-specific IDs.
+                    id,
+                    display_name: model.display_name,
+                })
+                .collect(),
+        );
+        if models.is_empty() {
+            return Err(anyhow!(
+                "Antigravity returned no available models for this account"
+            ));
+        }
+        return Ok(models);
     }
-    let payload = response
-        .json::<AvailableModelsResponse>()
-        .await
-        .context("parse Antigravity account model catalog")?;
-    let models = crate::client::utils::dedupe_remote_models(
-        payload
-            .models
-            .into_iter()
-            .map(|(id, model)| RemoteModelInfo {
-                routing: None,
-                id,
-                display_name: model.display_name,
-            })
-            .collect(),
-    );
-    if models.is_empty() {
-        return Err(anyhow!(
-            "Antigravity returned no available models for this account"
-        ));
-    }
-    Ok(models)
+    Err(last_error.unwrap_or_else(|| anyhow!("No Antigravity model endpoint was available")))
 }
-
-const DEFAULT_CODE_ASSIST_MODELS: &[(&str, &str)] = &[
-    ("gemini-3.1-pro-preview", "Gemini 3.1 Pro"),
-    ("gemini-3-pro-preview", "Gemini 3 Pro"),
-    ("gemini-3-flash-preview", "Gemini 3 Flash"),
-    ("gemini-3.1-flash-lite-preview", "Gemini 3.1 Flash Lite"),
-    ("gemini-2.5-pro", "Gemini 2.5 Pro"),
-    ("gemini-2.5-flash", "Gemini 2.5 Flash"),
-    ("gemini-2.5-flash-lite", "Gemini 2.5 Flash-Lite"),
-];
 
 fn gemini_home_dir() -> Option<PathBuf> {
     std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".gemini"))
@@ -726,12 +984,17 @@ fn read_gemini_env_model(gemini_home: &Path) -> Option<String> {
     })
 }
 
-/// Antigravity uses its account catalog. Ordinary Code Assist keeps the existing
-/// defaults and local model selection.
+/// Antigravity exposes an authenticated model catalog, distinct from Gemini
+/// CLI's static defaults. Never report those defaults as live account models.
 pub(crate) async fn list_models(client: &AIClient) -> Result<Vec<RemoteModelInfo>> {
     if is_antigravity(client) {
-        return list_antigravity_models(client, CODE_ASSIST_BASE).await;
+        return list_antigravity_models(
+            client,
+            &[ANTIGRAVITY_DAILY_BASE, ANTIGRAVITY_SANDBOX_BASE],
+        )
+        .await;
     }
+
     let mut models = Vec::new();
 
     if let Some(gemini_home) = gemini_home_dir() {
@@ -759,77 +1022,64 @@ pub(crate) async fn list_models(client: &AIClient) -> Result<Vec<RemoteModelInfo
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use axum::{
-        http::{HeaderMap, StatusCode},
-        routing::{get, post},
-        Json, Router,
+    use super::{
+        antigravity_metadata, apply_antigravity_thinking, default_tier, extract_project,
+        resolve_antigravity_model, should_try_next_discovery_endpoint, AiProviderError,
+        CodeAssistTier, LoadCodeAssistResponse,
     };
-    use futures::StreamExt;
-    use serde_json::{json, Value};
-    use std::sync::Arc;
-
-    fn client(credential: &str, antigravity: bool) -> AIClient {
-        AIClient::new(serde_json::from_value(json!({
-            "name": "code-assist-test", "base_url": CODE_ASSIST_BASE, "request_url": "",
-            "api_key": credential, "model": "gemini-3.1-pro-preview", "format": "gemini-code-assist",
-            "context_window": 128000, "inline_think_in_text": false, "skip_ssl_verify": false,
-            "custom_headers": if antigravity {
-                json!({"user-agent": "antigravity/test", "client-metadata": json!({"ideType": "ANTIGRAVITY", "platform": "PLATFORM_UNSPECIFIED", "pluginType": "GEMINI"}).to_string()})
-            } else { json!({}) }
-        })).unwrap())
-    }
-
-    async fn serve(app: Router) -> (String, tokio::task::JoinHandle<()>) {
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let base = format!("http://{}", listener.local_addr().unwrap());
-        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
-        (base, server)
-    }
 
     #[tokio::test]
-    async fn lists_account_wire_ids_with_only_the_matching_cached_project() {
-        let bodies = Arc::new(Mutex::new(Vec::new()));
-        let captured = bodies.clone();
-        let app = Router::new().route(AVAILABLE_MODELS_ENDPOINT, post(move |headers: HeaderMap, Json(body): Json<Value>| {
-            let captured = captured.clone();
-            async move {
+    async fn discovers_live_account_models_and_preserves_their_wire_ids() {
+        use axum::{
+            http::{HeaderMap, StatusCode},
+            routing::post,
+            Json, Router,
+        };
+        use serde_json::{json, Value};
+        let app = Router::new()
+            .route("/unavailable/v1internal:fetchAvailableModels", post(|| async { StatusCode::NOT_FOUND }))
+            .route("/live/v1internal:fetchAvailableModels", post(|headers: HeaderMap, Json(body): Json<Value>| async move {
+                assert_eq!(headers["authorization"], "Bearer antigravity-catalog-test");
                 assert_eq!(headers["user-agent"], "antigravity/test");
-                assert!(headers["authorization"].to_str().unwrap().starts_with("Bearer catalog-"));
-                captured.lock().await.push(body);
+                assert_eq!(body, json!({}));
                 Json(json!({"models": {
-                    "Future-Model-preview-high": {"displayName": "Future model", "quotaInfo": {"remainingFraction": 0}},
-                    "gemini-3.1-pro-high": {"displayName": "Gemini Pro (High)"},
-                    "other-model": {}
+                    "gemini-3.8-flash-medium": {"displayName": "Gemini 3.8 Flash (Medium)"},
+                    "future-preview": {"displayName": "Future model", "quotaInfo": {"remainingFraction": 0}},
+                    "gpt-oss-120b-medium": {"displayName": "GPT-OSS 120B"}
                 }}))
-            }
-        }));
-        let (base, server) = serve(app).await;
-        let first = client("catalog-first", true);
-        let other = client("catalog-other", true);
-        let models = list_antigravity_models(&first, &base).await.unwrap();
-        remember_project(&first, "account-project".to_string()).await;
-        list_antigravity_models(&first, &base).await.unwrap();
-        list_antigravity_models(&other, &base).await.unwrap();
-        assert_eq!(project_for(&client("catalog-first", false)).await, None);
+            }));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+        let client = super::AIClient::new(serde_json::from_value(json!({
+            "name": "catalog-test", "base_url": base, "request_url": base,
+            "api_key": "antigravity-catalog-test", "model": "", "format": "gemini-code-assist",
+            "context_window": 128000, "inline_think_in_text": false, "skip_ssl_verify": false,
+            "custom_headers": {"User-Agent": "antigravity/test", "Client-Metadata": "ANTIGRAVITY"}
+        })).unwrap());
+        let unavailable = format!("{base}/unavailable");
+        let live = format!("{base}/live");
+        let models = super::list_antigravity_models(&client, &[&unavailable, &live])
+            .await
+            .unwrap();
         server.abort();
-        assert_eq!(
-            *bodies.lock().await,
-            vec![json!({}), json!({"project": "account-project"}), json!({})]
-        );
         assert_eq!(
             models
                 .iter()
                 .map(|model| model.id.as_str())
                 .collect::<Vec<_>>(),
             [
-                "Future-Model-preview-high",
-                "gemini-3.1-pro-high",
-                "other-model"
+                "future-preview",
+                "gemini-3.8-flash-medium",
+                "gpt-oss-120b-medium"
             ]
         );
-        assert_eq!(models[0].display_name.as_deref(), Some("Future model"));
-        assert_eq!(models[2].display_name, None);
+        assert_eq!(
+            models[1].display_name.as_deref(),
+            Some("Gemini 3.8 Flash (Medium)")
+        );
         for model in models {
             assert_eq!(
                 resolve_antigravity_model(&model.id, &json!({})).model,
@@ -839,536 +1089,526 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn reports_catalog_failures_without_static_models() {
-        for (status, body, expected) in [
-            (StatusCode::OK, json!({"models": {}}), "no available models"),
-            (
-                StatusCode::OK,
-                json!({}),
-                "parse Antigravity account model catalog",
-            ),
-            (
-                StatusCode::BAD_REQUEST,
-                json!({"error": "INVALID_ARGUMENT"}),
-                "INVALID_ARGUMENT",
-            ),
-        ] {
-            let app = Router::new().route(
-                AVAILABLE_MODELS_ENDPOINT,
-                post(move || {
-                    let body = body.clone();
-                    async move { (status, Json(body)) }
-                }),
+    async fn catalog_failure_does_not_masquerade_as_a_static_success() {
+        use axum::{http::StatusCode, routing::post, Json, Router};
+        use serde_json::json;
+        let app = Router::new()
+            .route(
+                "/denied/v1internal:fetchAvailableModels",
+                post(|| async { StatusCode::UNAUTHORIZED }),
+            )
+            .route(
+                "/empty/v1internal:fetchAvailableModels",
+                post(|| async { Json(json!({"models": {}})) }),
+            )
+            .route(
+                "/malformed/v1internal:fetchAvailableModels",
+                post(|| async { Json(json!({"unrecognized": []})) }),
             );
-            let (base, server) = serve(app).await;
-            let error = list_antigravity_models(&client("catalog-error", true), &base)
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+        let client = super::AIClient::new(
+            serde_json::from_value(json!({
+                "name": "catalog-test", "base_url": base, "request_url": base,
+                "api_key": "synthetic", "model": "", "format": "gemini-code-assist",
+                "context_window": 128000, "inline_think_in_text": false, "skip_ssl_verify": false
+            }))
+            .unwrap(),
+        );
+        for path in ["denied", "empty", "malformed"] {
+            let endpoint = format!("{base}/{path}");
+            let error = super::list_antigravity_models(&client, &[&endpoint])
                 .await
                 .unwrap_err();
-            server.abort();
-            assert!(format!("{error:#}").contains(expected), "{error:#}");
+            assert!(error.to_string().contains("Antigravity"), "{error:#}");
         }
-    }
-
-    #[tokio::test]
-    async fn sends_valid_metadata_and_onboards_the_account_default_tier() {
-        let app = Router::new()
-            .route(LOAD_CODE_ASSIST_ENDPOINT, post(|Json(body): Json<Value>| async move {
-                assert_eq!(body, json!({"metadata": {
-                    "ideType": "ANTIGRAVITY", "platform": "PLATFORM_UNSPECIFIED", "pluginType": "GEMINI"
-                }}));
-                Json(json!({"allowedTiers": [{"id": "other-tier"}, {"id": "account-tier", "isDefault": true}]}))
-            }))
-            .route(ONBOARD_USER_ENDPOINT, post(|Json(body): Json<Value>| async move {
-                assert_eq!(body["tierId"], "account-tier");
-                assert_eq!(body["metadata"]["platform"], "PLATFORM_UNSPECIFIED");
-                assert!(body.get("cloudaicompanionProject").is_none());
-                assert!(body["metadata"].get("duetProject").is_none());
-                Json(json!({"done": true, "response": {"cloudaicompanionProject": {"id": "managed-project"}}}))
-            }));
-        let (base, server) = serve(app).await;
-        let project = load_project(&client("initialization-test", true), &base)
-            .await
-            .unwrap();
         server.abort();
-        assert_eq!(project, "managed-project");
+    }
+
+    #[test]
+    fn accepts_string_and_object_project_shapes() {
+        assert_eq!(
+            extract_project(Some(&serde_json::json!("project-string"))).as_deref(),
+            Some("project-string")
+        );
+        assert_eq!(
+            extract_project(Some(&serde_json::json!({ "id": "project-object" }))).as_deref(),
+            Some("project-object")
+        );
+    }
+
+    #[test]
+    fn selects_the_provider_default_tier() {
+        let load = LoadCodeAssistResponse {
+            cloudaicompanion_project: None,
+            ineligible_tiers: vec![],
+            allowed_tiers: vec![
+                CodeAssistTier {
+                    id: Some("FIRST".to_string()),
+                    is_default: Some(false),
+                },
+                CodeAssistTier {
+                    id: Some("DEFAULT".to_string()),
+                    is_default: Some(true),
+                },
+            ],
+        };
+        assert_eq!(default_tier(&load), "DEFAULT");
+    }
+
+    fn antigravity_test_client() -> super::AIClient {
+        super::AIClient::new(
+            serde_json::from_value(serde_json::json!({
+                "name": "antigravity-test", "base_url": "", "request_url": "",
+                "api_key": "synthetic", "model": "gemini-3-flash-preview",
+                "format": "gemini-code-assist", "context_window": 128000,
+                "inline_think_in_text": false, "skip_ssl_verify": false,
+                "custom_headers": {"User-Agent": "antigravity/hub/2.19.1 darwin/arm64",
+                    "Client-Metadata": "{\"ideType\":\"ANTIGRAVITY\"}"}
+            }))
+            .unwrap(),
+        )
+    }
+
+    #[test]
+    fn sends_hub_control_plane_metadata_and_free_tier() {
+        let client = antigravity_test_client();
+        assert_eq!(
+            antigravity_metadata(),
+            serde_json::json!({"ideType": "ANTIGRAVITY"})
+        );
+        assert_eq!(
+            super::antigravity_onboard_body(&client, "free-tier"),
+            serde_json::json!({
+                "tier_id": "free-tier", "metadata": {
+                    "ide_type": "ANTIGRAVITY", "ide_name": "antigravity", "ide_version": "2.19.1"
+                }
+            })
+        );
+        let load: LoadCodeAssistResponse = serde_json::from_value(serde_json::json!({})).unwrap();
+        assert_eq!(default_tier(&load), "free-tier");
+    }
+
+    #[test]
+    fn discovery_does_not_retry_account_or_protocol_denials_at_other_products() {
+        let error = |status| {
+            anyhow::Error::new(AiProviderError::from_parts(
+                format!("HTTP {status}"),
+                Some("Antigravity".into()),
+                None,
+                Some(status),
+            ))
+            .context("request failed")
+        };
+        for status in [400, 401, 403, 429] {
+            assert!(!should_try_next_discovery_endpoint(&error(status)));
+        }
+        for status in [404, 503] {
+            assert!(should_try_next_discovery_endpoint(&error(status)));
+        }
+        assert!(!should_try_next_discovery_endpoint(&anyhow::anyhow!(
+            "invalid local config"
+        )));
+    }
+
+    #[test]
+    fn session_id_is_stable_across_turns_and_is_a_signed_decimal() {
+        use serde_json::json;
+        let mut request = json!({"contents": [{"role":"user", "parts":[{"text":"hi"}]}]});
+        let session = super::antigravity_session_id(&request);
+        // Magpie hashes the first user text and uses the first 63 bits.
+        assert_eq!(session, "-1099796703622425494");
+        request["contents"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"role":"model", "parts":[{"text":"reply"}]}));
+        request["contents"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"role":"user", "parts":[{"text":"next"}]}));
+        assert_eq!(super::antigravity_session_id(&request), session);
+        request["contents"][0]["parts"][0]["text"] = json!("another conversation");
+        assert_ne!(super::antigravity_session_id(&request), session);
     }
 
     #[tokio::test]
-    async fn preserves_initialization_parameter_errors() {
-        let app = Router::new().route(LOAD_CODE_ASSIST_ENDPOINT, post(|| async {
-            (StatusCode::BAD_REQUEST, Json(json!({"error": {"status": "INVALID_ARGUMENT", "message": "metadata.platform rejected"}})))
-        }));
-        let (base, server) = serve(app).await;
-        let error = load_project(&client("initialization-error", true), &base)
+    async fn discovers_and_onboards_the_real_account_project_in_both_response_shapes() {
+        use axum::{http::HeaderMap, routing::post, Json, Router};
+        use serde_json::{json, Value};
+        let app = Router::new()
+            .route("/v1internal:loadCodeAssist", post(|headers: HeaderMap, Json(body): Json<Value>| async move {
+                assert_eq!(headers["authorization"], "Bearer synthetic");
+                assert_eq!(headers["user-agent"], "antigravity/hub/2.19.1 darwin/arm64");
+                assert_eq!(body, json!({"metadata":{"ideType":"ANTIGRAVITY"}}));
+                Json(json!({"allowedTiers":[{"id":"free-tier","isDefault":true}]}))
+            }))
+            .route("/string/v1internal:onboardUser", post(|headers: HeaderMap, Json(body): Json<Value>| async move {
+                assert_eq!(headers["user-agent"], "antigravity/hub/2.19.1 darwin/arm64 google-api-nodejs-client/10.3.0");
+                assert_eq!(headers["x-goog-api-client"], "gl-node/22.21.1");
+                assert_eq!(body, json!({"tier_id":"free-tier","metadata":{
+                    "ide_type":"ANTIGRAVITY","ide_name":"antigravity","ide_version":"2.19.1"}}));
+                Json(json!({"done":true,"response":{"cloudaicompanionProject":"managed-project"}}))
+            }))
+            .route("/object/v1internal:onboardUser", post(|| async {
+                Json(json!({"done":true,"response":{"cloudaicompanionProject":{"id":"managed-project"}}}))
+            }))
+            .route("/existing/v1internal:loadCodeAssist", post(|| async {
+                Json(json!({"cloudaicompanionProject":"existing-project"}))
+            }));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+        let client = antigravity_test_client();
+        for path in ["string", "object"] {
+            assert_eq!(
+                super::discover_project_at(&client, &[&base], &[&format!("{base}/{path}")])
+                    .await
+                    .unwrap(),
+                "managed-project"
+            );
+        }
+        assert_eq!(
+            super::discover_project_at(
+                &client,
+                &[&format!("{base}/existing")],
+                &[&format!("{base}/must-not-onboard")]
+            )
+            .await
+            .unwrap(),
+            "existing-project"
+        );
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn discovery_and_onboarding_errors_never_invent_a_project() {
+        use axum::{http::StatusCode, routing::post, Json, Router};
+        use serde_json::json;
+        let app = Router::new()
+            .route("/denied/v1internal:loadCodeAssist", post(|| async {
+                (StatusCode::FORBIDDEN, Json(json!({"error":{"code":403,"status":"PERMISSION_DENIED","message":"UNSUPPORTED_LOCATION"}})))
+            }))
+            .route("/missing/v1internal:loadCodeAssist", post(|| async { StatusCode::NOT_FOUND }))
+            .route("/live/v1internal:loadCodeAssist", post(|| async { Json(json!({"cloudaicompanionProject":{"id":"live-project"}})) }))
+            .route("/empty/v1internal:loadCodeAssist", post(|| async { Json(json!({})) }))
+            .route("/ineligible/v1internal:loadCodeAssist", post(|| async {
+                Json(json!({"ineligibleTiers":[{"reasonMessage":"Verify your account","validationUrl":"https://example.test/verify"}]}))
+            }))
+            .route("/empty/v1internal:onboardUser", post(|| async { Json(json!({"done":true,"response":{}})) }))
+            .route("/operation-error/v1internal:onboardUser", post(|| async {
+                Json(json!({"done":true,"error":{"code":7,"message":"Permission denied"}}))
+            }));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+        let client = antigravity_test_client();
+        let denied = format!("{base}/denied");
+        let live = format!("{base}/live");
+        let error = super::discover_project_at(&client, &[&denied, &live], &[&live])
             .await
             .unwrap_err();
-        server.abort();
-        let message = format!("{error:#}");
-        assert!(
-            message.contains("400")
-                && message.contains("INVALID_ARGUMENT")
-                && message.contains("metadata.platform")
-        );
-    }
-
-    #[test]
-    fn accepts_legacy_and_object_project_responses() {
-        for (payload, expected) in [
-            (
-                json!({"cloudaicompanionProject": "legacy-project"}),
-                Some("legacy-project"),
-            ),
-            (
-                json!({"cloudaicompanionProject": {"id": "object-project"}, "allowedTiers": null}),
-                Some("object-project"),
-            ),
-            (json!({"cloudaicompanionProject": null}), None),
-        ] {
-            let load: LoadCodeAssistResponse = serde_json::from_value(payload).unwrap();
-            assert_eq!(
-                extract_project(load.cloudaicompanion_project.as_ref()).as_deref(),
-                expected
-            );
-        }
-    }
-
-    #[test]
-    fn preserves_legacy_aliases_and_account_wire_ids() {
-        let plain = json!({});
-        for (alias, wire) in [
-            ("gemini-3-pro-preview", "gemini-3-pro-low"),
-            ("gemini-3.1-pro-preview", "gemini-3.1-pro-low"),
-            ("gemini-3.1-pro-preview-customtools", "gemini-3.1-pro-low"),
-            ("gemini-3-flash-preview", "gemini-3-flash"),
-            ("antigravity-gemini-3-pro-high", "gemini-3-pro-high"),
-            ("gemini-3-flash-high", "gemini-3-flash"),
-            ("claude-opus-4-6-thinking-low", "claude-opus-4-6-thinking"),
-            ("claude-opus-4-6-thinking-high", "claude-opus-4-6-thinking"),
-        ] {
-            assert_eq!(resolve_antigravity_model(alias, &plain).model, wire);
-        }
-        let high = json!({"generationConfig": {"thinkingConfig": {"thinkingLevel": "HIGH"}}});
         assert_eq!(
-            resolve_antigravity_model("gemini-3.1-pro-preview", &high).model,
-            "gemini-3.1-pro-high"
+            error.downcast_ref::<AiProviderError>().unwrap().http_status,
+            Some(403)
         );
-    }
-
-    #[tokio::test]
-    async fn keeps_ordinary_code_assist_defaults() {
-        let ordinary = client("ordinary-test", false);
-        assert_eq!(client_metadata(&ordinary)["ideType"], "IDE_UNSPECIFIED");
-        let models = list_models(&ordinary).await.unwrap();
-        assert!(models
-            .iter()
-            .any(|model| model.id == "gemini-3.1-pro-preview"));
-    }
-
-    #[tokio::test]
-    async fn completes_pending_onboarding_and_preserves_operation_failures() {
-        for (operation, expected) in [
-            (
-                json!({"done": false, "name": "operations/account-setup"}),
-                "managed-project",
-            ),
-            (json!({"done": false}), "no operation name"),
-            (
-                json!({"done": true, "error": {"message": "account is ineligible"}}),
-                "account is ineligible",
-            ),
-        ] {
-            let app = Router::new()
-                .route(LOAD_CODE_ASSIST_ENDPOINT, post(|| async { Json(json!({"allowedTiers": [{"id": "account-tier", "isDefault": true}]})) }))
-                .route(ONBOARD_USER_ENDPOINT, post(move || {
-                    let operation = operation.clone();
-                    async move { Json(operation) }
-                }))
-                .route("/v1internal/operations/account-setup", get(|headers: HeaderMap| async move {
-                    assert!(headers["authorization"].to_str().unwrap().starts_with("Bearer "));
-                    Json(json!({"done": true, "response": {"cloudaicompanionProject": {"id": "managed-project"}}}))
-                }));
-            let (base, server) = serve(app).await;
-            let result = load_project(&client("pending-project", true), &base).await;
-            server.abort();
-            let actual = match result {
-                Ok(project) => project,
-                Err(error) => format!("{error:#}"),
-            };
-            assert!(actual.contains(expected), "{actual}");
-        }
-    }
-
-    #[test]
-    fn compiles_subscription_presets_and_preserves_ordinary_request_configuration() {
-        use crate::types::{ReasoningPresetAction, ReasoningPresetDescriptor};
-        let preset = |action| ReasoningPresetDescriptor {
-            id: "selected".into(),
-            label: "Selected".into(),
-            order: 0,
-            actions: vec![action],
-            source: bitfun_core_types::ReasoningPresetSource::ModelConfig,
-            execution_provider: None,
-            execution_model: None,
-        };
-        for (model, action, expected) in [
-            (
-                "gemini-3.1-pro-preview",
-                ReasoningPresetAction::Effort {
-                    value: "high".into(),
-                },
-                json!({"includeThoughts": true, "thinkingLevel": "HIGH"}),
-            ),
-            (
-                "claude-opus-4-6-thinking",
-                ReasoningPresetAction::BudgetTokens { value: 4096 },
-                json!({"include_thoughts": true, "thinking_budget": 4096}),
-            ),
-            (
-                "claude-opus-4-6-thinking",
-                ReasoningPresetAction::Toggle { enabled: false },
-                json!({"include_thoughts": false}),
-            ),
-        ] {
-            let mut subscription = client("reasoning", true);
-            subscription.config.model = model.into();
-            subscription.config.max_tokens = Some(16384);
-            subscription = subscription.with_reasoning_preset(&preset(action));
-            let (body, _) = build_request_body(
-                &subscription,
-                vec![Message::user("Hello".into())],
-                None,
-                None,
-            )
-            .unwrap();
-            assert_eq!(
-                body["request"]["generationConfig"]["thinkingConfig"],
-                expected
-            );
-            assert_eq!(
-                body["request"]["generationConfig"]["maxOutputTokens"],
-                16384
-            );
-            if model.starts_with("gemini") {
-                assert_eq!(body["model"], "gemini-3.1-pro-high");
-            }
-        }
-        for (configured, wire, expected) in [
-            (
-                "gemini-3-flash-high",
-                "gemini-3-flash",
-                json!({"includeThoughts": true, "thinkingLevel": "HIGH"}),
-            ),
-            (
-                "claude-opus-4-6-thinking-high",
-                "claude-opus-4-6-thinking",
-                json!({"include_thoughts": true, "thinking_budget": 32768}),
-            ),
-        ] {
-            let mut subscription = client("legacy-reasoning", true);
-            subscription.config.model = configured.into();
-            subscription.config.max_tokens = Some(65536);
-            let (body, _) = build_request_body(
-                &subscription,
-                vec![Message::user("Hello".into())],
-                None,
-                None,
-            )
-            .unwrap();
-            assert_eq!(body["model"], wire);
-            assert_eq!(
-                body["request"]["generationConfig"]["thinkingConfig"],
-                expected
-            );
-            assert_eq!(
-                body["request"]["generationConfig"]["maxOutputTokens"],
-                65536
-            );
-        }
-        let mut ordinary = client("ordinary-reasoning", false);
-        ordinary.config.model = "gemini-2.5-flash".into();
-        ordinary = ordinary
-            .with_reasoning_preset(&preset(ReasoningPresetAction::Toggle { enabled: false }));
-        let messages = vec![Message::user("Hello".into())];
-        let (_, contents) =
-            GeminiMessageConverter::convert_messages(messages.clone(), &ordinary.config.model);
-        let expected =
-            gemini_request::try_build_request_body(&ordinary, None, contents, None, None).unwrap();
-        let (body, empty_tools) = build_request_body(&ordinary, messages, None, None).unwrap();
-        assert_eq!(body["request"], expected);
-        assert!(body.get("userAgent").is_none() && empty_tools.is_empty());
-    }
-
-    #[tokio::test]
-    async fn streams_plain_and_wrapped_events_through_multiple_tool_rounds() {
-        for (model, antigravity) in [
-            ("gemini-2.5-flash", false),
-            ("gemini-3.1-pro-high", true),
-            ("claude-opus-4-6-thinking", true),
-        ] {
-            let bodies = Arc::new(Mutex::new(Vec::new()));
-            let captured = bodies.clone();
-            let app = Router::new().route("/stream", post(move |headers: HeaderMap, Json(body): Json<Value>| {
-                let captured = captured.clone();
-                async move {
-                    assert!(headers["authorization"].to_str().unwrap().starts_with("Bearer "));
-                    assert!(!headers.contains_key("x-goog-api-key"));
-                    let tool_round = body["request"]["contents"].as_array().unwrap().iter()
-                        .any(|content| content["parts"].as_array().is_some_and(|parts| parts.iter().any(|part| part.get("functionResponse").is_some())));
-                    captured.lock().await.push(body);
-                    let mut payload = if tool_round {
-                        json!({"candidates": [{"content": {"parts": [{"text": "Done"}]}, "finishReason": "STOP"}]})
-                    } else {
-                        let arguments = if model.starts_with("claude") { json!({super::super::antigravity::EMPTY_PARAMETER_NAME: true}) } else { json!({}) };
-                        json!({"candidates": [{"content": {"parts": [
-                            {"thought": true, "text": "Plan", "thoughtSignature": "test-signature"},
-                            {"functionCall": {"name": "list", "args": arguments}, "thoughtSignature": "test-signature"},
-                            {"functionCall": {"name": "configure", "args": {super::super::antigravity::EMPTY_PARAMETER_NAME: true}}},
-                            {"text": "Ready"}
-                        ]}, "finishReason": "STOP"}], "usageMetadata": {"promptTokenCount": 10, "candidatesTokenCount": 6, "thoughtsTokenCount": 2, "totalTokenCount": 18}})
-                    };
-                    if antigravity { payload = json!({"response": payload, "traceId": "test"}); }
-                    ([("content-type", "text/event-stream")], format!("data: {payload}\n\n"))
-                }
-            }));
-            let (base, server) = serve(app).await;
-            let mut subscription = client("stream-test", antigravity);
-            subscription.config.model = model.into();
-            let tools = vec![
-                ToolDefinition {
-                    name: "list".into(),
-                    description: "List entries".into(),
-                    parameters: json!({"type": "object", "properties": {}}),
-                },
-                ToolDefinition {
-                    name: "configure".into(),
-                    description: "Configure".into(),
-                    parameters: json!({"type": "object", "properties": {super::super::antigravity::EMPTY_PARAMETER_NAME: {"type": "boolean"}}}),
-                },
-            ];
-            let mut messages = vec![Message::user("List and configure".into())];
-            let (mut body, empty_tools) =
-                build_request_body(&subscription, messages.clone(), Some(tools.clone()), None)
-                    .unwrap();
-            body["project"] = json!("account-project");
-            let urls = vec![format!("{base}/stream")];
-            let mut response = stream_from_urls(&subscription, &body, &urls, 1, None, empty_tools)
+        assert!(error.to_string().contains("UNSUPPORTED_LOCATION"));
+        assert_eq!(
+            super::discover_project_at(&client, &[&format!("{base}/missing"), &live], &[&live])
                 .await
-                .unwrap();
-            let mut chunks = Vec::new();
-            while let Some(chunk) = response.stream.next().await {
-                chunks.push(chunk.unwrap());
-            }
-            assert!(chunks
-                .iter()
-                .any(|chunk| chunk.reasoning_content.as_deref() == Some("Plan")));
-            assert!(chunks
-                .iter()
-                .any(|chunk| chunk.text.as_deref() == Some("Ready")));
-            assert_eq!(
-                chunks
-                    .iter()
-                    .find_map(|chunk| chunk.usage.as_ref())
-                    .unwrap()
-                    .prompt_token_count,
-                10
-            );
-            assert_eq!(
-                chunks.last().unwrap().finish_reason.as_deref(),
-                Some("STOP")
-            );
-            let mut calls = Vec::new();
-            for call in chunks.iter().filter_map(|chunk| chunk.tool_call.as_ref()) {
-                let arguments: Value =
-                    serde_json::from_str(call.arguments.as_deref().unwrap()).unwrap();
-                if call.name.as_deref() == Some("list") {
-                    assert_eq!(arguments, json!({}));
-                } else {
-                    assert_eq!(
-                        arguments,
-                        json!({super::super::antigravity::EMPTY_PARAMETER_NAME: true})
-                    );
-                }
-                calls.push(
-                    serde_json::from_value(
-                        json!({"id": call.id, "name": call.name, "arguments": arguments}),
-                    )
-                    .unwrap(),
-                );
-            }
-            assert_eq!(calls.len(), 2);
-            let mut assistant = Message::assistant_with_tools(calls);
-            assistant.thinking_signature = Some("test-signature".into());
-            messages.push(assistant);
-            for name in ["list", "configure"] {
-                messages.push(
-                    serde_json::from_value(
-                        json!({"role": "tool", "name": name, "content": "{\"ok\":true}"}),
-                    )
-                    .unwrap(),
-                );
-            }
-            let (mut followup, empty_tools) =
-                build_request_body(&subscription, messages, Some(tools), None).unwrap();
-            followup["project"] = json!("account-project");
-            assert_eq!(
-                followup["request"]["contents"][1]["parts"][0]["functionCall"]["args"],
-                json!({})
-            );
-            assert_eq!(
-                followup["request"]["contents"][1]["parts"][0]["thoughtSignature"],
-                "test-signature"
-            );
-            let mut response =
-                stream_from_urls(&subscription, &followup, &urls, 1, None, empty_tools)
-                    .await
-                    .unwrap();
-            assert_eq!(
-                response
-                    .stream
-                    .next()
-                    .await
-                    .unwrap()
-                    .unwrap()
-                    .text
-                    .as_deref(),
-                Some("Done")
-            );
-            assert!(response.stream.next().await.is_none());
-            assert_eq!(bodies.lock().await.len(), 2);
-            server.abort();
-        }
+                .unwrap(),
+            "live-project"
+        );
+        let error = super::discover_project_at(&client, &[&format!("{base}/ineligible")], &[&live])
+            .await
+            .unwrap_err();
+        assert_eq!(
+            error.downcast_ref::<AiProviderError>().unwrap().category,
+            bitfun_core_types::errors::ErrorCategory::Permission
+        );
+        assert!(error.to_string().contains("https://example.test/verify"));
+        let empty = format!("{base}/empty");
+        let error = super::discover_project_at(&client, &[&empty], &[&empty])
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("without a project"));
+        let error =
+            super::discover_project_at(&client, &[&empty], &[&format!("{base}/operation-error")])
+                .await
+                .unwrap_err();
+        assert_eq!(
+            error.downcast_ref::<AiProviderError>().unwrap().http_status,
+            Some(403)
+        );
+        server.abort();
     }
 
     #[tokio::test]
-    async fn falls_back_only_for_compatible_http_and_connection_failures() {
-        for (status, should_fallback) in [
-            (Some(400), false),
-            (Some(401), false),
-            (Some(429), false),
-            (Some(403), true),
-            (Some(404), true),
-            (Some(500), true),
-            (Some(503), true),
-            (None, true),
-        ] {
-            let requests = Arc::new(Mutex::new(Vec::new()));
-            let failed = requests.clone();
-            let success = requests.clone();
-            let app = Router::new()
-                .route("/first", post(move || {
-                    let requests = failed.clone();
-                    async move {
-                        requests.lock().await.push("first");
-                        (StatusCode::from_u16(status.unwrap_or(503)).unwrap(), Json(json!({"error": {"message": "request rejected"}})))
-                    }
-                }))
-                .route("/second", post(move || {
-                    let requests = success.clone();
-                    async move {
-                        requests.lock().await.push("second");
-                        ([("content-type", "text/event-stream")], "data: {\"response\":{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"OK\"}]},\"finishReason\":\"STOP\"}]}}\n\n")
-                    }
-                }));
-            let (base, server) = serve(app).await;
-            let first_url = if status.is_some() {
-                format!("{base}/first")
-            } else {
-                let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-                let url = format!("http://{}/stream", listener.local_addr().unwrap());
-                drop(listener);
-                url
-            };
-            let urls = vec![first_url, format!("{base}/second")];
-            let result = stream_from_urls(
-                &client("fallback-test", true),
-                &json!({}),
-                &urls,
-                1,
-                None,
-                Vec::new(),
-            )
-            .await;
-            if should_fallback {
-                let mut response = result.unwrap();
-                assert_eq!(
-                    response
-                        .stream
-                        .next()
-                        .await
-                        .unwrap()
-                        .unwrap()
-                        .text
-                        .as_deref(),
-                    Some("OK")
-                );
-                let expected = if status.is_some() {
-                    vec!["first", "second"]
-                } else {
-                    vec!["second"]
-                };
-                assert_eq!(*requests.lock().await, expected);
-            } else {
-                let error = match result {
-                    Err(error) => error,
-                    Ok(_) => panic!("parameter, auth, and quota failures must stop"),
-                };
-                assert_eq!(
-                    error
-                        .downcast_ref::<bitfun_core_types::errors::AiProviderError>()
-                        .unwrap()
-                        .http_status,
-                    status
-                );
-                assert_eq!(*requests.lock().await, ["first"]);
-            }
-            server.abort();
-        }
-    }
-
-    #[test]
-    fn endpoint_fallback_preserves_explicit_custom_urls_and_ordinary_routes() {
-        for url in [
-            "https://example.com/v1internal:streamGenerateContent?alt=sse",
-            "http://cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse",
-            "https://cloudcode-pa.googleapis.com:8443/v1internal:streamGenerateContent?alt=sse",
-        ] {
-            assert_eq!(endpoint_urls(url, true), [url]);
-        }
-        let primary = format!("{CODE_ASSIST_BASE}{STREAM_ENDPOINT}");
-        assert_eq!(endpoint_urls(&primary, false), [primary.clone()]);
-        let urls = endpoint_urls(&primary, true);
-        assert_eq!(urls.len(), 3);
-        assert_eq!(urls[0], primary);
-        assert!(urls.iter().all(|url| url.ends_with(STREAM_ENDPOINT)));
-    }
-
-    #[tokio::test]
-    async fn surfaces_embedded_stream_errors_without_replaying_the_request() {
-        let app = Router::new().route("/stream", post(|| async {
-            ([("content-type", "text/event-stream")], "data: {\"response\":{\"error\":{\"status\":\"INVALID_ARGUMENT\",\"message\":\"invalid tool parameters\"}}}\n\n")
-        }));
-        let (base, server) = serve(app).await;
-        let urls = vec![format!("{base}/stream"), "http://127.0.0.1:1/unused".into()];
-        let mut response = stream_from_urls(
-            &client("embedded-error", true),
+    async fn inference_falls_back_on_transport_failure_but_preserves_account_denials() {
+        use axum::{http::StatusCode, routing::post, Json, Router};
+        use futures::StreamExt;
+        use serde_json::json;
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
+        let live_calls = Arc::new(AtomicUsize::new(0));
+        let counter = live_calls.clone();
+        let app = Router::new()
+            .route("/live", post(move || {
+                counter.fetch_add(1, Ordering::SeqCst);
+                async { ([("content-type", "text/event-stream")],
+                    "data: {\"response\":{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"OK\"}]},\"finishReason\":\"STOP\"}]}}\n\n") }
+            }))
+            .route("/denied", post(|| async {
+                (StatusCode::FORBIDDEN, Json(json!({"error":{"status":"PERMISSION_DENIED","message":"UNSUPPORTED_LOCATION"}})))
+            }))
+            .route("/quota", post(|| async {
+                (StatusCode::TOO_MANY_REQUESTS, Json(json!({"error":{"status":"RESOURCE_EXHAUSTED","message":"Resource exhausted"}})))
+            }))
+            .route("/unavailable", post(|| async { StatusCode::SERVICE_UNAVAILABLE }));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let unused = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let refused = format!("http://{}/stream", unused.local_addr().unwrap());
+        drop(unused);
+        let server = tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+        let client = antigravity_test_client();
+        let mut response = super::send_code_assist_stream(
+            &client,
+            &[refused.clone(), format!("{base}/live")],
             &json!({}),
-            &urls,
             1,
             None,
-            Vec::new(),
         )
         .await
         .unwrap();
-        let error = response.stream.next().await.unwrap().unwrap_err();
-        let provider_error = error
-            .downcast_ref::<bitfun_core_types::errors::AiProviderError>()
-            .unwrap();
+        let mut text = String::new();
+        while let Some(chunk) = response.stream.next().await {
+            if let Some(part) = chunk.unwrap().text {
+                text.push_str(&part);
+            }
+        }
+        assert_eq!(text, "OK");
+        for (path, status) in [("denied", 403), ("quota", 429)] {
+            let error = super::send_code_assist_stream(
+                &client,
+                &[format!("{base}/{path}"), format!("{base}/live")],
+                &json!({}),
+                1,
+                None,
+            )
+            .await
+            .err()
+            .expect("account denial must fail");
+            assert_eq!(
+                error.downcast_ref::<AiProviderError>().unwrap().http_status,
+                Some(status)
+            );
+        }
+        assert_eq!(live_calls.load(Ordering::SeqCst), 1);
+        let error = super::send_code_assist_stream(
+            &client,
+            &[format!("{base}/unavailable"), refused],
+            &json!({}),
+            1,
+            None,
+        )
+        .await
+        .err()
+        .expect("both endpoints failed");
         assert_eq!(
-            provider_error.provider_code.as_deref(),
-            Some("INVALID_ARGUMENT")
+            error.downcast_ref::<AiProviderError>().unwrap().http_status,
+            Some(503)
         );
-        assert!(provider_error.message.contains("invalid tool parameters"));
-        assert!(response.stream.next().await.is_none());
         server.abort();
+    }
+
+    #[tokio::test]
+    async fn onboarding_fallback_retains_upstream_ineligibility_when_project_is_null() {
+        use axum::{http::StatusCode, routing::post, Json, Router};
+        use serde_json::json;
+        let app = Router::new()
+            .route("/v1internal:loadCodeAssist", post(|| async { Json(json!({
+                "allowedTiers":[{"id":"standard-tier","isDefault":true}],
+                "ineligibleTiers":[{"tierId":"free-tier","reasonMessage":"Antigravity is not available in your location"}]
+            })) }))
+            .route("/old/v1internal:onboardUser", post(|| async { StatusCode::NOT_FOUND }))
+            .route("/live/v1internal:onboardUser", post(|| async {
+                Json(json!({"done":true,"response":{"cloudaicompanionProject":null}}))
+            }));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+        let error = super::discover_project_at(
+            &antigravity_test_client(),
+            &[&base],
+            &[&format!("{base}/old"), &format!("{base}/live")],
+        )
+        .await
+        .unwrap_err();
+        let detail = error.downcast_ref::<AiProviderError>().unwrap();
+        assert_eq!(
+            detail.category,
+            bitfun_core_types::errors::ErrorCategory::Permission
+        );
+        assert_eq!(detail.http_status, None);
+        assert!(detail.message.contains("not available in your location"));
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn control_plane_revocation_is_not_retried_or_sent_to_fallback_hosts() {
+        use crate::client::ModelRequestAuthorization;
+        use bitfun_core_types::errors::ErrorCategory;
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
+        #[derive(Debug)]
+        struct Revoked(Arc<AtomicUsize>);
+        impl ModelRequestAuthorization for Revoked {
+            fn validate(
+                &self,
+            ) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<()>> + Send + '_>>
+            {
+                self.0.fetch_add(1, Ordering::SeqCst);
+                Box::pin(async {
+                    Err(AiProviderError::classified(
+                        "Model configuration was disabled".into(),
+                        ErrorCategory::InvalidRequest,
+                    )
+                    .into())
+                })
+            }
+        }
+        let calls = Arc::new(AtomicUsize::new(0));
+        let client =
+            antigravity_test_client().with_request_authorization(Arc::new(Revoked(calls.clone())));
+        let endpoints = ["http://127.0.0.1:0/primary", "http://127.0.0.1:0/fallback"];
+        let error = super::discover_project_at(&client, &endpoints, &endpoints)
+            .await
+            .unwrap_err();
+        assert_eq!(
+            error.downcast_ref::<AiProviderError>().unwrap().category,
+            ErrorCategory::InvalidRequest
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        let error = super::list_antigravity_models(&client, &endpoints)
+            .await
+            .unwrap_err();
+        let detail = error.downcast_ref::<AiProviderError>().unwrap();
+        assert_eq!(detail.http_status, None);
+        assert_eq!(detail.provider, None);
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn gemini_cli_retains_its_own_metadata_and_onboarding_fields() {
+        use axum::{routing::post, Json, Router};
+        use serde_json::{json, Value};
+        let app = Router::new()
+            .route("/v1internal:loadCodeAssist", post(|Json(body): Json<Value>| async move {
+                assert_eq!(body, json!({"metadata":{"ideType":"IDE_UNSPECIFIED",
+                    "platform":"PLATFORM_UNSPECIFIED","pluginType":"GEMINI"}}));
+                Json(json!({"allowedTiers":[{"id":"free-tier","isDefault":true}]}))
+            }))
+            .route("/v1internal:onboardUser", post(|Json(body): Json<Value>| async move {
+                assert_eq!(body["tierId"], "free-tier");
+                assert!(body.get("tier_id").is_none());
+                assert_eq!(body["metadata"]["platform"],"PLATFORM_UNSPECIFIED");
+                Json(json!({"done":true,"response":{"cloudaicompanionProject":{"id":"cli-project"}}}))
+            }));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+        let mut client = antigravity_test_client();
+        client.config.custom_headers = None;
+        assert_eq!(
+            super::discover_project_at(&client, &[&base], &[&base])
+                .await
+                .unwrap(),
+            "cli-project"
+        );
+        server.abort();
+    }
+
+    #[test]
+    fn maps_legacy_and_current_antigravity_models_to_subscription_wire_ids() {
+        let empty_request = serde_json::json!({});
+        let cases = [
+            ("gemini-3-pro-preview", "gemini-3-pro-low"),
+            ("gemini-3.1-pro-preview-customtools", "gemini-3.1-pro-low"),
+            ("antigravity-gemini-3-pro-high", "gemini-3-pro-high"),
+            ("gemini-3-flash-preview", "gemini-3-flash"),
+            ("claude-opus-4-6-thinking-high", "claude-opus-4-6-thinking"),
+            ("claude-sonnet-4-6", "claude-sonnet-4-6"),
+        ];
+
+        for (configured, expected) in cases {
+            assert_eq!(
+                resolve_antigravity_model(configured, &empty_request).model,
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn writes_provider_specific_antigravity_thinking_fields() {
+        let mut gemini_request = serde_json::json!({});
+        let gemini_route = resolve_antigravity_model("gemini-3.1-pro-high", &gemini_request);
+        apply_antigravity_thinking(&mut gemini_request, &gemini_route);
+        assert_eq!(
+            gemini_request["generationConfig"]["thinkingConfig"]["thinkingLevel"],
+            "high"
+        );
+
+        let mut claude_request = serde_json::json!({});
+        let claude_route =
+            resolve_antigravity_model("claude-opus-4-6-thinking-low", &claude_request);
+        apply_antigravity_thinking(&mut claude_request, &claude_route);
+        assert_eq!(
+            claude_request["generationConfig"]["thinkingConfig"]["thinking_budget"],
+            8_192
+        );
+        assert_eq!(
+            claude_request["generationConfig"]["maxOutputTokens"],
+            64_000
+        );
+    }
+
+    #[test]
+    fn configures_validated_claude_tool_calls_and_nonempty_schemas() {
+        let mut request = serde_json::json!({
+            "tools": [{
+                "functionDeclarations": [{
+                    "name": "empty_tool",
+                    "parameters": { "type": "object", "properties": {} }
+                }]
+            }]
+        });
+        let route = resolve_antigravity_model("claude-sonnet-4-6", &request);
+        apply_antigravity_thinking(&mut request, &route);
+
+        assert_eq!(
+            request["toolConfig"]["functionCallingConfig"]["mode"],
+            "VALIDATED"
+        );
+        assert_eq!(
+            request["tools"][0]["functionDeclarations"][0]["parameters"]["required"],
+            serde_json::json!(["_placeholder"])
+        );
     }
 }

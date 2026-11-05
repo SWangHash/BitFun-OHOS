@@ -16,6 +16,7 @@ import com.bitfun.mobile.core.feature.connection.ConnectionPhase
 import com.bitfun.mobile.core.feature.session.RemoteSessionIntent
 import com.bitfun.mobile.core.feature.session.RemoteSessionStore
 import com.bitfun.mobile.core.feature.session.RemoteSessionUiState
+import com.bitfun.mobile.core.feature.session.WorkspaceSessionDirectoryUiState
 import com.bitfun.mobile.core.feature.workspace.RemoteWorkspaceIntent
 import com.bitfun.mobile.core.feature.workspace.RemoteWorkspaceStore
 import com.bitfun.mobile.core.feature.workspace.RemoteWorkspaceUiState
@@ -29,6 +30,8 @@ internal class AccountViewModel(application: Application) : AndroidViewModel(app
     private val completionNotifier = com.bitfun.mobile.app.platform.TaskCompletionNotifier(application)
     private var foreground = true
     fun setBackground(value: Boolean) {
+        LogcatCoreLog.info("account host visibility foreground=${!value}")
+        store.setForeground(!value)
         if (!value) store.resumeSessionStreams()
         foreground = !value
         completionNotifier.setBackground(value)
@@ -50,18 +53,27 @@ internal class AccountViewModel(application: Application) : AndroidViewModel(app
     val connectionPhase: StateFlow<ConnectionPhase> = _connectionPhase.asStateFlow()
     private val _workspaceState = MutableStateFlow<RemoteWorkspaceUiState>(RemoteWorkspaceUiState.Idle)
     val workspaceState: StateFlow<RemoteWorkspaceUiState> = _workspaceState.asStateFlow()
+    private val _workspaceDirectory = MutableStateFlow(WorkspaceSessionDirectoryUiState(emptyList()))
+
+    /** Per-workspace session lists, filled in as the sidebar discloses each branch. */
+    val workspaceDirectory: StateFlow<WorkspaceSessionDirectoryUiState> = _workspaceDirectory.asStateFlow()
     private var remoteStore: RemoteSessionStore? = null
     private var workspaceStore: RemoteWorkspaceStore? = null
     private var remoteJob: Job? = null
     private var connectionJob: Job? = null
+    private var directoryJob: Job? = null
     private var workspaceJob: Job? = null
     private var activeTarget: String? = null
+    // The selected device the user disconnected from. The selection stays so the
+    // card can offer it again, but account churn must not bind it back.
+    private var releasedTarget: String? = null
 
     init {
         viewModelScope.launch {
             store.state.collect { current ->
                 val target = (current as? AccountUiState.Ready)?.selectedDeviceId
-                if (target != activeTarget) bindTarget(target)
+                if (target != releasedTarget) releasedTarget = null
+                if (target != activeTarget && target != releasedTarget) bindTarget(target)
             }
         }
         store.dispatch(AccountIntent.Restore)
@@ -69,6 +81,11 @@ internal class AccountViewModel(application: Application) : AndroidViewModel(app
 
     fun dispatch(intent: AccountIntent) {
         store.dispatch(intent)
+    }
+
+    fun notifyAuthorizationCallback() {
+        LogcatCoreLog.info("account authorization callback wakeup")
+        store.notifyAuthorizationCallback()
     }
 
     /** The handle General Chat reads the account's synced models through. */
@@ -94,10 +111,28 @@ internal class AccountViewModel(application: Application) : AndroidViewModel(app
      * a way back.
      */
     fun selectDevice(deviceId: String) {
-        if (deviceId == activeTarget) bindTarget(deviceId) else store.dispatch(AccountIntent.SelectDevice(deviceId))
+        if (deviceId == activeTarget || deviceId == releasedTarget) {
+            releasedTarget = null
+            bindTarget(deviceId)
+        } else {
+            // Clear the outgoing projection before publishing the new selection.
+            // The account collector binds the new target's shared stores.
+            val ready = state.value as? AccountUiState.Ready ?: return
+            if (ready.devices.none { it.id == deviceId && it.online }) return
+            remoteJob?.cancel()
+            workspaceJob?.cancel()
+            connectionJob?.cancel()
+            directoryJob?.cancel()
+            _workspaceDirectory.value = WorkspaceSessionDirectoryUiState(emptyList())
+            _remoteState.value = RemoteSessionUiState.Loading
+            _workspaceState.value = RemoteWorkspaceUiState.Loading
+            _connectionPhase.value = ConnectionPhase.IDLE
+            store.dispatch(AccountIntent.SelectDevice(deviceId))
+        }
     }
 
     fun disconnectDevice() {
+        releasedTarget = activeTarget
         bindTarget(null)
     }
 
@@ -105,6 +140,7 @@ internal class AccountViewModel(application: Application) : AndroidViewModel(app
         remoteJob?.cancel()
         connectionJob?.cancel()
         workspaceJob?.cancel()
+        directoryJob?.cancel()
         remoteStore?.dispatch(RemoteSessionIntent.Stop)
         workspaceStore?.dispatch(RemoteWorkspaceIntent.Stop)
         remoteStore = null
@@ -112,6 +148,7 @@ internal class AccountViewModel(application: Application) : AndroidViewModel(app
         _remoteState.value = RemoteSessionUiState.Idle
         _connectionPhase.value = ConnectionPhase.IDLE
         _workspaceState.value = RemoteWorkspaceUiState.Idle
+        _workspaceDirectory.value = WorkspaceSessionDirectoryUiState(emptyList())
         completionNotifier.reset()
         activeTarget = target
         if (target == null) return
@@ -123,6 +160,9 @@ internal class AccountViewModel(application: Application) : AndroidViewModel(app
             } }
             connectionJob = viewModelScope.launch {
                 created.connectionPhase.collect { _connectionPhase.value = it }
+            }
+            directoryJob = viewModelScope.launch {
+                created.workspaceDirectory.collect { _workspaceDirectory.value = it }
             }
             created.dispatch(RemoteSessionIntent.Load)
             created.dispatch(RemoteSessionIntent.SetForeground(foreground))

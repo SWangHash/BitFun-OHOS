@@ -1,0 +1,52 @@
+.bitfun-skills-scene {
+  &__path-input {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--bitfun-space-2);
+
+    > :first-child {
+      flex: 1;
+      min-width: 0;
+    }
+  }
+
+  &__path-hint,
+  &__form-hint,
+  &__validating {
+    font-size: var(--bitfun-type-label-sm-font-size);
+    color: var(--bitfun-color-content-muted);
+  }
+
+  &__validation {
+    padding: var(--bitfun-space-2) var(--bitfun-space-3);
+    border-radius: var(--bitfun-radius-base);
+    font-size: var(--bitfun-type-label-md-font-size);
+
+    &.is-valid {
+      background: color-mix(in srgb, var(--bitfun-color-status-success-content) 8%, transparent);
+      border: 1px solid color-mix(in srgb, var(--bitfun-color-status-success-content) 30%, transparent);
+      color: var(--bitfun-color-status-success-content);
+    }
+
+    &.is-invalid {
+      background: color-mix(in srgb, var(--bitfun-color-status-danger-content) 8%, transparent);
+      border: 1px solid color-mix(in srgb, var(--bitfun-color-status-danger-content) 30%, transparent);
+      color: var(--bitfun-color-status-danger-content);
+    }
+  }
+
+  &__validation-name  { font-weight: var(--bitfun-type-label-sm-font-weight); }
+  &__validation-desc  { margin-top: 2px; font-size: var(--bitfun-type-label-sm-font-size); opacity: 0.85; }
+  &__validation-error { font-weight: var(--bitfun-type-label-sm-font-weight); }
+
+  &__modal-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bitfun-space-4);
+    padding-block-start: var(--bitfun-space-5);
+  }
+
+  &__modal-form-actions {
+    flex-wrap: wrap;
+  }
+}

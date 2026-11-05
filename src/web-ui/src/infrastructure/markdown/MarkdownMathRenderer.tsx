@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import type { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { remarkAutolinkBoundaries } from './remarkAutolinkBoundaries';
+import { remarkStreamingTableLinks } from './remarkStreamingTableLinks';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
@@ -11,6 +12,8 @@ import type { Options as RehypeSanitizeOptions } from 'rehype-sanitize';
 import type { Pluggable } from 'unified';
 import 'katex/dist/katex.min.css';
 import { rehypeSourceRange, type MarkdownSourceRange } from './rehypeSourceRange';
+import { rehypeWindowsDrivePaths } from './rehypeWindowsDrivePaths';
+import { rehypeImageThumbnails } from './rehypeImageThumbnails';
 
 interface MarkdownMathRendererProps {
   markdownContent: string;
@@ -22,21 +25,24 @@ interface MarkdownMathRendererProps {
   urlTransform: (value: string) => string;
   sourceRange?: MarkdownSourceRange;
   inline?: boolean;
+  imageThumbnails?: boolean;
 }
 
 export const MarkdownMathRenderer: React.FC<MarkdownMathRendererProps> = ({
   markdownContent,
+  isStreaming = false,
   components,
   sanitizeSchema,
   remarkAutolinkComputerFileLinks,
   urlTransform,
   sourceRange,
   inline = false,
+  imageThumbnails = false,
 }) => {
   const content = (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm, remarkMath, remarkAutolinkBoundaries, remarkAutolinkComputerFileLinks]}
-      rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema], [rehypeSourceRange, sourceRange], rehypeKatex]}
+      remarkPlugins={[remarkGfm, remarkMath, [remarkStreamingTableLinks, { isStreaming }], remarkAutolinkBoundaries, remarkAutolinkComputerFileLinks]}
+      rehypePlugins={[rehypeRaw, [rehypeWindowsDrivePaths, { markdownSource: markdownContent }], [rehypeSanitize, sanitizeSchema], [rehypeSourceRange, sourceRange], rehypeKatex, [rehypeImageThumbnails, { enabled: imageThumbnails }]]}
       urlTransform={urlTransform}
       components={components}
     >

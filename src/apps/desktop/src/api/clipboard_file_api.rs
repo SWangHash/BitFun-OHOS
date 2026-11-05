@@ -243,43 +243,62 @@ mod macos_clipboard {
     }
 }
 
+/// Reads the controller clipboard through GTK.
+///
+/// The Desktop host is a GTK application on Linux, so `gtk::Clipboard` is the
+/// clipboard connection the session already grants the focused window. Reading
+/// it here removes the old hard dependency on `wl-clipboard` / `xclip`, which
+/// stock Ubuntu GNOME does not install and which therefore made pasted files
+/// and images fail out of the box. Both helpers must run on the GTK main
+/// thread; `wait_for_*` pumps a nested main loop and returns empty when the
+/// clipboard owner offers no such payload.
+///
+/// On OHOS `target_os` is also `"linux"`, but the host has no GTK stack, so the
+/// module is compiled only for real Linux builds.
 #[cfg(all(target_os = "linux", not(target_env = "ohos")))]
-mod linux_clipboard {
-    use super::parse_uri_list;
-    use std::process::Command;
+mod gtk_clipboard {
+    use super::decode_file_uri;
+    use std::time::Duration;
 
-    fn read_xclip_uri_list() -> Option<String> {
-        let output = Command::new("xclip")
-            .args(["-selection", "clipboard", "-t", "text/uri-list", "-o"])
-            .output()
-            .ok()?;
+    /// GTK clipboard reads answer through the session clipboard owner. A host
+    /// that never answers must not stall the paste path indefinitely.
+    const READ_TIMEOUT: Duration = Duration::from_secs(5);
 
-        if output.status.success() {
-            Some(String::from_utf8_lossy(&output.stdout).into_owned())
-        } else {
-            None
-        }
+    fn on_main_thread<T, F>(app: &tauri::AppHandle, read: F) -> Result<T, String>
+    where
+        T: Send + 'static,
+        F: FnOnce() -> T + Send + 'static,
+    {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        app.run_on_main_thread(move || {
+            let _ = sender.send(read());
+        })
+        .map_err(|error| format!("clipboard_main_thread_dispatch_failed: {error}"))?;
+        receiver
+            .recv_timeout(READ_TIMEOUT)
+            .map_err(|error| format!("clipboard_read_timeout: {error}"))
     }
 
-    fn read_wl_paste_uri_list() -> Option<String> {
-        let output = Command::new("wl-paste")
-            .args(["-t", "text/uri-list"])
-            .output()
-            .ok()?;
-
-        if output.status.success() {
-            Some(String::from_utf8_lossy(&output.stdout).into_owned())
-        } else {
-            None
-        }
+    pub(super) fn read_files(app: &tauri::AppHandle) -> Result<Vec<String>, String> {
+        on_main_thread(app, || {
+            let clipboard = gtk::Clipboard::get(&gtk::gdk::SELECTION_CLIPBOARD);
+            clipboard
+                .wait_for_uris()
+                .iter()
+                .filter_map(|uri| decode_file_uri(uri.as_str()))
+                .collect()
+        })
     }
 
-    pub(super) fn get_clipboard_files() -> Result<Vec<String>, String> {
-        let content = read_xclip_uri_list()
-            .or_else(read_wl_paste_uri_list)
-            .unwrap_or_default();
-
-        Ok(parse_uri_list(&content))
+    pub(super) fn read_image_png(app: &tauri::AppHandle) -> Result<Option<Vec<u8>>, String> {
+        on_main_thread(app, || {
+            let clipboard = gtk::Clipboard::get(&gtk::gdk::SELECTION_CLIPBOARD);
+            clipboard
+                .wait_for_image()
+                // Re-encoding through GTK keeps one payload format for the
+                // webview regardless of the copied source format.
+                .and_then(|pixbuf| pixbuf.save_to_bufferv("png", &[]).ok())
+        })
     }
 }
 
@@ -298,21 +317,94 @@ mod ohos_clipboard {
     }
 }
 
+/// Fallback for hosts where the GTK read cannot run. Kept for X11 sessions and
+/// for diagnosing a broken clipboard bridge, and reported as unavailable
+/// instead of "clipboard is empty" when no reader tool exists.
+#[cfg(all(target_os = "linux", not(target_env = "ohos")))]
+mod linux_clipboard {
+    use super::parse_uri_list;
+
+    fn read_tool_output(program: &str, args: &[&str]) -> Result<Option<String>, String> {
+        let output = bitfun_core::util::process_manager::create_command(program)
+            .args(args)
+            .output()
+            .map_err(|error| {
+                if error.kind() == std::io::ErrorKind::NotFound {
+                    format!("{program} is not installed")
+                } else {
+                    format!("failed to spawn {program}: {error}")
+                }
+            })?;
+
+        Ok(output
+            .status
+            .success()
+            .then(|| String::from_utf8_lossy(&output.stdout).into_owned())
+            .filter(|content| !content.is_empty()))
+    }
+
+    pub(super) fn get_clipboard_files() -> Result<Vec<String>, String> {
+        let mut tool_ran = false;
+        let mut last_error = String::new();
+        let probes: [(&str, &[&str]); 2] = [
+            (
+                "xclip",
+                &["-selection", "clipboard", "-t", "text/uri-list", "-o"],
+            ),
+            ("wl-paste", &["-t", "text/uri-list"]),
+        ];
+
+        for (program, args) in probes {
+            match read_tool_output(program, args) {
+                Ok(Some(content)) => {
+                    tool_ran = true;
+                    let files = parse_uri_list(&content);
+                    if !files.is_empty() {
+                        return Ok(files);
+                    }
+                }
+                Ok(None) => tool_ran = true,
+                Err(error) => last_error = error,
+            }
+        }
+
+        if tool_ran {
+            return Ok(Vec::new());
+        }
+        Err(format!(
+            "clipboard_files_unsupported: reading clipboard files needs wl-paste (Wayland) or \
+             xclip (X11), but neither is available ({last_error}); install wl-clipboard or \
+             xclip and retry"
+        ))
+    }
+}
+
 #[cfg(not(target_env = "ohos"))]
-fn get_clipboard_files_internal() -> Result<Vec<String>, String> {
+fn get_clipboard_files_internal(app: &tauri::AppHandle) -> Result<Vec<String>, String> {
     #[cfg(target_os = "windows")]
     {
+        let _ = app;
         windows_clipboard::get_clipboard_files()
     }
 
     #[cfg(target_os = "macos")]
     {
+        let _ = app;
         macos_clipboard::get_clipboard_files()
     }
 
     #[cfg(all(target_os = "linux", not(target_env = "ohos")))]
     {
-        linux_clipboard::get_clipboard_files()
+        match gtk_clipboard::read_files(app) {
+            Ok(files) => Ok(files),
+            Err(error) => {
+                log::warn!(
+                    "GTK clipboard file read failed, falling back to clipboard tools: {}",
+                    error
+                );
+                linux_clipboard::get_clipboard_files()
+            }
+        }
     }
 
     #[cfg(not(any(
@@ -321,25 +413,27 @@ fn get_clipboard_files_internal() -> Result<Vec<String>, String> {
         all(target_os = "linux", not(target_env = "ohos"))
     )))]
     {
+        let _ = app;
         Err("Reading clipboard files is not supported on this platform".to_string())
     }
 }
 
-async fn get_clipboard_files_for_platform() -> Result<Vec<String>, String> {
+async fn get_clipboard_files_for_platform(app: &tauri::AppHandle) -> Result<Vec<String>, String> {
     #[cfg(target_env = "ohos")]
     {
+        let _ = app;
         ohos_clipboard::get_clipboard_files().await
     }
 
     #[cfg(not(target_env = "ohos"))]
     {
-        get_clipboard_files_internal()
+        get_clipboard_files_internal(app)
     }
 }
 
 #[tauri::command]
-pub async fn get_clipboard_files() -> Result<ClipboardFilesResponse, String> {
-    match get_clipboard_files_for_platform().await {
+pub async fn get_clipboard_files(app: tauri::AppHandle) -> Result<ClipboardFilesResponse, String> {
+    match get_clipboard_files_for_platform(&app).await {
         Ok(files) => Ok(ClipboardFilesResponse {
             files,
             is_cut: false,
@@ -692,6 +786,159 @@ pub async fn copy_files_to_clipboard(request: CopyFilesToClipboardRequest) -> Re
     copy_files_to_clipboard_for_platform(&request.source_paths, request.is_cut).await
 }
 
+/// Image bytes read from the system clipboard, base64-encoded for the webview.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClipboardImageResponse {
+    pub base64: Option<String>,
+    pub mime_type: Option<String>,
+}
+
+impl Default for ClipboardImageResponse {
+    fn default() -> Self {
+        Self {
+            base64: None,
+            mime_type: None,
+        }
+    }
+}
+
+/// Sniffs the image format from magic bytes so a tool that misreports success
+/// cannot inject arbitrary text as an attachment payload.
+#[cfg(any(all(target_os = "linux", not(target_env = "ohos")), test))]
+pub(crate) fn sniff_image_mime(bytes: &[u8]) -> Option<&'static str> {
+    if bytes.starts_with(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]) {
+        Some("image/png")
+    } else if bytes.len() >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF {
+        Some("image/jpeg")
+    } else {
+        None
+    }
+}
+
+/// Outcome of a Linux clipboard-image probe.
+enum ClipboardImageRead {
+    /// An image payload, base64-encoded with its sniffed MIME type.
+    #[cfg(all(target_os = "linux", not(target_env = "ohos")))]
+    Image(String, String),
+    /// A reader answered; the clipboard simply holds no image payload.
+    Empty,
+    /// The GTK bridge failed and neither `wl-paste` nor `xclip` could be
+    /// spawned. Surfaced to the user instead of silently reporting "no image":
+    /// a plain-text clipboard and a machine with no clipboard backend must stay
+    /// distinguishable.
+    #[cfg(all(target_os = "linux", not(target_env = "ohos")))]
+    ToolsUnavailable(String),
+}
+
+/// Reads a clipboard image through the external clipboard tools.
+///
+/// Only used when the GTK clipboard bridge is unavailable; both reader tools
+/// are optional packages that a stock desktop does not necessarily ship.
+#[cfg(all(target_os = "linux", not(target_env = "ohos")))]
+fn read_clipboard_image_with_tools() -> ClipboardImageRead {
+    use base64::Engine as _;
+
+    // `Ok(None)` = the tool ran and reported no such payload;
+    // `Err` = the tool could not be run at all.
+    let read_target = |program: &str, args: &[&str]| -> Result<Option<Vec<u8>>, String> {
+        let output = bitfun_core::util::process_manager::create_command(program)
+            .args(args)
+            .output()
+            .map_err(|error| {
+                if error.kind() == std::io::ErrorKind::NotFound {
+                    format!("{program} is not installed")
+                } else {
+                    format!("failed to spawn {program}: {error}")
+                }
+            })?;
+        Ok(output
+            .status
+            .success()
+            .then_some(output.stdout)
+            .filter(|stdout| !stdout.is_empty()))
+    };
+
+    let mut runnable_tools = 0usize;
+    let mut last_tool_error = String::new();
+    for mime in ["image/png", "image/jpeg"] {
+        for (program, args) in [
+            ("wl-paste", vec!["-t", mime]),
+            ("xclip", vec!["-selection", "clipboard", "-t", mime, "-o"]),
+        ] {
+            match read_target(program, &args) {
+                Ok(Some(bytes)) => {
+                    if let Some(sniffed) = sniff_image_mime(&bytes) {
+                        let encoded = base64::engine::general_purpose::STANDARD.encode(&bytes);
+                        return ClipboardImageRead::Image(encoded, sniffed.to_string());
+                    }
+                    runnable_tools += 1;
+                }
+                Ok(None) => runnable_tools += 1,
+                Err(error) => last_tool_error = error,
+            }
+        }
+    }
+
+    if runnable_tools > 0 {
+        return ClipboardImageRead::Empty;
+    }
+    ClipboardImageRead::ToolsUnavailable(format!(
+        "clipboard_image_unsupported: reading a clipboard image needs wl-paste (Wayland) or \
+         xclip (X11), but neither is available ({last_tool_error}); install wl-clipboard or \
+         xclip and retry"
+    ))
+}
+
+/// Reads a clipboard image on Linux.
+///
+/// WebKitGTK delivers paste events with empty `DataTransfer` items, so the
+/// webview itself can never see a pasted image; the host owns the read. GTK is
+/// the primary bridge because the Desktop host already runs a GTK main loop;
+/// the external tools stay as a fallback for a broken GTK clipboard bridge.
+#[cfg(all(target_os = "linux", not(target_env = "ohos")))]
+fn get_clipboard_image_internal(app: &tauri::AppHandle) -> ClipboardImageRead {
+    use base64::Engine as _;
+
+    match gtk_clipboard::read_image_png(app) {
+        Ok(Some(bytes)) => {
+            let encoded = base64::engine::general_purpose::STANDARD.encode(&bytes);
+            return ClipboardImageRead::Image(encoded, "image/png".to_string());
+        }
+        Ok(None) => return ClipboardImageRead::Empty,
+        Err(error) => log::warn!(
+            "GTK clipboard image read failed, falling back to clipboard tools: {}",
+            error
+        ),
+    }
+
+    read_clipboard_image_with_tools()
+}
+
+#[cfg(not(all(target_os = "linux", not(target_env = "ohos"))))]
+fn get_clipboard_image_internal(_app: &tauri::AppHandle) -> ClipboardImageRead {
+    // Other platforms deliver clipboard images to the page directly and never
+    // need the host fallback.
+    ClipboardImageRead::Empty
+}
+
+#[tauri::command]
+pub async fn get_clipboard_image(app: tauri::AppHandle) -> Result<ClipboardImageResponse, String> {
+    match get_clipboard_image_internal(&app) {
+        #[cfg(all(target_os = "linux", not(target_env = "ohos")))]
+        ClipboardImageRead::Image(base64, mime_type) => Ok(ClipboardImageResponse {
+            base64: Some(base64),
+            mime_type: Some(mime_type),
+        }),
+        ClipboardImageRead::Empty => Ok(ClipboardImageResponse::default()),
+        #[cfg(all(target_os = "linux", not(target_env = "ohos")))]
+        ClipboardImageRead::ToolsUnavailable(error) => {
+            log::warn!("Clipboard image read unsupported: {}", error);
+            Err(error)
+        }
+    }
+}
+
 /// Pastes clipboard files between controller-local paths.
 ///
 /// The remote file provider exposes no copy primitive, so a remote workspace path is refused here
@@ -851,7 +1098,7 @@ pub(crate) fn copy_directory_recursive(source: &Path, target: &Path) -> Result<(
 mod tests {
     use super::{
         copy_directory_recursive, decode_file_uri, generate_unique_path,
-        parse_clipboard_path_segments, parse_uri_list, ClipboardFilesResponse,
+        parse_clipboard_path_segments, parse_uri_list, sniff_image_mime, ClipboardFilesResponse,
     };
     use std::path::Path;
 
@@ -865,6 +1112,28 @@ mod tests {
 
         assert_eq!(value["isCut"], true);
         assert!(value.get("is_cut").is_none());
+    }
+
+    #[test]
+    fn sniff_image_mime_detects_png_header() {
+        assert_eq!(
+            sniff_image_mime(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0]),
+            Some("image/png")
+        );
+    }
+
+    #[test]
+    fn sniff_image_mime_detects_jpeg_header() {
+        assert_eq!(
+            sniff_image_mime(&[0xFF, 0xD8, 0xFF, 0xE0, 0, 0]),
+            Some("image/jpeg")
+        );
+    }
+
+    #[test]
+    fn sniff_image_mime_rejects_non_image_payloads() {
+        assert_eq!(sniff_image_mime(b"image/png but not really"), None);
+        assert_eq!(sniff_image_mime(&[]), None);
     }
 
     #[test]

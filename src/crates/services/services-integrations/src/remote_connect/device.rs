@@ -85,8 +85,9 @@ pub async fn local_device_metadata() -> serde_json::Value {
         let value = String::from_utf8(output.stdout).ok()?.trim().to_string();
         (!value.is_empty()).then_some(value)
     }
-    // HarmonyOS targets report `linux` as the OS; the target environment
-    // distinguishes their display metadata from a Linux distribution.
+    // OpenHarmony/HarmonyOS PC builds compile for `target_env = "ohos"` while
+    // `std::env::consts::OS` still reads `linux`, so the target env is the only
+    // exact signal that separates HarmonyOS from a Linux distribution.
     let os = if cfg!(target_env = "ohos") {
         "HarmonyOS"
     } else {
@@ -242,7 +243,7 @@ fn compute_initial_identity() -> DeviceIdentity {
     }
 }
 
-fn identity_file_path() -> Result<PathBuf> {
+pub(crate) fn identity_file_path() -> Result<PathBuf> {
     #[cfg(test)]
     {
         let override_path = TEST_IDENTITY_PATH.with(|cell| cell.borrow().clone());
@@ -375,6 +376,7 @@ mod tests {
     #[tokio::test]
     async fn local_metadata_has_display_os_and_only_non_destructive_valid_fields() {
         let metadata = local_device_metadata().await;
+        // Pins the exact strings the Web UI selects device artwork on.
         let expected = if cfg!(target_env = "ohos") {
             "HarmonyOS"
         } else {

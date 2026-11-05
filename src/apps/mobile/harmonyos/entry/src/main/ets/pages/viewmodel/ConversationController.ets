@@ -8,6 +8,7 @@ import { ChatTimelineItem } from '../../model/ChatTimelineModels';
 import { VoiceInputRouteSnapshot } from '../../services/VoiceInputLifecycleController';
 import { AppRootRouteState } from '../navigation/AppRootRouteState';
 import { AppRoute, AppRouteContract } from '../navigation/AppRouteContract';
+import { MessageCopyScope, CommandPaletteRequest, SessionRollbackRequest } from '../actions/ConversationIntent';
 import { GeneralChatPageState } from '../state/GeneralChatPageState';
 import { RemotePageState } from '../state/RemotePageState';
 import { RemoteChatPollingSnapshot } from '../../services/RemoteChatPollingLifecycleController';
@@ -137,7 +138,15 @@ export class ConversationController {
   }
   async stopRemoteTask(): Promise<void> { await this.transcript.stopRemoteTask(); }
   async renameRemoteSession(title: string): Promise<void> { await this.transcript.renameRemoteSession(title); }
-  async copyRemoteMessage(text: string): Promise<void> { await this.transcript.copyRemoteMessage(text); }
+  async copyRemoteMessage(text: string, scope: MessageCopyScope): Promise<void> {
+    await this.transcript.copyRemoteMessage(text, scope);
+  }
+  async rollbackRemoteSession(request: SessionRollbackRequest): Promise<void> {
+    await this.transcript.rollbackRemoteSession(request);
+  }
+  async resyncRemoteTranscriptAfterRollback(): Promise<void> {
+    this.transcript.resyncAfterRollback();
+  }
   async downloadRemoteFile(path: string): Promise<void> { await this.transcript.downloadRemoteFile(path); }
   retryRemoteMessage(text: string): void { this.transcript.retryRemoteMessage(text); }
   async approveRemoteTool(toolId: string, updatedInput?: Object): Promise<void> {
@@ -200,6 +209,9 @@ export class ConversationController {
   async retryVisibleMessage(text: string): Promise<void> { await this.visible.retryVisibleMessage(text); }
   downloadVisibleFile(path: string): void { this.visible.downloadVisibleFile(path); }
   async selectVisibleModel(modelId: string): Promise<void> { await this.visible.selectVisibleModel(modelId); }
+  async dispatchCommandPalette(request: CommandPaletteRequest): Promise<void> {
+    await this.visible.dispatchCommandPalette(request);
+  }
   onVisibleChatInputChange(route: AppRoute, value: string): void {
     this.visible.onVisibleChatInputChange(route, value);
   }

@@ -1,16 +1,13 @@
 import { ChevronDown as LucideChevronDown, Sparkles as LucideSparkles } from 'lucide-react';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { MobileButton, MobileCard } from '@bitfun/ui/mobile';
+import React, { useId, useMemo, useRef, useState } from 'react';
+import { MobileButton, MobileCard, MobileTextField } from '@bitfun/ui/mobile';
 import { useI18n } from '../i18n';
 import type { RemoteModelCatalog, RemoteModelConfig } from '../services/RemoteSessionManager';
-
-const MOBILE_LAST_SELECTED_MODEL_ID_KEY = 'bitfun.mobile.last_selected_model_id';
+import ComposerSelectionSurface from './ComposerSelectionSurface';
 
 const SparklesIcon: React.FC<{ className?: string; size?: number }> = ({ className, size = 10 }) => (
   <LucideSparkles className={className} width={size} height={size} stroke="currentColor" aria-hidden="true" />
 );
-
-type ModelSelectionValue = 'auto' | 'primary' | 'fast' | string;
 
 function formatProviderName(provider: string): string {
   const normalized = provider.trim();
@@ -33,52 +30,10 @@ function isChatCapableModel(model: RemoteModelConfig): boolean {
   return model.enabled && Array.isArray(model.capabilities) && model.capabilities.includes('text_chat');
 }
 
-export function normalizeSelectedModelId(
-  selectedModelId: string | null | undefined,
-  catalog: RemoteModelCatalog | null,
-): string {
+export function normalizeSelectedModelId(selectedModelId: string | null | undefined): string {
   const value = selectedModelId?.trim();
-  if (!value || value === 'auto' || value === 'default') return 'auto';
-  if (value === 'primary' || value === 'fast') {
-    const defaultId = value === 'primary'
-      ? catalog?.default_models?.primary
-      : catalog?.default_models?.fast;
-    return defaultId && resolveModelSelection(defaultId, catalog) ? value : 'auto';
-  }
-  return resolveModelSelection(value, catalog) ? value : 'auto';
-}
-
-export function loadLastSelectedModelId(): string | null {
-  if (typeof window === 'undefined') return null;
-  const value = window.localStorage.getItem(MOBILE_LAST_SELECTED_MODEL_ID_KEY)?.trim();
-  return value || null;
-}
-
-export function persistLastSelectedModelId(modelId: string): void {
-  if (typeof window === 'undefined') return;
-  const value = modelId.trim();
-  if (!value) {
-    window.localStorage.removeItem(MOBILE_LAST_SELECTED_MODEL_ID_KEY);
-    return;
-  }
-  window.localStorage.setItem(MOBILE_LAST_SELECTED_MODEL_ID_KEY, value);
-}
-
-export function resolvePreferredModelSelection(
-  preferredModelId: string | null,
-  catalog: RemoteModelCatalog | null,
-): { modelId: string | null; fellBackToAuto: boolean } {
-  const value = preferredModelId?.trim();
-  if (!value) {
-    return { modelId: null, fellBackToAuto: false };
-  }
-
-  const normalizedModelId = normalizeSelectedModelId(value, catalog);
-  const fellBackToAuto = normalizedModelId === 'auto' && value !== 'auto' && value !== 'default';
-  return {
-    modelId: normalizedModelId,
-    fellBackToAuto,
-  };
+  // Keep unavailable references intact; a display fallback must not become a write.
+  return !value || value === 'auto' || value === 'default' ? 'auto' : value;
 }
 
 function resolveModelSelection(
@@ -86,14 +41,14 @@ function resolveModelSelection(
   catalog: RemoteModelCatalog | null,
 ): RemoteModelConfig | null {
   if (!catalog) return null;
-  return catalog.models.find(model => model.id === modelId) || null;
+  return catalog.models.find(model => model.id === modelId && isChatCapableModel(model)) || null;
 }
 
 function resolveConcreteModelSelection(
   modelId: string,
   catalog: RemoteModelCatalog | null,
 ): RemoteModelConfig | null {
-  const normalizedModelId = normalizeSelectedModelId(modelId, catalog);
+  const normalizedModelId = normalizeSelectedModelId(modelId);
   if (normalizedModelId === 'auto' || normalizedModelId === 'primary') {
     return resolveModelSelection(catalog?.default_models?.primary || '', catalog);
   }
@@ -140,8 +95,8 @@ function getSelectedModelInfo(
     return {
       label: resolved
         ? (selectedModelId === 'primary' ? t('chat.modelPrimary') : t('chat.modelFast'))
-        : t('chat.modelAuto'),
-      meta: buildModelProviderMeta(resolved) || t('chat.modelAutoDesc'),
+        : t('chat.modelUnavailable'),
+      meta: buildModelProviderMeta(resolved) || selectedModelId,
       enableThinking: resolved?.reasoning?.status === 'known',
     };
   }
@@ -149,8 +104,8 @@ function getSelectedModelInfo(
   const resolved = resolveModelSelection(selectedModelId, catalog);
   if (!resolved) {
     return {
-      label: t('chat.modelAuto'),
-      meta: t('chat.modelAutoDesc'),
+      label: t('chat.modelUnavailable'),
+      meta: selectedModelId,
       enableThinking: false,
     };
   }
@@ -167,13 +122,16 @@ export const ModelSelectorPill: React.FC<{
   selectedModelId: string;
   disabled?: boolean;
   onSelect: (modelId: string) => void | Promise<void>;
-}> = ({ catalog, selectedModelId, disabled, onSelect }) => {
+  onSelectReasoning: (presetId: string | null) => void | Promise<void>;
+}> = ({ catalog, selectedModelId, disabled, onSelect, onSelectReasoning }) => {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
+  const menuId = useId();
   const normalizedSelectedModelId = useMemo(
-    () => normalizeSelectedModelId(selectedModelId, catalog),
-    [catalog, selectedModelId],
+    () => normalizeSelectedModelId(selectedModelId),
+    [selectedModelId],
   );
 
   const availableModels = useMemo(
@@ -193,16 +151,16 @@ export const ModelSelectorPill: React.FC<{
     [catalog, normalizedSelectedModelId, t],
   );
 
-  useEffect(() => {
-    if (!open) return;
-    const handleOutside = (event: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutside);
-    return () => document.removeEventListener('mousedown', handleOutside);
-  }, [open]);
+  const modelGroups = useMemo(() => {
+    const groups = new Map<string, RemoteModelConfig[]>();
+    const search = query.trim().toLocaleLowerCase();
+    for (const model of availableModels) {
+      if (search && !`${model.model_name} ${model.name} ${model.provider}`.toLocaleLowerCase().includes(search)) continue;
+      const provider = formatProviderName(model.provider);
+      groups.set(provider, [...(groups.get(provider) || []), model]);
+    }
+    return [...groups];
+  }, [availableModels, query]);
 
   if (!catalog) return null;
 
@@ -211,15 +169,23 @@ export const ModelSelectorPill: React.FC<{
     void onSelect(modelId);
   };
 
+  const handleSelectReasoning = (presetId: string | null) => {
+    setOpen(false);
+    void onSelectReasoning(presetId);
+  };
+
   return (
     <div className="chat-model-selector" ref={rootRef}>
       <MobileButton
         appearance="secondary"
         className={`chat-model-selector__trigger${open ? ' chat-model-selector__trigger--open' : ''}`}
         type="button"
-        onClick={() => setOpen(prev => !prev)}
+        onClick={() => { setQuery(''); setOpen(prev => !prev); }}
         disabled={disabled}
         aria-label={t('chat.modelSelection')}
+        aria-expanded={open && !disabled}
+        aria-haspopup="dialog"
+        aria-controls={open && !disabled ? menuId : undefined}
       >
         <span className="chat-model-selector__name">
           <span className="chat-model-selector__name-text">{selectedInfo.label}</span>
@@ -232,14 +198,20 @@ export const ModelSelectorPill: React.FC<{
         </span>
       </MobileButton>
 
-      {open && (
+      {open && !disabled && (
+        <ComposerSelectionSurface anchorRef={rootRef} id={menuId} label={t('chat.modelSelection')} width={330} onClose={() => setOpen(false)}>
         <MobileCard appearance="elevated" padding="none" className="chat-model-selector__dropdown">
           <div className="chat-model-selector__header">{t('chat.modelSelection')}</div>
+          {availableModels.length > 6 && <MobileTextField type="search" className="chat-model-selector__search" aria-label={t('chat.searchModels')} placeholder={t('chat.searchModels')} value={query} onChange={event => setQuery(event.target.value)} />}
+          {!query.trim() && <ReasoningPresetOptions catalog={catalog} selectedModelId={selectedModelId} disabled={disabled} onSelect={handleSelectReasoning} />}
+          {!query.trim() && <section aria-label={t('chat.modelDefaults')}>
+          <h3 className="chat-model-selector__group-title">{t('chat.modelDefaults')}</h3>
           <MobileButton
             appearance="plain"
             block
             className={`chat-model-selector__option${normalizedSelectedModelId === 'primary' ? ' is-selected' : ''}`}
             type="button"
+            aria-pressed={normalizedSelectedModelId === 'primary'}
             onClick={() => void handleSelect('primary')}
           >
             <span className="chat-model-selector__option-main">
@@ -259,6 +231,7 @@ export const ModelSelectorPill: React.FC<{
             block
             className={`chat-model-selector__option${normalizedSelectedModelId === 'fast' ? ' is-selected' : ''}`}
             type="button"
+            aria-pressed={normalizedSelectedModelId === 'fast'}
             onClick={() => void handleSelect('fast')}
           >
             <span className="chat-model-selector__option-main">
@@ -273,9 +246,13 @@ export const ModelSelectorPill: React.FC<{
               </span>
             </span>
           </MobileButton>
+          </section>}
           <div className="chat-model-selector__divider" />
           <div className="chat-model-selector__list">
-            {availableModels.map(model => {
+            {modelGroups.length === 0 && <p className="chat-model-selector__empty" role="status">{t('chat.noMatchingModels')}</p>}
+            {modelGroups.map(([provider, models]) => <section key={provider} aria-label={provider}>
+            <h3 className="chat-model-selector__group-title">{provider}</h3>
+            {models.map(model => {
               const isSelected = normalizedSelectedModelId === model.id;
               return (
                 <MobileButton
@@ -284,6 +261,7 @@ export const ModelSelectorPill: React.FC<{
                   key={model.id}
                   className={`chat-model-selector__option${isSelected ? ' is-selected' : ''}`}
                   type="button"
+                  aria-pressed={isSelected}
                   onClick={() => void handleSelect(model.id)}
                 >
                   <span className="chat-model-selector__option-main">
@@ -302,21 +280,21 @@ export const ModelSelectorPill: React.FC<{
                 </MobileButton>
               );
             })}
+            </section>)}
           </div>
         </MobileCard>
+        </ComposerSelectionSurface>
       )}
     </div>
   );
 };
-export const ReasoningPresetPill: React.FC<{
+const ReasoningPresetOptions: React.FC<{
   catalog: RemoteModelCatalog | null;
   selectedModelId: string;
   disabled?: boolean;
   onSelect: (presetId: string | null) => void | Promise<void>;
 }> = ({ catalog, selectedModelId, disabled, onSelect }) => {
   const { t } = useI18n();
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
   const model = useMemo(
     () => resolveConcreteModelSelection(selectedModelId, catalog),
     [catalog, selectedModelId],
@@ -326,61 +304,24 @@ export const ReasoningPresetPill: React.FC<{
     [model],
   );
   const selectedPresetId = catalog?.session_reasoning_preset?.trim() || null;
-  const selectedLabel = selectedPresetId
-    ? presets.find(preset => preset.id === selectedPresetId)?.label || selectedPresetId
-    : t('chat.reasoningAuto');
   const selectionSupported = catalog?.reasoning_preset_selection_supported === true;
   const isDisabled = disabled || !selectionSupported;
 
-  useEffect(() => {
-    if (!open) return;
-    const handleOutside = (event: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutside);
-    return () => document.removeEventListener('mousedown', handleOutside);
-  }, [open]);
-
   if (model?.reasoning?.status !== 'known' || presets.length === 0) return null;
 
-  const handleSelect = (presetId: string | null) => {
-    setOpen(false);
-    void onSelect(presetId);
-  };
-
   return (
-    <div className="chat-model-selector chat-reasoning-selector" ref={rootRef}>
-      <MobileButton
-        appearance="secondary"
-        className={`chat-model-selector__trigger chat-reasoning-selector__trigger${open ? ' chat-model-selector__trigger--open' : ''}`}
-        type="button"
-        onClick={() => setOpen(prev => !prev)}
-        disabled={isDisabled}
-        aria-label={t('chat.reasoningSelection')}
-      >
-        <SparklesIcon className="chat-model-selector__thinking" size={10} />
-        <span className="chat-model-selector__name chat-reasoning-selector__name">
-          <span className="chat-model-selector__name-text">{selectedLabel}</span>
-        </span>
-        <span className="chat-model-selector__chevron" aria-hidden="true">
-          <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
-            <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </span>
-      </MobileButton>
-
-      {open && selectionSupported && (
-        <MobileCard appearance="elevated" padding="none" className="chat-model-selector__dropdown chat-reasoning-selector__dropdown">
-          <div className="chat-model-selector__header">{t('chat.reasoningSelection')}</div>
+    <section className="chat-reasoning-options" aria-label={t('chat.reasoningSelection')}>
+      <h3 className="chat-model-selector__group-title">{t('chat.reasoningSelection')}</h3>
+      {!selectionSupported && <p>{t('chat.reasoningUnsupported')}</p>}
           <div className="chat-model-selector__list">
             <MobileButton
               appearance="plain"
               block
               className={`chat-model-selector__option${selectedPresetId === null ? ' is-selected' : ''}`}
               type="button"
-              onClick={() => void handleSelect(null)}
+              aria-pressed={selectedPresetId === null}
+              disabled={isDisabled}
+              onClick={() => void onSelect(null)}
             >
               <span className="chat-model-selector__option-name">{t('chat.reasoningAuto')}</span>
             </MobileButton>
@@ -391,14 +332,14 @@ export const ReasoningPresetPill: React.FC<{
                 key={preset.id}
                 className={`chat-model-selector__option${selectedPresetId === preset.id ? ' is-selected' : ''}`}
                 type="button"
-                onClick={() => void handleSelect(preset.id)}
+                aria-pressed={selectedPresetId === preset.id}
+                disabled={isDisabled}
+              onClick={() => void onSelect(preset.id)}
               >
                 <span className="chat-model-selector__option-name">{preset.label}</span>
               </MobileButton>
             ))}
           </div>
-        </MobileCard>
-      )}
-    </div>
+    </section>
   );
 };

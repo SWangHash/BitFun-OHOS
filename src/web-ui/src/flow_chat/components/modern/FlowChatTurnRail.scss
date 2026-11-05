@@ -14,7 +14,7 @@
   &__list {
     width: 100%;
     max-height: 100%;
-    padding: 0 1px;
+    padding: 0;
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -35,8 +35,8 @@
   &__item {
     position: absolute;
     left: 0;
-    width: 26px;
-    height: 12px;
+    width: transcriptLayout.$turn-rail-width;
+    height: 9px;
     margin: 0;
     padding: 0;
     border: 0;
@@ -48,13 +48,13 @@
 
   &__bar {
     position: absolute;
-    left: 2px;
+    left: 0;
     top: 50%;
-    width: 10px;
+    width: 5px;
     height: 2px;
     border-radius: 1px;
-    background: var(--bitfun-color-content-muted);
-    opacity: 0.4;
+    background: var(--bitfun-color-content-primary);
+    opacity: 0.2;
     transform: translateY(-50%);
     transform-origin: left center;
     transition:
@@ -64,18 +64,18 @@
       opacity 140ms ease;
   }
 
-  // Hover previews a target without changing the actual current step. Only
-  // one marker uses primary ink: the preview, or current when not hovering.
+  // Hover previews a target without changing the actual current step. The
+  // current marker keeps its resting width and only switches to emphasized ink.
   &:not([data-hovering='true']) &__item[aria-current='step'] &__bar {
-    width: 10px;
+    width: 5px;
     height: 2px;
     background: var(--bitfun-color-content-primary);
-    opacity: 1;
+    opacity: 0.8;
   }
 
   &__item:focus-visible &__bar {
-    width: 19px;
-    opacity: 1;
+    width: 5px;
+    opacity: 0.8;
   }
 
   &__item:focus-visible &__bar {
@@ -83,13 +83,13 @@
   }
 
   // Fixed hit areas and row heights keep the hover fan from moving its target.
-  &__item[data-hover-distance='3'] &__bar { width: 11px; }
-  &__item[data-hover-distance='2'] &__bar { width: 13px; }
-  &__item[data-hover-distance='1'] &__bar { width: 16px; }
+  &__item[data-hover-distance='3'] &__bar { width: 8px; }
+  &__item[data-hover-distance='2'] &__bar { width: 10px; }
+  &__item[data-hover-distance='1'] &__bar { width: 15px; }
   &__item[data-hover-distance='0'] &__bar {
-    width: 19px;
+    width: transcriptLayout.$turn-rail-width;
     background: var(--bitfun-color-content-primary);
-    opacity: 1;
+    opacity: 0.8;
   }
 
   &__tooltip-content {

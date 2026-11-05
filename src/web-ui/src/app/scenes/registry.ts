@@ -13,15 +13,17 @@ import { Icon, type IconName } from '@bitfun/ui';
 import {
   FileCode2,
   CircleUserRound,
+  House,
   Users,
   Boxes,
   PanelsTopLeft,
   BarChart3,
   CalendarClock,
-  Network,
+  Cable,
 } from 'lucide-react';
 import type { SceneTabDef, SceneTabIcon, SceneTabId } from '../components/SceneBar/types';
 import { getSceneViewId } from '../components/SceneBar/types';
+import { parseProjectResourceTarget } from './project-resources/projectResourceTarget';
 
 function catalogSceneIcon(name: IconName): SceneTabIcon {
   return function CatalogSceneIcon() {
@@ -30,6 +32,15 @@ function catalogSceneIcon(name: IconName): SceneTabIcon {
 }
 
 export const SCENE_TAB_REGISTRY: SceneTabDef[] = [
+  {
+    id: 'personal-overview',
+    label: 'Home',
+    labelKey: 'nav.items.personalOverview',
+    Icon: House,
+    pinned: false,
+    singleton: true,
+    defaultOpen: false,
+  },
   {
     id: 'session' as SceneTabId,
     label: 'Session',
@@ -102,9 +113,9 @@ export const SCENE_TAB_REGISTRY: SceneTabDef[] = [
   },
   {
     id: 'ecosystem-compatibility' as SceneTabId,
-    label: 'Ecosystem Compatibility',
+    label: 'External Import',
     labelKey: 'nav.items.ecosystemCompatibility',
-    Icon: Network,
+    Icon: Cable,
     pinned: false,
     singleton: true,
     defaultOpen: false,
@@ -174,6 +185,10 @@ export const SCENE_TAB_REGISTRY: SceneTabDef[] = [
 ];
 
 export function getSceneDef(id: SceneTabId): SceneTabDef | undefined {
+  if (parseProjectResourceTarget(id)) {
+    return { id, label: 'Project resources', labelKey: 'nav.workspaces.actions.projectResources',
+      Icon: catalogSceneIcon('folder'), pinned: false, singleton: false, defaultOpen: false };
+  }
   return SCENE_TAB_REGISTRY.find(d => d.id === getSceneViewId(id));
 }
 

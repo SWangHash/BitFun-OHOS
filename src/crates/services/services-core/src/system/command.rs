@@ -4,13 +4,12 @@
 
 use crate::process_manager;
 use log::error;
-use std::path::PathBuf;
+#[cfg(any(test, target_os = "macos", target_os = "linux"))]
+use std::collections::HashSet;
 #[cfg(any(test, target_os = "macos", target_env = "ohos"))]
-use std::{
-    collections::HashSet,
-    ffi::{OsStr, OsString},
-};
-#[cfg(any(target_os = "macos", target_env = "ohos"))]
+use std::ffi::{OsStr, OsString};
+use std::path::PathBuf;
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 use std::{process::Command, sync::OnceLock};
 
 /// Command check result
@@ -49,7 +48,8 @@ pub enum SystemError {
 }
 
 /// Platform-specific PATH entries that are commonly used but may not be present in GUI app
-/// environments (e.g. macOS apps launched from Finder, or a HarmonyOS HAP that does not
+/// environments (e.g. macOS apps launched from Finder, a Linux app started from a
+/// `.desktop` file instead of a login shell, or a HarmonyOS HAP that does not
 /// source the user login profile).
 pub fn platform_path_entries() -> Vec<PathBuf> {
     platform_path_entries_impl()
@@ -127,22 +127,54 @@ fn platform_path_entries_impl() -> Vec<PathBuf> {
     login_shell_path_entries()
 }
 
-#[cfg(all(not(target_os = "macos"), not(target_env = "ohos")))]
+/// A GUI or `.desktop` launch normally starts with the session PATH, which on
+/// Linux commonly misses entries a login shell would add (`~/.local/bin`, a
+/// version manager's `node`/`bun`, toolchain shims). Resolve those once here so
+/// child processes spawned by the app find the same executables a terminal does.
+#[cfg(all(target_os = "linux", not(target_env = "ohos")))]
+fn platform_path_entries_impl() -> Vec<PathBuf> {
+    let mut entries: Vec<PathBuf> = [
+        "/usr/local/bin",
+        "/usr/local/sbin",
+        "/usr/bin",
+        "/usr/sbin",
+        "/bin",
+        "/sbin",
+    ]
+    .iter()
+    .map(PathBuf::from)
+    .collect();
+
+    if let Some(home) = std::env::var_os("HOME") {
+        entries.push(PathBuf::from(home).join(".local").join("bin"));
+    }
+
+    entries.extend(login_shell_path_entries());
+    dedup_existing_dirs(entries)
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
 fn platform_path_entries_impl() -> Vec<PathBuf> {
     Vec::new()
 }
 
-#[cfg(any(target_os = "macos", target_env = "ohos"))]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 static LOGIN_SHELL_PATH_ENTRIES: OnceLock<Vec<PathBuf>> = OnceLock::new();
 
-#[cfg(any(target_os = "macos", target_env = "ohos"))]
+/// PATH entries a GUI / `.desktop` launch is missing, resolved once per process.
+///
+/// The probe shells out with a plain [`Command`] on purpose: this is the value
+/// `process_manager` caches and applies to every child, so routing the probe
+/// through `process_manager::create_command` would recurse into the cache it is
+/// meant to initialize.
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn login_shell_path_entries() -> Vec<PathBuf> {
     LOGIN_SHELL_PATH_ENTRIES
         .get_or_init(resolve_login_shell_path_entries)
         .clone()
 }
 
-#[cfg(any(target_os = "macos", target_env = "ohos"))]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn resolve_login_shell_path_entries() -> Vec<PathBuf> {
     let mut shell_candidates = Vec::new();
     if let Ok(shell) = std::env::var("SHELL") {
@@ -158,6 +190,12 @@ fn resolve_login_shell_path_entries() -> Vec<PathBuf> {
     }
     #[cfg(target_env = "ohos")]
     shell_candidates.push("/bin/sh".to_string());
+    #[cfg(all(target_os = "linux", not(target_env = "ohos")))]
+    {
+        shell_candidates.push("/bin/bash".to_string());
+        shell_candidates.push("/bin/zsh".to_string());
+        shell_candidates.push("/bin/sh".to_string());
+    }
 
     // Mutated only on HarmonyOS; macOS returns from the first successful shell.
     #[allow(unused_mut)]
@@ -172,9 +210,9 @@ fn resolve_login_shell_path_entries() -> Vec<PathBuf> {
                 .filter(|path| path.is_dir())
                 .collect();
             if !shell_entries.is_empty() {
-                // macOS login shells already export the user PATH. The first
-                // successful shell is the one Finder apps should inherit.
-                #[cfg(target_os = "macos")]
+                // macOS and Linux login shells already export the user PATH.
+                // The first successful shell is the one GUI apps should inherit.
+                #[cfg(not(target_env = "ohos"))]
                 return dedup_existing_dirs(shell_entries);
                 #[cfg(target_env = "ohos")]
                 {
@@ -322,7 +360,59 @@ fn read_path_from_login_shell(shell: &str) -> Option<String> {
         return None;
     }
 
-    let path_value = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    normalized_login_shell_path(&output.stdout)
+}
+
+#[cfg(all(target_os = "linux", not(target_env = "ohos")))]
+fn read_path_from_login_shell(shell: &str) -> Option<String> {
+    use std::io::Read;
+    use std::process::Stdio;
+    use std::time::{Duration, Instant};
+
+    const LOGIN_SHELL_TIMEOUT: Duration = Duration::from_secs(2);
+    const POLL_INTERVAL: Duration = Duration::from_millis(10);
+
+    let mut child = Command::new(shell)
+        .arg("-lc")
+        .arg("printf '%s' \"$PATH\"")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .ok()?;
+
+    // Drain stdout on a helper thread so a chatty rc file cannot fill the pipe
+    // buffer and deadlock the wait below.
+    let mut stdout_pipe = child.stdout.take()?;
+    let reader = std::thread::spawn(move || {
+        let mut buffer = Vec::new();
+        let _ = stdout_pipe.read_to_end(&mut buffer);
+        buffer
+    });
+
+    let deadline = Instant::now() + LOGIN_SHELL_TIMEOUT;
+    let exited = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status.success(),
+            Ok(None) if Instant::now() < deadline => std::thread::sleep(POLL_INTERVAL),
+            _ => {
+                let _ = child.kill();
+                let _ = child.wait();
+                break false;
+            }
+        }
+    };
+
+    let stdout = reader.join().ok()?;
+    if !exited {
+        return None;
+    }
+    normalized_login_shell_path(&stdout)
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn normalized_login_shell_path(stdout: &[u8]) -> Option<String> {
+    let path_value = String::from_utf8_lossy(stdout).trim().to_string();
     if path_value.is_empty() {
         None
     } else {
@@ -330,7 +420,7 @@ fn read_path_from_login_shell(shell: &str) -> Option<String> {
     }
 }
 
-#[cfg(any(target_os = "macos", target_env = "ohos"))]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn dedup_existing_dirs(paths: Vec<PathBuf>) -> Vec<PathBuf> {
     let mut deduped = Vec::new();
     let mut seen = HashSet::new();
@@ -483,8 +573,8 @@ mod tests {
         ];
         let existing = std::env::join_paths(&existing_entries).expect("joined existing path");
         let platform = vec![PathBuf::from("/storage/Users/currentUser/.harmonybrew/bin")];
-        let merged = merge_platform_path(Some(existing.as_os_str()), &platform)
-            .expect("joined path");
+        let merged =
+            merge_platform_path(Some(existing.as_os_str()), &platform).expect("joined path");
         let entries: Vec<_> = std::env::split_paths(&merged).collect();
         assert_eq!(
             entries,

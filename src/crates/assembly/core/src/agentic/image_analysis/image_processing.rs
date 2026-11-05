@@ -84,10 +84,7 @@ pub fn resolve_vision_model_from_ai_config(
         .ok_or_else(|| BitFunError::service(format!("Model not found: {}", id)))?;
 
     if !model.enabled {
-        return Err(BitFunError::service(format!(
-            "Model is disabled: {}",
-            id
-        )));
+        return Err(BitFunError::service(format!("Model is disabled: {}", id)));
     }
 
     if !model.supports_image_understanding() {
@@ -110,27 +107,66 @@ pub async fn resolve_vision_model_from_global_config() -> BitFunResult<AIModelCo
     resolve_vision_model_from_ai_config(&ai_config)
 }
 
+/// Per-request image requirements, never persisted as session policy.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) enum ImageInputRequirement {
+    #[default]
+    None,
+    Native,
+    NativeOrAnalysisTool,
+}
+
+impl ImageInputRequirement {
+    pub(crate) fn validate(self, config: &ServiceAIConfig, model_id: &str) -> BitFunResult<()> {
+        if self == Self::None {
+            return Ok(());
+        }
+        validate_image_input_model(config, model_id, self == Self::NativeOrAnalysisTool)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ImageInputRoute {
+    Native,
+    AnalysisTool,
+}
+
 pub(crate) fn validate_image_input_model(
     ai_config: &ServiceAIConfig,
     primary_model_id: &str,
-    tools_enabled: bool,
+    analysis_tool_available: bool,
 ) -> BitFunResult<()> {
+    resolve_image_input_route(ai_config, primary_model_id, analysis_tool_available).map(|_| ())
+}
+
+pub(crate) fn resolve_image_input_route(
+    ai_config: &ServiceAIConfig,
+    primary_model_id: &str,
+    analysis_tool_available: bool,
+) -> BitFunResult<ImageInputRoute> {
     let model = ai_config
         .models
         .iter()
         .find(|model| model.id == primary_model_id)
-        .ok_or_else(|| {
-            BitFunError::validation(format!("Model not found: {primary_model_id}"))
-        })?;
+        .ok_or_else(|| BitFunError::validation(format!("Model not found: {primary_model_id}")))?;
     if model.supports_image_understanding() {
-        return Ok(());
+        return Ok(ImageInputRoute::Native);
     }
-    if !tools_enabled {
+    if !analysis_tool_available {
         return Err(BitFunError::validation(
-            "This model cannot read images while tools are disabled. Select a multimodal model or enable tools and configure an image understanding model.",
+            "This model cannot read images because analyze_image is unavailable for this request. Select a multimodal model or enable analyze_image and configure an image understanding model.",
         ));
     }
-    resolve_vision_model_from_ai_config(ai_config).map(|_| ())
+    if !model.capabilities.is_empty()
+        && !model
+            .capabilities
+            .contains(&crate::service::config::types::ModelCapability::FunctionCalling)
+    {
+        return Err(BitFunError::validation(
+            "This model cannot call analyze_image. Select a model with image or tool-call support.",
+        ));
+    }
+    resolve_vision_model_from_ai_config(ai_config).map(|_| ImageInputRoute::AnalysisTool)
 }
 
 #[cfg(test)]
@@ -150,7 +186,7 @@ mod input_model_tests {
         let text = AIModelConfig {
             id: "text".into(),
             category: ModelCategory::GeneralChat,
-            capabilities: vec![ModelCapability::TextChat],
+            capabilities: vec![ModelCapability::TextChat, ModelCapability::FunctionCalling],
             enabled: true,
             ..Default::default()
         };
@@ -164,6 +200,28 @@ mod input_model_tests {
         config.default_models.image_understanding = Some("native".into());
         assert!(validate_image_input_model(&config, "text", true).is_ok());
         assert!(validate_image_input_model(&config, "text", false).is_err());
+        assert_eq!(
+            resolve_image_input_route(&config, "native", false).unwrap(),
+            ImageInputRoute::Native
+        );
+        assert_eq!(
+            resolve_image_input_route(&config, "text", true).unwrap(),
+            ImageInputRoute::AnalysisTool
+        );
+        config.models[1].capabilities = vec![ModelCapability::TextChat];
+        assert!(validate_image_input_model(&config, "text", true)
+            .unwrap_err()
+            .to_string()
+            .contains("cannot call analyze_image"));
+        config.models[1]
+            .capabilities
+            .push(ModelCapability::FunctionCalling);
+        config.default_models.image_understanding = Some("missing".into());
+        assert!(validate_image_input_model(&config, "text", true)
+            .unwrap_err()
+            .to_string()
+            .contains("Model not found"));
+        config.default_models.image_understanding = Some("native".into());
         config.models[0].enabled = false;
         assert!(validate_image_input_model(&config, "text", true)
             .unwrap_err()
@@ -495,9 +553,7 @@ async fn process_image_contexts(
                     .file_system_for_path(&resolved)?
                     .read_file(&resolved.resolved_path)
                     .await
-                    .map_err(|error| {
-                        BitFunError::io(format!("Failed to read image: {error}"))
-                    })?
+                    .map_err(|error| BitFunError::io(format!("Failed to read image: {error}")))?
             } else {
                 let path = resolve_image_path(path_str, workspace_path)?;
                 load_image_from_path(&path, workspace_path).await?

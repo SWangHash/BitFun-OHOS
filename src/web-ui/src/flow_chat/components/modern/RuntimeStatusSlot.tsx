@@ -1,10 +1,12 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { OverflowText, Spinner } from '@bitfun/ui';
+import { FlowChatRuntimeStatus } from '@bitfun/ui/flow-chat';
 import { useRuntimeStatusStore } from '../../store/runtimeStatusStore';
+import { submittedMessageStatusDelay } from '../../services/submittedMessagePresentation';
 import './RuntimeStatusSlot.scss';
 
 const EMPTY_HINTS: readonly string[] = [];
+const FALLBACK_I18N_CACHE_OWNER = {};
 const translatedHintsCache = new WeakMap<object, Map<string, readonly string[]>>();
 
 // Status labels supplied by the runtime do not need the generated hint list;
@@ -55,12 +57,13 @@ export const RuntimeStatusSlot: React.FC<RuntimeStatusSlotProps> = ({
   ));
   const { t, i18n, ready } = useTranslation('flow-chat/processing-hints');
   const needsGeneratedHint = Boolean(status && !status.label);
-  const language = i18n.resolvedLanguage ?? i18n.language ?? 'default';
+  const language = i18n?.resolvedLanguage ?? i18n?.language ?? 'default';
+  const cacheOwner = i18n ?? FALLBACK_I18N_CACHE_OWNER;
   const hints = React.useMemo(
     () => needsGeneratedHint
-      ? getTranslatedHints(i18n, t, language, ready)
+      ? getTranslatedHints(cacheOwner, t, language, ready)
       : EMPTY_HINTS,
-    [i18n, language, needsGeneratedHint, ready, t],
+    [cacheOwner, language, needsGeneratedHint, ready, t],
   );
   const hint = status
     ? status.label
@@ -68,31 +71,15 @@ export const RuntimeStatusSlot: React.FC<RuntimeStatusSlotProps> = ({
       || ''
     : '';
   const visible = Boolean(status && hint);
+  const revealDelay = status && visible
+    ? submittedMessageStatusDelay(status.sessionId, status.turnId)
+    : 0;
 
-  return (
-    <div
-      className={`runtime-status-slot runtime-status-slot--${placement} ${visible ? 'runtime-status-slot--visible' : ''} ${className}`.trim()}
-      data-bitfun-component="runtime-status-slot"
-      data-bitfun-part="root"
-      aria-hidden={!visible}
-      data-runtime-status-visible={visible ? 'true' : 'false'}
-    >
-      <div
-        className="runtime-status-slot__content"
-        data-bitfun-component="runtime-status-slot"
-        data-bitfun-part="content"
-      >
-        <span className="runtime-status-slot__icon" data-bitfun-component="runtime-status-slot" data-bitfun-part="leadingIcon" aria-hidden="true">
-          <Spinner size="sm" />
-        </span>
-        <OverflowText
-          className="runtime-status-slot__hint"
-          data-bitfun-component="runtime-status-slot"
-          data-bitfun-part="hint"
-        >
-          {hint}
-        </OverflowText>
-      </div>
-    </div>
-  );
+  return <FlowChatRuntimeStatus
+    label={hint}
+    visible={visible}
+    placement={placement}
+    revealDelayMs={revealDelay}
+    className={className}
+  />;
 };

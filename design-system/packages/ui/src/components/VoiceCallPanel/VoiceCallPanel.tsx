@@ -1,10 +1,7 @@
 import { useEffect, useRef, type HTMLAttributes, type ReactNode } from "react";
 import { ArrowLeft, Mic, MicOff, Phone, SlidersHorizontal, X } from "lucide-react";
 import { classNames } from "../../internal/classNames";
-import { OverflowText } from "../../primitives/OverflowText";
-import { IconButton } from "../IconButton";
-import { Tooltip } from "../Tooltip";
-import { VoiceParticleLogo, type VoiceParticleAudioReader } from "../VoiceParticleLogo";
+import { VoiceParticleLogo, type VoiceParticleAudioReader } from "../../brand/VoiceParticleLogo";
 import styles from "./VoiceCallPanel.module.css";
 
 export type VoiceCallPhase = "connecting" | "live" | "ending" | "error";

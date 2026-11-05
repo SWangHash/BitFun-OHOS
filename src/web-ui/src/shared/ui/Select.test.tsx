@@ -41,6 +41,32 @@ describe('public Select product integration', () => {
     act(() => root.unmount());
     host.remove();
     vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it('shows option help on hover without changing selection or preventing a click', () => {
+    vi.useFakeTimers();
+    render({ options: [
+      { label: 'Ask', value: 'ask', tooltip: 'Ask before making changes.' },
+      { label: 'Agent', value: 'agent', tooltip: 'Apply changes directly.' },
+    ] });
+    act(() => trigger().dispatchEvent(new MouseEvent('mouseenter')));
+    act(() => vi.advanceTimersByTime(500));
+    act(() => vi.advanceTimersByTime(20));
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toBe('Ask before making changes.');
+    act(() => trigger().dispatchEvent(new MouseEvent('mouseleave', { relatedTarget: document.body })));
+    act(() => vi.advanceTimersByTime(500));
+    act(() => trigger().click());
+    const option = document.querySelector<HTMLElement>('[role="option"][aria-label="Agent"]')!;
+    act(() => option.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })));
+    act(() => vi.advanceTimersByTime(500));
+    act(() => vi.advanceTimersByTime(20));
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toBe('Apply changes directly.');
+    expect(change).not.toHaveBeenCalled();
+    act(() => option.click());
+    expect(change).toHaveBeenCalledWith('agent');
+    expect(document.querySelector('[role="listbox"]')).toBeNull();
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
   });
 
   it('opens a grouped portalled listbox with a selected row and check indicator', () => {
@@ -73,6 +99,55 @@ describe('public Select product integration', () => {
     expect(activeCombobox()).toBe(header);
     expect(header.getAttribute('aria-expanded')).toBe('true');
     expect(document.querySelectorAll('button[role="combobox"]')).toHaveLength(1);
+  });
+
+  it('hides group headings while preserving groups, native values and keyboard selection', () => {
+    render({ showGroupLabels: false, options: [
+      { label: 'Ask', value: 'ask', group: 'Basic' },
+      { label: 'Plan', value: 'plan', group: 'Basic' },
+      { label: 'Agent', value: 3, group: 'Advanced' },
+    ] });
+    key(trigger(), 'ArrowDown');
+
+    const groups = document.querySelectorAll('[role="listbox"] [role="group"]');
+    expect(groups).toHaveLength(2);
+    expect(groups[0].querySelector('[data-bitfun-part="group-label"]')).toBeNull();
+    expect(groups[0].querySelectorAll('[role="option"]')).toHaveLength(2);
+    expect(groups[1].querySelector('[data-bitfun-part="group-label"]')).toBeNull();
+    expect(host.querySelectorAll('optgroup')).toHaveLength(2);
+
+    key(document.activeElement!, 'ArrowDown');
+    key(document.activeElement!, 'ArrowDown');
+    key(document.activeElement!, 'Enter');
+    expect(change).toHaveBeenLastCalledWith(3);
+    expect(host.querySelector('select')?.value).toBe('3');
+    expect(document.activeElement).toBe(trigger());
+  });
+
+  it('keeps a pill trigger compact while expanded and native options retain full labels', () => {
+    render({
+      variant: 'pill', bordered: false, size: 'sm', width: 'content', popupWidth: 'content',
+      defaultValue: 'global',
+      options: [
+        { value: 'global', label: 'International platform', selectedLabel: 'Global' },
+        { value: 'china', label: 'China platform', selectedLabel: 'China' },
+      ],
+    });
+    expect(trigger().textContent).toBe('Global');
+    expect(trigger().parentElement?.getAttribute('data-variant')).toBe('pill');
+    act(() => trigger().click());
+    const popup = document.querySelector('[data-bitfun-component="select-popup"]')!;
+    expect(popup.querySelector('[data-bitfun-part="header"]')?.textContent).toBe('International platform');
+    expect([...popup.querySelectorAll('[role="option"]')].map(option => option.textContent))
+      .toEqual(['International platform', 'China platform']);
+    key(document.activeElement!, 'End');
+    key(document.activeElement!, 'Enter');
+    expect(change).toHaveBeenCalledWith('china');
+    expect(trigger().textContent).toBe('China');
+    expect(document.activeElement).toBe(trigger());
+    const native = host.querySelector('select')!;
+    expect(native.value).toBe('china');
+    expect(native.selectedOptions[0].textContent).toBe('China platform');
   });
 
   it('skips disabled options, commits typed values, closes, and restores focus', () => {
@@ -169,7 +244,7 @@ describe('public Select product integration', () => {
     });
     act(() => root.render(
       <Field description="Choose a mode" label="Mode" required>
-        <Select options={options} />
+        <Select options={options} valuePrefix={<span>Mode:</span>} bordered="hover" hitArea="expanded" showIndicator={false} />
       </Field>,
     ));
     const button = trigger();
@@ -177,11 +252,13 @@ describe('public Select product integration', () => {
     expect(host.querySelector('label')?.htmlFor).toBe(button.id);
     expect(button.getAttribute('aria-required')).toBe('true');
     expect(button.getAttribute('aria-describedby')).not.toBeNull();
+    expect(button.querySelector('[data-bitfun-part="indicator"]')).toBeNull();
 
-    act(() => button.click());
+    act(() => button.querySelector<HTMLElement>('[data-bitfun-part="value-prefix"]')!.click());
     const popup = document.querySelector<HTMLElement>('[data-bitfun-component="select-popup"]')!;
     const header = popup.querySelector<HTMLButtonElement>('[data-bitfun-part="header"]')!;
     expect(popup.style.left).toBe('40px');
+    expect(header.querySelector('[data-bitfun-part="indicator"]')).not.toBeNull();
     expect(popup.style.top).toBe('20px');
     expect(popup.style.width).toBe('240px');
     expect(popup.dataset.placement).toBe('bottom');
@@ -189,5 +266,35 @@ describe('public Select product integration', () => {
     expect(host.querySelector('label')?.htmlFor).toBe(header.id);
     expect(header.getAttribute('aria-required')).toBe('true');
     expect(header.getAttribute('aria-describedby')).not.toBeNull();
+  });
+
+  it('positions a wider content popup within the viewport and restores the compact trigger after selection', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.dataset.bitfunComponent === 'select-popup') return new DOMRect(0, 0, 360, 180);
+      return new DOMRect(window.innerWidth - 100, 20, 80, 32);
+    });
+    render({
+      width: 'content',
+      popupWidth: 'content',
+      defaultValue: 'local',
+      options: [
+        { value: 'local', label: 'This computer' },
+        { value: 'remote', label: 'Remote SSH device' },
+      ],
+    });
+    const anchor = trigger();
+    act(() => anchor.click());
+    const popup = document.querySelector<HTMLElement>('[data-bitfun-component="select-popup"]')!;
+    expect(popup.style.width).toBe('');
+    expect(popup.style.left).toBe(`${window.innerWidth - 360 - 8}px`);
+    expect(popup.style.maxWidth).toBe(`${window.innerWidth - 16}px`);
+    expect(anchor.style.width).toBe('');
+
+    act(() => popup.querySelector<HTMLButtonElement>('[role="option"][data-value="remote"]')!.click());
+    expect(change).toHaveBeenCalledWith('remote');
+    expect(document.querySelector('[data-bitfun-component="select-popup"]')).toBeNull();
+    expect(trigger()).toBe(anchor);
+    expect(trigger().textContent).toContain('Remote SSH device');
+    expect(document.activeElement).toBe(anchor);
   });
 });

@@ -1,5 +1,5 @@
 import { InteractionMailboxAction, InteractionMailboxState } from '../../model/InteractionMailbox';
-import { HostCatalogObserver } from '../../services/HostCatalogObserver';
+import { HostCatalogChange, HostCatalogObserver } from '../../services/HostCatalogObserver';
 import { WorkspaceToolsViewModel } from '../viewmodel/WorkspaceToolsViewModel';
 import { WorkspaceToolsIntent } from '../state/WorkspaceToolsState';
 import { BuiltinMiniAppHost } from '../../services/BuiltinMiniAppHost';
@@ -8,10 +8,13 @@ import { SidebarConnectionActionPolicy } from '../policy/SidebarConnectionAction
 import { accountDeviceLink } from '../../services/AccountDeviceLink';
 import {
   ChatMessage,
+  RemoteCommandCatalog,
+  RemoteDefaultModels,
   RemoteModelCatalog,
   RemotePermissionMode,
   RemoteQuestionAnswerPayload,
   RemoteSession,
+  RemoteSessionUsageReport,
   RecentWorkspaceEntry,
   SelectedImageAttachment,
   SessionSummary,
@@ -30,6 +33,7 @@ import { GitHubAccountProfileClient } from '../../services/GitHubAccountProfile'
 import { CloudAccountSessionStore } from '../../services/CloudAccountSessionStore';
 import { RemoteActivityLifecycleController } from '../../services/RemoteActivityLifecycleController';
 import { RemoteChatCache } from '../../services/RemoteChatCache';
+import { RemoteChatBranchCache } from '../../services/RemoteChatBranchCache';
 import { RemoteChatCommandController } from '../../services/RemoteChatCommandController';
 import { RemoteChatLocalRdbStore } from '../../services/RemoteChatLocalRdbStore';
 import { RemoteChatPollingLifecycleController, RemoteChatPollingSnapshot } from '../../services/RemoteChatPollingLifecycleController';
@@ -41,21 +45,21 @@ import { LocaleController } from '../viewmodel/LocaleController';
 import { ConversationController } from '../viewmodel/ConversationController';
 import { RemoteLogger } from '../../services/RemoteLogger';
 import { RemoteModelController } from '../../services/RemoteModelController';
-import { DetectedUrlAction } from '../../services/ConnectScanDecisionPolicy';
+import { RemoteCommandPaletteController } from '../../services/RemoteCommandPaletteController';
 import { RemoteSessionController } from '../../services/RemoteSessionController';
 import { RemoteSessionListCache } from '../../services/RemoteSessionListCache';
 import { RemoteSessionListRdbStore } from '../../services/RemoteSessionListRdbStore';
 import { RemoteSessionManager } from '../../services/RemoteSessionManager';
+import { SubagentBranchCache } from '../../services/SubagentStreamCoordinator';
 import { RemoteWorkspaceRepository } from '../../services/RemoteWorkspaceRepository';
 import { RemoteWorkspaceCoordinator } from '../../services/RemoteWorkspaceCoordinator';
 import { RemoteConnectionCoordinator } from '../../services/RemoteConnectionCoordinator';
 import { RemoteToolActionController } from '../../services/RemoteToolActionController';
 import { AsyncLifecycleGate } from '../../services/AsyncLifecycleGate';
-import { QrScanService } from '../../services/QrScanService';
 import { RemoteUiState } from '../../services/RemoteUiState';
 import { VoiceInputLifecycleController } from '../../services/VoiceInputLifecycleController';
 import { VoiceInputService } from '../../services/VoiceInputService';
-import { ConversationIntent } from '../actions/ConversationIntent';
+import { ConversationIntent, CommandPaletteRequest, MessageCopyScope, SessionRollbackRequest } from '../actions/ConversationIntent';
 import { AppRootHostPort } from '../host/AppRootHostAdapter';
 import { AppRootPresentationActions } from '../actions/AppRootPresentationActions';
 import {
@@ -63,7 +67,7 @@ import {
   AppRoute,
   AppRouteContract
 } from '../navigation/AppRouteContract';
-import { AppShellState, CONNECT_INTENT_AUTO, CONNECT_INTENT_SCAN } from '../state/AppShellState';
+import { AppShellState } from '../state/AppShellState';
 import {
   RemoteConnectEntryKind,
   RemoteSurfaceEntryPolicy
@@ -123,12 +127,11 @@ export abstract class AppRootRuntimeComposition {
   abstract failRemoteConnection(err: Object): void;
   abstract handleNavigationBack(route: AppRoute): boolean;
   abstract hasRemoteBindingForResume(): boolean;
+  protected abstract startWatchProvisioning(): Promise<void>;
   abstract isRemoteConversationContext(sessionId: string): boolean;
   abstract mergeSessions(primary: RemoteSession[], extras: RemoteSession[]): RemoteSession[];
   abstract loadWorkspaceSessionsOnDevice(deviceId: string, path: string, remoteConnectionId?: string, remoteSshHost?: string, workspaceId?: string): Promise<void>;
-  abstract openAddConnectionFromSettings(): void;
   abstract openAppSidebar(): void;
-  abstract openRemoteControlSettings(): void;
   abstract openWorkspacePickerOnDevice(deviceId: string): Promise<void>;
   abstract pickImages(): Promise<void>;
   abstract publishRemoteSessions(sessions: RemoteSession[], hasMore: boolean): void;
@@ -167,7 +170,6 @@ export abstract class AppRootRuntimeComposition {
   readonly filePreviewState: FilePreviewState = new FilePreviewState();
   readonly identityStore: MobileIdentityStore = new MobileIdentityStore();
   readonly clipboardService: ClipboardService = new ClipboardService();
-  readonly qrScanService: QrScanService = new QrScanService();
   readonly imagePickerService: ImagePickerService = new ImagePickerService();
   readonly remoteConnectionCoordinator: RemoteConnectionCoordinator =
     new RemoteConnectionCoordinator(
@@ -221,7 +223,6 @@ export abstract class AppRootRuntimeComposition {
   // Both caches hold what one account saw on one desktop, so they are dropped
   // together whenever that binding ends.
   readonly clearCachedRemoteData: () => Promise<void> = async (): Promise<void> => {
-    this.remoteWorkspaceSessions = [];
     await this.remoteChatCache.clear();
     await this.remoteSessionListCache.clear();
   };
@@ -235,8 +236,18 @@ export abstract class AppRootRuntimeComposition {
     });
   private readonly hostCatalogObserver: HostCatalogObserver = new HostCatalogObserver(
     this.sessionManager,
-    async (): Promise<void> => {
-      await Promise.all([this.remoteWorkspaceViewModel.loadRecentWorkspacesInBackground(), this.remoteSessionViewModel.refreshSessions(), this.remoteChatPollingLifecycleController.refreshModelCatalog()]);
+    async (change: HostCatalogChange): Promise<void> => {
+      const initial = change.initial === true ||
+        (change.sessionsRevision === undefined && change.workspacesRevision === undefined);
+      const refreshSessions = initial || change.sessionsRevision !== undefined;
+      const refreshWorkspaces = initial || change.workspacesRevision !== undefined;
+      const jobs: Promise<void>[] = [];
+      if (refreshSessions) {
+        jobs.push(this.remoteSessionViewModel.refreshSessions(true));
+        jobs.push(this.remoteChatPollingLifecycleController.refreshModelCatalog());
+      }
+      if (refreshWorkspaces) jobs.push(this.remoteWorkspaceViewModel.loadRecentWorkspacesInBackground(true));
+      await Promise.all(jobs);
     },
     (error: Error): void => { this.remotePageState.setError(ConnectionErrorPolicy.errorText(error)); }
   );
@@ -401,16 +412,8 @@ export abstract class AppRootRuntimeComposition {
         onTimelineReady: () => {
           this.remoteSessionViewModel.settleTranscriptLoading();
         },
-        onComposerSubmitted: (sessionId: string, text: string, images: SelectedImageAttachment[]) => {
-          if (this.remotePageState.activeSession.sessionId !== sessionId) {
-            return;
-          }
-          if (this.remotePageState.chatInput.trim() === text.trim()) {
-            this.remotePageState.setChatInput('');
-          }
-          this.remotePageState.setSelectedImages(this.remotePageState.selectedImages.filter(
-            (image: SelectedImageAttachment) => !images.some((sent: SelectedImageAttachment) => sent.id === image.id)
-          ));
+        onComposerPrepared: (sessionId: string, text: string, images: SelectedImageAttachment[]) => {
+          return this.remotePageState.prepareComposerSubmission(sessionId, text, images);
         },
         onSendSucceeded: (turnId: string, pendingActiveId: string, localMessageId: string) => {
           this.chatTimelineStore.acknowledgeOptimisticTurn(localMessageId, turnId);
@@ -514,6 +517,7 @@ export abstract class AppRootRuntimeComposition {
         this.remoteChatPollingLifecycleController.nudge();
       }
     );
+  readonly remoteChatBranchCache: SubagentBranchCache = new RemoteChatBranchCache(this.remoteChatCache);
   readonly remoteChatPollingLifecycleController: RemoteChatPollingLifecycleController =
     new RemoteChatPollingLifecycleController(
       this.sessionManager,
@@ -561,8 +565,12 @@ export abstract class AppRootRuntimeComposition {
           this.remoteSessionViewModel.settleTranscriptLoading();
           this.remotePageState.setConversationLoading(false);
           this.remotePageState.setStatusText(ConnectionErrorPolicy.errorText(error));
+          // Confirm host reachability immediately; transcript errors alone do
+          // not prove disconnection, and the probe is generation-fenced.
+          void this.remoteActivityViewModel.checkConnectionHealth();
         }
-      }
+      },
+      this.remoteChatBranchCache
     );
   readonly remoteModelController: RemoteModelController =
     new RemoteModelController(
@@ -584,6 +592,68 @@ export abstract class AppRootRuntimeComposition {
         this.remotePageState.setBusy(isBusy);
       }
     );
+  /**
+   * The composer command palette's host traffic.
+   *
+   * Every callback is fenced to the session that asked for it: a catalog read or
+   * a usage report that lands after the user moved to another conversation would
+   * otherwise paint one session's data over another's.
+   */
+  readonly remoteCommandPaletteController: RemoteCommandPaletteController =
+    new RemoteCommandPaletteController(
+      this.sessionManager,
+      {
+        onCatalogLoading: (sessionId: string): void => {
+          if (!this.isCommandPaletteSession(sessionId)) return;
+          this.remotePageState.commandPalette.setCatalogLoading();
+        },
+        onCatalogReady: (sessionId: string, catalog: RemoteCommandCatalog): void => {
+          if (!this.isCommandPaletteSession(sessionId)) return;
+          this.remotePageState.commandPalette.setCatalogReady(catalog);
+        },
+        onCatalogFailed: (sessionId: string, errorText: string, failure: string): void => {
+          if (!this.isCommandPaletteSession(sessionId)) return;
+          this.remotePageState.commandPalette.setCatalogFailed(errorText, failure);
+        },
+        onCommandStarted: (sessionId: string, wireAction: string): void => {
+          if (!this.isCommandPaletteSession(sessionId)) return;
+          this.remotePageState.commandPalette.beginCommand(wireAction);
+        },
+        onCommandSettled: (sessionId: string, wireAction: string, errorText: string, message: string): void => {
+          if (!this.isCommandPaletteSession(sessionId)) return;
+          this.remotePageState.commandPalette.settleCommand(wireAction, errorText);
+          if (errorText.length > 0) {
+            // The host's own words, kept out of the notice's one line so a long
+            // refusal does not push the composer's hint out of shape.
+            this.remotePageState.setStatusText(errorText);
+          } else if (message.length > 0) {
+            RemoteLogger.info(
+              `command palette completed session=${sessionId} action=${wireAction}`);
+          }
+        },
+        onCommandNoticeExpired: (sessionId: string, wireAction: string): void => {
+          if (!this.isCommandPaletteSession(sessionId)) return;
+          this.remotePageState.commandPalette.expireNotice(wireAction);
+        },
+        onUsageLoading: (sessionId: string): void => {
+          if (!this.isCommandPaletteSession(sessionId)) return;
+          this.remotePageState.commandPalette.setUsageLoading();
+        },
+        onUsageReady: (sessionId: string, report: RemoteSessionUsageReport | undefined): void => {
+          if (!this.isCommandPaletteSession(sessionId)) return;
+          this.remotePageState.commandPalette.setUsageReady(report);
+        },
+        onUsageFailed: (sessionId: string, errorText: string): void => {
+          if (!this.isCommandPaletteSession(sessionId)) return;
+          this.remotePageState.commandPalette.setUsageFailed(errorText);
+        }
+      }
+    );
+
+  private isCommandPaletteSession(sessionId: string): boolean {
+    return sessionId.length > 0 && this.remotePageState.activeSession.sessionId === sessionId;
+  }
+
   readonly remoteSessionViewModel: RemoteSessionViewModel =
     new RemoteSessionViewModel(
       this.remotePageState,
@@ -641,8 +711,6 @@ export abstract class AppRootRuntimeComposition {
       this.remoteSessionController,
       this.remoteModelController,
       this.remoteFileDownloadController,
-      this.clipboardService,
-      this.qrScanService,
       (sessionId: string): void => this.conversationController.resetRemoteTimeline(sessionId),
       (): void => this.conversationController.resetKnownRemoteState(),
       (): void => this.remoteActivityViewModel.startHeartbeat(),
@@ -667,8 +735,8 @@ export abstract class AppRootRuntimeComposition {
         hooks: {
           deviceId: (): string => this.remoteConnectionController.getDeviceId(),
           openAuthorization: async (url: string): Promise<boolean> => {
-            const localizedUrl = url.startsWith('https://auth.bitfun.com/sign-in#')
-              ? url.replace('/sign-in#', `/sign-in?locale=${encodeURIComponent(RemoteI18n.language())}#`)
+            const localizedUrl = url.includes('https://auth.bitfun.com/sign-in')
+              ? url.replace('/sign-in?', `/sign-in?locale=${encodeURIComponent(RemoteI18n.language())}&`)
               : url;
             return this.host.openExternalLink ? await this.host.openExternalLink(localizedUrl) : false;
           },
@@ -698,10 +766,6 @@ export abstract class AppRootRuntimeComposition {
             this.captureLiveControlTarget();
           },
           onControlTargetLoading: (deviceId: string): void => {
-            // Sessions buffered from the outgoing desktop's sidebar belong to it.
-            // Left in place they are merged into the incoming desktop's list and
-            // stamped with its device id.
-            this.remoteWorkspaceSessions = [];
             this.deviceDirectoryViewModel.beginLiveCatalog(deviceId);
           },
           onControlTargetChanged: (): void => {
@@ -743,6 +807,7 @@ export abstract class AppRootRuntimeComposition {
         chatCache: this.remoteChatCache,
         polling: this.remoteChatPollingLifecycleController,
         models: this.remoteModelController,
+        commandPalette: this.remoteCommandPaletteController,
         files: this.remoteFileDownloadController,
         tools: this.remoteToolActionController,
         connection: this.remoteConnectionController,
@@ -785,7 +850,9 @@ export abstract class AppRootRuntimeComposition {
       rename: async (title: string): Promise<void> => {
         await this.conversationController.renameVisibleSession(title);
       },
-      copy: async (text: string): Promise<void> => { await this.conversationController.copyRemoteMessage(text); },
+      copy: async (text: string, scope: MessageCopyScope): Promise<void> => {
+        await this.conversationController.copyRemoteMessage(text, scope);
+      },
       retry: async (text: string): Promise<void> => { await this.conversationController.retryVisibleMessage(text); },
       selectModel: async (id: string): Promise<void> => { await this.conversationController.selectVisibleModel(id); },
       pickImages: async (): Promise<void> => { await this.pickImages(); },
@@ -795,6 +862,25 @@ export abstract class AppRootRuntimeComposition {
       downloadFile: (path: string): void => this.conversationController.downloadVisibleFile(path),
       buildPlan: async (path: string, name: string): Promise<void> => {
         await this.conversationController.buildRemotePlan(path, name);
+      },
+      // Opening a delegation card is a request to watch that worker: the branch
+      // may have lost its stream to the follow cap, and the card has to fill in.
+      branchExpanded: (branchId: string): void => {
+        this.remoteChatPollingLifecycleController.ensureBranchSubscribed(branchId);
+      },
+      commandPalette: async (request: CommandPaletteRequest): Promise<void> => {
+        await this.conversationController.dispatchCommandPalette(request);
+      },
+      rollback: async (request: SessionRollbackRequest): Promise<void> => {
+        await this.conversationController.rollbackRemoteSession(request);
+      },
+      rollbackResync: async (): Promise<void> => {
+        await this.conversationController.resyncRemoteTranscriptAfterRollback();
+      },
+      rollbackNotice: (key: string): void => {
+        // The policy owns which key a refusal resolves to; the host's own text is
+        // already in the log, where a support report can read it.
+        this.conversationController.showHomeToast(RemoteI18n.t(key));
       },
       send: async (): Promise<void> => { await this.conversationController.sendVisibleMessage(); },
       voiceInput: async (): Promise<void> => { await this.toggleVoiceInput(); },
@@ -816,7 +902,6 @@ export abstract class AppRootRuntimeComposition {
       openSidebar: (): void => this.openAppSidebar(),
       connectWorkspace: (): void => this.openConnectSheet(),
       addConnection: (): void => this.openConnectSheet(),
-      openSettings: (): void => this.openRemoteControlSettings(),
       refresh: (): void => { this.remoteSessionViewModel.refreshSessions(); },
       showWorkspaces: (): void => { this.remoteWorkspaceViewModel.toggleRecentWorkspaces(); },
       showAssistants: (): void => { this.remoteWorkspaceViewModel.toggleAssistants(); },
@@ -866,10 +951,9 @@ export abstract class AppRootRuntimeComposition {
         await this.conversationController.createRemoteSession(agentType);
       },
       enterCode: (): void => { this.closeAppSidebar(); this.enterCodeEntry(); },
-      scanDesktop: (): void => { this.closeAppSidebar(); this.openConnectSheet(CONNECT_INTENT_SCAN); },
-      addDesktop: (): void => {
+      openAccountDevices: (): void => {
         this.closeAppSidebar();
-        this.openConnectSheet(CONNECT_INTENT_SCAN);
+        this.appShellState.openSettings('account');
       },
       refreshDevices: async (): Promise<void> => {
         await this.deviceDirectoryViewModel.refreshDevices(async (): Promise<void> => {
@@ -888,20 +972,11 @@ export abstract class AppRootRuntimeComposition {
         this.closeAppSidebar();
         this.conversationController.openHomeSession(session, true);
       },
-      archive: (_session: RemoteSession, _archived: boolean): void => {
-        RemoteLogger.warn('archive session not yet implemented for remote sessions');
-      },
-      exportSession: (_session: RemoteSession): void => {
-        RemoteLogger.warn('export session not yet implemented for remote sessions');
-      },
-      deleteSession: (session: RemoteSession): void => { this.conversationController.deleteHomeSession(session); },
-      pin: (_session: RemoteSession): void => {
-        RemoteLogger.warn('pin session not yet implemented for remote sessions');
-      }
+      deleteSession: (session: RemoteSession): void => { this.conversationController.deleteHomeSession(session); }
     },
     onSettings: {
       close: (): void => this.appShellState.leaveSettings(),
-      addConnection: (): void => this.openAddConnectionFromSettings(),
+      accountSettled: (): void => this.appShellState.settleAccountSettings(),
       disconnect: (): void => { this.disconnect(false); },
       clearPairing: (): void => {
         this.appShellState.setSettingsVisible(false);
@@ -912,6 +987,9 @@ export abstract class AppRootRuntimeComposition {
       cloudCancelLogin: (): void => this.settingsController.cancelCloudLogin(),
       cloudLogin: async (): Promise<string> => {
         const user = await this.settingsController.loginCloudAccount();
+        // Returning from authorization can show the page before the account
+        // session is saved. Start listening after login completes as well.
+        await this.startWatchProvisioning();
         const pending = this.pendingAccountDeviceId;
         this.pendingAccountDeviceId = '';
         if (pending.length > 0) {
@@ -926,6 +1004,14 @@ export abstract class AppRootRuntimeComposition {
       getPermissionMode: (): Promise<RemotePermissionMode> => this.settingsController.getRemotePermissionMode(),
       setPermissionMode: (mode: RemotePermissionMode): Promise<RemotePermissionMode> =>
         this.settingsController.setRemotePermissionMode(mode),
+      getDeviceModelCatalog: (): Promise<RemoteModelCatalog> =>
+        this.settingsController.getDeviceModelCatalog(),
+      setDeviceModelDefaults: (
+        primary: string | null,
+        fast: string | null,
+        imageUnderstanding: string | null
+      ): Promise<RemoteDefaultModels> =>
+        this.settingsController.setDeviceModelDefaults(primary, fast, imageUnderstanding),
       setLanguage: async (language: string): Promise<void> => {
         await this.localeController.setLanguage(language);
       }
@@ -940,12 +1026,6 @@ export abstract class AppRootRuntimeComposition {
         this.connect(false, password || '');
       },
       clearPairing: (): void => { this.appShellState.setConnectSheetVisible(false); this.disconnect(true); },
-      urlChanged: (url: string): void => { this.remotePageState.setRemoteUrl(url); },
-      userChanged: (user: string): void => this.remotePageState.setUserId(user),
-      detected: (url: string): string => this.handleDetectedRemoteUrl(url),
-      inputVisible: (visible: boolean): void => this.remotePageState.setRemoteUrlInputVisible(visible),
-      paste: (): void => { void this.remoteConnectionController.paste(this.host.context()); },
-      scan: (): void => { void this.scanRemotePairCode(); },
       cloudListDevices: (): Promise<CloudAccountDevice[]> => this.settingsController.listCloudAccountDevices(),
       cloudSelectDevice: (device: CloudAccountDevice): Promise<void> =>
         this.settingsController.selectCloudAccountDevice(device)
@@ -991,14 +1071,12 @@ export abstract class AppRootRuntimeComposition {
     void this.enterRemoteSurfaceCompact();
   }
 
-  openConnectSheet(intent: string = CONNECT_INTENT_AUTO): void {
-    const kind = intent === CONNECT_INTENT_SCAN ?
-      RemoteConnectEntryKind.OpenScan : RemoteConnectEntryKind.OpenConnect;
-    if (!RemoteSurfaceEntryPolicy.shouldOpenConnectSheet(kind)) {
+  openConnectSheet(): void {
+    if (!RemoteSurfaceEntryPolicy.shouldOpenConnectSheet(RemoteConnectEntryKind.OpenConnect)) {
       this.enterRemoteSurface();
       return;
     }
-    this.appShellState.setConnectSheetVisible(true, intent);
+    this.appShellState.setConnectSheetVisible(true);
   }
 
   /**
@@ -1015,7 +1093,7 @@ export abstract class AppRootRuntimeComposition {
   }
 
   refreshLocalizedRuntimeCopy(): void {
-    this.remotePageState.setStatusText(RemoteI18n.retranslateKnown(
+    this.remotePageState.setStatusText(RemoteI18n.retranslate(RemoteI18n.retranslateKnown(
       this.remotePageState.statusText,
       [
         ConnectionStatusPresenter.labelKey(this.remotePageState.connectionState),
@@ -1023,10 +1101,12 @@ export abstract class AppRootRuntimeComposition {
         'status.waitingConnection',
         'status.notConnected'
       ]
-    ));
+    )));
     this.remotePageState.setError(RemoteI18n.retranslate(this.remotePageState.sessionErrorText));
     this.remotePageState.setWorkspace(
-      RemoteI18n.retranslateKnown(this.remotePageState.workspaceName, ['status.notConnected']),
+      RemoteI18n.retranslateWorkspaceName(
+        this.remotePageState.workspaceName, this.remotePageState.workspacePath, this.remotePageState.workspaceId
+      ),
       this.remotePageState.workspacePath,
       this.remotePageState.assistantId,
       this.remotePageState.workspaceBranch,
@@ -1045,12 +1125,16 @@ export abstract class AppRootRuntimeComposition {
 
   private pendingAccountDeviceId: string = '';
 
-  handleDetectedRemoteUrl(url: string): string {
+  /**
+   * Retries a persisted legacy device link. New links are no longer captured on
+   * the phone; this only keeps an existing record usable after an upgrade.
+   */
+  handleDetectedRemoteUrl(url: string): void {
     const link = accountDeviceLink(url);
     if (!link) {
       this.remotePageState.setStatusText(RemoteI18n.t('connect.deviceLinkInvalid'));
       this.remotePageState.setConnectionState(ConnectionState.Failed);
-      return DetectedUrlAction.INVALID;
+      return;
     }
     const deviceId = link.deviceId;
     this.remotePageState.setRemoteUrl(url);
@@ -1061,10 +1145,9 @@ export abstract class AppRootRuntimeComposition {
       this.pendingAccountDeviceId = deviceId;
       this.appShellState.setConnectSheetVisible(false);
       this.appShellState.openSettings('account');
-      return DetectedUrlAction.SHOW_CLOUD_DEVICES;
+      return;
     }
     void this.connectAccountDeviceLink(deviceId);
-    return DetectedUrlAction.USE_CLOUD_DEVICE;
   }
 
   private async connectAccountDeviceLink(deviceId: string): Promise<void> {
@@ -1079,13 +1162,5 @@ export abstract class AppRootRuntimeComposition {
       this.remotePageState.setStatusText(ConnectionErrorPolicy.errorText(err));
       this.remotePageState.setConnectionState(ConnectionState.Failed);
     }
-  }
-
-  async scanRemotePairCode(): Promise<void> {
-    const text = await this.remoteConnectionController.scan(this.host.context());
-    if (text.length === 0) {
-      return;
-    }
-    const action = this.handleDetectedRemoteUrl(text);
   }
 }

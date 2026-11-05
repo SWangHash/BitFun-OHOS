@@ -44,6 +44,13 @@ public sealed interface RelayFailure {
     public data class RemoteRejected(val message: String?) : RelayFailure
 
     /**
+     * The relay refused to forward because the two client builds do not
+     * match, or this one is retired. [message] is the relay's own sentence.
+     * Only updating helps; nothing is retried here.
+     */
+    public data class ClientOutdated(val message: String?) : RelayFailure
+
+    /**
      * The desktop runs an BitFun version without `read_stream`, so its
      * sessions cannot be streamed on demand. Only updating that device helps;
      * nothing is retried here.

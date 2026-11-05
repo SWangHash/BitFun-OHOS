@@ -1,15 +1,14 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Layers } from 'lucide-react';
-import { Combobox } from '@bitfun/ui';
-import { Spinner } from '@bitfun/ui';
+import { Combobox, Icon, IconButton, Tooltip } from '@bitfun/ui';
 import { notificationService } from '@/shared/notification-system';
+import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 import { configManager } from '../services/ConfigManager';
 import type {
   AIModelConfig,
-  DefaultModels,
+  DefaultModelsConfig,
 } from '../types';
-import { ConfigEmptyState, ConfigPageRow } from './common';
+import { ConfigPageRow } from './common';
 import { createLogger } from '@/shared/utils/logger';
 import { useModelSelectPresentation } from './ModelSelectPresentation';
 import {
@@ -17,117 +16,59 @@ import {
   isSelectableModelForCapability,
 } from '../services/modelCategory';
 import './DefaultModelConfig.scss';
+import { agentAPI } from '@/infrastructure/api/service-api/AgentAPI';
 
 const log = createLogger('DefaultModelConfig');
 
 const normalizeSelectValue = (value: string | number | (string | number)[]): string | number =>
   Array.isArray(value) ? (value[0] ?? '') : value;
 
-type DefaultModelSlot = 'primary' | 'fast' | 'image_understanding' | 'speech_recognition';
+type DefaultModelSlot = 'primary' | 'fast' | 'economy' | 'image_understanding' | 'speech_recognition';
 
-function normalizeDefaultModels(config: Partial<DefaultModels> | null | undefined): DefaultModels {
-  return {
-    primary: config?.primary || null,
-    fast: config?.fast || null,
-    image_understanding: config?.image_understanding || null,
-    speech_recognition: config?.speech_recognition || null,
-  };
+interface DefaultModelConfigProps {
+  imageGenerationSlot?: React.ReactNode;
+  compact?: boolean;
+  models: AIModelConfig[];
+  defaultModels: DefaultModelsConfig;
+  loading: boolean;
+  disabled: boolean;
+  onDefaultModelsChange: (defaults: DefaultModelsConfig) => void;
 }
 
-function mergeConfirmedDefaults(
-  current: DefaultModels,
-  confirmed: DefaultModels,
-  pendingSlots: ReadonlySet<DefaultModelSlot>,
-): DefaultModels {
-  return {
-    primary: pendingSlots.has('primary') ? current.primary : confirmed.primary,
-    fast: pendingSlots.has('fast') ? current.fast : confirmed.fast,
-    image_understanding: pendingSlots.has('image_understanding')
-      ? current.image_understanding
-      : confirmed.image_understanding,
-    speech_recognition: pendingSlots.has('speech_recognition')
-      ? current.speech_recognition
-      : confirmed.speech_recognition,
-  };
-}
-
-export const DefaultModelConfig: React.FC = () => {
+export const DefaultModelConfig: React.FC<DefaultModelConfigProps> = ({
+  compact = false,
+  imageGenerationSlot,
+  models,
+  defaultModels,
+  loading,
+  disabled,
+  onDefaultModelsChange,
+}) => {
   const { t } = useTranslation('settings/default-model');
   const { buildModelOption } = useModelSelectPresentation();
-  const renderOptionalLabel = (text: string) => (
-    <>
-      {text}
-      <span className="default-model-config__optional-label">（{t('core.optional')}）</span>
-    </>
+  const controlsDisabled = loading || disabled || models.length === 0;
+  const pendingPlaceholder = loading ? (
+    <span data-bitfun-component="default-model-config" data-bitfun-part="loading" data-bitfun-state="loading">
+      {t('loading')}
+    </span>
+  ) : disabled ? t('messages.loadFailed') : models.length === 0 ? (
+    <span data-bitfun-component="default-model-config" data-bitfun-part="empty" data-bitfun-state="empty">
+      {t('empty.noModels')}
+    </span>
+  ) : undefined;
+  const renderSlotLabel = (label: string, description: string) => (
+    <span className="default-model-config__slot-label-content">
+      <span>{label}</span>
+      <Tooltip content={description} placement="top" trigger="hover-focus" openOnClick>
+        <IconButton
+          size="xs"
+          variant="annotation"
+          aria-label={description}
+          icon={<Icon name="info" size="xs" />}
+        />
+      </Tooltip>
+    </span>
   );
-  
-  
-  const [loading, setLoading] = useState(true);
-  const [models, setModels] = useState<AIModelConfig[]>([]);
-  const [defaultModels, setDefaultModels] = useState<DefaultModels>({
-    primary: null,
-    fast: null,
-    image_understanding: null,
-    speech_recognition: null,
-  });
-  const loadRevisionRef = useRef(0);
-  const pendingDefaultSlotsRef = useRef(new Set<DefaultModelSlot>());
-  const slotMutationRevisionRef = useRef<Record<DefaultModelSlot, number>>({
-    primary: 0,
-    fast: 0,
-    image_understanding: 0,
-    speech_recognition: 0,
-  });
-
-  const loadData = useCallback(async (initial: boolean) => {
-    const revision = ++loadRevisionRef.current;
-    try {
-      if (initial) setLoading(true);
-
-      const configs = await configManager.getConfigs(['ai.models', 'ai.default_models']);
-      if (revision !== loadRevisionRef.current) return;
-      const allModels = (configs['ai.models'] as AIModelConfig[] | undefined) || [];
-      const defaultModelsConfig = configs['ai.default_models'] as Partial<DefaultModels> | undefined;
-
-      setModels(allModels);
-      const confirmed = normalizeDefaultModels(defaultModelsConfig);
-      setDefaultModels(current => mergeConfirmedDefaults(
-        current,
-        confirmed,
-        pendingDefaultSlotsRef.current,
-      ));
-    } catch (error) {
-      log.error('Failed to load data', error);
-      notificationService.error(t('messages.loadFailed'));
-    } finally {
-      if (revision === loadRevisionRef.current) setLoading(false);
-    }
-  }, [t]);
-
-  useEffect(() => {
-    let disposed = false;
-    let refreshQueued = false;
-    void loadData(true);
-
-    const refresh = () => {
-      if (refreshQueued) return;
-      refreshQueued = true;
-      queueMicrotask(() => {
-        refreshQueued = false;
-        if (!disposed) void loadData(false);
-      });
-    };
-
-    const unsubscribeModels = configManager.watch('ai.models', refresh);
-    const unsubscribeDefaultModels = configManager.watch('ai.default_models', refresh);
-
-    return () => {
-      disposed = true;
-      unsubscribeModels();
-      unsubscribeDefaultModels();
-    };
-  }, [loadData]);
-
   
   const getModelName = useCallback((modelId: string | null | undefined): string | undefined => {
     if (!modelId) return undefined;
@@ -142,6 +83,8 @@ export const DefaultModelConfig: React.FC = () => {
         return t('core.primary.label');
       case 'fast':
         return t('core.fast.label');
+      case 'economy':
+        return t('core.economy.label');
       case 'image_understanding':
         return t('optional.capabilities.image_understanding.label');
       case 'speech_recognition':
@@ -154,20 +97,21 @@ export const DefaultModelConfig: React.FC = () => {
   }, [t]);
 
   const handleDefaultModelChange = async (slot: DefaultModelSlot, modelId: string | number) => {
+    if (controlsDisabled) return;
+    const scope = getActiveSurfaceScope();
     const modelIdStr = modelId ? String(modelId) : null;
-    const previousValue = defaultModels[slot];
-    const revision = ++slotMutationRevisionRef.current[slot];
-    pendingDefaultSlotsRef.current.add(slot);
-    setDefaultModels(previous => ({ ...previous, [slot]: modelIdStr }));
     try {
-      await configManager.setConfig(`ai.default_models.${slot}`, modelIdStr);
-      const confirmed = normalizeDefaultModels(
-        await configManager.getConfig<Partial<DefaultModels>>('ai.default_models'),
+      if (slot === 'economy') {
+        const support = await agentAPI.getModelRoutingStatus();
+        if (!scope.isCurrent()) return;
+        if (support.apiVersion !== 1) throw new Error('Model routing is unsupported by this host');
+      }
+      const updatedDefaults = await configManager.updateConfig<DefaultModelsConfig>(
+        'ai.default_models',
+        current => ({ ...current, [slot]: modelIdStr }),
       );
-      if (slotMutationRevisionRef.current[slot] !== revision) return;
-      const pendingSlots = new Set(pendingDefaultSlotsRef.current);
-      pendingSlots.delete(slot);
-      setDefaultModels(current => mergeConfirmedDefaults(current, confirmed, pendingSlots));
+      if (!scope.isCurrent()) return;
+      onDefaultModelsChange(updatedDefaults);
 
       const modelName = getModelName(modelIdStr);
       let successMessage: string;
@@ -186,24 +130,9 @@ export const DefaultModelConfig: React.FC = () => {
         { duration: 2000 }
       );
     } catch (error) {
+      if (!scope.isCurrent()) return;
       log.error('Failed to update default model', { slot, modelId: modelIdStr, error });
-      if (slotMutationRevisionRef.current[slot] === revision) {
-        try {
-          const confirmed = normalizeDefaultModels(
-            await configManager.getConfig<Partial<DefaultModels>>('ai.default_models'),
-          );
-          const pendingSlots = new Set(pendingDefaultSlotsRef.current);
-          pendingSlots.delete(slot);
-          setDefaultModels(current => mergeConfirmedDefaults(current, confirmed, pendingSlots));
-        } catch {
-          setDefaultModels(previous => ({ ...previous, [slot]: previousValue }));
-        }
-      }
       notificationService.error(t('messages.updateFailed'));
-    } finally {
-      if (slotMutationRevisionRef.current[slot] === revision) {
-        pendingDefaultSlotsRef.current.delete(slot);
-      }
     }
   };
 
@@ -218,44 +147,24 @@ export const DefaultModelConfig: React.FC = () => {
     isSelectableModelForCapability(model, 'speech_recognition')
   ));
 
-  if (loading) {
-    return (
-      <div className="default-model-config__loading" data-bitfun-component="default-model-config" data-bitfun-part="loading" data-bitfun-state="loading">
-        <Spinner size="sm" />
-        <p>{t('loading')}</p>
-      </div>
-    );
-  }
-
-  if (models.length === 0) {
-    return (
-      <ConfigEmptyState
-        data-bitfun-component="default-model-config"
-        data-bitfun-part="empty"
-        data-bitfun-state="empty"
-        icon={<Layers size={36} aria-hidden="true" />}
-        description={t('empty.noModels')}
-      />
-    );
-  }
-
   return (
-    <div className="default-model-config" data-bitfun-component="default-model-config" data-bitfun-part="root">
+    <div className={`default-model-config${compact ? ' default-model-config--compact' : ''}`} data-bitfun-component="default-model-config" data-bitfun-part="root" aria-busy={loading}>
       <ConfigPageRow
-        label={t('core.primary.label')}
-        description={t('core.primary.description')}
+        label={renderSlotLabel(t('core.primary.label'), t('core.primary.description'))}
         required
+        multiline={compact}
         align="center"
       >
         <Combobox
           aria-required="true"
+          aria-label={t('core.primary.label')}
           data-bitfun-component="default-model-config"
           data-bitfun-part="primaryModel"
           value={defaultModels.primary || ''}
           onValueChange={(value) => handleDefaultModelChange('primary', normalizeSelectValue(value))}
-          placeholder={t('core.primary.placeholder')}
+          placeholder={pendingPlaceholder ?? t('core.primary.placeholder')}
           options={enabledModels.map(buildModelOption)}
-          disabled={enabledModels.length === 0}
+          disabled={controlsDisabled || enabledModels.length === 0}
           size="sm"
           triggerTestId="default-primary-model-select"
           panelTestId="default-primary-model-select-menu"
@@ -263,16 +172,18 @@ export const DefaultModelConfig: React.FC = () => {
       </ConfigPageRow>
 
       <ConfigPageRow
-        label={renderOptionalLabel(t('core.fast.label'))}
-        description={t('core.fast.description')}
+        label={renderSlotLabel(t('core.fast.label'), t('core.fast.description'))}
+        multiline={compact}
         align="center"
       >
         <Combobox
+          aria-label={t('core.fast.label')}
           data-bitfun-component="default-model-config"
           data-bitfun-part="lightweightModel"
           value={defaultModels.fast || ''}
           onValueChange={(value) => handleDefaultModelChange('fast', normalizeSelectValue(value))}
-          placeholder={t('core.fast.placeholder')}
+          placeholder={pendingPlaceholder ?? t('core.fast.placeholder')}
+          disabled={controlsDisabled}
           options={[
             { label: t('core.fast.notSet'), value: '' },
             ...enabledModels.map(buildModelOption),
@@ -283,17 +194,27 @@ export const DefaultModelConfig: React.FC = () => {
         />
       </ConfigPageRow>
 
+      <ConfigPageRow label={renderSlotLabel(t('core.economy.label'), t('core.economy.description'))} multiline={compact} align="center">
+        <Combobox size="sm" aria-label={t('core.economy.label')} value={defaultModels.economy || ''}
+          onValueChange={value => handleDefaultModelChange('economy', normalizeSelectValue(value))} disabled={controlsDisabled}
+          options={[{ label: t('core.economy.notSet'), value: '' }, ...enabledModels.map(buildModelOption)]} />
+      </ConfigPageRow>
       <ConfigPageRow
-        label={renderOptionalLabel(t('optional.capabilities.image_understanding.label'))}
-        description={t('optional.capabilities.image_understanding.description')}
+        label={renderSlotLabel(
+          t('optional.capabilities.image_understanding.label'),
+          t('optional.capabilities.image_understanding.description'),
+        )}
+        multiline={compact}
         align="center"
       >
         <Combobox
+          aria-label={t('optional.capabilities.image_understanding.label')}
           data-bitfun-component="default-model-config"
           data-bitfun-part="embeddingModel"
           value={defaultModels.image_understanding || ''}
           onValueChange={(value) => handleDefaultModelChange('image_understanding', normalizeSelectValue(value))}
-          placeholder={t('optional.selectModel')}
+          placeholder={pendingPlaceholder ?? t('optional.selectModel')}
+          disabled={controlsDisabled}
           options={[
             { label: t('optional.notSet'), value: '' },
             ...imageUnderstandingModels.map(buildModelOption),
@@ -302,21 +223,27 @@ export const DefaultModelConfig: React.FC = () => {
         />
       </ConfigPageRow>
 
+      {imageGenerationSlot}
+
       <ConfigPageRow
-        label={renderOptionalLabel(t('optional.capabilities.speech_recognition.label'))}
-        description={t('optional.capabilities.speech_recognition.description')}
+        label={renderSlotLabel(
+          t('optional.capabilities.speech_recognition.label'),
+          t('optional.capabilities.speech_recognition.description'),
+        )}
+        multiline={compact}
         align="center"
       >
         <Combobox
+          aria-label={t('optional.capabilities.speech_recognition.label')}
           value={defaultModels.speech_recognition || ''}
           onValueChange={(value) => handleDefaultModelChange('speech_recognition', normalizeSelectValue(value))}
-          placeholder={t('optional.notSet')}
+          placeholder={pendingPlaceholder ?? t('optional.notSet')}
           options={[
             { label: t('optional.notSet'), value: '' },
             ...speechRecognitionModels.map(buildModelOption),
           ]}
           className="default-model-config__model-select"
-          disabled={speechRecognitionModels.length === 0}
+          disabled={controlsDisabled || speechRecognitionModels.length === 0}
           size="sm"
         />
       </ConfigPageRow>

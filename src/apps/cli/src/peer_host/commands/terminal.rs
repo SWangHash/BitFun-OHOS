@@ -4,13 +4,48 @@ use crate::peer_host::{
     state::PeerHostState,
 };
 use bitfun_core::service::{
+    remote_connect::host_stream::HostStreamHub,
     remote_ssh::{get_remote_workspace_manager, RemoteTerminalManager},
     terminal::{
-        CloseSessionRequest, CreateSessionRequest, ResizeRequest, TerminalApi, WriteRequest,
+        session::SessionStatus, CloseSessionRequest, CreateSessionRequest, ResizeRequest,
+        TerminalApi, WriteRequest,
     },
 };
 use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
+
+/// Lifecycle facts on `terminal-<id>`. Output stays in the replay log; these
+/// tell a controller when no more of it will come.
+const TERMINAL_EXIT_EVENT: &str = "terminal-exit";
+const TERMINAL_CLOSED_EVENT: &str = "terminal-closed";
+const TERMINAL_EXIT_CHECK_INTERVAL: std::time::Duration = std::time::Duration::from_secs(1);
+
+async fn publish_lifecycle(hub: &HostStreamHub, id: &str, event: &str, mut payload: Value) {
+    payload["terminal_id"] = json!(id);
+    if let Err(error) = hub
+        .append(format!("terminal-{id}"), event.into(), payload)
+        .await
+    {
+        tracing::debug!(
+            "Terminal lifecycle event was not published: terminal={id} event={event} error={error}"
+        );
+    }
+}
+
+/// `Some(code)` once the PTY has exited; the code itself may be unknown.
+fn exited_code(status: Option<&SessionStatus>) -> Option<Option<i32>> {
+    match status? {
+        SessionStatus::Exited { exit_code } => Some(*exit_code),
+        _ => None,
+    }
+}
+
+fn unpublished_exit(status: Option<&SessionStatus>, exit_published: bool) -> Option<Value> {
+    if exit_published {
+        return None;
+    }
+    exited_code(status).map(|exit_code| json!({"exit_code":exit_code}))
+}
 
 fn api() -> Result<TerminalApi, String> {
     TerminalApi::from_singleton().map_err(|e| e.to_string())
@@ -19,7 +54,7 @@ fn decode<T: DeserializeOwned>(args: &Value) -> Result<T, String> {
     serde_json::from_value(request_value(args).clone()).map_err(|e| e.to_string())
 }
 fn response(session: bitfun_core::service::remote_ssh::RemoteTerminalSession) -> Value {
-    json!({"id":session.id,"name":session.name,"cwd":session.cwd,"initialCwd":session.cwd,"shellType":"Remote","status":format!("{:?}",session.status),"cols":session.cols,"rows":session.rows,"connectionId":session.connection_id,"source":"user"})
+    json!({"workspaceId":session.workspace_id,"id":session.id,"name":session.name,"cwd":session.cwd,"initialCwd":session.cwd,"shellType":"Remote","status":format!("{:?}",session.status),"cols":session.cols,"rows":session.rows,"connectionId":session.connection_id,"source":"user"})
 }
 async fn remote_session(id: &str) -> Option<RemoteTerminalManager> {
     let manager = get_remote_workspace_manager()?
@@ -32,23 +67,38 @@ pub(crate) async fn create(state: &PeerHostState, args: &Value) -> Result<Value,
     let request = request_value(args);
     let id =
         optional_string(request, "sessionId").unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let mut workspace_id = optional_string(request, "workspaceId");
     let explicit = optional_string(request, "connectionId");
-    let cwd = optional_string(request, "workingDirectory");
-    let explicit_local = request
-        .get("connectionId")
-        .or_else(|| request.get("connection_id"))
-        .and_then(Value::as_str)
-        == Some("");
-    let connection = if explicit_local {
-        None
-    } else if explicit.is_some() {
-        explicit
-    } else if let Some(path) = &cwd {
-        bitfun_core::service::remote_ssh::lookup_remote_connection(path)
+    let mut cwd = optional_string(request, "workingDirectory");
+    let connection = if workspace_id.is_some() || explicit.is_none() {
+        let service = bitfun_core::service::workspace::get_global_workspace_service()
+            .ok_or("Workspace service is unavailable")?;
+        // Old-protocol ingress is the only place a path can be converted.
+        let workspace = service
+            .resolve_legacy_workspace_reference(
+                workspace_id.as_deref(),
+                cwd.as_deref().unwrap_or_default(),
+                None,
+                None,
+            )
             .await
-            .map(|entry| entry.connection_id)
+            .map_err(|e| e.to_string())?
+            .ok_or("Terminal workspace ID is unavailable")?;
+        workspace_id = Some(workspace.id.clone());
+        cwd.get_or_insert_with(|| workspace.root_path.to_string_lossy().into_owned());
+        match workspace.workspace_kind {
+            bitfun_core::service::workspace::WorkspaceKind::Remote => Some(
+                workspace
+                    .remote_ssh_connection_id()
+                    .ok_or("Remote workspace is missing its saved SSH connection ID")?
+                    .to_owned(),
+            ),
+            _ => None,
+        }
     } else {
-        None
+        // Explicit connection targets are used by the deployment wizard, which
+        // can open a terminal before any workspace has been registered.
+        explicit.filter(|id| !id.is_empty())
     };
     let hub = state
         .account_routing
@@ -97,14 +147,18 @@ pub(crate) async fn create(state: &PeerHostState, args: &Value) -> Result<Value,
             )
             .await
             .map_err(|e| e.to_string())?;
-        hub
-            .append(
-                format!("terminal-{id}"),
-                "terminal-created".into(),
-                json!({"terminal_id":id}),
-            )
-            .await
-            .map_err(|e| e.to_string())?;
+        hub.append(
+            format!("terminal-{id}"),
+            "terminal-created".into(),
+            json!({"terminal_id":id}),
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+        let mut created = created;
+        manager
+            .set_workspace_id(&created.session.id, workspace_id.clone())
+            .await;
+        created.session.workspace_id = workspace_id.clone();
         let result = response(created.session);
         let mut rx = created.output_rx;
         tokio::spawn(async move {
@@ -117,7 +171,37 @@ pub(crate) async fn create(state: &PeerHostState, args: &Value) -> Result<Value,
                     tokio::select! { output = rx.recv() => output, _ = closed.changed() => break };
                 match output {
                     Ok(_) | Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
-                    Err(_) => break,
+                    Err(_) => {
+                        // The SSH channel ended, so the shell is gone. The channel
+                        // does not report an exit code.
+                        publish_lifecycle(
+                            &hub,
+                            &id,
+                            TERMINAL_EXIT_EVENT,
+                            json!({"exit_code":Value::Null}),
+                        )
+                        .await;
+                        // The record, and its replay, outlive the channel until the
+                        // tab is closed.
+                        let mut removal_check = tokio::time::interval(TERMINAL_EXIT_CHECK_INTERVAL);
+                        removal_check
+                            .set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+                        loop {
+                            if *closed.borrow() {
+                                break;
+                            }
+                            tokio::select! {
+                                _ = removal_check.tick() => {
+                                    if manager.replay_cursor(&id).await.is_none() {
+                                        publish_lifecycle(&hub, &id, TERMINAL_CLOSED_EVENT, json!({})).await;
+                                        break;
+                                    }
+                                }
+                                _ = closed.changed() => break,
+                            }
+                        }
+                        break;
+                    }
                 }
                 tokio::time::sleep(std::time::Duration::from_millis(75)).await;
                 if *closed.borrow() {
@@ -125,6 +209,7 @@ pub(crate) async fn create(state: &PeerHostState, args: &Value) -> Result<Value,
                 }
                 while rx.try_recv().is_ok() {}
                 let Some(cursor) = manager.replay_cursor(&id).await else {
+                    publish_lifecycle(&hub, &id, TERMINAL_CLOSED_EVENT, json!({})).await;
                     break;
                 };
                 if hub
@@ -145,6 +230,7 @@ pub(crate) async fn create(state: &PeerHostState, args: &Value) -> Result<Value,
     let terminal = api()?;
     let mut input = request.clone();
     input["sessionId"] = json!(id);
+    input["workingDirectory"] = json!(cwd);
     if input.get("source").and_then(Value::as_str) == Some("user") {
         input["source"] = json!("manual");
     }
@@ -154,24 +240,59 @@ pub(crate) async fn create(state: &PeerHostState, args: &Value) -> Result<Value,
         .create_session(create)
         .await
         .map_err(|e| e.to_string())?;
-    hub
-        .append(
-            format!("terminal-{id}"),
-            "terminal-created".into(),
-            json!({"terminal_id":id}),
-        )
-        .await
-        .map_err(|e| e.to_string())?;
+    let mut session = session;
+    if let Some(workspace_id) = workspace_id {
+        terminal
+            .session_manager()
+            .set_owner(
+                &session.id,
+                bitfun_core::service::terminal::session::SessionOwner {
+                    id: workspace_id.clone(),
+                    owner_type: bitfun_core::service::terminal::session::OwnerType::Workspace,
+                },
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+        session.workspace_id = Some(workspace_id);
+    }
+    hub.append(
+        format!("terminal-{id}"),
+        "terminal-created".into(),
+        json!({"terminal_id":id}),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    let manager = terminal.session_manager();
     tokio::spawn(async move {
         let mut closed = hub.subscribe_closed();
+        // The replay watch only moves on output; a shell can exit without any.
+        let mut exit_check = tokio::time::interval(TERMINAL_EXIT_CHECK_INTERVAL);
+        exit_check.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        let mut exit_published = false;
         loop {
             if *closed.borrow() {
                 break;
             }
-            if tokio::select! { changed = rx.changed() => changed, _ = closed.changed() => break }
-                .is_err()
-            {
-                break;
+            tokio::select! {
+                changed = rx.changed() => {
+                    if changed.is_err() {
+                        // The close can land between exit checks; keep the exit code.
+                        let status = manager.session_status(&id).await;
+                        if let Some(payload) = unpublished_exit(status.as_ref(), exit_published) {
+                            publish_lifecycle(&hub, &id, TERMINAL_EXIT_EVENT, payload).await;
+                        }
+                        publish_lifecycle(&hub, &id, TERMINAL_CLOSED_EVENT, json!({})).await;
+                        break;
+                    }
+                }
+                _ = exit_check.tick(), if !exit_published => {
+                    if let Some(exit_code) = exited_code(manager.session_status(&id).await.as_ref()) {
+                        exit_published = true;
+                        publish_lifecycle(&hub, &id, TERMINAL_EXIT_EVENT, json!({"exit_code":exit_code})).await;
+                    }
+                    continue;
+                }
+                _ = closed.changed() => break,
             }
             tokio::time::sleep(std::time::Duration::from_millis(75)).await;
             if *closed.borrow() {
@@ -385,4 +506,35 @@ pub(crate) async fn execute(args: &Value) -> Result<Value, String> {
             .map_err(|e| e.to_string())?
     };
     serde_json::to_value(result).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_close_reports_an_exit_the_periodic_check_has_not_published() {
+        let exited = SessionStatus::Exited { exit_code: Some(7) };
+        assert_eq!(
+            unpublished_exit(Some(&exited), false),
+            Some(json!({"exit_code":7}))
+        );
+        assert_eq!(unpublished_exit(Some(&exited), true), None);
+        assert_eq!(unpublished_exit(Some(&SessionStatus::Active), false), None);
+        assert_eq!(unpublished_exit(None, false), None);
+    }
+
+    #[test]
+    fn exit_is_reported_only_for_an_exited_session() {
+        assert_eq!(exited_code(None), None);
+        assert_eq!(exited_code(Some(&SessionStatus::Active)), None);
+        assert_eq!(
+            exited_code(Some(&SessionStatus::Exited { exit_code: Some(7) })),
+            Some(Some(7))
+        );
+        assert_eq!(
+            exited_code(Some(&SessionStatus::Exited { exit_code: None })),
+            Some(None)
+        );
+    }
 }

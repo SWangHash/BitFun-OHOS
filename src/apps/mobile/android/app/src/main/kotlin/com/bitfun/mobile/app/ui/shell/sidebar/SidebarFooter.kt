@@ -29,7 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bitfun.mobile.app.R
-import com.bitfun.mobile.app.ui.common.SignedOutConnectionActions
+import com.bitfun.mobile.app.ui.theme.bitFunColors
 
 internal const val SIDEBAR_NEW_CHAT_TEST_TAG: String = "app-sidebar-new-chat"
 internal const val SIDEBAR_SETTINGS_TEST_TAG: String = "app-sidebar-settings"
@@ -47,8 +47,8 @@ internal fun SidebarAuthenticatedFooter(onOpenTools: () -> Unit, onOpenSettings:
                 .widthIn(min = 104.dp)
                 .height(48.dp)
                 .clip(RoundedCornerShape(24.dp))
-                .background(MaterialTheme.colorScheme.surface)
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(24.dp))
+                .background(bitFunColors.sidebar.raised)
+                .border(1.dp, bitFunColors.sidebar.line, RoundedCornerShape(24.dp))
                 .clickable(role = Role.Button, onClick = onOpenTools)
                 .semantics(mergeDescendants = true) {
                     contentDescription = toolsLabel
@@ -61,14 +61,14 @@ internal fun SidebarAuthenticatedFooter(onOpenTools: () -> Unit, onOpenSettings:
             Icon(
                 painterResource(R.drawable.ic_symbol_wrench_and_screwdriver),
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurface,
+                tint = bitFunColors.sidebar.ink,
                 modifier = Modifier.size(24.dp),
             )
             Text(
                 toolsLabel,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = bitFunColors.sidebar.ink,
             )
         }
         Box(Modifier.weight(1f))
@@ -87,16 +87,26 @@ internal fun SidebarAuthenticatedFooter(onOpenTools: () -> Unit, onOpenSettings:
  * draws it. Filled rather than carded because it is the only thing to press here.
  */
 @Composable
-internal fun SidebarSignedOutFooter(
-    showScan: Boolean,
-    onScanDesktop: () -> Unit,
-    onOpenAccount: () -> Unit,
-) {
-    SignedOutConnectionActions(
-        scanLabel = stringResource(R.string.sidebar_scan_to_connect),
-        accountLabel = stringResource(R.string.sidebar_sign_in),
-        onScan = onScanDesktop,
-        onOpenAccount = onOpenAccount,
-        showScan = showScan,
-    )
+internal fun SidebarSignedOutFooter(onOpenAccount: () -> Unit) {
+    val label = stringResource(R.string.sidebar_sign_in)
+    val shape = RoundedCornerShape(24.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.primary)
+            .clickable(role = Role.Button, onClick = onOpenAccount)
+            .semantics(mergeDescendants = true) {
+                contentDescription = label
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onPrimary,
+        )
+    }
 }

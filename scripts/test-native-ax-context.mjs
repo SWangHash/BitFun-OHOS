@@ -6,6 +6,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 assert.equal(process.platform, 'darwin', 'native AX fixture requires macOS');
+const cli = process.argv.includes('--cli');
 const root = fileURLToPath(new URL('../', import.meta.url));
 const dir = await mkdtemp(join(tmpdir(), 'bitfun-ax-context-'));
 const run = (cmd, args, env = process.env) => new Promise((resolve, reject) => {
@@ -24,7 +25,8 @@ try {
     fixture.on('exit', code => { clearTimeout(timeout); reject(new Error(`AX fixture exited ${code}`)); });
     fixture.stdout.on('data', chunk => { if (String(chunk).includes('READY')) { clearTimeout(timeout); resolve(); } });
   });
-  await run('cargo', ['test', '-p', 'bitfun-desktop', '--lib', 'native_ax_fixture_round_trips_tree_and_cached_targets', '--', '--ignored'], {
+  const nativeArgs = [cli ? 'computer_use_native_cli_observes_and_stops_fixture' : 'native_ax_fixture_round_trips_tree_and_cached_targets', '--ignored'];
+  await run(process.env.BITFUN_TEST_BINARY || 'cargo', process.env.BITFUN_TEST_BINARY ? nativeArgs : ['test', '-p', cli ? 'bitfun-cli' : 'bitfun-computer-use', ...(cli ? ['--test', 'cli_command_contracts'] : ['--lib']), nativeArgs[0], '--', ...nativeArgs.slice(1)], {
     ...process.env, BITFUN_AX_FIXTURE_PID: String(fixture.pid),
   });
 } finally {

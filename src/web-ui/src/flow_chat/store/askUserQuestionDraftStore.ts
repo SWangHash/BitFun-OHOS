@@ -30,7 +30,6 @@ interface AskUserQuestionDraftState {
     key: string,
     questionIndex: number,
     value: string,
-    preserveOtherSelection?: boolean,
   ) => void;
   setInputOrigin: (key: string, questionIndex: number, fromInput: boolean) => void;
   setSubmissionPhase: (key: string, phase: AskUserQuestionSubmissionPhase) => void;
@@ -61,19 +60,28 @@ export function askUserQuestionDraftKey(
   return surfaceScopedKey(surfaceId, sessionId, toolId);
 }
 
-function parseDraftKey(key: string): [DeviceSurfaceId, string, string] | null {
+/** Follow-up answers outlive the original pending-question mailbox entry. */
+export function askUserQuestionFollowUpDraftKey(
+  sessionId: string,
+  toolId: string,
+  surfaceId = getActiveSurfaceId(),
+): string {
+  return surfaceScopedKey(surfaceId, sessionId, toolId, 'follow-up');
+}
+
+function parseDraftKey(key: string): [DeviceSurfaceId, string, string, 'follow-up'?] | null {
   try {
     const parsed = JSON.parse(key) as unknown;
     if (
       !Array.isArray(parsed)
-      || parsed.length !== 3
+      || !(parsed.length === 3 || parsed.length === 4 && parsed[3] === 'follow-up')
       || typeof parsed[0] !== 'string'
       || typeof parsed[1] !== 'string'
       || typeof parsed[2] !== 'string'
     ) {
       return null;
     }
-    return [parsed[0], parsed[1], parsed[2]];
+    return [parsed[0], parsed[1], parsed[2], parsed[3]];
   } catch {
     return null;
   }
@@ -94,28 +102,6 @@ function updateDraft(
       },
     },
   };
-}
-
-function removeOtherAnswer(
-  answers: Record<number, AskUserQuestionAnswer>,
-  questionIndex: number,
-): Record<number, AskUserQuestionAnswer> {
-  const current = answers[questionIndex];
-  if (Array.isArray(current)) {
-    if (!current.includes('Other')) {
-      return answers;
-    }
-    return {
-      ...answers,
-      [questionIndex]: current.filter(value => value !== 'Other'),
-    };
-  }
-  if (current !== 'Other') {
-    return answers;
-  }
-  const nextAnswers = { ...answers };
-  delete nextAnswers[questionIndex];
-  return nextAnswers;
 }
 
 function pruneKeys<T>(
@@ -175,14 +161,11 @@ export const useAskUserQuestionDraftStore = create<AskUserQuestionDraftState>((s
     }));
   },
 
-  setOtherInput: (key, questionIndex, value, preserveOtherSelection = false) => {
+  setOtherInput: (key, questionIndex, value) => {
     set(state => updateDraft(state, key, draft => {
       const isEmpty = value.trim().length === 0;
       return {
         ...draft,
-        answers: isEmpty && !preserveOtherSelection
-          ? removeOtherAnswer(draft.answers, questionIndex)
-          : draft.answers,
         otherInputs: {
           ...draft.otherInputs,
           [questionIndex]: isEmpty ? '' : value,
@@ -249,12 +232,14 @@ export const useAskUserQuestionDraftStore = create<AskUserQuestionDraftState>((s
     const retainedToolIds = new Set(pendingToolIds);
     // Drafts of tools that are no longer waiting go stale; an input origin does
     // not — the card it belongs to is exactly the one that stopped waiting.
+    // Follow-up answers outlive the pending-question mailbox entry.
     set(state => {
       const drafts = pruneKeys(state.drafts, key => {
         const parsed = parseDraftKey(key);
         return parsed !== null
           && parsed[0] === surfaceId
           && parsed[1] === sessionId
+          && parsed[3] !== 'follow-up'
           && !retainedToolIds.has(parsed[2]);
       });
       return drafts ? { drafts } : state;

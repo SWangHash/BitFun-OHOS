@@ -51,7 +51,8 @@ export const fileSearchProvider: GlobalSearchProvider = {
   search: async (request, signal) => {
     if (request.scope === 'actions' || request.query.length < 2) return { items: [] };
 
-    // Remote content search remains an explicit unsupported capability.
+    // Global search stays local-only: the file panel searches a remote workspace, but here
+    // every keystroke would hold local file results behind a remote scan of each workspace.
     const remoteWorkspaces = request.workspaces.filter(isRemoteWorkspace);
     const searchableWorkspaces = request.workspaces.filter(workspace => !isRemoteWorkspace(workspace));
     const results = await Promise.allSettled(searchableWorkspaces.map(async (workspace) => {
@@ -84,6 +85,10 @@ export const fileSearchProvider: GlobalSearchProvider = {
     const diagnostics: GlobalSearchProviderDiagnostic[] = remoteWorkspaces.map(workspace => ({
       providerId: 'files',
       code: 'remote_workspace_unsupported',
+      retryable: false,
+      workspaceName: workspace.name,
+      workspacePath: workspace.rootPath,
+      hostLabel: workspace.sshHost,
       message: request.tCommon('nav.search.errors.remoteFileSearchUnavailable', {
         workspace: workspace.name,
       }),
@@ -95,6 +100,9 @@ export const fileSearchProvider: GlobalSearchProvider = {
         diagnostics.push({
           providerId: 'files',
           code: 'workspace_unavailable',
+          workspaceName: workspace?.name,
+          workspacePath: workspace?.rootPath,
+          hostLabel: workspace?.sshHost,
           message: `${workspace?.name ?? 'Workspace'}: ${
             result.reason instanceof Error ? result.reason.message : String(result.reason)
           }`,

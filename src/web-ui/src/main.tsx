@@ -2,16 +2,9 @@ import ReactDOM from "react-dom/client";
 // Register the design-system layer order before any product module can import
 // component CSS. CSS layers keep their first-seen order for the document.
 import "@bitfun/ui/styles.css";
-import App from "./app/App";
-import AgentCompanionDesktopPet from "./app/components/AgentCompanionDesktopPet/AgentCompanionDesktopPet";
 import AppErrorBoundary from "./app/components/AppErrorBoundary";
-import { PrivacyProvider, PrivacyGate } from "./app/components/Privacy";
 import { handOverHostWindowChromeToAppSurface } from "./app/startup/hostWindowChrome";
 import { STARTUP_OVERLAY_HIDDEN_EVENT } from "./app/startup/startupSignals";
-import { WorkspaceProvider } from "./infrastructure/contexts/WorkspaceProvider";
-import { PeerDeviceProvider } from "./infrastructure/peer-device/PeerDeviceContext";
-import { PeerHostInvokeBridge } from "./infrastructure/peer-device/PeerHostInvokeBridge";
-import { PeerDirectoryPickerHost } from "./infrastructure/peer-device/PeerDirectoryPickerHost";
 import { I18nProvider } from "./infrastructure/i18n/providers/I18nProvider";
 import { BitFunDesignSystemProvider } from "./infrastructure/design-system";
 import "./app/styles/index.scss";
@@ -24,6 +17,7 @@ import { elapsedMs, logElapsed, measureAsyncAndLog, nowMs } from './shared/utils
 import { startupTrace } from './shared/utils/startupTrace';
 import { scheduleAfterStartupSignal } from './shared/utils/startupTaskScheduling';
 import { installInteractionModalityTracking } from './shared/utils/motionPreference';
+import { installTextInputGuard } from '../../shared/text-input/textInputGuard';
 import {
   buildReactCrashLogPayload,
   isMinifiedReactErrorMessage,
@@ -200,6 +194,8 @@ function registerGlobalErrorHandlers() {
 
 registerGlobalErrorHandlers();
 installInteractionModalityTracking();
+const removeTextInputGuard = installTextInputGuard(document);
+if (import.meta.hot) import.meta.hot.dispose(removeTextInputGuard);
 
 // Disable Tab-key focus traversal globally (IDE-style chrome).
 // Allow Tab where it has semantic meaning: Monaco, xterm, and modal/dialog forms
@@ -351,6 +347,22 @@ async function initializeAfterRender(): Promise<void> {
 async function startApplication(): Promise<void> {
   const appStartedAt = nowMs();
   startupTrace.markPhase('start_application_start');
+  const windowKind = new URLSearchParams(window.location.search).get('bitfunWindow');
+  const isAgentCompanionWindow = windowKind === 'agent-companion';
+  const isDesktopCardWindow = windowKind === 'desktop-card';
+  // Select the dependency graph before importing either window. Start loading
+  // alongside appearance initialization, avoiding another startup waterfall.
+  // Keep separate import statements: a conditional import expression can be
+  // folded into one Vite preload call carrying dependencies from both windows.
+  let windowModule;
+  if (isAgentCompanionWindow) {
+    windowModule = import('./app/components/AgentCompanionDesktopPet/AgentCompanionDesktopPet');
+  } else if (isDesktopCardWindow) {
+    windowModule = import('./app/components/DesktopCard/DesktopCardWindow');
+  } else {
+    windowModule = import('./app/startup/MainApplicationRoot');
+  }
+  void windowModule.catch(() => {}); // Observed below after pre-render initialization.
   try {
     await initializeBeforeRender();
   } catch (error) {
@@ -363,30 +375,30 @@ async function startApplication(): Promise<void> {
     durationMs: 0,
     mode: 'static',
   });
-  const isAgentCompanionWindow = new URLSearchParams(window.location.search)
-    .get('bitfunWindow') === 'agent-companion';
-
+  const { default: WindowContent } = await windowModule;
   const renderStartedAt = nowMs();
-  if (isAgentCompanionWindow) {
+  if (isAgentCompanionWindow || isDesktopCardWindow) {
+    const windowStep = isDesktopCardWindow ? 'scheduleDesktopCardRender' : 'scheduleAgentCompanionRender';
+    const windowPhase = isDesktopCardWindow ? 'desktop_card_render_scheduled' : 'agent_companion_render_scheduled';
     ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
       <AppErrorBoundary>
         <I18nProvider>
           <BitFunDesignSystemProvider>
-            <AgentCompanionDesktopPet />
+            <WindowContent />
           </BitFunDesignSystemProvider>
         </I18nProvider>
       </AppErrorBoundary>
     );
     logElapsed(log, 'Startup step completed', renderStartedAt, {
       data: {
-        step: 'scheduleAgentCompanionRender',
+        step: windowStep,
         sinceStartupMs: elapsedMs(appStartedAt),
       },
     });
-    startupTrace.markPhase('agent_companion_render_scheduled', {
+    startupTrace.markPhase(windowPhase, {
       sinceStartupMs: elapsedMs(appStartedAt),
     });
-    startupTrace.flushSummary('agent_companion_render_scheduled');
+    startupTrace.flushSummary(windowPhase);
     return;
   }
 
@@ -394,17 +406,7 @@ async function startApplication(): Promise<void> {
     <AppErrorBoundary>
       <I18nProvider>
         <BitFunDesignSystemProvider>
-          <PrivacyProvider>
-            <PrivacyGate>
-              <WorkspaceProvider>
-                <PeerDeviceProvider>
-                  <PeerHostInvokeBridge />
-                  <PeerDirectoryPickerHost />
-                  <App />
-                </PeerDeviceProvider>
-              </WorkspaceProvider>
-            </PrivacyGate>
-          </PrivacyProvider>
+          <WindowContent />
         </BitFunDesignSystemProvider>
       </I18nProvider>
     </AppErrorBoundary>

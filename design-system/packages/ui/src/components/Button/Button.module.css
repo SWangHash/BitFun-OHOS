@@ -90,6 +90,17 @@
     --_button-border-active: transparent;
   }
 
+  /* GlassAction owns the material, including contrast/transparency fallbacks. */
+  .button[data-bitfun-variant="glass"] {
+    --_button-border: transparent;
+    --_button-border-hover: transparent;
+    --_button-border-active: transparent;
+  }
+
+  .button[data-bitfun-variant="glass"]::before {
+    content: none;
+  }
+
   .button[data-bitfun-variant="primary"] {
     --_button-background: var(--bitfun-component-button-primary-background);
     --_button-background-hover: var(--bitfun-component-button-primary-background-hover);
@@ -131,6 +142,23 @@
     --_button-content-disabled: var(--bitfun-component-button-text-content-disabled);
 
     border-radius: 0;
+  }
+
+  .button[data-bitfun-variant="quiet"] {
+    --_button-background: transparent;
+    --_button-background-hover: transparent;
+    --_button-background-active: transparent;
+    --_button-border: transparent;
+    --_button-border-hover: var(--bitfun-color-border-default);
+    --_button-border-active: var(--bitfun-color-border-default);
+    --_button-content: var(--bitfun-color-content-secondary);
+
+    padding-inline: var(--bitfun-space-3);
+    border-radius: var(--bitfun-radius-base);
+  }
+
+  .button[data-bitfun-tone="neutral"][data-bitfun-variant="quiet"]:is(:hover, :active, [data-bitfun-preview-state="hover"], [data-bitfun-preview-state="active"]):not(:disabled) {
+    --_button-content: var(--bitfun-color-content-primary);
   }
 
   .button[data-bitfun-variant="text"]:is(:hover, [data-bitfun-preview-state="hover"]):not(:disabled) {
@@ -183,6 +211,12 @@
 
   .button[data-bitfun-tone="danger"][data-bitfun-variant="text"] {
     --_button-content: var(--bitfun-color-status-danger-content);
+  }
+
+  .button[data-bitfun-tone="danger"][data-bitfun-variant="quiet"] {
+    --_button-border: transparent;
+    --_button-border-hover: var(--bitfun-color-status-danger-border);
+    --_button-border-active: var(--bitfun-color-status-danger-border);
   }
 
   .button[data-bitfun-tone="danger"][data-bitfun-variant="fill"]:disabled {

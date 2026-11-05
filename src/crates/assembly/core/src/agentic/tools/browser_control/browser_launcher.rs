@@ -7,8 +7,8 @@
 
 use bitfun_services_integrations::browser_control::launcher as provider;
 pub use provider::{
-    BrowserDebugEndpoint, BrowserInfo, BrowserKind, BrowserLaunchOptions, LaunchResult,
-    DEFAULT_CDP_PORT,
+    BrowserDebugEndpoint, BrowserInfo, BrowserKind, BrowserLaunchOptions, CdpPortProbe,
+    LaunchResult, DEFAULT_CDP_PORT,
 };
 use std::path::PathBuf;
 
@@ -20,6 +20,43 @@ pub struct BrowserLauncher;
 impl BrowserLauncher {
     pub async fn is_cdp_available(port: u16) -> bool {
         provider::BrowserLauncher::is_cdp_available(port).await
+    }
+
+    /// Classify a local debug port without opening a WebSocket, so a guarded
+    /// endpoint (404 on `/json*`) is distinguished from nothing listening.
+    pub async fn probe_cdp_port(port: u16) -> CdpPortProbe {
+        provider::BrowserLauncher::probe_cdp_port(port).await
+    }
+
+    /// Like [`Self::user_profile_debug_endpoint`], but also accepts a guarded
+    /// remote-debugging port that serves only the browser WebSocket.
+    pub async fn user_profile_debug_endpoint_or_guarded_port(
+        kind: &BrowserKind,
+        port: u16,
+    ) -> Option<BrowserDebugEndpoint> {
+        provider::BrowserLauncher::user_profile_debug_endpoint_or_guarded_port(kind, port).await
+    }
+
+    /// Whether `endpoint` was inferred from a 404 port probe instead of a
+    /// published `DevToolsActivePort` file.
+    pub fn is_inferred_guarded_endpoint(endpoint: &BrowserDebugEndpoint) -> bool {
+        provider::BrowserLauncher::is_inferred_guarded_endpoint(endpoint)
+    }
+
+    /// Settings setup flow used after an inferred guarded endpoint rejected
+    /// the WebSocket upgrade: open the browser's Remote debugging page and
+    /// wait for a real `DevToolsActivePort`, without probing the port again.
+    pub async fn enable_default_cdp_without_port_fallback(
+        kind: &BrowserKind,
+        port: u16,
+        wait_for_user_profile_setup: bool,
+        setup_wait_limit: std::time::Duration,
+    ) -> BitFunResult<LaunchResult> {
+        let mut options = Self::launch_options(None, true);
+        options.wait_for_user_profile_setup = wait_for_user_profile_setup;
+        options.skip_guarded_port_fallback = true;
+        options.user_profile_setup_wait = Some(setup_wait_limit);
+        Ok(provider::BrowserLauncher::launch_with_cdp_options(kind, port, options).await?)
     }
 
     pub fn detect_default_browser() -> BitFunResult<BrowserKind> {
@@ -61,6 +98,16 @@ impl BrowserLauncher {
         provider::BrowserLauncher::is_default_cdp_enabled(kind)
     }
 
+    pub async fn is_default_cdp_enabled_async(kind: &BrowserKind) -> bool {
+        provider::BrowserLauncher::is_default_cdp_enabled_async(kind).await
+    }
+
+    /// Whether Chrome or Edge other than `kind` is running, so a port inferred
+    /// for `kind` from a 404 probe may belong to that browser.
+    pub async fn other_guarded_browser_running(kind: &BrowserKind) -> bool {
+        provider::BrowserLauncher::other_guarded_browser_running(kind).await
+    }
+
     pub fn user_profile_debugging_setup_url(kind: &BrowserKind) -> Option<&'static str> {
         provider::BrowserLauncher::user_profile_debugging_setup_url(kind)
     }
@@ -76,7 +123,7 @@ impl BrowserLauncher {
         Ok(provider::BrowserLauncher::launch_with_cdp_options(
             kind,
             port,
-            Self::launch_options(None),
+            Self::launch_options(None, false),
         )
         .await?)
     }
@@ -87,30 +134,46 @@ impl BrowserLauncher {
         user_data_dir: Option<&str>,
         initial_url: Option<&str>,
     ) -> BitFunResult<LaunchResult> {
-        let mut options = Self::launch_options(user_data_dir);
+        let mut options = Self::launch_options(user_data_dir, false);
         options.initial_url = initial_url.map(str::to_string);
         Ok(provider::BrowserLauncher::launch_with_cdp_options(kind, port, options).await?)
     }
 
+    /// Restarting the user's browser is an explicit, user-initiated action, so
+    /// the relaunched browser is brought forward instead of staying hidden.
     pub async fn restart_with_cdp(kind: &BrowserKind, port: u16) -> BitFunResult<LaunchResult> {
-        Self::launch_with_cdp(kind, port).await
+        Ok(provider::BrowserLauncher::launch_with_cdp_options(
+            kind,
+            port,
+            Self::launch_options(None, true),
+        )
+        .await?)
     }
 
     /// Explicit Settings flow: keep the browser settings page open long enough
     /// for the user-owned consent toggle, then continue with the guarded
     /// real-profile connection as soon as the endpoint appears.
     pub async fn enable_default_cdp(kind: &BrowserKind, port: u16) -> BitFunResult<LaunchResult> {
-        let mut options = Self::launch_options(None);
+        let mut options = Self::launch_options(None, true);
         options.wait_for_user_profile_setup = true;
         Ok(provider::BrowserLauncher::launch_with_cdp_options(kind, port, options).await?)
     }
 
-    fn launch_options(user_data_dir: Option<&str>) -> BrowserLaunchOptions {
+    /// Surface an already-running browser so the user can answer a
+    /// browser-owned prompt. Returns whether the platform accepted the request.
+    pub fn activate_browser(kind: &BrowserKind) -> bool {
+        provider::BrowserLauncher::activate_browser(kind)
+    }
+
+    fn launch_options(user_data_dir: Option<&str>, activate: bool) -> BrowserLaunchOptions {
         BrowserLaunchOptions {
             user_data_dir: user_data_dir.map(PathBuf::from),
             managed_profile_root: Some(get_path_manager_arc().user_data_dir()),
             wait_for_user_profile_setup: false,
             initial_url: None,
+            activate,
+            skip_guarded_port_fallback: false,
+            user_profile_setup_wait: None,
         }
     }
 }
@@ -123,9 +186,22 @@ mod tests {
 
     #[test]
     fn launch_options_injects_bitfun_managed_profile_root() {
-        let options = BrowserLauncher::launch_options(None);
+        let options = BrowserLauncher::launch_options(None, false);
 
         assert_eq!(options.user_data_dir, None);
+        assert_eq!(
+            options.managed_profile_root,
+            Some(get_path_manager_arc().user_data_dir())
+        );
+        assert!(!options.activate);
+    }
+
+    #[test]
+    fn launch_options_preserves_explicit_user_data_dir() {
+        let explicit_profile = "custom-browser-profile";
+        let options = BrowserLauncher::launch_options(Some(explicit_profile), false);
+
+        assert_eq!(options.user_data_dir, Some(PathBuf::from(explicit_profile)));
         assert_eq!(
             options.managed_profile_root,
             Some(get_path_manager_arc().user_data_dir())
@@ -133,14 +209,8 @@ mod tests {
     }
 
     #[test]
-    fn launch_options_preserves_explicit_user_data_dir() {
-        let explicit_profile = "custom-browser-profile";
-        let options = BrowserLauncher::launch_options(Some(explicit_profile));
-
-        assert_eq!(options.user_data_dir, Some(PathBuf::from(explicit_profile)));
-        assert_eq!(
-            options.managed_profile_root,
-            Some(get_path_manager_arc().user_data_dir())
-        );
+    fn only_user_visible_launch_flows_activate_the_browser() {
+        assert!(!BrowserLauncher::launch_options(None, false).activate);
+        assert!(BrowserLauncher::launch_options(None, true).activate);
     }
 }

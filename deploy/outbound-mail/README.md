@@ -132,7 +132,7 @@ OversignHeaders From
 
 现有 MX 和企业邮箱入口保持不变。只有发信服务，不需要新增指向本机的 MX。
 修改 DNS 后同时检查权威服务器和公共递归解析。PTR、正向地址与 SMTP HELO 身份应匹配。
-QQ 官方说明其 SPF 缓存最长可达 12 小时，换 IP 必须提前发布授权；
+部分邮件服务商会缓存 SPF，换 IP 必须提前发布授权；
 不要因缓存拒收而放宽 SPF 为 `+all` 或关闭验证。
 
 轮换 DKIM 时使用新 selector：生成新密钥、发布新公钥、确认解析与
@@ -166,7 +166,7 @@ journalctl --since '30 minutes ago' -t postfix/smtp -t postfix/smtpd -t postfix/
 测试只发给操作者明确授权的地址，不打印验证码或原始邮件正文。
 失败重试使用新验证码，不能让已过期验证码重新生效。
 
-当前实例针对验证码将队列寿命设为 10 分钟、消息大小设为 1 MiB，并限制目标并发。
+当前示例针对验证码将队列寿命设为 10 分钟、消息大小设为 1 MiB，并限制目标并发。
 这些属于业务参数；接入其他邮件类型前应评估队列寿命、退信处理和容量。
 不要直接清空整个队列来“修复”投递，按 queue ID 处理已确认可丢弃的测试邮件。
 
@@ -180,9 +180,7 @@ journalctl --since '30 minutes ago' -t postfix/smtp -t postfix/smtpd -t postfix/
    代码版本重新创建认证容器；不回退数据库、不删除用户和令牌。
 5. 回滚到外部 SMTP 只改变投递路径，必须明确记录仍使用外部提供商，不能报告为自建直投成功。
 
-官方参考：
+参考：
 [Postfix 基础配置](https://www.postfix.org/BASIC_CONFIGURATION_README.html)、
 [Postfix 中继限制](https://www.postfix.org/SMTPD_ACCESS_README.html)、
-[Postfix Milter](https://www.postfix.org/MILTER_README.html)、
-[QQ SPF 缓存说明](https://service.mail.qq.com/detail/122/72)、
-[华为云 PTR](https://support.huaweicloud.com/usermanual-dns/zh-cn_topic_0077500015.html)。
+[Postfix Milter](https://www.postfix.org/MILTER_README.html)。

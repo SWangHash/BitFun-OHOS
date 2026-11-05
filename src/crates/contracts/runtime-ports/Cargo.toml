@@ -26,6 +26,11 @@ path = "tests/script_tool_port_contracts.rs"
 required-features = ["script-tool-runtime"]
 
 [[test]]
+name = "ptc_tool_port_contracts"
+path = "tests/ptc_tool_port_contracts.rs"
+required-features = ["ptc-runtime"]
+
+[[test]]
 name = "hook_function_runtime_contracts"
 path = "tests/hook_function_runtime_contracts.rs"
 required-features = ["hook-function-runtime"]
@@ -53,6 +58,7 @@ plugin-runtime = []
 hook-function-runtime = []
 intent-analysis-port = []
 script-tool-runtime = []
+ptc-runtime = []
 web-search-port = []
 workspace-ports = ["dep:anyhow", "dep:tokio-util", "dep:tokio", "tokio/io-util"]
 terminal-port = ["dep:tokio"]
@@ -63,7 +69,7 @@ tool-runtime-handles = [
     "remote-exec-port",
     "question-template-port",
 ]
-remote-workspace-ports = []
+remote-workspace-ports = ["dep:bitfun-core-types"]
 git-port = []
 runtime-event-port = []
 question-template-port = ["dep:bitfun-product-domains"]

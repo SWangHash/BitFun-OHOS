@@ -110,12 +110,33 @@ async fn updater_endpoints_by_policy() -> Vec<tauri::Url> {
 
 /// Tauri's `latest-v1.json` platform key for this host, e.g. `darwin-aarch64`.
 /// Mirrors `scripts/generate-tauri-latest-json.mjs`.
+///
+/// Linux installs append a bundle-type suffix (`-deb` / `-rpm`) so the manifest
+/// hands each install form the package its updater can actually install:
+/// tauri-plugin-updater derives `dpkg -i` / `rpm -U` / AppImage rewrite from the
+/// same [`tauri::utils::platform::bundle_type`] this key is derived from. A bare
+/// `linux-*` key would feed AppImage bytes to a deb install, which the plugin
+/// rejects as `invalid updater binary format`.
 fn updater_platform_key() -> String {
     let os = match std::env::consts::OS {
         "macos" => "darwin",
         other => other,
     };
-    format!("{os}-{}", std::env::consts::ARCH)
+    format!(
+        "{os}-{}{}",
+        std::env::consts::ARCH,
+        updater_platform_key_suffix(tauri::utils::platform::bundle_type())
+    )
+}
+
+/// Manifest-key suffix for the running install form, kept in step with
+/// `scripts/generate-tauri-latest-json.mjs` (`linux-<arch>-deb` / `linux-<arch>-rpm`).
+fn updater_platform_key_suffix(bundle: Option<tauri::utils::config::BundleType>) -> &'static str {
+    match bundle {
+        Some(tauri::utils::config::BundleType::Deb) => "-deb",
+        Some(tauri::utils::config::BundleType::Rpm) => "-rpm",
+        _ => "",
+    }
 }
 
 /// Read one updater manifest and return the download URL it advertises for this
@@ -411,7 +432,14 @@ pub async fn check_for_updates(
     #[cfg(not(target_env = "ohos"))]
     {
         let _ = request;
-        let updater = ranked_updater(&app).await?;
+        // Discovery reads only the manifests. Package throughput probes belong to download.
+        let updater = app
+            .updater_builder()
+            .endpoints(default_endpoints())
+            .map_err(|e| e.to_string())?
+            .timeout(std::time::Duration::from_secs(20))
+            .build()
+            .map_err(|e| e.to_string())?;
         let update = updater.check().await.map_err(|e| e.to_string())?;
         match update {
             Some(u) => Ok(CheckForUpdatesResponse {
@@ -904,7 +932,7 @@ fn main_window_fullscreen_restore_maximized() -> &'static Mutex<bool> {
 }
 
 fn read_main_window_fullscreen_response(
-    window: &tauri::WebviewWindow,
+    window: &tauri::Window,
     fallback_fullscreen: bool,
     fallback_maximized: bool,
 ) -> ToggleMainWindowFullscreenResponse {
@@ -914,7 +942,7 @@ fn read_main_window_fullscreen_response(
     }
 }
 
-// ─── Window / Tray behavior commands ─────────────────────────────────────────
+// 鈹€鈹€鈹€ Window / Tray behavior commands 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1101,7 +1129,7 @@ pub async fn minimize_to_tray(
         if let Err(error) = crate::tray::setup_tray(&app, &startup_trace) {
             log::warn!("Failed to initialize tray before minimizing: {}", error);
         }
-        if let Some(window) = app.get_webview_window("main") {
+        if let Some(window) = app.get_window("main") {
             window.hide().map_err(|e| e.to_string())?;
             crate::appearance::keep_agent_companion_desktop_pet_visible(&app);
             log::info!("Main window minimized to tray via command");
@@ -1165,7 +1193,7 @@ pub async fn startup_window_control(
 ) -> Result<StartupWindowControlResponse, String> {
     #[cfg(not(target_env = "ohos"))]
     {
-        let Some(window) = app.get_webview_window("main") else {
+        let Some(window) = app.get_window("main") else {
             return Err("Main window not found".to_string());
         };
 
@@ -1261,7 +1289,7 @@ pub async fn toggle_main_window_fullscreen(
     #[cfg(not(target_env = "ohos"))]
     {
         let _ = request;
-        let Some(window) = app.get_webview_window("main") else {
+        let Some(window) = app.get_window("main") else {
             return Err("Main window not found".to_string());
         };
 
@@ -1331,7 +1359,7 @@ pub async fn toggle_main_window_fullscreen(
 
 fn apply_main_window_fullscreen_monitor_bounds(
     app: &tauri::AppHandle,
-    window: &tauri::WebviewWindow,
+    window: &tauri::Window,
 ) -> Result<(), String> {
     #[cfg(target_env = "ohos")]
     {
@@ -1372,7 +1400,132 @@ pub async fn send_system_notification(
     app: tauri::AppHandle,
     request: SendNotificationRequest,
 ) -> Result<(), String> {
-    Err("No notification provided".to_string())
+    #[cfg(target_os = "windows")]
+    {
+        // The Tauri notification plugin drops notify-rust's response handle after
+        // showing a Windows toast, so its body-click activation cannot be observed.
+        return send_clickable_windows_notification(app, request);
+    }
+
+    #[cfg(target_env = "ohos")]
+    {
+        let _ = app;
+        // HarmonyOS surfaces notifications through its Notification Kit bridge
+        // instead of the Tauri notification plugin (the plugin's platform crates
+        // are not built for OHOS).
+        let payload = serde_json::json!({ "title": request.title, "body": request.body });
+        return crate::api::ohos::ohos_file_system::send_system_notification_ohos(
+            payload.to_string(),
+        )
+        .await
+        .map(|_| ());
+    }
+
+    #[cfg(all(not(target_os = "windows"), not(target_env = "ohos")))]
+    {
+        use tauri_plugin_notification::NotificationExt;
+
+        let mut builder = app.notification().builder().title(&request.title);
+        if let Some(body) = &request.body {
+            builder = builder.body(body);
+        }
+        builder.show().map_err(|e| e.to_string())
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn send_clickable_windows_notification(
+    app: tauri::AppHandle,
+    request: SendNotificationRequest,
+) -> Result<(), String> {
+    let mut notification = notify_rust::Notification::new();
+    notification.summary(&request.title);
+    if let Some(body) = &request.body {
+        notification.body(body);
+    }
+
+    if should_use_configured_notification_app_id() {
+        notification.app_id(&app.config().identifier);
+    }
+
+    let handle = notification.show().map_err(|error| error.to_string())?;
+    // Waiting for a toast click is blocking; keep it off both the UI thread and
+    // the async executor while retaining the response handle until dismissal.
+    tauri::async_runtime::spawn_blocking(move || {
+        if let Err(error) =
+            handle.wait_for_response(move |response: &notify_rust::NotificationResponse| {
+                if !notification_response_activates_main_window(response) {
+                    return;
+                }
+
+                let app_for_window = app.clone();
+                if let Err(error) = app.run_on_main_thread(move || {
+                    activate_main_window_from_notification(&app_for_window);
+                }) {
+                    log::warn!(
+                        "Failed to schedule main window activation from notification: {}",
+                        error
+                    );
+                }
+            })
+        {
+            log::warn!("Failed to observe Windows notification response: {}", error);
+        }
+    });
+
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn should_use_configured_notification_app_id() -> bool {
+    use std::path::MAIN_SEPARATOR;
+
+    // Match the Tauri plugin's development behavior. A Cargo-built executable
+    // has no installed Windows shortcut that registers BitFun's AppUserModelID.
+    let Ok(executable) = tauri::utils::platform::current_exe() else {
+        return false;
+    };
+    let Some(executable_dir) = executable.parent() else {
+        return false;
+    };
+    let executable_dir = executable_dir.display().to_string();
+
+    !executable_dir.ends_with(format!("{MAIN_SEPARATOR}target{MAIN_SEPARATOR}debug").as_str())
+        && !executable_dir
+            .ends_with(format!("{MAIN_SEPARATOR}target{MAIN_SEPARATOR}release").as_str())
+}
+
+#[cfg(target_os = "windows")]
+fn notification_response_activates_main_window(
+    response: &notify_rust::NotificationResponse,
+) -> bool {
+    matches!(
+        response,
+        notify_rust::NotificationResponse::Default
+            | notify_rust::NotificationResponse::Action(_)
+            | notify_rust::NotificationResponse::Reply(_)
+    )
+}
+
+#[cfg(target_os = "windows")]
+fn activate_main_window_from_notification(app: &tauri::AppHandle) {
+    let Some(window) = app.get_window("main") else {
+        log::warn!("Failed to activate main window from notification: main window not found");
+        return;
+    };
+
+    if let Err(error) = window.unminimize() {
+        log::warn!(
+            "Failed to unminimize main window from notification: {}",
+            error
+        );
+    }
+    if let Err(error) = window.show() {
+        log::warn!("Failed to show main window from notification: {}", error);
+    }
+    if let Err(error) = window.set_focus() {
+        log::warn!("Failed to focus main window from notification: {}", error);
+    }
 }
 
 /// When a system-level error occurs while the desktop window is minimized,
@@ -1404,7 +1557,6 @@ pub async fn notify_system_error_if_minimized(error: &str) {
 
 #[cfg(not(target_env = "ohos"))]
 pub async fn notify_system_error_if_minimized(_error: &str) {}
-
 #[cfg(test)]
 mod tests {
     #[tokio::test]
@@ -1506,7 +1658,13 @@ mod tests {
     #[test]
     fn updater_platform_key_matches_latest_json_convention() {
         let key = super::updater_platform_key();
-        let (os, arch) = key.split_once('-').expect("os-arch shape");
+        // Optional bundle-type suffix, mirroring the script's linux-<arch>-deb /
+        // linux-<arch>-rpm keys.
+        let base = key
+            .strip_suffix("-deb")
+            .or_else(|| key.strip_suffix("-rpm"))
+            .unwrap_or(&key);
+        let (os, arch) = base.split_once('-').expect("os-arch shape");
         assert!(
             matches!(os, "darwin" | "linux" | "windows"),
             "unexpected updater os segment: {os}"
@@ -1520,6 +1678,45 @@ mod tests {
             key.starts_with("darwin-"),
             "macOS must map to darwin, got {key}"
         );
+        #[cfg(target_os = "linux")]
+        assert!(
+            key.starts_with("linux-"),
+            "Linux keys must stay under the linux- prefix, got {key}"
+        );
+    }
+
+    /// The suffix must mirror the plugin's installer selection exactly: the same
+    /// `bundle_type()` that makes tauri-plugin-updater run `dpkg -i` / `rpm -U`
+    /// must ask the manifest for the `-deb` / `-rpm` payload, and every other
+    /// bundle type must keep the bare `os-arch` key (AppImage rewrite path).
+    #[test]
+    fn updater_platform_key_suffix_matches_plugin_installer_selection() {
+        use tauri::utils::config::BundleType;
+        assert_eq!(
+            super::updater_platform_key_suffix(Some(BundleType::Deb)),
+            "-deb"
+        );
+        assert_eq!(
+            super::updater_platform_key_suffix(Some(BundleType::Rpm)),
+            "-rpm"
+        );
+        assert_eq!(
+            super::updater_platform_key_suffix(Some(BundleType::AppImage)),
+            ""
+        );
+        assert_eq!(
+            super::updater_platform_key_suffix(Some(BundleType::Msi)),
+            ""
+        );
+        assert_eq!(
+            super::updater_platform_key_suffix(Some(BundleType::Nsis)),
+            ""
+        );
+        assert_eq!(
+            super::updater_platform_key_suffix(Some(BundleType::App)),
+            ""
+        );
+        assert_eq!(super::updater_platform_key_suffix(None), "");
     }
 
     #[test]
@@ -1559,7 +1756,7 @@ mod tests {
     fn exported_text_writer_preserves_the_complete_utf8_payload() {
         let directory = tempfile::tempdir().expect("temporary export directory");
         let path = directory.path().join("review.md");
-        let markdown = "# Review\n\n- complete finding\n- 完整内容\n";
+        let markdown = "# Review\n\n- complete finding\n- 瀹屾暣鍐呭\n";
 
         write_exported_text_file(&path, markdown).expect("text export should succeed");
 

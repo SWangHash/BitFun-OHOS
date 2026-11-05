@@ -5,7 +5,7 @@
  * Session tabs show only the referenced session title.
  */
 
-import React, { useCallback, useRef, useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { Pin, CircleAlert } from 'lucide-react';
 import { useSceneStore } from '../../stores/sceneStore';
 import { useContextMenuStore } from '@/shared/context-menu-system/store/ContextMenuStore';
@@ -14,6 +14,7 @@ import type { MenuItem } from '@/shared/context-menu-system/types/menu.types';
 
 import { Icon, TabGroup, Tooltip, type TabGroupItem } from '@bitfun/ui';
 import { useSceneTabNavigation } from './useSceneTabNavigation';
+import { SessionTabHistoryMenu } from './SessionTabHistoryMenu';
 import { useSceneManager } from '../../hooks/useSceneManager';
 import { useSessionTabLabels } from '../../hooks/useSessionTabLabels';
 import { SessionTitleNumber } from '@/flow_chat/components/SessionTitleNumber';
@@ -23,7 +24,11 @@ import { dropSessionTabOnWorkbench, isSessionTabDrag, type WorkbenchTabDropTarge
 import { useAgentCanvasStore } from '../panels/content-canvas/stores';
 import { onSurfaceActivated } from '@/infrastructure/peer-device/deviceSurface';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
-import type { SceneTabId } from './types';
+import { dropSceneTab, isSceneTabDrag, writeSceneTabDrag, endSceneTabDrag } from '../../workbench/sceneTabTransfer';
+import type { WorkbenchPane } from '../../workbench/scenePaneModel';
+import { observeTabDragLifecycle } from '../../workbench/tabDragLifecycle';
+import type { SceneTab, SceneTabId } from './types';
+import { beginConversationTransfer, endConversationTransfer, isConversationTransfer, dropConversationInWorkbench } from '../../services/conversationDockTransfer';
 import './SceneBar.scss';
 
 function getSceneIdFromTabTarget(target: EventTarget | null): SceneTabId | undefined {
@@ -33,12 +38,20 @@ function getSceneIdFromTabTarget(target: EventTarget | null): SceneTabId | undef
   return tab?.dataset.bitfunValue as SceneTabId | undefined;
 }
 
+function hasSessionHistory(tab: SceneTab | undefined): boolean {
+  return Boolean(tab?.session && tab.sessionHistory?.some(id => id !== tab.session!.sessionId));
+}
+
 interface SceneBarProps {
   className?: string;
+  pane?: WorkbenchPane;
+  showDropHint?: boolean;
 }
 
 const SceneBar: React.FC<SceneBarProps> = ({
   className = '',
+  pane = 'primary',
+  showDropHint = true,
 }) => {
   const {
     openTabs,
@@ -48,13 +61,21 @@ const SceneBar: React.FC<SceneBarProps> = ({
     tabDefs,
     activateScene,
     closeScene,
-  } = useSceneManager();
+  } = useSceneManager(pane);
   const sessionLabels = useSessionTabLabels(openTabs);
+  const focusedPane = useSceneStore(state => state.focusedPane);
   const resources = useContentResourceStore(state => state.resources);
   const selectedTabId = pendingTabId ?? activeTabId;
   const { t } = useI18n('common');
   const { t: tComponents } = useI18n('components');
-  const draggingTab = useRef<SceneTabId | null>(null);
+  const [history, setHistory] = useState<{ tabId: SceneTabId; open: boolean } | null>(null);
+  const historyAnchorRef = useRef<HTMLElement | null>(null);
+  const historyTab = openTabs.find(tab => tab.id === history?.tabId);
+  const historyOpen = Boolean(history?.open && hasSessionHistory(historyTab) && historyTab
+    && historyTab.id === activeTabId && focusedPane === pane && !pendingTabId);
+  const closeHistory = useCallback(() => setHistory(previous => previous?.open
+    ? { ...previous, open: false } : previous), []);
+  const [offeredSceneTab, setOfferedSceneTab] = useState(false);
   const [offeredCanvasTabId, setOfferedCanvasTabId] = useState<string | null>(null);
   const draggingCanvasTabId = useAgentCanvasStore(state => {
     const group = state.draggingFromGroupId === 'primary' ? state.primaryGroup
@@ -63,7 +84,8 @@ const SceneBar: React.FC<SceneBarProps> = ({
   });
   const [canvasDrop, setCanvasDrop] = useState<{ target?: WorkbenchTabDropTarget } | null>(null);
   const canAcceptCanvasTab = Boolean(offeredCanvasTabId && offeredCanvasTabId === draggingCanvasTabId);
-  const activeCanvasDrop = canAcceptCanvasTab ? canvasDrop : null;
+  const canAcceptTab = canAcceptCanvasTab || offeredSceneTab;
+  const activeCanvasDrop = canAcceptTab ? canvasDrop : null;
   const sceneBarClassName = `bitfun-scene-bar ${className}`.trim();
   const {
     tabRegionRef,
@@ -79,30 +101,40 @@ const SceneBar: React.FC<SceneBarProps> = ({
   });
 
   const handleTabValueChange = useCallback((value: string) => {
+    closeHistory();
     activateScene(value as SceneTabId);
-  }, [activateScene]);
+  }, [activateScene, closeHistory]);
+
+  useEffect(() => {
+    if (history?.open && !historyOpen) closeHistory();
+  }, [history?.open, historyOpen, closeHistory]);
+
+  const toggleHistory = (tabId: SceneTabId, anchor: HTMLElement) => {
+    if (tabId !== activeTabId || pendingTabId) return;
+    if (focusedPane !== pane) { activateScene(tabId); return; }
+    if (!hasSessionHistory(openTabs.find(tab => tab.id === tabId))) return;
+    historyAnchorRef.current = anchor;
+    setHistory(previous => ({ tabId, open: previous?.tabId !== tabId || !previous.open }));
+  };
 
   useEffect(() => {
     // The source has written its transfer format and committed its drag state
     // before dragstart bubbles here. Advertise the destination immediately.
     const offerDrop = (event: DragEvent) => {
+      setOfferedSceneTab(Boolean(event.dataTransfer && isSceneTabDrag(event.dataTransfer)));
       setOfferedCanvasTabId(event.dataTransfer && isSessionTabDrag(event.dataTransfer)
         ? useAgentCanvasStore.getState().draggingTabId : null);
       setCanvasDrop(null);
     };
     const clearDrop = () => {
       setOfferedCanvasTabId(null);
+      setOfferedSceneTab(false);
       setCanvasDrop(null);
     };
-    window.addEventListener('dragstart', offerDrop);
-    // Other drop targets may stop bubbling. Completion always ends this offer.
-    window.addEventListener('dragend', clearDrop, true);
-    window.addEventListener('drop', clearDrop, true);
-    const stopSurfaceListener = onSurfaceActivated(clearDrop);
+    const stopDragListener = observeTabDragLifecycle(offerDrop, clearDrop);
+    const stopSurfaceListener = onSurfaceActivated(() => { clearDrop(); setHistory(null); });
     return () => {
-      window.removeEventListener('dragstart', offerDrop);
-      window.removeEventListener('dragend', clearDrop, true);
-      window.removeEventListener('drop', clearDrop, true);
+      stopDragListener();
       stopSurfaceListener();
     };
   }, []);
@@ -146,6 +178,7 @@ const SceneBar: React.FC<SceneBarProps> = ({
   }, [closeScene, tabDefs]);
 
   const handleContextMenu = (event: React.MouseEvent, id: SceneTabId) => {
+    closeHistory();
     event.preventDefault();
     event.stopPropagation();
     const tab = openTabs.find(candidate => candidate.id === id);
@@ -200,7 +233,6 @@ const SceneBar: React.FC<SceneBarProps> = ({
       value: tab.id,
       label: displayLabel,
       labelTooltip,
-      tabProps: { 'data-testid': `scene-tab-${tab.id}` },
       labelSuffix: sessionLabel?.number || tab.pinned || (tab.contentId && (resources[tab.contentId]?.isDirty || resources[tab.contentId]?.fileMissing)) ? <>
         {sessionLabel?.number && <SessionTitleNumber number={sessionLabel.number} />}
         {tab.pinned && <Pin size={12} aria-label={tComponents('tabs.unpin')} />}
@@ -208,6 +240,13 @@ const SceneBar: React.FC<SceneBarProps> = ({
         {tab.contentId && resources[tab.contentId]?.fileMissing && <CircleAlert size={12} aria-label={tComponents('tabs.fileDeleted')} />}
       </> : undefined,
       labelTransitionKey: tab.session?.sessionId,
+      tabProps: {
+        'data-testid': `scene-tab-${tab.id}`,
+        'aria-haspopup': hasSessionHistory(tab) ? 'menu' : undefined,
+        'aria-expanded': hasSessionHistory(tab)
+          ? historyOpen && history?.tabId === tab.id
+          : undefined,
+      },
       // Keep the close hit target stationary between pointer down and up;
       // shrinking it can retarget the click at the button edge (issue #2210).
       // The tooltip is a styled one placed below the button: native titles
@@ -239,10 +278,13 @@ const SceneBar: React.FC<SceneBarProps> = ({
   return (
     <div data-bitfun-component="scene-bar" data-bitfun-part="root"
       className={sceneBarClassName}
-      data-canvas-drop-state={canAcceptCanvasTab ? (activeCanvasDrop ? 'active' : 'available') : undefined}
+      data-workbench-pane={pane}
+      data-canvas-drop-state={canAcceptTab ? (activeCanvasDrop ? 'active' : 'available') : undefined}
       data-canvas-drop-target={activeCanvasDrop ? 'true' : undefined}
       onDragOver={event => {
-        if (!isSessionTabDrag(event.dataTransfer)) return;
+        if (isConversationTransfer(event.dataTransfer) && !isSceneTabDrag(event.dataTransfer)) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; return; }
+        if (isSceneTabDrag(event.dataTransfer)) setOfferedSceneTab(true);
+        if (!isSessionTabDrag(event.dataTransfer) && !isSceneTabDrag(event.dataTransfer)) return;
         event.preventDefault();
         event.stopPropagation();
         event.dataTransfer.dropEffect = 'move';
@@ -256,10 +298,12 @@ const SceneBar: React.FC<SceneBarProps> = ({
         if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setCanvasDrop(null);
       }}
       onDrop={event => {
+        if (isSceneTabDrag(event.dataTransfer)) { event.preventDefault(); event.stopPropagation(); void dropSceneTab(event.dataTransfer, pane, getCanvasDropTarget(event)); return; }
+        if (isConversationTransfer(event.dataTransfer)) { event.preventDefault(); dropConversationInWorkbench(event.dataTransfer); return; }
         if (!isSessionTabDrag(event.dataTransfer)) return;
         event.preventDefault();
         event.stopPropagation();
-        dropSessionTabOnWorkbench(event.dataTransfer, getCanvasDropTarget(event));
+        dropSessionTabOnWorkbench(event.dataTransfer, getCanvasDropTarget(event), pane);
         setCanvasDrop(null);
       }}
     >
@@ -292,17 +336,29 @@ const SceneBar: React.FC<SceneBarProps> = ({
           items={tabItems}
           renderItem={(item, node) => {
             const tabId = item.value as SceneTabId;
+            const tab = openTabs.find(candidate => candidate.id === tabId);
             // The wrapper carries no native title: the scoped path tooltip
             // lives on the label text slot instead, so it never stacks with
             // the close action's own tooltip (issue #400 follow-up).
             return <div className="bitfun-scene-bar__item" draggable
               data-scene-tab-id={tabId}
+              data-session-history-open={historyOpen && history?.tabId === tabId ? 'true' : undefined}
               data-canvas-drop-position={activeCanvasDrop?.target?.tabId === tabId ? activeCanvasDrop.target.placement : undefined}
+              onClick={event => {
+                const trigger = (event.target as Element).closest<HTMLElement>('[role="tab"]');
+                if (trigger) toggleHistory(tabId, trigger);
+              }}
+              onKeyDown={event => {
+                if (event.key !== 'ArrowDown' || !hasSessionHistory(tab) || tabId !== activeTabId || pendingTabId) return;
+                const trigger = (event.target as Element).closest<HTMLElement>('[role="tab"]');
+                if (!trigger) return;
+                event.preventDefault();
+                event.stopPropagation();
+                if (!historyOpen) toggleHistory(tabId, trigger);
+              }}
               onContextMenu={event => handleContextMenu(event, tabId)}
-              onDragStart={event => { draggingTab.current = tabId; event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('application/x-bitfun-scene', tabId); }}
-              onDragEnd={() => { draggingTab.current = null; }}
-              onDragOver={event => { if (draggingTab.current && draggingTab.current !== tabId) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; } }}
-              onDrop={event => { if (!draggingTab.current) return; event.preventDefault(); useSceneStore.getState().reorderScene(draggingTab.current, tabId, event.clientX >= event.currentTarget.getBoundingClientRect().x + event.currentTarget.getBoundingClientRect().width / 2 ? 'after' : 'before'); draggingTab.current = null; }}
+              onDragStart={event => { closeHistory(); writeSceneTabDrag(event.dataTransfer, tabId); if (tab?.session) beginConversationTransfer(event.dataTransfer, tab.session, tabId); }}
+              onDragEnd={() => { endConversationTransfer(); endSceneTabDrag(); }}
             >{node}</div>;
           }}
           size="sm"
@@ -332,12 +388,18 @@ const SceneBar: React.FC<SceneBarProps> = ({
           </button>
         )}
       </div>
-      {canAcceptCanvasTab && (
+      {historyTab?.session && <SessionTabHistoryMenu
+        tab={historyTab}
+        anchorRef={historyAnchorRef}
+        open={historyOpen}
+        onClose={closeHistory}
+      />}
+      {showDropHint && canAcceptTab && (
         <div className="bitfun-scene-bar__drop-hint" role="status"
           data-bitfun-component="scene-bar" data-bitfun-part="dropHint">
           {/* Both labels reserve the same slot, keeping drop geometry stable. */}
-          <span aria-hidden={Boolean(activeCanvasDrop)}>{tComponents('workbench.dragToPopOut')}</span>
-          <span aria-hidden={!activeCanvasDrop}>{tComponents('workbench.releaseToPopOut')}</span>
+          <span aria-hidden={Boolean(activeCanvasDrop)}>{tComponents(offeredSceneTab ? 'canvas.dragTabHere' : 'workbench.dragToPopOut')}</span>
+          <span aria-hidden={!activeCanvasDrop}>{tComponents(offeredSceneTab ? 'canvas.dragTabHere' : 'workbench.releaseToPopOut')}</span>
         </div>
       )}
     </div>

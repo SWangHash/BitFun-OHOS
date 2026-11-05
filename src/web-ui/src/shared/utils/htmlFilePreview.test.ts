@@ -1,27 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { isHtmlFilePath, openHtmlFileInExternalBrowser } from './htmlFilePreview';
 
-const createMock = vi.hoisted(() => vi.fn());
-const openExternalMock = vi.hoisted(() => vi.fn());
-const peerDeviceModeMock = vi.hoisted(() => vi.fn());
+const openHtmlFileInBrowserMock = vi.hoisted(() => vi.fn());
 
-vi.mock('@/infrastructure/api/htmlPreviewApi', () => ({
-  htmlPreviewApi: { create: createMock },
-}));
 vi.mock('@/infrastructure/api/service-api/SystemAPI', () => ({
-  systemAPI: { openExternal: openExternalMock },
-}));
-vi.mock('@/infrastructure/peer-device/peerModeFlag', () => ({
-  isPeerDeviceModeActive: peerDeviceModeMock,
+  systemAPI: {
+    openHtmlFileInBrowser: openHtmlFileInBrowserMock,
+  },
 }));
 
 describe('htmlFilePreview', () => {
   beforeEach(() => {
-    createMock.mockReset();
-    openExternalMock.mockReset();
-    peerDeviceModeMock.mockReset().mockReturnValue(false);
-    createMock.mockResolvedValue({ url: 'http://127.0.0.1:52100/preview', sessionId: 'preview-1' });
-    openExternalMock.mockResolvedValue(undefined);
+    openHtmlFileInBrowserMock.mockReset();
   });
 
   it('detects html and htm files case-insensitively', () => {
@@ -31,25 +21,11 @@ describe('htmlFilePreview', () => {
     expect(isHtmlFilePath('html-notes.md')).toBe(false);
   });
 
-  it('serves the html file through the preview gateway and opens its url in the system browser', async () => {
+  it('opens local html files through the native path opener', async () => {
     const path = 'E:\\Projects\\Demo App\\index #1.html';
 
-    await openHtmlFileInExternalBrowser(path, { workspaceId: 'w1', workspacePath: 'E:\\Projects\\Demo App' });
+    await openHtmlFileInExternalBrowser(path);
 
-    expect(createMock).toHaveBeenCalledWith({
-      filePath: path,
-      workspaceId: 'w1',
-      workspacePath: 'E:\\Projects\\Demo App',
-      peerDeviceMode: false,
-    });
-    expect(openExternalMock).toHaveBeenCalledWith('http://127.0.0.1:52100/preview');
-  });
-
-  it('forwards peer device mode from the peer-mode flag', async () => {
-    peerDeviceModeMock.mockReturnValue(true);
-
-    await openHtmlFileInExternalBrowser('/repo/index.html');
-
-    expect(createMock).toHaveBeenCalledWith(expect.objectContaining({ peerDeviceMode: true }));
+    expect(openHtmlFileInBrowserMock).toHaveBeenCalledWith(path);
   });
 });

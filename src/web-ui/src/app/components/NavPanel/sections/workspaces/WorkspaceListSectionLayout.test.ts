@@ -54,7 +54,7 @@ describe('WorkspaceListSection layout styles', () => {
     const workspaceMenu = extractBlock(stylesheet, '&__workspace-item-menu');
     const assistantItem = extractBlock(stylesheet, '&__assistant-item');
     const assistantCard = extractBlock(stylesheet, '&__assistant-item-card');
-    const assistantCollapseButton = extractBlock(stylesheet, '&__assistant-item-collapse-btn');
+    const assistantCollapseButton = extractBlock(stylesheet, '&__assistant-item-open-btn');
     const assistantIcon = extractBlock(stylesheet, '&__assistant-item-avatar');
     const assistantNameButton = extractBlock(stylesheet, '&__assistant-item-name-btn');
     const assistantLabel = extractBlock(stylesheet, '&__assistant-item-label');
@@ -68,8 +68,8 @@ describe('WorkspaceListSection layout styles', () => {
     expect(workspaceItem).toContain('gap: calc(var(--bitfun-space-1) / 2);');
     expect(workspaceCard).toContain('max-width: 100%;');
     expect(workspaceCard).toContain('overflow: hidden;');
-    expect(workspaceIcon).toContain('width: 16px;');
-    expect(workspaceIcon).toContain('height: 16px;');
+    expect(workspaceIcon).toContain('width: var(--_nav-icon-size-prominent);');
+    expect(workspaceIcon).toContain('height: var(--_nav-icon-size-prominent);');
     expect(workspaceNameButton).toContain('flex: 0 1 auto;');
     expect(workspaceNameButton).toContain('overflow: hidden;');
     expect(workspaceNameButton).not.toContain('58px');
@@ -100,8 +100,8 @@ describe('WorkspaceListSection layout styles', () => {
     expect(assistantCollapseButton).toContain('width: 26px;');
     expect(assistantCollapseButton).toContain('min-height: 30px;');
     expect(assistantCollapseButton).toContain('padding: 0 0 0 4px;');
-    expect(assistantIcon).toContain('width: 16px;');
-    expect(assistantIcon).toContain('height: 16px;');
+    expect(assistantIcon).toContain('width: var(--_nav-icon-size-prominent);');
+    expect(assistantIcon).toContain('height: var(--_nav-icon-size-prominent);');
     expect(assistantIcon).toContain('color: inherit;');
     expect(assistantIcon).toContain('opacity: 1;');
     expect(assistantNameButton).toContain('flex: 1 1 0;');
@@ -132,8 +132,8 @@ describe('WorkspaceListSection layout styles', () => {
     );
     const sessionRails = stylesheet.match(/--bitfun-nav-session-rail: 30px;/g);
 
-    expect(fullWidthSessionLists).toHaveLength(2);
-    expect(sessionRails).toHaveLength(2);
+    expect(fullWidthSessionLists).toHaveLength(1);
+    expect(sessionRails).toHaveLength(1);
     // SessionsSection derives both the child connector and title offsets from
     // this rail. Context-specific child padding would split those axes again.
     expect(stylesheet).not.toMatch(/&\.is-child\s*\{\s*padding-left:/);
@@ -141,9 +141,7 @@ describe('WorkspaceListSection layout styles', () => {
     expect(stylesheet).toContain(
       '&__workspace-item.is-active:has(&__workspace-item-sessions &__inline-item.is-active)',
     );
-    expect(stylesheet).toContain(
-      '&__assistant-item.is-active:has(&__assistant-item-sessions &__inline-item.is-active)',
-    );
+    expect(stylesheet).not.toContain('&__assistant-item-sessions');
   });
 
   it('keeps all three workspace hover actions at the compact row size', () => {
@@ -159,6 +157,21 @@ describe('WorkspaceListSection layout styles', () => {
     expect(source.match(/data-testid="nav-workspace-new-session-btn"/g)).toHaveLength(2);
   });
 
+  it('keeps the scheduled-job mark off workspace rows', () => {
+    const source = readWorkspaceItemSource();
+
+    // A workspace row owns no session, so the scheduled-job count it used to
+    // borrow from its sessions belongs on the session rows only. The workspace
+    // row must not subscribe to the counts store or claim the name row's
+    // trailing metadata slot for it.
+    expect(source).not.toContain('cronJobCountsStore');
+    expect(source).not.toContain('scheduledJobCount');
+    expect(source).not.toContain('scheduledJobBadge');
+    expect(source).not.toContain('inline-item-cron');
+    expect(source).not.toContain('nav.scheduledJobs.badgeTooltip');
+    expect(source).not.toContain('metadata={scheduledJobBadge}');
+  });
+
   it('keeps workspace and assistant rows flat on hover', () => {
     const stylesheet = readWorkspaceListStylesheet();
 
@@ -171,6 +184,17 @@ describe('WorkspaceListSection layout styles', () => {
       '    box-shadow: none;\n' +
       '  }',
     );
+  });
+
+  it('uses distinct disclosure icons for collapsed and expanded session groups', () => {
+    const source = readWorkspaceItemSource();
+    const stylesheet = readWorkspaceListStylesheet();
+
+    expect(source).toContain(
+      "const sessionDisclosureIcon = sessionsCollapsed ? 'chevron-right' : 'chevron-down';",
+    );
+    expect(source.match(/<Icon name=\{sessionDisclosureIcon\} size="sm" \/>/g)).toHaveLength(1);
+    expect(stylesheet).not.toContain('&.is-collapsed svg');
   });
 
   it('keeps remote workspace directory and host metadata on one row with the status dot first', () => {
@@ -190,18 +214,18 @@ describe('WorkspaceListSection layout styles', () => {
     expect(remoteNameButton).toContain('flex: 1 1 0;');
     expect(remoteNameButton).toContain('max-width: none;');
     expect(remoteChip).toContain('gap: var(--bitfun-space-2);');
-    expect(remoteChip).toContain('flex: 0 0 auto;');
+    // The folder name owns the row; the chip shrinks and stays bounded (#3517).
+    expect(remoteChip).toContain('flex: 0 1 auto;');
+    expect(remoteChip).toContain('min-width: 0;');
+    expect(remoteChip).toContain('max-width: 45%;');
     expect(remoteChip).toContain('margin-left: auto;');
     expect(remoteChip).toContain('padding: 0 var(--bitfun-space-2);');
     expect(remoteChip).toContain('border-radius: var(--bitfun-radius-base);');
-    expect(stylesheet).toContain(
-      '&.is-connected {\n' +
-      '      background: var(--bitfun-color-status-success-surface);\n' +
-      '      color: var(--bitfun-color-status-success-content);',
-    );
-    expect(remoteHost).toContain('flex: 0 0 auto;');
+    // A connected chip stays neutral; the green status dot already reports it.
+    expect(remoteChip).not.toContain('status-success-surface');
+    expect(remoteHost).toContain('flex: 0 1 auto;');
     expect(remoteHost).toContain('white-space: nowrap;');
-    expect(remoteHost).not.toContain('text-overflow: ellipsis;');
+    expect(remoteHost).toContain('text-overflow: ellipsis;');
 
     const source = readWorkspaceItemSource();
     const remoteNameStart = source.indexOf('behavior="marquee"');
@@ -212,12 +236,12 @@ describe('WorkspaceListSection layout styles', () => {
 
     expect(remoteMetaStart).toBeGreaterThanOrEqual(0);
     expect(remoteMetaEnd).toBeGreaterThan(remoteMetaStart);
-    expect(source).toContain('const hostLabel = workspace.sshHost?.trim() || connectionLabel;');
+    expect(source).toContain('const badge = remoteBadge ?? remoteWorkspaceBadge(workspace);');
     expect(source).toContain('<OverflowText');
     expect(source).toContain('behavior="marquee"');
     expect(searchIndicatorStart).toBeGreaterThan(remoteNameStart);
     expect(remoteMetaStart).toBeGreaterThan(searchIndicatorStart);
-    expect(remoteMetaMarkup).toContain('remoteMeta.connectionLabel');
+    expect(remoteMetaMarkup).toContain('remoteMeta.badgeLabel');
     expect(remoteMetaMarkup.indexOf('workspace-item-status-dot'))
       .toBeLessThan(remoteMetaMarkup.indexOf('workspace-item-remote-host'));
     expect(source).not.toContain('workspace-item-subtitle');
@@ -239,31 +263,49 @@ describe('WorkspaceListSection layout styles', () => {
     const itemSource = readWorkspaceItemSource();
     const listSource = readWorkspaceListSource();
     const stylesheet = readWorkspaceListStylesheet();
+    const iconSource = readFileSync(fileURLToPath(new URL('../../../WorkspaceIcon/WorkspaceIcon.tsx', import.meta.url)), 'utf8');
 
-    expect(itemSource).toContain('<Icon name="user" size="sm" />');
-    expect(itemSource).toContain('<Server size={14} strokeWidth={1.6} />');
-    expect(itemSource).toContain('<Icon name="folder" size="sm" />');
+    expect(itemSource).toContain('<AssistantAvatar size={22} name={workspaceDisplayName} />');
+    expect(itemSource).toContain('<WorkspaceIcon workspace={workspace} />');
+    expect(iconSource).toContain('projectGlyphs[glyph] : remote ? Server : Folder');
+    expect(iconSource).toContain('<Icon glyph={artwork} size="sm"');
     expect(itemSource).not.toContain('SessionGroup');
     expect(listSource).not.toContain('nav.sessions.viewMenu.grouping.all');
     expect(listSource).not.toContain('workspace-all-sessions-header');
     expect(stylesheet).not.toContain('&__workspace-all-sessions-header');
     expect(stylesheet).not.toContain('&__workspace-all-sessions-icon');
-    expect(stylesheet).toContain('&__assistant-item-group-icon');
+    expect(stylesheet).not.toContain('&__assistant-item-group-icon');
     expect(extractBlock(stylesheet, '&__workspace-item:not(.is-active) &__workspace-item-icon'))
       .toContain('opacity: 1;');
     expect(extractBlock(stylesheet, '&__assistant-item:not(.is-active) &__assistant-item-avatar'))
       .toContain('opacity: 1;');
   });
 
-  it('uses the standard workspace session-row presentation inside assistant groups', () => {
-    const itemSource = readWorkspaceItemSource();
-    const assistantSessionsStart = itemSource.indexOf('bitfun-nav-panel__assistant-item-sessions');
-    const assistantSessionsEnd = itemSource.indexOf('useWorkspaceViewPreferences', assistantSessionsStart);
-    const assistantSessionsMarkup = itemSource.slice(assistantSessionsStart, assistantSessionsEnd);
+  it('expands assistant history below its row with a collapse icon and no resource shortcut', () => {
+    const source = readWorkspaceItemSource();
+    const start = source.indexOf('if (workspace.workspaceKind === WorkspaceKind.Assistant)');
+    const assistant = source.slice(start, source.indexOf('\n  return (', start));
 
-    expect(assistantSessionsStart).toBeGreaterThanOrEqual(0);
-    expect(assistantSessionsEnd).toBeGreaterThan(assistantSessionsStart);
-    expect(assistantSessionsMarkup).toContain('<SessionsSection');
-    expect(assistantSessionsMarkup).not.toContain('presentation=');
+    expect(assistant).not.toContain('nav-workspace-session-region');
+    expect(assistant).not.toContain('nav-workspace-sessions-toggle');
+    expect(assistant).not.toContain('nav-workspace-project-resources-btn');
+    expect(assistant).not.toContain('handleCollapseToggle');
+    for (const removedAction of ['project-permissions', 'reveal', 'open-session-storage', 'manage-sessions', 'copy-path']) {
+      expect(assistant).not.toContain(`data-testid="nav-workspace-menu-${removedAction}"`);
+    }
+    expect(assistant).toContain('nav-assistant-history-btn');
+    expect(assistant).toContain('nav-workspace-menu-manage-assistant');
+    expect(source).toContain('useNurseryStore.getState().openAssistant(workspace.id)');
+    expect(source).toContain("useSceneStore.getState().openScene('assistant')");
+    expect(assistant).toContain('{assistantHistoryOpen && (');
+    expect(assistant).toContain('data-testid="nav-assistant-session-region"');
+    expect(assistant).toContain('hidden={!assistantHistoryOpen}');
+    expect(assistant).toContain('aria-expanded={assistantHistoryOpen}');
+    expect(assistant).toContain('aria-controls={assistantHistoryId}');
+    expect(assistant).toContain('setAssistantHistoryOpen(open => !open)');
+    expect(assistant).toContain('glyph={assistantHistoryOpen ? ChevronUp : History}');
+    expect(assistant).not.toContain('aria-haspopup="dialog"');
+    expect(assistant).not.toContain('AssistantSessionHistoryDialog');
+    expect(assistant).toContain('handleOpenLatestAssistantSession');
   });
 });

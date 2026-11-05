@@ -4,6 +4,7 @@ export interface BtwPanelViewState {
   anchor: { key: string; offsetPx: number } | null;
   exploreGroupStates: Map<string, boolean>;
   thinkingExpansionStates: Map<string, boolean>;
+  expandedToolCapsules?: ReadonlySet<string>;
   restoredReviewLocation?: string;
   restoring: boolean;
 }

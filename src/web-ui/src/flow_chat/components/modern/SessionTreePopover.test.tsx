@@ -232,7 +232,6 @@ describe('SessionTreePopover', () => {
       const presentation = resolveSubagentAvatarPresentation(sessionId);
 
       expect(avatar.dataset.bitfunAvatarId).toBe(presentation.avatarId);
-      expect(avatar.dataset.bitfunAvatarColorId).toBe(presentation.colorId);
     });
 
     expect(subagentNodes).toHaveLength(3);

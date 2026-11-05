@@ -6,9 +6,7 @@ use crate::auth::{
 use crate::config::MarketConfig;
 use crate::db::{AuthenticatedUser, Database};
 use crate::error::{MarketError, MarketResult};
-use crate::package::{
-    validate_market_package, validate_min_bitfun_version, validate_screenshot,
-};
+use crate::package::{validate_market_package, validate_min_bitfun_version, validate_screenshot};
 use axum::body::{Body, Bytes};
 use axum::extract::{DefaultBodyLimit, Path, Query, Request, State};
 use axum::http::{header, HeaderMap, HeaderValue, Method, StatusCode};
@@ -18,7 +16,6 @@ use axum::routing::{any, get, post, put};
 use axum::{Json, Router};
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
-use chrono::Utc;
 use bitfun_product_domains::miniapp::market::{
     compute_review_bundle_hash, validate_market_category, validate_market_slug, CursorPage,
     MarketLicense, MarketListingDetail, MarketListingSummary, MarketRelease, MarketSort,
@@ -26,9 +23,8 @@ use bitfun_product_domains::miniapp::market::{
     ReviewDecision, ReviewDecisionRequest, MARKET_CATEGORIES, MARKET_DEFAULT_PAGE_SIZE,
     MARKET_MAX_PAGE_SIZE, MARKET_MAX_SCREENSHOTS, MARKET_PACKAGE_CONTENT_TYPE,
 };
-use bitfun_product_domains::miniapp::types::{
-    MiniAppI18n, MiniAppPermissions, NodePermissions,
-};
+use bitfun_product_domains::miniapp::types::{MiniAppI18n, MiniAppPermissions, NodePermissions};
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use similar::TextDiff;
@@ -587,11 +583,11 @@ fn complete_login_response(
             csrf_token,
             expires_at,
         } => {
+            let complete_url = format!("{}/complete", state.config.auth_base_url());
             let mut response = if json {
-                Json(serde_json::json!({"redirectUrl": "https://auth.bitfun.com/complete"}))
-                    .into_response()
+                Json(serde_json::json!({"redirectUrl": complete_url})).into_response()
             } else {
-                Redirect::to("https://auth.bitfun.com/complete").into_response()
+                Redirect::to(&complete_url).into_response()
             };
             state.auth.append_web_session_cookies(
                 response.headers_mut(),
@@ -2930,8 +2926,7 @@ mod tests {
             auth,
         });
         let app = api_router(state.clone());
-        let cookie =
-            "bitfun_market_session=web-session-token; bitfun_market_csrf=csrf-token";
+        let cookie = "bitfun_market_session=web-session-token; bitfun_market_csrf=csrf-token";
 
         let response = app
             .clone()

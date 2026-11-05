@@ -15,6 +15,7 @@
     display: flex;
     align-items: center;
     justify-content: flex-end;
+    gap: var(--bitfun-layout-toolbar-group-gap-sm);
     padding: 4px 6px;
     flex-shrink: 0;
   }

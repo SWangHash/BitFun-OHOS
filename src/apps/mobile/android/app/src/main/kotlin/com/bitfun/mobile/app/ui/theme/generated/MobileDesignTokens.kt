@@ -12,6 +12,7 @@ internal object MobileDesignColors {
         val StartWindowBackground = Color(0xFFFFFFFF)
         val Transparent = Color(0x00000000)
         val PageBg = Color(0xFFFFFFFF)
+        val WelcomePageBg = Color(0xFFFFFFFF)
         val PageBgFade = Color(0x00FFFFFF)
         val PageBgOverlay = Color(0xB8FFFFFF)
         val Ink = Color(0xFF171717)
@@ -42,6 +43,15 @@ internal object MobileDesignColors {
         val FloatingBorder = Color(0x18000000)
         val Soft = Color(0xFFF4F3F0)
         val FloatingPanelBg = Color(0xFFF7F7F5)
+        val SidebarBg = Color(0xFFF8F8F9)
+        val SidebarBgFade = Color(0x00F8F8F9)
+        val SidebarRaised = Color(0xFFFFFFFF)
+        val SidebarLine = Color(0x14101A27)
+        val SidebarHover = Color(0xFFF3F3F5)
+        val SidebarSelection = Color(0x14000000)
+        val SidebarInk = Color(0xCC000000)
+        val SidebarMuted = Color(0x99000000)
+        val SidebarSubtle = Color(0x66000000)
         val StatusSuccess = Color(0xFF27C46A)
         val StatusDanger = Color(0xFFE04F4F)
         val CodeLineNumber = Color(0xFFAAA69D)
@@ -66,6 +76,7 @@ internal object MobileDesignColors {
         val StartWindowBackground = Color(0xFF000000)
         val Transparent = Color(0x00000000)
         val PageBg = Color(0xFF151514)
+        val WelcomePageBg = Color(0xFF252522)
         val PageBgFade = Color(0x00151514)
         val PageBgOverlay = Color(0xB8151514)
         val Ink = Color(0xFFF4F3EF)
@@ -96,6 +107,15 @@ internal object MobileDesignColors {
         val FloatingBorder = Color(0x18000000)
         val Soft = Color(0xFF2D2C28)
         val FloatingPanelBg = Color(0xFF1E1E1C)
+        val SidebarBg = Color(0xFF0E0E10)
+        val SidebarBgFade = Color(0x000E0E10)
+        val SidebarRaised = Color(0xFF1C1C1F)
+        val SidebarLine = Color(0x1FFFFFFF)
+        val SidebarHover = Color(0x0FFFFFFF)
+        val SidebarSelection = Color(0x1FFFFFFF)
+        val SidebarInk = Color(0xFFE8E8E8)
+        val SidebarMuted = Color(0xFFB0B0B0)
+        val SidebarSubtle = Color(0xFF858585)
         val StatusSuccess = Color(0xFF3BD47B)
         val StatusDanger = Color(0xFFFF6B6B)
         val CodeLineNumber = Color(0xFF77756E)
@@ -109,7 +129,7 @@ internal object MobileDesignColors {
         val CodeProperty = Color(0xFF9CC8D0)
         val CodeTargetBg = Color(0xFF5A4E24)
         val BrandDot = Color(0xFF16B9CE)
-        val WelcomeDock = Color(0xFF171917)
+        val WelcomeDock = Color(0xFF000000)
         val WelcomeButton = Color(0xFFFFFFFF)
         val WelcomeButtonLabel = Color(0xFF171917)
         val WelcomeSecondary = Color(0xFFB9BCB9)
@@ -135,6 +155,27 @@ internal object MobileDesignTypography {
     val LabelMedium = TextStyle(fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium)
     val LabelSmall = TextStyle(fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Normal)
     val BrandWordmark = TextStyle(fontSize = 42.sp, lineHeight = 56.sp, fontWeight = FontWeight.Medium)
+}
+
+/**
+ * Normalises how big one logical unit of type is on the glass. The ramp was
+ * tuned on 153.3 logical units per inch; a screen whose dp is physically larger
+ * shrinks its text by the ratio, clamped, so a 16.sp reads as the same
+ * millimetres. Returns 1 for displays whose xdpi is implausible against their
+ * nominal 160-per-dp density rather than trusting bad metrics.
+ */
+internal object MobileTextScale {
+    const val ReferenceLogicalDpi: Float = 153.3f
+    const val MinFactor: Float = 0.85f
+    const val MaxFactor: Float = 1f
+
+    fun resolve(xdpi: Float, density: Float): Float {
+        if (!(xdpi > 0f) || !(density > 0f)) return 1f
+        val nominalDpi = density * 160f
+        if (xdpi < nominalDpi * 0.5f || xdpi > nominalDpi * 2f) return 1f
+        val factor = (xdpi / density / ReferenceLogicalDpi).coerceIn(MinFactor, MaxFactor)
+        return Math.round(factor * 1000f) / 1000f
+    }
 }
 
 internal object MobileDesignGeometry {
@@ -232,4 +273,5 @@ internal object MobileDesignMotion {
     const val Quick: Int = 180
     const val Structure: Int = 220
     const val StartupBrand: Int = 6800
+    const val ColdStartHome: Int = 2400
 }

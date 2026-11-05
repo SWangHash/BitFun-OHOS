@@ -11,6 +11,7 @@ import { useDismissibleLayer } from "./useDismissibleLayer";
 import { useFocusScope } from "./useFocusScope";
 import { useScrollLock } from "./useScrollLock";
 import type { OverlayDismissReason, OverlayPortalContainer, OverlayPortalTarget } from "./types";
+import { inertProps } from "../internal/inert";
 import styles from "./Portal.module.css";
 
 const ParentLayerContext = createContext<{ id: symbol; stack: OverlayLayerStack } | null>(null);
@@ -126,7 +127,7 @@ function LayerMount({
       <ParentLayerContext.Provider value={{ id: ticket.id, stack }}>
         <FieldSurfaceContext.Provider value="default">
           <div ref={slotRef} className={inline ? styles.inlineLayer : styles.layer} data-bitfun-overlay-layer=""
-            data-bitfun-overlay-modal={modal || undefined} {...(!open ? { inert: "" } : {})}>
+            data-bitfun-overlay-modal={modal || undefined} {...inertProps(!open)}>
             {children}
           </div>
         </FieldSurfaceContext.Provider>

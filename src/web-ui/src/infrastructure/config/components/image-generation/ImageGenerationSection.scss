@@ -1,0 +1,43 @@
+.bitfun-image-settings__editor {
+  container-name: config-panel;
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: var(--bitfun-space-5);
+  min-inline-size: 0;
+  font-family: var(--bitfun-type-body-sm-font-family);
+  font-size: var(--bitfun-type-body-sm-font-size);
+  font-weight: var(--bitfun-type-body-sm-font-weight);
+  line-height: var(--bitfun-type-body-sm-line-height);
+}
+.bitfun-image-settings__editor-fields .bitfun-config-page-row {
+  padding-block: var(--bitfun-layout-field-group-row-padding-block);
+  padding-inline: var(--bitfun-layout-field-group-row-padding-inline);
+}
+.bitfun-image-settings__hint {
+  margin: 0;
+  color: var(--bitfun-color-content-secondary);
+}
+.bitfun-image-settings__test-detail {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--bitfun-color-content-secondary);
+  font-family: var(--bitfun-type-code-meta-font-family);
+  font-size: var(--bitfun-type-code-meta-font-size);
+  line-height: var(--bitfun-type-code-meta-line-height);
+}
+.bitfun-image-settings__test-result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bitfun-space-2);
+}
+.bitfun-image-settings__test-result p { margin: 0; }
+.bitfun-image-settings__test-result[data-status='failure'] {
+  color: var(--bitfun-color-status-danger-content);
+}
+.bitfun-image-settings__test-image {
+  max-inline-size: 100%;
+  max-block-size: 320px;
+  object-fit: contain;
+  border-radius: var(--bitfun-radius-sm);
+}

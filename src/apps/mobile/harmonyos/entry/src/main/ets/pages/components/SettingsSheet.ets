@@ -1,12 +1,19 @@
 import { MobileDesignGeometry, MobileDesignTypography } from '../../generated/MobileDesignTokens';
 import { RemoteI18n } from '../../i18n/RemoteI18n';
 import { SettingsSheetState } from '../state/SettingsSheetState';
-import { CARD, INK, LINE, MUTED, PAGE_BG, SOFT, STATUS_DANGER } from './Theme';
+import { DeviceModelDefaultsRequestPath } from '../state/DeviceModelDefaultsSheetState';
+import { CARD, INK, LINE, MUTED, PAGE_BG } from './Theme';
+import { CurrentControlSection } from './CurrentControlSection';
 import { AccountProfilePanel } from './AccountProfilePanel';
+import { DeviceModelDefaultsPanel } from './DeviceModelDefaultsPanel';
+import { ModelRolePickerPanel } from './ModelRolePickerPanel';
 import { LanguageSettingsPanel } from './LanguageSettingsPanel';
 import { SheetCloseHeader } from './SheetCloseHeader';
 import { SHEET_HORIZONTAL_PADDING, SHEET_TOP_RADIUS } from './SheetLayout';
 import { CloudAccountDevice } from '../../services/CloudAccountClient';
+import { WindowInsetsBinding } from '../../services/WindowSystemBarService';
+import { RemoteDefaultModels, RemoteModelCatalog, RemotePermissionMode } from '../../model/RemoteModels';
+import { RemotePermissionSection } from './RemotePermissionSection';
 
 @ComponentV2
 export struct SettingsSheet {
@@ -21,6 +28,9 @@ export struct SettingsSheet {
   @Param controlTargetType: string = 'none';
   @Param controlTargetDeviceId: string = '';
   @Param connectionState: string = 'idle';
+  /** The connected desktop advertises `device_model_defaults_v1`. */
+  @Param supportsDeviceModelDefaults: boolean = false;
+  @Param statusText: string = '';
   @Event onClose: () => void = () => {};
   @Event onOpenAccount: () => void = () => {};
   @Event onDisconnect: () => void = () => {};
@@ -31,17 +41,111 @@ export struct SettingsSheet {
     async (): Promise<CloudAccountDevice[]> => [];
   @Event cloudSelectDevice: (device: CloudAccountDevice) => Promise<void> =
     async (_device: CloudAccountDevice): Promise<void> => {};
+  @Event getPermissionMode: () => Promise<RemotePermissionMode> = async (): Promise<RemotePermissionMode> => 'ask';
+  @Event setPermissionMode: (mode: RemotePermissionMode) => Promise<RemotePermissionMode> =
+    async (mode: RemotePermissionMode): Promise<RemotePermissionMode> => mode;
+  /** Device-level model catalog of the connected desktop (no session id). */
+  @Event getDeviceModelCatalog: () => Promise<RemoteModelCatalog> =
+    async (): Promise<RemoteModelCatalog> => ({ version: 0, models: [], default_models: {} });
+  /** Whole-object write of the three phone-managed model slots. */
+  @Event setDeviceModelDefaults: (
+    primary: string | null,
+    fast: string | null,
+    imageUnderstanding: string | null
+  ) => Promise<RemoteDefaultModels> = async (
+    primary: string | null,
+    fast: string | null,
+    imageUnderstanding: string | null
+  ): Promise<RemoteDefaultModels> => {
+    return {
+      primary,
+      fast,
+      image_understanding: imageUnderstanding
+    };
+  };
   @Event onSetLanguage: (language: string) => Promise<void> = async (_language: string) => {};
+  /** The sheet's own bottom edge, so its scrolling rows can run under the bar and still rest above it. */
+  @Local insets: WindowInsetsBinding = new WindowInsetsBinding();
+
+  aboutToAppear(): void {
+    const context = this.getUIContext().getHostContext();
+    if (context) {
+      this.insets.bind(this.getUIContext(), context);
+    }
+    // The device model pages are answered by the sheet, not by themselves: the
+    // desktop they read and write is whichever one this sheet is open on, so the
+    // request path is bound here before either page can mount.
+    const modelDefaultsClient: DeviceModelDefaultsRequestPath = {
+      getModelCatalog: (): Promise<RemoteModelCatalog> => this.getDeviceModelCatalog(),
+      setModelDefaults: (
+        primary: string | null,
+        fast: string | null,
+        imageUnderstanding: string | null
+      ): Promise<RemoteDefaultModels> => {
+        return this.setDeviceModelDefaults(primary, fast, imageUnderstanding);
+      }
+    };
+    this.sheetState.deviceModels.bind(modelDefaultsClient);
+    this.applyDeviceModelGate();
+  }
+
+  aboutToDisappear(): void {
+    this.insets.unbind();
+  }
+
+  /**
+   * Re-gates the device model pages whenever the desktop, the link or its
+   * capability set changes.
+   *
+   * Arming the gate is not reading: the page spends the read when it opens, so a
+   * sheet that is opened for the language setting does not ask the desktop about
+   * its models. A gate that changes while one of the two pages is already open is
+   * the other case — what is on screen belongs to the previous desktop — so that
+   * one is read again immediately.
+   */
+  private applyDeviceModelGate(): void {
+    const needsRead = this.sheetState.deviceModels.setGate({
+      supported: this.supportsDeviceModelDefaults,
+      connected: this.connectionState === 'connected',
+      deviceId: this.controlTargetDeviceId
+    });
+    if (needsRead && this.onDeviceModelPage()) {
+      void this.sheetState.deviceModels.load();
+    }
+  }
+
+  private onDeviceModelPage(): boolean {
+    const page = this.sheetState.page;
+    return page === 'deviceModels' || page === 'modelPick';
+  }
+
+  @Monitor('connectionState', 'supportsDeviceModelDefaults', 'controlTargetDeviceId')
+  private onDeviceModelTargetChanged(): void {
+    this.applyDeviceModelGate();
+  }
+
   build() {
     Stack({ alignContent: Alignment.TopEnd }) {
       if (this.sheetState.page === 'language') {
         this.LanguagePanel()
+      } else if (this.sheetState.page === 'deviceModels') {
+        this.DeviceModelSettingsPage()
+      } else if (this.sheetState.page === 'modelPick') {
+        this.ModelRolePickerPage()
       } else {
         this.SettingsHome()
       }
     }
     .width('100%')
     .height('100%')
+    // The sheet's fill is the shell's bottom edge and runs to the screen edge,
+    // and so does its scrolling viewport: the rows are content, and they roll
+    // under the navigation indicator while they are still moving instead of
+    // stopping short of it above a band of bare page colour. What stops above
+    // the bar is the column's own tail padding, which brings the last row to
+    // rest there once the sheet is scrolled to its end. The framework does not
+    // inset a bottom sheet for the app while the window is immersive, so the
+    // sheet does it itself.
     .backgroundColor(PAGE_BG)
     .borderRadius({ topLeft: SHEET_TOP_RADIUS, topRight: SHEET_TOP_RADIUS })
   }
@@ -66,15 +170,19 @@ export struct SettingsSheet {
             controlTargetType: this.controlTargetType,
             controlTargetDeviceId: this.controlTargetDeviceId,
             connectionState: this.connectionState,
+            supportsDeviceModelDefaults: this.supportsDeviceModelDefaults,
             cloudLogout: this.cloudLogout,
             cloudListDevices: this.cloudListDevices,
             cloudSelectDevice: this.cloudSelectDevice,
             onReconnect: this.onReconnect,
             onOpenAccount: this.onOpenAccount,
+            onOpenDeviceModelSettings: () => {
+              this.sheetState.setPage('deviceModels');
+            },
             onLoggedOut: this.onClose,
-            embeddedInSettings: true,
             connection: () => {
               this.CurrentConnectionSection()
+              this.PermissionSection()
             },
             preferences: () => {
               this.GeneralSettingsSection()
@@ -89,7 +197,9 @@ export struct SettingsSheet {
           left: SHEET_HORIZONTAL_PADDING,
           right: SHEET_HORIZONTAL_PADDING,
           top: 22,
-          bottom: 34
+          // The sheet's tail spacer: the strip plus its own breathing, so the
+          // last row rests above the navigation bar once the scroll ends.
+          bottom: this.insets.tailSpacing(34)
         })
       }
       .width('100%')
@@ -102,83 +212,25 @@ export struct SettingsSheet {
 
   @Builder
   private CurrentConnectionSection() {
-    if (this.hasControlTarget()) {
-      this.SectionTitle(RemoteI18n.t('remote.settings.currentControl'))
-      Column() {
-        Row({ space: 14 }) {
-          Stack({ alignContent: Alignment.Center }) {
-            SymbolGlyph($r('sys.symbol.desktop'))
-              .fontSize(22)
-              .fontColor([MUTED])
-              .opacity(0.68)
-          }
-          .width(28)
-          .height(28)
+    CurrentControlSection({
+      desktopName: this.desktopName,
+      desktopId: this.desktopId,
+      controlTargetType: this.controlTargetType,
+      connectionState: this.connectionState,
+      statusText: this.statusText,
+      onDisconnect: this.onDisconnect,
+      onClearPairing: this.onClearPairing,
+      onReconnect: this.onReconnect
+    })
+  }
 
-          Column({ space: 3 }) {
-            Text(this.connectionTitle())
-              .fontSize(MobileDesignTypography.bodyLarge.size)
-              .fontWeight(FontWeight.Medium)
-              .fontColor(INK)
-              .width('100%')
-              .maxLines(1)
-              .textOverflow({ overflow: TextOverflow.Ellipsis })
-            Text(this.connectionDetail())
-              .fontSize(MobileDesignTypography.bodySmall.size)
-              .fontColor(MUTED)
-              .width('100%')
-          }
-          .layoutWeight(1)
-          .alignItems(HorizontalAlign.Start)
-        }
-        .width('100%')
-        .constraintSize({ minHeight: 68 })
-        .padding({ left: 18, right: 18, top: 12, bottom: 12 })
-        .alignItems(VerticalAlign.Center)
-
-        Divider().strokeWidth(1).color(LINE).margin({ left: 18, right: 18 })
-
-        Row({ space: 8 }) {
-          Text(this.connectionSourceLabel())
-            .fontSize(MobileDesignTypography.bodySmall.size)
-            .fontColor(MUTED)
-            .padding({ left: 10, right: 10, top: 5, bottom: 5 })
-            .backgroundColor(SOFT)
-            .borderRadius(12)
-          Blank()
-          if (!this.isConnectedOrConnecting()) {
-            Text(RemoteI18n.t('remote.settings.reconnect'))
-              .fontSize(MobileDesignTypography.bodyMedium.size)
-              .fontWeight(FontWeight.Medium)
-              .fontColor(INK)
-              .padding({ left: 10, right: 10, top: 8, bottom: 8 })
-              .onClick(this.onReconnect)
-          }
-          Text(this.controlTargetType === 'room' ?
-            RemoteI18n.t('remote.settings.disconnectTemporary') :
-            RemoteI18n.t('remote.settings.disconnect'))
-            .fontSize(MobileDesignTypography.bodyMedium.size)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(STATUS_DANGER)
-            .padding({ left: 10, right: 10, top: 8, bottom: 8 })
-            .onClick(() => {
-              if (this.controlTargetType === 'room') {
-                this.onClearPairing();
-              } else {
-                this.onDisconnect();
-              }
-            })
-        }
-        .width('100%')
-        .constraintSize({ minHeight: 54 })
-        .padding({ left: 18, right: 10 })
-        .alignItems(VerticalAlign.Center)
-      }
-      .width('100%')
-      .backgroundColor(CARD)
-      .borderRadius(MobileDesignGeometry.settingsCardRadius)
-      .margin({ bottom: 24 })
-    }
+  @Builder
+  private PermissionSection() {
+    RemotePermissionSection({
+      connectionState: this.connectionState,
+      getPermissionMode: this.getPermissionMode,
+      setPermissionMode: this.setPermissionMode
+    })
   }
 
   @Builder
@@ -303,32 +355,32 @@ export struct SettingsSheet {
     })
   }
 
-  private hasControlTarget(): boolean {
-    return this.controlTargetType === 'room' || this.controlTargetType === 'account_device';
+  /**
+   * Device model role settings, reached from the connected device row: the second
+   * level of the sheet's own page stack.
+   */
+  @Builder
+  DeviceModelSettingsPage() {
+    DeviceModelDefaultsPanel({
+      sheetState: this.sheetState,
+      deviceModels: this.sheetState.deviceModels,
+      desktopName: this.desktopName,
+      desktopId: this.desktopId,
+      controlTargetType: this.controlTargetType,
+      connectionState: this.connectionState,
+      onClose: this.onClose
+    })
   }
 
-  private isConnectedOrConnecting(): boolean {
-    return this.connectionState === 'connected' || this.connectionState === 'reconnecting' ||
-      this.connectionState === 'pairing' || this.connectionState === 'parsing';
+  /** The role picker pushed above it; both pages share the sheet's controller. */
+  @Builder
+  ModelRolePickerPage() {
+    ModelRolePickerPanel({
+      sheetState: this.sheetState,
+      deviceModels: this.sheetState.deviceModels,
+      desktopName: this.desktopName,
+      desktopId: this.desktopId,
+      onClose: this.onClose
+    })
   }
-
-  private connectionTitle(): string {
-    return this.desktopName || this.desktopId || RemoteI18n.t('remote.settings.noDesktop');
-  }
-
-  private connectionDetail(): string {
-    if (this.connectionState === 'connected') {
-      return RemoteI18n.t('connection.connected');
-    }
-    if (this.connectionState === 'reconnecting') {
-      return RemoteI18n.t('connection.reconnecting');
-    }
-    return RemoteI18n.t('connection.disconnected');
-  }
-
-  private connectionSourceLabel(): string {
-    return this.controlTargetType === 'room' ? RemoteI18n.t('remote.settings.qrPairing') :
-      RemoteI18n.t('remote.settings.accountDevice');
-  }
-
 }

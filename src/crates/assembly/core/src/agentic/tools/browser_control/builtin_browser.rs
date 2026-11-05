@@ -15,12 +15,18 @@ use crate::util::errors::{BitFunError, BitFunResult};
 
 const BUILTIN_EVENT_CAPACITY: usize = 128;
 
+#[cfg(test)]
+pub(crate) static TEST_HOST_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BuiltInBrowserTarget {
     pub id: String,
     pub url: String,
     pub title: String,
     pub active: bool,
+    /// Agent conversation that owns this page; visibility never changes ownership.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conversation_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -31,24 +37,16 @@ pub struct BuiltInBrowserCommand {
     pub params: Option<Value>,
 }
 
-/// Ask the Desktop host to present a built-in browser page and return only
-/// after that exact native WebView has been registered for Agent control.
-///
-/// Opening the product surface and registering its automation target are two
-/// separate asynchronous frontend phases. Keeping their correlation inside
-/// the host port prevents ControlHub from guessing readiness by URL or by a
-/// process-wide target count.
+/// Ask the host for a registered page owned by this conversation. Presentation
+/// is independent: the page must be usable while its conversation is hidden or
+/// has no mounted panel. A replacement can only reuse a page with the same owner.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BuiltInBrowserOpenRequest {
     pub url: String,
     pub title: String,
     pub replace_existing: bool,
-    #[serde(default)]
-    pub owner_session_id: Option<String>,
-    #[serde(default)]
-    pub owner_workspace_id: Option<String>,
-    #[serde(default)]
-    pub owner_workspace_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conversation_id: Option<String>,
 }
 
 #[async_trait]
@@ -59,6 +57,20 @@ pub trait BuiltInBrowserHost: Send + Sync {
     ) -> Result<BuiltInBrowserTarget, String>;
 
     async fn list_targets(&self) -> Result<Vec<BuiltInBrowserTarget>, String>;
+
+    async fn list_targets_for_session(
+        &self,
+        conversation_id: Option<&str>,
+    ) -> Result<Vec<BuiltInBrowserTarget>, String> {
+        Ok(self
+            .list_targets()
+            .await?
+            .into_iter()
+            .filter(|target| {
+                conversation_id.is_none() || target.conversation_id.as_deref() == conversation_id
+            })
+            .collect())
+    }
 
     async fn execute(&self, command: BuiltInBrowserCommand) -> Result<Value, String>;
 }
@@ -115,13 +127,35 @@ pub async fn list_builtin_browser_targets() -> BitFunResult<Vec<BuiltInBrowserTa
     })
 }
 
+/// Conversation callers cannot discover or attach to another conversation's pages.
+/// Unscoped callers retain the legacy inventory for host UI/diagnostics.
+pub async fn list_builtin_browser_targets_for_session(
+    conversation_id: Option<&str>,
+) -> BitFunResult<Vec<BuiltInBrowserTarget>> {
+    host()?
+        .list_targets_for_session(conversation_id)
+        .await
+        .map_err(|error| {
+            BitFunError::tool(format!("Built-in browser target discovery failed: {error}"))
+        })
+}
+
 pub async fn open_builtin_browser(
     request: BuiltInBrowserOpenRequest,
 ) -> BitFunResult<BuiltInBrowserClient> {
+    let conversation_id = request.conversation_id.clone();
     let target = host()?.open(request).await.map_err(|error| {
         BitFunError::tool(format!("Built-in browser surface failed to open: {error}"))
     })?;
-    set_default_builtin_browser_target(Some(target.id.clone()));
+    if target.conversation_id != conversation_id {
+        return Err(BitFunError::tool(
+            "[WRONG_TAB] The browser host returned a page owned by another conversation"
+                .to_string(),
+        ));
+    }
+    if target.conversation_id.is_none() {
+        set_default_builtin_browser_target(Some(target.id.clone()));
+    }
     Ok(BuiltInBrowserClient {
         events: event_sender(&target.id),
         target,
@@ -182,6 +216,14 @@ pub fn publish_builtin_browser_page_load(target_id: &str, event: &str, url: &str
     }
 }
 
+/// A native navigation failed, including failures before a document exists.
+pub fn publish_builtin_browser_navigation_failed(target_id: &str, error: &str) {
+    let _ = event_sender(target_id).send(BrowserAutomationEvent {
+        method: "Page.lifecycleEvent".to_string(),
+        params: json!({ "frameId": target_id, "name": "error", "errorText": error }),
+    });
+}
+
 pub async fn connect_builtin_browser(
     requested_target_id: Option<&str>,
 ) -> BitFunResult<BuiltInBrowserClient> {
@@ -197,16 +239,31 @@ pub async fn connect_builtin_browser_matching(
     target_url: Option<&str>,
     target_title: Option<&str>,
 ) -> BitFunResult<BuiltInBrowserClient> {
-    let targets = list_builtin_browser_targets().await?;
+    connect_builtin_browser_for_session(requested_target_id, target_url, target_title, None).await
+}
+
+pub async fn connect_builtin_browser_for_session(
+    requested_target_id: Option<&str>,
+    target_url: Option<&str>,
+    target_title: Option<&str>,
+    conversation_id: Option<&str>,
+) -> BitFunResult<BuiltInBrowserClient> {
+    let targets = list_builtin_browser_targets_for_session(conversation_id).await?;
+    let default_id = conversation_id
+        .is_none()
+        .then(default_builtin_browser_target_id)
+        .flatten();
     let target = select_builtin_browser_target(
         &targets,
         requested_target_id,
         target_url,
         target_title,
-        default_builtin_browser_target_id().as_deref(),
+        default_id.as_deref(),
     )?;
 
-    set_default_builtin_browser_target(Some(target.id.clone()));
+    if conversation_id.is_none() {
+        set_default_builtin_browser_target(Some(target.id.clone()));
+    }
     Ok(BuiltInBrowserClient {
         events: event_sender(&target.id),
         target,
@@ -220,13 +277,6 @@ pub(crate) fn select_builtin_browser_target(
     target_title: Option<&str>,
     default_target_id: Option<&str>,
 ) -> BitFunResult<BuiltInBrowserTarget> {
-    if targets.is_empty() {
-        return Err(BitFunError::tool(
-            "No built-in browser target is available. Open a URL with browser.open_builtin first."
-                .to_string(),
-        ));
-    }
-
     if let Some(requested_id) = requested_target_id {
         return targets
             .iter()
@@ -234,7 +284,7 @@ pub(crate) fn select_builtin_browser_target(
             .cloned()
             .ok_or_else(|| {
                 BitFunError::tool(format!(
-                    "Built-in browser page '{requested_id}' was not found. It may have been closed."
+                    "[WRONG_TAB] Built-in browser page '{requested_id}' was not found. It may have been closed."
                 ))
             });
     }
@@ -242,9 +292,9 @@ pub(crate) fn select_builtin_browser_target(
     let normalized_url = target_url.map(str::to_lowercase);
     let normalized_title = target_title.map(str::to_lowercase);
     if normalized_url.is_some() || normalized_title.is_some() {
-        return targets
+        let matches: Vec<_> = targets
             .iter()
-            .find(|target| {
+            .filter(|target| {
                 normalized_url
                     .as_ref()
                     .map(|needle| target.url.to_lowercase().contains(needle))
@@ -254,10 +304,16 @@ pub(crate) fn select_builtin_browser_target(
                         .map(|needle| target.title.to_lowercase().contains(needle))
                         .unwrap_or(true)
             })
-            .cloned()
+            .collect();
+        if matches.len() > 1 {
+            return Err(BitFunError::tool(
+                "[AMBIGUOUS] Several built-in pages match. Use browser.list_pages, then an exact session_id.".to_string(),
+            ));
+        }
+        return matches.first().copied().cloned()
             .ok_or_else(|| {
                 BitFunError::tool(format!(
-                    "No built-in browser page matched target_url={normalized_url:?} target_title={normalized_title:?}"
+                    "[WRONG_TAB] No built-in browser page matched target_url={normalized_url:?} target_title={normalized_title:?}"
                 ))
             });
     }
@@ -269,7 +325,7 @@ pub(crate) fn select_builtin_browser_target(
         .cloned()
         .ok_or_else(|| {
             BitFunError::tool(
-                "No built-in browser target is available. Open a URL with browser.open_builtin first."
+                "[NOT_AVAILABLE] No built-in page is open. Use browser.navigate with a URL to open and control it in one call."
                     .to_string(),
             )
         })
@@ -297,9 +353,15 @@ impl BrowserAutomationClient for BuiltInBrowserClient {
             })
             .await
             .map_err(|error| {
-                BitFunError::tool(format!(
-                    "Built-in browser adapter failed for {method}: {error}"
-                ))
+                // Retain the navigation outcome code for ControlHub while
+                // preserving operation context for ordinary adapter errors.
+                if error.starts_with("[NOT_AVAILABLE] ") {
+                    BitFunError::tool(error)
+                } else {
+                    BitFunError::tool(format!(
+                        "Built-in browser adapter failed for {method}: {error}"
+                    ))
+                }
             })
     }
 
@@ -325,15 +387,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn legacy_open_requests_remain_readable() {
-        let legacy =
-            json!({ "url": "https://example.com", "title": "Example", "replace_existing": false });
-        let request: BuiltInBrowserOpenRequest = serde_json::from_value(legacy.clone()).unwrap();
-        assert_eq!(request.owner_session_id, None);
-        let round_trip: BuiltInBrowserOpenRequest =
-            serde_json::from_value(serde_json::to_value(&request).unwrap()).unwrap();
-        assert_eq!(request, round_trip);
-        assert_eq!(serde_json::to_value(request).unwrap()["url"], legacy["url"]);
+    fn legacy_browser_payloads_round_trip_without_an_owner() {
+        let request_json =
+            json!({"url":"https://example.com","title":"Example","replace_existing":true});
+        let request: BuiltInBrowserOpenRequest =
+            serde_json::from_value(request_json.clone()).unwrap();
+        assert_eq!(request.conversation_id, None);
+        assert_eq!(serde_json::to_value(request).unwrap(), request_json);
+        let target_json =
+            json!({"id":"old-page","url":"https://example.com","title":"Example","active":false});
+        let target: BuiltInBrowserTarget = serde_json::from_value(target_json.clone()).unwrap();
+        assert_eq!(target.conversation_id, None);
+        assert_eq!(serde_json::to_value(target).unwrap(), target_json);
     }
 
     #[test]
@@ -373,6 +438,7 @@ mod tests {
             url: url.to_string(),
             title: title.to_string(),
             active,
+            conversation_id: None,
         }
     }
 

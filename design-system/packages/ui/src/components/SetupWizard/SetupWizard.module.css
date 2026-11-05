@@ -1,0 +1,167 @@
+@layer bitfun.components {
+  .root,
+  .layout,
+  .header,
+  .heading,
+  .headerActions,
+  .guide,
+  .contentInner,
+  .footer { box-sizing: border-box; }
+
+  .root {
+    container: setup-wizard / inline-size;
+    display: flex;
+    flex: 1 1 auto;
+    min-inline-size: 0;
+    min-block-size: 0;
+    block-size: min(780px, 84dvh);
+    overflow: hidden;
+    color: var(--bitfun-color-content-primary);
+    background: var(--bitfun-color-surface-scene);
+  }
+
+  .layout {
+    --_setup-wizard-columns: minmax(240px, 0.9fr) minmax(0, 1.3fr);
+    display: grid;
+    flex: 1;
+    min-inline-size: 0;
+    min-block-size: 0;
+    grid-template-columns: var(--_setup-wizard-columns);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+
+  .header {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: var(--_setup-wizard-columns);
+    align-items: stretch;
+  }
+
+  .heading,
+  .headerActions {
+    display: flex;
+    min-inline-size: 0;
+    align-items: center;
+    padding: var(--bitfun-space-6) var(--bitfun-space-8);
+  }
+
+  .heading,
+  .guide { background: var(--bitfun-color-surface-chrome); }
+
+  .title {
+    min-inline-size: 0;
+    margin: 0;
+    color: var(--bitfun-color-content-primary);
+    font-family: var(--bitfun-type-heading-dialog-font-family);
+    font-size: var(--bitfun-type-heading-dialog-font-size);
+    font-weight: var(--bitfun-type-heading-dialog-font-weight);
+    line-height: var(--bitfun-type-heading-dialog-line-height);
+    letter-spacing: var(--bitfun-type-heading-dialog-letter-spacing);
+  }
+
+  .headerActions {
+    justify-content: flex-end;
+    gap: var(--bitfun-space-2);
+  }
+
+  .guide {
+    display: flex;
+    min-block-size: 0;
+    grid-column: 1;
+    grid-row: 2 / -1;
+    overflow-y: auto;
+    padding: var(--bitfun-space-8);
+  }
+
+  .guideContent {
+    display: flex;
+    min-inline-size: 0;
+    min-block-size: 100%;
+    flex: 1;
+    flex-direction: column;
+    gap: var(--bitfun-space-8);
+  }
+
+  .guideCopy { margin-block: auto; }
+
+  .progress {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: var(--bitfun-space-3);
+    color: var(--bitfun-color-content-muted);
+    font-family: var(--bitfun-type-label-sm-font-family);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
+    line-height: var(--bitfun-type-label-sm-line-height);
+    letter-spacing: var(--bitfun-type-label-sm-letter-spacing);
+  }
+
+  .step {
+    color: var(--bitfun-color-content-primary);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+  }
+
+  .content {
+    min-inline-size: 0;
+    min-block-size: 0;
+    grid-column: 2;
+    grid-row: 2;
+    scrollbar-gutter: stable both-edges;
+  }
+
+  .contentInner {
+    box-sizing: border-box;
+    display: flex;
+    min-inline-size: 0;
+    min-block-size: 100%;
+    flex-direction: column;
+    justify-content: center;
+    padding: var(--bitfun-space-8);
+  }
+
+  .root[data-content-mode="contained"] .content {
+    overflow: hidden;
+    scrollbar-gutter: auto;
+  }
+
+  .root[data-content-mode="contained"] .contentInner {
+    block-size: 100%;
+    min-block-size: 0;
+    justify-content: flex-start;
+  }
+
+  .footer {
+    display: flex;
+    min-inline-size: 0;
+    grid-column: 2;
+    grid-row: 3;
+    justify-content: flex-end;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--bitfun-space-2);
+    padding: var(--bitfun-space-4) var(--bitfun-space-8);
+  }
+
+  @container setup-wizard (max-width: 640px) {
+    .layout {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto auto minmax(0, 1fr) auto;
+    }
+
+    .header { grid-template-columns: minmax(0, 1fr) auto; }
+    .heading,
+    .headerActions { padding: var(--bitfun-space-4); }
+    .headerActions { background: var(--bitfun-color-surface-chrome); }
+    .guide {
+      grid-column: 1;
+      grid-row: 2;
+      max-block-size: min(180px, 24dvh);
+      padding: var(--bitfun-space-4) var(--bitfun-space-5);
+    }
+    .guideContent { gap: var(--bitfun-space-4); }
+    .content { grid-column: 1; grid-row: 3; }
+    .contentInner { justify-content: flex-start; padding: var(--bitfun-space-5); }
+    .footer { grid-column: 1; grid-row: 4; padding-inline: var(--bitfun-space-5); }
+  }
+}

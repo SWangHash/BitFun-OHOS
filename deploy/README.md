@@ -1,4 +1,4 @@
-# Deploy runbooks
+# Deployment references
 
 Production origin restore and product deploys for the current BitFun host
 (`ssh lwb`).
@@ -9,6 +9,7 @@ Production origin restore and product deploys for the current BitFun host
 | [miniapp-market/](miniapp-market/README.md) | MiniApp market only |
 | [skin-market/](skin-market/README.md) | Skin market only |
 | [outbound-mail/](outbound-mail/README.md) | Send-only Postfix/OpenDKIM: auth integration, DNS, maintenance and rollback |
+| [model-router/](model-router/README.md) | Client-side router launcher and system prompt |
 
 An Agent that is asked to move or rebuild the server starts at
 `bitfun-host/AGENTS.md`.

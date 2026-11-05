@@ -1,8 +1,8 @@
 /**
- * WorkingCopyView ??Git working copy: commit bar + file list + diff area (ContentCanvas mode=git).
+ * WorkingCopyView — Git working copy: commit bar + file list + diff area (ContentCanvas mode=git).
  */
 
-import { OverflowText, Button, Icon, IconButton, SearchField, Textarea, Tooltip } from '@bitfun/ui';
+import { OverflowText, Button, Empty, Icon, IconButton, SearchField, Textarea, Tooltip } from '@bitfun/ui';
 import React, { useCallback, useState, useMemo, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Minus, RotateCcw, Square, FileCode2, History } from 'lucide-react';
@@ -16,6 +16,7 @@ import { createGitDiffEditorTab, createGitCodeEditorTab } from '@/shared/utils/t
 import { useNotification } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
 import './WorkingCopyView.scss';
+import { useGitSceneStore } from '../gitSceneStore';
 
 const log = createLogger('WorkingCopyView');
 
@@ -44,14 +45,16 @@ interface WorkingCopyViewProps {
   workspacePath?: string;
   workspaceId?: string;
   isActive?: boolean;
+  hostLabel?: string;
 }
 
 const WorkingCopyView: React.FC<WorkingCopyViewProps> = ({
   workspacePath,
   workspaceId,
   isActive = true,
+  hostLabel,
 }) => {
-  const { t } = useTranslation('panels/git');
+  const { t, formatNumber } = useI18n('panels/git');
   const { t: tComponents } = useI18n('components');
   const notification = useNotification();
   const setActiveView = useGitSceneStore((s) => s.setActiveView);
@@ -66,6 +69,9 @@ const WorkingCopyView: React.FC<WorkingCopyViewProps> = ({
   const mainRef = useRef<HTMLDivElement>(null);
 
   const {
+    state,
+    error: statusError,
+    conflicts,
     currentBranch,
     staged,
     unstaged,
@@ -87,6 +93,10 @@ const WorkingCopyView: React.FC<WorkingCopyViewProps> = ({
         : null,
     [currentBranch, staged, unstaged, untracked, ahead, behind]
   );
+
+  const hasChanges = Boolean(staged.length || unstaged.length || untracked.length || conflicts.length);
+  const statusReady = Boolean(state?.lastRefreshTime.status) && !statusError;
+  const clean = statusReady && !hasChanges;
 
   const { isOperating, addFiles, commit, push, pull } = useGitOperations({
     repositoryPath: { workspaceId: workspaceId ?? '', repositoryPath: workspacePath },
@@ -322,7 +332,7 @@ const WorkingCopyView: React.FC<WorkingCopyViewProps> = ({
         <div className="bitfun-git-scene-working-copy__placeholder" data-bitfun-component="working-copy-view" data-bitfun-part="placeholder">
           <FileCode2 size={48} aria-hidden />
           <p>{t('tabs.changes')}</p>
-          <p className="bitfun-git-scene-working-copy__hint">Open a workspace to see changes.</p>
+          <p className="bitfun-git-scene-working-copy__hint">{t('workingCopy.openWorkspace')}</p>
         </div>
       </div>
     );
@@ -365,6 +375,7 @@ const WorkingCopyView: React.FC<WorkingCopyViewProps> = ({
             </Tooltip>
           </div>
         </div>
+        {!clean && <>
         <div className="bitfun-git-scene-working-copy__commit-input-row" data-bitfun-component="working-copy-view" data-bitfun-part="commitInput">
           <Textarea
             className="bitfun-git-scene-working-copy__message"
@@ -404,9 +415,11 @@ const WorkingCopyView: React.FC<WorkingCopyViewProps> = ({
             {status?.staged?.length ? t('actions.commitWithCount', { count: status.staged.length }) : t('actions.commit')}
           </Button>
         </div>
+        </>}
       </div>
 
       <div className="bitfun-git-scene-working-copy__main" ref={mainRef} data-bitfun-component="working-copy-view" data-bitfun-part="main">
+        {!clean && <>
         <div className="bitfun-git-scene-working-copy__file-list" style={{ width: fileListWidth }} data-bitfun-component="working-copy-view" data-bitfun-part="fileList">
           <div className="bitfun-git-scene-working-copy__search" data-bitfun-component="working-copy-view" data-bitfun-part="search">
             <SearchField
@@ -420,8 +433,9 @@ const WorkingCopyView: React.FC<WorkingCopyViewProps> = ({
               onClear={searchQuery ? () => setSearchQuery('') : undefined}
             />
           </div>
-          {status && (status.unstaged?.length || status.untracked?.length || status.staged?.length) ? (
+          {status && hasChanges ? (
             <>
+              {conflicts.length > 0 && <p role="status">{t('workingCopy.conflicts', { count: conflicts.length })}</p>}
               {filteredFiles.unstaged.length > 0 && (
                 <>
                   <div
@@ -626,7 +640,7 @@ const WorkingCopyView: React.FC<WorkingCopyViewProps> = ({
               )}
             </>
           ) : (
-            <div className="bitfun-git-scene-working-copy__empty" data-bitfun-component="working-copy-view" data-bitfun-part="empty">{t('empty.noChanges')}</div>
+            <div className="bitfun-git-scene-working-copy__empty" data-bitfun-component="working-copy-view" data-bitfun-part="empty">{t(statusError ? 'workingCopy.statusUnavailable' : !statusReady ? 'loading.text' : 'empty.noChanges')}</div>
           )}
         </div>
         <div
@@ -639,9 +653,28 @@ const WorkingCopyView: React.FC<WorkingCopyViewProps> = ({
           aria-valuenow={fileListWidth}
           title={t('tooltips.resizeFileList')}
         />
+        </>}
         <div className="bitfun-git-scene-working-copy__diff-area" data-bitfun-component="working-copy-view" data-bitfun-part="diffArea">
           <CanvasStoreModeContext.Provider value="git">
-            <ContentCanvas workspacePath={workspacePath} mode="git" onInteraction={handleInteraction} onBeforeClose={handleBeforeClose} />
+            <ContentCanvas workspacePath={workspacePath} mode="git" emptyState={
+              <Empty className="bitfun-git-scene-working-copy__overview" icon={<Icon name="git" size="lg" />}
+                title={t(statusError ? 'workingCopy.statusUnavailable' : !statusReady ? 'loading.text'
+                  : clean ? 'workingCopy.clean' : 'workingCopy.selectFile')}
+                description={<>
+                  <p className="bitfun-git-scene-working-copy__repository-path">{hostLabel ? `${hostLabel} · ` : ''}{workspacePath}</p>
+                  {statusError ? <p role="alert">{statusError}</p> : clean && <>
+                    <p>{t('workingCopy.cleanDescription')}</p>
+                    {(ahead > 0 || behind > 0) && <p>{t('workingCopy.upstreamComparison', { ahead: formatNumber(ahead), behind: formatNumber(behind) })}</p>}
+                    <p>{t(ahead > 0 ? 'workingCopy.unpushed' : 'workingCopy.remoteSnapshot')}</p>
+                  </>}
+                </>}
+                actions={<>
+                  <Button size="sm" variant="outline" onClick={() => useGitSceneStore.getState().setActiveView('graph')}>{t('tabs.commits')}</Button>
+                  <Button size="sm" variant="outline" onClick={() => useGitSceneStore.getState().setActiveView('branches')}>{t('tabs.branches')}</Button>
+                  <Button size="sm" variant="quiet" onClick={() => void handleRefresh()}>{t('actions.refresh')}</Button>
+                </>}
+              />
+            } onInteraction={handleInteraction} onBeforeClose={handleBeforeClose} />
           </CanvasStoreModeContext.Provider>
         </div>
       </div>

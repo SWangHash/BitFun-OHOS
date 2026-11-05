@@ -1,4 +1,4 @@
- 
+import { isSurfaceChangedError, type SurfaceChangedError } from '@/infrastructure/peer-device/deviceSurface';
 
 export interface TauriCommandErrorContext {
   command: string;
@@ -81,7 +81,11 @@ export function createTauriCommandError(
   command: string,
   originalError: any,
   request?: any
-): TauriCommandError {
+): TauriCommandError | SurfaceChangedError {
+  // Device activation cancellation is control flow across every service API.
+  // Wrapping it would make callers report/retry stale work on the next host.
+  if (isSurfaceChangedError(originalError)) return originalError;
+
   let message = 'Unknown error';
   
   if (originalError?.message) {

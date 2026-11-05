@@ -19,6 +19,13 @@ $_section-header-height: 22px;
 .bitfun-nav-panel {
   @include shell-surfaces.sidebar-background;
 
+  --_nav-icon-color: var(--bitfun-color-content-secondary);
+  --_nav-icon-slot-size: var(--bitfun-control-icon-button-xs-size);
+  --_nav-icon-size: var(--bitfun-control-icon-size-sm);
+  --_nav-icon-size-prominent: var(--bitfun-control-icon-size-md);
+  --bitfun-control-icon-stroke-width: var(--bitfun-control-icon-stroke-width-strong);
+  --bitfun-opacity-icon-artwork: 1;
+
   width: 100%;
   flex: 1;
   min-height: 0;
@@ -305,13 +312,13 @@ $_section-header-height: 22px;
     }
 
     &--pro .bitfun-nav-panel__mode-pill-segment-icon {
-      width: 22px;
-      height: 22px;
+      width: var(--_nav-icon-slot-size);
+      height: var(--_nav-icon-slot-size);
     }
 
     &--assistant .bitfun-nav-panel__mode-pill-segment-icon {
-      width: 24px;
-      height: 24px;
+      width: var(--bitfun-control-icon-size-lg);
+      height: var(--bitfun-control-icon-size-lg);
     }
   }
 
@@ -672,6 +679,27 @@ $_section-header-height: 22px;
     margin: 0;
   }
 
+  &__miniapp-item {
+    display: flex;
+    // Anchors the trailing app bubbles, which trail as an overlay.
+    position: relative;
+    width: 100%;
+    min-height: var(--bitfun-layout-navigation-panel-item-height);
+    padding: 0;
+    background: transparent;
+  }
+
+  // Every nav row paints its hover/selected pill on the ActionItem trigger. This
+  // row's root also lays the trailing actions region out in flow, so the root gap
+  // plus that region's own inset pushed the trigger 12px off the row's right edge
+  // and the pill stopped short with it. Trailing the region as an overlay keeps
+  // the bubbles on their existing gutter and lets the pill span the full row.
+  &__miniapp-item > [data-bitfun-part='actions'] {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: var(--bitfun-space-2);
+  }
+
   &__miniapp-entry {
     position: relative;
     width: 100%;
@@ -714,6 +742,14 @@ $_section-header-height: 22px;
       box-shadow: 0 2px 8px color-mix(in srgb, var(--bitfun-color-content-on-light) 8%, transparent);
     }
 
+    &:hover,
+    &:focus-visible,
+    &.is-active {
+      .bitfun-nav-panel__miniapp-entry-icon {
+        color: var(--bitfun-color-content-primary);
+      }
+    }
+
     &.has-customizing-apps {
       color: var(--bitfun-color-content-primary);
 
@@ -747,24 +783,11 @@ $_section-header-height: 22px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    flex: 0 0 22px;
-    width: 22px;
-    height: 22px;
-    color: inherit;
-  }
-
-  &__miniapp-entry-copy {
-    min-width: 0;
-    display: inline;
-  }
-
-  &__miniapp-entry-title {
-    min-width: 0;
-    overflow: hidden;
-    white-space: nowrap;
-    font-size: var(--bitfun-type-label-md-font-size);
-    font-weight: var(--bitfun-type-label-sm-font-weight);
-    line-height: var(--bitfun-type-display-sm-line-height);
+    flex: 0 0 var(--_nav-icon-slot-size);
+    width: var(--_nav-icon-slot-size);
+    height: var(--_nav-icon-slot-size);
+    color: var(--_nav-icon-color);
+    transition: color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
   }
 
   &__miniapp-entry-apps {
@@ -790,6 +813,9 @@ $_section-header-height: 22px;
     border: none;
     box-shadow: none;
     overflow: hidden;
+    --_icon-button-background: transparent;
+    --_icon-button-background-hover: transparent;
+    --_icon-button-background-active: transparent;
     transition: transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
                 box-shadow var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
                 filter var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
@@ -815,21 +841,23 @@ $_section-header-height: 22px;
     &.is-customizing {
       box-shadow: 0 0 0 2px color-mix(in srgb, var(--bitfun-color-accent-default) 42%, transparent),
                   0 8px 18px color-mix(in srgb, var(--bitfun-color-content-on-light) 20%, transparent);
+
+      &::after {
+        position: absolute;
+        right: 2px;
+        bottom: 2px;
+        width: 6px;
+        height: 6px;
+        border-radius: var(--bitfun-radius-pill);
+        background: var(--bitfun-color-accent-default);
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--bitfun-color-content-on-light) 28%, transparent), 0 0 7px color-mix(in srgb, var(--bitfun-color-accent-default) 72%, transparent);
+        content: '';
+        pointer-events: none;
+      }
     }
 
     &.is-active.is-customizing {
       box-shadow: 0 0 0 2px color-mix(in srgb, var(--bitfun-color-accent-default) 42%, transparent);
-    }
-
-    &-customize-dot {
-      position: absolute;
-      right: 2px;
-      bottom: 2px;
-      width: 6px;
-      height: 6px;
-      border-radius: 999px;
-      background: var(--bitfun-color-accent-default);
-      box-shadow: 0 0 0 1px color-mix(in srgb, var(--bitfun-color-content-on-light) 28%, transparent), 0 0 7px color-mix(in srgb, var(--bitfun-color-accent-default) 72%, transparent);
     }
 
     &--more {
@@ -935,37 +963,24 @@ $_section-header-height: 22px;
   }
 
   &__section-action {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    padding: 0;
-    border: none;
-    border-radius: 4px;
-    background: transparent;
-    color: var(--bitfun-color-content-primary);
-    cursor: pointer;
-    transition: color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
-                background var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+    // The header's three actions sit directly above the workspace row's three hover
+    // actions and read as one set of icon columns, so the cluster uses the row's
+    // compact 20px box instead of the 22px `--_nav-icon-slot-size` slot. The row
+    // pitch is 20px + the 4px `__section-actions` gap below, and only that pair
+    // puts every icon centre on the row's column centres. The `size="sm"` glyph
+    // stays 14px and remains centred inside the smaller box.
+    flex: 0 0 20px;
+    inline-size: 20px;
+    block-size: 20px;
+    color: var(--_nav-icon-color);
 
     &:hover {
       color: var(--bitfun-color-content-primary);
-      background: var(--bitfun-color-action-quiet-hover);
     }
 
     &.is-active {
       color: var(--bitfun-color-content-primary);
       background: var(--bitfun-color-action-quiet-hover);
-    }
-
-    &:active {
-      background: var(--bitfun-color-action-neutral-surface-hover);
-    }
-
-    &:focus-visible {
-      outline: 1px solid var(--bitfun-color-accent-default);
-      outline-offset: 1px;
     }
   }
 
@@ -1032,6 +1047,10 @@ $_section-header-height: 22px;
     flex-direction: column;
     max-height: 240px;
     overscroll-behavior: contain;
+    display: inline-flex;
+    align-items: center;
+    inline-size: 20px;
+    block-size: 20px;
   }
 
   // ──────────────────────────────────────────────
@@ -1176,7 +1195,7 @@ $_section-header-height: 22px;
       color: var(--bitfun-color-content-primary);
 
       .bitfun-nav-panel__item-icon {
-        opacity: 0.8;
+        color: var(--_nav-icon-color);
       }
     }
 
@@ -1190,7 +1209,9 @@ $_section-header-height: 22px;
     display: flex;
     align-items: center;
     flex-shrink: 0;
-    opacity: 0.78;
+    inline-size: var(--_nav-icon-size);
+    block-size: var(--_nav-icon-size);
+    color: var(--_nav-icon-color);
     transition: opacity var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
                 color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
@@ -1416,12 +1437,19 @@ $_section-header-height: 22px;
   flex-shrink: 0;
 }
 
+.bitfun-nav-panel__footer-device-control {
+  display: flex;
+  align-items: center;
+  gap: var(--bitfun-space-1);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .bitfun-nav-panel__footer-device-status {
   display: flex;
   align-items: center;
   gap: var(--bitfun-space-2);
-  flex: 1 1 auto;
-  width: 100%;
+  flex: 0 1 auto;
   min-width: 0;
   max-width: none;
   height: 30px;
@@ -1438,6 +1466,15 @@ $_section-header-height: 22px;
 
   > svg {
     flex-shrink: 0;
+    // A line box is split by the font's ascent and descent, not by the glyphs
+    // drawn in it, so the mark was once pushed down a pixel to follow the text.
+    // Measured against the face this row actually renders (HarmonyOS Sans:
+    // 92.8%/24.4% against a cap ink of 74.5%/1.5%), centring the mark on that box
+    // already leaves it 0.03em below a caps label's ink centre and 0.05em below a
+    // Chinese one, and a device name is one of those two. The nudge therefore read
+    // as the mark sitting low. A mark whose own mass is off-centre still states its
+    // correction in `deviceSystemMarks`, which moves the drawn mass rather than the
+    // box.
   }
 
   &:hover,
@@ -1464,39 +1501,64 @@ $_section-header-height: 22px;
   line-height: var(--bitfun-type-modifier-leading-dense-line-height);
 }
 
-// Attached remote parties are shown once per device kind with unframed icons.
-// Message-app marks inherit the theme foreground; connection state is already
-// communicated by the device overview rather than by recoloring the brand.
-.bitfun-nav-panel__footer-device-status-attached {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 4px;
-  margin-left: 1px;
-  color: var(--bitfun-color-content-secondary);
-}
+.bitfun-nav-panel__footer-remote-control {
+  flex: 0 0 auto;
+  min-inline-size: var(--bitfun-control-icon-button-xs-size);
+  block-size: var(--bitfun-control-icon-button-xs-size);
+  padding: 0 var(--bitfun-space-1);
+  border: none;
+  border-radius: var(--bitfun-radius-pill);
+  color: var(--bitfun-color-status-success-content);
+  background: var(--bitfun-color-status-success-surface);
+  text-decoration: none;
+  transition: background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+              color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
-.bitfun-nav-panel__footer-device-status-attached-group {
-  width: 20px;
-  height: 20px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1px;
-  box-sizing: border-box;
-  line-height: var(--bitfun-type-modifier-leading-none-line-height);
+  > [data-bitfun-part='content'] {
+    gap: 0;
 
-  &[data-bitfun-device-kind='message-app'] {
-    border: 0;
-    background: transparent;
-    color: var(--bitfun-color-content-primary);
+    > [data-bitfun-part='label'] {
+      display: block;
+      max-inline-size: 0;
+      margin-inline-start: 0;
+      overflow: hidden;
+      opacity: 0;
+      transition: max-inline-size var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+                  margin-inline-start var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+                  opacity var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+    }
   }
-}
 
-.bitfun-nav-panel__footer-device-status-attached-count {
-  font-size: var(--bitfun-type-overline-sm-font-size);
-  font-weight: var(--bitfun-type-label-selected-font-weight);
-  line-height: var(--bitfun-type-modifier-leading-none-line-height);
+  &:is(:hover, :focus-visible, [data-loading='true']) {
+    color: var(--bitfun-color-status-danger-content);
+    background: var(--bitfun-color-status-danger-surface);
+    text-decoration: none;
+
+    > [data-bitfun-part='content'] > [data-bitfun-part='label'] {
+      max-inline-size: 20em;
+      margin-inline-start: var(--bitfun-space-1);
+      opacity: 1;
+    }
+  }
+
+  &:disabled:not([data-loading='true']) {
+    color: var(--bitfun-color-action-neutral-content-disabled);
+  }
+
+  @media (hover: none) {
+    > [data-bitfun-part='content'] > [data-bitfun-part='label'] {
+      max-inline-size: 20em;
+      margin-inline-start: var(--bitfun-space-1);
+      opacity: 1;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &,
+    > [data-bitfun-part='content'] > [data-bitfun-part='label'] {
+      transition: none;
+    }
+  }
 }
 
 // Footer notification: yellow only when there are unread messages (BellDot)
@@ -1578,14 +1640,14 @@ $_section-header-height: 22px;
 // Footer icon buttons: default icon fades to alternate on hover / focus-visible
 .bitfun-nav-panel__footer-btn-icon-swap {
   position: relative;
-  width: 15px;
-  height: 15px;
+  width: var(--_nav-icon-size);
+  height: var(--_nav-icon-size);
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 
-  > svg {
+  > [data-bitfun-component='icon'] {
     position: absolute;
     left: 50%;
     top: 50%;
@@ -1641,7 +1703,6 @@ $_section-header-height: 22px;
 /* Positioning-only overrides; the design-system Menu owns the surface look. */
 .bitfun-nav-panel__footer-menu {
   position: fixed;
-  min-width: 148px;
   max-width: calc(100vw - 16px);
   max-height: calc(100vh - 16px);
   z-index: var(--bitfun-layer-popover);
@@ -1653,60 +1714,73 @@ $_section-header-height: 22px;
   }
 }
 
-.bitfun-nav-panel__appearance-menu-trigger {
-  &.is-open {
-    background: var(--bitfun-color-action-neutral-surface);
-  }
-}
-
-.bitfun-nav-panel__appearance-menu-current {
-  display: block;
-  max-width: 82px;
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-/* Positioning and open-state composition only; the design-system Menu owns chrome. */
-.bitfun-nav-panel__appearance-submenu {
-  position: fixed;
-  max-width: calc(100vw - 16px);
-  max-height: calc(100vh - 16px);
-  z-index: calc(var(--bitfun-layer-popover) + 1);
-  animation: bitfun-nav-popover-in 150ms cubic-bezier(0.23, 1, 0.32, 1) both;
-
-  &[data-placement='right'] {
-    transform-origin: top left;
-  }
-
-  &[data-placement='left'] {
-    transform-origin: top right;
-  }
-}
-
 // ──────────────────────────────────────────────
 // Device overview — one compact model, local and connected states
 // ──────────────────────────────────────────────
 
+// The light that fills the card is the displayed device's state; registering it
+// lets the whole surface cross-fade between devices instead of snapping.
+@property --_device-overview-light {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: transparent;
+}
+
 .bitfun-device-overview {
+  // The card sizes to its content, so the artwork, name, action and device list
+  // always render whole. Only the device list scrolls, and only when the window
+  // is too short; the same box therefore lays out identically whether the host
+  // draws overlay (macOS) or gutter (Windows, Linux) scrollbars.
+  --_device-overview-inline-size: min(312px, calc(100vw - 16px));
+  --_device-overview-stage-size: 120px;
+  --_device-overview-inset: var(--bitfun-space-4);
+  --_device-overview-light: var(--bitfun-color-accent-default);
+  --_device-overview-light-strength: 16%;
   position: fixed;
   z-index: var(--bitfun-layer-popover);
-  width: min(280px, calc(100vw - 16px));
+  width: var(--_device-overview-inline-size);
+  min-height: 0;
   max-height: calc(100vh - 16px);
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+  background:
+    radial-gradient(
+      120% 78% at 50% 0%,
+      color-mix(in srgb, var(--_device-overview-light) var(--_device-overview-light-strength), transparent),
+      transparent 74%
+    ),
+    radial-gradient(
+      90% 55% at 100% 100%,
+      color-mix(in srgb, var(--_device-overview-light) calc(var(--_device-overview-light-strength) / 3), transparent),
+      transparent 70%
+    ),
+    var(--bitfun-color-surface-raised);
+  transition: --_device-overview-light var(--bitfun-motion-duration-slow) var(--bitfun-motion-easing-standard);
   animation: bitfun-nav-popover-in 150ms cubic-bezier(0.23, 1, 0.32, 1) both;
+
+  :where([data-color-scheme='dark']) & {
+    --_device-overview-light-strength: 26%;
+  }
+
+  &[data-control-state='local'] {
+    --_device-overview-light: var(--bitfun-color-accent-secondary);
+  }
+
+  &[data-control-state='active'] {
+    --_device-overview-light: var(--bitfun-color-status-success-content);
+  }
+
+  &[data-control-state='incompatible'] {
+    --_device-overview-light: var(--bitfun-color-status-warning-content);
+  }
 }
 
 .bitfun-device-overview__scroll {
+  display: block;
   min-height: 0;
+  max-height: calc(var(--bitfun-control-height-md) * 5);
   flex: 1 1 auto;
-}
-
-.bitfun-device-overview__title {
-  margin: 0;
-  color: inherit;
-  font: inherit;
 }
 
 .bitfun-device-overview__current {
@@ -1832,198 +1906,398 @@ $_section-header-height: 22px;
   color: var(--bitfun-color-status-warning-content);
 }
 
-.bitfun-device-overview__notice {
-  width: calc(100% - var(--bitfun-space-5) * 2);
-  margin: 0 var(--bitfun-space-5) var(--bitfun-space-4);
-  height: auto;
-  min-height: var(--bitfun-control-height-sm);
-  justify-content: flex-start;
-  text-align: left;
-  white-space: normal;
-}
-
-.bitfun-device-overview__actions {
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-  gap: var(--bitfun-space-2);
-  padding: var(--bitfun-space-5);
-}
-
-.bitfun-device-overview__action {
-  width: 100%;
-}
-
 @keyframes bitfun-device-overview-spin {
   to {
     transform: rotate(360deg);
   }
 }
 
+// No title: the header is only the corner tools, floating over the stage.
 .bitfun-device-overview__header {
-  flex-shrink: 0;
-  padding: var(--bitfun-space-5) var(--bitfun-space-5) var(--bitfun-space-1);
+  position: absolute;
+  inset-block-start: var(--bitfun-space-2);
+  inset-inline-end: var(--bitfun-space-2);
+  z-index: 2;
+  padding: 0;
 
-  .bitfun-device-overview__title {
+  > [data-bitfun-part='header-content'] { display: none; }
+  > [data-bitfun-part='actions'] { flex: 0 0 auto; }
+}
+
+.bitfun-device-overview__header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--bitfun-space-1);
+  min-width: 0;
+}
+
+.bitfun-device-overview__manage-devices {
+  color: var(--bitfun-color-content-secondary);
+
+  &:is(:hover, :focus-visible) {
     color: var(--bitfun-color-content-primary);
-    font-family: var(--bitfun-type-label-md-font-family);
-    font-size: var(--bitfun-type-body-lg-font-size);
-    font-weight: var(--bitfun-type-label-selected-font-weight);
-    line-height: var(--bitfun-type-label-md-line-height);
-    text-align: center;
-    overflow-wrap: anywhere;
   }
 }
 
 .bitfun-device-overview__body {
   min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
 }
 
+// The hero is the artwork with its arrows and page dots on the lit card, then
+// one information row: system mark, name and state mark, then the action.
 .bitfun-device-overview__summary {
   position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  // Both rows are fixed: every device, with or without an action, yields the
+  // same card height, so browsing never resizes the anchored popover (a resize
+  // repositions it a frame late, which reads as a jump).
+  grid-template-rows: var(--_device-overview-stage-size) var(--bitfun-control-height-md);
+  align-items: center;
+  column-gap: var(--bitfun-space-3);
+  row-gap: var(--bitfun-space-3);
+  flex-shrink: 0;
   min-width: 0;
-  text-align: center;
+  padding: var(--bitfun-space-3) var(--bitfun-space-3) var(--_device-overview-inset);
+  box-sizing: border-box;
+  text-align: start;
 }
 
 .bitfun-device-overview__carousel-viewport {
+  grid-column: 1 / -1;
+  position: relative;
+  min-width: 0;
   overflow: hidden;
   width: 100%;
+  height: var(--_device-overview-stage-size);
 }
 
-.bitfun-device-overview__carousel-track {
-  display: flex;
-  transition: transform 220ms cubic-bezier(0.23, 1, 0.32, 1);
-}
-
-.bitfun-device-overview__carousel-slide {
-  flex: 0 0 100%;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.bitfun-device-overview__device-switcher {
+.bitfun-device-overview__device-scene {
   position: relative;
   width: 100%;
   min-width: 0;
+  height: 100%;
 }
 
+.bitfun-device-overview__page-dots {
+  position: absolute;
+  inset-block-end: var(--bitfun-space-2);
+  inset-inline: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--bitfun-space-1);
+  pointer-events: none;
+}
+
+.bitfun-device-overview__page-dot {
+  inline-size: 5px;
+  block-size: 5px;
+  border-radius: var(--bitfun-radius-pill);
+  background: color-mix(in srgb, var(--bitfun-color-content-primary) 22%, transparent);
+  transition:
+    inline-size var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+    background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+
+  &[data-active='true'] {
+    inline-size: 14px;
+    background: var(--bitfun-color-content-secondary);
+  }
+}
+
+.bitfun-device-overview__device-details {
+  grid-column: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+// The arrows sit inside the stage tile's edges, so the name keeps its width.
 .bitfun-device-overview__carousel-controls {
   position: absolute;
-  inset: 0 0 auto;
-  aspect-ratio: 2 / 1;
+  inset-block-start: var(--bitfun-space-3);
+  inset-inline: var(--bitfun-space-3);
+  block-size: var(--_device-overview-stage-size);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-inline: var(--bitfun-space-4);
   pointer-events: none;
-
-  > button { pointer-events: auto; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .bitfun-device-overview__carousel-track { transition: none; }
-}
+.bitfun-device-overview__carousel-button {
+  flex: 0 0 var(--bitfun-control-height-sm);
+  pointer-events: auto;
+  color: var(--bitfun-color-content-secondary);
+  background: color-mix(in srgb, var(--bitfun-color-surface-raised) 58%, transparent);
+  box-shadow: inset 0 0 0 var(--bitfun-border-width-default) var(--bitfun-color-border-subtle);
+  transition:
+    color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+    background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
-.bitfun-device-overview__connect-overlay {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  pointer-events: none;
-  z-index: 1;
-
-  > button {
-    pointer-events: auto;
+  > [data-bitfun-part='icon'] {
+    inline-size: var(--bitfun-control-icon-size-sm);
+    block-size: var(--bitfun-control-icon-size-sm);
   }
+
+  &:is(:hover, :focus-visible):not(:disabled) {
+    color: var(--bitfun-color-content-primary);
+    background: var(--bitfun-color-surface-raised);
+  }
+
+  &:disabled {
+    color: var(--bitfun-color-action-neutral-content-disabled);
+  }
+}
+
+.bitfun-device-overview__pagination-index {
+  display: inline-block;
+  text-align: end;
+}
+
+// The page dots draw position; the numeric pager stays for assistive tech.
+.bitfun-device-overview__pagination {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .bitfun-device-overview__artwork {
   display: grid;
-  position: relative;
+  position: absolute;
+  inset: 0;
   width: 100%;
-  aspect-ratio: 2 / 1;
-  flex-shrink: 0;
   overflow: hidden;
   place-items: center;
-  background: var(--bitfun-color-surface-raised);
-  isolation: isolate;
+  background: transparent;
 
   > img {
     position: absolute;
-    width: 202px;
-    height: 202px;
+    inset-block-start: 46%;
+    inset-inline-start: 50%;
+    width: auto;
+    height: 78%;
     max-width: none;
     object-fit: contain;
-    mix-blend-mode: multiply;
+    transform: translate(-50%, -50%);
   }
 }
 
+// A soft top-lit fill reads as a material rather than a flat cut-out.
 .bitfun-device-overview__artwork-glyph {
-  width: 58.333333%;
+  position: relative;
+  justify-self: center;
+  width: auto;
+  height: 56%;
+  margin-block-end: var(--bitfun-space-2);
   aspect-ratio: 140 / 78;
-  background: var(--bitfun-color-content-primary);
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--bitfun-color-content-primary) 72%, transparent),
+    color-mix(in srgb, var(--bitfun-color-content-primary) 42%, transparent)
+  );
   mask: url('./assets/device.svg') center / contain no-repeat;
 }
 
+// A headless host is drawn, not a system: the row mark's three rack units, which
+// are a tall stack where every other artwork here is a landscape laptop. It takes
+// more of the stage height instead, so it carries the same weight as the laptops.
 .bitfun-device-overview__artwork[data-artwork='server'] .bitfun-device-overview__artwork-glyph {
-  width: 38.11849%;
-  aspect-ratio: 91.484375 / 70.7421875;
+  height: 60%;
+  aspect-ratio: 24 / 29.4629;
   mask-image: url('./assets/server.svg');
 }
 
-.bitfun-device-overview__device-name {
-  max-width: 100%;
-  box-sizing: border-box;
-  padding-inline: var(--bitfun-space-5);
-  color: var(--bitfun-color-content-secondary);
-  font-family: var(--bitfun-type-label-md-font-family);
-  font-size: var(--bitfun-type-meta-font-size);
-  line-height: var(--bitfun-type-body-sm-line-height);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+// The system variants keep the neutral device.svg silhouette and size, so only
+// the mask source differs; an unplaceable system falls back to device.svg.
+.bitfun-device-overview__artwork[data-artwork='windows'] .bitfun-device-overview__artwork-glyph {
+  mask-image: url('./assets/windows.svg');
 }
 
-.bitfun-device-overview__activity {
+.bitfun-device-overview__artwork[data-artwork='macos'] .bitfun-device-overview__artwork-glyph {
+  mask-image: url('./assets/macos.svg');
+}
+
+.bitfun-device-overview__artwork[data-artwork='linux'] .bitfun-device-overview__artwork-glyph {
+  mask-image: url('./assets/linux.svg');
+}
+
+.bitfun-device-overview__artwork[data-artwork='harmonyos'] .bitfun-device-overview__artwork-glyph {
+  mask-image: url('./assets/harmonyos.svg');
+}
+
+.bitfun-device-overview__device-heading {
+  display: flex;
+  align-items: center;
   max-width: 100%;
-  box-sizing: border-box;
-  padding: var(--bitfun-space-1) var(--bitfun-space-5) 0;
+  min-width: 0;
+  min-height: var(--bitfun-control-height-sm);
+  gap: var(--bitfun-space-2);
+}
+
+// The heading mark shares the device rows' icon column (box, glyph size and
+// gap) so marks and names line up down the whole card.
+.bitfun-device-overview__device-mark {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  inline-size: 24px;
+  block-size: 24px;
+  color: var(--bitfun-color-content-primary);
+}
+
+// In use is drawn as a live signal: a dot with a ring that breathes out.
+.bitfun-device-overview__usage-badge {
+  position: relative;
+  flex: 0 0 auto;
+  inline-size: var(--bitfun-space-2);
+  block-size: var(--bitfun-space-2);
+  border-radius: var(--bitfun-radius-pill);
+  background: var(--bitfun-color-status-success-content);
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: inherit;
+    animation: bitfun-device-overview-live 1.8s var(--bitfun-motion-easing-decelerate) infinite;
+  }
+}
+
+@keyframes bitfun-device-overview-live {
+  from {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(2.6);
+  }
+}
+
+.bitfun-device-overview__local-mark {
+  display: inline-flex;
+  flex: 0 0 auto;
   color: var(--bitfun-color-content-muted);
-  font-size: var(--bitfun-type-meta-font-size);
-  line-height: var(--bitfun-type-body-sm-line-height);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.bitfun-device-overview__device-name {
+  flex: 0 1 auto;
+  max-width: 100%;
+  min-width: 0;
+  color: var(--bitfun-color-content-primary);
+  font-family: var(--bitfun-type-heading-card-font-family);
+  font-size: var(--bitfun-type-heading-card-font-size);
+  font-weight: var(--bitfun-type-heading-card-font-weight);
+  line-height: var(--bitfun-type-heading-card-line-height);
+  letter-spacing: var(--bitfun-type-heading-card-letter-spacing);
+}
+
+.bitfun-device-overview__device-actions {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--bitfun-space-2);
+  min-height: var(--bitfun-control-height-sm);
+  min-width: 0;
+  max-width: 168px;
+  box-sizing: border-box;
+}
+
+.bitfun-device-overview__device-status {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+}
+
+// The action is one round button lit by the same state light as the card: a
+// tinted glass disc with a ring. Disconnecting is neutral rather than wearing
+// the green of the link it ends.
+.bitfun-device-overview__connection-status {
+  --_device-overview-action-tone: var(--_device-overview-light);
+  --_icon-button-size: var(--bitfun-control-height-md);
+  --_icon-button-icon-size: 16px;
+  flex: 0 0 auto;
+  border-radius: var(--bitfun-radius-pill);
+  // The primary and fill variants paint an opaque base under their tint; the
+  // glass tint must sit on the lit card instead.
+  background: transparent;
+  transition: box-shadow var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+
+  &:not(:disabled, [aria-disabled='true']) {
+    --_icon-button-content: color-mix(in srgb, var(--_device-overview-action-tone) 72%, var(--bitfun-color-content-primary));
+    --_icon-button-background: color-mix(in srgb, var(--_device-overview-action-tone) 16%, transparent);
+    --_icon-button-background-hover: color-mix(in srgb, var(--_device-overview-action-tone) 26%, transparent);
+    --_icon-button-background-active: color-mix(in srgb, var(--_device-overview-action-tone) 32%, transparent);
+    box-shadow: inset 0 0 0 var(--bitfun-border-width-default) color-mix(in srgb, var(--_device-overview-action-tone) 30%, transparent);
+  }
+
+  &:not(:disabled, [aria-disabled='true']):is(:hover, :focus-visible) {
+    box-shadow: inset 0 0 0 var(--bitfun-border-width-default) color-mix(in srgb, var(--_device-overview-action-tone) 48%, transparent);
+  }
+
+  // Unavailable reads as unavailable: a quiet neutral disc, no state light.
+  &:is(:disabled, [aria-disabled='true']) {
+    --_icon-button-content: var(--bitfun-color-action-neutral-content-disabled);
+    --_icon-button-background: color-mix(in srgb, var(--bitfun-color-content-primary) 5%, transparent);
+    --_icon-button-background-hover: var(--_icon-button-background);
+    --_icon-button-background-active: var(--_icon-button-background);
+    box-shadow: inset 0 0 0 var(--bitfun-border-width-default) var(--bitfun-color-border-subtle);
+    cursor: not-allowed;
+  }
+
+  // An incompatible device keeps its warning mark legible.
+  [data-control-state='incompatible'] > &[aria-disabled='true'] {
+    --_icon-button-content: var(--bitfun-color-status-warning-content);
+  }
+
+  [data-control-state='active'] > & {
+    --_device-overview-action-tone: var(--bitfun-color-content-secondary);
+  }
 }
 
 .bitfun-device-overview__device-group {
-  margin: 0 var(--bitfun-space-5) var(--bitfun-space-4);
-
-  h3 {
-    margin: 0 6px 7px;
-    color: var(--bitfun-color-content-muted);
-    font-size: var(--bitfun-type-micro-font-size);
-    font-weight: var(--bitfun-type-label-selected-font-weight);
-    line-height: var(--bitfun-type-meta-line-height);
-  }
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+  // Group inset plus row inset equals the summary inset, so row icons and the
+  // heading mark share one column.
+  padding: var(--bitfun-space-2) var(--bitfun-space-1);
+  border-top: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
 }
 
 .bitfun-device-overview__device-rows {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0;
 }
 
 .bitfun-device-overview__device-row {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
+  grid-template-columns: 24px minmax(0, 1fr) auto;
   align-items: center;
   column-gap: var(--bitfun-space-2);
-  row-gap: var(--bitfun-space-1);
-  min-height: 42px;
-  padding: 4px 6px;
+  min-height: var(--bitfun-control-height-md);
+  padding-inline: var(--bitfun-space-2);
   border-radius: var(--bitfun-radius-sm);
 
   &[data-bitfun-device-kind='message-app'] .bitfun-device-overview__device-icon {
@@ -2036,42 +2310,45 @@ $_section-header-height: 22px;
     overflow: hidden;
     color: var(--bitfun-color-content-primary);
     font-size: var(--bitfun-type-label-md-font-size);
-    font-weight: var(--bitfun-type-label-selected-font-weight);
+    font-weight: var(--bitfun-type-label-sm-font-weight);
     white-space: nowrap;
   }
 
-  > span:not(.bitfun-device-overview__device-icon) {
-    grid-column: 2;
-    color: var(--bitfun-color-content-muted);
-    font-size: var(--bitfun-type-micro-font-size);
-    font-weight: var(--bitfun-type-label-selected-font-weight);
-    overflow-wrap: anywhere;
+}
 
-    // Green dot plus muted label, the live-state pairing the workspace list
-    // already teaches in this panel. Colouring the text as well would make one
-    // fact speak in two different status hues.
-    &:not(:empty)::before {
-      content: '';
-      display: inline-block;
-      width: 5px;
-      height: 5px;
-      margin-right: 5px;
-      border-radius: var(--bitfun-radius-pill);
-      background: var(--bitfun-color-status-success-content);
-      vertical-align: 1px;
-    }
-  }
+.bitfun-device-overview__task-count {
+  min-width: var(--bitfun-space-4);
+  padding-inline: var(--bitfun-space-1);
+  border-radius: var(--bitfun-radius-pill);
+  background: var(--bitfun-color-action-quiet-hover);
+  color: var(--bitfun-color-content-secondary);
+  font-size: var(--bitfun-type-meta-font-size);
+  line-height: var(--bitfun-type-meta-line-height);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.bitfun-device-overview__device-row[data-bitfun-activities~='controlling'] .bitfun-device-overview__device-icon::after {
+  content: '';
+  position: absolute;
+  inset-inline-end: 0;
+  inset-block-end: 0;
+  width: var(--bitfun-space-2);
+  height: var(--bitfun-space-2);
+  border: var(--bitfun-border-width-default) solid var(--bitfun-color-surface-raised);
+  border-radius: var(--bitfun-radius-pill);
+  background: var(--bitfun-color-accent-default);
 }
 
 .bitfun-device-overview__device-icon {
-  grid-row: 1 / span 2;
-  width: 28px;
-  height: 28px;
+  position: relative;
+  width: 24px;
+  height: 24px;
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  color: var(--bitfun-color-content-primary);
+  color: var(--bitfun-color-content-secondary);
 
   svg {
     flex-shrink: 0;
@@ -2311,17 +2588,29 @@ $_section-header-height: 22px;
 }
 
 // Align with section headers: __section-header margin-x 8 + padding-x 8 → label starts 16px from panel; __top-actions pad-x 8 + button pl 8 → icon column starts at 16px.
+.bitfun-nav-panel__top-action-item {
+  display: flex;
+  width: 100%;
+  min-height: var(--bitfun-layout-navigation-panel-item-height);
+  padding: 0;
+  background: transparent;
+}
+
+.bitfun-nav-panel__top-action-item--sub {
+  min-height: var(--bitfun-layout-navigation-panel-item-height);
+}
+
 .bitfun-nav-panel__top-action-btn {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--bitfun-space-2);
   width: 100%;
   padding: 0 var(--bitfun-space-2) 0 var(--bitfun-space-2);
-  height: 32px;
+  height: var(--bitfun-layout-navigation-panel-item-height);
   border: none;
   border-radius: var(--bitfun-radius-base);
   background: transparent;
-  color: var(--bitfun-color-content-secondary);
+  color: var(--_nav-icon-color);
   font-size: var(--bitfun-type-label-md-font-size);
   font-weight: var(--bitfun-type-label-sm-font-weight);
   cursor: pointer;
@@ -2329,8 +2618,9 @@ $_section-header-height: 22px;
   transition: background var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
               color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
-  // Only the label span:not([data-overflow-content]) should grow; icon / chevron wrappers must NOT get flex: 1
-  > span:not([data-overflow-content]):not(.bitfun-nav-panel__top-action-icon-circle):not(.bitfun-nav-panel__top-action-icon-slot):not(.bitfun-nav-panel__top-action-expand-icons):not(.bitfun-nav-panel__count-badge):not(.bitfun-nav-panel__top-action-unseen) {
+  // Follow the ActionItem anatomy explicitly so component-library slots are not
+  // mistaken for labels when new spans are added to the component.
+  > [data-bitfun-part='label'] {
     flex: 1;
     min-width: 0;
     overflow: hidden;
@@ -2340,18 +2630,23 @@ $_section-header-height: 22px;
   svg { flex-shrink: 0; }
 
   .bitfun-nav-panel__top-action-icon-slot {
-    width: 22px;
-    min-width: 22px;
-    height: 22px;
-    flex: 0 0 22px;
+    width: var(--_nav-icon-slot-size);
+    min-width: var(--_nav-icon-slot-size);
+    height: var(--_nav-icon-slot-size);
+    flex: 0 0 var(--_nav-icon-slot-size);
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    color: var(--_nav-icon-color);
   }
 
   &:hover {
     background: var(--bitfun-color-action-quiet-hover);
     color: var(--bitfun-color-content-primary);
+
+    .bitfun-nav-panel__top-action-icon-slot {
+      color: var(--bitfun-color-content-primary);
+    }
   }
 
   &:focus-visible {
@@ -2362,20 +2657,42 @@ $_section-header-height: 22px;
   &.is-active {
     background: var(--bitfun-color-action-quiet-hover);
     color: var(--bitfun-color-content-primary);
+
+    .bitfun-nav-panel__top-action-icon-slot {
+      color: var(--bitfun-color-content-primary);
+    }
   }
 
   &--sub {
-    // Start the visible 15px child icon on the parent label column:
-    // parent inline padding (8px) + parent icon slot (22px) + gap (8px).
-    padding-left: calc(var(--bitfun-space-2) + 30px);
+    // Start the child icon on the parent label column.
+    padding-left: calc(var(--bitfun-space-2) + var(--_nav-icon-slot-size) + var(--bitfun-space-2));
 
     .bitfun-nav-panel__top-action-icon-slot {
-      width: 15px;
-      min-width: 15px;
-      flex-basis: 15px;
+      width: var(--_nav-icon-size);
+      min-width: var(--_nav-icon-size);
+      height: var(--_nav-icon-size);
+      flex-basis: var(--_nav-icon-size);
       justify-content: flex-start;
     }
   }
+}
+
+// Keep every primary navigation entry on the same token-owned icon column.
+// ActionItem's leading slot is a direct child of the trigger; the icon wrappers
+// inside it inherit this fixed geometry instead of participating in label growth.
+.bitfun-nav-panel__top-action-btn,
+.bitfun-nav-panel__miniapp-entry {
+  > [data-bitfun-part='leading'] {
+    flex: 0 0 var(--_nav-icon-slot-size);
+    inline-size: var(--_nav-icon-slot-size);
+    block-size: var(--_nav-icon-slot-size);
+  }
+}
+
+.bitfun-nav-panel__top-action-btn--sub > [data-bitfun-part='leading'] {
+  flex-basis: var(--_nav-icon-size);
+  inline-size: var(--_nav-icon-size);
+  block-size: var(--_nav-icon-size);
 }
 
 .bitfun-nav-panel__top-action-unseen {
@@ -2386,7 +2703,7 @@ $_section-header-height: 22px;
   background: var(--bitfun-color-accent-default);
 }
 
-// 扩展：默认 Blocks，悬停时图标位切换为 Chevron；展开时箭头朝上
+// 扩展：默认 Puzzle，悬停时图标位切换为 Chevron；展开时箭头朝上
 .bitfun-nav-panel__top-action-expand-icons {
   position: relative;
 
@@ -2402,9 +2719,7 @@ $_section-header-height: 22px;
 
   .bitfun-nav-panel__top-action-expand-icon-default {
     opacity: 1;
-    // The puzzle glyph's filled mass sits left of its viewBox center. At the
-    // 14px navigation size, a 1px optical correction aligns it with the row.
-    transform: translate(calc(-50% + 1px), -50%);
+    transform: translate(-50%, -50%);
   }
 
   .bitfun-nav-panel__top-action-expand-icon-chevron {
@@ -2427,10 +2742,10 @@ $_section-header-height: 22px;
 }
 
 .bitfun-nav-panel__top-action-icon-circle {
-  width: 22px;
-  min-width: 22px;
-  height: 22px;
-  flex: 0 0 22px;
+  width: var(--_nav-icon-slot-size);
+  min-width: var(--_nav-icon-slot-size);
+  height: var(--_nav-icon-slot-size);
+  flex: 0 0 var(--_nav-icon-slot-size);
   align-self: center;
   display: inline-flex;
   align-items: center;
@@ -2452,6 +2767,14 @@ $_section-header-height: 22px;
     color: var(--bitfun-color-action-primary-content);
     box-shadow: var(--bitfun-shadow-xs);
   }
+}
+
+.bitfun-nav-panel__menu-loading-icon {
+  inline-size: var(--bitfun-control-icon-size-sm);
+  block-size: var(--bitfun-control-icon-size-sm);
+  color: var(--bitfun-color-content-secondary);
+  opacity: var(--bitfun-opacity-muted);
+  animation: bitfun-nav-session-spin 1s linear infinite;
 }
 
 // ──────────────────────────────────────────────
@@ -2483,12 +2806,12 @@ $_section-header-height: 22px;
   }
 
   &__brand-header {
-    padding: 0 6px 5px;
+    padding: 0 var(--bitfun-space-3) 5px;
   }
 
   &__top-actions {
     gap: calc(var(--bitfun-space-1) / 2);
-    padding: 5px 6px var(--bitfun-space-3);
+    padding: 5px var(--bitfun-space-3) var(--bitfun-space-3);
     margin-bottom: var(--bitfun-space-3);
   }
 
@@ -2565,7 +2888,7 @@ $_section-header-height: 22px;
     }
 
     &--sub {
-      padding-left: calc(var(--bitfun-space-2) + 30px);
+      padding-left: calc(var(--bitfun-space-2) + var(--_nav-icon-slot-size) + var(--bitfun-space-2));
       color: var(--bitfun-color-content-muted);
     }
   }
@@ -2604,8 +2927,15 @@ $_section-header-height: 22px;
 
   &__section-header {
     height: 22px;
-    margin: 0 6px;
+    margin: 0 var(--bitfun-space-3);
     padding: 0 var(--bitfun-space-2);
+    // Trailing edge of the shared action column, not the header's own padding
+    // gutter. The sessions list below starts at the 12px list inset and every row
+    // ends its last action 4px inside its own 1px row border, so the header has to
+    // reach one border-width further in than its 8px gutter to land on that
+    // column. Without it the header icons sit 3px inside the workspace row
+    // actions and read as a second, accidental axis.
+    padding-right: calc(var(--bitfun-space-1) + var(--bitfun-border-width-default));
     border-radius: var(--bitfun-radius-sm);
     opacity: 1;
     transition:
@@ -2641,7 +2971,7 @@ $_section-header-height: 22px;
 
   &__items {
     gap: calc(var(--bitfun-space-1) / 2);
-    padding: 2px 6px;
+    padding: 2px var(--bitfun-space-3);
   }
 
   &__item {
@@ -2677,7 +3007,7 @@ $_section-header-height: 22px;
   &__bottom-bar {
     flex-direction: column;
     gap: var(--bitfun-space-1);
-    padding: 4px 6px;
+    padding: 4px var(--bitfun-space-3);
     border-top: 1px solid;
     @include shell-surfaces.sidebar-hairline-color;
   }
@@ -2756,7 +3086,7 @@ $_section-header-height: 22px;
 
 .bitfun-nav-panel__footer {
   min-height: 50px;
-  padding: 2px 6px;
+  padding: 2px var(--bitfun-space-3);
 }
 
 .bitfun-nav-panel__footer-btn--icon,
@@ -2770,9 +3100,7 @@ $_section-header-height: 22px;
     color 120ms ease;
 }
 
-.bitfun-nav-panel__workspace-menu,
-.bitfun-nav-panel__footer-menu,
-.bitfun-nav-panel__appearance-submenu {
+.bitfun-nav-panel__footer-menu {
   animation: bitfun-nav-popover-in 150ms cubic-bezier(0.23, 1, 0.32, 1) both;
 
   &.is-closing {
@@ -2825,18 +3153,22 @@ $_section-header-height: 22px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bitfun-nav-panel__workspace-menu,
   .bitfun-nav-panel__footer-menu,
-  .bitfun-nav-panel__appearance-submenu,
   .bitfun-device-overview {
     animation: none;
   }
 
-  .bitfun-device-overview__backup.is-syncing svg {
+  .bitfun-device-overview__backup.is-syncing svg,
+  .bitfun-device-overview__usage-badge::after {
     animation: none;
   }
 
-  .bitfun-nav-panel__top-action-sublist {
+  .bitfun-device-overview {
+    transition: none;
+  }
+
+  .bitfun-nav-panel__top-action-sublist,
+  .bitfun-device-overview__page-dot {
     transition: none;
   }
 }
@@ -2925,8 +3257,7 @@ $_section-header-height: 22px;
     @include shell-surfaces.navigation-hover-feedback;
   }
 
-  &__assistant-entry-label,
-  &__miniapp-entry-title {
+  &__assistant-entry-label {
     font-size: inherit;
     font-weight: inherit;
     line-height: inherit;
@@ -2946,6 +3277,38 @@ $_section-header-height: 22px;
   min-block-size: 0;
   height: 100%;
 
+}
+
+// The shortcut owns one continuous hover/selection surface, including its action.
+.bitfun-nav-panel__miniapp-shortcut {
+  gap: 0;
+  padding-inline-end: var(--bitfun-space-1);
+  border-radius: var(--bitfun-radius-base);
+
+  &:not(.is-active):not([data-disabled='true']):hover {
+    @include shell-surfaces.navigation-hover-feedback;
+  }
+
+  &.is-active {
+    @include shell-surfaces.navigation-selection-feedback;
+  }
+
+  > .bitfun-nav-panel__top-action-btn,
+  > .bitfun-nav-panel__top-action-btn:is(:hover, :active, .is-active) {
+    background: transparent;
+    padding-inline-end: var(--bitfun-space-1);
+  }
+
+  .bitfun-nav-panel__miniapp-shortcut-remove {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  &:hover .bitfun-nav-panel__miniapp-shortcut-remove,
+  &:focus-within .bitfun-nav-panel__miniapp-shortcut-remove {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 .bitfun-nav-panel__main-nav-header {

@@ -13,7 +13,6 @@ struct ConversationHeader: View {
 
     private var resolvedTitle: String {
         if let title = model.selectedSession?.title, !title.isEmpty { return title }
-        if model.surface == .remote { return model.localized("远程") }
         return "BitFun"
     }
 
@@ -91,9 +90,7 @@ struct ConversationHeader: View {
                 }
             }
             .frame(
-                height: resolvedSubtitle == nil
-                    ? MobileDesignGeometry.conversationHeaderCompactHeight
-                    : MobileDesignGeometry.conversationHeaderHeight
+                height: MobileDesignGeometry.conversationHeaderHeight
             )
             .padding(.horizontal, MobileDesignGeometry.contentGutter)
 
@@ -203,7 +200,7 @@ struct ConversationActionsPopover: View {
                 .frame(height: 28)
                 .padding(.leading, 8)
             action("已上传文件", icon: "cloud", perform: model.showUploadedFiles)
-            if model.isSending {
+            if model.isSending && model.remoteConnected && model.connectionPhase == .connected {
                 Divider().overlay(BitFunTheme.line).padding(.vertical, 8)
                 action("停止", icon: "gearshape", perform: model.stopSending)
             }

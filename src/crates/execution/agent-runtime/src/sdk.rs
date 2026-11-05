@@ -545,6 +545,23 @@ impl AgentRuntime {
         self.inner.update_session_model(request).await
     }
 
+    pub async fn update_session_model_target(
+        &self,
+        session_id: &str,
+        selection: bitfun_core_types::model_pool::ModelSelection,
+    ) -> Result<bitfun_core_types::model_pool::SessionModelTarget, RuntimeError> {
+        self.inner
+            .update_session_model_target(session_id, selection)
+            .await
+    }
+
+    pub async fn get_session_model_target(
+        &self,
+        session_id: &str,
+    ) -> Result<bitfun_core_types::model_pool::SessionModelTarget, RuntimeError> {
+        self.inner.get_session_model_target(session_id).await
+    }
+
     pub async fn update_session_model_selection(
         &self,
         request: AgentSessionModelSelectionUpdateRequest,
@@ -676,6 +693,13 @@ impl AgentRuntime {
         request: AgentSubmissionRequest,
     ) -> Result<AgentSubmissionResult, RuntimeError> {
         self.inner.submit_turn(request).await
+    }
+
+    pub async fn manage_dialog_queue(
+        &self,
+        request: bitfun_runtime_ports::DialogQueueRequest,
+    ) -> Result<bitfun_runtime_ports::DialogQueueSnapshot, RuntimeError> {
+        self.inner.manage_dialog_queue(request).await
     }
 
     pub async fn submit_dialog_turn(

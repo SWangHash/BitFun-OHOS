@@ -1,3 +1,4 @@
+import { BitFunMark } from '@bitfun/ui/brand';
 import { Alert, Button, DialogBody, DialogClose, DialogFooter, DialogHeader, DialogHeading, DialogTitle } from '@bitfun/ui';
 import ReactMarkdown from 'react-markdown';
 import { useI18n } from '@/infrastructure/i18n';
@@ -78,7 +79,7 @@ export function AppUpdatePanel() {
           ) : (
             <div className="bitfun-update-panel__empty" aria-hidden="true"
               data-bitfun-component="update" data-bitfun-part="releaseArtwork">
-              <span className="bitfun-update-details__mark" />
+              <BitFunMark className="bitfun-update-details__mark" />
             </div>
           )}
         </div>

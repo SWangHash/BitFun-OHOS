@@ -126,6 +126,22 @@ Publishing is an outward-facing action: only call this when the user explicitly 
         })
     }
 
+    fn output_schema(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "status": {"type": "string", "enum": ["sign_in_required", "pending_review", "submitted"]},
+                "authorization_url": {"type": "string"},
+                "slug": {"type": "string"},
+                "submission_id": {"type": "string"},
+                "release_number": {"type": "integer"},
+                "name": {"type": "string"}
+            },
+            "required": ["status"],
+            "additionalProperties": true
+        })
+    }
+
     fn is_readonly(&self) -> bool {
         false
     }
@@ -194,9 +210,10 @@ Publishing is an outward-facing action: only call this when the user explicitly 
             })?;
             let matches = find_apps_by_name(&apps, app_name);
             match matches.as_slice() {
-                [only] => manager.get(&only.id).await.map_err(|e| {
-                    BitFunError::tool(format!("Installed MiniApp not found: {e}"))
-                })?,
+                [only] => manager
+                    .get(&only.id)
+                    .await
+                    .map_err(|e| BitFunError::tool(format!("Installed MiniApp not found: {e}")))?,
                 [] => {
                     return Err(BitFunError::validation(format!(
                         "No installed MiniApp is named '{app_name}'. Installed apps (id — name):\n{}",
@@ -239,13 +256,15 @@ Publishing is an outward-facing action: only call this when the user explicitly 
         // Not signed in: hand the GitHub authorization link to the user and
         // keep polling in the background so their browser approval lands in
         // the shared credential vault before the next tool call.
-        let me = client.me().await.map_err(|e| {
-            BitFunError::tool(format!("MiniApp market sign-in check failed: {e}"))
-        })?;
+        let me = client
+            .me()
+            .await
+            .map_err(|e| BitFunError::tool(format!("MiniApp market sign-in check failed: {e}")))?;
         let Some(me) = me else {
-            let start = client.start_desktop_auth().await.map_err(|e| {
-                BitFunError::tool(format!("Could not start GitHub sign-in: {e}"))
-            })?;
+            let start = client
+                .start_desktop_auth()
+                .await
+                .map_err(|e| BitFunError::tool(format!("Could not start GitHub sign-in: {e}")))?;
             let authorization_url = start.authorization_url.clone();
             let poll_request = DesktopAuthPollRequest {
                 transaction_id: start.transaction_id.clone(),
@@ -613,6 +632,7 @@ mod tests {
         use bitfun_product_domains::miniapp::types::{MiniAppI18n, MiniAppLocaleStrings};
         use std::collections::HashMap;
         MiniAppMeta {
+            chrome: None,
             id: id.to_string(),
             name: name.to_string(),
             description: String::new(),

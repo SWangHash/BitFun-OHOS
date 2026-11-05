@@ -20,6 +20,22 @@
     &:focus-within .bitfun-chat-input__attachment-remove { opacity: 1; }
   }
 
+  &__image-chip-preview {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+    padding: 0;
+    border: 0;
+    border-radius: inherit;
+    background: none;
+    cursor: zoom-in;
+
+    &:focus-visible {
+      outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+      outline-offset: var(--bitfun-focus-offset);
+    }
+  }
+
   &__image-chip-thumb {
     width: 100%;
     height: 100%;

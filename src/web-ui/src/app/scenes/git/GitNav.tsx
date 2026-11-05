@@ -16,14 +16,14 @@ import { OverflowText,
   Tooltip,
 } from '@bitfun/ui';
 import { useTranslation } from 'react-i18next';
-import { Layers2 } from 'lucide-react';
+import { Layers2, type LucideIcon } from 'lucide-react';
 import { useGitSceneStore, type GitSceneView } from './gitSceneStore';
 import { useGitState } from '../../../tools/git/hooks';
 import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext';
 
 import './GitNav.scss';
 
-const NAV_ITEMS: { id: GitSceneView; icon?: React.ElementType; labelKey: string }[] = [
+const NAV_ITEMS: { id: GitSceneView; icon?: LucideIcon; labelKey: string }[] = [
   { id: 'working-copy', labelKey: 'tabs.changes' },
   { id: 'branches', icon: Layers2, labelKey: 'tabs.branches' },
   { id: 'graph', icon: Layers2, labelKey: 'tabs.branchGraph' },
@@ -92,7 +92,7 @@ const GitNav: React.FC = () => {
               )}
               {behind > 0 && (
                 <span title={t('status.behind')}>
-                  <Icon name="arrow-down" size="lg" style={{ width: 10, height: 10 }} /> {behind}
+                  <Icon name="arrow-down" size="2xs" /> {behind}
                 </span>
               )}
             </div>
@@ -117,7 +117,7 @@ const GitNav: React.FC = () => {
           selected={activeView === id}
           leading={id === 'working-copy'
             ? <Icon name="git" size="sm" />
-            : ItemIcon ? <ItemIcon size={14} aria-hidden /> : undefined}
+            : ItemIcon ? <Icon glyph={ItemIcon} size="sm" /> : undefined}
           metadata={
             id === 'working-copy' && changeCount > 0 ? (
               <span className="bitfun-git-scene-nav__item-badge">({changeCount})</span>

@@ -77,11 +77,6 @@ const DISABLE_OFFICE: SkillPolicyRule = SkillPolicyRule {
     effect: PolicyEffect::Disable,
 };
 
-const DISABLE_GSTACK: SkillPolicyRule = SkillPolicyRule {
-    selector: SkillSelector::Group(BuiltinSkillGroup::Gstack),
-    effect: PolicyEffect::Disable,
-};
-
 const DISABLE_MINIAPP: SkillPolicyRule = SkillPolicyRule {
     selector: SkillSelector::Group(BuiltinSkillGroup::MiniApp),
     effect: PolicyEffect::Disable,
@@ -183,6 +178,11 @@ const SWARM_WORKER_POLICY: ModeSkillPolicy = ModeSkillPolicy {
     rules: &[ENABLE_AGENT_BROWSER],
 };
 
+const ENABLE_GENERATE_IMAGE: SkillPolicyRule = SkillPolicyRule {
+    selector: SkillSelector::DirName("generate-image"),
+    effect: PolicyEffect::Enable,
+};
+
 const OPEN_META_ONLY_POLICY: ModeSkillPolicy = ModeSkillPolicy {
     builtin_default: PolicyEffect::Disable,
     rules: &[ENABLE_META],
@@ -192,12 +192,12 @@ const AGENTIC_POLICY: ModeSkillPolicy = ModeSkillPolicy {
     builtin_default: PolicyEffect::Enable,
     rules: &[
         DISABLE_OFFICE,
-        DISABLE_GSTACK,
         DISABLE_COMPUTER_USE,
         DISABLE_MINIAPP,
         DISABLE_CREATION,
         DISABLE_CANVAS,
         DISABLE_OHOS_QT_SKILLS,
+        ENABLE_GENERATE_IMAGE,
     ],
 };
 
@@ -205,13 +205,13 @@ const CLAW_POLICY: ModeSkillPolicy = ModeSkillPolicy {
     builtin_default: PolicyEffect::Enable,
     rules: &[
         DISABLE_OFFICE,
-        DISABLE_GSTACK,
         DISABLE_COMPUTER_USE,
         DISABLE_MINIAPP,
         DISABLE_CREATION,
         DISABLE_DEBUGGING,
         DISABLE_CANVAS,
         DISABLE_OHOS_QT_SKILLS,
+        ENABLE_GENERATE_IMAGE,
     ],
 };
 
@@ -219,7 +219,6 @@ const CREATIVE_POLICY: ModeSkillPolicy = ModeSkillPolicy {
     builtin_default: PolicyEffect::Enable,
     rules: &[
         DISABLE_OFFICE,
-        DISABLE_GSTACK,
         DISABLE_COMPUTER_USE,
         DISABLE_DEBUGGING,
         DISABLE_CANVAS,
@@ -229,17 +228,12 @@ const CREATIVE_POLICY: ModeSkillPolicy = ModeSkillPolicy {
 
 /// HarmonyBuild mode (and its Harmony sub-agents) enable the HarmonyOS built-in
 /// skill group so the Skill tool can load `hmos-arkui-develop-skill`,
-/// `deveco-cli`, etc. Office, Gstack, and Computer Use stay disabled to keep the
+/// `deveco-cli`, etc. Office and Computer Use stay disabled to keep the
 /// industry agent focused on HarmonyOS workflows. `ohos-qt-skills` stays owned by
 /// the Qt migration expert.
 const HARMONY_BUILD_POLICY: ModeSkillPolicy = ModeSkillPolicy {
     builtin_default: PolicyEffect::Enable,
-    rules: &[
-        DISABLE_OFFICE,
-        DISABLE_GSTACK,
-        DISABLE_COMPUTER_USE,
-        DISABLE_OHOS_QT_SKILLS,
-    ],
+    rules: &[DISABLE_OFFICE, DISABLE_COMPUTER_USE, DISABLE_OHOS_QT_SKILLS],
 };
 
 const COWORK_POLICY: ModeSkillPolicy = ModeSkillPolicy {
@@ -249,12 +243,13 @@ const COWORK_POLICY: ModeSkillPolicy = ModeSkillPolicy {
         ENABLE_META,
         ENABLE_COORDINATION,
         ENABLE_PLANNING,
+        ENABLE_GENERATE_IMAGE,
     ],
 };
 
 const DEEP_RESEARCH_POLICY: ModeSkillPolicy = ModeSkillPolicy {
     builtin_default: PolicyEffect::Disable,
-    rules: &[ENABLE_META, ENABLE_COORDINATION],
+    rules: &[ENABLE_META, ENABLE_COORDINATION, ENABLE_GENERATE_IMAGE],
 };
 
 const HARMONY_FEATURE_POLICY: ModeSkillPolicy = ModeSkillPolicy {
@@ -388,7 +383,23 @@ mod tests {
     }
 
     #[test]
-    fn agent_browser_defaults_off_in_every_mode() {
+    fn image_generation_defaults_on_in_main_workflows_and_remains_opt_in_for_specialist_agents() {
+        for mode in ["Standard", "Claw", "Creative", "Cowork", "DeepResearch"] {
+            assert_eq!(
+                resolve_builtin_default_enabled("generate-image", mode),
+                Some(true)
+            );
+        }
+        for mode in ["Ultimate", "SwarmWorker", "ComputerUse", "SomeUnknownMode"] {
+            assert_eq!(
+                resolve_builtin_default_enabled("generate-image", mode),
+                Some(false)
+            );
+        }
+    }
+
+    #[test]
+    fn agent_browser_defaults_on_only_for_ultra_and_swarm_worker() {
         for mode_id in [
             "Standard",
             "Standard",
@@ -655,16 +666,11 @@ mod tests {
             Some(true),
             "hmos-runtime-fix-skill must be enabled in HarmonyBuild mode"
         );
-        // Non-HarmonyOS groups stay disabled by default (Office, Gstack, ComputerUse).
+        // Non-HarmonyOS groups stay disabled by default (Office, ComputerUse).
         assert_eq!(
             resolve_builtin_default_enabled("ppt-design", "HarmonyBuild"),
             Some(false),
             "Office skills must stay disabled in HarmonyBuild mode"
-        );
-        assert_eq!(
-            resolve_builtin_default_enabled("gstack-review", "HarmonyBuild"),
-            Some(false),
-            "Gstack skills must stay disabled in HarmonyBuild mode"
         );
     }
 

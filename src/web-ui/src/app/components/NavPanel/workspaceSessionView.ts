@@ -2,13 +2,16 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { Session } from '@/flow_chat/types/flow-chat';
 import { storage } from '@/shared/utils/storageAdapter';
+import { isWorktreeIsolatedSession } from '@/flow_chat/utils/sessionOrdering';
+import { EXTERNAL_SESSION_NAMES, isExternalSessionEcosystem, type ExternalSessionEcosystem } from '@/shared/types/external-session';
 
 export type WorkspaceSessionGrouping = 'grouped' | 'all';
 export type WorkspaceSessionOrdering = 'updated' | 'status' | 'created' | 'name';
-export type WorkspaceSessionShow = 'all' | 'unread' | 'attention';
+export type WorkspaceSessionShow = 'all' | 'unread' | 'attention' | 'archived';
 export type WorkspaceSessionStatus = 'running' | 'attention' | 'error' | 'completed' | 'idle';
 export type WorkspaceSessionEnvironment = 'local' | 'remote' | 'detached';
 export type WorkspaceSessionSource = 'bitfun' | 'external';
+export type WorkspaceSessionSourceAgent = 'all' | 'bitfun' | ExternalSessionEcosystem;
 export type WorkspaceSessionWorktree = 'main' | 'worktree';
 
 export interface WorkspaceSessionFilters {
@@ -19,14 +22,22 @@ export interface WorkspaceSessionFilters {
   hideArchived: boolean;
 }
 
+export type WorkspaceSessionFilterKey = Exclude<keyof WorkspaceSessionFilters, 'hideArchived'>;
+
 export interface WorkspaceSessionViewPreferences {
   grouping: WorkspaceSessionGrouping;
   ordering: WorkspaceSessionOrdering;
   show: WorkspaceSessionShow;
+  sourceAgent: WorkspaceSessionSourceAgent;
   filters: WorkspaceSessionFilters;
+  /** Track the All preset separately from manually checking every option. */
+  explicitAllFilters: WorkspaceSessionFilterKey[];
 }
 
 interface WorkspaceSessionViewState extends WorkspaceSessionViewPreferences {
+  /** Retain legacy workspace-scoped preferences for older versions. */
+  sourceAgents: Record<string, WorkspaceSessionSourceAgent>;
+  setSourceAgent: (source: WorkspaceSessionSourceAgent) => void;
   collapseAllRequestId: number;
   setGrouping: (grouping: WorkspaceSessionGrouping) => void;
   setOrdering: (ordering: WorkspaceSessionOrdering) => void;
@@ -35,6 +46,8 @@ interface WorkspaceSessionViewState extends WorkspaceSessionViewPreferences {
   toggleHiddenEnvironment: (value: WorkspaceSessionEnvironment) => void;
   toggleHiddenSource: (value: WorkspaceSessionSource) => void;
   toggleHiddenWorktree: (value: WorkspaceSessionWorktree) => void;
+  setHiddenFilterOptions: <K extends WorkspaceSessionFilterKey>(filter: K, values: WorkspaceSessionFilters[K]) => void;
+  selectAllFilterOptions: (filter: WorkspaceSessionFilterKey) => void;
   toggleArchived: () => void;
   resetFilters: () => void;
   requestCollapseAll: () => void;
@@ -52,7 +65,9 @@ export const DEFAULT_WORKSPACE_SESSION_VIEW: WorkspaceSessionViewPreferences = {
   grouping: 'grouped',
   ordering: 'updated',
   show: 'all',
+  sourceAgent: 'all',
   filters: DEFAULT_WORKSPACE_SESSION_FILTERS,
+  explicitAllFilters: ['hiddenStatuses', 'hiddenEnvironments', 'hiddenSources', 'hiddenWorktrees'],
 };
 
 export const getNextWorkspaceSessionGrouping = (
@@ -69,35 +84,58 @@ export const useWorkspaceSessionViewStore = create<WorkspaceSessionViewState>()(
   persist(
     (set) => ({
       ...DEFAULT_WORKSPACE_SESSION_VIEW,
+      sourceAgents: {},
+      setSourceAgent: sourceAgent => set(state => ({
+        sourceAgent,
+        explicitAllFilters: state.explicitAllFilters.filter(filter => filter !== 'hiddenSources'),
+      })),
       collapseAllRequestId: 0,
       setGrouping: grouping => set({ grouping }),
       setOrdering: ordering => set({ ordering }),
       setShow: show => set({ show }),
       toggleHiddenStatus: value => set(state => ({
         filters: { ...state.filters, hiddenStatuses: toggleArrayValue(state.filters.hiddenStatuses, value) },
+        explicitAllFilters: state.explicitAllFilters.filter(filter => filter !== 'hiddenStatuses'),
       })),
       toggleHiddenEnvironment: value => set(state => ({
         filters: { ...state.filters, hiddenEnvironments: toggleArrayValue(state.filters.hiddenEnvironments, value) },
+        explicitAllFilters: state.explicitAllFilters.filter(filter => filter !== 'hiddenEnvironments'),
       })),
       toggleHiddenSource: value => set(state => ({
         filters: { ...state.filters, hiddenSources: toggleArrayValue(state.filters.hiddenSources, value) },
+        explicitAllFilters: state.explicitAllFilters.filter(filter => filter !== 'hiddenSources'),
       })),
       toggleHiddenWorktree: value => set(state => ({
         filters: { ...state.filters, hiddenWorktrees: toggleArrayValue(state.filters.hiddenWorktrees, value) },
+        explicitAllFilters: state.explicitAllFilters.filter(filter => filter !== 'hiddenWorktrees'),
+      })),
+      setHiddenFilterOptions: (filter, values) => set(state => ({
+        filters: { ...state.filters, [filter]: values },
+        explicitAllFilters: state.explicitAllFilters.filter(value => value !== filter),
+      })),
+      selectAllFilterOptions: filter => set(state => ({
+        filters: { ...state.filters, [filter]: [] },
+        explicitAllFilters: state.explicitAllFilters.includes(filter)
+          ? state.explicitAllFilters : [...state.explicitAllFilters, filter],
+        ...(filter === 'hiddenSources' ? { sourceAgent: 'all' as const } : {}),
       })),
       toggleArchived: () => set(state => ({
         filters: { ...state.filters, hideArchived: !state.filters.hideArchived },
       })),
-      resetFilters: () => set({ filters: DEFAULT_WORKSPACE_SESSION_FILTERS }),
+      resetFilters: () => set({
+        filters: DEFAULT_WORKSPACE_SESSION_FILTERS,
+        sourceAgent: 'all',
+        explicitAllFilters: DEFAULT_WORKSPACE_SESSION_VIEW.explicitAllFilters,
+      }),
       requestCollapseAll: () => set(state => ({ collapseAllRequestId: state.collapseAllRequestId + 1 })),
     }),
     {
       name: 'bitfun.workspace-session-view.v2',
-      version: 3,
+      version: 4,
       // The storage adapter falls back to memory when the WebView exposes
       // localStorage as null (HarmonyOS); zustand's default storage would throw.
       storage: createJSONStorage(() => storage),
-      partialize: ({ grouping, ordering, show, filters }) => ({ grouping, ordering, show, filters }),
+      partialize: ({ grouping, ordering, show, filters, sourceAgent, sourceAgents, explicitAllFilters }) => ({ grouping, ordering, show, filters, sourceAgent, sourceAgents, explicitAllFilters }),
       migrate: (persistedState: unknown) => {
         const state = persistedState && typeof persistedState === 'object'
           ? persistedState as Partial<WorkspaceSessionViewState> & { grouping?: unknown }
@@ -105,6 +143,9 @@ export const useWorkspaceSessionViewStore = create<WorkspaceSessionViewState>()(
         return {
           ...state,
           grouping: normalizeWorkspaceSessionGrouping(state.grouping),
+          sourceAgent: state.sourceAgent ?? 'all',
+          sourceAgents: state.sourceAgents ?? {},
+          explicitAllFilters: state.explicitAllFilters ?? DEFAULT_WORKSPACE_SESSION_VIEW.explicitAllFilters,
         } as WorkspaceSessionViewState;
       },
     },
@@ -129,12 +170,38 @@ export function deriveWorkspaceSessionEnvironment(session: Session): WorkspaceSe
 }
 
 export function deriveWorkspaceSessionSource(session: Session): WorkspaceSessionSource {
-  return session.config.agentType?.startsWith('acp:') ? 'external' : 'bitfun';
+  return session.importedSource || session.config.agentType?.startsWith('acp:') ? 'external' : 'bitfun';
+}
+
+export function matchesWorkspaceSourceAgent(session: Session, source: WorkspaceSessionSourceAgent): boolean {
+  return source === 'all' || (session.importedSource || 'bitfun') === source;
+}
+
+/**
+ * Automatic discovery controls whether source-following views are shown in
+ * workspace navigation. A forked/local continuation has no `externalHistory`
+ * marker and remains a native BitFun session even when its original
+ * source is disabled.
+ *
+ * `undefined` means the host setting has not been resolved yet. Keep the
+ * existing projection visible during that brief window so an old host or a
+ * transient config read failure does not hide user data.
+ */
+export function matchesWorkspaceExternalDiscovery(
+  session: Session,
+  enabledSources: ReadonlySet<string> | undefined,
+): boolean {
+  if (enabledSources === undefined || session.externalHistory?.mode !== 'follow') return true;
+  return typeof session.importedSource === 'string'
+    && enabledSources.has(session.importedSource);
+}
+
+export function sessionSourceAgentLabel(source: string): string {
+  return source === 'bitfun' ? 'BitFun' : isExternalSessionEcosystem(source) ? EXTERNAL_SESSION_NAMES[source] : source;
 }
 
 export function deriveWorkspaceSessionWorktree(session: Session): WorkspaceSessionWorktree {
-  const target = session.config.executionTarget;
-  return target && target.kind !== 'local' ? 'worktree' : 'main';
+  return isWorktreeIsolatedSession(session) ? 'worktree' : 'main';
 }
 
 const STATUS_ORDER: Record<WorkspaceSessionStatus, number> = {
@@ -182,7 +249,9 @@ export function matchesWorkspaceSessionView(
 ): boolean {
   if (show === 'unread' && !session.hasUnreadCompletion) return false;
   if (show === 'attention' && !session.needsUserAttention) return false;
-  if (filters.hideArchived && session.persistedStatus === 'archived') return false;
+  if (show === 'archived') {
+    if (session.persistedStatus !== 'archived') return false;
+  } else if (filters.hideArchived && session.persistedStatus === 'archived') return false;
   if (filters.hiddenStatuses.includes(deriveWorkspaceSessionStatus(session, isRunning))) return false;
   if (filters.hiddenEnvironments.includes(deriveWorkspaceSessionEnvironment(session))) return false;
   if (filters.hiddenSources.includes(deriveWorkspaceSessionSource(session))) return false;

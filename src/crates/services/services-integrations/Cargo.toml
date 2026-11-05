@@ -17,10 +17,14 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
 ts-rs = { workspace = true, optional = true }
+tempfile = { workspace = true, optional = true }
 bitfun-agent-runtime = { path = "../../execution/agent-runtime", optional = true }
 bitfun-agent-workflows = { path = "../../execution/agent-workflows", optional = true }
 bitfun-agent-tools = { path = "../../execution/tool-contracts", optional = true }
 bitfun-events = { path = "../../contracts/events" }
+# Anonymous account flows (our `anonymous-auth` / `feedback` families) record
+# telemetry through the shared observability crate; upstream has no equivalent
+# family, so this optional dependency stays with our feature list.
 bitfun-observability = { path = "../../execution/observability", optional = true }
 bitfun-core-types = { path = "../../contracts/core-types", optional = true }
 bitfun-product-domains = { path = "../../contracts/product-domains", optional = true }
@@ -36,6 +40,7 @@ chrono = { workspace = true, optional = true }
 dunce = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
 futures-util = { workspace = true, optional = true }
+glob = { workspace = true, optional = true }
 fs2 = { workspace = true, optional = true }
 flate2 = { workspace = true, optional = true }
 git2 = { workspace = true, optional = true }
@@ -75,7 +80,6 @@ russh = { workspace = true, optional = true }
 russh-sftp = { workspace = true, optional = true }
 russh-keys = { workspace = true, optional = true }
 shellexpand = { workspace = true, optional = true }
-ssh_config = { workspace = true, optional = true }
 terminal-core = { path = "../terminal", optional = true }
 x25519-dalek = { workspace = true, optional = true }
 tauri = { workspace = true, optional = true }
@@ -115,7 +119,6 @@ anonymous-auth = [
 # feature group (e.g. `git`) only derive `TS` when that group is also enabled;
 # app-server's `ts` feature enables `product-full` which pulls `git`.
 ts = ["dep:ts-rs"]
-announcement = ["bitfun-services-core/tls-provider", "reqwest", "reqwest/json", "reqwest/rustls-no-provider", "tokio/fs", "tokio/sync"]
 models-dev = [
     "bitfun-services-core/tls-provider",
     "reqwest",
@@ -123,11 +126,12 @@ models-dev = [
     "reqwest/system-proxy",
     "sha2",
     "tokio/fs",
+    "tokio/rt",
     "tokio/sync",
     "tokio/time",
     "windows",
 ]
-browser-control = ["anyhow", "async-trait", "bitfun-services-core/process-runtime", "bitfun-services-core/tls-provider", "dirs", "reqwest", "reqwest/json", "reqwest/rustls-no-provider", "thiserror", "tokio/time"]
+browser-control = ["anyhow", "async-trait", "bitfun-services-core/process-runtime", "bitfun-services-core/tls-provider", "dirs", "reqwest", "reqwest/json", "reqwest/rustls-no-provider", "thiserror", "tokio/rt", "tokio/time"]
 canvas-runtime = [
     "dep:bitfun-product-domains",
     "oxc",
@@ -218,6 +222,7 @@ mcp = [
     "process-tree",
 ]
 miniapp-storage = [
+    "bitfun-services-core/json-io",
     "dep:bitfun-product-domains",
     "bitfun-product-domains/miniapp",
     "tokio/fs",
@@ -535,6 +540,18 @@ script-tool-runtime = [
     "tokio/time",
     "which",
 ]
+ptc-runtime = [
+    "async-trait",
+    "dep:bitfun-core-types",
+    "bitfun-runtime-ports/ptc-runtime",
+    "process-tree",
+    "tokio/io-util",
+    "tokio/process",
+    "tokio/rt",
+    "tokio/sync",
+    "tokio/time",
+    "which",
+]
 web-tools = [
     "async-trait",
     "bitfun-runtime-ports/web-search-port",
@@ -547,7 +564,6 @@ web-tools = [
     "thiserror",
 ]
 product-full = [
-    "announcement",
     "models-dev",
     "browser-control",
     "canvas-runtime",
@@ -568,21 +584,21 @@ product-full = [
     "web-tools",
     "workspace-search",
 ]
-ssh_config = ["dep:ssh_config"]
+skillhub = ["bitfun-services-core/tls-provider", "reqwest", "reqwest/json", "reqwest/query", "reqwest/rustls-no-provider", "reqwest/stream", "zip", "tempfile", "tokio/fs", "tokio/io-util"]
+ssh_config = ["dep:glob"]
 
 [dev-dependencies]
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["io-util", "macros", "net", "rt", "test-util"] }
+# Used by contract tests that implement the `EventEmitter` port to observe
+# emitted product events.
+anyhow = { workspace = true }
+async-trait = { workspace = true }
 
 [[test]]
 name = "script_tool_runtime"
 path = "tests/script_tool_runtime.rs"
 required-features = ["script-tool-runtime"]
-
-[[test]]
-name = "announcement_contracts"
-path = "tests/announcement_contracts.rs"
-required-features = ["announcement"]
 
 [[test]]
 name = "file_watch_contracts"

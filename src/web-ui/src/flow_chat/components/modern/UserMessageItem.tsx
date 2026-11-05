@@ -3,10 +3,12 @@
  * Renders user input messages.
  */
 
-import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo, useId } from 'react';
+import { withConversationExcerptFallback } from '@/shared/utils/conversationExcerpt';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
-import { RotateCcw, Loader2 } from 'lucide-react';
+import { CircleAlert, RotateCcw, Loader2 } from 'lucide-react';
 import type { DialogTurn, FlowUserSteeringItem } from '../../types/flow-chat';
+import type { ImageContext } from '@/shared/types/context';
 import { flowChatManager } from '../../services/FlowChatManager';
 import { useFlowChatContext } from './FlowChatContext';
 import { useActiveSession } from '../../store/modernFlowChatStore';
@@ -25,7 +27,7 @@ import { globalEventBus } from '@/infrastructure/event-bus';
 import { shouldIgnoreCardToggleClick } from '@/shared/utils/textSelection';
 import { observeElementResize } from '@/shared/utils/sharedResizeObserver';
 import { formatContextForPrompt } from '@/shared/utils/contextPrompt';
-import { Dialog, DialogClose, Tooltip, Icon, IconButton } from '@bitfun/ui';
+import { Button, Dialog, DialogClose, Tooltip, Icon, IconButton, MenuItem, MenuPopover, type MenuEntry, type MenuItemProps } from '@bitfun/ui';
 import { confirmDanger } from '@/infrastructure/confirm-dialog';
 import { ToolProcessingDots } from '@bitfun/ui/flow-chat';
 import { UserMessageEditComposer } from './UserMessageEditComposer';
@@ -45,6 +47,7 @@ import { resolveSessionDriverId } from '../../session-drivers/resolve';
 import { absoluteSessionTurnIndexForId } from '../../utils/flowChatTurnOrdinal';
 import {
   composerPresentationToAccessibleText,
+  composerPresentationToClipboardText,
   composerPresentationContexts,
   composerPresentationSessionReferences,
   composerPresentationToEditorText,
@@ -54,11 +57,29 @@ import {
   type ComposerPresentation,
 } from '../../utils/composerPresentation';
 import { restoreImageContextsFromPayload } from '../../utils/imageContextRestoration';
-import { UserMessagePresentationContent, UserMessageTextContent } from './UserMessagePresentationContent';
+import { writeComposerClipboardPayload } from '../../utils/composerClipboard';
+import { buildImagePayload } from '../../utils/imagePayload';
+import { UserMessagePresentationContent } from './UserMessagePresentationContent';
+import { splitUserMessagePreview } from './userMessagePreview';
 import { UserMessageImage } from './UserMessageImage';
+import { useSubmittedMessageMotion } from './useSubmittedMessageMotion';
+import { finishSubmittedMessagePreview } from '../../services/submittedMessagePresentation';
+import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
+import { backgroundDeliveryFromMetadata } from '../../utils/backgroundDelivery';
 import './UserMessageItem.scss';
 
 const log = createLogger('UserMessageItem');
+
+const MessageActionReasonsContext = React.createContext<Record<string, string>>({});
+const messageActionMenuParts = {
+  item: React.forwardRef<HTMLButtonElement, MenuItemProps>(function MessageActionMenuItem(props, ref) {
+    const reasons = React.useContext(MessageActionReasonsContext);
+    const actionId = (props as MenuItemProps & { 'data-menu-id'?: string })['data-menu-id'];
+    const reason = props.disabled ? reasons[actionId ?? ''] : undefined;
+    const item = <MenuItem {...props} ref={ref} aria-label={reason} />;
+    return reason ? <Tooltip content={reason}>{item}</Tooltip> : item;
+  }),
+};
 
 interface UserMessageItemProps {
   message: DialogTurn['userMessage'];
@@ -66,6 +87,10 @@ interface UserMessageItemProps {
   absoluteTurnIndex?: number;
   turnStatus?: DialogTurn['status'];
   steeringStatus?: FlowUserSteeringItem['status'];
+  submissionPhase?: 'forming' | 'failed';
+  submissionError?: string;
+  hostQueueStatus?: 'pending' | 'failed';
+  hostQueueAttachmentCount?: number;
 }
 
 function buildPresentationRerunPayload(presentation: ComposerPresentation): {
@@ -97,7 +122,7 @@ function buildPresentationRerunPayload(presentation: ComposerPresentation): {
 }
 
 export const UserMessageItem = React.memo<UserMessageItemProps>(
-  ({ message, turnId, absoluteTurnIndex, turnStatus, steeringStatus }) => {
+  ({ message, turnId, absoluteTurnIndex, turnStatus, steeringStatus, submissionPhase, submissionError, hostQueueStatus, hostQueueAttachmentCount }) => {
     const { t, formatDate } = useI18n('flow-chat');
     const {
       sessionId,
@@ -111,6 +136,9 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
     const [expanded, setExpanded] = useState(false);
     const [hasOverflow, setHasOverflow] = useState(false);
     const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+    const [actionMenuOpen, setActionMenuOpen] = useState(false);
+    const actionMenuAnchorRef = useRef<HTMLButtonElement>(null);
+    const actionMenuId = useId();
     // Fine-grained selectors: only the message being edited re-renders on
     // draft keystrokes; other list items subscribe to booleans that rarely flip.
     const isEditing = useMessageEditStore(s => s.editingTurnId === turnId);
@@ -157,6 +185,15 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
         imageDisplayData: messageImages,
       }),
     ], [composerPresentation, message?.id, message?.timestamp, messageImages, turnId]);
+    // The edit composer only owns text and keeps its attachments outside the
+    // editor, so an edit-rerun resubmits the original images instead of losing
+    // them with the rolled-back Turn.
+    const restoredImageContexts = useMemo(
+      () => restoredComposerContexts.filter(
+        (context): context is ImageContext => context.type === 'image',
+      ),
+      [restoredComposerContexts],
+    );
     const isUsageReportMessage = message?.metadata?.localCommandKind === 'usage_report';
     const isGoalLoadingMessage = Boolean(message?.metadata?.threadGoalKickoff);
     const isThreadGoalContinuationCheck = Boolean(message?.metadata?.threadGoalContinuation);
@@ -181,6 +218,8 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
     const resolvedTurnStatus = dialogTurn?.status ?? turnStatus;
     const isFailed = resolvedTurnStatus === 'error';
     const resolvedSessionId = sessionId ?? currentSession?.sessionId;
+    useSubmittedMessageMotion(shellRef, resolvedSessionId, turnId, message?.id,
+      isFailed || isEditing || submissionPhase === 'failed' || !!hostQueueStatus, submissionPhase);
     const sessionMachine = useSessionStateMachine(resolvedSessionId ?? null);
     const sessionExecutionState = sessionMachine && sessionMachine.sessionId === resolvedSessionId
       ? sessionMachine.currentState
@@ -198,16 +237,19 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
       ? resolvedAbsoluteTurnIndex - 1
       : -1;
     const isDispatchSession = resolveSessionDriverId(resolvedSessionId ?? '', currentSession ?? undefined) === 'dispatch';
-    const isRemoteSession = isRemoteWorkspaceSession(currentSession ?? undefined, null) || isDispatchSession;
+    const isRemoteSession = !isLocalWorkspaceSession(currentSession ?? undefined, null) || isDispatchSession;
+    const isFollowedSource = currentSession?.externalHistory?.mode === 'follow';
     const isSystemTriggered = Boolean(
       message?.metadata?.triggerSource && message.metadata.triggerSource !== 'desktop_ui',
     );
     const canRollback =
       !steeringStatus &&
+      !hostQueueStatus &&
       canShowRollbackAction &&
       !!resolvedSessionId &&
       actionTurnIndex >= 0 &&
       !isRemoteSession &&
+      !isFollowedSource &&
       isSessionIdle &&
       !sessionMutation &&
       !isEditSubmitting;
@@ -216,12 +258,18 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
       !!resolvedSessionId &&
       actionTurnIndex >= 0 &&
       !isRemoteSession &&
+      !isFollowedSource &&
       !isThreadGoalSystemMessage &&
       !isSystemTriggered &&
-      !steeringStatus;
+      !steeringStatus && !hostQueueStatus;
     const canEdit = canEditBase && isSessionIdle && !isEditSubmitting && !sessionMutation;
-    const canShowEditAction = allowUserMessageEdit && !isFailed && !isThreadGoalSystemMessage;
-    const editDisabledReason = isDispatchSession
+    const canShowEditAction = allowUserMessageEdit && !isFailed && !isThreadGoalSystemMessage && !hostQueueStatus;
+    const canShowRollbackMenuItem = !isFailed && canShowRollbackAction && !steeringStatus && !hostQueueStatus;
+    const canShowActionMenu = canShowEditAction || canShowRollbackMenuItem;
+    const rollbackPending = sessionMutation?.kind === 'rollback' && sessionMutation.targetTurnId === turnId;
+    const editDisabledReason = isFollowedSource
+      ? t('externalHistory.forkBeforeEdit')
+      : isDispatchSession
       ? t('message.editDisabledDispatch')
       : isRemoteSession
       ? t('message.editDisabledRemote')
@@ -236,6 +284,8 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
               : t('message.cannotEdit');
     const rollbackTooltip = canRollback
       ? t('message.rollbackTo', { index: actionTurnIndex + 1 })
+      : isFollowedSource
+        ? t('externalHistory.forkBeforeEdit')
       : isDispatchSession
         ? t('message.rollbackDisabledDispatch')
       : isRemoteSession
@@ -243,7 +293,17 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
         : !isSessionIdle
           ? t('message.rollbackDisabledBusy')
         : t('message.cannotRollback');
-    const steeringTag = steeringStatus === 'pending'
+    const hostQueueLabel = hostQueueStatus
+      ? [hostQueueStatus === 'failed' ? t('steering.statusNotApplied') : '',
+          hostQueueAttachmentCount ? t('hostQueue.attachments', { count: hostQueueAttachmentCount }) : '']
+          .filter(Boolean).join(' · ')
+      : '';
+    const steeringTag = hostQueueLabel
+      ? {
+          className: 'user-message-item__steering-tag--pending',
+          label: hostQueueLabel,
+        }
+      : steeringStatus === 'pending'
       ? {
           className: 'user-message-item__steering-tag--pending',
           label: t('steering.statusPending'),
@@ -268,6 +328,17 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
     const copyText = composerPresentation
       ? composerPresentationToAccessibleText(composerPresentation)
       : messageContent;
+    // The readable value stays in text/plain while the canonical token text
+    // rides along in the HTML flavor, so pasting a copied message back into the
+    // composer rebuilds its capsules instead of leaving their source text.
+    const copyTokens = composerPresentation
+      ? composerPresentationToClipboardText(composerPresentation)
+      : messageContent;
+
+    const messagePreview = useMemo(() => splitUserMessagePreview(composerPresentation ?? {
+      version: 1,
+      segments: [{ kind: 'text', text: displayText }],
+    }), [composerPresentation, displayText]);
     
     // Check whether content overflows. Uses the shared ResizeObserver instead
     // of a per-message window resize listener: observer callbacks run after
@@ -281,7 +352,8 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
 
       const checkOverflow = () => {
         // Detect truncated text.
-        const isOverflowing = element.scrollHeight > element.clientHeight ||
+        const isOverflowing = messagePreview.overflow !== null ||
+                              element.scrollHeight > element.clientHeight ||
                               element.scrollWidth > element.clientWidth;
         setHasOverflow(isOverflowing);
       };
@@ -294,22 +366,21 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
       // window-resize handler, which re-read the ref lazily on every event), so
       // the effect must re-run on those transitions or it keeps observing a
       // detached node and never observes the live one.
-    }, [composerPresentation, displayText, expanded, isEditing, isFailed]);
+    }, [messagePreview, expanded, isEditing, isFailed]);
     
     // Copy the user message.
     const handleCopy = useCallback(async (e: React.MouseEvent) => {
       e.stopPropagation(); // Prevent toggle via bubbling.
       try {
-        await navigator.clipboard.writeText(copyText);
+        await writeComposerClipboardPayload({ text: copyText, tokens: copyTokens });
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       } catch (error) {
         log.error('Failed to copy', error);
       }
-    }, [copyText]);
+    }, [copyText, copyTokens]);
 
-    const handleRollback = useCallback(async (e: React.MouseEvent) => {
-      e.stopPropagation();
+    const handleRollback = useCallback(async () => {
       if (!canRollback || !resolvedSessionId) return;
 
       const index = actionTurnIndex + 1;
@@ -357,11 +428,27 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
       }
     }, [actionTurnIndex, canRollback, composerPresentation, resolvedSessionId, restoredComposerContexts, t, turnId, messageContent]);
 
-    const handleBeginEdit = useCallback((e: React.MouseEvent) => {
-      e.stopPropagation();
+    const handleBeginEdit = useCallback(() => {
       if (!canEdit) return;
       beginEdit(turnId, messageContent);
     }, [beginEdit, canEdit, messageContent, turnId]);
+
+    const actionMenuItems: MenuEntry[] = [
+      ...(canShowEditAction ? [{
+        id: 'edit',
+        label: t('message.edit'),
+        icon: <Icon name="edit" size="sm" />,
+        disabled: !canEdit,
+        onSelect: handleBeginEdit,
+      }] : []),
+      ...(canShowRollbackMenuItem ? [{
+        id: 'rollback',
+        label: t('message.rollbackBeforeTurn'),
+        icon: <Icon glyph={RotateCcw} size="sm" />,
+        disabled: !canRollback,
+        onSelect: () => { void handleRollback(); },
+      }] : []),
+    ];
 
     const handleSubmitEdit = useCallback(async (submittedPresentation?: ComposerPresentation) => {
       if (!resolvedSessionId || actionTurnIndex < 0 || isEditSubmitting) return;
@@ -400,7 +487,10 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
           originalContent: messageContent,
           editedContent,
           agentType: currentSession?.mode,
-          rerun: (content, agentType, sessionMutationLeaseId) => {
+          rerun: async (content, agentType, sessionMutationLeaseId) => {
+            const imagePayload = await buildImagePayload(restoredImageContexts);
+            const attachments = imagePayload ?? {};
+
             if (!editedPresentation) {
               return flowChatManager.sendMessage(
                 content,
@@ -408,7 +498,7 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
                 undefined,
                 agentType,
                 undefined,
-                { sessionMutationLeaseId },
+                { ...attachments, sessionMutationLeaseId },
               );
             }
 
@@ -421,6 +511,7 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
               undefined,
               {
                 userMessageMetadata: payload.userMessageMetadata,
+                ...attachments,
                 sessionMutationLeaseId,
               },
             );
@@ -442,6 +533,7 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
       editDraft,
       isEditSubmitting,
       messageContent,
+      restoredImageContexts,
       resolvedSessionId,
       setEditSubmitting,
       t,
@@ -469,7 +561,10 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
         contexts: restoredComposerContexts,
         ...(composerPresentation ? { composerPresentation } : {}),
       });
-    }, [composerPresentation, messageContent, restoredComposerContexts]);
+      if (submissionPhase === 'failed' && resolvedSessionId) {
+        finishSubmittedMessagePreview(getActiveSurfaceScope(), resolvedSessionId, turnId);
+      }
+    }, [composerPresentation, messageContent, restoredComposerContexts, submissionPhase, resolvedSessionId, turnId]);
 
     const handleOpenUsageReport = useCallback((report: SessionUsageReport, initialTab?: SessionUsagePanelTab) => {
       void import('../../services/openSessionUsageReport').then(({ openSessionUsagePanel }) => {
@@ -479,7 +574,7 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
           sessionId: currentSession?.sessionId ?? resolvedSessionId,
           workspacePath: currentSession?.workspacePath,
           initialTab,
-          title: t('usage.title'),
+          title: t('usage.panel.report'),
           expand: true,
         });
       });
@@ -531,19 +626,31 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
       );
     }
     
+    const messageTextContent = messagePreview.overflow ? (
+      <>
+        <span className="user-message-item__content-preview">
+          <UserMessagePresentationContent presentation={messagePreview.preview} />
+        </span>
+        <span className="user-message-item__content-overflow">
+          <UserMessagePresentationContent presentation={messagePreview.overflow} />
+        </span>
+      </>
+    ) : <UserMessagePresentationContent presentation={messagePreview.preview} />;
+
     return (
       <div className="user-message-item-shell">
         <div
           data-bitfun-product-component="user-message-item"
           data-bitfun-product-part="root"
-          data-bitfun-state={[expanded && 'expanded', isFailed && 'failed'].filter(Boolean).join(' ') || undefined}
+          data-bitfun-state={[expanded && 'expanded', isFailed && 'failed', submissionPhase].filter(Boolean).join(' ') || undefined}
           ref={containerRef}
-          className={`user-message-item ${expanded ? 'user-message-item--expanded' : ''}${isFailed ? ' user-message-item--failed' : ''}`}
+          className={`user-message-item ${expanded ? 'user-message-item--expanded' : ''}${isFailed ? ' user-message-item--failed' : ''}${isEditing ? ' user-message-item--editing' : ''}${submissionPhase === 'forming' ? ' user-message-item--forming' : ''}${submissionPhase === 'failed' ? ' user-message-item--submission-failed' : ''}`}
           data-testid="chat-user-message"
           data-turn-id={turnId}
-          data-status={resolvedTurnStatus || ''}
-          data-failed={isFailed ? 'true' : 'false'}
+          data-status={submissionPhase === 'failed' ? 'error' : resolvedTurnStatus || ''}
+          data-failed={isFailed || submissionPhase === 'failed' ? 'true' : 'false'}
         >
+        <span className="user-message-item__surface" aria-hidden="true" />
         {isEditing ? (
           <UserMessageEditComposer
             value={editDraft}
@@ -565,6 +672,8 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
           />
         ) : (
           <div className="user-message-item__main" data-bitfun-product-component="user-message-item" data-bitfun-product-part="main">
+          {backgroundDeliveryFromMetadata(message.metadata, turnId)?.reason === 'recovery_completed'
+                    ? <p>{t('backgroundDelivery.recoveryCompleted')}</p> : null}
           <div
             className={
               isFailed
@@ -587,9 +696,8 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
                     cursor: (hasOverflow || expanded) ? 'pointer' : 'text',
                   }}
                 >
-                  {composerPresentation ? (
-                    <UserMessagePresentationContent presentation={composerPresentation} />
-                  ) : <UserMessageTextContent text={displayText} />}
+
+                  {messageTextContent}
                 </div>
                 {steeringTag && (
                   <div className={`user-message-item__steering-tag ${steeringTag.className}`} data-bitfun-product-component="user-message-item" data-bitfun-product-part="steeringTag">
@@ -612,9 +720,7 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
                     cursor: (hasOverflow || expanded) ? 'pointer' : 'text',
                   }}
                 >
-                  {composerPresentation ? (
-                    <UserMessagePresentationContent presentation={composerPresentation} />
-                  ) : <UserMessageTextContent text={displayText} />}
+                  {messageTextContent}
                 </div>
                 {steeringTag && (
                   <div className={`user-message-item__steering-tag ${steeringTag.className}`} data-bitfun-product-component="user-message-item" data-bitfun-product-part="steeringTag">
@@ -656,14 +762,23 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
               closeOnPointerOutside={false}
               onClick={event => { if (event.target === event.currentTarget) setLightboxImage(null); }}
             >
-              <DialogClose className="user-message-item__lightbox-close" icon={<Icon name="xmark" size="lg" style={{ width: 20, height: 20 }} />} />
+              <DialogClose className="user-message-item__lightbox-close" icon={<Icon name="xmark" size="md" />} />
               <img src={lightboxImage} alt="Preview" onClick={(e) => e.stopPropagation()} />
             </Dialog>
           )}
         </div>
 
-        <div className="user-message-item__meta" data-bitfun-product-component="user-message-item" data-bitfun-product-part="meta">
-          {sentTime && sentAtLabel && sentTimestamp !== null && (
+        {submissionPhase === 'failed' && (
+          <div className="user-message-item__submission-error" role="alert">
+            <Icon glyph={CircleAlert} size="sm" className="user-message-item__submission-error-icon" />
+            <span title={submissionError}>{t('error.sendFailed')}</span>
+            <Button type="button" variant="outline" size="sm" onClick={handleFillToInput}>
+              {t('message.continueEditing')}
+            </Button>
+          </div>
+        )}
+        {!submissionPhase && <div className="user-message-item__meta" data-bitfun-product-component="user-message-item" data-bitfun-product-part="meta">
+          {!isEditing && sentTime && sentAtLabel && sentTimestamp !== null && (
             <time
               className="user-message-item__timestamp"
               data-bitfun-product-component="user-message-item"
@@ -677,7 +792,7 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
             </time>
           )}
           {!isEditing && (
-            <div className="user-message-item__actions" data-bitfun-product-component="user-message-item" data-bitfun-product-part="actions">
+            <div className="user-message-item__actions" data-menu-open={actionMenuOpen || undefined} data-bitfun-product-component="user-message-item" data-bitfun-product-part="actions">
               <Tooltip content={copied ? t('message.copied') : t('message.copy')}>
                 <IconButton
                   type="button"
@@ -687,17 +802,40 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
                   icon={copied ? <Icon name="check-line" size="sm" /> : <Icon name="duplicate" size="sm" />}
                 />
               </Tooltip>
-              {canShowEditAction && (
-                <Tooltip content={canEdit ? t('message.edit') : editDisabledReason}>
-                  <IconButton
-                    type="button"
-                    className="user-message-item__edit-btn"
-                    onClick={handleBeginEdit}
-                    disabled={!canEdit}
-                    aria-label={canEdit ? t('message.edit') : editDisabledReason}
-                    icon={<Icon name="edit" size="sm" />}
-                  />
-                </Tooltip>
+              {canShowActionMenu && (
+                <>
+                  <Tooltip content={t('message.editAndRollback')} disabled={actionMenuOpen}>
+                    <IconButton
+                      ref={actionMenuAnchorRef}
+                      type="button"
+                      className="user-message-item__edit-rollback-btn"
+                      onClick={event => {
+                        event.stopPropagation();
+                        setActionMenuOpen(open => !open);
+                      }}
+                      aria-label={t('message.editAndRollback')}
+                      aria-haspopup="menu"
+                      aria-expanded={actionMenuOpen}
+                      aria-controls={actionMenuOpen ? actionMenuId : undefined}
+                      icon={rollbackPending ? (
+                        <Icon glyph={Loader2} size="sm" className="user-message-item__rollback-spinner" />
+                      ) : <Icon name="edit" size="sm" />}
+                    />
+                  </Tooltip>
+                  <MessageActionReasonsContext.Provider value={{ edit: editDisabledReason, rollback: rollbackTooltip }}>
+                    <MenuPopover
+                      id={actionMenuId}
+                      aria-label={t('message.editAndRollback')}
+                      anchorRef={actionMenuAnchorRef}
+                      open={actionMenuOpen}
+                      onClose={() => setActionMenuOpen(false)}
+                      items={actionMenuItems}
+                      parts={messageActionMenuParts}
+                      inlineSize="content"
+                      placement="bottom"
+                    />
+                  </MessageActionReasonsContext.Provider>
+                </>
               )}
               {isFailed ? (
                 <Tooltip content={t('message.fillToInput')}>
@@ -708,25 +846,10 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
                     icon={<Icon name="arrow-down" size="sm" />}
                   />
                 </Tooltip>
-              ) : canShowRollbackAction && !steeringStatus ? (
-                <Tooltip content={rollbackTooltip}>
-                  <IconButton
-                    className="user-message-item__rollback-btn"
-                    data-testid={`user-message-rollback-btn-${turnId}`}
-                    onClick={handleRollback}
-                    disabled={!canRollback}
-                    aria-label={rollbackTooltip}
-                    icon={sessionMutation?.kind === 'rollback' && sessionMutation.targetTurnId === turnId ? (
-                      <Loader2 size={14} className="user-message-item__rollback-spinner" />
-                    ) : (
-                      <RotateCcw size={14} />
-                    )}
-                  />
-                </Tooltip>
               ) : null}
             </div>
           )}
-        </div>
+        </div>}
 
       </div>
     );

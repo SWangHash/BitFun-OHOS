@@ -2,7 +2,8 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { ChevronDown, Search } from 'lucide-react';
+import { ChevronDown, Copy, Minus, Search, Square, X } from 'lucide-react';
+import * as lucide from 'lucide-react';
 import { themes } from '@bitfun/theme-bitfun';
 
 // Pre-React chrome and native form decorations cannot mount React components.
@@ -34,5 +35,30 @@ await update('src/app/styles/components/forms.css', source => {
   if (count !== 3) throw new Error(`Expected three native form icon declarations, found ${count}`);
   return result;
 });
+
+const miniAppIcons = {
+  app: 'Box', return: 'PictureInPicture', popout: 'SquareArrowOutUpRight', minimize: 'Minus', maximize: 'Square', restore: 'Copy', close: 'X',
+  download: 'Download', save: 'Save', search: 'Search', settings: 'Settings', refresh: 'RefreshCw', plus: 'Plus', play: 'Play', stop: 'Square', check: 'Check', share: 'Share2', help: 'CircleHelp', send: 'ArrowUp', suggestion: 'ArrowUpRight',
+};
+for (const name of ['Aperture','Box','Bot','Code','Database','FileText','GitPullRequest','Grid3x3','LayoutGrid','Presentation','Regex','Rocket','Workflow','Wrench','AppWindow','Globe','Image','Settings','Sparkles','Terminal']) {
+  miniAppIcons[name] = name;
+  miniAppIcons[name.replace(/[A-Z]/g, (letter, index) => (index ? '-' : '') + letter.toLowerCase())] = name;
+}
+await update('../shared/miniapp-chrome/icons.generated.json', () => JSON.stringify(Object.fromEntries(
+  Object.entries(miniAppIcons).map(([key, name]) => [key, svg(lucide[name])]),
+), null, 2) + '\n');
+
+const localeContract = JSON.parse(await readFile(new URL('../shared/i18n/contract/locales.json', root), 'utf8'));
+const windowLabels = { aliases: {}, fallbackLocale: localeContract.fallbackLocale };
+const presentationLabels = {};
+for (const { id: locale, aliases } of localeContract.locales) {
+  for (const alias of aliases) windowLabels.aliases[alias.toLowerCase()] = locale;
+  const terms = JSON.parse(await readFile(new URL(`../shared/i18n/resources/shared/${locale}/terms.json`, root), 'utf8'));
+  windowLabels[locale] = terms.window;
+  const miniapp = JSON.parse(await readFile(new URL(`src/locales/${locale}/scenes/miniapp.json`, root), 'utf8'));
+  presentationLabels[locale] = miniapp.presentation;
+}
+await update('../shared/miniapp-chrome/labels.generated.json', () => JSON.stringify(windowLabels, null, 2) + '\n');
+await update('../shared/miniapp-chrome/presentation-labels.generated.json', () => JSON.stringify(presentationLabels, null, 2) + '\n');
 
 console.log(`Lucide static icons ${check ? 'verified' : 'generated'}.`);

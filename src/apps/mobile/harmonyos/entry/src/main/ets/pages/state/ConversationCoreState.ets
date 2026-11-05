@@ -1,3 +1,4 @@
+import { ComposerSubmission } from '../../model/ComposerSubmission';
 import {
   ChatMessage,
   RemoteModelCatalog,
@@ -13,6 +14,7 @@ import {
   ChatTimelineRowStore
 } from '../../model/ChatTimelineModels';
 import { RemoteUiState } from '../../services/RemoteUiState';
+import { SubagentBranchExpansionState } from './SubagentBranchExpansionState';
 
 /** Shared observable state for General Chat and Remote Chat conversations. */
 @ObservedV2
@@ -32,8 +34,16 @@ export class ConversationCoreState {
   @Trace selectedModelId: string = '';
   @Trace statusText: string = '';
   @Trace chatInput: string = '';
+  @Trace promptSuggestion: string = '';
   @Trace selectedImages: SelectedImageAttachment[] = [];
   @Trace isVoiceListening: boolean = false;
+  /**
+   * Which delegation cards are open. Disclosures outlive the rows that draw
+   * them, so they are owned by the conversation rather than by a card, and they
+   * are shared by every surface that projects this conversation.
+   */
+  readonly subagentBranches: SubagentBranchExpansionState = new SubagentBranchExpansionState();
+  private composerRevision: number = 0;
   private readonly defaultAgentType: string;
   private readonly timelineRevisionTracker: ChatTimelineRevisionTracker = new ChatTimelineRevisionTracker();
   private readonly timelineRowStore: ChatTimelineRowStore = new ChatTimelineRowStore();
@@ -48,6 +58,10 @@ export class ConversationCoreState {
   }
 
   setActiveSession(session: SessionSummary): void {
+    if (this.activeSession.sessionId !== session.sessionId) {
+      this.composerRevision++;
+      this.promptSuggestion = '';
+    }
     this.activeSession = {
       sessionId: session.sessionId,
       title: session.title,
@@ -59,6 +73,7 @@ export class ConversationCoreState {
   }
 
   clearActiveSession(): void {
+    this.composerRevision++;
     this.activeSession = ConversationCoreState.emptySession(this.defaultAgentType);
     this.clearTimeline();
   }
@@ -85,6 +100,7 @@ export class ConversationCoreState {
   }
 
   clearTimeline(): void {
+    this.promptSuggestion = '';
     this.persistedMessages = [];
     this.optimisticMessages = [];
     this.activeTurnMessage = RemoteUiState.emptyActiveTurn();
@@ -110,24 +126,59 @@ export class ConversationCoreState {
   }
 
   setChatInput(chatInput: string): void {
+    if (this.chatInput === chatInput) return;
+    this.composerRevision++;
     this.chatInput = chatInput;
   }
 
   setSelectedImages(selectedImages: SelectedImageAttachment[]): void {
+    this.composerRevision++;
     this.selectedImages = selectedImages.slice();
   }
 
   addSelectedImages(selectedImages: SelectedImageAttachment[]): void {
+    this.composerRevision++;
     this.selectedImages = this.selectedImages.concat(selectedImages);
   }
 
   removeSelectedImage(imageId: string): void {
+    this.composerRevision++;
     this.selectedImages = this.selectedImages.filter((image: SelectedImageAttachment) => image.id !== imageId);
   }
 
   clearComposer(): void {
+    this.composerRevision++;
     this.chatInput = '';
     this.selectedImages = [];
+  }
+
+  /** Capture ownership before any await; later callbacks cannot consume a newer draft. */
+  prepareComposerSubmission(sessionId: string, text: string, images: SelectedImageAttachment[]): ComposerSubmission {
+    const originalText = this.chatInput;
+    const originalImages = this.selectedImages.slice();
+    const capturedRevision = this.composerRevision;
+    let committedRevision = -1;
+    let committed = false;
+    let finished = false;
+    return {
+      commit: (): void => {
+        if (finished || committed || this.composerRevision !== capturedRevision ||
+          this.activeSession.sessionId !== sessionId) return;
+        this.promptSuggestion = '';
+        if (this.chatInput.trim() === text.trim()) this.setChatInput('');
+        this.setSelectedImages(this.selectedImages.filter((image: SelectedImageAttachment): boolean =>
+          !images.some((sent: SelectedImageAttachment): boolean => sent.id === image.id)));
+        committedRevision = this.composerRevision;
+        committed = true;
+      },
+      rollback: (): void => {
+        if (finished) return;
+        finished = true;
+        if (!committed || this.composerRevision !== committedRevision || this.activeSession.sessionId !== sessionId) return;
+        this.setChatInput(originalText);
+        this.setSelectedImages(originalImages);
+      }
+    };
   }
 
   /**

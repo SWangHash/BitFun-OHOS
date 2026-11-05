@@ -1,26 +1,54 @@
 //! Filesystem HostInvoke handlers.
 
+use bitfun_core::service::filesystem::path_operations;
+use bitfun_core::service::workspace::WorkspaceKind;
+use bitfun_core::service::{filesystem::FileSystemService, workspace::WorkspaceService};
 use serde_json::{json, Value};
 
-use crate::peer_host::args::{get_string, optional_string, request_value};
+use crate::peer_host::args::{get_string, optional_bool, optional_string, request_value};
 use crate::peer_host::state::PeerHostState;
 
-// An explicit workspace without SSH identity denotes the runtime-local provider.
-// Keep omitted scope available for existing runtime callers which use path routing.
-fn remote_hint(request: &Value) -> Option<String> {
-    request
-        .get("remoteConnectionId")
-        .or_else(|| request.get("remote_connection_id"))
-        .and_then(Value::as_str)
-        .map(str::to_string)
-        .or_else(|| {
-            request
-                .get("workspacePath")
-                .or_else(|| request.get("workspace_path"))
-                .and_then(Value::as_str)
-                .filter(|path| !path.is_empty())
-                .map(|_| String::new())
-        })
+pub(crate) async fn html_preview_read_resource(args: &Value) -> Result<Value, String> {
+    let request = serde_json::from_value(request_value(args).clone())
+        .map_err(|error| format!("Invalid HTML preview request: {error}"))?;
+    let reply =
+        bitfun_core::service::filesystem::html_preview::html_preview_read_resource(request)
+            .await;
+    serde_json::to_value(reply).map_err(|error| error.to_string())
+}
+
+async fn file_connection(
+    state: &PeerHostState,
+    request: &Value,
+    path: &str,
+) -> Result<Option<String>, String> {
+    directory_connection(&state.workspace_service, request, path).await
+}
+
+async fn directory_connection(
+    workspaces: &WorkspaceService,
+    request: &Value,
+    path: &str,
+) -> Result<Option<String>, String> {
+    if let Some(id) =
+        optional_string(request, "workspaceId").or_else(|| optional_string(request, "workspace_id"))
+    {
+        let record = workspaces
+            .require_workspace(&id)
+            .await
+            .map_err(|e| e.to_string())?;
+        return record
+            .filesystem_connection_id()
+            .map(|id| id.map(str::to_owned));
+    }
+    workspaces
+        .upgrade_legacy_file_connection(
+            path,
+            optional_string(request, "workspacePath").as_deref(),
+            optional_string(request, "remoteConnectionId").as_deref(),
+        )
+        .await
+        .map_err(|e| e.to_string())
 }
 
 fn directory_nodes_to_json(
@@ -42,33 +70,33 @@ fn directory_nodes_to_json(
 }
 
 pub(crate) async fn get_directory_children(
-    state: &PeerHostState,
+    files: &FileSystemService,
+    workspaces: &WorkspaceService,
     args: &Value,
 ) -> Result<Value, String> {
     let request = request_value(args);
     let path = get_string(request, "path")?;
-    let preferred = remote_hint(request);
-    let nodes = state
-        .filesystem_service
-        .get_directory_contents_with_remote_hint(&path, preferred.as_deref())
+    let preferred = directory_connection(workspaces, request, &path).await?;
+    let nodes = files
+        .get_directory_contents_on_connection(&path, preferred.as_deref())
         .await
         .map_err(|e| format!("Failed to get directory children: {e}"))?;
     Ok(json!(directory_nodes_to_json(nodes)))
 }
 
 pub(crate) async fn get_directory_children_paginated(
-    state: &PeerHostState,
+    files: &FileSystemService,
+    workspaces: &WorkspaceService,
     args: &Value,
 ) -> Result<Value, String> {
     let request = request_value(args);
     let path = get_string(request, "path")?;
-    let preferred = remote_hint(request);
+    let preferred = directory_connection(workspaces, request, &path).await?;
     let offset = request.get("offset").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
     let limit = request.get("limit").and_then(|v| v.as_u64()).unwrap_or(100) as usize;
 
-    let mut nodes = state
-        .filesystem_service
-        .get_directory_contents_with_remote_hint(&path, preferred.as_deref())
+    let mut nodes = files
+        .get_directory_contents_on_connection(&path, preferred.as_deref())
         .await
         .map_err(|e| format!("Failed to get paginated directory children: {e}"))?;
     bitfun_services_core::filesystem::sort_directory_nodes(
@@ -89,13 +117,141 @@ pub(crate) async fn get_directory_children_paginated(
     }))
 }
 
+pub(crate) async fn get_file_tree(
+    files: &FileSystemService,
+    workspaces: &WorkspaceService,
+    args: &Value,
+) -> Result<Value, String> {
+    let request = request_value(args);
+    let path = get_string(request, "path")?;
+    let preferred = directory_connection(workspaces, request, &path).await?;
+    let nodes = files
+        .build_file_tree_on_connection(&path, preferred.as_deref())
+        .await
+        .map_err(|error| format!("Failed to build file tree: {error}"))?;
+    fn node_value(mut node: bitfun_core::infrastructure::FileTreeNode) -> Value {
+        let children = node.children.take();
+        let mut value = directory_nodes_to_json(vec![node]).pop().unwrap();
+        if let Some(children) = children {
+            value["children"] = json!(children.into_iter().map(node_value).collect::<Vec<_>>());
+        }
+        value
+    }
+    let name = if preferred.as_deref().is_some_and(|id| !id.is_empty()) {
+        path.trim_end_matches('/')
+            .rsplit('/')
+            .next()
+            .filter(|name| !name.is_empty())
+            .unwrap_or(&path)
+    } else {
+        std::path::Path::new(&path)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or(&path)
+    };
+    Ok(json!([{
+        "path": path, "name": name, "isDirectory": true,
+        "size": null, "extension": null, "lastModified": null,
+        "children": nodes.into_iter().map(node_value).collect::<Vec<_>>()
+    }]))
+}
+
+pub(crate) async fn get_file_metadata(
+    state: &PeerHostState,
+    args: &Value,
+) -> Result<Value, String> {
+    let request = request_value(args);
+    let path = get_string(request, "path")?;
+    let hint = file_connection(state, request, &path).await?;
+    let metadata =
+        path_operations::metadata(&state.filesystem_service, &path, hint.as_deref()).await?;
+    serde_json::to_value(metadata).map_err(|e| format!("Failed to serialize file metadata: {e}"))
+}
+
+pub(crate) async fn get_file_editor_sync_hash(
+    state: &PeerHostState,
+    args: &Value,
+) -> Result<Value, String> {
+    let request = request_value(args);
+    let path = get_string(request, "path")?;
+    let hint = file_connection(state, request, &path).await?;
+    let (hash, is_remote) =
+        path_operations::editor_sync_hash(&state.filesystem_service, &path, hint.as_deref())
+            .await?;
+    Ok(if is_remote {
+        json!({ "path": path, "hash": hash, "is_remote": true })
+    } else {
+        json!({ "path": path, "hash": hash })
+    })
+}
+
+pub(crate) async fn create_file(state: &PeerHostState, args: &Value) -> Result<Value, String> {
+    let request = request_value(args);
+    let path = get_string(request, "path")?;
+    let hint = file_connection(state, request, &path).await?;
+    path_operations::create_empty_file(&state.filesystem_service, &path, hint.as_deref()).await?;
+    Ok(Value::Null)
+}
+
+/// Resolve a watch request to a host-local path, mirroring the Desktop Host:
+/// a workspace ID is the current ingress, and remote workspaces are refused
+/// because the watcher only observes this host's filesystem.
+async fn watch_target(
+    state: &PeerHostState,
+    request: &Value,
+) -> Result<(String, Option<bool>), String> {
+    if let Some(workspace_id) = optional_string(request, "workspaceId") {
+        let record = state
+            .workspace_service
+            .require_workspace(&workspace_id)
+            .await
+            .map_err(|e| e.to_string())?;
+        if record.workspace_kind == WorkspaceKind::Remote {
+            return Err("Filesystem watching is not available for remote workspaces".into());
+        }
+        return Ok((
+            get_string(request, "path")?,
+            optional_bool(request, "recursive"),
+        ));
+    }
+    // Temporary 1.0.0 wire ingress; current callers must send the ID request.
+    let path = get_string(request, "path")?;
+    if state
+        .workspace_service
+        .upgrade_legacy_file_connection(&path, None, None)
+        .await
+        .map_err(|e| e.to_string())?
+        .is_some()
+    {
+        return Err("Filesystem watching is not available for remote workspaces".into());
+    }
+    Ok((path, optional_bool(request, "recursive")))
+}
+
+pub(crate) async fn start_file_watch(state: &PeerHostState, args: &Value) -> Result<Value, String> {
+    let (path, recursive) = watch_target(state, request_value(args)).await?;
+    bitfun_core::service::start_file_watch(path, recursive).await?;
+    Ok(Value::Null)
+}
+
+pub(crate) async fn stop_file_watch(state: &PeerHostState, args: &Value) -> Result<Value, String> {
+    let (path, _) = watch_target(state, request_value(args)).await?;
+    bitfun_core::service::stop_file_watch(path).await?;
+    Ok(Value::Null)
+}
+
+pub(crate) async fn get_watched_paths() -> Result<Value, String> {
+    let paths = bitfun_core::service::get_watched_paths().await?;
+    Ok(json!(paths))
+}
+
 pub(crate) async fn check_path_exists(
     state: &PeerHostState,
     args: &Value,
 ) -> Result<Value, String> {
     let request = request_value(args);
     let path = get_string(request, "path")?;
-    let hint = remote_hint(request);
+    let hint = file_connection(state, request, &path).await?;
     bitfun_core::service::filesystem::path_operations::exists(
         &state.filesystem_service,
         &path,
@@ -108,7 +264,7 @@ pub(crate) async fn check_path_exists(
 pub(crate) async fn create_directory(state: &PeerHostState, args: &Value) -> Result<Value, String> {
     let request = request_value(args);
     let path = get_string(request, "path")?;
-    let hint = remote_hint(request);
+    let hint = file_connection(state, request, &path).await?;
     bitfun_core::service::filesystem::path_operations::create_directory(
         &state.filesystem_service,
         &path,
@@ -124,7 +280,7 @@ pub(crate) async fn read_file_content(
 ) -> Result<Value, String> {
     let request = request_value(args);
     let path = get_string(request, "filePath")?;
-    let hint = remote_hint(request);
+    let hint = file_connection(state, request, &path).await?;
     if let Some(encoding) = optional_string(request, "encoding") {
         if !encoding.eq_ignore_ascii_case("utf-8") && !encoding.eq_ignore_ascii_case("utf8") {
             return Err(format!("Unsupported text encoding: {encoding}"));
@@ -146,7 +302,7 @@ pub(crate) async fn write_file_content(
     let request = request_value(args);
     let path = get_string(request, "filePath")?;
     let content = get_string(request, "content")?;
-    let hint = remote_hint(request);
+    let hint = file_connection(state, request, &path).await?;
     bitfun_core::service::filesystem::path_operations::write_text_checked(
         &state.filesystem_service,
         &path,
@@ -165,7 +321,7 @@ pub(crate) async fn rename_file(state: &PeerHostState, args: &Value) -> Result<V
     let request = request_value(args);
     let from = get_string(request, "oldPath")?;
     let to = get_string(request, "newPath")?;
-    let hint = remote_hint(request);
+    let hint = file_connection(state, request, &from).await?;
     bitfun_core::service::filesystem::path_operations::rename(
         &state.filesystem_service,
         &from,
@@ -183,7 +339,7 @@ pub(crate) async fn delete_path(
 ) -> Result<Value, String> {
     let request = request_value(args);
     let path = get_string(request, "path")?;
-    let hint = remote_hint(request);
+    let hint = file_connection(state, request, &path).await?;
     let recursive = request
         .get("recursive")
         .and_then(Value::as_bool)
@@ -205,11 +361,11 @@ pub(crate) async fn list_directory_files(
 ) -> Result<Value, String> {
     let request = request_value(args);
     let path = get_string(request, "path")?;
-    let hint = remote_hint(request);
+    let hint = file_connection(state, request, &path).await?;
     let extensions = request.get("extensions").and_then(Value::as_array);
     let nodes = state
         .filesystem_service
-        .get_directory_contents_with_remote_hint(&path, hint.as_deref())
+        .get_directory_contents_on_connection(&path, hint.as_deref())
         .await
         .map_err(|e| e.to_string())?;
     let mut files: Vec<_> = nodes
@@ -250,4 +406,75 @@ pub(crate) async fn workspace_file_upload(
     )
     .await?;
     serde_json::to_value(result).map_err(|error| error.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn explorer_lists_registered_workspace_children_pages_and_tree() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = temporary.path().join("workspace");
+        std::fs::create_dir_all(root.join("nested")).unwrap();
+        std::fs::write(root.join("alpha.txt"), "alpha").unwrap();
+        std::fs::write(root.join("zeta.html"), "page").unwrap();
+        std::fs::write(root.join("nested/child.js"), "script").unwrap();
+        let workspaces =
+            WorkspaceService::new_isolated_for_tests(temporary.path().join("user")).await;
+        let workspace = workspaces
+            .register_local_workspace_record(root.clone())
+            .await
+            .unwrap();
+        let files = FileSystemService::default();
+        let args = json!({"request": {"workspaceId": workspace.id, "path": root}});
+        let children = get_directory_children(&files, &workspaces, &args)
+            .await
+            .unwrap();
+        let children = children.as_array().unwrap();
+        assert_eq!(children.len(), 3);
+        assert!(children
+            .iter()
+            .any(|node| node["name"] == "nested" && node["isDirectory"] == true));
+        assert!(children
+            .iter()
+            .any(|node| node["name"] == "zeta.html" && node["isDirectory"] == false));
+        let mut paginated = args.clone();
+        paginated["request"]["offset"] = json!(1);
+        paginated["request"]["limit"] = json!(1);
+        paginated["request"]["sortBy"] = json!("name");
+        paginated["request"]["sortOrder"] = json!("asc");
+        let page = get_directory_children_paginated(&files, &workspaces, &paginated)
+            .await
+            .unwrap();
+        assert_eq!(page["total"], 3);
+        assert_eq!(page["hasMore"], true);
+        assert_eq!(page["children"][0]["name"], "alpha.txt");
+        let tree = get_file_tree(&files, &workspaces, &args).await.unwrap();
+        assert_eq!(tree[0]["name"], "workspace");
+        assert_eq!(tree[0]["isDirectory"], true);
+        let nested = tree[0]["children"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|node| node["name"] == "nested")
+            .unwrap();
+        assert_eq!(nested["children"][0]["name"], "child.js");
+        // Legacy file operations name their path differently from directory reads.
+        // Their selected host-local provider must not require a second `path` field.
+        for field in ["filePath", "oldPath"] {
+            let legacy = json!({field: root.join("alpha.txt"), "remoteConnectionId": ""});
+            let selected =
+                directory_connection(&workspaces, &legacy, legacy[field].as_str().unwrap())
+                    .await
+                    .unwrap();
+            assert!(selected.is_none());
+        }
+        let mut invalid = args;
+        invalid["request"]["workspaceId"] = json!("missing-workspace");
+        assert!(get_directory_children(&files, &workspaces, &invalid)
+            .await
+            .is_err());
+        assert!(get_file_tree(&files, &workspaces, &invalid).await.is_err());
+    }
 }

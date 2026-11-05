@@ -50,6 +50,18 @@ pub(crate) fn resolve_legacy_workspace_reference(
             });
     }
     let mut candidates: Vec<_> = records.iter().filter(path_matches).collect();
+    if connection_id.is_none() {
+        // A reference without a connection id predates port-scoped SSH
+        // connections, so it can never name one. Keeping them would make a
+        // legacy (sshHost, root) reference ambiguous as soon as another port
+        // of the same host opens the same root.
+        candidates.retain(|workspace| {
+            workspace
+                .remote_ssh_connection_id()
+                .and_then(bitfun_services_core::workspace_identity::ssh_connection_id_port_scope)
+                .is_none()
+        });
+    }
     if let Some(id) = connection_id.as_deref() {
         candidates.retain(|workspace| {
             workspace.workspace_kind == WorkspaceKind::Remote
@@ -71,6 +83,34 @@ pub(crate) fn resolve_legacy_workspace_reference(
         _ => Err(BitFunError::service(
             "Workspace path is ambiguous; select a workspace by its ID or saved SSH connection",
         )),
+    }
+}
+
+/// Upgrade-only: keep the host-only identity for port-scoped SSH connections
+/// whose persisted records an older host (one that did not understand port
+/// scopes) wrote under `remote_workspace_stable_id(host, root)`, so their
+/// sessions and runtime data stay where they are after the upgrade.
+pub(crate) fn pin_legacy_port_scoped_identities<'a>(
+    records: impl IntoIterator<Item = &'a WorkspaceInfo>,
+) {
+    use bitfun_services_core::workspace_identity as wi;
+    for record in records {
+        if record.workspace_kind != WorkspaceKind::Remote {
+            continue;
+        }
+        let (Some(connection_id), Some(host)) = (
+            record.remote_ssh_connection_id(),
+            record
+                .metadata
+                .get("sshHost")
+                .and_then(|value| value.as_str()),
+        ) else {
+            continue;
+        };
+        let root = wi::normalize_remote_workspace_path(&record.root_path.to_string_lossy());
+        if wi::remote_record_uses_legacy_identity(&record.id, host, connection_id, &root) {
+            wi::pin_legacy_ssh_workspace_identity(connection_id, &root);
+        }
     }
 }
 
@@ -172,9 +212,7 @@ impl WorkspaceService {
             return Ok(known);
         }
         let connection_id = connection_id.ok_or_else(|| {
-            BitFunError::service(
-                "Opening a remote workspace requires its saved SSH connection ID",
-            )
+            BitFunError::service("Opening a remote workspace requires its saved SSH connection ID")
         })?;
         self.prepare_remote_workspace(path, connection_id, ssh_host)
             .await
@@ -377,8 +415,10 @@ pub(crate) async fn register_remote_fixture_with_id(
             remote_connection_id: Some(connection.to_owned()),
             remote_ssh_host: Some(host.to_owned()),
             stable_workspace_id: Some(
-                bitfun_services_core::workspace_identity::remote_workspace_stable_id(
-                    host, path,
+                bitfun_services_core::workspace_identity::remote_workspace_stable_id_for_connection(
+                    host,
+                    Some(connection),
+                    path,
                 ),
             ),
             ..Default::default()
@@ -636,6 +676,7 @@ mod tests {
         std::fs::create_dir_all(&execution).unwrap();
         let record = register_local_fixture(&execution, Some(&project)).await;
         let mut config = SessionConfig {
+            tool_presentation_mode: Default::default(),
             workspace_path: Some(execution.to_string_lossy().into_owned()),
             project_workspace_path: Some(project.to_string_lossy().into_owned()),
             ..Default::default()
@@ -666,6 +707,7 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let _ = fixture_workspace_service().await;
         let mut config = SessionConfig {
+            tool_presentation_mode: Default::default(),
             workspace_path: Some(root.path().to_string_lossy().into_owned()),
             ..Default::default()
         };
@@ -688,6 +730,7 @@ mod tests {
         let logical_root = format!("/srv/id-only-{}", uuid::Uuid::new_v4());
         let record = register_remote_fixture(&logical_root, "ssh-localhost", "localhost").await;
         let mut config = SessionConfig {
+            tool_presentation_mode: Default::default(),
             workspace_id: Some(record.id.clone()),
             remote_connection_id: Some("untrusted-request".into()),
             ..Default::default()
@@ -716,12 +759,86 @@ mod tests {
         assert_eq!(resolution.requested_workspace_path, record.root_path);
         assert!(resolution
             .effective_storage_path
-            .starts_with(paths.remote_ssh_mirror_root_dir()));
+            .starts_with(paths.projects_root()));
         assert_ne!(resolution.effective_storage_path, record.root_path);
         assert!(CoreSessionStorePort::with_path_manager_for_tests(paths)
             .resolve_workspace_storage(&logical_root)
             .await
             .is_err());
+    }
+
+    #[tokio::test]
+    async fn record_from_a_host_without_port_scopes_keeps_its_identity() {
+        use bitfun_services_core::workspace_identity as wi;
+        // Old-host payload: a port-scoped id persisted with the host-only stable id.
+        let connection = "ssh-root@old-host.example#2201";
+        let root = "/srv/old-host-payload";
+        let legacy_id = wi::remote_workspace_stable_id("old-host.example", root);
+        assert_eq!(
+            wi::ssh_workspace_identity_host("old-host.example", Some(connection), root),
+            "old-host.example#2201"
+        );
+        // Importing the record (the same path as loading persisted data) pins it.
+        let record =
+            register_remote_fixture_with_id(root, connection, "old-host.example", Some(&legacy_id))
+                .await;
+        assert_eq!(record.id, legacy_id);
+        assert_eq!(
+            wi::ssh_workspace_identity_host("old-host.example", Some(connection), root),
+            "old-host.example"
+        );
+        assert_eq!(
+            wi::remote_workspace_stable_id_for_connection(
+                "old-host.example",
+                Some(connection),
+                root
+            ),
+            record.id
+        );
+        // Round trip through the persisted shape keeps the same identity.
+        let round_trip: WorkspaceInfo =
+            serde_json::from_value(serde_json::to_value(&record).unwrap()).unwrap();
+        pin_legacy_port_scoped_identities([&round_trip]);
+        assert_eq!(round_trip.id, legacy_id);
+    }
+
+    #[tokio::test]
+    async fn connectionless_legacy_reference_ignores_port_scoped_records() {
+        let legacy =
+            register_remote_fixture("/srv/port-legacy", "ssh-root@cluster", "cluster").await;
+        let node =
+            register_remote_fixture("/srv/port-legacy", "ssh-root@cluster#2201", "cluster").await;
+        assert_ne!(legacy.id, node.id);
+        let records = [legacy.clone(), node.clone()];
+
+        // Old session payload: (sshHost, root) with no connection id or workspace id.
+        let mut json = serde_json::to_value(SessionConfig::default()).unwrap();
+        json["workspace_path"] = serde_json::json!("/srv/port-legacy");
+        json["remote_ssh_host"] = serde_json::json!("cluster");
+        json.as_object_mut().unwrap().remove("remote_connection_id");
+        let old: SessionConfig = serde_json::from_value(json).unwrap();
+        let resolved = resolve_legacy_workspace_reference(
+            &records,
+            None,
+            old.workspace_path.as_deref().unwrap(),
+            old.remote_connection_id.as_deref(),
+            old.remote_ssh_host.as_deref(),
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(resolved.id, legacy.id);
+
+        // An explicit port-scoped connection still selects its own record.
+        let resolved = resolve_legacy_workspace_reference(
+            &records,
+            None,
+            "/srv/port-legacy",
+            Some("ssh-root@cluster#2201"),
+            Some("cluster"),
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(resolved.id, node.id);
     }
 
     #[tokio::test]
@@ -1025,6 +1142,7 @@ impl WorkspaceService {
         binding: bitfun_runtime_ports::AgentSessionWorkspaceBinding,
     ) -> BitFunResult<bitfun_runtime_ports::AgentSessionWorkspaceBinding> {
         let mut config = crate::agentic::core::SessionConfig {
+            tool_presentation_mode: Default::default(),
             workspace_id: binding.workspace_id,
             project_workspace_id: binding.project_workspace_id,
             workspace_kind: binding.workspace_kind,

@@ -52,6 +52,15 @@ pub struct SSHConnectionConfig {
     /// SSH config entry, so every hop may use a different user and identity.
     #[serde(default)]
     pub proxy_jump: Option<String>,
+    /// OpenSSH-compatible `ProxyCommand`: a local shell command whose stdin/stdout
+    /// carries the SSH transport to the target (e.g. `coder ssh --stdio`).
+    ///
+    /// `%h` (target host), `%p` (port), `%r` (user), and `%%` are expanded before
+    /// the command runs. Mutually exclusive with `proxy_jump` and container
+    /// targets; the target host is typically a bare `~/.ssh/config` alias with no
+    /// `HostName`, because the proxy command resolves the real endpoint itself.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub proxy_command: Option<String>,
     /// Optional Docker container that becomes the effective workspace target.
     #[serde(default)]
     pub container: Option<ContainerWorkspaceConfig>,
@@ -74,6 +83,7 @@ impl SSHConnectionConfig {
             && self.username == other.username
             && self.auth.connection_params_equal(&other.auth)
             && self.proxy_jump == other.proxy_jump
+            && self.proxy_command == other.proxy_command
             && self.container == other.container
             && self.wsl == other.wsl
             && self.options == other.options
@@ -107,7 +117,8 @@ impl SSHAuthMethod {
     fn connection_params_equal(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Password { .. }, Self::Password { .. })
-            | (Self::KeyboardInteractive { .. }, Self::KeyboardInteractive { .. }) => true,
+            | (Self::KeyboardInteractive { .. }, Self::KeyboardInteractive { .. })
+            | (Self::None, Self::None) => true,
             (
                 Self::PrivateKey {
                     key_path,
@@ -277,6 +288,14 @@ pub enum SSHAuthMethod {
         #[serde(default)]
         responses: Vec<String>,
     },
+    /// Accept the server without sending credentials (`none` method).
+    ///
+    /// Needed for endpoints whose transport is already authenticated and that
+    /// therefore advertise only `none`: Coder workspace agents are the motivating
+    /// case, because `coder ssh --stdio` authenticates the tunnel with the CLI
+    /// token and the agent disconnects clients that attempt public key or password
+    /// authentication.
+    None,
 }
 
 fn deserialize_ssh_auth_method<'de, D>(deserializer: D) -> Result<SSHAuthMethod, D::Error>
@@ -306,6 +325,7 @@ where
             #[serde(default)]
             responses: Vec<String>,
         },
+        None,
     }
     match Helper::deserialize(deserializer)? {
         Helper::Password { password } => Ok(SSHAuthMethod::Password { password }),
@@ -328,6 +348,7 @@ where
         Helper::KeyboardInteractive { responses } => {
             Ok(SSHAuthMethod::KeyboardInteractive { responses })
         }
+        Helper::None => Ok(SSHAuthMethod::None),
     }
 }
 
@@ -361,6 +382,8 @@ pub struct SavedConnection {
     pub last_connected: Option<u64>,
     #[serde(default)]
     pub proxy_jump: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub proxy_command: Option<String>,
     #[serde(default)]
     pub container: Option<ContainerWorkspaceConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -387,6 +410,8 @@ pub enum SavedAuthType {
         fallback_key_path: Option<String>,
     },
     KeyboardInteractive,
+    /// Server accepts the connection without credentials (see `SSHAuthMethod::None`).
+    None,
 }
 
 fn deserialize_saved_auth_type<'de, D>(deserializer: D) -> Result<SavedAuthType, D::Error>
@@ -410,6 +435,7 @@ where
             fallback_key_path: Option<String>,
         },
         KeyboardInteractive,
+        None,
     }
     match Helper::deserialize(deserializer)? {
         Helper::Password => Ok(SavedAuthType::Password),
@@ -428,6 +454,7 @@ where
             fallback_key_path: fallback_key_path.or_else(|| Some("~/.ssh/id_rsa".to_string())),
         }),
         Helper::KeyboardInteractive => Ok(SavedAuthType::KeyboardInteractive),
+        Helper::None => Ok(SavedAuthType::None),
     }
 }
 
@@ -608,6 +635,9 @@ pub struct SSHConfigEntry {
     /// OpenSSH ProxyJump chain, preserving aliases and order.
     #[serde(default)]
     pub proxy_jump: Option<String>,
+    /// OpenSSH ProxyCommand resolved for this host, if any.
+    #[serde(default)]
+    pub proxy_command: Option<String>,
 }
 
 /// Result of looking up SSH config for a host

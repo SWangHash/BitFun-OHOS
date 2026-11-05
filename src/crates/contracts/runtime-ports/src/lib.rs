@@ -27,6 +27,8 @@ mod plugin;
 mod product_search;
 #[cfg(feature = "provisioning-task-port")]
 mod provisioning_task;
+#[cfg(feature = "ptc-runtime")]
+mod ptc_tool;
 #[cfg(feature = "question-template-port")]
 mod question_template;
 #[cfg(feature = "script-tool-runtime")]
@@ -85,6 +87,11 @@ pub use plugin::{
 pub use product_search::ProductSearchPort;
 #[cfg(feature = "provisioning-task-port")]
 pub use provisioning_task::*;
+#[cfg(feature = "ptc-runtime")]
+pub use ptc_tool::{
+    PtcExecutionRequest, PtcExecutionResponse, PtcNestedToolCall, PtcRuntime,
+    PtcRuntimeAvailability, PtcToolBinding, PtcToolCallHandler, PtcToolSpecRequest,
+};
 #[cfg(feature = "question-template-port")]
 pub use question_template::*;
 #[cfg(feature = "script-tool-runtime")]
@@ -163,6 +170,7 @@ pub enum RuntimeServiceCapability {
     RemoteWorkspace,
     RemoteProjection,
     RemoteCapabilities,
+    PtcRuntime,
 }
 
 impl RuntimeServiceCapability {
@@ -183,6 +191,7 @@ impl RuntimeServiceCapability {
             Self::RemoteWorkspace => "remote_workspace",
             Self::RemoteProjection => "remote_projection",
             Self::RemoteCapabilities => "remote_capabilities",
+            Self::PtcRuntime => "ptc_runtime",
         }
     }
 }
@@ -479,3 +488,8 @@ mod tests {
         assert!(json.get("providerId").is_none());
     }
 }
+
+#[cfg(feature = "agent-api")]
+mod dialog_queue;
+#[cfg(feature = "agent-api")]
+pub use dialog_queue::*;

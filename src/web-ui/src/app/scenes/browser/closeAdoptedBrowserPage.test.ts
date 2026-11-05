@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { closeAdoptedBrowserPage, closedBrowserContent } from './closeAdoptedBrowserPage';
-import { useAgentCanvasStore, switchAgentCanvasWorkspace, clearAgentCanvasForPeerSwitch } from '@/app/components/panels/content-canvas/stores/canvasStore';
+import { useAgentCanvasStore, switchAgentCanvasScope, clearAgentCanvasForPeerSwitch } from '@/app/components/panels/content-canvas/stores/canvasStore';
 import { useContentResourceStore } from '@/app/workbench/contentResourceStore';
 import type { PanelContent } from '@/shared/types/panelContent';
 
@@ -50,12 +50,12 @@ describe('adopted browser page ownership', () => {
     ]);
   });
 
-  it('preserves native pages while switching workspaces or transferring a tab', async () => {
-    switchAgentCanvasWorkspace(null, 'project-a');
+  it('preserves native pages while switching scopes or transferring a tab', async () => {
+    switchAgentCanvasScope('session-a');
     const store = useAgentCanvasStore.getState();
     store.addTab(page(), 'active', 'primary');
-    switchAgentCanvasWorkspace('project-a', 'project-b');
-    switchAgentCanvasWorkspace('project-b', 'project-a');
+    switchAgentCanvasScope('session-b');
+    switchAgentCanvasScope('session-a');
     const tab = useAgentCanvasStore.getState().primaryGroup.tabs[0];
     store.detachTab(tab.id, 'primary');
     await new Promise(resolve => setTimeout(resolve, 10));

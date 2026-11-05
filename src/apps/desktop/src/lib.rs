@@ -7,7 +7,8 @@
 //!
 //! Concretely, dropping the limit back to 128 fails with `overflow evaluating
 //! the requirement Vec<slab::Entry<h2::…::Slot<h2::…::recv::Event>>>: Send`.
-//! The chain runs ~15 frames through h2's own internals (`Slab` 鈫?`Buffer` 鈫?//! `Recv` 鈫?`Actions` 鈫?`Inner` 鈫?`Arc<Mutex<_>>` 鈫?`RecvStream` 鈫?hyper's
+//! The chain runs ~15 frames through h2's own internals (`Slab` → `Buffer` →
+//! `Recv` → `Actions` → `Inner` → `Arc<Mutex<_>>` → `RecvStream` → hyper's
 //! `Incoming`), into the MCP remote transport, then out through roughly ten
 //! nested `async fn` bodies from `agentic::coordination::scheduler` to the
 //! `tauri::async_runtime::spawn` in `api::remote_connect_api`.
@@ -26,10 +27,22 @@ mod builtin_browser_host;
 #[cfg(not(target_env = "ohos"))]
 pub mod computer_use;
 pub mod crash_diagnostics;
+pub mod desktop_cards;
 mod embedded_relay_host;
 pub mod frontend_workbench;
 pub mod logging;
 pub mod macos_menubar;
+#[cfg(target_os = "macos")]
+mod macos_window_chrome;
+#[cfg(target_os = "macos")]
+mod macos_window_close;
+mod miniapp_desktop;
+mod miniapp_web_host;
+
+// Keep one macro expansion: on macOS it emits a process-wide Info.plist symbol.
+fn desktop_context() -> tauri::Context<tauri::Wry> {
+    tauri::generate_context!()
+}
 pub mod runtime;
 pub mod sleep_prevention;
 pub mod startup_trace;
@@ -38,9 +51,12 @@ pub mod tray;
 mod webview_recovery;
 #[cfg(not(target_env = "ohos"))]
 mod window_state_support;
+#[cfg(target_os = "windows")]
+mod window_webview_geometry;
 
 use bitfun_agent_runtime::sdk::{attach_session_event_cursor, SessionEventJournal};
-use bitfun_core::agentic::tools::computer_use_capability::set_computer_use_desktop_available;
+use bitfun_core::agentic::tools::computer_use_capability::set_computer_use_host_available;
+use bitfun_core::agentic::tools::computer_use_host::ComputerUseHostRef;
 use bitfun_core::infrastructure::ai::AIClientFactory;
 use bitfun_core::infrastructure::{get_path_manager_arc, try_get_path_manager_arc};
 use bitfun_core::service::search::get_global_workspace_search_service;
@@ -94,6 +110,7 @@ use api::custom_agent_api::{
 };
 use api::diff_api::*;
 use api::external_hooks_api::*;
+use api::external_session_import_api::*;
 use api::external_sources_api::*;
 use api::git_agent_api::*;
 use api::git_api::*;
@@ -104,6 +121,7 @@ use api::review_platform_api::*;
 use api::runtime_api::*;
 use api::search_api::*;
 use api::session_api::*;
+use api::session_storage_directory::reveal_session_storage_directory;
 use api::skill_api::*;
 use api::snapshot_service::*;
 use api::speech_api::*;
@@ -187,7 +205,7 @@ static MAIN_WINDOW_USES_TRANSIENT_GEOMETRY: AtomicBool = AtomicBool::new(false);
 #[cfg(target_os = "macos")]
 const MAIN_WINDOW_CLOSE_FALLBACK_HIDE_MS: u64 = 2_500;
 
-// 鈹€鈹€鈹€ Close-button behavior 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// 閳光偓閳光偓閳光偓 Close-button behavior 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
 // The close-button behavior is owned by the frontend; the Rust window-event
 // handler only emits a notification event and the frontend decides what to do.
 // No per-platform caching needed here.
@@ -198,8 +216,11 @@ pub(crate) fn mark_main_window_hidden_on_macos(hidden: bool) {
 }
 
 #[cfg(target_os = "macos")]
-pub(crate) fn cancel_main_window_close_request_on_macos() {
+pub(crate) fn cancel_main_window_close_request_on_macos(app: &tauri::AppHandle) {
     MAIN_WINDOW_CLOSE_PENDING_ON_MACOS.store(false, Ordering::SeqCst);
+    if let Err(error) = app.run_on_main_thread(macos_window_chrome::cancel_pending_hide) {
+        log::warn!("Failed to cancel deferred macOS main-window hide: {error}");
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -217,39 +238,32 @@ fn take_main_window_close_request_on_macos() -> bool {
 }
 
 #[cfg(target_os = "macos")]
-fn hide_main_window_on_macos(app: &tauri::AppHandle, reason: &str) -> Result<(), String> {
-    let Some(main_window) = app.get_webview_window("main") else {
-        mark_main_window_hidden_on_macos(false);
-        return Err("Main window not found".to_string());
-    };
-
-    main_window.hide().map_err(|error| {
-        mark_main_window_hidden_on_macos(false);
-        log::warn!(
-            "Failed to hide main window on macOS close request: reason={}, error={}",
-            reason,
-            error
-        );
-        format!("Failed to hide main window: {}", error)
-    })?;
-
-    mark_main_window_hidden_on_macos(true);
-    log::info!(
-        "Main window close requested on macOS; hid window instead of exiting: reason={}",
-        reason
-    );
-    Ok(())
+async fn hide_main_window_on_macos(
+    app: &tauri::AppHandle,
+    reason: &'static str,
+) -> Result<(), String> {
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    app.run_on_main_thread(move || {
+        // Claim on the AppKit thread so a reopen can cancel an enqueued hide.
+        let result = if take_main_window_close_request_on_macos() {
+            macos_window_chrome::request_hide(reason)
+        } else {
+            Ok(())
+        };
+        let _ = sender.send(result);
+    })
+    .map_err(|error| format!("Failed to schedule main-window hide: {error}"))?;
+    receiver
+        .await
+        .map_err(|error| format!("Main-window hide was canceled: {error}"))?
 }
 
 #[cfg(target_os = "macos")]
 fn show_main_window_on_macos(app: &tauri::AppHandle, reason: &str) {
-    cancel_main_window_close_request_on_macos();
+    cancel_main_window_close_request_on_macos(app);
 
-    let Some(main_window) = app.get_webview_window("main") else {
-        log::warn!(
-            "Failed to show main window on macOS reopen event: reason={}, error=main window not found",
-            reason
-        );
+    let Some(main_window) = app.get_window("main") else {
+        handle_secondary_launch(app);
         return;
     };
 
@@ -278,9 +292,7 @@ fn show_main_window_on_macos(app: &tauri::AppHandle, reason: &str) {
 async fn hide_main_window_after_close_request(app: tauri::AppHandle) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        if take_main_window_close_request_on_macos() {
-            hide_main_window_on_macos(&app, "frontend_ack")?;
-        }
+        hide_main_window_on_macos(&app, "frontend_ack").await?;
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -297,13 +309,28 @@ fn show_main_window_for_secondary_launch(
 ) -> Result<(), String> {
     #[cfg(not(target_env = "ohos"))]
     {
-        let Some(main_window) = app.get_webview_window("main") else {
+        if app.get_window("main").is_none() {
+            #[cfg(target_os = "macos")]
+            let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
+            let trace = app.state::<DesktopStartupTrace>();
+            appearance::create_main_window(
+                app,
+                trace.trace_id(),
+                &trace,
+                None,
+                Arc::clone(
+                    app.state::<Arc<frontend_workbench::FrontendWorkbenchManager>>()
+                        .inner(),
+                ),
+            );
+        }
+        let Some(main_window) = app.get_window("main") else {
             return Err("main window not found".to_string());
         };
 
         #[cfg(target_os = "macos")]
         {
-            cancel_main_window_close_request_on_macos();
+            cancel_main_window_close_request_on_macos(app);
             mark_main_window_hidden_on_macos(false);
         }
 
@@ -486,6 +513,65 @@ pub fn run() {
 
 /// Tauri entry point.
 pub async fn _run() {
+    // E2E profiles must isolate authentication as well as ordinary config.
+    // Use the existing encrypted fixture vault on every platform, before any
+    // account discovery or background refresh can touch the normal profile.
+    if e2e_storage_guard_enabled() {
+        let paths = match bitfun_core::infrastructure::PathManager::new() {
+            Ok(paths) => paths,
+            Err(error) => {
+                eprintln!("Failed to initialize isolated E2E authentication storage: {error}");
+                return;
+            }
+        };
+        bitfun_core::infrastructure::subscription_auth::store::set_store_path_and_file_vault_for_test(
+            paths.user_data_dir().join("subscription_auth.json"),
+        );
+        #[cfg(not(debug_assertions))]
+        if std::env::var_os("BITFUN_E2E_SUBSCRIPTION_CA_FILE").is_some() {
+            eprintln!("Isolated subscription mock TLS requires a debug build");
+            return;
+        }
+        #[cfg(debug_assertions)]
+        if let Some(certificate_path) = std::env::var_os("BITFUN_E2E_SUBSCRIPTION_CA_FILE") {
+            let result = std::fs::read(certificate_path)
+                .map_err(|error| error.to_string())
+                .and_then(|pem| {
+                    bitfun_core::infrastructure::subscription_auth::set_isolated_http_root_certificate_for_test(
+                        &pem,
+                    )
+                    .map_err(|error| error.to_string())
+                });
+            if let Err(error) = result {
+                eprintln!("Failed to initialize isolated E2E subscription TLS: {error}");
+                return;
+            }
+        }
+    }
+    match miniapp_desktop::launch_manifest() {
+        Ok(Some(manifest)) => {
+            if let Err(error) = miniapp_desktop::run_shell(manifest) {
+                show_fatal_startup_error(&error);
+            }
+            return;
+        }
+        Err(error) => {
+            show_fatal_startup_error(&error);
+            return;
+        }
+        Ok(None) => {}
+    }
+    let miniapp_background = std::env::args_os().any(|arg| arg == "--miniapp-background");
+    let miniapp_host_channel = miniapp_desktop::host_channel();
+    let _miniapp_host_owner =
+        match miniapp_desktop::claim_host(miniapp_background, miniapp_host_channel).await {
+            Ok(Some(owner)) => owner,
+            Ok(None) => return,
+            Err(error) => {
+                show_fatal_startup_error(&error);
+                return;
+            }
+        };
     let startup_started = Instant::now();
     let startup_trace_id = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -787,7 +873,7 @@ pub async fn _run() {
         bitfun_services_integrations::account_identity::inject_ohos_credential_vault(vault);
     }
 
-    // Inject the screen-capture backend used by the MiniApp "鎴彇褰撳墠鐢婚潰"
+    // Inject the screen-capture backend used by the MiniApp "screenshot"
     // feature. Non-OHOS targets use the `screenshots`-crate backend; OHOS
     // uses the ArkTS-bridged backend (`screenshot.capture()` +
     // `PixelMap.readPixels`) because the `screenshots` crate does not build
@@ -853,7 +939,8 @@ pub async fn _run() {
             // Without the Tauri app the process stays alive on its launch
             // surface, so an unreported failure here reads as a hang.
             show_fatal_startup_error(&format!(
-                "BitFun could not initialize its workspace state and cannot continue.\n\n{e}\n\nSee early-startup.log for details."
+                "BitFun could not initialize its application state and cannot continue.\n\n{e}\n\nSee {} for details.",
+                logging::early_startup_log_path(&session_log_dir).display()
             ));
             return;
         }
@@ -928,14 +1015,19 @@ pub async fn _run() {
         // developer's normal BitFun instance. Its storage root and automation
         // port are already test-scoped, so joining the product single-instance
         // group would make the E2E child exit before WebDriver can attach.
-        if !logging::is_embedded_webdriver_mode() {
+        if !logging::is_embedded_webdriver_mode()
+            && std::env::var_os("BITFUN_USER_ROOT").is_none()
+            && miniapp_host_channel.is_default()
+        {
             builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
                 log::info!(
                     "Existing BitFun Desktop instance received launch request: args_count={}, cwd={}",
                     args.len(),
                     cwd
                 );
-                handle_secondary_launch(app);
+                if !args.iter().any(|arg| arg == "--miniapp-background") {
+                    handle_secondary_launch(app);
+                }
             }));
         }
     }
@@ -952,12 +1044,32 @@ pub async fn _run() {
         builder = builder.manage(window_state_support::MainWindowState::default());
     }
 
+    // These plugins build platform crates (notify-rust over D-Bus, arboard over
+    // X11/Wayland) that OHOS does not provide, so they are registered only on
+    // non-OHOS hosts. OHOS reads the pasteboard through its ArkTS bridge and
+    // surfaces notifications natively.
+    #[cfg(not(target_env = "ohos"))]
+    {
+        // The webview's own clipboard API raises a WebView2 permission prompt on
+        // first read; product clipboard paths go through this plugin instead.
+        builder = builder
+            .plugin(tauri_plugin_clipboard_manager::init())
+            .plugin(
+                tauri_plugin_autostart::Builder::new()
+                    .app_name("BitFun")
+                    .build(),
+            )
+            .plugin(tauri_plugin_notification::init())
+            .plugin(tauri_plugin_updater::Builder::new().build());
+    }
+
     let app = builder
         .plugin(logging::build_log_command_plugin())
         .plugin(logging::build_log_handoff_plugin(log_targets))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .manage(app_state)
+        .manage(miniapp_desktop::DesktopMiniApps::new(miniapp_host_channel))
         .manage(sleep_prevention::SleepPreventionState::default())
         .manage(desktop_runtime)
         .manage(coordinator_state)
@@ -982,7 +1094,7 @@ pub async fn _run() {
                     tauri::webview::PageLoadEvent::Finished => "finished",
                 };
                 let url = payload.url().to_string();
-                api::browser_api::update_browser_target_url(label, &url);
+                api::browser_api::update_browser_target_page_load(label, event, &url);
                 bitfun_core::agentic::tools::browser_control::builtin_browser::publish_builtin_browser_page_load(
                     label,
                     event,
@@ -1300,13 +1412,19 @@ pub async fn _run() {
             };
             let window_started = Instant::now();
             startup_trace.record_phase("main_window_create_start", "native_window");
-            appearance::create_main_window(
+            if !miniapp_background {
+                appearance::create_main_window(
                 &app_handle,
                 &startup_trace_id,
                 &startup_trace,
                 workspace_startup_bootstrap_snapshot,
                 Arc::clone(&frontend_workbench),
             );
+            } else {
+                #[cfg(target_os = "macos")]
+                app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            }
+            miniapp_desktop::install(&app_handle).map_err(std::io::Error::other)?;
             let window_duration_ms = elapsed_ms(window_started);
             startup_trace.record_step(
                 "native_step_end",
@@ -1322,6 +1440,12 @@ pub async fn _run() {
             bitfun_webdriver::maybe_start(app_handle.clone());
             builtin_browser_host::install(app_handle.clone());
             bitfun_control_host::install(app_handle.clone());
+            miniapp_web_host::install(app_handle.clone());
+            if !miniapp_background {
+                if let Err(error) = desktop_cards::install(&app_handle) {
+                    log::warn!("Desktop cards unavailable: {}", error);
+                }
+            }
             startup_trace.record_elapsed_step(
                 "native_setup",
                 "maybe_start_webdriver",
@@ -1523,6 +1647,12 @@ pub async fn _run() {
         })
         .on_window_event({
             move |window, event| {
+                #[cfg(target_os = "windows")]
+                window_webview_geometry::handle_event(window, event);
+                if window.label().starts_with(desktop_cards::DESKTOP_CARD_WINDOW_PREFIX) {
+                    desktop_cards::handle_window_event(window, event);
+                    return;
+                }
                 #[cfg(not(target_env = "ohos"))]
                 if window.label() == "main"
                     && !MAIN_WINDOW_USES_TRANSIENT_GEOMETRY.load(Ordering::SeqCst)
@@ -1547,6 +1677,12 @@ pub async fn _run() {
 
                 if let tauri::WindowEvent::CloseRequested { api: _api, .. } = event {
                     if window.label() == "main" {
+                        if window.app_handle().state::<miniapp_desktop::DesktopMiniApps>().instances.snapshot().instances.iter().any(|instance|
+                            instance.primary_view.iter().chain(instance.pending_view.iter()).any(|view| view.kind == bitfun_product_domains::miniapp::instances::MiniAppViewKind::Window)) {
+                            _api.prevent_close();
+                            let _ = window.hide();
+                            return;
+                        }
                         #[cfg(target_os = "macos")]
                         {
                             _api.prevent_close();
@@ -1568,15 +1704,13 @@ pub async fn _run() {
                                 ))
                                 .await;
 
-                                if take_main_window_close_request_on_macos() {
-                                    if let Err(error) =
-                                        hide_main_window_on_macos(&app_handle, "frontend_timeout")
-                                    {
-                                        log::warn!(
-                                            "macOS close fallback hide failed after frontend timeout: {}",
-                                            error
-                                        );
-                                    }
+                                if let Err(error) =
+                                    hide_main_window_on_macos(&app_handle, "frontend_timeout").await
+                                {
+                                    log::warn!(
+                                        "macOS close fallback hide failed after frontend timeout: {}",
+                                        error
+                                    );
                                 }
                             });
                         }
@@ -1604,14 +1738,15 @@ pub async fn _run() {
             api::deveco_account_api::deveco_account_start_login,
             api::deveco_account_api::deveco_account_cancel_login,
             api::deveco_account_api::deveco_account_logout,
+            api::miniapp_api::miniapp_presentation,
+            api::miniapp_api::miniapp_shell_call,
             appearance::show_main_window,
             frontend_workbench::frontend_update_candidate_ready,
+            frontend_workbench::frontend_update_candidate_failed,
             frontend_workbench::get_frontend_update_status,
             frontend_workbench::confirm_frontend_update,
             frontend_workbench::rollback_frontend_update,
             hide_main_window_after_close_request,
-            api::html_preview_api::html_preview_create,
-            api::html_preview_api::html_preview_release,
             api::privacy_api::privacy_initialize,
             api::privacy_api::privacy_get_status,
             api::privacy_api::privacy_accept,
@@ -1627,6 +1762,14 @@ pub async fn _run() {
             api::agentic_api::create_session,
             api::agentic_api::update_session_mode,
             api::agentic_api::update_session_model,
+            api::agentic_api::get_model_routing_status,
+            api::model_pool_api::get_model_pools,
+            api::model_pool_api::retry_model_pool_member,
+            api::model_pool_api::save_model_pool,
+            api::model_pool_api::delete_model_pool,
+            api::model_pool_api::get_model_pool_status,
+            api::model_pool_api::get_session_model_target,
+            api::model_pool_api::update_session_model_target,
             api::agentic_api::update_session_permission_mode,
             api::agentic_api::update_active_turn_permission_mode,
             api::agentic_api::get_session_permission_mode,
@@ -1646,6 +1789,7 @@ pub async fn _run() {
             api::agentic_api::interrupt_dialog_turn,
             api::agentic_api::recover_interrupted_dialog_turn,
             api::agentic_api::steer_dialog_turn,
+            api::agentic_api::manage_dialog_queue,
             api::agentic_api::control_deep_review_queue,
             api::agentic_api::cancel_session,
             api::agentic_api::set_subagent_timeout,
@@ -1658,6 +1802,7 @@ pub async fn _run() {
             api::agentic_api::restore_session_view,
             api::agentic_api::load_session_event_backfill,
             api::agentic_api::load_session_turn_window,
+            api::agentic_api::load_session_trajectory,
             api::agentic_api::restore_session_with_turns,
             api::agentic_api::reset_memory,
             api::agentic_api::get_memory_paths,
@@ -1697,6 +1842,8 @@ pub async fn _run() {
             reveal_external_source_location,
             get_external_source_control_snapshot,
             get_external_source_discovery_snapshot,
+            list_removed_external_sessions,
+            restore_removed_external_session,
             apply_external_source_control_action_command,
             get_external_ecosystem_awareness_command,
             acknowledge_external_ecosystems_command,
@@ -1732,12 +1879,21 @@ pub async fn _run() {
             bitfun_control_host::mark_bitfun_control_surface_unready,
             bitfun_control_host::product_control_invoke,
             bitfun_control_host::report_bitfun_control_result,
+            miniapp_web_host::mark_miniapp_web_surface_ready,
+            miniapp_web_host::report_miniapp_web_result,
             get_health_status,
             get_statistics,
             test_ai_connection,
             test_ai_config_connection,
+            test_image_generation_service,
             list_ai_models_by_config,
             list_subscription_accounts,
+            list_subscription_account_instances,
+            get_subscription_account_quota,
+            start_subscription_account_login,
+            logout_subscription_account_instance,
+            set_subscription_account_enabled,
+            refresh_subscription_account_instance,
             start_subscription_login,
             get_subscription_login_status,
             cancel_subscription_login,
@@ -1748,10 +1904,20 @@ pub async fn _run() {
             get_app_state,
             update_app_status,
             update_workspace_info,
+            get_workspace_icon,
+            set_workspace_icon,
             appearance::show_agent_companion_desktop_pet,
             appearance::hide_agent_companion_desktop_pet,
             appearance::resize_agent_companion_desktop_pet,
+            desktop_cards::commands::desktop_card_list,
+            desktop_cards::commands::desktop_card_get,
+            desktop_cards::commands::desktop_card_set_visible,
+            desktop_cards::commands::desktop_card_delete,
+            desktop_cards::commands::desktop_card_refresh,
+            desktop_cards::commands::desktop_card_set_checklist_item,
+            desktop_cards::commands::desktop_card_set_always_on_top,
             list_agent_companion_pets,
+            load_agent_companion_pet_spritesheet,
             import_agent_companion_pet_package,
             delete_agent_companion_pet_package,
             read_file_content,
@@ -1792,8 +1958,11 @@ pub async fn _run() {
             start_file_watch,
             stop_file_watch,
             get_watched_paths,
+            get_file_watch_status,
+            retry_file_watch,
             get_clipboard_files,
             copy_files_to_clipboard,
+            get_clipboard_image,
             api::browser_file_drop_api::resolve_browser_dropped_file_paths,
             api::file_drop_preview_api::set_file_drop_preview_target,
             paste_files,
@@ -1802,7 +1971,19 @@ pub async fn _run() {
             get_config,
             get_configs,
             computer_use_get_status,
+            computer_use_control_status,
+            computer_use_control_stop,
+            computer_use_control_preview,
             computer_use_request_permissions,
+            computer_use_request_permission,
+            computer_use_share_targets,
+            computer_use_share_observe,
+            computer_use_share_input,
+            computer_use_share_start,
+            computer_use_share_control,
+            computer_use_share_request,
+            computer_use_share_grants,
+            computer_use_share_forget_grant,
             computer_use_open_system_settings,
             set_config,
             save_cloud_speech_config,
@@ -1954,6 +2135,7 @@ pub async fn _run() {
             get_all_modified_files,
             get_baseline_snapshot_diff,
             // Session persistence API
+            reveal_session_storage_directory,
             list_persisted_sessions,
             search_session_content,
             search_referenceable_sessions,
@@ -1968,6 +2150,7 @@ pub async fn _run() {
             touch_session_activity,
             load_persisted_session_metadata,
             fork_session,
+            copy_session,
             archive_session,
             unarchive_session,
             archive_all_sessions,
@@ -2015,6 +2198,7 @@ pub async fn _run() {
             get_global_config_status,
             get_model_configs,
             get_ai_model_catalog,
+            get_local_models_dev_catalogs,
             project_ai_model_reasoning_catalog,
             get_models_dev_catalog_status,
             refresh_models_dev_catalog_now,
@@ -2023,6 +2207,7 @@ pub async fn _run() {
             remove_recent_workspace,
             cleanup_invalid_workspaces,
             get_opened_workspaces,
+            get_assistant_workspaces,
             open_workspace,
             open_remote_workspace,
             create_assistant_workspace,
@@ -2224,6 +2409,7 @@ pub async fn _run() {
             api::browser_api::browser_get_url,
             // HTML preview API
             api::html_preview_api::html_preview_create,
+            api::html_preview_api::html_preview_read_resource,
             api::html_preview_api::html_preview_release,
             // Browser Control API (CDP-based user browser control)
             api::browser_control_api::browser_control_list_browsers,
@@ -2296,13 +2482,6 @@ pub async fn _run() {
             api::dispatch_api::dispatch_load_transcript,
             api::dispatch_api::dispatch_save_transcript,
             // Relay self-deploy API
-            // Announcement / feature-demo / tips API
-            api::announcement_api::get_pending_announcements,
-            api::announcement_api::mark_announcement_seen,
-            api::announcement_api::dismiss_announcement,
-            api::announcement_api::never_show_announcement,
-            api::announcement_api::trigger_announcement,
-            api::announcement_api::get_announcement_tips,
             // ohos adater
             #[cfg(target_env = "ohos")]
             open_oh_file_dialog,
@@ -2363,7 +2542,6 @@ pub async fn _run() {
             maximize_ohos,
             #[cfg(target_env = "ohos")]
             center_ohos,
-
             // Debug API (no-op stubs in release builds)
             api::debug_api::debug_devtools_available,
             api::debug_api::debug_element_picked,
@@ -2376,12 +2554,25 @@ pub async fn _run() {
             api::commands::pull_local_model,
             api::commands::pause_local_model_download,
         ])
-        .build(tauri::generate_context!());
+        .build(desktop_context());
 
     match app {
         Ok(app) => {
             app.run(|app_handle, event| match event {
                 tauri::RunEvent::ExitRequested { api, code, .. } => {
+                    if code.is_none()
+                        && (app_handle.get_window("main").is_none()
+                            || app_handle
+                                .state::<miniapp_desktop::DesktopMiniApps>()
+                                .instances
+                                .snapshot()
+                                .instances
+                                .iter()
+                                .any(|instance| instance.primary_view.is_some()))
+                    {
+                        api.prevent_exit();
+                        return;
+                    }
                     if !PROCESS_EXIT_CLEANUP_COMPLETE.load(Ordering::Acquire) {
                         api.prevent_exit();
                         request_desktop_exit(app_handle, code.unwrap_or(0), "tauri_exit_requested");
@@ -2439,6 +2630,14 @@ async fn init_agentic_system(
 
     let path_manager = try_get_path_manager_arc()?;
     let persistence_manager = Arc::new(persistence::PersistenceManager::new(path_manager.clone())?);
+    // The round executor captures this service at construction so failed or
+    // cancelled attempts with unknown usage persist without a usage event.
+    let token_usage_service = Arc::new(
+        bitfun_core::service::token_usage::TokenUsageService::new(path_manager.clone())
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to initialize token usage service: {}", e))?,
+    );
+    bitfun_core::service::token_usage::set_global_token_usage_service(token_usage_service.clone());
 
     let context_store = Arc::new(session::SessionContextStore::new());
     let context_compressor = Arc::new(session::ContextCompressor::new());
@@ -2455,10 +2654,29 @@ async fn init_agentic_system(
         bitfun_core::product_runtime::core_permission_request_manager()
             .map_err(anyhow::Error::msg)?;
 
-    set_computer_use_desktop_available(false);
+    // Computer use needs a native automation host; the OHOS target compiles
+    // without the `computer_use` module, so the capability stays unavailable.
+    #[cfg(not(target_env = "ohos"))]
+    let computer_use_host: Option<ComputerUseHostRef> = {
+        if let Ok(paths) = bitfun_core::infrastructure::try_get_path_manager_arc() {
+            bitfun_computer_use::set_ocr_debug_directory(
+                paths
+                    .default_assistant_workspace_dir(None)
+                    .join(bitfun_core_types::product_identity::hidden_data_directory())
+                    .join("computer_use_debug"),
+            );
+        }
+        set_computer_use_host_available(true);
+        Some(Arc::new(computer_use::DesktopComputerUseHost::new()))
+    };
+    #[cfg(target_env = "ohos")]
+    let computer_use_host: Option<ComputerUseHostRef> = {
+        set_computer_use_host_available(false);
+        None
+    };
 
     let tool_pipeline = Arc::new(
-        tools::pipeline::ToolPipeline::new(tool_registry, tool_state_manager, None)
+        tools::pipeline::ToolPipeline::new(tool_registry, tool_state_manager, computer_use_host)
             .with_permission_request_manager(permission_request_manager)
             .with_telemetry(telemetry.clone()),
     );
@@ -2508,12 +2726,8 @@ async fn init_agentic_system(
 
     coordination::ConversationCoordinator::set_global(coordinator.clone());
 
-    // Initialize token usage service and register subscriber
-    let token_usage_service = Arc::new(
-        bitfun_core::service::token_usage::TokenUsageService::new(path_manager.clone())
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to initialize token usage service: {}", e))?,
-    );
+    // The subscriber reuses the round executor's authority. Known-usage events
+    // deduplicate by attempt ID; unknown usage is recorded directly by the round.
     let token_usage_subscriber = Arc::new(
         bitfun_core::service::token_usage::TokenUsageSubscriber::new(token_usage_service.clone()),
     );
@@ -2525,10 +2739,6 @@ async fn init_agentic_system(
                 session_manager.clone(),
             ),
         ),
-    );
-    event_router.subscribe_internal(
-        "thread_goal_tokens".to_string(),
-        Arc::new(bitfun_core::agentic::goal_mode::ThreadGoalTokenSubscriber),
     );
 
     log::info!("Token usage service initialized and subscriber registered");
@@ -2646,16 +2856,6 @@ fn setup_panic_hook() {
             thread_id,
         );
 
-        // Known wry bug: WKWebView.URL() returns nil after navigating to an
-        // invalid address, causing url_from_webview to panic on unwrap().
-        // This is non-fatal — the webview is still alive — so we log and
-        // continue instead of killing the process.
-        // See: https://github.com/tauri-apps/wry/pull/1554
-        if location.contains("wry") && location.contains("wkwebview") {
-            log::warn!("Suppressed non-fatal wry/wkwebview panic, application continues");
-            return;
-        }
-
         if message.contains("WSAStartup") || message.contains("10093") || message.contains("hyper")
         {
             log::error!("Network-related crash detected, possible solutions:");
@@ -2664,15 +2864,11 @@ fn setup_panic_hook() {
             log::error!("  3) Run as administrator");
         }
 
-        // Main-thread panics are unrecoverable — the event loop is gone.
-        // Spawned-thread panics only kill that thread; the rest of the
-        // application can continue.  We log a clear message and skip the
-        // hard exit so the user isn't forced to restart.
+        // Returning from a panic hook does not catch the panic. Leave worker
+        // panics to the runtime and any caller-owned unwind boundary; main-thread
+        // panics follow the application's fatal cleanup and exit path.
         if !is_main_thread {
-            log::warn!(
-                "Non-main thread panicked — application will continue. \
-                 The affected feature may be degraded until the next restart."
-            );
+            log::warn!("Non-main-thread panic recorded; deferring to the panic runtime");
             return;
         }
 
@@ -2685,6 +2881,13 @@ static PROCESS_EXIT_CLEANUP_STARTED: AtomicBool = AtomicBool::new(false);
 static PROCESS_EXIT_CLEANUP_COMPLETE: AtomicBool = AtomicBool::new(false);
 static DESKTOP_EXIT_REQUESTED: AtomicBool = AtomicBool::new(false);
 static PROCESS_EXIT_CLEANUP_NOTIFY: OnceLock<tokio::sync::Notify> = OnceLock::new();
+
+/// Whether a graceful desktop exit has started; background recovery must not
+/// recreate windows while the app is shutting down.
+pub(crate) fn desktop_exit_in_progress() -> bool {
+    DESKTOP_EXIT_REQUESTED.load(Ordering::Acquire)
+        || PROCESS_EXIT_CLEANUP_STARTED.load(Ordering::Acquire)
+}
 
 pub(crate) async fn perform_process_exit_cleanup() -> bool {
     let notify = PROCESS_EXIT_CLEANUP_NOTIFY.get_or_init(tokio::sync::Notify::new);
@@ -2802,56 +3005,56 @@ async fn deliver_event_to_webview(
         attach_session_event_cursor(&mut projected.payload, cursor);
     }
 
-    if let (Some(hub), Some(session_id)) = (
-        api::remote_connect_api::host_stream_hub().await,
-        projected
+    for hub in api::remote_connect_api::host_stream_hubs().await {
+        if let Some(session_id) = projected
             .payload
             .get("sessionId")
             .or_else(|| projected.payload.get("session_id"))
-            .and_then(serde_json::Value::as_str),
-    ) {
-        let name = projected.event_name.as_str();
-        let policy =
-            bitfun_core::service::remote_connect::session_records::session_event_publication(
-                name,
-                &projected.payload,
-            );
-        if policy.synchronize_records {
-            if let Err(error) = async {
-                if let Some(turn) = projected
-                    .payload
-                    .get("turnId")
-                    .or_else(|| projected.payload.get("settledTurnId"))
-                    .and_then(serde_json::Value::as_str)
+            .and_then(serde_json::Value::as_str)
+        {
+            let name = projected.event_name.as_str();
+            let policy =
+                bitfun_core::service::remote_connect::session_records::session_event_publication(
+                    name,
+                    &projected.payload,
+                );
+            if policy.synchronize_records {
+                if let Err(error) = async {
+                    if let Some(turn) = projected
+                        .payload
+                        .get("turnId")
+                        .or_else(|| projected.payload.get("settledTurnId"))
+                        .and_then(serde_json::Value::as_str)
+                    {
+                        bitfun_core::service::remote_connect::synchronize_session_record_turn(
+                            &hub, session_id, turn,
+                        )
+                        .await
+                    } else if name == "agentic://session-history-changed" {
+                        bitfun_core::service::remote_connect::synchronize_session_records(
+                            &hub, session_id,
+                        )
+                        .await
+                    } else {
+                        Ok(())
+                    }
+                }
+                .await
                 {
-                    bitfun_core::service::remote_connect::synchronize_session_record_turn(
-                        &hub, session_id, turn,
-                    )
-                    .await
-                } else if name == "agentic://session-history-changed" {
-                    bitfun_core::service::remote_connect::synchronize_session_records(
-                        &hub, session_id,
-                    )
-                    .await
-                } else {
-                    Ok(())
+                    log::error!("Unable to synchronize host session records: {error}");
                 }
             }
-            .await
-            {
-                log::error!("Unable to synchronize host session records: {error}");
-            }
-        }
-        if policy.persist_control {
-            if let Err(error) = hub
-                .append(
-                    session_id.to_owned(),
-                    projected.event_name.clone(),
-                    projected.payload.clone(),
-                )
-                .await
-            {
-                log::error!("Unable to publish session control event: {error}");
+            if policy.persist_control {
+                if let Err(error) = hub
+                    .append(
+                        session_id.to_owned(),
+                        projected.event_name.clone(),
+                        projected.payload.clone(),
+                    )
+                    .await
+                {
+                    log::error!("Unable to publish session control event: {error}");
+                }
             }
         }
     }
@@ -3469,4 +3672,11 @@ mod event_loop_driver_tests {
         driver.abort();
         producer.abort();
     }
+}
+
+/// Opt-in native regression entry; requires a disposable fixture launched by
+/// scripts/test-macos-control-roundtrip.mjs and a pumping macOS main run loop.
+#[cfg(all(feature = "devtools", target_os = "macos"))]
+pub async fn run_native_computer_use_roundtrip_fixture() {
+    computer_use::native_control_roundtrip::run().await;
 }

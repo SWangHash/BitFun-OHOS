@@ -55,6 +55,7 @@ vi.mock('@/infrastructure/confirm-dialog', async () => {
 });
 vi.mock('../../api/service-api/MCPAPI', () => ({
   MCPAPI: {
+    getCachedServers: () => undefined,
     getServers: getServersMock,
     loadMCPJsonConfig: loadJsonConfigMock,
     saveMCPJsonConfig: saveJsonConfigMock,
@@ -114,6 +115,25 @@ describe('McpToolsConfig remote behavior', () => {
     await act(async () => root.unmount());
     container.remove();
     vi.useRealTimers();
+  });
+
+  it('keeps the JSON editor mounted and protects edits made while a refresh is pending', async () => {
+    peerState.active = false;
+    await act(async () => root.render(<McpToolsConfig />));
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="mcp-json-toggle"]')!.click());
+    const textarea = container.querySelector('textarea')!;
+    let finish!: (value: { jsonConfig: string; fingerprint: string }) => void;
+    loadJsonConfigMock.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    await act(async () => globalEventBus.emit(MCP_CONFIG_CHANGED, { surfaceId: 'local' }));
+    expect(container.querySelector('textarea')).toBe(textarea);
+    const edited = '{"mcpServers":{"draft":{"command":"draft"}}}';
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(textarea, edited);
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => finish({ jsonConfig: '{"mcpServers":{}}', fingerprint: 'late' }));
+    expect(container.querySelector('textarea')).toBe(textarea);
+    expect(textarea.value).toBe(edited);
   });
 
   it('does not call desktop MCP management APIs during a remote connection', async () => {
@@ -446,6 +466,8 @@ describe('McpToolsConfig remote behavior', () => {
     }));
 
     await act(async () => root.render(<McpToolsConfig />));
+    expect(container.querySelector('[data-bitfun-part="loadingState"][aria-busy="true"]')).not.toBeNull();
+    await act(async () => vi.advanceTimersByTimeAsync(200));
     expect(container.textContent).toContain('loading');
     await act(async () => resolveServers([server]));
     const card = container.querySelector('[data-testid="mcp-server-item"]');
@@ -736,7 +758,12 @@ describe('McpToolsConfig remote behavior', () => {
     // A genuine authentication error may offer manual credentials, but must
     // still never start OAuth or render its controls when explicitly disabled.
     actionMock.mockRejectedValueOnce(new Error('status code: 401 Unauthorized'));
-    await act(async () => button?.click());
+    await act(async () => {
+      button?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
     expect(document.querySelector('[data-bitfun-part="authEditor"]')).not.toBeNull();
     expect(document.body.textContent).not.toContain('modal.remoteOAuthDescription');
     expect(document.body.textContent).not.toContain('actions.startRemoteOAuth');
@@ -763,7 +790,12 @@ describe('McpToolsConfig remote behavior', () => {
     startServerMock.mockRejectedValue(new Error('status code: 401 Unauthorized'));
     await act(async () => root.render(<McpToolsConfig />));
     const start = container.querySelector<HTMLButtonElement>('[data-testid="mcp-server-start"]')!;
-    await act(async () => start.click());
+    await act(async () => {
+      start.click();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
     const surface = document.querySelector<HTMLElement>('[role="dialog"]')!;
     const editor = surface.querySelector('[data-bitfun-part="authEditor"]');
     const contents = surface.textContent;
@@ -795,7 +827,10 @@ describe('McpToolsConfig remote behavior', () => {
     expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
 
-  it('starts OAuth directly for an unauthorized remote server without reporting a start failure', async () => {
+  it('connects before OAuth for an unauthorized remote server without reporting a start failure', async () => {
+    startServerMock.mockRejectedValueOnce(new Error(
+      'Handshake failed: Auth required, when send initialize request',
+    ));
     getServersMock.mockResolvedValueOnce([{
       id: 'notion',
       name: 'Notion',
@@ -823,7 +858,8 @@ describe('McpToolsConfig remote behavior', () => {
       await Promise.resolve();
     });
 
-    expect(startServerMock).not.toHaveBeenCalled();
+    expect(startServerMock).toHaveBeenCalledTimes(1);
+    expect(startServerMock).toHaveBeenCalledWith('notion');
     expect(startRemoteOAuthMock).toHaveBeenCalledTimes(1);
     expect(startRemoteOAuthMock).toHaveBeenCalledWith({ serverId: 'notion' });
     expect(openExternalMock).toHaveBeenCalledWith('https://mcp.notion.test/authorize');

@@ -114,14 +114,8 @@ pub async fn list_matrix_categories(
     log::info!("Tauri list_matrix_categories invoked");
     let result = list_categories(&client).await;
     match &result {
-        Ok(items) => log::info!(
-            "Tauri list_matrix_categories ok: count={}",
-            items.len()
-        ),
-        Err(error) => log::error!(
-            "Tauri list_matrix_categories failed: error={:?}",
-            error
-        ),
+        Ok(items) => log::info!("Tauri list_matrix_categories ok: count={}", items.len()),
+        Err(error) => log::error!("Tauri list_matrix_categories failed: error={:?}", error),
     }
     result
 }
@@ -160,10 +154,7 @@ pub async fn list_matrix_organizations(
             "Tauri list_matrix_organizations ok: count={}",
             page.list.len()
         ),
-        Err(error) => log::error!(
-            "Tauri list_matrix_organizations failed: error={:?}",
-            error
-        ),
+        Err(error) => log::error!("Tauri list_matrix_organizations failed: error={:?}", error),
     }
     result
 }
@@ -171,8 +162,8 @@ pub async fn list_matrix_organizations(
 /// Download, verify, and install a Matrix skill by `en_name`.
 ///
 /// Wraps `bitfun_matrix_adapter::install_skill_to_root`. The full flow:
-/// download ZIP 鈫?fetch SHA-256 鈫?verify 鈫?unzip to staging dir with path
-/// traversal guard 鈫?atomic rename to `<install_root>/<en_name>/`. Returns a
+/// download ZIP → fetch SHA-256 → verify → unzip to staging dir with path
+/// traversal guard → atomic rename to `<install_root>/<en_name>/`. Returns a
 /// `MatrixSkillInstallResult` on success. Staging directories are cleaned up
 /// on any error path.
 ///

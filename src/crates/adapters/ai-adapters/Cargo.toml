@@ -24,7 +24,7 @@ async-trait = { workspace = true }
 base64 = { workspace = true, optional = true }
 bitfun-agent-stream = { path = "../../execution/agent-stream" }
 bitfun-core-types = { path = "../../contracts/core-types" }
-bitfun-services-core = { path = "../../services/services-core", features = ["tls-provider"] }
+bitfun-services-core = { path = "../../services/services-core", features = ["tls-provider", "system-proxy"] }
 chrono = { workspace = true }
 dirs = { workspace = true, optional = true }
 eventsource-stream = { workspace = true }
@@ -40,6 +40,7 @@ hex = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt", "sync", "time"] }
 tokio-stream = { workspace = true }
 tokio-util = { workspace = true }
+tokenizers = { workspace = true, optional = true, features = ["fancy-regex"] }
 urlencoding = { workspace = true }
 uuid = { workspace = true, optional = true }
 
@@ -60,6 +61,9 @@ zbus-secret-service-keyring-store = { workspace = true, optional = true }
 libc = { workspace = true }
 
 [features]
+local-tokenizer = ["dep:tokenizers"]
+
+image-generation = ["dep:base64"]
 subscription-auth = [
     "dep:base64",
 "bitfun-services-core/credential-vault",

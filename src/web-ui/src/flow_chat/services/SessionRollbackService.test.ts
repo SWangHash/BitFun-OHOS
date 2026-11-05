@@ -1,8 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const hostQueueMock = vi.hoisted(() => ({ supported: vi.fn(() => false), refresh: vi.fn() }));
+vi.mock('./hostDialogQueue', () => ({
+  hostQueueSupported: hostQueueMock.supported,
+  hostDialogQueue: () => ({ refresh: hostQueueMock.refresh }),
+}));
+
 const agentApiMock = vi.hoisted(() => ({ rollbackSessionToTurn: vi.fn() }));
 const eventBusMock = vi.hoisted(() => ({ emit: vi.fn() }));
 const loadSessionHistory = vi.hoisted(() => vi.fn(async () => undefined));
+const retireRelaySessionTurns = vi.hoisted(() => vi.fn());
 const sessions = vi.hoisted(() => new Map<string, any>());
 const historyViews = vi.hoisted(() => new Map<string, any>());
 
@@ -13,6 +20,7 @@ vi.mock('../store/FlowChatStore', () => ({
     getState: () => ({ sessions }),
     getSessionHistoryViewState: (sessionId: string) => historyViews.get(sessionId),
     loadSessionHistory,
+    retireRelaySessionTurns,
   },
 }));
 
@@ -26,6 +34,12 @@ import {
   stateMachineManager,
 } from '../state-machine';
 import { pendingQueueManager } from './flow-chat-manager/PendingQueueModule';
+import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
+import {
+  beginSubmittedMessagePreview,
+  getSubmittedMessagePreviews,
+} from './submittedMessagePresentation';
+import { localTurnCatalogRevision } from '../utils/flowChatTurnIdentity';
 
 describe('SessionRollbackService', () => {
   it('rejects detached history mutation before any local backend call', async () => {
@@ -37,6 +51,8 @@ describe('SessionRollbackService', () => {
   });
   beforeEach(() => {
     vi.clearAllMocks();
+    hostQueueMock.supported.mockReturnValue(false);
+    hostQueueMock.refresh.mockResolvedValue({ items: [] });
     loadSessionHistory.mockResolvedValue(undefined);
     sessions.clear();
     historyViews.clear();
@@ -59,6 +75,14 @@ describe('SessionRollbackService', () => {
     });
   });
 
+  it('refuses host-owned queued work before invoking rollback', async () => {
+    hostQueueMock.supported.mockReturnValue(true);
+    hostQueueMock.refresh.mockResolvedValue({ items: [{ turnId: 'queued-turn', status: 'blocked' }] });
+    await expect(rollbackSessionToTurn({ sessionId: 'session-1', targetTurnId: 'turn-7', kind: 'rollback' }))
+      .rejects.toThrow('Clear the host message queue');
+    expect(agentApiMock.rollbackSessionToTurn).not.toHaveBeenCalled();
+  });
+
   it('refuses path-only mutations until legacy identity has been hydrated', async () => {
     const session = sessions.get('session-1');
     delete session.workspaceId;
@@ -68,6 +92,8 @@ describe('SessionRollbackService', () => {
   });
 
   it('submits stable persisted identity and reloads only after completion', async () => {
+    const scope = getActiveSurfaceScope();
+    beginSubmittedMessagePreview(scope, 'session-1', 'turn-8', { id: 'user_local', content: 'later', timestamp: 1 });
     agentApiMock.rollbackSessionToTurn.mockResolvedValue({
       status: 'completed',
       restoredFiles: ['src/lib.rs'],
@@ -92,11 +118,39 @@ describe('SessionRollbackService', () => {
     expect(result).toMatchObject({ fromTurnIndex: 2, composerText: 'prompt' });
     expect(isSessionTurnRetired('session-1', 'turn-7')).toBe(true);
     expect(isSessionTurnRetired('session-1', 'turn-8')).toBe(true);
+    expect(retireRelaySessionTurns).toHaveBeenCalledWith('session-1', ['turn-7', 'turn-8']);
+    // A preview renders whenever its Turn is absent; a retired Turn's must go.
+    expect(getSubmittedMessagePreviews(scope, 'session-1')).toEqual([]);
   });
 
   it('omits a stale catalog revision when the current Turn is not represented', async () => {
     const session = sessions.get('session-1');
     session.turnCatalog.entries[0].turnId = 'retired-turn-7';
+    agentApiMock.rollbackSessionToTurn.mockResolvedValue({
+      status: 'completed',
+      restoredFiles: [],
+      retiredTurnIds: ['turn-7'],
+      composer: { kind: 'preserve' },
+    });
+
+    await rollbackSessionToTurn({
+      sessionId: 'session-1',
+      targetTurnId: 'turn-7',
+      kind: 'rollback',
+    });
+
+    expect(agentApiMock.rollbackSessionToTurn).toHaveBeenCalledWith(expect.objectContaining({
+      targetTurnId: 'turn-7',
+      expectedStorageTurnIndex: 7,
+      expectedCatalogRevision: undefined,
+    }));
+  });
+
+  it('omits a controller-minted catalog revision the host never issued', async () => {
+    // Peer Device sessions build their catalog from replicated records; the
+    // host computes its own revision, so a local one would always look stale.
+    const session = sessions.get('session-1');
+    session.turnCatalog.revision = localTurnCatalogRevision('relay:turn-7');
     agentApiMock.rollbackSessionToTurn.mockResolvedValue({
       status: 'completed',
       restoredFiles: [],

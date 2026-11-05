@@ -19,6 +19,7 @@ pub(super) fn diagnostic(
         path: path.into(),
         source_id: source_id.into(),
         message: message.to_string(),
+        unsupported_field: None,
     }
 }
 
@@ -483,11 +484,13 @@ impl SkillRegistry {
                                         candidate.info.import_origin = import_origin;
                                         scan.candidates.push(candidate);
                                     }
-                                    Err(error) => scan.diagnostics.push(diagnostic(
-                                        &skill_md,
-                                        entry.source_id,
-                                        error,
-                                    )),
+                                    Err(error) => scan.diagnostics.push(
+                                        SkillScanDiagnostic::from_parse_error(
+                                            &skill_md,
+                                            entry.source_id,
+                                            &error,
+                                        ),
+                                    ),
                                 }
                             }
                             Ok(None) => scan.diagnostics.push(diagnostic(
@@ -833,11 +836,13 @@ impl SkillRegistry {
                                     candidate.info.import_origin = import_origin;
                                     scan.candidates.push(candidate);
                                 }
-                                Err(error) => scan.diagnostics.push(diagnostic(
-                                    skill_md.to_string_lossy(),
-                                    entry.source_id,
-                                    error,
-                                )),
+                                Err(error) => {
+                                    scan.diagnostics.push(SkillScanDiagnostic::from_parse_error(
+                                        skill_md.to_string_lossy(),
+                                        entry.source_id,
+                                        &error,
+                                    ))
+                                }
                             }
                         }
                         // A skill is a package boundary; its reference examples

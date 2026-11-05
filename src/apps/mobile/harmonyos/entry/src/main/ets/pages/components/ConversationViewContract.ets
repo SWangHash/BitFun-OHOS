@@ -1,5 +1,10 @@
 import { ChatTimelineItem } from '../../model/ChatTimelineModels';
 import { ConversationMessageRenderPolicy } from '../policy/ConversationMessageRenderPolicy';
+import {
+  SettingsPlacement,
+  SettingsPlacementPolicy,
+  SettingsSheetKind
+} from '../policy/SettingsPlacementPolicy';
 import { ChatSurface } from '../state/ChatSurface';
 import { toConversationUiMessage } from '../state/ConversationUiModels';
 import { ComposerPresentation } from './ComposerBar';
@@ -14,6 +19,23 @@ export class ConversationViewOptions {
   composerPresentation: ComposerPresentation = ComposerPresentation.Compact;
   composerInputId: string = 'conversation-composer-input';
   hoverOperateMode: boolean = false;
+  /**
+   * Placement for the full-text panel. The page owns the geometry it comes
+   * from, so the conversation consumes it instead of re-deriving sheets from a
+   * width of its own — which is what keeps the panel inside the operate half
+   * of a half-folded screen and inside a foldable's trailing leaf.
+   */
+  fullTextSheetPlacement: SettingsPlacement =
+    SettingsPlacementPolicy.compactBottom(SettingsSheetKind.UserMessageFullText);
+  /**
+   * Placement for the composer's command palette sheets. Same contract as the
+   * full-text panel: the page owns the geometry, so the conversation consumes it
+   * instead of re-deriving sheets from a width of its own.
+   */
+  skillPickerSheetPlacement: SettingsPlacement =
+    SettingsPlacementPolicy.compactBottom(SettingsSheetKind.SkillPicker);
+  usageReportSheetPlacement: SettingsPlacement =
+    SettingsPlacementPolicy.compactBottom(SettingsSheetKind.UsageReport);
 }
 
 export class ConversationViewContract {

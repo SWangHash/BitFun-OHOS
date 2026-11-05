@@ -2,9 +2,20 @@ import { MobileDesignGeometry, MobileDesignTypography } from '../../generated/Mo
 import { RemoteI18n } from '../../i18n/RemoteI18n';
 import { CloudAccountDevice } from '../../services/CloudAccountClient';
 import { AccountDeviceSelectionPolicy } from '../policy/AccountDeviceSelectionPolicy';
-import { CARD, STATUS_SUCCESS, INK, LINE, MUTED, PAGE_BG, STATUS_DANGER, SOFT } from './Theme';
+import { DeviceModelSettingsEntryPolicy } from '../policy/DeviceModelSettingsEntryPolicy';
+import {
+  CARD,
+  CONTENT_ON_ACTION,
+  INK,
+  LINE,
+  MUTED,
+  PAGE_BG,
+  PRIMARY_ACTION,
+  SOFT,
+  STATUS_DANGER,
+  STATUS_SUCCESS
+} from './Theme';
 import { DefaultAccountAvatar } from './DefaultAccountAvatar';
-import { SheetCloseHeader } from './SheetCloseHeader';
 
 /** Account identity and device management shared by Settings and account entry. */
 @ComponentV2
@@ -17,15 +28,15 @@ export struct AccountProfilePanel {
   @Param controlTargetType: string = 'none';
   @Param controlTargetDeviceId: string = '';
   @Param connectionState: string = 'idle';
-  @Param showNavigationHeader: boolean = false;
-  @Param embeddedInSettings: boolean = false;
+  /** The connected desktop advertises `device_model_defaults_v1`. */
+  @Param supportsDeviceModelDefaults: boolean = false;
   @BuilderParam preferences: () => void = this.EmptyBuilder;
   @BuilderParam connection: () => void = this.EmptyBuilder;
   @BuilderParam about: () => void = this.EmptyBuilder;
-  @Event onBack: () => void = () => {};
   @Event onLoggedOut: () => void = () => {};
   @Event onOpenAccount: () => void = () => {};
   @Event onReconnect: () => void = () => {};
+  @Event onOpenDeviceModelSettings: () => void = () => {};
   @Event cloudLogout: () => Promise<void> = async (): Promise<void> => {};
   @Event cloudListDevices: () => Promise<CloudAccountDevice[]> =
     async (): Promise<CloudAccountDevice[]> => [];
@@ -36,6 +47,14 @@ export struct AccountProfilePanel {
   @Local accountDevicesError: string = '';
   @Local switchingDeviceId: string = '';
   @Local logoutBusy: boolean = false;
+  /**
+   * Why the device model settings entry could not open, shown once under the
+   * row that was tapped. A missing capability is a state, not a failure, so it
+   * is explained in place instead of by opening a page that cannot answer.
+   */
+  @Local deviceModelSettingsReason: string = '';
+  /** The row the reason belongs to; empty when no row was tapped. */
+  @Local deviceModelSettingsReasonDeviceId: string = '';
 
   aboutToAppear(): void {
     if (this.isAccountAuthenticated()) {
@@ -45,26 +64,13 @@ export struct AccountProfilePanel {
 
   build() {
     Column({ space: 0 }) {
-      if (this.embeddedInSettings) {
-        this.CompactIdentityCard()
-        this.connection()
-        this.preferences()
-        this.DeviceManagementSection()
-        this.about()
-        if (this.isAccountAuthenticated()) {
-          this.LogoutAction()
-        }
-      } else {
-        if (this.showNavigationHeader) {
-          this.NavigationHeader()
-        }
-        this.ProfileHero()
-        this.AccountStatusCard()
-        this.DeviceManagementSection()
-        this.ProfileDetails()
-        if (this.isAccountAuthenticated()) {
-          this.LogoutAction()
-        }
+      this.CompactIdentityCard()
+      this.connection()
+      this.preferences()
+      this.DeviceManagementSection()
+      this.about()
+      if (this.isAccountAuthenticated()) {
+        this.LogoutAction()
       }
     }
     .width('100%')
@@ -76,7 +82,7 @@ export struct AccountProfilePanel {
     Row({ space: 14 }) {
       DefaultAccountAvatar({ avatarSize: 46, avatarUrl: this.accountAvatarUrl })
       Column({ space: 4 }) {
-        Text(this.isAccountAuthenticated() ? RemoteI18n.t('settings.account.current') :
+        Text(this.isAccountAuthenticated() ? this.profileName() :
           RemoteI18n.t('settings.account.currentIdentity'))
           .fontSize(MobileDesignTypography.bodyLarge.size)
           .fontWeight(FontWeight.Medium)
@@ -84,7 +90,8 @@ export struct AccountProfilePanel {
           .width('100%')
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
-        Text(this.isAccountAuthenticated() ? this.profileName() : this.shortProfileIdentifier())
+        Text(this.isAccountAuthenticated() ? RemoteI18n.f('remote.settings.githubId', this.accountUserId) :
+          this.shortProfileIdentifier())
           .fontSize(MobileDesignTypography.bodySmall.size)
           .fontColor(MUTED)
           .width('100%')
@@ -131,76 +138,10 @@ export struct AccountProfilePanel {
   }
 
   @Builder
-  private NavigationHeader() {
-    SheetCloseHeader({
-      title: RemoteI18n.t('remote.settings.profile'),
-      onClose: this.onBack
-    })
-    .margin({ bottom: 30 })
-  }
-
-  @Builder
-  private ProfileHero() {
-    Column({ space: 10 }) {
-      DefaultAccountAvatar({ avatarSize: 70, avatarUrl: this.accountAvatarUrl })
-      Text(this.profileName())
-        .fontSize(MobileDesignTypography.headlineLarge.size)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(INK)
-        .width('88%')
-        .textAlign(TextAlign.Center)
-        .maxLines(1)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-      Text(this.isAccountAuthenticated() ? RemoteI18n.f('remote.settings.githubId', this.accountUserId) : this.profileIdentifier())
-        .fontSize(MobileDesignTypography.bodyMedium.size)
-        .fontColor(MUTED)
-        .width('88%')
-        .textAlign(TextAlign.Center)
-        .maxLines(1)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-    }
-    .width('100%')
-    .padding({ top: 24, bottom: 24 })
-    .backgroundColor(CARD)
-    .borderRadius(MobileDesignGeometry.settingsProminentCardRadius)
-    .margin({ bottom: 24 })
-  }
-
-  @Builder
-  private AccountStatusCard() {
-    Column({ space: 10 }) {
-      Row({ space: 10 }) {
-        Text(RemoteI18n.t('remote.settings.account'))
-          .fontSize(MobileDesignTypography.titleMedium.size)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(INK)
-        Blank()
-        Text(this.isAccountAuthenticated() ? RemoteI18n.t('remote.settings.accountSignedIn') :
-          RemoteI18n.t('remote.settings.accountNotSignedIn'))
-          .fontSize(MobileDesignTypography.bodyMedium.size)
-          .fontColor(this.isAccountAuthenticated() ? STATUS_SUCCESS : MUTED)
-      }
-      .width('100%')
-
-      Text(this.accountStatusBody())
-        .fontSize(MobileDesignTypography.bodyMedium.size)
-        .lineHeight(MobileDesignTypography.bodyMedium.lineHeight)
-        .fontColor(MUTED)
-        .width('100%')
-    }
-    .width('100%')
-    .padding({ left: 18, right: 18, top: 16, bottom: 16 })
-    .backgroundColor(CARD)
-    .borderRadius(MobileDesignGeometry.settingsCardRadius)
-    .margin({ bottom: 24 })
-  }
-
-  @Builder
   private DeviceManagementSection() {
     Column({ space: 8 }) {
       Row() {
-        Text(this.embeddedInSettings ? RemoteI18n.t('settings.devices.section') :
-          RemoteI18n.t('remote.settings.deviceManagement'))
+        Text(RemoteI18n.t('settings.devices.section'))
           .fontSize(MobileDesignTypography.titleSmall.size)
           .lineHeight(MobileDesignTypography.titleSmall.lineHeight)
           .fontWeight(FontWeight.Medium)
@@ -239,9 +180,18 @@ export struct AccountProfilePanel {
             .fontSize(MobileDesignTypography.bodySmall.size).lineHeight(MobileDesignTypography.bodySmall.lineHeight).fontColor(MUTED).width('100%')
         } else {
           ForEach(this.desktopDevices(), (device: CloudAccountDevice) => {
-            this.AccountDeviceRow(device)
+            Column({ space: 0 }) {
+              this.AccountDeviceRow(device)
+              if (this.deviceModelSettingsReasonDeviceId === device.deviceId &&
+                this.deviceModelSettingsReason.length > 0) {
+                this.DeviceModelSettingsReasonBand()
+              }
+            }
+            .width('100%')
           }, (device: CloudAccountDevice): string =>
-            `${device.deviceId}:${device.online ? 'online' : 'offline'}:${device.lastSeenAt || 0}:${device.deviceName}`)
+            `${device.deviceId}:${device.online ? 'online' : 'offline'}:${device.lastSeenAt || 0}:${device.deviceName}` +
+              `:${this.isCurrentControlDevice(device) ? 'driven' : 'idle'}` +
+              `:${this.supportsDeviceModelDefaults ? 'model-defaults' : 'no-model-defaults'}`)
         }
         if (this.accountDevicesError.length > 0 && this.desktopDevices().length > 0) {
           Text(this.accountDevicesError)
@@ -277,7 +227,9 @@ export struct AccountProfilePanel {
       }
       .layoutWeight(1)
       .alignItems(HorizontalAlign.Start)
-      if (this.shouldShowDeviceConnectAction(device)) {
+      if (this.showsDeviceModelSettingsEntry(device)) {
+        this.DeviceModelSettingsEntry(device)
+      } else if (this.shouldShowDeviceConnectAction(device)) {
         Text(this.switchingDeviceId === device.deviceId ?
           RemoteI18n.t('remote.settings.deviceConnecting') : RemoteI18n.t('connect.connect'))
           .fontSize(MobileDesignTypography.bodyMedium.size).fontColor(INK)
@@ -297,51 +249,76 @@ export struct AccountProfilePanel {
     })
   }
 
+  /**
+   * The model settings entry on the row of the desktop this phone is driving.
+   *
+   * Same pill as the row's connect action, because it is the same slot: the
+   * connected target offers its own settings instead of re-connecting. An older
+   * desktop keeps the pill, greyed, with an upgrade corner badge, and tapping it
+   * explains itself instead of opening a page that cannot answer.
+   */
   @Builder
-  private ProfileDetails() {
-    Text(RemoteI18n.t('remote.settings.profileDetails'))
-      .fontSize(MobileDesignTypography.titleSmall.size)
-      .lineHeight(MobileDesignTypography.titleSmall.lineHeight)
-      .fontWeight(FontWeight.Bold)
-      .fontColor(MUTED)
-      .width('100%')
-      .margin({ left: 18, bottom: 8 })
+  private DeviceModelSettingsEntry(device: CloudAccountDevice) {
+    // The Stack wraps the pill, so the badge can be lifted above the pill's top
+    // corner without taking part in the row's layout: an inline badge would push
+    // the device name out of the row's width.
+    Stack({ alignContent: Alignment.TopEnd }) {
+      Row({ space: 4 }) {
+        SymbolGlyph($r('sys.symbol.gearshape'))
+          .fontSize(14)
+          .fontColor([MUTED])
+        Text(RemoteI18n.t('settings.model.settingsTitle'))
+          .fontSize(MobileDesignTypography.bodyMedium.size)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(INK)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+      }
+      .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+      .backgroundColor(SOFT)
+      .borderRadius(14)
+      .opacity(this.deviceModelSettingsEnabled() ? 1 : 0.38)
+      // The two states of this pill are its whole contract, so the state is part
+      // of its identity: an enabled entry that still looked greyed would be the
+      // same bug as a greyed one that opened the page.
+      .id(`device-model-entry-${this.deviceModelSettingsEnabled() ? 'enabled' : 'degraded'}`)
+      .onClick(() => {
+        this.openDeviceModelSettings(device);
+      })
 
-    Column() {
-      this.ProfileDetailRow(RemoteI18n.t('remote.settings.userId'), this.profileIdentifier())
-      Divider().strokeWidth(1).color(LINE).margin({ left: 18, right: 18 })
-      this.ProfileDetailRow(RemoteI18n.t('remote.settings.deviceId'), this.deviceId || '-')
+      if (!this.deviceModelSettingsEnabled()) {
+        Text(RemoteI18n.t('settings.model.upgradeBadge'))
+          .fontSize(MobileDesignTypography.labelSmall.size)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(CONTENT_ON_ACTION)
+          .height(15)
+          .padding({ left: 4, right: 4 })
+          .backgroundColor(PRIMARY_ACTION)
+          .borderRadius(4)
+          .offset({ x: 0, y: -14 })
+      }
     }
-    .width('100%')
-    .backgroundColor(CARD)
-    .borderRadius(MobileDesignGeometry.settingsCardRadius)
   }
 
   @Builder
-  private ProfileDetailRow(label: string, value: string) {
-    Row({ space: 16 }) {
-      Text(label).fontSize(MobileDesignTypography.bodyLarge.size).fontColor(INK)
-      Blank()
-      Text(value)
-        .fontSize(MobileDesignTypography.bodyMedium.size)
-        .fontColor(MUTED)
-        .maxLines(1)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-        .constraintSize({ maxWidth: 190 })
-    }
-    .width('100%')
-    .constraintSize({ minHeight: 58 })
-    .padding({ left: 18, right: 18, top: 12, bottom: 12 })
+  private DeviceModelSettingsReasonBand() {
+    Text(this.deviceModelSettingsReason)
+      .width('100%')
+      .fontSize(MobileDesignTypography.labelSmall.size)
+      .lineHeight(MobileDesignTypography.bodySmall.lineHeight)
+      .fontColor(MUTED)
+      .padding({ left: 12, right: 12, top: 10, bottom: 10 })
+      .backgroundColor(SOFT)
+      .borderRadius(MobileDesignGeometry.settingsCompactCardRadius)
+      .margin({ left: 4, right: 4, bottom: 4 })
   }
 
   @Builder
   private LogoutAction() {
-    if (this.embeddedInSettings) {
-      Divider()
-        .strokeWidth(1)
-        .color(LINE)
-        .margin({ left: 8, right: 8, top: 24 })
-    }
+    Divider()
+      .strokeWidth(1)
+      .color(LINE)
+      .margin({ left: 8, right: 8, top: 24 })
     Row({ space: 14 }) {
       SymbolGlyph($r('sys.symbol.arrow_right_and_square'))
         .fontSize(22).fontColor([STATUS_DANGER]).width(24).height(24)
@@ -352,9 +329,8 @@ export struct AccountProfilePanel {
     .width('100%')
     .constraintSize({ minHeight: 62 })
     .padding({ left: 20, right: 20, top: 12, bottom: 12 })
-    .backgroundColor(this.embeddedInSettings ? PAGE_BG : CARD)
-    .borderRadius(this.embeddedInSettings ? 0 : MobileDesignGeometry.settingsCardRadius)
-    .margin({ top: this.embeddedInSettings ? 4 : 32, bottom: 8 })
+    .backgroundColor(PAGE_BG)
+    .margin({ top: 4, bottom: 8 })
     .opacity(this.logoutBusy ? 0.55 : 1)
     .enabled(!this.logoutBusy)
     .onClick(async () => {
@@ -406,6 +382,36 @@ export struct AccountProfilePanel {
       this.controlTargetDeviceId,
       this.connectionState
     );
+  }
+
+  /** The entry belongs to the desktop this phone is connected to and driving. */
+  private showsDeviceModelSettingsEntry(device: CloudAccountDevice): boolean {
+    return DeviceModelSettingsEntryPolicy.showsEntry(
+      device.online,
+      device.deviceId,
+      this.deviceId,
+      this.controlTargetDeviceId,
+      this.connectionState
+    );
+  }
+
+  private deviceModelSettingsEnabled(): boolean {
+    return DeviceModelSettingsEntryPolicy.entryEnabled(this.supportsDeviceModelDefaults);
+  }
+
+  private openDeviceModelSettings(device: CloudAccountDevice): void {
+    const reasonKey = DeviceModelSettingsEntryPolicy.degradeReasonKey(
+      this.showsDeviceModelSettingsEntry(device),
+      this.supportsDeviceModelDefaults
+    );
+    if (reasonKey.length > 0) {
+      this.deviceModelSettingsReasonDeviceId = device.deviceId;
+      this.deviceModelSettingsReason = RemoteI18n.t(reasonKey);
+      return;
+    }
+    this.deviceModelSettingsReasonDeviceId = '';
+    this.deviceModelSettingsReason = '';
+    this.onOpenDeviceModelSettings();
   }
 
   private async connectAccountDevice(device: CloudAccountDevice): Promise<void> {
@@ -470,13 +476,6 @@ export struct AccountProfilePanel {
     return RemoteI18n.t('remote.settings.accountNotSignedIn');
   }
 
-  private accountStatusBody(): string {
-    if (!this.isAccountAuthenticated()) {
-      return RemoteI18n.t('remote.settings.accountNotSignedInBody');
-    }
-    return RemoteI18n.f('remote.settings.accountSignedInBody', this.profileName());
-  }
-
   private isAccountAuthenticated(): boolean {
     return this.accountUserId.trim().length > 0;
   }
@@ -492,5 +491,15 @@ export struct AccountProfilePanel {
     if (this.isAccountAuthenticated() && this.accountDevices.length === 0) {
       this.refreshAccountDevices();
     }
+  }
+
+  /**
+   * A link or capability change makes the explanation stale: it described the
+   * host as it was when the entry was tapped.
+   */
+  @Monitor('connectionState', 'supportsDeviceModelDefaults')
+  private clearDeviceModelSettingsReason(): void {
+    this.deviceModelSettingsReasonDeviceId = '';
+    this.deviceModelSettingsReason = '';
   }
 }

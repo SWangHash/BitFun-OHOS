@@ -163,6 +163,30 @@ fn merge_runtime_owned_turn_facts(
 ) -> DialogTurnData {
     let mut merged = projected.clone();
     merged.agent_type = persisted.agent_type.clone();
+    // Round timing comes from the Runtime's accepted attempt. A projection
+    // saved by a window that missed (or had not yet applied) that round's
+    // `ModelRoundCompleted` must not erase it from the durable record.
+    for round in &mut merged.model_rounds {
+        let Some(persisted_round) = persisted
+            .model_rounds
+            .iter()
+            .find(|candidate| candidate.id == round.id)
+        else {
+            continue;
+        };
+        if round.duration_ms.is_none_or(|duration_ms| duration_ms == 0) {
+            round.duration_ms = persisted_round.duration_ms.or(round.duration_ms);
+        }
+        round.first_chunk_ms = round.first_chunk_ms.or(persisted_round.first_chunk_ms);
+        round.first_visible_output_ms = round
+            .first_visible_output_ms
+            .or(persisted_round.first_visible_output_ms);
+        round.stream_duration_ms = round
+            .stream_duration_ms
+            .or(persisted_round.stream_duration_ms);
+        round.ttft_ms = round.ttft_ms.or(persisted_round.ttft_ms);
+        round.attempt_count = round.attempt_count.or(persisted_round.attempt_count);
+    }
 
     let Some(persisted_metadata) = persisted
         .user_message
@@ -919,6 +943,16 @@ pub struct CoreAgentRuntimeCompatibility {
 }
 
 impl CoreAgentRuntimeCompatibility {
+    pub async fn retry_model_pool_member(&self, model_id: &str) -> BitFunResult<()> {
+        self.coordinator.retry_model_pool_member(model_id).await
+    }
+
+    pub async fn model_pool_statuses(
+        &self,
+        pool_id: &str,
+    ) -> BitFunResult<Vec<bitfun_core_types::model_pool::ModelPoolMemberStatus>> {
+        self.coordinator.model_pool_statuses(pool_id).await
+    }
     pub async fn ensure_control_conversation(
         &self,
     ) -> BitFunResult<crate::agentic::coordination::ControlConversation> {
@@ -1268,6 +1302,15 @@ impl CoreAgentRuntimeCompatibility {
         &self,
         workspace_path: &Path,
     ) -> BitFunResult<Vec<SessionMetadata>> {
+        #[cfg(feature = "external-sources")]
+        for warning in crate::external_session_import::auto_discovery::discover_for_storage_path(
+            workspace_path,
+        )
+        .await
+        .warnings
+        {
+            log::warn!("External session discovery: {warning}");
+        }
         self.persistence.list_session_metadata(workspace_path).await
     }
 
@@ -1277,9 +1320,34 @@ impl CoreAgentRuntimeCompatibility {
         cursor: Option<&str>,
         limit: usize,
     ) -> BitFunResult<SessionMetadataPage> {
-        self.persistence
-            .list_session_metadata_page(workspace_path, cursor, limit)
+        self.list_persisted_session_catalog_page(workspace_path, cursor, limit, None)
             .await
+    }
+
+    async fn list_persisted_session_catalog_page(
+        &self,
+        workspace_path: &Path,
+        cursor: Option<&str>,
+        limit: usize,
+        query: Option<&bitfun_services_core::session::page::SessionCatalogQuery>,
+    ) -> BitFunResult<SessionMetadataPage> {
+        #[cfg(feature = "external-sources")]
+        let warnings = crate::external_session_import::auto_discovery::discover_for_storage_path(
+            workspace_path,
+        )
+        .await;
+        #[allow(unused_mut)]
+        let mut page = self
+            .persistence
+            .list_session_metadata_page_with_query(workspace_path, cursor, limit, query)
+            .await?;
+        #[cfg(feature = "external-sources")]
+        {
+            page.discovery_warnings.extend(warnings.warnings);
+            page.discovery_diagnostics.extend(warnings.diagnostics);
+            page.discovery_pending = warnings.pending;
+        }
+        Ok(page)
     }
 
     /// A bounded navigation read over metadata + current runtime owners. Initial
@@ -1293,11 +1361,31 @@ impl CoreAgentRuntimeCompatibility {
         limit: usize,
         session_ids: Option<&[String]>,
     ) -> BitFunResult<SessionMetadataPage> {
-        use futures::StreamExt;
+        self.list_persisted_sessions_page_with_activity_and_query(
+            runtime,
+            workspace_path,
+            cursor,
+            limit,
+            session_ids,
+            None,
+        )
+        .await
+    }
+
+    pub async fn list_persisted_sessions_page_with_activity_and_query(
+        &self,
+        runtime: &AgentRuntime,
+        workspace_path: &Path,
+        cursor: Option<&str>,
+        limit: usize,
+        session_ids: Option<&[String]>,
+        query: Option<&bitfun_services_core::session::page::SessionCatalogQuery>,
+    ) -> BitFunResult<SessionMetadataPage> {
         use bitfun_agent_runtime::session_state::SessionState;
         use bitfun_services_core::session::page::{
             empty_session_metadata_page, SessionActivitySummary,
         };
+        use futures::StreamExt;
 
         if let Some(ids) = session_ids {
             if ids.len() > 128 {
@@ -1312,7 +1400,7 @@ impl CoreAgentRuntimeCompatibility {
         let mut page = if session_ids.is_some() {
             empty_session_metadata_page()
         } else {
-            self.list_persisted_sessions_page(workspace_path, cursor, limit)
+            self.list_persisted_session_catalog_page(workspace_path, cursor, limit, query)
                 .await?
         };
         let selected = match session_ids {
@@ -1410,6 +1498,8 @@ impl CoreAgentRuntimeCompatibility {
                         }
                         _ => ("idle", None),
                     };
+                    let unread_turn =
+                        bitfun_services_core::session::unread_completion_target(&metadata);
                     SessionActivitySummary {
                         pending_approvals: approvals
                             .get(&metadata.session_id)
@@ -1424,6 +1514,7 @@ impl CoreAgentRuntimeCompatibility {
                         active_turn_id,
                         last_turn: metadata.last_turn,
                         unread_completion: metadata.unread_completion,
+                        unread_turn,
                     }
                 })
                 .collect(),
@@ -1451,6 +1542,19 @@ impl CoreAgentRuntimeCompatibility {
         }
 
         let metadata = self.list_persisted_sessions(storage_path).await?;
+        #[cfg(feature = "external-sources")]
+        let has_deferred_history = metadata.iter().any(|metadata| {
+            crate::external_session_import::deferred::is_deferred(metadata)
+                || crate::external_session_import::deferred::tracking::is_followed(metadata)
+        });
+        #[cfg(feature = "external-sources")]
+        let metadata = metadata
+            .into_iter()
+            .filter(|metadata| {
+                !crate::external_session_import::deferred::is_deferred(metadata)
+                    && !crate::external_session_import::deferred::tracking::is_followed(metadata)
+            })
+            .collect::<Vec<_>>();
         let documents = metadata
             .iter()
             .map(session_search_document)
@@ -1470,6 +1574,15 @@ impl CoreAgentRuntimeCompatibility {
             .await
             .map_err(session_search_index_error)?;
         let mut diagnostics = Vec::new();
+
+        #[cfg(feature = "external-sources")]
+        if has_deferred_history {
+            diagnostics.push(SessionSearchDiagnostic {
+                code: SessionSearchDiagnosticCode::SessionIndexStale,
+                session_id: None,
+                message: "Followed external history is excluded from workspace content search; fork it into a native session to include it".into(),
+            });
+        }
 
         for session_id in reconciliation.stale_session_ids {
             let Some(source_revision) = revisions.get(&session_id) else {
@@ -1646,6 +1759,46 @@ impl CoreAgentRuntimeCompatibility {
                 .await?;
         }
         Ok(())
+    }
+
+    pub async fn update_session_model_selection_from_storage_path(
+        &self,
+        storage_path: &Path,
+        session_id: &str,
+        model_id: &str,
+        reasoning_preset: Option<&str>,
+        include_internal: bool,
+    ) -> BitFunResult<Session> {
+        self.coordinator
+            .update_session_model_selection_from_storage_path(
+                storage_path,
+                session_id,
+                model_id,
+                reasoning_preset,
+                include_internal,
+            )
+            .await
+    }
+
+    pub async fn update_session_model_selection_from_storage_path_with_routing(
+        &self,
+        storage_path: &Path,
+        session_id: &str,
+        model_id: &str,
+        reasoning_preset: Option<&str>,
+        routing_mode: Option<&str>,
+        include_internal: bool,
+    ) -> BitFunResult<Session> {
+        self.coordinator
+            .update_session_model_selection_from_storage_path_with_routing(
+                storage_path,
+                session_id,
+                model_id,
+                reasoning_preset,
+                routing_mode,
+                include_internal,
+            )
+            .await
     }
 
     pub async fn begin_persisted_session_mutation(
@@ -2163,6 +2316,44 @@ impl CoreSessionOperationsPort {
         .await
     }
 
+    #[cfg(feature = "external-sources")]
+    async fn fork_external_history_at_turn(
+        &self,
+        storage_path: &Path,
+        source_session_id: &str,
+        source_turn_id: Option<&str>,
+        boundary: SessionBranchBoundary,
+    ) -> PortResult<Option<AgentSessionForkResult>> {
+        let Some(source) = self
+            .persistence
+            .external_history_branch_source(storage_path, source_session_id, source_turn_id)
+            .await
+            .map_err(runtime_port_error)?
+        else {
+            return Ok(None);
+        };
+        let source_turn_id = match source_turn_id {
+            Some(id) => id.to_owned(),
+            None => latest_persisted_turn_id(&source.turns).map_err(runtime_port_error)?,
+        };
+        let result = self
+            .persistence
+            .branch_transient_session(
+                storage_path,
+                &SessionBranchRequest {
+                    source_session_id: source_session_id.to_owned(),
+                    source_turn_id,
+                    boundary,
+                },
+                source,
+            )
+            .await
+            .map_err(runtime_port_error)?;
+        self.finish_session_fork(storage_path, source_session_id, result)
+            .await
+            .map(Some)
+    }
+
     async fn fork_at_persisted_turn(
         &self,
         storage_path: &Path,
@@ -2181,7 +2372,7 @@ impl CoreSessionOperationsPort {
             ));
         }
         let session_manager = self.coordinator.get_session_manager();
-        let expected_workspace = {
+        let (expected_workspace, is_transient) = {
             let _guard = session_manager
                 .acquire_session_mutation(&source_session_id)
                 .await
@@ -2189,16 +2380,23 @@ impl CoreSessionOperationsPort {
             session_manager
                 .validate_session_storage_path_binding(&source_session_id, storage_path)
                 .map_err(runtime_port_error)?;
-            let persisted = self
-                .persistence
-                .load_session_header(storage_path, &source_session_id)
-                .await
-                .map_err(runtime_port_error)?;
-            let binding = fork_workspace_binding(&persisted, workspace_id)
+            let loaded = session_manager.get_session(&source_session_id);
+            let is_transient = loaded.as_ref().is_some_and(|session| {
+                session.kind == crate::agentic::core::SessionKind::EphemeralChild
+            });
+            let source = match loaded.as_ref() {
+                Some(session) if is_transient => session.clone(),
+                _ => self
+                    .persistence
+                    .load_session_header(storage_path, &source_session_id)
+                    .await
+                    .map_err(runtime_port_error)?,
+            };
+            let binding = fork_workspace_binding(&source, workspace_id)
                 .await
                 .map_err(runtime_port_error)?;
             let execution_id = binding.workspace_id.as_deref().expect("resolved binding");
-            if let Some(loaded) = session_manager.get_session(&source_session_id) {
+            if let Some(loaded) = loaded {
                 fork_workspace_binding(&loaded, execution_id)
                     .await
                     .map_err(runtime_port_error)?;
@@ -2214,8 +2412,55 @@ impl CoreSessionOperationsPort {
                     },
                 )
                 .map_err(runtime_port_error)?;
-            execution_id.to_owned()
+            (execution_id.to_owned(), is_transient)
         };
+        // Keep the optional source decoding/fork state out of native restore futures.
+        #[cfg(feature = "external-sources")]
+        if let Some(result) = Box::pin(self.fork_external_history_at_turn(
+            storage_path,
+            &source_session_id,
+            source_turn_id.as_deref(),
+            boundary,
+        ))
+        .await?
+        {
+            return Ok(result);
+        }
+        if is_transient {
+            let _guard = session_manager
+                .acquire_session_mutation(&source_session_id)
+                .await
+                .map_err(runtime_port_error)?;
+            session_manager
+                .validate_session_storage_path_binding(&source_session_id, storage_path)
+                .map_err(runtime_port_error)?;
+            let source = session_manager
+                .transient_branch_source_locked(&source_session_id)
+                .map_err(runtime_port_error)?;
+            fork_workspace_binding(&source.session, &expected_workspace)
+                .await
+                .map_err(runtime_port_error)?;
+            let source_turn_id = match source_turn_id {
+                Some(id) => id,
+                None => latest_persisted_turn_id(&source.turns).map_err(runtime_port_error)?,
+            };
+            let result = self
+                .persistence
+                .branch_transient_session(
+                    storage_path,
+                    &SessionBranchRequest {
+                        source_session_id: source_session_id.clone(),
+                        source_turn_id,
+                        boundary,
+                    },
+                    source,
+                )
+                .await
+                .map_err(runtime_port_error)?;
+            return self
+                .finish_session_fork(storage_path, &source_session_id, result)
+                .await;
+        }
         if !session_manager
             .is_session_loaded_from_storage_path(storage_path, &source_session_id)
             .map_err(runtime_port_error)?
@@ -2308,9 +2553,19 @@ impl CoreSessionOperationsPort {
             )
             .await
             .map_err(runtime_port_error)?;
+        self.finish_session_fork(storage_path, &source_session_id_for_coordination, result)
+            .await
+    }
+
+    async fn finish_session_fork(
+        &self,
+        storage_path: &Path,
+        source_session_id: &str,
+        result: crate::agentic::persistence::SessionBranchResult,
+    ) -> PortResult<AgentSessionForkResult> {
         if let Err(error) = self
             .coordinator
-            .initialize_fork_coordination(&source_session_id_for_coordination, &result.session_id)
+            .initialize_fork_coordination(source_session_id, &result.session_id)
             .await
         {
             if let Err(cleanup_error) = self
@@ -3098,6 +3353,53 @@ mod tests {
         );
     }
 
+    #[test]
+    fn projected_turn_saves_keep_runtime_round_timing() {
+        let mut persisted = DialogTurnData::new(
+            "turn-1".to_string(),
+            0,
+            "session-1".to_string(),
+            UserMessageData {
+                id: "user-1".to_string(),
+                content: "hi".to_string(),
+                timestamp: 1,
+                metadata: None,
+            },
+        );
+        let round = |id: &str| {
+            SessionManager::build_model_rounds_from_messages(
+                &[crate::agentic::core::Message::assistant("answer".into())
+                    .with_round_id(id.into())],
+                "turn-1",
+                1,
+            )
+            .remove(0)
+        };
+        let mut timed = round("round-1");
+        timed.duration_ms = Some(2172);
+        timed.stream_duration_ms = Some(1500);
+        timed.ttft_ms = Some(690);
+        timed.attempt_count = Some(1);
+        let mut projected_timed = round("round-0");
+        projected_timed.duration_ms = Some(900);
+        let mut persisted_timed = projected_timed.clone();
+        persisted_timed.duration_ms = Some(800);
+        persisted.model_rounds = vec![persisted_timed, timed];
+        let mut projected = persisted.clone();
+        // The window checkpointed the last round before its completion event.
+        let mut untimed = round("round-1");
+        untimed.duration_ms = Some(0);
+        projected.model_rounds = vec![projected_timed, untimed];
+
+        let merged = merge_runtime_owned_turn_facts(&persisted, &projected);
+        assert_eq!(merged.model_rounds[0].duration_ms, Some(900));
+        let last = &merged.model_rounds[1];
+        assert_eq!(last.duration_ms, Some(2172));
+        assert_eq!(last.stream_duration_ms, Some(1500));
+        assert_eq!(last.ttft_ms, Some(690));
+        assert_eq!(last.attempt_count, Some(1));
+    }
+
     #[tokio::test]
     async fn product_event_queue_owner_broadcasts_while_draining_the_legacy_queue() {
         let queue = Arc::new(EventQueue::new(EventQueueConfig {
@@ -3600,6 +3902,7 @@ mod tests {
                 "Reload test".to_string(),
                 "Standard".to_string(),
                 crate::agentic::core::SessionConfig {
+                    tool_presentation_mode: Default::default(),
                     workspace_path: Some(workspace.path().to_string_lossy().to_string()),
                     ..Default::default()
                 },
@@ -3913,6 +4216,7 @@ mod tests {
                 format!("Remote fork {host}"),
                 "Standard".to_string(),
                 crate::agentic::core::SessionConfig {
+                    tool_presentation_mode: Default::default(),
                     workspace_path: Some(remote_path.clone()),
                     remote_connection_id: Some(connection_id.to_string()),
                     remote_ssh_host: Some(host.to_string()),
@@ -4212,6 +4516,190 @@ mod tests {
                     .len(),
                 2
             );
+
+            // BTW keeps its authoritative turns in memory, independently of
+            // model context compression, until the user chooses to save it.
+            let temporary = session_manager
+                .create_session_with_id_and_details(
+                    Some(format!("btw-{connection_id}")),
+                    "Temporary question".to_string(),
+                    "Standard".to_string(),
+                    crate::agentic::core::SessionConfig {
+                        tool_presentation_mode: Default::default(),
+                        workspace_id: Some(record.id.clone()),
+                        workspace_path: Some(remote_path.clone()),
+                        remote_connection_id: Some(connection_id.to_string()),
+                        remote_ssh_host: Some(host.to_string()),
+                        ..Default::default()
+                    },
+                    Some(format!("session-{source_session_id}")),
+                    SessionKind::EphemeralChild,
+                )
+                .await
+                .expect("temporary BTW");
+            session_manager
+                .replace_context_messages(
+                    &temporary.session_id,
+                    vec![crate::agentic::core::Message::user(
+                        "Inherited parent context".to_string(),
+                    )],
+                )
+                .await;
+            for index in 0..3 {
+                let turn_id = session_manager
+                    .start_dialog_turn(
+                        &temporary.session_id,
+                        "Standard".to_string(),
+                        format!("Question {index}"),
+                        Some(format!("btw-turn-{index}")),
+                        None,
+                        None,
+                    )
+                    .await
+                    .expect("temporary question");
+                let messages =
+                    vec![
+                        crate::agentic::core::Message::assistant(format!("Answer {index}"))
+                            .with_turn_id(turn_id.clone())
+                            .with_round_id(format!("btw-round-{index}")),
+                    ];
+                session_manager
+                    .add_messages(&temporary.session_id, messages.clone())
+                    .await
+                    .unwrap();
+                match index {
+                    0 => session_manager
+                        .complete_dialog_turn(
+                            &temporary.session_id,
+                            &turn_id,
+                            format!("Answer {index}"),
+                            &messages,
+                            crate::agentic::core::TurnStats::default(),
+                            Some("stop".to_string()),
+                            Some(true),
+                        )
+                        .await
+                        .unwrap(),
+                    1 => session_manager
+                        .cancel_dialog_turn_with_messages(
+                            &temporary.session_id,
+                            &turn_id,
+                            &messages,
+                        )
+                        .await
+                        .unwrap(),
+                    _ => session_manager
+                        .fail_dialog_turn_with_messages(
+                            &temporary.session_id,
+                            &turn_id,
+                            "test failure".to_string(),
+                            &messages,
+                        )
+                        .await
+                        .unwrap(),
+                }
+                session_manager.reset_session_state_if_processing(&temporary.session_id, &turn_id);
+            }
+            let compacted = vec![
+                crate::agentic::core::Message::user("Inherited parent context".to_string()),
+                crate::agentic::core::Message::assistant("Compacted temporary context".to_string()),
+            ];
+            session_manager
+                .replace_context_messages(&temporary.session_id, compacted.clone())
+                .await;
+            assert!(persistence
+                .load_session_metadata(&storage_path, &temporary.session_id)
+                .await
+                .unwrap()
+                .is_none());
+            let old_boundary = port
+                .fork_session_at_turn(AgentSessionForkAtTurnRequest {
+                    workspace_id: Some(record.id.clone()),
+                    workspace_path: String::new(),
+                    source_session_id: temporary.session_id.clone(),
+                    source_turn_id: "btw-turn-0".to_string(),
+                    remote_connection_id: None,
+                    remote_ssh_host: None,
+                })
+                .await
+                .expect("temporary historical forks preserve the matching context snapshot");
+            let older_context = persistence
+                .load_turn_context_snapshot(&storage_path, &old_boundary.session_id, 0)
+                .await
+                .unwrap()
+                .unwrap();
+            let older_context = serde_json::to_string(&older_context).unwrap();
+            assert!(older_context.contains("Inherited parent context"));
+            assert!(older_context.contains("Answer 0"));
+            assert!(!older_context.contains("Compacted temporary context"));
+            let saved = port
+                .fork_session_at_turn(AgentSessionForkAtTurnRequest {
+                    workspace_id: Some(record.id.clone()),
+                    workspace_path: String::new(),
+                    source_session_id: temporary.session_id.clone(),
+                    source_turn_id: "btw-turn-2".to_string(),
+                    remote_connection_id: None,
+                    remote_ssh_host: None,
+                })
+                .await
+                .expect("save temporary BTW through the existing fork port");
+            let saved_session = persistence
+                .load_session(&storage_path, &saved.session_id)
+                .await
+                .unwrap();
+            assert_eq!(saved_session.kind, SessionKind::Standard);
+            assert_eq!(saved_session.created_by, None);
+            assert_eq!(
+                saved_session.config.remote_connection_id.as_deref(),
+                Some(connection_id)
+            );
+            assert_eq!(saved_session.config.remote_ssh_host.as_deref(), Some(host));
+            let saved_turns = persistence
+                .load_session_turns(&storage_path, &saved.session_id)
+                .await
+                .unwrap();
+            assert_eq!(saved_turns.len(), 3);
+            assert_eq!(
+                saved_turns
+                    .iter()
+                    .map(|turn| turn.status.clone())
+                    .collect::<Vec<_>>(),
+                vec![
+                    TurnStatus::Completed,
+                    TurnStatus::Cancelled,
+                    TurnStatus::Error
+                ]
+            );
+            for (index, turn) in saved_turns.iter().enumerate() {
+                assert_eq!(turn.user_message.content, format!("Question {index}"));
+                assert_eq!(
+                    turn.model_rounds[0].text_items[0].content,
+                    format!("Answer {index}")
+                );
+            }
+            let saved_context = persistence
+                .load_turn_context_snapshot(&storage_path, &saved.session_id, 2)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(
+                serde_json::to_value(saved_context).unwrap(),
+                serde_json::to_value(compacted).unwrap()
+            );
+            let saved_metadata = persistence
+                .load_session_metadata(&storage_path, &saved.session_id)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(saved_metadata.relationship, None);
+            assert_eq!(
+                session_manager
+                    .get_session(&temporary.session_id)
+                    .unwrap()
+                    .kind,
+                SessionKind::EphemeralChild
+            );
+            assert!(!storage_path.join(&temporary.session_id).exists());
         }
         assert!(!Path::new(&remote_path).exists());
     }
@@ -4237,6 +4725,7 @@ mod tests {
             "Source".into(),
             "Standard".into(),
             crate::agentic::core::SessionConfig {
+                tool_presentation_mode: Default::default(),
                 workspace_id: Some(local.id.clone()),
                 workspace_path: Some("/stale/controller/mirror/sessions".into()),
                 remote_connection_id: Some("stale-ssh".into()),
@@ -4406,10 +4895,7 @@ mod tests {
             .load_visible_persisted_session_turns(&storage_path, session_id)
             .await
             .expect_err("cold readers must fail closed on an unfinished undo transition");
-        assert!(matches!(
-            cold_read_error,
-            BitFunError::OutcomeUnknown(_)
-        ));
+        assert!(matches!(cold_read_error, BitFunError::OutcomeUnknown(_)));
 
         let result = port
             .fork_session(AgentSessionForkRequest {
@@ -4438,6 +4924,7 @@ mod tests {
                 "Transient settlement".to_string(),
                 "Standard".to_string(),
                 crate::agentic::core::SessionConfig {
+                    tool_presentation_mode: Default::default(),
                     workspace_path: Some(workspace_root.to_string_lossy().into_owned()),
                     ..Default::default()
                 },
@@ -4647,6 +5134,8 @@ mod tests {
                     workspace_path: Some(usage_workspace_path),
                     remote_connection_id: None,
                     remote_ssh_host: None,
+                    include_system_prompt_preview: false,
+                    context_preview_category: None,
                     include_hidden_subagents: false,
                 })
                 .await
@@ -4697,6 +5186,8 @@ mod tests {
                 workspace_path: Some(workspace.path().to_string_lossy().into_owned()),
                 remote_connection_id: None,
                 remote_ssh_host: None,
+                include_system_prompt_preview: false,
+                context_preview_category: None,
                 include_hidden_subagents: false,
             },
         )
@@ -4761,6 +5252,8 @@ mod tests {
                 workspace_path: Some(workspace.path().to_string_lossy().into_owned()),
                 remote_connection_id: None,
                 remote_ssh_host: None,
+                include_system_prompt_preview: false,
+                context_preview_category: None,
                 include_hidden_subagents: false,
             },
         )

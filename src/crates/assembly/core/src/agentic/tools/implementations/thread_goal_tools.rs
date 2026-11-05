@@ -23,9 +23,7 @@ fn require_agent_runtime() -> BitFunResult<bitfun_agent_runtime::sdk::AgentRunti
     CoreServiceAgentRuntime::agent_runtime(coordinator).map_err(BitFunError::tool)
 }
 
-fn require_session_context(
-    context: &ToolUseContext,
-) -> BitFunResult<(String, std::path::PathBuf)> {
+fn require_session_context(context: &ToolUseContext) -> BitFunResult<(String, std::path::PathBuf)> {
     let session_id = context
         .session_id
         .clone()
@@ -44,6 +42,21 @@ fn thread_goal_runtime_error(error: RuntimeError) -> BitFunError {
             CoreServiceAgentRuntime::runtime_error_message(other),
         )),
     }
+}
+
+fn thread_goal_output_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "goal": {
+                "anyOf": [
+                    {"type": "null"},
+                    {"type": "object", "properties": {"status": {"type": "string"}}, "required": ["status"], "additionalProperties": false}
+                ]
+            }
+        },
+        "additionalProperties": false
+    })
 }
 
 fn thread_goal_port_error(port_error: PortError) -> BitFunError {
@@ -105,6 +118,10 @@ impl Tool for GetGoalTool {
             "additionalProperties": false,
             "properties": {}
         })
+    }
+
+    fn output_schema(&self) -> Value {
+        thread_goal_output_schema()
     }
 
     fn is_readonly(&self) -> bool {
@@ -197,6 +214,10 @@ Set token_budget only when an explicit token budget is requested. Fails if a goa
         })
     }
 
+    fn output_schema(&self) -> Value {
+        thread_goal_output_schema()
+    }
+
     async fn call_impl(
         &self,
         input: &Value,
@@ -248,9 +269,9 @@ impl Tool for UpdateGoalTool {
     async fn description(&self) -> BitFunResult<String> {
         Ok(
             "Update the existing goal. Use only to mark the goal achieved or genuinely blocked. \
-Set status to complete only when the objective has actually been achieved and no required work remains. \
+Set status to complete only when current evidence verifies the full objective, subsequent user requirements, and requested delivery; no required work may remain. \
 Set status to blocked only when the same blocking condition has repeated for at least three consecutive goal turns and the agent cannot make meaningful progress without user input or an external-state change. \
-You cannot use this tool to pause, resume, budget-limit, or usage-limit a goal."
+After an explicit resume, begin a fresh blocked audit. Do not repeat failed side effects merely to count turns. You cannot use this tool to pause, resume, budget-limit, or usage-limit a goal."
                 .to_string(),
         )
     }
@@ -272,6 +293,10 @@ You cannot use this tool to pause, resume, budget-limit, or usage-limit a goal."
                 }
             }
         })
+    }
+
+    fn output_schema(&self) -> Value {
+        thread_goal_output_schema()
     }
 
     async fn call_impl(

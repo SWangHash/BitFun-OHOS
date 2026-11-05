@@ -5,13 +5,13 @@
  * @module components/MarkdownEditor
  */
 
-import { Button, Icon, IconButton, SegmentedControl, Toolbar, ToolbarGroup } from '@bitfun/ui';
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { Button, Empty, Icon, IconButton, SegmentedControl, Toolbar, ToolbarGroup } from '@bitfun/ui';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { MEditor } from '../meditor';
 import { resourcePathKey } from '@/shared/utils/resourcePath';
 import { useEditorDocument } from '../services/EditorDocument';
+import { standaloneEditorFileAccess, type EditorFileAccess } from '../services/editorFileAccess';
 import type { EditorInstance } from '../meditor';
-import { AlertCircle } from 'lucide-react';
 import { createLogger } from '@/shared/utils/logger';
 import { useNotification } from '@/shared/notification-system';
 import { sendDebugProbe } from '@/shared/utils/debugProbe';
@@ -60,7 +60,11 @@ export interface MarkdownEditorProps {
   filePath?: string;
   /** Initial content - used when no filePath */
   initialContent?: string;
-  /** Workspace path */
+  /** Task-specific empty-state copy; takes precedence over the focused AI hint. */
+  emptyDocumentPlaceholder?: string;
+  /** Owning workspace ID for editors rendered without an EditorDocument. */
+  workspaceId?: string;
+  /** Workspace root (IO projection only; never identity). */
   workspacePath?: string;
   /** File name */
   fileName?: string;
@@ -86,6 +90,8 @@ export interface MarkdownEditorProps {
 const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   filePath,
   initialContent = '',
+  emptyDocumentPlaceholder,
+  workspaceId,
   workspacePath,
   readOnly = false,
   className = '',
@@ -99,7 +105,8 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
 }) => {
   const { t } = useI18n('tools');
   const documentSession = useEditorDocument();
-  const documentFiles = documentSession?.files;
+  const standaloneFiles = useMemo(() => standaloneEditorFileAccess(workspaceId), [workspaceId]);
+  const documentFiles: EditorFileAccess = documentSession?.files ?? standaloneFiles;
   const documentIdentity = documentSession?.id ?? filePath;
   const documentMarkdownMode = documentSession?.markdownMode;
   const [content, setContent] = useState<string>(initialContent);
@@ -204,7 +211,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
     if (!filePath) {
       throw new Error('Missing file path');
     }
-    const workspaceAPI = documentFiles ?? (await import('@/infrastructure/api')).workspaceAPI;
+    const workspaceAPI = documentFiles;
     return workspaceAPI.getFileMetadata(filePath);
   }, [documentFiles, filePath]);
 
@@ -227,7 +234,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
     setError(null);
 
     try {
-      const workspaceAPI = documentFiles ?? (await import('@/infrastructure/api')).workspaceAPI;
+      const workspaceAPI = documentFiles;
 
       const fileContent = await workspaceAPI.readFileContent(filePath);
       reportFileMissingFromDisk(false);
@@ -352,7 +359,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
     let outcome = 'started';
     let probeError: string | null = null;
     try {
-      const workspaceAPI = documentFiles ?? (await import('@/infrastructure/api')).workspaceAPI;
+      const workspaceAPI = documentFiles;
       const fileInfo = await fetchFileMetadata();
       if (isFileMissingFromMetadata(fileInfo)) {
         outcome = 'missing-on-disk';
@@ -513,7 +520,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
 
     try {
       if (filePath && workspacePath) {
-        const workspaceAPI = documentFiles ?? (await import('@/infrastructure/api')).workspaceAPI;
+        const workspaceAPI = documentFiles;
 
         const fileInfoPre = await fetchFileMetadata();
         if (isFileMissingFromMetadata(fileInfoPre)) {
@@ -689,15 +696,17 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   if (error) {
     return (
       <div className={`bitfun-markdown-editor-error ${className}`} data-bitfun-product-component="markdown-editor" data-bitfun-product-part="error" data-bitfun-state="error">
-        <div className="error-content">
-          <AlertCircle className="error-icon" />
-          <p>{error}</p>
-          {filePath && (
+        <Empty
+          role="alert"
+          imageSize="sm"
+          icon={<Icon name="file-x-2" />}
+          description={error}
+          actions={filePath ? (
             <Button variant="outline" size="sm" onClick={loadFileContent}>
               {t('editor.common.retry')}
             </Button>
-          )}
-        </div>
+          ) : undefined}
+        />
       </div>
     );
   }
@@ -711,6 +720,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
         size="sm"
         leading={(
           <SegmentedControl
+            className="bitfun-markdown-editor__mode-toggle"
             aria-label={t('editor.markdownEditor.viewModeLabel')}
             size="sm"
             tone="neutral"
@@ -759,6 +769,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
           height="100%"
           width="100%"
           placeholder={t('editor.markdownEditor.placeholder')}
+          emptyDocumentPlaceholder={emptyDocumentPlaceholder}
           readonly={readOnly}
           toolbar={false}
           filePath={filePath}

@@ -1,6 +1,6 @@
 //! Appearance marketplace contracts and pure publication policy.
 //!
-//! The marketplace is deployed under the OpenBitFun identity, so every
+//! The marketplace is deployed under the BitFun identity, so every
 //! minimum-version field is written on the wire as `minOpenBitFunVersion`
 //! while the retired `minBitFunVersion` spelling stays accepted as a legacy
 //! read alias.

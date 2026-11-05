@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { configManager } from '@/infrastructure/config/services/ConfigManager';
 import { configAPI } from '@/infrastructure/api';
 import { isSkillMarketItemInstalled } from '@/infrastructure/config/skillMarketInstallation';
 import type { SkillLevel, SkillMarketItem } from '@/infrastructure/config/types';
@@ -10,6 +11,8 @@ import { createLogger } from '@/shared/utils/logger';
 const log = createLogger('SkillsScene:useSkillMarket');
 
 const DEFAULT_PAGE_SIZE = 10;
+// Fetch batches are independent of the viewport so resizing never restarts a query.
+const FETCH_BATCH_SIZE = 20;
 const MAX_TOTAL_SKILLS = 500;
 
 interface InstalledDirNamesByLevel {
@@ -41,10 +44,18 @@ export function useSkillMarket({
   const [marketSkills, setMarketSkills] = useState<SkillMarketItem[]>([]);
   const [marketLoading, setMarketLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [loadMoreError, setLoadMoreError] = useState(false);
+  const [sourceErrors, setSourceErrors] = useState<string[]>([]);
   const [marketError, setMarketError] = useState<string | null>(null);
   const [downloadingPackage, setDownloadingPackage] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
+  const pageSizeRef = useRef(pageSize);
+  useLayoutEffect(() => {
+    const previousSize = pageSizeRef.current;
+    pageSizeRef.current = pageSize;
+    if (previousSize !== pageSize) {
+      setCurrentPage(page => Math.floor(page * previousSize / pageSize));
+    }
+  }, [pageSize]);
   const marketRequestIdRef = useRef(0);
   const capabilityKey = `${enabled}\u0000${workspace?.id ?? ''}\u0000${isRemoteWorkspace}`;
   const capabilityRef = useRef({ key: capabilityKey, epoch: 0, enabled });
@@ -69,9 +80,7 @@ export function useSkillMarket({
 
   const fetchSkills = useCallback(async (query: string | undefined, limit: number, offset: number) => {
     const normalized = query?.trim();
-    return normalized
-      ? await configAPI.searchSkillMarket(normalized, limit, offset)
-      : await configAPI.listSkillMarket(undefined, limit, offset);
+    return await configAPI.querySkillMarkets(normalized || undefined, limit);
   }, []);
 
   const loadFirstPage = useCallback(async (query?: string) => {
@@ -87,17 +96,19 @@ export function useSkillMarket({
     const requestId = ++marketRequestIdRef.current;
 
     setMarketLoading(true);
+    setLoadingMore(false);
     setMarketError(null);
-    setLoadMoreError(false);
+    setSourceErrors([]);
+    setCurrentPage(0);
     try {
-      const fetchBatch = pageSize + 1;
-      const skillList = await fetchSkills(query, fetchBatch, 0);
+      const result = await fetchSkills(query, FETCH_BATCH_SIZE);
       if (requestId !== marketRequestIdRef.current || !capabilityIsCurrent(capabilityEpoch)) {
         return;
       }
-      const displaySkills = skillList.slice(0, pageSize);
-      setMarketSkills(displaySkills);
-      setHasMore(skillList.length > pageSize);
+      const skillList = result.skills;
+      setSourceErrors(result.sourceErrors);
+      setMarketSkills(skillList);
+      setHasMore(skillList.length >= FETCH_BATCH_SIZE);
     } catch (err) {
       if (requestId !== marketRequestIdRef.current || !capabilityIsCurrent(capabilityEpoch)) {
         return;
@@ -107,7 +118,7 @@ export function useSkillMarket({
     } finally {
       setMarketLoading(false);
     }
-  }, [capabilityIsCurrent, currentCapabilityEpoch, fetchSkills, pageSize]);
+  }, [capabilityIsCurrent, currentCapabilityEpoch, fetchSkills]);
 
   useEffect(() => {
     marketRequestIdRef.current += 1;
@@ -116,12 +127,20 @@ export function useSkillMarket({
       setMarketLoading(false);
       setLoadingMore(false);
       setMarketError(null);
+      setSourceErrors([]);
       setDownloadingPackage(null);
       setHasMore(false);
       return;
     }
     loadFirstPage(searchQuery || undefined);
   }, [capabilityKey, enabled, loadFirstPage, searchQuery]);
+
+  useEffect(() => configManager.onConfigChange((path) => {
+    if (path === 'app.skill_market' || path.startsWith('app.skill_market.')) {
+      setMarketSkills([]);
+      void loadFirstPage(searchQuery || undefined);
+    }
+  }), [loadFirstPage, searchQuery]);
 
   const refresh = useCallback(async () => {
     await loadFirstPage(searchQuery || undefined);
@@ -150,55 +169,50 @@ export function useSkillMarket({
     return entries.map((entry) => entry.skill);
   }, [installedMarketIds, marketSkills]);
 
-  const goToNextPage = useCallback(async () => {
+  const loadedPages = Math.ceil(displayMarketSkills.length / pageSize);
+  const totalPages = hasMore ? loadedPages + 1 : Math.max(1, loadedPages);
+
+  const paginatedSkills = useMemo(() => displayMarketSkills.slice(
+    currentPage * pageSize,
+    (currentPage + 1) * pageSize,
+  ), [currentPage, displayMarketSkills, pageSize]);
+
+  const goToPage = useCallback(async (page: number) => {
     const capabilityEpoch = currentCapabilityEpoch();
-    if (capabilityEpoch === null) {
-      return;
-    }
-    if (marketLoading || loadingMore || loadMoreError || !hasMore) {
+    if (capabilityEpoch === null || loadingMore) return;
+
+    const nextPage = Math.max(0, Math.min(page, totalPages - 1));
+    const firstIndex = nextPage * pageSize;
+    const neededCount = Math.min((nextPage + 1) * pageSize, MAX_TOTAL_SKILLS);
+    if (displayMarketSkills.length >= neededCount || !hasMore) {
+      setCurrentPage(Math.min(nextPage, Math.max(0, loadedPages - 1)));
       return;
     }
 
     const requestId = ++marketRequestIdRef.current;
-    setLoadingMore(true);
+    const limit = Math.min(MAX_TOTAL_SKILLS, Math.max(neededCount, displayMarketSkills.length + FETCH_BATCH_SIZE));
     try {
-      const nextOffset = displayMarketSkills.length;
-      const remainingBudget = Math.max(0, MAX_TOTAL_SKILLS - nextOffset);
-      if (remainingBudget < pageSize) {
-        setHasMore(false);
-        return;
-      }
-      // Fetch one extra item so an exhausted result set is detected without an
-      // extra request (no next page ??stop scroll loading).
-      const fetchBatch = pageSize + 1;
-      const skillList = await fetchSkills(searchQuery || undefined, fetchBatch, nextOffset);
-      if (requestId !== marketRequestIdRef.current || !capabilityIsCurrent(capabilityEpoch)) {
-        return;
-      }
-      if (skillList.length === 0) {
-        setHasMore(false);
-        return;
-      }
-      const displaySkills = skillList.slice(0, pageSize);
-      const existingIds = new Set(marketSkills.map((s) => s.installId));
-      const added = displaySkills.filter((s) => !existingIds.has(s.installId));
-      if (added.length === 0) {
-        setHasMore(false);
-        return;
-      }
-      setMarketSkills((prev) => [...prev, ...added]);
-      setHasMore(skillList.length > pageSize);
-      setLoadMoreError(false);
+      // Keep the current cards visible while fetching the next page.
+      setLoadingMore(true);
+      const result = await fetchSkills(searchQuery || undefined, limit);
+      if (requestId !== marketRequestIdRef.current || !capabilityIsCurrent(capabilityEpoch)) return;
+      const skillList = result.skills;
+      setSourceErrors(result.sourceErrors);
+      setMarketSkills(skillList);
+      setHasMore(limit < MAX_TOTAL_SKILLS && skillList.length >= limit);
+      // An exhausted source may return no new entries. Stay on a populated page,
+      // including when the viewport capacity changed during the request.
+      setCurrentPage(Math.floor(Math.min(firstIndex, Math.max(0, skillList.length - 1)) / pageSizeRef.current));
     } catch (err) {
-      if (requestId !== marketRequestIdRef.current || !capabilityIsCurrent(capabilityEpoch)) {
-        return;
-      }
+      if (requestId !== marketRequestIdRef.current || !capabilityIsCurrent(capabilityEpoch)) return;
       log.error('Failed to load more skills', err);
-      setLoadMoreError(true);
     } finally {
-      setLoadingMore(false);
+      if (requestId === marketRequestIdRef.current && capabilityIsCurrent(capabilityEpoch)) setLoadingMore(false);
     }
-  }, [capabilityIsCurrent, currentCapabilityEpoch, displayMarketSkills.length, fetchSkills, hasMore, loadingMore, marketLoading, marketSkills, pageSize, searchQuery]);
+  }, [capabilityIsCurrent, currentCapabilityEpoch, displayMarketSkills.length, fetchSkills, hasMore, loadedPages, loadingMore, pageSize, searchQuery, totalPages]);
+
+  const goToPrevPage = useCallback(() => goToPage(currentPage - 1), [currentPage, goToPage]);
+  const goToNextPage = useCallback(() => goToPage(currentPage + 1), [currentPage, goToPage]);
 
   const handleDownload = useCallback(async (skill: SkillMarketItem, targetLevel: SkillLevel = 'project') => {
     const capabilityEpoch = currentCapabilityEpoch();
@@ -208,7 +222,7 @@ export function useSkillMarket({
 
     const resolvedLevel: SkillLevel = isRemoteWorkspace ? 'user' : targetLevel;
     // Block project-level install when the active workspace is the assistant
-    // workspace ??it would land in the assistant dir and "disappear" when the
+    // workspace — it would land in the assistant dir and "disappear" when the
     // workspace switches. User must open a real project first (no auto-fallback).
     if (resolvedLevel === 'project' && (!hasWorkspace || isAssistantWorkspace)) {
       notification.warning(t('messages.noWorkspace'));
@@ -258,22 +272,20 @@ export function useSkillMarket({
     }
   }, [capabilityIsCurrent, currentCapabilityEpoch, hasWorkspace, isAssistantWorkspace, isRemoteWorkspace, notification, onInstalledChanged, t, workspace?.id]);
 
-  const retryLoadMore = useCallback(() => {
-    setLoadMoreError(false);
-    void goToNextPage();
-  }, [goToNextPage]);
-
   return {
     marketSkills: displayMarketSkills,
     marketLoading,
     loadingMore,
-    loadMoreError,
     marketError,
+    sourceErrors,
     downloadingPackage,
     hasMore,
+    currentPage,
+    totalPages,
     refresh,
+    goToPage,
+    goToPrevPage,
     goToNextPage,
-    retryLoadMore,
     handleDownload,
     hasWorkspace,
     isRemoteWorkspace,

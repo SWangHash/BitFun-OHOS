@@ -491,6 +491,32 @@ impl FrontendWorkbenchManager {
         }))
     }
 
+    fn mark_candidate_failed(
+        &self,
+        transaction_id: &str,
+        document_url: &Url,
+        message: &str,
+    ) -> Result<Value, String> {
+        {
+            let state = self.state.lock().map_err(lock_error)?;
+            let pending = matching_pending(&state, transaction_id)?;
+            let expected = revision_frontend_url_value(&pending.revision_id, Some(transaction_id))?;
+            if pending.phase != FrontendUpdatePhase::LoadingCandidate
+                || !same_main_navigation_target(&expected, document_url)
+            {
+                return Err(
+                    "Frontend activation failure did not come from the loading candidate"
+                        .to_string(),
+                );
+            }
+        }
+        let detail: String = message.chars().take(2000).collect();
+        self.rollback_pending(
+            transaction_id,
+            &format!("customization_activation_failed: {detail}"),
+        )
+    }
+
     pub fn confirm_pending(&self, transaction_id: &str) -> Result<Value, String> {
         let outcome = {
             let mut state = self.state.lock().map_err(lock_error)?;
@@ -727,14 +753,14 @@ impl FrontendWorkbenchManager {
         transaction_id: Option<&str>,
     ) -> Result<(), String> {
         let url = revision_frontend_url_value(revision_id, transaction_id)?;
-        let window = app
-            .get_webview_window("main")
+        let webview = app
+            .get_webview("main")
             .ok_or_else(|| "Main window is unavailable".to_string())?;
         {
             let mut navigation = self.main_navigation.lock().map_err(lock_error)?;
             navigation.armed_url = Some(url.clone());
         }
-        if let Err(error) = window.navigate(url.clone()) {
+        if let Err(error) = webview.navigate(url.clone()) {
             if let Ok(mut navigation) = self.main_navigation.lock() {
                 if navigation
                     .armed_url
@@ -1000,14 +1026,32 @@ pub struct FrontendUpdateDecisionRequest {
 #[tauri::command]
 pub async fn frontend_update_candidate_ready(
     state: tauri::State<'_, Arc<FrontendWorkbenchManager>>,
-    webview: tauri::WebviewWindow,
+    webview: tauri::Webview,
     request: FrontendUpdateDecisionRequest,
 ) -> Result<Value, String> {
-    require_main_window(&webview)?;
+    require_main_webview(&webview)?;
     let document_url = webview
         .url()
         .map_err(|error| format!("Failed to inspect the main frontend URL: {error}"))?;
     state.mark_candidate_ready(&request.transaction_id, &document_url)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FrontendUpdateFailureRequest {
+    transaction_id: String,
+    message: String,
+}
+
+#[tauri::command]
+pub async fn frontend_update_candidate_failed(
+    state: tauri::State<'_, Arc<FrontendWorkbenchManager>>,
+    webview: tauri::Webview,
+    request: FrontendUpdateFailureRequest,
+) -> Result<Value, String> {
+    require_main_webview(&webview)?;
+    let url = webview.url().map_err(|error| error.to_string())?;
+    state.mark_candidate_failed(&request.transaction_id, &url, &request.message)
 }
 
 #[tauri::command]
@@ -1050,7 +1094,7 @@ fn require_confirmation_window(webview: &tauri::WebviewWindow) -> Result<(), Str
     Ok(())
 }
 
-fn require_main_window(webview: &tauri::WebviewWindow) -> Result<(), String> {
+fn require_main_webview(webview: &tauri::Webview) -> Result<(), String> {
     if webview.label() != "main" {
         return Err("Frontend readiness can only be reported by the main window".to_string());
     }

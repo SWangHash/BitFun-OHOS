@@ -259,7 +259,13 @@
     "scanIncomplete": "Some skills could not be scanned. Available skills are still listed.",
     "diagnosticsUnavailable": "This host does not report skill scan diagnostics.",
     "noMore": "No more results",
-    "loadMoreFailed": "Load failed. Please retry."
+    "loadMoreFailed": "Load failed. Please retry.",
+    "unsupportedSkills": "Some skills require unsupported capabilities and were not loaded.",
+    "unsupportedField": "This host does not support the skill's {{field}} declaration. The skill was not loaded.",
+    "diagnostics": {
+      "title": "Scan details ({{count}})",
+      "description": "Available skills remain usable. Fix the files below, then scan again."
+    }
   },
   "deleteModal": {
     "title": "Confirm Delete",
@@ -283,7 +289,7 @@
     "disabled": "disabled",
     "revealPathFailed": "Could not open in file explorer: {{error}}",
     "nameConflict": "A skill named \"{{name}}\" is already installed. Uninstall the existing one before installing this.",
-"copyPathFailed": "Failed to copy path: {{error}}"
+    "copyPathFailed": "Failed to copy path: {{error}}"
   },
   "skillsCenter": "Skills Center",
   "searchSkills": "Search skills...",
@@ -403,8 +409,13 @@
       "canvas": "Canvas",
       "debugging": "Debugging",
       "coordination": "Coordination",
-      "planning": "Planning",
-      "gstack": "gstack"
+      "planning": "Planning"
     }
+  },
+  "pagination": {
+    "label": "Skills pages",
+    "page": "Page {{page}}",
+    "range": "{{start}}–{{end}} of {{total}} skills",
+    "rangeMore": "{{start}}–{{end}} · {{total}} skills loaded"
   }
 }

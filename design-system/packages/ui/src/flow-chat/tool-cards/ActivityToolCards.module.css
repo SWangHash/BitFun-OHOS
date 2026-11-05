@@ -6,8 +6,4 @@
     color: var(--bitfun-color-content-muted);
     white-space: nowrap;
   }
-
-  .summary[data-tone="danger"] {
-    color: var(--bitfun-color-status-danger-content);
-  }
 }

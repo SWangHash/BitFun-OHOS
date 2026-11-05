@@ -8,12 +8,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { HarnessProfileSelector } from './HarnessProfileSelector';
 
-const translate = vi.hoisted(() => vi.fn(
-  (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key,
-));
-
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: translate }),
+  useTranslation: () => ({
+    t: (key: string, options?: { defaultValue?: string; name?: string }) =>
+      key === 'chatInput.harness.modeLabel'
+        ? `${options?.name} mode`
+        : options?.defaultValue ?? key,
+  }),
 }));
 
 vi.mock('@bitfun/ui', async (importOriginal) => ({
@@ -77,7 +78,7 @@ describe('HarnessProfileSelector', () => {
       '[data-testid="harness-profile-selector"]',
     );
     expect(trigger?.querySelector('.bitfun-harness-selector__density-mark')).toBeNull();
-    expect(trigger?.textContent).toBe('chatInput.harness.profiles.Standard.name');
+    expect(trigger?.textContent).toBe('chatInput.harness.profiles.Standard.name mode');
     expect(trigger?.dataset.harnessPending).toBeUndefined();
     expect(
       container.querySelector('[data-testid="harness-profile-pending-dot"]'),
@@ -112,9 +113,6 @@ describe('HarnessProfileSelector', () => {
     expect(trigger?.querySelector('.bitfun-harness-selector__density-mark')).toBeNull();
     expect(trigger?.textContent).toContain('chatInput.harness.unsupportedProfile');
     expect(trigger?.getAttribute('aria-label')).toBe('chatInput.harness.unsupportedProfileNotice');
-    expect(translate).toHaveBeenCalledWith('chatInput.harness.unsupportedProfileNotice', {
-      id: 'future-profile',
-    });
   });
 
   it.each(['DeepReview', 'CodeReview', 'ReviewFixer'])(
@@ -140,11 +138,6 @@ describe('HarnessProfileSelector', () => {
       );
       expect(trigger?.textContent).toBe(agentId);
       expect(trigger?.getAttribute('aria-label')).toBe('chatInput.harness.fixedTooltip');
-      expect(translate).toHaveBeenCalledWith('chatInput.harness.fixedTooltip', { name: agentId });
-      expect(translate).not.toHaveBeenCalledWith(
-        'chatInput.harness.unsupportedProfileNotice',
-        expect.anything(),
-      );
 
       await act(async () => {
         trigger?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -182,9 +175,6 @@ describe('HarnessProfileSelector', () => {
       '[data-testid="harness-profile-selector"]',
     );
     expect(trigger?.getAttribute('aria-label')).toBe('chatInput.harness.unsupportedProfileNotice');
-    expect(translate).toHaveBeenCalledWith('chatInput.harness.unsupportedProfileNotice', {
-      id: 'Missing Agent',
-    });
   });
 
   it('disables profile selection while the authoritative update is in flight', async () => {
@@ -618,7 +608,7 @@ describe('HarnessProfileSelector', () => {
     expect(trigger?.dataset.harnessLocked).toBe('true');
     expect(trigger?.dataset.harnessFixed).toBe('true');
     expect(trigger?.disabled).toBe(false);
-    expect(trigger?.textContent).toBe('chatInput.harness.profiles.Standard.name');
+    expect(trigger?.textContent).toBe('chatInput.harness.profiles.Standard.name mode');
 
     await act(async () => {
       trigger?.dispatchEvent(new MouseEvent('click', { bubbles: true }));

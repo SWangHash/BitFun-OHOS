@@ -1,13 +1,21 @@
 package com.bitfun.mobile.core.transport
 
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.flow.update
+import kotlinx.serialization.json.jsonObject
+import com.bitfun.mobile.core.protocol.CommandStatusResponse
 
 import com.bitfun.mobile.core.crypto.CloudAccountCipher
 import com.bitfun.mobile.core.crypto.DeviceIdentity
@@ -44,11 +52,20 @@ import kotlinx.coroutines.CancellationException
 import kotlin.io.encoding.Base64
 import kotlin.uuid.Uuid
 import kotlin.uuid.ExperimentalUuidApi
+import kotlin.time.TimeSource
 
-public const val DEFAULT_CLOUD_RELAY_URL: String = "https://remote.bitfun.com/v/1.0.1"
+public const val DEFAULT_CLOUD_RELAY_URL: String = "https://remote.bitfun.com/v/1.0.2"
+
+/** A relayed stream page slower than this is worth a breadcrumb; faster ones are not. */
+internal const val SLOW_STREAM_PAGE_MS: Long = 300L
 
 /** Device kinds the relay accepts; mirrors `relay-service/src/db.rs::DEVICE_KINDS`. */
 private const val DEVICE_KIND_DESKTOP = "desktop"
+
+/**
+ * A headless host: the CLI and TUI delivery profiles belong to this kind.
+ */
+private const val DEVICE_KIND_CLI = "cli"
 
 /**
  * What this client registers itself as. Constant rather than a parameter: the
@@ -70,21 +87,23 @@ private val KNOWN_NON_DESKTOP_DEVICE_NAMES = setOf(
 )
 
 /**
- * Whether a relay device row is a desktop, and so controllable from a phone.
+ * Whether a relay device row is a host, and so controllable from a phone.
  *
- * A row that reports its kind is taken at its word. A row without one predates
- * the relay learning about kinds, and is judged by two weaker signals: this
- * phone's own row is never a desktop, and neither is one carrying a name our
- * own builds register under. Anything else stays visible — hiding a real
- * desktop would strand the user, while a stale phone row disappears the next
- * time that phone logs in against a relay that stores kinds.
+ * A row that reports its kind is taken at its word: a desktop and a CLI host run
+ * the same control plane, so both are targets, while a phone or a watch is only
+ * ever a controller. A row without one predates the relay learning about kinds,
+ * and is judged by two weaker signals: this phone's own row is never a host, and
+ * neither is one carrying a name our own builds register under. Anything else
+ * stays visible — hiding a real host would strand the user, while a stale phone
+ * row disappears the next time that phone logs in against a relay that stores
+ * kinds.
  */
-private fun AccountDeviceWire.isDesktop(
+private fun AccountDeviceWire.isHost(
     selfDeviceId: String,
     isLegacyMobileDeviceName: (String) -> Boolean,
 ): Boolean {
     val kind = deviceKind?.trim().orEmpty()
-    if (kind.isNotEmpty()) return kind == DEVICE_KIND_DESKTOP
+    if (kind.isNotEmpty()) return kind == DEVICE_KIND_DESKTOP || kind == DEVICE_KIND_CLI
     if (selfDeviceId.isNotEmpty() && deviceId == selfDeviceId) return false
     return !isLegacyMobileDeviceName(deviceName)
 }
@@ -111,7 +130,9 @@ public class CloudAccountException public constructor(
     public val failure: CloudAccountFailure,
     public val statusCode: Int?,
     cause: Throwable?,
-) : IllegalStateException("Cloud account request failed: $failure", cause) {
+    /** The relay's own wording, when it gave one; for the log, never for the UI. */
+    public val detail: String? = null,
+) : IllegalStateException("Cloud account request failed: $failure" + (detail?.let { " ($it)" } ?: ""), cause) {
     public constructor(failure: CloudAccountFailure, statusCode: Int?) : this(failure, statusCode, null)
 
     public constructor(failure: CloudAccountFailure) : this(failure, null, null)
@@ -132,13 +153,26 @@ public data class CloudAccountDevice public constructor(
     public val lastSeenAt: Long?,
     /** `desktop`, or null for a row the relay stored before kinds existed. */
     public val deviceKind: String? = null,
-)
+    /**
+     * Relay-computed mutual-control compatibility of this device with this one.
+     *
+     * `false` means confirmed incompatible: either a client build/protocol
+     * mismatch or a peer that reported no version information (an older client).
+     * Null only on an older Relay that does not gate at all, which must be
+     * treated as "unknown but usable", never as incompatible.
+     */
+    public val compatible: Boolean? = null,
+) {
+    /** The single gate every control entry point reuses; see [compatible]. */
+    public val controllable: Boolean get() = compatible != false
+}
 
 public class CloudAccountClient internal constructor(
     private val client: HttpClient,
     private val log: TransportLog = TransportLog.None,
     legacyMobileDeviceNames: Set<String> = emptySet(),
-    private val realtimeFactory: (HttpClient, String, String) -> AccountRpcConnection = ::AccountRealtime,
+    private val processingDispatcher: CoroutineDispatcher = Dispatchers.Default,
+    private val realtimeFactory: (HttpClient, String, String) -> AccountRpcConnection = { client, url, token -> AccountRealtime(client, url, token, log) },
 ) {
     private class Connection(val url: String, val token: String, val socket: AccountRpcConnection)
     private val realtime = MutableStateFlow<Connection?>(null)
@@ -159,11 +193,30 @@ public class CloudAccountClient internal constructor(
 
     /** Retain the closed binding so stale transports cannot reopen a signed-out account. */
     private val historyReaders = mutableMapOf<String, Channel<CompletableDeferred<Unit>>>()
+    /**
+     * Asks the subscribed stream for one older page and waits for its answer.
+     *
+     * The stream answers every request it is handed, including by failing the
+     * ones it cannot serve before it ends, so a session that is still subscribed
+     * never leaves this waiting. A session without a live subscription is an
+     * error rather than a silently dropped tap.
+     */
     public suspend fun loadOlderSession(targetDeviceId: String, sessionId: String) {
-        val channel = historyReaders[targetDeviceId + ":" + sessionId] ?: error("Session is not subscribed")
+        val channel = historyReaders[targetDeviceId + ":" + sessionId]
+            ?: error("Session is not subscribed")
         val request = CompletableDeferred<Unit>()
-        channel.send(request)
-        request.await()
+        log.info("history request started session=${sessionId.take(24)}")
+        try {
+            channel.send(request)
+            request.await()
+            log.info("history request answered session=${sessionId.take(24)}")
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Throwable) {
+            // Ids and failure kinds only, like the stream reader's own reports.
+            log.warn("history request failed session=${sessionId.take(24)} type=${error::class.simpleName} message=${error.message}")
+            throw error
+        }
     }
     private val foregroundResumes = MutableSharedFlow<Long>(extraBufferCapacity = 1)
     public fun resumeSessionStreams() { foregroundResumes.tryEmit(0L) }
@@ -175,7 +228,7 @@ public class CloudAccountClient internal constructor(
             socket.connections.drop(1).map { Unit })
     }
 
-    public fun closeAccount() { realtime.value?.socket?.close() }
+    public fun closeAccount() { forgetPeerKeys(); realtime.value?.socket?.close() }
 
     private val normalizedLegacyMobileDeviceNames =
         (KNOWN_NON_DESKTOP_DEVICE_NAMES + legacyMobileDeviceNames).mapTo(mutableSetOf()) {
@@ -205,7 +258,8 @@ public class CloudAccountClient internal constructor(
             val auth = request(
                 relayUrl, "/api/auth/login", HttpMethod.Post,
                 LoginRequest.serializer(), LoginRequest(accessToken, deviceId, deviceName, DEVICE_KIND_MOBILE,
-                    Base64.Default.encode(DeviceIdentity.publicKey(secret)), Uuid.random().toString()),
+                    Base64.Default.encode(DeviceIdentity.publicKey(secret)), Uuid.random().toString(),
+                    CLIENT_VERSION, CLIENT_PROTOCOL_VERSION),
                 AccountAuthResponse.serializer(), "", RELAY_DEFAULT_TIMEOUT_MS,
             )
             if (auth.token.isBlank() || auth.userId.isBlank()) throw CloudAccountException(CloudAccountFailure.MALFORMED_RESPONSE)
@@ -233,7 +287,7 @@ public class CloudAccountClient internal constructor(
             session.token,
             RELAY_DEFAULT_TIMEOUT_MS,
         ).filter { device ->
-            device.isDesktop(selfDeviceId) { name ->
+            device.isHost(selfDeviceId) { name ->
                 name.trim().lowercase() in normalizedLegacyMobileDeviceNames
             }
         }.map { device ->
@@ -243,35 +297,109 @@ public class CloudAccountClient internal constructor(
                 device.online,
                 device.lastSeenAt,
                 device.deviceKind,
+                device.compatible,
             )
         }
 
-    /** Account-bound durable reader. The caller owns collection lifecycle and atomic replica storage. */
+    /**
+     * Opens one host-owned stream on [targetDeviceId], read on demand over
+     * encrypted device RPC. The relay forwards ciphertext only, and nothing is
+     * written on this device: the transcript lives exactly as long as the flow.
+     */
     public suspend fun subscribeSession(
         relayUrl: String, session: CloudAccountSession, targetDeviceId: String, sessionId: String,
-        replica: SessionStreamReplica, onError: (Throwable) -> Unit, onCaughtUp: () -> Unit,
+        onError: (Throwable) -> Unit, onCaughtUp: () -> Unit,
     ): kotlinx.coroutines.flow.Flow<JsonObject> {
         val socket = connection(relayUrl, session.token)
-        val grant = deviceRpc(relayUrl, session, targetDeviceId,
-            RemoteCommand(cmd = "get_session_key", sessionId = sessionId), SessionKeyGrant.serializer(), RELAY_DEFAULT_TIMEOUT_MS)
-        check(grant.sessionId == sessionId) { "Session key grant binding mismatch" }
-        val historyKey = targetDeviceId + ":" + sessionId
+        val target = targetDeviceId.trim()
+        val historyKey = target + ":" + sessionId
         val historyRequests = Channel<CompletableDeferred<Unit>>(Channel.RENDEZVOUS)
         historyReaders[historyKey] = historyRequests
-        return sessionStream(sessionId, grant.key, grant.relaySessionId, socket.notifications, merge(socket.connections, foregroundResumes), replica,
-            readPage = { cursor ->
+        val hints = socket.notifications.mapNotNull { notice -> decodeStreamHint(relayUrl, session, target, notice) }
+        val reads = object : HostStreamReads {
+            override suspend fun read(after: Long?, before: Long?, epoch: Long?): StreamPageWire {
                 check(realtime.value?.socket === socket) { "Account changed" }
-                requestWithoutBody(relayUrl, "/v3/sessions/" + encodePathSegment(grant.relaySessionId) + "/messages?after_seq=" + cursor,
-                    HttpMethod.Get, StreamPage.serializer(), session.token, RELAY_DEFAULT_TIMEOUT_MS)
-            }, readBefore = { before ->
-                check(realtime.value?.socket === socket) { "Account changed" }
-                requestWithoutBody(relayUrl, "/v3/sessions/" + encodePathSegment(grant.relaySessionId) + "/messages?before_seq=" + before + "&limit=100",
-                    HttpMethod.Get, StreamPage.serializer(), session.token, RELAY_DEFAULT_TIMEOUT_MS)
-            }, olderRequests = historyRequests, onError = onError, onCaughtUp = onCaughtUp, prefetchOlder = sessionId != "@host/catalog").onCompletion {
+                val startedAt = TimeSource.Monotonic.markNow()
+                val page = deviceRpc(relayUrl, session, target,
+                    RemoteCommand(cmd = "read_stream", streamId = sessionId, after = after, before = before, epoch = epoch, subscribe = true),
+                    StreamPageWire.serializer(), RELAY_DEFAULT_TIMEOUT_MS)
+                val elapsedMs = startedAt.elapsedNow().inWholeMilliseconds
+                // The opening page (`after == null`) is the one the user waits for,
+                // and a slow page is worth naming wherever it happens; a page per
+                // hint during a streaming turn is not, so it stays quiet.
+                if (after == null || elapsedMs >= SLOW_STREAM_PAGE_MS) {
+                    log.info("stream page stream=${sessionId.take(24)} after=${after ?: -1} before=${before ?: -1} events=${page.events.size} has_more=${page.hasMore} ms=$elapsedMs")
+                }
+                return page
+            }
+            override suspend fun unsubscribe() {
+                if (realtime.value?.socket !== socket) return
+                deviceRpc(relayUrl, session, target, RemoteCommand(cmd = "unsubscribe_stream", streamId = sessionId),
+                    CommandStatusResponse.serializer(), RELAY_DEFAULT_TIMEOUT_MS)
+            }
+        }
+        // Time from "the user opened this session" to "the host's rows are on
+        // screen, ready to render": every page read plus the reading side's own
+        // reduction of those pages. The store renders only after `onCaughtUp`, so
+        // the gap between the two counts is what the receiving device spends.
+        val openedAt = TimeSource.Monotonic.markNow()
+        var recordsSeen = 0
+        return hostStream(sessionId, target, hints, merge(socket.connections.drop(1), foregroundResumes), reads,
+            olderRequests = historyRequests, onError = { error ->
+                log.warn("host stream read failed stream=${sessionId.take(24)} type=${error::class.simpleName} failure=${(error as? CloudAccountException)?.failure} message=${error.message}")
+                onError(error)
+            }, onCaughtUp = {
+                log.info("host stream caught up stream=${sessionId.take(24)} events=$recordsSeen elapsed_ms=${openedAt.elapsedNow().inWholeMilliseconds}")
+                onCaughtUp()
+            }).onEach { recordsSeen++ }.onCompletion { cause ->
+                log.info("host stream ended stream=${sessionId.take(24)} events=$recordsSeen cause=${cause?.let { it::class.simpleName } ?: "none"}")
                 if (historyReaders[historyKey] === historyRequests) historyReaders.remove(historyKey)
                 historyRequests.close()
             }
     }
+
+    /**
+     * Decrypts a relayed `device-event` from [target]; null for presence
+     * notices, events from other devices, and anything that is not a stream
+     * hint. A hint that cannot be decrypted is dropped: the next keepalive or
+     * reconnect re-reads the host anyway.
+     */
+    private suspend fun decodeStreamHint(relayUrl: String, session: CloudAccountSession, target: String, notice: JsonObject): StreamHint? {
+        if (notice["type"]?.jsonPrimitive?.contentOrNull != "device-event") return null
+        val source = notice["sourceDeviceId"]?.jsonPrimitive?.contentOrNull ?: return null
+        if (source != target) return null
+        val params = notice["params"] as? JsonObject ?: return null
+        val envelope = try { RelayJson.decodeFromJsonElement(EncryptedPayload.serializer(), params) } catch (_: Throwable) { return null }
+        return try {
+            val key = peerMessageKey(relayUrl, session, target)
+            val plain = CloudAccountCipher.decrypt(decode(envelope.encryptedData), key, decode(envelope.nonce)).decodeToString()
+            parseStreamHint(source, RelayJson.parseToJsonElement(plain).jsonObject)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Throwable) {
+            log.warn("device event ignored source=${source.take(12)} reason=${error::class.simpleName}")
+            null
+        }
+    }
+
+    /**
+     * Pairwise message keys, cached per relay and peer. Stream reads happen on
+     * every hint; fetching the peer's public key each time would double their
+     * relay traffic. A decrypt failure evicts the entry so a re-paired desktop
+     * is picked up on the next call.
+     */
+    private val peerKeys = MutableStateFlow<Map<String, ByteArray>>(emptyMap())
+    private suspend fun peerMessageKey(relayUrl: String, session: CloudAccountSession, target: String): ByteArray {
+        val cacheId = requireNotNull(normalizeAccountRelayUrl(relayUrl)) + "|" + session.userId + "|" + target
+        peerKeys.value[cacheId]?.let { return it }
+        val peer = requestWithoutBody(relayUrl,
+            "/api/devices/" + encodePathSegment(target) + "/key", HttpMethod.Get,
+            DeviceKeyWire.serializer(), session.token, RELAY_DEFAULT_TIMEOUT_MS)
+        val key = DeviceIdentity.messageKey(session.masterKey, decode(peer.publicKey))
+        peerKeys.update { it + (cacheId to key) }
+        return key
+    }
+    private fun forgetPeerKeys() { peerKeys.value = emptyMap() }
 
     public suspend fun <T : CommandStatus> deviceRpc(
         relayUrl: String,
@@ -284,31 +412,35 @@ public class CloudAccountClient internal constructor(
         val target = targetDeviceId.trim()
         if (target.isEmpty()) throw CloudAccountException(CloudAccountFailure.MALFORMED_RESPONSE)
         val socket = connection(relayUrl, session.token)
-        val peer = requestWithoutBody(relayUrl,
-            "/api/devices/" + encodePathSegment(target) + "/key", HttpMethod.Get,
-            DeviceKeyWire.serializer(), session.token, RELAY_DEFAULT_TIMEOUT_MS)
-        val messageKey = DeviceIdentity.messageKey(session.masterKey, decode(peer.publicKey))
-        val nonce = DeviceIdentity.randomBytes(12)
-        val plain = RelayJson.encodeToString(RemoteCommand.serializer(), command).encodeToByteArray()
-        val encrypted = CloudAccountCipher.encrypt(plain, messageKey, nonce)
-        val payload = EncryptedPayload(Base64.Default.encode(encrypted), Base64.Default.encode(nonce))
+        val messageKey = peerMessageKey(relayUrl, session, target)
+        val payload = withContext(processingDispatcher) {
+            val nonce = DeviceIdentity.randomBytes(12)
+            val plain = RelayJson.encodeToString(RemoteCommand.serializer(), command).encodeToByteArray()
+            val encrypted = CloudAccountCipher.encrypt(plain, messageKey, nonce)
+            EncryptedPayload(Base64.Default.encode(encrypted), Base64.Default.encode(nonce))
+        }
         val response = RelayJson.decodeFromJsonElement(EncryptedPayload.serializer(),
             socket.call(target,
                 RelayJson.encodeToJsonElement(EncryptedPayload.serializer(), payload), timeoutMs))
         val decoded = try {
-            CloudAccountCipher.decrypt(
-                decode(response.encryptedData),
-                messageKey,
-                decode(response.nonce),
-            ).decodeToString()
+            withContext(processingDispatcher) {
+                CloudAccountCipher.decrypt(
+                    decode(response.encryptedData), messageKey, decode(response.nonce),
+                ).decodeToString()
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (error: CloudAccountException) {
             throw error
         } catch (cause: Throwable) {
+            forgetPeerKeys()
             log.error("device rpc undecryptable cmd=${command.cmd} reason=${cause::class.simpleName}")
             throw CloudAccountException(CloudAccountFailure.MALFORMED_RESPONSE, null, cause)
         }
         return try {
-            RelayJson.decodeFromString(deserializer, decoded)
+            withContext(processingDispatcher) { RelayJson.decodeFromString(deserializer, decoded) }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (cause: Throwable) {
             log.error("device rpc undecodable cmd=${command.cmd} bytes=${decoded.length} ${decodeDetail(cause)}")
             throw CloudAccountException(CloudAccountFailure.MALFORMED_RESPONSE, null, cause)
@@ -324,7 +456,8 @@ public class CloudAccountClient internal constructor(
         deserializer: DeserializationStrategy<Response>,
         token: String,
         timeoutMs: Long,
-    ): Response = execute(relayUrl, path, method, RelayJson.encodeToString(serializer, body), deserializer, token, timeoutMs)
+    ): Response = execute(relayUrl, path, method,
+        withContext(processingDispatcher) { RelayJson.encodeToString(serializer, body) }, deserializer, token, timeoutMs)
 
     private suspend fun <Response> requestWithoutBody(
         relayUrl: String,
@@ -344,6 +477,8 @@ public class CloudAccountClient internal constructor(
         token: String,
         timeoutMs: Long,
     ): Response {
+        val authorizationPath = path.startsWith("/api/auth/github") || path == "/api/auth/login"
+        if (authorizationPath) log.info("account request started method=${method.value} path=$path")
         val response = try {
             client.request(requireNotNull(normalizeAccountRelayUrl(relayUrl)) + path) {
                 this.method = method
@@ -363,12 +498,17 @@ public class CloudAccountClient internal constructor(
             throw CloudAccountException(CloudAccountFailure.NETWORK, null, cause)
         }
         val text = response.bodyAsText()
+        if (authorizationPath) log.info("account response received path=$path status=${response.status.value} bytes=${text.length}")
         if (response.status.value !in 200..299) {
             log.warn("account request rejected path=$path status=${response.status.value}")
             throw statusFailure(response.status.value)
         }
         return try {
-            RelayJson.decodeFromString(deserializer, text)
+            withContext(processingDispatcher) { RelayJson.decodeFromString(deserializer, text) }.also {
+                if (authorizationPath) log.info("account response decoded path=$path")
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (cause: Throwable) {
             // The body itself is never logged: it carries whatever the desktop
             // was asked for, and on this path that is the user's own sessions.
@@ -415,9 +555,8 @@ public class AccountDeviceCommandTransport public constructor(
 ) : RemoteCommandTransport, RemoteSessionStreamTransport {
     override fun wakeSessionStreams() { client.resumeSessionStreams() }
     override suspend fun loadOlder(sessionId: String) { client.loadOlderSession(targetDeviceId, sessionId) }
-    override val streamIdentity: String get() = kotlinx.serialization.json.JsonArray(listOf(relayUrl, session.userId, targetDeviceId).map { kotlinx.serialization.json.JsonPrimitive(it) }).toString()
-    override suspend fun subscribe(sessionId: String, replica: SessionStreamReplica, onError: (Throwable) -> Unit, onCaughtUp: () -> Unit): kotlinx.coroutines.flow.Flow<JsonObject> =
-        client.subscribeSession(relayUrl, session, targetDeviceId, sessionId, replica, onError, onCaughtUp)
+    override suspend fun subscribe(sessionId: String, onError: (Throwable) -> Unit, onCaughtUp: () -> Unit): kotlinx.coroutines.flow.Flow<JsonObject> =
+        client.subscribeSession(relayUrl, session, targetDeviceId, sessionId, onError, onCaughtUp)
 
     public constructor(
         client: CloudAccountClient,
@@ -495,6 +634,9 @@ private data class LoginRequest(
     @SerialName("device_kind") val deviceKind: String,
     @SerialName("public_key") val publicKey: String,
     @SerialName("request_id") val requestId: String,
+    /** See [CLIENT_VERSION]; the Relay stores both and gates on the protocol. */
+    @SerialName("clientVersion") val clientVersion: String,
+    @SerialName("clientProtocol") val clientProtocol: Int,
 )
 @Serializable
 private data class AccountAuthResponse(val token: String, @SerialName("user_id") val userId: String)
@@ -508,6 +650,7 @@ private data class AccountDeviceWire(
     val online: Boolean,
     @SerialName("last_seen_at") val lastSeenAt: Long? = null,
     @SerialName("device_kind") val deviceKind: String? = null,
+    val compatible: Boolean? = null,
 )
 
 private fun decode(value: String): ByteArray = try {
@@ -560,12 +703,3 @@ public data class GitHubProfile(
 ) {
     public val userId: String get() = id.toString()
 }
-
-@Serializable
-private data class SessionKeyGrant(
-    @SerialName("resp") override val resp: String? = null,
-    @SerialName("message") override val message: String? = null,
-    @SerialName("session_id") val sessionId: String,
-    @SerialName("relay_session_id") val relaySessionId: String,
-    val key: String,
-) : CommandStatus

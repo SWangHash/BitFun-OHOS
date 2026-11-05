@@ -113,104 +113,88 @@
   }
 }
 
-// Pill tag styles
-// Matches mode badges with soft fill and no border.
+// Inline references share the neutral StatusPill surface and geometry.
+// Use the Flow support type role so references stay subordinate to the draft.
 
 .rich-text-tag-pill {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 6px 2px 8px;
-  margin: 0 3px;
-  background: color-mix(in srgb, var(--bitfun-color-accent-default) 12%, transparent);
+  gap: var(--bitfun-space-1);
+  max-width: calc(100% - var(--bitfun-space-1));
+  padding: var(--bitfun-control-status-pill-padding-block) var(--bitfun-control-status-pill-padding-inline);
+  margin: 0 calc(var(--bitfun-space-1) / 2);
+  background: var(--bitfun-color-action-neutral-surface);
   border: none;
-  border-radius: 10px;
-  font-size: var(--bitfun-type-flow-control-font-size);
-  font-weight: var(--bitfun-type-label-sm-font-weight);
-  color: color-mix(in srgb, var(--bitfun-color-accent-default) 95%, transparent);
+  border-radius: var(--bitfun-control-status-pill-radius);
+  color: var(--bitfun-color-content-secondary);
+  font-family: var(--bitfun-type-flow-support-font-family);
+  font-size: var(--bitfun-type-flow-support-font-size);
+  font-weight: var(--bitfun-type-flow-support-font-weight);
+  line-height: var(--bitfun-type-flow-support-line-height);
+  letter-spacing: var(--bitfun-type-flow-support-letter-spacing);
   cursor: default;
   user-select: none;
   vertical-align: middle;
-  line-height: var(--bitfun-type-flow-support-line-height);
+  white-space: nowrap;
   transition:
-    background-color 160ms ease,
-    color 160ms ease;
-  
-  &:hover {
-    background: color-mix(in srgb, var(--bitfun-color-accent-default) 18%, transparent);
-  }
-  
-  // Context type colors.
-  &[data-context-type="file"] {
-    background: color-mix(in srgb, var(--bitfun-color-accent-default) 12%, transparent);
-    color: color-mix(in srgb, var(--bitfun-color-accent-default) 95%, transparent);
-    
-    &:hover {
-      background: color-mix(in srgb, var(--bitfun-color-accent-default) 18%, transparent);
-    }
-  }
-  
-  &[data-context-type="directory"] {
-    background: color-mix(in srgb, var(--bitfun-color-accent-secondary) 12%, transparent);
-    color: var(--bitfun-color-accent-secondary);
-    
-    &:hover {
-      background: color-mix(in srgb, var(--bitfun-color-accent-secondary) 18%, transparent);
-    }
-  }
-  
-  &[data-context-type="code-snippet"] {
-    background: color-mix(in srgb, var(--bitfun-color-status-success-content) 12%, transparent);
-    color: var(--bitfun-color-status-success-content);
-    
-    &:hover {
-      background: color-mix(in srgb, var(--bitfun-color-status-success-content) 18%, transparent);
-    }
-  }
-  
-  &[data-context-type="mermaid-diagram"] {
-    background: color-mix(in srgb, var(--bitfun-domain-mermaid-diagram) 12%, transparent);
-    color: var(--bitfun-domain-mermaid-diagram);
-    
-    &:hover {
-      background: color-mix(in srgb, var(--bitfun-domain-mermaid-diagram) 18%, transparent);
-    }
-  }
-  
-  &[data-context-type="mermaid-node"] {
-    background: color-mix(in srgb, var(--bitfun-domain-mermaid-diagram) 12%, transparent);
-    color: var(--bitfun-domain-mermaid-diagram);
-    
-    &:hover {
-      background: color-mix(in srgb, var(--bitfun-domain-mermaid-diagram) 18%, transparent);
-    }
-  }
-  
-  &[data-context-type="image"] {
-    background: color-mix(in srgb, var(--bitfun-color-status-warning-content) 12%, transparent);
-    color: var(--bitfun-color-status-warning-content);
-    
-    &:hover {
-      background: color-mix(in srgb, var(--bitfun-color-status-warning-content) 18%, transparent);
-    }
+    background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+    color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+
+  &:hover,
+  &:focus-within {
+    background: var(--bitfun-color-action-neutral-surface-hover);
+    color: var(--bitfun-color-content-primary);
   }
 }
 
 .rich-text-tag-pill__text {
+  min-width: 0;
   max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  line-height: var(--bitfun-type-flow-support-line-height);
-  font-family: var(--bitfun-type-code-md-font-family);
-  font-size: var(--bitfun-type-label-sm-font-size);
+  // Centering the label line box leaves the lowercase text body about 1px below
+  // the optically centered badge icon and dismiss glyph. Lift the label so all
+  // three read as one row.
+  transform: translateY(-1px);
 }
 
+.rich-text-tag-pill__badge {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--bitfun-space-4);
+  height: var(--bitfun-space-4);
+  color: var(--bitfun-color-content-muted);
+  font-family: var(--bitfun-type-flow-micro-font-family);
+  font-size: var(--bitfun-type-flow-micro-font-size);
+  font-weight: var(--bitfun-type-flow-micro-font-weight);
+  line-height: var(--bitfun-type-flow-micro-line-height);
+  letter-spacing: var(--bitfun-type-flow-micro-letter-spacing);
+}
+
+.rich-text-tag-pill__badge--icon {
+  min-width: var(--bitfun-control-icon-size-xs);
+  color: inherit;
+}
+
+.rich-text-tag-pill__text--widget-ref {
+  max-width: 260px;
+}
+
+.rich-text-tag-pill__text--skill-ref {
+  max-width: 220px;
+}
+
+// Reference pills keep a distinct tint so a widget or skill reference is
+// recognizable at a glance inside the draft.
 .rich-text-tag-pill--widget-ref {
   background: color-mix(in srgb, var(--bitfun-color-status-success-content) 14%, transparent);
   color: color-mix(in srgb, var(--bitfun-color-status-success-content) 96%, var(--bitfun-color-content-primary));
 
-  &:hover {
+  &:hover,
+  &:focus-within {
     background: color-mix(in srgb, var(--bitfun-color-status-success-content) 22%, transparent);
   }
 }
@@ -219,83 +203,43 @@
   background: color-mix(in srgb, var(--bitfun-color-status-warning-content) 16%, transparent);
   color: color-mix(in srgb, var(--bitfun-color-status-warning-content) 96%, var(--bitfun-color-content-primary));
 
-  &:hover {
+  &:hover,
+  &:focus-within {
     background: color-mix(in srgb, var(--bitfun-color-status-warning-content) 24%, transparent);
   }
 }
 
-.rich-text-tag-pill__badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  height: 16px;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--bitfun-color-content-on-dark) 15%, transparent);
-  color: inherit;
-  font-size: var(--bitfun-type-flow-micro-font-size);
-  font-weight: var(--bitfun-type-heading-page-font-weight);
-  letter-spacing: var(--bitfun-type-modifier-tracking-wider-letter-spacing);
-  text-transform: uppercase;
-}
-
-.rich-text-tag-pill__badge--icon {
-  min-width: 18px;
-  padding: 0 3px;
-  background: transparent;
-  letter-spacing: var(--bitfun-type-body-sm-letter-spacing);
-  text-transform: none;
-
-  svg {
-    width: 12px;
-    height: 12px;
-    stroke: currentColor;
-    fill: none;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    flex-shrink: 0;
-  }
-}
-
-.rich-text-tag-pill__text--widget-ref {
-  font-family: var(--bitfun-type-body-sm-font-family);
-  max-width: 260px;
-}
-
-.rich-text-tag-pill__text--skill-ref {
-  max-width: 220px;
-}
-
 .rich-text-tag-pill__remove {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: var(--bitfun-space-4);
+  height: var(--bitfun-space-4);
   padding: 0;
   margin: 0;
   border: none;
   background: transparent;
-  color: currentColor;
-  opacity: 0.6;
-  font-size: var(--bitfun-type-flow-section-title-font-size);
+  color: var(--bitfun-color-content-muted);
+  font-family: inherit;
+  font-size: var(--bitfun-type-body-md-font-size);
+  font-weight: inherit;
   line-height: var(--bitfun-type-modifier-leading-none-line-height);
   cursor: pointer;
-  border-radius: 50%;
+  border-radius: var(--bitfun-radius-pill);
   transition:
-    transform 120ms cubic-bezier(0.23, 1, 0.32, 1),
-    opacity 120ms ease;
+    background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+    color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
   
   &:hover {
-    background: color-mix(in srgb, var(--bitfun-color-content-on-dark) 20%, transparent);
-    opacity: 1;
+    background: var(--bitfun-color-action-neutral-surface-hover);
+    color: var(--bitfun-color-content-primary);
   }
   
   &:focus-visible {
-    outline: 2px solid color-mix(in srgb, var(--bitfun-color-accent-hover) 40%, transparent);
-    outline-offset: 1px;
-    opacity: 1;
+    outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring);
+    outline-offset: var(--bitfun-focus-offset);
+    color: var(--bitfun-color-content-primary);
   }
 }
 

@@ -6,12 +6,19 @@ import {
 } from '../../model/RemoteModels';
 import { ChatTimelineItem } from '../../model/ChatTimelineModels';
 import { ChatTimelineState, ChatTimelineStore } from '../../services/ChatTimelineStore';
+import { CommandPalettePolicy } from '../../services/CommandPalettePolicy';
+import { RemoteCommandPaletteScope } from '../../services/RemoteCommandPaletteController';
 import { ConnectionErrorPolicy } from '../../services/ConnectionErrorPolicy';
 import { Encoding } from '../../services/Encoding';
+import { MarkdownHtmlSerializer } from '../../services/MarkdownHtmlSerializer';
 import { RemoteChatPollingCursor, RemoteChatPollingSnapshot } from '../../services/RemoteChatPollingLifecycleController';
 import { RemoteI18n } from '../../i18n/RemoteI18n';
 import { RemoteLogger } from '../../services/RemoteLogger';
 import { RemoteUiState } from '../../services/RemoteUiState';
+import { RollbackFailureKind, RollbackOutcomePolicy } from '../../services/RollbackOutcomePolicy';
+import { MessageCopyScope, CommandPaletteAction, CommandPaletteRequest, SessionRollbackRequest } from '../actions/ConversationIntent';
+import { RollbackPresentationPolicy } from '../policy/RollbackPresentationPolicy';
+import { SessionRollbackEventType } from '../policy/SessionRollbackPolicy';
 import { RemotePageState } from '../state/RemotePageState';
 import {
   RemoteConversationDependencies,
@@ -32,6 +39,12 @@ export class RemoteTranscriptController {
   private isSyncingAfterTurn: boolean = false;
   private isRebuildingRemoteTranscript: boolean = false;
   private pendingTranscriptCache: number = -1;
+  // True while the transcript changed without a write behind it. A history page
+  // is read oldest-first, so every record of the burst lands in front of the
+  // window and nothing already written can be reused: writing during the burst
+  // rewrites the whole transcript once per record, on the thread that draws the
+  // screen, for a page nobody has finished reading yet.
+  private transcriptDirty: boolean = false;
 
   constructor(
     remote: RemotePageState,
@@ -51,6 +64,8 @@ export class RemoteTranscriptController {
     this.knownPollVersionValue = 0;
     this.knownModelCatalogVersion = 0;
     this.knownRemoteMessageCount = 0;
+    this.cancelPendingTranscriptCache();
+    this.transcriptDirty = false;
   }
 
   updateKnownMessageCount(pollVersion: number, knownMessageCount: number): void {
@@ -65,10 +80,114 @@ export class RemoteTranscriptController {
 
   async loadRemoteMessages(): Promise<void> {
     const runtime = requireRemoteRuntime(this.remoteRuntime);
+    const sessionId = this.remote.activeSession.sessionId || '';
     await runtime.chat.loadMessages(
-      this.remote.activeSession.sessionId || '',
+      sessionId,
       runtime.hooks.isConversationContext
     );
+    // Read the skill catalog behind the transcript. This is also the palette's
+    // behavior probe — a host that does not serve the read is what greys the row
+    // — and it is cached per session, so opening a session pays for it once.
+    void runtime.commandPalette.loadCatalog(
+      sessionId,
+      this.commandPaletteModeId(),
+      false,
+      this.commandPaletteScope()
+    );
+  }
+
+  /**
+   * One tap in the composer's command row.
+   *
+   * Everything the palette can do lands here, because this controller owns what
+   * "the active conversation" means: the session id, the draft, the workspace
+   * that owns the session, and whether the probe has answered yet.
+   */
+  async dispatchCommandPalette(request: CommandPaletteRequest): Promise<void> {
+    const runtime = requireRemoteRuntime(this.remoteRuntime);
+    const sessionId = this.remote.activeSession.sessionId || '';
+    const palette = this.remote.commandPalette;
+    if (request.action === CommandPaletteAction.ToggleGoal) {
+      // Goals are plain message text, so this works on any host that can send.
+      const toggled = CommandPalettePolicy.toggleGoal(this.remote.chatInput, palette.goalPending);
+      this.remote.setChatInput(toggled.draft);
+      palette.setGoalPending(toggled.pending);
+      return;
+    }
+    if (request.action === CommandPaletteAction.SelectSkill) {
+      palette.setSkill(request.skillId, request.skillLabel);
+      return;
+    }
+    if (request.action === CommandPaletteAction.ClearSkill) {
+      palette.clearSkill();
+      return;
+    }
+    const canApply = this.commandPaletteScope();
+    if (sessionId.length === 0 || !canApply(sessionId)) {
+      RemoteLogger.info(
+        `command palette ignored action=${request.action} session=${shortSessionId(sessionId)}`);
+      return;
+    }
+    const scope = this.commandPaletteCommandScope(sessionId);
+    if (request.action === CommandPaletteAction.Compact ||
+      request.action === CommandPaletteAction.InitAgentsMd ||
+      request.action === CommandPaletteAction.RetryCommand) {
+      const wireAction = request.action === CommandPaletteAction.RetryCommand ? request.wireAction : request.action;
+      if (!CommandPalettePolicy.isRunnable(wireAction)) {
+        return;
+      }
+      await runtime.commandPalette.runCommand(sessionId, wireAction, scope, canApply);
+      return;
+    }
+    if (request.action === CommandPaletteAction.OpenUsage ||
+      request.action === CommandPaletteAction.RetryUsage) {
+      await runtime.commandPalette.loadUsageReport(sessionId, scope, canApply);
+      return;
+    }
+    if (request.action === CommandPaletteAction.OpenSkills ||
+      request.action === CommandPaletteAction.RefreshCatalog) {
+      await runtime.commandPalette.loadCatalog(
+        sessionId,
+        this.commandPaletteModeId(),
+        request.action === CommandPaletteAction.RefreshCatalog,
+        canApply);
+    }
+  }
+
+  /**
+   * The host's mode id for the palette's catalog read.
+   *
+   * It is the session's own agent type: the picker must show the skills that
+   * mode would actually run, and a session that has not named one yet falls back
+   * to the desktop's default harness rather than an empty mode.
+   */
+  private commandPaletteModeId(): string {
+    const agentType = (this.remote.activeSession.agentType || '').trim();
+    return agentType.length > 0 ? agentType : 'agentic';
+  }
+
+  /** The workspace that owns the active session, as the verbs expect it. */
+  private commandPaletteCommandScope(sessionId: string): RemoteCommandPaletteScope {
+    const scope: RemoteCommandPaletteScope = { sessionId };
+    if (this.remote.workspaceId.length > 0) {
+      scope.workspaceId = this.remote.workspaceId;
+    }
+    if (this.remote.workspacePath.length > 0) {
+      scope.workspacePath = this.remote.workspacePath;
+    }
+    if (this.remote.workspaceConnectionId.length > 0) {
+      scope.remoteConnectionId = this.remote.workspaceConnectionId;
+    }
+    if (this.remote.workspaceSshHost.length > 0) {
+      scope.remoteSshHost = this.remote.workspaceSshHost;
+    }
+    return scope;
+  }
+
+  /** Reads stay pinned to the session they were asked for. */
+  private commandPaletteScope(): (sessionId: string) => boolean {
+    return (sessionId: string): boolean =>
+      sessionId.length > 0 && this.remote.activeSession.sessionId === sessionId;
   }
 
   async selectRemoteModel(modelId: string): Promise<void> {
@@ -93,18 +212,37 @@ export class RemoteTranscriptController {
 
   async sendRemoteMessage(): Promise<void> {
     const runtime = requireRemoteRuntime(this.remoteRuntime);
+    const sessionId = this.remote.activeSession.sessionId || '';
+    const contextRevision = this.remote.sessionContextRevision;
     if (this.remote.isVoiceListening) {
       await runtime.hooks.stopVoiceInput();
     }
+    if (this.remote.activeSession.sessionId !== sessionId ||
+      this.remote.sessionContextRevision !== contextRevision) {
+      return;
+    }
     const rawText = this.remote.chatInput.trim();
     const images = this.remote.selectedImages.slice();
-    const text = rawText.length > 0 ? rawText :
+    // A bare `/goal` is a command with its argument still missing, so it is not
+    // a message yet: the composer already drew it as SendBlocked, and anything
+    // that reaches the send path another way stops here too.
+    if (CommandPalettePolicy.blocksSend(rawText)) {
+      return;
+    }
+    // The skill token is a chip beside the field, so this is where it becomes
+    // message content — once, and only for the draft being sent. It is built from
+    // the picked skill's name, which is the form the desktop's own picker writes.
+    const skillLabel = this.remote.commandPalette.skillLabel;
+    const text = rawText.length > 0 ? CommandPalettePolicy.composeSubmissionText(rawText, skillLabel) :
       (images.length > 0 ? RemoteI18n.t('chat.analyzeImageDefault') : '');
-    const sessionId = this.remote.activeSession.sessionId || '';
-    if ((!text && images.length === 0) || !sessionId || this.remote.isBusy ||
+    if ((!text && images.length === 0) || !sessionId || this.remote.isBusy || this.remote.connectionState !== 'connected' ||
       !runtime.connection.ensureAvailable()) {
       return;
     }
+    // A new message is the conversation moving on from the point a rollback left
+    // it at, so the hint row describing that rollback stops being the last thing
+    // that happened. It is cleared only here and on a session change.
+    this.remote.clearRollbackNotice();
     const queuedBehindRunningTurn = this.hasRunningRemoteTurn();
     const activeTurnId = this.remoteActiveTurnId();
     const canSteerRunningTurn = queuedBehindRunningTurn && activeTurnId.length > 0 &&
@@ -168,7 +306,7 @@ export class RemoteTranscriptController {
       this.notify(RemoteI18n.t('chat.planBuildWaitForTurn'));
       return;
     }
-    if (planFilePath.trim().length === 0 || sessionId.length === 0 || this.remote.isBusy ||
+    if (planFilePath.trim().length === 0 || sessionId.length === 0 || this.remote.isBusy || this.remote.connectionState !== 'connected' ||
       !runtime.connection.ensureAvailable()) {
       return;
     }
@@ -201,7 +339,7 @@ export class RemoteTranscriptController {
       sessionId,
       this.remote.activeTurnMessage.id,
       this.remoteActiveTurnId(),
-      runtime.connection.ensureAvailable()
+      this.remote.connectionState === 'connected' && runtime.connection.ensureAvailable()
     );
   }
 
@@ -220,12 +358,26 @@ export class RemoteTranscriptController {
     );
   }
 
-  async copyRemoteMessage(text: string): Promise<void> {
+  /**
+   * Writes one message body to the clipboard.
+   *
+   * `rich` is the only scope that changes the payload shape: the Markdown source
+   * goes out as the plain flavor and its rendered html as a second record, so a
+   * rich-text receiver pastes formatted content while everything else still
+   * pastes the source. The other scopes stay the single plain write that every
+   * copy caller used before the assistant menu.
+   */
+  async copyRemoteMessage(text: string, scope: MessageCopyScope): Promise<void> {
     if (text.trim().length === 0) {
       return;
     }
     try {
-      await requireRemoteRuntime(this.remoteRuntime).clipboard.writeText(text);
+      const clipboard = requireRemoteRuntime(this.remoteRuntime).clipboard;
+      if (scope === MessageCopyScope.Rich) {
+        await clipboard.copyRich(text, MarkdownHtmlSerializer.toHtml(text));
+      } else {
+        await clipboard.writeText(text);
+      }
       this.remote.setStatusText(RemoteI18n.t('status.messageCopied'));
     } catch (err) {
       this.remote.setStatusText(ConnectionErrorPolicy.errorText(err));
@@ -240,6 +392,102 @@ export class RemoteTranscriptController {
       this.remote.isBusy,
       runtime.connection.ensureAvailable()
     );
+  }
+
+  /**
+   * Runs one staged rollback, then optionally sends the text it was staged with.
+   *
+   * This is the end of the chain the staged preview leaves open: the pane decides
+   * *that* a rollback happens and leaves staging before the host answers, so the
+   * answer has to come back somewhere that still exists — here, as an outcome on
+   * the page state.
+   *
+   * The two steps are one call on purpose. `sendText` is the send-while-staging
+   * exit, and the order between the steps is the contract: the host has to retire
+   * the turn before a message may be appended to it. A rollback that succeeded and
+   * a send that failed is recoverable — the draft is left in the composer — so the
+   * draft is only handed to the send path, never cleared here.
+   *
+   * After a success the transcript is refetched. The host answers the poll with
+   * the rewritten snapshot, but this client reads `historyRewritten` as false and
+   * only compares message counts, so nothing tells the store its persisted rows
+   * were replaced; asking for the transcript is what actually removes them.
+   */
+  async rollbackRemoteSession(request: SessionRollbackRequest): Promise<void> {
+    const runtime = requireRemoteRuntime(this.remoteRuntime);
+    const sessionId = this.remote.activeSession.sessionId || '';
+    const contextRevision = this.remote.sessionContextRevision;
+    const targetTurnId = request.targetTurnId.trim();
+    if (sessionId.length === 0 || targetTurnId.length === 0) {
+      // Nothing addressable reached this layer, so nothing can succeed. Say so
+      // rather than returning quietly: the pane has already left staging.
+      RemoteLogger.info(`rollback skipped session=${shortSessionId(sessionId)} target_len=${targetTurnId.length}`);
+      this.remote.reportRollbackOutcome(SessionRollbackEventType.RollbackFailed);
+      return;
+    }
+    try {
+      const result = await runtime.chat.rollbackSessionToTurn(sessionId, targetTurnId);
+      if (!this.isCurrentSessionContext(sessionId, contextRevision)) {
+        return;
+      }
+      RemoteLogger.info(
+        `rollback projected retired=${result.retiredTurnIds.length} restored=${result.restoredFiles.length} ` +
+          `changed=${result.changed ? '1' : '0'}`
+      );
+      const notice = RemoteI18n.f2(
+        RollbackPresentationPolicy.ROLLED_BACK_NOTICE_KEY,
+        `${result.retiredTurnIds.length}`,
+        `${result.restoredFiles.length}`
+      );
+      const sendText = request.sendText.trim();
+      if (sendText.length > 0) {
+        // Sending runs the ordinary path, so the message is owned, acknowledged
+        // and failed exactly like any other one: a send that does not go out
+        // restores the draft and marks its own row, which is the recoverable
+        // state the frozen interaction asks for. It also retires any earlier
+        // notice, so this one is set after it.
+        this.remote.setChatInput(sendText);
+        await this.sendRemoteMessage();
+      }
+      if (!this.isCurrentSessionContext(sessionId, contextRevision)) {
+        return;
+      }
+      this.remote.setRollbackNotice(notice);
+      this.rebuildRemoteTranscript(sessionId);
+    } catch (err) {
+      if (!this.isCurrentSessionContext(sessionId, contextRevision)) {
+        return;
+      }
+      const kind = RollbackOutcomePolicy.failureKind(err);
+      RemoteLogger.info(
+        `rollback refused session=${shortSessionId(sessionId)} target=${shortSessionId(targetTurnId)} ` +
+          `kind=${kind} message=${RollbackOutcomePolicy.messageOf(err)}`
+      );
+      this.remote.reportRollbackOutcome(
+        kind === RollbackFailureKind.StaleView ?
+          SessionRollbackEventType.StaleViewDetected : SessionRollbackEventType.RollbackFailed
+      );
+    }
+  }
+
+  private isCurrentSessionContext(sessionId: string, revision: number): boolean {
+    return this.remote.sessionContextRevision === revision &&
+      this.remote.activeSession.sessionId === sessionId &&
+      requireRemoteRuntime(this.remoteRuntime).hooks.isConversationContext(sessionId);
+  }
+
+  /**
+   * Refetches the transcript after a rollback this client could not repair.
+   *
+   * A stale or refused rollback leaves the local rows describing history the host
+   * no longer has, so the authoritative transcript is what the pane returns to.
+   */
+  resyncAfterRollback(): void {
+    const sessionId = this.remote.activeSession.sessionId || '';
+    if (sessionId.length === 0) {
+      return;
+    }
+    this.rebuildRemoteTranscript(sessionId);
   }
 
   retryRemoteMessage(text: string): void {
@@ -316,16 +564,27 @@ export class RemoteTranscriptController {
       return;
     }
     if (snapshot.historyRewritten) {
+      this.cancelPendingTranscriptCache();
+      this.transcriptDirty = false;
       this.rebuildRemoteTranscript(snapshot.sessionId);
       return;
     }
     runtime.timeline.applySnapshot(snapshot);
     this.syncRemoteTimeline();
-    if (snapshot.messageSnapshot !== undefined) {
+    this.remote.conversation.promptSuggestion = snapshot.promptSuggestion ?? '';
+    if (snapshot.historyLoading === true) {
+      // A history page publishes once per record it contains, and every one of
+      // them lands in front of the window, so no row already on disk survives:
+      // writing during the burst rewrites the whole transcript on the thread
+      // that draws the screen, for a cache nothing reads before the next open.
+      this.deferTranscriptCache();
+    } else if (this.transcriptDirty) {
+      // The page settled, and the settle publishes again.
+      this.cacheTranscriptNow(snapshot.sessionId, true);
+    } else if (snapshot.messageSnapshot !== undefined) {
       // A streaming turn restates the whole transcript on every chunk. Writing
       // all of it back each time re-encrypts the session dozens of times a
-      // second for a cache nothing reads until the next open, so during a turn
-      // only the last write of a burst is kept.
+      // second, so during a turn only the last write of a burst is kept.
       if (this.hasRunningRemoteTurn()) this.scheduleTranscriptCache(snapshot.sessionId);
       else this.cacheTranscriptNow(snapshot.sessionId, true);
     } else if (snapshot.newMessages.length > 0) {
@@ -362,19 +621,37 @@ export class RemoteTranscriptController {
    * anyway.
    */
   private scheduleTranscriptCache(sessionId: string): void {
+    this.transcriptDirty = true;
     if (this.pendingTranscriptCache !== -1) return;
     this.pendingTranscriptCache = setTimeout(() => {
       this.pendingTranscriptCache = -1;
       this.cacheRemoteTranscript(sessionId, true);
+      this.transcriptDirty = false;
     }, REMOTE_TRANSCRIPT_CACHE_INTERVAL_MS);
   }
 
-  private cacheTranscriptNow(sessionId: string, authoritativeSnapshot: boolean): void {
+  /**
+   * Holds the transcript write back for the rest of a history page.
+   *
+   * Nothing reads the cache before the next open, and the page publishes again
+   * when its read settles, which is where the deferred write lands.
+   */
+  private deferTranscriptCache(): void {
+    this.transcriptDirty = true;
+    this.cancelPendingTranscriptCache();
+  }
+
+  private cancelPendingTranscriptCache(): void {
     if (this.pendingTranscriptCache !== -1) {
       clearTimeout(this.pendingTranscriptCache);
       this.pendingTranscriptCache = -1;
     }
+  }
+
+  private cacheTranscriptNow(sessionId: string, authoritativeSnapshot: boolean): void {
+    this.cancelPendingTranscriptCache();
     this.cacheRemoteTranscript(sessionId, authoritativeSnapshot);
+    this.transcriptDirty = false;
   }
 
   private cacheRemoteTranscript(sessionId: string, authoritativeSnapshot: boolean): void {

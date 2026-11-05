@@ -9,7 +9,6 @@ use log::info;
 use crate::agentic::coordination;
 use crate::agentic::events;
 use crate::agentic::execution;
-use crate::agentic::goal_mode::ThreadGoalTokenSubscriber;
 use crate::agentic::persistence;
 use crate::agentic::session;
 use crate::agentic::tools;
@@ -86,7 +85,7 @@ pub async fn init_agentic_system_for_profile_with_telemetry(
         path_manager.as_ref(),
         "embedded-host",
     ));
-    init_agentic_system_inner(delivery_profile, runtime_ownership, telemetry).await
+    init_agentic_system_inner(delivery_profile, runtime_ownership, telemetry, None).await
 }
 
 /// Initializes one product runtime with an explicitly selected ownership
@@ -96,7 +95,7 @@ pub async fn init_agentic_system_for_profile_with_runtime_ownership(
     delivery_profile: DeliveryProfile,
     runtime_ownership: Arc<CoreRuntimeOwnership>,
 ) -> Result<AgenticSystem> {
-    init_agentic_system_inner(delivery_profile, runtime_ownership, Telemetry::noop()).await
+    init_agentic_system_inner(delivery_profile, runtime_ownership, Telemetry::noop(), None).await
 }
 
 pub async fn init_agentic_system_for_profile_with_runtime_ownership_and_telemetry(
@@ -104,14 +103,32 @@ pub async fn init_agentic_system_for_profile_with_runtime_ownership_and_telemetr
     runtime_ownership: Arc<CoreRuntimeOwnership>,
     telemetry: Telemetry,
 ) -> Result<AgenticSystem> {
-    init_agentic_system_inner(delivery_profile, runtime_ownership, telemetry).await
+    init_agentic_system_inner(delivery_profile, runtime_ownership, telemetry, None).await
+}
+
+/// Assemble the same Runtime with an explicit native provider from its host.
+/// No provider is inferred from the delivery profile or controller environment.
+pub async fn init_agentic_system_with_computer_use_host(
+    delivery_profile: DeliveryProfile,
+    runtime_ownership: Arc<CoreRuntimeOwnership>,
+    computer_use_host: Option<tools::computer_use_host::ComputerUseHostRef>,
+) -> Result<AgenticSystem> {
+    init_agentic_system_inner(
+        delivery_profile,
+        runtime_ownership,
+        Telemetry::noop(),
+        computer_use_host,
+    )
+    .await
 }
 
 async fn init_agentic_system_inner(
     delivery_profile: DeliveryProfile,
     runtime_ownership: Arc<CoreRuntimeOwnership>,
     telemetry: Telemetry,
+    computer_use_host: Option<tools::computer_use_host::ComputerUseHostRef>,
 ) -> Result<AgenticSystem> {
+    tools::computer_use_capability::set_computer_use_host_available(computer_use_host.is_some());
     info!("Initializing agentic system for profile {delivery_profile}");
 
     select_agentic_system_profile(delivery_profile)?;
@@ -145,17 +162,13 @@ async fn init_agentic_system_inner(
             session_manager.clone(),
         )),
     );
-    event_router.subscribe_internal(
-        "thread_goal_tokens".to_string(),
-        Arc::new(ThreadGoalTokenSubscriber),
-    );
 
     let tool_registry = tools::registry::get_global_tool_registry();
     let tool_state_manager = Arc::new(tools::pipeline::ToolStateManager::new(event_queue.clone()));
     let permission_request_manager =
         crate::product_runtime::core_permission_request_manager().map_err(anyhow::Error::msg)?;
     let tool_pipeline = Arc::new(
-        tools::pipeline::ToolPipeline::new(tool_registry, tool_state_manager, None)
+        tools::pipeline::ToolPipeline::new(tool_registry, tool_state_manager, computer_use_host)
             .with_permission_request_manager(permission_request_manager)
             .with_telemetry(telemetry.clone()),
     );

@@ -8,13 +8,17 @@ const readSource = (relativePath: string): string =>
 describe('OpenHarmony privacy lifecycle contract', () => {
   it('mounts the first-launch privacy gate without blocking business providers', () => {
     const main = readSource('../../../main.tsx');
+    const root = readSource('../../startup/MainApplicationRoot.tsx');
 
-    expect(main).toContain('<PrivacyProvider>');
-    expect(main).toContain('<PrivacyGate>');
-    expect(main).not.toContain('onBusinessAuthorized');
-    expect(main.indexOf('<PrivacyProvider>')).toBeLessThan(main.indexOf('<PrivacyGate>'));
-    expect(main.indexOf('<PrivacyGate>')).toBeLessThan(main.indexOf('<WorkspaceProvider>'));
-    expect(main.indexOf('<WorkspaceProvider>')).toBeLessThan(main.indexOf('<App />'));
+    // main.tsx only schedules the window module; the workbench provider stack
+    // (and the privacy gate wrapping it) lives in MainApplicationRoot.
+    expect(main).toContain('<WindowContent />');
+    expect(root).toContain('<PrivacyProvider>');
+    expect(root).toContain('<PrivacyGate>');
+    expect(root).not.toContain('onBusinessAuthorized');
+    expect(root.indexOf('<PrivacyProvider>')).toBeLessThan(root.indexOf('<PrivacyGate>'));
+    expect(root.indexOf('<PrivacyGate>')).toBeLessThan(root.indexOf('<WorkspaceProvider>'));
+    expect(root.indexOf('<WorkspaceProvider>')).toBeLessThan(root.indexOf('<App />'));
   });
 
   it('reveals the gate via the startup overlay and explicit command surface', () => {

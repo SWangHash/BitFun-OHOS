@@ -11,8 +11,7 @@ use std::time::{Duration, Instant};
 use crate::stream::types::unified::UnifiedResponse;
 
 pub use anthropic::handle_anthropic_stream;
-pub use gemini::handle_gemini_stream;
-pub(crate) use gemini::handle_gemini_stream_with_empty_tools;
+pub use gemini::{handle_gemini_code_assist_stream, handle_gemini_stream};
 pub use openai::handle_openai_stream;
 pub use responses::handle_responses_stream;
 
@@ -128,6 +127,10 @@ mod tests {
 
     #[test]
     fn empty_control_only_response_is_not_effective_output() {
+        assert!(!is_effective_stream_output(&UnifiedResponse {
+            response_model: Some("reported-model".into()),
+            ..Default::default()
+        }));
         assert!(!is_effective_stream_output(&UnifiedResponse {
             finish_reason: Some("stop".to_string()),
             ..Default::default()

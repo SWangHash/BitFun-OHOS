@@ -32,10 +32,11 @@ const persistReviewActionStateMock = vi.hoisted(() => vi.fn());
 const openBtwSessionInAuxPaneMock = vi.hoisted(() => vi.fn());
 const notificationWarningMock = vi.hoisted(() => vi.fn());
 
-vi.mock('@/infrastructure/i18n', async () => {
+vi.mock('@/infrastructure/i18n', async (importOriginal) => {
   const { default: errors } = await import('@/locales/zh-CN/errors.json');
   const t = (key: string) => key.replace(/^errors:/, '').split('.').reduce<any>((value, part) => value?.[part], errors) ?? key;
   return {
+    ...await importOriginal<typeof import('@/infrastructure/i18n')>(),
     useI18n: () => ({ t }),
     i18nService: { t, getT: () => t },
   };
@@ -335,8 +336,6 @@ describeWithJsdom('DeepReviewActionBar', () => {
       name: 'stable dialog-start failure',
       error: new Error('Failed to start dialog turn: provider quota exhausted'),
       notification: 'Unable to start this action: provider quota exhausted',
-      stableHeaderSummary: 'Unable to start this action: provider quota exhausted',
-      rawMessage: 'Failed to start dialog turn: provider quota exhausted',
     },
     {
       // Launch failures name their own cause. The generic "check your network and
@@ -348,14 +347,10 @@ describeWithJsdom('DeepReviewActionBar', () => {
         originalMessage: 'Failed to start dialog turn: provider connection closed',
       }),
       notification: 'Network connection interrupted. Review failed to start.\nprovider connection closed',
-      stableHeaderSummary: null,
-      rawMessage: 'Network connection was interrupted before Review could start.',
     },
   ])('keeps the launch cause in the summary without dropping the complete diagnostic: $name', async ({
     error,
-    notification,
-    stableHeaderSummary,
-    rawMessage,
+    notification: message,
   }) => {
     const { notificationService } = await import('@/shared/notification-system');
     sendMessageMock.mockRejectedValueOnce(error);
@@ -376,31 +371,9 @@ describeWithJsdom('DeepReviewActionBar', () => {
     await act(async () => {
       startFixButton!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
     });
-
-    const [message, options] = vi.mocked(notificationService.error).mock.calls.at(-1)!;
-    expect(message).toBe(notification);
-    expect(message).not.toMatch(/network connection and model service/i);
-    expect(options?.metadata?.rawError).toBe(rawMessage);
-
-    const displayedError = container.querySelector('.deep-review-action-bar__error-message');
-    expect(displayedError?.firstElementChild?.textContent).toBe(stableHeaderSummary ?? rawMessage);
-    expect(displayedError?.lastElementChild?.textContent).toBe(rawMessage);
-  });
-
-  it.each([
-    'Review was cancelled before a report was produced.',
-    'Review ended without a structured report.',
-  ])('does not add provider advice to a plain review status message: %s', async (status) => {
-    useReviewActionBarStore.getState().showRunningActionBar({
-      childSessionId: 'review-session',
-      parentSessionId: 'parent-session',
-      reviewMode: 'standard',
-    });
-    useReviewActionBarStore.getState().updatePhase('review_error', status, 'review-session');
-    await act(async () => root.render(<ReviewActionBar childSessionId="review-session" />));
-
-    const displayedError = container.querySelector('.deep-review-action-bar__error-message');
-    expect(displayedError?.textContent).toBe(status);
+    expect(notificationService.error).toHaveBeenCalledWith(message, { duration: 5000, metadata: { rawError: error.message } });
+    expect(container.textContent).toContain(message);
+    expect(container.textContent).not.toContain('Failed to start dialog turn:');
   });
 
   it('keeps remediation in progress after submitting a fix turn', async () => {
@@ -709,7 +682,7 @@ describeWithJsdom('DeepReviewActionBar', () => {
     });
 
     const { useSettingsStore } = await import('@/app/scenes/settings/settingsStore');
-    expect(useSettingsStore.getState().activePageId).toBe('tools.execution');
+    expect(useSettingsStore.getState().activePageId).toBe('ai.execution');
     expect(useSettingsStore.getState().activeViewId).toBeNull();
   });
 

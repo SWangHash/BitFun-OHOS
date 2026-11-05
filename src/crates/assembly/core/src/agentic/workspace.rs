@@ -82,9 +82,9 @@ impl WorkspaceBinding {
                 identity,
             ))
         } else {
-            let project_id = config.project_workspace_id.ok_or_else(|| {
-                crate::BitFunError::service("Project workspace ID is required")
-            })?;
+            let project_id = config
+                .project_workspace_id
+                .ok_or_else(|| crate::BitFunError::service("Project workspace ID is required"))?;
             let project = service.require_workspace(&project_id).await?;
             let mut binding = Self::new(Some(record.id), record.root_path)
                 .with_project_root_path(project.root_path);
@@ -206,7 +206,7 @@ impl WorkspaceBinding {
             }
             return runtime_service
                 .context_for_remote_workspace(
-                    &self.session_identity.hostname,
+                    &self.session_identity.identity_host(),
                     self.session_identity.logical_workspace_path(),
                 )
                 .sessions_dir;
@@ -225,9 +225,7 @@ mod tests {
     use bitfun_core_types::{
         SessionExecutionTarget, SessionExecutionTargetKind, WorktreeLifecycle,
     };
-    use bitfun_services_core::workspace_identity::{
-        remote_workspace_session_mirror_dir, workspace_session_identity,
-    };
+    use bitfun_services_core::workspace_identity::workspace_session_identity;
     use std::path::PathBuf;
 
     #[test]
@@ -249,11 +247,9 @@ mod tests {
         assert!(matches!(binding.backend, WorkspaceBackend::Remote { .. }));
         assert_eq!(
             binding.session_storage_dir(),
-            remote_workspace_session_mirror_dir(
-                crate::infrastructure::get_path_manager_arc().remote_ssh_mirror_root_dir(),
-                "127.0.0.1",
-                "/home/wsp/projects/test"
-            )
+            WorkspaceRuntimeService::new(crate::infrastructure::get_path_manager_arc())
+                .context_for_remote_workspace("127.0.0.1", "/home/wsp/projects/test")
+                .sessions_dir
         );
     }
 

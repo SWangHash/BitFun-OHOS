@@ -1,4 +1,7 @@
-# Official Relay v1 deployment
+# Relay v1 self-hosted deployment
+
+This directory is a community self-deployment template. Example domains and
+paths must be replaced with your own environment.
 
 The owner guide is [Relay Server](../../src/apps/relay-server/README.md).
 Use this independent Compose project for `/v/1.0.1/`. Keep `/v/1.0.0/` and the older Relay

@@ -18,16 +18,17 @@ tauri-build = { workspace = true }
 serde_json = { workspace = true }
 
 [dependencies]
-bitfun-services-core = { path = "../../crates/services/services-core", features = ["pet-packages", "screen-capture"] }
+bitfun-miniapp-ipc = { path = "../../crates/adapters/miniapp-ipc" }
+bitfun-services-core = { path = "../../crates/services/services-core", features = ["pet-packages", "screen-capture", "local-storage"] }
 # Internal crates
 bitfun-core = { path = "../../crates/assembly/core", features = ["product-full", "deveco-account"] }
 bitfun-relay-service = { path = "../../crates/services/relay-service" }
 bitfun-agent-runtime = { path = "../../crates/execution/agent-runtime", features = ["agent-runtime"] }
 bitfun-runtime-ports = { path = "../../crates/contracts/runtime-ports", features = ["agent-api", "permission", "workspace-ports"] }
 bitfun-product-domains = { path = "../../crates/contracts/product-domains", features = ["appearance-market"] }
-bitfun-services-integrations = { path = "../../crates/services/services-integrations", features = ["canvas-runtime", "miniapp-market", "remote-ssh-concrete", "speech", "speech-realtime", "feedback", "privacy"] }
+bitfun-services-integrations = { path = "../../crates/services/services-integrations", features = ["canvas-runtime", "miniapp-market", "skillhub", "remote-ssh-concrete", "speech", "speech-realtime", "feedback", "privacy"] }
 bitfun-core-types = { path = "../../crates/contracts/core-types" }
-bitfun-agent-tools = { path = "../../crates/execution/tool-contracts", features = ["element-token"] }
+bitfun-agent-tools = { path = "../../crates/execution/tool-contracts", features = ["element-token", "computer-use-contract"] }
 bitfun-transport = { path = "../../crates/adapters/transport", features = ["tauri-adapter"] }
 bitfun-events = { path = "../../crates/contracts/events" }
 bitfun-webdriver = { path = "../../crates/adapters/webdriver" }
@@ -91,51 +92,38 @@ tempfile = { workspace = true }
 tokio = { workspace = true, features = ["test-util"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
+# Observe the native navigation delegate retained by the existing Tauri runtime.
+wry = { workspace = true }
 bitflags = { workspace = true }
 core-foundation = { workspace = true }
 core-graphics = { workspace = true }
 dispatch = { workspace = true }
-foreign-types = { workspace = true }
 libc = { workspace = true }
 objc2 = { workspace = true, features = ["exception"] }
-objc2-foundation = { workspace = true, features = ["std", "NSArray", "NSData", "NSDictionary", "NSError", "NSString"] }
-objc2-app-kit = { workspace = true }
-objc2-vision = { workspace = true, features = ["std", "VNRecognizeTextRequest", "VNRequest", "VNObservation", "VNRequestHandler", "VNUtils", "VNTypes", "objc2-core-foundation"] }
+block2 = { workspace = true }
+objc2-foundation = { workspace = true, features = ["std", "NSArray", "NSData", "NSDictionary", "NSError", "NSGeometry", "NSNotification", "NSOperation", "NSString", "block2"] }
+objc2-app-kit = { workspace = true, features = ["std", "libc", "NSAnimationContext", "NSButton", "NSControl", "NSResponder", "NSView", "NSWindow", "NSWorkspace", "NSRunningApplication"] }
 
 [target.'cfg(windows)'.dependencies]
 tauri-plugin-dialog = { workspace = true }
 notify-rust = { workspace = true }
 win32job = { workspace = true }
 windows = { workspace = true, features = [
-  "Foundation",
-  "Globalization",
-  "Graphics_Capture",
-  "Graphics_DirectX",
-  "Graphics_DirectX_Direct3D11",
-  "Graphics_Imaging",
-  "Media_Ocr",
-  "Storage_Streams",
   "Win32_Foundation",
-  "Win32_Graphics_Direct3D",
-  "Win32_Graphics_Direct3D11",
-  "Win32_Graphics_Dwm",
-  "Win32_Graphics_Dxgi",
-  "Win32_Graphics_Dxgi_Common",
   "Win32_Graphics_Gdi",
+  "Win32_Security",
   "Win32_Storage_FileSystem",
   "Win32_System_LibraryLoader",
   "Win32_System_SystemServices",
-  "Win32_Storage_Xps",
+  "Win32_System_Threading",
   "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
   "Win32_System_Ole",
   "Win32_System_Variant",
-  "Win32_System_WinRT",
-  "Win32_System_WinRT_Direct3D11",
-  "Win32_System_WinRT_Graphics",
-  "Win32_System_WinRT_Graphics_Capture",
-  "Win32_UI_Accessibility",
+  "Win32_UI_HiDpi",
   "Win32_UI_Input_KeyboardAndMouse",
   "Win32_UI_Shell",
+  "Win32_UI_Shell_PropertiesSystem",
   "Win32_UI_WindowsAndMessaging",
 ] }
 windows-core = { workspace = true }
@@ -150,11 +138,13 @@ default = []
 # Enable webview devtools and element inspector for development builds.
 # Only active in debug builds or when explicitly requested via --features devtools.
 # Never enabled in release profile intended for end users.
-devtools = ["tauri/devtools", "bitfun-webdriver/embedded"]
+devtools = ["bitfun-computer-use/test-support", "tauri/devtools", "bitfun-webdriver/embedded"]
 
 [target.'cfg(all(target_os = "linux", not(target_env = "ohos")))'.dependencies]
-atspi = { workspace = true }
-leptess = { workspace = true }
+# GTK clipboard access for the Linux host; OHOS has no GTK stack and reads the
+# pasteboard through its ArkTS bridge instead.
+libc = { workspace = true }
+gtk = { workspace = true }
 
 # Non-OHOS desktop hosts use the system keyring backend for the unified
 # SecureCredentialVault (subscription auth, MiniApp/appearance market,
@@ -162,6 +152,10 @@ leptess = { workspace = true }
 # Secret Service provider; the desktop host injects an ArkTS-backed vault
 # at startup instead.
 [target.'cfg(not(target_env = "ohos"))'.dependencies]
+# Computer Use drives screenshots, native input and platform accessibility APIs,
+# so it stays off the OHOS target, matching the `#[cfg(not(target_env = "ohos"))]`
+# gate on the `computer_use` module in lib.rs.
+bitfun-computer-use = { path = "../../crates/services/computer-use" }
 # Login-item autostart is a desktop-OS concept; the OHOS target has no
 # equivalent and the plugin does not build there. Desktop-only code keeps the
 # matching `#[cfg(not(target_env = "ohos"))]` gates.
@@ -169,6 +163,12 @@ tauri-plugin-dialog = { workspace = true }
 tauri-plugin-autostart = { workspace = true }
 tauri-plugin-updater = { workspace = true }
 tauri-plugin-single-instance = { workspace = true }
+# Notification and clipboard plugins also build platform crates that OHOS lacks
+# (`notify-rust` over D-Bus, `arboard` over X11/Wayland). OHOS reads the
+# pasteboard through its ArkTS bridge and surfaces notifications natively, so
+# both plugins are registered only for non-OHOS hosts (see lib.rs).
+tauri-plugin-notification = { workspace = true }
+tauri-plugin-clipboard-manager = { workspace = true }
 bitfun-core = { path = "../../crates/assembly/core", features = ["system-vault"] }
 bitfun-services-integrations = { path = "../../crates/services/services-integrations", features = ["system-vault"] }
 xz2 = { workspace = true }
@@ -186,3 +186,9 @@ napi-derive-ohos = { workspace = true }
 
 [lints]
 workspace = true
+
+[[test]]
+name = "computer_use_native_roundtrip"
+path = "tests/computer_use_native_roundtrip.rs"
+harness = false
+required-features = ["devtools"]

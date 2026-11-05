@@ -1,0 +1,35 @@
+@layer bitfun.components {
+  /* A control row, like the switch: the label explains the value, the value carries the buttons. */
+  .root { display: flex; box-sizing: border-box; inline-size: 100%; min-inline-size: 0; min-block-size: 52px; align-items: center; gap: var(--bitfun-space-3); padding-block: var(--bitfun-space-2); }
+  .root[data-disabled="true"] { color: var(--bitfun-color-content-disabled); }
+
+  .copy { display: flex; box-sizing: border-box; min-inline-size: 0; flex: 1 1 auto; flex-direction: column; gap: var(--bitfun-space-1); }
+  .label { color: var(--bitfun-color-content-primary); font-size: var(--bitfun-type-body-md-font-size); font-weight: var(--bitfun-type-label-lg-font-weight); }
+  .description { color: var(--bitfun-color-content-muted); font-size: var(--bitfun-type-body-xs-font-size); }
+  .root[data-disabled="true"] .label, .root[data-disabled="true"] .description { color: inherit; }
+
+  .control { display: inline-flex; min-inline-size: 0; flex: 0 0 auto; align-items: center; gap: var(--bitfun-space-1); border: var(--bitfun-border-width-default) solid var(--bitfun-color-field-border); border-radius: var(--bitfun-radius-md); background: var(--bitfun-color-field-background); }
+  .root[data-invalid="true"] .control { border-color: var(--bitfun-color-status-danger-border); }
+  .root:not([data-disabled="true"]) .control:focus-within,
+  .root[data-bitfun-preview-state="focus-within"] .control { border-color: var(--bitfun-color-field-border-focus); box-shadow: 0 0 0 var(--bitfun-focus-width) var(--bitfun-color-focus-ring); }
+
+  .button { display: grid; inline-size: 44px; block-size: 44px; flex: 0 0 44px; margin: 0; padding: 0; border: 0; border-radius: var(--bitfun-radius-md); place-items: center; color: var(--bitfun-color-content-secondary); background: transparent; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard); }
+  .button > svg { inline-size: 18px; block-size: 18px; }
+  @media (hover: hover) and (pointer: fine) {
+    .button:is(:hover, [data-bitfun-preview-state="hover"]):not(:disabled),
+    .root[data-bitfun-preview-state="hover"] .button:not(:disabled) { background: var(--bitfun-color-action-neutral-surface-hover); }
+  }
+  .button:is(:active, [data-bitfun-preview-state="active"]):not(:disabled),
+  .root[data-bitfun-preview-state="active"] .button:not(:disabled) { background: var(--bitfun-color-action-neutral-surface-pressed); }
+  .button:focus-visible { outline: var(--bitfun-focus-width) solid var(--bitfun-color-focus-ring); outline-offset: calc(var(--bitfun-focus-offset) * -1); }
+  .button:disabled { color: var(--bitfun-color-content-disabled); cursor: not-allowed; }
+
+  .value { display: inline-flex; min-inline-size: 0; align-items: baseline; gap: var(--bitfun-space-1); }
+  .input { box-sizing: border-box; inline-size: 4ch; min-block-size: 44px; margin: 0; padding: 0; border: 0; outline: 0; color: inherit; background: transparent; font: inherit; font-size: var(--bitfun-type-body-md-font-size); font-variant-numeric: tabular-nums; text-align: center; }
+  .input:disabled { color: var(--bitfun-color-content-disabled); }
+  .unit { color: var(--bitfun-color-content-secondary); font-size: var(--bitfun-type-body-sm-font-size); }
+  .root[data-invalid="true"] .input { color: var(--bitfun-color-status-danger-content); }
+
+  @media (prefers-reduced-motion: reduce) { .button { transition: none; } }
+  @media (forced-colors: active) { .control { border-color: ButtonText; } .button:focus-visible { outline-color: Highlight; } }
+}

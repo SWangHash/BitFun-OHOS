@@ -16,7 +16,7 @@ MiniApp 市场网页源码在 `src/miniapp-market-web/`，后端入口在
 `src/crates/services/miniapp-market-service/`。
 
 网页和后端由 `src/apps/miniapp-market-server/Dockerfile` 打进同一个镜像。
-因此只改网页、只改后端、或前后端一起改，生产发布动作相同：
+因此只改网页、只改后端、或前后端一起改，部署动作相同：
 
 1. 本地检查并提交一个明确 Git commit；
 2. 验证或创建部署前备份；
@@ -33,12 +33,13 @@ Skin 市场复用本服务的 GitHub OAuth、桌面 token 和 Web 会话别名�
 验证 Skin 的“我的投稿”和“审核”接口；Skin 容器只能通过它自己的部署手册和
 专用 checkout 更新，不能从 MiniApp Compose 项目重建。
 
-## 生产边界
+## 部署边界
 
-本目录只能部署 MiniApp 市场。不得修改、清理或重启现有 Relay、New API、官网
-及其 Nginx vhost/container。
+本目录只能部署 MiniApp 市场。如果同一主机上还运行 Relay、官网或其他服务，不要
+修改、清理或重启它们的 Nginx vhost/container。
 
-服务器上另外两个仓库有需要保留的状态：
+市场使用独立 checkout `/srv/bitfun-miniapp-market/app`。任何部署都不得在其他
+服务的 checkout 中运行 `git clean`、`git reset --hard`、强制 checkout 或部署脚本。
 
 - `/root/repos/BitFun` 可能包含 Relay 的未跟踪 `.env`；
 - `/root/repos/BitFun-Website` 可能是 dirty worktree。
@@ -78,11 +79,11 @@ capabilities 方式运行。数据和 artifacts 通过独立宿主目录持久�
 4. 不读取、复制、输出 `/etc/bitfun-miniapp-market/market.env` 内容。
 5. 不记录 token、Cookie、请求 body、包内容或个人 IP。
 6. 发布前记录旧 commit；数据库相关变更先验证备份。
-7. 不修改 Relay、New API、官网或它们的 Nginx/container。
+7. 不修改同一主机上的其他服务或它们的 Nginx/container。
 8. 每个外部写操作后做只读验证。任何验证失败立即停止，不连续尝试破坏性修复。
 9. 只有容器 healthy、镜像 revision 等于目标 commit、公网健康检查通过，才可以
    报告“部署成功”。
-10. schema 变更回滚、生产数据恢复或 OAuth 配置不明确时，停止并请求人工确认，
+10. schema 变更回滚、数据恢复或 OAuth 配置不明确时，停止并请求人工确认，
     不猜测。
 
 下面步骤中的 `DEPLOY_COMMIT`、`PREVIOUS_COMMIT` 等变量保存在本地 shell。应在
@@ -129,9 +130,9 @@ git show --stat --oneline "$DEPLOY_COMMIT"
 git status --short
 ```
 
-如果最后一条仍有属于本任务的未提交改动，停止；它们不会进入生产镜像。
+如果最后一条仍有属于本任务的未提交改动，停止；它们不会进入部署镜像。
 
-## 2. 只读检查当前生产状态
+## 2. 只读检查当前部署状态
 
 ```bash
 ssh lwb 'set -eu
@@ -195,7 +196,7 @@ test -n "$latest"
 
 ## 4. 把精确 commit 送到专用 checkout
 
-生产 ref 只用于这个市场 checkout。使用 `--force-with-lease` 防止覆盖未知的并发
+部署 ref 只用于这个市场 checkout。使用 `--force-with-lease` 防止覆盖未知的并发
 发布，不使用无条件 `--force`。
 
 ```bash
@@ -210,7 +211,7 @@ git push \
   "${DEPLOY_COMMIT}:refs/heads/market-deploy"
 ```
 
-如果 lease 失败，表示另一个发布修改了服务器 ref。停止并重新检查生产状态，不要
+如果 lease 失败，表示另一个发布修改了服务器 ref。停止并重新检查部署状态，不要
 改成无条件 force。
 
 确认服务器专用 checkout 干净后切到目标 commit：
@@ -246,7 +247,7 @@ docker compose -f deploy/miniapp-market/docker-compose.yml \
 等待 Compose healthcheck 变成 `healthy`：
 
 ```bash
-ssh lwb 'set -eu
+ssh "$DEPLOY_HOST" 'set -eu
 for attempt in $(seq 1 30); do
   status="$(
     docker inspect --format \
@@ -264,7 +265,7 @@ exit 1'
 
 ```bash
 DEPLOYED_COMMIT="$(
-  ssh lwb 'docker inspect --format \
+  ssh "$DEPLOY_HOST" 'docker inspect --format \
     "{{index .Config.Labels \"org.opencontainers.image.revision\"}}" \
     bitfun-miniapp-market'
 )"
@@ -284,7 +285,7 @@ curl -fsS https://market.bitfun.com/miniapp/ >/dev/null
 投稿写请求由后端拒绝，网页仅保留“我的投稿”历史；BitFun Desktop 的 Bearer
 投稿和 Web 管理员审核继续可用。未来重新开放网页投稿时，必须先完成对应安全
 回归，再显式修改 root-only `market.env` 并仅 recreate 市场容器。
-环境变量缺失时后端也默认关闭，但生产 `market.env` 应显式保留
+环境变量缺失时后端也默认关闭，但 `market.env` 应显式保留
 `MARKET_WEB_SUBMISSIONS_ENABLED=false`，避免后续运维人员误判当前策略。
 
 再用浏览器人工检查：
@@ -295,9 +296,9 @@ curl -fsS https://market.bitfun.com/miniapp/ >/dev/null
   `/miniapp/submit` 提示改用 BitFun Desktop，“我的投稿”仍可读取；
 - OAuth 已配置时，GitHub 登录 callback 正常；
 - 与本次改动有关的浏览、下载、投稿、审核、安装或更新流程正常；
-- Relay、New API 和官网仍可用，且它们的容器/vhost 没被重启或改写。
+- 同一主机上的其他服务仍可用，且它们的容器/vhost 没被重启或改写。
 
-查看最近日志时只读有限行数，不把完整生产日志复制到公开位置：
+查看最近日志时只读有限行数，不把完整运行日志复制到公开位置：
 
 ```bash
 ssh lwb 'docker logs --since 10m --tail 200 bitfun-miniapp-market'
@@ -314,7 +315,7 @@ ssh lwb 'docker logs --since 10m --tail 200 bitfun-miniapp-market'
 确有修改时才安装市场专用文件：
 
 ```bash
-ssh lwb 'set -eu
+ssh "$DEPLOY_HOST" 'set -eu
 install -m 0644 \
   /srv/bitfun-miniapp-market/app/deploy/miniapp-market/nginx-default-server.conf \
   /etc/nginx/sites-available/00-default-server.conf
@@ -358,7 +359,7 @@ curl -sS -o /dev/null -w "%{http_code}\n" \
 纯前端或兼容后端故障可以回滚到部署前保存的 `$PREVIOUS_COMMIT`：
 
 ```bash
-ssh lwb "set -eu
+ssh "$DEPLOY_HOST" "set -eu
 test -n '$PREVIOUS_COMMIT'
 test -z \"\$(git -C /srv/bitfun-miniapp-market/app status --porcelain)\"
 git -C /srv/bitfun-miniapp-market/app checkout --detach '$PREVIOUS_COMMIT'
@@ -391,7 +392,7 @@ git push \
 制定数据迁移/恢复方案。Nginx 有改动时也要从旧 commit 恢复市场专用配置，
 `nginx -t` 后再 reload。
 
-## 修改生产配置
+## 修改运行配置
 
 实际配置只在 `/etc/bitfun-miniapp-market/market.env`。只能在服务器本地用受控
 编辑器修改，不能 `cat`、下载或提交：
@@ -450,7 +451,7 @@ curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" \
 ### 初次开放市场
 
 初次开放市场时保持 `MARKET_PUBLIC_BROWSE=false`，先由管理员 GitHub ID
-`24753352` 登录、上传并批准样例，再用全新桌面客户端验证安装和手动更新。
+`<your-github-id>` 登录、上传并批准样例，再用全新桌面客户端验证安装和手动更新。
 全部通过后才可改为 `true` 并 recreate。审批完成不代表用户自动授予 MiniApp
 权限。
 
@@ -465,9 +466,9 @@ curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" \
    同时安装 `nginx-default-server.conf`，让所有未知 Host fail closed；
 4. 安装 `backup.sh`、`restore-drill.sh`、systemd service/timer；
 5. 运行一次备份和恢复演练；
-6. 以 `MARKET_PUBLIC_BROWSE=false` 完成生产验收后再开放。
+6. 以 `MARKET_PUBLIC_BROWSE=false` 完成部署验收后再开放。
 
-已有生产安装不要重复初始化。更改备份脚本或 systemd 文件时，逐个安装对应文件，
+已有安装不要重复初始化。更改备份脚本或 systemd 文件时，逐个安装对应文件，
 运行 `systemctl daemon-reload`，手工验证一次，再确认 timer 是 enabled/active。
 
 每日备份保留 14 份，周备份保留 8 份。备份脚本的删除范围已经限制在市场专用

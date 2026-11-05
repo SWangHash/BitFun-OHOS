@@ -140,6 +140,7 @@ exclude = ["src/apps/relay-server", "BitFun-Installer/src-tauri"]
   const initialLock = spawnSync('cargo', ['generate-lockfile'], {
     cwd: root,
     encoding: 'utf8',
+    windowsHide: true,
   });
   assert.equal(initialLock.status, 0, initialLock.stderr);
 
@@ -188,6 +189,7 @@ exclude = ["src/apps/relay-server", "BitFun-Installer/src-tauri"]
   const lockedMetadata = spawnSync('cargo', ['metadata', '--locked', '--no-deps'], {
     cwd: root,
     encoding: 'utf8',
+    windowsHide: true,
   });
   assert.equal(lockedMetadata.status, 0, lockedMetadata.stderr);
 

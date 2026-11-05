@@ -1,0 +1,55 @@
+.workspace-source-selector {
+  display: flex;
+  min-inline-size: 0;
+  flex-direction: column;
+  gap: var(--bitfun-space-3);
+
+  &__field {
+    display: flex;
+    min-inline-size: 0;
+    flex-direction: column;
+    gap: var(--bitfun-space-2);
+  }
+
+  &__label {
+    flex: 0 0 auto;
+    color: var(--bitfun-color-content-primary);
+    font-size: var(--bitfun-type-label-md-font-size);
+    font-weight: var(--bitfun-type-label-md-font-weight);
+    line-height: var(--bitfun-type-label-md-line-height);
+  }
+
+  &__heading {
+    display: flex;
+    align-items: center;
+    gap: var(--bitfun-space-2) var(--bitfun-space-3);
+    min-inline-size: 0;
+  }
+
+  &__control {
+    flex: 0 1 auto;
+    min-inline-size: 0;
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+    margin-inline-start: auto;
+    gap: var(--bitfun-space-2);
+  }
+
+  &__device {
+    align-items: center;
+    gap: var(--bitfun-space-2);
+    > svg { flex-shrink: 0; }
+    display: flex;
+    justify-content: center;
+    text-align: center;
+    min-block-size: var(--bitfun-control-button-xs-height);
+    min-inline-size: 0;
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    line-height: var(--bitfun-type-body-sm-line-height);
+  }
+}

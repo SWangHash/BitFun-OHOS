@@ -1,0 +1,182 @@
+.bitfun-reasoning-control {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-inline-size: 0;
+  min-block-size: calc(var(--bitfun-space-6) + var(--bitfun-space-1));
+  overflow: visible;
+  color: var(--bitfun-color-content-secondary);
+  font-family: var(--bitfun-type-label-md-font-family);
+  font-size: var(--bitfun-type-label-md-font-size);
+  font-weight: var(--bitfun-type-label-md-font-weight);
+  line-height: var(--bitfun-type-action-row-line-height);
+  letter-spacing: var(--bitfun-type-label-md-letter-spacing);
+
+  &__segments[data-wrap='true'] {
+    display: grid;
+    border-radius: var(--bitfun-radius-base);
+  }
+
+  &__value {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: center;
+    justify-content: center;
+    min-inline-size: 0;
+    inline-size: 100%;
+    min-block-size: calc(var(--bitfun-space-6) + var(--bitfun-space-1));
+    text-align: center;
+  }
+
+  &__summary,
+  &__options {
+    grid-area: 1 / 1;
+    inline-size: 100%;
+    min-inline-size: 0;
+  }
+
+  &__summary {
+    display: flex;
+    justify-content: center;
+    transition: opacity 180ms var(--bitfun-motion-easing-standard);
+
+    &[aria-hidden='true'] {
+      opacity: 0;
+      pointer-events: none;
+    }
+  }
+
+  &__value &__options {
+    // Both faces share one center; height changes move the model, not the choices.
+    display: flex;
+    align-items: center;
+    overflow: visible;
+    transform: none;
+  }
+
+  &__options-content {
+    flex: 0 0 100%;
+    min-inline-size: 0;
+    clip-path: inset(calc(-1 * var(--bitfun-space-1)) 46% round var(--bitfun-radius-base));
+    transition-property: clip-path;
+    transition-duration: inherit;
+    transition-timing-function: inherit;
+  }
+
+  &__options[aria-hidden='false'] &__options-content {
+    // Reveal sideways without stretching text; leave room for keyboard focus outlines.
+    clip-path: inset(calc(-1 * var(--bitfun-space-1)) round var(--bitfun-radius-base));
+
+    @starting-style {
+      clip-path: inset(calc(-1 * var(--bitfun-space-1)) 46% round var(--bitfun-radius-base));
+    }
+  }
+
+  &__trigger {
+    inline-size: max-content;
+    max-inline-size: 100%;
+    min-inline-size: 0;
+    min-block-size: calc(var(--bitfun-space-6) + var(--bitfun-space-1));
+    color: inherit;
+
+    [data-bitfun-part='trigger'] {
+      justify-content: center;
+      text-align: center;
+    }
+
+    [data-bitfun-part='label'] {
+      flex: 0 1 auto;
+      inline-size: max-content;
+      min-inline-size: 4em;
+      text-align: center;
+      font-family: var(--bitfun-type-label-md-font-family);
+      font-size: var(--bitfun-type-label-md-font-size);
+      font-weight: var(--bitfun-type-label-md-font-weight);
+      line-height: var(--bitfun-type-action-row-line-height);
+      letter-spacing: var(--bitfun-type-label-md-letter-spacing);
+    }
+  }
+
+  &__choices {
+    display: grid;
+    gap: var(--bitfun-space-1);
+    inline-size: 100%;
+    min-inline-size: 0;
+
+    [data-bitfun-component='segmented-control'] {
+      min-inline-size: 0;
+    }
+
+    [data-bitfun-part='segment'] {
+      block-size: calc(var(--bitfun-space-6) + var(--bitfun-space-1));
+      padding-inline: var(--bitfun-space-1);
+      font-family: var(--bitfun-type-label-md-font-family);
+      font-size: var(--bitfun-type-label-md-font-size);
+      line-height: var(--bitfun-type-label-md-line-height);
+      letter-spacing: var(--bitfun-type-label-md-letter-spacing);
+
+      &[aria-pressed='false']:hover:not(:disabled) {
+        background: var(--bitfun-color-action-neutral-surface-hover);
+      }
+    }
+  }
+
+  &[data-presentation='settings-row'] {
+    inline-size: 100%;
+    color: var(--bitfun-color-content-primary);
+
+    .bitfun-reasoning-control__value,
+    .bitfun-reasoning-control__trigger {
+      min-block-size: var(--bitfun-control-height-md);
+    }
+
+    .bitfun-reasoning-control__trigger {
+      inline-size: 100%;
+      padding-inline: var(--bitfun-space-3);
+
+      [data-bitfun-part='trigger'],
+      [data-bitfun-part='label'] {
+        text-align: start;
+        justify-content: flex-start;
+      }
+
+      [data-bitfun-part='label'] {
+        flex: 1 1 auto;
+        inline-size: auto;
+        min-inline-size: 0;
+      }
+
+      [data-bitfun-part='label'],
+      [data-bitfun-part='metadata'] {
+        font-family: var(--bitfun-type-label-md-font-family);
+        font-size: var(--bitfun-type-label-md-font-size);
+        font-weight: var(--bitfun-type-label-md-font-weight);
+        line-height: var(--bitfun-type-action-row-line-height);
+        letter-spacing: var(--bitfun-type-label-md-letter-spacing);
+      }
+
+      [data-bitfun-part='metadata'] {
+        max-inline-size: 60%;
+        min-inline-size: 0;
+        color: var(--bitfun-color-content-secondary);
+      }
+
+      [data-bitfun-part='shortcut'] {
+        color: var(--bitfun-color-content-muted);
+      }
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &__summary,
+    &__options,
+    &__options-content {
+      transition: none;
+    }
+  }
+
+  @media (forced-colors: active) {
+    color: CanvasText;
+    background: Canvas;
+  }
+}

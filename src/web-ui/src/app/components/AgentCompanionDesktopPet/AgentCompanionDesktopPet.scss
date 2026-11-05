@@ -120,35 +120,35 @@
     }
   }
 
-  /* Input bar shown inside the bubble the user replied from. */
+  /* Input bar shown inside the bubble the user replied from: one pill field
+     with its two actions set inside it, in the bubble's own light. */
   &__bubble-composer {
+    position: relative;
     flex: 0 0 auto;
     align-self: stretch;
     width: 100%;
-    margin-top: 5px;
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 4px;
+    margin-top: 6px;
   }
 
   &__bubble-composer-input {
     appearance: none;
     -webkit-appearance: none;
-    flex: 1 1 auto;
-    min-width: 0;
-    height: 21px;
+    display: block;
+    width: 100%;
+    height: 24px;
     box-sizing: border-box;
-    padding: 2px 5px;
-    border: 1px solid var(--bitfun-color-field-border);
-    border-radius: 5px;
+    padding: 0 46px 0 10px;
+    border: none;
+    border-radius: 999px;
     background: var(--bitfun-color-field-background);
     color: var(--bitfun-color-content-primary);
+    box-shadow: inset 0 0 0 1px var(--bitfun-color-border-subtle);
     font: inherit;
     font-size: var(--bitfun-type-micro-font-size);
     line-height: var(--bitfun-type-modifier-leading-snug-line-height);
     user-select: text;
     -webkit-user-select: text;
+    transition: box-shadow var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
     &::placeholder {
       color: var(--bitfun-color-content-muted);
@@ -158,37 +158,58 @@
     &:focus-visible {
       outline: none;
       outline-offset: 0;
-      box-shadow: none;
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--_bubble-light) 55%, transparent);
     }
   }
 
   &__bubble-composer-send,
   &__bubble-composer-cancel {
     appearance: none;
-    flex-shrink: 0;
-    width: 21px;
-    height: 21px;
+    position: absolute;
+    top: 50%;
+    width: 18px;
+    height: 18px;
     padding: 0;
     display: grid;
     place-items: center;
-    border: 1px solid var(--bitfun-color-action-neutral-border);
-    border-radius: 5px;
-    background: var(--bitfun-color-action-neutral-surface);
-    color: var(--bitfun-color-action-neutral-content);
+    border: none;
+    border-radius: 50%;
+    transform: translateY(-50%);
     cursor: pointer;
-
-    &:hover:not(:disabled) {
-      background: var(--bitfun-color-action-neutral-surface-hover);
-    }
-
-    &:disabled {
-      opacity: 0.45;
-      cursor: default;
-    }
+    transition:
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      opacity var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
     &:focus-visible {
       outline: 2px solid color-mix(in srgb, var(--bitfun-color-accent-hover) 70%, transparent);
       outline-offset: 1px;
+    }
+  }
+
+  &__bubble-composer-cancel {
+    right: 24px;
+    background: transparent;
+    color: var(--bitfun-color-content-muted);
+
+    &:hover {
+      background: var(--bitfun-color-action-neutral-surface-hover);
+      color: var(--bitfun-color-content-primary);
+    }
+  }
+
+  &__bubble-composer-send {
+    right: 3px;
+    background: var(--bitfun-color-action-primary-background);
+    color: var(--bitfun-color-action-primary-content);
+
+    &:hover:not(:disabled) {
+      background: var(--bitfun-color-action-primary-hover);
+    }
+
+    &:disabled {
+      opacity: 0.35;
+      cursor: default;
     }
   }
 
@@ -271,39 +292,72 @@
     &--single {
       height: min(var(--bitfun-agent-companion-pet-height), 100vh);
     }
+
+    /* No reply text yet: the bubble keeps its natural height, centred on the pet. */
+    &--compact {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
   }
 
+  /* The reply affordance: a small borderless glass disc in the bubble's
+     corner, revealed on hover. */
   &__bubble-compose {
     appearance: none;
     position: absolute;
     z-index: 2;
-    right: 5px;
-    bottom: 5px;
-    width: 18px;
-    height: 18px;
+    right: 7px;
+    bottom: 7px;
+    width: 22px;
+    height: 22px;
     padding: 0;
     display: grid;
     place-items: center;
-    border: 1px solid var(--bitfun-color-border-default);
+    border: none;
     border-radius: 50%;
-    background: var(--bitfun-color-surface-raised);
-    color: var(--bitfun-color-content-primary);
+    background: color-mix(in srgb, var(--bitfun-color-surface-raised) 82%, transparent);
+    color: var(--bitfun-color-content-secondary);
+    box-shadow:
+      var(--bitfun-shadow-inner-highlight),
+      0 2px 8px -3px color-mix(in srgb, var(--bitfun-color-content-primary) 30%, transparent);
+    backdrop-filter: blur(8px);
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
     transition:
       opacity 120ms ease,
+      color 120ms ease,
       visibility 0s linear 120ms;
     cursor: pointer;
 
     &:hover {
-      background: var(--bitfun-color-surface-tertiary);
+      color: var(--bitfun-color-content-primary);
+      background: var(--bitfun-color-surface-raised);
     }
 
     &:focus-visible {
       outline: 2px solid color-mix(in srgb, var(--bitfun-color-accent-hover) 70%, transparent);
       outline-offset: 1px;
     }
+  }
+
+  /* One-line bubbles centre the disc on the title row instead of tucking it
+     into a corner it would half cover. */
+  &__bubble-shell:not(.bitfun-agent-companion-window__bubble-shell--single) &__bubble-compose,
+  &__bubble-shell--compact &__bubble-compose {
+    top: 50%;
+    bottom: auto;
+    transform: translateY(-50%);
+  }
+
+  /* While the disc shows, the title end fades out beneath it instead of
+     reflowing, so the disc never sits on legible text. A mask only reads
+     alpha, so any opaque token works as the ink. */
+  &--native-hover &__bubble-shell--replyable:hover &__bubble-title,
+  &__bubble-shell--replyable.bitfun-agent-companion-window__bubble-shell--hovered &__bubble-title {
+    -webkit-mask-image: linear-gradient(to right, var(--bitfun-color-surface-raised) calc(100% - 26px), transparent calc(100% - 6px));
+    mask-image: linear-gradient(to right, var(--bitfun-color-surface-raised) calc(100% - 26px), transparent calc(100% - 6px));
   }
 
   &--native-hover &__bubble-shell:hover &__bubble-compose,
@@ -321,15 +375,33 @@
     width: 180px;
     max-width: 100%;
     box-sizing: border-box;
-    padding: 7px 10px;
-    border: 1px solid var(--bitfun-color-border-default);
-    border-radius: 10px 10px 2px 10px;
+    /* Same language as the device overview: the opaque themed surface lit
+       from the corner nearest the title by the task state, a faint ring in
+       that light, and the tail corner pointing at the pet. */
+    --_bubble-light: var(--bitfun-color-accent-default);
+    --_bubble-glow: radial-gradient(
+      130% 150% at 0% 0%,
+      color-mix(in srgb, var(--_bubble-light) 20%, transparent),
+      transparent 68%
+    );
+    /* No border: the bubble is defined by its surface, the state light, the
+       theme's top highlight and a soft tinted drop shadow. Everything stays
+       inside the bubble column, which clips sideways. */
+    --_bubble-edge:
+      var(--bitfun-shadow-inner-highlight),
+      0 10px 20px -12px color-mix(in srgb, var(--_bubble-light) 34%, transparent);
+    padding: 9px 12px;
+    border: none;
+    border-radius: 14px 14px 4px 14px;
     background-color: var(--bitfun-color-surface-raised);
+    background-image: var(--_bubble-glow);
     color: var(--bitfun-color-content-primary);
+    box-shadow: var(--_bubble-edge);
     backdrop-filter: blur(10px);
     cursor: pointer;
     position: relative;
     z-index: 0;
+    transition: transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
     &:hover {
       transform: translateY(-1px);
@@ -347,6 +419,10 @@
       overflow: hidden;
     }
 
+    &--compact {
+      height: auto;
+    }
+
     /* Replying turns the bubble into its own composer, so it must not react to
        hover like a clickable bubble any more. */
     &--composing {
@@ -359,10 +435,9 @@
         transform: none;
       }
 
-      /* Only the output yields space to the input row; letting the title and
-         status shrink too would clip their glyphs. */
-      .bitfun-agent-companion-window__bubble-title,
-      .bitfun-agent-companion-window__bubble-status {
+      /* Only the output yields space to the input row; letting the title row
+         shrink too would clip its glyphs. */
+      .bitfun-agent-companion-window__bubble-head {
         flex: 0 0 auto;
       }
 
@@ -375,28 +450,50 @@
     }
   }
 
-  &__bubble-title,
-  &__bubble-status {
-    display: block;
-    overflow: hidden;
-    white-space: nowrap;
+  /* The state is drawn, not written: a glyph before the title. */
+  &__bubble-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding-right: 8px;
+  }
+
+  &__bubble-state {
+    flex: 0 0 auto;
+    color: var(--_bubble-light);
+  }
+
+  &__bubble--running &__bubble-state {
+    animation: bitfun-agent-companion-state-spin 1.1s linear infinite;
+  }
+
+  &__bubble--attention &__bubble-state {
+    animation: bitfun-agent-companion-state-breathe 1.5s ease-in-out infinite;
   }
 
   &__bubble-title {
-    box-sizing: border-box;
-    max-width: 100%;
-    padding-right: 8px;
-    font-size: var(--bitfun-type-meta-font-size);
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: var(--bitfun-type-label-sm-font-size);
     line-height: var(--bitfun-type-modifier-leading-dense-line-height);
     font-weight: var(--bitfun-type-label-selected-font-weight);
-    min-width: 0;
   }
 
+  /* The words behind the glyph stay for assistive tech; sighted users get
+     them in the bubble's tooltip. */
   &__bubble-status {
-    margin-top: 2px;
-    font-size: var(--bitfun-type-micro-font-size);
-    line-height: var(--bitfun-type-modifier-leading-dense-line-height);
-    color: var(--bitfun-color-content-secondary);
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   &__bubble-output {
@@ -431,51 +528,47 @@
     }
   }
 
+  /* Each state sets the light and lays its status tint over the opaque themed
+     surface, fading away from the lit corner so the bubble stays calm. */
   &__bubble--attention {
-    border-color: var(--bitfun-color-status-warning-border);
+    --_bubble-light: var(--bitfun-color-status-warning-content);
     background-image: linear-gradient(
+      135deg,
       var(--bitfun-color-status-warning-surface),
-      var(--bitfun-color-status-warning-surface)
-    );
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--bitfun-color-status-warning-content) 50%, transparent);
+      transparent 72%
+    ), var(--_bubble-glow);
+    box-shadow:
+      var(--_bubble-edge),
+      0 0 0 0 color-mix(in srgb, var(--bitfun-color-status-warning-content) 50%, transparent);
     animation: bitfun-agent-companion-attention-pulse 1.5s ease-in-out infinite !important;
-
-    &::after {
-      content: "";
-      position: absolute;
-      top: 6px;
-      right: 6px;
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--bitfun-color-status-warning-content);
-      animation: bitfun-agent-companion-attention-dot 1.5s ease-in-out infinite;
-    }
   }
 
   &__bubble--waiting {
-    border-color: var(--bitfun-color-status-warning-border);
+    --_bubble-light: var(--bitfun-color-status-warning-content);
     background-image: linear-gradient(
+      135deg,
       var(--bitfun-color-status-warning-surface),
-      var(--bitfun-color-status-warning-surface)
-    );
+      transparent 72%
+    ), var(--_bubble-glow);
   }
 
   &__bubble--completed {
-    border-color: var(--bitfun-color-status-success-border);
+    --_bubble-light: var(--bitfun-color-status-success-content);
     background-image: linear-gradient(
+      135deg,
       var(--bitfun-color-status-success-surface),
-      var(--bitfun-color-status-success-surface)
-    );
+      transparent 72%
+    ), var(--_bubble-glow);
   }
 
   &__bubble--error,
   &__bubble--interrupted {
-    border-color: var(--bitfun-color-status-danger-border);
+    --_bubble-light: var(--bitfun-color-status-danger-content);
     background-image: linear-gradient(
+      135deg,
       var(--bitfun-color-status-danger-surface),
-      var(--bitfun-color-status-danger-surface)
-    );
+      transparent 72%
+    ), var(--_bubble-glow);
   }
 
   .bitfun-agent-companion-pet {
@@ -502,17 +595,27 @@
 @keyframes bitfun-agent-companion-attention-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--bitfun-color-status-warning-content) 50%, transparent);
+    box-shadow:
+      var(--_bubble-edge),
+      0 0 0 0 color-mix(in srgb, var(--bitfun-color-status-warning-content) 40%, transparent);
     transform: translateY(0);
   }
 
   50% {
-    box-shadow: 0 0 0 8px transparent;
-    transform: translateY(-2px);
+    box-shadow:
+      var(--_bubble-edge),
+      0 0 0 6px transparent;
+    transform: translateY(-1px);
   }
 }
 
-@keyframes bitfun-agent-companion-attention-dot {
+@keyframes bitfun-agent-companion-state-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes bitfun-agent-companion-state-breathe {
   0%,
   100% {
     transform: scale(1);
@@ -520,8 +623,8 @@
   }
 
   50% {
-    transform: scale(1.5);
-    opacity: 0.65;
+    transform: scale(1.15);
+    opacity: 0.7;
   }
 }
 
@@ -545,5 +648,10 @@
   .bitfun-agent-companion__bubble--attention::after {
     animation: none !important;
     transform: none;
+  }
+
+  .bitfun-agent-companion-window__bubble--attention,
+  .bitfun-agent-companion-window__bubble-state {
+    animation: none !important;
   }
 }

@@ -49,7 +49,7 @@ export const chatInputAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'command', attribute: 'data-bitfun-command', values: ['actions', 'all', 'skills', 'modes'] },
     { id: 'commandItemKind', attribute: 'data-bitfun-command-item-kind', values: ['action', 'mode', 'skill', 'mcp'] },
     { id: 'action', attribute: 'data-bitfun-action', values: ['cancel', 'continue-interrupted', 'retry', 'send', 'split'] },
-    { id: 'boostItemKind', attribute: 'data-bitfun-boost-item-kind', values: ['directive', 'agent', 'context', 'skill', 'additional-mode', 'manage'] },
+    { id: 'boostItemKind', attribute: 'data-bitfun-boost-item-kind', values: ['directive', 'agent', 'context', 'skill', 'additional-mode', 'manage', 'thread-goal'] },
   ],
   states: [
     { id: 'processing', selector: { kind: 'ancestorPart', part: 'root', suffix: '[data-bitfun-state~="processing"]' } },

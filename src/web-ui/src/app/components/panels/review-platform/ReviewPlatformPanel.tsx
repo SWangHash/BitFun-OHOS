@@ -41,14 +41,14 @@ import {
   DialogHeading,
   DialogTitle,
 } from '@bitfun/ui';
-import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { GitPullRequest, GitPullRequestClosed, KeyRound, MessageSquareText, MoreHorizontal } from 'lucide-react';
 import { MarkdownRenderer } from '@/infrastructure/markdown';
 import { reviewPlatformAPI, systemAPI, type ReviewPlatformAccount, type ReviewPlatformAuthChallenge, type ReviewPlatformCiItem, type ReviewPlatformCiLog, type ReviewPlatformCommit, type ReviewPlatformDetailSection, type ReviewPlatformFile, type ReviewPlatformPagination, type ReviewPlatformPullRequest, type ReviewPlatformPullRequestDetail, type ReviewPlatformPullRequestDetailPage, type ReviewPlatformRemote, type ReviewPlatformRepositoryRef, type ReviewPlatformThread, type ReviewPlatformWorkspaceSnapshot } from '@/infrastructure/api';
 import { createLogger } from '@/shared/utils/logger';
 import { notificationService } from '@/shared/notification-system';
 import { i18nService, useI18n } from '@/infrastructure/i18n';
-import { ensureMainSessionActive } from '@/flow_chat/services/sessionActivation';
+import { ensureMainSessionActive, openMainSession } from '@/flow_chat/services/sessionActivation';
 import { openBtwSessionInAuxPane } from '@/flow_chat/services/btwSessionPane';
 import {
   launchPreparedReviewSession,
@@ -67,6 +67,8 @@ import {
   withGitRepositoryTrustRecovery,
 } from '@/shared/services/gitTrustService';
 import type { PullRequestContext } from '@/shared/types/context';
+import { getActiveSurfaceId, getActiveSurfaceScope, isLocalSurface, onSurfaceActivated, surfaceScopedKey, type DeviceSurfaceId, type SurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
+import { useReviewPlatformSupport } from '@/infrastructure/peer-device/useReviewPlatformSupport';
 import {
   currentPullRequestReviewStatusText,
   effectivePullRequestReviewFreshness,
@@ -179,6 +181,13 @@ function reviewPanelErrorMessage(
 ): string {
   return describeGitTrustFailure(error) ?? reviewPlatformErrorMessage(error, t, fallback);
 }
+// A device switch starts from fresh provider reads; a late response from the
+// departed device can only land under that device's own keys.
+onSurfaceActivated(() => {
+  snapshotCache.clear();
+  detailCache.clear();
+  detailPageCache.clear();
+});
 
 function detailPageInfo(pagination: ReviewPlatformPagination, itemCount: number): PageInfo {
   const pageIndex = Math.max(0, (pagination.page || 1) - 1);
@@ -201,22 +210,27 @@ function detailPageInfo(pagination: ReviewPlatformPagination, itemCount: number)
   };
 }
 
-// Caches are keyed by the owning workspace ID, never by path: two workspaces
-// (for example a local checkout and a remote one) may share a root path.
+// Caches are keyed by the rendered device and the owning workspace ID, never
+// by path: two workspaces (for example a local checkout and a remote one) may
+// share a root path, and same-path local workspaces share an ID across devices.
+function surfaceCachePrefix(): string {
+  return `${JSON.stringify(getActiveSurfaceId())}::`;
+}
+
 function snapshotCacheKey(workspaceId: string, remoteId: string | null, page: number, perPage: number, mode: 'list' | 'context', state: ListStateFilter, query: string): string {
-  return JSON.stringify([workspaceId, remoteId ?? 'default', page, perPage, mode, state, query]);
+  return `${surfaceCachePrefix()}${workspaceId}::${remoteId ?? 'default'}::${page}::${perPage}::${mode}::${state}::${query}`;
 }
 
 function detailCacheKey(workspaceId: string, remoteId: string, pullRequestId: string): string {
-  return `${workspaceId}::${remoteId}::${pullRequestId}`;
+  return `${surfaceCachePrefix()}${workspaceId}::${remoteId}::${pullRequestId}`;
 }
 
 function detailPageCacheKey(workspaceId: string, remoteId: string, pullRequestId: string, section: ReviewPlatformDetailSection, page: number, perPage: number): string {
-  return `${workspaceId}::${remoteId}::${pullRequestId}::${section}::${page}::${perPage}`;
+  return `${detailCacheKey(workspaceId, remoteId, pullRequestId)}::${section}::${page}::${perPage}`;
 }
 
 function clearDetailPageCacheForPullRequest(workspaceId: string, remoteId: string, pullRequestId: string): void {
-  const prefix = `${workspaceId}::${remoteId}::${pullRequestId}::`;
+  const prefix = `${detailCacheKey(workspaceId, remoteId, pullRequestId)}::`;
   for (const key of detailPageCache.keys()) {
     if (key.startsWith(prefix)) {
       detailPageCache.delete(key);
@@ -250,8 +264,12 @@ function mergeDetailPage(
   };
 }
 
-function remotePreferenceKey(workspaceId: string): string {
-  return `${REMOTE_STORAGE_PREFIX}id:${workspaceId}`;
+function remotePreferenceKey(surfaceId: DeviceSurfaceId, workspaceId: string): string {
+  // Keep the existing local key readable by older installs. Peer preferences
+  // have a separate namespace and must never inherit controller-local values.
+  return isLocalSurface(surfaceId)
+    ? `${REMOTE_STORAGE_PREFIX}id:${workspaceId}`
+    : `${REMOTE_STORAGE_PREFIX}surface:${surfaceScopedKey(surfaceId, workspaceId)}`;
 }
 
 /** Pre-ID installs stored the preference under the workspace path. */
@@ -259,16 +277,16 @@ function legacyRemotePreferenceKey(workspacePath: string): string {
   return `${REMOTE_STORAGE_PREFIX}${workspacePath}`;
 }
 
-function readRememberedRemote(workspaceId: string, workspacePath?: string): string | null {
+function readRememberedRemote(surfaceId: DeviceSurfaceId, workspaceId: string, workspacePath?: string): string | null {
   if (!workspaceId || typeof window === 'undefined') return null;
   try {
-    const remembered = window.localStorage.getItem(remotePreferenceKey(workspaceId));
+    const remembered = window.localStorage.getItem(remotePreferenceKey(surfaceId, workspaceId));
     if (remembered !== null) return remembered;
-    if (!workspacePath) return null;
+    if (!isLocalSurface(surfaceId) || !workspacePath) return null;
     // Migrate the legacy path-keyed preference onto the workspace ID.
     const legacy = window.localStorage.getItem(legacyRemotePreferenceKey(workspacePath));
     if (legacy !== null) {
-      window.localStorage.setItem(remotePreferenceKey(workspaceId), legacy);
+      window.localStorage.setItem(remotePreferenceKey(surfaceId, workspaceId), legacy);
       window.localStorage.removeItem(legacyRemotePreferenceKey(workspacePath));
     }
     return legacy;
@@ -277,10 +295,10 @@ function readRememberedRemote(workspaceId: string, workspacePath?: string): stri
   }
 }
 
-function rememberRemote(workspaceId: string, remoteId: string | null): void {
+function rememberRemote(surfaceId: DeviceSurfaceId, workspaceId: string, remoteId: string | null): void {
   if (!workspaceId || typeof window === 'undefined') return;
   try {
-    const key = remotePreferenceKey(workspaceId);
+    const key = remotePreferenceKey(surfaceId, workspaceId);
     if (remoteId) {
       window.localStorage.setItem(key, remoteId);
     } else {
@@ -709,15 +727,50 @@ function canExpandCiItem(remote: ReviewPlatformRemote | null, item: ReviewPlatfo
   return canLoadCiLog(remote, item) || Boolean(item.log || item.detail || item.stage || item.webUrl || item.startedAt || item.finishedAt);
 }
 
-export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
+export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = (props) => {
+  const supported = useReviewPlatformSupport();
+  const surface = useSyncExternalStore(onSurfaceActivated, getActiveSurfaceScope, getActiveSurfaceScope);
+  const { t } = useI18n('panels/git');
+
+  if (!supported) {
+    const url = props.initialPullRequestUrl;
+    return (
+      <div className="review-platform" data-bitfun-product-component="review-platform" data-bitfun-product-part="root" data-bitfun-layout={props.detailOnly ? 'detail' : 'full'} data-bitfun-view={props.detailOnly ? 'detail' : 'list'}>
+        <Empty
+          className="review-platform__detail-empty"
+          icon={<GitPullRequest />}
+          description={t('common:reviewPlatform.messages.hostUnsupported')}
+          data-testid="review-platform-unsupported"
+          data-bitfun-product-component="review-platform"
+          data-bitfun-product-part="emptyState"
+          actions={url && parsePullRequestUrl(url) ? (
+            <Button size="sm" variant="outline" onClick={() => {
+              void systemAPI.openExternal(url).catch(error => log.error('Failed to open pull request URL', { url, error }));
+            }}>
+              {t('common:file.openInSystemBrowser')}
+            </Button>
+          ) : undefined}
+        />
+      </div>
+    );
+  }
+
+  // The same workspace ID/path can exist on two hosts. Recreate state and
+  // invalidate in-flight effects even if the panel itself survives the switch.
+  return <ReviewPlatformContent key={surface.key(surface.epoch, props.workspaceId)} {...props} surface={surface} />;
+};
+
+function ReviewPlatformContent({
+  surface,
   workspacePath,
   workspaceId,
   initialRemoteId,
   initialPullRequestId,
   initialPullRequestUrl,
   detailOnly = false,
-}) => {
+}: ReviewPlatformPanelProps & { surface: SurfaceScope }) {
   const { t } = useI18n('panels/git');
+  const { t: tReview } = useI18n('flow-chat');
   const authFormId = useId();
   const backButtonRef = useRef<HTMLButtonElement>(null);
   const selectedRowRef = useRef<HTMLButtonElement>(null);
@@ -729,6 +782,17 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
   const detailRequestSeq = useRef(0);
   const detailSectionRequestSeq = useRef(0);
   const reviewLaunchInFlight = useRef(false);
+  const mounted = useRef(true);
+  const isPanelCurrent = useCallback(() => mounted.current && surface.isCurrent(), [surface]);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      snapshotRequestSeq.current += 1;
+      detailRequestSeq.current += 1;
+      detailSectionRequestSeq.current += 1;
+    };
+  }, []);
   const [snapshot, setSnapshot] = useState<ReviewPlatformWorkspaceSnapshot>(emptySnapshot);
   const snapshotRef = useRef(snapshot);
   snapshotRef.current = snapshot;
@@ -859,6 +923,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
     nextRemoteId?: string | null,
     options?: { force?: boolean; page?: number; state?: ListStateFilter; query?: string; userInitiated?: boolean },
   ) => {
+    if (!isPanelCurrent()) return;
     const requestSeq = ++snapshotRequestSeq.current;
     moreInFlight.current = false;
     setLoadingMore(false);
@@ -881,7 +946,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
     const requestedRemoteId = nextRemoteId !== undefined
       ? nextRemoteId
       : detailOnly
-        ? readRememberedRemote(workspaceId, workspacePath)
+        ? readRememberedRemote(surface.surfaceId, workspaceId, workspacePath)
         : null;
     const requestedPage = Math.max(1, options?.page ?? 1);
     const requestedQuery = detailOnly ? '' : options?.query ?? serverQuery.current;
@@ -918,6 +983,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
     try {
       const repository = { workspaceId, repositoryPath: workspacePath };
       const fetchSnapshot = async () => {
+        if (!isPanelCurrent()) throw new Error('Review panel is no longer active');
         if (detailOnly) return reviewPlatformAPI.getWorkspaceContext(repository, requestedRemoteId ?? null);
         let continuation: ReviewPlatformWorkspaceSnapshot['searchContinuation'];
         let remoteId = requestedRemoteId ?? null;
@@ -944,12 +1010,12 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
       const next = options?.userInitiated
         ? await withGitRepositoryTrustRecovery(fetchSnapshot, { workspaceId, repositoryPath: workspacePath }, { userInitiated: true })
         : await fetchSnapshot();
-      if (snapshotRequestSeq.current !== requestSeq) return;
+      if (!isPanelCurrent() || snapshotRequestSeq.current !== requestSeq) return;
       setSnapshot(next);
       const remoteId = next.selectedRemoteId ?? next.remotes[0]?.id ?? null;
       setSelectedRemoteId(remoteId);
       setPageIndex(Math.max(0, (next.pagination.page || requestedPage) - 1));
-      rememberRemote(workspaceId, remoteId);
+      rememberRemote(surface.surfaceId, workspaceId, remoteId);
       setSelectedPrId(detailOnly ? null : next.pullRequests[0]?.id ?? null);
       setDetail(null);
       setVerifiedDetailKey(null);
@@ -960,15 +1026,15 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
         snapshotCache.set(snapshotCacheKey(workspaceId, remoteId, requestedPage, PR_PAGE_SIZE, snapshotMode, requestedState, requestedQuery), entry);
       }
     } catch (err) {
-      if (snapshotRequestSeq.current !== requestSeq) return;
+      if (!isPanelCurrent() || snapshotRequestSeq.current !== requestSeq) return;
       setSnapshotError({ cause: err });
       log.error('Failed to load review platform snapshot', { workspacePath, error: err });
     } finally {
-      if (snapshotRequestSeq.current === requestSeq) {
+      if (isPanelCurrent() && snapshotRequestSeq.current === requestSeq) {
         setLoading(false);
       }
     }
-  }, [detailOnly, workspacePath, workspaceId]);
+  }, [setDetailError, detailOnly, isPanelCurrent, surface.surfaceId, workspacePath, workspaceId]);
 
   const loadMoreSearch = useCallback(async () => {
     const currentQuery = serverQuery.current;
@@ -1044,6 +1110,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
   useEffect(() => () => { snapshotRequestSeq.current += 1; }, []);
 
   const loadDetail = useCallback(async (repo: ReviewPlatformRepositoryRef | null, remoteId: string, pullRequestId: string, options?: { force?: boolean }) => {
+    if (!isPanelCurrent()) return;
     const requestSeq = ++detailRequestSeq.current;
     detailSectionRequestSeq.current += 1;
     const repositoryPath = workspacePath || repo?.workspacePath || '';
@@ -1075,7 +1142,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
         page: 1,
         perPage: 1,
       });
-      if (detailRequestSeq.current !== requestSeq) return;
+      if (!isPanelCurrent() || detailRequestSeq.current !== requestSeq) return;
       if (cached && !samePullRequestRevisions(cached.detail, nextDetail)) {
         clearDetailPageCacheForPullRequest(workspaceId, remoteId, pullRequestId);
       }
@@ -1083,18 +1150,18 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
       detailCache.set(cacheKey, { detail: nextDetail, fetchedAt: Date.now() });
       setVerifiedDetailKey(cacheKey);
     } catch (err) {
-      if (detailRequestSeq.current !== requestSeq) return;
+      if (!isPanelCurrent() || detailRequestSeq.current !== requestSeq) return;
       log.error('Failed to load pull request detail', { pullRequestId, error: err });
       setDetailError(err);
       if (!cached) {
         setDetail(null);
       }
     } finally {
-      if (detailRequestSeq.current === requestSeq) {
+      if (isPanelCurrent() && detailRequestSeq.current === requestSeq) {
         setDetailLoading(false);
       }
     }
-  }, [workspacePath, workspaceId]);
+  }, [setDetailError, isPanelCurrent, workspacePath, workspaceId]);
 
   const applySectionPagination = useCallback((section: Exclude<ReviewPlatformDetailSection, 'overview'>, pagination: ReviewPlatformPagination) => {
     if (section === 'ci') {
@@ -1117,6 +1184,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
     perPage: number,
     options?: { force?: boolean },
   ) => {
+    if (!isPanelCurrent()) return;
     const repositoryPath = workspacePath || repo?.workspacePath || '';
     const page = Math.max(1, pageIndex + 1);
     const cacheKey = detailPageCacheKey(workspaceId, remoteId, pullRequestId, section, page, perPage);
@@ -1152,7 +1220,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
         page,
         perPage,
       });
-      if (detailSectionRequestSeq.current !== requestSeq) return;
+      if (!isPanelCurrent() || detailSectionRequestSeq.current !== requestSeq) return;
       if (!matchesVerifiedOverview(nextPage)) {
         clearDetailPageCacheForPullRequest(workspaceId, remoteId, pullRequestId);
         void loadDetail(repo, remoteId, pullRequestId, { force: true });
@@ -1162,15 +1230,15 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
       setDetail(prev => mergeDetailPage(prev, nextPage));
       applySectionPagination(section, nextPage.pagination);
     } catch (err) {
-      if (detailSectionRequestSeq.current !== requestSeq) return;
+      if (!isPanelCurrent() || detailSectionRequestSeq.current !== requestSeq) return;
       log.error('Failed to load pull request detail section', { pullRequestId, section, page, perPage, error: err });
       setDetailError(err);
     } finally {
-      if (detailSectionRequestSeq.current === requestSeq) {
+      if (isPanelCurrent() && detailSectionRequestSeq.current === requestSeq) {
         setDetailLoading(false);
       }
     }
-  }, [applySectionPagination, loadDetail, workspacePath, workspaceId]);
+  }, [setDetailError, applySectionPagination, isPanelCurrent, loadDetail, workspacePath, workspaceId]);
 
   useEffect(() => {
     serverStateFilter.current = 'all';
@@ -1206,7 +1274,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
       return;
     }
     void loadDetail(repository, selectedRemoteId, selectedPrId);
-  }, [loadDetail, repository, selectedPrId, selectedRemoteId, workspacePath]);
+  }, [setDetailError, loadDetail, repository, selectedPrId, selectedRemoteId, workspacePath]);
 
   useEffect(() => {
     if (!snapshot.remotes.length) return;
@@ -1238,16 +1306,18 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
 
     if (nextRemoteId && selectedRemoteId !== nextRemoteId) {
       setSelectedRemoteId(nextRemoteId);
-      rememberRemote(workspaceId, nextRemoteId);
+      rememberRemote(surface.surfaceId, workspaceId, nextRemoteId);
     }
 
     if (selectedPrId !== targetPullRequestId) {
       setSelectedPrId(targetPullRequestId);
     }
   }, [
+    setDetailError,
     detailOnly,
     initialPullRequestId,
     initialPullRequestTarget,
+    surface.surfaceId,
     initialPullRequestUrl,
     initialRemoteId,
     selectedPrId,
@@ -1474,10 +1544,10 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
     setStateFilter('all');
     serverStateFilter.current = 'all';
     setPageIndex(0);
-    rememberRemote(workspaceId, remoteId || null);
+    rememberRemote(surface.surfaceId, workspaceId, remoteId || null);
     setSnapshot(emptySnapshot());
     void loadSnapshot(remoteId || null, { page: 1, state: 'all', query: nextQuery });
-  }, [loadSnapshot, workspaceId, snapshot.remotes, query]);
+  }, [setDetailError, loadSnapshot, surface.surfaceId, workspaceId, snapshot.remotes, query]);
 
   const handleStateChange = useCallback((state: ListStateFilter) => {
     setPanelView('list');
@@ -1497,7 +1567,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
     setDetailError(null);
     setPageIndex(nextPage - 1);
     void loadSnapshot(listRemoteId, { page: nextPage });
-  }, [listRemoteId, loadSnapshot]);
+  }, [setDetailError, listRemoteId, loadSnapshot]);
 
   const toggleFileExpanded = useCallback((key: string) => {
     setExpandedFileKeys(prev => {
@@ -1570,6 +1640,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
   }, []);
 
   const loadCiLog = useCallback(async (item: ReviewPlatformCiItem): Promise<ReviewPlatformCiLog | null> => {
+    if (!isPanelCurrent()) return null;
     const cached = ciLogById[item.id];
     if (cached) return cached;
     if (!canLoadCiLog(selectedRemote, item)) {
@@ -1603,20 +1674,22 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
         ciItemId: item.id,
         ciItemName: item.name,
       });
+      if (!isPanelCurrent()) return null;
       setCiLogById(prev => ({ ...prev, [item.id]: nextLog }));
       return nextLog;
     } catch (err) {
+      if (!isPanelCurrent()) return null;
       setCiLogErrorById(prev => ({ ...prev, [item.id]: { cause: err } }));
       log.error('Failed to load CI log', { itemId: item.id, error: err });
       return null;
     } finally {
-      setCiLogLoadingIds(prev => {
+      if (isPanelCurrent()) setCiLogLoadingIds(prev => {
         const next = new Set(prev);
         next.delete(item.id);
         return next;
       });
     }
-  }, [ciLogById, repository, selectedPrId, selectedRemote, selectedRemoteId, workspacePath, workspaceId]);
+  }, [isPanelCurrent, ciLogById, repository, selectedPrId, selectedRemote, selectedRemoteId, workspacePath, workspaceId]);
 
   const toggleCiExpanded = useCallback((item: ReviewPlatformCiItem) => {
     if (expandedCiItemIds.has(item.id)) {
@@ -1644,12 +1717,15 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
     content: string;
     metadata?: Record<string, unknown>;
   }) => {
+    if (!isPanelCurrent()) return;
     if (!parentSession) {
       notificationService.warning(i18nService.t('common:reviewPlatform.messages.chatRequired'), { duration: 3500 });
       return;
     }
 
     ensureMainSessionActive(parentSession.sessionId);
+    await openMainSession(parentSession.sessionId);
+    if (!isPanelCurrent()) return;
     const context: PullRequestContext = {
       id: createContextId('pr'),
       type: 'pull-request',
@@ -1667,7 +1743,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
 
     useContextStore.getState().addContext(context);
     window.dispatchEvent(new CustomEvent('insert-context-tag', { detail: { context } }));
-  }, [initialPullRequestUrl, parentSession, repository?.projectPath, selectedPr, selectedRemote?.id, selectedRemote?.projectPath]);
+  }, [isPanelCurrent, initialPullRequestUrl, parentSession, repository?.projectPath, selectedPr, selectedRemote?.id, selectedRemote?.projectPath]);
 
   const handleFillPrContext = useCallback(async () => {
     if (!selectedPr) return;
@@ -1687,6 +1763,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
   }, [addPullRequestContextToChat, detail, prFilePaths, repository, reviewItemCount, selectedPr, selectedRemote]);
 
   const handleStartReview = useCallback(async () => {
+    if (!isPanelCurrent()) return;
     if (!workspacePath || !selectedRemote || !repository || !selectedPr || !parentSession) {
       notificationService.warning(i18nService.t('common:reviewPlatform.messages.reviewChatRequired'), {
         duration: 3500,
@@ -1706,6 +1783,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
         selectedRemote.id,
         selectedPr.id,
       );
+      if (!isPanelCurrent()) return;
       const freshPullRequest = reviewTarget.pullRequest;
       const freshIdentity = {
         platform: selectedRemote.platform,
@@ -1725,11 +1803,11 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
         return samePullRequestIdentity(evidence?.pullRequest, freshIdentity)
           && pullRequestReviewFreshness(evidence, freshPullRequest) === 'current';
       });
-      sharedLaunchKey = pullRequestReviewLaunchKey({
+      sharedLaunchKey = surfaceScopedKey(getActiveSurfaceId(), pullRequestReviewLaunchKey({
         ...freshIdentity,
         baseRevision: freshPullRequest.baseRevision,
         headRevision: freshPullRequest.headRevision,
-      });
+      }));
       const cacheKey = detailCacheKey(workspaceId, selectedRemote.id, selectedPr.id);
       setDetail((current) => current ? { ...current, ...reviewTarget.pullRequest } : current);
       setSnapshot((current) => ({
@@ -1758,6 +1836,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
         repository,
         reviewTarget,
       });
+      if (!isPanelCurrent()) return;
       if (prepared.mode === 'strict' && prepared.requiresConsent) {
         const confirmed = await confirmDeepReviewLaunch(prepared.runManifest, {
           sessionConcurrencyGuard: deriveDeepReviewSessionConcurrencyGuard(
@@ -1765,7 +1844,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
             parentSession.sessionId,
           ),
         });
-        if (!confirmed) return;
+        if (!isPanelCurrent() || !confirmed) return;
       }
       if (runningReviewExists() || reviewLaunchesInFlight.has(sharedLaunchKey)) {
         return;
@@ -1779,18 +1858,20 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
         childSessionName: `Review: PR #${reviewTarget.pullRequest.number}`,
         prepared,
       });
+      if (!isPanelCurrent()) return;
       if (launched.launchStatus === 'uncertain') {
         notificationService.warning(i18nService.t('common:reviewPlatform.messages.reviewUncertain'), {
           duration: 8000,
         });
       }
     } catch (reviewError) {
+      if (!isPanelCurrent()) return;
       log.error('Failed to start pull request Review', {
         pullRequestId: selectedPr.id,
         error: reviewError,
       });
       notificationService.error(
-        reviewPanelErrorMessage(reviewError, i18nService.t.bind(i18nService), 'reviewFailed'),
+        reviewPanelErrorMessage(reviewError, tReview, 'reviewFailed'),
         { duration: 6000 },
       );
     } finally {
@@ -1798,10 +1879,12 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
         reviewLaunchesInFlight.delete(sharedLaunchKey);
       }
       reviewLaunchInFlight.current = false;
-      setReviewLaunching(false);
+      if (isPanelCurrent()) setReviewLaunching(false);
     }
   }, [
+    isPanelCurrent,
     confirmDeepReviewLaunch,
+    tReview,
     latestCurrentReview?.lifecycle,
     parentSession,
     repository,
@@ -1866,19 +1949,21 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
   }, [addPullRequestContextToChat, ciLogById, loadCiLog, selectedPr]);
 
   const refreshAuthSnapshot = useCallback((remoteId: string | null) => {
+    if (!isPanelCurrent()) return;
     snapshotCache.clear();
     detailCache.clear();
     detailPageCache.clear();
     void loadSnapshot(detailOnly ? remoteId : listRemoteId, { force: true, page: currentPageIndex + 1 });
-  }, [currentPageIndex, detailOnly, listRemoteId, loadSnapshot]);
+  }, [isPanelCurrent, currentPageIndex, detailOnly, listRemoteId, loadSnapshot]);
 
   const handleOpenAuthModal = useCallback(() => {
     setAuthToken('');
     setAuthError(null);
     setAuthModalOpen(true);
-  }, []);
+  }, [setAuthError]);
 
   const handleSaveAuthToken = useCallback(async () => {
+    if (!isPanelCurrent()) return;
     if (!selectedRemote || selectedRemote.platform === 'unknown' || selectedRemote.platform === 'github') return;
     const token = authToken.trim();
     if (!token) {
@@ -1894,50 +1979,59 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
         host: selectedRemote.host,
         token,
       });
+      if (!isPanelCurrent()) return;
       setAuthModalOpen(false);
       setAuthToken('');
       refreshAuthSnapshot(selectedRemote.id);
     } catch (err) {
+      if (!isPanelCurrent()) return;
       setAuthError(err, 'saveTokenFailed');
       log.error('Failed to save review platform token', { error: err, host: selectedRemote.host });
     } finally {
-      setAuthSaving(false);
+      if (isPanelCurrent()) setAuthSaving(false);
     }
-  }, [authToken, refreshAuthSnapshot, selectedRemote]);
+  }, [isPanelCurrent, setAuthError, authToken, refreshAuthSnapshot, selectedRemote]);
 
   const handleOpenGithubAuthTerminal = useCallback(async () => {
+    if (!isPanelCurrent()) return;
     if (!selectedRemote || selectedRemote.platform !== 'github') return;
     const command = `gh auth login --hostname ${selectedRemote.host}`;
     setAuthSaving(true);
     setAuthError(null);
     try {
       await systemAPI.setClipboard(command);
+      if (!isPanelCurrent()) return;
       setAuthModalOpen(false);
       quickActions.openTerminal(undefined, workspacePath);
       notificationService.success('GitHub CLI login command copied. Paste it in the terminal to continue.', {
         duration: 3500,
       });
     } catch (err) {
+      if (!isPanelCurrent()) return;
       setAuthError(err, 'openAuthFailed');
       log.error('Failed to prepare GitHub CLI authentication', { error: err, host: selectedRemote.host });
     } finally {
-      setAuthSaving(false);
+      if (isPanelCurrent()) setAuthSaving(false);
     }
-  }, [selectedRemote, workspacePath]);
+  }, [isPanelCurrent, setAuthError, selectedRemote, workspacePath]);
 
   const handleCopyGithubAuthCommand = useCallback(async () => {
+    if (!isPanelCurrent()) return;
     if (!selectedRemote || selectedRemote.platform !== 'github') return;
     setAuthError(null);
     try {
       await systemAPI.setClipboard(`gh auth login --hostname ${selectedRemote.host}`);
+      if (!isPanelCurrent()) return;
       notificationService.success('GitHub CLI login command copied.', { duration: 2500 });
     } catch (err) {
+      if (!isPanelCurrent()) return;
       setAuthError(err, 'copyAuthFailed');
       log.error('Failed to copy GitHub CLI authentication command', { error: err, host: selectedRemote.host });
     }
-  }, [selectedRemote]);
+  }, [isPanelCurrent, setAuthError, selectedRemote]);
 
   const handleClearAuthToken = useCallback(async () => {
+    if (!isPanelCurrent()) return;
     if (!selectedRemote || selectedRemote.platform === 'unknown') return;
     setAuthSaving(true);
     setAuthError(null);
@@ -1946,15 +2040,17 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
         platform: selectedRemote.platform,
         host: selectedRemote.host,
       });
+      if (!isPanelCurrent()) return;
       refreshAuthSnapshot(selectedRemote.id);
     } catch (err) {
+      if (!isPanelCurrent()) return;
       setAuthError(err, 'clearTokenFailed');
       setAuthModalOpen(true);
       log.error('Failed to clear review platform token', { error: err, host: selectedRemote.host });
     } finally {
-      setAuthSaving(false);
+      if (isPanelCurrent()) setAuthSaving(false);
     }
-  }, [refreshAuthSnapshot, selectedRemote]);
+  }, [isPanelCurrent, setAuthError, refreshAuthSnapshot, selectedRemote]);
 
   const renderAuthGate = useCallback((mode: 'inline' | 'detail' = 'inline') => {
     if (!authChallenge || !selectedRemote || selectedRemote.platform === 'unknown') return null;
@@ -2188,7 +2284,7 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                       onClick={() => {
                         if (pr.providerId && pr.providerId !== selectedRemoteId) {
                           setSelectedRemoteId(pr.providerId);
-                          rememberRemote(workspaceId, pr.providerId);
+                          rememberRemote(surface.surfaceId, workspaceId, pr.providerId);
                         }
                         panelFocusRequested.current = true;
                         setPanelView('detail');
@@ -2324,6 +2420,11 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
                 <Button size="sm" variant="outline" onClick={handleRetryDetail}>
                   Retry
                 </Button>
+                {initialPullRequestTarget && (
+                  <Button size="sm" variant="outline" onClick={handleOpenExternal}>
+                    {t('common:file.openInSystemBrowser')}
+                  </Button>
+                )}
                 {selectedRemote && selectedRemote.platform !== 'unknown' && (
                   <Button size="sm" variant="outline" onClick={handleOpenAuthModal} disabled={authSaving} leadingIcon={<KeyRound size={13} />}>
 
@@ -2796,6 +2897,6 @@ export const ReviewPlatformPanel: React.FC<ReviewPlatformPanelProps> = ({
       {deepReviewConsentDialog}
     </div>
   );
-};
+}
 
 export default ReviewPlatformPanel;

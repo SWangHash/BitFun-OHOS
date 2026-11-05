@@ -1,9 +1,19 @@
 # Remote SSH, container, and WSL workspaces
 
-Flashgrep accelerated search is currently unavailable for remote workspaces.
-Index controls are hidden; content-search operations that depend on Flashgrep
-return an explicit unsupported error. Remote file-name search remains available.
-BitFun never falls back to searching the controller filesystem for a remote path.
+Flashgrep accelerated search is currently unavailable for remote workspaces, so
+index controls are hidden. Content search still works: it runs through the
+workspace's own file and shell providers, using `rg` or a capable `grep` on the
+target to select candidate files when available and otherwise reading the files
+through the remote provider, which can be slow on large trees. It follows the
+local search defaults (ignore rules at the search root and below, default
+excluded directories, binary and over-10 MB files skipped), except that global
+Git excludes and the exclude file of a parent repository are not applied. Files
+and directories the target refuses to read are skipped and logged. A search that
+fails or times out reports an explicit error. Remote file-name search remains
+available. Global search (the command palette) stays local-only and reports remote
+projects as unsupported, because each keystroke would hold its file results behind
+a remote scan. BitFun never falls back to searching the controller filesystem
+for a remote path.
 
 BitFun remote workspaces use one saved target for the file explorer, terminal,
 Agent commands, and workspace tools. The target can be:
@@ -23,7 +33,7 @@ paths or commands with Windows semantics.
 
 ## Windows WSL
 
-Choose **Windows WSL** as its own workspace target. BitFun discovers installed
+Choose **This computer → WSL** in the work-location and environment controls. BitFun discovers installed
 distributions on the executing Windows host and connects through `wsl.exe`.
 See [Desktop WSL setup](../../src/apps/desktop/README.md#windows-wsl-workspaces)
 for prerequisites, user selection, and remote-surface support.
@@ -44,22 +54,28 @@ ssh-agent identity. Explicit password and keyboard-interactive challenge
 responses are also supported, with configurable connection/authentication
 timeouts, whole-chain retries, and challenge-round limits.
 
+Choose **No authentication** only for endpoints that accept the SSH `none`
+method because the tunnel is already authenticated, such as a Coder workspace
+agent. BitFun never falls back to it, and it never falls back from it to a
+password or key.
+
 ## Docker targets
 
-For **Docker on SSH host**, BitFun first establishes the SSH connection (and
+For **Remote host → Container → Through the Docker host**, BitFun first establishes the SSH connection (and
 optional jump chain), then wraps workspace operations with:
 
 ```text
 docker exec -i [--user USER] CONTAINER SHELL -lc COMMAND
 ```
 
-For **Local Docker container**, the same command runs through the local Docker
-CLI without opening SSH. The Docker executable, container user, and container
-shell are configurable.
+For **This computer → Container**, the same command runs through that host's
+Docker CLI without opening SSH. The Docker executable, container user, and
+container shell are configurable under **Advanced settings**.
 
-For **Container sshd**, the normal host, port, user, and authentication fields
+For **Remote host → Container → SSH directly to the container**, the host, port, user, and authentication fields
 must point directly to the container's sshd endpoint. Optional jump hosts use
-the same SSH path described above.
+the same SSH path described above. No Docker container ID is required; existing
+saved container metadata is retained when a profile is edited.
 
 `Auto` probes the container's published `22/tcp` endpoint and completes an SSH
 handshake. If sshd is unavailable or rejects authentication, BitFun falls back
@@ -240,6 +256,22 @@ Existing SSH profiles remain plain SSH targets because the new `proxyJump` and
 Existing remote-workspace records keep their paths and connection metadata.
 Legacy connection IDs that included the SSH port are migrated together with
 their password-vault and workspace references.
+
+The SSH port is part of a connection's identity. Servers behind one address that
+differ only by port (for example cluster nodes mapped to ports 2201 and 2202)
+are separate profiles, workspaces, and session stores. Default-port (22)
+profiles keep the `ssh-user@host` id, workspace id, and on-disk runtime and
+session paths unchanged. New profiles on other ports use `ssh-user@host#port`;
+`#` was never produced by an earlier build, so older peers treat these ids as
+opaque instead of folding them into the legacy `ssh-user@host:port` alias.
+Profiles saved by earlier builds keep their id when the port is edited, and
+their workspaces and sessions stay where they are; saving a profile for another
+port never overwrites them. Re-adding a deleted legacy profile reuses its old id
+while workspace records still reference it. Workspace records that an older
+host stored under the host-only identity keep that identity after an upgrade.
+Peer hosts advertise `ssh_port_scoped_identity_v1`; against an older peer the
+controller keeps legacy ids and refuses to add a second port for the same host
+and user instead of replacing the existing profile.
 
 Legacy local-Docker profiles do not need an SSH password-vault entry, even if
 their old serialized auth placeholder is an empty password.

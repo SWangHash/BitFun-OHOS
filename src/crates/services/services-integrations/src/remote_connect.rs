@@ -16,7 +16,9 @@ pub mod encryption;
 pub mod file_projection;
 pub mod host_stream;
 pub mod host_stream_subscriber;
+pub mod html_preview;
 mod lan;
+mod model_write_fence;
 mod page_upload;
 pub mod pairing;
 pub mod qr_generator;
@@ -25,9 +27,26 @@ mod realtime_payload;
 pub mod relay_client;
 pub mod relay_failure;
 mod relay_http;
+pub mod routing_lease;
+pub mod rpc_execution;
 pub mod session_records;
 pub mod session_store;
 
+use bitfun_core_types::{ModelsDevReasoningCatalog, ProviderCatalog, ReasoningCatalogProjection};
+use bitfun_events::AgenticEvent;
+use bitfun_runtime_ports::{
+    AgentInputAttachment, AgentSessionCreateRequest, AgentSubmissionRequest, AgentSubmissionSource,
+    RemoteControlStateSnapshot,
+};
+pub use bitfun_runtime_ports::{
+    RemoteAssistantWorkspaceFacts, RemoteFileChunkRange, RemoteInitialSyncRuntimeHost,
+    RemoteProjectionPort, RemoteRecentWorkspaceFacts, RemoteSessionAttachment,
+    RemoteSessionMetadata, RemoteSessionWorkspaceIdentity, RemoteStoredAttachment,
+    RemoteWorkspaceFacts, RemoteWorkspaceFileChunk, RemoteWorkspaceFileContent,
+    RemoteWorkspaceFileInfo, RemoteWorkspaceFileRuntimeHost, RemoteWorkspaceKind,
+    RemoteWorkspacePort, RemoteWorkspaceRuntimeHost, RemoteWorkspaceUpdate,
+};
+use bitfun_services_core::product_identity::hidden_data_directory;
 pub use chat_projection::{
     agent_input_attachment_from_remote_image_context, no_host_image_pixels,
     project_remote_chat_user, RemoteChatUserProjection,
@@ -39,33 +58,18 @@ pub use lan::{
     LocalNetworkInterface,
 };
 use log::info;
-use bitfun_core_types::{
-    ModelsDevReasoningCatalog, ProviderCatalog, ReasoningCatalogProjection,
-};
-use bitfun_events::AgenticEvent;
-use bitfun_runtime_ports::{
-    AgentInputAttachment, AgentSessionCreateRequest, AgentSubmissionRequest, AgentSubmissionSource,
-    RemoteControlStateSnapshot,
-};
-pub use bitfun_runtime_ports::{
-    RemoteAssistantWorkspaceFacts, RemoteFileChunkRange, RemoteInitialSyncRuntimeHost,
-    RemoteProjectionPort, RemoteRecentWorkspaceFacts, RemoteSessionMetadata,
-    RemoteSessionWorkspaceIdentity, RemoteWorkspaceFacts, RemoteWorkspaceFileChunk,
-    RemoteWorkspaceFileContent, RemoteWorkspaceFileInfo, RemoteWorkspaceFileRuntimeHost,
-    RemoteWorkspaceKind, RemoteWorkspacePort, RemoteWorkspaceRuntimeHost, RemoteWorkspaceUpdate,
-};
-use bitfun_services_core::product_identity::hidden_data_directory;
 pub use page_upload::{
     create_page_open_link_on_relay, delete_page_from_relay, delete_page_version_on_relay,
     deploy_page_version_on_relay, join_relay_url, list_page_versions_from_relay,
     list_pages_from_relay, publish_page_content_on_relay, publish_page_to_relay,
     save_page_version_from_inline_files, save_page_version_to_relay, unpublish_page_from_relay,
-    update_page_on_relay, PageContentPublishResult, PageInfo, PageOpenLink, PagePublishResult,
-    PageSaveVersionResult, PageVersionInfo,
+    update_page_content_on_relay, update_page_on_relay, PageContentPublishResult, PageInfo,
+    PageOpenLink, PagePublishResult, PageSaveVersionResult, PageVersionInfo,
 };
 pub use pairing::PairingState;
 pub use qr_generator::QrGenerator;
 pub use relay_client::{ensure_rustls_crypto_provider, ConnectionState, RelayClient, RelayEvent};
+pub use routing_lease::DeviceRoutingPriority;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -557,7 +561,15 @@ pub const REMOTE_FILE_MAX_CHUNK_BYTES: u64 = 3 * 1024 * 1024;
 pub const REMOTE_CAPABILITY_HARNESS_PROFILES_V1: &str = "harness_profiles_v1";
 pub const REMOTE_CAPABILITY_DIALOG_STEER_V1: &str = "dialog_steer_v1";
 pub const REMOTE_CAPABILITY_USER_QUESTION_INTERACTION_V1: &str = "user_question_interaction_v1";
+pub const REMOTE_CAPABILITY_BACKGROUND_RESULT_DELIVERY_V1: &str = "background_result_delivery_v1";
+pub const REMOTE_CAPABILITY_SESSION_ROLLBACK_V1: &str = "session_rollback_v1";
+pub const REMOTE_CAPABILITY_SESSION_ATTACHMENTS_V1: &str = "session_attachments_v1";
 pub const REMOTE_CAPABILITY_PLAN_BUILD_V1: &str = "plan_build_v1";
+/// Device-level role defaults (primary / fast / image understanding) are
+/// readable and writable over the typed `set_model_defaults` verb. A caller
+/// must check this string before offering the write; a host without it can
+/// still answer `get_model_catalog` read-only.
+pub const REMOTE_CAPABILITY_DEVICE_MODEL_DEFAULTS_V1: &str = "device_model_defaults_v1";
 pub use host_stream::REMOTE_CAPABILITY_HOST_STREAM_V1;
 
 fn remote_host_capabilities() -> Vec<String> {
@@ -565,9 +577,14 @@ fn remote_host_capabilities() -> Vec<String> {
         "workspace_id_references_v1".to_string(),
         REMOTE_CAPABILITY_HARNESS_PROFILES_V1.to_string(),
         REMOTE_CAPABILITY_DIALOG_STEER_V1.to_string(),
+        "dialog_queue_v1".to_string(),
         REMOTE_CAPABILITY_PLAN_BUILD_V1.to_string(),
+        REMOTE_CAPABILITY_SESSION_ATTACHMENTS_V1.to_string(),
+        REMOTE_CAPABILITY_SESSION_ROLLBACK_V1.to_string(),
         REMOTE_CAPABILITY_USER_QUESTION_INTERACTION_V1.to_string(),
+        REMOTE_CAPABILITY_BACKGROUND_RESULT_DELIVERY_V1.to_string(),
         REMOTE_CAPABILITY_HOST_STREAM_V1.to_string(),
+        REMOTE_CAPABILITY_DEVICE_MODEL_DEFAULTS_V1.to_string(),
     ]
 }
 
@@ -845,6 +862,21 @@ where
     H: RemoteWorkspaceFileRuntimeHost + ?Sized,
 {
     match command {
+        RemoteCommand::StoreSessionAttachment {
+            session_id,
+            attachment,
+        } => {
+            match host
+                .store_session_attachment(session_id, attachment.clone())
+                .await
+            {
+                Ok(stored) => RemoteResponse::SessionAttachmentStored {
+                    session_id: session_id.clone(),
+                    attachment: stored,
+                },
+                Err(message) => RemoteResponse::Error { message },
+            }
+        }
         RemoteCommand::ReadFile { path, session_id } => {
             match host
                 .read_remote_file(path, session_id.as_deref(), REMOTE_FILE_MAX_READ_BYTES)
@@ -1245,8 +1277,23 @@ where
 {
     match command {
         RemoteCommand::GetWorkspaceInfo => {
-            remote_workspace_info_response(host.current_workspace().await)
+            let mut response = remote_workspace_info_response(host.current_workspace().await);
+            if host.supports_workspace_icons() {
+                if let RemoteResponse::WorkspaceInfo { capabilities, .. } = &mut response {
+                    capabilities.push("workspace_icon_read_v1".into());
+                }
+            }
+            response
         }
+        RemoteCommand::GetWorkspaceIcon { workspace_id } => {
+            match host.workspace_icon(workspace_id).await {
+                Ok(snapshot) => RemoteResponse::WorkspaceIcon { snapshot },
+                Err(message) => RemoteResponse::Error { message },
+            }
+        }
+        RemoteCommand::SetWorkspaceIcon { .. } => RemoteResponse::Error {
+            message: "Workspace icon editing is not supported on mobile or IM surfaces; use a Desktop controller".into(),
+        },
         RemoteCommand::ListRecentWorkspaces => match host.opened_workspaces().await {
             Ok(opened) => remote_workspace_catalog_response(host.recent_workspaces().await, opened),
             Err(message) => RemoteResponse::Error { message },
@@ -1320,13 +1367,19 @@ where
         (Vec::new(), false)
     };
 
-    remote_initial_sync_response(
+    let mut response = remote_initial_sync_response(
         workspace,
         sessions,
         workspace_name.as_deref(),
         has_more,
         authenticated_user_id,
-    )
+    );
+    if host.supports_workspace_icons() {
+        if let RemoteResponse::InitialSync { capabilities, .. } = &mut response {
+            capabilities.push("workspace_icon_read_v1".into());
+        }
+    }
+    response
 }
 
 pub fn remote_session_created_response(session_id: impl Into<String>) -> RemoteResponse {
@@ -1350,6 +1403,16 @@ pub fn remote_session_model_updated_response(
     }
 }
 
+/// Report the host's post-reconcile device role defaults. The payload is the
+/// host's own mapping, never an echo of the request: a slot the host had to
+/// repair (disabled model, missing capability) already shows the repaired
+/// value, so a controller can display the truth instead of an optimistic copy.
+pub fn remote_model_defaults_updated_response(
+    default_models: RemoteDefaultModelsConfig,
+) -> RemoteResponse {
+    RemoteResponse::ModelDefaultsUpdated { default_models }
+}
+
 pub fn remote_messages_response(
     session_id: impl Into<String>,
     messages: Vec<ChatMessage>,
@@ -1365,6 +1428,32 @@ pub fn remote_messages_response(
 pub fn remote_session_deleted_response(session_id: impl Into<String>) -> RemoteResponse {
     RemoteResponse::SessionDeleted {
         session_id: session_id.into(),
+    }
+}
+
+/// What the host observed while rolling a session back to a turn.
+///
+/// This mirrors the fields the desktop rollback result exposes that a remote
+/// transcript actually needs, so this crate keeps describing the wire contract
+/// without depending on the runtime port types.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RemoteSessionRollbackOutcome {
+    pub retired_turn_ids: Vec<String>,
+    pub restored_files: Vec<String>,
+    pub composer_text: Option<String>,
+    pub changed: bool,
+}
+
+pub fn remote_session_rolled_back_response(
+    session_id: impl Into<String>,
+    outcome: RemoteSessionRollbackOutcome,
+) -> RemoteResponse {
+    RemoteResponse::SessionRolledBack {
+        session_id: session_id.into(),
+        retired_turn_ids: outcome.retired_turn_ids,
+        restored_files: outcome.restored_files,
+        composer_text: outcome.composer_text,
+        changed: outcome.changed,
     }
 }
 
@@ -1391,6 +1480,10 @@ pub trait RemoteSessionRuntimeHost: Send + Sync {
     /// The primary assistant workspace record, created on first use.
     async fn resolve_default_assistant_workspace(&self) -> Result<RemoteWorkspaceFacts, String>;
     async fn create_session(&self, request: AgentSessionCreateRequest) -> Result<String, String>;
+    /// The catalog a remote caller receives: configured models, defaults and
+    /// the session selection. The models.dev projections never travel here (see
+    /// [`RemoteModelCatalog`]); a caller that renders Model Settings reads its
+    /// own snapshot instead.
     async fn load_model_catalog(
         &self,
         session_id: Option<&str>,
@@ -1401,6 +1494,25 @@ pub trait RemoteSessionRuntimeHost: Send + Sync {
         model_id: &str,
         reasoning_preset: Option<Option<&str>>,
     ) -> Result<RemoteSessionModelSelection, String>;
+    /// Patch the three device role defaults a controller configures for this
+    /// host (`primary`, `fast`, `image_understanding`); host-only slots such as
+    /// `search` and `image_generation` always keep their device values. `None`
+    /// keeps a slot. `Some(None)` clears it: `fast` then follows primary, and
+    /// `image_understanding` is unconfigured. A cleared `primary` does not stay
+    /// unset — the device reconcile re-fills it with the first enabled
+    /// text-capable model. The returned mapping is the host's reconciled truth
+    /// for all six slots, not the requested patch.
+    ///
+    /// A host that cannot configure device defaults reports an unsupported
+    /// error here instead of answering with an unchanged-looking success.
+    async fn set_model_defaults(
+        &self,
+        _primary: Option<Option<&str>>,
+        _fast: Option<Option<&str>>,
+        _image_understanding: Option<Option<&str>>,
+    ) -> Result<RemoteDefaultModelsConfig, String> {
+        Err("Host does not support device model defaults".to_string())
+    }
     async fn ensure_session_loaded(&self, session_id: &str) -> Result<(), String>;
     async fn update_session_title(&self, session_id: &str, title: &str) -> Result<String, String>;
     async fn resolve_session_storage_dir(&self, session_id: &str) -> Option<PathBuf>;
@@ -1409,6 +1521,16 @@ pub trait RemoteSessionRuntimeHost: Send + Sync {
         session_storage_dir: &Path,
         session_id: &str,
     ) -> Result<(Vec<ChatMessage>, bool), String>;
+    /// Roll the session back to `target_turn_id`, retiring that turn and the
+    /// ones after it and restoring the files those turns wrote. Hosts are
+    /// expected to reuse the same targeted-rollback path the desktop uses rather
+    /// than hiding turns, and to reject sessions whose workspace they do not own.
+    async fn rollback_session_to_turn(
+        &self,
+        session_id: &str,
+        target_turn_id: &str,
+        expected_storage_turn_index: Option<usize>,
+    ) -> Result<RemoteSessionRollbackOutcome, String>;
     async fn delete_session(
         &self,
         session_storage_dir: &Path,
@@ -1551,14 +1673,7 @@ where
         } => {
             let agent = resolve_remote_agent_type(agent_type.as_deref());
             let is_claw = agent == "Claw";
-            let session_name = session_name
-                .as_deref()
-                .filter(|name| !name.is_empty())
-                .unwrap_or(match agent {
-                    "Cowork" => "Remote Cowork Session",
-                    "Claw" => "Remote Claw Session",
-                    _ => "Remote Code Session",
-                });
+            let session_name = session_name.as_deref().map(str::trim).unwrap_or("");
 
             let explicit = match resolve_remote_session_workspace(
                 host,
@@ -1610,9 +1725,43 @@ where
                 Err(message) => RemoteResponse::Error { message },
             }
         }
-        RemoteCommand::GetModelCatalog { session_id } => {
+        RemoteCommand::GetModelCatalog {
+            session_id,
+            prepare_model_write,
+            model_write_fence,
+        } => {
+            // Only a targeted barrier retires a prepared write. Ordinary readers
+            // wait for active commits without revoking other controllers' intents.
+            if session_id.is_none() && (*prepare_model_write || model_write_fence.is_some()) {
+                return RemoteResponse::Error {
+                    message: "A model write barrier requires a session".to_string(),
+                };
+            }
+            let gate = match session_id
+                .as_deref()
+                .map(model_write_fence::session)
+                .transpose()
+            {
+                Ok(gate) => gate,
+                Err(message) => return RemoteResponse::Error { message },
+            };
+            let mut fence = match gate.as_ref() {
+                Some(gate) => Some(gate.lock().await),
+                None => None,
+            };
+            if let (Some(fence), Some(token)) = (fence.as_mut(), model_write_fence.as_deref()) {
+                fence.retire(token);
+            }
             match host.load_model_catalog(session_id.as_deref()).await {
-                Ok(catalog) => RemoteResponse::ModelCatalog { catalog },
+                Ok(mut catalog) => {
+                    catalog.session_model_write_fence_supported = true;
+                    catalog.session_model_write_token = if *prepare_model_write {
+                        fence.as_mut().map(|fence| fence.issue())
+                    } else {
+                        None
+                    };
+                    RemoteResponse::ModelCatalog { catalog }
+                }
                 Err(message) => RemoteResponse::Error { message },
             }
         }
@@ -1620,17 +1769,49 @@ where
             session_id,
             model_id,
             reasoning_preset,
-        } => match host
-            .update_session_model_selection(
-                session_id,
-                model_id,
-                reasoning_preset.as_ref().map(|preset| preset.as_deref()),
-            )
-            .await
-        {
-            Ok(selection) => remote_session_model_updated_response(session_id.clone(), selection),
-            Err(message) => RemoteResponse::Error { message },
-        },
+            model_write_token,
+        } => {
+            let gate = match model_write_fence::session(session_id) {
+                Ok(gate) => gate,
+                Err(message) => return RemoteResponse::Error { message },
+            };
+            let mut fence = gate.lock().await;
+            if let Err(message) = fence.claim(model_write_token.as_deref()) {
+                return RemoteResponse::Error { message };
+            }
+            match host
+                .update_session_model_selection(
+                    session_id,
+                    model_id,
+                    reasoning_preset.as_ref().map(|preset| preset.as_deref()),
+                )
+                .await
+            {
+                Ok(selection) => {
+                    remote_session_model_updated_response(session_id.clone(), selection)
+                }
+                Err(message) => RemoteResponse::Error { message },
+            }
+        }
+        RemoteCommand::SetModelDefaults {
+            primary,
+            fast,
+            image_understanding,
+        } => {
+            // Device-level: the command names no session or workspace. An absent
+            // field keeps its slot; only an explicit null clears it.
+            match host
+                .set_model_defaults(
+                    primary.as_ref().map(|slot| slot.as_deref()),
+                    fast.as_ref().map(|slot| slot.as_deref()),
+                    image_understanding.as_ref().map(|slot| slot.as_deref()),
+                )
+                .await
+            {
+                Ok(default_models) => remote_model_defaults_updated_response(default_models),
+                Err(message) => RemoteResponse::Error { message },
+            }
+        }
         RemoteCommand::UpdateSessionTitle { session_id, title } => {
             if let Err(message) = host.ensure_session_loaded(session_id).await {
                 return RemoteResponse::Error { message };
@@ -1686,6 +1867,29 @@ where
                 Err(message) => RemoteResponse::Error { message },
             }
         }
+        RemoteCommand::RollbackSessionToTurn {
+            session_id,
+            target_turn_id,
+            expected_storage_turn_index,
+        } => {
+            if target_turn_id.trim().is_empty() {
+                return RemoteResponse::Error {
+                    message: "Rollback requires a target turn id".into(),
+                };
+            }
+
+            match host
+                .rollback_session_to_turn(
+                    session_id,
+                    target_turn_id.trim(),
+                    *expected_storage_turn_index,
+                )
+                .await
+            {
+                Ok(outcome) => remote_session_rolled_back_response(session_id.clone(), outcome),
+                Err(message) => RemoteResponse::Error { message },
+            }
+        }
         _ => RemoteResponse::Error {
             message: "Unknown session command".into(),
         },
@@ -1698,6 +1902,13 @@ pub trait RemotePollRuntimeHost: Send + Sync {
     /// Hydrate permission requests that may have been registered before the
     /// remote tracker observed the corresponding tool event.
     fn sync_pending_permissions(&self, _session_id: &str, _tracker: &RemoteSessionStateTracker) {}
+    /// Model catalog for a session poll.
+    ///
+    /// Polls run per attached controller and per session, so they never carry
+    /// the models.dev projections: a poll client reads the configured-model
+    /// facts and the version, and those projections belong to the public
+    /// models.dev catalog that every client refreshes for itself. The slim
+    /// build keeps the same catalog version, so change detection is unaffected.
     async fn load_model_catalog(&self, session_id: &str) -> Option<RemoteModelCatalog>;
     async fn resolve_session_storage_dir(&self, session_id: &str) -> Option<PathBuf>;
     async fn load_remote_chat_messages(
@@ -1892,6 +2103,18 @@ pub struct RemoteModelConfig {
     pub reasoning: Option<ReasoningCatalogProjection>,
 }
 
+/// Model catalog facts for one host.
+///
+/// The `provider_catalog` and `models_dev_reasoning_catalog` bodies describe the
+/// public models.dev catalog, which every host refreshes for itself and only a
+/// Model Settings surface reads. A caller that crosses a machine boundary — a
+/// peer request, a remote session poll, a mobile or bot controller — therefore
+/// receives the catalog *without* those bodies: the provider catalog keeps its
+/// revision (the revision drives `version`, which clients compare) and reports
+/// no providers, and the reasoning catalog is absent. Only the in-process local
+/// readers (`get_ai_model_catalog`, TUI/app-server projections, the plugin host)
+/// still receive them, and `get_local_models_dev_catalogs` serves the
+/// controller-local copy that Model Settings needs.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RemoteModelCatalog {
     pub version: u64,
@@ -1903,10 +2126,29 @@ pub struct RemoteModelCatalog {
     pub default_models: RemoteDefaultModelsConfig,
     #[serde(default)]
     pub reasoning_preset_selection_supported: bool,
+    /// Offers per-intent preparation and targeted barriers on catalog reads.
+    #[serde(default)]
+    pub session_model_write_fence_supported: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_model_write_token: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_model_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_reasoning_preset: Option<String>,
+}
+
+/// The models.dev projections of *this* machine, for a controller that renders
+/// its own Model Settings surface while a peer is selected.
+///
+/// These bodies belong to the public models.dev catalog, not to a host: every
+/// host keeps its own refreshed snapshot, so a controller must enrich its own
+/// settings UI locally instead of requesting the peer's copy (which would put a
+/// multi-MiB body on the wire on every settings open).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LocalModelsDevCatalogs {
+    pub provider_catalog: ProviderCatalog,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub models_dev_reasoning_catalog: Option<ModelsDevReasoningCatalog>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2000,6 +2242,8 @@ pub fn build_remote_model_catalog(facts: RemoteModelCatalogFacts) -> RemoteModel
         models_dev_reasoning_catalog: facts.models_dev_reasoning_catalog,
         default_models: facts.default_models,
         reasoning_preset_selection_supported: true,
+        session_model_write_fence_supported: false,
+        session_model_write_token: None,
         session_model_id: facts.session_model_id,
         session_reasoning_preset: facts.session_reasoning_preset,
     }
@@ -2087,6 +2331,32 @@ pub fn normalize_remote_model_selection(
         .ok_or_else(|| format!("Unknown model selection: {requested_model_id}"))
 }
 
+/// Validate one managed device role-default slot of `set_model_defaults`.
+///
+/// A provided value must name a concrete model the device already configures;
+/// the semantic selectors (`primary`, `fast`, `auto`, `default`) choose a
+/// *session* model and are never a device default value. `None` clears the
+/// slot. Whether the named model is enabled or carries the capability its slot
+/// needs is deliberately not decided here: the config reconcile owns that
+/// repair and the response reports its result.
+pub fn resolve_remote_model_default_slot(
+    slot: &str,
+    model_id: Option<&str>,
+    is_known_model: impl Fn(&str) -> bool,
+) -> Result<Option<String>, String> {
+    let Some(model_id) = model_id else {
+        return Ok(None);
+    };
+    let model_id = model_id.trim();
+    if model_id.is_empty() {
+        return Err(format!("{slot} model id is required"));
+    }
+    if !is_known_model(model_id) {
+        return Err(format!("Unknown model selection: {model_id}"));
+    }
+    Ok(Some(model_id.to_string()))
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct RemoteModelCatalogPollDelta {
     pub changed: bool,
@@ -2165,6 +2435,11 @@ pub struct ChatMessage {
     pub metadata: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub turn_id: Option<String>,
+    /// Storage turn index for `turn_id`, carried so a remote rollback can send
+    /// the same optimistic-concurrency guard the desktop sends and cannot
+    /// retire a different turn after the transcript moved underneath it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub turn_index: Option<usize>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2197,7 +2472,9 @@ pub struct ChatMessageItem {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RemoteChatHistoryTurn {
+    pub background_delivery: Option<bitfun_core_types::background_delivery::BackgroundDelivery>,
     pub turn_id: String,
+    pub turn_index: usize,
     pub user_message_id: String,
     pub user_display_content: String,
     pub user_timestamp_ms: u64,
@@ -2256,14 +2533,22 @@ pub fn build_remote_chat_messages(turns: Vec<RemoteChatHistoryTurn>) -> Vec<Chat
     let mut result = Vec::new();
 
     for turn in turns {
+        let delivery_metadata = turn
+            .background_delivery
+            .as_ref()
+            .map(|delivery| serde_json::json!({"backgroundDelivery":delivery}));
         result.push(ChatMessage {
             id: turn.user_message_id,
             role: "user".to_string(),
             content: turn.user_display_content,
             timestamp: (turn.user_timestamp_ms / 1000).to_string(),
-            metadata: None,
+            metadata: delivery_metadata.clone(),
             turn_id: Some(turn.turn_id.clone()),
-            status: None,
+            turn_index: Some(turn.turn_index),
+            status: turn
+                .background_delivery
+                .as_ref()
+                .map(|_| turn.status.clone()),
             error: None,
             tools: None,
             thinking: None,
@@ -2352,10 +2637,15 @@ pub fn build_remote_chat_messages(turns: Vec<RemoteChatHistoryTurn>) -> Vec<Chat
                     duration_ms: item.duration_ms,
                     start_ms: Some(item.start_ms),
                     input_preview: make_slim_tool_params(&item.call.input),
-                    tool_input: if item.name == "AskUserQuestion"
-                        || item.name == "Task"
-                        || item.name == "TodoWrite"
-                    {
+                    tool_input: if matches!(
+                        item.name.as_str(),
+                        "AskUserQuestion"
+                            | "Task"
+                            | "AgentSpawn"
+                            | "AgentSendInput"
+                            | "AgentControl"
+                            | "TodoWrite"
+                    ) {
                         Some(item.call.input.clone())
                     } else {
                         None
@@ -2423,8 +2713,11 @@ pub fn build_remote_chat_messages(turns: Vec<RemoteChatHistoryTurn>) -> Vec<Chat
             role: "assistant".to_string(),
             content: text_parts.join("\n\n"),
             timestamp: (assistant_ts / 1000).to_string(),
-            metadata: None,
+            metadata: delivery_metadata,
             turn_id: Some(turn.turn_id),
+            // Rollback targets user turns only, so the assistant projection
+            // deliberately carries no storage index.
+            turn_index: None,
             status: Some(turn.status),
             error: turn.error,
             tools: if tools_flat.is_empty() {
@@ -2527,6 +2820,9 @@ pub struct RemoteControlClient {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "cmd", rename_all = "snake_case")]
 pub enum RemoteCommand {
+    DialogQueue {
+        request: bitfun_runtime_ports::DialogQueueRequest,
+    },
     /// Retired: relay-stored session history. Kept so older controllers get an
     /// explicit upgrade message instead of an unknown-command failure.
     GetSessionKey {
@@ -2543,6 +2839,13 @@ pub enum RemoteCommand {
         stream_id: String,
     },
     GetWorkspaceInfo,
+    GetWorkspaceIcon {
+        workspace_id: String,
+    },
+    /// Mobile and IM surfaces expose icons read-only in v1.
+    SetWorkspaceIcon {
+        workspace_id: String,
+    },
     ListRecentWorkspaces,
     SetWorkspace {
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2586,12 +2889,51 @@ pub enum RemoteCommand {
     },
     GetModelCatalog {
         session_id: Option<String>,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        prepare_model_write: bool,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        model_write_fence: Option<String>,
     },
     SetSessionModel {
         session_id: String,
         model_id: String,
         #[serde(default, deserialize_with = "deserialize_present_nullable")]
         reasoning_preset: Option<Option<String>>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        model_write_token: Option<String>,
+    },
+    /// Patch the device-level role defaults (`ai.default_models.primary` /
+    /// `.fast` / `.image_understanding`) of the receiving host.
+    ///
+    /// An absent field leaves that slot unchanged, so an empty request changes
+    /// nothing; only an explicit `null` clears a slot. Clearing is not uniform:
+    /// unset `fast` follows primary and unset `image_understanding` stays
+    /// unconfigured, while unset `primary` falls back to the device's first
+    /// enabled text-capable model once the host reconciles, so the echoed
+    /// mapping stays authoritative. Host-only slots (`search`,
+    /// `image_generation`, `speech_recognition`) are never part of the request
+    /// and keep their device values. Values must be concrete catalog model ids;
+    /// a semantic selector is rejected. Requires the `device_model_defaults_v1`
+    /// capability.
+    SetModelDefaults {
+        #[serde(
+            default,
+            deserialize_with = "deserialize_present_nullable",
+            skip_serializing_if = "Option::is_none"
+        )]
+        primary: Option<Option<String>>,
+        #[serde(
+            default,
+            deserialize_with = "deserialize_present_nullable",
+            skip_serializing_if = "Option::is_none"
+        )]
+        fast: Option<Option<String>>,
+        #[serde(
+            default,
+            deserialize_with = "deserialize_present_nullable",
+            skip_serializing_if = "Option::is_none"
+        )]
+        image_understanding: Option<Option<String>>,
     },
     UpdateSessionTitle {
         session_id: String,
@@ -2643,6 +2985,19 @@ pub enum RemoteCommand {
     DeleteSession {
         session_id: String,
     },
+    /// Retire `target_turn_id` and every turn after it, then restore the
+    /// workspace files those turns touched, matching the desktop targeted
+    /// rollback. The target turn is withdrawn too, and its prompt comes back as
+    /// `composer_text` so the client can offer it for editing. The client reads
+    /// both identity fields off the user `ChatMessage` it is targeting;
+    /// `expected_storage_turn_index` is the stale-view guard, so omitting it
+    /// only widens the race window and never changes which turn is addressed.
+    RollbackSessionToTurn {
+        session_id: String,
+        target_turn_id: String,
+        #[serde(default)]
+        expected_storage_turn_index: Option<usize>,
+    },
     CancelTool {
         tool_id: String,
         reason: Option<String>,
@@ -2673,6 +3028,10 @@ pub enum RemoteCommand {
         since_version: u64,
         known_msg_count: usize,
         known_model_catalog_version: Option<u64>,
+    },
+    StoreSessionAttachment {
+        session_id: String,
+        attachment: RemoteSessionAttachment,
     },
     ReadFile {
         path: String,
@@ -2766,6 +3125,9 @@ pub enum RemoteCommand {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "resp", rename_all = "snake_case")]
 pub enum RemoteResponse {
+    DialogQueue {
+        snapshot: bitfun_runtime_ports::DialogQueueSnapshot,
+    },
     /// Retired shape; new hosts never produce it but older peers may still send it.
     SessionKey {
         session_id: String,
@@ -2778,6 +3140,9 @@ pub enum RemoteResponse {
     },
     StreamUnsubscribed {
         stream_id: String,
+    },
+    WorkspaceIcon {
+        snapshot: bitfun_core_types::workspace_icon::WorkspaceIconSnapshot,
     },
     WorkspaceInfo {
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2852,6 +3217,12 @@ pub enum RemoteResponse {
         model_id: String,
         reasoning_preset: Option<String>,
     },
+    /// All six device role-default slots after the host reconciled the write.
+    /// The body is a role mapping only: it carries model ids, never model
+    /// credentials.
+    ModelDefaultsUpdated {
+        default_models: RemoteDefaultModelsConfig,
+    },
     SessionTitleUpdated {
         session_id: String,
         title: String,
@@ -2875,6 +3246,19 @@ pub enum RemoteResponse {
     },
     SessionDeleted {
         session_id: String,
+    },
+    SessionRolledBack {
+        session_id: String,
+        /// Turns the host retired, including the target turn itself. Reported so
+        /// a client can tell the user what was withdrawn; the transcript itself
+        /// is repaired by the next poll's authoritative `message_snapshot`.
+        retired_turn_ids: Vec<String>,
+        restored_files: Vec<String>,
+        /// Prompt text the desktop would have put back into its composer, so a
+        /// remote client can offer the same "edit and resend" continuation.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        composer_text: Option<String>,
+        changed: bool,
     },
     InitialSync {
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2926,6 +3310,10 @@ pub enum RemoteResponse {
     },
     PermissionMode {
         mode: RemotePermissionMode,
+    },
+    SessionAttachmentStored {
+        session_id: String,
+        attachment: RemoteStoredAttachment,
     },
     FileContent {
         name: String,
@@ -3004,6 +3392,12 @@ pub enum RemoteResponse {
 pub trait RemoteCommandRuntimeHost: Send + Sync {
     type ImageContext: Send + Sync + 'static;
 
+    /// Model-facing language name from the product host's current app setting.
+    /// Hosts without this setting defer to the session's system prompt.
+    async fn plan_build_language(&self) -> Option<String> {
+        None
+    }
+
     async fn handle_workspace_command(&self, command: &RemoteCommand) -> RemoteResponse;
     async fn handle_session_command(&self, command: &RemoteCommand) -> RemoteResponse;
     async fn handle_poll_command(&self, command: &RemoteCommand) -> RemoteResponse;
@@ -3017,6 +3411,13 @@ pub trait RemoteCommandRuntimeHost: Send + Sync {
         RemoteResponse::Error {
             message: "Device-to-device commands are not supported on this device".to_string(),
         }
+    }
+
+    async fn manage_dialog_queue(
+        &self,
+        _request: bitfun_runtime_ports::DialogQueueRequest,
+    ) -> Result<bitfun_runtime_ports::DialogQueueSnapshot, String> {
+        Err("dialog_queue_v1 is not supported".into())
     }
 
     async fn submit_dialog(
@@ -3046,9 +3447,17 @@ where
     H: RemoteCommandRuntimeHost + ?Sized,
 {
     match command {
+        RemoteCommand::DialogQueue { request } => {
+            match host.manage_dialog_queue(request.clone()).await {
+                Ok(snapshot) => RemoteResponse::DialogQueue { snapshot },
+                Err(message) => RemoteResponse::Error { message },
+            }
+        }
         RemoteCommand::Ping { .. } => RemoteResponse::Pong,
 
         RemoteCommand::GetWorkspaceInfo
+        | RemoteCommand::GetWorkspaceIcon { .. }
+        | RemoteCommand::SetWorkspaceIcon { .. }
         | RemoteCommand::ListRecentWorkspaces
         | RemoteCommand::SetWorkspace { .. }
         | RemoteCommand::ListAssistants
@@ -3058,13 +3467,16 @@ where
         | RemoteCommand::CreateSession { .. }
         | RemoteCommand::GetModelCatalog { .. }
         | RemoteCommand::SetSessionModel { .. }
+        | RemoteCommand::SetModelDefaults { .. }
         | RemoteCommand::UpdateSessionTitle { .. }
         | RemoteCommand::GetSessionMessages { .. }
-        | RemoteCommand::DeleteSession { .. } => host.handle_session_command(command).await,
+        | RemoteCommand::DeleteSession { .. }
+        | RemoteCommand::RollbackSessionToTurn { .. } => host.handle_session_command(command).await,
 
         RemoteCommand::PollSession { .. } => host.handle_poll_command(command).await,
 
-        RemoteCommand::ReadFile { .. }
+        RemoteCommand::StoreSessionAttachment { .. }
+        | RemoteCommand::ReadFile { .. }
         | RemoteCommand::ReadFileChunk { .. }
         | RemoteCommand::GetFileInfo { .. } => host.handle_workspace_file_command(command).await,
 
@@ -3127,10 +3539,11 @@ where
                 };
             }
             info!("Remote build_plan: session={session_id}");
+            let language = host.plan_build_language().await;
             remote_dialog_submit_response(
                 host.submit_dialog(RemoteDialogSubmissionRequest {
                     session_id: session_id.clone(),
-                    content: remote_plan_build_content(plan_file_path),
+                    content: remote_plan_build_content(plan_file_path, language.as_deref()),
                     display_content: Some(remote_plan_build_display(
                         plan_name.as_deref(),
                         plan_file_path,
@@ -3298,9 +3711,11 @@ fn remote_plan_name_from_path(path: &str) -> String {
         .to_string()
 }
 
-pub fn remote_plan_build_content(plan_file_path: &str) -> String {
+pub fn remote_plan_build_content(plan_file_path: &str, language: Option<&str>) -> String {
+    let language =
+        language.unwrap_or("the language specified by the system prompt's Language Preference");
     format!(
-        "Implement the plan at `{plan_file_path}`.\n\nRead the plan file before making changes and treat it as the source of truth. Do not edit the plan file directly. Track progress with TodoWrite using the existing todo IDs from the plan frontmatter; do not rename or invent IDs. Start with the first pending todo and continue until all todos are completed."
+        "Implement the plan at `{plan_file_path}`.\n\nRead the plan file before making changes and treat it as the source of truth. Implement the plan and verify the result. Do not edit the plan file unless the user requests a plan revision.\n\nLanguage Preference: Use {language} for all user-facing communication, including progress updates and the final response, unless the user explicitly requests another language. The language of these instructions or the plan file does not override this preference."
     )
 }
 
@@ -3816,16 +4231,11 @@ impl RemoteSessionStateTracker {
                         identity, params, ..
                     }
                     | bitfun_events::ToolEventData::ConfirmationNeeded {
-                        identity,
-                        params,
-                        ..
+                        identity, params, ..
                     } => Some(
-                        bitfun_agent_tools::effective_tool_invocation(
-                            &identity.tool_name,
-                            params,
-                        )
-                        .1
-                        .clone(),
+                        bitfun_agent_tools::effective_tool_invocation(&identity.tool_name, params)
+                            .1
+                            .clone(),
                     ),
                     _ => None,
                 };
@@ -3868,10 +4278,15 @@ impl RemoteSessionStateTracker {
                         "Started" => {
                             let params = effective_params.clone();
                             let input_preview = params.as_ref().and_then(make_slim_tool_params);
-                            let tool_input = if tool_name == "AskUserQuestion"
-                                || tool_name == "Task"
-                                || tool_name == "TodoWrite"
-                            {
+                            let tool_input = if matches!(
+                                tool_name.as_str(),
+                                "AskUserQuestion"
+                                    | "Task"
+                                    | "AgentSpawn"
+                                    | "AgentSendInput"
+                                    | "AgentControl"
+                                    | "TodoWrite"
+                            ) {
                                 params.clone()
                             } else {
                                 None
@@ -4414,6 +4829,122 @@ mod tests {
         }
     }
 
+    struct IconWorkspaceHost;
+
+    #[async_trait::async_trait]
+    impl RemoteWorkspaceRuntimeHost for IconWorkspaceHost {
+        fn supports_workspace_icons(&self) -> bool {
+            true
+        }
+        async fn workspace_icon(
+            &self,
+            workspace_id: &str,
+        ) -> Result<bitfun_core_types::workspace_icon::WorkspaceIconSnapshot, String> {
+            if workspace_id != "project-id" {
+                return Err("Workspace not found".into());
+            }
+            Ok(bitfun_core_types::workspace_icon::WorkspaceIconSnapshot {
+                workspace_id: workspace_id.into(),
+                icon: bitfun_core_types::workspace_icon::WorkspaceIcon {
+                    glyph: Some("learning".into()),
+                    ..Default::default()
+                },
+                image_data: None,
+                image_unavailable: false,
+                dark_image_data: Some("data:image/png;base64,dark".into()),
+                dark_image_unavailable: false,
+                supports_themed_images: true,
+                supported_glyphs: bitfun_core_types::workspace_icon::WORKSPACE_ICON_GLYPHS
+                    .iter()
+                    .map(|glyph| (*glyph).into())
+                    .collect(),
+            })
+        }
+        async fn current_workspace(&self) -> Option<RemoteWorkspaceFacts> {
+            FakeWorkspaceHost.current_workspace().await
+        }
+        async fn recent_workspaces(&self) -> Vec<RemoteRecentWorkspaceFacts> {
+            FakeWorkspaceHost.recent_workspaces().await
+        }
+        async fn open_workspace(
+            &self,
+            path: &str,
+            connection: Option<&str>,
+            host: Option<&str>,
+        ) -> Result<RemoteWorkspaceUpdate, String> {
+            FakeWorkspaceHost
+                .open_workspace(path, connection, host)
+                .await
+        }
+        async fn assistant_workspaces(&self) -> Vec<RemoteAssistantWorkspaceFacts> {
+            FakeWorkspaceHost.assistant_workspaces().await
+        }
+        async fn open_assistant_workspace(
+            &self,
+            path: &str,
+        ) -> Result<RemoteWorkspaceUpdate, String> {
+            FakeWorkspaceHost.open_assistant_workspace(path).await
+        }
+    }
+
+    #[tokio::test]
+    async fn workspace_icon_protocol_is_capability_gated_and_round_trips_without_paths() {
+        let legacy = serde_json::to_value(
+            handle_remote_workspace_command(&FakeWorkspaceHost, &RemoteCommand::GetWorkspaceInfo)
+                .await,
+        )
+        .unwrap();
+        assert!(!legacy["capabilities"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c == "workspace_icon_read_v1"));
+        let current = serde_json::to_value(
+            handle_remote_workspace_command(&IconWorkspaceHost, &RemoteCommand::GetWorkspaceInfo)
+                .await,
+        )
+        .unwrap();
+        assert!(current["capabilities"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c == "workspace_icon_read_v1"));
+        let read: RemoteCommand = serde_json::from_value(
+            serde_json::json!({ "cmd": "get_workspace_icon", "workspace_id": "project-id" }),
+        )
+        .unwrap();
+        let response = handle_remote_workspace_command(&IconWorkspaceHost, &read).await;
+        let wire = serde_json::to_value(&response).unwrap();
+        assert_eq!(wire["resp"], "workspace_icon");
+        assert_eq!(wire["snapshot"]["workspaceId"], "project-id");
+        assert_eq!(wire["snapshot"]["icon"]["glyph"], "learning");
+        assert_eq!(wire["snapshot"]["supportsThemedImages"], true);
+        assert_eq!(
+            wire["snapshot"]["darkImageData"],
+            "data:image/png;base64,dark"
+        );
+        assert!(wire["snapshot"]["supportedGlyphs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|glyph| glyph == "learning"));
+        assert_eq!(
+            serde_json::from_value::<RemoteResponse>(wire).unwrap(),
+            response
+        );
+        assert!(matches!(
+            handle_remote_workspace_command(&FakeWorkspaceHost, &read).await,
+            RemoteResponse::Error { .. }
+        ));
+        let edit = RemoteCommand::SetWorkspaceIcon {
+            workspace_id: "project-id".into(),
+        };
+        let unsupported = handle_remote_workspace_command(&IconWorkspaceHost, &edit).await;
+        assert!(
+            matches!(unsupported, RemoteResponse::Error { message } if message.contains("not supported") && message.contains("Desktop"))
+        );
+    }
+
     #[tokio::test]
     async fn remote_workspace_catalog_advertises_opened_rows_without_repurposing_recent_history() {
         let response = handle_remote_workspace_command(
@@ -4450,6 +4981,45 @@ mod tests {
                 .get("opened_workspaces")
                 .is_none()
         );
+    }
+
+    /// A slim catalog must report the same version as the full one, and its
+    /// revision must still drive that version. Poll clients send the version
+    /// they already know and only accept a new catalog when it changes, so a
+    /// slim build that dropped the revision would make every poll look like a
+    /// catalog change.
+    #[test]
+    fn slim_model_catalog_keeps_the_version_of_the_full_catalog() {
+        let facts = |revision: &str, models_dev_reasoning_catalog| RemoteModelCatalogFacts {
+            last_modified_ms: 1_700_000_000_000,
+            source_version: Some(42),
+            models: Vec::new(),
+            provider_catalog: bitfun_core_types::ProviderCatalog {
+                revision: revision.to_string(),
+                source: bitfun_core_types::ProviderCatalogSource::Cache,
+                providers: Vec::new(),
+            },
+            models_dev_reasoning_catalog,
+            default_models: RemoteDefaultModelsConfig::default(),
+            session_model_id: Some("model-primary".to_string()),
+            session_reasoning_preset: Some("high".to_string()),
+        };
+        let with_bodies = build_remote_model_catalog(facts(
+            "models-dev-revision",
+            Some(ModelsDevReasoningCatalog {
+                revision: "models-dev-revision".to_string(),
+                source: bitfun_core_types::ModelsDevCatalogSource::Cache,
+                providers: Vec::new(),
+            }),
+        ));
+        let slim = build_remote_model_catalog(facts("models-dev-revision", None));
+        let other_revision = build_remote_model_catalog(facts("other-revision", None));
+
+        assert_eq!(with_bodies.version, slim.version);
+        assert_ne!(slim.version, other_revision.version);
+        assert_eq!(slim.provider_catalog.revision, "models-dev-revision");
+        assert!(slim.provider_catalog.providers.is_empty());
+        assert!(slim.models_dev_reasoning_catalog.is_none());
     }
 
     #[tokio::test]
@@ -4532,8 +5102,18 @@ mod tests {
         created_requests: Mutex<Vec<AgentSessionCreateRequest>>,
         list_identities: Mutex<Vec<RemoteSessionWorkspaceIdentity>>,
         model_updates: Mutex<Vec<(String, String, Option<Option<String>>)>>,
+        model_default_updates: Mutex<
+            Vec<(
+                Option<Option<String>>,
+                Option<Option<String>>,
+                Option<Option<String>>,
+            )>,
+        >,
+        model_defaults_error: Option<String>,
+        model_update_barrier: Option<Arc<(tokio::sync::Notify, tokio::sync::Notify)>>,
         removed_trackers: Mutex<Vec<String>>,
         history_error: Option<String>,
+        rollback_requests: Mutex<Vec<(String, String, Option<usize>)>>,
     }
 
     fn fake_workspace(
@@ -4659,8 +5239,16 @@ mod tests {
 
         async fn load_model_catalog(
             &self,
-            _session_id: Option<&str>,
+            session_id: Option<&str>,
         ) -> Result<RemoteModelCatalog, String> {
+            let selection = self
+                .model_updates
+                .lock()
+                .unwrap()
+                .iter()
+                .rev()
+                .find(|(id, _, _)| Some(id.as_str()) == session_id)
+                .cloned();
             Ok(RemoteModelCatalog {
                 version: 1,
                 models: Vec::new(),
@@ -4668,8 +5256,10 @@ mod tests {
                 models_dev_reasoning_catalog: None,
                 default_models: RemoteDefaultModelsConfig::default(),
                 reasoning_preset_selection_supported: true,
-                session_model_id: None,
-                session_reasoning_preset: None,
+                session_model_write_fence_supported: false,
+                session_model_write_token: None,
+                session_model_id: selection.as_ref().map(|(_, model, _)| model.clone()),
+                session_reasoning_preset: selection.and_then(|(_, _, preset)| preset.flatten()),
             })
         }
 
@@ -4679,6 +5269,10 @@ mod tests {
             model_id: &str,
             reasoning_preset: Option<Option<&str>>,
         ) -> Result<RemoteSessionModelSelection, String> {
+            if let Some(barrier) = &self.model_update_barrier {
+                barrier.0.notify_one();
+                barrier.1.notified().await;
+            }
             self.model_updates.lock().unwrap().push((
                 session_id.to_string(),
                 model_id.to_string(),
@@ -4692,6 +5286,36 @@ mod tests {
 
         async fn ensure_session_loaded(&self, _session_id: &str) -> Result<(), String> {
             Ok(())
+        }
+
+        async fn set_model_defaults(
+            &self,
+            primary: Option<Option<&str>>,
+            fast: Option<Option<&str>>,
+            image_understanding: Option<Option<&str>>,
+        ) -> Result<RemoteDefaultModelsConfig, String> {
+            let owned = |slot: Option<Option<&str>>| slot.map(|slot| slot.map(str::to_string));
+            self.model_default_updates.lock().unwrap().push((
+                owned(primary),
+                owned(fast),
+                owned(image_understanding),
+            ));
+            if let Some(error) = self.model_defaults_error.as_ref() {
+                return Err(error.clone());
+            }
+            // The fake answers with the host's reconciled mapping, not the
+            // request, mirroring a config service that repaired a slot.
+            Ok(RemoteDefaultModelsConfig {
+                primary: primary
+                    .flatten()
+                    .map(str::to_string)
+                    .or(Some("primary-fallback".into())),
+                fast: fast.flatten().map(str::to_string),
+                search: Some("device-search".to_string()),
+                image_understanding: image_understanding.flatten().map(str::to_string),
+                image_generation: Some("device-image-generation".to_string()),
+                speech_recognition: Some("device-speech".to_string()),
+            })
         }
 
         async fn update_session_title(
@@ -4721,7 +5345,8 @@ mod tests {
                     content: "hello".to_string(),
                     timestamp: "1".to_string(),
                     metadata: None,
-                    turn_id: None,
+                    turn_id: Some("turn-1".to_string()),
+                    turn_index: Some(0),
                     status: None,
                     error: None,
                     images: None,
@@ -4731,6 +5356,25 @@ mod tests {
                 }],
                 false,
             ))
+        }
+
+        async fn rollback_session_to_turn(
+            &self,
+            session_id: &str,
+            target_turn_id: &str,
+            expected_storage_turn_index: Option<usize>,
+        ) -> Result<RemoteSessionRollbackOutcome, String> {
+            self.rollback_requests.lock().unwrap().push((
+                session_id.to_string(),
+                target_turn_id.to_string(),
+                expected_storage_turn_index,
+            ));
+            Ok(RemoteSessionRollbackOutcome {
+                retired_turn_ids: vec!["turn-2".to_string()],
+                restored_files: vec!["src/main.rs".to_string()],
+                composer_text: Some("previous prompt".to_string()),
+                changed: true,
+            })
         }
 
         async fn delete_session(
@@ -4821,7 +5465,7 @@ mod tests {
             }
         );
         let created_requests = host.created_requests.lock().unwrap();
-        assert_eq!(created_requests[0].session_name, "Remote Cowork Session");
+        assert_eq!(created_requests[0].session_name, "");
         assert_eq!(created_requests[0].agent_type, "Cowork");
         assert_eq!(
             created_requests[0].workspace_id.as_deref(),
@@ -4970,6 +5614,7 @@ mod tests {
                 session_id: "session-a".to_string(),
                 model_id: "model-1".to_string(),
                 reasoning_preset: Some(Some("high".to_string())),
+                model_write_token: None,
             },
         )
         .await;
@@ -4990,6 +5635,222 @@ mod tests {
                 Some(Some("high".to_string())),
             )]
         );
+    }
+
+    async fn fenced_catalog(host: &FakeSessionHost, session_id: &str) -> RemoteModelCatalog {
+        match handle_remote_session_command(
+            host,
+            &RemoteCommand::GetModelCatalog {
+                session_id: Some(session_id.to_string()),
+                prepare_model_write: true,
+                model_write_fence: None,
+            },
+        )
+        .await
+        {
+            RemoteResponse::ModelCatalog { catalog } => catalog,
+            response => panic!("Unexpected catalog response: {response:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn remote_session_model_fence_rejects_delayed_and_replayed_wire_writes() {
+        let host = FakeSessionHost::default();
+        let session_id = uuid::Uuid::new_v4().to_string();
+        let old = fenced_catalog(&host, &session_id)
+            .await
+            .session_model_write_token
+            .unwrap();
+        let current = fenced_catalog(&host, &session_id)
+            .await
+            .session_model_write_token
+            .unwrap();
+        let barrier: RemoteCommand = serde_json::from_value(serde_json::json!({
+            "cmd": "get_model_catalog", "session_id": session_id, "model_write_fence": old,
+        }))
+        .unwrap();
+        assert!(matches!(
+            handle_remote_session_command(&host, &barrier).await,
+            RemoteResponse::ModelCatalog { .. }
+        ));
+        let wire_write = |token: &str| {
+            serde_json::from_value::<RemoteCommand>(serde_json::json!({
+                "cmd": "set_session_model", "session_id": session_id,
+                "model_id": "model-c", "reasoning_preset": null, "model_write_token": token,
+            }))
+            .unwrap()
+        };
+        assert!(matches!(
+            handle_remote_session_command(&host, &wire_write(&old)).await,
+            RemoteResponse::Error { .. }
+        ));
+        assert!(
+            host.model_updates.lock().unwrap().is_empty(),
+            "a retired request must never reach the model writer"
+        );
+        assert!(matches!(
+            handle_remote_session_command(&host, &wire_write(&current)).await,
+            RemoteResponse::SessionModelUpdated { .. }
+        ));
+        assert!(matches!(
+            handle_remote_session_command(&host, &wire_write(&current)).await,
+            RemoteResponse::Error { .. }
+        ));
+        assert_eq!(host.model_updates.lock().unwrap().len(), 1);
+        assert_eq!(
+            fenced_catalog(&host, &session_id)
+                .await
+                .session_model_id
+                .as_deref(),
+            Some("model-c")
+        );
+    }
+
+    #[tokio::test]
+    async fn remote_session_model_fence_read_waits_for_the_real_host_write() {
+        let barrier = Arc::new((tokio::sync::Notify::new(), tokio::sync::Notify::new()));
+        let host = Arc::new(FakeSessionHost {
+            model_update_barrier: Some(barrier.clone()),
+            ..Default::default()
+        });
+        let session_id = uuid::Uuid::new_v4().to_string();
+        let token = fenced_catalog(&host, &session_id)
+            .await
+            .session_model_write_token
+            .unwrap();
+        let command = RemoteCommand::SetSessionModel {
+            session_id: session_id.clone(),
+            model_id: "model-c".to_string(),
+            reasoning_preset: Some(None),
+            model_write_token: Some(token),
+        };
+        let writing_host = host.clone();
+        let write = tokio::spawn(async move {
+            handle_remote_session_command(writing_host.as_ref(), &command).await
+        });
+        barrier.0.notified().await;
+        let read = fenced_catalog(&host, &session_id);
+        tokio::pin!(read);
+        let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+        assert!(
+            std::future::Future::poll(read.as_mut(), &mut context).is_pending(),
+            "a transport timeout must not let a read overtake an executing write"
+        );
+        barrier.1.notify_one();
+        assert!(matches!(
+            write.await.unwrap(),
+            RemoteResponse::SessionModelUpdated { .. }
+        ));
+        assert_eq!(read.await.session_model_id.as_deref(), Some("model-c"));
+    }
+
+    #[tokio::test]
+    async fn remote_session_model_fence_plain_read_preserves_other_preparations() {
+        let host = FakeSessionHost::default();
+        let session_id = uuid::Uuid::new_v4().to_string();
+        let first = fenced_catalog(&host, &session_id)
+            .await
+            .session_model_write_token
+            .unwrap();
+        let second = fenced_catalog(&host, &session_id)
+            .await
+            .session_model_write_token
+            .unwrap();
+        let read: RemoteCommand = serde_json::from_value(serde_json::json!({
+            "cmd": "get_model_catalog", "session_id": session_id,
+        }))
+        .unwrap();
+        match handle_remote_session_command(&host, &read).await {
+            RemoteResponse::ModelCatalog { catalog } => {
+                assert!(catalog.session_model_write_fence_supported);
+                assert!(catalog.session_model_write_token.is_none());
+            }
+            response => panic!("Unexpected catalog response: {response:?}"),
+        }
+        for token in [first, second] {
+            let command = RemoteCommand::SetSessionModel {
+                session_id: session_id.clone(),
+                model_id: "model-c".to_string(),
+                reasoning_preset: None,
+                model_write_token: Some(token),
+            };
+            assert!(matches!(
+                handle_remote_session_command(&host, &command).await,
+                RemoteResponse::SessionModelUpdated { .. }
+            ));
+        }
+        assert_eq!(host.model_updates.lock().unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn remote_session_model_fence_requires_session_scope() {
+        let host = FakeSessionHost::default();
+        for (prepare_model_write, model_write_fence) in
+            [(true, None), (false, Some("token".to_string()))]
+        {
+            assert!(matches!(
+                handle_remote_session_command(
+                    &host,
+                    &RemoteCommand::GetModelCatalog {
+                        session_id: None,
+                        prepare_model_write,
+                        model_write_fence,
+                    }
+                )
+                .await,
+                RemoteResponse::Error { .. }
+            ));
+        }
+    }
+
+    #[tokio::test]
+    async fn remote_session_model_fence_cancelled_execution_drains_before_read_and_replacement() {
+        let barrier = Arc::new((tokio::sync::Notify::new(), tokio::sync::Notify::new()));
+        let host = Arc::new(FakeSessionHost {
+            model_update_barrier: Some(barrier.clone()),
+            ..Default::default()
+        });
+        let session_id = uuid::Uuid::new_v4().to_string();
+        let token = fenced_catalog(&host, &session_id)
+            .await
+            .session_model_write_token
+            .unwrap();
+        let command = RemoteCommand::SetSessionModel {
+            session_id: session_id.clone(),
+            model_id: "model-c".to_string(),
+            reasoning_preset: Some(None),
+            model_write_token: Some(token),
+        };
+        let lifecycle = Arc::new(tokio::sync::RwLock::new(()));
+        let lease = lifecycle.clone().read_owned().await;
+        let (cancel, mut cancelled) = tokio::sync::watch::channel(0);
+        let writing_host = host.clone();
+        let write = tokio::spawn(async move {
+            let _lease = lease;
+            rpc_execution::run_rpc_stage(
+                &mut cancelled,
+                true,
+                handle_remote_session_command(writing_host.as_ref(), &command),
+            )
+            .await
+        });
+        barrier.0.notified().await;
+        cancel.send_replace(1);
+        let read = fenced_catalog(&host, &session_id);
+        tokio::pin!(read);
+        let replacement = lifecycle.write();
+        tokio::pin!(replacement);
+        let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+        assert!(std::future::Future::poll(read.as_mut(), &mut context).is_pending());
+        assert!(std::future::Future::poll(replacement.as_mut(), &mut context).is_pending());
+        barrier.1.notify_one();
+        assert!(
+            write.await.unwrap().is_none(),
+            "a cancelled owner cannot reply"
+        );
+        assert_eq!(read.await.session_model_id.as_deref(), Some("model-c"));
+        let _replacement = replacement.await;
+        assert_eq!(host.model_updates.lock().unwrap().len(), 1);
     }
 
     #[tokio::test]
@@ -5014,6 +5875,239 @@ mod tests {
             host.removed_trackers.lock().unwrap().as_slice(),
             ["session-a"]
         );
+    }
+
+    #[tokio::test]
+    async fn remote_session_handler_forwards_device_model_defaults() {
+        let host = FakeSessionHost::default();
+
+        let response = handle_remote_session_command(
+            &host,
+            &RemoteCommand::SetModelDefaults {
+                primary: Some(Some("model-primary".to_string())),
+                fast: Some(None),
+                image_understanding: Some(Some("model-vision".to_string())),
+            },
+        )
+        .await;
+
+        // The response is the host's reconciled mapping, including the slots
+        // the request never carries.
+        assert_eq!(
+            response,
+            RemoteResponse::ModelDefaultsUpdated {
+                default_models: RemoteDefaultModelsConfig {
+                    primary: Some("model-primary".to_string()),
+                    fast: None,
+                    search: Some("device-search".to_string()),
+                    image_understanding: Some("model-vision".to_string()),
+                    image_generation: Some("device-image-generation".to_string()),
+                    speech_recognition: Some("device-speech".to_string()),
+                },
+            }
+        );
+        assert_eq!(
+            host.model_default_updates.lock().unwrap().as_slice(),
+            [(
+                Some(Some("model-primary".to_string())),
+                Some(None),
+                Some(Some("model-vision".to_string())),
+            )]
+        );
+    }
+
+    #[tokio::test]
+    async fn remote_session_handler_reports_device_model_defaults_error() {
+        let host = FakeSessionHost {
+            model_defaults_error: Some("Unknown model selection: model-gone".to_string()),
+            ..FakeSessionHost::default()
+        };
+
+        let response = handle_remote_session_command(
+            &host,
+            &RemoteCommand::SetModelDefaults {
+                primary: Some(Some("model-gone".to_string())),
+                fast: None,
+                image_understanding: None,
+            },
+        )
+        .await;
+
+        assert_eq!(
+            response,
+            RemoteResponse::Error {
+                message: "Unknown model selection: model-gone".to_string(),
+            }
+        );
+    }
+
+    /// A host that does not implement device role defaults must say so instead
+    /// of answering with an unchanged-looking success.
+    #[tokio::test]
+    async fn remote_session_host_without_device_model_defaults_reports_unsupported() {
+        struct LegacySessionHost;
+
+        #[async_trait::async_trait]
+        impl RemoteSessionRuntimeHost for LegacySessionHost {
+            async fn resolve_legacy_workspace(
+                &self,
+                _workspace_path: &str,
+                _remote_connection_id: Option<&str>,
+                _remote_ssh_host: Option<&str>,
+            ) -> Result<Option<RemoteWorkspaceFacts>, String> {
+                Ok(None)
+            }
+
+            async fn list_session_metadata(
+                &self,
+                _workspace_path: &Path,
+                _workspace_identity: RemoteSessionWorkspaceIdentity,
+            ) -> Result<Vec<RemoteSessionMetadata>, String> {
+                Ok(Vec::new())
+            }
+
+            async fn resolve_default_assistant_workspace(
+                &self,
+            ) -> Result<RemoteWorkspaceFacts, String> {
+                Err("no assistant workspace".to_string())
+            }
+
+            async fn create_session(
+                &self,
+                _request: AgentSessionCreateRequest,
+            ) -> Result<String, String> {
+                Err("no session creation".to_string())
+            }
+
+            async fn load_model_catalog(
+                &self,
+                _session_id: Option<&str>,
+            ) -> Result<RemoteModelCatalog, String> {
+                Err("no catalog".to_string())
+            }
+
+            async fn update_session_model_selection(
+                &self,
+                _session_id: &str,
+                _model_id: &str,
+                _reasoning_preset: Option<Option<&str>>,
+            ) -> Result<RemoteSessionModelSelection, String> {
+                Err("no session model selection".to_string())
+            }
+
+            async fn ensure_session_loaded(&self, _session_id: &str) -> Result<(), String> {
+                Err("no session restore".to_string())
+            }
+
+            async fn update_session_title(
+                &self,
+                _session_id: &str,
+                _title: &str,
+            ) -> Result<String, String> {
+                Err("no title update".to_string())
+            }
+
+            async fn resolve_session_storage_dir(&self, _session_id: &str) -> Option<PathBuf> {
+                None
+            }
+
+            async fn load_remote_chat_messages(
+                &self,
+                _session_storage_dir: &Path,
+                _session_id: &str,
+            ) -> Result<(Vec<ChatMessage>, bool), String> {
+                Err("no history".to_string())
+            }
+
+            async fn rollback_session_to_turn(
+                &self,
+                _session_id: &str,
+                _target_turn_id: &str,
+                _expected_storage_turn_index: Option<usize>,
+            ) -> Result<RemoteSessionRollbackOutcome, String> {
+                Err("no rollback".to_string())
+            }
+
+            async fn delete_session(
+                &self,
+                _session_storage_dir: &Path,
+                _session_id: &str,
+            ) -> Result<(), String> {
+                Err("no delete".to_string())
+            }
+
+            fn remove_tracker(&self, _session_id: &str) {}
+        }
+
+        let response = handle_remote_session_command(
+            &LegacySessionHost,
+            &RemoteCommand::SetModelDefaults {
+                primary: None,
+                fast: None,
+                image_understanding: None,
+            },
+        )
+        .await;
+
+        assert_eq!(
+            response,
+            RemoteResponse::Error {
+                message: "Host does not support device model defaults".to_string(),
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn remote_session_handler_forwards_rollback_target_and_guard() {
+        let host = FakeSessionHost::default();
+
+        let response = handle_remote_session_command(
+            &host,
+            &RemoteCommand::RollbackSessionToTurn {
+                session_id: "session-a".to_string(),
+                target_turn_id: "  turn-1  ".to_string(),
+                expected_storage_turn_index: Some(3),
+            },
+        )
+        .await;
+
+        assert_eq!(
+            response,
+            RemoteResponse::SessionRolledBack {
+                session_id: "session-a".to_string(),
+                retired_turn_ids: vec!["turn-2".to_string()],
+                restored_files: vec!["src/main.rs".to_string()],
+                composer_text: Some("previous prompt".to_string()),
+                changed: true,
+            }
+        );
+        assert_eq!(
+            host.rollback_requests.lock().unwrap().as_slice(),
+            [("session-a".to_string(), "turn-1".to_string(), Some(3))]
+        );
+    }
+
+    #[tokio::test]
+    async fn remote_session_handler_rejects_rollback_without_target_turn() {
+        let host = FakeSessionHost::default();
+
+        let response = handle_remote_session_command(
+            &host,
+            &RemoteCommand::RollbackSessionToTurn {
+                session_id: "session-a".to_string(),
+                target_turn_id: "   ".to_string(),
+                expected_storage_turn_index: None,
+            },
+        )
+        .await;
+
+        assert_eq!(
+            response,
+            RemoteResponse::Error {
+                message: "Rollback requires a target turn id".to_string(),
+            }
+        );
+        assert!(host.rollback_requests.lock().unwrap().is_empty());
     }
 
     #[tokio::test]
@@ -5056,6 +6150,7 @@ mod tests {
             timestamp: "1".to_string(),
             metadata: None,
             turn_id: Some(turn_id.to_string()),
+            turn_index: None,
             status: status.map(str::to_string),
             error: None,
             tools: None,
@@ -5127,6 +6222,7 @@ mod tests {
             timestamp: "1".to_string(),
             metadata: None,
             turn_id: None,
+            turn_index: None,
             status: None,
             error: None,
             tools: None,
@@ -5192,6 +6288,7 @@ mod tests {
                 timestamp: "1".to_string(),
                 metadata: None,
                 turn_id: None,
+                turn_index: None,
                 status: None,
                 error: None,
                 tools: None,
@@ -5241,6 +6338,7 @@ mod tests {
                     timestamp: "1".to_string(),
                     metadata: None,
                     turn_id: None,
+                    turn_index: None,
                     status: None,
                     error: None,
                     tools: None,
@@ -5277,6 +6375,7 @@ mod tests {
             success: Some(true),
             finish_reason: Some("complete".to_string()),
             has_final_response: Some(true),
+            background_delivery: None,
         });
         tracker.handle_agentic_event(&AgenticEvent::SessionHistoryChanged {
             session_id: "session-a".to_string(),
@@ -5344,6 +6443,7 @@ mod tests {
             success: Some(true),
             finish_reason: Some("complete".to_string()),
             has_final_response: Some(true),
+            background_delivery: None,
         });
         tracker.handle_agentic_event(&AgenticEvent::SessionHistoryChanged {
             session_id: "session-a".to_string(),
@@ -5488,5 +6588,40 @@ mod tests {
         });
         assert_eq!(tracker.session_state(), "idle");
         assert!(tracker.is_history_snapshot_required());
+    }
+}
+
+#[cfg(test)]
+mod session_attachment_contract_tests {
+    use super::*;
+    struct LegacyFileHost;
+    #[async_trait::async_trait]
+    impl RemoteWorkspaceFileRuntimeHost for LegacyFileHost {
+        async fn resolve_remote_file_workspace_root(
+            &self,
+            _: Option<&str>,
+        ) -> Option<std::path::PathBuf> {
+            None
+        }
+    }
+    #[tokio::test]
+    async fn attachment_wire_roundtrip_and_unsupported_host_are_explicit() {
+        let wire = serde_json::json!({"cmd":"store_session_attachment","session_id":"session",
+            "attachment":{"attachment_id":"id","name":"key.pem","content_base64":"c2VjcmV0"}});
+        let command: RemoteCommand = serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(serde_json::to_value(&command).unwrap(), wire);
+        assert!(!format!("{command:?}").contains("c2VjcmV0"));
+        let result = handle_remote_workspace_file_command(&LegacyFileHost, &command).await;
+        assert!(matches!(result, RemoteResponse::Error { .. }));
+        assert!(remote_host_capabilities()
+            .iter()
+            .any(|capability| capability == REMOTE_CAPABILITY_SESSION_ATTACHMENTS_V1));
+        let legacy: RemoteCommand = serde_json::from_value(
+            serde_json::json!({"cmd":"send_message","session_id":"session","content":"hello"}),
+        )
+        .unwrap();
+        let roundtrip: RemoteCommand =
+            serde_json::from_value(serde_json::to_value(&legacy).unwrap()).unwrap();
+        assert_eq!(legacy, roundtrip);
     }
 }

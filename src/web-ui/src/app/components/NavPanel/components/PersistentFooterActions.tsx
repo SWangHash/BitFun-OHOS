@@ -1,5 +1,7 @@
-import React, { lazy, Suspense, useState, useCallback, useEffect, useRef } from 'react';
-import {
+import { lazyWithRecovery } from '@/shared/utils/lazyWithRecovery';
+import React, { Suspense, useState, useCallback, useEffect, useRef } from 'react';
+
+import { createOverlayPortal,
   Icon,
   IconButton,
   Menu,
@@ -7,12 +9,10 @@ import {
   MenuSeparator,
   Tooltip,
   Dialog,
-  DialogBody,
   DialogClose,
   DialogHeader,
   DialogHeading,
   DialogTitle,
-  createOverlayPortal,
 } from '@bitfun/ui';
 import { RetainedMountBoundary } from '@/shared/presence';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
@@ -39,9 +39,18 @@ import { useSettingsStore } from '@/app/scenes/settings/settingsStore';
 import { PeerConnectionStatus } from '@/infrastructure/peer-device/PeerConnectionStatus';
 import DeviceStatusControl from './DeviceStatusControl';
 import AppearanceQuickSwitchMenuItem from './AppearanceQuickSwitchMenuItem';
+import { UpdateIndicator } from '@/infrastructure/update/UpdateIndicator';
+import { useHasAppUpdate } from '@/infrastructure/update/useHasAppUpdate';
+import { UpdateDownloadIndicator } from '@/infrastructure/update/UpdateDownloadIndicator';
+import { UpdateMenuItems } from '@/infrastructure/update/UpdateMenuItems';
+import { useUpdateInstallStore } from '@/infrastructure/update/updateInstallStore';
+import { useAccountIdentity } from '@/infrastructure/account-identity';
+import { buildPublicFeedbackFormUrl } from '@/infrastructure/feedback/publicFeedbackForm';
+import { notificationService } from '@/shared/notification-system';
+import { getVersionInfo } from '@/shared/utils/version';
 
-const RemoteConnectDialog = lazy(() => import('../../RemoteConnectDialog'));
-const FeedbackDialog = lazy(() => import('../../FeedbackDialog'));
+const RemoteConnectDialog = lazyWithRecovery(() => import('../../RemoteConnectDialog'));
+const FeedbackDialog = lazyWithRecovery(() => import('../../FeedbackDialog'));
 const CHANGELOG_URL = 'https://www.bitfun.work/Changelog.html';
 
 const PersistentFooterActions: React.FC = () => {
@@ -57,6 +66,7 @@ const PersistentFooterActions: React.FC = () => {
     privacyStatus?.enabled && privacyStatus.hasUnreadUpdate,
   );
   const hasMoreMenuAttention = hasUnreadFeedback || hasPrivacyUpdate;
+  const accountIdentity = useAccountIdentity();
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuClosing, setMenuClosing] = useState(false);
   const [appearanceSubmenuOpen, setAppearanceSubmenuOpen] = useState(false);
@@ -71,6 +81,8 @@ const PersistentFooterActions: React.FC = () => {
     alignment: 'end',
     gap: 6,
   });
+  const hasAppUpdate = useHasAppUpdate();
+  const updateVersion = useUpdateInstallStore(state => state.downloadVersion ?? state.availableUpdate?.latestVersion);
   const [showFeedback, setShowFeedback] = useState(false);
   const [showRemoteConnect, setShowRemoteConnect] = useState(false);
   const [remoteInitialGroup, setRemoteInitialGroup] = useState<'network' | 'bot' | 'account' | undefined>(undefined);
@@ -170,8 +182,21 @@ const PersistentFooterActions: React.FC = () => {
     } catch {
       // Web and older desktop hosts retain the external feedback behavior.
     }
-    await systemAPI.openExternal('https://gitcode.com/BitFun/bitfun_ade/issues');
-  }, [closeMenu, feedbackPlatformEnabled]);
+
+    const account = accountIdentity.status === 'signed-in' ? accountIdentity.me?.user : undefined;
+    const url = buildPublicFeedbackFormUrl(import.meta.env.VITE_BITFUN_FEEDBACK_FORM_URL, {
+      uid: account?.accountId ?? account?.githubId,
+      version: getVersionInfo().version,
+      deviceInfo: typeof navigator === 'undefined' ? undefined : navigator.userAgent,
+    });
+    if (!url) {
+      notificationService.error(t('nav.settingsMenu.feedbackUnavailable'));
+      return;
+    }
+    void systemAPI.openExternal(url).catch(() => {
+      notificationService.error(t('nav.settingsMenu.feedbackOpenFailed'));
+    });
+  }, [accountIdentity.me, accountIdentity.status, closeMenu, feedbackPlatformEnabled, t]);
 
   const handleOpenChangelog = useCallback(() => {
     closeMenu();
@@ -198,15 +223,14 @@ const PersistentFooterActions: React.FC = () => {
     enableToolbarMode();
   };
 
-  const handleRemoteConnect = useCallback(() => {
+  const handleRemoteConnect = useCallback((group?: 'account') => {
+    setRemoteInitialGroup(group);
     if (hasAgreedRemoteDisclaimer || getRemoteConnectDisclaimerAgreed()) {
       setHasAgreedRemoteDisclaimer(true);
-      setRemoteInitialGroup(undefined);
       setShowRemoteConnect(true);
       return;
     }
 
-    setRemoteInitialGroup(undefined);
     setShowRemoteDisclaimer(true);
   }, [hasAgreedRemoteDisclaimer]);
 
@@ -247,9 +271,10 @@ const PersistentFooterActions: React.FC = () => {
         </div>
 
         <div className="bitfun-nav-panel__footer-right">
+          <UpdateDownloadIndicator />
           <div className="bitfun-nav-panel__footer-menu-wrap">
             <Tooltip
-              content={t('shared:features.settings')}
+              content={hasAppUpdate ? t('update.availableVersion', { version: updateVersion }) : t('actions.more')}
               placement="right"
               followCursor
               disabled={menuOpen}
@@ -257,9 +282,11 @@ const PersistentFooterActions: React.FC = () => {
               <IconButton
                 ref={menuTriggerRef}
                 className={`bitfun-nav-panel__footer-btn bitfun-nav-panel__footer-btn--icon${menuOpen || isSettingsActive ? ' is-active' : ''}${hasMoreMenuAttention ? ' has-attention' : ''}`}
-                aria-label={hasMoreMenuAttention
-                  ? t('header.moreOptionsAttention')
-                  : t('shared:features.settings')}
+                aria-label={hasAppUpdate
+                  ? t('update.moreAttention')
+                  : hasMoreMenuAttention
+                    ? t('header.moreOptionsAttention')
+                    : t('actions.more')}
                 aria-expanded={menuOpen}
                 aria-haspopup="menu"
                 aria-pressed={isSettingsActive}
@@ -269,11 +296,12 @@ const PersistentFooterActions: React.FC = () => {
                 data-bitfun-part="settingsEntry"
                 data-bitfun-state={menuOpen ? 'open' : isSettingsActive ? 'active' : undefined}
                 icon={(
-                  <span className="bitfun-nav-panel__footer-settings-icon">
+                  <span className="bitfun-nav-panel__footer-settings-icon bitfun-update-indicator-anchor">
                     <Icon name="gear" size="sm" aria-hidden="true" />
                     {hasMoreMenuAttention ? (
                       <span className="bitfun-nav-panel__footer-more-unread" />
                     ) : null}
+                    <UpdateIndicator />
                   </span>
                 )}
                 size="sm"
@@ -290,7 +318,8 @@ const PersistentFooterActions: React.FC = () => {
                 <Menu
                   ref={menuPopoverRef}
                   className={`bitfun-nav-panel__footer-menu${menuClosing ? ' is-closing' : ''}`}
-                  aria-label={t('shared:features.settings')}
+                  inlineSize="content"
+                  aria-label={t('actions.more')}
                   data-testid="nav-settings-menu"
                   onKeyDown={(event) => {
                     if (event.key !== 'Escape') return;
@@ -323,6 +352,7 @@ const PersistentFooterActions: React.FC = () => {
                     onOpenAppearanceSettings={handleOpenAppearanceSettings}
                   />
                   <MenuSeparator />
+                  <UpdateMenuItems onCloseMenu={closeMenu} />
                   <MenuItem
                     leading={<Icon name="files" size="sm" aria-hidden="true" />}
                     onClick={handleOpenChangelog}
@@ -343,6 +373,7 @@ const PersistentFooterActions: React.FC = () => {
                   >
                     {t('header.feedback')}
                   </MenuItem>
+                  <MenuSeparator />
                   <MenuItem
                     leading={<Icon name="gear" size="sm" aria-hidden="true" />}
                     onClick={handleOpenSettings}
@@ -364,6 +395,8 @@ const PersistentFooterActions: React.FC = () => {
                 </Menu>
               </>,
               getAppearanceOverlayHost(),
+              null,
+              { open: !menuClosing, ownerRef: menuTriggerRef, surfaceRef: menuPopoverRef, onDismiss: closeMenu },
             )}
           </div>
         </div>
@@ -393,13 +426,11 @@ const PersistentFooterActions: React.FC = () => {
           </DialogHeading>
           <DialogClose />
         </DialogHeader>
-        <DialogBody>
         <RemoteConnectDisclaimer
           agreed={hasAgreedRemoteDisclaimer}
           onClose={() => setShowRemoteDisclaimer(false)}
           onAgree={handleAgreeDisclaimer}
         />
-              </DialogBody>
       </Dialog>
     </>
   );

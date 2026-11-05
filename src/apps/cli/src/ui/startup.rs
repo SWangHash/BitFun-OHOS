@@ -30,8 +30,8 @@ use crate::config::CliConfig;
 /// - Model/Agent/Session/Skill/Subagent selector popups
 /// - Random tips
 use anyhow::{anyhow, Result};
-use bitfun_product_domains::agent_catalog::{SkillSummary, SubagentSummary};
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use bitfun_product_domains::agent_catalog::{SkillSummary, SubagentSummary};
 use ratatui::{
     backend::Backend,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -1109,6 +1109,7 @@ impl StartupPage {
             | ActionHandler::Status
             | ActionHandler::WorkspaceDiff
             | ActionHandler::CompactSession
+            | ActionHandler::GoalPrompt
             | ActionHandler::Editor
             | ActionHandler::PromptStash
             | ActionHandler::PromptStashPop
@@ -1287,7 +1288,9 @@ impl StartupPage {
         if trimmed == "exit" || trimmed == "quit" {
             return Some(StartupResult::Exit);
         }
-        if trimmed.starts_with('/') {
+        if trimmed.starts_with('/')
+            && bitfun_core::agentic::goal_mode::goal_objective_from_prompt(&trimmed).is_none()
+        {
             if !self.image_attachments.is_empty() {
                 self.status = Some(IMAGE_ATTACHMENTS_REQUIRE_MESSAGE.to_string());
                 return None;
@@ -1625,7 +1628,10 @@ impl StartupPage {
                         }
                     };
                 if let Err(error) = config_service
-                    .set_config("ai.agent_model_defaults.mode", &selected_id)
+                    .set_config(
+                        "ai.agent_model_selections.mode",
+                        serde_json::json!({"kind":"model", "model_ref": &selected_id}),
+                    )
                     .await
                 {
                     tracing::error!("Failed to set future mode model: {error}");
@@ -1767,16 +1773,28 @@ impl StartupPage {
                     }
                     let config_service =
                         bitfun_core::service::config::get_global_config_service().await?;
-                    let existing = config_service
-                        .get_ai_models()
-                        .await
-                        .map_err(anyhow::Error::msg)?
-                        .into_iter()
-                        .find(|model| model.id == model_id)
-                        .ok_or_else(|| anyhow!("AI model '{model_id}' was not found"))?;
-                    let model = model_from_mutation(mutation, Some(existing))?;
                     config_service
-                        .update_ai_model(&model_id, model)
+                        .update_config(
+                            "ai.models",
+                            |models: &mut Vec<bitfun_core::service::config::AIModelConfig>| {
+                                let existing = models
+                                    .iter_mut()
+                                    .find(|model| model.id == model_id)
+                                    .ok_or_else(|| {
+                                        bitfun_core::util::errors::BitFunError::config(
+                                            format!("AI model '{model_id}' was not found"),
+                                        )
+                                    })?;
+                                let model = model_from_mutation(mutation, Some(existing.clone()))
+                                    .map_err(|error| {
+                                    bitfun_core::util::errors::BitFunError::validation(
+                                        error.to_string(),
+                                    )
+                                })?;
+                                *existing = model;
+                                Ok(())
+                            },
+                        )
                         .await
                         .map_err(anyhow::Error::msg)
                 })
@@ -2156,13 +2174,16 @@ impl StartupPage {
                     .workspace_id()
                     .ok_or_else(|| anyhow::anyhow!("Workspace ID is unavailable"))?;
                 let values = bitfun_core::agentic::agents::get_agent_registry()
-                    .get_subagents_for_query(&bitfun_core::agentic::agents::SubagentQueryContext {
-                        parent_agent_type: Some(&self.agent_type),
-                        workspace_id: Some(&workspace_id),
-                        list_scope: bitfun_core::agentic::agents::SubagentListScope::TaskVisible,
-                        include_disabled: false,
-                        external_sources_supported: true,
-                    })
+                    .get_subagents_for_query(
+                        &bitfun_core::agentic::agents::SubagentQueryContext {
+                            parent_agent_type: Some(&self.agent_type),
+                            workspace_id: Some(&workspace_id),
+                            list_scope:
+                                bitfun_core::agentic::agents::SubagentListScope::TaskVisible,
+                            include_disabled: false,
+                            external_sources_supported: true,
+                        },
+                    )
                     .await;
                 Ok::<_, anyhow::Error>(
                     values
@@ -2207,10 +2228,7 @@ impl StartupPage {
                 if self.agent.is_remote_workspace() {
                     anyhow::bail!("Subagent management is unavailable for a Remote workspace")
                 }
-                let workspace_id = self
-                    .agent
-                    .workspace_id()
-                    .ok_or_else(|| anyhow::anyhow!("Workspace ID is unavailable"))?;
+                let workspace_id = self.agent.workspace_id().ok_or_else(|| anyhow::anyhow!("Workspace ID is unavailable"))?;
                 let values = bitfun_core::agentic::agents::get_agent_registry()
                     .get_subagents_for_query(&bitfun_core::agentic::agents::SubagentQueryContext {
                         parent_agent_type: Some(&self.agent_type),

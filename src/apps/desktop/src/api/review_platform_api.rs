@@ -251,9 +251,9 @@ fn review_platform_ui_error(error: &ReviewPlatformError) -> String {
     let code = match error {
         ReviewPlatformError::RepositoryUntrusted {
             repository_path, ..
-        } => return untrusted_repository_error_message(repository_path),
-        // Missing Git keeps its own stable code, which already carries the
-        // actionable install guidance.
+        } => {
+            return untrusted_repository_error_message(repository_path);
+        }
         ReviewPlatformError::GitUnavailable => return error.to_string(),
         ReviewPlatformError::InvalidRepository(_) => "invalidRepository",
         ReviewPlatformError::RemoteNotFound(_) => "remoteNotFound",

@@ -1,5 +1,6 @@
+import { lazyWithRecovery } from '@/shared/utils/lazyWithRecovery';
+import { useDeviceDirectory, resolveDeviceName } from '@/infrastructure/account/deviceDirectory';
 import React, {
-  lazy,
   Suspense,
   useEffect,
   useMemo,
@@ -8,7 +9,7 @@ import React, {
 } from 'react';
 import { FolderGit2, Laptop, Loader2, MonitorSmartphone, Server } from 'lucide-react';
 
-import { OverflowText, Icon, Menu, MenuItem, MenuSection, MenuSeparator, Tooltip, createOverlayPortal, subscribeOverlayInteraction } from '@bitfun/ui';
+import { subscribeOverlayInteraction, createOverlayPortal, OverflowText, Icon, Menu, MenuItem, MenuSection, MenuSeparator, StatusPill, Tooltip } from '@bitfun/ui';
 import { SSHConnectionDialog } from '@/features/ssh-remote/SSHConnectionDialog';
 import { useAccountLoginState } from '@/infrastructure/account/useAccountLoginState';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
@@ -39,7 +40,7 @@ interface DispatchTargetPickerProps {
   onSelectTarget: (selection: DispatchSelection) => void;
 }
 
-const RemoteConnectDialog = lazy(
+const RemoteConnectDialog = lazyWithRecovery(
   () => import('@/app/components/RemoteConnectDialog'),
 );
 
@@ -53,6 +54,7 @@ export const DispatchTargetPicker: React.FC<DispatchTargetPickerProps> = ({
   onSelectTarget,
 }) => {
   const { t } = useI18n('flow-chat');
+  const { t: tCommon } = useI18n('common');
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -83,8 +85,6 @@ export const DispatchTargetPicker: React.FC<DispatchTargetPickerProps> = ({
     : t('chatInput.dispatch.current', { target: displayLabel });
 
   useEffect(() => {
-    let removeOverlayPointerdown0: (() => void) | undefined;
-    let removeOverlayKeydown1: (() => void) | undefined;
     if (!open) return;
     const handlePointerDown = (event: PointerEvent) => {
       const targetNode = event.target as Node;
@@ -98,8 +98,8 @@ export const DispatchTargetPicker: React.FC<DispatchTargetPickerProps> = ({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
     };
-    removeOverlayPointerdown0 = subscribeOverlayInteraction(menuRef, 'pointerdown', handlePointerDown);
-    removeOverlayKeydown1 = subscribeOverlayInteraction(menuRef, 'keydown', handleKeyDown);
+    const removeOverlayPointerdown0 = subscribeOverlayInteraction(menuRef, 'pointerdown', handlePointerDown);
+    const removeOverlayKeydown1 = subscribeOverlayInteraction(menuRef, 'keydown', handleKeyDown);
     return () => {
       removeOverlayPointerdown0?.();
       removeOverlayKeydown1?.();
@@ -219,7 +219,8 @@ export const DispatchTargetPicker: React.FC<DispatchTargetPickerProps> = ({
               role="menuitemradio"
               checked={selected}
               className="dispatch-target-picker__option-row"
-              disabled={!online}
+              disabled={!online || incompatible}
+              labelBehavior="static"
               leading={<MonitorSmartphone size={15} aria-hidden />}
               metadata={selected ? <Icon name="check-line" size="sm" aria-hidden /> : null}
               onClick={() => {
@@ -228,12 +229,27 @@ export const DispatchTargetPicker: React.FC<DispatchTargetPickerProps> = ({
               }}
             >
               <span className="dispatch-target-picker__option-copy">
-                <strong><OverflowText>{option.displayName}</OverflowText></strong>
-                <small><OverflowText>
-                  {online
-                    ? t('chatInput.dispatch.deviceDescription')
-                    : t('chatInput.dispatch.deviceOffline')}
-                </OverflowText></small>
+                <span className="dispatch-target-picker__option-title">
+                  <strong><OverflowText>{option.displayName}</OverflowText></strong>
+                  {incompatible ? (
+                    <Tooltip content={t('chatInput.dispatch.deviceIncompatible')} placement="right">
+                      <StatusPill
+                        className="dispatch-target-picker__device-status"
+                        tone="warning"
+                        aria-label={t('chatInput.dispatch.deviceIncompatible')}
+                      >
+                        {tCommon('accountLogin.deviceClientIncompatibleTag')}
+                      </StatusPill>
+                    </Tooltip>
+                  ) : !online ? (
+                    <StatusPill className="dispatch-target-picker__device-status" tone="neutral">
+                      {t('chatInput.dispatch.deviceOffline')}
+                    </StatusPill>
+                  ) : null}
+                </span>
+                {online && !incompatible ? (
+                  <small><OverflowText>{t('chatInput.dispatch.deviceDescription')}</OverflowText></small>
+                ) : null}
               </span>
             </MenuItem>
           );

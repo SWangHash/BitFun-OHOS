@@ -26,7 +26,7 @@ use bitfun_runtime_ports::PermissionConstraintLayer;
 pub use definitions::custom::{CustomMode, CustomSubagent, CustomSubagentKind};
 #[cfg(feature = "external-sources")]
 pub(crate) use definitions::external::ExternalProvidedAgent;
-pub use definitions::hidden::{BitFunAgent, CodeReviewAgent, DeepReviewAgent, GenerateDocAgent};
+pub use definitions::hidden::{BitFunAgent, CodeReviewAgent, DeepReviewAgent};
 pub use definitions::modes::{
     ClawMode, CoworkMode, CreativeHarness, DeepResearchMode, HarmonyBuildMode, HarmonyFeatureMode,
     HarmonyReleaseAuditMode, MinimalHarness, QtMigrationMode, StandardHarness, UltimateHarness,
@@ -103,12 +103,16 @@ pub fn shared_coding_mode_user_context_policy() -> UserContextPolicy {
 
 pub fn standard_harness_tools() -> Vec<String> {
     vec![
-        "Task".to_string(),
+        "AgentSpawn".to_string(),
+        "AgentSendInput".to_string(),
+        "AgentControl".to_string(),
+        "AgentList".to_string(),
         "ListModels".to_string(),
         "AgentWait".to_string(),
         "Read".to_string(),
         "view_image".to_string(),
         "analyze_image".to_string(),
+        "generate_image".to_string(),
         "Write".to_string(),
         "Edit".to_string(),
         "Delete".to_string(),
@@ -124,7 +128,6 @@ pub fn standard_harness_tools() -> Vec<String> {
         "Glob".to_string(),
         "WebSearch".to_string(),
         "WebFetch".to_string(),
-        "TodoWrite".to_string(),
         "get_goal".to_string(),
         "create_goal".to_string(),
         "update_goal".to_string(),
@@ -134,14 +137,17 @@ pub fn standard_harness_tools() -> Vec<String> {
         "ReviewPlatform".to_string(),
         "BitFunControl".to_string(),
         "ControlHub".to_string(),
-        "OpenUrl".to_string(),
+        // A MiniApp is a Web page this product hosts, so operating one belongs
+        // to the same surface family as ControlHub: the Agent opens the app in
+        // the window the user is watching instead of driving a copy elsewhere.
+        // The tool stays deferred and degrades honestly when no surface exists.
+        "MiniAppBrowser".to_string(),
         // Pairs with ControlHub: its `wait` sends anything repeating, or
         // further out than an hour, to Cron rather than holding the turn open
         // for the interval.
         "Cron".to_string(),
         "PublishAppearance".to_string(),
-        "PageDeploy".to_string(),
-        "PagePublish".to_string(),
+        "PageManage".to_string(),
     ]
 }
 
@@ -159,11 +165,6 @@ pub trait Agent: Send + Sync + 'static {
 
     /// Description of what the agent does
     fn description(&self) -> &str;
-
-    /// Whether the mode receives the main-session goal lifecycle implicitly.
-    fn include_implicit_thread_goal_tools(&self) -> bool {
-        true
-    }
 
     /// Prompt template name for the agent.
     fn prompt_template_name(&self, model_name: Option<&str>) -> &str;
@@ -286,8 +287,8 @@ mod tests {
     #[test]
     fn embedded_prompt_catalog_compatibility_export_matches_lookup() {
         assert_eq!(
-            EMBEDDED_PROMPTS.get("agentic_mode").copied(),
-            get_embedded_prompt("agentic_mode")
+            EMBEDDED_PROMPTS.get("standard_mode").copied(),
+            get_embedded_prompt("standard_mode")
         );
     }
 
@@ -303,6 +304,19 @@ mod tests {
     fn standard_harness_tools_exclude_create_plan_and_include_goal_tools() {
         let tools = standard_harness_tools();
 
+        for collaboration_tool in [
+            "AgentSpawn",
+            "AgentSendInput",
+            "AgentControl",
+            "AgentList",
+            "AgentWait",
+        ] {
+            assert!(
+                tools.contains(&collaboration_tool.to_string()),
+                "missing standard collaboration tool {collaboration_tool}"
+            );
+        }
+        assert!(!tools.contains(&"Task".to_string()));
         assert!(tools.contains(&"ListModels".to_string()));
         assert!(!tools.contains(&"CreatePlan".to_string()));
         assert!(tools.contains(&"get_goal".to_string()));
@@ -327,16 +341,71 @@ mod tests {
     }
 
     #[test]
-    fn agentic_mode_uses_shared_coding_tools() {
+    fn standard_mode_uses_shared_coding_tools() {
         let shared_tools = standard_harness_tools();
 
-        assert_eq!(StandardHarness::new().default_tools(), shared_tools);
+        let mut expected = shared_tools;
+        expected.push("ComputerUse".to_string());
+        expected.push("DesktopCard".to_string());
+        assert_eq!(StandardHarness::new().default_tools(), expected);
     }
 
     #[test]
-    fn agentic_mode_uses_shared_coding_user_context_policy() {
+    fn standard_mode_uses_shared_coding_user_context_policy() {
         let shared_policy = standard_harness_user_context_policy();
 
         assert_eq!(StandardHarness::new().user_context_policy(), shared_policy);
+    }
+}
+
+#[cfg(test)]
+mod desktop_tool_tests {
+    use super::*;
+    #[test]
+    fn main_desktop_modes_include_computer_use() {
+        let modes: Vec<Box<dyn Agent>> = vec![
+            Box::new(ClawMode::new()),
+            Box::new(CoworkMode::new()),
+            Box::new(StandardHarness::new()),
+            Box::new(CreativeHarness::new()),
+        ];
+        for mode in modes {
+            assert!(
+                mode.default_tools()
+                    .iter()
+                    .any(|name| name == "ComputerUse"),
+                "{}",
+                mode.id()
+            );
+        }
+        let config = crate::service::config::types::AgentProfileConfig {
+            removed_tools: vec!["ComputerUse".to_string()],
+            ..Default::default()
+        };
+        let defaults = ClawMode::new().default_tools();
+        let registered = defaults.iter().cloned().collect();
+        let resolved = crate::service::config::mode_config_canonicalizer::resolve_effective_tools(
+            &defaults,
+            Some(&config),
+            &registered,
+        );
+        assert!(
+            !resolved.iter().any(|name| name == "ComputerUse"),
+            "explicit user exclusion wins over the new default"
+        );
+        assert!(!ExploreAgent::new()
+            .default_tools()
+            .iter()
+            .any(|name| name == "ComputerUse"));
+        assert!(!MinimalHarness::new()
+            .default_tools()
+            .iter()
+            .any(|name| name == "ComputerUse"));
+        assert!(
+            !standard_harness_tools()
+                .iter()
+                .any(|name| name == "ComputerUse"),
+            "external/plugin baseline stays opt-in"
+        );
     }
 }

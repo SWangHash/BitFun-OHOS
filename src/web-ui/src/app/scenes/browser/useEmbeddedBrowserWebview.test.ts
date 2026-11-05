@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-  BROWSER_WEBVIEW_BLOCKING_OVERLAY_SELECTOR,
-  createBrowserWebviewLabel,
-  createCommandBasedBrowserWebviewHandle,
-} from './useEmbeddedBrowserWebview';
+import { createBrowserWebviewLabel, createCommandBasedBrowserWebviewHandle } from './useEmbeddedBrowserWebview';
+import { NATIVE_WEBVIEW_OCCLUSION_SELECTOR } from './nativeWebviewVisibility';
 
 describe('embedded browser WebView identity and visibility commands', () => {
   it('creates a distinct native label for every browser panel instance', () => {
@@ -16,8 +13,10 @@ describe('embedded browser WebView identity and visibility commands', () => {
   });
 
   it('hides the native WebView while split surfaces are visible', () => {
-    expect(BROWSER_WEBVIEW_BLOCKING_OVERLAY_SELECTOR).toContain('.canvas-drop-zone-overlay');
-    expect(BROWSER_WEBVIEW_BLOCKING_OVERLAY_SELECTOR).toContain('[data-bitfun-native-webview-occlusion]');
+    // The canvas drop-zone overlay carries the shared occlusion marker, so the
+    // native child view is hidden for the whole drag gesture.
+    expect(NATIVE_WEBVIEW_OCCLUSION_SELECTOR).toContain('[data-bitfun-native-webview-occlusion]');
+    expect(NATIVE_WEBVIEW_OCCLUSION_SELECTOR).toContain('.canvas-mission-control');
   });
 
   it('serializes show and hide commands for the same native WebView', async () => {

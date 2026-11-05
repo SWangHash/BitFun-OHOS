@@ -42,23 +42,6 @@
     }
   }
 
-  &--incomplete {
-    .mermaid-block__hint {
-      display: flex;
-      align-items: center;
-      gap: var(--bitfun-control-flow-chat-inline-gap);
-      padding: var(--bitfun-control-flow-chat-card-padding-block) var(--bitfun-control-flow-chat-card-padding-inline);
-      background: var(--bitfun-color-status-warning-surface);
-      border-top: 1px solid var(--bitfun-color-status-warning-border);
-      color: var(--bitfun-color-status-warning-content);
-      font-size: var(--bitfun-type-flow-support-font-size);
-
-      svg {
-        flex-shrink: 0;
-      }
-    }
-  }
-
   &--waiting,
   &--rendering {
     .mermaid-block__loading {
@@ -181,7 +164,7 @@
       background: transparent;
       border: none;
       border-radius: 0;
-      font-family:var(--bitfun-type-code-md-font-family);
+      font-family: inherit;
       font-size: var(--bitfun-type-flow-code-font-size);
       line-height: var(--bitfun-type-flow-code-line-height);
       color: var(--bitfun-color-content-primary);
@@ -302,7 +285,7 @@
 
 .mermaid-block__diagram {
   svg {
-    font-family:var(--bitfun-type-body-sm-font-family);
+    font-family: var(--bitfun-type-flow-body-font-family);
 
     .node {
       rect, circle, ellipse, polygon {

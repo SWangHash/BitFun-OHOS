@@ -3,33 +3,27 @@
  *
  * Layout (top to bottom):
  *   1. Search
- *   2. AI Assistant, Task Board, Mini Apps, then Extensions & Compatibility
+ *   2. Personal Overview and Task Board
  *   3. Unified Sessions (all or grouped by project / assistant)
  *
  * When a scene-nav transition is active (`isDeparting=true`), items receive
  * positional CSS classes for the split-open animation effect.
  */
 
-import React, { useCallback, useState, useMemo, useEffect, useRef, useSyncExternalStore } from 'react';
-import { OverflowText,
+import React, { Suspense, useCallback, useState, useEffect, useRef, useSyncExternalStore } from 'react';
+import {
+  OverflowText,
   Icon,
+  IconButton,
   KeyHint,
-  Menu,
-  MenuItem,
-  MenuSection,
-  MenuSeparator,
   NavigationPanel,
   NavigationPanelBody,
   NavigationPanelContent,
   NavigationPanelHeader,
-  ScrollArea,
+  NavigationPanelItem,
   Tooltip,
-  createOverlayPortal,
-  subscribeOverlayInteraction,
 } from '@bitfun/ui';
-import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
-import { isImeOwnedKeyboardEvent } from '@/shared/utils/ime';
-import { FolderOpen, FolderPlus, Server, Users, Network } from 'lucide-react';
+import { FolderPlus, House } from 'lucide-react';
 // import { PanelsTopLeft } from 'lucide-react'; // temporarily hidden: Pages nav entry
 import { useSceneManager } from '../../hooks/useSceneManager';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
@@ -38,7 +32,7 @@ import SectionHeader from './components/SectionHeader';
 import StickySectionHeader from './components/StickySectionHeader';
 import WorkspaceSessionGroupingToggle from './components/WorkspaceSessionGroupingToggle';
 import WorkspaceSessionFilterMenu from './components/WorkspaceSessionFilterMenu';
-import MiniAppEntry from './components/MiniAppEntry';
+import { useMiniAppNavigation } from '@/app/scenes/miniapps/miniAppNavigationStore';
 import WorkspaceListSection from './sections/workspaces/WorkspaceListSection';
 import { useSceneStore } from '../../stores/sceneStore';
 import { useMiniAppCatalogSync } from '../../scenes/miniapps/hooks/useMiniAppCatalogSync';
@@ -46,21 +40,34 @@ import { workspaceManager } from '@/infrastructure/services/business/workspaceMa
 import { useWorkspaceContext } from '@/infrastructure/contexts/WorkspaceContext';
 import { createLogger } from '@/shared/utils/logger';
 import { isRemoteWorkspace } from '@/shared/types';
-import { getRecentWorkspaceLineParts } from '@/shared/utils/recentWorkspaceDisplay';
-import { computeFixedPopoverPosition } from '@/shared/utils/fixedPopoverViewport';
 import { useSSHRemoteContext, SSHConnectionDialog, RemoteFileBrowser } from '@/features/ssh-remote';
+import { savedConnectionConfig } from '@/features/ssh-remote/savedConnectionConfig';
+import { workspacePresetHost } from '@/features/ssh-remote/useWorkspaceSourceOptions';
+import { canRepairSshCredentials, sshConnectionErrorKey, workspaceSourceErrorKey } from '@/features/ssh-remote/workspaceSourceError';
+import type { WorkspaceConnectionTarget } from '@/features/ssh-remote/types';
 import { openGlobalSearch } from '@/app/global-search/globalSearchStore';
-import { activateProductAction } from '@/app/global-search/productActionActivator';
+import { useSidebarNavigation } from '@/app/navigation/useSidebarNavigation';
+import PinnedNavigationItems from './components/PinnedNavigationItems';
+import { createProject, type ProjectDraft, type ProjectFolder } from '@/app/services/createProject';
+import { useWorkspaceSessionViewStore } from './workspaceSessionView';
+import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
+import { useNurseryStore } from '@/app/scenes/profile/nurseryStore';
+import { RetainedMountBoundary } from '@/shared/presence';
+import { lazyWithRecovery } from '@/shared/utils/lazyWithRecovery';
 import {
   getGlobalSearchShortcutLabel,
   splitGlobalSearchShortcutLabel,
   subscribeGlobalSearchShortcut,
 } from '@/app/global-search/globalSearchShortcut';
-import { useExternalAppAwareness } from '@/infrastructure/config/components/external-sources/useExternalAppAwareness';
 
 import './NavPanel.scss';
+import type { WorkspaceConnectionPreset } from '@/features/ssh-remote/useWorkspaceSourceOptions';
 
 const log = createLogger('MainNav');
+const NewProjectDialog = lazyWithRecovery(() =>
+  import('../NewProjectDialog').then(module => ({ default: module.NewProjectDialog }))
+);
+const MiniAppShortcuts = lazyWithRecovery(() => import('./components/MiniAppShortcuts'));
 
 interface MainNavProps {
   isDeparting?: boolean;
@@ -72,16 +79,21 @@ const MainNav: React.FC<MainNavProps> = ({
   anchorNavSceneId: _anchorNavSceneId = null,
 }) => {
   const sshRemote = useSSHRemoteContext();
+  const sshRemoteRef = useRef(sshRemote);
+  sshRemoteRef.current = sshRemote;
   const [isSSHConnectionDialogOpen, setIsSSHConnectionDialogOpen] = useState(false);
-
-  useEffect(() => {
-    if (sshRemote.showFileBrowser) {
-      setIsSSHConnectionDialogOpen(false);
-    }
-  }, [sshRemote.showFileBrowser]);
+  const [connectionTargetType, setConnectionTargetType] = useState<WorkspaceConnectionTarget>('ssh');
+  const [connectionPreset, setConnectionPreset] = useState<WorkspaceConnectionPreset>();
+  const remoteHostResolver = useRef<((host: NonNullable<ProjectFolder['remote']> | null) => void) | null>(null);
 
   const { openScene } = useSceneManager();
   const activeTabId = useSceneStore(s => s.activeTabId);
+  const { pinnedAppIds } = useMiniAppNavigation();
+  const sidebarNavigation = useSidebarNavigation();
+  const isOverviewActive = !sidebarNavigation.selectedId && typeof activeTabId === 'string' && (
+    ['personal-overview', 'assistant', 'profile', 'agents', 'skills', 'miniapps'].includes(activeTabId)
+    || (activeTabId.startsWith('miniapp:') && !pinnedAppIds.includes(activeTabId.slice('miniapp:'.length)))
+  );
   const { t } = useI18n('common');
   const searchShortcutLabel = useSyncExternalStore(
     subscribeGlobalSearchShortcut,
@@ -93,9 +105,7 @@ const MainNav: React.FC<MainNavProps> = ({
   const {
     currentWorkspace,
     loading: workspaceLoading,
-    recentWorkspaces,
     openedWorkspacesList,
-    switchWorkspace,
   } = useWorkspaceContext();
 
   useMiniAppCatalogSync({
@@ -103,264 +113,120 @@ const MainNav: React.FC<MainNavProps> = ({
     initialLoad: 'idle',
   });
 
-  const activeMiniAppId = useMemo(
-    () => (typeof activeTabId === 'string' && activeTabId.startsWith('miniapp:') ? activeTabId.slice('miniapp:'.length) : null),
-    [activeTabId]
-  );
-
-  const workspaceMenuButtonRef = useRef<HTMLButtonElement | null>(null);
-  const workspaceMenuRef = useRef<HTMLDivElement | null>(null);
   const sectionsScrollRef = useRef<HTMLDivElement | null>(null);
   const sessionContentRef = useRef<HTMLDivElement | null>(null);
-  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
-  const [workspaceMenuClosing, setWorkspaceMenuClosing] = useState(false);
-  const [workspaceMenuPos, setWorkspaceMenuPos] = useState({ top: 0, left: 0 });
-  const [isExtensionsOpen, setIsExtensionsOpen] = useState(false);
-
-  const closeWorkspaceMenu = useCallback(() => {
-    setWorkspaceMenuClosing(true);
-    window.setTimeout(() => {
-      setWorkspaceMenuOpen(false);
-      setWorkspaceMenuClosing(false);
-    }, 150);
+  const [workspaceDialogOpen, setWorkspaceDialogOpen] = useState(false);
+  const [showAssistantChoice, setShowAssistantChoice] = useState(true);
+  const [remoteFolderTarget, setRemoteFolderTarget] = useState<ProjectFolder | null>(null);
+  const remoteFolderResolver = useRef<((folder: ProjectFolder | null) => void) | null>(null);
+  const finishRemoteFolderPick = useCallback((folder: ProjectFolder | null) => {
+    remoteFolderResolver.current?.(folder);
+    remoteFolderResolver.current = null;
+    setRemoteFolderTarget(null);
   }, []);
+  useEffect(() => () => { remoteFolderResolver.current?.(null); }, []);
+  useEffect(() => () => { remoteHostResolver.current?.(null); }, []);
 
-  const updateWorkspaceMenuPos = useCallback(() => {
-    const btn = workspaceMenuButtonRef.current;
-    if (!btn || !workspaceMenuOpen) return;
-    const rect = btn.getBoundingClientRect();
-    const viewportPadding = 8;
-    const gap = 6;
-    const fallbackWidth = 300;
-    const fallbackHeight = 420;
-
-    const apply = () => {
-      const menuEl = workspaceMenuRef.current;
-      const w = menuEl?.offsetWidth ?? fallbackWidth;
-      const h = menuEl?.offsetHeight ?? fallbackHeight;
-      setWorkspaceMenuPos(computeFixedPopoverPosition(rect, w, h, gap, viewportPadding));
-    };
-
-    apply();
-    requestAnimationFrame(apply);
-  }, [workspaceMenuOpen]);
-
-  const openWorkspaceMenu = useCallback(async () => {
-    try {
-      await workspaceManager.cleanupInvalidWorkspaces();
-    } catch (error) {
-      log.warn('Failed to cleanup invalid workspaces before opening workspace menu', { error });
+  const handleSelectRemoteHost = useCallback(async (target: WorkspaceConnectionTarget, preset?: WorkspaceConnectionPreset) => {
+    const scope = getActiveSurfaceScope();
+    const profile = workspacePresetHost(preset);
+    if (profile && !preset?.edit && (profile.username !== '' || profile.wsl || profile.container?.local)) {
+      try {
+        const result = await sshRemoteRef.current.connect(profile.id, savedConnectionConfig(profile), { browseAfterConnect: false });
+        scope.assertCurrent('accept connected project source');
+        return { connectionId: result?.connectionId || profile.id, connectionName: profile.name, sshHost: profile.host };
+      } catch (cause) {
+        scope.assertCurrent('retry project source authentication');
+        if (profile.wsl || profile.container?.local || !canRepairSshCredentials(profile.authType, cause)) {
+          log.error('Failed to connect selected project source', cause);
+          throw new Error(t(profile.wsl || profile.container?.local ? workspaceSourceErrorKey(target, cause) : sshConnectionErrorKey(cause)));
+        }
+        preset = { kind: 'saved', connection: profile, authenticate: true };
+      }
     }
-    const rect = workspaceMenuButtonRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    setWorkspaceMenuPos(computeFixedPopoverPosition(rect, 300, 420, 6, 8));
-    setWorkspaceMenuOpen(true);
-    setWorkspaceMenuClosing(false);
-  }, []);
-
-  const toggleWorkspaceMenu = useCallback(() => {
-    if (workspaceMenuOpen) { closeWorkspaceMenu(); return; }
-    void openWorkspaceMenu();
-  }, [closeWorkspaceMenu, openWorkspaceMenu, workspaceMenuOpen]);
-
-  const handleOpenProject = useCallback(async () => {
-    try {
-      // 'project.open' owns the whole flow: platform-dispatched directory
-      // picker (native dialog on desktop, OHOS DocumentViewPicker on
-      // HarmonyOS) followed by workspaceManager.openWorkspace. Picking the
-      // directory here as well stacked a second system picker on top —
-      // confirming or cancelling the first one revealed the next one.
-      await activateProductAction('project.open', { t });
-    } catch (err) {
-      log.error('Failed to open project', err);
-    }
+    return new Promise<NonNullable<ProjectFolder['remote']> | null>(resolve => {
+      remoteHostResolver.current = resolve;
+      setConnectionTargetType(target); setConnectionPreset(preset); setIsSSHConnectionDialogOpen(true);
+    });
   }, [t]);
 
-  const handleNewProject = useCallback(() => {
-    void activateProductAction('project.new');
+  const handlePickRemoteFolder = useCallback(async (target: WorkspaceConnectionTarget, existing?: ProjectFolder, preset?: WorkspaceConnectionPreset) => {
+    const scope = getActiveSurfaceScope();
+    const remote = existing?.remote ?? await handleSelectRemoteHost(target, preset);
+    scope.assertCurrent('browse selected project environment');
+    if (!remote) return null;
+    return new Promise<ProjectFolder | null>(resolve => {
+      remoteFolderResolver.current = resolve;
+      setRemoteFolderTarget({ path: existing?.path || '', remote });
+    });
+  }, [handleSelectRemoteHost]);
+
+  const handleConfirmProject = useCallback(async (draft: ProjectDraft) => {
+    const scope = getActiveSurfaceScope();
+    const succeeded = await createProject(draft, async folder => {
+      const remote = sshRemoteRef.current;
+      if (folder.remote?.connectionId !== remote.connectionId) {
+        throw new Error(t('newProject.remoteConnectionChanged'));
+      }
+      if (!(await remote.openWorkspace(folder.path))) {
+        // A cancelled rebind returns to this draft, not the provider's standalone picker.
+        remote.setShowFileBrowser(false);
+        return null;
+      }
+      const workspace = workspaceManager.getState().currentWorkspace;
+      if (!workspace) throw new Error(t('newProject.errorCreateFailed'));
+      return workspace;
+    });
+    scope.assertCurrent('reveal created project');
+    // The flat session view has no row for a new project without sessions.
+    if (succeeded) useWorkspaceSessionViewStore.getState().setGrouping('grouped');
+    return succeeded;
+  }, [t]);
+
+  const closeWorkspaceDialog = useCallback(() => {
+    setWorkspaceDialogOpen(false);
   }, []);
 
-  const handleOpenAssistantManager = useCallback(() => {
-    closeWorkspaceMenu();
+  const openWorkspaceDialog = useCallback(() => {
+    setShowAssistantChoice(true);
+    setWorkspaceDialogOpen(true);
+  }, []);
+
+  // Menu, Welcome and global search use the same source pickers as the sidebar.
+  useEffect(() => {
+    const onNewProject = () => {
+      setShowAssistantChoice(false);
+      setWorkspaceDialogOpen(true);
+    };
+    window.addEventListener('nav:new-project', onNewProject);
+    return () => window.removeEventListener('nav:new-project', onNewProject);
+  }, []);
+
+  const handleCreateAssistant = useCallback(async () => {
+    const scope = getActiveSurfaceScope();
+    const workspace = await workspaceManager.createAssistantWorkspace();
+    scope.assertCurrent('open newly created assistant');
+    useNurseryStore.getState().openAssistant(workspace.id);
     openScene('assistant');
-  }, [closeWorkspaceMenu, openScene]);
-
-  const handleSwitchWorkspace = useCallback(async (workspaceId: string) => {
-    const targetWorkspace = recentWorkspaces.find(item => item.id === workspaceId);
-    if (!targetWorkspace) return;
-    closeWorkspaceMenu();
-    await switchWorkspace(targetWorkspace);
-  }, [closeWorkspaceMenu, recentWorkspaces, switchWorkspace]);
-
-  const handleOpenRemoteSSH = useCallback(() => {
-    closeWorkspaceMenu();
-    setIsSSHConnectionDialogOpen(true);
-  }, [closeWorkspaceMenu]);
+  }, [openScene]);
 
   const handleSelectRemoteWorkspace = useCallback(async (path: string) => {
     try {
-      await sshRemote.openWorkspace(path);
+      if (remoteFolderResolver.current && remoteFolderTarget?.remote) {
+        finishRemoteFolderPick({ path, remote: remoteFolderTarget.remote });
+        return;
+      }
+      if (!(await sshRemote.openWorkspace(path))) {
+        return;
+      }
       sshRemote.setShowFileBrowser(false);
       setIsSSHConnectionDialogOpen(false);
     } catch (err) {
       log.error('Failed to open remote workspace', err);
     }
-  }, [sshRemote]);
-
-  useEffect(() => {
-    let removeOverlayMousedown0: (() => void) | undefined;
-    let removeOverlayKeydown1: (() => void) | undefined;
-    if (!workspaceMenuOpen) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node | null;
-      if (!target) return;
-      if (workspaceMenuButtonRef.current?.contains(target)) return;
-      if (workspaceMenuRef.current?.contains(target)) return;
-      closeWorkspaceMenu();
-    };
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !isImeOwnedKeyboardEvent(event)) closeWorkspaceMenu();
-    };
-    removeOverlayMousedown0 = subscribeOverlayInteraction(workspaceMenuRef, 'mousedown', handleClickOutside);
-    removeOverlayKeydown1 = subscribeOverlayInteraction(workspaceMenuRef, 'keydown', handleEscape);
-    return () => {
-      removeOverlayMousedown0?.();
-      removeOverlayKeydown1?.();
-    };
-  }, [closeWorkspaceMenu, workspaceMenuOpen]);
-
-  useEffect(() => {
-    if (!workspaceMenuOpen) return;
-
-    updateWorkspaceMenuPos();
-
-    const handleViewportChange = () => updateWorkspaceMenuPos();
-    window.addEventListener('resize', handleViewportChange);
-    window.addEventListener('scroll', handleViewportChange, true);
-
-    return () => {
-      window.removeEventListener('resize', handleViewportChange);
-      window.removeEventListener('scroll', handleViewportChange, true);
-    };
-  }, [workspaceMenuOpen, updateWorkspaceMenuPos]);
-
-  const handleOpenAgents = useCallback(() => {
-    useSceneStore.getState().openScene('agents');
-  }, []);
-
-  const handleOpenTodos = useCallback(() => {
-    void activateProductAction('surface.todos.open');
-  }, []);
-
-  const handleOpenSkills = useCallback(() => {
-    void activateProductAction('surface.skills.open');
-  }, []);
-
-  const handleOpenEcosystemCompatibility = useCallback(() => {
-    void activateProductAction('surface.ecosystemCompatibility.open');
-  }, []);
-
-  const isAgentsActive = activeTabId === 'agents';
-  const isSkillsActive = activeTabId === 'skills';
-  const isEcosystemCompatibilityActive = activeTabId === 'ecosystem-compatibility';
-  const hasUnseenEcosystemCompatibility = useExternalAppAwareness(
-    isEcosystemCompatibilityActive,
-  );
-
-  useEffect(() => {
-    if (isAgentsActive || isSkillsActive || isEcosystemCompatibilityActive) {
-      setIsExtensionsOpen(true);
-    }
-  }, [isAgentsActive, isEcosystemCompatibilityActive, isSkillsActive]);
-
-  const workspaceMenuPortal = workspaceMenuOpen ? createOverlayPortal(
-    <Menu
-      ref={workspaceMenuRef}
-      className={`bitfun-nav-panel__workspace-menu${workspaceMenuClosing ? ' is-closing' : ''}`}
-      style={{ top: workspaceMenuPos.top, left: workspaceMenuPos.left }}
-    >
-      <MenuItem
-        leading={<FolderOpen size={13} />}
-        onClick={() => { closeWorkspaceMenu(); void handleOpenProject(); }}
-      >
-        {t('header.openProject')}
-      </MenuItem>
-      <MenuItem
-        leading={<FolderPlus size={13} />}
-        onClick={() => { closeWorkspaceMenu(); handleNewProject(); }}
-      >
-        {t('header.newProject')}
-      </MenuItem>
-      <MenuItem
-        leading={<Icon name="user" size="xs" />}
-        onClick={handleOpenAssistantManager}
-        data-testid="nav-session-group-add-assistant"
-      >
-        {t('nav.workspaces.actions.newAssistant')}
-      </MenuItem>
-      <MenuItem
-        leading={<Icon glyph={Server} />}
-        onClick={handleOpenRemoteSSH}
-      >
-        {t('ssh.remote.connect')}
-      </MenuItem>
-      <MenuSeparator />
-      <MenuSection
-        title={t('header.recentWorkspaces')}
-      >
-        <ScrollArea className="bitfun-nav-panel__workspace-menu-workspaces">
-        {recentWorkspaces.length === 0 ? (
-          <div className="bitfun-nav-panel__workspace-menu-empty">
-            <span>{t('header.noRecentWorkspaces')}</span>
-          </div>
-        ) : (
-          recentWorkspaces.map((workspace) => {
-            const { hostPrefix, folderLabel, tooltip } = getRecentWorkspaceLineParts(workspace);
-            const isCurrent = workspace.id === currentWorkspace?.id;
-            return (
-              <MenuItem data-overflow-trigger
-                key={workspace.id}
-                leading={<FolderOpen size={13} aria-hidden="true" />}
-                role="menuitemradio"
-                checked={isCurrent}
-                metadata={isCurrent ? <Icon name="check-line" size="xs" /> : undefined}
-                title={tooltip}
-                onClick={() => { void handleSwitchWorkspace(workspace.id); }}
-                data-testid="nav-workspace-menu-recent-workspace"
-                data-workspace-id={workspace.id}
-              >
-                <span className="bitfun-nav-panel__workspace-menu-item-main">
-                  {hostPrefix ? (
-                    <>
-                      <OverflowText className="bitfun-nav-panel__workspace-menu-item-host">{hostPrefix}</OverflowText>
-                      <span className="bitfun-nav-panel__workspace-menu-item-host-sep" aria-hidden>
-                        ·
-                      </span>
-                    </>
-                  ) : null}
-                  <OverflowText className="bitfun-nav-panel__workspace-menu-item-name">{folderLabel}</OverflowText>
-                </span>
-              </MenuItem>
-            );
-          })
-        )}
-        </ScrollArea>
-      </MenuSection>
-    </Menu>,
-    getAppearanceOverlayHost()
-  ) : null;
+  }, [sshRemote, remoteFolderTarget, finishRemoteFolderPick]);
 
   const addSessionGroupTooltip = t('nav.tooltips.addSessionGroup');
-  const agentsTooltip = t('nav.tooltips.agents');
-  const skillsTooltip = t('nav.tooltips.skills');
-  const ecosystemCompatibilityTooltip = hasUnseenEcosystemCompatibility
-    ? t('nav.tooltips.ecosystemCompatibilityUnseen')
-    : t('nav.tooltips.ecosystemCompatibility');
-  const assistantManagerLabel = t('nav.items.assistant');
-  const taskBoardLabel = t('nav.items.todos');
-  const extensionsLabel = t('nav.sections.extensions');
-  const isAssistantManagerActive = activeTabId === 'assistant' || activeTabId === 'profile';
-  const isTaskBoardActive = activeTabId === 'todos';
   return (
     <>
     <NavigationPanel
@@ -401,190 +267,30 @@ const MainNav: React.FC<MainNavProps> = ({
         </div>
         </div>
       </NavigationPanelHeader>
-      <NavigationPanelBody className="bitfun-nav-panel__sections" ref={sectionsScrollRef}>
+      <NavigationPanelBody className="bitfun-nav-panel__sections" ref={sectionsScrollRef} scrollbarVisibility="hidden">
         <NavigationPanelContent className="bitfun-nav-panel__main-nav-content">
         <div data-testid="nav-sections" className="bitfun-nav-panel__sections-slot">
         <div data-bitfun-component="nav-panel" data-bitfun-part="topActions" className="bitfun-nav-panel__top-actions">
-          <Tooltip content={assistantManagerLabel} placement="right" followCursor>
-            <button data-overflow-trigger
-              type="button"
-              className={[
-                'bitfun-nav-panel__top-action-btn',
-                isAssistantManagerActive ? 'is-active' : '',
-              ].filter(Boolean).join(' ')}
+          <Tooltip content={t('nav.items.personalOverview')} placement="right" followCursor>
+            <NavigationPanelItem
+              className="bitfun-nav-panel__top-action-item bitfun-nav-panel__top-action-item--root"
+              triggerClassName={`bitfun-nav-panel__top-action-btn${isOverviewActive ? ' is-active' : ''}`}
               data-bitfun-component="nav-panel"
               data-bitfun-part="topAction"
-              data-bitfun-action="assistant-manager"
-              data-bitfun-state={isAssistantManagerActive ? 'active' : ''}
-              onClick={handleOpenAssistantManager}
-              aria-label={assistantManagerLabel}
-              data-testid="nav-assistant-manager"
+              data-bitfun-action="personal-overview"
+              data-bitfun-state={isOverviewActive ? 'active' : ''}
+              onClick={() => openScene('personal-overview')}
+              aria-label={t('nav.items.personalOverview')}
+              data-testid="nav-personal-overview"
+              leading={<span className="bitfun-nav-panel__top-action-icon-slot"><Icon glyph={House} size="sm" /></span>}
+              selected={isOverviewActive}
             >
-              <span className="bitfun-nav-panel__top-action-icon-slot" aria-hidden="true">
-                <Icon name="user" size="sm" />
-              </span>
-              <OverflowText>{assistantManagerLabel}</OverflowText>
-            </button>
+              {t('nav.items.personalOverview')}
+            </NavigationPanelItem>
           </Tooltip>
 
-          <Tooltip content={t('nav.tooltips.todos')} placement="right" followCursor>
-            <button data-overflow-trigger
-              type="button"
-              className={[
-                'bitfun-nav-panel__top-action-btn',
-                isTaskBoardActive ? 'is-active' : '',
-              ].filter(Boolean).join(' ')}
-              data-bitfun-component="nav-panel"
-              data-bitfun-part="todoEntry"
-              data-bitfun-action="todos"
-              data-bitfun-state={isTaskBoardActive ? 'active' : ''}
-              onClick={handleOpenTodos}
-              aria-label={taskBoardLabel}
-              aria-pressed={isTaskBoardActive}
-              data-testid="nav-todos-btn"
-            >
-              <span className="bitfun-nav-panel__top-action-icon-slot" aria-hidden="true">
-                <Icon name="clock" size="sm" />
-              </span>
-              <OverflowText>{taskBoardLabel}</OverflowText>
-            </button>
-          </Tooltip>
-
-          <div className="bitfun-nav-panel__miniapp-navigation" data-bitfun-component="nav-panel" data-bitfun-part="miniAppFooter">
-            <MiniAppEntry
-              isActive={activeTabId === 'miniapps' || !!activeMiniAppId}
-              activeMiniAppId={activeMiniAppId}
-              onOpenMiniApps={() => openScene('miniapps')}
-              onOpenMiniApp={(appId) => openScene(`miniapp:${appId}`)}
-            />
-          </div>
-
-          <div className="bitfun-nav-panel__top-action-expand" data-bitfun-component="nav-panel" data-bitfun-part="extensionGroup" data-bitfun-state={isExtensionsOpen ? 'open' : ''} data-testid="agent-skill-panel">
-            <Tooltip content={extensionsLabel} placement="right" followCursor>
-              <button data-overflow-trigger
-                type="button"
-                className={[
-                  'bitfun-nav-panel__top-action-btn',
-                  'bitfun-nav-panel__top-action-btn--expand',
-                  isExtensionsOpen ? 'is-open' : '',
-                ].filter(Boolean).join(' ')}
-                data-bitfun-component="nav-panel"
-                data-bitfun-part="topAction"
-                data-bitfun-action="extensions"
-                data-bitfun-state={isExtensionsOpen ? 'open' : ''}
-                onClick={() => setIsExtensionsOpen(v => !v)}
-                aria-expanded={isExtensionsOpen}
-                aria-label={extensionsLabel}
-                data-testid="agent-skill-entry"
-              >
-                <span
-                  className="bitfun-nav-panel__top-action-icon-slot bitfun-nav-panel__top-action-expand-icons"
-                  aria-hidden="true"
-                >
-                  <Icon
-                    name="extension"
-                    size="sm"
-                    className="bitfun-nav-panel__top-action-expand-icon-default"
-                  />
-                  <Icon
-                    name="chevron-down"
-                    size="sm"
-                    className={[
-                      'bitfun-nav-panel__top-action-expand-icon-chevron',
-                      isExtensionsOpen ? 'is-open' : '',
-                    ].filter(Boolean).join(' ')}
-                  />
-                </span>
-                <OverflowText>{extensionsLabel}</OverflowText>
-              </button>
-            </Tooltip>
-
-            <div
-              className={`bitfun-nav-panel__top-action-sublist${isExtensionsOpen ? ' is-open' : ''}`}
-              data-testid="agent-skill-tabs"
-              aria-hidden={!isExtensionsOpen}
-              {...(!isExtensionsOpen ? { inert: '' } : {})}
-            >
-              <div className="bitfun-nav-panel__top-action-sublist-inner">
-                <Tooltip content={agentsTooltip} placement="right" followCursor>
-                  <button data-overflow-trigger
-                    type="button"
-                    className={[
-                      'bitfun-nav-panel__top-action-btn',
-                      'bitfun-nav-panel__top-action-btn--sub',
-                      isAgentsActive ? 'is-active' : '',
-                    ].filter(Boolean).join(' ')}
-                    data-bitfun-component="nav-panel"
-                    data-bitfun-part="topAction"
-                    data-bitfun-action="agents"
-                    data-bitfun-state={isAgentsActive ? 'active' : ''}
-                    onClick={handleOpenAgents}
-                    aria-label={agentsTooltip}
-                    data-testid="agent-tab"
-                  >
-                    <span className="bitfun-nav-panel__top-action-icon-slot" aria-hidden="true">
-                      <Icon glyph={Users} size="sm" />
-                    </span>
-                    <OverflowText>{t('nav.items.agents')}</OverflowText>
-                  </button>
-                </Tooltip>
-
-                <Tooltip content={skillsTooltip} placement="right" followCursor>
-                  <button data-overflow-trigger
-                    type="button"
-                    className={[
-                      'bitfun-nav-panel__top-action-btn',
-                      'bitfun-nav-panel__top-action-btn--sub',
-                      isSkillsActive ? 'is-active' : '',
-                    ].filter(Boolean).join(' ')}
-                    data-bitfun-component="nav-panel"
-                    data-bitfun-part="topAction"
-                    data-bitfun-action="skills"
-                    data-bitfun-state={isSkillsActive ? 'active' : ''}
-                    onClick={handleOpenSkills}
-                    aria-label={skillsTooltip}
-                    data-testid="skill-tab"
-                  >
-                    <span className="bitfun-nav-panel__top-action-icon-slot" aria-hidden="true">
-                      <Icon name="extension" size="sm" />
-                    </span>
-                    <OverflowText>{t('nav.items.skills')}</OverflowText>
-                  </button>
-                </Tooltip>
-
-                <Tooltip content={ecosystemCompatibilityTooltip} placement="right" followCursor>
-                  <button data-overflow-trigger
-                    type="button"
-                    className={[
-                      'bitfun-nav-panel__top-action-btn',
-                      'bitfun-nav-panel__top-action-btn--sub',
-                      isEcosystemCompatibilityActive ? 'is-active' : '',
-                    ].filter(Boolean).join(' ')}
-                    data-bitfun-component="nav-panel"
-                    data-bitfun-part="topAction"
-                    data-bitfun-action="ecosystem-compatibility"
-                    data-bitfun-state={isEcosystemCompatibilityActive ? 'active' : ''}
-                    onClick={handleOpenEcosystemCompatibility}
-                    aria-label={ecosystemCompatibilityTooltip}
-                    data-testid="ecosystem-compatibility-tab"
-                  >
-                    <span className="bitfun-nav-panel__top-action-icon-slot" aria-hidden="true">
-                      <Icon glyph={Network} size="sm" />
-                    </span>
-                    <OverflowText>{t('nav.items.ecosystemCompatibility')}</OverflowText>
-                    {hasUnseenEcosystemCompatibility ? (
-                      <span
-                        className="bitfun-nav-panel__top-action-unseen"
-                        data-bitfun-component="nav-panel"
-                        data-bitfun-part="topActionUnseen"
-                        aria-hidden="true"
-                      />
-                    ) : null}
-                  </button>
-                </Tooltip>
-              </div>
-            </div>
-          </div>
+          <PinnedNavigationItems navigation={sidebarNavigation} />
+          {pinnedAppIds.length > 0 && <Suspense fallback={null}><MiniAppShortcuts /></Suspense>}
         </div>
 
         {/* Unified sessions */}
@@ -597,19 +303,18 @@ const MainNav: React.FC<MainNavProps> = ({
                   <WorkspaceSessionGroupingToggle />
                   <WorkspaceSessionFilterMenu />
                   <div className="bitfun-nav-panel__workspace-action-wrap">
-                    <Tooltip content={addSessionGroupTooltip} placement="right" followCursor disabled={workspaceMenuOpen}>
-                      <button
-                        ref={workspaceMenuButtonRef}
-                        type="button"
-                        className={`bitfun-nav-panel__section-action${workspaceMenuOpen ? ' is-active' : ''}`}
+                    <Tooltip content={addSessionGroupTooltip} placement="right" followCursor disabled={workspaceDialogOpen}>
+                      <IconButton
+                        className={`bitfun-nav-panel__section-action${workspaceDialogOpen ? ' is-active' : ''}`}
                         aria-label={addSessionGroupTooltip}
-                        aria-haspopup="menu"
-                        aria-expanded={workspaceMenuOpen}
-                        onClick={toggleWorkspaceMenu}
+                        aria-haspopup="dialog"
+                        aria-expanded={workspaceDialogOpen}
+                        onClick={() => { void openWorkspaceDialog(); }}
                         data-testid="nav-workspace-add-btn"
-                      >
-                        <FolderPlus size={14} aria-hidden="true" />
-                      </button>
+                        icon={<Icon glyph={FolderPlus} size="sm" />}
+                        size="xs"
+                        variant="quiet"
+                      />
                     </Tooltip>
                   </div>
                 </>
@@ -617,7 +322,7 @@ const MainNav: React.FC<MainNavProps> = ({
             />
           </StickySectionHeader>
           <div ref={sessionContentRef} className="bitfun-nav-panel__items" data-bitfun-component="nav-panel" data-bitfun-part="sectionContent">
-            <WorkspaceListSection variant="all" />
+            <WorkspaceListSection variant="all" scrollRootRef={sectionsScrollRef} />
           </div>
         </div>
         </div>
@@ -625,21 +330,44 @@ const MainNav: React.FC<MainNavProps> = ({
       </NavigationPanelBody>
     </NavigationPanel>
 
-      {workspaceMenuPortal}
+      <RetainedMountBoundary present={workspaceDialogOpen}>
+        <Suspense fallback={null}>
+          <NewProjectDialog
+            isOpen={workspaceDialogOpen}
+            onClose={closeWorkspaceDialog}
+            onConfirm={handleConfirmProject}
+            onPickRemoteFolder={handlePickRemoteFolder}
+            onSelectRemoteHost={handleSelectRemoteHost}
+            onCreateAssistant={showAssistantChoice ? handleCreateAssistant : undefined}
+            defaultParentPath={currentWorkspace && !isRemoteWorkspace(currentWorkspace) ? currentWorkspace.rootPath : undefined}
+            data-testid="nav-workspace-dialog"
+          />
+        </Suspense>
+      </RetainedMountBoundary>
 
       {/* SSH Remote Dialogs */}
       <SSHConnectionDialog
         open={isSSHConnectionDialogOpen}
-        onClose={() => setIsSSHConnectionDialogOpen(false)}
+        initialTargetType={connectionTargetType}
+        initialPreset={connectionPreset}
+        fixedSource
+        confirmLabel={t('ssh.remote.connect')}
+        browseAfterConnect={false}
+        onConnected={(config, connectionId) => {
+          remoteHostResolver.current?.({ connectionId, connectionName: config.name, sshHost: config.host });
+          remoteHostResolver.current = null;
+        }}
+        onClose={() => { remoteHostResolver.current?.(null); remoteHostResolver.current = null; setIsSSHConnectionDialogOpen(false); }}
       />
-      {sshRemote.showFileBrowser && sshRemote.connectionId && (
+      {(remoteFolderTarget?.remote || (!workspaceDialogOpen && sshRemote.showFileBrowser && sshRemote.connectionId)) && (
         <RemoteFileBrowser
-          connectionId={sshRemote.connectionId}
-          initialPath={sshRemote.remoteFileBrowserInitialPath}
+          connectionId={remoteFolderTarget?.remote?.connectionId || sshRemote.connectionId!}
+          initialPath={remoteFolderTarget?.path || sshRemote.remoteFileBrowserInitialPath}
           homePath={sshRemote.remoteFileBrowserInitialPath}
           selectDirectoriesOnly
           onSelect={handleSelectRemoteWorkspace}
           onCancel={() => {
+            if (remoteFolderResolver.current) { finishRemoteFolderPick(null); return; }
             const hasActiveRemoteWorkspace =
               Boolean(sshRemote.remoteWorkspace) ||
               openedWorkspacesList.some(workspace =>

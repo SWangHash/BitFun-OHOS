@@ -8,6 +8,8 @@ pub mod browser_control;
 pub mod computer_use_capability;
 pub mod computer_use_host;
 pub mod computer_use_optimizer;
+#[cfg(feature = "tools-agent-control")]
+pub mod desktop_card_host;
 pub(crate) mod file_permissions;
 pub mod file_tool_guidance;
 pub mod framework;
@@ -19,8 +21,12 @@ mod integer_parser;
 pub mod manifest_resolver;
 #[cfg(feature = "tools-miniapp")]
 pub(crate) mod miniapp_context_runtime;
+#[cfg(feature = "tools-miniapp")]
+pub mod miniapp_surface;
 #[cfg(feature = "tools-pages")]
 pub mod page_deploy_host;
+#[cfg(feature = "tools-pages")]
+pub mod page_manage_host;
 #[cfg(feature = "tools-pages")]
 pub mod page_publish_host;
 pub mod pipeline;

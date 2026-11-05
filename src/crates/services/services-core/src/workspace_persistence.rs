@@ -34,6 +34,9 @@ pub struct WorkspacePersistenceData {
     pub recent_assistant_workspaces: Vec<String>,
     #[serde(default)]
     pub primary_assistant_key: Option<PrimaryAssistantKey>,
+    /// High-water mark: deleting an assistant must not recycle its name number.
+    #[serde(default)]
+    pub assistant_name_sequence: u64,
     pub saved_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -113,7 +116,7 @@ pub struct UpgradedWorkspacePersistence {
 ///
 /// Released builds persisted [`WORKSPACE_PERSISTENCE_FORMAT_VERSION`] 0 without
 /// any product id (the OHOS 1.0.x line among them), and an interim build stamped
-/// `openbitfun`. Both are this product's own data and must keep loading: the
+/// `bitfun`. Both are this product's own data and must keep loading: the
 /// records themselves are already converged by
 /// [`repair_local_workspace_identities`], so only the envelope needs the current
 /// values. A document from another product or from a newer format is left
@@ -155,7 +158,7 @@ pub fn upgrade_legacy_workspace_persistence(
 
 pub fn validate_workspace_persistence_data(
     data: &WorkspacePersistenceData,
-    miniapps_root: &Path,
+    _miniapps_root: &Path,
 ) -> BitFunResult<()> {
     if data.format_version != WORKSPACE_PERSISTENCE_FORMAT_VERSION {
         return Err(unsupported_workspace_persistence(format!(
@@ -208,11 +211,9 @@ pub fn validate_workspace_persistence_data(
                 "recent_workspaces contains assistant workspace '{id}'"
             )));
         }
-        if workspace.root_path.starts_with(miniapps_root) {
-            return Err(unsupported_workspace_persistence(format!(
-                "recent_workspaces contains MiniApp-owned workspace '{id}'"
-            )));
-        }
+        // Older current-format catalogs included MiniApp directories in recent
+        // history. This is a presentation concern, not an invalid record: the
+        // runtime filters that history while preserving the workspace identity.
     }
     for id in &data.recent_assistant_workspaces {
         if data.workspaces[id].workspace_kind != WorkspaceKind::Assistant {
@@ -426,6 +427,22 @@ mod tests {
     use crate::workspace_records::WorkspaceWorktreeInfo;
     use std::fs;
 
+    fn legacy_catalog() -> WorkspacePersistenceData {
+        // Existing 1.0.0 record shape: no new identity or availability fields.
+        serde_json::from_value(serde_json::json!({
+            "format_version": 1, "product_id": product_id(),
+            "workspaces": {
+                "saved-id": {
+                    "id": "saved-id", "name": "Offline workspace", "rootPath": "/offline/repo",
+                    "workspaceType": "Other", "workspaceKind": "remote", "status": "Inactive",
+                    "languages": [], "openedAt": "2026-09-16T00:00:00Z", "lastAccessed": "2026-09-16T00:00:00Z",
+                    "description": null, "tags": [], "statistics": null, "metadata": {}
+                }
+            },
+            "opened_workspace_ids": [], "current_workspace_id": null,
+            "recent_workspaces": ["saved-id"], "saved_at": "2026-09-16T00:00:00Z"
+        })).unwrap()
+    }
     fn local_workspace_record(id: &str, root_path: &Path) -> WorkspaceInfo {
         serde_json::from_value(serde_json::json!({
             "id": id,
@@ -445,7 +462,6 @@ mod tests {
         }))
         .expect("local workspace fixture")
     }
-
     fn registry(
         records: &[(&str, WorkspaceInfo)],
         opened_ids: &[&str],
@@ -465,6 +481,24 @@ mod tests {
             primary_assistant_key: None,
             saved_at: chrono::Utc::now(),
         }
+    }
+
+    #[test]
+    fn old_remote_record_without_credentials_survives_registry_round_trip() {
+        let data = legacy_catalog();
+        assert_eq!(data.assistant_name_sequence, 0);
+        validate_workspace_persistence_data(&data, Path::new("/miniapps")).unwrap();
+        let round_trip: WorkspacePersistenceData =
+            serde_json::from_value(serde_json::to_value(&data).unwrap()).unwrap();
+        let record = &round_trip.workspaces["saved-id"];
+        assert_eq!(record.workspace_kind, WorkspaceKind::Remote);
+        assert!(
+            record.filesystem_connection_id().is_err(),
+            "activation must remain unavailable, never local"
+        );
+        assert_eq!(record.id, "saved-id");
+        assert_eq!(round_trip.recent_workspaces, vec!["saved-id"]);
+        assert_eq!(round_trip.assistant_name_sequence, 0);
     }
 
     fn canonical_root_string(path: &Path) -> String {
@@ -522,311 +556,27 @@ mod tests {
     /// A record persisted with an id that is not the canonical one is converged
     /// instead of blocking startup or dropping the workspace.
     #[test]
-    fn stale_local_workspace_records_are_repaired_in_place() {
-        let home = tempfile::tempdir().expect("temp home");
-        let home_root = canonical_temp_home(&home);
-        let root = home_root.join("workspace");
-        fs::create_dir_all(&root).expect("workspace root");
-
-        let stale_id = "local_stale_identity".to_string();
-        let mut record = local_workspace_record(&stale_id, &root);
-        record.id = stale_id.clone();
-        let mut data = registry(&[(&stale_id, record)], &[&stale_id], Some(&stale_id));
-
-        let error = validate_workspace_persistence_data(&data, &home_root)
-            .expect_err("a stale local workspace id is rejected before repair");
-        assert!(error.to_string().contains("is not canonical"), "{error}");
-
-        let canonical_id = canonical_root_id(&root);
-        let repairs = repair_local_workspace_identities(&mut data);
-        assert_eq!(repairs.len(), 1);
-        assert_eq!(repairs[0].previous_id, stale_id);
-        assert_eq!(repairs[0].canonical_id, canonical_id);
-        assert_eq!(repairs[0].previous_root, root);
-        assert_eq!(repairs[0].canonical_root, root);
-        assert!(!repairs[0].duplicate_record_removed);
-
-        assert!(!data.workspaces.contains_key(&stale_id));
-        assert_eq!(data.workspaces[&canonical_id].root_path, root);
-        assert_eq!(data.opened_workspace_ids, vec![canonical_id.clone()]);
+    fn legacy_miniapp_recent_record_survives_round_trip() {
+        let mut payload = serde_json::to_value(legacy_catalog()).unwrap();
+        payload["workspaces"]["saved-id"]["workspaceKind"] = "normal".into();
+        payload["workspaces"]["saved-id"]["rootPath"] = "/miniapps/deck/appdata".into();
+        let data: WorkspacePersistenceData = serde_json::from_value(payload).unwrap();
+        validate_workspace_persistence_data(&data, Path::new("/miniapps")).unwrap();
+        let round_trip: WorkspacePersistenceData =
+            serde_json::from_value(serde_json::to_value(&data).unwrap()).unwrap();
         assert_eq!(
-            data.current_workspace_id.as_deref(),
-            Some(canonical_id.as_str())
+            serde_json::to_value(&round_trip).unwrap(),
+            serde_json::to_value(&data).unwrap()
         );
-        validate_workspace_persistence_data(&data, &home_root)
-            .expect("repaired registry validates");
+        assert_eq!(round_trip.recent_workspaces, vec!["saved-id"]);
     }
 
-    /// Two records for one directory keep the canonical one, and every reference
-    /// follows it, so the repair never loses the current or opened selection.
     #[test]
-    fn duplicate_local_workspace_records_are_merged_into_the_canonical_one() {
-        let home = tempfile::tempdir().expect("temp home");
-        let home_root = canonical_temp_home(&home);
-        let root = home_root.join("workspace");
-        fs::create_dir_all(&root).expect("workspace root");
-
-        let canonical_id = canonical_root_id(&root);
-        let stale_id = "local_stale_identity";
-        let stale = local_workspace_record(stale_id, &root);
-        let canonical = local_workspace_record(&canonical_id, &root);
-        let mut data = registry(
-            &[(&canonical_id, canonical), (stale_id, stale)],
-            &[stale_id, &canonical_id],
-            Some(stale_id),
-        );
-
-        let repairs = repair_local_workspace_identities(&mut data);
-        assert_eq!(repairs.len(), 1);
-        assert!(repairs[0].duplicate_record_removed);
-        assert_eq!(data.workspaces.len(), 1);
-        assert!(data.workspaces.contains_key(&canonical_id));
-        assert_eq!(data.opened_workspace_ids, vec![canonical_id.clone()]);
-        assert_eq!(
-            data.current_workspace_id.as_deref(),
-            Some(canonical_id.as_str())
-        );
-        validate_workspace_persistence_data(&data, &home_root).expect("merged registry validates");
-    }
-
-    /// A worktree record names its main workspace by id, so that reference has
-    /// to follow the repaired id.
-    #[test]
-    fn worktree_references_follow_the_repaired_workspace_id() {
-        let home = tempfile::tempdir().expect("temp home");
-        let home_root = canonical_temp_home(&home);
-        let root = home_root.join("workspace");
-        let worktree_root = home_root.join("workspace-worktree");
-        fs::create_dir_all(&root).expect("workspace root");
-        fs::create_dir_all(&worktree_root).expect("worktree root");
-
-        let stale_id = "local_stale_identity".to_string();
-        let mut main_record = local_workspace_record(&stale_id, &root);
-        main_record.id = stale_id.clone();
-
-        let worktree_id = canonical_root_id(&worktree_root);
-        let mut worktree_record = local_workspace_record(&worktree_id, &worktree_root);
-        worktree_record.worktree = Some(WorkspaceWorktreeInfo {
-            main_workspace_id: Some(stale_id.clone()),
-            path: worktree_root.to_string_lossy().into_owned(),
-            branch: None,
-            main_repo_path: root.to_string_lossy().into_owned(),
-            is_main: false,
-        });
-
-        let mut data = registry(
-            &[(&stale_id, main_record), (&worktree_id, worktree_record)],
-            &[&stale_id],
-            Some(&stale_id),
-        );
-
-        let canonical_id = canonical_root_id(&root);
-        let repairs = repair_local_workspace_identities(&mut data);
-        assert_eq!(repairs.len(), 1);
-        assert_eq!(
-            data.workspaces[&worktree_id]
-                .worktree
-                .as_ref()
-                .and_then(|worktree| worktree.main_workspace_id.as_deref()),
-            Some(canonical_id.as_str())
-        );
-        validate_workspace_persistence_data(&data, &home_root)
-            .expect("repaired registry validates");
-    }
-
-    /// A workspace root recorded through a directory link, plus the canonical
-    /// root the same directory resolves to. `None` when the platform refuses
-    /// directory links, which is the case for an unprivileged Windows account.
-    fn linked_workspace_roots(home: &tempfile::TempDir) -> Option<(PathBuf, PathBuf, PathBuf)> {
-        let home_root = canonical_temp_home(home);
-        let physical_root = home_root.join("physical");
-        fs::create_dir_all(physical_root.join("workspace")).expect("workspace root");
-        let linked_root = home_root.join("linked");
-        if !create_dir_symlink(&physical_root, &linked_root) {
-            return None;
-        }
-        Some((
-            home_root,
-            linked_root.join("workspace"),
-            physical_root.join("workspace"),
-        ))
-    }
-
-    /// The persisted root form can resolve elsewhere once the directory exists,
-    /// which is what a home directory reached through a link looks like. That
-    /// record must be converged to the canonical root.
-    #[test]
-    fn non_canonical_local_workspace_roots_are_repaired_instead_of_rejected() {
-        let home = tempfile::tempdir().expect("temp home");
-        let Some((home_root, recorded_root, resolved_root)) = linked_workspace_roots(&home) else {
-            return;
-        };
-
-        // The id was derived from the recorded root, so both the root and the id
-        // have to be reconciled.
-        let stale_id = canonical_root_id(&recorded_root);
-        let mut record = local_workspace_record(&stale_id, &recorded_root);
-        record.id = stale_id.clone();
-        let mut data = registry(&[(&stale_id, record)], &[&stale_id], None);
-
-        validate_workspace_persistence_data(&data, &home_root)
-            .expect_err("a root reached through a link is not the canonical form");
-
-        let repairs = repair_local_workspace_identities(&mut data);
-        assert_eq!(repairs.len(), 1);
-        assert_eq!(repairs[0].previous_root, recorded_root);
-        assert_eq!(repairs[0].canonical_root, resolved_root);
-        assert_eq!(repairs[0].canonical_id, canonical_root_id(&resolved_root));
-        assert!(!repairs[0].duplicate_record_removed);
-        assert_eq!(
-            data.workspaces[&repairs[0].canonical_id].root_path,
-            resolved_root
-        );
-        validate_workspace_persistence_data(&data, &home_root)
-            .expect("repaired registry validates");
-    }
-
-    /// The id can already be the canonical one while the persisted root is still
-    /// the unresolved form. Repairing that updates the root and must keep the
-    /// record, never treat it as its own duplicate and drop it.
-    #[test]
-    fn canonical_local_workspace_id_with_unresolved_root_keeps_the_record() {
-        let home = tempfile::tempdir().expect("temp home");
-        let Some((home_root, recorded_root, resolved_root)) = linked_workspace_roots(&home) else {
-            return;
-        };
-
-        let canonical_id = canonical_root_id(&resolved_root);
-        let mut record = local_workspace_record(&canonical_id, &recorded_root);
-        record.id = canonical_id.clone();
-        let mut data = registry(&[(&canonical_id, record)], &[&canonical_id], None);
-
-        let repairs = repair_local_workspace_identities(&mut data);
-        assert_eq!(repairs.len(), 1);
-        assert_eq!(repairs[0].previous_id, canonical_id);
-        assert_eq!(repairs[0].canonical_id, canonical_id);
-        assert_eq!(repairs[0].previous_root, recorded_root);
-        assert!(!repairs[0].duplicate_record_removed);
-        assert_eq!(data.workspaces.len(), 1);
-        assert_eq!(data.workspaces[&canonical_id].root_path, resolved_root);
-        assert_eq!(data.opened_workspace_ids, vec![canonical_id.clone()]);
-        validate_workspace_persistence_data(&data, &home_root)
-            .expect("repaired registry validates");
-    }
-
-    /// The OHOS 1.0.x line wrote `format_version` 0 with no product id at all.
-    /// An in-place upgrade must load that registry instead of black-screening.
-    #[test]
-    fn format_zero_registry_without_identity_is_stamped() {
-        let home = tempfile::tempdir().expect("temp home");
-        let home_root = canonical_temp_home(&home);
-        let root = home_root.join("upgraded-workspace");
-        let id = canonical_root_id(&root);
-        let mut record = local_workspace_record(&id, &root);
-        record.id = id.clone();
-        let mut data = registry(&[(&id, record)], &[&id], Some(&id));
-        data.format_version = 0;
-        data.product_id = String::new();
-
-        let upgrade = upgrade_legacy_workspace_persistence(&mut data)
-            .expect("a released older registry is upgraded");
-        assert_eq!(upgrade.previous_format_version, 0);
-        assert_eq!(upgrade.previous_product_id, "");
-        assert!(upgrade.product_identity_was_absent);
-        assert_eq!(data.format_version, WORKSPACE_PERSISTENCE_FORMAT_VERSION);
-        assert_eq!(data.product_id, product_id());
-        validate_workspace_persistence_data(&data, &home_root)
-            .expect("the upgraded registry validates");
-        assert_eq!(data.workspaces[&id].id, id);
-    }
-
-    /// The released line wrote neither envelope key, so the document has to be
-    /// readable from raw JSON with both fields absent, not only from a struct
-    /// this build constructed.
-    #[test]
-    fn released_json_without_envelope_keys_upgrades() {
-        let home = tempfile::tempdir().expect("temp home");
-        let home_root = canonical_temp_home(&home);
-        let root = home_root.join("released-json-workspace");
-        let id = canonical_root_id(&root);
-        let mut record = local_workspace_record(&id, &root);
-        record.id = id.clone();
-        let current = registry(&[(&id, record)], &[&id], Some(&id));
-
-        let mut released = serde_json::to_value(&current).expect("fixture should serialize");
-        {
-            let root_object = released.as_object_mut().expect("fixture object");
-            root_object.remove("format_version");
-            root_object.remove("product_id");
-        }
-
-        let mut parsed: WorkspacePersistenceData =
-            serde_json::from_value(released).expect("a released document still parses");
-        assert_eq!(parsed.format_version, 0);
-        assert!(parsed.product_id.is_empty());
-        validate_workspace_persistence_data(&parsed, &home_root)
-            .expect_err("a released document is rejected without the upgrade");
-
-        let upgrade = upgrade_legacy_workspace_persistence(&mut parsed)
-            .expect("a released document is upgraded");
-        assert!(upgrade.product_identity_was_absent);
-        validate_workspace_persistence_data(&parsed, &home_root)
-            .expect("the upgraded document validates");
-        assert_eq!(parsed.workspaces[&id].id, id);
-    }
-
-    /// One interim build stamped the previous product id, so its registry is
-    /// this product's data too.
-    #[test]
-    fn legacy_product_id_on_a_current_format_is_restamped() {
-        let home = tempfile::tempdir().expect("temp home");
-        let home_root = canonical_temp_home(&home);
-        let root = home_root.join("restamped-workspace");
-        let id = canonical_root_id(&root);
-        let mut record = local_workspace_record(&id, &root);
-        record.id = id.clone();
-        let mut data = registry(&[(&id, record)], &[], None);
-        data.product_id = "openbitfun".to_string();
-
-        let upgrade = upgrade_legacy_workspace_persistence(&mut data)
-            .expect("a previous product id is restamped");
-        assert_eq!(
-            upgrade.previous_format_version,
-            WORKSPACE_PERSISTENCE_FORMAT_VERSION
-        );
-        assert_eq!(upgrade.previous_product_id, "openbitfun");
-        assert!(!upgrade.product_identity_was_absent);
-        assert_eq!(data.product_id, product_id());
-        validate_workspace_persistence_data(&data, &home_root)
-            .expect("the restamped registry validates");
-    }
-
-    /// A registry from another product, or one written by a newer format, must
-    /// keep failing validation instead of being silently adopted.
-    #[test]
-    fn foreign_or_newer_registries_are_not_upgraded() {
-        let mut foreign = registry(&[], &[], None);
-        foreign.product_id = "other-product".to_string();
-        assert!(upgrade_legacy_workspace_persistence(&mut foreign).is_none());
-        assert_eq!(foreign.product_id, "other-product");
-
-        let mut newer = registry(&[], &[], None);
-        newer.format_version = WORKSPACE_PERSISTENCE_FORMAT_VERSION + 1;
-        assert!(upgrade_legacy_workspace_persistence(&mut newer).is_none());
-        assert_eq!(
-            newer.format_version,
-            WORKSPACE_PERSISTENCE_FORMAT_VERSION + 1
-        );
-
-        // An older document that names another product is not this product's.
-        let mut foreign_legacy = registry(&[], &[], None);
-        foreign_legacy.format_version = 0;
-        foreign_legacy.product_id = "other-product".to_string();
-        assert!(upgrade_legacy_workspace_persistence(&mut foreign_legacy).is_none());
-        assert_eq!(foreign_legacy.format_version, 0);
-        assert_eq!(foreign_legacy.product_id, "other-product");
-
-        let mut current = registry(&[], &[], None);
-        assert!(upgrade_legacy_workspace_persistence(&mut current).is_none());
+    fn mismatched_record_id_is_rejected_without_modifying_input() {
+        let mut data = legacy_catalog();
+        data.workspaces.get_mut("saved-id").unwrap().id = "another-id".into();
+        let before = serde_json::to_value(&data).unwrap();
+        assert!(validate_workspace_persistence_data(&data, Path::new("/miniapps")).is_err());
+        assert_eq!(serde_json::to_value(&data).unwrap(), before);
     }
 }

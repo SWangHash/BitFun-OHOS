@@ -3,6 +3,7 @@ import { themeCssVariables, themes, type ThemeTokenName } from '@bitfun/theme-bi
 import type { AppearancePalette } from './AppearancePalette';
 import { withLegacyButtonTokens } from './buttonThemeCompatibility';
 import { DEFAULT_DARK_APPEARANCE_ID, DEFAULT_LIGHT_APPEARANCE_ID } from './palettes';
+import { createSubagentAvatarTokens } from './subagentAvatarTokens';
 import type {
   AppearanceColorValue,
   AppearanceDurationValue,
@@ -298,6 +299,7 @@ function createAppearanceOwnedTokens(
     ?? (palette.type === 'dark' ? colors.element.base : colors.element.soft);
   return {
     ...themeValuesToCssTokens(createThemeTokenValues(palette), palette),
+    ...createSubagentAvatarTokens(palette),
     '--bitfun-component-config-page-section-background': configPage?.section.background ?? colors.background.tertiary,
     '--bitfun-component-config-page-section-border': configPage?.section.border ?? colors.border.subtle,
     '--bitfun-component-config-page-section-border-width': configPage?.section.borderWidth ?? '1px',
@@ -307,6 +309,13 @@ function createAppearanceOwnedTokens(
     '--bitfun-component-config-page-row-hover-background': configPageRowHover,
     '--bitfun-component-scene-viewport-border-width': palette.layout?.sceneViewportBorder === false ? '0' : '1px',
     '--bitfun-component-badge-padding-block': '2px',
+    // Annotation selections retain the UIKit cyan across named product themes.
+    '--bitfun-component-conversation-excerpt-accent': String(themes.light['color.accent.default']),
+    // Update glass retains its cyan companion when a dark theme's accent becomes blue.
+    '--bitfun-component-update-material-cyan': String(themes.light['color.accent.default']),
+    // Token series stay chromatic even when a product theme uses neutral accents.
+    '--bitfun-component-session-usage-input': String(themes[palette.type]['color.status.info.emphasis']),
+    '--bitfun-component-session-usage-output': String(themes[palette.type]['color.accent.secondary']),
     '--bitfun-domain-context-compression': purple[500],
     '--bitfun-domain-generative-ui': '#06b6d4',
     '--bitfun-domain-mini-app': purple[500],

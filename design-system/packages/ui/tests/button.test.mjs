@@ -122,6 +122,27 @@ test("secondary exposes the filled secondary-action contract", async () => {
   assert.match(styles, /--bitfun-color-action-neutral-content/);
 });
 
+test("quiet owns neutral toolbar text and a hover border without link styling", async () => {
+  const markup = renderToStaticMarkup(createElement(Button, { variant: "quiet", size: "sm", loading: true }, "Refresh"));
+  const styles = await readFile(new URL("../src/components/Button/Button.module.css", import.meta.url), "utf8");
+  const rule = styles.match(/\.button\[data-bitfun-variant="quiet"\]\s*\{([^}]+)\}/)?.[1] ?? "";
+
+  assert.match(markup, /data-bitfun-variant="quiet"/);
+  assert.match(markup, /data-size="sm"/);
+  assert.match(markup, /disabled=""/);
+  assert.match(markup, /aria-busy="true"/);
+  assert.match(markup, />Refresh<\/span>/);
+  assert.match(rule, /--_button-background:\s*transparent/);
+  assert.match(rule, /--_button-background-hover:\s*transparent/);
+  assert.match(rule, /--_button-border:\s*transparent/);
+  assert.match(rule, /--_button-border-hover:\s*var\(--bitfun-color-border-default\)/);
+  assert.match(rule, /--_button-content:\s*var\(--bitfun-color-content-secondary\)/);
+  assert.match(rule, /border-radius:\s*var\(--bitfun-radius-base\)/);
+  assert.doesNotMatch(rule, /text-decoration/);
+  assert.match(styles, /\[data-bitfun-tone="neutral"\]\[data-bitfun-variant="quiet"\][^{]+:not\(:disabled\)\s*\{\s*--_button-content:\s*var\(--bitfun-color-content-primary\)/);
+  assert.match(styles, /\[data-bitfun-tone="danger"\]\[data-bitfun-variant="quiet"\]\s*\{[^}]*--_button-border:\s*transparent/);
+});
+
 test("outline and text composite over the caller surface without changing their hit targets", async () => {
   const styles = await readFile(
     new URL("../src/components/Button/Button.module.css", import.meta.url),

@@ -23,6 +23,13 @@
     box-shadow: var(--bitfun-shadow-menu);
   }
 
+  /* Content-driven menus hug their widest row; the fixed token stays the upper bound. */
+  .root[data-bitfun-inline-size="content"] {
+    inline-size: max-content;
+    min-inline-size: var(--bitfun-overlay-menu-min-inline-size);
+    max-inline-size: min(var(--bitfun-overlay-menu-inline-size), 100%);
+  }
+
   .viewport {
     flex: 1 1 auto;
     min-inline-size: 0;

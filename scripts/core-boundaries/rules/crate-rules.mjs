@@ -1,5 +1,3 @@
-// Boundary rules for crate dependencies and lightweight profiles.
-
 const agentRuntimeIpcForbiddenDeps = [
   'bitfun-acp',
   'bitfun-agent-runtime',
@@ -10,6 +8,8 @@ const agentRuntimeIpcForbiddenDeps = [
   'bitfun-claude-code-adapter',
   'bitfun-deveco-code-adapter',
   'bitfun-codex-adapter',
+  'bitfun-cursor-adapter',
+  'bitfun-zcode-adapter',
   'bitfun-core',
   'bitfun-core-types',
   'bitfun-dsh-adapter',
@@ -45,11 +45,11 @@ export const noCoreDependencyCrates = [
   'events',
   'ai-adapters',
   'agent-stream',
-  'tool-call-jsonrepair',
   'agent-runtime',
   'agent-workflows',
   'agent-runtime-ipc',
   'observability',
+  'miniapp-ipc',
   'app-server-client',
   'app-server-protocol',
   'plugin-runtime-client',
@@ -66,6 +66,8 @@ export const noCoreDependencyCrates = [
   'claude-code-adapter',
   'deveco-code-adapter',
   'codex-adapter',
+  'cursor-adapter',
+  'zcode-adapter',
   'dsh-adapter',
   'opencode-adapter',
   'opencode-plugin-host',
@@ -78,6 +80,14 @@ export const noCoreDependencyCrates = [
 ];
 
 export const forbiddenManifestDependencyRules = [
+  {
+    dependencyNames: ['bitfun-miniapp-ipc'],
+    scanRoots: ['src/apps', 'src/crates', 'BitFun-Installer/src-tauri'],
+    workspaceManifestPath: 'Cargo.toml',
+    allowManifestPaths: ['src/apps/desktop/Cargo.toml', 'src/apps/miniapp-shell/Cargo.toml'],
+    reason: 'the private MiniApp window protocol has two local Desktop consumers',
+    message: 'miniapp-ipc is private to Desktop and its lightweight MiniApp shell',
+  },
   {
     dependencyNames: ['rmcp'],
     scanRoots: ['src/apps', 'src/crates', 'BitFun-Installer/src-tauri'],
@@ -116,12 +126,13 @@ export const forbiddenManifestDependencyRules = [
     workspaceManifestPath: 'Cargo.toml',
     allowManifestPaths: [
       'src/crates/adapters/opencode-adapter/Cargo.toml',
+      'src/crates/adapters/zcode-adapter/Cargo.toml',
       'src/crates/assembly/core/Cargo.toml',
     ],
     reason:
-      'OpenCode adapter production dependencies are limited to the reviewed product composition root',
+      'OpenCode adapter dependencies are limited to product composition and the Zcode compatible session store consumer',
     message:
-      'only bitfun-core product-full assembly may register bitfun-opencode-adapter through reviewed capability composition roots',
+      'only reviewed core composition roots may register OpenCode providers; Zcode may reuse the read-only session store protocol',
   },
   {
     dependencyNames: ['bitfun-dsh-adapter'],
@@ -153,6 +164,8 @@ export const forbiddenManifestDependencyRules = [
     ['bitfun-claude-code-adapter', 'claude-code-adapter'],
     ['bitfun-deveco-code-adapter', 'deveco-code-adapter'],
     ['bitfun-codex-adapter', 'codex-adapter'],
+    ['bitfun-cursor-adapter', 'cursor-adapter'],
+    ['bitfun-zcode-adapter', 'zcode-adapter'],
     ['bitfun-pi-adapter', 'pi-adapter'],
   ].map(([dependencyName, crateName]) => ({
     dependencyNames: [dependencyName],
@@ -163,7 +176,7 @@ export const forbiddenManifestDependencyRules = [
       'src/crates/assembly/core/Cargo.toml',
     ],
     reason: `${crateName} production dependencies are limited to the reviewed product composition root`,
-    message: `only bitfun-core product-full assembly may register ${dependencyName} through the static Hook provider boundary`,
+    message: `only bitfun-core external-sources assembly may register ${dependencyName} through its reviewed source capability boundary`,
   })),
   {
     dependencyNames: ['bitfun-static-hook-support'],

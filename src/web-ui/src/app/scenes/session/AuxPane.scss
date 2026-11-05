@@ -41,6 +41,15 @@
     padding: 0;
   }
 
+  &__empty-content {
+    max-inline-size: 100%;
+
+    & > [data-bitfun-part="title"] {
+      min-inline-size: 0;
+      max-inline-size: 100%;
+    }
+  }
+
   &:focus-within {
     outline: none;
   }
@@ -61,4 +70,11 @@
   .bitfun-aux-pane {
     min-width: 50px;
   }
+}
+
+.bitfun-aux-pane__empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--bitfun-space-2);
 }

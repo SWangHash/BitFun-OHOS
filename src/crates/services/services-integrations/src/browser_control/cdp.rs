@@ -85,6 +85,14 @@ pub struct CdpPageInfo {
 /// Version info returned by `/json/version`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CdpVersionInfo {
+    /// Modern headless Chrome reports a regular product name; its UA retains
+    /// the HeadlessChrome token. Older endpoints may omit this field.
+    #[serde(
+        rename = "User-Agent",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub user_agent: Option<String>,
     #[serde(rename = "Browser")]
     pub browser: Option<String>,
     #[serde(rename = "Protocol-Version")]
@@ -97,6 +105,11 @@ pub struct CdpVersionInfo {
 
 #[derive(Debug, Error)]
 pub enum CdpEndpointError {
+    /// Chromium's user-approved remote debugging serves no `/json*` HTTP
+    /// discovery API; only the approved browser WebSocket works. A 404 alone
+    /// does not prove the port is a browser, so the message stays conditional.
+    #[error("Port {port} answers 404 on its /json HTTP endpoints, so it is not a legacy CDP debug port. If it is a browser with guarded remote debugging, connect it from Settings > Browser control so BitFun can use the approved browser WebSocket connection.")]
+    GuardedNoHttp { port: u16 },
     #[error("Cannot reach browser CDP on port {port}: {message}")]
     VersionRequest { port: u16, message: String },
     #[error("Invalid CDP version response: {0}")]
@@ -128,6 +141,18 @@ pub enum CdpEndpointError {
 }
 
 pub struct CdpEndpointProvider;
+
+/// Reject a guarded endpoint's 404 before the body is parsed, so callers see
+/// actionable guidance instead of a JSON decode error on an empty body.
+fn reject_guarded_endpoint(
+    response: reqwest::Response,
+    port: u16,
+) -> Result<reqwest::Response, CdpEndpointError> {
+    if response.status() == reqwest::StatusCode::NOT_FOUND {
+        return Err(CdpEndpointError::GuardedNoHttp { port });
+    }
+    Ok(response)
+}
 
 impl CdpEndpointProvider {
     pub async fn get_version_at(
@@ -169,7 +194,7 @@ impl CdpEndpointProvider {
     /// Discover browser version on a loopback debug port.
     pub async fn get_version(port: u16) -> Result<CdpVersionInfo, CdpEndpointError> {
         let url = format!("http://127.0.0.1:{port}/json/version");
-        let response = reqwest::Client::new()
+        let resp = crate::reqwest_client()
             .get(&url)
             .timeout(CDP_HTTP_TIMEOUT)
             .send()
@@ -178,7 +203,7 @@ impl CdpEndpointProvider {
                 port,
                 message: source.to_string(),
             })?;
-        response
+        reject_guarded_endpoint(resp, port)?
             .json()
             .await
             .map_err(|source| CdpEndpointError::VersionResponse(source.to_string()))
@@ -187,7 +212,7 @@ impl CdpEndpointProvider {
     /// List all pages/tabs on a loopback debug port.
     pub async fn list_pages(port: u16) -> Result<Vec<CdpPageInfo>, CdpEndpointError> {
         let url = format!("http://127.0.0.1:{port}/json");
-        let response = reqwest::Client::new()
+        let resp = crate::reqwest_client()
             .get(&url)
             .timeout(CDP_HTTP_TIMEOUT)
             .send()
@@ -196,7 +221,7 @@ impl CdpEndpointProvider {
                 port,
                 message: source.to_string(),
             })?;
-        response
+        reject_guarded_endpoint(resp, port)?
             .json()
             .await
             .map_err(|source| CdpEndpointError::ListPagesResponse(source.to_string()))
@@ -205,7 +230,7 @@ impl CdpEndpointProvider {
     /// Fetch the browser's CDP protocol description.
     pub async fn get_protocol(port: u16) -> Result<serde_json::Value, CdpEndpointError> {
         let url = format!("http://127.0.0.1:{port}/json/protocol");
-        let response = reqwest::Client::new()
+        let resp = crate::reqwest_client()
             .get(&url)
             .timeout(CDP_HTTP_TIMEOUT)
             .send()
@@ -214,8 +239,7 @@ impl CdpEndpointProvider {
                 port,
                 message: source.to_string(),
             })?;
-        response
-            .json()
+        resp.json()
             .await
             .map_err(|source| CdpEndpointError::ProtocolResponse(source.to_string()))
     }
@@ -231,7 +255,7 @@ impl CdpEndpointProvider {
         } else {
             format!("http://127.0.0.1:{port}/json/new")
         };
-        let response = crate::reqwest_client()
+        let resp = crate::reqwest_client()
             .put(&endpoint)
             .timeout(CDP_HTTP_TIMEOUT)
             .send()
@@ -240,7 +264,7 @@ impl CdpEndpointProvider {
                 port,
                 message: source.to_string(),
             })?;
-        response
+        reject_guarded_endpoint(resp, port)?
             .json()
             .await
             .map_err(|source| CdpEndpointError::CreatePageResponse(source.to_string()))
@@ -457,6 +481,25 @@ fn decode_chunked_body(mut body: &[u8]) -> Result<Vec<u8>, String> {
 mod tests {
     use super::*;
 
+    #[tokio::test]
+    async fn guarded_endpoint_404_returns_actionable_error_for_every_http_call() {
+        let port =
+            crate::browser_control::test_support::serve_fixed_http("404 Not Found", "").await;
+
+        let version = CdpEndpointProvider::get_version(port).await.unwrap_err();
+        let pages = CdpEndpointProvider::list_pages(port).await.unwrap_err();
+        let created = CdpEndpointProvider::create_page(port, Some("https://example.com"))
+            .await
+            .unwrap_err();
+        for error in [version, pages, created] {
+            assert!(
+                matches!(error, CdpEndpointError::GuardedNoHttp { port: p } if p == port),
+                "unexpected error: {error}"
+            );
+            assert!(error.to_string().contains("Settings > Browser control"));
+        }
+    }
+
     #[test]
     fn cdp_page_info_preserves_websocket_debugger_field() {
         let page: CdpPageInfo = serde_json::from_value(serde_json::json!({
@@ -486,6 +529,14 @@ mod tests {
         .expect("version info should deserialize");
 
         assert_eq!(version.browser.as_deref(), Some("Chrome/132.0.6834.161"));
+        let roundtrip = serde_json::to_value(&version).unwrap();
+        assert_eq!(
+            roundtrip.get("User-Agent").and_then(|value| value.as_str()),
+            Some("Mozilla/5.0 htbrowser/2.0.22")
+        );
+        let roundtrip_version: CdpVersionInfo = serde_json::from_value(roundtrip).unwrap();
+        assert_eq!(roundtrip_version.browser, version.browser);
+        assert_eq!(roundtrip_version.user_agent, version.user_agent);
         assert_eq!(version.protocol_version.as_deref(), Some("1.3"));
         assert_eq!(
             version.user_agent.as_deref(),

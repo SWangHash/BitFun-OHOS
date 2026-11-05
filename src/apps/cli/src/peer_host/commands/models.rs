@@ -37,6 +37,7 @@ async fn build_transient_client(
     );
 
     let mut ai_config: bitfun_core::util::types::AIConfig = model_config
+        .clone()
         .try_into()
         .map_err(|e| format!("Failed to convert configuration: {}", e))?;
     let skip_ssl_verify = ai_config.skip_ssl_verify;
@@ -60,7 +61,7 @@ async fn build_transient_client(
     .await
     .map_err(|e| format!("Failed to resolve subscription auth: {}", e))?;
 
-    Ok(
+    let client =
         bitfun_core::infrastructure::ai::client_factory::apply_subscription_request_profile(
             &auth,
             bitfun_core::infrastructure::ai::AIClient::new_with_runtime_options(
@@ -68,12 +69,21 @@ async fn build_transient_client(
                 proxy_config,
                 stream_options,
             ),
-        ),
+        );
+    Ok(
+        bitfun_core::infrastructure::ai::client_factory::apply_model_default_reasoning(
+            client,
+            &model_config,
+        )
+        .await,
     )
 }
 
 pub(crate) async fn get_ai_model_catalog() -> Result<Value, String> {
-    serde_json::to_value(bitfun_core::get_ai_model_catalog().await?)
+    // A controller receives configured models, defaults and the session
+    // selection. The models.dev bodies stay on the host: they describe the
+    // public models.dev catalog, and a controller reads its own snapshot.
+    serde_json::to_value(bitfun_core::get_remote_model_catalog().await?)
         .map_err(|error| error.to_string())
 }
 
@@ -110,6 +120,11 @@ pub(crate) async fn test_ai_config_connection(args: &Value) -> Result<Value, Str
     let config: AIModelConfig =
         serde_json::from_value(request.get("config").cloned().ok_or("Missing config")?)
             .map_err(|error| format!("Invalid model configuration: {error}"))?;
+    if let Some(result) = bitfun_core::agentic::execution::round_model_routing::configuration::test_configured_router_connection(&config)
+        .await.map_err(|error| error.to_string())?
+    {
+        return serde_json::to_value(result).map_err(|error| error.to_string());
+    }
     let image_input = config
         .capabilities
         .iter()
@@ -141,6 +156,34 @@ mod tests {
     use super::*;
     use bitfun_core::service::config::{types::AIModelConfig, GlobalConfig};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    #[tokio::test]
+    async fn unsaved_connection_probe_client_keeps_the_model_reasoning_default() {
+        let model = AIModelConfig {
+            id: "unregistered-draft".into(),
+            provider: "openai".into(),
+            model_name: "unsaved-reasoning-model".into(),
+            base_url: "http://127.0.0.1:1/v1".into(),
+            reasoning: Some(bitfun_core_types::ReasoningConfig {
+                default_preset: Some("medium".into()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let original = serde_json::to_value(&model).unwrap();
+        let client = build_transient_client(model.clone(), &GlobalConfig::default())
+            .await
+            .unwrap();
+        assert_eq!(client.config.model, "unsaved-reasoning-model");
+        assert_eq!(
+            client
+                .model_reasoning_preset()
+                .map(|preset| preset.id.as_str()),
+            Some("medium")
+        );
+        assert!(client.selected_reasoning_preset().is_none());
+        assert_eq!(serde_json::to_value(&model).unwrap(), original);
+    }
 
     #[tokio::test]
     async fn unsaved_openai_compatible_provider_discovers_model_ids_on_host() {

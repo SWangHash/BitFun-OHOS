@@ -78,16 +78,17 @@
       background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
   }
 
-  .option:not(:disabled):is(:hover, [data-active="true"]) {
+  /* Transient interaction must not override the persistent selected state. */
+  .option:where(:not(:disabled):is(:hover, [data-active="true"])) {
     background: var(--bitfun-color-action-neutral-surface);
+  }
+
+  .option:where(:not(:disabled):active) {
+    background: var(--bitfun-color-action-neutral-surface-pressed);
   }
 
   .option[data-selected="true"] {
     background: var(--bitfun-color-selection-surface);
-  }
-
-  .option:not(:disabled):active {
-    background: var(--bitfun-color-action-neutral-surface-pressed);
   }
 
   .option:focus-visible {

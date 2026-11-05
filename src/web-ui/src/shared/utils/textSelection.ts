@@ -1,6 +1,7 @@
  
 
 import type { MouseEvent as ReactMouseEvent } from 'react';
+import { writeNativeClipboardText, readNativeClipboardText } from '@/shared/utils/nativeClipboard';
 import { createLogger } from '@/shared/utils/logger';
 
 const log = createLogger('TextSelection');
@@ -102,6 +103,11 @@ const toErrorMessage = (error: unknown): string => {
 
 export const copyTextToClipboard = async (text: string): Promise<ClipboardCopyResult> => {
   let primaryError: string | undefined;
+  // Prefer the desktop host's clipboard so the WebView2 permission prompt never
+  // appears; every other surface falls back to the Web API below.
+  if (await writeNativeClipboardText(text)) {
+    return { ok: true };
+  }
 
   if (navigator.clipboard?.writeText) {
     try {
@@ -146,13 +152,10 @@ export const copyTextToClipboard = async (text: string): Promise<ClipboardCopyRe
 
 export const readTextFromClipboard = async (): Promise<string> => {
   try {
-    if (typeof window !== 'undefined' && (window as any).__TAURI__) {
-      try {
-        const { systemAPI } = await import('@/infrastructure/api/service-api/SystemAPI');
-        return await systemAPI.getClipboard();
-      } catch (tauriErr) {
-        log.warn('Tauri clipboard failed, falling back to navigator.clipboard', tauriErr);
-      }
+    // Native first: a WebView2 read raises a permission prompt on the app origin.
+    const nativeText = await readNativeClipboardText();
+    if (nativeText !== null) {
+      return nativeText;
     }
 
     if (navigator.clipboard && navigator.clipboard.readText) {
@@ -161,8 +164,8 @@ export const readTextFromClipboard = async (): Promise<string> => {
   } catch (error) {
     log.warn('Failed to read clipboard', error);
   }
-  return ''
-}
+  return '';
+};
 
 export const getElementText = (element: HTMLElement): string => {
   

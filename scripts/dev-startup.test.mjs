@@ -1,10 +1,204 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { resolveDevServerPorts } from './dev-server-ports.mjs';
 import { prepareSherpaDev } from './prepare-sherpa-dev.mjs';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const { resolveCommandInvocation, resolveDesktopDevDataMode, resolveDesktopDevStorageEnvironment, runCommandPrefixed } = require('./dev.cjs');
+
+test('desktop data mode defaults to shared history and supports explicit isolation', () => {
+  assert.equal(resolveDesktopDevDataMode([]), 'shared');
+  assert.equal(resolveDesktopDevDataMode(['--force-rebuild']), 'shared');
+  assert.equal(resolveDesktopDevDataMode(['--isolated-data']), 'isolated');
+  assert.equal(resolveDesktopDevDataMode(['--', '--isolated-data']), 'isolated');
+  assert.equal(resolveDesktopDevDataMode(['--shared-data']), 'shared');
+  assert.equal(resolveDesktopDevDataMode(['--', '--shared-data', '--force-rebuild']), 'shared');
+  assert.throws(() => resolveDesktopDevDataMode(['--shared-data', '--isolated-data']), /Choose only one/);
+});
+
+test('conflicting desktop data flags fail before resource preparation', () => {
+  const result = spawnSync(process.execPath, [
+    require.resolve('./dev.cjs'), 'desktop', '--', '--shared-data', '--isolated-data',
+  ], {
+    encoding: 'utf8',
+    windowsHide: true,
+    env: { ...process.env, BITFUN_DEV_PORT: '1422', BITFUN_DEV_HMR_PORT: '1421' },
+  });
+  assert.ifError(result.error);
+  assert.equal(result.status, 1);
+  assert.match(result.stdout + result.stderr, /Choose only one of --shared-data or --isolated-data/);
+  assert.doesNotMatch(result.stdout + result.stderr, /Prepare resources/);
+});
+
+test('default and explicit shared desktop data keep app defaults and storage overrides intact', () => {
+  const channel = { BITFUN_DESKTOP_HOST_CHANNEL: 'development' };
+  assert.deepEqual(resolveDesktopDevStorageEnvironment({}, tmpdir()), channel);
+  assert.deepEqual(resolveDesktopDevStorageEnvironment({}, tmpdir(), 'shared'), channel);
+  const env = {
+    BITFUN_USER_ROOT: '/custom/user',
+    BITFUN_HOME: '/custom/home',
+    BITFUN_E2E_USER_ROOT: '/legacy/user',
+    BITFUN_E2E_HOME: '/legacy/home',
+  };
+  const original = { ...env };
+  assert.deepEqual(resolveDesktopDevStorageEnvironment(env, tmpdir()), channel);
+  Object.assign(env, resolveDesktopDevStorageEnvironment(env, tmpdir(), 'shared'));
+  assert.deepEqual(env, { ...original, ...channel });
+});
+
+test('explicitly isolated desktop development uses persistent storage scoped to each checkout', () => {
+  const root = join(tmpdir(), 'desktop dev & spaces');
+  const storage = resolveDesktopDevStorageEnvironment({}, root, 'isolated');
+  assert.deepEqual(storage, {
+    BITFUN_DESKTOP_HOST_CHANNEL: 'development',
+    BITFUN_USER_ROOT: join(root, '.openbitfun', 'desktop-dev', 'user'),
+    BITFUN_HOME: join(root, '.openbitfun', 'desktop-dev', 'home'),
+  });
+  assert.deepEqual(resolveDesktopDevStorageEnvironment({}, root, 'isolated'), storage);
+  const other = resolveDesktopDevStorageEnvironment({}, join(root, 'worktree'), 'isolated');
+  assert.notEqual(other.BITFUN_USER_ROOT, storage.BITFUN_USER_ROOT);
+  assert.notEqual(other.BITFUN_HOME, storage.BITFUN_HOME);
+});
+
+test('desktop development preserves explicit and legacy isolated storage overrides', () => {
+  const explicit = {
+    BITFUN_USER_ROOT: '/custom/user',
+    BITFUN_HOME: '/custom/home',
+  };
+  const legacy = {
+    BITFUN_E2E_USER_ROOT: '/legacy/user',
+    BITFUN_E2E_HOME: '/legacy/home',
+  };
+  const channel = { BITFUN_DESKTOP_HOST_CHANNEL: 'development' };
+  assert.deepEqual(resolveDesktopDevStorageEnvironment({ ...legacy, ...explicit }, tmpdir(), 'isolated'), { ...explicit, ...channel });
+  assert.deepEqual(resolveDesktopDevStorageEnvironment(legacy, tmpdir(), 'isolated'), {
+    ...channel,
+    BITFUN_USER_ROOT: legacy.BITFUN_E2E_USER_ROOT,
+    BITFUN_HOME: legacy.BITFUN_E2E_HOME,
+  });
+  const root = tmpdir();
+  assert.deepEqual(resolveDesktopDevStorageEnvironment({
+    ...explicit, BITFUN_HOME: '',
+  }, root, 'isolated'), {
+    ...channel,
+    BITFUN_USER_ROOT: explicit.BITFUN_USER_ROOT,
+    BITFUN_HOME: join(root, '.openbitfun', 'desktop-dev', 'home'),
+  });
+});
+
+test('desktop child processes inherit both isolated storage roots', async t => {
+  const root = mkdtempSync(join(tmpdir(), 'desktop-dev-storage-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const script = join(root, 'storage-child.cjs');
+  const output = join(root, 'storage.json');
+  writeFileSync(script, `
+    require('node:fs').writeFileSync(process.argv[2], JSON.stringify({
+      user: process.env.BITFUN_USER_ROOT,
+      home: process.env.BITFUN_HOME,
+      channel: process.env.BITFUN_DESKTOP_HOST_CHANNEL,
+    }));
+  `);
+  const env = resolveDesktopDevStorageEnvironment({}, root, 'isolated');
+  const result = await runCommandPrefixed('storage-fixture', 'node', [script, output], root, env);
+  assert.equal(result.ok, true);
+  assert.deepEqual(JSON.parse(readFileSync(output, 'utf8')), {
+    user: env.BITFUN_USER_ROOT,
+    home: env.BITFUN_HOME,
+    channel: 'development',
+  });
+});
+
+test('default desktop children retain the callers shared data roots without injecting checkout storage', async t => {
+  const root = mkdtempSync(join(tmpdir(), 'desktop-shared-storage-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const script = join(root, 'storage-child.cjs');
+  const output = join(root, 'storage.json');
+  writeFileSync(script, `
+    require('node:fs').writeFileSync(process.argv[2], JSON.stringify({
+      user: process.env.BITFUN_USER_ROOT,
+      home: process.env.BITFUN_HOME,
+      channel: process.env.BITFUN_DESKTOP_HOST_CHANNEL,
+    }));
+  `);
+  const original = {
+    BITFUN_USER_ROOT: join(root, 'existing user data'),
+    BITFUN_HOME: join(root, 'existing session data'),
+  };
+  const storage = resolveDesktopDevStorageEnvironment(original, root);
+  assert.equal(storage.BITFUN_USER_ROOT, undefined);
+  assert.equal(storage.BITFUN_HOME, undefined);
+  const result = await runCommandPrefixed('storage-fixture', 'node', [script, output], root, {
+    ...original,
+    ...storage,
+  });
+  assert.equal(result.ok, true);
+  assert.deepEqual(JSON.parse(readFileSync(output, 'utf8')), {
+    user: original.BITFUN_USER_ROOT,
+    home: original.BITFUN_HOME,
+    channel: 'development',
+  });
+});
+
+test('desktop preparation invokes pnpm without the Windows batch shim', () => {
+  const invocation = resolveCommandInvocation(
+    'pnpm',
+    ['run', 'plugin-host:prepare'],
+    { npm_execpath: 'E:\\repo\\node_modules\\pnpm\\bin\\pnpm.cjs' },
+    'win32',
+  );
+
+  assert.equal(invocation.cmd, process.execPath);
+  assert.deepEqual(invocation.args, [
+    'E:\\repo\\node_modules\\pnpm\\bin\\pnpm.cjs',
+    'run',
+    'plugin-host:prepare',
+  ]);
+  assert.equal(invocation.shell, false);
+});
+
+test('direct launcher supports spaces and shell metacharacters and preserves exit failures', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'dev launcher & spaces '));
+  const script = join(root, 'fake pnpm.cjs');
+  const argument = 'literal & value %PATH% "quoted"';
+  writeFileSync(script, `
+    if (process.argv[2] !== ${JSON.stringify(argument)}) process.exit(9);
+    process.exit(Number(process.argv[3]));
+  `);
+  // Keep fixtures in the configured temporary root for post-test inspection.
+  const command = process.platform === 'win32' ? 'pnpm' : 'node';
+  const args = process.platform === 'win32' ? [argument] : [script, argument];
+  const env = { npm_execpath: script };
+  const results = await Promise.all([0, 7].map(code =>
+    runCommandPrefixed('fixture', command, [...args, String(code)], root, env),
+  ));
+  assert.equal(results[0].ok, true);
+  assert.equal(results[1].ok, false);
+  assert.equal(results[1].code, 7);
+});
+
+test('Windows direct launches without npm_execpath use the installed pnpm entry', () => {
+  const invocation = resolveCommandInvocation('pnpm', ['--version'], {}, 'win32');
+  assert.match(invocation.args[0], /node_modules[\\/]pnpm[\\/]bin[\\/]pnpm\.cjs$/);
+  assert.equal(invocation.shell, false);
+  for (const platform of ['linux', 'darwin']) {
+    assert.deepEqual(resolveCommandInvocation('pnpm', ['--version'], {}, platform), {
+      cmd: 'pnpm', args: ['--version'], shell: false,
+    });
+  }
+});
+
+test('workspace installation finishes before parallel dependency consumers start', () => {
+  const source = readFileSync(new URL('./dev.cjs', import.meta.url), 'utf8');
+  const install = source.indexOf("await runCommandPrefixed('mobile-web'");
+  const consumers = source.indexOf('const prepTasks = [');
+  assert.ok(install > 0 && install < consumers);
+  assert.equal(source.match(/runCommandPrefixed\('mobile-web'/g).length, 1);
+});
 
 test('HTTP and HMR ports share one contract and reject conflicting overrides', () => {
   assert.deepEqual(resolveDevServerPorts({}), { port: 1422, hmrPort: 1421 });

@@ -31,8 +31,9 @@ pub mod workspace_state {
         local_workspace_stable_storage_id, normalize_local_workspace_root_for_stable_id,
         normalize_remote_workspace_path, remote_root_to_mirror_subpath,
         remote_workspace_session_mirror_dir as remote_workspace_session_mirror_dir_at,
-        remote_workspace_stable_id, sanitize_remote_mirror_path_component,
-        sanitize_ssh_connection_id_for_local_dir, sanitize_ssh_hostname_for_mirror,
+        remote_workspace_stable_id, remote_workspace_stable_id_for_connection,
+        sanitize_remote_mirror_path_component, sanitize_ssh_connection_id_for_local_dir,
+        sanitize_ssh_hostname_for_mirror, ssh_workspace_identity_host,
         unresolved_remote_session_storage_key, workspace_logical_key, workspace_session_identity,
         WorkspaceSessionIdentity, LOCAL_WORKSPACE_SSH_HOST,
     };
@@ -46,19 +47,16 @@ pub mod workspace_state {
     }
 
     pub fn remote_workspace_runtime_root(ssh_host: &str, remote_root_norm: &str) -> PathBuf {
-        bitfun_services_core::workspace_identity::remote_workspace_runtime_root(
-            crate::infrastructure::get_path_manager_arc().remote_ssh_mirror_root_dir(),
-            ssh_host,
-            remote_root_norm,
-        )
+        crate::infrastructure::get_path_manager_arc()
+            .remote_workspace_runtime_root(ssh_host, remote_root_norm)
     }
 
     pub fn remote_workspace_session_mirror_dir(ssh_host: &str, remote_root_norm: &str) -> PathBuf {
-        bitfun_services_core::workspace_identity::remote_workspace_session_mirror_dir(
-            crate::infrastructure::get_path_manager_arc().remote_ssh_mirror_root_dir(),
-            ssh_host,
-            remote_root_norm,
+        crate::service::workspace_runtime::WorkspaceRuntimeService::new(
+            crate::infrastructure::get_path_manager_arc(),
         )
+        .context_for_remote_workspace(ssh_host, remote_root_norm)
+        .sessions_dir
     }
 
     pub fn unresolved_remote_session_storage_dir(

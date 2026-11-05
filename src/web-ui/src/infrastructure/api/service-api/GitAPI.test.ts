@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GitAPI, gitWorkspaceKey } from './GitAPI';
+import { activateSurface, isSurfaceChangedError } from '@/infrastructure/peer-device/deviceSurface';
+
+const workspace = { workspaceId: 'workspace-1' };
 
 const invokeMock = vi.hoisted(() => vi.fn());
 
@@ -28,14 +31,40 @@ describe('GitAPI repository probe cache', () => {
   let gitAPI: GitAPI;
 
   beforeEach(() => {
+    activateSurface('local');
     gitAPI = new GitAPI();
     invokeMock.mockReset();
   });
 
-  // The backend resolves the workspace record itself: it owns the root path and,
-  // for a remote workspace, the connection to run on. Sending a path instead is
-  // what made every Git command fail in argument deserialization.
-  it('sends the workspace ID the backend command expects', async () => {
+  it('does not dispatch a repository probe after its device changes during preparation', async () => {
+    invokeMock.mockResolvedValue(true);
+    const pending = gitAPI.isGitRepository(workspace);
+    const rejection = expect(pending).rejects.toSatisfy(isSurfaceChangedError);
+    activateSurface('peer-b');
+    await rejection;
+    expect(invokeMock).not.toHaveBeenCalled();
+  });
+
+  it('starts a fresh probe after returning to the same device while an old probe is pending', async () => {
+    const deferred = createDeferred<boolean>();
+    invokeMock.mockReturnValueOnce(deferred.promise).mockResolvedValue(true);
+    const first = gitAPI.isGitRepository(workspace);
+    await vi.waitFor(() => expect(invokeMock).toHaveBeenCalledTimes(1));
+    activateSurface('peer-b');
+    activateSurface('local');
+    const second = gitAPI.isGitRepository(workspace);
+    const results = Promise.allSettled([first, second]);
+    deferred.resolve(false);
+    const [old, current] = await results;
+    expect(old.status).toBe('rejected');
+    if (old.status === 'rejected') expect(isSurfaceChangedError(old.reason)).toBe(true);
+    expect(current).toEqual({ status: 'fulfilled', value: true });
+    expect(invokeMock).toHaveBeenCalledTimes(2);
+    await expect(gitAPI.isGitRepository(workspace)).resolves.toBe(true);
+    expect(invokeMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('deduplicates concurrent repository probes for the same path', async () => {
     const deferred = createDeferred<boolean>();
     invokeMock.mockReturnValueOnce(deferred.promise);
 

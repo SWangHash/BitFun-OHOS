@@ -32,6 +32,7 @@ pub struct StreamResult {
     pub hidden_text_blocks: Vec<HiddenTextBlock>,
     pub tool_calls: Vec<ToolCall>,
     pub usage: Option<GeminiUsage>,
+    pub response_model: Option<String>,
     pub provider_metadata: Option<Value>,
     pub model_response_replay: Option<ModelResponseReplayCapture>,
     pub finish_reason: Option<String>,
@@ -54,6 +55,7 @@ impl From<bitfun_agent_stream::StreamResult> for StreamResult {
             hidden_text_blocks: result.hidden_text_blocks,
             tool_calls: result.tool_calls.into_iter().map(Into::into).collect(),
             usage: result.usage.map(Into::into),
+            response_model: result.response_model,
             provider_metadata: result.provider_metadata,
             model_response_replay: result.model_response_replay,
             finish_reason: result.finish_reason,
@@ -70,6 +72,8 @@ impl From<bitfun_agent_stream::StreamResult> for StreamResult {
 pub struct StreamProcessError {
     pub error: BitFunError,
     pub has_effective_output: bool,
+    pub usage: Option<GeminiUsage>,
+    pub response_model: Option<String>,
 }
 
 impl From<bitfun_agent_stream::StreamProcessError> for StreamProcessError {
@@ -77,6 +81,8 @@ impl From<bitfun_agent_stream::StreamProcessError> for StreamProcessError {
         Self {
             error: error.error.into(),
             has_effective_output: error.has_effective_output,
+            usage: error.usage.map(Into::into),
+            response_model: error.response_model,
         }
     }
 }

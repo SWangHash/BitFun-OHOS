@@ -6,11 +6,8 @@ use super::types::{
 use crate::agentic::WorkspaceBinding;
 use crate::infrastructure::{get_path_manager_arc, PathManager};
 use crate::util::errors::{BitFunError, BitFunResult};
+use bitfun_services_core::workspace_identity::normalize_remote_workspace_path;
 use log::debug;
-use bitfun_services_core::workspace_identity::{
-    normalize_remote_workspace_path, remote_root_to_mirror_subpath,
-    sanitize_ssh_hostname_for_mirror,
-};
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -116,7 +113,7 @@ impl WorkspaceRuntimeService {
     ) -> BitFunResult<WorkspaceRuntimeEnsureResult> {
         if workspace.is_remote() {
             self.ensure_remote_workspace_runtime(
-                &workspace.session_identity.hostname,
+                &workspace.session_identity.identity_host(),
                 workspace.session_identity.logical_workspace_path(),
             )
             .await
@@ -190,10 +187,7 @@ impl WorkspaceRuntimeService {
             .insert(runtime_root.to_path_buf());
     }
 
-    async fn persist_layout_state(
-        &self,
-        context: &WorkspaceRuntimeContext,
-    ) -> BitFunResult<()> {
+    async fn persist_layout_state(&self, context: &WorkspaceRuntimeContext) -> BitFunResult<()> {
         let target_descriptor = match &context.target {
             WorkspaceRuntimeTarget::LocalWorkspace { workspace_root } => {
                 workspace_root.display().to_string()
@@ -230,10 +224,7 @@ impl WorkspaceRuntimeService {
 
     fn remote_workspace_runtime_root(&self, ssh_host: &str, remote_root_norm: &str) -> PathBuf {
         self.path_manager
-            .product_home_dir()
-            .join("remote_ssh")
-            .join(sanitize_ssh_hostname_for_mirror(ssh_host))
-            .join(remote_root_to_mirror_subpath(remote_root_norm))
+            .remote_workspace_runtime_root(ssh_host, remote_root_norm)
     }
 }
 

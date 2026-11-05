@@ -1,0 +1,39 @@
+.model-router-settings {
+  display: grid;
+  gap: var(--bitfun-space-4);
+  min-width: 0;
+
+  > button { justify-self: start; }
+
+  &__models {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--bitfun-space-4);
+    min-inline-size: 0;
+  }
+
+  &__status {
+    display: grid;
+    gap: var(--bitfun-space-1);
+    color: var(--bitfun-color-content-secondary);
+    font-family: var(--bitfun-type-support-font-family);
+    font-size: var(--bitfun-type-support-font-size);
+    font-weight: var(--bitfun-type-support-font-weight);
+    line-height: var(--bitfun-type-support-line-height);
+    letter-spacing: var(--bitfun-type-support-letter-spacing);
+    overflow-wrap: anywhere;
+  }
+
+  &__status-label { color: var(--bitfun-color-content-primary); }
+
+  &__check {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: var(--bitfun-space-3);
+    row-gap: var(--bitfun-space-1);
+  }
+
+  &__check-result { text-align: end; }
+
+  &__check-detail { grid-column: 1 / -1; }
+}

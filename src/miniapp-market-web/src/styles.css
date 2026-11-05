@@ -1314,6 +1314,9 @@ main {
 .rating-control span {
   margin-left: 7px;
   color: var(--bitfun-color-content-muted);
+.rating-summary {
+  margin-inline-start: 7px;
+  color: var(--bitfun-color-content-muted);
   font-size: 11.5px;
   font-variant-numeric: tabular-nums;
 }

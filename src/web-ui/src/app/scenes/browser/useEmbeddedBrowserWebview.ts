@@ -1,16 +1,22 @@
+import { claimBrowserPresentation } from './retainedBrowserPresentation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BLANK_TARGET_INTERCEPT_SCRIPT } from './browserInspectorScript';
 import { STREAM_RENDER_OPTIMIZATION_SCRIPT } from './browserStreamPerformanceScript';
+import { BROWSER_WEBVIEW_DOCUMENT_READY_EVENT, createBrowserPageLifecycleScript, type BrowserDocumentReadyPayload } from './browserPageLifecycleScript';
 import { validateUrl } from './browserUrlCheck';
 import { BrowserPreviewCache, prepareBrowserPreview, type BrowserPreviewResponse } from './browserPreviewCache';
 import { alignBrowserViewport, type BrowserViewportBounds } from './browserViewportGeometry';
 import { api } from '@/infrastructure/api/service-api/ApiClient';
-import { createNativeWebviewVisibility, hasNativeWebviewOccluder, NATIVE_WEBVIEW_OCCLUSION_SELECTOR } from './nativeWebviewVisibility';
+import { observeCurrentWindowVisibility } from '@/infrastructure/runtime/windowVisibility';
+import { createNativeWebviewVisibility, hasNativeWebviewOccluder } from './nativeWebviewVisibility';
+import { observeNativeWebviewOcclusion } from './nativeWebviewOcclusionObserver';
 export { NATIVE_WEBVIEW_OCCLUSION_SELECTOR, rectanglesIntersect } from './nativeWebviewVisibility';
 
 const WEBVIEW_BOUNDS_WAIT_TIMEOUT_MS = 2000;
 const BROWSER_WEBVIEW_PAGE_LOAD_EVENT = 'browser-webview-page-load';
 const WEBVIEW_CREATE_RETRY_DELAYS_MS = [0, 250, 750];
+// Last-resort fallback if neither the native nor document lifecycle signal arrives.
+const WEBVIEW_PAGE_LOAD_WATCHDOG_MS = 30_000;
 
 // Webview labels are window-global in Tauri, while this hook can be mounted
 // once per cached editor tab. Timestamp, sequence and random suffixes keep
@@ -23,11 +29,6 @@ export function createBrowserWebviewLabel(prefix: string): string {
   const random = Math.random().toString(36).slice(2, 10);
   return `${prefix}-${timestamp}-${sequence}-${random}`;
 }
-
-export const BROWSER_WEBVIEW_BLOCKING_OVERLAY_SELECTOR = [
-  NATIVE_WEBVIEW_OCCLUSION_SELECTOR,
-  '.canvas-drop-zone-overlay',
-].join(', ');
 
 type BrowserLogger = {
   warn: (message: string, ...args: unknown[]) => void;
@@ -51,9 +52,8 @@ type WebviewBounds = {
 
 type BrowserWebviewPageLoadPayload = {
   label: string;
-  event: 'started' | 'finished';
   url: string;
-};
+} & ({ event: 'started' | 'finished' } | { event: 'failed'; error: string });
 
 export interface UseEmbeddedBrowserWebviewOptions {
   defaultUrl: string;
@@ -62,7 +62,12 @@ export interface UseEmbeddedBrowserWebviewOptions {
   labelPrefix: string;
   log: BrowserLogger;
   openRequestId?: string;
+  /** Native target retained by the session while this panel is unmounted. */
+  targetId?: string;
+  conversationId?: string;
+  /** Exact native page already created by the browser automation host. */
   webviewLabel?: string;
+  /** Adopt that pre-created page instead of creating another one. */
   adoptExisting?: boolean;
 }
 
@@ -208,6 +213,7 @@ async function createBrowserWebview(
   url: string,
   bounds: WebviewBounds,
   openRequestId?: string,
+  conversationId?: string,
 ): Promise<BrowserWebviewHandle> {
   await api.invoke('browser_webview_create', {
     request: {
@@ -218,13 +224,28 @@ async function createBrowserWebview(
       width: bounds.width,
       height: bounds.height,
       openRequestId,
+      conversationId,
     },
   });
   return createCommandBasedBrowserWebviewHandle(label, api.invoke as TauriInvoke);
 }
 
 export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOptions) {
-  const { defaultUrl, initialUrl, isVisible, labelPrefix, log, openRequestId, webviewLabel: existingWebviewLabel, adoptExisting } = options;
+  const {
+    defaultUrl,
+    initialUrl,
+    isVisible,
+    labelPrefix,
+    log,
+    openRequestId,
+    targetId: retainedTargetId,
+    conversationId,
+    webviewLabel: adoptedWebviewLabel,
+    adoptExisting,
+  } = options;
+  // A page created by the browser automation host is already owned elsewhere,
+  // so it keeps the same retention semantics as a session-owned target.
+  const targetId = retainedTargetId ?? (adoptExisting ? adoptedWebviewLabel : undefined);
   const isTauri = useMemo(() => isTauriEnvironment(), []);
   const startUrl = initialUrl ?? defaultUrl;
 
@@ -238,11 +259,16 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
   const lastBoundsRef = useRef<WebviewBounds | null>(null);
   const webviewLabelRef = useRef<string>('');
   const pageLoadUnlistenRef = useRef<(() => void) | null>(null);
+  const pageLoadWatchdogRef = useRef<number | null>(null);
+  const pageLoadSequenceRef = useRef(0);
   const activeRef = useRef(isVisible);
   activeRef.current = isVisible;
   const mountedRef = useRef(true);
+  const presentationRef = useRef<ReturnType<typeof claimBrowserPresentation> | null>(null);
+  const initializationRef = useRef<Promise<void> | null>(null);
   const toolbarSuspendedRef = useRef(false);
   const nativeVisibleRef = useRef(false);
+  const hostVisibleRef = useRef(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewBounds, setPreviewBounds] = useState<BrowserViewportBounds | null>(null);
   const preview = useMemo(() => new BrowserPreviewCache({
@@ -251,27 +277,38 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
     onFrame: setPreviewUrl,
     onError: previewError => log.warn('Browser preview unavailable; using the default placeholder', previewError),
   }), [log]);
-  const visibility = useMemo(() => createNativeWebviewVisibility(target => {
-    const viewport = viewportRef.current;
-    if (!mountedRef.current || !activeRef.current || toolbarSuspendedRef.current
-      || target !== webviewRef.current || !viewport?.isConnected) return false;
-    const rect = viewport.getBoundingClientRect();
-    // Keep the last valid geometry during transient layout swaps, but still
-    // check overlays against it rather than bypassing the visibility decision.
-    const last = lastBoundsRef.current;
-    const nativeBounds = last ? {
-      left: last.left, top: last.top,
-      right: last.left + last.width, bottom: last.top + last.height,
-    } : null;
-    const bounds = rect.width > 1 && rect.height > 1 ? rect : nativeBounds;
-    // A native update may still be applying while the DOM container moves.
-    return !!bounds && !hasNativeWebviewOccluder(viewport, bounds)
-      && (!nativeBounds || !hasNativeWebviewOccluder(viewport, nativeBounds));
-  }, (target, visible) => {
-    if (target !== webviewRef.current) return;
-    nativeVisibleRef.current = visible;
-    preview.setVisible(visible && document.visibilityState !== 'hidden');
-  }), [preview]);
+  const visibility = useMemo(() => {
+    const reconcile = createNativeWebviewVisibility(target => {
+      const viewport = viewportRef.current;
+      if (!mountedRef.current || (targetId && !presentationRef.current?.isCurrent())
+        || !hostVisibleRef.current || !activeRef.current || toolbarSuspendedRef.current
+        || target !== webviewRef.current || !viewport?.isConnected) return false;
+      const rect = viewport.getBoundingClientRect();
+      // Keep the last valid geometry during transient layout swaps, but still
+      // check overlays against it rather than bypassing the visibility decision.
+      const last = lastBoundsRef.current;
+      const nativeBounds = last ? {
+        left: last.left, top: last.top,
+        right: last.left + last.width, bottom: last.top + last.height,
+      } : null;
+      const bounds = rect.width > 1 && rect.height > 1 ? rect : nativeBounds;
+      // Bounds updates are debounced; the native view may still occupy its old
+      // rectangle after the DOM container has moved.
+      return !!bounds && !hasNativeWebviewOccluder(viewport, bounds, nativeBounds ?? undefined);
+    }, (target, visible) => {
+      if (target !== webviewRef.current) return;
+      nativeVisibleRef.current = visible;
+      preview.setVisible(visible && hostVisibleRef.current);
+    });
+    return (target: BrowserWebviewHandle, focus = false) => targetId
+      ? presentationRef.current?.run(() => reconcile(target, focus)) ?? Promise.resolve()
+      : reconcile(target, focus);
+  }, [preview, targetId]);
+
+  const updateAgentTargetState = useCallback((label: string) => {
+    const update = () => setAgentTargetState(label, mountedRef.current && activeRef.current, openRequestId);
+    return targetId ? presentationRef.current?.run(update) ?? Promise.resolve() : update();
+  }, [openRequestId, targetId]);
 
   const syncVisibility = useCallback(async (focus = false) => {
     const target = webviewRef.current;
@@ -284,6 +321,30 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
   const [pageLoadRevision, setPageLoadRevision] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [webviewLabel, setWebviewLabel] = useState('');
+
+  const clearPageLoadWatchdog = useCallback(() => {
+    if (pageLoadWatchdogRef.current !== null) {
+      window.clearTimeout(pageLoadWatchdogRef.current);
+      pageLoadWatchdogRef.current = null;
+    }
+  }, []);
+
+  // Command completion says nothing about the document still loading, so the
+  // loading state follows native and document lifecycle events instead of IPC round trips.
+  const markPageLoadStarted = useCallback(() => {
+    clearPageLoadWatchdog();
+    pageLoadSequenceRef.current += 1;
+    setIsLoading(true);
+    pageLoadWatchdogRef.current = window.setTimeout(() => {
+      pageLoadWatchdogRef.current = null;
+      setIsLoading(false);
+    }, WEBVIEW_PAGE_LOAD_WATCHDOG_MS);
+  }, [clearPageLoadWatchdog]);
+
+  const markPageLoadSettled = useCallback(() => {
+    clearPageLoadWatchdog();
+    setIsLoading(false);
+  }, [clearPageLoadWatchdog]);
 
   const readViewportBounds = useCallback((): WebviewBounds | null => {
     if (!viewportRef.current) return null;
@@ -309,7 +370,8 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
 
   const syncWebviewBounds = useCallback(async (handle?: BrowserWebviewHandle | null) => {
     const target = handle ?? webviewRef.current;
-    if (!isTauri || !target || !viewportRef.current) return;
+    if (!isTauri || !target || !viewportRef.current || !mountedRef.current
+      || (targetId && !presentationRef.current?.isCurrent())) return;
 
     const nextBounds = readViewportBounds();
     if (!nextBounds) {
@@ -327,7 +389,14 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
       if (!previous || previous.width !== nextBounds.width || previous.height !== nextBounds.height) {
         preview.invalidate();
       }
-      await setWebviewBounds(target.label, nextBounds);
+      if (targetId) {
+        await presentationRef.current?.run(async () => {
+          if (mountedRef.current) await setWebviewBounds(target.label, nextBounds);
+        });
+      } else {
+        await setWebviewBounds(target.label, nextBounds);
+      }
+      if (!mountedRef.current || (targetId && !presentationRef.current?.isCurrent())) return;
       lastBoundsRef.current = nextBounds;
       if (!previous || previous.width !== nextBounds.width || previous.height !== nextBounds.height) {
         preview.invalidate();
@@ -343,7 +412,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
     setPreviewBounds(current => current && current.left === relative.left && current.top === relative.top
       && current.width === relative.width && current.height === relative.height ? current : relative);
     await visibility(target);
-  }, [isTauri, preview, readViewportBounds, visibility]);
+  }, [isTauri, preview, readViewportBounds, targetId, visibility]);
 
   const closeWebview = useCallback(async (handle?: BrowserWebviewHandle | null) => {
     const target = handle ?? webviewRef.current;
@@ -376,16 +445,25 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
     pageLoadUnlistenRef.current = null;
 
     const { listen } = await import('@tauri-apps/api/event');
-    const unlisten = await listen<BrowserWebviewPageLoadPayload>(
+    const unlistenLoad = await listen<BrowserWebviewPageLoadPayload>(
       BROWSER_WEBVIEW_PAGE_LOAD_EVENT,
       ({ payload }) => {
-        if (!mountedRef.current || !payload || payload.label !== label) return;
+        if (!mountedRef.current || webviewLabelRef.current !== label || !payload || payload.label !== label) return;
         preview.invalidate();
+        if (payload.event === 'failed') {
+          // Readiness from the interrupted document cannot clear a failed load.
+          pageLoadSequenceRef.current += 1;
+          markPageLoadSettled();
+          setError(payload.error);
+          return;
+        }
+        setError(null);
         if (payload.event === 'started') {
-          setIsLoading(true);
+          markPageLoadStarted();
+          // The inspector re-applies its highlight overlay per loaded document.
           setPageLoadRevision(revision => revision + 1);
         } else {
-          setIsLoading(false);
+          markPageLoadSettled();
         }
         if (payload.url && payload.url !== currentUrlRef.current) {
           currentUrlRef.current = payload.url;
@@ -394,61 +472,52 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
           setError(null);
         }
         if (payload.event === 'finished') {
-          // Each loaded document needs the scripts, even when the URL stays
-          // the same after initial load or reload. Injection must not gate display.
+          // Each loaded document needs the scripts, even when the URL stays the
+          // same after initial load or reload. Injection must not gate display.
           void injectBrowserPageScripts(label).catch(injectionError => {
             log.warn('Inject browser page scripts failed', injectionError);
           });
         }
+        // Run even when the URL did not change (reload/same-URL history). A
+        // cached document can be ready without a matching native Finished.
+        // Probe only after a native commit/completion, never while a navigation
+        // command may still be showing the previous, already-complete document.
+        void evalWebview(label, createBrowserPageLifecycleScript(label, pageLoadSequenceRef.current)).catch(() => {});
       },
     );
-    if (!mountedRef.current) {
-      unlisten();
-      throw new Error('Browser surface disposed during listener registration');
+    try {
+      const unlistenReady = await listen<BrowserDocumentReadyPayload>(
+        BROWSER_WEBVIEW_DOCUMENT_READY_EVENT,
+        ({ payload }) => {
+          if (!mountedRef.current || webviewLabelRef.current !== label
+            || !payload || payload.label !== label || payload.sequence !== pageLoadSequenceRef.current) return;
+          markPageLoadSettled();
+          if (payload.url && payload.url !== currentUrlRef.current) {
+            preview.invalidate();
+            currentUrlRef.current = payload.url;
+            setInputValue(payload.url);
+            setCurrentUrl(payload.url);
+            setError(null);
+          }
+        },
+      );
+      if (!mountedRef.current || webviewLabelRef.current !== label) {
+        unlistenReady();
+        throw new Error('Browser surface disposed during page-load subscription');
+      }
+      pageLoadUnlistenRef.current = () => { unlistenLoad(); unlistenReady(); };
+    } catch (listenError) {
+      unlistenLoad();
+      throw listenError;
     }
-    pageLoadUnlistenRef.current = unlisten;
-  }, [log, preview]);
+  }, [log, markPageLoadSettled, markPageLoadStarted, preview]);
 
   const createWebview = useCallback(async (url: string) => {
     const previous = webviewRef.current;
     if (previous) await closeWebview(previous);
 
+    const { Webview } = await import('@tauri-apps/api/webview');
     const initialBounds = await waitForViewportBounds();
-    if (adoptExisting) {
-      if (!existingWebviewLabel) throw new Error('Browser adoption requires an exact native WebView label');
-      // Attach to the host-created page without creating or navigating it:
-      // navigation here would race automation and discard filled form state.
-      try {
-        await startPageLoadListener(existingWebviewLabel);
-        await setWebviewBounds(existingWebviewLabel, initialBounds);
-      } catch (adoptionError) {
-        pageLoadUnlistenRef.current?.();
-        pageLoadUnlistenRef.current = null;
-        throw adoptionError;
-      }
-      const handle = createCommandBasedBrowserWebviewHandle(existingWebviewLabel, api.invoke as TauriInvoke);
-      if (!mountedRef.current) {
-        await handle.hide();
-        throw new Error('Browser surface disposed during webview adoption');
-      }
-      webviewRef.current = handle;
-      webviewLabelRef.current = existingWebviewLabel;
-      setWebviewLabel(existingWebviewLabel);
-      preview.setTarget(existingWebviewLabel);
-      lastBoundsRef.current = initialBounds;
-      // The host may have navigated while this project's surface was unmounted.
-      // Read its current location without resetting form or login state.
-      const adoptedUrl = await api.invoke<string>('browser_get_url', { request: { label: existingWebviewLabel } });
-      if (adoptedUrl && mountedRef.current && handle === webviewRef.current) {
-        currentUrlRef.current = adoptedUrl;
-        setInputValue(adoptedUrl);
-        setCurrentUrl(adoptedUrl);
-      }
-      void injectBrowserPageScripts(existingWebviewLabel).catch(injectionError => {
-        log.warn('Inject browser page scripts failed', injectionError);
-      });
-      return handle;
-    }
     let lastError: unknown = null;
 
     for (let attempt = 0; attempt < WEBVIEW_CREATE_RETRY_DELAYS_MS.length; attempt += 1) {
@@ -461,7 +530,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
       webviewLabelRef.current = label;
       setWebviewLabel(label);
       try {
-        // Native page-load events can arrive before the create command returns.
+        // Fast or cached pages can finish before the creation command returns.
         await startPageLoadListener(label);
         const handle = await createBrowserWebview(label, url, initialBounds, openRequestId);
         if (!mountedRef.current) {
@@ -476,9 +545,8 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
         lastError = creationError;
         pageLoadUnlistenRef.current?.();
         pageLoadUnlistenRef.current = null;
-        // Clean up any partially-created webview via the command path; it
-        // works on both desktop (Tauri child webview) and OHOS (ArkUI Web node).
-        await api.invoke('browser_webview_close', { request: { label } }).catch(() => {});
+        const staleHandle = await Webview.getByLabel(label).catch(() => null);
+        await staleHandle?.close().catch(() => {});
         if (!isTransientWebviewCreationError(creationError)
           || attempt === WEBVIEW_CREATE_RETRY_DELAYS_MS.length - 1) {
           throw creationError;
@@ -491,7 +559,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
     }
 
     throw lastError;
-  }, [adoptExisting, closeWebview, existingWebviewLabel, labelPrefix, log, openRequestId, preview, startPageLoadListener, waitForViewportBounds]);
+  }, [closeWebview, labelPrefix, log, openRequestId, preview, startPageLoadListener, waitForViewportBounds]);
 
   const navigateExistingWebview = useCallback(async (url: string): Promise<boolean> => {
     const label = webviewLabelRef.current;
@@ -513,41 +581,41 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
     setCurrentUrl(nextUrl);
     currentUrlRef.current = nextUrl;
     setError(null);
-    setIsLoading(true);
+    markPageLoadStarted();
 
     if (!isTauri) {
-      setIsLoading(false);
+      markPageLoadSettled();
       return;
     }
 
     try {
       // A host-created blank page is already loaded and is about to be
-      // adopted, not navigated. Manual navigation still accepts only http(s).
-      const adoptingBlankPage = adoptExisting && existingWebviewLabel
-        && !webviewRef.current && nextUrl === 'about:blank';
+      // attached, not navigated. Manual navigation still accepts only http(s).
+      const adoptingBlankPage = targetId && !webviewRef.current && nextUrl === 'about:blank';
       if (!adoptingBlankPage) validateUrl(nextUrl);
       let handle = webviewRef.current;
       if (!handle) {
+        if (targetId) throw new Error(`Webview not found: ${targetId}`);
         handle = await createWebview(nextUrl);
       } else {
         const navigated = await navigateExistingWebview(nextUrl);
         if (!navigated) {
+          if (targetId) throw new Error(`Session browser navigation failed: ${targetId}`);
           handle = await createWebview(nextUrl);
         }
       }
       await syncWebviewBounds(handle);
       await visibility(handle);
       if (mountedRef.current && handle === webviewRef.current) {
-        await setAgentTargetState(handle.label, activeRef.current, openRequestId);
+        await updateAgentTargetState(handle.label);
       }
     } catch (loadError) {
       const message = formatUnknownError(loadError);
       log.error('Load browser url failed', loadError);
       setError(message);
-    } finally {
-      setIsLoading(false);
+      markPageLoadSettled();
     }
-  }, [adoptExisting, createWebview, defaultUrl, existingWebviewLabel, isTauri, log, navigateExistingWebview, openRequestId, preview, syncWebviewBounds, visibility]);
+  }, [createWebview, defaultUrl, isTauri, log, markPageLoadSettled, markPageLoadStarted, navigateExistingWebview, preview, syncWebviewBounds, targetId, updateAgentTargetState, visibility]);
 
   const queueSync = useCallback(() => {
     resizeSyncPendingRef.current = true;
@@ -573,9 +641,72 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
   useEffect(() => {
     if (!isTauri) return;
     if (isVisible && !webviewRef.current) {
-      void loadUrl(currentUrlRef.current).catch(loadError => {
+      if (initializationRef.current) return;
+      const initialize = async () => {
+        if (adoptExisting && !targetId) {
+          // Dropping the identity here would display a second, empty page while
+          // the automation host keeps editing the hidden original.
+          throw new Error('Browser adoption requires an exact native WebView label');
+        }
+        if (!targetId) {
+          await loadUrl(currentUrlRef.current);
+          return;
+        }
+        const { Webview } = await import('@tauri-apps/api/webview');
+        if (!mountedRef.current) return;
+        const presentation = claimBrowserPresentation(targetId);
+        presentationRef.current = presentation;
+        webviewLabelRef.current = targetId;
+        setWebviewLabel(targetId);
+        await startPageLoadListener(targetId);
+        let handle: BrowserWebviewHandle | null = null;
+        await presentation.run(async () => {
+          handle = await Webview.getByLabel(targetId) as unknown as BrowserWebviewHandle | null;
+          if (!mountedRef.current || !presentation.isCurrent()) return;
+          if (handle) return;
+          if (!openRequestId && conversationId && !adoptExisting) {
+            // Serialize first creation across rapid unmount/remount. A new
+            // panel waits for an in-flight creation and attaches the same page.
+            handle = await createBrowserWebview(targetId, currentUrlRef.current,
+              { left: -10000, top: -10000, width: 1024, height: 768 }, undefined, conversationId);
+            return;
+          }
+          if (adoptExisting) {
+            // The automation host owns the page and may have created it through
+            // the command path (ArkUI on OHOS), which Tauri's registry cannot see.
+            handle = createCommandBasedBrowserWebviewHandle(targetId, api.invoke as TauriInvoke);
+          }
+        });
+        if (!mountedRef.current || !presentation.isCurrent()) return;
+        if (!handle) throw new Error(`Webview not found: ${targetId}`);
+        webviewRef.current = handle;
+        preview.setTarget(targetId);
+        // Presentation does not depend on a committed URL or readable document.
+        await syncWebviewBounds(handle);
+        await visibility(handle);
+        await updateAgentTargetState(targetId);
+        // Reattach the live document. Never reload the original URL on a session switch.
+        const url = await api.invoke<string>('browser_get_url', { request: { label: targetId } });
+        if (!mountedRef.current || !presentationRef.current.isCurrent()) return;
+        if (!url) {
+          // Wait for native commit before probing readiness: the initial blank
+          // document can be complete while the requested page is still pending.
+          markPageLoadStarted();
+          return;
+        }
+        currentUrlRef.current = url;
+        setCurrentUrl(url);
+        setInputValue(url);
+        await evalWebview(targetId, createBrowserPageLifecycleScript(targetId, pageLoadSequenceRef.current));
+        // Re-attaching must not wait for script injection either.
+        void injectBrowserPageScripts(targetId).catch(injectionError => {
+          log.warn('Inject browser page scripts failed', injectionError);
+        });
+      };
+      initializationRef.current = initialize().catch(loadError => {
         log.warn('Restore browser webview failed', loadError);
-      });
+        if (mountedRef.current) setError(formatUnknownError(loadError));
+      }).finally(() => { initializationRef.current = null; });
       return;
     }
     const handle = webviewRef.current;
@@ -584,10 +715,10 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
       if (activeRef.current) await syncWebviewBounds(handle);
       await visibility(handle, isVisible);
       if (mountedRef.current && handle === webviewRef.current) {
-        await setAgentTargetState(handle.label, activeRef.current, openRequestId);
+        await updateAgentTargetState(handle.label);
       }
     })().catch(syncError => log.warn('Update browser webview visibility failed', syncError));
-  }, [isTauri, isVisible, loadUrl, log, openRequestId, syncWebviewBounds, visibility]);
+  }, [adoptExisting, conversationId, isTauri, isVisible, loadUrl, log, markPageLoadStarted, openRequestId, preview, startPageLoadListener, syncWebviewBounds, targetId, updateAgentTargetState, visibility]);
 
   useEffect(() => {
     if (!isTauri) return;
@@ -617,14 +748,24 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
   useEffect(() => {
     mountedRef.current = true;
     preview.resume();
-    const handleDocumentVisibility = () => preview.setVisible(nativeVisibleRef.current && document.visibilityState !== 'hidden');
-    document.addEventListener('visibilitychange', handleDocumentVisibility);
+    const stopObservingWindow = observeCurrentWindowVisibility(visible => {
+      hostVisibleRef.current = visible;
+      // Stop scheduling immediately; native hide may wait for a pending show.
+      if (!visible) preview.setVisible(false);
+      const handle = webviewRef.current;
+      if (handle) void visibility(handle).then(() => {
+        preview.setVisible(hostVisibleRef.current && nativeVisibleRef.current);
+      }).catch(syncError => {
+        log.warn('Update browser webview host visibility failed', syncError);
+      });
+    }, windowError => log.warn('Read browser host window visibility failed', windowError));
     return () => {
       mountedRef.current = false;
       preview.dispose();
-      document.removeEventListener('visibilitychange', handleDocumentVisibility);
+      stopObservingWindow();
       pageLoadUnlistenRef.current?.();
       pageLoadUnlistenRef.current = null;
+      clearPageLoadWatchdog();
       if (resizeFrameRef.current !== null) {
         window.cancelAnimationFrame(resizeFrameRef.current);
         resizeFrameRef.current = null;
@@ -632,54 +773,41 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
       resizeSyncPendingRef.current = false;
       const handle = webviewRef.current;
       if (handle) {
-        // Adopted pages belong to the browser host/Agent session. Project and
-        // scene switches unmount this presentation but must preserve the page.
-        void visibility(handle).catch(() => {}).then(async () => {
-          if (adoptExisting) {
-            await setAgentTargetState(handle.label, false).catch(() => {});
-          } else {
-            await closeWebview(handle);
-          }
-        });
+        // Drain pending presentation calls before hiding or closing the view.
+        if (targetId) {
+          const presentation = presentationRef.current;
+          void visibility(handle).catch(() => {})
+            .then(() => presentation?.run(() => setAgentTargetState(handle.label, false)))
+            .catch(hideError => log.warn('Hide session browser failed', hideError))
+            .finally(() => presentation?.release());
+        } else {
+          void visibility(handle).catch(() => {}).then(() => closeWebview(handle));
+        }
+      } else {
+        presentationRef.current?.release();
       }
     };
-  }, [adoptExisting, closeWebview, preview, visibility]);
+  }, [clearPageLoadWatchdog, closeWebview, log, preview, targetId, visibility]);
 
   useEffect(() => {
-    if (!isTauri) return;
+    if (!isTauri || !isVisible) return;
     const viewport = viewportRef.current;
     if (!viewport) return;
-    const doc = viewport.ownerDocument;
     const update = () => {
       void syncVisibility().catch(syncError => {
         log.warn('Update browser webview occlusion failed', syncError);
       });
     };
-    const observed = new Set<Element>();
-    const resizeObserver = new ResizeObserver(update);
-    resizeObserver.observe(viewport);
-    const checkOverlays = () => {
-      const overlays = new Set(doc.querySelectorAll(BROWSER_WEBVIEW_BLOCKING_OVERLAY_SELECTOR));
-      for (const element of observed) {
-        if (!overlays.has(element)) {
-          resizeObserver.unobserve(element);
-          observed.delete(element);
-        }
-      }
-      for (const element of overlays) {
-        if (!observed.has(element)) {
-          resizeObserver.observe(element);
-          observed.add(element);
-        }
-      }
-      update();
+    return observeNativeWebviewOcclusion(viewport, update);
+  }, [isTauri, isVisible, log, syncVisibility]);
+
+  useEffect(() => {
+    if (!isTauri) return;
+    const update = () => {
+      void syncVisibility().catch(syncError => {
+        log.warn('Update browser webview occlusion failed', syncError);
+      });
     };
-    const observer = new MutationObserver(checkOverlays);
-    observer.observe(doc.body, {
-      childList: true, subtree: true, attributes: true,
-      attributeFilter: ['style', 'class', 'hidden', 'data-state', 'data-bitfun-state', 'data-bitfun-native-webview-occlusion'],
-    });
-    checkOverlays();
     const handleToolbarActivating = () => {
       toolbarSuspendedRef.current = true;
       update();
@@ -690,19 +818,9 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
     };
     window.addEventListener('toolbar-mode-activating', handleToolbarActivating);
     window.addEventListener('toolbar-mode-activation-finished', handleToolbarSettled);
-    doc.addEventListener('scroll', update, true);
-    window.addEventListener('resize', update);
-    doc.addEventListener('transitionend', update, true);
-    doc.addEventListener('animationend', update, true);
     return () => {
-      observer.disconnect();
-      resizeObserver.disconnect();
       window.removeEventListener('toolbar-mode-activating', handleToolbarActivating);
       window.removeEventListener('toolbar-mode-activation-finished', handleToolbarSettled);
-      doc.removeEventListener('scroll', update, true);
-      window.removeEventListener('resize', update);
-      doc.removeEventListener('transitionend', update, true);
-      doc.removeEventListener('animationend', update, true);
     };
   }, [isTauri, log, syncVisibility]);
 
@@ -723,8 +841,27 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
   const reload = useCallback(() => {
     const label = webviewLabelRef.current;
     if (!isTauri || !label) return;
-    void reloadWebview(label).catch(() => {});
-  }, [isTauri]);
+    markPageLoadStarted();
+    const sequence = pageLoadSequenceRef.current;
+    void reloadWebview(label).catch(() => {
+      if (mountedRef.current && sequence === pageLoadSequenceRef.current) markPageLoadSettled();
+    });
+  }, [isTauri, markPageLoadSettled, markPageLoadStarted]);
+
+  // Ask the page loader to stop through the existing controller-local command.
+  const stopLoading = useCallback(() => {
+    const sequence = pageLoadSequenceRef.current;
+    void evalInWebview('window.stop()').then(() => {
+      if (!mountedRef.current || sequence !== pageLoadSequenceRef.current) return;
+      setError(null);
+      markPageLoadSettled();
+    }).catch(stopError => {
+      log.warn('Stop browser page load failed', stopError);
+      if (mountedRef.current && sequence === pageLoadSequenceRef.current) {
+        setError(formatUnknownError(stopError));
+      }
+    });
+  }, [evalInWebview, log, markPageLoadSettled]);
 
   const getWebviewLabel = useCallback(() => webviewLabelRef.current, []);
   const getCurrentUrl = useCallback(() => currentUrlRef.current, []);
@@ -748,6 +885,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
     previewBounds,
     reload,
     setInputValue,
+    stopLoading,
     viewportRef,
     webviewLabel,
   }), [
@@ -767,6 +905,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
     previewUrl,
     previewBounds,
     reload,
+    stopLoading,
     viewportRef,
     webviewLabel,
   ]);

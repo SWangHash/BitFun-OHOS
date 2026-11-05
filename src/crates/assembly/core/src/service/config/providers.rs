@@ -4,12 +4,6 @@
 //! and change handling.
 
 use super::types::*;
-#[cfg(feature = "ai-adapter-runtime")]
-use crate::infrastructure::ai::reasoning_catalog::{
-    load_models_dev_reasoning_catalog_without_refresh, project_model_reasoning_catalog,
-};
-#[cfg(feature = "ai-adapter-runtime")]
-use crate::infrastructure::ai::AIClient;
 use crate::util::errors::*;
 use async_trait::async_trait;
 #[cfg(any(feature = "ai-adapter-runtime", test))]
@@ -44,6 +38,8 @@ fn ai_validation_error_location(message: &str) -> (String, String) {
         Some(("context_window", "MODEL_CONTEXT_WINDOW_INVALID"))
     } else if message.contains("max_tokens") {
         Some(("max_tokens", "MODEL_MAX_TOKENS_INVALID"))
+    } else if message.contains("max_images_per_request") {
+        Some(("max_images_per_request", "MODEL_MAX_IMAGES_INVALID"))
     } else if message.contains("temperature") {
         Some(("temperature", "MODEL_TEMPERATURE_INVALID"))
     } else if message.contains("top_p") {
@@ -380,36 +376,41 @@ impl AIConfigProvider {
                 crate::service::config::types::TaskModelSelection::Fixed { .. } => {}
             }
 
-            let validate_agent_selection = |path: &str,
-                                            selection: &SubagentModelSelection|
-             -> BitFunResult<()> {
-                if selection
-                    .fixed_model_id()
-                    .is_some_and(|model_id| !valid_task_model(model_id))
-                {
-                    return Err(BitFunError::validation(format!(
+            if ai_config.agent_model_selections.is_none() {
+                let validate_agent_selection = |path: &str,
+                                                selection: &SubagentModelSelection|
+                 -> BitFunResult<()> {
+                    if selection
+                        .fixed_model_id()
+                        .is_some_and(|model_id| !valid_task_model(model_id))
+                    {
+                        return Err(BitFunError::validation(format!(
                             "ai.agent_model_defaults.{path} references unavailable or incapable model '{}'",
                             selection.fixed_model_id().expect("checked above")
                         )));
-                }
-                Ok(())
-            };
-            if !valid_task_model(&ai_config.agent_model_defaults.mode) {
-                return Err(BitFunError::validation(format!(
+                    }
+                    Ok(())
+                };
+                if !valid_task_model(&ai_config.agent_model_defaults.mode) {
+                    return Err(BitFunError::validation(format!(
                     "ai.agent_model_defaults.mode references unavailable or incapable model '{}'",
                     ai_config.agent_model_defaults.mode
                 )));
-            }
-            validate_agent_selection(
-                "subagents.default",
-                &ai_config.agent_model_defaults.subagents.default_selection,
-            )?;
-            validate_agent_selection(
-                "subagents.fork",
-                &ai_config.agent_model_defaults.subagents.fork,
-            )?;
-            for (subagent_id, selection) in &ai_config.agent_model_defaults.subagents.builtin {
-                validate_agent_selection(&format!("subagents.builtin.{subagent_id}"), selection)?;
+                }
+                validate_agent_selection(
+                    "subagents.default",
+                    &ai_config.agent_model_defaults.subagents.default_selection,
+                )?;
+                validate_agent_selection(
+                    "subagents.fork",
+                    &ai_config.agent_model_defaults.subagents.fork,
+                )?;
+                for (subagent_id, selection) in &ai_config.agent_model_defaults.subagents.builtin {
+                    validate_agent_selection(
+                        &format!("subagents.builtin.{subagent_id}"),
+                        selection,
+                    )?;
+                }
             }
         } else {
             return Err(BitFunError::validation(
@@ -737,6 +738,90 @@ impl ConfigProvider for AppConfigProvider {
     }
 }
 
+/// Media (image generation) service configuration provider.
+pub struct MediaConfigProvider;
+
+#[async_trait]
+impl ConfigProvider for MediaConfigProvider {
+    fn name(&self) -> &str {
+        "media"
+    }
+
+    fn get_default_config(&self) -> serde_json::Value {
+        serialize_default_config("media", MediaConfig::default())
+    }
+
+    async fn validate_config(&self, config: &serde_json::Value) -> BitFunResult<Vec<String>> {
+        let media = match serde_json::from_value::<MediaConfig>(config.clone()) {
+            Ok(media) => media,
+            Err(err) => {
+                return Err(BitFunError::validation(format!(
+                    "Invalid media config format: {}",
+                    err
+                )))
+            }
+        };
+
+        let mut warnings = Vec::new();
+        for (index, service) in media.image_services.iter().enumerate() {
+            if service.id.trim().is_empty() {
+                return Err(BitFunError::validation(format!(
+                    "media.image_services[{index}]: service id is required"
+                )));
+            }
+            if !service.enabled {
+                continue;
+            }
+            // The subscription dialect discovers its model from the account's
+            // catalog, so an empty field there is a supported choice.
+            if service.model_name.trim().is_empty() && !service.dialect.requires_subscription() {
+                warnings.push(format!(
+                    "media.image_services[{index}]: model name is empty"
+                ));
+            }
+            if service.base_url.trim().is_empty()
+                && service.request_url.is_none()
+                && !matches!(service.auth, AuthConfig::Subscription { .. })
+            {
+                warnings.push(format!("media.image_services[{index}]: base url is empty"));
+            }
+            let max_images = service.dialect.max_images_per_request();
+            if let Some(n) = service.params.n {
+                if n == 0 || n > max_images {
+                    warnings.push(format!(
+                        "media.image_services[{index}]: n must be between 1 and {max_images}"
+                    ));
+                }
+            }
+        }
+
+        if let Some(default_id) = media.default_image_service.as_deref() {
+            if media.enabled_image_service(default_id).is_none() {
+                warnings.push(format!(
+                    "media.default_image_service: '{default_id}' is not an enabled image service"
+                ));
+            }
+        }
+
+        Ok(warnings)
+    }
+
+    async fn on_config_changed(
+        &self,
+        _old_config: &serde_json::Value,
+        new_config: &serde_json::Value,
+    ) -> BitFunResult<()> {
+        if let Ok(media) = serde_json::from_value::<MediaConfig>(new_config.clone()) {
+            info!(
+                "Media config changed: image_services={}, default_image_service={:?}",
+                media.image_services.len(),
+                media.default_image_service
+            );
+        }
+        Ok(())
+    }
+}
+
 /// Configuration provider registry.
 pub struct ConfigProviderRegistry {
     providers: HashMap<String, Box<dyn ConfigProvider>>,
@@ -763,6 +848,7 @@ impl ConfigProviderRegistry {
         registry.register(Box::new(TerminalConfigProvider));
         registry.register(Box::new(WorkspaceConfigProvider));
         registry.register(Box::new(AppConfigProvider));
+        registry.register(Box::new(MediaConfigProvider));
 
         registry
     }
@@ -836,7 +922,15 @@ impl ConfigProviderRegistry {
         let mut warnings = Vec::new();
         let catalog_judged = write_path.is_none_or(write_path_commits_ai_section);
 
-        for provider_name in ["ai", "appearance", "editor", "terminal", "workspace", "app"] {
+        for provider_name in [
+            "ai",
+            "appearance",
+            "editor",
+            "terminal",
+            "workspace",
+            "app",
+            "media",
+        ] {
             let Some(provider) = self.get_provider(provider_name) else {
                 continue;
             };
@@ -937,6 +1031,7 @@ impl ConfigProviderRegistry {
             "terminal" => Ok(serde_json::to_value(&config.terminal)?),
             "workspace" => Ok(serde_json::to_value(&config.workspace)?),
             "ai" => Ok(serde_json::to_value(&config.ai)?),
+            "media" => Ok(serde_json::to_value(&config.media)?),
             _ => Err(BitFunError::validation(format!(
                 "Unknown config section: {}",
                 section
@@ -1069,6 +1164,25 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn registry_reports_image_budget_validation_path() {
+        let mut config = GlobalConfig::default();
+        config.ai.models.push(AIModelConfig {
+            id: "limited".into(),
+            name: "Limited vision".into(),
+            provider: "openai".into(),
+            enabled: true,
+            max_images_per_request: Some(0),
+            ..AIModelConfig::default()
+        });
+        let result = ConfigProviderRegistry::new()
+            .validate_config(&config)
+            .await
+            .unwrap();
+        assert_eq!(result.errors[0].path, "ai.models[0].max_images_per_request");
+        assert_eq!(result.errors[0].code, "MODEL_MAX_IMAGES_INVALID");
+    }
+
+    #[tokio::test]
     async fn rejects_default_and_agent_references_to_incapable_models() {
         let mut config = AIConfig::default();
         config.models.push(AIModelConfig {
@@ -1127,26 +1241,28 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "ai-adapter-runtime")]
     #[tokio::test]
-    async fn rejects_reasoning_actions_unsupported_by_the_configured_target() {
-        let error = validate_reasoning(ReasoningConfig {
-            catalog: ReasoningCatalogBinding::Disabled,
-            default_preset: Some("on".to_string()),
+    async fn accepts_structurally_valid_reasoning_without_adapter_capability() {
+        validate_reasoning(ReasoningConfig {
+            catalog: ReasoningCatalogBinding::ModelsDev {
+                provider: "unknown-gateway".to_string(),
+                model: "unknown-model".to_string(),
+            },
+            default_preset: Some("vendor-xhigh".to_string()),
             presets: vec![ReasoningPreset {
-                id: "on".to_string(),
-                actions: vec![ReasoningPresetAction::Toggle { enabled: true }],
+                id: "vendor-xhigh".to_string(),
+                actions: vec![ReasoningPresetAction::Effort {
+                    value: "xhigh".to_string(),
+                }],
                 ..ReasoningPreset::default()
             }],
         })
         .await
-        .expect_err("Responses must reject a generic toggle action");
-
-        assert!(error.to_string().contains("unsupported"), "{error}");
+        .expect("adapter capability must not block a structurally valid config");
     }
 
     #[tokio::test]
-    async fn rejects_duplicate_and_unavailable_default_presets() {
+    async fn rejects_duplicate_but_preserves_unresolved_default_presets() {
         let duplicate = validate_reasoning(ReasoningConfig {
             presets: vec![
                 ReasoningPreset {
@@ -1166,16 +1282,13 @@ mod tests {
         .expect_err("duplicate preset IDs must be rejected");
         assert!(duplicate.to_string().contains("duplicate preset ID 'same'"));
 
-        let unavailable = validate_reasoning(ReasoningConfig {
+        validate_reasoning(ReasoningConfig {
             catalog: ReasoningCatalogBinding::Disabled,
             default_preset: Some("missing".to_string()),
             ..ReasoningConfig::default()
         })
         .await
-        .expect_err("missing default preset must be rejected");
-        assert!(unavailable
-            .to_string()
-            .contains("default preset 'missing' is not available"));
+        .expect("unresolved defaults must remain saveable");
     }
 
     #[cfg(feature = "ai-adapter-runtime")]
@@ -1321,5 +1434,120 @@ mod tests {
             .await
             .expect("registry validation result");
         assert!(validation.valid, "{:?}", validation.errors);
+    }
+
+    fn image_service(id: &str, enabled: bool) -> ImageServiceConfig {
+        ImageServiceConfig {
+            id: id.to_string(),
+            name: id.to_string(),
+            dialect: ImageDialect::OpenAiImages,
+            base_url: "https://api.openai.com/v1".to_string(),
+            model_name: "gpt-image-1".to_string(),
+            api_key: "sk-test".to_string(),
+            enabled,
+            ..ImageServiceConfig::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn media_validation_accepts_a_subscription_service_without_a_base_url() {
+        let mut service = image_service("svc-a", true);
+        service.base_url = String::new();
+        service.api_key = String::new();
+        service.auth = AuthConfig::Subscription {
+            provider: SubscriptionProvider::Codex,
+            plan: None,
+            account_id: None,
+        };
+        let mut config = GlobalConfig::default();
+        config.media.image_services.push(service);
+        config.media.default_image_service = Some("svc-a".to_string());
+
+        let validation = ConfigProviderRegistry::new()
+            .validate_config(&config)
+            .await
+            .expect("registry validation result");
+
+        assert!(validation.valid, "{:?}", validation.errors);
+        assert!(validation.warnings.is_empty(), "{:?}", validation.warnings);
+    }
+
+    #[tokio::test]
+    async fn media_validation_accepts_a_clean_section() {
+        let mut config = GlobalConfig::default();
+        config
+            .media
+            .image_services
+            .push(image_service("svc-a", true));
+        config.media.default_image_service = Some("svc-a".to_string());
+
+        let validation = ConfigProviderRegistry::new()
+            .validate_config(&config)
+            .await
+            .expect("registry validation result");
+
+        assert!(validation.valid, "{:?}", validation.errors);
+        assert!(validation.warnings.is_empty(), "{:?}", validation.warnings);
+    }
+
+    #[tokio::test]
+    async fn media_validation_rejects_a_service_without_an_id() {
+        let mut config = GlobalConfig::default();
+        config.media.image_services.push(image_service("", true));
+
+        let validation = ConfigProviderRegistry::new()
+            .validate_config(&config)
+            .await
+            .expect("registry validation result");
+
+        assert!(!validation.valid);
+        assert_eq!(validation.errors[0].path, "media");
+        assert!(validation.errors[0]
+            .message
+            .contains("service id is required"));
+    }
+
+    #[tokio::test]
+    async fn media_validation_warns_on_a_dangling_default_pointer() {
+        let mut config = GlobalConfig::default();
+        config
+            .media
+            .image_services
+            .push(image_service("svc-a", false));
+        config.media.default_image_service = Some("missing".to_string());
+
+        let validation = ConfigProviderRegistry::new()
+            .validate_config(&config)
+            .await
+            .expect("registry validation result");
+
+        assert!(validation.valid, "{:?}", validation.errors);
+        assert!(validation
+            .warnings
+            .iter()
+            .any(|warning| warning.message.contains("default_image_service")));
+    }
+
+    #[tokio::test]
+    async fn media_validation_warns_on_an_out_of_range_image_count() {
+        let mut config = GlobalConfig::default();
+        config.media.image_services.push(ImageServiceConfig {
+            params: ImageGenerationParams {
+                n: Some(MAX_IMAGES_PER_GENERATION_REQUEST + 1),
+                ..ImageGenerationParams::default()
+            },
+            ..image_service("svc-a", true)
+        });
+
+        let validation = ConfigProviderRegistry::new()
+            .validate_config(&config)
+            .await
+            .expect("registry validation result");
+
+        assert!(validation.valid);
+        assert!(validation
+            .warnings
+            .iter()
+            .any(|warning| warning.message.contains("n must be between")));
     }
 }

@@ -1,0 +1,72 @@
+.miniapp-titlebar {
+  display: flex;
+  align-items: center;
+  gap: var(--bitfun-space-2);
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  height: var(--bitfun-layout-toolbar-md-height);
+  min-width: 0;
+  padding-inline: var(--bitfun-space-2);
+  border-bottom: 1px solid var(--bitfun-color-border-subtle);
+  background: var(--bitfun-color-surface-scene);
+  color: var(--bitfun-color-content-primary);
+  font-family: var(--bitfun-type-label-sm-font-family);
+  font-size: var(--bitfun-type-label-sm-font-size);
+  font-weight: var(--bitfun-type-label-sm-font-weight);
+  user-select: none;
+}
+.miniapp-titlebar[data-density='compact'] { height: 32px; }
+/* Match the main window's native traffic-light inset and toolbar height. */
+.miniapp-titlebar[data-platform='macos'] { height: var(--bitfun-layout-toolbar-md-height); padding-left: 78px; }
+.miniapp-titlebar[data-platform='macos'][data-fullscreen='true'] { padding-left: var(--bitfun-space-2); }
+.miniapp-titlebar[data-platform='windows'] { padding-right: 0; }
+.miniapp-titlebar[data-surface='surface-canvas'] { background: var(--bitfun-color-surface-canvas); }
+.miniapp-titlebar[data-surface='surface-raised'] { background: var(--bitfun-color-surface-raised); }
+.miniapp-titlebar[data-surface='surface-subtle'] { background: var(--bitfun-color-surface-subtle); }
+.miniapp-titlebar[data-foreground='content-secondary'] { color: var(--bitfun-color-content-secondary); }
+.miniapp-titlebar[data-foreground='content-muted'] { color: var(--bitfun-color-content-muted); }
+.miniapp-titlebar[data-border='border-default'] { border-color: var(--bitfun-color-border-default); }
+.miniapp-titlebar[data-border='border-strong'] { border-color: var(--bitfun-color-border-strong); }
+.miniapp-titlebar__identity {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--bitfun-space-2);
+  min-width: 0;
+  align-self: stretch;
+}
+.miniapp-titlebar[data-title-alignment='center'] .miniapp-titlebar__identity { justify-content: center; }
+.miniapp-titlebar__title {
+  font-family: var(--bitfun-type-heading-navigation-font-family);
+  font-size: var(--bitfun-type-heading-navigation-font-size);
+  font-weight: var(--bitfun-type-heading-navigation-font-weight);
+  line-height: var(--bitfun-type-heading-navigation-line-height);
+  letter-spacing: var(--bitfun-type-heading-navigation-letter-spacing);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.miniapp-titlebar__glyph { display: inline-flex; flex: 0 0 auto; pointer-events: none; }
+.miniapp-titlebar__glyph svg { width: 16px; height: 16px; }
+.miniapp-titlebar__actions { display: flex; align-items: center; gap: var(--bitfun-space-1); flex: 0 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.miniapp-titlebar__transfer { flex: 0 0 auto; }
+.miniapp-titlebar__controls .miniapp-titlebar__glyph svg { width: 10px; height: 10px; }
+.miniapp-titlebar__controls.window-controls--windows { align-self: stretch; }
+.miniapp-titlebar__controls.window-controls--windows .miniapp-titlebar__glyph svg { width: 12px; height: 12px; }
+.miniapp-titlebar__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--bitfun-radius-base);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.miniapp-titlebar[data-button-shape='square'] .miniapp-titlebar__button { border-radius: 0; }
+.miniapp-titlebar__button:hover:not(:disabled) { background: var(--bitfun-color-action-neutral-surface-hover); }
+.miniapp-titlebar__button:focus-visible { outline: 2px solid var(--bitfun-color-accent-default); outline-offset: -2px; }
+.miniapp-titlebar__button:disabled { opacity: .5; cursor: default; }

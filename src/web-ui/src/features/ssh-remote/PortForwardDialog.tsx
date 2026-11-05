@@ -2,7 +2,9 @@ import { desktopDomainErrorMessage } from '@/shared/ai-errors/desktopDomainError
 /**
  * Remote Port Forwarding Dialog
  *
- * Manual mappings only: a forward exists because the user asked for it.
+ * A forward exists because the user asked for it: either here, or by
+ * Ctrl/Cmd+clicking a loopback link in a remote terminal (`openTerminalLink`),
+ * which lands in the same list. Nothing is forwarded in the background.
  *
  * Detection runs on open, though — knowing what the remote is listening on is
  * not the same as forwarding it, and making people type a port number they

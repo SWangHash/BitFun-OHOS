@@ -12,7 +12,6 @@ use crate::miniapp::types::{
 };
 use crate::product_domain_runtime::CoreProductDomainRuntime;
 use crate::util::errors::{BitFunError, BitFunResult};
-use chrono::Utc;
 use bitfun_product_domains::miniapp::customization::{
     MiniAppCustomizationBaseline, MiniAppCustomizationMetadata, MiniAppPermissionDiff,
 };
@@ -25,6 +24,7 @@ use bitfun_product_domains::miniapp::ports::{
     MiniAppCompilePort, MiniAppImportFromPathRequest, MiniAppPortError, MiniAppPortErrorKind,
     MiniAppPortFuture, MiniAppRuntimeFacade,
 };
+use chrono::Utc;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
@@ -170,28 +170,39 @@ impl MiniAppManager {
         ai_context: Option<MiniAppAiContext>,
         workspace_root: Option<&Path>,
     ) -> BitFunResult<MiniApp> {
+        self.create_with_input(
+            MiniAppCreateInput {
+                name,
+                description,
+                icon,
+                category,
+                tags,
+                source,
+                permissions,
+                ai_context,
+                chrome: None,
+            },
+            workspace_root,
+        )
+        .await
+    }
+
+    pub async fn create_with_input(
+        &self,
+        input: MiniAppCreateInput,
+        workspace_root: Option<&Path>,
+    ) -> BitFunResult<MiniApp> {
         let id = Uuid::new_v4().to_string();
         let now = Utc::now().timestamp_millis();
-
-        let compiled_html =
-            self.compile_source(&id, &source, &permissions, "dark", workspace_root)?;
-
+        let compiled_html = self.compile_source(
+            &id,
+            &input.source,
+            &input.permissions,
+            "dark",
+            workspace_root,
+        )?;
         self.runtime_facade()
-            .create_app(
-                id,
-                MiniAppCreateInput {
-                    name,
-                    description,
-                    icon,
-                    category,
-                    tags,
-                    source,
-                    permissions,
-                    ai_context,
-                },
-                compiled_html,
-                now,
-            )
+            .create_app(id, input, compiled_html, now)
             .await
             .map_err(map_miniapp_port_error)
     }
@@ -211,17 +222,31 @@ impl MiniAppManager {
         ai_context: Option<MiniAppAiContext>,
         workspace_root: Option<&Path>,
     ) -> BitFunResult<MiniApp> {
+        self.update_with_patch(
+            app_id,
+            MiniAppUpdatePatch {
+                name,
+                description,
+                icon,
+                category,
+                tags,
+                source,
+                permissions,
+                ai_context,
+                chrome: None,
+            },
+            workspace_root,
+        )
+        .await
+    }
+
+    pub async fn update_with_patch(
+        &self,
+        app_id: &str,
+        patch: MiniAppUpdatePatch,
+        workspace_root: Option<&Path>,
+    ) -> BitFunResult<MiniApp> {
         let previous_app = self.storage.load(app_id).await?;
-        let patch = MiniAppUpdatePatch {
-            name,
-            description,
-            icon,
-            category,
-            tags,
-            source,
-            permissions,
-            ai_context,
-        };
         let now = Utc::now().timestamp_millis();
         let compiled_html = if self.uses_market_strict_runtime(app_id).await {
             self.compile_market_source(
@@ -321,11 +346,7 @@ impl MiniAppManager {
     }
 
     /// Get app storage (KV) value.
-    pub async fn get_storage(
-        &self,
-        app_id: &str,
-        key: &str,
-    ) -> BitFunResult<serde_json::Value> {
+    pub async fn get_storage(&self, app_id: &str, key: &str) -> BitFunResult<serde_json::Value> {
         let storage = self.storage.load_app_storage(app_id).await?;
         Ok(storage.get(key).cloned().unwrap_or(serde_json::Value::Null))
     }
@@ -778,9 +799,7 @@ fn map_bitfun_error_to_miniapp_port_error(error: BitFunError) -> MiniAppPortErro
         BitFunError::Deserialization(_) | BitFunError::Serialization(_) => {
             MiniAppPortErrorKind::Deserialization
         }
-        BitFunError::Io(io_error)
-            if io_error.kind() == std::io::ErrorKind::PermissionDenied =>
-        {
+        BitFunError::Io(io_error) if io_error.kind() == std::io::ErrorKind::PermissionDenied => {
             MiniAppPortErrorKind::PermissionDenied
         }
         BitFunError::Io(_) => MiniAppPortErrorKind::Io,
@@ -933,6 +952,7 @@ mod tests {
         let source_dir = root.join(SOURCE_DIR);
         tokio::fs::create_dir_all(&source_dir).await.unwrap();
         let meta = MiniAppMeta {
+            chrome: None,
             id: "template-id".to_string(),
             name: "Imported".to_string(),
             description: "Imported app".to_string(),

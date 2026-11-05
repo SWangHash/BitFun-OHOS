@@ -1,7 +1,16 @@
 import Foundation
+import BitFunMobileCore
+import OSLog
 
 @MainActor
 enum MobileLaunchConfiguration {
+    static var promptSuggestionPreview: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("--prompt-suggestion-preview")
+        #else
+        false
+        #endif
+    }
     static var streamingRegressionPreview: Bool {
         #if DEBUG
         ProcessInfo.processInfo.arguments.contains("--streaming-regression")
@@ -10,8 +19,6 @@ enum MobileLaunchConfiguration {
         #endif
     }
 
-    static var pairingAccountPreview: Bool { ProcessInfo.processInfo.arguments.contains("--pairing-account") }
-    static var pairingManualPreview: Bool { ProcessInfo.processInfo.arguments.contains("--pairing-manual") }
     static func makeModel() -> MobileAppModel {
         let first = ChatSession(id: UUID().uuidString, title: "你好", updatedLabel: "刚刚")
         let model = MobileAppModel(
@@ -21,7 +28,7 @@ enum MobileLaunchConfiguration {
                 ChatMessage(id: UUID(), role: .user, text: "你好"),
                 ChatMessage(id: UUID(), role: .assistant, text: "这是 BitFun 的移动端会话界面。你可以从手机连接桌面端，查看工作区、会话和智能体的执行状态。")
             ],
-            connectCore: !streamingRegressionPreview && !ProcessInfo.processInfo.arguments.contains("--harness-preview") && designPreviewScenario() == nil
+            connectCore: !ProcessInfo.processInfo.arguments.contains("--composer-model-picker") && !ProcessInfo.processInfo.arguments.contains("--composer-draft-preview") && !streamingRegressionPreview && !promptSuggestionPreview && !ProcessInfo.processInfo.arguments.contains("--permission-mailbox-preview") && !ProcessInfo.processInfo.arguments.contains("--harness-preview") && designPreviewScenario() == nil
         )
         return configure(model)
     }
@@ -40,8 +47,29 @@ enum MobileLaunchConfiguration {
             model.configureConnectedPreview()
             model.remoteHostCapabilities = ["harness_profiles_v1"]
         }
+        #if DEBUG
+        if arguments.contains("--permission-mailbox-preview") {
+            model.configureTimelinePreview()
+            model.permissionMailbox = PermissionMailboxUiState(requests: [
+                PermissionMailboxRequest(requestId: "preview-write", action: "write", resources: ["/workspace/readme.md"], toolCallId: nil, source: "Write")
+            ], busy: false, failed: false)
+            Logger(subsystem: "com.bitfun.mobile.ios", category: "permission-mailbox").info("Mailbox preview requests=\(model.permissionMailbox?.requests.count ?? -1)")
+        }
+        #endif
         if arguments.contains("--connected") {
             model.configureConnectedPreview()
+        }
+        if promptSuggestionPreview {
+            model.configureConnectedPreview()
+            model.surface = .remote
+            model.remoteConnected = true
+            model.connectionPhase = .connected
+            model.remoteSessionSelected = true
+            model.remoteOpenedSessionID = model.selectedSessionID
+            model.busy = false
+            model.isSending = false
+            model.remotePromptSuggestion = "  Run the tests and summarize any failures.  "
+            model.draft = ""
         }
         if arguments.contains("--remote-chat-section") {
             if !model.remoteConnected { model.configureConnectedPreview() }
@@ -88,7 +116,7 @@ enum MobileLaunchConfiguration {
             model.timelineRows = [MobileConversationRow(
                 id: "preview-plan-row", kind: "ASSISTANT", text: "", thinking: nil, images: [], tools: [plan],
                 blocks: [.tools(id: "preview-plan-tools", tools: [plan])], streaming: false, typing: false,
-                pending: false, showRetry: false, error: nil
+                showRetry: false, error: nil
             )]
         }
         if arguments.contains("--file-preview") {
@@ -126,21 +154,29 @@ enum MobileLaunchConfiguration {
             model.settingsOpen = true
         }
         if arguments.contains("--remote-settings") {
+            // Remote permission lives on the single settings page.
             model.surface = .remote
-            model.remoteControlSettingsOpen = true
+            model.settingsOpen = true
         }
-        if arguments.contains("--composer-model-picker") ||
+        if arguments.contains("--composer-model-picker") || arguments.contains("--composer-draft-preview") ||
             ProcessInfo.processInfo.environment["BITFUN_COMPOSER_MODEL_PICKER"] == "1" {
-            model.composerModelPickerPreview = true
+            model.composerModelPickerPreview = !arguments.contains("--composer-draft-preview")
+            model.surface = .local
             model.localSessionSelected = true
-            model.draft = "\n"
+            model.draft = arguments.contains("--composer-draft-preview")
+                ? String(repeating: "A long draft stays editable after its collapsed preview. ", count: 8) : "\n"
             model.modelOptions = [
+                ComposerModelOption(id: "primary", primaryLabel: "GPT-5.6 Codex",
+                    secondaryLabel: "GPT-5.6 Codex · openai · 200k", source: "REMOTE", selected: true, role: "PRIMARY"),
+                ComposerModelOption(id: "fast", primaryLabel: "GPT-5 mini",
+                    secondaryLabel: "GPT-5 mini · openai · 128k", source: "REMOTE", selected: false, role: "FAST"),
                 ComposerModelOption(
                     id: "preview-codex",
                     primaryLabel: "GPT-5.6 Codex",
                     secondaryLabel: "BitFun 账号",
                     source: "ACCOUNT",
-                    selected: true
+                    selected: false,
+                    roles: ["PRIMARY"]
                 ),
                 ComposerModelOption(
                     id: "preview-local",
@@ -151,9 +187,11 @@ enum MobileLaunchConfiguration {
                 ),
             ]
         }
-        if arguments.contains("--pairing") || arguments.contains("--pairing-manual") ||
-            arguments.contains("--pairing-account") {
-            model.pairingSheetOpen = true
+        // Legacy capture flags: QR and manual-link pairing were removed, so
+        // every pairing flag now opens the account device picker.
+        if arguments.contains("--pairing") || arguments.contains("--pairing-account") ||
+            arguments.contains("--device-picker") {
+            model.devicePickerOpen = true
         }
         if arguments.contains("--remote-create") || arguments.contains("--remote-create-workspace-picker") ||
             arguments.contains("--remote-create-session-loading") {
@@ -214,8 +252,9 @@ enum MobileLaunchConfiguration {
             model.accountSelectedDeviceID = "desktop-preview"
             model.accountDeviceCount = model.accountDevices.count
             model.coreErrorMessage = nil
-            model.settingsOpen = false
-            model.accountSheetOpen = true
+            // The signed-in account lives inline in Settings.
+            model.accountSheetOpen = false
+            model.settingsOpen = true
         }
         return model
     }
@@ -244,6 +283,7 @@ private extension MobileAppModel {
         accountSelectedDeviceID = "preview-desktop"
         surface = .remote
         remoteConnected = true
+        remotePermissionModeLoaded = true
         remoteExpectedDeviceKey = "account:preview-desktop"
         remoteInitialSessionReady = true
         remoteInitialWorkspaceReady = true
@@ -293,11 +333,11 @@ private extension MobileAppModel {
         let offlineWorkspace = MobileWorkspaceGroup(path: "/office/project", name: "Office project", selected: false, sessions: [cachedSession], deviceKey: "preview-offline")
         let failedWorkspace = MobileWorkspaceGroup(path: "/staging/project", name: "Staging", selected: false, sessions: [failedSession], deviceKey: "preview-mac")
         deviceDirectory = [
-            MobileDeviceDirectoryEntry(id: "preview-desktop", name: "DESKTOP-KM3L4UI", online: true, expanded: true, status: "READY", error: nil, workspaces: [previewWorkspace], sessions: previewWorkspace.sessions),
-            MobileDeviceDirectoryEntry(id: "preview-mac", name: "Studio Mac", online: true, expanded: true, status: "FAILED", error: "REMOTE_UNAVAILABLE", workspaces: [failedWorkspace], sessions: [failedSession]),
-            MobileDeviceDirectoryEntry(id: "preview-offline", name: "Office PC", online: false, expanded: false, status: "READY", error: nil, workspaces: [offlineWorkspace], sessions: [cachedSession])
+            MobileDeviceDirectoryEntry(id: "preview-desktop", name: "DESKTOP-KM3L4UI", online: true, status: "READY", error: nil, workspaces: [previewWorkspace], sessions: previewWorkspace.sessions),
+            MobileDeviceDirectoryEntry(id: "preview-mac", name: "Studio Mac", online: true, status: "FAILED", error: "REMOTE_UNAVAILABLE", workspaces: [failedWorkspace], sessions: [failedSession]),
+            MobileDeviceDirectoryEntry(id: "preview-offline", name: "Office PC", online: false, status: "READY", error: nil, workspaces: [offlineWorkspace], sessions: [cachedSession])
         ]
-        workspaceCatalog = [(path: "/workspace/BitFun", name: "BitFun", selected: true, remoteConnectionId: nil)]
+        workspaceCatalog = [(path: "/workspace/BitFun", name: "BitFun", selected: true, remoteConnectionId: nil, remoteSshHost: nil, workspaceId: nil)]
         remoteAssistants = [
             MobileAssistantOption(path: "/workspace/BitFun/.bitfun/assistants/review", name: "代码审查助手")
         ]
@@ -338,7 +378,7 @@ private extension MobileAppModel {
         timelineRows = [
             MobileConversationRow(
                 id: userID, kind: "USER", text: "介绍本项目", thinking: nil,
-                images: [], tools: [], blocks: [], streaming: false, typing: false, pending: false,
+                images: [], tools: [], blocks: [], streaming: false, typing: false,
                 showRetry: false, error: nil
             ),
             MobileConversationRow(
@@ -352,7 +392,7 @@ private extension MobileAppModel {
                     ),
                     .tools(id: "preview-tools", tools: [readOne, readTwo, approval, question]),
                 ],
-                streaming: false, typing: false, pending: false, showRetry: true,
+                streaming: false, typing: false, showRetry: true,
                 error: "桌面端进程意外退出。"
             ),
         ]

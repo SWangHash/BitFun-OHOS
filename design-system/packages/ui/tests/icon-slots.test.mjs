@@ -5,6 +5,10 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Button, Icon, IconButton, SessionIcon, TabGroup } from "../dist/index.js";
 import { Network } from "lucide-react";
+import {
+  AmbientToolCard, AmbientToolCardHeader, AskUser, FileOperationToolCard,
+  ProminentToolCard, ProminentToolCardSummary, ToolCardStatusSlot,
+} from "../dist/flow-chat.js";
 
 const slots = [
   ["Button", "icon", "inline-size", "100%"],
@@ -68,7 +72,43 @@ test("buttons constrain normalized line fallbacks through the same icon slot", (
     const markup = renderToStaticMarkup(createElement(Component, props));
     assert.match(markup, /data-bitfun-component="icon"/);
     assert.match(markup, /data-bitfun-source="line"/);
-    assert.match(markup, /<svg[^>]*stroke-width="1.6"/);
+    assert.match(markup, /<svg[^>]*stroke-width="var\(--bitfun-control-icon-stroke-width\)"/);
+  }
+});
+
+test("public icon slots normalize default Lucide weight without changing custom artwork", async () => {
+  const layers = await readFile(new URL("../src/styles/layers.css", import.meta.url), "utf8");
+  const rule = [...layers.matchAll(/([^{}]+)\{([^{}]+)\}/g)]
+    .find(([, selectors]) => selectors.includes('[data-bitfun-icon-slot="true"]'));
+
+  assert.ok(rule, "shared icon-slot normalization rule must exist");
+  assert.match(rule[1], /svg\.lucide\[stroke-width="2"\]/);
+  assert.match(rule[2], /color:\s*inherit/);
+  assert.match(rule[2], /stroke-width:\s*var\(--bitfun-control-icon-stroke-width\)/);
+
+  for (const [Component, props] of [
+    [Button, { children: "Network", leadingIcon: createElement(Network) }],
+    [IconButton, { "aria-label": "Network", icon: createElement(Network) }],
+  ]) {
+    const markup = renderToStaticMarkup(createElement(Component, props));
+    const svg = markup.match(/<svg[^>]*>/)?.[0] ?? "";
+    assert.match(markup, /data-bitfun-icon-slot="true"/);
+    assert.match(svg, /class="lucide lucide-network"/);
+    assert.match(svg, /stroke-width="2"/);
+  }
+
+  const customMarkup = renderToStaticMarkup(createElement(IconButton, {
+    "aria-label": "Filled network",
+    icon: createElement(Network, { fill: "currentColor", strokeWidth: 0 }),
+  }));
+  assert.match(customMarkup, /<svg[^>]*stroke-width="0"/);
+});
+
+test("every public sized icon wrapper opts into the shared slot contract", async () => {
+  for (const [file, expectedCount] of markedSlotSources) {
+    const source = await readFile(new URL(`../src/components/${file}`, import.meta.url), "utf8");
+    const count = source.match(/data-bitfun-icon-slot="true"/g)?.length ?? 0;
+    assert.equal(count, expectedCount, file);
   }
 });
 
@@ -92,4 +132,56 @@ test("standalone catalog sizes are retained instead of globally shrinking every 
     const markup = renderToStaticMarkup(createElement(Icon, { name: "settings", size }));
     assert.match(markup, new RegExp(`data-size="${size}"`));
   }
+});
+
+test("FlowChat glyphs keep the shared line-weight contract through status and disclosure changes", () => {
+  const rawIcon = createElement(Network);
+  const samples = [];
+  for (const status of ['completed', 'error', 'waiting']) {
+    for (const isExpanded of [false, true]) {
+      samples.push(createElement(AmbientToolCard, {
+        status, isExpanded, onClick() {}, expandedContent: 'Details',
+        header: createElement(AmbientToolCardHeader, {
+          action: 'Network', icon: createElement(ToolCardStatusSlot, { status, toolIcon: rawIcon }),
+        }),
+      }));
+      samples.push(createElement(ProminentToolCard, {
+        status, isExpanded, onToggle() {}, summaryAffordanceKind: 'open-panel-right', expandedContent: 'Details',
+        summary: createElement(ProminentToolCardSummary, { action: 'Network', icon: rawIcon, statusIcon: rawIcon }),
+      }));
+    }
+  }
+  samples.push(createElement(FileOperationToolCard, {
+    operation: 'edit', actionLabel: 'Edit', path: '/test.ts', pathLabel: 'test.ts', status: 'error',
+    error: { title: 'Failed', message: 'Permission denied' },
+  }));
+  for (const state of ['asking', 'loading', 'submitted', 'error']) {
+    samples.push(createElement(AskUser, {
+      state, statusLabel: 'Question', summaryLabel: 'Answered',
+      questions: [{ id: 'choice', prompt: 'Choose', options: [{ value: 'yes', label: 'Yes' }] }],
+    }));
+  }
+
+  let checkedGlyphs = 0;
+  let checkedPanelActions = 0;
+  for (const sample of samples) {
+    const markup = renderToStaticMarkup(sample);
+    const stack = [];
+    for (const token of markup.matchAll(/<(\/?)([\w-]+)\b[^>]*>/g)) {
+      const [tag, closing, name] = token;
+      if (closing) { stack.pop(); continue; }
+      if (name === 'svg' && /class="lucide\b/.test(tag)) {
+        checkedGlyphs++;
+        // IconButton and Icon each own a public slot around the actual glyph.
+        if (stack.some(ancestor => ancestor.startsWith('<button')
+          && ancestor.includes('data-bitfun-part="affordanceButton"'))) checkedPanelActions++;
+        const usesIconToken = tag.includes('stroke-width="var(--bitfun-control-icon-stroke-width)"');
+        assert.ok(usesIconToken || stack.at(-1)?.includes('data-bitfun-icon-slot="true"'),
+          `Unnormalized glyph: ${tag}`);
+      }
+      if (!/\/$/.test(tag.slice(0, -1)) && !['input', 'br', 'hr', 'img'].includes(name)) stack.push(tag);
+    }
+  }
+  assert.ok(checkedGlyphs > 20, 'exercise tool, status, disclosure, and selection glyphs');
+  assert.ok(checkedPanelActions > 0, 'exercise the open-panel action glyph');
 });

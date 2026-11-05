@@ -3,7 +3,6 @@
 //! This module reads only BitFun-managed package roots. Ecosystem-specific
 //! file interpretation remains in the corresponding adapter.
 
-use fs2::FileExt;
 use bitfun_product_domains::plugin_source::{
     PluginActivationAuthority, PluginPackageInput, PluginPackageManifest,
     PluginPackageSourceIdentity, PluginPackageTrustLevel, PluginSourceContractError,
@@ -13,6 +12,7 @@ pub use bitfun_product_domains::plugin_source::{
     PluginPackageTrustLevel as ManagedPluginTrustLevel,
     PluginTrustDecision as ManagedPluginTrustDecision,
 };
+use fs2::FileExt;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashSet};
 use std::ffi::OsStr;
@@ -1657,10 +1657,9 @@ impl ProductPluginSourceStore {
             .and_then(|version| u16::try_from(version).ok())
         {
             if schema_version != PLUGIN_TRUST_STORE_SCHEMA_VERSION {
-                return Err(PluginSourceContractError::UnsupportedTrustStoreSchema(
-                    schema_version,
-                )
-                .into());
+                return Err(
+                    PluginSourceContractError::UnsupportedTrustStoreSchema(schema_version).into(),
+                );
             }
         }
         let store = serde_json::from_value::<PluginTrustStore>(persisted).map_err(|source| {
@@ -3540,12 +3539,9 @@ mod tests {
             .await
             .expect("create trust state directory");
         let original = br#"{"schemaVersion":1,"epoch":7,"records":[]}"#;
-        tokio::fs::write(
-            &fixture.trust_path,
-            original,
-        )
-        .await
-        .expect("write pre-BitFun trust store");
+        tokio::fs::write(&fixture.trust_path, original)
+            .await
+            .expect("write pre-BitFun trust store");
 
         let snapshot = fixture.service().refresh(&fixture.workspace).await;
         let persisted = tokio::fs::read(&fixture.trust_path)
@@ -3711,9 +3707,7 @@ mod tests {
         let service = fixture.service();
         fixture.activate(&service, "acme.demo").await;
         tokio::fs::write(
-            fixture
-                .workspace_root
-                .join("acme.demo/bitfun.plugin.json"),
+            fixture.workspace_root.join("acme.demo/bitfun.plugin.json"),
             b"{not-json",
         )
         .await

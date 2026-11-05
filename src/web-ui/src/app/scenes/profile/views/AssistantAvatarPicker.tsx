@@ -57,8 +57,6 @@ const AssistantAvatarPicker: React.FC<AssistantAvatarPickerProps> = ({
   }, [displayedValue]);
 
   useEffect(() => {
-    let removeOverlayPointerdown0: (() => void) | undefined;
-    let removeOverlayKeydown1: (() => void) | undefined;
     if (!isOpen) return;
 
     const handlePointerDown = (event: PointerEvent) => {
@@ -73,8 +71,8 @@ const AssistantAvatarPicker: React.FC<AssistantAvatarPickerProps> = ({
       triggerRef.current?.focus();
     };
 
-    removeOverlayPointerdown0 = subscribeOverlayInteraction(popoverRef, 'pointerdown', handlePointerDown);
-    removeOverlayKeydown1 = subscribeOverlayInteraction(popoverRef, 'keydown', handleKeyDown);
+    const removeOverlayPointerdown0 = subscribeOverlayInteraction(popoverRef, 'pointerdown', handlePointerDown);
+    const removeOverlayKeydown1 = subscribeOverlayInteraction(popoverRef, 'keydown', handleKeyDown);
     return () => {
       removeOverlayPointerdown0?.();
       removeOverlayKeydown1?.();
@@ -124,7 +122,7 @@ const AssistantAvatarPicker: React.FC<AssistantAvatarPickerProps> = ({
           emoji={displayedValue}
           stableKey={stableKey}
           name={assistantName}
-          size={58}
+          size={74}
         />
         <span className="acp-avatar-picker__edit-cue" aria-hidden="true">
           <Icon name="edit" size="2xs" />

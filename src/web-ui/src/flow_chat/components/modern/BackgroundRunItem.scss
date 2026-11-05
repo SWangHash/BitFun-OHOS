@@ -1,0 +1,21 @@
+.background-run {
+  margin: 8px var(--bitfun-control-flow-chat-content-padding-inline);
+  color: var(--bitfun-color-content-secondary);
+  font-size: var(--bitfun-type-label-sm-font-size);
+
+  > summary {
+    padding: 8px 0;
+    cursor: pointer;
+  }
+
+  &__action {
+    margin-left: 12px;
+    color: var(--bitfun-color-content-muted);
+  }
+}
+
+@media (max-width: 900px) {
+  .background-run {
+    margin-inline: var(--bitfun-control-flow-chat-content-padding-inline-mobile);
+  }
+}

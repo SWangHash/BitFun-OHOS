@@ -1,6 +1,6 @@
 //! MiniApp marketplace contracts and pure publication policy.
 //!
-//! The marketplace is deployed under the OpenBitFun identity, so every
+//! The marketplace is deployed under the BitFun identity, so every
 //! minimum-version field is written on the wire as `minOpenBitFunVersion`
 //! while the retired `minBitFunVersion` spelling stays accepted as a legacy
 //! read alias.
@@ -199,6 +199,8 @@ pub struct MarketSubmissionDraftRequest {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MarketPackageMeta {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chrome: Option<crate::miniapp::chrome::MiniAppChrome>,
     pub name: String,
     pub description: String,
     pub icon: String,

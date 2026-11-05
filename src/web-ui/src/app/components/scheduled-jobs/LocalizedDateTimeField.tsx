@@ -33,6 +33,7 @@ function pad(value: number): string {
 }
 
 export interface LocalizedDateTimeFieldProps {
+  id?: string;
   /** `YYYY-MM-DDTHH:mm`, matching the native datetime-local value. */
   value: string;
   onChange: (value: string) => void;
@@ -42,9 +43,11 @@ export interface LocalizedDateTimeFieldProps {
   /** Base data-testid: input gets `${testId}`, calendar button gets `${testId}-picker-btn`. */
   testId?: string;
   'aria-label'?: string;
+  'aria-describedby'?: string;
 }
 
 const LocalizedDateTimeField: React.FC<LocalizedDateTimeFieldProps> = ({
+  id,
   value,
   onChange,
   error = false,
@@ -52,9 +55,11 @@ const LocalizedDateTimeField: React.FC<LocalizedDateTimeFieldProps> = ({
   className,
   testId,
   'aria-label': ariaLabel,
+  'aria-describedby': ariaDescribedBy,
 }) => {
   const { t, currentLanguage } = useI18n('common');
   const anchorRef = useRef<HTMLDivElement | null>(null);
+  const pickerTriggerRef = useRef<HTMLButtonElement | null>(null);
   const editingRef = useRef(false);
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -128,12 +133,14 @@ const LocalizedDateTimeField: React.FC<LocalizedDateTimeFieldProps> = ({
       data-bitfun-state={error ? 'error' : undefined}
     >
       <Input
+        id={id}
         value={text}
         invalid={error}
         disabled={disabled}
         inputMode="numeric"
         placeholder={dateTimeFormatHint(order)}
         aria-label={ariaLabel ?? t('dateTimeField.label')}
+        aria-describedby={ariaDescribedBy}
         className="bitfun-datetime-field__input"
         data-testid={testId}
         onFocus={() => { editingRef.current = true; }}
@@ -144,6 +151,7 @@ const LocalizedDateTimeField: React.FC<LocalizedDateTimeFieldProps> = ({
 
       <Tooltip content={t('dateTimeField.openPicker')} disabled={disabled}>
         <IconButton
+          ref={pickerTriggerRef}
           type="button"
           size="sm"
           disabled={disabled}
@@ -158,6 +166,7 @@ const LocalizedDateTimeField: React.FC<LocalizedDateTimeFieldProps> = ({
       {pickerOpen && !disabled ? (
         <DateTimePickerPopover
           anchorRef={anchorRef}
+          triggerRef={pickerTriggerRef}
           selected={selectedDay}
           onSelect={handlePickDay}
           onClose={() => setPickerOpen(false)}

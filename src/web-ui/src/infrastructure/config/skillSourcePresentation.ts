@@ -66,7 +66,7 @@ export function getSkillSourceId(skill: SkillInfo): string {
   if (identity === 'dsh') return 'deepseek-harness';
   if (identity === 'agents') return 'agent-skills';
   if (identity === 'bitfun-system' || identity === 'bitfun-user') return 'bitfun';
-  // Handle the legacy OpenBitFun brand identifiers so skills scanned by an
+  // Handle the legacy BitFun brand identifiers so skills scanned by an
   // older binary (or cached from before the brand rename) are still recognized.
   if (identity === 'openbitfun' || identity === 'openbitfun-system' || identity === 'openbitfun-user') return 'bitfun';
   if (identity.startsWith('opencode.')) return 'opencode';

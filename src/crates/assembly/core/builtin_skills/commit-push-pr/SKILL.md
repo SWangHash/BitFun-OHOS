@@ -3,7 +3,7 @@ name: commit-push-pr
 description: Commit selected local changes, push the branch, and create or update a GitHub pull request with BitFun attribution. Use when the user asks to 提交 PR、提代码、commit and push、开 PR、create a pull request, or wants a Claude Code-like one-command PR publishing flow from BitFun.
 ---
 
-# Commit, Push, and Open a BitFun PR
+# Commit, Push, and Open an BitFun PR
 
 ## Purpose
 
@@ -13,9 +13,11 @@ Invoking this skill is authorization for the requested commit/push/PR flow. It i
 
 ## BitFun attribution contract
 
-Unless the user explicitly opts out, always use the PR footer below exactly once. When this flow creates one or more real commits, also use the commit trailer exactly once in each new commit:
+Unless the user explicitly opts out, use the PR footer below exactly once. Commit co-author attribution follows the execution host's setting, resolved when this built-in skill is loaded:
 
-- Commit trailer for each new commit, which GitHub uses for contributor/co-author attribution:
+{{BITFUN_GIT_COMMIT_COAUTHOR_POLICY}}
+
+- Commit trailer when co-author attribution is enabled, which GitHub uses for contributor/co-author attribution:
 
   ```text
   Co-authored-by: BitFun <318544290+bitfun-ai@users.noreply.github.com>
@@ -37,7 +39,7 @@ Do not duplicate either attribution. Preserve an equivalent existing trailer/foo
 2. Confirm scope; stage only intended paths.
 3. Create `bitfun/<description>` only when currently on the base branch.
 4. Run the repository's focused verification.
-5. Commit real changes with the exact BitFun trailer once.
+5. Commit real changes, following the resolved commit co-author setting above.
 6. Push normally; never force-push automatically.
 7. Update the exact matching PR or create a draft PR.
 8. End the PR body with the exact BitFun link footer once.
@@ -104,11 +106,11 @@ If verification remains failed, blocked, or was explicitly declined by the user:
 
 - Derive the subject from the actual diff and repository conventions; do not create a generic `prepare PR` commit.
 - Keep the real human author/committer identity. The BitFun line is a co-author trailer, not a replacement author.
-- Add a blank line before the exact BitFun trailer.
+- Only when commit co-author attribution is enabled and the user has not opted out, add a blank line before the exact BitFun trailer. When disabled, do not add this trailer to new commits.
 - If the intended changes are already committed, do not create an empty attribution commit.
 - Do not squash multiple existing commits or amend published commits without explicit approval.
 
-Example:
+Example when commit co-author attribution is enabled:
 
 ```text
 fix: preserve session state during reconnect

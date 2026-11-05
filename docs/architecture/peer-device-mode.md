@@ -125,6 +125,25 @@ records and responses from a device that is no longer rendered. Desktop
 `RelaySessionHistory` owns the subscription across initial loading, realtime
 delivery and older-page prefetch.
 
+Native mobile history keeps these record-page boundaries; a page is not a
+complete conversation turn. The initial replay and each older-history request
+reduce all received records before publishing one transcript projection. A turn
+split across pages may gain text or tools on a later read; that is normal and
+must preserve the existing reading position. Realtime updates remain incremental.
+
+The loading indicator covers the RPC and delivery to the reducer. Kotlin's
+buffered transport waits for downstream consumption before reporting caught-up
+or completing an older-page request; enqueueing records is not completion.
+Kotlin uses local history-start/ready events and HarmonyOS uses local replay
+callbacks to suppress intermediate projections. These are client-internal
+boundaries, not additions to the `read_stream` wire format. A failed multi-page
+read commits only the fully received pages and reports failure; a later retry
+continues from the durable record cursor. Session changes fence stale delivery.
+Native timelines retain visible message anchors on prepend, allow at most one
+automatic request per deliberate drag, and do not queue gestures made while
+loading. Layout, anchor correction and released-finger overscroll cannot request
+another page.
+
 Version skew is negotiated, not assumed. Hosts advertise `host_stream_v1` in
 their handshake `capabilities`; a controller that does not see it reports the
 host as too old instead of sending `read_stream`, and a host that receives the
@@ -318,6 +337,16 @@ FS) and must not be mixed with Peer Device Mode.
   epochs and lifecycle cancellation around `realtime_client`; TypeScript uses
   `AccountRealtime`. Replacing an account retires its socket and pending replies.
   Transient disconnection does not destroy the Runtime's tasks or journals.
+- The Relay keeps one machine-scoped socket per `device_id`, and every host on a
+  machine shares `device_identity.json`. Hosts therefore arbitrate locally
+  (`remote_connect::routing_lease`) instead of replacing each other's socket:
+  Desktop is the primary host, CLI/TUI/daemon the secondary one. Each holds an
+  OS file lock per Relay endpoint next to the identity file. A secondary host
+  connects only while no primary holds its lock, and stands by (`Standby`
+  connection state) otherwise. The OS releases the lock when a host exits or is
+  killed, so the standing-by host reconnects within about a second. Hosts of the
+  same priority take turns. A host built before this change does not
+  arbitrate.
 - Relay `rpc-call` routes to the authenticated target's registered method and
   carries the caller's deadline (120s when omitted). The server checks account
   membership before routing. Missing acknowledgement after dispatch is an unknown
@@ -367,7 +396,12 @@ FS) and must not be mixed with Peer Device Mode.
   lose its subscription. SSH notification consumers tolerate broadcast lag and
   read the retained cursor. Controllers fetch bounded replay pages and render
   them in their terminal surface. Account retirement stops that publisher's
-  notification observers without terminating the PTY.
+  notification observers without terminating the PTY. `terminal-exit` and
+  `terminal-closed` on the same stream report the PTY lifecycle; an older CLI
+  host omits them and the controller learns of a removed session from the
+  session list. Hosts advertise this path as `terminal_cursor_replay_v1`; the
+  Desktop controller (`PeerTerminalReplay`) falls back to `host_type` for older
+  CLI hosts. Desktop hosts keep fanning out `terminal_event`.
 - During Peer Mode, controller-local SSH maintenance and selected background
   editor/Git/search refreshes retain their existing noise-reduction policy.
   These UI refresh policies are separate from durable session synchronization.

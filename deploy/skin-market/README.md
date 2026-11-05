@@ -3,7 +3,18 @@
 This directory deploys the Appearance package catalog exposed to users as the
 **Skin market** at `https://market.bitfun.com/skin/`.
 
-It is intentionally isolated from the production MiniApp market:
+This is a community self-deployment template. `$DEPLOY_HOST`,
+`market.example.com`, and the `/srv/bitfun-*` and `/etc/bitfun-*` paths
+are examples; replace them with your own SSH host, domains, and directories.
+Set `DEPLOY_HOST` in the current shell before running the commands:
+
+```bash
+DEPLOY_HOST=root@your-server
+```
+
+Official hosted-service configuration is not published in this repository.
+
+It is intentionally isolated from the MiniApp market deployment:
 
 | Resource | Skin market |
 | --- | --- |
@@ -36,7 +47,7 @@ checkouts; do not recreate MiniApp from the Skin Compose project.
 2. Do not read, copy or print `/etc/bitfun-skin-market/market.env`.
 3. Record the previous commit and verify a current SQLite backup before a
    backend or schema deployment.
-4. Do not recreate or modify the MiniApp, Relay, API or website containers.
+4. Do not recreate or modify other services running on the host.
 5. Use `--force-with-lease` for the dedicated deploy ref; never unconditional
    force.
 6. Run `nginx -t` before reload. Install only the market vhost changed by this
@@ -185,7 +196,7 @@ docker compose -f deploy/skin-market/docker-compose.yml \
 Wait for health and verify revision plus both network paths:
 
 ```bash
-ssh lwb 'set -eu
+ssh "$DEPLOY_HOST" 'set -eu
 for attempt in $(seq 1 45); do
   status="$(docker inspect --format \
     "{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}" \
@@ -196,11 +207,11 @@ done
 docker inspect --format "{{json .State}}" bitfun-skin-market
 exit 1'
 
-DEPLOYED_COMMIT="$(ssh lwb 'docker inspect --format \
+DEPLOYED_COMMIT="$(ssh "$DEPLOY_HOST" 'docker inspect --format \
   "{{index .Config.Labels \"org.opencontainers.image.revision\"}}" \
   bitfun-skin-market')"
 test "$DEPLOYED_COMMIT" = "$DEPLOY_COMMIT"
-ssh lwb 'curl -fsS http://127.0.0.1:9720/skin/api/v1/health'
+ssh "$DEPLOY_HOST" 'curl -fsS http://127.0.0.1:9720/skin/api/v1/health'
 ```
 
 Create and drill the first backup only after the container is healthy, then
@@ -223,13 +234,13 @@ The shared market vhost is owned in
 validation remains 96 MiB. Install this file only when its diff is part of the
 target commit:
 
-The trusted WAF CIDRs in `nginx-skin-market-http.conf` are an explicit trust
+The trusted proxy ranges in `nginx-skin-market-http.conf` are an explicit trust
 boundary, not a generic proxy list. Before each deployment, compare them with
-Huawei WAF's current `ShowSourceIp` response (or the console's copied source-IP
-list) and the origin firewall allowlist. Stop if any of the three sets differ.
+your reverse proxy or WAF provider's current egress source-IP list and the
+origin firewall allowlist. Stop if any of the sets differ.
 
 ```bash
-ssh lwb 'set -eu
+ssh "$DEPLOY_HOST" 'set -eu
 install -m 0644 \
   /srv/bitfun-skin-market/app/deploy/skin-market/nginx-skin-market-http.conf \
   /etc/nginx/conf.d/skin-market.conf
@@ -243,8 +254,8 @@ curl -fsS https://market.bitfun.com/skin/api/v1/health
 curl -fsS https://market.bitfun.com/skin/ >/dev/null
 ```
 
-The domain and wildcard TLS certificate already cover this path; no new DNS
-record is needed. Verify any upstream WAF body-size policy before publishing a
+Point your domain's DNS and TLS certificate at this host. If a WAF or load
+balancer terminates TLS, verify its body-size policy before publishing a
 package near the 96 MiB application limit.
 
 ## Rollback

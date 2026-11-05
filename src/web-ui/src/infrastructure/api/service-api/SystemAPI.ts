@@ -178,20 +178,28 @@ export class SystemAPI {
     }
   }
 
-   
+  /**
+   * Open a URL through the controller OS. HarmonyOS routes it through the
+   * `open_external_ohos` ArkTS function; every other runtime uses the opener
+   * plugin, which keeps the controller default browser in charge.
+   */
   async openExternal(url: string): Promise<void> {
-    try {
-      // ?????? open_external_ohos (OHOS????????
-      await api.invoke('open_external_ohos', {url});
-    } catch (error) {
-      // ??OHOS ?????????????????????openUrl
-      log.warn('open_external_ohos failed, falling back to openUrl', { url, error });
+    if (isOpenHarmonyRuntime()) {
       try {
-        await openUrl(url);
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('open_external_ohos', { url });
+        return;
       } catch (error) {
-        log.error('Failed to open external URL', { url, error });
-        throw new Error(`Failed to open external URL: ${error}`);
+        // Older HarmonyOS hosts do not expose the ArkTS bridge yet; fall back
+        // to the opener plugin instead of failing the navigation.
+        log.warn('open_external_ohos failed, falling back to openUrl', { url, error });
       }
+    }
+    try {
+      await openUrl(url);
+    } catch (error) {
+      log.error('Failed to open external URL', { url, error });
+      throw new Error(`Failed to open external URL: ${error}`);
     }
   }
 
@@ -402,7 +410,7 @@ export class SystemAPI {
     });
   }
 
-  // ?????? Window / Tray behavior ????????????????????????????????????????????????????????????????????????????????????????????????
+  // Window and tray behaviour -------------------------------------------------------
 
   /** Desktop only: immediately quit the application. */
   async quitApp(): Promise<void> {

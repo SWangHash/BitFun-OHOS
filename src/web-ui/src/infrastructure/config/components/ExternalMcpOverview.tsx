@@ -429,6 +429,7 @@ const ExternalMcpOverview: React.FC = () => {
       data-bitfun-component="external-mcp-overview"
       data-bitfun-part="root"
       title={t('external.title')}
+      description={t('external.description')}
       titleSuffix={snapshot ? (
         <span className="bitfun-mcp-tools__external-summary" data-bitfun-component="external-mcp-overview" data-bitfun-part="summary">
           {snapshot.discoveryPending ? (

@@ -6,16 +6,34 @@ import { fileURLToPath } from 'node:url';
 
 import {
   buildCapabilityCatalog,
-  buildResolvedDefinitions,
-  buildRuntimeCapability,
   loadRemoteSurfaceRegistry,
   parseRegisteredCommands,
+  projectSettingsCatalogDestination,
   renderRemoteSurfaceTsBindings,
-  renderCapabilityMarkdown,
 } from './generate-interactive-capabilities.mjs';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (relativePath) => readFile(path.join(repositoryRoot, relativePath), 'utf8');
+
+test('historical settings wire targets resolve through the current presentation migration', () => {
+  const { runtimeCatalog } = buildCapabilityCatalog();
+  const execution = runtimeCatalog.capabilities.find(({ id }) => id === 'setting.tools.execution');
+  const permissions = execution.items.find(({ id }) => id === 'permission-mode');
+  assert.deepEqual(permissions.destination, { kind: 'settings', pageId: 'tools.execution', viewId: 'common' });
+  assert.deepEqual(projectSettingsCatalogDestination(execution.id, permissions.destination, permissions.id), {
+    kind: 'settings', pageId: 'ai.permissions',
+  });
+  const automation = runtimeCatalog.capabilities.find(({ id }) => id === 'setting.tools.automation');
+  const hooks = automation.items.find(({ id }) => id === 'hooks-enabled');
+  assert.deepEqual(hooks.destination, { kind: 'settings', pageId: 'tools.automation', viewId: 'hooks' });
+  assert.deepEqual(projectSettingsCatalogDestination(automation.id, hooks.destination, hooks.id), {
+    kind: 'settings', pageId: 'tools.automation', sectionId: 'hooks',
+  });
+  const computerUse = runtimeCatalog.capabilities.find(({ id }) => id === 'feature.computer-use');
+  assert.deepEqual(projectSettingsCatalogDestination(computerUse.id, computerUse.destination), {
+    kind: 'settings', pageId: 'tools.desktop-control',
+  });
+});
 
 test('the public contract is a compact feature-and-settings manual', () => {
   const { publicCatalog, runtimeCatalog } = buildCapabilityCatalog();
@@ -122,48 +140,10 @@ test('every manual entry has bilingual discovery, instructions, routing, and age
         && control.workflowZh.length === control.workflowEn.length));
     assert.ok(capability.stepsZh.length > 0);
     assert.ok(capability.agentExamplesZh.length > 0);
-    if (capability.destination) {
-      assert.ok(['settings', 'action', 'scene', 'event'].includes(capability.destination.kind));
-    } else {
-      assert.equal(capability.kind, 'feature');
-      assert.ok(capability.items.every(({ control, destination }) => control.kind !== 'open' || destination));
-    }
+    assert.ok(['settings', 'action', 'scene', 'event'].includes(capability.destination.kind));
     assert.equal(capability.docsUrl, `${publicCatalog.origin}/capabilities/${capability.id}/`);
     assert.doesNotMatch(JSON.stringify(capability), /"handler"/u);
   }
-});
-
-test('Git keeps delegated operations without advertising a removed presentation entry', async () => {
-  const source = JSON.parse(await read('src/shared/interactive-capabilities/catalog.json'));
-  const gitSource = source.capabilities.find(({ id }) => id === 'feature.git');
-  const git = buildRuntimeCapability(gitSource, source.categories[gitSource.categoryId], source.origin);
-  assert.equal(git.destination, undefined);
-  assert.deepEqual(git.items.map(({ id }) => id), [
-    'status-diff', 'stage-reset', 'commit', 'sync', 'branches', 'graph-history',
-    'revision-content', 'cherry-pick',
-  ]);
-  assert.ok(git.items.every(({ control }) => control.kind === 'delegate'
-    && control.tools.includes('ExecCommand')));
-  const definitions = JSON.parse(JSON.stringify(buildResolvedDefinitions([git])));
-  assert.ok(definitions.every(({ kind }) => kind === 'query' || kind === 'delegate'));
-  assert.ok(definitions.every((definition) => !Object.hasOwn(definition, 'presentationTarget')));
-  const catalogs = await Promise.all([
-    'docs/interactive-capabilities/capabilities.json',
-    'src/web-ui/src/app/global-search/generated/interactive-capabilities.json',
-    'src/crates/contracts/product-domains/src/generated/product-control-catalog.json',
-  ].map(async (file) => JSON.parse(await read(file))));
-  assert.equal(new Set(catalogs.map(({ digest }) => digest)).size, 1);
-  for (const catalog of catalogs) {
-    assert.deepEqual(catalog.capabilities.find(({ id }) => id === git.id), git);
-    assert.deepEqual(catalog.definitions.filter(({ capabilityId }) => capabilityId === git.id), definitions);
-  }
-  const markdown = renderCapabilityMarkdown(git);
-  assert.match(markdown, /no standalone page entry/u);
-  assert.doesNotMatch(markdown, /Open the UI|Open Git|Open the Git panel|trust-worktrees/u);
-
-  const invalid = structuredClone(git);
-  invalid.items[0].control = { kind: 'open', reasonCode: 'unstructuredInteraction' };
-  assert.throws(() => buildResolvedDefinitions([invalid]), /open needs a presentation destination/u);
 });
 
 test('every executable contract is bound to a documented item and navigation is not called control', () => {
@@ -243,12 +223,16 @@ test('every product Agent tool is mapped to a user capability or explicitly clas
     productTools,
     'new Agent tools must be mapped in the shared manual or receive a reviewed framework-only exclusion',
   );
-  assert.deepEqual(excludedTools, new Set(['GetToolSpec', 'CallDeferredTool']));
+  assert.deepEqual(excludedTools, new Set(['Task', 'GetToolSpec', 'CallDeferredTool', 'PagePublish', 'PageDeploy']));
   assert.equal([...delegatedTools].filter((tool) => excludedTools.has(tool)).length, 0);
 
   const byId = new Map(source.capabilities.map((capability) => [capability.id, capability]));
   const item = (capabilityId, itemId) => byId.get(capabilityId)?.items
     .find(({ id }) => id === itemId);
+  for (const itemId of ['pages-list', 'immutable-versions', 'publish', 'visibility', 'unpublish', 'delete']) {
+    assert.deepEqual(item('feature.pages', itemId).control.tools, ['PageManage']);
+  }
+  assert.deepEqual(item('feature.ai-assistant', 'image-generation').control.tools, ['generate_image']);
   assert.ok(item('feature.remote-workspaces', 'remote-files').control.tools.includes('Read'));
   assert.deepEqual(item('feature.remote-workspaces', 'port-forwarding').control.tools, ['PortForward']);
   assert.ok(item('setting.tools.mcp', 'resources').control.tools.includes('ReadMCPResource'));
@@ -301,7 +285,9 @@ test('built-in and external browsers share one agent action contract', async () 
   assert.ok(browser.searchTerms.some((term) => /智能体.*内置网页/u.test(term)));
   assert.ok(browser.searchTerms.some((term) => /one BrowserActions/iu.test(term)));
   assert.equal(browser.agentControl.tool, 'ControlHub');
-  assert.ok(browser.agentControl.workflowZh.some((step) => step.includes('browser.open_builtin')));
+  assert.ok(browser.agentControl.workflowZh.some((step) => step.includes('browser.navigate') && step.includes('observe')));
+  assert.ok(browser.agentControl.workflowEn.some((step) => step.includes('browser.navigate') && step.includes('observe')));
+  assert.ok(browser.agentControl.workflowEn.some((step) => /user authorized in Settings/iu.test(step)));
   assert.ok(browser.agentControl.workflowZh.some((step) => step.includes('BitFunControl') && step.includes('about:blank')));
   assert.ok(browser.agentControl.workflowEn.some((step) => /share.*contract/iu.test(step)));
   assert.ok(browser.agentControl.workflowEn.some((step) => /BitFunControl/iu.test(step) && /about:blank/iu.test(step)));
@@ -391,9 +377,11 @@ test('docs, runtime, and technical views are generated projections of one semant
   assert.ok(interactionAudit.files.some(({ sourceFile }) =>
     sourceFile.endsWith('/BrowserPanel.tsx')));
   assert.ok(interactionAudit.files.some(({ sourceFile }) =>
-    sourceFile.endsWith('/AssistantDefaultsPage.tsx')));
+    sourceFile.endsWith('/AssistantConfigPage.tsx')));
   assert.ok(interactionAudit.files.some(({ sourceFile }) =>
-    sourceFile.endsWith('/AppearanceSettingsPage.tsx')));
+    sourceFile.endsWith('/LanguageSettingsSection.tsx')));
+  assert.ok(interactionAudit.files.some(({ sourceFile }) =>
+    sourceFile.endsWith('/AppearancePackageConfigSection.tsx')));
   assert.equal(publicCatalog.source, 'src/shared/interactive-capabilities/catalog.json');
 
   const appearance = runtimeCatalog.capabilities

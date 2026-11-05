@@ -154,6 +154,8 @@ export const ChatContextPicker: React.FC<ChatContextPickerProps> = ({
   onAddImage,
 }) => {
   const { t } = useTranslation('flow-chat');
+  const skillScanFailures = skillDiagnostics.filter(item => !item.unsupportedField);
+  const unsupportedSkills = skillDiagnostics.filter(item => item.unsupportedField);
   const [results, setResults] = useState<FileItem[]>([]);
   const [sessionResults, setSessionResults] = useState<SessionReferenceCandidate[]>([]);
   const [workspaceReferences, setWorkspaceReferences] = useState<WorkspaceReferenceEntry[]>([]);
@@ -668,8 +670,13 @@ export const ChatContextPicker: React.FC<ChatContextPickerProps> = ({
     onClose();
   }, [onAddImage, onClose, onRetrySkills, onSelectContext, onSelectSkill, onSelectMcp, openSource]);
 
-  const handleItemClick = useCallback((selection: ContextPickerItem) => {
-    if (selection.kind === 'file' && selection.item.isDirectory && !isSearchMode) {
+  const handleItemClick = useCallback((selection: ContextPickerItem, event: React.MouseEvent<HTMLElement>) => {
+    // Browsing keeps its own affordance: the trailing chevron opens a directory,
+    // while a row click accepts the row exactly like Enter. Both input devices
+    // therefore select a directory without leaving the current level.
+    const clickedEnterAffordance = event.target instanceof Element
+      && Boolean(event.target.closest('[data-bitfun-part="indicator"]'));
+    if (selection.kind === 'file' && selection.item.isDirectory && !isSearchMode && clickedEnterAffordance) {
       enterDirectory(selection.item);
       return;
     }
@@ -708,12 +715,14 @@ export const ChatContextPicker: React.FC<ChatContextPickerProps> = ({
         goBack();
         break;
       }
-      case 'Enter': {
+      case 'Enter':
+      case 'Tab': {
+        // Accepting a row always selects it, including a directory. Browsing a
+        // directory stays on the explicitly navigational keys (ArrowRight in,
+        // ArrowLeft out) so acceptance and navigation never share one key.
         event.preventDefault();
         event.stopPropagation();
         const selected = displayItems[selectedIndex];
-        // Enter always selects — including directories — so the user
-        // can confirm a folder as the answer. Use → to browse into a dir.
         if (selected) handleSelect(selected);
         break;
       }
@@ -723,26 +732,26 @@ export const ChatContextPicker: React.FC<ChatContextPickerProps> = ({
         onClose();
         break;
     }
-  }, [canNavigateBack, displayItems, enterDirectory, goBack, handleItemClick, handleSelect, isOpen, isSearchMode, onClose, openSource, selectedIndex]);
+  }, [canNavigateBack, displayItems, enterDirectory, goBack, handleSelect, isOpen, isSearchMode, onClose, openSource, selectedIndex]);
 
   useEffect(() => {
-    let removeOverlayKeydown0: (() => void) | undefined;
-    let removeOverlayPointerdown0: (() => void) | undefined;
-    let removeOverlayMousedown1: (() => void) | undefined;
     if (!isOpen) return;
-    removeOverlayKeydown0 = subscribeOverlayInteraction(containerRef, 'keydown', handleKeyDown);
-    removeOverlayPointerdown0 = subscribeOverlayInteraction(containerRef, 'pointerdown', (event) => {
+    const removeOverlayKeydown0 = subscribeOverlayInteraction(containerRef, 'keydown', handleKeyDown);
+    return () => removeOverlayKeydown0?.();
+  }, [handleKeyDown, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClickOutside = (event: MouseEvent | PointerEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) onClose();
-    });
-    removeOverlayMousedown1 = subscribeOverlayInteraction(containerRef, 'mousedown', (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) onClose();
-    });
+    };
+    const removeOverlayPointerdown1 = subscribeOverlayInteraction(containerRef, 'pointerdown', handleClickOutside);
+    const removeOverlayMousedown1 = subscribeOverlayInteraction(containerRef, 'mousedown', handleClickOutside);
     return () => {
-      removeOverlayKeydown0?.();
-      removeOverlayPointerdown0?.();
+      removeOverlayPointerdown1?.();
       removeOverlayMousedown1?.();
     };
-  }, [handleKeyDown, isOpen, onClose]);
+  }, [isOpen, onClose]);
 
   useEffect(() => {
     if (!containerRef.current || displayItems.length === 0) return;
@@ -804,7 +813,7 @@ export const ChatContextPicker: React.FC<ChatContextPickerProps> = ({
             />
           </Tooltip>
         )}
-        {isSearchMode ? <><Icon name="search" size="lg" style={{ width: 11, height: 11 }} /><span>{t('contextPicker.searchResults')}</span></> : (
+        {isSearchMode ? <><Icon name="search" size="xs" /><span>{t('contextPicker.searchResults')}</span></> : (
           <div className="chat-context-picker__directory-label" title={currentViewLabel}>
             {view === 'files' ? (
               <span
@@ -859,7 +868,7 @@ export const ChatContextPicker: React.FC<ChatContextPickerProps> = ({
               : 'contextPicker.browseUnavailable')}</span>
           </ListboxEmpty>
         ) : displayItems.length === 0 && isLoading ? (
-          <ListboxEmpty className="chat-context-picker__loading"><Loader2 size={14} className="chat-context-picker__spinner" /><span>{t('contextPicker.loading')}</span></ListboxEmpty>
+          <ListboxEmpty className="chat-context-picker__loading"><Icon glyph={Loader2} size="sm" className="chat-context-picker__spinner" /><span>{t('contextPicker.loading')}</span></ListboxEmpty>
         ) : displayItems.length === 0 ? (
           <ListboxEmpty className="chat-context-picker__empty"><span>{emptyLabel}</span></ListboxEmpty>
         ) : (
@@ -893,6 +902,7 @@ export const ChatContextPicker: React.FC<ChatContextPickerProps> = ({
                     : 'chatInput.boostSkillsLoadFailed')
                   : session?.sessionName ?? skill?.name ?? mcp?.label ?? file?.name;
               const skillDescription = skill?.description?.trim() || undefined;
+              const isEnterableDirectory = Boolean(file?.isDirectory) && !isSearchMode;
               return (
                 <ListboxOption data-overflow-trigger
                   active={index === selectedIndex}
@@ -903,19 +913,24 @@ export const ChatContextPicker: React.FC<ChatContextPickerProps> = ({
                   data-bitfun-context-kind={selection.kind === 'source' || selection.kind === 'action'
                     ? selection.id
                     : selection.kind === 'mcp' ? `mcp-${selection.item.kind}` : selection.kind}
-                  indicator={selection.kind === 'source' || (file?.isDirectory && !isSearchMode)
-                    ? <Icon name="chevron-right" size="lg" aria-hidden="true" />
+                  indicator={selection.kind === 'source' || isEnterableDirectory
+                    ? <Icon
+                        aria-hidden="true"
+                        name="chevron-right"
+                        size="lg"
+                        title={isEnterableDirectory ? t('contextPicker.openDirectory') : undefined}
+                      />
                     : undefined}
                   leading={selection.kind === 'source'
                     ? selection.id === 'mcp'
                       ? <Plug aria-hidden="true" />
-                      : <Icon name={selection.id === 'files' ? 'files' : 'spark'} size="lg" aria-hidden="true" />
+                      : <Icon name={selection.id === 'files' ? 'files' : 'book-open'} size="lg" aria-hidden="true" />
                     : selection.kind === 'action'
                       ? selection.id === 'add-image'
                         ? <Icon name="image" size="lg" aria-hidden="true" />
                         : <RotateCcw aria-hidden="true" />
                       : skill
-                        ? <Icon name="spark" size="lg" aria-hidden="true" />
+                        ? <Icon name="book-open" size="lg" aria-hidden="true" />
                         : mcp
                           ? <Plug aria-hidden="true" />
                         : isSession
@@ -943,7 +958,7 @@ export const ChatContextPicker: React.FC<ChatContextPickerProps> = ({
                     ?? (file?.referenceStableKey
                       ? file.referenceDescription || file.path
                       : undefined)}
-                  onClick={() => handleItemClick(selection)}
+                  onClick={(event) => handleItemClick(selection, event)}
                   onContextMenu={(event) => {
                     event.preventDefault();
                     if (file?.isDirectory) enterDirectory(file);
@@ -957,7 +972,7 @@ export const ChatContextPicker: React.FC<ChatContextPickerProps> = ({
             })}
             {isLoading && (
               <ListboxEmpty className="chat-context-picker__loading">
-                <Loader2 size={14} className="chat-context-picker__spinner" />
+                <Icon glyph={Loader2} size="sm" className="chat-context-picker__spinner" />
                 <span>{t('contextPicker.loading')}</span>
               </ListboxEmpty>
             )}
@@ -977,9 +992,23 @@ export const ChatContextPicker: React.FC<ChatContextPickerProps> = ({
         </Listbox>
       </div>
       {(view === 'skills' || isSearchMode) && !skillsLoading && !skillsLoadFailed && (
-        skillDiagnostics.length > 0 ? <Disclosure presentation="native" className="chat-context-picker__diagnostics" summary={t('contextPicker.skillsIncomplete')}>
-          {skillDiagnostics.map((item, index) => <p key={index}>{item.path}: {item.message}</p>)}
-        </Disclosure> : !skillDiagnosticsAvailable && <p role="status">{t('contextPicker.skillsDiagnosticsUnavailable')}</p>
+        <>
+          {skillScanFailures.length > 0 && (
+            <Disclosure presentation="native" className="chat-context-picker__diagnostics" summary={t('contextPicker.skillsIncomplete')}>
+              {skillScanFailures.map((item, index) => <p key={index}>{item.path}: {item.message}</p>)}
+            </Disclosure>
+          )}
+          {unsupportedSkills.length > 0 && (
+            <Disclosure presentation="native" className="chat-context-picker__diagnostics" summary={t('contextPicker.skillsUnsupported')}>
+              {unsupportedSkills.map((item, index) => (
+                <p key={index}>{item.path}: {t('contextPicker.skillsUnsupportedField', { field: item.unsupportedField })}</p>
+              ))}
+            </Disclosure>
+          )}
+          {skillDiagnostics.length === 0 && !skillDiagnosticsAvailable && (
+            <p role="status">{t('contextPicker.skillsDiagnosticsUnavailable')}</p>
+          )}
+        </>
       )}
       <div data-bitfun-component="chat-context-picker" data-bitfun-part="footer" className="chat-context-picker__footer">
         <span><KeyHint>↑</KeyHint><KeyHint>↓</KeyHint> {t('contextPicker.navHint')}</span>

@@ -59,8 +59,6 @@ vi.mock('@/app/components/Privacy/PrivacyStatementDialog', () => ({
   PrivacyStatementDialog: () => null,
 }));
 
-vi.mock('./AboutBrandMark', () => ({ AboutBrandMark: () => null }));
-
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 let container: HTMLDivElement;

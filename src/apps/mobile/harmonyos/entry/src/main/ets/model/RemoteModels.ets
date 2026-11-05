@@ -156,9 +156,20 @@ export interface RemoteCommand {
   tool_id?: string;
   updated_input?: Object;
   model_id?: string;
+  // set_model_defaults: the phone always sends all three managed slots. The host
+  // keeps a slot whose key is missing; an explicit null clears it (no model
+  // configured and, for `fast`, follow the primary).
+  primary?: string | null;
+  fast?: string | null;
+  image_understanding?: string | null;
   reason?: string;
   mode?: RemotePermissionMode;
   answers?: Object;
+  // rollback_session_to_turn: the user turn being withdrawn and the storage
+  // index the caller last saw for it. Omitting the index only widens the race
+  // window; it never changes which turn the host addresses.
+  target_turn_id?: string;
+  expected_storage_turn_index?: number;
   image_contexts?: RemoteImageContext[];
   images?: ImageAttachment[];
   // provision_peer_device. `request_id` is minted by the device being
@@ -361,11 +372,245 @@ export interface SteerTurnResult {
   steeringId: string;
 }
 
+/**
+ * Answer to `rollback_session_to_turn`, sent as `resp: "session_rolled_back"`.
+ *
+ * `retired_turn_ids` includes the target turn itself. `composer_text` is the
+ * prompt the desktop would have put back into its composer, offered so the
+ * client can show the same edit-and-resend continuation; the host omits the key
+ * when it has no prompt to offer. The transcript itself is repaired by the next
+ * poll's authoritative snapshot, not by this answer.
+ */
+export interface SessionRolledBackResponse extends CommandStatusResponse {
+  session_id?: string;
+  retired_turn_ids?: string[];
+  restored_files?: string[];
+  composer_text?: string;
+  changed?: boolean;
+}
+
+/** The decoded rollback answer, with absent host fields kept as absence. */
+export interface SessionRolledBackResult {
+  sessionId: string;
+  retiredTurnIds: string[];
+  restoredFiles: string[];
+  composerText?: string;
+  changed: boolean;
+}
+
 export const REMOTE_CAPABILITY_DIALOG_STEER_V1: string = 'dialog_steer_v1';
 export const REMOTE_CAPABILITY_PLAN_BUILD_V1: string = 'plan_build_v1';
 export const REMOTE_CAPABILITY_HARNESS_PROFILES_V1: string = 'harness_profiles_v1';
+/**
+ * The host can retire a turn and every turn after it, then restore the files
+ * those turns touched (`rollback_session_to_turn`). A host without it answers
+ * the command with an error, so the client checks before offering the entry.
+ */
+export const REMOTE_CAPABILITY_SESSION_ROLLBACK_V1: string = 'session_rollback_v1';
 /** The host resolves `workspace_id` in commands and stamps it on its projections. */
 export const REMOTE_CAPABILITY_WORKSPACE_ID_REFERENCES_V1: string = 'workspace_id_references_v1';
+/** The host reads and writes the device-level model role defaults. */
+export const REMOTE_CAPABILITY_DEVICE_MODEL_DEFAULTS_V1: string = 'device_model_defaults_v1';
+/**
+ * The composer command palette has no capability of its own.
+ *
+ * Skills, compact, init and usage all reach the desktop through the existing
+ * `host_invoke` bridge, so the phone cannot ask for a capability that a host
+ * would have to be taught: it probes one of the verbs instead and degrades on
+ * the answer. Session goals are plain message text and need no host support at
+ * all. Only the skills picker's grouping is local, so these are display values.
+ */
+export const REMOTE_SKILL_SOURCE_BUILTIN: string = 'builtin';
+export const REMOTE_SKILL_SOURCE_USER: string = 'user';
+export const REMOTE_SKILL_SOURCE_PROJECT: string = 'project';
+
+/**
+ * One palette entry, projected from the host's `get_mode_skill_configs` rows.
+ *
+ * The host payload is a `ModeSkillInfo`: a `SkillInfo` flattened beside the
+ * mode's availability flags. `id` is the skill key, because that is what the
+ * `[$key]` message token carries; the flags are kept on the entry so the picker
+ * can filter with host truth instead of guessing.
+ */
+export interface RemoteSkillCatalogEntry {
+  id: string;
+  name: string;
+  description: string;
+  /** Host group taxonomy; empty for user-authored skills. */
+  group: string;
+  /** `builtin`, `project` or `user`; the picker's fallback grouping. */
+  source: string;
+  /** Another skill of the same name wins in this mode. */
+  shadowed: boolean;
+  selectedForRuntime: boolean;
+  effectiveEnabled: boolean;
+  globallyEnabled: boolean;
+  allowUserInvocation: boolean;
+}
+
+export interface RemoteCommandCatalog {
+  skills: RemoteSkillCatalogEntry[];
+}
+
+/**
+ * Answer to `compact_session` / `run_init_agents_md`.
+ *
+ * Both handlers return `StartDialogTurnResponse`, so the accepted shape is the
+ * host's own success/message pair rather than a palette-specific envelope.
+ */
+export interface RemoteTurnAcceptedValue {
+  success?: boolean;
+  message?: string;
+}
+
+/**
+ * The session usage report, mirrored from the desktop contract.
+ *
+ * Every field is optional on purpose: an older or a partially instrumented host
+ * reports the subset it can measure, and the sheet renders exactly the rows the
+ * payload carries instead of inventing zeroes for what is missing. Both the
+ * desktop camelCase spelling and the snake_case spelling are accepted, because
+ * this payload crosses a relay between two independently built versions.
+ */
+export interface RemoteUsageWorkspace {
+  kind?: string;
+  path_label?: string;
+  pathLabel?: string;
+  workspace_id?: string;
+  workspaceId?: string;
+}
+
+export interface RemoteUsageScope {
+  kind?: string;
+  turn_count?: number;
+  turnCount?: number;
+  includes_subagents?: boolean;
+  includesSubagents?: boolean;
+}
+
+export interface RemoteUsageCoverage {
+  level?: string;
+  available?: string[];
+  missing?: string[];
+  notes?: string[];
+}
+
+export interface RemoteUsageTime {
+  accounting?: string;
+  denominator?: string;
+  wall_time_ms?: number;
+  wallTimeMs?: number;
+  active_turn_ms?: number;
+  activeTurnMs?: number;
+  model_ms?: number;
+  modelMs?: number;
+  tool_ms?: number;
+  toolMs?: number;
+  idle_gap_ms?: number;
+  idleGapMs?: number;
+}
+
+export interface RemoteUsageTokens {
+  source?: string;
+  input_tokens?: number;
+  inputTokens?: number;
+  output_tokens?: number;
+  outputTokens?: number;
+  total_tokens?: number;
+  totalTokens?: number;
+  cached_tokens?: number;
+  cachedTokens?: number;
+  cache_coverage?: string;
+  cacheCoverage?: string;
+}
+
+export interface RemoteUsageModelRow {
+  model_id?: string;
+  modelId?: string;
+  call_count?: number;
+  callCount?: number;
+  total_tokens?: number;
+  totalTokens?: number;
+}
+
+export interface RemoteUsageToolRow {
+  tool_name?: string;
+  toolName?: string;
+  category?: string;
+  call_count?: number;
+  callCount?: number;
+  error_count?: number;
+  errorCount?: number;
+}
+
+export interface RemoteUsageFiles {
+  scope?: string;
+  changed_files?: number;
+  changedFiles?: number;
+  added_lines?: number;
+  addedLines?: number;
+  deleted_lines?: number;
+  deletedLines?: number;
+}
+
+export interface RemoteUsageCompression {
+  compaction_count?: number;
+  compactionCount?: number;
+  manual_compaction_count?: number;
+  manualCompactionCount?: number;
+  automatic_compaction_count?: number;
+  automaticCompactionCount?: number;
+  saved_tokens?: number;
+  savedTokens?: number;
+}
+
+export interface RemoteUsageErrors {
+  total_errors?: number;
+  totalErrors?: number;
+  tool_errors?: number;
+  toolErrors?: number;
+  model_errors?: number;
+  modelErrors?: number;
+}
+
+export interface RemoteUsagePrivacy {
+  prompt_content_included?: boolean;
+  promptContentIncluded?: boolean;
+  tool_inputs_included?: boolean;
+  toolInputsIncluded?: boolean;
+  command_outputs_included?: boolean;
+  commandOutputsIncluded?: boolean;
+  file_contents_included?: boolean;
+  fileContentsIncluded?: boolean;
+}
+
+/**
+ * The `get_session_usage_report` value, as the desktop contract serializes it.
+ *
+ * The command answers with the report itself rather than a wrapper, so this is
+ * the `value` of the `host_invoke` result and not a response envelope.
+ */
+export interface RemoteSessionUsageReport {
+  schema_version?: number;
+  schemaVersion?: number;
+  report_id?: string;
+  reportId?: string;
+  session_id?: string;
+  sessionId?: string;
+  generated_at?: number;
+  generatedAt?: number;
+  workspace?: RemoteUsageWorkspace;
+  scope?: RemoteUsageScope;
+  coverage?: RemoteUsageCoverage;
+  time?: RemoteUsageTime;
+  tokens?: RemoteUsageTokens;
+  models?: RemoteUsageModelRow[];
+  tools?: RemoteUsageToolRow[];
+  files?: RemoteUsageFiles;
+  compression?: RemoteUsageCompression;
+  errors?: RemoteUsageErrors;
+  privacy?: RemoteUsagePrivacy;
+}
 
 export interface RemoteModelConfig {
   id: string;
@@ -400,11 +645,21 @@ export interface RemoteReasoningCatalogProjection {
   presets?: RemoteReasoningPresetDescriptor[];
 }
 
+/**
+ * Device-level model role defaults, exactly as the host persists them.
+ *
+ * All six slots are always projected; only `primary`, `fast` and
+ * `image_understanding` are writable from the phone. `null` is a real value and
+ * means "no model configured" (`fast` then follows `primary`), so every reader
+ * must treat it as such rather than as an absent field.
+ */
 export interface RemoteDefaultModels {
-  primary?: string;
-  fast?: string;
-  search?: string;
-  image_understanding?: string;
+  primary?: string | null;
+  fast?: string | null;
+  search?: string | null;
+  image_understanding?: string | null;
+  image_generation?: string | null;
+  speech_recognition?: string | null;
 }
 
 export interface RemoteModelCatalog {
@@ -423,6 +678,18 @@ export interface SetSessionModelResponse extends CommandStatusResponse {
   model_id?: string;
 }
 
+/**
+ * `set_model_defaults` acknowledgement.
+ *
+ * `default_models` is the reconcile result the host read back, all six slots
+ * included. A host that only acknowledges the command without the payload
+ * leaves it undefined, which the client answers with its own authoritative
+ * re-read instead of guessing.
+ */
+export interface ModelDefaultsUpdatedResponse extends CommandStatusResponse {
+  default_models?: RemoteDefaultModels;
+}
+
 export interface RemoteToolStatusResponse {
   permission_request_id?: string;
   id?: string;
@@ -439,6 +706,15 @@ export interface RemoteToolStatusResponse {
   error_preview?: string;
   exit_code?: number;
   plan?: RemotePlanToolResponse;
+  /**
+   * Child Session a launching tool started, when this record is a delegation.
+   *
+   * The durable record names it (`subagent_session_id` on the item data), and
+   * this projection keeps the name instead of dropping it: a transcript restored
+   * from the phone's cache is the only thing a cold or offline session view has,
+   * and the link is what maps a stored child back to the branch that owns it.
+   */
+  subagent_session_id?: string;
 }
 
 export interface RemotePlanToolResponse {

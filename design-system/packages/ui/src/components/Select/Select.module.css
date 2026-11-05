@@ -33,6 +33,11 @@
     --_select-height: var(--bitfun-control-height-sm);
   }
 
+  .root[data-width="content"] {
+    inline-size: max-content;
+    max-inline-size: 100%;
+  }
+
   .root[data-size="lg"],
   .popover[data-size="lg"] {
     --_select-height: var(--bitfun-control-height-lg);
@@ -80,9 +85,45 @@
       box-shadow var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
   }
 
+  .root[data-variant="pill"] > .trigger {
+    gap: var(--bitfun-control-status-pill-gap);
+    padding-inline: var(--bitfun-control-status-pill-padding-inline);
+    border-radius: var(--bitfun-control-status-pill-radius);
+    background: var(--bitfun-color-action-neutral-surface);
+    font-family: var(--bitfun-type-meta-font-family);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-meta-font-weight);
+    line-height: var(--bitfun-type-status-pill-line-height);
+    letter-spacing: var(--bitfun-type-meta-letter-spacing);
+  }
+
+  .root[data-bordered="false"] > .trigger {
+    border: 0;
+  }
+
+  .root[data-bordered="hover"] > .trigger {
+    border-color: transparent;
+  }
+
+  .root[data-hit-area="expanded"] > .trigger {
+    position: relative;
+  }
+
+  .root[data-hit-area="expanded"]:not([data-open="true"]) > .trigger::after {
+    content: "";
+    position: absolute;
+    inset-block: calc(-1 * var(--bitfun-space-1));
+    inset-inline: calc(-1 * var(--bitfun-space-2));
+    border-radius: inherit;
+  }
+
   .trigger:is(:hover, [data-bitfun-preview-state="hover"]):not(:disabled) {
     border-color: var(--bitfun-color-field-border-hover);
     background: var(--bitfun-color-field-background-hover);
+  }
+
+  .root[data-variant="pill"] > .trigger:is(:hover, [data-bitfun-preview-state="hover"]):not(:disabled) {
+    background: var(--bitfun-color-action-neutral-surface-hover);
   }
 
   .root[data-field-surface="ambient"] .trigger,
@@ -147,6 +188,11 @@
     white-space: nowrap;
   }
 
+  .valuePrefix {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
   .placeholder {
     color: var(--bitfun-color-field-placeholder);
   }
@@ -171,7 +217,7 @@
     overflow: hidden;
     padding: 0;
     border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
-    border-radius: var(--bitfun-overlay-menu-surface-radius);
+    border-radius: var(--bitfun-control-select-radius);
     color: var(--bitfun-color-action-neutral-content);
     background: var(--bitfun-color-surface-panel);
     box-shadow: var(--bitfun-shadow-menu);
@@ -181,6 +227,10 @@
 
   .popover[data-invalid="true"] {
     border-color: var(--bitfun-color-status-danger-border);
+  }
+
+  .popover[data-width="content"] {
+    inline-size: max-content;
   }
 
   .popover[data-placement="top"] {
@@ -219,6 +269,11 @@
     flex: 0 0 var(--bitfun-border-width-default);
     block-size: var(--bitfun-border-width-default);
     background: var(--bitfun-color-border-subtle);
+  }
+
+  .dividedGroup {
+    padding-block-start: var(--bitfun-overlay-menu-section-gap);
+    border-block-start: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
   }
 
   .options {
@@ -293,6 +348,7 @@
 
   @media (forced-colors: active) {
     .trigger,
+    .root[data-variant="pill"] > .trigger,
     .popover,
     .root[data-invalid="true"] .trigger {
       border-color: ButtonText;
@@ -303,7 +359,8 @@
       border: 0;
     }
 
-    .trigger:focus-visible {
+    .trigger:focus-visible,
+    .root[data-variant="pill"] > .trigger:focus-visible {
       border-color: Highlight;
       box-shadow: 0 0 0 var(--bitfun-focus-width) Highlight;
     }
@@ -311,5 +368,14 @@
     .listbox [data-bitfun-listbox-option][data-selected="true"] [data-bitfun-part="indicator"] {
       color: Highlight;
     }
+  }
+
+  /* Filled fields keep standard borders over the grouped-field background. */
+  .root[data-field-surface="filled"] .trigger {
+    background: var(--bitfun-color-field-group-background);
+  }
+
+  .root[data-field-surface="filled"] .trigger:hover:not(:disabled) {
+    background: var(--bitfun-color-field-background-hover);
   }
 }

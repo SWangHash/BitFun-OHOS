@@ -6,12 +6,6 @@ import { useI18n } from '@/infrastructure/i18n';
 import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 import { useSettingsStore } from '@/app/scenes/settings/settingsStore';
 import { useSceneStore } from '@/app/stores/sceneStore';
-import type { EcosystemProductId } from './ecosystemCompatibilityModel';
-
-/** Native subscription connections are separate from external credential discovery. */
-export function ecosystemAccountProvider(product: EcosystemProductId): 'codex' | 'opencode' | undefined {
-  return product === 'codex' || product === 'opencode' ? product : undefined;
-}
 
 interface Props {
   provider: 'codex' | 'opencode';
@@ -62,9 +56,8 @@ export default function EcosystemAccounts({ provider, supported, refreshVersion,
     <div className="ecosystem-compatibility__content-summary" role="row">
       <span role="cell" className="ecosystem-compatibility__import-item">
         <span className="ecosystem-compatibility__import-item-icon"><Icon glyph={CircleUserRound} size="md" /></span>
-        <span className="ecosystem-compatibility__import-item-copy"><strong>{t('capabilities.account')}</strong><small>{t('content.accounts.description')}</small></span>
+        <span className="ecosystem-compatibility__import-item-copy"><strong><OverflowText>{t('capabilities.account')}</OverflowText></strong></span>
       </span>
-      <span role="cell"><OverflowText>{t(`content.accounts.providers.${provider}`)}</OverflowText></span>
       <span role="cell" className="ecosystem-compatibility__content-summary-state">
         <StatusPill tone="neutral" title={t(`content.accounts.states.${state}`)}>{state === 'loading' ? t('loading') : t(`content.accounts.labels.${state}`)}</StatusPill>
         <IconButton size="sm" variant="quiet" icon={<Icon name={expanded ? 'chevron-down' : 'chevron-right'} size="sm" />}
@@ -72,8 +65,8 @@ export default function EcosystemAccounts({ provider, supported, refreshVersion,
           aria-expanded={expanded} aria-controls={id} data-testid={`ecosystem-account-expand-${provider}`} onClick={() => { if (!expanded) setRevision((value) => value + 1); onToggle(); }} />
       </span>
     </div>
-    <div role="row" hidden={!expanded}><div id={id} role="cell" aria-colspan={3} className="ecosystem-compatibility__content-expanded">
-      {expanded ? <Card appearance="subtle" padding="sm" className="ecosystem-compatibility__account-panel">
+    <div role="row" hidden={!expanded}><div id={id} role="cell" aria-colspan={2} className="ecosystem-compatibility__content-expanded">
+      {expanded ? <Card appearance="subtle" padding="sm" radius="none" className="ecosystem-compatibility__account-panel">
         <CardHeader
           title={<OverflowText>{account?.account || t(`content.accounts.providers.${provider}`)}</OverflowText>}
           description={supported && loading

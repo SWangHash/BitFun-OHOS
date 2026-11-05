@@ -40,6 +40,21 @@ platform presentation primitives.
 - Native hosts follow the system font-size preference with a documented maximum
   scale. Validate the standard size and at least one enlarged accessibility size
   without changing display zoom, and prefer wrapping or ellipsis over clipping.
+- The ramp's sizes were tuned on the iPhone Pro class, where one logical unit is
+  1/153.3 inch (460 ppi at 3x). A screen whose logical unit is physically larger
+  renders the same `16` visibly bigger, so `text_scale` normalises it: the host
+  computes `xdpi / density / reference_logical_dpi`, clamps it to
+  `[min_factor, max_factor]`, and applies it to text only, on top of the user's
+  font-size preference. HarmonyOS folds it into the generated typography roles
+  (`MobileTextScale.apply` at ability start, so every role getter returns the
+  scaled value); Android folds it into the theme's `Density.fontScale` so every
+  `sp` under `BitFunTheme` follows. iOS is the reference and stays at 1.
+  Symbol glyph and `dp`/`vp` geometry never scale. A HUAWEI Mate X7
+  (415.6 dpi at density 3.125) resolves to 0.868, so its `16` reads as 14 vp —
+  the same millimetres as 16 pt on the iPhone.
+- Inline Markdown runs (`**strong**`, `*emphasis*`, `` `code` ``) change only
+  weight, slant, or family; they inherit the paragraph role's size on all three
+  hosts.
 
 The native role names map to the product's formal content purposes as follows:
 
@@ -56,6 +71,41 @@ The native role names map to the product's formal content purposes as follows:
 Platform renderers may choose the listed size variant for available width, but
 must not substitute a different content purpose merely to obtain a preferred
 metric.
+
+## Sidebar chrome
+
+The left sidebar is chrome, not another page. The desktop client paints it with
+its own surface family — one step off the scene the conversation sits on — so
+the mobile clients carry a dedicated `sidebar_*` token family rather than
+reusing the page roles (`page_bg`, `card`, `soft`, `line`, `ink`, `muted`,
+`subtle`). Those page roles stay exactly as they were for conversations,
+sheets, and action surfaces; only the rail moved.
+
+Each token maps one-to-one onto a desktop semantic role from
+`design-system/packages/theme-bitfun`:
+
+| Mobile token | Desktop role | Used for |
+| --- | --- | --- |
+| `sidebar_bg` | `color.surface.chrome` | the rail itself, and the pane behind it |
+| `sidebar_bg_fade` | same hue at zero alpha | the top stop of the footer fade |
+| `sidebar_raised` | `color.surface.raised` | circle buttons, the quiet footer action |
+| `sidebar_line` | `color.border.subtle` | hairlines and control borders |
+| `sidebar_hover` | `color.action.quiet.hover` | the search field fill |
+| `sidebar_selection` | `color.selection.surface` | the selected row and device fills |
+| `sidebar_ink` | `color.content.primary` | titles, row labels, icon tint |
+| `sidebar_muted` | `color.content.secondary` | supporting row text |
+| `sidebar_subtle` | `color.content.caption` | placeholders and offline devices |
+
+`sidebar_line`, `sidebar_hover` (dark), and `sidebar_selection` are stored as
+`#AARRGGBB` on purpose: desktop defines them as alpha over the chrome surface,
+and keeping the alpha lets them composite the same way instead of baking a
+flattened value that drifts the moment the surface changes.
+
+Sidebar components shared with page surfaces take their layer from the caller
+rather than assuming it — Android's `SidebarCircleButton` and
+`SignedOutConnectionActions` both expose background/border/content parameters,
+and the sheet presented from the sidebar (the workspace picker) stays on page
+roles because a sheet is not chrome.
 
 ## Simulator captures
 
@@ -160,3 +210,18 @@ The recent-home brand and headline are centered above the leading-aligned sessio
 HarmonyOS welcome occupies the full window when signed out without an active remote target. It suppresses the workspace sidebar without changing retained selection. At 600vp and above, the brand, phrase and constrained action group are centered without the compact dock; smaller windows retain the stacked dock. The welcome mark is 156vp compact and 184vp wide, using the diagonal sweep. Size changes update this layout in place.
 
 For HarmonyOS welcome windows at least 840vp wide with width/height at least 1.2, a centered composition capped at 1000vp places the brand and actions side by side. This follows available window geometry rather than a device model or fold count.
+
+### Authenticated cold-start home transition
+
+After the persisted first-install reveal has already been claimed, an
+authenticated process launch uses `cold_start_home` (2400 ms). The home shell
+mounts immediately so restoration and remote loading continue underneath the
+cover. The contour mark starts at 56 logical units, then moves to the mark's
+measured native bounds during 16%–68% of the timeline; the cover fades from
+68%–100%. Each platform measures the actual compact or wide home layout, so
+safe-area insets, split windows, and foldable posture changes do not rely on a
+fixed coordinate. Signed-out restore, manual login after launch, activity or
+scene recreation, foreground resume, and a second root do not claim the
+transition. If the home mark is unavailable, the mark remains centered and the
+cover still fades on the same clock. Reduced motion finishes immediately, and
+accessibility and pointer interaction stay with the cover until it completes.

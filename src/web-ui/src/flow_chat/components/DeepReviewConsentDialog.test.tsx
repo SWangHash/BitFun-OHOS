@@ -19,6 +19,7 @@ vi.mock('react-i18next', async () => {
 });
 
 vi.mock('@bitfun/ui', () => ({
+  Icon: () => <svg aria-hidden="true" />,
   Button: ({
     children,
     onClick,

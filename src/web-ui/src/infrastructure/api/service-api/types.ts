@@ -22,7 +22,14 @@ export interface ApiError {
 
 
 export interface ApiRequestConfig {
-  /** Request deadline in milliseconds; 0 disables it. Omit to use the client default. */
+  /**
+   * Deadline for this request in milliseconds.
+   *
+   * Non-positive values disable the deadline, which long-running streaming
+   * commands (file transfers) use because their own layer already bounds every
+   * protocol request and the user can stop them explicitly. Such a command must
+   * provide cancellation; without a deadline nothing else ends the wait.
+   */
   timeout?: number;
   retries?: number;
   retryDelay?: number;

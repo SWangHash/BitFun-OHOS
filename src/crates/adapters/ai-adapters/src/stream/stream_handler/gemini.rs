@@ -67,14 +67,7 @@ impl GeminiToolCallState {
 }
 
 fn extract_api_error_message(event_json: &Value) -> Option<String> {
-    let error = event_json
-        .get("error")
-        .filter(|error| !error.is_null())
-        .or_else(|| {
-            event_json
-                .get("response")
-                .and_then(|response| response.get("error"))
-        })?;
+    let error = event_json.get("error")?;
     if let Some(message) = error.get("message").and_then(Value::as_str) {
         return Some(message.to_string());
     }
@@ -85,14 +78,7 @@ fn extract_api_error_message(event_json: &Value) -> Option<String> {
 }
 
 fn extract_api_error(event_json: &Value) -> Option<AiProviderError> {
-    let error = event_json
-        .get("error")
-        .filter(|error| !error.is_null())
-        .or_else(|| {
-            event_json
-                .get("response")
-                .and_then(|response| response.get("error"))
-        })?;
+    let error = event_json.get("error")?;
     let code = error
         .get("status")
         .or_else(|| error.get("code"))
@@ -101,12 +87,23 @@ fn extract_api_error(event_json: &Value) -> Option<AiProviderError> {
             Value::Number(value) => Some(value.to_string()),
             _ => None,
         });
-    Some(AiProviderError::from_parts(
+    let mut detail = AiProviderError::from_parts(
         extract_api_error_message(event_json)?,
         Some("gemini".to_string()),
         code,
         None,
-    ))
+    );
+    // This is a Google RPC status in an SSE event, not an HTTP status.
+    // Preserve more specific quota/context classifications from the message.
+    if matches!(
+        detail.category,
+        bitfun_core_types::errors::ErrorCategory::Unknown
+            | bitfun_core_types::errors::ErrorCategory::ModelError
+    ) && detail.provider_code.as_deref() == Some("RESOURCE_EXHAUSTED")
+    {
+        detail.category = bitfun_core_types::errors::ErrorCategory::RateLimit;
+    }
+    Some(detail)
 }
 
 pub async fn handle_gemini_stream(
@@ -116,24 +113,44 @@ pub async fn handle_gemini_stream(
     ttft_timeout: Option<Duration>,
     idle_timeout: Option<Duration>,
 ) {
-    handle_gemini_stream_with_empty_tools(
+    handle_gemini_stream_inner(
         response,
         tx_event,
         tx_raw_sse,
         ttft_timeout,
         idle_timeout,
-        Vec::new(),
+        false,
     )
     .await;
 }
 
-pub(crate) async fn handle_gemini_stream_with_empty_tools(
+/// Code Assist wraps the ordinary Gemini event in a response envelope.
+/// Keep that translation at the adapter boundary; public Gemini remains flat.
+pub async fn handle_gemini_code_assist_stream(
     response: Response,
     tx_event: mpsc::UnboundedSender<Result<UnifiedResponse>>,
     tx_raw_sse: Option<mpsc::UnboundedSender<String>>,
     ttft_timeout: Option<Duration>,
     idle_timeout: Option<Duration>,
-    empty_tools: Vec<String>,
+) {
+    handle_gemini_stream_inner(
+        response,
+        tx_event,
+        tx_raw_sse,
+        ttft_timeout,
+        idle_timeout,
+        true,
+    )
+    .await;
+}
+
+async fn handle_gemini_stream_inner(
+    response: Response,
+    tx_event: mpsc::UnboundedSender<Result<UnifiedResponse>>,
+    tx_raw_sse: Option<mpsc::UnboundedSender<String>>,
+    ttft_timeout: Option<Duration>,
+    idle_timeout: Option<Duration>,
+    code_assist: bool,
 ) {
     let mut stream = response.bytes_stream().eventsource();
     let mut received_finish_reason = false;
@@ -185,11 +202,7 @@ pub(crate) async fn handle_gemini_stream_with_empty_tools(
 
         let raw = sse.data;
         stats.record_sse_event("data");
-        if crate::diagnostics::include_sensitive_diagnostics() {
-            trace!(target: AI_STREAM_RESPONSE_TARGET, "Gemini SSE: {:?}", raw);
-        } else {
-            trace!(target: AI_STREAM_RESPONSE_TARGET, "Gemini SSE: data_bytes={}", raw.len());
-        }
+        trace!(target: AI_STREAM_RESPONSE_TARGET, "Gemini SSE: {:?}", raw);
 
         if let Some(ref tx) = tx_raw_sse {
             let _ = tx.send(raw.clone());
@@ -211,6 +224,14 @@ pub(crate) async fn handle_gemini_stream_with_empty_tools(
                 let _ = tx_event.send(Err(anyhow!(error_msg)));
                 return;
             }
+        };
+
+        // Top-level errors retain priority over an optional response envelope.
+        // Raw SSE is captured before translation for diagnostics and replay.
+        let event_json = if code_assist && event_json.get("error").is_none() {
+            event_json.get("response").cloned().unwrap_or(event_json)
+        } else {
+            event_json
         };
 
         if let Some(mut provider_error) = extract_api_error(&event_json) {
@@ -243,22 +264,6 @@ pub(crate) async fn handle_gemini_stream_with_empty_tools(
         }
         for unified_response in &mut unified_responses {
             if let Some(tool_call) = unified_response.tool_call.as_mut() {
-                if tool_call
-                    .name
-                    .as_ref()
-                    .is_some_and(|name| empty_tools.contains(name))
-                {
-                    if let Some(arguments) = tool_call.arguments.as_deref() {
-                        if let Ok(Value::Object(mut arguments)) =
-                            serde_json::from_str::<Value>(arguments)
-                        {
-                            arguments.remove(
-                                crate::providers::gemini::antigravity::EMPTY_PARAMETER_NAME,
-                            );
-                            tool_call.arguments = serde_json::to_string(&arguments).ok();
-                        }
-                    }
-                }
                 tool_call_state.assign_id(tool_call);
             } else {
                 tool_call_state.on_non_tool_response();
@@ -270,32 +275,11 @@ pub(crate) async fn handle_gemini_stream_with_empty_tools(
             }
         }
 
-        if crate::diagnostics::include_sensitive_diagnostics() {
-            trace!(
-                target: AI_STREAM_RESPONSE_TARGET,
-                "Gemini unified responses: {:?}",
-                unified_responses
-            );
-        } else {
-            let summary: Vec<String> = unified_responses.iter().map(|r| {
-                let mut parts = Vec::new();
-                if let Some(ref text) = r.text { parts.push(format!("text_chars={}", text.chars().count())); }
-                if let Some(ref reasoning) = r.reasoning_content { parts.push(format!("reasoning_chars={}", reasoning.chars().count())); }
-                if let Some(ref tc) = r.tool_call {
-                    parts.push(format!("tool_call: index={:?}, has_id={}, name={:?}, arguments_bytes={}, snapshot={}",
-                        tc.tool_call_index, tc.id.is_some(), tc.name.as_deref(),
-                        tc.arguments.as_ref().map(|a| a.len()).unwrap_or(0), tc.arguments_is_snapshot));
-                }
-                if r.finish_reason.is_some() { parts.push(format!("finish_reason={:?}", r.finish_reason)); }
-                if r.usage.is_some() { parts.push("has_usage=true".to_string()); }
-                if parts.is_empty() { "empty".to_string() } else { parts.join(", ") }
-            }).collect();
-            trace!(
-                target: AI_STREAM_RESPONSE_TARGET,
-                "Gemini unified responses summary: [{}]",
-                summary.join("; ")
-            );
-        }
+        trace!(
+            target: AI_STREAM_RESPONSE_TARGET,
+            "Gemini unified responses: {:?}",
+            unified_responses
+        );
 
         for unified_response in unified_responses {
             timeout_controller.observe_unified_response(&unified_response);
@@ -310,6 +294,111 @@ mod tests {
     use super::{extract_api_error, GeminiToolCallState};
     use crate::stream::types::unified::UnifiedToolCall;
     use bitfun_core_types::errors::ErrorCategory;
+
+    async fn parse_http_event(
+        event: serde_json::Value,
+        code_assist: bool,
+    ) -> (Vec<anyhow::Result<super::UnifiedResponse>>, Vec<String>) {
+        use axum::{body::Body, extract::State, http::header, routing::get, Router};
+        async fn serve(
+            State(body): State<String>,
+        ) -> ([(header::HeaderName, &'static str); 1], Body) {
+            (
+                [(header::CONTENT_TYPE, "text/event-stream")],
+                Body::from(body),
+            )
+        }
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/events", listener.local_addr().unwrap());
+        let payload = format!("data: {}\n\n", event);
+        let task = tokio::spawn(async move {
+            axum::serve(
+                listener,
+                Router::new()
+                    .route("/events", get(serve))
+                    .with_state(payload),
+            )
+            .await
+            .unwrap();
+        });
+        bitfun_services_core::tls_provider::ensure_ring_crypto_provider();
+        let response = reqwest::Client::builder()
+            .no_proxy()
+            .build()
+            .unwrap()
+            .get(url)
+            .send()
+            .await
+            .unwrap();
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let (raw_tx, mut raw_rx) = tokio::sync::mpsc::unbounded_channel();
+        super::handle_gemini_stream_inner(response, tx, Some(raw_tx), None, None, code_assist)
+            .await;
+        let mut events = Vec::new();
+        while let Some(event) = rx.recv().await {
+            events.push(event);
+        }
+        let mut raw = Vec::new();
+        while let Some(event) = raw_rx.recv().await {
+            raw.push(event);
+        }
+        task.abort();
+        (events, raw)
+    }
+
+    #[tokio::test]
+    async fn code_assist_http_envelope_retains_text_signature_usage_and_completion() {
+        let payload = serde_json::json!({
+            "candidates":[{"content":{"parts":[{"text":"answer","thoughtSignature":"fixture-signature"}]},"finishReason":"STOP"}],
+            "usageMetadata":{"promptTokenCount":20,"candidatesTokenCount":5,"totalTokenCount":25}
+        });
+        for (event, code_assist) in [
+            (payload.clone(), false),
+            (payload.clone(), true),
+            (
+                serde_json::json!({"response":payload,"traceId":"fixture-trace"}),
+                true,
+            ),
+        ] {
+            let (events, raw) = parse_http_event(event.clone(), code_assist).await;
+            assert!(events.iter().all(Result::is_ok));
+            let events: Vec<_> = events.into_iter().map(Result::unwrap).collect();
+            assert!(events
+                .iter()
+                .any(|event| event.text.as_deref() == Some("answer")));
+            assert!(events
+                .iter()
+                .any(|event| event.thinking_signature.as_deref() == Some("fixture-signature")));
+            assert!(events
+                .iter()
+                .any(|event| event.finish_reason.as_deref() == Some("STOP")));
+            assert!(events.iter().any(|event| event
+                .usage
+                .as_ref()
+                .is_some_and(
+                    |usage| usage.prompt_token_count == 20 && usage.candidates_token_count == 5
+                )));
+            assert_eq!(raw, vec![event.to_string()]);
+        }
+    }
+
+    #[tokio::test]
+    async fn code_assist_wrapped_errors_are_classified_and_public_gemini_does_not_guess_envelopes()
+    {
+        let (events, _) = parse_http_event(serde_json::json!({"response":{"error":{"status":"RESOURCE_EXHAUSTED","message":"quota exhausted"}}}), true).await;
+        assert!(events
+            .into_iter()
+            .any(|event| event.err().is_some_and(|error| error
+                .downcast_ref::<super::AiProviderError>()
+                .is_some_and(|error| error.category == ErrorCategory::RateLimit
+                    || error.category == ErrorCategory::ProviderQuota))));
+        let (events, _) = parse_http_event(
+            serde_json::json!({"response":{"candidates":[{"finishReason":"STOP"}]}}),
+            false,
+        )
+        .await;
+        assert!(events.iter().any(Result::is_err));
+    }
 
     #[test]
     fn reuses_active_tool_id_by_omitting_follow_up_ids() {
@@ -433,10 +522,8 @@ mod tests {
             }
         });
 
-        for event in [event.clone(), serde_json::json!({"response": event})] {
-            let error = extract_api_error(&event).expect("provider error");
-            assert_eq!(error.category, ErrorCategory::ContextOverflow);
-            assert_eq!(error.provider_code.as_deref(), Some("INVALID_ARGUMENT"));
-        }
+        let error = extract_api_error(&event).expect("provider error");
+        assert_eq!(error.category, ErrorCategory::ContextOverflow);
+        assert_eq!(error.provider_code.as_deref(), Some("INVALID_ARGUMENT"));
     }
 }

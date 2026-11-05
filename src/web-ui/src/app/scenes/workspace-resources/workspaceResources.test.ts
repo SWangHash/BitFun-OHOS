@@ -103,18 +103,17 @@ describe('workspace resource navigation', () => {
 describe('workspace resource preferences', () => {
   it('isolates layouts by complete resource key', () => {
     const state = useWorkspaceResourceState.getState();
-    state.updateLayout('local/project', { filesCollapsed: true, fileView: 'search' });
-    state.updateLayout('peer/project', { filesCollapsed: false });
+    state.updateLayout('local/project', { terminalFraction: 0.5, filesCollapsed: true });
+    state.updateLayout('peer/project', { terminalsCollapsed: true });
     const layouts = useWorkspaceResourceState.getState().layouts;
     expect(layouts['local/project'].filesCollapsed).toBe(true);
-    expect(layouts['local/project'].fileView).toBe('search');
     expect(layouts['peer/project'].filesCollapsed).toBe(false);
-    expect(layouts['peer/project'].fileView).toBe('tree');
+    expect(layouts['peer/project'].terminalFraction).toBe(0.3);
   });
   it('tolerates missing and invalid persisted preferences', () => {
-    expect(normalizeResourceLayout({})).toEqual({ filesCollapsed: false, fileView: 'tree' });
-    expect(normalizeResourceLayout({ filesCollapsed: true }).filesCollapsed).toBe(true);
-    expect(normalizeResourceLayout({ fileView: 'search' }).fileView).toBe('search');
-    expect(normalizeResourceLayout({ fileView: 'unknown' as never }).fileView).toBe('tree');
+    expect(normalizeResourceLayout({}).terminalFraction).toBe(0.3);
+    expect(normalizeResourceLayout({ terminalFraction: Number.NaN }).terminalFraction).toBe(0.3);
+    expect(normalizeResourceLayout({ terminalFraction: 10 }).terminalFraction).toBe(0.75);
+    expect(normalizeResourceLayout({ terminalFraction: -1 }).terminalFraction).toBe(0.15);
   });
 });

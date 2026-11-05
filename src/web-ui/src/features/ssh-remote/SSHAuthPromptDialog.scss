@@ -1,50 +1,32 @@
 /**
  * Unified SSH auth prompt dialog
  */
+@use '@/shared/styles/overlay-layout' as overlay-layout;
 
 .ssh-auth-prompt-dialog {
   padding-block-start: 8px;
 
-  &__description {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 14px;
-    background: var(--bitfun-color-surface-subtle);
-    border: 1px solid var(--bitfun-color-border-subtle);
-    border-radius: 6px;
-    margin-bottom: 16px;
-
-    &-icon {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 32px;
-      height: 32px;
-      background: var(--bitfun-color-action-secondary-background);
-      border-radius: 6px;
-      color: var(--bitfun-color-accent-default);
-      flex-shrink: 0;
-    }
-
-    &-text {
-      font-size: var(--bitfun-type-label-md-font-size);
-      color: var(--bitfun-color-content-secondary);
-      font-family:var(--bitfun-type-code-md-font-family);
-      word-break: break-all;
-    }
+  &__surface {
+    @include overlay-layout.workspace-dialog-size;
   }
 
-  &__label {
-    display: block;
-    font-size: var(--bitfun-type-label-sm-font-size);
-    font-weight: var(--bitfun-type-label-sm-font-weight);
-    color: var(--bitfun-color-content-secondary);
-    margin-bottom: 6px;
+  &__body {
+    padding-inline: var(--bitfun-overlay-dialog-header-padding-inline);
   }
 
   &__field {
     margin-bottom: 14px;
+  }
+
+  &__advanced {
+    min-inline-size: 0;
+    border-block-start: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+    padding-block-start: var(--bitfun-space-2);
+    margin-block-end: var(--bitfun-space-4);
+  }
+
+  &__advanced-content {
+    padding-inline: 0;
   }
 
   &__browse-key {

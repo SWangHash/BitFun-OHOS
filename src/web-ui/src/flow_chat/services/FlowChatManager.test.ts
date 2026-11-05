@@ -323,6 +323,10 @@ describe('FlowChatManager initialization', () => {
       projectWorkspaceId: workspace('/project', 'ssh-user@server', 'server').id,
       workspaceHostname: 'server',
     });
+    // Legacy record: it predates execution-workspace stamping, so it has no
+    // session workspace ID and is attributed through its project scope only.
+    session.workspaceId = undefined;
+    delete (session as { config?: Record<string, unknown> }).config.workspaceId;
     storeMocks.store = {
       registerPersistUnreadCompletionCallback: vi.fn(),
       getSurfaceGeneration: vi.fn(() => 0),
@@ -381,6 +385,23 @@ describe('FlowChatManager initialization', () => {
 
     await expect(initialize).resolves.toBe(false);
     expect(storeMocks.store.registerPersistUnreadCompletionCallback).toHaveBeenCalledTimes(1);
+    expect(storeMocks.store.loadSessionMetadataPage).not.toHaveBeenCalled();
+  });
+
+  it('does not initiate old-workspace history reads after a device switch during listener setup', async () => {
+    const listenerInitialization = createDeferred<() => void>();
+    storeMocks.initializeEventListeners.mockReturnValue(listenerInitialization.promise);
+    storeMocks.store = {
+      registerPersistUnreadCompletionCallback: vi.fn(),
+      getSurfaceGeneration: vi.fn(() => 0),
+      loadSessionMetadataPage: vi.fn(),
+    };
+    const manager = FlowChatManager.getInstance();
+    const pending = manager.initialize(workspace('/same/repo', undefined, undefined), undefined);
+    await flushAsyncWork();
+    activateSurface('other-device');
+    listenerInitialization.resolve(vi.fn());
+    await expect(pending).rejects.toSatisfy(isSurfaceChangedError);
     expect(storeMocks.store.loadSessionMetadataPage).not.toHaveBeenCalled();
   });
 

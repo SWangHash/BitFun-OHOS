@@ -1,7 +1,10 @@
+import { hostQueueSupported, hostDialogQueue } from './hostDialogQueue';
 import { agentAPI } from '@/infrastructure/api';
 import { globalEventBus } from '@/infrastructure/event-bus';
 import { createLogger } from '@/shared/utils/logger';
 import { flowChatStore } from '../store/FlowChatStore';
+import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
+import { finishSubmittedMessagePreview } from './submittedMessagePresentation';
 import {
   assertSessionMutationLease,
   completeSessionMutationReconciliation,
@@ -13,6 +16,7 @@ import {
   type SessionMutationKind,
 } from '../store/sessionMutationStore';
 import {
+  isHostIssuedTurnCatalogRevision,
   resolveMaterializedSessionTurnIdentity,
   resolveStorageTurnIndex,
 } from '../utils/flowChatTurnIdentity';
@@ -62,7 +66,11 @@ function validProjectedCatalogRevision(
   session: Session,
   catalog: SessionTurnCatalog | undefined,
 ): string | undefined {
-  if (!catalog || catalog.sessionId !== session.sessionId) {
+  if (
+    !catalog
+    || catalog.sessionId !== session.sessionId
+    || !isHostIssuedTurnCatalogRevision(catalog.revision)
+  ) {
     return undefined;
   }
   const coversProjectedTurns = session.dialogTurns.every((turn) => {
@@ -79,6 +87,10 @@ export async function rollbackSessionToTurn(
 ): Promise<RollbackSessionToTurnResult> {
   if (resolveSessionDriverId(request.sessionId, flowChatStore.getState().sessions.get(request.sessionId)) === 'dispatch') {
     throw new Error('History rollback is unavailable for a detached remote session.');
+  }
+  if (hostQueueSupported(request.sessionId)) {
+    const queue = await hostDialogQueue(request.sessionId).refresh();
+    if (queue.items.length) throw new Error('Clear the host message queue before changing Session history');
   }
   const lease = request.lease
     ?? tryBeginSessionMutation(request.sessionId, request.kind, request.targetTurnId);
@@ -133,6 +145,14 @@ export async function rollbackSessionToTurn(
     }
 
     markSessionTurnsRetired(request.sessionId, outcome.retiredTurnIds);
+    // A device surface renders a host replica that reloading does not rewrite.
+    flowChatStore.retireRelaySessionTurns(request.sessionId, outcome.retiredTurnIds);
+    // A send preview renders whenever its Turn is absent; never let a retired
+    // Turn's preview stand in for it.
+    const scope = getActiveSurfaceScope();
+    outcome.retiredTurnIds.forEach(turnId => (
+      finishSubmittedMessagePreview(scope, request.sessionId, turnId)
+    ));
     refreshFiles(outcome.restoredFiles);
     try {
       await reloadAuthoritativeSession(request.sessionId);

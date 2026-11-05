@@ -29,6 +29,11 @@ observation/targeting helpers, used by both built-in and external browser client
   registries; project switching only hides the page. Settings Disconnect must
   detach ArkWeb's logical port zero independently of external CDP port 9222,
   and prevent recovery until an explicit Settings Connect.
+- External browser control is background work. Creating or selecting a tab must
+  not raise the user's window or take focus: pass `background: true` to
+  `Target.createTarget` and keep `Page.bringToFront` behind an explicit
+  `activate` request. Launch paths follow the same rule (`open -g` on macOS), and
+  only a browser-owned consent prompt or a user-visible launch may activate.
 
 ## Focused verification
 
@@ -40,6 +45,12 @@ node scripts/test-browser-snapshot.mjs
 node scripts/test-browser-fill.mjs
 cargo test -p bitfun-core --no-default-features --features agent-runtime,tools-browser-web,tools-computer-use,git --lib browser_control::actions::
 cargo test -p bitfun-core --no-default-features --features agent-runtime,tools-browser-web,tools-computer-use,git --lib computer_use_tool::tests::
+# Production dispatcher workflow in disposable Chromium (same Node requirement):
+node scripts/test-browser-workflow.mjs
+cargo test -p bitfun-core --no-default-features --features agent-runtime,tools-browser-web,tools-computer-use,git --lib browser_control::
+cargo test -p bitfun-core --no-default-features --features agent-runtime,tools-browser-web,tools-computer-use,git --lib control_hub_tool::
+cargo test -p bitfun-core --no-default-features --features agent-runtime,tools-browser-web,tools-miniapp,git --lib playbook_tool::tests::
+cargo test -p bitfun-core --no-default-features --features agent-runtime,tools-browser-web,tools-computer-use,git --lib computer_use_tool::tests::
 ```
 
 The Core test target currently needs `git` for its worktree tool module and
@@ -49,3 +60,9 @@ checks additionally select `tools-computer-use`; none requires `product-full`.
 The Chromium fixture verifies local external-browser behavior. It is not
 evidence of built-in WebKit, remote workspace, mobile/IM remote control, Peer
 Device Mode, or Detached Dispatch execution.
+
+Navigation creates a page when needed; optional `observe` reuses that page's
+state. Keep conversation selections and stale-id errors through all actions.
+External user-profile identity/access requires a successful Settings connection;
+headless endpoints are explicit and verified. Browser setup/consent is never an
+Agent recovery action. Preserve legacy open/read payloads and result fields.

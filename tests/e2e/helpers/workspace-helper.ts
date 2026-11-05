@@ -248,6 +248,7 @@ export async function ensureCodeSessionOpen(): Promise<void> {
   }
 
   const selectors = [
+    '[data-testid="nav-workspace-new-session-btn"]',
     '.bitfun-nav-panel__workspace-create-main--split-left',
     '[data-testid="chat-input-send-btn"]',
   ];

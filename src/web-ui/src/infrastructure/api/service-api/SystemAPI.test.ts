@@ -5,6 +5,8 @@ const invokeMock = vi.hoisted(() => vi.fn());
 const copyTextToClipboardMock = vi.hoisted(() => vi.fn());
 const controllerInvoke = vi.hoisted(() => vi.fn());
 const localVersion = vi.hoisted(() => vi.fn());
+const openUrlMock = vi.hoisted(() => vi.fn());
+vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl: openUrlMock }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: controllerInvoke }));
 vi.mock('@tauri-apps/api/app', () => ({ getVersion: localVersion }));
 
@@ -27,6 +29,7 @@ describe('SystemAPI', () => {
     copyTextToClipboardMock.mockReset();
     controllerInvoke.mockReset();
     localVersion.mockReset();
+    openUrlMock.mockReset();
   });
 
   afterEach(() => {
@@ -52,6 +55,14 @@ describe('SystemAPI', () => {
     controllerInvoke.mockRejectedValue(new Error('OHOS_SLEEP_API_23_REQUIRED'));
     await expect(systemAPI.setPreventSleepEnabled(true)).rejects.toThrow('OHOS_SLEEP_API_23_REQUIRED');
     expect(invokeMock).not.toHaveBeenCalled();
+  });
+
+  it('opens external URLs with the controller OS without invoking the product transport', async () => {
+    const url = 'https://github.com/GCWing/BitFun/pull/3573';
+    await systemAPI.openExternal(url);
+    expect(openUrlMock).toHaveBeenCalledWith(url);
+    expect(invokeMock).not.toHaveBeenCalled();
+    expect(controllerInvoke).not.toHaveBeenCalled();
   });
 
   it.each([true, false])('allows explicit update checks with DEV=%s', async development => {

@@ -9,6 +9,7 @@ mod coordination_store;
 // It reaches the integration service owner crate, so the whole module is owned
 // by the `qt-toolchain` feature: without it the coordinator keeps the previous
 // behaviour (the submitted answers are delivered immediately).
+mod delegation_context;
 #[cfg(feature = "qt-toolchain")]
 mod qt_toolchain_provisioning;
 pub use control_conversation::{

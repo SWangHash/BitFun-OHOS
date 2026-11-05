@@ -11,6 +11,7 @@ use bitfun_product_domains::legacy_migration::{
     ConflictResolution, FindingSeverity, MigrationConflict, MigrationDiagnostic, MigrationDomainId,
     MigrationDomainResult, MigrationDomainState, ScanFinding,
 };
+use bitfun_services_core::workspace_identity::canonical_ssh_connection_id as canonical_connection_id;
 use bitfun_services_integrations::remote_persistence as owner;
 use owner::{
     KnownHostRecord, RemoteWorkspaceRecord, SavedAuthTypeRecord, SavedConnectionRecord,
@@ -779,17 +780,6 @@ fn record_unavailable_workspace_references(state: &SshState, outcome: &mut Remot
     }
 }
 
-fn canonical_connection_id(id: &str) -> String {
-    if let Some(rest) = id.strip_prefix("ssh-") {
-        if let (Some(at), Some(colon)) = (rest.find('@'), rest.rfind(':')) {
-            if colon > at && rest[colon + 1..].parse::<u16>().is_ok() {
-                return format!("ssh-{}", &rest[..colon]);
-            }
-        }
-    }
-    id.to_string()
-}
-
 fn read_staged(context: &DomainContext<'_>) -> LegacyMigrationResult<SshState> {
     read_state(&stage_domain_dir(context, DOMAIN_DIR), false)
 }
@@ -1211,6 +1201,7 @@ mod tests {
             default_workspace: Some("/srv/project".to_string()),
             last_connected: Some(1),
             proxy_jump: Some("jump.example.invalid".to_string()),
+            proxy_command: None,
             container: None,
             options: owner::SshConnectionOptionsRecord::default(),
         }

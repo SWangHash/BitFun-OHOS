@@ -11,6 +11,7 @@ export const confirmDialogAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'messageRow' },
     { id: 'preview' },
     { id: 'actions' },
+    { id: 'actionGroup' },
   ],
   facets: [{
     id: 'status',

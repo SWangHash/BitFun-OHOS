@@ -35,9 +35,11 @@ export function installedSkillMarketIds(skills: readonly SkillInfo[]): Set<strin
 }
 
 export function isSkillMarketItemInstalled(skill: SkillMarketItem, installedIds: ReadonlySet<string>): boolean {
-  const separator = skill.installId.lastIndexOf('@');
+  if (skill.installId.startsWith('skillhub:')) return installedIds.has(skill.installId);
+  const installId = skill.installId.startsWith('skills-sh:') ? skill.installId.slice(skill.installId.indexOf('#') + 1) : skill.installId;
+  const separator = installId.lastIndexOf('@');
   if (separator > 0) {
-    return installedIds.has(installationKey(skill.installId.slice(0, separator), skill.installId.slice(separator + 1)));
+    return installedIds.has(installationKey(installId.slice(0, separator), installId.slice(separator + 1)));
   }
   return !!skill.source.trim() && installedIds.has(installationKey(skill.source, skill.name));
 }

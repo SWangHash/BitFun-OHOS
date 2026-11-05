@@ -1,0 +1,15 @@
+.assistant-session-history {
+  .bitfun-nav-panel__inline-item,
+  .bitfun-nav-panel__inline-toggle {
+    padding-right: var(--bitfun-space-2);
+  }
+
+  .bitfun-nav-panel__inline-item-trailing {
+    // Reserve both actions even while hidden, so their intrinsic width cannot
+    // push the status icon outside the row's clipped boundary.
+    flex-basis: calc(var(--bitfun-control-icon-button-xs-size) + var(--bitfun-space-5));
+    inline-size: calc(var(--bitfun-control-icon-button-xs-size) + var(--bitfun-space-5));
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: end;
+  }
+}

@@ -17,6 +17,8 @@ import {
 } from '@/tools/file-system';
 import { useExplorerSearch } from '@/tools/file-explorer';
 import { planFileTreeReveal } from '@/tools/file-system/utils/fileTreeReveal';
+import { useFileWatchStatus } from '@/tools/file-system/hooks/useFileWatchStatus';
+import { FileWatchStatusNotice } from '@/tools/file-system/components/FileWatchStatusNotice';
 
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { confirmWarning } from '@/infrastructure/confirm-dialog';
@@ -53,6 +55,7 @@ import type {
   WorkspaceSearchRepoPhase,
 } from '@/infrastructure/api/service-api/tauri-commands';
 import {
+  cancelWorkspaceTransfer,
   downloadWorkspaceFileToDisk,
   normalizeClipboardLocalPaths,
   normalizeWorkspaceTargetDirectory,
@@ -203,11 +206,18 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
 
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [transfers, setTransfers] = useState<Map<string, TransferProgressState>>(new Map());
-  const dropTransferIdRef = useRef<string | null>(null);
   const [fileDropHighlight, setFileDropHighlight] = useState(false);
 
   const notification = useNotification();
   const cancelledTransferIdsRef = useRef<Set<string>>(new Set());
+
+  // Watching is a host-side resource, so only a local workspace can report on
+  // it; a remote workspace does its own remote IO and must not show this state.
+  const {
+    status: fileWatchStatus,
+    retrying: fileWatchRetrying,
+    retry: retryFileWatch,
+  } = useFileWatchStatus(Boolean(workspacePath) && !isRemoteCurrentWorkspace);
 
   /**
    * Create a per-transfer onProgress callback that tracks a single transfer
@@ -218,7 +228,11 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
   const createTransferProgress = useCallback(() => {
     const id = crypto.randomUUID();
     const onProgress = (state: TransferProgressState | null) => {
+      const wasStopped = state !== null && cancelledTransferIdsRef.current.has(id);
       setTransfers((prev) => {
+        if (wasStopped) {
+          return prev;
+        }
         const next = new Map(prev);
         if (state === null) {
           next.delete(id);
@@ -227,6 +241,9 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
         }
         return next;
       });
+      if (state === null) {
+        cancelledTransferIdsRef.current.delete(id);
+      }
     };
     return { id, onProgress };
   }, []);
@@ -234,6 +251,9 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
   /** Stop an in-progress transfer by its ID. */
   const handleStopTransfer = useCallback((transferId: string) => {
     cancelledTransferIdsRef.current.add(transferId);
+    // A peer download runs in this process, so it also needs the stop signal
+    // that `cancel_transfer` can only deliver to the host running the transfer.
+    cancelWorkspaceTransfer(transferId);
     void sshApi.cancelTransfer(transferId);
     setTransfers((prev) => {
       const next = new Map(prev);
@@ -243,27 +263,27 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
   }, []);
 
   /**
-   * Stable callback for drag-and-drop file uploads. Uses a ref to track the
-   * current drop's transfer ID so each drop session gets its own entry in the
-   * `transfers` Map.
+   * Stable callback for drag-and-drop file uploads. The drop hook owns the
+   * transfer id and reports it with every progress state, so the card and the
+   * cancellable backend transfer stay the same operation.
    */
-  const handleDropProgress = useCallback((state: TransferProgressState | null) => {
+  const handleDropProgress = useCallback((state: TransferProgressState | null, transferId: string) => {
+    const wasStopped = state !== null && cancelledTransferIdsRef.current.has(transferId);
     setTransfers((prev) => {
+      if (wasStopped) {
+        return prev;
+      }
       const next = new Map(prev);
       if (state === null) {
-        const id = dropTransferIdRef.current;
-        if (id) {
-          next.delete(id);
-          dropTransferIdRef.current = null;
-        }
+        next.delete(transferId);
       } else {
-        if (!dropTransferIdRef.current) {
-          dropTransferIdRef.current = crypto.randomUUID();
-        }
-        next.set(dropTransferIdRef.current, state);
+        next.set(transferId, state);
       }
       return next;
     });
+    if (state === null) {
+      cancelledTransferIdsRef.current.delete(transferId);
+    }
   }, []);
 
   const searchLimitNotice =
@@ -531,10 +551,9 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
         );
       } catch (error) {
         log.error('Failed to download file', error);
+        const wasStopped = cancelledTransferIdsRef.current.has(id);
         onProgress(null);
-        if (cancelledTransferIdsRef.current.has(id)) {
-          cancelledTransferIdsRef.current.delete(id);
-        } else {
+        if (!wasStopped) {
           notification.error(t('transfer.failed', { error: String(error) }));
         }
       }
@@ -712,6 +731,13 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
         clearFileTreeClipboard();
       }
 
+      if (result.cancelled && result.failedFiles.length === 0) {
+        if (result.successCount > 0) {
+          await loadFileTree(undefined, true);
+        }
+        return;
+      }
+
       if (result.successCount === 0 && result.failedFiles.length === 0) {
         notification.info(t('notifications.pasteNoFiles'));
         return;
@@ -752,10 +778,9 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
       }
     } catch (error) {
       log.error('Failed to paste files', error);
+      const wasStopped = cancelledTransferIdsRef.current.has(id);
       onProgress(null);
-      if (cancelledTransferIdsRef.current.has(id)) {
-        cancelledTransferIdsRef.current.delete(id);
-      } else {
+      if (!wasStopped) {
         notification.error(t('notifications.pasteFailed', { count: 1 }));
       }
     }
@@ -880,7 +905,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
       return !!el && !!panelRef.current && panelRef.current.contains(el);
     };
 
-    // DOM paste event ??System menu mode path.
+    // DOM paste event — System menu mode path.
     const handleDomPaste = (e: ClipboardEvent) => {
       if (!isPanelFocused()) return;
       const target = e.target as HTMLElement | null;
@@ -893,7 +918,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     };
     document.addEventListener('paste', handleDomPaste, true);
 
-    // Tauri menu event ??Renderer menu mode path.
+    // Tauri menu event — Renderer menu mode path.
     let unlistenTauri: (() => void) | null = null;
     let cancelled = false;
     if (typeof window !== 'undefined' && '__TAURI__' in window) {
@@ -911,7 +936,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
           }
           unlistenTauri = unsubscribe;
         } catch {
-          // Non-Tauri environment or event module unavailable ??ignore.
+          // Non-Tauri environment or event module unavailable — ignore.
         }
       })();
     }
@@ -1019,10 +1044,16 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     }
   }, [workspacePath, loadFileTree, expandFolder]);
 
-  const handleFileDropError = useCallback((error: unknown) => {
-    handleDropProgress(null);
+  const handleFileDropError = useCallback((
+    error: unknown,
+    transferId: string,
+  ) => {
+    const wasStopped = cancelledTransferIdsRef.current.has(transferId);
+    handleDropProgress(null, transferId);
     setFileDropHighlight(false);
-    notification.error(t('transfer.failed', { error: String(error) }));
+    if (!wasStopped) {
+      notification.error(t('transfer.failed', { error: String(error) }));
+    }
   }, [notification, t, handleDropProgress]);
 
   useWorkspaceFileDrop({
@@ -1184,6 +1215,14 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
         />
       )}
       
+      {fileWatchStatus && !fileWatchStatus.healthy && (
+        <FileWatchStatusNotice
+          status={fileWatchStatus}
+          retrying={fileWatchRetrying}
+          onRetry={() => void retryFileWatch()}
+        />
+      )}
+
       <div className="bitfun-files-panel__content" data-bitfun-component="files-panel" data-bitfun-part="content">
         {workspacePath && viewMode === 'search' && (
           <div className="bitfun-files-panel__search" data-bitfun-component="files-panel" data-bitfun-part="search" data-bitfun-search-mode={searchMode}>
@@ -1282,7 +1321,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
                     ) : null}
                     {contentSearchMetadata.workspaceProbePending ? (
                       // Neutral, not warning: the reconcile clears itself and the results are still
-                      // usable ??they just describe the worktree from a moment ago.
+                      // usable — they just describe the worktree from a moment ago.
                       <StatusPill tone="neutral">
                         {t('search.index.badges.probePending')}
                       </StatusPill>

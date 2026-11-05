@@ -1,3 +1,4 @@
+import { useFieldAccessibility } from "../Field/FieldAccessibility";
 import {
   forwardRef,
   useCallback,
@@ -22,6 +23,7 @@ import { Portal } from "../../overlay/Portal";
 import { useDesignSystem } from "../../overlay/useDesignSystem";
 import { useDismissibleLayer } from "../../overlay/useDismissibleLayer";
 import { IconButton } from "../IconButton";
+import { Capsule } from "../Capsule";
 import {
   Listbox,
   ListboxEmpty,
@@ -67,6 +69,8 @@ interface PickerCommonProps
   options?: readonly ComboboxOption[];
   placement?: ComboboxPlacement;
   placeholder?: ReactNode;
+  /** Fit the visible option content, with the trigger width as a minimum. */
+  popupWidth?: "trigger" | "content";
   required?: boolean;
   size?: ComboboxSize;
   /** data-testid for the closed trigger button. */
@@ -74,15 +78,25 @@ interface PickerCommonProps
 }
 
 export interface ComboboxProps extends PickerCommonProps {
+  bordered?: boolean | "hover";
   defaultValue?: ComboboxValue;
   onValueChange?: (value: ComboboxValue) => void;
   value?: ComboboxValue;
+  /** A compact closed trigger with the system's pill surface and typography. */
+  variant?: "field" | "pill";
+  /** Visible text inside the closed trigger, before the selected value. */
+  valuePrefix?: ReactNode;
+  /** Expand the pointer target without changing the visible trigger or popup width. */
+  hitArea?: "default" | "expanded";
+  showIndicator?: boolean;
 }
 
 export interface MultiSelectProps extends PickerCommonProps {
   defaultValue?: readonly ComboboxValue[];
   maxVisibleTags?: number;
   onValueChange?: (value: ComboboxValue[]) => void;
+  /** Replaces selected tags with a compact, caller-localized summary. */
+  selectionSummary?: ReactNode;
   showSelectAll?: boolean;
   value?: readonly ComboboxValue[];
 }
@@ -126,6 +140,11 @@ const CollectionPicker = forwardRef<HTMLDivElement, PickerProps>(function Collec
   forwardedRef,
 ) {
   const { mode } = pickerProps;
+  const variant = pickerProps.mode === "single" ? pickerProps.variant ?? "field" : "field";
+  const bordered = pickerProps.mode === "single" ? pickerProps.bordered ?? true : true;
+  const valuePrefix = pickerProps.mode === "single" ? pickerProps.valuePrefix : undefined;
+  const hitArea = pickerProps.mode === "single" ? pickerProps.hitArea ?? "default" : "default";
+  const showIndicator = pickerProps.mode !== "single" || pickerProps.showIndicator !== false;
   const fieldSurface = useFieldSurface();
   const props = pickerProps as ComboboxProps | MultiSelectProps;
   const {
@@ -150,6 +169,7 @@ const CollectionPicker = forwardRef<HTMLDivElement, PickerProps>(function Collec
     panelTestId,
     placement = "bottom",
     placeholder: placeholderProp,
+    popupWidth = "trigger",
     required = false,
     size = "md",
     triggerTestId,
@@ -159,7 +179,13 @@ const CollectionPicker = forwardRef<HTMLDivElement, PickerProps>(function Collec
   delete (rootProps as Record<string, unknown>).onValueChange;
   delete (rootProps as Record<string, unknown>).value;
   delete (rootProps as Record<string, unknown>).maxVisibleTags;
+  delete (rootProps as Record<string, unknown>).selectionSummary;
   delete (rootProps as Record<string, unknown>).showSelectAll;
+  delete (rootProps as Record<string, unknown>).variant;
+  delete (rootProps as Record<string, unknown>).bordered;
+  delete (rootProps as Record<string, unknown>).valuePrefix;
+  delete (rootProps as Record<string, unknown>).hitArea;
+  delete (rootProps as Record<string, unknown>).showIndicator;
   const divProps = rootProps as HTMLAttributes<HTMLDivElement>;
 
   const designSystem = useDesignSystem();
@@ -170,6 +196,7 @@ const CollectionPicker = forwardRef<HTMLDivElement, PickerProps>(function Collec
   const maxVisibleTags = multiple
     ? (props as MultiSelectProps).maxVisibleTags ?? 3
     : 0;
+  const selectionSummary = multiple ? (props as MultiSelectProps).selectionSummary : undefined;
   const showSelectAll = multiple
     && ((props as MultiSelectProps).showSelectAll ?? false);
   const placeholder = placeholderProp ?? designSystem.messages.selectPlaceholder;
@@ -426,7 +453,7 @@ const CollectionPicker = forwardRef<HTMLDivElement, PickerProps>(function Collec
     anchorRef: triggerRef,
     layerRef: popoverRef,
     placement,
-    matchWidth: true,
+    matchWidth: popupWidth === "content" ? "minimum" : true,
     overlapAnchor: true,
     revision: `${query}:${filteredOptions.length}:${loading}`,
   });
@@ -481,7 +508,9 @@ const CollectionPicker = forwardRef<HTMLDivElement, PickerProps>(function Collec
         aria-label={typeof option.description === "string"
           ? `${option.label}: ${option.description}`
           : option.label}
-        description={option.description}
+        description={popupWidth === "content" && typeof option.description === "string"
+          ? <OverflowText>{option.description}</OverflowText>
+          : option.description}
         disabled={option.disabled || loading}
         id={optionId(navigationIndex)}
         indicator={selected ? <Icon name="check-line" /> : null}
@@ -502,13 +531,14 @@ const CollectionPicker = forwardRef<HTMLDivElement, PickerProps>(function Collec
   const activeDescendant = resolvedOpen && activeIndex >= 0
     ? optionId(activeIndex)
     : undefined;
+  const fieldAccessibility = useFieldAccessibility({ ...props, "aria-describedby": ariaDescribedBy }, Boolean(label));
   const resolvedTriggerLabel = ariaLabel
-    ?? (label || providedId || typeof placeholder !== "string" ? undefined : placeholder);
+    ?? (label || fieldAccessibility["aria-labelledby"] || providedId || typeof placeholder !== "string" ? undefined : placeholder);
   const resolvedLabelledBy = ariaLabel
     ? ariaLabelledBy
-    : ariaLabelledBy ?? (label ? labelId : undefined);
+    : ariaLabelledBy ?? (label ? labelId : fieldAccessibility["aria-labelledby"]);
   const resolvedDescribedBy = [
-    ariaDescribedBy,
+    fieldAccessibility["aria-describedby"],
     errorMessage ? errorId : undefined,
   ].filter(Boolean).join(" ") || undefined;
 
@@ -521,6 +551,7 @@ const CollectionPicker = forwardRef<HTMLDivElement, PickerProps>(function Collec
       data-keyboard-open={keyboardOpen ? "true" : "false"}
       data-invalid={invalid ? "true" : "false"}
       data-placement={layout?.placement ?? placement}
+      data-popup-width={popupWidth}
       data-size={size}
       data-testid={panelTestId}
       ref={popoverRef}
@@ -631,6 +662,7 @@ const CollectionPicker = forwardRef<HTMLDivElement, PickerProps>(function Collec
   ) : null;
 
   const singleOption = selectedOptions[0];
+  const showTags = multiple && hasValue && selectionSummary == null;
 
   return (
     <div
@@ -642,6 +674,11 @@ const CollectionPicker = forwardRef<HTMLDivElement, PickerProps>(function Collec
       data-invalid={invalid ? "true" : "false"}
       data-open={resolvedOpen ? "true" : "false"}
       data-size={size}
+      data-variant={variant}
+      data-bordered={String(bordered)}
+      data-has-value-prefix={valuePrefix != null ? "true" : "false"}
+      data-hit-area={hitArea}
+      data-show-indicator={showIndicator ? "true" : "false"}
       ref={setRootRef}
     >
       {label !== undefined && label !== null && (
@@ -653,13 +690,12 @@ const CollectionPicker = forwardRef<HTMLDivElement, PickerProps>(function Collec
         aria-hidden={resolvedOpen || undefined}
         className={styles.control}
         data-bitfun-part="control"
-        data-tags={multiple && hasValue ? "true" : "false"}
+        data-tags={showTags ? "true" : "false"}
       >
-        {multiple && hasValue && (
+        {showTags && (
           <span className={styles.tags} data-bitfun-part="tags">
             {selectedOptions.slice(0, Math.max(1, maxVisibleTags)).map((option) => (
-              <span className={styles.tag} data-bitfun-part="tag" key={`${typeof option.value}:${option.value}`}>
-                <OverflowText>{option.label}</OverflowText>
+              <Capsule size="xs" data-bitfun-part="tag" key={`${typeof option.value}:${option.value}`} action={(
                 <IconButton
                   aria-label={`${designSystem.messages.clearSelection}: ${option.label}`}
                   disabled={disabled}
@@ -674,7 +710,9 @@ const CollectionPicker = forwardRef<HTMLDivElement, PickerProps>(function Collec
                   tabIndex={resolvedOpen ? -1 : undefined}
                   variant="quiet"
                 />
-              </span>
+              )}>
+                <span className={styles.tag}><OverflowText>{option.label}</OverflowText></span>
+              </Capsule>
             ))}
             {selectedOptions.length > Math.max(1, maxVisibleTags) && (
               <span className={styles.tag}>+{selectedOptions.length - Math.max(1, maxVisibleTags)}</span>
@@ -707,10 +745,11 @@ const CollectionPicker = forwardRef<HTMLDivElement, PickerProps>(function Collec
           type="button"
         >
           <span className={styles.value} data-bitfun-part="value">
+            {valuePrefix != null && <span className={styles.valuePrefix} data-bitfun-part="value-prefix">{valuePrefix}</span>}
             {!hasValue ? (
               <OverflowText className={styles.placeholder}>{placeholder}</OverflowText>
             ) : multiple ? (
-              <OverflowText className={styles.valueLabel}>{selectedOptions.map((option) => option.label).join(", ")}</OverflowText>
+              <OverflowText className={styles.valueLabel}>{selectionSummary ?? selectedOptions.map((option) => option.label).join(", ")}</OverflowText>
             ) : (
               <span className={styles.singleValue}>
                 {singleOption?.leading && (
@@ -736,9 +775,9 @@ const CollectionPicker = forwardRef<HTMLDivElement, PickerProps>(function Collec
             variant="quiet"
           />
         )}
-        <span aria-hidden="true" className={styles.indicator} data-bitfun-part="indicator">
+        {showIndicator && <span aria-hidden="true" className={styles.indicator} data-bitfun-icon-slot="true" data-bitfun-part="indicator">
           <Icon name="chevron-down" />
-        </span>
+        </span>}
       </div>
       {errorMessage ? (
         <span className={styles.error} data-bitfun-part="message" id={errorId}>

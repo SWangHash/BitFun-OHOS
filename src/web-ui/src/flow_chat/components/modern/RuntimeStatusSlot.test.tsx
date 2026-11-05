@@ -72,7 +72,7 @@ describe('RuntimeStatusSlot', () => {
     });
     const slot = container.querySelector<HTMLElement>('.runtime-status-slot');
     const iconSlot = container.querySelector('[data-bitfun-part="leadingIcon"]');
-    expect(iconSlot?.querySelector('[data-testid="dot-matrix"]')).not.toBeNull();
+    expect(iconSlot?.querySelector('[data-bitfun-component="spinner"]')).not.toBeNull();
     expect(slot).not.toBeNull();
     expect(slot?.dataset.runtimeStatusVisible).toBe('false');
 

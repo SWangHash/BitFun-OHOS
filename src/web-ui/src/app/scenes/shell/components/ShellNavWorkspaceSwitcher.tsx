@@ -1,4 +1,6 @@
+import { resolveAssistantName } from '@/shared/utils/assistantName';
 import React from 'react';
+import { WorkspaceIcon } from '@/app/components/WorkspaceIcon/WorkspaceIcon';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 ;
 import { OverflowText, Icon, Menu, MenuItem, Tooltip, createOverlayPortal } from '@bitfun/ui';
@@ -20,7 +22,7 @@ interface ShellNavWorkspaceSwitcherProps {
 
 function getWorkspaceDisplayName(workspace: WorkspaceInfo): string {
   return workspace.workspaceKind === WorkspaceKind.Assistant
-    ? workspace.identity?.name?.trim() || workspace.name
+    ? resolveAssistantName(workspace)
     : workspace.name;
 }
 
@@ -89,11 +91,10 @@ const ShellNavWorkspaceSwitcher: React.FC<ShellNavWorkspaceSwitcherProps> = ({
                       role="menuitemradio"
                       checked={isActive}
                       reserveLeadingSpace
-                      leading={isActive ? (
-                        <span className="bitfun-shell-nav__workspace-menu-check" aria-hidden="true">
-                          <Icon name="check-line" size="xs" />
-                        </span>
-                      ) : undefined}
+                      leading={workspace.workspaceKind !== WorkspaceKind.Assistant
+                        ? <WorkspaceIcon workspace={workspace} />
+                        : <Icon name="user" size="sm" />}
+                      metadata={isActive ? <Icon name="check-line" size="xs" /> : undefined}
                       onClick={() => { void onSelectWorkspace(workspace.id); }}
                     >
                       <OverflowText className="bitfun-shell-nav__workspace-menu-text">{label}</OverflowText>

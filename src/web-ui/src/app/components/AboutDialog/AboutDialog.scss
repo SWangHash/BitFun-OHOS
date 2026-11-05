@@ -1,6 +1,6 @@
 /**
  * About dialog composition. Dialog owns the surface, focus and scrolling;
- * this file owns the brand artwork, build details and repository invitation.
+ * this file owns brand placement, build details and repository invitation.
  */
 
 .bitfun-about-dialog__close {
@@ -58,6 +58,7 @@
   display: block;
   width: 100%;
   height: auto;
+  color: var(--bitfun-color-content-primary);
   user-select: none;
   pointer-events: none;
 }

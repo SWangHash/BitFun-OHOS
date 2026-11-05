@@ -11,7 +11,7 @@
 ## 给 AI Agent 的执行约束
 
 1. 先阅读仓库根目录的 `AGENTS.md`、本文件和
-   [生产部署手册](../../deploy/miniapp-market/README.md)。
+   [部署手册](../../deploy/miniapp-market/README.md)。
 2. 只修改任务要求涉及的文件；保留工作区里不属于本任务的改动。
 3. `/miniapp/` 是固定的 Vite base，`/miniapp/api/v1` 是固定的 API 前缀。
    修改它们会同时影响 Nginx、OAuth callback、桌面客户端和生产链接，不能
@@ -195,7 +195,7 @@ pnpm run theme:color-audit:all
 - 前后端一起改：只发布一个包含同一 Git commit 的镜像。
 
 完整的备份、精确 commit 发布、健康检查和回滚命令见
-[生产部署手册](../../deploy/miniapp-market/README.md)。
+[部署手册](../../deploy/miniapp-market/README.md)。
 
 GitHub sign-in uses `https://auth.bitfun.com/sign-in`; desktop completion
 uses its standalone `/complete` page without marketplace navigation. The page

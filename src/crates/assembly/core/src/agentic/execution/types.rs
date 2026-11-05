@@ -53,8 +53,8 @@ pub struct ExecutionContext {
     /// gate; contributions see empty slots).
     pub domain_state_store:
         Option<Arc<crate::agentic::tools::tool_admission::SessionDomainStateStore>>,
-    /// When set, engine drains pending round injections at each round boundary
-    /// and injects them into the dialog history without ending the turn.
+    /// At round boundaries, yield to a queued user turn when requested; other
+    /// pending runtime injections remain within this execution.
     pub round_injection: Option<Arc<dyn DialogRoundInjectionSource>>,
     /// When false, the execution loop suppresses user-facing turn lifecycle events.
     pub emit_lifecycle_events: bool,
@@ -66,6 +66,7 @@ pub struct ExecutionContext {
 /// Round context
 #[derive(Debug, Clone)]
 pub struct RoundContext {
+    pub context_composition: Option<bitfun_core_types::UsageContextBreakdown>,
     pub session_id: String,
     pub subagent_parent_info: Option<SubagentParentInfo>,
     pub permission_delegation: Option<PermissionDelegationContext>,
@@ -87,6 +88,14 @@ pub struct RoundContext {
     pub effective_model_name: String,
     /// Provider-neutral request-scoped facts resolved by the runtime owner.
     pub model_request_context: ModelRequestContext,
+    /// Exact account resolution injected by the executing host's model factory.
+    pub(crate) account_client_source:
+        Option<Arc<dyn crate::infrastructure::ai::account_client_source::AccountClientSource>>,
+    pub(crate) channel_client_source:
+        Option<Arc<crate::infrastructure::ai::channel_client_source::ChannelClientSource>>,
+    /// Initial factory selection, consumed once instead of resolving it again.
+    pub(crate) prepared_model:
+        Option<crate::infrastructure::ai::channel_client_source::PreparedChannel>,
     pub primary_model_facts: PrimaryModelFacts,
     pub observability_model_class: bitfun_observability::domains::ModelClass,
     pub observability_auth_class: Option<bitfun_observability::domains::InferenceAuthClass>,

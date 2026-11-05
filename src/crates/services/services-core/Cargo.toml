@@ -63,11 +63,16 @@ zbus-secret-service-keyring-store = { workspace = true, optional = true }
 asar = []
 installed-apps = ["dep:windows", "windows/Win32_Foundation", "windows/Win32_System_Registry"]
 default = []
+session-recovery = ["local-storage", "workspace-persistence", "dep:anyhow"]
 pet-packages = ["dep:image", "image/png", "image/webp", "image/jpeg", "image/gif", "dep:zip", "dep:uuid", "dep:sha2", "dep:base64", "dep:dunce", "dep:fs2"]
+workspace-icons = ["dep:image", "image/png", "image/jpeg", "image/webp", "dep:base64", "dep:sha2", "dep:uuid"]
 workspace-persistence = ["workspace-identity", "dep:bitfun-core-types", "dep:bitfun-runtime-ports", "dep:chrono"]
 coordination-store = ["dep:rusqlite"]
+routing-state = ["json-io", "dep:sha2"]
+resource-capacity = ["json-io", "dep:sha2", "dep:uuid"]
 session-event-format = ["dep:bitfun-events"]
 tls-provider = ["dep:rustls"]
+system-proxy = ["dep:windows", "windows/Win32_Foundation", "windows/Win32_System_Registry"]
 credential-vault = [
     "dep:aes-gcm",
     "dep:anyhow",
@@ -203,6 +208,8 @@ workspace-text-runtime = ["dep:tokio", "tokio/rt"]
 secure-credentials = ["dep:async-trait", "dep:tokio", "tokio/rt"]
 system-vault = [
     "secure-credentials",
+    "dep:async-trait",
+    "dep:tokio",
     "dep:keyring-core",
     "dep:apple-native-keyring-store",
     "dep:windows-native-keyring-store",
@@ -253,6 +260,11 @@ required-features = ["workspace-instructions", "workspace-runtime"]
 [[test]]
 name = "session_write_lock_contracts"
 path = "tests/session_write_lock_contracts.rs"
+required-features = ["local-storage"]
+
+[[test]]
+name = "exclusive_file_lease_contracts"
+path = "tests/exclusive_file_lease_contracts.rs"
 required-features = ["local-storage"]
 
 [[test]]

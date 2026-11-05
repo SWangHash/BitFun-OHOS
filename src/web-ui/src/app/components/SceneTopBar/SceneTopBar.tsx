@@ -1,9 +1,10 @@
 import React, { useCallback } from 'react';
-import { Toolbar } from '@bitfun/ui';
+import { Toolbar, ToolbarSeparator } from '@bitfun/ui';
 import { WindowControls } from '@/app/components/WindowControls';
 import { supportsNativeWindowDragging, usesHostWindowControls } from '@/infrastructure/runtime';
 import { useWindowChromeDrag } from '@/app/hooks/useWindowChromeDrag';
 import { useSceneStore } from '../../stores/sceneStore';
+import type { SceneTabId } from '../SceneBar/types';
 import SceneBar from '../SceneBar/SceneBar';
 import { SceneChromeHost } from './SceneChrome';
 import './SceneTopBar.scss';
@@ -30,6 +31,21 @@ function blocksWindowChromeInteraction(
 
 interface SceneTopBarProps {
   className?: string;
+  panelOpen?: boolean;
+  panelMaximized?: boolean;
+  mainTabs?: React.ReactNode;
+  columnClassName?: string;
+  mainSceneId?: SceneTabId | null;
+  panelTabs?: React.ReactNode;
+  panelToggle?: React.ReactNode;
+  tabDragActive?: boolean;
+  tabDropTarget?: 'leading' | 'trailing' | null;
+  onTabDragOver?: (event: React.DragEvent<HTMLDivElement>, side: 'leading' | 'trailing') => void;
+  onTabDragLeave?: React.DragEventHandler<HTMLDivElement>;
+  onMainDragOver?: React.DragEventHandler<HTMLDivElement>;
+  onMainDrop?: React.DragEventHandler<HTMLDivElement>;
+  onPanelDragOver?: React.DragEventHandler<HTMLDivElement>;
+  onPanelDrop?: React.DragEventHandler<HTMLDivElement>;
   onMinimize?: () => void;
   onMaximize?: () => void;
   onClose?: () => void;
@@ -38,6 +54,19 @@ interface SceneTopBarProps {
 
 const SceneTopBar: React.FC<SceneTopBarProps> = ({
   className = '',
+  panelOpen = false,
+  panelMaximized = false,
+  mainTabs, mainSceneId, columnClassName,
+  panelTabs,
+  panelToggle,
+  tabDragActive = false,
+  tabDropTarget,
+  onTabDragOver,
+  onTabDragLeave,
+  onMainDragOver,
+  onMainDrop,
+  onPanelDragOver,
+  onPanelDrop,
   onMinimize,
   onMaximize,
   onClose,
@@ -55,6 +84,9 @@ const SceneTopBar: React.FC<SceneTopBarProps> = ({
   // pointer moves, because Windows restores a maximized window the moment a
   // native drag begins — even for a plain click.
   const { onMouseDown: handleChromeMouseDown } = useWindowChromeDrag({ isMaximized });
+  const isLeadingTarget = (event: React.DragEvent<HTMLDivElement>) =>
+    event.target instanceof Node && event.currentTarget
+      .querySelector(':scope > [data-bitfun-part="leading"]')?.contains(event.target);
 
   const handleMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     // Interactive descendants (tabs, buttons, inputs, ...) keep their own
@@ -70,41 +102,64 @@ const SceneTopBar: React.FC<SceneTopBarProps> = ({
 
   return (
     <Toolbar
-      bordered={hasTabs}
-      className={`bitfun-scene-top-bar ${className}`.trim()}
+      bordered={hasTabs || panelOpen}
+      className={`bitfun-scene-top-bar ${panelOpen && !panelMaximized ? columnClassName ?? '' : ''} ${className}`.trim()}
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
+      onDragOverCapture={event => onTabDragOver?.(event, isLeadingTarget(event) ? 'leading' : 'trailing')}
+      onDragLeave={onTabDragLeave}
+      onDragOver={event => (isLeadingTarget(event) ? onMainDragOver : onPanelDragOver)?.(event)}
+      onDrop={event => (isLeadingTarget(event) ? onMainDrop : onPanelDrop)?.(event)}
       data-bitfun-scene="workbench"
       data-bitfun-part="topBar"
-      leading={<SceneBar />}
+      data-panel-open={panelOpen}
+      data-panel-maximized={panelMaximized || undefined}
+      data-tab-drag-active={tabDragActive || undefined}
+      data-tab-drop-target={tabDragActive ? tabDropTarget ?? undefined : undefined}
+      leading={panelMaximized ? undefined : <>
+        {mainTabs ?? <SceneBar showDropHint={false} />}
+        <SceneChromeHost sceneId={mainSceneId}
+          className="bitfun-scene-top-bar__actions"
+          data-bitfun-scene="workbench"
+          data-bitfun-part="sceneActions"
+        />
+      </>}
       size="md"
       trailing={<>
-      <SceneChromeHost
-        className="bitfun-scene-top-bar__actions"
-        data-bitfun-scene="workbench"
-        data-bitfun-part="sceneActions"
-      />
-      {showHostWindowChromePlaceholder ? (
-        <div
-          className="bitfun-scene-top-bar__window-controls bitfun-scene-top-bar__window-controls--host"
-          data-bitfun-component="scene-bar"
-          data-bitfun-part="hostControls"
-          aria-hidden="true"
-        />
-      ) : hasWindowControls ? (
-        <div
-          className="bitfun-scene-top-bar__window-controls"
-          data-bitfun-component="scene-bar"
-          data-bitfun-part="controls"
-        >
-          <WindowControls
-            onMinimize={onMinimize!}
-            onToggleMaximize={onMaximize!}
-            onClose={onClose!}
-            maximized={isMaximized}
-          />
+        {panelToggle && !panelMaximized && <ToolbarSeparator className="bitfun-scene-top-bar__panel-divider" />}
+        <div className="bitfun-scene-top-bar__panel-region">
+          {panelOpen && <div className="bitfun-scene-top-bar__panel-tabs">
+            {panelTabs}
+          </div>}
+          {panelToggle}
         </div>
-      ) : null}
+        {showHostWindowChromePlaceholder ? (
+          <>
+            <ToolbarSeparator className="bitfun-scene-top-bar__actions-divider" />
+            <div
+              className="bitfun-scene-top-bar__window-controls bitfun-scene-top-bar__window-controls--host"
+              data-bitfun-component="scene-bar"
+              data-bitfun-part="hostControls"
+              aria-hidden="true"
+            />
+          </>
+        ) : hasWindowControls ? (
+          <>
+            <ToolbarSeparator className="bitfun-scene-top-bar__actions-divider" />
+            <div
+              className="bitfun-scene-top-bar__window-controls"
+              data-bitfun-component="scene-bar"
+              data-bitfun-part="controls"
+            >
+              <WindowControls
+                onMinimize={onMinimize!}
+                onToggleMaximize={onMaximize!}
+                onClose={onClose!}
+                maximized={isMaximized}
+              />
+            </div>
+          </>
+        ) : null}
       </>}
     />
   );

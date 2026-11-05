@@ -1,11 +1,12 @@
 import {
   cloneElement,
   useCallback,
+  useContext,
   useEffect,
   useId,
   useRef,
   useState,
-  type CSSProperties,
+  version as reactVersion,
   type FocusEvent as ReactFocusEvent,
   type MouseEvent as ReactMouseEvent,
   type ReactElement,
@@ -15,7 +16,7 @@ import {
 } from "react";
 import { classNames } from "../../internal/classNames";
 import { isImeOwnedKeyboardEvent } from "../../internal/ime";
-import { TooltipTriggerContext } from "../../internal/tooltipTriggerContext";
+import { registerTooltipTrigger, TitleTooltipContext, TooltipTriggerContext } from "../../internal/tooltipTriggerContext";
 import { Portal } from "../../overlay/Portal";
 import { useDesignSystem } from "../../overlay/useDesignSystem";
 import styles from "./Tooltip.module.css";
@@ -59,6 +60,8 @@ export interface TooltipProps {
    * clicked. The placement gap is bridged so the pointer can travel there.
    */
   interactive?: boolean;
+  /** Click also opens immediately; another click, outside press, Escape, or scrolling dismisses it. */
+  openOnClick?: boolean;
   /** Preferred side of the trigger; flips to the opposite side when space runs out. */
   placement?: TooltipPlacement;
   trigger?: TooltipTrigger;
@@ -77,6 +80,15 @@ function assignRef<T>(ref: Ref<T> | undefined, value: T | null): void {
     return;
   }
   (ref as { current: T | null }).current = value;
+}
+
+// React 19 passes `ref` as a regular prop and warns when `element.ref` is read.
+const REF_IS_PROP = Number.parseInt(reactVersion, 10) >= 19;
+
+function readElementRef(element: ReactElement | undefined): Ref<HTMLElement> | undefined {
+  if (!element) return undefined;
+  if (REF_IS_PROP) return (element.props as { ref?: Ref<HTMLElement> }).ref;
+  return (element as ReactElement & { ref?: Ref<HTMLElement> }).ref;
 }
 
 const OPPOSITE_PLACEMENT: Record<TooltipPlacement, TooltipPlacement> = {
@@ -202,6 +214,7 @@ export function Tooltip({
   disabled = false,
   followCursor = false,
   interactive = false,
+  openOnClick = false,
   placement = "top",
   trigger = "hover",
   triggerRef: externalTriggerRef,
@@ -209,6 +222,7 @@ export function Tooltip({
   onBeforeShow,
 }: TooltipProps) {
   const designSystem = useDesignSystem();
+  const isTitleFallback = useContext(TitleTooltipContext);
   const resolvedDelayMs = delay ?? designSystem.tooltipDelay ?? DEFAULT_TOOLTIP_DELAY_MS;
 
   const tooltipId = useId();
@@ -230,7 +244,15 @@ export function Tooltip({
   const latestMousePositionRef = useRef<{ x: number; y: number } | null>(null);
   const recalcFrameRef = useRef<number | null>(null);
   const instantRef = useRef(false);
+  const clickOpenRef = useRef(false);
+  const activationRef = useRef(false);
   const hideCurrentRef = useRef<() => void>(() => {});
+  const scrollCleanupRef = useRef<(() => void) | null>(null);
+
+  const stopWatchingScroll = useCallback(() => {
+    scrollCleanupRef.current?.();
+    scrollCleanupRef.current = null;
+  }, []);
 
   const calculatePosition = useCallback(() => {
     if (!tooltipRef.current) return;
@@ -259,7 +281,7 @@ export function Tooltip({
     setLayout({ top: pos.top, left: pos.left, placement: bestPlacement, ready: true });
   }, [placement, followCursor, mousePosition]);
 
-  // rAF-merged recalculation for scroll/resize storms: at most one
+  // rAF-merged recalculation for resize storms: at most one
   // getBoundingClientRect pass per frame.
   const scheduleCalculatePosition = useCallback(() => {
     if (recalcFrameRef.current !== null) return;
@@ -269,7 +291,7 @@ export function Tooltip({
     });
   }, [calculatePosition]);
 
-  const showTooltip = useCallback((event?: Pick<MouseEvent, "clientX" | "clientY">) => {
+  const showTooltip = useCallback((event?: Pick<MouseEvent, "clientX" | "clientY">, fromClick = false) => {
     if (disabled) return;
     // A scroll gesture owns the pointer; hover hit testing keeps re-arming
     // during it, so decline to open until the gesture has settled.
@@ -277,18 +299,46 @@ export function Tooltip({
     const element = triggerRef.current;
     if (!element || element.closest('[hidden], [aria-hidden="true"]')) return;
     if (onBeforeShow && !onBeforeShow()) return;
+    const view = element.ownerDocument.defaultView;
+    // Capture nested, non-bubbling scrolls during both delayed and visible states.
+    // Dormant tooltips do not need a document-level scroll subscription.
+    if (view && !scrollCleanupRef.current) {
+      const dismissOnScroll = (event: Event) => {
+        // Scrolling the tooltip's own scroll container (a wheel over the
+        // preview or a scrollbar drag inside it) is not a moving anchor.
+        const surface = tooltipRef.current;
+        if (surface && event.target instanceof Node && surface.contains(event.target)) return;
+        hideCurrentRef.current();
+      };
+      view.addEventListener("scroll", dismissOnScroll, { capture: true, passive: true });
+      view.visualViewport?.addEventListener("scroll", dismissOnScroll, { passive: true });
+      scrollCleanupRef.current = () => {
+        view.removeEventListener("scroll", dismissOnScroll, true);
+        view.visualViewport?.removeEventListener("scroll", dismissOnScroll);
+      };
+    }
     if (showTimeoutRef.current) clearTimeout(showTimeoutRef.current);
+    showTimeoutRef.current = null;
+    if (hideTimeoutRef.current) {
+      clearTimeout(hideTimeoutRef.current);
+      hideTimeoutRef.current = null;
+    }
+    if (fromClick) clickOpenRef.current = true;
+    if (clickOpenRef.current && visible) return;
     if (followCursor && event) {
       latestMousePositionRef.current = { x: event.clientX, y: event.clientY };
     }
-    const openDelay = (trigger === "hover" || trigger === "hover-focus") && Date.now() < tooltipWarmUntil
+    const openDelay = fromClick || ((trigger === "hover" || trigger === "hover-focus") && Date.now() < tooltipWarmUntil)
       ? 0
       : resolvedDelayMs;
     instantRef.current = openDelay === 0;
-    showTimeoutRef.current = setTimeout(() => {
+    const reveal = () => {
       showTimeoutRef.current = null;
-      if (!element.isConnected || element.closest('[hidden], [aria-hidden="true"]')) return;
-      if (onBeforeShow && !onBeforeShow()) return;
+      if (!element.isConnected || element.closest('[hidden], [aria-hidden="true"]')
+        || (onBeforeShow && !onBeforeShow())) {
+        stopWatchingScroll();
+        return;
+      }
       const previous = activeTooltips.get(element.ownerDocument);
       if (previous && previous.id !== tooltipId) previous.hide();
       activeTooltips.set(element.ownerDocument, { id: tooltipId, hide: () => hideCurrentRef.current() });
@@ -297,10 +347,14 @@ export function Tooltip({
       }
       // Closing resets layout; repeated hover/focus opens keep its measurement.
       setVisible(true);
-    }, openDelay);
-  }, [disabled, followCursor, onBeforeShow, resolvedDelayMs, tooltipId, trigger, triggerRef]);
+    };
+    if (fromClick) reveal();
+    else showTimeoutRef.current = setTimeout(reveal, openDelay);
+  }, [disabled, followCursor, onBeforeShow, resolvedDelayMs, stopWatchingScroll, tooltipId, trigger, triggerRef, visible]);
 
   const hideTooltip = useCallback(() => {
+    stopWatchingScroll();
+    clickOpenRef.current = false;
     if (showTimeoutRef.current) {
       clearTimeout(showTimeoutRef.current);
       showTimeoutRef.current = null;
@@ -316,16 +370,38 @@ export function Tooltip({
       latestMousePositionRef.current = null;
       setMousePosition(null);
     }
-  }, [followCursor, tooltipId, triggerRef, visible]);
+  }, [followCursor, stopWatchingScroll, tooltipId, triggerRef, visible]);
 
   useEffect(() => { hideCurrentRef.current = hideTooltip; }, [hideTooltip]);
 
-  // Leaving the trigger for the tooltip itself is not leaving the pair: an
-  // interactive tooltip must stay reachable for reading or copying its content.
-  const keepsPointerInside = useCallback((event: { relatedTarget: EventTarget | null }): boolean => (
-    interactive && event.relatedTarget instanceof Node
-      && (tooltipRef.current?.contains(event.relatedTarget) ?? false)
-  ), [interactive]);
+  useEffect(() => {
+    const element = triggerRef.current;
+    const view = element?.ownerDocument.defaultView;
+    if (!visible || !element || !view?.IntersectionObserver) return;
+    let observing = true;
+    // The browser intersects the window and every clipping/scrolling ancestor.
+    // Watch only an open tooltip, including cursor-following and external triggers.
+    const observer = new view.IntersectionObserver(entries => {
+      if (observing && entries.some(entry => entry.target === element && !entry.isIntersecting)) {
+        hideCurrentRef.current();
+      }
+    });
+    observer.observe(element);
+    return () => { observing = false; observer.disconnect(); };
+  }, [triggerRef, visible]);
+
+  const toggleFromClick = useCallback((event: Pick<MouseEvent, "clientX" | "clientY">) => {
+    if (openOnClick && !clickOpenRef.current) showTooltip(event, true);
+    else if (!openOnClick && trigger === "click" && !visible) showTooltip(event);
+    else hideTooltip();
+  }, [hideTooltip, openOnClick, showTooltip, trigger, visible]);
+
+  const scheduleHideTooltip = useCallback(() => {
+    if (clickOpenRef.current) return;
+    if (!interactive || !visible) {
+      hideTooltip();
+      return;
+    }
 
   // Scrolling slides other rows under a stationary pointer and browsers re-run
   // hover hit testing while the content moves. An open tooltip then describes a
@@ -374,10 +450,14 @@ export function Tooltip({
   useEffect(() => {
     const ownerDocument = triggerRef.current?.ownerDocument;
     return () => {
+      stopWatchingScroll();
       if (showTimeoutRef.current) clearTimeout(showTimeoutRef.current);
+      if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+      showTimeoutRef.current = hideTimeoutRef.current = null;
+      activationRef.current = false;
       if (ownerDocument && activeTooltips.get(ownerDocument)?.id === tooltipId) activeTooltips.delete(ownerDocument);
     };
-  }, [tooltipId, triggerRef]);
+  }, [stopWatchingScroll, tooltipId, triggerRef]);
 
   // Delegated text slots use the owning button/row for hover and keyboard focus.
   // Keep the actual label in place so this also works inside portalled listboxes.
@@ -399,29 +479,24 @@ export function Tooltip({
     };
     const onBlur = (event: FocusEvent) => {
       if (event.relatedTarget && element.contains(event.relatedTarget as Node)) return;
-      if (trigger === "focus" || trigger === "hover-focus") hideTooltip();
-    };
-    const onClick = () => {
-      if (trigger === "click" && !visible) showTooltip();
-      else hideTooltip();
+      if (!clickOpenRef.current && (trigger === "focus" || trigger === "hover-focus")) hideTooltip();
     };
     element.addEventListener("mouseenter", onEnter);
     element.addEventListener("mouseleave", onLeave);
     element.addEventListener("focusin", onFocus);
     element.addEventListener("focusout", onBlur);
-    element.addEventListener("click", onClick);
+    element.addEventListener("click", toggleFromClick);
     return () => {
       element.removeEventListener("mouseenter", onEnter);
       element.removeEventListener("mouseleave", onLeave);
       element.removeEventListener("focusin", onFocus);
       element.removeEventListener("focusout", onBlur);
-      element.removeEventListener("click", onClick);
+      element.removeEventListener("click", toggleFromClick);
     };
-  }, [externalTriggerRef, hideTooltip, keepsPointerInside, showTooltip, trigger, visible]);
+  }, [externalTriggerRef, hideTooltip, interactive, scheduleHideTooltip, showTooltip, toggleFromClick, trigger]);
 
   // A measured text slot can mount after focus has already reached its owner.
   // Only replay focus/virtual activation on a transition, not on visibility updates.
-  const activationRef = useRef(false);
   useEffect(() => {
     const element = triggerRef.current;
     const activated = !disabled && (active || Boolean(externalTriggerRef
@@ -440,13 +515,14 @@ export function Tooltip({
       if (event.key !== "Escape" || isImeOwnedKeyboardEvent(event) || showTimeoutRef.current === null) return;
       clearTimeout(showTimeoutRef.current);
       showTimeoutRef.current = null;
+      if (!visible) stopWatchingScroll();
     };
     ownerDocument?.addEventListener("keydown", cancelPendingShow, true);
     return () => ownerDocument?.removeEventListener("keydown", cancelPendingShow, true);
-  }, [triggerRef]);
+  }, [stopWatchingScroll, triggerRef, visible]);
 
   const childProps = (children?.props ?? {}) as Record<string, unknown>;
-  const childRef = (children as (ReactElement & { ref?: Ref<HTMLElement> }) | undefined)?.ref;
+  const childRef = readElementRef(children as ReactElement | undefined);
 
   const handleTriggerRef = useCallback((node: HTMLElement | null) => {
     internalTriggerRef.current = node;
@@ -475,18 +551,8 @@ export function Tooltip({
   };
 
   const handleClick = (event: ReactMouseEvent) => {
-    // Always cancel any pending show timer so a click before the tooltip
-    // appears cannot surface a stale tooltip after the trigger is covered
-    // by a menu or backdrop (which prevents the natural mouseleave).
-    if (showTimeoutRef.current) {
-      clearTimeout(showTimeoutRef.current);
-      showTimeoutRef.current = null;
-    }
-    if (visible) {
-      hideTooltip();
-    } else if (trigger === "click") {
-      showTooltip();
-    }
+    // Both click paths replace pending hover timers; ordinary action hints still dismiss.
+    toggleFromClick(event);
     (childProps.onClick as ((event: ReactMouseEvent) => void) | undefined)?.(event);
   };
 
@@ -496,11 +562,17 @@ export function Tooltip({
   };
 
   const handleBlur = (event: ReactFocusEvent) => {
-    if (trigger === "focus" || trigger === "hover-focus") hideTooltip();
+    if (!clickOpenRef.current && (trigger === "focus" || trigger === "hover-focus")) hideTooltip();
     (childProps.onBlur as ((event: ReactFocusEvent) => void) | undefined)?.(event);
   };
 
   const isShown = visible && layout.ready;
+
+  useEffect(() => {
+    const element = externalTriggerRef?.current;
+    if (!element || isTitleFallback) return;
+    return registerTooltipTrigger(element);
+  }, [externalTriggerRef, isTitleFallback]);
 
   useEffect(() => {
     const element = externalTriggerRef?.current;
@@ -516,6 +588,7 @@ export function Tooltip({
   }, [externalTriggerRef, isShown, tooltipId]);
 
   const triggerElement = children ? cloneElement(children as ReactElement<Record<string, unknown>>, {
+    "data-bitfun-tooltip-trigger": "true",
     ref: handleTriggerRef,
     onMouseEnter: handleMouseEnter,
     onMouseLeave: handleMouseLeave,
@@ -530,16 +603,18 @@ export function Tooltip({
 
   return (
     <>
-      <TooltipTriggerContext.Provider value={!disabled}>
+      {/* Disabling an authored hint must not enable a nested overflow hint. */}
+      <TooltipTriggerContext.Provider value={true}>
         {triggerElement}
       </TooltipTriggerContext.Provider>
       {visible && (
         <Portal ownerDocument={triggerRef.current?.ownerDocument} ownerRef={triggerRef} passive
-          surfaceRef={tooltipRef} onDismiss={hideTooltip}>
+          surfaceRef={tooltipRef} onDismiss={hideTooltip} dismissOnPointerOutside={openOnClick}>
         <div
           ref={tooltipRef}
           id={tooltipId}
           role="tooltip"
+          data-motion="presence"
           data-bitfun-native-webview-occlusion
           className={classNames(styles.root, className)}
           data-bitfun-component="tooltip"

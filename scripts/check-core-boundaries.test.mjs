@@ -73,6 +73,91 @@ const MODULES = [
 
 const TEST_ROOT = join('C:', 'repo');
 
+test('session metadata paging delegates query parameters to the services-core store', async () => {
+  const managerRule = requiredContentRules.find(
+    rule => rule.path === 'src/crates/assembly/core/src/agentic/persistence/manager.rs',
+  );
+  const pageRule = managerRule.patterns.find(
+    pattern => pattern.message === 'missing metadata page delegation to services-core store',
+  );
+  const source = await readFile(new URL(`../${managerRule.path}`, import.meta.url), 'utf8');
+  const call = '.list_metadata_page_with_query(cursor, limit, query)';
+  assert.ok(source.includes(call));
+  assert.ok(pageRule.regex.test(source));
+  for (const replacement of [
+    '.list_metadata_page(cursor, limit)',
+    '.list_metadata_page_with_query(cursor, limit, None)',
+    '.list_metadata_page_with_query(None, limit, query)',
+    '.list_metadata_page_with_query(cursor, 1, query)',
+  ]) {
+    assert.ok(!pageRule.regex.test(source.replace(call, replacement)), replacement);
+  }
+  assert.ok(!pageRule.regex.test(source.replaceAll(
+    '.session_metadata_store(workspace_path)',
+    '.local_metadata_store(workspace_path)',
+  )));
+
+  const storeRule = requiredContentRules.find(
+    rule => rule.path === 'src/crates/services/services-core/src/session/metadata_store.rs',
+  );
+  const storeSource = await readFile(new URL(`../${storeRule.path}`, import.meta.url), 'utf8');
+  const acceptsStore = text => storeRule.patterns.every(({ regex }) => regex.test(text));
+  assert.ok(acceptsStore(storeSource));
+  for (const entrypoint of ['list_metadata_page', 'list_metadata_page_with_query']) {
+    assert.ok(!acceptsStore(storeSource.replace(
+      `pub async fn ${entrypoint}(`,
+      'pub async fn removed_entrypoint(',
+    )), `must keep ${entrypoint} in the services-core store`);
+  }
+});
+
+test('workspace instruction owner requires family priority and non-empty fallback regressions', async () => {
+  const rule = requiredContentRules.find(
+    rule => rule.path === 'src/crates/services/services-core/tests/declarative_workspace_instruction_contracts.rs',
+  );
+  assert.ok(rule);
+  const source = await readFile(new URL(`../${rule.path}`, import.meta.url), 'utf8');
+  const accepts = text => rule.patterns.every(({ regex }) => regex.test(text));
+  assert.ok(accepts(source));
+
+  for (const name of [
+    'workspace_instruction_families_select_agents_then_claude_then_opencode',
+    'workspace_instruction_override_skips_empty_files_and_suppresses_claude',
+    'opencode_project_instructions_support_local_files_and_globs_only',
+  ]) {
+    assert.ok(!accepts(source.replace(name, 'removed_regression')), `must require ${name}`);
+  }
+  assert.ok(!accepts(source.replace(
+    'workspace_instruction_families_select_agents_then_claude_then_opencode',
+    'workspace_instruction_files_reads_agents_then_claude_and_skips_empty_files',
+  )));
+});
+
+test('builtin agent catalog requires the GeneralPurpose fast model default', () => {
+  const rule = requiredContentRules.find(
+    rule => rule.path === 'src/crates/execution/agent-runtime/src/agents.rs'
+      && rule.patterns.some(pattern => pattern.message.includes('GeneralPurpose')),
+  );
+  assert.ok(rule);
+  const mapping = `builtin_agent_spec(
+    "GeneralPurpose",
+    SubAgent,
+    "fast",
+    SubagentVisibilityPolicy::public(),
+  )`;
+  const catalog = `fn builtin_agent_definition_specs() {
+    ${mapping};
+    SubagentVisibilityPolicy::restricted(["Claw"]);
+  }`;
+  const accepts = text => rule.patterns.every(({ regex }) => regex.test(text));
+  assert.ok(accepts(catalog));
+  assert.ok(!accepts(catalog.replace(mapping, '')));
+  assert.ok(!accepts(catalog.replace('"fast"', '"primary"')));
+  assert.ok(!accepts(catalog.replace('SubAgent,', 'Mode,')));
+  assert.ok(!accepts(catalog.replace('"GeneralPurpose"', '"Explore"')));
+  assert.ok(!accepts(catalog.replace('SubagentVisibilityPolicy::restricted(["Claw"]);', '')));
+});
+
 test('tool-runtime search regex stays available without enabling HTML extractors', () => {
   const rule = requiredContentRules.find(
     rule => rule.path === 'src/crates/execution/tool-execution/Cargo.toml',
@@ -139,6 +224,30 @@ test('Pi Skill discovery may use bounded static-source support without opening o
     assert.ok(findForbiddenContentMatches(source, rule.patterns, rejectedPath).length > 0,
       `static-source support must remain private at ${rejectedPath}`);
   }
+});
+
+test('Codex session history imports stay behind reviewed composition roots', async () => {
+  const rule = forbiddenContentUnderRules.find(
+    (rule) => rule.reason === 'Codex declarative source adapter imports are limited to its fixtures and composition roots',
+  );
+  assert.ok(rule);
+  const sourcePath = 'src/crates/assembly/core/src/external_session_import.rs';
+  const source = await readFile(new URL(`../${sourcePath}`, import.meta.url), 'utf8');
+  assert.match(source, /use bitfun_codex_adapter::session/);
+  assert.deepEqual(findForbiddenContentMatches(source, rule.patterns, sourcePath), []);
+  for (const rejectedPath of [
+    'src/crates/assembly/core/src/agentic/persistence/manager.rs',
+    'src/apps/desktop/src/api/session.rs',
+  ]) {
+    assert.ok(findForbiddenContentMatches(source, rule.patterns, rejectedPath).length > 0,
+      `Codex transcript translation must remain behind the import facade at ${rejectedPath}`);
+  }
+  const publicApi = publicApiAllowlistRules.find(
+    (rule) => rule.path === 'src/crates/adapters/codex-adapter/src/lib.rs',
+  );
+  const session = publicApi?.allowedSymbolEntries.find((entry) => entry.symbol === 'session');
+  assert.equal(session?.contractSlice, 'external-session-import-contract');
+  assert.match(session?.consumer ?? '', /external_session_import/);
 });
 
 test('Cargo manifest discovery ignores nested local-agent worktrees', async (t) => {
@@ -211,6 +320,7 @@ test('Agent Runtime leaf capabilities have one managed feature and source contra
   );
   assert.ok(rule, 'bitfun-agent-runtime must be a managed capability target');
   assert.deepEqual(Object.keys(rule.featureProfiles).sort(), [
+    'account-routing',
     'agent-runtime',
     'default',
     'definition-contracts',
@@ -246,6 +356,16 @@ test('Agent Runtime leaf capabilities have one managed feature and source contra
     'utf8',
   );
   assert.equal(flatRootRule.patterns[0].regex.test(rootSource), false);
+  const channelRule = requiredContentRules.find(
+    (sourceRule) => sourceRule.path === 'src/crates/execution/agent-runtime/src/lib.rs'
+      && sourceRule.reason.includes('leaf capability modules'),
+  ).patterns.find((pattern) => pattern.message.startsWith('channel_routing '));
+  assert.ok(channelRule, 'channel admission must have an exact pure owner gate');
+  assert.equal(channelRule.regex.test(rootSource), true);
+  assert.equal(channelRule.regex.test(rootSource.replace(
+    '#[cfg(feature = "account-routing")]\npub mod channel_routing;',
+    '#[cfg(feature = "agent-runtime")]\npub mod channel_routing;',
+  )), false);
   for (const mutation of [
     '#[doc(hidden)] pub mod accidental_feature_free_api;',
     'pub union AccidentalFeatureFreeApi { value: u64 }',
@@ -440,6 +560,7 @@ test('portable contract crates expose only capability-local feature slices', asy
       'plugin-runtime',
       'product-search',
       'provisioning-task-port',
+      'ptc-runtime',
       'question-template-port',
       'remote-exec-port',
       'remote-workspace-ports',
@@ -459,6 +580,7 @@ test('portable contract crates expose only capability-local feature slices', asy
   assert.deepEqual(runtimePortFeatures['product-search'], ['dep:bitfun-product-domains']);
   assert.deepEqual(runtimePortFeatures['provisioning-task-port'], ['dep:tokio-util']);
   assert.deepEqual(runtimePortFeatures['script-tool-runtime'], []);
+  assert.deepEqual(runtimePortFeatures['ptc-runtime'], []);
   assert.deepEqual(runtimePortFeatures['web-search-port'], []);
   // Workspace byte readers expose AsyncRead/AsyncSeek without selecting a
   // process, network, scheduler, or full Tokio runtime at the contract layer.
@@ -589,7 +711,10 @@ test('Services Core feature-free dependencies stay behind exact text and async I
       'local-storage',
       'permission',
       'process-runtime',
+      'screen-capture',
+      'secure-credentials',
       'session-search',
+      'system-vault',
       'workspace-instructions',
       'workspace-runtime',
       'workspace-text-runtime',
@@ -616,6 +741,38 @@ test('Services Core text runtime features keep independent exact owner profiles'
     'dep:tokio',
     'tokio/rt',
   ]);
+});
+
+test('image inspection and generation keep independent exact feature closures', async () => {
+  const manifestPath = 'src/crates/assembly/core/Cargo.toml';
+  const manifest = await readFile(new URL(`../${manifestPath}`, import.meta.url), 'utf8');
+  const features = parseManifestFeatures(manifest);
+  for (const [name, refs] of [
+    ['tools-image-analysis', ['bitfun-tool-packs/image-analysis']],
+    ['tools-image-generation', [
+      'bitfun-tool-packs/image-generation',
+      'ai-adapter-runtime',
+      'bitfun-ai-adapters/image-generation',
+    ]],
+  ]) {
+    const rule = coreClosedFeatureProfileRules.find(candidate => candidate.manifestPath === manifestPath && candidate.featureName === name);
+    assert.equal(rule?.exact, true);
+    assert.deepEqual(rule.requiredFeatureRefs, refs);
+    assert.deepEqual(features[name], refs);
+  }
+});
+
+test('system proxy discovery owns registry access without process or storage capabilities', async () => {
+  const manifestPath = 'src/crates/services/services-core/Cargo.toml';
+  const manifest = await readFile(new URL(`../${manifestPath}`, import.meta.url), 'utf8');
+  const expected = ['dep:windows', 'windows/Win32_Foundation', 'windows/Win32_System_Registry'];
+  assert.deepEqual(parseManifestFeatures(manifest)['system-proxy'], expected);
+  const rule = coreClosedFeatureProfileRules.find(candidate => candidate.manifestPath === manifestPath && candidate.featureName === 'system-proxy');
+  assert.equal(rule?.exact, true);
+  assert.deepEqual(rule.requiredFeatureRefs, expected);
+  const windows = optionalDependencyFeatureOwnerRules.find(candidate => candidate.crateName === 'services-core')
+    .dependencies.find(dependency => dependency.depName === 'windows');
+  assert.ok(windows.ownerFeatures.includes('system-proxy'));
 });
 
 function parseManifestFeatures(manifest) {
@@ -675,9 +832,10 @@ const RUNTIME_PORT_FEATURE_PROFILES = {
   'plugin-runtime': [],
   'product-search': ['dep:bitfun-product-domains'],
   'provisioning-task-port': ['dep:tokio-util'],
+  'ptc-runtime': [],
   'question-template-port': ['dep:bitfun-product-domains'],
   'remote-exec-port': ['dep:tokio'],
-  'remote-workspace-ports': [],
+  'remote-workspace-ports': ['dep:bitfun-core-types'],
   'runtime-event-port': [],
   'script-tool-runtime': [],
   'terminal-port': ['dep:tokio'],
@@ -931,6 +1089,11 @@ test('contract and AI adapter tests keep reviewed feature and failure-domain top
       name: 'script_tool_port_contracts',
       path: 'tests/script_tool_port_contracts.rs',
       requiredFeatures: ['script-tool-runtime'],
+    },
+    {
+      name: 'ptc_tool_port_contracts',
+      path: 'tests/ptc_tool_port_contracts.rs',
+      requiredFeatures: ['ptc-runtime'],
     },
     {
       name: 'session_store_contracts',
@@ -1357,6 +1520,9 @@ test('Core optional document and subscription capabilities have independent modi
   ]);
   assert.deepEqual(ruleByFeature.get('ai-adapter-runtime')?.requiredFeatureRefs, [
     'dep:bitfun-ai-adapters',
+    'dep:bitfun-agent-runtime',
+    'bitfun-agent-runtime/account-routing',
+    'bitfun-services-core/routing-state',
   ]);
   assert.ok(
     !ruleByFeature.get('tools-basic')?.requiredFeatureRefs.includes('tool-runtime/document-read'),
@@ -1384,6 +1550,7 @@ test('Core product-full explicitly assembles service and tool capability owners'
     'tools-computer-use',
     'tools-creation',
     'tools-image-analysis',
+    'tools-image-generation',
     'tools-miniapp',
     'tools-canvas',
     'tools-agent-control',
@@ -1763,6 +1930,7 @@ const SDK_HOST_REVIEWED_CORE_FEATURES = [
   'tools-browser-web',
   'tools-computer-use',
   'tools-image-analysis',
+  'tools-image-generation',
   'tools-agent-control',
 ];
 
@@ -1772,12 +1940,15 @@ const ACP_REVIEWED_CORE_FEATURES = [
 ];
 
 const CLI_REVIEWED_CORE_FEATURES = [
+  'workspace-icons',
   'tools-pages',
   ...ACP_REVIEWED_CORE_FEATURES,
   'product-search',
   'remote-connect',
+  'file-watch',
   'plugin-runtime',
   'opencode-plugin-host',
+  'dispatch-store',
 ];
 
 const APP_SERVER_REVIEWED_CORE_FEATURES = [
@@ -1828,7 +1999,6 @@ test('SDK Host closure rejects unreviewed capability owners below Core', () => {
     ['bitfun-services-integrations', 'src/crates/services/services-integrations/Cargo.toml', 'remote-ssh'],
     ['bitfun-services-integrations', 'src/crates/services/services-integrations/Cargo.toml', 'remote-ssh-concrete'],
     ['bitfun-services-integrations', 'src/crates/services/services-integrations/Cargo.toml', 'function-agents'],
-    ['bitfun-services-integrations', 'src/crates/services/services-integrations/Cargo.toml', 'announcement'],
     ['bitfun-services-integrations', 'src/crates/services/services-integrations/Cargo.toml', 'product-full'],
     ['bitfun-product-domains', 'src/crates/contracts/product-domains/Cargo.toml', 'function-agents'],
     ['bitfun-product-domains', 'src/crates/contracts/product-domains/Cargo.toml', 'product-full'],
@@ -2750,8 +2920,8 @@ test('CLI dependency closure includes build dependencies and excluded capabiliti
   const core = {
     ...packageAt('bitfun-core', 'src/crates/assembly/core/Cargo.toml'),
     features: {
-      'cli-everything': ['announcement'],
-      announcement: [],
+      'cli-everything': ['product-full'],
+      'product-full': [],
     },
   };
   const bridge = packageAt('bridge', 'src/crates/assembly/bridge/Cargo.toml', [
@@ -2772,10 +2942,10 @@ test('CLI dependency closure includes build dependencies and excluded capabiliti
   );
 
   assert.equal(violations.length, 1);
-  assert.match(violations[0].message, /bitfun-core\/announcement/);
+  assert.match(violations[0].message, /bitfun-core\/product-full/);
 });
 
-test('CLI dependency closure excludes the Core dispatch store', () => {
+test('only the CLI dependency closure may select the Core dispatch store', () => {
   const core = {
     ...packageAt('bitfun-core', 'src/crates/assembly/core/Cargo.toml'),
     features: { 'dispatch-store': [] },
@@ -2787,17 +2957,30 @@ test('CLI dependency closure excludes the Core dispatch store', () => {
       features: ['dispatch-store'],
     }),
   ]);
-  const cli = packageAt('bitfun-cli', 'src/apps/cli/Cargo.toml', [
-    pathDependency('src/crates/assembly/bridge', { name: 'bridge' }),
-  ]);
-
-  const violations = findProductEntrypointCoreFeatureViolations(
-    [cli, bridge, core],
+  const closureViolations = (rootName, manifestPath) => findProductEntrypointCoreFeatureViolations(
+    [
+      packageAt(rootName, manifestPath, [
+        pathDependency('src/crates/assembly/bridge', { name: 'bridge' }),
+      ]),
+      bridge,
+      core,
+    ],
     { root: TEST_ROOT, crateLayoutRules },
   );
 
-  assert.equal(violations.length, 1);
-  assert.match(violations[0].message, /bitfun-core\/dispatch-store/);
+  // The CLI is the reviewed outbound dispatch controller.
+  assert.deepEqual(
+    closureViolations('bitfun-cli', 'src/apps/cli/Cargo.toml')
+      .filter((violation) => /dispatch-store/.test(violation.message)),
+    [],
+  );
+
+  const acpViolations = closureViolations(
+    'bitfun-acp',
+    'src/crates/interfaces/acp/Cargo.toml',
+  );
+  assert.equal(acpViolations.length, 1);
+  assert.match(acpViolations[0].message, /bitfun-core\/dispatch-store/);
 });
 
 test('cargo layer checker rejects reverse edges across dependency kinds', () => {
@@ -2870,6 +3053,7 @@ test('services integrations Tokio owner contracts reject feature-union masking',
     'utf8',
   );
   const mutations = [
+    ['browser-control', 'tokio/rt', /browser-control missing effective Tokio capabilities: rt/],
     ['plugin-source', 'tokio/time', /plugin-source missing effective Tokio capabilities: time/],
     ['mcp', 'tokio/process', /mcp missing effective Tokio capabilities: process/],
     ['miniapp-market', 'miniapp-runtime', /miniapp-market missing effective Tokio capabilities: fs/],
@@ -2891,7 +3075,7 @@ test('services integrations Reqwest policy uses Cargo-decoded feature references
   const pkg = servicesIntegrationsPackage(`
 [features]
 reqwest = ["dep:reqwest"]
-announcement = ["reqwest", "reqwest/rustls-no-provider"]
+browser-control = ["reqwest", "reqwest/rustls-no-provider"]
 file-watch = ["reqwest?/__native-tls"]
 mcp = ["reqwest", "reqwest/rustls-no-provider", "reqwest/json"]
 models-dev = ["reqwest", "reqwest/rustls-no-provider", "reqwest/system-proxy"]
@@ -2901,7 +3085,7 @@ speech = ["reqwest", "reqwest/rustls-no-provider", "reqwest/http3"]
   const messages = findServicesIntegrationsReqwestFeatureViolations(pkg)
     .map((violation) => violation.message)
     .join('\n');
-  assert.match(messages, /announcement.*missing Reqwest feature reference reqwest\/json/);
+  assert.match(messages, /browser-control.*missing Reqwest feature reference reqwest\/json/);
   assert.match(messages, /file-watch.*outside its reviewed owner features/);
   assert.match(messages, /mcp.*missing Reqwest feature reference reqwest\/stream/);
   assert.doesNotMatch(messages, /models-dev.*system-proxy/);
@@ -3108,6 +3292,10 @@ test('third-party capability profiles reject ambient feature unions and unreview
       uses_default_features: false,
       features: ['vendored-libgit2'],
     }]),
+    packageAt('bitfun-webdriver', 'src/crates/adapters/webdriver/Cargo.toml', [{
+      name: 'image', kind: null, optional: false, uses_default_features: false,
+      features: ['jpeg', 'png'],
+    }]),
   ];
 
   assert.deepEqual(findThirdPartyCapabilityFeatureViolations(validPackages), []);
@@ -3118,6 +3306,7 @@ test('third-party capability profiles reject ambient feature unions and unreview
   mutatedPackages[2].dependencies[0].features.push('rustls-tls-native-roots');
   mutatedPackages[3].dependencies[0].features.push('https');
   mutatedPackages[3].dependencies[0].rename = 'private-git2';
+  mutatedPackages[4].dependencies[0].features = ['png', 'webp'];
   mutatedPackages.push(packageAt('future-image-owner', 'src/apps/future/Cargo.toml', [{
     name: 'image',
     kind: null,
@@ -3134,6 +3323,8 @@ test('third-party capability profiles reject ambient feature unions and unreview
   assert.match(messages, /bitfun-core Tokio Tungstenite dependency has unexpected features: rustls-tls-native-roots/);
   assert.match(messages, /bitfun-services-core Git2 dependency has unexpected features: https/);
   assert.match(messages, /bitfun-services-core Git2 dependency does not match its reviewed owner shape/);
+  assert.match(messages, /bitfun-webdriver Image dependency missing features: jpeg/);
+  assert.match(messages, /bitfun-webdriver Image dependency has unexpected features: webp/);
   assert.match(messages, /future-image-owner Image dependency is missing a reviewed owner profile/);
 });
 
@@ -3840,10 +4031,7 @@ test('desktop preview rebuild inputs use the current crate layout', async () => 
     devScript,
     /'src', 'crates', '(?:core|transport|events|ai-adapters|webdriver|api-layer|assembly|adapters|contracts|execution|interfaces|services)'/,
   );
-  assert.match(
-    devScript,
-    /service\$\{path\.sep\}announcement\$\{path\.sep\}content/,
-  );
+  assert.match(devScript, /prompts\$\{path\.sep\}/);
 });
 
 test('split core boundary check keeps self-test execution behavior', () => {
@@ -4145,6 +4333,8 @@ test('Services Core accepts only the reviewed feature-owned Tokio runtime graph'
       diff: ['dep:tokio', 'tokio/rt', 'tokio/time'],
       filesystem: ['dep:tokio', 'tokio/fs', 'tokio/rt', 'tokio/sync'],
       'json-io': ['dep:tokio', 'tokio/fs', 'tokio/rt', 'tokio/sync', 'tokio/time'],
+      'routing-state': ['json-io'],
+      'resource-capacity': ['json-io'],
       'local-storage': [
         'dep:tokio',
         'tokio/fs',
@@ -4152,6 +4342,7 @@ test('Services Core accepts only the reviewed feature-owned Tokio runtime graph'
         'tokio/sync',
         'tokio/time',
       ],
+      'session-recovery': ['local-storage', 'workspace-persistence', 'dep:anyhow'],
       permission: ['dep:tokio', 'tokio/rt'],
       'session-search': ['dep:tokio', 'tokio/rt'],
       'process-runtime': [
@@ -4402,11 +4593,11 @@ test('closed feature profiles reject product-full hidden behind a child feature'
     './core-boundaries/manifest-feature-helpers.mjs'
   );
   const features = new Map([
-    ['service-integrations', { refs: ['announcement'], line: 1 }],
+    ['service-integrations', { refs: ['file-watch'], line: 1 }],
     [
-      'announcement',
+      'file-watch',
       {
-        refs: ['bitfun-services-integrations/announcement', 'product-full'],
+        refs: ['bitfun-services-integrations/file-watch', 'product-full'],
         line: 2,
       },
     ],
@@ -4417,12 +4608,12 @@ test('closed feature profiles reject product-full hidden behind a child feature'
     unexpectedReachableLocalFeatures(
       features,
       'service-integrations',
-      new Set(['announcement']),
+      new Set(['file-watch']),
     ),
     [
       {
         featureName: 'product-full',
-        path: ['service-integrations', 'announcement', 'product-full'],
+        path: ['service-integrations', 'file-watch', 'product-full'],
       },
     ],
   );
@@ -4477,6 +4668,7 @@ test('capability contract consumers may inherit empty defaults but must select r
       }),
       pathDependency('src/crates/execution/tool-contracts', {
         name: 'bitfun-agent-tools',
+        features: ['computer-use-contract'],
       }),
     ],
   );
@@ -4503,6 +4695,22 @@ test('capability contract consumers may inherit empty defaults but must select r
     );
     assert.ok(violations.some(({ message }) => /tool-runtime.*bitfun-runtime-ports/.test(message)),
       `tool-runtime must retain exactly workspace-ports, not ${features.join(', ') || 'an empty edge'}`);
+  }
+  for (const features of [[], ['computer-use-contract', 'mcp-bridge']]) {
+    const mutatedConsumer = {
+      ...toolRuntime,
+      dependencies: [
+        toolRuntime.dependencies[0],
+        { ...toolRuntime.dependencies[1], features },
+      ],
+    };
+    const violations = findTestCapabilityViolations(
+      cargoBoundaries.findCapabilityContractConsumerViolations,
+      [runtimePorts, agentTools, mutatedConsumer],
+      ioContractRules,
+    );
+    assert.ok(violations.some(({ message }) => /tool-runtime.*bitfun-agent-tools/.test(message)),
+      `tool-runtime must retain exactly computer-use-contract, not ${features.join(', ') || 'an empty edge'}`);
   }
 });
 
@@ -4870,6 +5078,44 @@ test('vendored Engine.IO remains in resolved feature audits without becoming a p
     'a product workspace member cannot bypass ownership checks through a vendor path');
 });
 
+test('vendored Tao is external only at its reviewed version and stays in feature audits', () => {
+  const owner = packageAt('owner', 'src/apps/example/Cargo.toml');
+  const vendor = { ...packageAt('tao', 'third_party/tao/Cargo.toml'), version: '0.36.0' };
+  const collect = (pkg = vendor, members = [owner.id]) => collectCargoMetadataGraph({
+    root: TEST_ROOT,
+    manifestPaths: [join(TEST_ROOT, 'Cargo.toml')],
+    loadMetadata: () => ({
+      packages: [owner, pkg], workspace_members: members,
+      resolve: { nodes: [{ id: pkg.id, features: ['rwh_06'], deps: [] }] },
+    }),
+  });
+  const graph = collect();
+  assert.deepEqual(graph.packages.map(pkg => pkg.name), ['owner']);
+  assert.ok(graph.resolvedPackageFeatures.some(record => record.name === 'tao'));
+  assert.ok(collect(vendor, [owner.id, vendor.id]).packages.some(pkg => pkg.name === 'tao'));
+  assert.ok(collect({ ...vendor, version: '0.37.0' }).packages.some(pkg => pkg.name === 'tao'));
+  assert.ok(collect({ ...vendor, name: 'product-owner' }).packages.some(pkg => pkg.name === 'product-owner'));
+});
+
+test('vendored Wry is external only at its reviewed version and stays in feature audits', () => {
+  const owner = packageAt('owner', 'src/apps/example/Cargo.toml');
+  const vendor = { ...packageAt('wry', 'third_party/wry/Cargo.toml'), version: '0.56.0' };
+  const collect = (pkg = vendor, members = [owner.id]) => collectCargoMetadataGraph({
+    root: TEST_ROOT,
+    manifestPaths: [join(TEST_ROOT, 'Cargo.toml')],
+    loadMetadata: () => ({
+      packages: [owner, pkg], workspace_members: members,
+      resolve: { nodes: [{ id: pkg.id, features: ['os-webview'], deps: [] }] },
+    }),
+  });
+  const graph = collect();
+  assert.deepEqual(graph.packages.map(pkg => pkg.name), ['owner']);
+  assert.ok(graph.resolvedPackageFeatures.some(record => record.name === 'wry'));
+  assert.ok(collect(vendor, [owner.id, vendor.id]).packages.some(pkg => pkg.name === 'wry'));
+  assert.ok(collect({ ...vendor, version: '0.57.0' }).packages.some(pkg => pkg.name === 'wry'));
+  assert.ok(collect({ ...vendor, name: 'product-owner' }).packages.some(pkg => pkg.name === 'product-owner'));
+});
+
 
 test('workspace transfer admits IO without process or networking capabilities', () => {
   const pkg = {
@@ -4899,4 +5145,20 @@ test('core loopback WebSocket fixture cannot broaden the runtime dependency', ()
   ]) {
     assert.ok(findThirdPartyCapabilityFeatureViolations([{ ...pkg, dependencies }]).length > 0);
   }
+});
+
+// Icon codecs must never pull animation or unrelated product features into small hosts.
+test('workspace icon image codecs remain an exact feature-owned slice', () => {
+  const pkg = {
+    ...packageAt('bitfun-services-core', 'src/crates/services/services-core/Cargo.toml', [{
+      name: 'image', kind: null, optional: true, uses_default_features: false, features: [],
+    }]),
+    features: {
+      'pet-packages': ['dep:image', 'image/gif', 'image/jpeg', 'image/png', 'image/webp'],
+      'workspace-icons': ['dep:image', 'image/jpeg', 'image/png', 'image/webp'],
+    },
+  };
+  assert.deepEqual(findThirdPartyCapabilityFeatureViolations([pkg]), []);
+  pkg.features['workspace-icons'].push('image/gif');
+  assert.match(findThirdPartyCapabilityFeatureViolations([pkg]).map(v => v.message).join('\n'), /workspace-icons.*unexpected.*gif/);
 });

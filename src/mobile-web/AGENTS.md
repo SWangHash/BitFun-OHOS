@@ -54,10 +54,16 @@ pnpm --dir src/mobile-web run test:interaction-mailbox # independent question/pe
 pnpm --dir src/mobile-web run test:terminal-browser # real xterm keyboard, ANSI and native bridge
 pnpm --dir src/mobile-web run test:ui-components
 pnpm --dir src/mobile-web run test:session-stream-browser # host-driven latest/backward pages, hints, restart gaps, no relay history routes
-pnpm --dir src/mobile-web run test:host-stream # HostStream reader: hints, reconnects, host restart, unsupported hosts; catalog subscription
+pnpm --dir src/mobile-web run test:chat-transcript-browser # localized times, quiet tool failures, background receipts and blocking prompts at compact/wide widths
+pnpm --dir src/mobile-web run test:host-queue # idempotent outbox and real browser close/reopen
+pnpm --dir src/mobile-web run test:host-stream # HostStream reader: hints, reconnects, host restart, unsupported hosts; catalog subscription; next-input suggestions
+pnpm --dir src/mobile-web run test:prompt-suggestion-browser # Real composer and stream projection: compact/wide, original text, offline/sending gates, no automatic submission
+pnpm --dir src/mobile-web run test:rollback-browser # Real chat edit/rollback sheets: full-width fields, long text, live resize, reduced viewport, cancel without host mutations
+pnpm --dir src/mobile-web run test:session-model-browser # Per-session host model/reasoning selection, legacy hosts, read-only navigation and stale responses
 pnpm --dir src/mobile-web run test:account-login # account login without an online desktop
 pnpm --dir src/mobile-web run test:account-browser # real Chrome tabs, persistence, migration, races; simulated Relay
 pnpm --dir src/mobile-web run test:images # image preparation and upload limits
+pnpm --dir src/mobile-web run test:session-deletion # deleting the open session moves to its nearest surviving neighbor
 pnpm --dir src/mobile-web run test:workspace-identity # workspace ID wire projection, capability gate, legacy routing and cache records
 pnpm --dir src/mobile-web run test:remote-cache-browser # real IndexedDB read of pre-ID session cache records
 pnpm --dir src/mobile-web run type-check

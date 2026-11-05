@@ -56,7 +56,7 @@ impl GenerativeUITool {
     }
 
     fn bitfun_design_system_reminder() -> &'static str {
-        "BitFun design-system reminder: when the widget should feel native to the host BitFun app, compose the provided `bitfun-*` scaffold classes first and use host-projected canonical tokens instead of hard-coded design values. Prefer CSS variables such as `var(--bitfun-color-surface-canvas)`, `var(--bitfun-color-surface-panel)`, `var(--bitfun-color-surface-scene)`, `var(--bitfun-color-surface-raised)`, `var(--bitfun-color-content-primary)`, `var(--bitfun-color-content-secondary)`, `var(--bitfun-color-content-muted)`, `var(--bitfun-color-accent-default)`, `var(--bitfun-color-accent-hover)`, `var(--bitfun-color-border-subtle)`, `var(--bitfun-color-border-default)`, `var(--bitfun-color-border-strong)`, `var(--bitfun-color-action-neutral-surface)`, `var(--bitfun-color-action-neutral-surface-hover)`, `var(--bitfun-color-action-quiet-hover)`, `var(--bitfun-shadow-*)`, `var(--bitfun-motion-duration-*)`, `var(--bitfun-motion-easing-*)`, `var(--bitfun-font-family-sans)`, and `var(--bitfun-font-family-mono)`. Radius, spacing, font-size, and font-weight variables are iframe-local scaffold values rather than host appearance extension points. Support both `bitfun-dark` and `bitfun-light`; do not assume dark-only, purple-only, or landing-page styling. Favor compact desktop workbench layouts, panel/card surfaces, strong information hierarchy, and reusable BitFun component patterns. Avoid hard-coded colors, arbitrary spacing, giant hero sections, fake mobile chrome, and full marketing-page shells; prefer understated, premium UI with layered surfaces, restrained contrast, subtle borders, and do not use thick left-accent emphasis blocks."
+        "BitFun design-system reminder: when the widget should feel native to the host BitFun app, compose the provided `bitfun-*` scaffold classes first and use host-projected canonical tokens instead of hard-coded design values. Prefer CSS variables such as `var(--bitfun-color-surface-canvas)`, `var(--bitfun-color-surface-panel)`, `var(--bitfun-color-surface-scene)`, `var(--bitfun-color-surface-raised)`, `var(--bitfun-color-content-primary)`, `var(--bitfun-color-content-secondary)`, `var(--bitfun-color-content-muted)`, `var(--bitfun-color-accent-default)`, `var(--bitfun-color-accent-hover)`, `var(--bitfun-color-border-subtle)`, `var(--bitfun-color-border-default)`, `var(--bitfun-color-border-strong)`, `var(--bitfun-color-action-neutral-surface)`, `var(--bitfun-color-action-neutral-surface-hover)`, `var(--bitfun-color-action-quiet-hover)`, `var(--bitfun-shadow-*)`, `var(--bitfun-motion-duration-*)`, `var(--bitfun-motion-easing-*)`, `var(--bitfun-font-family-sans)`, and `var(--bitfun-font-family-mono)`. Spacing (`var(--bitfun-space-*)`), radius (`var(--bitfun-radius-*)`), control sizing, typography (`var(--bitfun-font-*)` and `var(--bitfun-type-*)`), and motion variables are host-projected system tokens that follow the active appearance, density, and font settings; rely on them instead of hard-coded equivalents. Support both `bitfun-dark` and `bitfun-light`; do not assume dark-only, purple-only, or landing-page styling. Favor compact desktop workbench layouts, panel/card surfaces, strong information hierarchy, and reusable BitFun component patterns. Avoid hard-coded colors, arbitrary spacing, giant hero sections, fake mobile chrome, and full marketing-page shells; prefer understated, premium UI with layered surfaces, restrained contrast, subtle borders, and do not use thick left-accent emphasis blocks."
     }
 
     fn bitfun_widget_scaffold_reminder() -> &'static str {
@@ -254,7 +254,7 @@ Input rules:
                 "widget_code": {
                     "type": "string",
                     "description": format!(
-                        "Raw HTML fragment or raw SVG. No Markdown code fences. For HTML: no <!DOCTYPE>, <html>, <head>, or <body>. The 260-line / 28KB guideline is a soft reliability threshold. For larger widgets, use data-driven loops, shared CSS classes, and simpler markup rather than truncating required behavior. {} If the widget should match BitFun, rely on `bitfun-*` scaffold classes plus host-projected color, surface, status, border, shadow, motion, and font-family variables instead of hard-coded colors or custom chrome. Treat radius, spacing, font-size, and font-weight variables as iframe-local scaffold values, not host appearance extension points. If the user asked for file navigation, do not finish this field until each clickable node has verified file metadata or is intentionally non-clickable.",
+                        "Raw HTML fragment or raw SVG. No Markdown code fences. For HTML: no <!DOCTYPE>, <html>, <head>, or <body>. The 260-line / 28KB guideline is a soft reliability threshold. For larger widgets, use data-driven loops, shared CSS classes, and simpler markup rather than truncating required behavior. {} If the widget should match BitFun, rely on `bitfun-*` scaffold classes plus host-projected color, surface, status, border, shadow, motion, and font-family variables instead of hard-coded colors or custom chrome. Spacing, radius, control sizing, typography, and motion variables are also host-projected system tokens; prefer them over hard-coded values. If the user asked for file navigation, do not finish this field until each clickable node has verified file metadata or is intentionally non-clickable.",
                         Self::combined_reminder()
                     )
                 },
@@ -278,6 +278,22 @@ Input rules:
                     }
                 }
             }
+        })
+    }
+
+    fn output_schema(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "widget_id": {"type": "string"},
+                "title": {"type": "string"},
+                "width": {"type": "integer"},
+                "height": {"type": "integer"},
+                "modules": {"type": "array", "items": {"type": "string"}}
+            },
+            "required": ["success", "widget_id", "title", "width", "height", "modules"],
+            "additionalProperties": false
         })
     }
 

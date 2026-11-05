@@ -182,6 +182,18 @@ export interface AIModelCatalog {
   session_model_id?: string;
 }
 
+/**
+ * This machine's own models.dev projections.
+ *
+ * They describe the public models.dev catalog, which every host refreshes for
+ * itself, so a controller rendering Model Settings while a peer is selected
+ * enriches locally instead of pulling the peer's multi-MiB copy over the wire.
+ */
+export interface LocalModelsDevCatalogs {
+  provider_catalog?: ProviderCatalog;
+  models_dev_reasoning_catalog?: ModelsDevReasoningCatalog;
+}
+
 export interface ReasoningCatalogProjectionRequest {
   provider: string;
   modelName: string;
@@ -223,6 +235,52 @@ export interface SubscriptionAccount {
   management_url?: string | null;
 }
 
+/** One account slot. The bare provider key is the legacy default slot. */
+export interface SubscriptionAccountInstance {
+  account_id: string;
+  is_default: boolean;
+  supports_multiple_accounts?: boolean;
+  enabled: boolean;
+  upstream_account_id?: string | null;
+  account: SubscriptionAccount;
+}
+
+export interface SubscriptionQuotaWindow {
+  id: string;
+  duration_seconds?: number | null;
+  used_percent?: number | null;
+  resets_at?: number | null;
+}
+
+export interface SubscriptionQuotaMeter extends SubscriptionQuotaWindow {
+  display_name?: string | null;
+  used?: number | null;
+  limit?: number | null;
+  remaining?: number | null;
+  unit?: string | null;
+  expires_at?: number | null;
+  secondary?: boolean;
+  unlimited?: boolean;
+}
+
+export interface SubscriptionQuotaSnapshot {
+  account_id: string;
+  provider: string;
+  state: 'known' | 'stale' | 'unknown' | 'unsupported' | 'query_failed';
+  credential_revision?: number;
+  observed_at?: number | null;
+  valid_until?: number | null;
+  plan?: string | null;
+  unlimited_credits?: boolean | null;
+  windows: SubscriptionQuotaWindow[];
+  details?: {
+    version: number;
+    buckets?: { id: string; display_name?: string | null; windows: SubscriptionQuotaWindow[] }[];
+  } | null;
+  display?: { version: number; expires_at?: number | null; meters: SubscriptionQuotaMeter[] } | null;
+  error?: string | null;
+}
+
 export interface SubscriptionLogoutResult {
   cleanup_pending: boolean;
   warning?: string | null;
@@ -261,11 +319,31 @@ export class AIApi {
     }
   }
 
+  /**
+   * Model catalog of the host that renders the current surface.
+   *
+   * It carries the configured models, defaults and the session selection. The
+   * models.dev projections never travel — they describe the public models.dev
+   * catalog, which every host refreshes for itself — so a surface that needs
+   * them composes them with {@link getLocalModelsDevCatalogs}.
+   */
   async getModelCatalog(): Promise<AIModelCatalog> {
     try {
       return await api.invoke<AIModelCatalog>('get_ai_model_catalog', {});
     } catch (error) {
       throw createTauriCommandError('get_ai_model_catalog', error);
+    }
+  }
+
+  /**
+   * This machine's own models.dev projections. Controller-local: the Product
+   * Operation Registry never proxies it to a peer.
+   */
+  async getLocalModelsDevCatalogs(): Promise<LocalModelsDevCatalogs> {
+    try {
+      return await api.invoke<LocalModelsDevCatalogs>('get_local_models_dev_catalogs', {});
+    } catch (error) {
+      throw createTauriCommandError('get_local_models_dev_catalogs', error);
     }
   }
 
@@ -416,6 +494,69 @@ export class AIApi {
       return await api.invoke<SubscriptionAccount[]>('list_subscription_accounts', {});
     } catch (error) {
       throw createTauriCommandError('list_subscription_accounts', error);
+    }
+  }
+
+  /** Executes on the rendered account host through the normal transport. */
+  async getSubscriptionAccountQuota(
+    provider: SubscriptionProvider,
+    accountId: string = provider,
+    forceRefresh = false,
+  ): Promise<SubscriptionQuotaSnapshot> {
+    try {
+      return await api.invoke<SubscriptionQuotaSnapshot>('get_subscription_account_quota', {
+        request: { provider, accountId, forceRefresh },
+      });
+    } catch (error) {
+      throw createTauriCommandError('get_subscription_account_quota', error, { provider, accountId });
+    }
+  }
+
+  /** Reads credentials from the saved model on the selected host, never from a UI draft. */
+  async getModelProviderQuota(modelId: string): Promise<SubscriptionQuotaSnapshot> {
+    try {
+      return await api.invoke<SubscriptionQuotaSnapshot>('get_subscription_account_quota', {
+        request: { provider: 'opencode', accountId: `model:${modelId}`, modelId },
+      });
+    } catch (error) {
+      throw createTauriCommandError('get_subscription_account_quota', error, { modelId });
+    }
+  }
+
+  async refreshSubscriptionAccountForSlot(provider: SubscriptionProvider, accountId: string = provider): Promise<SubscriptionAccount> {
+    return accountId === provider ? this.refreshSubscriptionAccount(provider)
+      : (await this.refreshSubscriptionAccountInstance(provider, accountId)).account;
+  }
+
+  async refreshSubscriptionAccountInstance(provider: SubscriptionProvider, accountId: string): Promise<SubscriptionAccountInstance> {
+    return api.invoke('refresh_subscription_account_instance', { request: { provider, accountId } });
+  }
+
+  async logoutSubscriptionAccountInstance(provider: SubscriptionProvider, accountId: string): Promise<SubscriptionLogoutResult> {
+    return api.invoke('logout_subscription_account_instance', { request: { provider, accountId } });
+  }
+
+  async listSubscriptionAccountInstances(): Promise<SubscriptionAccountInstance[]> {
+    try {
+      return await api.invoke<SubscriptionAccountInstance[]>('list_subscription_account_instances', {});
+    } catch (error) {
+      throw createTauriCommandError('list_subscription_account_instances', error);
+    }
+  }
+
+  /** Signs in a new or existing slot; status uses `getSubscriptionLoginStatus`. */
+  async startSubscriptionAccountLogin(
+    provider: SubscriptionProvider,
+    accountId: string,
+    sessionId: string,
+    method?: SubscriptionLoginMethod,
+  ): Promise<SubscriptionLoginStartResult> {
+    try {
+      return await api.invoke<SubscriptionLoginStartResult>('start_subscription_account_login', {
+        request: { provider, accountId, sessionId, method },
+      });
+    } catch (error) {
+      throw createTauriCommandError('start_subscription_account_login', error, { provider, accountId, sessionId, method });
     }
   }
 

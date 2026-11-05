@@ -1,0 +1,49 @@
+// Match External Import: one clipped outer frame, shared grid columns and
+// separators between rows. Native table-cell styles must not own these borders.
+@mixin table($columns) {
+  display: grid;
+  grid-template-columns: $columns;
+  min-inline-size: 0;
+  flex-shrink: 0;
+  overflow: hidden;
+  border: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+  border-radius: var(--bitfun-layout-field-group-radius);
+
+  > .resource-table__row {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    align-items: center;
+    gap: var(--bitfun-space-4);
+    min-inline-size: 0;
+    padding-block: var(--bitfun-layout-field-group-row-padding-block);
+    padding-inline: var(--bitfun-layout-field-group-row-padding-inline);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    line-height: var(--bitfun-type-body-sm-line-height);
+
+    > [role='cell'], > [role='columnheader'] {
+      min-inline-size: 0;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  > .resource-table__row + .resource-table__row {
+    border-block-start: var(--bitfun-border-width-default) solid var(--bitfun-color-border-subtle);
+  }
+
+  > .resource-table__header {
+    padding-block: var(--bitfun-space-3);
+    background: var(--bitfun-color-surface-tertiary);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-meta-font-weight);
+    line-height: var(--bitfun-type-meta-line-height);
+
+    > [role='columnheader']:last-child { text-align: center; }
+  }
+
+  > .resource-table__details {
+    padding: 0;
+    > [role='cell'] { grid-column: 1 / -1; }
+  }
+}

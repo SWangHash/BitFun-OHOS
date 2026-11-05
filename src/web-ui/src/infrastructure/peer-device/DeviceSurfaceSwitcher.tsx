@@ -135,7 +135,6 @@ export const DeviceSurfaceSwitcher: React.FC = () => {
   }, [peerDevice, switching, success, warning, t]);
 
   useEffect(() => {
-    let removeOverlayKeydown0: (() => void) | undefined;
     if (!open) {
       return;
     }
@@ -144,10 +143,8 @@ export const DeviceSurfaceSwitcher: React.FC = () => {
         setOpen(false);
       }
     };
-    removeOverlayKeydown0 = subscribeOverlayInteraction(popoverRef, 'keydown', onKeyDown);
-    return () => {
-      removeOverlayKeydown0?.();
-    };
+    const removeOverlayKeydown0 = subscribeOverlayInteraction(popoverRef, 'keydown', onKeyDown);
+    return () => removeOverlayKeydown0?.();
   }, [open]);
 
   if (!loggedIn || !peerDevice) {

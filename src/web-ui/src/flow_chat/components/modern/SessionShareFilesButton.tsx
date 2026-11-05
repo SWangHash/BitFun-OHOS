@@ -35,10 +35,10 @@ function basename(path: string): string {
  * agent write_file / edit_file / create_file operations, so no new tracking
  * is introduced.
  *
- * UX (current scope —list-only):
- *  1. Click the files icon 鈫?popover lists session files (basename + path).
+ * UX (current scope — list-only):
+ *  1. Click the files icon → popover lists session files (basename + path).
  *
- * The per-file share actions (闅旂┖浼犻€?/ 纰颁竴纰? are intentionally not
+ * The per-file share actions (nearby share / tap-to-share) are intentionally not
  * surfaced here. The underlying `share_file_ohos` ArkTS bridge and the
  * `shareLocalFile` helper in `services/fileShare` remain available for
  * when the share-mode UX is re-introduced.

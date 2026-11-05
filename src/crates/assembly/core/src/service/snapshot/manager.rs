@@ -571,7 +571,7 @@ fn bound_snapshot_context(
             ssh_host,
             remote_root,
         } => {
-            if identity.hostname != *ssh_host
+            if identity.identity_host() != *ssh_host
                 || identity.logical_workspace_path != *remote_root
                 || identity.hostname.trim().is_empty()
                 || identity
@@ -650,8 +650,10 @@ pub async fn open_snapshot_history_for_workspace(
     let identity = &binding.session_identity;
     let runtime_service = get_workspace_runtime_service_arc();
     let context = if identity.is_remote() {
-        runtime_service
-            .context_for_remote_workspace(&identity.hostname, &identity.logical_workspace_path)
+        runtime_service.context_for_remote_workspace(
+            &identity.identity_host(),
+            &identity.logical_workspace_path,
+        )
     } else {
         runtime_service.context_for_local_workspace(Path::new(&identity.logical_workspace_path))
     };
@@ -901,6 +903,10 @@ impl Tool for WrappedTool {
 
     fn input_schema(&self) -> Value {
         self.original_tool.input_schema()
+    }
+
+    fn output_schema(&self) -> Value {
+        self.original_tool.output_schema()
     }
 
     async fn input_schema_for_model(&self) -> Value {

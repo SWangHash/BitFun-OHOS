@@ -1,0 +1,9 @@
+.external-history-notice {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--bitfun-space-1) var(--bitfun-space-2);
+  padding: var(--bitfun-space-1) var(--bitfun-space-3);
+  font-size: var(--bitfun-type-flow-support-font-size);
+  color: var(--bitfun-color-content-secondary);
+}

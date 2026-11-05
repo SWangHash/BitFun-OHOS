@@ -394,13 +394,16 @@ export class ApiClient implements IApiClient {
       });
 
       
-      // Disabling the deadline still leaves explicit cancellation active.
+      // A non-positive timeout opts out of the deadline. `??` is deliberate: a
+      // caller that disables the deadline must not fall back to the default.
+      // Explicit cancellation (cancelAll, surface switching) still aborts the
+      // request because its controller is registered in activeRequests above.
       const timeoutMs = request.config.timeout ?? this.config.timeout;
-      const timeoutId = timeoutMs === 0
-        ? undefined
-        : setTimeout(() => {
+      const timeoutId = timeoutMs > 0
+        ? setTimeout(() => {
             controller.abort();
-          }, timeoutMs);
+          }, timeoutMs)
+        : undefined;
 
       try {
         

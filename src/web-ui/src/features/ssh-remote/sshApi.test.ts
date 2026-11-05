@@ -42,6 +42,16 @@ describe('SSH transfer lifetime', () => {
     expect(native.invoke).toHaveBeenCalledExactlyOnceWith('remote_read_dir', { connectionId: 'ssh-host', path: '/remote' });
   });
 
+  it('keeps the default deadline for file reads with no stop action', async () => {
+    await sshApi.readFile('ssh-host', '/remote/file.txt');
+    // No third argument: the shared client keeps its own deadline, which is
+    // what ends a command whose host never answers.
+    expect(native.invoke).toHaveBeenCalledExactlyOnceWith('remote_read_file', {
+      connectionId: 'ssh-host',
+      path: '/remote/file.txt',
+    });
+  });
+
   it.each(transfers)('does not start a $name stopped while its listener was registering', async ({ run }) => {
     let finishListening!: (unlisten: () => void) => void;
     native.listen.mockReturnValueOnce(new Promise(resolve => { finishListening = resolve; }));
@@ -53,6 +63,11 @@ describe('SSH transfer lifetime', () => {
     await expect(outcome).resolves.toMatchObject({ message: 'Transfer cancelled' });
     expect(native.invoke).not.toHaveBeenCalled();
     expect(native.unlisten).toHaveBeenCalledOnce();
+  });
+
+  it.each(transfers)('does not start a $name stopped before the backend registration', async ({ run }) => {
+    await expect(run('stopped', () => true)).rejects.toThrow('Transfer cancelled');
+    expect(native.invoke).not.toHaveBeenCalled();
   });
 
   it.each(transfers)('repeats an early stop once $name progress proves backend registration', async ({ run, command, event }) => {
