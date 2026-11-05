@@ -3,7 +3,6 @@ import { Alert, Button, Checkbox, DialogBody, DialogClose, DialogFooter, DialogH
 import { EcosystemDialog as Dialog } from './EcosystemDialog';
 import { EcosystemBatchLayout } from './EcosystemBatchLayout';
 import EcosystemPets from './EcosystemPets';
-import EcosystemAccounts, { ecosystemAccountProvider } from './EcosystemAccounts';
 import DevecoAccount from './DevecoAccount';
 import EcosystemAccounts from './EcosystemAccounts';
 import { ecosystemAccountProvider } from './ecosystemCompatibilityModel';

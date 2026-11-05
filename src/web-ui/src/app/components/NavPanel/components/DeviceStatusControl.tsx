@@ -1,4 +1,4 @@
-import { useDeviceDirectory, resolveDeviceNameFrom, isDeviceControllable, deviceClientVersion } from '@/infrastructure/account/deviceDirectory';
+import { useDeviceDirectory, resolveDeviceName, isDeviceControllable, deviceClientVersion } from '@/infrastructure/account/deviceDirectory';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { subscribeOverlayInteraction, createOverlayPortal, OverflowText, Button, Card, CardBody, CardHeader, Icon, IconButton, ScrollArea, type IconSize } from '@bitfun/ui';
 import { ArrowRightLeft, ChevronLeft, ChevronRight, CircleAlert, House, Link, MessageCircle, Monitor, MonitorSmartphone, Smartphone, Undo2, Unplug } from 'lucide-react';
@@ -7,7 +7,7 @@ import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/Ap
 import { useAnchoredPopoverPosition } from '@/shared/utils/useAnchoredPopoverPosition';
 import { usePeerDeviceModeOptional } from '@/infrastructure/peer-device/peerDeviceContextState';
 import { useAccountIdentity } from '@/infrastructure/account-identity';
-import { remoteConnectAPI, deviceDisplayName as accountDeviceDisplayName, deviceMetadataLabel, type AccountDeviceInfo } from '@/infrastructure/api/service-api/RemoteConnectAPI';
+import { remoteConnectAPI, type AccountDeviceInfo } from '@/infrastructure/api/service-api/RemoteConnectAPI';
 import { api } from '@/infrastructure/api/service-api/ApiClient';
 import { useNotification } from '@/shared/notification-system';
 import {

@@ -70,6 +70,8 @@ it.each([
   } finally {
     act(() => root.unmount());
     container.remove();
+  }
+});
 it.each(['password', 'privateKey'] as const)('only requests missing %s credentials for a saved connection', async method => {
   const host = document.createElement('div');
   document.body.append(host);

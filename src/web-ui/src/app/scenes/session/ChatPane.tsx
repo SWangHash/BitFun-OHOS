@@ -5,7 +5,7 @@
  * Renamed from panels/CenterPanel. All logic preserved.
  */
 
-import React, { useCallback, memo, useEffect, useRef, useState, useMemo, useContext, useSyncExternalStore } from 'react';
+import React, { useCallback, memo, useRef, useState, useMemo, useContext, useSyncExternalStore } from 'react';
 import { AlertTriangle, Settings } from 'lucide-react';
 import { SplitViewPrimaryDock } from '@bitfun/ui';
 import { useStore } from 'zustand';
@@ -89,7 +89,6 @@ const ChatPaneInner: React.FC<ChatPaneProps> = ({
     && showChatInput
     && modelStatus === 'unavailable'
     && !isAcpFlowSession(activeSession);
-  const addTab = useCanvasStore(state => state.addTab);
   const fileDropTargetRef = useRef<HTMLDivElement>(null);
   const [isColumnResizing, setIsColumnResizing] = useState(false);
   const contentWidth = useStore(flowChatWidthStore, state => state.preferredWidth);

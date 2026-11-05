@@ -423,28 +423,7 @@ const TodosScene: React.FC = () => {
               {t('actions.newTodo')}
             </Button>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            className="bitfun-todos__today-button"
-            data-testid="todos-calendar-today-btn"
-            onClick={showCurrentMonth}
-          >
-            {t('calendar.today')}
-          </Button>
-          <Button
-            size="sm"
-            variant="primary"
-            className="bitfun-todos__new-button"
-            leadingIcon={<Icon name="plus" size="lg" />}
-            onClick={handleCreateNew}
-            disabled={workspaceOptions.length === 0}
-            data-testid="todos-new"
-          >
-            {t('actions.newTodo')}
-          </Button>
-        </div>
-      </header>
+        </header>
 
       <Dialog
         open={editorOpen}
@@ -479,41 +458,6 @@ const TodosScene: React.FC = () => {
           />
         </DialogBody>
       </Dialog>
-
-      <div className="bitfun-todos__panes" data-bitfun-scene="todos" data-bitfun-part="panes">
-        {/* ── Tier 1: due within 24 hours ───────────────────── */}
-        <ScrollArea
-          className="bitfun-todos__pane bitfun-todos__pane--list"
-          aria-label={t('list.title')}
-          data-bitfun-scene="todos"
-          data-bitfun-part="listPane"
-          data-testid="todos-list-pane"
-          role="region"
-        >
-          <DialogHeader className="bitfun-todos-editor-dialog__header">
-            {!renderedEditor.saving && <DialogClose />}
-          </DialogHeader>
-          <DialogBody className="bitfun-todos-editor-dialog__body" inset="none">
-            <TodoEditor
-              draft={renderedEditor.draft}
-              onDraftChange={setDraft}
-              validationErrors={renderedEditor.validationErrors}
-              onValidationErrorsChange={setValidationErrors}
-              workspaceOptions={renderedEditor.workspaceOptions}
-              selectedWorkspaceId={renderedEditor.selectedWorkspaceId}
-              onSelectedWorkspaceIdChange={setSelectedWorkspaceId}
-              isEditing={Boolean(renderedEditor.editingJob)}
-              boundSessionId={
-                renderedEditor.editingJob?.target.kind === 'session'
-                  ? renderedEditor.editingJob.target.sessionId
-                  : null
-              }
-              saving={renderedEditor.saving}
-              onSave={() => { void handleSave(); }}
-              onCancel={handleCloseEditor}
-            />
-          </DialogBody>
-        </Dialog>
 
         <div className="bitfun-todos__panes" data-bitfun-scene="todos" data-bitfun-part="panes">
           <section

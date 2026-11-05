@@ -884,11 +884,12 @@
     margin-inline-start: calc(surface.$icon-slot + surface.$row-gap);
   }
 
-@media (max-width: 760px) {
   .bitfun-remote-connect-dialog {
     block-size: calc(100dvh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - var(--bitfun-viewport-host-chrome-inset-block-start));
     min-block-size: calc(100dvh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - var(--bitfun-viewport-host-chrome-inset-block-start));
     max-block-size: calc(100dvh - 2 * var(--bitfun-overlay-dialog-viewport-gutter) - var(--bitfun-viewport-host-chrome-inset-block-start));
+  }
+
   .bitfun-remote-connect__pairing-card,
   .bitfun-remote-connect__pairing-card--compact:has(> .bitfun-remote-connect__pairing-visual),
   .bitfun-remote-connect__weixin-login,

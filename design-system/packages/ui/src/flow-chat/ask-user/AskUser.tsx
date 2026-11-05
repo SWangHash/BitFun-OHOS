@@ -10,6 +10,7 @@ import {
 } from "react";
 import {
   CircleAlert,
+  FolderSearch,
 } from "lucide-react";
 import { Button } from "../../components/Button";
 import { Checkbox } from "../../components/Checkbox";
@@ -803,7 +804,7 @@ export const AskUser = forwardRef<HTMLDivElement, AskUserProps>(function AskUser
                 title={submitTitle}
                 variant="primary"
               >
-                {submitting && submittingLabel !== undefined
+                {state === "submitting" && submittingLabel !== undefined
                   ? submittingLabel
                   : submitLabel}
               </Button>

@@ -444,7 +444,6 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
         draftKey,
         questionIndex,
         value,
-        preserveOtherSelection,
       );
       // When preserveOtherSelection is set (browse path), the caller has
       // already checked "Other" via handleMultiChange/handleSingleChange.

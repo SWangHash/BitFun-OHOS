@@ -26,6 +26,19 @@ import { createLogger } from '@/shared/utils/logger';
 import { getActiveSurfaceScope, type SurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 
 const log = createLogger('SSHFileTransfer');
+
+/**
+ * Deadline override for the remote file transfers that expose a stop action.
+ *
+ * These commands are already bounded where the work happens: every SFTP request
+ * has its own response timeout, the SSH transport drops a stalled connection,
+ * and the transfer itself can be stopped from its card. A wall-clock deadline
+ * here only guaranteed failure for slow-but-healthy links, which is how a
+ * completed transfer used to surface as "Request timeout".
+ *
+ * Commands without a progress or stop surface keep the default deadline: it is
+ * what keeps an unresponsive host from freezing the UI with no way out.
+ */
 const NO_REQUEST_DEADLINE = { timeout: 0 } as const;
 // A separate client retains the original transport and the ordinary deadline
 // for cleanup cancellation after the rendered device surface changes.
@@ -44,20 +57,6 @@ function cancelStoppedTransferOnProgress(transferId: string, isCancelled?: () =>
     });
   };
 }
-
-/**
- * Deadline override for the remote file transfers that expose a stop action.
- *
- * These commands are already bounded where the work happens: every SFTP request
- * has its own response timeout, the SSH transport drops a stalled connection,
- * and the transfer itself can be stopped from its card. A wall-clock deadline
- * here only guaranteed failure for slow-but-healthy links, which is how a
- * completed transfer used to surface as "Request timeout".
- *
- * Commands without a progress or stop surface keep the default deadline: it is
- * what keeps an unresponsive host from freezing the UI with no way out.
- */
-const NO_REQUEST_DEADLINE = { timeout: 0 } as const;
 
 export const sshApi = {
   // === Connection Management ===

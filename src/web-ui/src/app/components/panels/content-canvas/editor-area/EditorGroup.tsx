@@ -184,10 +184,10 @@ export const EditorGroup: React.FC<EditorGroupProps> = ({
   const tabsToRender = useMemo(() => {
     const result = group.tabs.filter(t => 
         (!t.isHidden && isCanvasTabVisibleForSession(t, activeSessionId) && (t.content.type === 'btw-session' || t.id === effectiveActiveTabId || cachedTabsRef.current.has(t.id))) ||
-      (t.isHidden && isKeepAliveTerminalTab(t))
+      (t.isHidden && isKeepAliveTab(t))
     );
     return result;
-  }, [group.tabs, effectiveActiveTabId, activeSessionId, isKeepAliveTerminalTab]);
+  }, [group.tabs, effectiveActiveTabId, activeSessionId, isKeepAliveTab]);
 
   const handleContentChange = useCallback((content: PanelContent | null) => {
     if (content && group.activeTabId) {

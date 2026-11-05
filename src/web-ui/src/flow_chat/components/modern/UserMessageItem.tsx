@@ -42,7 +42,7 @@ import { SessionUsageReportCard } from '../usage/SessionUsageReportCard';
 import type { SessionUsagePanelTab } from '../usage/sessionUsagePanelTypes';
 import { coerceSessionUsageReport } from '../usage/usageReportUtils';
 import { resolveSessionRelationship } from '../../utils/sessionMetadata';
-import { isRemoteWorkspaceSession } from '../../utils/sessionWorkspace';
+import { isLocalWorkspaceSession } from '../../utils/sessionWorkspace';
 import { resolveSessionDriverId } from '../../session-drivers/resolve';
 import { absoluteSessionTurnIndexForId } from '../../utils/flowChatTurnOrdinal';
 import {
@@ -113,7 +113,7 @@ function buildPresentationRerunPayload(presentation: ComposerPresentation): {
 
   return {
     message: contextSection ? `${contextSection}\n\n${modelText}` : modelText,
-    displayMessage: composerPresentationToEditorText(presentation),
+    displayMessage: withConversationExcerptFallback(composerPresentationToEditorText(presentation), composerPresentationContexts(presentation)),
     userMessageMetadata: {
       composerPresentation: presentation,
       ...(sessionReferences.length > 0 ? { sessionReferences } : {}),
@@ -149,6 +149,7 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
     const setEditDraft = useMessageEditStore(s => s.setDraft);
     const setEditSubmitting = useMessageEditStore(s => s.setSubmitting);
     const containerRef = useRef<HTMLDivElement>(null);
+    const shellRef = useRef<HTMLDivElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
     const messageContent = typeof message?.content === 'string' ? message.content : String(message?.content || '');
     const sentTimestamp = typeof message?.timestamp === 'number'
@@ -637,8 +638,22 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
       </>
     ) : <UserMessagePresentationContent presentation={messagePreview.preview} />;
 
+    const messageImageGallery = messageImages.length > 0 ? (
+      <div
+        className="user-message-item__images"
+        data-bitfun-product-component="user-message-item"
+        data-bitfun-product-part="images"
+      >
+        {messageImages.map(img => (
+          <UserMessageImage key={img.id} image={img} onPreview={setLightboxImage} />
+        ))}
+      </div>
+    ) : null;
+    
     return (
-      <div className="user-message-item-shell">
+      <div className="user-message-item-shell" ref={shellRef}>
+        {messageImageGallery}
+
         <div
           data-bitfun-product-component="user-message-item"
           data-bitfun-product-part="root"
@@ -652,24 +667,26 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
         >
         <span className="user-message-item__surface" aria-hidden="true" />
         {isEditing ? (
-          <UserMessageEditComposer
-            value={editDraft}
-            isSubmitting={isEditSubmitting}
-            submitLabel={t('message.saveEdit')}
-            cancelLabel={t('message.cancelEdit')}
-            placeholder={t('message.editPlaceholder')}
-            onChange={setEditDraft}
-            onSubmit={handleSubmitEdit}
-            onCancel={cancelEdit}
-            presentation={composerPresentation}
-            workspacePath={currentSession?.workspacePath}
-            workspaceId={currentSession?.workspaceId}
-            remoteConnectionId={
-              currentSession?.remoteConnectionId
-              || currentSession?.config?.remoteConnectionId
-            }
-            excludeSessionId={resolvedSessionId}
-          />
+          <div className="user-message-item__edit-layout">
+            <UserMessageEditComposer
+              value={editDraft}
+              isSubmitting={isEditSubmitting}
+              submitLabel={t('message.saveEdit')}
+              cancelLabel={t('message.cancelEdit')}
+              placeholder={t('message.editPlaceholder')}
+              onChange={setEditDraft}
+              onSubmit={handleSubmitEdit}
+              onCancel={cancelEdit}
+              presentation={composerPresentation}
+              workspacePath={currentSession?.workspacePath}
+              workspaceId={currentSession?.workspaceId}
+              remoteConnectionId={
+                currentSession?.remoteConnectionId
+                || currentSession?.config?.remoteConnectionId
+              }
+              excludeSessionId={resolvedSessionId}
+            />
+          </div>
         ) : (
           <div className="user-message-item__main" data-bitfun-product-component="user-message-item" data-bitfun-product-part="main">
           {backgroundDeliveryFromMetadata(message.metadata, turnId)?.reason === 'recovery_completed'
@@ -730,14 +747,6 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
               </>
             )}
             </div>
-          </div>
-        )}
-
-        {message.images && message.images.length > 0 && (
-          <div className="user-message-item__images" data-bitfun-product-component="user-message-item" data-bitfun-product-part="images">
-            {message.images.map(img => (
-              <UserMessageImage key={img.id} image={img} onPreview={setLightboxImage} />
-            ))}
           </div>
         )}
 

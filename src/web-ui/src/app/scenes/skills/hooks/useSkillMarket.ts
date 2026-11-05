@@ -47,6 +47,7 @@ export function useSkillMarket({
   const [sourceErrors, setSourceErrors] = useState<string[]>([]);
   const [marketError, setMarketError] = useState<string | null>(null);
   const [downloadingPackage, setDownloadingPackage] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const pageSizeRef = useRef(pageSize);
   useLayoutEffect(() => {
@@ -78,7 +79,7 @@ export function useSkillMarket({
     capabilityRef.current.enabled && capabilityRef.current.epoch === epoch
   ), []);
 
-  const fetchSkills = useCallback(async (query: string | undefined, limit: number, offset: number) => {
+  const fetchSkills = useCallback(async (query: string | undefined, limit: number) => {
     const normalized = query?.trim();
     return await configAPI.querySkillMarkets(normalized || undefined, limit);
   }, []);
@@ -273,7 +274,7 @@ export function useSkillMarket({
   }, [capabilityIsCurrent, currentCapabilityEpoch, hasWorkspace, isAssistantWorkspace, isRemoteWorkspace, notification, onInstalledChanged, t, workspace?.id]);
 
   return {
-    marketSkills: displayMarketSkills,
+    marketSkills: paginatedSkills,
     marketLoading,
     loadingMore,
     marketError,

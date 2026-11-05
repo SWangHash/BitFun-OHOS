@@ -58,7 +58,7 @@ export interface InteractiveCapabilityControlDefinition {
   kind: 'query' | 'option' | 'operation' | 'delegate' | 'open';
   risk: InteractiveCapabilityRisk;
   executionHost: 'productHost' | 'workspaceHost' | 'presentationSurface';
-  presentationTarget?: InteractiveCapabilityDestination;
+  presentationTarget: InteractiveCapabilityDestination;
 }
 
 export interface InteractiveCapabilityItem {
@@ -105,7 +105,7 @@ export interface InteractiveCapability {
   agentExamplesZh: string[];
   agentExamplesEn: string[];
   agentControl?: InteractiveCapabilityAgentControl;
-  destination?: InteractiveCapabilityDestination;
+  destination: InteractiveCapabilityDestination;
   operations: InteractiveCapabilityOperation[];
   options: InteractiveCapabilityOption[];
   searchTerms: string[];
@@ -220,7 +220,8 @@ export function getInteractiveCapability(capabilityId: string): InteractiveCapab
 }
 
 export function isInteractiveCapabilityOpenable(capability: InteractiveCapability): boolean {
-  return Boolean(capability.destination);
+  return Boolean(capability.destination)
+    && isInteractiveCapabilityDestinationAvailable(capability.destination);
 }
 
 export function getInteractiveControlDefinition(

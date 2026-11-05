@@ -7,7 +7,7 @@
 import { create, useStore } from 'zustand';
 import { createContext, useContext } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import type { Session, DialogTurn, ModelRound, ModelRoundAttempt, FlowThinkingItem, FlowUserSteeringItem, AnyFlowItem } from '../types/flow-chat';
+import type { Session, DialogTurn, ModelRound, ModelRoundAttempt, FlowThinkingItem, FlowToolItem, FlowUserSteeringItem, AnyFlowItem } from '../types/flow-chat';
 import { flowChatStore } from './FlowChatStore';
 import { getTurnCompletionNotice } from '../utils/turnCompletionNotice';
 import { createAbsoluteSessionTurnIndexResolver } from '../utils/flowChatTurnOrdinal';
@@ -339,10 +339,6 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
 
     const completionNotice = getTurnCompletionNotice(turn);
     const hasFailureNotice = turn.status === 'error' && Boolean(turn.error || turn.errorDetail);
-    const collapseTrailingExploreGroupForTurnTail =
-      hasNewerDialogTurn ||
-      completionNotice !== null ||
-      hasFailureNotice;
 
     // The runtime provisioning that follows an accepted `__official__` toolchain
     // answer gets a row of its own, placed right after the round that owns the
@@ -373,10 +369,6 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
     const provisioningRow = provisioning && provisioningEntryIndex >= 0
       ? { type: 'qt-toolchain-provision' as const, turnId: turn.id, data: provisioning }
       : null;
-    const provisioningIsTurnTail = provisioningRow !== null
-      && !renderEntries.some(
-        (entry, index) => index > provisioningEntryIndex && entry.type === 'round',
-      );
 
     let pendingRounds: ModelRound[] = [];
 
@@ -386,12 +378,7 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
         if (provisioningRow && entryIndex === provisioningEntryIndex) {
           // Later rounds must render below the install row so it is superseded by
           // the following output instead of being pinned to the turn tail.
-          flushRoundEntries(pendingRounds, {
-            collapseTrailingExploreGroup: provisioningIsTurnTail
-              ? collapseTrailingExploreGroupForTurnTail
-              : true,
-            marksTurnTail: provisioningIsTurnTail,
-          });
+          flushRoundEntries(pendingRounds);
           pendingRounds = [];
           items.push(provisioningRow);
         }
@@ -494,9 +481,7 @@ export const createModernFlowChatStore = (initialSession?: Session | null) => cr
       // turnCatalog update) but every render-relevant field is still the
       // same — prevents a visible flicker from unnecessary virtualItems
       // rebuild.
-      set((state) => {
-        state.activeSession = session;
-      });
+      set({ activeSession: session });
     },
 
     updateVirtualItems: () => {

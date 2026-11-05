@@ -304,7 +304,6 @@ import {
 import { voiceInputConfigAppearanceDescriptor } from '@/app/scenes/settings/pages/application/VoiceSettingsSection.appearance';
 import { worktreeSettingsAppearanceDescriptor } from '@/app/scenes/settings/pages/development/WorktreeSettingsSection.appearance';
 import { usageStatisticsConfigAppearanceDescriptor } from '@/app/scenes/settings/pages/data/UsageStatisticsSettingsPage.appearance';
-import { navSearchDialogAppearanceDescriptor } from '@/app/components/NavPanel/NavSearchDialog.appearance';
 import { turnCompletionNoticeAppearanceDescriptor } from '@/flow_chat/components/modern/TurnCompletionNoticeItem.appearance';
 import { turnFailureNoticeAppearanceDescriptor } from '@/flow_chat/components/modern/TurnFailureNoticeItem.appearance';
 import { virtualItemAppearanceDescriptor } from '@/flow_chat/components/modern/VirtualItemRenderer.appearance';
@@ -597,15 +596,12 @@ export function createDefaultAppearanceRegistry(): AppearanceRegistry {
     .registerComponent(dispatchTargetPickerAppearanceDescriptor)
     .registerComponent(voiceInputConfigAppearanceDescriptor)
     .registerComponent(worktreeSettingsAppearanceDescriptor)
-    .registerComponent(navSearchDialogAppearanceDescriptor)
     .registerComponent(turnCompletionNoticeAppearanceDescriptor)
     .registerComponent(turnFailureNoticeAppearanceDescriptor)
     .registerComponent(virtualItemAppearanceDescriptor)
     .registerComponent(usageActivityGridAppearanceDescriptor)
     .registerComponent(splitViewAppearanceDescriptor)
     .registerComponent(setupWizardAppearanceDescriptor)
-    .registerComponent(personalOverviewAppearanceDescriptor)
-    .registerComponent(projectResourcesAppearanceDescriptor)
     .registerComponent(modelBillingAppearanceDescriptor)
     .registerComponent(modelRouterSettingsAppearanceDescriptor)
     .registerComponent(backgroundRunAppearanceDescriptor)

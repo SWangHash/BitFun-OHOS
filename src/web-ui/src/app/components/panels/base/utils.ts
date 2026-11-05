@@ -231,16 +231,16 @@ export const PANEL_CONTENT_CONFIGS: Record<PanelContentType, PanelContentConfig>
   'thinking-detail': {
     type: 'thinking-detail',
     displayName: 'Thinking',
-    icon: { name: 'thinking' },
+    icon: catalogPanelIcon('thinking'),
     supportsCopy: false,
     supportsDownload: false,
     showHeader: false
   },
-  'session-trajectory': { type: 'session-trajectory', displayName: 'Session Trajectory', icon: { glyph: Activity }, supportsCopy: false, supportsDownload: false, showHeader: false },
+  'session-trajectory': { type: 'session-trajectory', displayName: 'Session Trajectory', icon: Activity, supportsCopy: false, supportsDownload: false, showHeader: false },
   'session-usage': {
     type: 'session-usage',
     displayName: 'Context Usage Report',
-    icon: { glyph: Activity },
+    icon: Activity,
     supportsCopy: false,
     supportsDownload: false,
     showHeader: false
@@ -248,7 +248,7 @@ export const PANEL_CONTENT_CONFIGS: Record<PanelContentType, PanelContentConfig>
   'tool-definitions': {
     type: 'tool-definitions',
     displayName: 'Tool Definitions',
-    icon: { glyph: Code },
+    icon: Code,
     supportsCopy: false,
     supportsDownload: false,
     showHeader: false

@@ -4,7 +4,6 @@
 
 import { OverflowText, Button, Empty, Icon, IconButton, SearchField, Textarea, Tooltip } from '@bitfun/ui';
 import React, { useCallback, useState, useMemo, useEffect, useRef } from 'react';
-import { useTranslation } from 'react-i18next';
 import { Minus, RotateCcw, Square, FileCode2, History } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { useGitSceneStore } from '../gitSceneStore';
@@ -16,7 +15,6 @@ import { createGitDiffEditorTab, createGitCodeEditorTab } from '@/shared/utils/t
 import { useNotification } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
 import './WorkingCopyView.scss';
-import { useGitSceneStore } from '../gitSceneStore';
 
 const log = createLogger('WorkingCopyView');
 

@@ -12,6 +12,7 @@ import {
   Select,
   StatusPill,
   Switch,
+  Tooltip,
   Dialog,
   DialogBody,
   DialogClose,
@@ -128,6 +129,7 @@ const SkillsScene: React.FC = () => {
   useEffect(() => { if (!desktopConfigAvailable) setMarketSettingsOpen(false); }, [desktopConfigAvailable]);
   const [deleteTarget, setDeleteTarget] = useState<SkillInfo | null>(null);
   const [installedSearch, setInstalledSearch] = useState('');
+  const [groupSearch, setGroupSearch] = useState('');
   const [selectedDetail, setSelectedDetail] = useState<
     | { type: 'installed'; skillKey: string }
     | { type: 'market'; skill: SkillMarketItem }
@@ -450,10 +452,16 @@ const SkillsScene: React.FC = () => {
                   value={installedView}
                   aria-label={t('nav.categories.installed')}
                   options={categorySections.flatMap((section) => section.categories.map((category) => {
-                    const count = category.id === 'groups' ? skillGroupCount : installed.counts[category.id] ?? 0;
+                    const count = category.id === 'groups'
+                      ? skillGroupCount
+                      : category.id === 'matrix'
+                        ? matrix.totalCount
+                        : installed.counts[category.id] ?? 0;
                     const countAvailable = category.id === 'groups'
                       ? skillGroups.ready && installed.catalogReady
-                      : installed.catalogReady;
+                      : category.id === 'matrix'
+                        ? !matrix.skillsLoading && !matrix.skillsError
+                        : installed.catalogReady;
                     const label = t(category.labelKey, { source: category.sourceLabel });
                     return {
                       value: category.id,

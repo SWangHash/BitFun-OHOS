@@ -1276,6 +1276,7 @@ class WorkspaceManager {
   }
 
   public async deleteWorkspace(workspaceId: string): Promise<void> {
+    const surface = this.captureSurface();
     try {
       this.setLoading(true);
       this.setError(null);
@@ -1284,13 +1285,15 @@ class WorkspaceManager {
 
       const removedWorkspace = this.state.openedWorkspaces.get(workspaceId);
       if (removedWorkspace) {
-        await this.cancelRunningSessionsForWorkspace(removedWorkspace);
+        await this.cancelRunningSessionsForWorkspace(removedWorkspace, surface);
       }
 
       await globalStateAPI.deleteWorkspace(workspaceId);
+      this.assertSurfaceUnchanged(surface, 'delete workspace');
 
       if (removedWorkspace) {
         const { flowChatStore } = await import('@/flow_chat/store/FlowChatStore');
+        this.assertSurfaceUnchanged(surface, 'delete workspace sessions');
         flowChatStore.removeSessionsForWorkspace(removedWorkspace);
       }
 
@@ -1299,6 +1302,7 @@ class WorkspaceManager {
         globalStateAPI.getRecentWorkspaces(),
         globalStateAPI.getOpenedWorkspaces(),
       ]);
+      this.assertSurfaceUnchanged(surface, 'delete workspace');
 
       this.updateWorkspaceState(
         currentWorkspace,
@@ -1311,6 +1315,9 @@ class WorkspaceManager {
 
       this.emit({ type: 'workspace:active-changed', workspace: currentWorkspace });
     } catch (error) {
+      if (!this.isSurfaceUnchanged(surface)) {
+        throw error;
+      }
       log.error('Failed to delete workspace', { workspaceId, error });
       const errorMessage = describeFileAccessError(error);
       this.updateState({ loading: false, error: errorMessage }, { type: 'workspace:error', error: errorMessage });

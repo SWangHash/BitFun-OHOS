@@ -1,6 +1,8 @@
 /**
  * User message item styles (BEM).
  */
+@use '../../transcript-layout' as transcriptLayout;
+
 .user-message-item-shell {
   @include transcriptLayout.content-column;
 
@@ -36,6 +38,7 @@
    * conversation jumping.
    */
   position: relative;
+}
 
 .user-message-item:not(.user-message-item--expanded):not(.user-message-item--editing) {
   // Wrapped previews stay compact; explicit lines beyond the preview leave
@@ -348,6 +351,13 @@
 .user-message-item__copy-btn.copied {
   color: var(--bitfun-color-status-success-content);
   background: var(--bitfun-color-status-success-surface);
+}
+
+.user-message-item__edit-layout {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--bitfun-control-flow-chat-inline-gap);
 }
 
 .user-message-edit-composer {

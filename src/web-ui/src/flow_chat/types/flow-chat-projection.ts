@@ -80,4 +80,9 @@ type VirtualContent =
       };
       turnId: string;
     }
-  | { type: 'image-analyzing'; turnId: string };
+  | { type: 'image-analyzing'; turnId: string }
+  | {
+      type: 'qt-toolchain-provision';
+      data: NonNullable<FlowToolItem['qtToolchainProvision']>;
+      turnId: string;
+    };

@@ -8,6 +8,7 @@ import {
   useState,
   version as reactVersion,
   type FocusEvent as ReactFocusEvent,
+  type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   type ReactElement,
   type ReactNode,
@@ -319,10 +320,6 @@ export function Tooltip({
     }
     if (showTimeoutRef.current) clearTimeout(showTimeoutRef.current);
     showTimeoutRef.current = null;
-    if (hideTimeoutRef.current) {
-      clearTimeout(hideTimeoutRef.current);
-      hideTimeoutRef.current = null;
-    }
     if (fromClick) clickOpenRef.current = true;
     if (clickOpenRef.current && visible) return;
     if (followCursor && event) {
@@ -396,12 +393,12 @@ export function Tooltip({
     else hideTooltip();
   }, [hideTooltip, openOnClick, showTooltip, trigger, visible]);
 
-  const scheduleHideTooltip = useCallback(() => {
-    if (clickOpenRef.current) return;
-    if (!interactive || !visible) {
-      hideTooltip();
-      return;
-    }
+  // Leaving the trigger for the tooltip itself is not leaving the pair: an
+  // interactive tooltip must stay reachable for reading or copying its content.
+  const keepsPointerInside = useCallback((event: { relatedTarget: EventTarget | null }): boolean => (
+    interactive && event.relatedTarget instanceof Node
+      && (tooltipRef.current?.contains(event.relatedTarget) ?? false)
+  ), [interactive]);
 
   // Scrolling slides other rows under a stationary pointer and browsers re-run
   // hover hit testing while the content moves. An open tooltip then describes a
@@ -452,8 +449,7 @@ export function Tooltip({
     return () => {
       stopWatchingScroll();
       if (showTimeoutRef.current) clearTimeout(showTimeoutRef.current);
-      if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
-      showTimeoutRef.current = hideTimeoutRef.current = null;
+      showTimeoutRef.current = null;
       activationRef.current = false;
       if (ownerDocument && activeTooltips.get(ownerDocument)?.id === tooltipId) activeTooltips.delete(ownerDocument);
     };
@@ -493,7 +489,7 @@ export function Tooltip({
       element.removeEventListener("focusout", onBlur);
       element.removeEventListener("click", toggleFromClick);
     };
-  }, [externalTriggerRef, hideTooltip, interactive, scheduleHideTooltip, showTooltip, toggleFromClick, trigger]);
+  }, [externalTriggerRef, hideTooltip, interactive, showTooltip, toggleFromClick, trigger]);
 
   // A measured text slot can mount after focus has already reached its owner.
   // Only replay focus/virtual activation on a transition, not on visibility updates.

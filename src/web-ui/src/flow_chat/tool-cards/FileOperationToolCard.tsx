@@ -129,7 +129,6 @@ interface FileOperationToolCardProps extends ToolCardProps {
 const GenericFileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
   toolItem,
   config,
-  displayContext,
   sessionId,
   onOpenInEditor,
 }) => {

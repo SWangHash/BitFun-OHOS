@@ -1,5 +1,4 @@
 import { lazyWithRecovery } from '@/shared/utils/lazyWithRecovery';
-import { captureContentScope } from '@/shared/services/workbenchContentService';
 import React, { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Icon, IconButton } from '@bitfun/ui';
 import { AlertTriangle, Code2, Loader2, MousePointer2 } from 'lucide-react';

@@ -2,7 +2,7 @@ import { ActionCard } from '@bitfun/ui';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { OverflowText, Icon, IconButton, Select, Tooltip } from '@bitfun/ui';
+import { OverflowText, Button, Icon, IconButton, Select, Tooltip } from '@bitfun/ui';
 
 import { confirmDialog } from '@/infrastructure/confirm-dialog';
 import {

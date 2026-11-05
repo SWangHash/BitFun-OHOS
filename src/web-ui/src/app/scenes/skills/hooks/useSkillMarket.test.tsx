@@ -354,20 +354,19 @@ describe('useSkillMarket', () => {
     expect(downloadSkillMarketMock).toHaveBeenCalledTimes(1);
   });
 
-  it('loads subsequent pages via offset pagination and appends only new skills', async () => {
-    const all = Array.from({ length: 11 }, (_, i) => ({
+  it('loads additional pages in fetch batches as the visible window grows', async () => {
+    const all = Array.from({ length: 45 }, (_, i) => ({
       id: `skill-${i}`,
       name: `skill-${i}`,
       description: '',
       source: 'test',
-      installs: i,
+      installs: 0,
       url: `https://example.com/skill-${i}`,
       installId: `test@skill-${i}`,
     }));
-    listSkillMarketMock.mockImplementation((_query: unknown, limit?: number, offset?: number) => {
-      const start = offset ?? 0;
-      return Promise.resolve(all.slice(start, start + (limit ?? 10)));
-    });
+    listSkillMarketMock.mockImplementation((_query: unknown, limit?: number) => (
+      Promise.resolve(all.slice(0, limit ?? 10))
+    ));
 
     await act(async () => {
       root.render(<Harness enabled />);
@@ -375,15 +374,25 @@ describe('useSkillMarket', () => {
     });
     expect(currentMarket?.marketSkills).toHaveLength(10);
     expect(currentMarket?.hasMore).toBe(true);
-    expect(listSkillMarketMock).toHaveBeenLastCalledWith(undefined, 11, 0);
+    expect(listSkillMarketMock).toHaveBeenLastCalledWith(undefined, 20);
+
+    await act(async () => {
+      await currentMarket?.goToNextPage();
+    });
+    // The second page is already covered by the first fetch batch.
+    expect(listSkillMarketMock).toHaveBeenCalledTimes(1);
+    expect(currentMarket?.marketSkills.map((skill) => skill.id).sort()).toEqual(
+      all.slice(10, 20).map((skill) => skill.id).sort(),
+    );
 
     await act(async () => {
       await currentMarket?.goToNextPage();
     });
 
-    expect(listSkillMarketMock).toHaveBeenLastCalledWith(undefined, 11, 10);
-    expect(currentMarket?.marketSkills).toHaveLength(11);
-    expect(currentMarket?.marketSkills.map((skill) => skill.id)).toContain('skill-10');
-    expect(currentMarket?.hasMore).toBe(false);
+    expect(listSkillMarketMock).toHaveBeenLastCalledWith(undefined, 40);
+    expect(currentMarket?.marketSkills.map((skill) => skill.id).sort()).toEqual(
+      all.slice(20, 30).map((skill) => skill.id).sort(),
+    );
+    expect(currentMarket?.hasMore).toBe(true);
   });
 });

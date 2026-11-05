@@ -74,6 +74,9 @@ describe('FlowChat native listener readiness', () => {
     cleanup();
     for (const unlisten of unlisteners) expect(unlisten).toHaveBeenCalledTimes(1);
     expect(stopListening).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('relayRecordsBeforeEvent', () => {
   it('renders received records before the direct event applies', () => {
     const order: string[] = [];
@@ -2431,6 +2434,9 @@ describe('stopping a streaming round', () => {
     for (const item of settledRound().items) {
       expect(item).toMatchObject({ isStreaming: false, status: 'cancelled' });
     }
+  });
+});
+
 
 describe('model round host timing', () => {
   beforeEach(() => { resetFlowChatStore(); stateMachineManager.clear(); });

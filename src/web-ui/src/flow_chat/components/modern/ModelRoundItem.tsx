@@ -415,7 +415,7 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
 
       const removeOverlayMousedown0 = subscribeOverlayInteraction(copyMenuRef, 'mousedown', handleClickOutside);
       return () => {
-        removeMousedown();
+        removeOverlayMousedown0?.();
       };
     }, [copied, isCopyMenuOpen]);
 
@@ -430,7 +430,7 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
 
       const removeOverlayKeydown1 = subscribeOverlayInteraction(copyMenuRef, 'keydown', handleKeyDown);
       return () => {
-        removeKeyDown();
+        removeOverlayKeydown1?.();
       };
     }, [isCopyMenuOpen]);
 

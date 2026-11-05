@@ -650,7 +650,6 @@ export const GlobalSearchContent: React.FC<GlobalSearchContentProps> = ({
                     if (entity) {
                       return resultRow(
                         <ActionCard
-                        <ActionCard
                           tabIndex={-1}
                           aria-label={item.title}
                           data-testid={`global-search-result-${item.id}`}

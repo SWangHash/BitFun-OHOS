@@ -173,7 +173,7 @@ export const ConfirmDialog = forwardRef<HTMLDivElement, ConfirmDialogProps>(
         closeOnEscape={!busy && closeOnEscape}
         closeOnPointerOutside={!busy && closeOnPointerOutside}
         data-testid={testId}
-        initialFocusRef={initialFocusRef}
+        initialFocusRef={confirmButtonRef}
         onOpenChange={(_nextOpen, reason) => requestClose(reason)}
         open={open}
         ref={ref}

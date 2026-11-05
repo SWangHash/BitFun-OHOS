@@ -189,63 +189,6 @@ const NurseryGallery: React.FC = () => {
       />
 
       <div className="gallery-zones" data-bitfun-component="nursery-gallery" data-bitfun-part="content">
-        <section className="nursery-defaults" aria-labelledby="nursery-defaults-title" data-bitfun-component="nursery-gallery" data-bitfun-part="defaults">
-          <Card className="nursery-defaults__surface" appearance="subtle" padding="md" radius="md" gap="md">
-            <div className="nursery-defaults__content" data-bitfun-component="nursery-gallery" data-bitfun-part="defaultsContent">
-              <div className="nursery-defaults__title-row">
-                <h3 className="nursery-defaults__title" id="nursery-defaults-title">
-                  {t('nursery.template.title')}
-                </h3>
-                <StatusPill tone="neutral">{t('nursery.template.defaultBadge')}</StatusPill>
-              </div>
-              <p className="nursery-defaults__subtitle">{t('nursery.template.subtitle')}</p>
-
-              <div
-                className="nursery-defaults__stats"
-                data-bitfun-component="nursery-gallery"
-                data-bitfun-part="stats"
-                aria-live="polite"
-                aria-busy={templateStatsStatus === 'loading'}
-              >
-                {templateStatsStatus === 'loading' ? (
-                  <>
-                    <span className="nursery-defaults__stat-skeleton" aria-hidden="true" />
-                    <span className="nursery-defaults__stat-skeleton" aria-hidden="true" />
-                  </>
-                ) : templateStatsStatus === 'error' ? (
-                  <span className="nursery-defaults__stat nursery-defaults__stat--error">
-                    <Icon glyph={CircleAlert} size="xs" />
-                    {t('nursery.template.statsUnavailable')}
-                  </span>
-                ) : templateStats ? (
-                  <>
-                    <span className="nursery-defaults__stat">
-                      <Icon glyph={Wrench} size="xs" />
-                      {t('nursery.template.stats.tools', { count: templateStats.enabledToolCount })}
-                    </span>
-                    <span className="nursery-defaults__stat">
-                      <Icon name="extension" size="xs" aria-hidden="true" />
-                      {t('nursery.template.stats.skills', { count: templateStats.enabledSkillCount })}
-                    </span>
-                  </>
-                ) : null}
-              </div>
-            </div>
-
-            <Button
-              variant="secondary"
-              size="sm"
-              className="nursery-defaults__action"
-              data-testid="nursery-configure-defaults-btn"
-              leadingIcon={<Icon name="settings" size="sm" />}
-              trailingIcon={<Icon name="chevron-right" size="sm" />}
-              onClick={openDefaults}
-            >
-              {t('nursery.template.configure')}
-            </Button>
-          </Card>
-        </section>
-
         <GalleryZone
           id="nursery-assistants-zone"
           className="nursery-gallery__assistant-zone"

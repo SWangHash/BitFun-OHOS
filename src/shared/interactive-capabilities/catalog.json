@@ -2425,7 +2425,19 @@
           "titleZh": "输入完整网址、本地域名或开发服务端口并在 BitFun 内打开",
           "titleEn": "Open full URLs, local hostnames, or development-service ports inside BitFun",
           "control": {
-            "kind": "delegate"
+            "kind": "delegate",
+            "tools": [
+              "OpenUrl",
+              "ControlHub"
+            ],
+            "workflowZh": [
+              "用户给出链接且只需要打开页面时用 OpenUrl 打开；需要读取页面、定位元素、截图或交互时改用 ControlHub",
+              "打开后如需继续操作页面，先取得内置页面的 session_id，再按浏览器动作契约执行"
+            ],
+            "workflowEn": [
+              "Use OpenUrl when the user supplies a link and only needs the page opened; switch to ControlHub when reading, locating elements, capturing screenshots, or interacting",
+              "When further page work is needed, keep the built-in session_id and follow the shared browser-action contract"
+            ]
           },
           "evidence": [
             "command:browser_webview_create",
@@ -5713,43 +5725,40 @@
         "hdc",
         "on-device debugging",
         "device log",
-        "UI verification"
+        "UI verification",
+        "Qt migration"
       ],
       "highlightsZh": [
-        "构建与静态检查一站式完成",
+        "ArkTS 源码静态检查",
         "hdc 安装、启动与设备日志抓取",
-        "UI 验证留痕：截图与验证日志"
+        "UI 验证留痕：截图与验证日志",
+        "Qt 迁移请求的源码、产物与工具链收集"
       ],
       "highlightsEn": [
-        "One-pass build and static checks",
+        "ArkTS source static checks",
         "hdc install, launch, and log capture",
-        "Traceable UI verification with screenshots and logs"
+        "Traceable UI verification with screenshots and logs",
+        "Qt migration intake for source, output, and toolchain details"
       ],
       "items": [
         {
           "id": "build-and-checks",
-          "titleZh": "构建鸿蒙工程并检查 ArkTS 与 C++ 源码",
-          "titleEn": "Build HarmonyOS projects and check ArkTS and C++ sources",
+          "titleZh": "检查 ArkTS 源码",
+          "titleEn": "Check ArkTS sources",
           "control": {
             "kind": "delegate",
             "tools": [
-              "build_project",
-              "check_arkts_files",
-              "check_cpp_files"
+              "arkts_check"
             ],
             "workflowZh": [
-              "先用 build_project 触发构建，阅读失败输出，修复后重试，直到构建通过",
-              "提交前用 check_arkts_files 与 check_cpp_files 做静态检查，把问题按文件与行号汇报"
+              "提交前用 arkts_check 做静态检查，把问题按文件与行号汇报"
             ],
             "workflowEn": [
-              "Trigger the build with build_project, read failures, fix, and rerun until it passes",
-              "Run check_arkts_files and check_cpp_files before commits and report findings by file and line"
+              "Run arkts_check before commits and report findings by file and line"
             ]
           },
           "evidence": [
-            "source:src/crates/execution/tool-provider-groups/src/lib.rs#build_project",
-            "source:src/crates/execution/tool-provider-groups/src/lib.rs#check_arkts_files",
-            "source:src/crates/execution/tool-provider-groups/src/lib.rs#check_cpp_files"
+            "source:src/crates/execution/tool-provider-groups/src/lib.rs#arkts_check"
           ]
         },
         {
@@ -5774,6 +5783,28 @@
           "evidence": [
             "source:src/crates/execution/tool-provider-groups/src/lib.rs#start_app",
             "source:src/crates/execution/tool-provider-groups/src/lib.rs#hdc_log"
+          ]
+        },
+        {
+          "id": "qt-migration-intake",
+          "titleZh": "分析 Qt 迁移请求并收集源码、产物、工具链与模板信息",
+          "titleEn": "Analyze Qt migration requests and collect source, output, toolchain, and template details",
+          "control": {
+            "kind": "delegate",
+            "tools": [
+              "QtMigrationIntake"
+            ],
+            "workflowZh": [
+              "在 Qt 迁移入口先用 QtMigrationIntake 判定任务类型与四个必填字段，缺少路径时用 AskUserQuestion 补齐",
+              "用户在策略问题中给出新的 Qt kit bin 目录时，用 toolchain 参数重新绑定工具链，不再要求二次确认"
+            ],
+            "workflowEn": [
+              "Start Qt migration intake with QtMigrationIntake to classify the task and the four required fields, and use AskUserQuestion for missing paths",
+              "When the user names a different Qt kit bin directory in the strategy answer, rebind it through the toolchain argument instead of asking again"
+            ]
+          },
+          "evidence": [
+            "source:src/crates/execution/tool-provider-groups/src/lib.rs#QtMigrationIntake"
           ]
         },
         {
@@ -5804,45 +5835,41 @@
         },
         {
           "id": "knowledge-and-cwd",
-          "titleZh": "检索 ArkTS 知识并切换会话工作目录",
-          "titleEn": "Search ArkTS knowledge and switch the session working directory",
+          "titleZh": "切换会话工作目录",
+          "titleEn": "Switch the session working directory",
           "control": {
             "kind": "delegate",
             "tools": [
-              "arkts_knowledge_search",
               "switch_cwd"
             ],
             "workflowZh": [
-              "用 arkts_knowledge_search 查询 ArkTS/API 资料，引用来源再写代码",
               "需要在不同模块间连续操作时用 switch_cwd 切换工作目录，并说明当前目录"
             ],
             "workflowEn": [
-              "Use arkts_knowledge_search for ArkTS and API questions and cite the source before coding",
               "Use switch_cwd when work spans modules and always state the current directory"
             ]
           },
           "evidence": [
-            "source:src/crates/execution/tool-provider-groups/src/lib.rs#arkts_knowledge_search",
             "source:src/crates/execution/tool-provider-groups/src/lib.rs#switch_cwd"
           ]
         }
       ],
       "stepsZh": [
         "在鸿蒙工作区打开智能体会话",
-        "让智能体构建、检查并安装应用到设备",
+        "让智能体检查并安装应用到设备",
         "查看设备日志与 UI 验证结果"
       ],
       "stepsEn": [
         "Open an agent session on a HarmonyOS workspace",
-        "Ask the agent to build, check, and install to the device",
+        "Ask the agent to check sources and install to the device",
         "Review device logs and UI verification results"
       ],
       "agentExamplesZh": [
-        "构建这个鸿蒙工程并修复报错",
+        "检查这个鸿蒙工程的 ArkTS 源码",
         "把应用装到真机上，看看崩溃日志"
       ],
       "agentExamplesEn": [
-        "Build this HarmonyOS project and fix the errors",
+        "Check the ArkTS sources in this HarmonyOS project",
         "Install the app on the device and check the crash logs"
       ],
       "destination": {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useI18n } from '@/infrastructure/i18n';
-import { IconButton, Tooltip } from '@bitfun/ui';
+import { Icon, IconButton, Tooltip } from '@bitfun/ui';
 import { List, ListTree } from 'lucide-react';
 import {
   getNextWorkspaceSessionGrouping,

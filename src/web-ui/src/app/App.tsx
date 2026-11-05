@@ -1,5 +1,4 @@
 import { lazyWithRecovery } from '@/shared/utils/lazyWithRecovery';
-import { importWithRetry } from '@/shared/utils/moduleLoader';
 import { lazy, Suspense, useEffect, useCallback, useLayoutEffect, useState, useRef } from 'react';
 import { ChatProvider } from '../infrastructure/contexts/ChatProvider';
 import { ViewModeProvider } from '../infrastructure/contexts/ViewModeProvider';

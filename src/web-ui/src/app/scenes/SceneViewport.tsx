@@ -39,6 +39,7 @@ import './SceneViewport.scss';
 // first open does not stall on a lazy chunk fetch/parse before FlowChat mounts.
 const TerminalScene   = lazyWithRecovery(() => import('./terminal/TerminalScene'));
 const GitScene        = lazyWithRecovery(() => import('./git/GitScene'));
+const FileViewerScene = lazyWithRecovery(() => import('./file-viewer/FileViewerScene'));
 const ProfileScene    = lazyWithRecovery(() => import('./profile/ProfileScene'));
 const PersonalOverviewScene = lazyWithRecovery(() => import('./personal-overview/PersonalOverviewScene'));
 const ProjectResourcesScene = lazyWithRecovery(() => import('./project-resources/ProjectResourcesScene'));

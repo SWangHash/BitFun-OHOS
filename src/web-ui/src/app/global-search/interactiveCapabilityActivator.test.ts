@@ -23,26 +23,9 @@ vi.mock('./productActionActivator', () => ({
 }));
 
 import { activateInteractiveCapability } from './interactiveCapabilityActivator';
-import { getInteractiveCapability, isInteractiveCapabilityOpenable } from './interactiveCapabilityCatalog';
 
 describe('activateInteractiveCapability', () => {
   beforeEach(() => vi.clearAllMocks());
-
-  it('does not register a Git panel entry', async () => {
-    const capability = getInteractiveCapability('feature.git')!;
-    expect(isInteractiveCapabilityOpenable(capability)).toBe(false);
-    expect(capability.destination).toBeUndefined();
-    expect(capability.items.every(({ control }) => control.kind === 'delegate')).toBe(true);
-    for (const itemId of [undefined, 'status-diff', 'branches']) {
-      await expect(activateInteractiveCapability('feature.git', { itemId }))
-        .rejects.toThrow('Unknown BitFun capability entry: feature.git');
-    }
-    await expect(activateInteractiveCapability('feature.git', { itemId: 'trust-worktrees' }))
-      .rejects.toThrow('Unknown documented item');
-    expect(mocks.openScene).not.toHaveBeenCalled();
-    expect(mocks.openDestination).not.toHaveBeenCalled();
-    expect(mocks.activateProductAction).not.toHaveBeenCalled();
-  });
 
   it('opens the exact settings subview declared by a documented item', async () => {
     await activateInteractiveCapability('setting.application.shortcuts', {

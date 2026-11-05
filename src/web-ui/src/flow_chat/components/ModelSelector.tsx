@@ -41,7 +41,7 @@ import {
   resolveAcpModeState,
   resolveAcpReasoningState,
 } from '../utils/acpSessionConfig';
-import { sessionProjectWorkspacePath } from '../utils/sessionWorkspace';
+import { sessionProjectWorkspacePath, sessionWorkspaceId } from '../utils/sessionWorkspace';
 import { quickActions } from '@/shared/services/ide-control';
 import {
   buildContextUsageTooltip,

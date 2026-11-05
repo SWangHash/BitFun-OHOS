@@ -460,67 +460,6 @@ const VoiceSettingsSection: React.FC = () => {
           )}
         </ConfigPageSection>
 
-        <ConfigPageSection
-          title={t('voiceCall.title')}
-          description={t('voiceCall.description')}
-        >
-          {voiceCallLoading ? (
-            <ConfigLoadingState label={t('voiceCall.loading')} />
-          ) : voiceCallLoadFailed || !voiceCallDraft ? (
-            <ConfigRetryState
-              message={t('voiceCall.messages.loadFailed')}
-              retryLabel={t('messages.retry')}
-              onRetry={() => void loadVoiceCallConfig()}
-              loading={voiceCallLoading}
-            />
-          ) : (
-            <>
-            <ConfigPageRow
-              label={t('voiceCall.enabled.label')}
-              description={t('voiceCall.enabled.description')}
-              align="center"
-            >
-              <Switch
-                checked={voiceCallDraft.enabled}
-                data-testid="voice-call-enabled-switch"
-                onChange={(event) => updateVoiceCall({ enabled: event.target.checked })}
-              />
-            </ConfigPageRow>
-            <ConfigPageRow
-              label={t('voiceCall.apiKey.label')}
-              description={t('voiceCall.apiKey.description')}
-              align="center"
-            >
-              <Input
-                type="password"
-                size="sm"
-                autoComplete="off"
-                value={voiceCallDraft.apiKey}
-                placeholder={t('voiceCall.apiKey.placeholder')}
-                data-testid="voice-api-key-input"
-                onChange={(event) => updateVoiceCall({ apiKey: event.target.value })}
-              />
-            </ConfigPageRow>
-            <ConfigPageRow
-              label={t('voiceCall.voice.label')}
-              description={t('voiceCall.voice.description')}
-              align="center"
-            >
-              <Input
-                size="sm"
-                value={voiceCallDraft.voice}
-                data-testid="voice-call-voice-input"
-                onChange={(event) => updateVoiceCall({ voice: event.target.value })}
-              />
-            </ConfigPageRow>
-            <ConfigMessage
-              message={voiceCallSaveError ? { type: 'error', text: voiceCallSaveError } : null}
-            />
-            </>
-          )}
-        </ConfigPageSection>
-
-
       </ConfigPageSectionStack>
       <LocalVoiceModelsConfig
         isOpen={localModelsOpen}

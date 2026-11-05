@@ -142,19 +142,6 @@ const AssistantCard: React.FC<AssistantCardProps> = ({
 
         {hasActions ? (
           <CardFooter align="end" className="assistant-card__footer" data-bitfun-component="assistant-card" data-bitfun-part="footer">
-            <span className="assistant-card__session-actions">
-              {onNewSession ? (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  leadingIcon={<Icon name="side-chat" size="sm" />}
-                  loading={isStartingSession}
-                  data-testid={`assistant-card-${workspace.assistantId || workspace.id}-new-session-btn`}
-                  onClick={onNewSession}
-                  disabled={isStartingSession || isDeleting || isSettingPrimary}
-                >
-                  {t(isStartingSession ? 'nursery.card.startingSession' : 'nursery.card.newSession')}
-                </Button>
             <span className="assistant-card__workspace-actions">
               {visibilityAction ? (
                 <Tooltip content={isOpened && closeDisabledReason ? closeDisabledReason : visibilityLabel}>

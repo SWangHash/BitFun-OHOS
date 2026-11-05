@@ -9,7 +9,7 @@ import { sendDebugProbe } from '@/shared/utils/debugProbe';
 import { nowMs } from '@/shared/utils/timing';
 import { useI18n } from '@/infrastructure/i18n';
 import {workspaceAPI} from "@/infrastructure";
-import { isMacOSDesktopRuntime, isOpenHarmonyRuntime, supportsNativeWindowControls } from '@/infrastructure/runtime';
+import { isOpenHarmonyRuntime, supportsNativeWindowControls } from '@/infrastructure/runtime';
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
 import { aiExperienceConfigService } from '@/infrastructure/config/services/AIExperienceConfigService';
 import { enterPetOnlyMode } from '../services/agentCompanionPetOnlyMode';

@@ -324,39 +324,6 @@ export const WelcomePanel: React.FC<WelcomePanelProps> = ({
     [isClawSession, workspaceId, workspacePath],
   );
 
-  // Workspace summary: pending-change counts. The shared git state manager is
-  // unavailable on some hosts (e.g. OHOS), so probe the RPC directly once in
-  // that case; a real failure degrades the card to the workspace identity.
-  const [probedStatus, setProbedStatus] = useState<GitStatus | null>(null);
-  useEffect(() => {
-    if (!hasWorkspace) {
-      setProbedStatus(null);
-      return;
-    }
-    if (gitState) {
-      setProbedStatus(null);
-      return;
-    }
-    let cancelled = false;
-    void gitService
-      .getStatus({ workspaceId: activeWsId || '', repositoryPath: workspacePath })
-      .then((status) => {
-        if (!cancelled) setProbedStatus(status);
-      })
-      .catch(() => {
-        if (!cancelled) setProbedStatus(null);
-      });
-    return () => { cancelled = true; };
-  }, [hasWorkspace, gitState, activeWsId, workspacePath]);
-
-  const summaryGit = gitState ?? (probedStatus
-    ? {
-      currentBranch: probedStatus.current_branch,
-      unstagedFiles: (probedStatus.unstaged?.length || 0) + (probedStatus.untracked?.length || 0),
-      stagedFiles: probedStatus.staged?.length || 0,
-      unpushedCommits: probedStatus.ahead || 0,
-    }
-    : null);
   const { document: identityDoc } = useAgentIdentityDocument(identityWorkspace);
   const assistantName = isClawSession ? (identityDoc.name || '') : '';
 

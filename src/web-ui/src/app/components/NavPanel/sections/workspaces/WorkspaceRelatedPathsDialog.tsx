@@ -398,30 +398,6 @@ const WorkspaceRelatedPathsManager: React.FC<WorkspaceRelatedPathsDialogProps> =
                         actions={<StatusPill tone="neutral">{reference.sourceDisplayName}</StatusPill>} />
                     </div>)}
 
-                  <div data-bitfun-component="workspace-related-paths-dialog" data-bitfun-part="pathRow" className="workspace-related-paths-dialog__path-row">
-                    <Input
-                      className="workspace-related-paths-dialog__path-input"
-                      value={draft.path}
-                      onChange={event => setDraftValue(draft.id, 'path', event.target.value)}
-                      placeholder={t('nav.workspaces.relatedPaths.dialog.pathPlaceholder')}
-                      disabled={saving}
-                      size="sm"
-                    />
-                    <Button
-                      type="button"
-                      className="workspace-related-paths-dialog__select"
-                      variant="outline"
-                      size="sm"
-                      leadingIcon={<FolderOpen />}
-                      onClick={() =>
-                        remoteWorkspace
-                          ? setBrowsingIndex(index)
-                          : void handleSelectLocalDirectory(index)
-                      }
-                      disabled={saving || (remoteWorkspace && !connectionId)}
-                    >
-                      {t('actions.select')}
-                    </Button>
                   </div>
                 </div>}
                 {externalReferenceDiagnostics.length > 0 && (
