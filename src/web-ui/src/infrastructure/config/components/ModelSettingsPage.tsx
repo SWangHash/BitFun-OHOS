@@ -3870,7 +3870,7 @@ const ModelSettingsPage: React.FC = () => {
             />
           ) : (
             <div className="bitfun-model-settings__collection" data-bitfun-component="model-settings" data-bitfun-part="collection" data-testid="settings-model-list">
-              {providerGroups.map(group => {
+              {providerGroups.map((group, index) => {
                 const isExpanded = expandedProviderGroupKeys.has(group.key);
 
                 return (
@@ -3892,7 +3892,7 @@ const ModelSettingsPage: React.FC = () => {
                         className="bitfun-model-settings__provider-group-toggle"
                         aria-expanded={isExpanded}
                         aria-label={`${tComponents(isExpanded ? 'tooltip.collapse' : 'tooltip.expand')} ${group.providerName}`}
-                        data-testid={`model-provider-group-toggle-${group.key}`}
+                        data-testid={`model-provider-group-toggle-${index}`}
                         onClick={() => toggleProviderGroup(group.key)}
                       >
                         <Icon
@@ -3914,7 +3914,7 @@ const ModelSettingsPage: React.FC = () => {
                           <IconButton
                             aria-label={t('actions.edit')}
                             size="sm"
-                            data-testid={`model-provider-edit-btn-${group.key}`}
+                            data-testid={`model-provider-edit-btn-${index}`}
                             onClick={() => handleEditProvider(group.models[0])}
                             icon={<Icon name="edit" size="sm" />}
                           />
@@ -3924,7 +3924,7 @@ const ModelSettingsPage: React.FC = () => {
                             aria-label={`${t('actions.deleteProvider')}: ${group.providerName}`}
                             tone="danger"
                             size="sm"
-                            data-testid={`model-provider-delete-btn-${group.key}`}
+                            data-testid={`model-provider-delete-btn-${index}`}
                             onClick={() => void requestProviderDelete(group)}
                             icon={<Icon name="delete" size="sm" />}
                           />
