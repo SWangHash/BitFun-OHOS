@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createTauriCommandError,
   gitRepositoryUntrustedPath,
+  isCommandTimeoutError,
   isGitRepositoryNotFoundError,
   isGitRepositoryUntrustedError,
   isNotAvailableError,
@@ -16,6 +17,28 @@ import { SurfaceChangedError } from '@/infrastructure/peer-device/deviceSurface'
 it('preserves device cancellation through command error translation', () => {
   const cancellation = new SurfaceChangedError('peer', 4, 'list_sessions');
   expect(createTauriCommandError('list_sessions', cancellation)).toBe(cancellation);
+});
+
+describe('isCommandTimeoutError', () => {
+  it.each([
+    ['Request timeout', true],
+    [new Error('Request timeout: git_get_status'), true],
+    [new Error('Failed to get Git status: Git command failed: Git status timed out after 10s'), true],
+    [new Error('Review Git inspection timed out'), true],
+    [new Error('JSON-RPC request timed out: git/status'), true],
+    [new Error("Peer request 'git_get_status' timed out after 30000ms"), true],
+    [new TauriCommandError('Internal error', {
+      command: 'git_get_status',
+      originalError: { message: 'Internal error', data: 'Git status timed out after 10s' },
+    }), true],
+    [{ message: 'Host command failed', details: { originalError: 'Request timeout' } }, true],
+    [new Error('Failed to get Git status: Permission denied'), false],
+    [new Error('Failed to read file /workspace/src/timeout.ts: permission denied'), false],
+    [new Error('Failed to get Git status: Permission denied: /home/dev/timeout-app'), false],
+    [new Error("fatal: ambiguous argument 'feature/timeout': unknown revision or path"), false],
+  ])('recognizes timeout text through transport wrappers: %j', (error, expected) => {
+    expect(isCommandTimeoutError(error)).toBe(expected);
+  });
 });
 
 describe('isGitRepositoryNotFoundError', () => {

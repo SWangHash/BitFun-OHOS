@@ -1829,8 +1829,31 @@ function wrapAlignedMarkdownBlocks(markdownBlocks: string[], align: string | nul
   ].join('\n');
 }
 
-export function markdownToTiptapDoc(markdown: string): JSONContent {
-  const frontmatter = splitMarkdownFrontmatter(markdown);
+/**
+ * Render-time form of a relative link href. Bare relative destinations
+ * ("22/22.md") and explicit ones ("./22/22.md") resolve identically in the
+ * app's own handlers, but the webview's anchor click handling treats them
+ * differently — bare links from subdirectory documents failed to jump while
+ * "./" links worked (issue #460 follow-up). Rendering both as the explicit
+ * form makes every click path treat them the same. The document model and
+ * saved content keep the authored href; only the rendered DOM changes.
+ */
+export function toExplicitRelativeHref(href: string): string {
+  if (
+    href === ''
+    || href.startsWith('#')
+    || href.startsWith('/')
+    || href.startsWith('./')
+    || href.startsWith('../')
+    || href.startsWith('?')
+    || /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(href)
+  ) {
+    return href;
+  }
+  return `./${href}`;
+}
+
+export function markdownToTiptapDoc(markdown: string): JSONContent {  const frontmatter = splitMarkdownFrontmatter(markdown);
   const bodyPrefix = frontmatter ? getLeadingBlankLines(frontmatter.body) : '';
   const markdownBody = frontmatter ? frontmatter.body.slice(bodyPrefix.length) : markdown;
   const tree = parseMarkdownTree(markdownBody);

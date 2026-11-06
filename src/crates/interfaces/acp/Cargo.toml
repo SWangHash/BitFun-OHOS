@@ -9,6 +9,7 @@ description = "BitFun Agent Client Protocol surface"
 default = ["client", "server"]
 client = [
     "bitfun-agent-tools/acp-bridge",
+    "dep:agent-client-protocol-schema",
     "dep:futures",
     "dep:serde",
     "dep:dirs",
@@ -50,6 +51,7 @@ bitfun-events = { path = "../../contracts/events" }
 bitfun-core-types = { path = "../../contracts/core-types", optional = true }
 
 agent-client-protocol = { workspace = true }
+agent-client-protocol-schema = { workspace = true, optional = true, features = ["unstable_elicitation"] }
 tokio = { workspace = true, features = ["fs", "io-std", "io-util", "macros", "process", "rt", "sync", "time"] }
 tokio-util = { workspace = true, features = ["compat"] }
 futures = { workspace = true, optional = true }

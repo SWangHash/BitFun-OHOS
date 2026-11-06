@@ -9,13 +9,17 @@
 // to the tag; it only changes when an explicit non-empty title is passed,
 // so re-runs without one keep the current title.
 // Idempotent: an existing release is reused and already-present asset
-// names are skipped.
+// names are skipped unless --replace is passed, which deletes the
+// same-name asset first and uploads the new file.
 
 import { createReadStream, statSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 
-const [rawTag, repository, assetsDir, targetBranch, packagedCommit, rawTitle, rawExtensions] = process.argv.slice(2);
+// --replace: force-upload over an existing same-name asset (delete first).
+const replaceAssets = process.argv.includes('--replace');
+const [rawTag, repository, assetsDir, targetBranch, packagedCommit, rawTitle, rawExtensions] =
+  process.argv.slice(2).filter((arg) => arg !== '--replace');
 const token = process.env.GITCODE_TOKEN;
 
 if (!rawTag || !repository || !assetsDir) {
@@ -157,10 +161,43 @@ async function ensureRelease() {
   return release;
 }
 
-async function uploadAsset(fileName, existingNames) {
-  if (existingNames.has(fileName)) {
-    console.log(`Release asset already exists, skipping: ${fileName}`);
-    return;
+async function deleteAssetByName(existingAssets, fileName) {
+  const asset = existingAssets.get(fileName);
+  const id = asset?.id ?? asset?.asset_id ?? asset?.file_id;
+  if (id === undefined || id === null) {
+    throw new Error(
+      `Cannot replace ${fileName}: the release payload carries no asset id (${JSON.stringify(asset)})`,
+    );
+  }
+  // GitCode's asset-delete endpoint is not documented uniformly: try the
+  // release-assets form first, then the Gitee-style attach_files form, and
+  // fail loudly with both statuses when neither works.
+  const attempts = [
+    `/releases/${encodeURIComponent(tag)}/assets/${encodeURIComponent(id)}`,
+    `/releases/${encodeURIComponent(tag)}/attach_files/${encodeURIComponent(id)}`,
+  ];
+  const statuses = [];
+  for (const pathname of attempts) {
+    const response = await fetch(apiUrl(pathname), {
+      method: 'DELETE',
+      headers: { Accept: 'application/json' },
+    });
+    if (response.ok) {
+      console.log(`Deleted existing release asset: ${fileName}`);
+      return;
+    }
+    statuses.push(`DELETE ${pathname} -> ${response.status}`);
+  }
+  throw new Error(`Deleting release asset ${fileName} failed (${statuses.join('; ')})`);
+}
+
+async function uploadAsset(fileName, existingAssets) {
+  if (existingAssets.has(fileName)) {
+    if (!replaceAssets) {
+      console.log(`Release asset already exists, skipping: ${fileName}`);
+      return;
+    }
+    await deleteAssetByName(existingAssets, fileName);
   }
   const response = await fetch(
     apiUrl(`/releases/${encodeURIComponent(tag)}/upload_url`, { file_name: fileName }),
@@ -192,9 +229,11 @@ const assets = (await readdir(assetsDir, { withFileTypes: true }))
 if (assets.length === 0) {
   throw new Error(`No ${[...ASSET_EXTENSIONS].join('/')} artifacts found in ${assetsDir}`);
 }
-const existingNames = new Set(
-  (release?.assets ?? []).map((asset) => asset.name).filter(Boolean),
+const existingAssets = new Map(
+  (release?.assets ?? [])
+    .filter((asset) => asset && asset.name)
+    .map((asset) => [asset.name, asset]),
 );
 for (const asset of assets) {
-  await uploadAsset(asset, existingNames);
+  await uploadAsset(asset, existingAssets);
 }

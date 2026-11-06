@@ -43,7 +43,20 @@ beforeEach(() => {
 });
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); });
 
-describe('editor indentation settings', () => {
+describe('editor settings persistence', () => {
+  it('saves global-font inheritance as an empty override while preserving other editor preferences', async () => {
+    persisted.font_family = 'Fixture Mono';
+    await mount();
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="editor-font-select"]')!.click());
+    const option = [...document.querySelectorAll<HTMLElement>('[role="option"]')]
+      .find(item => item.textContent?.includes('appearance.fontDefault'))!;
+    await act(async () => option.click());
+    expect(persisted.font_family).toBe('');
+    expect(persisted.tab_size).toBe(4);
+    expect(persisted.detect_indentation).toBe(true);
+    expect(container.querySelector('[data-testid="editor-font-select"]')?.textContent).toContain('appearance.fontDefault');
+  });
+
   it('renders consistent two-letter units using real number controls and does not save on load', async () => {
     persisted = { detect_indentation: true };
     await mount();

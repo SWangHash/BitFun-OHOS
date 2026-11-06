@@ -17,8 +17,8 @@ vi.mock('../services/ConfigManager', () => ({ configManager: {
 } }));
 
 function Preference() {
-  const { behavior, error, reload } = useChatInputSendPreference();
-  return <button data-behavior={String(behavior)} data-error={String(!!error)} onClick={() => void reload()} />;
+  const { behavior, supported, error, reload } = useChatInputSendPreference();
+  return <button data-behavior={String(behavior)} data-supported={String(supported)} data-error={String(!!error)} onClick={() => void reload()} />;
 }
 
 describe('chat input send preference and device scope', () => {
@@ -36,9 +36,9 @@ describe('chat input send preference and device scope', () => {
   });
   afterEach(() => { act(() => root.unmount()); container.remove(); activateSurface('local'); });
 
-  it.each([undefined, 'immediate', 'future_policy'])('defaults a missing or future policy (%s) to immediate', async value => {
+  it.each([undefined, 'queue', 'future_policy'])('defaults a missing or future policy (%s) to queue', async value => {
     mocks.get.mockResolvedValue(value);
-    expect(await getChatInputSendDuringTurn()).toBe('immediate');
+    expect(await getChatInputSendDuringTurn()).toBe('queue');
     expect(mocks.get).toHaveBeenCalledWith('app.flow_chat.send_during_turn');
   });
 
@@ -48,7 +48,7 @@ describe('chat input send preference and device scope', () => {
     act(() => root.render(<Preference />));
     expect(button().dataset.behavior).toBe('null');
     await act(async () => resolve(undefined));
-    expect(button().dataset.behavior).toBe('immediate');
+    expect(button().dataset.behavior).toBe('queue');
   });
 
   it('rejects a stale read after a newer config notification', async () => {
@@ -75,7 +75,7 @@ describe('chat input send preference and device scope', () => {
     await act(async () => resolveLocal('queue'));
     expect(button().dataset.behavior).toBe('null');
     await act(async () => resolvePeer(undefined));
-    expect(button().dataset.behavior).toBe('immediate');
+    expect(button().dataset.behavior).toBe('queue');
     expect(mocks.listeners.size).toBe(1);
   });
 

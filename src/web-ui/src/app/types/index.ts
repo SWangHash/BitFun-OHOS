@@ -34,14 +34,14 @@ export interface AgentConfig {
 export type PanelType = 'sessions' | 'files' | 'git' | 'profile' | 'terminal' | 'capabilities' | 'agents' | 'skills' | 'tools';
 
 // Layout state - three-column layout support.
-// Strategy: fixed left/right widths with elastic center (floating layout).
+// Strategy: fixed left width, proportional right split and elastic center.
 export interface LayoutState {
   leftPanelWidth: number;
   leftPanelCollapsed: boolean;
   centerPanelWidth: number;
   centerPanelCollapsed: boolean;
   chatCollapsed: boolean;
-  rightPanelWidth: number; // Fixed right panel width
+  rightPanelWidth: number; // Effective width derived from the user's saved ratio
   rightPanelCollapsed: boolean;
   bottomTerminalPanelHeight: number;
   bottomTerminalPanelCollapsed: boolean;
@@ -219,8 +219,9 @@ export interface UseAppReturn {
 }
 
 // Default layout state - three-column floating layout.
-// Strategy: fixed left/right widths with elastic center.
-// Left/right adjustments do not affect each other.
+// Strategy: fixed left width, proportional right split and elastic center.
+// The stored rightPanelWidth is the initial effective width until SessionScene
+// resolves the persisted ratio against the current viewport.
 export const DEFAULT_LAYOUT_STATE: LayoutState = {
   leftPanelWidth: typeof window !== 'undefined'
     ? Math.min(400, Math.floor(window.innerWidth * 0.15)) // Left 15%, max 400px

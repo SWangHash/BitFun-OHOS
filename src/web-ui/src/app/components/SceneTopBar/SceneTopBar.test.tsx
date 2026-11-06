@@ -4,12 +4,14 @@ import { resolve } from 'node:path';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { workspaceAPI } from '@/infrastructure/api';
 import SceneTopBar from './SceneTopBar';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const sceneState = vi.hoisted(() => ({ openTabs: [{}] as unknown[], selectTab: vi.fn(), closeTab: vi.fn() }));
 const startDragging = vi.hoisted(() => vi.fn(async () => {}));
+const hostInvoke = vi.hoisted(() => vi.fn(async () => undefined));
 const runtimeState = vi.hoisted(() => ({ usesHostWindowControls: false }));
 const stylesheet = readFileSync(
   resolve(process.cwd(), 'src/app/components/SceneTopBar/SceneTopBar.scss'),
@@ -54,7 +56,7 @@ describe('SceneTopBar', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal('__TAURI_INTERNALS__', {
-      invoke: vi.fn(),
+      invoke: hostInvoke,
       metadata: { currentWindow: { label: 'main' } },
     });
     sceneState.openTabs = [{}];
@@ -182,6 +184,9 @@ describe('SceneTopBar', () => {
       await act(async () => {
         window.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX, clientY }));
         await vi.dynamicImportSettled();
+        // The host drag command travels through the API client on a later
+        // macrotask, so let that settle before asserting on the calls.
+        await new Promise(resolve => setTimeout(resolve, 0));
       });
     }
 
@@ -309,6 +314,30 @@ describe('SceneTopBar', () => {
       act(() => window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true })));
       await pointerMove(20, 20);
       expect(startDragging).not.toHaveBeenCalled();
+    });
+
+    it('drives the OpenHarmony move loop once a maximized window is dragged', async () => {
+      // The ArkUI host owns window movement: tao reports drag_window() as
+      // unsupported there, so the gesture must reach window_start_dragging.
+      vi.stubGlobal('navigator', {
+        userAgent: 'Mozilla/5.0 (Phone; OpenHarmony 5.0) AppleWebKit/537.36 ArkWeb/4.1',
+        platform: '',
+      });
+      const startWindowDragging = vi
+        .spyOn(workspaceAPI, 'startWindowDragging')
+        .mockResolvedValue(undefined);
+      try {
+        const toolbar = renderBar(2, true);
+        await mouseDown(toolbar);
+        await pointerMove(3, 3);
+        expect(startWindowDragging).not.toHaveBeenCalled();
+
+        await pointerMove(9, 9);
+        expect(startWindowDragging).toHaveBeenCalledOnce();
+        expect(startDragging).not.toHaveBeenCalled();
+      } finally {
+        startWindowDragging.mockRestore();
+      }
     });
 
     it('still maximizes by double-click while maximized', async () => {

@@ -103,7 +103,7 @@ pub(crate) async fn set_config(state: &PeerHostState, args: &Value) -> Result<Va
 
     let outcome = global_shared_product_control_executor()
         .await?
-        .configure_legacy_path(&path, value)
+        .configure_legacy_path(&path, value, request.get("expectedModels").cloned())
         .await
         .map_err(|error| {
             tracing::error!(
@@ -157,11 +157,9 @@ pub(crate) async fn get_agent_profile_config(args: &Value) -> Result<Value, Stri
         .or_else(|_| crate::peer_host::args::get_string(request_value(args), "agentId"))?;
 
     let config =
-        bitfun_core::service::config::mode_config_canonicalizer::get_agent_profile_view(
-            &agent_id,
-        )
-        .await
-        .map_err(|e| format!("Failed to get agent profile config: {e}"))?;
+        bitfun_core::service::config::mode_config_canonicalizer::get_agent_profile_view(&agent_id)
+            .await
+            .map_err(|e| format!("Failed to get agent profile config: {e}"))?;
     serde_json::to_value(config).map_err(|e| format!("Failed to serialize agent profile: {e}"))
 }
 

@@ -12,6 +12,7 @@ import { gitService, gitEventService } from '../services';
 import { notificationService } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
 import { useI18n } from '@/infrastructure/i18n';
+import { getBranchSwitchFailureMessage } from '../components/branchSwitchFailure';
 import { useStableGitWorkspaceScope } from './useStableGitWorkspaceScope';
 
 const log = createLogger('useGitOperations');
@@ -284,13 +285,14 @@ export function useGitOperations(options: UseGitOperationsOptions): UseGitOperat
     );
     
     if (result.success) {
-      notificationService.success(t('notifications.checkoutSuccess', { branch: branchName }), { duration: 3000 });
+      const checkedOutBranch = result.data?.branch ?? branchName;
+      notificationService.success(t('notifications.checkoutSuccess', { branch: checkedOutBranch }), { duration: 3000 });
       
 
       gitEventService.emit('branch:changed', {
         repositoryPath,
         branch: {
-          name: branchName,
+          name: checkedOutBranch,
           current: true,
           remote: false,
           ahead: 0,
@@ -298,19 +300,10 @@ export function useGitOperations(options: UseGitOperationsOptions): UseGitOperat
         },
         timestamp: new Date(),
       });
-    } else if (result.error) {
-
-      let errorMessage = result.error;
-      if (result.error.includes('local changes')) {
-        errorMessage = t('errors.checkoutLocalChanges');
-      } else if (result.error.includes('resolve your current index first')) {
-        errorMessage = t('errors.checkoutIndexConflict');
-      } else if (result.error.includes('did not match')) {
-        errorMessage = t('errors.branchNotFound', { branch: branchName });
-      }
-      notificationService.error(errorMessage, { 
+    } else {
+      notificationService.error(getBranchSwitchFailureMessage(result.error, branchName, t), {
         title: t('errors.checkoutFailedTitle'),
-        duration: 5000 
+        duration: 5000,
       });
     }
     

@@ -96,7 +96,8 @@ describe('/goal worktree preparation', () => {
       sessionId: currentSession.sessionId,
       workspacePath: '/worktrees/wt-1',
       projectWorkspacePath: '/repo',
-      workspaceId: 'workspace-1',
+      workspaceId: 'worktree-workspace',
+      projectWorkspaceId: 'workspace-1',
       executionTarget: {
         kind: 'managedWorktree',
         worktreeId: 'wt-1',
@@ -169,12 +170,15 @@ describe('/goal worktree preparation', () => {
     );
     expect(mocks.activateSessionGoal).toHaveBeenCalledWith({
       sessionId: 'session-1',
-      workspaceId: 'workspace-1',
+      workspaceId: 'worktree-workspace',
       workspacePath: '/repo',
       remoteConnectionId: undefined,
       remoteSshHost: undefined,
       userHint: 'finish the task',
     });
+    expect(mocks.updateSessionExecutionTarget).toHaveBeenCalledWith(
+      'session-1', expect.objectContaining({ projectWorkspaceId: 'workspace-1' }),
+    );
     expect(mocks.bindSession.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.activateSessionGoal.mock.invocationCallOrder[0],
     );

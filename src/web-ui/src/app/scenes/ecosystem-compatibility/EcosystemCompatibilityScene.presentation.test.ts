@@ -75,8 +75,9 @@ describe('ecosystem compatibility scene presentation contract', () => {
     expect(settingsTypes).not.toContain("| 'tools.integrations'");
     expect(destination).toContain("'external-sources'");
     expect(destination).toContain("'tools.integrations'");
-    expect(quickActions).toContain('isLegacyEcosystemCompatibilityDestination(destination)');
-    expect(quickActions).toContain("ownerSurface: 'external-sources'");
+    expect(registry).toContain("id: 'tools.external-import'");
+    expect(quickActions).toContain('resolveSettingsDestination(destination)');
+    expect(source('../settings/pages/tools/ExternalImportSettingsPage.tsx')).toContain('<EcosystemCompatibilityScene embedded />');
     expect(agents).toContain("openEcosystemCompatibility({ ownerSurface: 'external-sources' })");
     expect(externalMcp).toContain("openEcosystemCompatibility({ ownerSurface: 'external-sources' })");
   });

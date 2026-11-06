@@ -7,7 +7,7 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { FlowChatStore } from '../../store/FlowChatStore';
-import { notificationService } from '@/shared/notification-system';
+import { notificationService, type LoadingController } from '@/shared/notification-system';
 import { FlowTextBlock } from '../FlowTextBlock';
 import { FlowToolCard } from '../FlowToolCard';
 import { Button, Card, CardBody, CardHeader, Checkbox, Dialog, DialogBody, DialogClose, DialogFooter, DialogHeader, DialogHeading, DialogTitle, Icon, IconButton, Tooltip } from '@bitfun/ui';
@@ -16,13 +16,15 @@ import type { DialogTurn, FlowTextItem, FlowToolItem, FlowThinkingItem } from '.
 import { i18nService, useI18n } from '@/infrastructure/i18n';
 import { createLogger } from '@/shared/utils/logger';
 import { getBuiltinAppearanceThemeToken } from '@/infrastructure/appearance/builtins/catalog';
-import { withTimeout } from '@/shared/utils/timing';
+import { elapsedMs, nowMs, withTimeout } from '@/shared/utils/timing';
 import { savePngBlob, notifyPngExportSuccess } from '@/flow_chat/utils/saveExportedPng';
 import { ModelThinkingDisplay } from '../../tool-cards/ModelThinkingDisplay';
 import { hasComposerPresentationReferences, parseComposerPresentation } from '../../utils/composerPresentation';
 import { UserMessagePresentationContent, UserMessageTextContent } from './UserMessagePresentationContent';
-import { captureExportCanvas } from '../../utils/exportImageCapture';
 import { readExportImageLayout } from './exportImageLayout';
+import {
+  captureExportImage, ImageCaptureError, ImageCaptureTimeoutError, LOGO_PLACEHOLDER_CLASS, type ImageCaptureStage,
+} from './captureExportImage';
 import './ExportImageButton.scss';
 
 const log = createLogger('ExportImageButton');
@@ -52,9 +54,7 @@ interface ExportContentProps {
   expandThinking: boolean;
 }
 
-// Marker class on the logo placeholder so we can locate it for canvas compositing.
-const LOGO_PLACEHOLDER_CLASS = 'export-content__logo-placeholder';
-
+// The marker class comes from the capture module so both sides stay in step.
 function ExportImagePreview({ expandThinking }: { expandThinking: boolean }) {
   const answerY = expandThinking ? 88 : 55;
 
@@ -245,6 +245,7 @@ export const ExportImageButton: React.FC<ExportImageButtonProps> = ({
     // Track offscreen DOM so we can clean up on any exit path.
     let root: ReturnType<typeof createRoot> | null = null;
     let wrapper: HTMLDivElement | null = null;
+    let progress: LoadingController | null = null;
     
     const cleanupDom = () => {
       try {
@@ -265,6 +266,18 @@ export const ExportImageButton: React.FC<ExportImageButtonProps> = ({
       
       const { turn: dialogTurn, sessionTitle } = result;
       const layout = readExportImageLayout(turnId, (triggerRef ?? buttonRef).current);
+      const stageMessages: Record<ImageCaptureStage | 'stopping', string> = {
+        preparing: t('exportImage.preparing'),
+        cloning: t('exportImage.preparing'),
+        assets: t('exportImage.loadingImages'),
+        rendering: t('exportImage.generating'),
+        encoding: t('exportImage.encoding'),
+        stopping: t('exportImage.stopping'),
+      };
+      progress = notificationService.loading({
+        title: t('exportImage.exportToImage'),
+        message: stageMessages.preparing,
+      });
       
       // Read the resolved appearance background color.
       const computedStyle = getComputedStyle(document.documentElement);
@@ -324,6 +337,7 @@ export const ExportImageButton: React.FC<ExportImageButtonProps> = ({
       document.body.appendChild(wrapper);
       
       // Render export content with React.
+      const renderStartedAt = nowMs();
       root = createRoot(wrapper);
       root.render(<ExportContent dialogTurn={dialogTurn} expandThinking={expandThinking} />);
       
@@ -344,82 +358,13 @@ export const ExportImageButton: React.FC<ExportImageButtonProps> = ({
 
       // Yield to the main thread so the browser can finish layout/paint.
       await new Promise(resolve => setTimeout(resolve, 0));
+      // The wrapper carries the live reading-column width, so the content keeps
+      // the pane's text wrapping without overriding `.export-content` here.
+      log.info('Image export content rendered', { durationMs: elapsedMs(renderStartedAt), roundCount });
 
-      const captureFilter = (node: Node) => {
-        // Filter out action buttons and other non-export elements.
-        if (node instanceof HTMLElement) {
-          if (node.classList?.contains('model-round-item__footer')) return false;
-          if (node.classList?.contains('user-message-item__actions')) return false;
-          if (node.classList?.contains('tool-card__actions')) return false;
-          if (
-            node.matches?.(
-              '[data-bitfun-component="flow-chat-tool-card"][data-bitfun-part="actionRegion"], '
-              + '[data-bitfun-component="flow-chat-tool-card"][data-bitfun-part="expanded"]',
-            )
-          ) return false;
-        }
-        return true;
-      };
-
-      const canvas = await captureExportCanvas(container, bgColor, captureFilter);
-
-      // Capture has settled fonts. Measure the logo against that same layout
-      // before removing the staging DOM.
-      const containerRect = container.getBoundingClientRect();
-      const placeholderEl = container.querySelector(`.${LOGO_PLACEHOLDER_CLASS}`) as HTMLElement | null;
-      let logoBox: { x: number; y: number; w: number; h: number; radius: number } | null = null;
-      if (placeholderEl) {
-        const r = placeholderEl.getBoundingClientRect();
-        const radiusStr = getComputedStyle(placeholderEl).getPropertyValue('border-radius');
-        const radius = parseFloat(radiusStr) || 0;
-        logoBox = {
-          x: r.left - containerRect.left,
-          y: r.top - containerRect.top,
-          w: r.width,
-          h: r.height,
-          radius,
-        };
-      }
-
+      const blob = await captureExportImage(container, bgColor, logoImage,
+        stage => progress?.updateMessage(stageMessages[stage]));
       cleanupDom();
-
-      // Reuse the verified raster instead of PNG -> Image -> second canvas.
-      // The actual dimensions also keep the logo aligned after a scale fallback.
-      const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error('No canvas context for compositing');
-      if (logoImage && logoBox) {
-        const scaleX = canvas.width / containerRect.width;
-        const scaleY = canvas.height / containerRect.height;
-        ctx.save();
-        ctx.scale(scaleX, scaleY);
-        const { x, y, w, h, radius } = logoBox;
-        if (radius > 0) {
-          const path = new Path2D();
-          const r = Math.min(radius, w / 2, h / 2);
-          path.moveTo(x + r, y);
-          path.lineTo(x + w - r, y);
-          path.quadraticCurveTo(x + w, y, x + w, y + r);
-          path.lineTo(x + w, y + h - r);
-          path.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-          path.lineTo(x + r, y + h);
-          path.quadraticCurveTo(x, y + h, x, y + h - r);
-          path.lineTo(x, y + r);
-          path.quadraticCurveTo(x, y, x + r, y);
-          path.closePath();
-          ctx.clip(path);
-        }
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(logoImage, x, y, w, h);
-        ctx.restore();
-      } else {
-        log.warn('Logo overlay skipped', { hasLogo: !!logoImage, hasBox: !!logoBox });
-      }
-      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
-
-      if (!blob) {
-        throw new Error(i18nService.t('flow-chat:exportImage.generateFailed'));
-      }
 
       // Save image to downloads directory.
       const timestampStr = i18nService.formatDate(new Date(), {
@@ -441,18 +386,39 @@ export const ExportImageButton: React.FC<ExportImageButtonProps> = ({
       // Tauri path/fs plugins are not wired, so the blob must go through the
       // native `save_file_to_downloads_ohos` bridge (desktop uses plugin-fs,
       // plain browsers use the anchor-download fallback).
+      progress.updateMessage(t('exportImage.saving'));
+      const saveStartedAt = nowMs();
       const pngSaveResult = await savePngBlob(blob, fileName);
+      log.info('Exported image saved', { durationMs: elapsedMs(saveStartedAt), bytes: blob.size });
       notifyPngExportSuccess(pngSaveResult);
     } catch (error) {
       // Ensure DOM is always cleaned up on error.
       cleanupDom();
-      log.error('Export failed', error);
-      notificationService.error(i18nService.t('flow-chat:exportImage.exportFailed'));
+      log.error('Export failed', { error });
+      let reason = '';
+      if (error instanceof ImageCaptureTimeoutError) {
+        reason = t('exportImage.timedOut', { seconds: i18nService.formatNumber(error.timeoutMs / 1_000) });
+      } else if (error instanceof ImageCaptureError) {
+        const reasons: Record<ImageCaptureError['reason'], string> = {
+          contentSizeUnavailable: t('exportImage.contentSizeUnavailable'),
+          canvasUnavailable: t('exportImage.canvasUnavailable'),
+          pngEncodingFailed: t('exportImage.pngEncodingFailed'),
+        };
+        reason = reasons[error.reason];
+      } else if (error instanceof Error) {
+        reason = error.message;
+      } else if (typeof error === 'string') {
+        reason = error;
+      }
+      notificationService.error(reason
+        ? t('exportImage.exportFailedWithReason', { reason })
+        : t('exportImage.exportFailed'));
     } finally {
+      progress?.cancel();
       isExportingRef.current = false;
       setIsExporting(false);
     }
-  }, [getDialogTurn, triggerRef, turnId]);
+  }, [getDialogTurn, t, triggerRef, turnId]);
 
   return (
     <>

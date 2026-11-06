@@ -13,6 +13,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const mocks = vi.hoisted(() => ({
   dispatchSession: false,
+  sessionWorkspaceId: undefined as string | undefined,
   openDispatchFile: vi.fn<(...args: unknown[]) => Promise<void>>(async () => undefined),
   snapshotsAvailable: true,
   snapshotSessionIds: [] as Array<string | undefined>,
@@ -35,6 +36,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../session-drivers/sessionFileNavigation', () => ({
+  sessionWorkspaceId: () => mocks.sessionWorkspaceId,
   hasSessionFileProvider: () => mocks.dispatchSession,
   openFileThroughSession: (...args: unknown[]) => {
     if (!mocks.dispatchSession) return false;
@@ -168,6 +170,7 @@ describe('FileOperationToolCard', () => {
     root = createRoot(container);
 
     mocks.currentWorkspace = undefined;
+    mocks.sessionWorkspaceId = undefined;
     mocks.snapshotsAvailable = true;
     mocks.snapshotSessionIds = [];
     mocks.emitSnapshotEvent.mockClear();
@@ -309,6 +312,7 @@ describe('FileOperationToolCard', () => {
   });
 
   it('keeps remote file results usable without summary, diff, or refresh snapshot requests', async () => {
+    mocks.sessionWorkspaceId = 'ssh-workspace';
     mocks.snapshotsAvailable = false;
     const config = {
       toolName: 'Edit', displayName: 'Edit', icon: 'EDIT',
@@ -342,11 +346,12 @@ describe('FileOperationToolCard', () => {
     });
     expect(mocks.getOperationDiff).not.toHaveBeenCalled();
     expect(mocks.openFile).toHaveBeenCalledWith(expect.objectContaining({
-      filePath: '/workspace/file.ts', mode: 'agent',
+      filePath: '/workspace/file.ts', workspaceId: 'ssh-workspace', mode: 'agent',
     }));
   });
 
   it('loads a recorded remote operation without enabling incomplete Session snapshots', async () => {
+    mocks.sessionWorkspaceId = 'ssh-workspace';
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     mocks.snapshotsAvailable = false;
     mocks.getOperationDiff.mockResolvedValueOnce({ originalContent: 'before', modifiedContent: 'after', anchorLine: undefined });
@@ -376,6 +381,7 @@ describe('FileOperationToolCard', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(260); });
     expect(mocks.createDiffEditorTab).toHaveBeenCalledWith(
       '/workspace/file.ts', 'file.ts', 'before', 'after', true, 'agent', undefined, undefined, true,
+      { workspaceId: 'ssh-workspace' },
     );
     expect(mocks.openFile).not.toHaveBeenCalled();
 
@@ -717,6 +723,7 @@ describe('FileOperationToolCard', () => {
 
   it('opens completed write cards with the resolved result path', async () => {
     mocks.currentWorkspace = { rootPath: 'D:/workspace/project' };
+    mocks.sessionWorkspaceId = 'worktree-workspace';
 
     const toolItem: FlowToolItem = {
       id: 'tool-1',
@@ -734,7 +741,7 @@ describe('FileOperationToolCard', () => {
       toolResult: {
         success: true,
         result: {
-          file_path: 'D:/workspace/project/src/newFile.ts',
+          file_path: 'D:/worktrees/session/src/newFile.ts',
           bytes_written: 23,
           success: true,
         },
@@ -770,11 +777,12 @@ describe('FileOperationToolCard', () => {
 
     expect(mocks.getOperationDiff).toHaveBeenCalledWith(
       'session-1',
-      'D:/workspace/project/src/newFile.ts',
+      'D:/worktrees/session/src/newFile.ts',
       'call-1',
     );
     expect(mocks.openFile).toHaveBeenCalledWith(expect.objectContaining({
-      filePath: 'D:/workspace/project/src/newFile.ts',
+      filePath: 'D:/worktrees/session/src/newFile.ts',
+      workspaceId: 'worktree-workspace',
       fileName: 'newFile.ts',
       mode: 'agent',
     }));

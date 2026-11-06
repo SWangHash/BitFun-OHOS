@@ -4,7 +4,12 @@
   position: absolute;
   left: transcriptLayout.$turn-rail-offset;
   top: 20%;
-  bottom: 20%;
+  /*
+   * The floating composer is an overlay: a tall input covers whatever sits
+   * behind it instead of pushing the rail up. Keep the lower markers above the
+   * measured input stack so the newest Turns stay visible and clickable.
+   */
+  bottom: max(20%, calc(var(--_flow-chat-turn-rail-clearance, 0px) + var(--bitfun-space-2)));
   z-index: 8;
   width: transcriptLayout.$turn-rail-width;
   display: flex;

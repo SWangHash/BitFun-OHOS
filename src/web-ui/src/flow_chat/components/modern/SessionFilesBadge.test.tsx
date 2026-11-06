@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SessionFilesBadge } from './SessionFilesBadge';
 import { prepareReviewLaunchFromSessionFiles } from '../../services/ReviewService';
 import { notificationService } from '../../../shared/notification-system';
+import { createDiffEditorTab } from '../../../shared/utils/tabUtils';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -78,7 +79,7 @@ vi.mock('../../../infrastructure/api/service-api/SnapshotAPI', () => ({
 
 vi.mock('../../../infrastructure/contexts/WorkspaceContext', () => ({
   useWorkspaceContext: () => ({
-    currentWorkspace: { rootPath: 'D:/workspace/project' },
+    currentWorkspace: { id: 'local_project', rootPath: 'D:/workspace/project' },
   }),
 }));
 
@@ -170,6 +171,8 @@ describe('SessionFilesBadge', () => {
         sessionId: 'session-1',
         workspaceId: 'local_workspace',
         workspacePath: 'D:/workspace/session',
+        projectWorkspaceId: 'local_project',
+        projectWorkspacePath: 'D:/workspace/project',
         dialogTurns: [],
       }],
     ]);
@@ -182,6 +185,7 @@ describe('SessionFilesBadge', () => {
       changeKind: 'modify',
     });
     mocks.getOperationDiff.mockReset();
+    vi.mocked(createDiffEditorTab).mockClear();
     vi.mocked(prepareReviewLaunchFromSessionFiles).mockReset();
     vi.mocked(notificationService.error).mockReset();
   });
@@ -195,7 +199,7 @@ describe('SessionFilesBadge', () => {
     vi.unstubAllGlobals();
   });
 
-  it('removes cached stats when the current session file list shrinks', async () => {
+  it('shows worktree stats and removes cached stats when its file list shrinks', async () => {
     await act(async () => {
       root.render(<SessionFilesBadge sessionId="session-1" />);
     });
@@ -208,6 +212,7 @@ describe('SessionFilesBadge', () => {
     const toggle = container.querySelector('.session-files-badge__button') as HTMLButtonElement | null;
     expect(toggle).not.toBeNull();
     expect(toggle?.querySelector('[data-bitfun-name="chevron-down"]')).not.toBeNull();
+    expect(toggle?.querySelector('.session-files-badge__stats--add')?.textContent).toBe('+2');
     expect(mocks.getSessionFileDiffStats).toHaveBeenCalledWith(
       'session-1',
       'src/current-session.ts',
@@ -222,7 +227,7 @@ describe('SessionFilesBadge', () => {
     const filesPopover = dom.window.document.querySelector<HTMLElement>('.session-files-badge__popover');
     // Floating surfaces must occlude the native browser child view.
     expect(filesPopover?.hasAttribute('data-bitfun-native-webview-occlusion')).toBe(true);
-    expect(filesPopover?.parentElement?.getAttribute('data-bitfun-overlay-host')).toBe('true');
+    expect(filesPopover?.closest('[data-bitfun-overlay-host="true"]')).not.toBeNull();
     expect(filesPopover?.style.visibility).toBe('visible');
     expect(dom.window.document.body.textContent).toContain('2 files');
 
@@ -241,6 +246,19 @@ describe('SessionFilesBadge', () => {
 
     expect(dom.window.document.body.textContent).toContain('1 files');
     expect(dom.window.document.body.textContent).not.toContain('stale-session.ts');
+    expect(toggle?.querySelector('.session-files-badge__stats--add')?.textContent).toBe('+1');
+
+    mocks.getOperationDiff.mockResolvedValue({ originalContent: 'before', modifiedContent: 'after' });
+    await act(async () => {
+      dom.window.document.querySelector('.session-files-badge__file-item')
+        ?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    });
+    await act(async () => { vi.advanceTimersByTime(250); });
+    expect(createDiffEditorTab).toHaveBeenCalledWith(
+      'src/current-session.ts', 'current-session.ts', 'before', 'after', false,
+      'agent', 'D:/workspace/session', undefined, false,
+      { titleKind: 'diff', duplicateKeyPrefix: 'diff', workspaceId: 'local_workspace' },
+    );
   });
 
   it('presents one adaptive Review action instead of asking users to choose a depth', async () => {
@@ -266,7 +284,7 @@ describe('SessionFilesBadge', () => {
     const reviewPopover = dom.window.document.querySelector<HTMLElement>('.session-files-badge__review-menu-popover');
     // The actions menu sits above the native browser child view and must occlude it.
     expect(reviewPopover?.hasAttribute('data-bitfun-native-webview-occlusion')).toBe(true);
-    expect(reviewPopover?.parentElement?.getAttribute('data-bitfun-overlay-host')).toBe('true');
+    expect(reviewPopover?.closest('[data-bitfun-overlay-host="true"]')).not.toBeNull();
     expect(reviewPopover?.style.visibility).toBe('visible');
     expect(dom.window.document.body.textContent).toContain('Review');
     expect(dom.window.document.body.textContent).not.toContain('Review: Strict');

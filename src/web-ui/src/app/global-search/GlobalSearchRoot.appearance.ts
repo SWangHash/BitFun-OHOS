@@ -9,6 +9,7 @@ export const globalSearchAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'results' },
     { id: 'group' },
     { id: 'result' },
+    { id: 'loadMore' },
     { id: 'footer' },
   ],
   states: [

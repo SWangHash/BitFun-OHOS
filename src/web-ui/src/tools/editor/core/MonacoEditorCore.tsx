@@ -16,6 +16,7 @@ import { monacoApi } from '../services/monacoRuntime';
 import { monacoModelManager } from '../services/MonacoModelManager';
 import { editorExtensionManager } from '../services/EditorExtensionManager';
 import { buildEditorOptions } from '../services/EditorOptionsBuilder';
+import { useEditorFontFamily } from '../hooks/useEditorFontFamily';
 import { activeEditTargetService, createMonacoEditTarget } from '../services/ActiveEditTargetService';
 import { attachMonacoChromeI18n, type MonacoChromeI18nHandle } from '../services/monacoChromeI18n';
 import { buildMonacoChromeStrings } from '../services/monacoChromeStrings';
@@ -87,6 +88,7 @@ export const MonacoEditorCore = forwardRef<MonacoEditorCoreRef, MonacoEditorCore
     const onSaveRef = useRef(onSave);
     
     const [isReady, setIsReady] = useState(false);
+    const resolvedFontFamily = useEditorFontFamily(config?.fontFamily);
 
     const { t } = useI18n('tools');
     const tRef = useRef(t);
@@ -357,7 +359,7 @@ export const MonacoEditorCore = forwardRef<MonacoEditorCoreRef, MonacoEditorCore
       });
       
       editorRef.current.updateOptions(editorOptions);
-    }, [config, preset, readOnly, showLineNumbers, showMinimap]);
+    }, [config, preset, readOnly, showLineNumbers, showMinimap, resolvedFontFamily]);
 
     useEffect(() => {
       if (!isReady || !modelRef.current) {

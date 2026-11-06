@@ -134,7 +134,16 @@ export class AppearanceRegistry {
       if (facet.values.length === 0 || new Set(facet.values).size !== facet.values.length) {
         throw new Error(`Appearance facet ${descriptor.id}.${facet.id} must declare unique values`);
       }
-      return Object.freeze({ ...facet, values: Object.freeze([...facet.values]) });
+      if (Object.entries(facet.valueAliases ?? {}).some(([legacy, current]) => (
+        !facet.values.includes(legacy) || !facet.values.includes(current)
+      ))) {
+        throw new Error(`Appearance facet ${descriptor.id}.${facet.id} aliases an unknown value`);
+      }
+      return Object.freeze({
+        ...facet,
+        values: Object.freeze([...facet.values]),
+        valueAliases: facet.valueAliases ? Object.freeze({ ...facet.valueAliases }) : undefined,
+      });
     });
     const states = (descriptor.states ?? []).map(state => {
       const selector = state.selector;

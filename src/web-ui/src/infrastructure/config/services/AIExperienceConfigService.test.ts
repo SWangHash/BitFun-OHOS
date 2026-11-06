@@ -8,16 +8,8 @@ const configManagerMock = vi.hoisted(() => ({
   watch: vi.fn(),
 }));
 
-const configApiMock = vi.hoisted(() => ({
-  getConfig: vi.fn(),
-}));
-
 vi.mock('./ConfigManager', () => ({
   configManager: configManagerMock,
-}));
-
-vi.mock('@/infrastructure/api/service-api/ConfigAPI', () => ({
-  configAPI: configApiMock,
 }));
 
 vi.mock('./AgentCompanionPetService', () => ({
@@ -91,6 +83,21 @@ describe('AIExperienceConfigService startup behavior', () => {
     expect(configManagerMock.getConfig).toHaveBeenCalledWith('app.ai_experience');
   });
 
+  it('keeps the last loaded preferences after a refresh failure and rejects an initial strict read failure', async () => {
+    const { aiExperienceConfigService } = await import('./AIExperienceConfigService');
+    configManagerMock.getConfig.mockRejectedValueOnce(new Error('unavailable'));
+    await expect(aiExperienceConfigService.getSettingsAsync({ requireLoaded: true }))
+      .rejects.toThrow('unavailable');
+    expect(aiExperienceConfigService.getCachedSettings()).toBeNull();
+
+    configManagerMock.getConfig.mockResolvedValueOnce({ enable_session_title_generation: false });
+    const loaded = await aiExperienceConfigService.getSettingsAsync({ requireLoaded: true });
+    configManagerMock.getConfig.mockRejectedValueOnce(new Error('refresh failed'));
+    await aiExperienceConfigService.reload();
+    expect(aiExperienceConfigService.getCachedSettings()).toEqual(loaded);
+    expect(aiExperienceConfigService.getSettings().enable_session_title_generation).toBe(false);
+  });
+
   it('uses BitBlob when no companion pet has been configured', async () => {
     configManagerMock.getConfig.mockResolvedValueOnce({
       enable_agent_companion: true,
@@ -128,7 +135,7 @@ describe('AIExperienceConfigService startup behavior', () => {
   });
 
   it('drops the retired input display mode during cross-window refresh', async () => {
-    configApiMock.getConfig.mockResolvedValueOnce({
+    configManagerMock.getConfig.mockResolvedValueOnce({
       enable_agent_companion: true,
       agent_companion_display_mode: 'input',
     });
@@ -136,8 +143,7 @@ describe('AIExperienceConfigService startup behavior', () => {
 
     const settings = await aiExperienceConfigService.getSettingsAsync({ forceRefresh: true });
 
-    expect(configApiMock.getConfig).toHaveBeenCalledWith('app.ai_experience');
-    expect(configManagerMock.getConfig).not.toHaveBeenCalled();
+    expect(configManagerMock.getConfig).toHaveBeenCalledWith('app.ai_experience', { forceRefresh: true, requireLoaded: true });
     expect(settings.enable_agent_companion).toBe(true);
     expect(settings).not.toHaveProperty('agent_companion_display_mode');
   });
@@ -180,7 +186,7 @@ describe('AIExperienceConfigService startup behavior', () => {
   });
 
   it('keeps commit co-author settings unavailable when an older host omits the field', async () => {
-    configApiMock.getConfig.mockResolvedValueOnce({ quick_actions: [] });
+    configManagerMock.getConfig.mockResolvedValueOnce({ quick_actions: [] });
     const { aiExperienceConfigService } = await import('./AIExperienceConfigService');
 
     const settings = await aiExperienceConfigService.getSettingsAsync({ forceRefresh: true, requireLoaded: true });
@@ -190,7 +196,7 @@ describe('AIExperienceConfigService startup behavior', () => {
   });
 
   it('keeps prompt suggestion settings unavailable when an older host omits the field', async () => {
-    configApiMock.getConfig.mockResolvedValueOnce({ enable_session_title_generation: false });
+    configManagerMock.getConfig.mockResolvedValueOnce({ enable_session_title_generation: false });
     const { aiExperienceConfigService } = await import('./AIExperienceConfigService');
 
     const settings = await aiExperienceConfigService.getSettingsAsync({ forceRefresh: true, requireLoaded: true });
@@ -241,7 +247,7 @@ describe('AIExperienceConfigService startup behavior', () => {
 
   it('reports host read failures instead of supplying defaults to a settings editor', async () => {
     const error = new Error('Execution host unavailable');
-    configApiMock.getConfig.mockRejectedValueOnce(error);
+    configManagerMock.getConfig.mockRejectedValueOnce(error);
     const { aiExperienceConfigService } = await import('./AIExperienceConfigService');
 
     await expect(aiExperienceConfigService.getSettingsAsync({ forceRefresh: true, requireLoaded: true }))

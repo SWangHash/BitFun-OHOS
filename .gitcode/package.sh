@@ -66,6 +66,19 @@ git rev-parse HEAD > "$workpath/packaged-commit.txt"
 cp -r /root/package-tools/hnp "$workpath/$repo_dir/src/apps/ohos/"
 sed -i '/"type": "entry"/r /root/package-tools/hnpPackages.snippet' "$workpath/$repo_dir/src/apps/ohos/entry/src/main/module.json5"
 
+# GitCode Release 需要 OHOS 工程整体源码（不含签名）：在 hnp 拷入与
+# module.json5 注入之后、签名配置注入之前打包，包内 build-profile.json5
+# 保持上游原样（signingConfigs 为空），也没有任何构建产物。zip 优先，
+# 主机无 zip 时回退 tgz。
+SOURCE_STAGING=$workpath/ohos-source-output
+mkdir -p "$SOURCE_STAGING"
+if command -v zip >/dev/null 2>&1; then
+  (cd "$workpath/$repo_dir/src/apps" && zip -qr "$SOURCE_STAGING/ohos-source.zip" ohos)
+else
+  tar -czf "$SOURCE_STAGING/ohos-source.tgz" -C "$workpath/$repo_dir/src/apps" ohos
+fi
+echo "==> OHOS 工程源码包（不含签名）: $(ls "$SOURCE_STAGING")"
+
 # HAP 使用 cer.snippet（name: default，与 product 的 signingConfig 对应）；
 # .app 追加注入 cer-app.snippet（name: release），构建间切换签名
 sed -i '/"signingConfigs": \[/r /root/package-tools/cer.snippet' "$workpath/$repo_dir/src/apps/ohos/build-profile.json5"
@@ -164,12 +177,10 @@ if [ "$SO_ONLY" = "1" ]; then
 fi
 
 SO_DEST_PATH=$workpath/$repo_dir/src/apps/ohos/entry/libs/arm64-v8a
-DIST_DEST_PATH=$workpath/$repo_dir/src/apps/ohos/entry/src/main/resources/resfile
 [ -d "$SO_DEST_PATH" ] || { mkdir -p "$SO_DEST_PATH"; }
-[ -d "$DIST_DEST_PATH" ] || { mkdir -p "$DIST_DEST_PATH"; }
-echo "==> 复制 $(basename "$SO_FILE") 与 mobile-web/dist 到 src/apps/ohos"
+# mobile-web/dist 由新工程构建自动生成并注入 resfile，无需手动复制
+echo "==> 复制 $(basename "$SO_FILE") 到 src/apps/ohos"
 cp "$SO_FILE" "$SO_DEST_PATH"
-cp -r "$DIST_FILE_PATH" "$DIST_DEST_PATH"
 
 cd "$workpath/$repo_dir/src/apps/ohos"
 export PATH="/root/command-line-tools/bin:$PATH"

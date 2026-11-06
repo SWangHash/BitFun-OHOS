@@ -40,6 +40,7 @@ import { attachCreationRuntime, recordCreationActivationError } from '@/infrastr
 import { createCreationUiApi } from './creation/creationUiApi';
 import { installLocalLinkGuard } from '@/shared/utils/localLinkGuard';
 import { usePeerDeviceModeOptional } from '@/infrastructure/peer-device/peerDeviceContextState';
+import { flowChatWidthStore } from '@/infrastructure/appearance/preferences/flowChatWidthStore';
 
 const log = createLogger('App');
 
@@ -110,6 +111,20 @@ const MIN_SPLASH_MS = 650;
 const DEFERRED_TRAY_INIT_DELAY_MS = 1500;
 
 function App() {
+  useLayoutEffect(() => {
+    const style = document.documentElement.style;
+    const name = '--bitfun-control-flow-chat-transcript-max-width';
+    const previous = style.getPropertyValue(name);
+    const priority = style.getPropertyPriority(name);
+    const apply = () => style.setProperty(name, `${flowChatWidthStore.getState().preferredWidth}px`);
+    apply();
+    const unsubscribe = flowChatWidthStore.subscribe(apply);
+    return () => {
+      unsubscribe();
+      if (previous) style.setProperty(name, previous, priority);
+      else style.removeProperty(name);
+    };
+  }, []);
   const { t } = useI18n('settings/application');
 
   // Workspace loading state — drives splash exit timing

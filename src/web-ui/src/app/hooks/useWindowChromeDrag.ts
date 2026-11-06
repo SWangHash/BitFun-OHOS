@@ -1,17 +1,25 @@
 /**
  * useWindowChromeDrag — custom-title-bar window drag gesture.
  *
- * On Windows, starting a native drag on a maximized window immediately
- * restores (unmaximizes) the window before any pointer movement, even for a
- * plain click. That made any plain click on toolbar chrome shrink the window
- * back to its normal size. To keep plain clicks inert while preserving
- * drag-to-move on a maximized window, we defer startDragging() until the
- * pointer actually moves past a small threshold. Non-maximized windows keep
- * the classic behavior: drag starts on mousedown, double-click maximizes.
+ * A native drag start restores (unmaximizes) a maximized window immediately,
+ * even for a plain click: on Windows the posted `WM_NCLBUTTONDOWN`/`HTCAPTION`
+ * pair restores the window straight away, and the OpenHarmony host's
+ * `startMoving()` does the same. Starting the drag on mousedown therefore made
+ * any plain click on toolbar chrome shrink the window back to its normal size.
+ *
+ * To keep plain clicks inert while preserving drag-to-move on a maximized
+ * window, we defer `startDragging()` until the pointer actually moves past a
+ * small threshold. Non-maximized windows keep the classic behavior: drag
+ * starts on mousedown, double-click maximizes.
+ *
+ * A maximized window keeps using the host move loop: ArkUI's `startMoving()`
+ * restores the window and then tracks the pointer itself. Restoring the window
+ * from the shell first (`recover()`) would end the original press and the move
+ * loop could no longer attach, which is why this hook never restores it.
  */
 
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { supportsNativeWindowDragging, isOpenHarmonyRuntime } from '@/infrastructure/runtime';
+import { supportsNativeWindowDragging } from '@/infrastructure/runtime';
 import { workspaceAPI } from '@/infrastructure/api';
 import { createLogger } from '@/shared/utils/logger';
 
@@ -115,14 +123,12 @@ export const useWindowChromeDrag = (
           return;
         }
 
-        if (isOpenHarmonyRuntime()) {
-          // Preserve the host's maximized-window gesture policy.
-          return;
-        }
-
         // Native maximize can precede the asynchronous React state update.
         // Require movement regardless of that state so a plain click never
         // starts a native drag (which can restore the window immediately).
+        // The OpenHarmony ArkUI host has the same policy: `startMoving()`
+        // restores a maximized window on press and then owns the move, so the
+        // request must wait for real pointer movement.
         const onPointerMove = (moveEvent: PointerEvent) => {
           const dx = moveEvent.clientX - event.clientX;
           const dy = moveEvent.clientY - event.clientY;

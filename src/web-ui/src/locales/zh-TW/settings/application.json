@@ -71,6 +71,7 @@
       "title": "字體大小",
       "hint": "套用至介面與對話內容；程式碼字體大小請在編輯器設定中另行調整",
       "uiSizeLabel": "介面與對話",
+      "uiSizeHint": "選擇舒適的字體大小，套用至導覽、面板、設定與對話內容",
       "levels": {
         "compact": "緊湊",
         "small": "小",
@@ -200,6 +201,7 @@
       "refreshTooltip": "重新整理可用終端列表",
       "autoDetect": "自動檢測 (推薦)",
       "description": "用於新建終端機，以及本機工作區中智能體執行的命令",
+      "cmdFallbackMessage": "智能體執行命令時實際使用 PowerShell。",
       "placeholder": "選擇默認終端",
       "noShells": "未檢測到可用的終端"
     },
@@ -280,6 +282,10 @@
       "label": "權限審批請求通知",
       "description": "視窗未處於前景時，提醒你有操作等待核准"
     },
+    "startupTips": {
+      "label": "啟動時顯示使用技巧",
+      "description": "每次啟動時隨機展示一條使用技巧卡片，幫助發現更多功能"
+    },
     "messages": {
       "loading": "載入中…",
       "loadFailed": "無法讀取通知設定",
@@ -304,14 +310,15 @@
   "messageSending": {
     "title": "訊息傳送",
     "duringTurn": "對話執行期間傳送訊息",
-    "description": "原生工作階段預設立即向目前任務補充指令；選擇排隊則等待目前輪次結束。ACP 工作階段仍需等待目前輪次結束，遠端派發工作階段維持向目標任務追加訊息。",
-    "immediate": "立即傳送（預設）",
-    "queue": "排隊傳送",
+    "description": "選擇原生對話在回覆期間傳送訊息的方式。ACP 對話繼續排隊，派發任務繼續向目標任務追加訊息。",
+    "immediate": "立即傳送",
+    "queue": "排隊傳送（預設）",
     "immediateDescription": "原生工作階段中，新訊息會立即補充到目前任務。",
     "queueDescription": "原生工作階段中，新訊息會在本輪結束後自動傳送。",
     "loading": "正在載入訊息傳送偏好…",
     "loadFailed": "載入訊息傳送偏好失敗",
-    "saveFailed": "儲存訊息傳送偏好失敗"
+    "saveFailed": "儲存訊息傳送偏好失敗",
+    "unsupported": "目前裝置版本不支援修改傳送策略，將繼續沿用現有排隊行為。"
   },
   "textSelection": {
     "title": "文字選取",
@@ -319,6 +326,7 @@
     "autoShowToolbarDescription": "選取對話文字後，顯示「新增批註」和「側邊提問」。關閉後仍可透過右鍵選單操作。",
     "loading": "正在載入文字選取偏好…",
     "loadFailed": "載入文字選取偏好失敗",
-    "saveFailed": "儲存文字選取偏好失敗"
+    "saveFailed": "儲存文字選取偏好失敗",
+    "unsupported": "目前裝置版本不支援修改選取工具列開關，將保留原有選取行為。"
   }
 }

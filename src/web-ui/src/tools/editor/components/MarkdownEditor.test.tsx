@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import MarkdownEditor from './MarkdownEditor';
+import { confirmDialog } from '@/infrastructure/confirm-dialog';
 import type { DocumentSnapshot } from '../services/EditorDocument';
 
 const documentMock = vi.hoisted(() => ({
@@ -21,11 +22,19 @@ vi.mock('../services/EditorDocument', () => ({
 }));
 
 vi.mock('../meditor', () => ({
-  MEditor: forwardRef((props: { value?: string; mode?: string; emptyDocumentPlaceholder?: string }, ref) => {
+  MEditor: forwardRef((props: {
+    value?: string;
+    mode?: string;
+    emptyDocumentPlaceholder?: string;
+    onDirtyChange?: (isDirty: boolean) => void;
+  }, ref) => {
     useImperativeHandle(ref, () => ({
       destroy: vi.fn(),
-      markSaved: vi.fn(),
-      setInitialContent: vi.fn(),
+      focus: vi.fn(),
+      // Mirror the real editor: saving anchors report a clean state through
+      // onDirtyChange, which the owner re-derives from its session baseline.
+      markSaved: () => { props.onDirtyChange?.(false); },
+      setInitialContent: (_content: string) => { props.onDirtyChange?.(false); },
     }));
     return <div data-testid="markdown-body" data-mode={props.mode} data-empty-placeholder={props.emptyDocumentPlaceholder} />;
   }),
@@ -62,8 +71,11 @@ vi.mock('@/infrastructure/appearance', () => ({
 
 vi.mock('@/shared/utils/logger', () => ({
   createLogger: () => ({
-    error: vi.fn(),
+    trace: vi.fn(),
+    debug: vi.fn(),
+    info: vi.fn(),
     warn: vi.fn(),
+    error: vi.fn(),
   }),
 }));
 
@@ -182,5 +194,80 @@ describe('MarkdownEditor file load recovery', () => {
     await act(async () => root.render(<MarkdownEditor filePath={filePath} isActiveTab />));
     expect(read).toHaveBeenCalledTimes(1);
     expect(container.textContent).toContain('editor.common.loadFailed');
+  });
+});
+
+describe('MarkdownEditor external reload adoption', () => {
+  let root: Root;
+  let container: HTMLDivElement;
+  const filePath = '/external/home/open.md';
+  const read = documentMock.session.files.readFileContent;
+  const metadata = documentMock.session.files.getFileMetadata;
+
+  beforeEach(() => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    vi.useFakeTimers();
+    documentMock.enabled = true;
+    documentMock.session.snapshot = undefined;
+    documentMock.session.isCurrent.mockReturnValue(true);
+    read.mockReset().mockImplementation(() => new Promise<string>(() => {}));
+    metadata.mockReset().mockRejectedValue(new Error('File does not exist'));
+    // Mirror EditorDocument.capture so the session guard in the component
+    // observes real snapshot semantics during the test.
+    documentMock.session.capture.mockReset().mockImplementation(
+      (content: string, isDirty: boolean, savedContent?: string) => {
+        documentMock.session.snapshot = {
+          content,
+          isDirty,
+          savedContent: savedContent ?? (isDirty ? documentMock.session.snapshot?.savedContent ?? content : content),
+        };
+      },
+    );
+    vi.mocked(confirmDialog).mockReset().mockResolvedValue(false);
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+  });
+
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    container.remove();
+    documentMock.enabled = false;
+    vi.useRealTimers();
+  });
+
+  it('stays clean through two session rewrites of the open file', async () => {
+    const disk = { content: '# v1 content', modified: 1 };
+    read.mockImplementation(() => Promise.resolve(disk.content));
+    metadata.mockImplementation(() =>
+      Promise.resolve({ isFile: true, modified: disk.modified, size: disk.content.length }),
+    );
+    const onContentChange = vi.fn();
+    await act(async () => root.render(
+      <MarkdownEditor filePath={filePath} isActiveTab onContentChange={onContentChange} />,
+    ));
+    expect(container.querySelector('[data-testid="markdown-body"]')).not.toBeNull();
+    expect(documentMock.session.snapshot?.savedContent).toBe('# v1 content');
+
+    // Session rewrite #1: the disk version moves while the buffer stays clean.
+    await act(async () => {
+      disk.content = '# v2 content';
+      disk.modified = 2;
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+
+    // Session rewrite #2: the dirty guard must not misreport this as a conflict.
+    await act(async () => {
+      disk.content = '# v3 content';
+      disk.modified = 3;
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+
+    expect(confirmDialog).not.toHaveBeenCalled();
+    const dirtyReports = onContentChange.mock.calls.filter(([, isDirty]) => isDirty === true);
+    expect(dirtyReports).toEqual([]);
+    expect(documentMock.session.snapshot?.savedContent).toBe('# v3 content');
+    expect(documentMock.session.capture).toHaveBeenCalledWith('# v2 content', false, '# v2 content');
+    expect(documentMock.session.capture).toHaveBeenCalledWith('# v3 content', false, '# v3 content');
   });
 });

@@ -25,7 +25,7 @@ export const navPanelAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   ],
   facets: [
     { id: 'layer', attribute: 'data-bitfun-layer', values: ['main', 'scene'] },
-    { id: 'action', attribute: 'data-bitfun-action', values: ['new-session', 'smart-members', 'long-term-tracking', 'todos', 'extensions', 'agents', 'skills', 'ecosystem-compatibility', 'session-filter', 'assistant-manager', 'personal-overview'] },
+    { id: 'action', attribute: 'data-bitfun-action', values: ['new-session', 'smart-members', 'long-term-tracking', 'todos', 'extensions', 'agents', 'skills', 'ecosystem-compatibility', 'insights', 'session-filter', 'assistant-manager', 'personal-overview'] },
     { id: 'section', attribute: 'data-bitfun-section', values: ['smart-members', 'workspace', 'sessions'] },
   ],
   states: [

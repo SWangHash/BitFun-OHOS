@@ -4,7 +4,7 @@ export const SEND_DURING_TURN_CONFIG_PATH = 'app.flow_chat.send_during_turn';
 export type ChatInputSendDuringTurn = 'immediate' | 'queue';
 
 export function normalizeChatInputSendDuringTurn(value: unknown): ChatInputSendDuringTurn {
-  return value === 'queue' ? 'queue' : 'immediate';
+  return value === 'immediate' ? 'immediate' : 'queue';
 }
 
 /** Optional reads distinguish an older host's missing field from a failed read. */

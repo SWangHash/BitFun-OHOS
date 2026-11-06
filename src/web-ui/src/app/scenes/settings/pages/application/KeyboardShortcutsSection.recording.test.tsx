@@ -10,6 +10,7 @@ import KeyboardShortcutsSection from './KeyboardShortcutsSection';
 type AnyProps = Record<string, unknown> & { children?: React.ReactNode };
 
 vi.mock('@bitfun/ui', () => ({
+  FieldGroup: ({ children }: AnyProps) => <div>{children}</div>,
   // ShortcutManager consults this before letting Escape through; no overlays here.
   hasOverlayLayers: () => false,
   OverflowText: ({ children }: AnyProps) => <span>{children}</span>,
@@ -31,6 +32,7 @@ vi.mock('@/infrastructure/config/components/common', () => ({
   ConfigFieldStatus: () => <div />,
   ConfigPageLayout: ({ children }: AnyProps) => <div>{children}</div>,
   ConfigPageHeader: () => <header />,
+  ConfigPageRow: ({ children, label, ...rest }: AnyProps) => <div data-bitfun-part={rest['data-bitfun-part'] as string}>{label as React.ReactNode}{children}</div>,
   ConfigPageContent: ({ children }: AnyProps) => <div>{children}</div>,
   ConfigPageSection: ({ children }: AnyProps) => <section>{children}</section>,
   ConfigPageRow: ({ label, children }: AnyProps) => <div>{label}{children}</div>,

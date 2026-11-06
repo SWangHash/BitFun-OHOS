@@ -65,9 +65,10 @@ pub const INTENT_SYSTEM_PROMPT: &str = r#"你是 Qt → HarmonyOS(OpenHarmony) �
 - path 必须原样保留用户写法，不要改写、不要展开环境变量、不要拼凑不存在的路径；
 - 与迁移无关的请求 taskType 用 other。"#;
 
-/// JSON Schema for the intent call's structured output. Kept conservative
-/// (no unions, no strict mode): providers compile `output_schema` differently
-/// and the domain validation tolerates missing fields regardless.
+/// JSON Schema for the intent call's structured output. The OpenAI adapter
+/// always sends it as `strict: true`, so every property is required, `path` is
+/// nullable, and each object closes `additionalProperties`; otherwise the model
+/// drops fields it has nothing to say about and the intake loses prompt paths.
 pub fn intent_output_schema() -> Value {
     fn field_schema() -> Value {
         json!({
@@ -77,9 +78,10 @@ pub fn intent_output_schema() -> Value {
                     "type": "string",
                     "enum": ["resolved", "referenced", "missing"],
                 },
-                "path": {"type": "string"},
+                "path": {"type": ["string", "null"]},
             },
-            "required": ["state"],
+            "required": ["state", "path"],
+            "additionalProperties": false,
         })
     }
     json!({
@@ -94,9 +96,12 @@ pub fn intent_output_schema() -> Value {
                     "toolchain": field_schema(),
                     "template": field_schema(),
                 },
+                "required": ["source_project", "output_project", "toolchain", "template"],
+                "additionalProperties": false,
             },
         },
         "required": ["taskType", "fields"],
+        "additionalProperties": false,
     })
 }
 
@@ -222,47 +227,6 @@ pub fn build_intent_decision(output: &str) -> Option<TurnIntentDecision> {
 /// fails.
 pub fn fallback_intent_decision(prompt: &str) -> TurnIntentDecision {
     decision_from_analyze_json(analyze_request(prompt))
-}
-
-pub fn merged_intent_decision(
-    model: TurnIntentDecision,
-    deterministic: &TurnIntentDecision,
-) -> TurnIntentDecision {
-    if !model.flow_enabled {
-        return model;
-    }
-    let mut value = model.value.clone();
-    let mut carried = false;
-    for field in QT_MIGRATION_INTAKE_REQUIRED_FIELDS {
-        let modelled = model
-            .resolved_paths
-            .get(field)
-            .and_then(Value::as_str)
-            .is_some_and(|path| !path.is_empty());
-        if modelled {
-            continue;
-        }
-        let Some(found) = deterministic
-            .resolved_paths
-            .get(field)
-            .and_then(Value::as_str)
-            .filter(|path| !path.is_empty())
-        else {
-            continue;
-        };
-        let state = if std::path::Path::new(found).exists() {
-            "resolved"
-        } else {
-            "referenced"
-        };
-        value["resolvedPaths"][field] = json!(found);
-        value["fields"][field] = json!(state);
-        carried = true;
-    }
-    if !carried {
-        return model;
-    }
-    decision_from_analyze_json(value)
 }
 
 pub fn prompt_bindings(
@@ -644,13 +608,22 @@ fn uri_end(chars: &[char], start: usize) -> Option<usize> {
     Some(end)
 }
 
+/// Whether the separator at `index` belongs to a `<letter>:` drive prefix. A
+/// colon that merely separates a label from the path (`模板工程:/Users/...`) does
+/// not, so that path is still read from its first separator.
+fn follows_drive_colon(chars: &[char], index: usize) -> bool {
+    index >= 2
+        && chars[index - 1] == ':'
+        && chars[index - 2].is_ascii_alphabetic()
+        && (index < 3 || !chars[index - 3].is_ascii_alphanumeric())
+}
+
 fn absolute_path_at(chars: &[char], start: usize) -> Option<(String, usize)> {
     let first = *chars.get(start)?;
     let windows = first.is_ascii_alphabetic()
         && chars.get(start + 1) == Some(&':')
         && matches!(chars.get(start + 2), Some('\\') | Some('/'));
-    let unix = (first == '/' || first == '\\')
-        && !(start > 0 && chars[start - 1] == ':');
+    let unix = (first == '/' || first == '\\') && !follows_drive_colon(chars, start);
     if !windows && !unix {
         return None;
     }
@@ -862,11 +835,11 @@ fn borders_path_run(text: &str, start: usize, end: usize) -> bool {
     let before_ok = text[..start]
         .chars()
         .next_back()
-        .is_none_or(|c| is_path_run_stop(c) || is_cjk(c));
+        .is_none_or(|c| is_path_run_stop(c) || is_cjk(c) || c == ':');
     let after_ok = text[end..]
         .chars()
         .next()
-        .is_none_or(|c| is_path_run_stop(c) || is_cjk(c));
+        .is_none_or(|c| is_path_run_stop(c) || is_cjk(c) || c == ':');
     before_ok && after_ok
 }
 
@@ -1023,14 +996,6 @@ impl IntentAnalysisContribution for QtMigrationIntentAnalyzer {
 
     fn fallback_decision(&self, prompt: &str) -> TurnIntentDecision {
         fallback_intent_decision(prompt)
-    }
-
-    fn merge_with_deterministic(
-        &self,
-        model: TurnIntentDecision,
-        deterministic: TurnIntentDecision,
-    ) -> TurnIntentDecision {
-        merged_intent_decision(model, &deterministic)
     }
 }
 
@@ -1213,6 +1178,27 @@ mod tests {
         assert_eq!(resolved["output_project"], "/D/pro/qt611/");
         assert_eq!(resolved["toolchain"], "/D/pro/chain_qt6/chain");
         assert_eq!(resolved["template"], "/D/pro/template/templates");
+
+        // ASCII colon as the label separator must not eat the path's first
+        // segment: `模板工程:/Users/...` used to be read as `/a000/...`.
+        let d = analyze_request(
+            "将QT工程迁移成鸿蒙工程，原始工程路径：/Users/a/Desktop/app，输出工程是：/Users/a/Desktop/out，工具链是：/Users/a/Library/Application Support/bitfun/data/qt-migration/toolchains，模板工程:/Users/a/Desktop/templates",
+        );
+        let (source, output, toolchain, template) = fields_of(&d);
+        assert_eq!(
+            (source, output, toolchain, template),
+            (
+                FieldLevel::Resolved,
+                FieldLevel::Resolved,
+                FieldLevel::Resolved,
+                FieldLevel::Resolved
+            )
+        );
+        assert_eq!(
+            d["resolvedPaths"]["template"],
+            "/Users/a/Desktop/templates",
+            "ASCII-colon labels keep the whole path"
+        );
     }
 
     #[test]
@@ -1381,6 +1367,22 @@ mod tests {
                 .is_some()
         );
         assert_eq!(schema["required"][0], "taskType");
+        // The provider sends this schema with `strict: true`: a property that is
+        // absent from `required` may come back missing entirely.
+        let required = schema["properties"]["fields"]["required"]
+            .as_array()
+            .expect("fields required");
+        for field in QT_MIGRATION_INTAKE_REQUIRED_FIELDS {
+            assert!(required.iter().any(|item| item == field), "{field} required");
+            let entry = &schema["properties"]["fields"]["properties"][field];
+            assert_eq!(entry["required"], json!(["state", "path"]));
+            assert_eq!(
+                entry["properties"]["path"]["type"],
+                json!(["string", "null"])
+            );
+            assert_eq!(entry["additionalProperties"], json!(false));
+        }
+        assert_eq!(schema["additionalProperties"], json!(false));
     }
 
     #[test]
@@ -1527,7 +1529,7 @@ mod tests {
     }
 
     #[test]
-    fn a_path_the_prompt_names_survives_a_model_that_left_the_field_empty() {
+    fn a_model_decision_is_not_reinterpreted_by_the_deterministic_parser() {
         let request = "把QT工程迁移成鸿蒙工程，原始工程路径是/D/pro/calculator， 输出到/D/pro/out， \
 工具链是/D/pro/chain/bin，模板工程路径/D/pro/templates";
         let deterministic = fallback_intent_decision(request);
@@ -1548,26 +1550,31 @@ mod tests {
             }}"#,
         )
         .expect("usable analysis");
-        assert_eq!(model.field_states.get("toolchain").map(String::as_str), Some("referenced"));
 
-        let merged = merged_intent_decision(model, &deterministic);
-        for (field, expected) in [
-            ("source_project", "/D/pro/calculator"),
-            ("output_project", "/D/pro/out"),
-            ("toolchain", "/D/pro/chain/bin"),
-            ("template", "/D/pro/templates"),
-        ] {
-            assert_eq!(
-                merged.resolved_paths.get(field).and_then(Value::as_str),
-                Some(expected),
-                "{field} 必须带上 prompt 里的路径"
-            );
-            assert_eq!(
-                merged.field_states.get(field).map(String::as_str),
-                Some("referenced"),
-                "字符串层看不到磁盘，补进来的路径只能待用户确认，不能直接绑定"
-            );
-        }
+        let merged = model;
+        assert_eq!(
+            merged.resolved_paths.get("output_project").and_then(Value::as_str),
+            Some("/D/pro/out")
+        );
+        assert!(
+            merged
+                .resolved_paths
+                .get("source_project")
+                .and_then(Value::as_str)
+                .is_none(),
+            "the model is the single source of the parse: the service does not re-read the prompt"
+        );
+        assert!(
+            merged
+                .resolved_paths
+                .get("template")
+                .and_then(Value::as_str)
+                .is_none()
+        );
+        assert!(
+            prompt_bindings(&merged).is_none(),
+            "a field the model left empty keeps the card open instead of binding a guess"
+        );
     }
 
     #[test]
@@ -1599,3 +1606,4 @@ mod tests {
         assert_eq!(unverified[0], "D:/maybe/qt");
     }
 }
+

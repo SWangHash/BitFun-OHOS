@@ -34,7 +34,7 @@ const blobUrlCache = new Map<string, string>();
  * these files (`forbidden path`).
  */
 async function readSpritesheetBuffer(absolutePath: string): Promise<ArrayBuffer> {
-  const response = await api.invoke<ArrayBuffer | Uint8Array>('load_agent_companion_pet_spritesheet', {
+  const response = await api.invoke<ArrayBuffer | Uint8Array | number[]>('load_agent_companion_pet_spritesheet', {
     request: { spritesheetPath: absolutePath },
   });
   return response instanceof ArrayBuffer ? response : new Uint8Array(response).buffer;

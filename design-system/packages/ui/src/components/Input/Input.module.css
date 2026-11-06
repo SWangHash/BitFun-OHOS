@@ -155,3 +155,35 @@
     background: var(--bitfun-color-field-background-hover);
   }
 }
+
+@layer bitfun.components {
+  /* Filled fields keep standard borders over the grouped-field background. */
+  .field[data-field-surface="filled"] {
+    background: var(--bitfun-color-field-group-background);
+  }
+
+  .field[data-field-surface="filled"]:hover:not([data-disabled="true"]) {
+    background: var(--bitfun-color-field-background-hover);
+  }
+}
+
+@layer bitfun.components {
+  .field[data-size="xs"] {
+    --_field-height: var(--bitfun-control-button-xs-height);
+    --_field-icon-size: var(--bitfun-control-button-xs-leading-icon-size);
+    padding-inline: var(--bitfun-control-button-xs-padding-inline);
+  }
+
+  .field[data-shape="pill"] {
+    border-radius: var(--bitfun-radius-pill);
+  }
+
+  .field[data-size="xs"] .input {
+    font-family: var(--bitfun-type-meta-font-family);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-meta-font-weight);
+    line-height: var(--bitfun-type-meta-line-height);
+    letter-spacing: var(--bitfun-type-meta-letter-spacing);
+  }
+
+}

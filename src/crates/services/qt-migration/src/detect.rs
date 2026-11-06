@@ -256,6 +256,7 @@ pub(crate) fn kit_tools_run_on_host(kit_root: &Path) -> Option<bool> {
         if let Some(format) = executable_format(&path) {
             return Some(format == host_binary_format());
         }
+        return Some(probe_kit_qt_major(kit_root, &path).is_some());
     }
     None
 }
@@ -511,41 +512,27 @@ pub(crate) fn contains_qt6_only_type_name(haystack: &str, name: &str) -> bool {
 /// the workspace's own top-level Qt projects, ranked as prompt input above
 /// workspace. A named path this host cannot see stays listable (a typo must be
 /// visible where the user wrote it) but measures no Qt generation.
-pub(crate) fn probe_source_projects(workspace: &Path, model_candidates: &[String]) -> Vec<String> {
+pub(crate) fn probe_source_projects(
+    workspace: &Path,
+    model_candidates: &[String],
+    prompt_paths: &[String],
+) -> Vec<String> {
     // Tier 0 is the request, tier 1 the workspace scan; `order` is each tier's own.
     let mut found: Vec<(u8, usize, usize, PathBuf)> = Vec::new();
     for (index, candidate) in model_candidates.iter().enumerate() {
-        let Some(path) = normalize_workspace_candidate(workspace, candidate) else {
+        let origin = crate::candidates::origin(Some(workspace), candidate, prompt_paths);
+        let Some(admitted) =
+            crate::candidates::admit("source_project", Some(workspace), candidate, origin, None)
+        else {
             continue;
         };
-        let path = if path.is_file()
-            && path
-                .file_name()
-                .map(|name| name.to_string_lossy().to_lowercase().ends_with(".pro"))
-                .unwrap_or(false)
-        {
-            path.parent().unwrap_or(&path).to_path_buf()
-        } else {
-            path
-        };
-        // A named path only has to be a Qt project, not a migration artifact, and
-        // not part of a Qt installation.
-        if is_inside_migrated_harmony_project(&path) || is_inside_qt_installation(&path) {
+        let Some(path) = normalize_workspace_candidate(workspace, &admitted) else {
             continue;
-        }
+        };
         let depth = path
             .strip_prefix(workspace)
             .map(|relative| relative.components().count())
             .unwrap_or(MAX_PROBE_DEPTH + 1);
-        if !is_qt_source_project(&path) {
-            if !path.exists() {
-                found.push((0, index, depth, path));
-                continue;
-            }
-            if !has_qt_project_below(&path) {
-                continue;
-            }
-        }
         found.push((0, index, depth, path));
     }
     for (order, path) in workspace_qt_projects(workspace).into_iter().enumerate() {
@@ -705,7 +692,9 @@ fn workspace_qt_projects(workspace: &Path) -> Vec<PathBuf> {
             if is_inside_migrated_harmony_project(&path) || is_inside_qt_installation(&path) {
                 return None;
             }
-            (is_qt_source_project(&path) || has_qt_project_below(&path)).then_some(path)
+            (is_qt_source_project(&path) || has_qt_project_below(&path))
+                .then_some(path)
+                .filter(|path| project_description_fits_directory(path))
         })
         .collect();
     projects.sort_by(|a, b| path_key(a).cmp(&path_key(b)));
@@ -728,7 +717,7 @@ pub(crate) fn measure_project_qt_major(project_dir: &Path) -> Option<u8> {
 /// Whether a direct child directory is a Qt source project root, for a named repo
 /// root whose Qt markers sit one level down (`src/<app>.pro`). The caller keeps
 /// the named directory itself as the project.
-fn has_qt_project_below(dir: &Path) -> bool {
+pub(crate) fn has_qt_project_below(dir: &Path) -> bool {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return false;
     };
@@ -740,6 +729,140 @@ fn has_qt_project_below(dir: &Path) -> bool {
             .unwrap_or(false)
             && !crate::scan::is_noise_dir(&name)
             && is_qt_source_project(&entry.path())
+    })
+}
+
+/// Whether the project description a directory carries actually describes that
+/// directory.
+///
+/// `find_package(Qt…)` or a `.pro` file only says "something Qt is built here".
+/// A directory can hold such a script while owning none of the sources it names
+/// — `how_build/CMakeLists.txt` builds `${PROJECT_SOURCE_DIR}/src`, which the
+/// directory does not contain. That script belongs to a project rooted
+/// elsewhere, so the directory is not itself a migration source. A description
+/// that names no sources, or at least one that exists where it points, stays a
+/// candidate.
+pub(crate) fn project_description_fits_directory(dir: &Path) -> bool {
+    let declared = declared_source_paths(dir);
+    declared.is_empty()
+        || declared
+            .iter()
+            .any(|path| path != dir && path.starts_with(dir) && path.exists())
+}
+
+/// Source locations a project description names, resolved against `dir`.
+/// Configure-time variables (`${SRC}`, `$${VAR}`) and code-generation targets
+/// cannot be resolved statically and are skipped.
+fn declared_source_paths(dir: &Path) -> Vec<PathBuf> {
+    let mut declared = Vec::new();
+    if let Ok(cmake) = std::fs::read_to_string(dir.join("CMakeLists.txt")) {
+        collect_declared_paths(dir, &cmake, CMAKE_SOURCE_COMMANDS, &mut declared);
+    }
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|extension| extension.to_str()) != Some("pro") {
+                continue;
+            }
+            if let Ok(project) = std::fs::read_to_string(&path) {
+                collect_declared_paths(dir, &project, QMAKE_SOURCE_KEYS, &mut declared);
+            }
+        }
+    }
+    declared
+}
+
+const CMAKE_SOURCE_COMMANDS: &[&str] = &[
+    "aux_source_directory(",
+    "file(",
+    "add_executable(",
+    "add_library(",
+    "qt_add_executable(",
+    "qt_add_library(",
+    "qt_add_qml_module(",
+    "target_sources(",
+    "add_subdirectory(",
+];
+
+const QMAKE_SOURCE_KEYS: &[&str] = &[
+    "SOURCES",
+    "HEADERS",
+    "FORMS",
+    "RESOURCES",
+    "DISTFILES",
+    "SUBDIRS",
+    "INCLUDEPATH",
+    "DEPENDPATH",
+    "include(",
+];
+
+const SELF_DIRECTORY_VARIABLES: &[&str] = &[
+    "${PROJECT_SOURCE_DIR}",
+    "${CMAKE_CURRENT_SOURCE_DIR}",
+    "${CMAKE_SOURCE_DIR}",
+    "${CMAKE_CURRENT_LIST_DIR}",
+    "$$PWD",
+    "$${PWD}",
+];
+
+fn collect_declared_paths(dir: &Path, contents: &str, prefixes: &[&str], out: &mut Vec<PathBuf>) {
+    for line in contents.lines() {
+        let line = line.trim();
+        if line.starts_with('#') {
+            continue;
+        }
+        let Some(values) = prefixes
+            .iter()
+            .find_map(|prefix| line.strip_prefix(prefix))
+        else {
+            continue;
+        };
+        let values = values
+            .strip_prefix("+=")
+            .or_else(|| values.strip_prefix('='))
+            .unwrap_or(values);
+        for token in values.split_whitespace() {
+            if let Some(path) = declared_path(dir, token) {
+                out.push(path);
+            }
+        }
+    }
+}
+
+fn declared_path(dir: &Path, token: &str) -> Option<PathBuf> {
+    let token = token
+        .trim_end_matches(')')
+        .trim_matches('"')
+        .trim_matches('\'')
+        .trim_end_matches('\\');
+    if token.is_empty() || token.starts_with('-') {
+        return None;
+    }
+    let mut expanded = token.replace('\\', "/");
+    for variable in SELF_DIRECTORY_VARIABLES {
+        if expanded.contains(variable) {
+            expanded = expanded.replace(variable, &dir.to_string_lossy());
+        }
+    }
+    if expanded.contains("${") || expanded.contains("$$") || expanded.contains('$') {
+        return None;
+    }
+    if expanded.split('/').any(|component| component == "..") {
+        return None;
+    }
+    let probe = match expanded.find('*') {
+        Some(index) => Path::new(&expanded[..index]).parent()?.to_path_buf(),
+        None => {
+            if !expanded.starts_with('/') && !expanded.contains('/') && !expanded.contains('.') {
+                return None;
+            }
+            PathBuf::from(&expanded)
+        }
+    };
+    Some(if probe.is_absolute() {
+        probe
+    } else {
+        dir.join(probe)
     })
 }
 

@@ -34,5 +34,12 @@ describe('voice workspace identity', () => {
     expect(workspaceForSession(session as any, [local, remote] as any)).toBe(remote);
     expect(workspaceForSession({ ...session, workspaceId: 'missing' } as any, [local, remote] as any)).toBeUndefined();
     expect(workspaceForSession({ config: session.config } as any, [local, remote] as any)).toBeUndefined();
+    expect(workspaceForSession({
+      workspaceId: 'hidden-worktree', projectWorkspaceId: local.id, config: {},
+    } as any, [local, remote] as any)).toBe(local);
+    const worktree = { id: 'hidden-worktree', rootPath: '/worktrees/task', workspaceKind: 'normal' };
+    const worktreeSession = { workspaceId: worktree.id, projectWorkspaceId: local.id, config: {} };
+    expect(workspaceForSession(worktreeSession as any, [worktree] as any)).toBe(worktree);
+    expect(workspaceForSession(worktreeSession as any, [local, worktree] as any)).toBe(worktree);
   });
 });

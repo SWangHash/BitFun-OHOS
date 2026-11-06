@@ -1,3 +1,4 @@
+import { projectSettingsCapabilityDestination } from './settingsCapabilityDestination';
 import { useSettingsStore } from '@/app/scenes/settings/settingsStore';
 import { useSceneStore } from '@/app/stores/sceneStore';
 import {
@@ -30,7 +31,7 @@ export async function activateInteractiveCapability(
 
   switch (destination.kind) {
     case 'settings':
-      useSettingsStore.getState().openDestination(destination);
+      useSettingsStore.getState().openDestination(projectSettingsCapabilityDestination(capabilityId, destination, options.itemId));
       useSceneStore.getState().openScene('settings');
       return;
     case 'action':

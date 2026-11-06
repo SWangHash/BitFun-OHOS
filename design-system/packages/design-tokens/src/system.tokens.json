@@ -518,9 +518,12 @@
       "controlHeight": { "$value": "24px" }
     },
     "flowChat": {
-      "$description": "Shared FlowChat rhythm for product and package-owned conversation surfaces.",
+      "$description": "Shared FlowChat rhythm and reading-column geometry for conversation surfaces.",
       "$type": "dimension",
-      "transcriptMaxWidth": { "$value": "900px" },
+      "transcriptMaxWidth": {
+        "$value": "900px",
+        "$description": "Default reading-column width, overridden by the controller's content-width preference. Spacing and control-size tokens do not represent a transcript column."
+      },
       "turnRailOffset": { "$value": "{space.1}" },
       "turnRailWidth": { "$value": "30px" },
       "metadataActionSize": { "$value": "28px" },
@@ -996,7 +999,7 @@
       },
       "footerActionMinWidth": { "$value": "100px" },
       "panelBlockSize": {
-        "$description": "Fixed Panel Dialog height before viewport clamping; width and content measure reuse the existing xlarge and large dialog scales.",
+        "$description": "Fixed panel dialog height before viewport clamping; content-height dialogs cannot provide this geometry. Width reuses existing dialog scales.",
         "$value": "640px"
       },
       "maxInlineSizeSmall": { "$value": "420px" },

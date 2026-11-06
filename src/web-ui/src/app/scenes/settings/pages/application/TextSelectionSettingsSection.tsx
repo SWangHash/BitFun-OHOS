@@ -17,14 +17,14 @@ const log = createLogger('TextSelectionSettingsSection');
 
 export default function TextSelectionSettingsSection() {
   const { t } = useI18n('settings/application');
-  const { enabled, error, reload } = useSelectionToolbarPreference();
+  const { enabled, supported, error, reload } = useSelectionToolbarPreference();
   const [savingEpoch, setSavingEpoch] = useState<number | null>(null);
   const scope = getActiveSurfaceScope();
   const saving = savingEpoch === scope.epoch;
   const sectionAnchor = useSettingsSectionAnchor('text-selection', enabled !== null || !!error);
 
   const save = async (value: boolean) => {
-    if (saving || enabled === null) return;
+    if (saving || !supported || enabled === null) return;
     setSavingEpoch(scope.epoch);
     try {
       await configManager.setConfig(AUTO_SHOW_SELECTION_TOOLBAR_CONFIG_PATH, value);
@@ -45,8 +45,8 @@ export default function TextSelectionSettingsSection() {
           retryLabel={t('common.retry')} onRetry={() => void reload()} />
           : enabled === null ? <ConfigLoadingState label={t('textSelection.loading')} />
           : <ConfigPageRow label={t('textSelection.autoShowToolbar')}
-            description={t('textSelection.autoShowToolbarDescription')} align="center">
-            <Switch checked={enabled} disabled={saving} onCheckedChange={value => void save(value)}
+            description={t(supported ? 'textSelection.autoShowToolbarDescription' : 'textSelection.unsupported')} align="center">
+            <Switch checked={enabled} disabled={saving || !supported} onCheckedChange={value => void save(value)}
               aria-label={t('textSelection.autoShowToolbar')} />
           </ConfigPageRow>}
       </ConfigPageSection>

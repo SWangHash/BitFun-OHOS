@@ -22,6 +22,8 @@ use crate::agentic::tools::browser_control::builtin_browser::{
     set_default_builtin_browser_target, BuiltInBrowserClient, BuiltInBrowserOpenRequest,
 };
 #[cfg(target_env = "ohos")]
+use crate::agentic::tools::browser_control::cdp_client::BrowserConnectionIssue;
+#[cfg(target_env = "ohos")]
 use crate::agentic::tools::browser_control::cdp_client::CdpEndpoint;
 use crate::agentic::tools::browser_control::cdp_client::{CdpClient, CdpPageInfo, CdpVersionInfo};
 use crate::agentic::tools::browser_control::session_registry::{
@@ -477,22 +479,13 @@ impl ControlHubTool {
     async fn connect_builtin_after_external_failure(
         params: &Value,
         context: &ToolUseContext,
+        issue: BrowserConnectionIssue,
         reason: impl std::fmt::Display,
     ) -> BitFunResult<Vec<ToolResult>> {
         let reason = reason.to_string();
-        if let Ok(service) = get_global_config_service().await {
-            if let Err(error) = service
-                .set_config("ai.browser_control_preferred_browser", "")
-                .await
-            {
-                log::warn!(
-                    "Could not persist built-in browser fallback preference: {}",
-                    error
-                );
-            }
-        }
+        CdpClient::record_browser_connection_issue(DEFAULT_CDP_PORT, issue).await;
         log::warn!(
-            "OHOS external browser connection failed; using built-in ArkWeb: {}",
+            "OHOS external browser connection failed; using built-in ArkWeb for this request: {}",
             reason
         );
         let builtin_params = Self::builtin_fallback_params(params);
@@ -693,21 +686,6 @@ impl ControlHubTool {
         close_error
     }
 
-    #[cfg(target_env = "ohos")]
-    async fn wait_for_arkweb_presentation(webview_label: &str) -> BitFunResult<()> {
-        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(10);
-        loop {
-            if arkweb_webview_is_active(webview_label) {
-                return Ok(());
-            }
-            if tokio::time::Instant::now() >= deadline {
-                return Err(coded_tool_error(ErrorCode::NotAvailable,
-                    "The exact ArkWeb page was not adopted and activated by the browser panel; browser control is not ready. Open the browser panel and retry."));
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        }
-    }
-
     #[cfg(any(target_env = "ohos", test))]
     fn select_arkweb_connect_target(
         pages: &[crate::agentic::tools::browser_control::BuiltInBrowserTarget],
@@ -840,7 +818,6 @@ impl ControlHubTool {
                             "adoptExisting": true,
                         }),
                     }).await.map_err(|error| BitFunError::tool(error.to_string()))?;
-                    Self::wait_for_arkweb_presentation(&target.webview_label).await?;
                 }
                 return Ok(vec![ToolResult::ok(json!({
                     "success": true, "target": "builtin", "backend": "builtin",
@@ -960,11 +937,8 @@ impl ControlHubTool {
                 format!("The ArkWeb page could not be presented: {error}"),
             ));
         }
-        if let Err(error) = Self::wait_for_arkweb_presentation(&webview_label).await {
-            Self::cleanup_builtin_browser(&automation_id, &webview_label).await;
-            return Err(error);
-        }
-
+        // The host-created CDP target is ready independently of whether its
+        // owning chat session is currently presented by a controller.
         if let Err(error) = CdpClient::validate_ohos_protocol_at(&endpoint).await {
             Self::cleanup_builtin_browser(&automation_id, &webview_label).await;
             return Err(error);
@@ -2411,6 +2385,13 @@ Results: `{ok, domain, action, data? , error?: {code, message, hints}}`. Check o
             }
         };
 
+        // Settings disconnects the current transport so the browser choice can
+        // be changed without closing tabs. A later session request is the new
+        // explicit reconnect action, so it clears the process-local guard.
+        if action == "connect" {
+            CdpClient::allow_browser_connection(if use_builtin_backend { 0 } else { port }).await;
+        }
+
         #[cfg(target_env = "ohos")]
         if use_builtin_backend && CdpClient::browser_connection_suppressed(0).await {
             return Err(Self::builtin_disconnected_error());
@@ -2703,7 +2684,10 @@ Results: `{ok, domain, action, data? , error?: {code, message, hints}}`. Check o
                             #[cfg(target_env = "ohos")]
                             {
                                 return Self::connect_builtin_after_external_failure(
-                                    params, context, error,
+                                    params,
+                                    context,
+                                    BrowserConnectionIssue::LaunchFailed,
+                                    error,
                                 )
                                 .await;
                             }
@@ -2728,7 +2712,10 @@ Results: `{ok, domain, action, data? , error?: {code, message, hints}}`. Check o
                         {
                             #[cfg(target_env = "ohos")]
                             return Self::connect_builtin_after_external_failure(
-                                params, context, error,
+                                params,
+                                context,
+                                BrowserConnectionIssue::ControlUnavailable,
+                                error,
                             )
                             .await;
 
@@ -2758,6 +2745,7 @@ Results: `{ok, domain, action, data? , error?: {code, message, hints}}`. Check o
                         return Self::connect_builtin_after_external_failure(
                             params,
                             context,
+                            BrowserConnectionIssue::ControlUnavailable,
                             instructions,
                         )
                         .await;
@@ -2811,7 +2799,10 @@ Results: `{ok, domain, action, data? , error?: {code, message, hints}}`. Check o
                             Err(error) => {
                                 #[cfg(target_env = "ohos")]
                                 return Self::connect_builtin_after_external_failure(
-                                    params, context, error,
+                                    params,
+                                    context,
+                                    BrowserConnectionIssue::ControlUnavailable,
+                                    error,
                                 )
                                 .await;
 
@@ -2822,7 +2813,10 @@ Results: `{ok, domain, action, data? , error?: {code, message, hints}}`. Check o
                         #[cfg(target_env = "ohos")]
                         if let Err(error) = CdpClient::validate_ohos_protocol(port).await {
                             return Self::connect_builtin_after_external_failure(
-                                params, context, error,
+                                params,
+                                context,
+                                BrowserConnectionIssue::ControlUnavailable,
+                                error,
                             )
                             .await;
                         }
@@ -2836,7 +2830,10 @@ Results: `{ok, domain, action, data? , error?: {code, message, hints}}`. Check o
                             Err(error) => {
                                 #[cfg(target_env = "ohos")]
                                 return Self::connect_builtin_after_external_failure(
-                                    params, context, error,
+                                    params,
+                                    context,
+                                    BrowserConnectionIssue::ControlUnavailable,
+                                    error,
                                 )
                                 .await;
 
@@ -2858,7 +2855,10 @@ Results: `{ok, domain, action, data? , error?: {code, message, hints}}`. Check o
                                     Err(error) => {
                                         #[cfg(target_env = "ohos")]
                                         return Self::connect_builtin_after_external_failure(
-                                            params, context, error,
+                                            params,
+                                            context,
+                                            BrowserConnectionIssue::ControlUnavailable,
+                                            error,
                                         )
                                         .await;
 
@@ -2877,7 +2877,10 @@ Results: `{ok, domain, action, data? , error?: {code, message, hints}}`. Check o
                                 Err(error) => {
                                     #[cfg(target_env = "ohos")]
                                     return Self::connect_builtin_after_external_failure(
-                                        params, context, error,
+                                        params,
+                                        context,
+                                        BrowserConnectionIssue::ControlUnavailable,
+                                        error,
                                     )
                                     .await;
 
@@ -2961,7 +2964,10 @@ Results: `{ok, domain, action, data? , error?: {code, message, hints}}`. Check o
                             Err(error) => {
                                 #[cfg(target_env = "ohos")]
                                 return Self::connect_builtin_after_external_failure(
-                                    params, context, error,
+                                    params,
+                                    context,
+                                    BrowserConnectionIssue::ControlUnavailable,
+                                    error,
                                 )
                                 .await;
 
@@ -2980,6 +2986,7 @@ Results: `{ok, domain, action, data? , error?: {code, message, hints}}`. Check o
                         if let Err(error) = Self::register_external_session(&session).await {
                             return Ok(err_response("browser", "connect", error));
                         }
+                        CdpClient::clear_browser_connection_issue(port).await;
 
                         // Enable CDP observers so network/console/error events
                         // start recording immediately for later query via
@@ -3084,6 +3091,7 @@ Results: `{ok, domain, action, data? , error?: {code, message, hints}}`. Check o
                         return Self::connect_builtin_after_external_failure(
                             params,
                             context,
+                            BrowserConnectionIssue::ControlUnavailable,
                             instructions,
                         )
                         .await;
@@ -3107,7 +3115,10 @@ Results: `{ok, domain, action, data? , error?: {code, message, hints}}`. Check o
                     LaunchResult::LaunchedButCdpNotReady { message, .. } => {
                         #[cfg(target_env = "ohos")]
                         return Self::connect_builtin_after_external_failure(
-                            params, context, message,
+                            params,
+                            context,
+                            BrowserConnectionIssue::ControlUnavailable,
+                            message,
                         )
                         .await;
 
@@ -3124,6 +3135,7 @@ Results: `{ok, domain, action, data? , error?: {code, message, hints}}`. Check o
                         return Self::connect_builtin_after_external_failure(
                             params,
                             context,
+                            BrowserConnectionIssue::ControlUnavailable,
                             instructions,
                         )
                         .await;
@@ -8531,7 +8543,7 @@ mod control_hub_tests {
     }
 
     #[tokio::test]
-    async fn settings_disconnect_blocks_external_actions_until_user_reconnects() {
+    async fn browser_connect_resumes_after_settings_disconnect() {
         let port = 61_337;
         CdpClient::suppress_browser_connection(port).await;
 
@@ -8545,15 +8557,13 @@ mod control_hub_tests {
                 &ctx,
             )
             .await
-            .expect("disconnect is returned as a structured error");
+            .expect("connect should return a structured result");
         let payload = results[0].content();
         assert_eq!(payload["ok"], false);
         assert_eq!(payload["error"]["code"], "NOT_AVAILABLE");
-        assert!(payload["error"]["message"]
+        assert!(!payload["error"]["message"]
             .as_str()
             .is_some_and(|message| message.contains("disconnected by the user")));
-
-        CdpClient::allow_browser_connection(port).await;
         assert!(!CdpClient::browser_connection_suppressed(port).await);
     }
 

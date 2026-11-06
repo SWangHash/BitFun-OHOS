@@ -14,4 +14,5 @@ export {
   useDragging,
   switchAgentCanvasScope,
   clearAgentCanvasForPeerSwitch,
+  openAgentCanvasTabForSessionInBackground,
 } from './canvasStore';

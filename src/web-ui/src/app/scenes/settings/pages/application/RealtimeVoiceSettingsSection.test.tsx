@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   get: vi.fn(), save: vi.fn(), error: vi.fn(), supported: true,
   t: (key: string) => key,
 }));
+vi.mock('@/infrastructure/i18n', () => ({ useI18n: () => ({ t: mocks.t }) }));
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: mocks.t }), Trans: () => null,
 }));

@@ -29,6 +29,10 @@ export function hasActionableUnreadReply(record: FeedbackRecordSummary): boolean
   return record.canOpen && record.hasNewReply;
 }
 
+export function needsFeedbackInboxAttention(record: FeedbackRecordSummary): boolean {
+  return record.canOpen && (record.hasNewReply || record.status === 'waiting_user');
+}
+
 function cachedState(access: FeedbackAccessState) {
   return {
     records: access.cachedInbox.items,

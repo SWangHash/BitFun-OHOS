@@ -1,7 +1,6 @@
 import { desktopDomainErrorMessage } from '@/shared/ai-errors/desktopDomainErrors';
 import { i18nService } from '@/infrastructure/i18n';
 import { modelPoolAPI, supportsModelPools } from '@/infrastructure/api/service-api/ModelPoolAPI';
-import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 import { sessionWorkspaceId, sessionProjectWorkspacePath } from '../../utils/sessionWorkspace';
 /**
  * Event handling module
@@ -67,8 +66,6 @@ import { useBackgroundCommandActivityStore } from '../../store/backgroundCommand
 import { useBackgroundSubagentActivityStore } from '../../store/backgroundSubagentActivityStore';
 import { clearPromptSuggestion, usePromptSuggestionStore } from '../../store/promptSuggestionStore';
 import { createTab } from '@/shared/utils/tabUtils';
-import { openAgentCanvasTabForSession } from '@/app/components/panels/content-canvas/stores/canvasStore';
-import { workbenchPaneLayoutStore } from '@/app/workbench/workbenchPaneLayoutStore';
 import type { TabCreationOptions } from '@/shared/utils/tabUtils';
 import { interruptedTurnRecoveryGate } from '../interruptedTurnRecoveryGate';
 import { settleDialogTurnToTerminalStatus } from '../../utils/dialogTurnStability';
@@ -112,6 +109,14 @@ import {
 import { isAcpFlowSession } from '../../utils/acpSession';
 import { workspaceManager } from '@/infrastructure/services/business/workspaceManager';
 import { resolveLegacySessionWorkspace } from '@/infrastructure/api/service-api/legacyWorkspaceCompatibility';
+import { isTauriRuntime } from '@/infrastructure/runtime/environment';
+import { getActiveSurfaceScope, isLocalSurface } from '@/infrastructure/peer-device/deviceSurface';
+import { useSceneStore } from '@/app/stores/sceneStore';
+import { openAgentCanvasTabForSession } from '@/app/components/panels/content-canvas/stores/canvasStore';
+import { workbenchPaneLayoutStore } from '@/app/workbench/workbenchPaneLayoutStore';
+import { createBrowserWebview, createBrowserWebviewLabel } from '@/app/scenes/browser/useEmbeddedBrowserWebview';
+import { captureContentScope } from '@/shared/services/workbenchContentService';
+import { api } from '@/infrastructure/api/service-api/ApiClient';
 
 const pendingImageAnalysisTurns = new Map<string, string>();
 
@@ -1003,7 +1008,10 @@ export async function initializeEventListeners(
       handleThreadGoalUpdatedEvent(event);
     },
     onOpenBuiltInBrowser: (event) => {
-      handleOpenBuiltInBrowser(event);
+      void handleOpenBuiltInBrowser(event).catch(error => {
+        log.error('Failed to open built-in browser', { requestId: event.requestId, error });
+        notificationService.error(error instanceof Error ? error.message : String(error));
+      });
     },
     onSessionTitleGenerated: (event) => {
       handleSessionTitleGenerated(event);
@@ -1117,7 +1125,7 @@ function handleSessionCreated(context: FlowChatContext, event: any): void {
   if (agentType === 'BitFun') return; // The control host registers its dedicated presentation reference.
 
   const store = FlowChatStore.getInstance();
-  const existing = store.getState().sessions.get(sessionId);
+  if (store.getState().sessions.has(sessionId)) return;
   const { workspaceId, workspacePath } = resolveExternalSessionWorkspace(context, event);
   const projectWorkspacePath =
     (typeof event.projectWorkspacePath === 'string' && event.projectWorkspacePath)
@@ -1131,8 +1139,12 @@ function handleSessionCreated(context: FlowChatContext, event: any): void {
         : undefined;
   const remoteConnectionId = extractEventRemoteConnectionId(event);
   const remoteSshHost = extractEventRemoteSshHost(event);
-
-  if (existing) return;
+  const projectWorkspaceId =
+    (typeof event.projectWorkspaceId === 'string' && event.projectWorkspaceId)
+    || (typeof event.project_workspace_id === 'string' && event.project_workspace_id)
+    || resolveLegacySessionWorkspace({
+      workspacePath: projectWorkspacePath, remoteConnectionId, remoteSshHost,
+    }, [...workspaceManager.getState().openedWorkspaces.values()])?.id;
 
   store.addExternalSession(
     sessionId,
@@ -1141,6 +1153,7 @@ function handleSessionCreated(context: FlowChatContext, event: any): void {
     workspacePath,
     {
       projectWorkspacePath,
+      projectWorkspaceId,
       executionTarget,
       workspaceId,
     },
@@ -1150,7 +1163,7 @@ function handleSessionCreated(context: FlowChatContext, event: any): void {
 }
 
 interface ExternalSessionWorkspace {
-  /** Owning workspace ID; the identity every projection is keyed by. */
+  /** Execution workspace ID used by runtime and file operations. */
   workspaceId?: string;
   /** Execution root of the session; an IO operand, never identity. */
   workspacePath?: string;
@@ -2913,23 +2926,59 @@ function buildBuiltInBrowserTabOptions(
   };
 }
 
-function handleOpenBuiltInBrowser(event: OpenBuiltInBrowserEvent): void {
-  // These are native pages on the executing Desktop. A peer's target id must
-  // never be treated as a controller-local WebView (even if labels collide).
-  if (getActiveSurfaceScope().surfaceId !== 'local') return;
+async function handleOpenBuiltInBrowser(event: OpenBuiltInBrowserEvent): Promise<void> {
+  // Only the executing Desktop may prepare a native page. A peer's target id is
+  // recorded as a view, but must never be treated as a controller-local WebView
+  // (even if labels collide): creating one would point the controller at a page
+  // the peer actually owns.
   const options = buildBuiltInBrowserTabOptions(event);
   if (!options) {
     log.warn('OpenBuiltInBrowser missing url', { event });
     return;
   }
+  const surface = getActiveSurfaceScope();
+  // A peer's page belongs to that host. Record the view only when the host has
+  // already identified the exact page it owns; never mint or adopt a label into
+  // a controller-local WebView from a peer event.
+  if (!isLocalSurface(surface.surfaceId) && options.data.adoptExisting !== true) return;
+  const scope = captureContentScope(options.data);
+  const ownerSessionId = options.data.ownerSessionId;
+  const ownerIsPresented = () => {
+    if (!ownerSessionId) return false;
+    const scenes = useSceneStore.getState();
+    return !scenes.pendingTabId
+      && scenes.openTabs.find(tab => tab.id === scenes.activeTabId)?.session?.sessionId === ownerSessionId
+      && FlowChatStore.getInstance().getState().activeSessionId === ownerSessionId;
+  };
+  // Hidden session tabs do not mount a browser viewport. Prepare the native
+  // page independently so the Agent can continue without navigating the UI.
+  if (!ownerIsPresented() && !options.data.adoptExisting && isTauriRuntime() && isLocalSurface(surface.surfaceId)) {
+    const label = createBrowserWebviewLabel('embedded-browser-panel-view');
+    let page: Awaited<ReturnType<typeof createBrowserWebview>>;
+    try {
+      page = await createBrowserWebview(label, options.data.url,
+        { left: 0, top: 0, width: 1280, height: 720 }, options.data.openRequestId);
+    } catch (error) {
+      await api.invoke('browser_webview_close', { request: { label } }).catch(() => {});
+      throw error;
+    }
+    if (!surface.isCurrent()) {
+      await page.close();
+      return;
+    }
+    options.data = { ...options.data, webviewLabel: label, adoptExisting: true };
+  }
+  if (!surface.isCurrent()) return;
+  // Commit a session-owned page to that session's suspended canvas, so a hidden
+  // owner keeps its browser target and the visible canvas is not hijacked.
   if (event.sessionId) {
     openAgentCanvasTabForSession(event.sessionId, {
       type: 'browser', title: options.title, data: options.data, metadata: options.metadata,
     });
-    workbenchPaneLayoutStore.getState().showContentForSession('local', event.sessionId);
-  } else {
-    createTab(options);
+    workbenchPaneLayoutStore.getState().showContentForSession(surface.surfaceId, event.sessionId);
+    return;
   }
+  createTab({ ...options, scope, focus: ownerIsPresented(), isCurrent: surface.isCurrent });
 }
 
 export function handleDialogTurnComplete(

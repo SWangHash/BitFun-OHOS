@@ -24,7 +24,7 @@ describe('text selection settings persistence', () => {
   beforeEach(() => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
     activateSurface('local');
-    mocks.get.mockReset().mockResolvedValue(undefined);
+    mocks.get.mockReset().mockResolvedValue(true);
     mocks.set.mockReset().mockImplementation(async (_path: string, value: boolean) => {
       mocks.get.mockResolvedValue(value);
       mocks.listeners.forEach(listener => listener());
@@ -53,6 +53,15 @@ describe('text selection settings persistence', () => {
     expect(toggle().checked).toBe(true);
     expect(mocks.error).toHaveBeenCalledWith('textSelection.saveFailed');
     expect(toggle().disabled).toBe(false);
+  });
+
+  it('retains the enabled behavior on an older host without offering an unsupported save', async () => {
+    mocks.get.mockResolvedValue(undefined);
+    await act(async () => root.render(<TextSelectionSettingsSection />));
+    expect(toggle().checked).toBe(true);
+    expect(toggle().disabled).toBe(true);
+    expect(container.textContent).toContain('textSelection.unsupported');
+    expect(mocks.set).not.toHaveBeenCalled();
   });
 
   it('shows a retry state on load failure and keeps the switch unavailable until recovery', async () => {

@@ -11,6 +11,7 @@ import {
   type PeerDeviceCommandResponse,
 } from "@/infrastructure/api/adapters/peer-device-adapter";
 import { i18nService } from "@/infrastructure/i18n";
+import { notificationService } from "@/shared/notification-system";
 import { isRemoteWorkspace, type WorkspaceInfo } from "@/shared/types";
 import { isFilePermissionError } from "@/shared/utils/fsErrorUtils";
 import {
@@ -973,7 +974,12 @@ export async function pasteClipboardFilesToWorkspaceDirectory(
   onProgress: (state: TransferProgressState | null) => void,
   transferId?: string,
 ): Promise<WorkspaceTransferResult> {
-  const { files, isCut } = await workspaceAPI.getClipboardFiles();
+  const { files, isCut, errors } = await workspaceAPI.getClipboardFiles();
+  // A skipped candidate (e.g. a folder URI the engine cannot expand) would
+  // otherwise read as "clipboard empty" with no explanation (issue #473).
+  for (const readError of errors ?? []) {
+    notificationService.warning(readError, { duration: 8000 });
+  }
   return uploadLocalPathsToWorkspaceDirectory(
     files,
     targetDirectory,

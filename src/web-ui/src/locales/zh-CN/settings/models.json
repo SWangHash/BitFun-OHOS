@@ -648,6 +648,7 @@
     "cloneName": "{{name}} - 副本",
     "templateName": "{{provider}} - {{modelName}}",
     "templateDescription": "{{description}} - {{modelName}}",
+    "configConflict": "模型设置已在其他窗口中修改。请重新打开编辑器，载入最新配置。",
     "configChanged": "模型配置已在其他地方更改，当前草稿已保留。请刷新模型设置并重新打开编辑器后再保存。",
     "providerRemoved": "此服务已被移除，请关闭编辑器后重新打开模型设置。"
   },
@@ -725,6 +726,12 @@
       "mergeHint": "自定义字段将覆盖默认请求体中的对应字段"
     },
     "description": "用于适配服务的特殊请求与响应要求；不确定时保留默认值"
+  },
+  "library": {
+    "title": "模型库",
+    "search": "搜索模型",
+    "tags": "标签",
+    "editConnection": "编辑连接"
   },
   "modelEditorTitle": "{{model}} · {{provider}}",
   "promptSuggestion": {

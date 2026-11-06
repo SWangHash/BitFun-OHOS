@@ -49,3 +49,14 @@
     background: var(--bitfun-color-field-background-hover);
   }
 }
+
+@layer bitfun.components {
+  /* Filled fields keep standard borders over the grouped-field background. */
+  .root[data-field-surface="filled"] .textarea {
+    background: var(--bitfun-color-field-group-background);
+  }
+
+  .root[data-field-surface="filled"] .textarea:hover:not(:disabled) {
+    background: var(--bitfun-color-field-background-hover);
+  }
+}

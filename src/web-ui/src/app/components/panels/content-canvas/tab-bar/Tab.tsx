@@ -3,7 +3,7 @@
  * Supports preview/active/pinned tab states.
  */
 
-import React, { useCallback, useContext } from 'react';
+import React, { useCallback, useContext, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { commandExecutor } from '@/shared/context-menu-system/commands/CommandExecutor';
@@ -120,7 +120,33 @@ export const Tab: React.FC<TabProps> = ({
   }, [onDoubleClick]);
 
   // Handle drag start
+  const dragImageRef = useRef<HTMLDivElement | null>(null);
+  // Hovering the end action (close/pin) suppresses the wrapping path tooltip
+  // so only the close button's own tooltip is visible (issue #465).
+  const [suppressPathTooltip, setSuppressPathTooltip] = useState(false);
+  const handleTooltipScopeMouseOver = useCallback((event: React.MouseEvent) => {
+    const target = event.target instanceof Element ? event.target : null;
+    setSuppressPathTooltip(Boolean(target?.closest('[data-bitfun-product-part="action"]')));
+  }, []);
   const handleDragStart = useCallback((e: React.DragEvent) => {
+    // Themed drag image: the default element snapshot loses themed CSS
+    // variables on some webviews and paints an unstyled white block
+    // (issue #409).
+    const dragImage = document.createElement('div');
+    dragImage.textContent = tab.title;
+    dragImage.style.position = 'absolute';
+    dragImage.style.top = '-1000px';
+    dragImage.style.padding = '6px 10px';
+    dragImage.style.background = 'var(--bitfun-color-surface-raised)';
+    dragImage.style.color = 'var(--bitfun-color-content-primary)';
+    dragImage.style.borderRadius = '6px';
+    document.body.appendChild(dragImage);
+    dragImageRef.current = dragImage;
+    // Older webviews and non-browser drag fixtures may not implement the
+    // custom drag image API; the element snapshot remains a valid fallback.
+    if (typeof e.dataTransfer.setDragImage === 'function') {
+      e.dataTransfer.setDragImage(dragImage, 0, 0);
+    }
     e.dataTransfer.setData('application/json', JSON.stringify({
       tabId: tab.id,
       sourceGroupId: groupId,
@@ -128,7 +154,15 @@ export const Tab: React.FC<TabProps> = ({
     e.dataTransfer.effectAllowed = 'move';
     if (onPopOut && mode === 'agent') writeSessionTabDrag(e.dataTransfer, tab.id, groupId);
     onDragStart(e);
-  }, [tab.id, groupId, onDragStart, onPopOut, mode]);
+  }, [tab.id, tab.title, groupId, onDragStart, onPopOut, mode]);
+
+  const handleDragEndCleanup = useCallback(() => {
+    if (dragImageRef.current && document.body.contains(dragImageRef.current)) {
+      document.body.removeChild(dragImageRef.current);
+      dragImageRef.current = null;
+    }
+    onDragEnd();
+  }, [onDragEnd]);
 
   const runCommand = useCallback((commandId: string, context: TabContext) => {
     void commandExecutor.execute(commandId, context);
@@ -326,9 +360,10 @@ export const Tab: React.FC<TabProps> = ({
   ].filter(Boolean).join(' ');
 
   return (
-    <Tooltip content={tooltipText} placement="bottom">
+    <Tooltip content={tooltipText} placement="bottom" disabled={suppressPathTooltip}>
       <div data-bitfun-product-component="canvas-tab" data-bitfun-product-part="root" data-bitfun-group={groupId}
         data-overflow-trigger
+        onMouseOver={handleTooltipScopeMouseOver}
         data-bitfun-state={[
           isActive && 'active',
           isDragging && 'dragging',
@@ -358,7 +393,7 @@ export const Tab: React.FC<TabProps> = ({
         }}
         draggable
         onDragStart={handleDragStart}
-        onDragEnd={onDragEnd}
+        onDragEnd={handleDragEndCleanup}
       >
         {children}
       </div>

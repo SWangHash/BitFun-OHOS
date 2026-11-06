@@ -25,7 +25,7 @@ import NotificationButton from '../../TitleBar/NotificationButton';
 import { RemoteConnectDisclaimer } from '../../RemoteConnectDialog/RemoteConnectDisclaimer';
 import { usePrivacy } from '../../Privacy/PrivacyContext';
 import {
-  hasActionableUnreadReply,
+  needsFeedbackInboxAttention,
   useFeedbackInboxStore,
 } from '../../FeedbackDialog/feedbackInboxStore';
 import {
@@ -59,13 +59,13 @@ const PersistentFooterActions: React.FC = () => {
   const { enableToolbarMode } = useToolbarModeContext();
   const { status: privacyStatus } = usePrivacy();
   const initializeFeedbackForMode = useFeedbackInboxStore(state => state.initializeForMode);
-  const hasUnreadFeedback = useFeedbackInboxStore(state =>
-    state.records.some(hasActionableUnreadReply),
+  const hasFeedbackAttention = useFeedbackInboxStore(state =>
+    state.records.some(needsFeedbackInboxAttention),
   );
   const hasPrivacyUpdate = Boolean(
     privacyStatus?.enabled && privacyStatus.hasUnreadUpdate,
   );
-  const hasMoreMenuAttention = hasUnreadFeedback || hasPrivacyUpdate;
+  const hasMoreMenuAttention = hasFeedbackAttention || hasPrivacyUpdate;
   const accountIdentity = useAccountIdentity();
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuClosing, setMenuClosing] = useState(false);
@@ -362,12 +362,12 @@ const PersistentFooterActions: React.FC = () => {
                   </MenuItem>
                   <MenuItem
                     leading={<Icon name="waitlist-message" size="sm" aria-hidden="true" />}
-                    metadata={hasUnreadFeedback ? (
+                    metadata={hasFeedbackAttention ? (
                       <span className="bitfun-nav-panel__footer-menu-unread" aria-hidden="true" />
                     ) : undefined}
                     onClick={() => void handleFeedback()}
-                    aria-label={hasUnreadFeedback
-                      ? t('feedback.inbox.entryUnread')
+                    aria-label={hasFeedbackAttention
+                      ? t('feedback.inbox.entryAttention')
                       : t('header.feedback')}
                     data-testid="nav-footer-feedback-item"
                   >

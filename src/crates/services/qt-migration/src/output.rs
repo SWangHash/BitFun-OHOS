@@ -4,11 +4,9 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::detect::is_qt_source_project;
 use crate::scan::{
-    dedup_paths, is_migration_artifact_location, is_noise_dir, is_qt_harmonyos_template,
-    normalize_workspace_candidate, path_key, MAX_OUTPUT_PROJECTS, MAX_PROBE_DEPTH,
-    TEMPLATE_MARKER_DIR,
+    dedup_paths, is_migration_artifact_location, is_noise_dir, is_qt_harmonyos_template, path_key,
+    MAX_OUTPUT_PROJECTS, MAX_PROBE_DEPTH, TEMPLATE_MARKER_DIR,
 };
 
 pub fn merge_workspace_output_candidates(
@@ -16,12 +14,14 @@ pub fn merge_workspace_output_candidates(
     model_candidates: &[String],
     source_candidates: &[String],
     workspace_output_candidates: &[String],
+    prompt_paths: &[String],
 ) -> Vec<String> {
     merge_output_candidates(
         workspace,
         model_candidates,
         source_candidates,
         workspace_output_candidates,
+        prompt_paths,
     )
 }
 
@@ -30,6 +30,7 @@ pub(crate) fn merge_output_candidates(
     model_candidates: &[String],
     source_candidates: &[String],
     workspace_output_candidates: &[String],
+    prompt_paths: &[String],
 ) -> Vec<String> {
     let mut ranked: Vec<(u8, String)> = Vec::new();
     // Prompt-named candidates rank first (explicit user intent); only real
@@ -38,15 +39,13 @@ pub(crate) fn merge_output_candidates(
     // The check also rejects an official template dir as an output target,
     // which is equally unintended by the workflow.
     for candidate in model_candidates {
-        let Some(path) = normalize_workspace_candidate(workspace, candidate) else {
+        let origin = crate::candidates::origin(Some(workspace), candidate, prompt_paths);
+        let Some(admitted) =
+            crate::candidates::admit("output_project", Some(workspace), candidate, origin, None)
+        else {
             continue;
         };
-        if path.is_dir()
-            && !is_migration_artifact_location(&path)
-            && !is_inside_migrated_harmony_project(&path)
-        {
-            ranked.push((0, path.to_string_lossy().into_owned()));
-        }
+        ranked.push((0, admitted));
     }
     for path in workspace_output_candidates {
         ranked.push((1, path.clone()));
@@ -66,7 +65,7 @@ pub(crate) fn merge_output_candidates(
             .then_with(|| path_key(Path::new(&a.1)).cmp(&path_key(Path::new(&b.1))))
     });
     let mut candidates = ranked.into_iter().map(|(_, p)| p).collect::<Vec<_>>();
-    candidates = filter_output_candidates(candidates, source_candidates);
+    candidates = filter_output_candidates(candidates, source_candidates, workspace);
     dedup_paths(&mut candidates);
     // The workspace root is the alternate the card promises, so the cap must not
     // drop it: give it its own slot and let a probed container go instead. It is
@@ -93,15 +92,23 @@ pub(crate) fn merge_output_candidates(
 pub fn filter_output_candidates(
     candidates: Vec<String>,
     source_candidates: &[String],
+    workspace: &Path,
 ) -> Vec<String> {
+    let workspace_key = path_key(workspace);
     candidates
         .into_iter()
         .filter(|candidate| {
             let path = Path::new(candidate);
-            !is_qt_source_project(path)
-                && !source_candidates
-                    .iter()
-                    .any(|source| path_key(Path::new(source)) == path_key(path))
+            let named_as_source = source_candidates
+                .iter()
+                .any(|source| path_key(Path::new(source)) == path_key(path));
+            if !named_as_source {
+                return true;
+            }
+            // Source and output may both be the current workspace: the migrated
+            // project lands in its `<app-name>-ohos` subdirectory, so nothing is
+            // overwritten.
+            path_key(path) == workspace_key
         })
         .collect()
 }

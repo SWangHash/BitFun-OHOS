@@ -27,20 +27,8 @@ vi.mock('@/infrastructure/appearance/runtime/AppearanceOverlayHost', () => ({
 
 vi.mock('@/infrastructure/i18n', () => ({
   useI18n: () => ({
-    t: (key: string, options?: Record<string, string>) => {
+    t: (key: string) => {
       const labels: Record<string, string> = {
-        'quickSwitch.conflict.cancel': 'Cancel',
-        'quickSwitch.conflict.commitAction': 'Commit and switch',
-        'quickSwitch.conflict.commitAndSwitch': 'Commit and switch branch…',
-        'quickSwitch.conflict.commitDescription': `Commit all changes before ${options?.branch ?? ''}`,
-        'quickSwitch.conflict.commitMessageLabel': 'Commit message',
-        'quickSwitch.conflict.commitMessagePlaceholder': 'Enter commit message...',
-        'quickSwitch.conflict.commitTitle': `Commit and switch to ${options?.branch ?? ''}`,
-        'quickSwitch.conflict.description': 'These files would be overwritten:',
-        'quickSwitch.conflict.instruction': 'Please commit to continue.',
-        'quickSwitch.conflict.retryFailed': `Retry failed: ${options?.error ?? ''}`,
-        'quickSwitch.conflict.retrySwitchAction': 'Retry switch',
-        'quickSwitch.conflict.title': 'Commit changes to switch branch',
         'quickSwitch.menuLabel': 'Switch branch',
         'quickSwitch.refresh': 'Refresh branches',
         'quickSwitch.searchLabel': 'Search branches',
@@ -127,7 +115,7 @@ describe('BranchQuickSwitch', () => {
     root = createRoot(container);
 
     vi.clearAllMocks();
-    mocks.getState.mockReturnValue({ branches, staged: [], unstaged: [], untracked: [], conflicts: [] });
+    mocks.getState.mockReturnValue({ branches });
     mocks.getBranches.mockResolvedValue(branches);
     mocks.getDiff.mockResolvedValue('');
     mocks.addFiles.mockResolvedValue({ success: true });
@@ -140,7 +128,7 @@ describe('BranchQuickSwitch', () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
-    document.querySelectorAll('[data-testid="branch-quick-switch"], [data-testid="branch-switch-conflict-dialog"], [data-testid="branch-switch-commit-dialog"]')
+    document.querySelectorAll('[data-testid="branch-quick-switch"]')
       .forEach(node => node.remove());
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
@@ -509,176 +497,80 @@ describe('BranchQuickSwitch', () => {
     });
   });
 
-  it('checks out a selected branch and publishes the shared branch-change event', async () => {
+  it.each([
+    { selected: 'feature', checkedOut: 'feature', data: undefined },
+    { selected: 'origin/feature', checkedOut: 'feature', data: { branch: 'feature' } },
+  ])('publishes the checked-out branch after selecting $selected', async ({ selected, checkedOut, data }) => {
     const onSwitchSuccess = vi.fn();
-    mocks.checkoutBranch.mockResolvedValue({ success: true });
+    mocks.getState.mockReturnValue({
+      branches: [branches[0], { ...branches[1], name: selected, remote: selected.startsWith('origin/') }],
+    });
+    mocks.checkoutBranch.mockResolvedValue({ success: true, data });
 
     await act(async () => {
       root.render(<Harness onSwitchSuccess={onSwitchSuccess} />);
     });
     await vi.waitFor(() => expect(
-      document.querySelector('[data-testid="branch-quick-switch-option-feature"]'),
+      document.querySelector(`[data-testid="branch-quick-switch-option-${selected}"]`),
     ).not.toBeNull());
 
     await act(async () => {
       document.querySelector<HTMLButtonElement>(
-        '[data-testid="branch-quick-switch-option-feature"]',
+        `[data-testid="branch-quick-switch-option-${selected}"]`,
       )?.click();
     });
 
-    expect(mocks.checkoutBranch).toHaveBeenCalledWith({ workspaceId: 'workspace-1' }, 'feature');
+    expect(mocks.checkoutBranch).toHaveBeenCalledWith({ workspaceId: 'workspace-1' }, selected);
     expect(mocks.emit).toHaveBeenCalledWith('branch:changed', expect.objectContaining({
       repositoryPath: { workspaceId: 'workspace-1' },
-      branch: expect.objectContaining({ name: 'feature', current: true }),
+      branch: expect.objectContaining({ name: checkedOut, current: true }),
     }));
-    expect(onSwitchSuccess).toHaveBeenCalledWith('feature');
+    expect(onSwitchSuccess).toHaveBeenCalledWith(checkedOut);
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 250));
+    });
     expect(document.querySelector('[data-testid="branch-quick-switch"]')).toBeNull();
   });
 
-  it('shows the blocking files, then commits and retries the intended switch', async () => {
+  it.each([
+    {
+      reason: 'diverged history',
+      error: 'git_branch_diverged: Local and remote branch have diverged',
+      expectedMessage: 'quickSwitch.errors.diverged',
+    },
+    {
+      reason: 'blocking local changes',
+      error: 'error: Your local changes to the following files would be overwritten by checkout:',
+      expectedMessage: 'quickSwitch.errors.localChanges',
+    },
+  ])('keeps the current branch and only notifies on $reason', async ({ error, expectedMessage }) => {
     const onSwitchSuccess = vi.fn();
-    mocks.checkoutBranch
-      .mockResolvedValueOnce({
-        success: false,
-        error: [
-          'error: Your local changes to the following files would be overwritten by checkout:',
-          '\tSECURITY.md',
-          'Please commit your changes or stash them before you switch branches.',
-          'Aborting',
-        ].join('\n'),
-      })
-      .mockResolvedValueOnce({ success: true });
-    mocks.getDiff
-      .mockResolvedValueOnce([
-        'diff --git a/SECURITY.md b/SECURITY.md',
-        '--- a/SECURITY.md',
-        '+++ b/SECURITY.md',
-        '@@ -1 +1 @@',
-        '-old',
-        '+new',
-      ].join('\n'))
-      .mockResolvedValueOnce('');
+    mocks.checkoutBranch.mockResolvedValue({ success: false, error });
 
     await act(async () => {
       root.render(<Harness onSwitchSuccess={onSwitchSuccess} />);
     });
-    await vi.waitFor(() => expect(
-      document.querySelector('[data-testid="branch-quick-switch-option-feature"]'),
-    ).not.toBeNull());
-
     await act(async () => {
       document.querySelector<HTMLButtonElement>(
         '[data-testid="branch-quick-switch-option-feature"]',
       )?.click();
     });
 
-    await vi.waitFor(() => {
-      const dialog = document.querySelector('[data-testid="branch-switch-conflict-dialog"]');
-      expect(dialog?.textContent).toContain('SECURITY.md');
-      expect(dialog?.textContent).toContain('+1');
-      expect(dialog?.textContent).toContain('−1');
-    });
-
-    await act(async () => {
-      document.querySelector<HTMLButtonElement>('[data-testid="branch-switch-conflict-confirm"]')?.click();
-    });
-    expect(document.querySelector('[data-testid="branch-switch-commit-dialog"]')).not.toBeNull();
-
-    const messageInput = document.querySelector<HTMLInputElement>('input[aria-label="Commit message"]');
-    await act(async () => {
-      if (messageInput) {
-        const valueSetter = Object.getOwnPropertyDescriptor(
-          HTMLInputElement.prototype,
-          'value',
-        )?.set;
-        valueSetter?.call(messageInput, 'Save work before branch switch');
-        messageInput.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-    });
-
-    await act(async () => {
-      document.querySelector<HTMLButtonElement>(
-        '[data-testid="branch-switch-commit-confirm"]',
-      )?.click();
-    });
-
-    expect(mocks.addFiles).toHaveBeenCalledWith({ workspaceId: 'workspace-1' }, { files: [], all: true });
-    expect(mocks.commit).toHaveBeenCalledWith({ workspaceId: 'workspace-1' }, {
-      message: 'Save work before branch switch',
-    });
-    expect(mocks.checkoutBranch).toHaveBeenCalledTimes(2);
-    expect(mocks.checkoutBranch).toHaveBeenLastCalledWith({ workspaceId: 'workspace-1' }, 'feature');
-    expect(onSwitchSuccess).toHaveBeenCalledWith('feature');
-    expect(document.querySelector('[data-testid="branch-switch-commit-dialog"]')).toBeNull();
-  });
-
-  it('retries checkout without creating a duplicate commit', async () => {
-    const onSwitchSuccess = vi.fn();
-    mocks.checkoutBranch
-      .mockResolvedValueOnce({
-        success: false,
-        error: [
-          'error: Your local changes to the following files would be overwritten by checkout:',
-          '\tSECURITY.md',
-          'Please commit your changes or stash them before you switch branches.',
-          'Aborting',
-        ].join('\n'),
-      })
-      .mockResolvedValueOnce({ success: false, error: 'remote temporarily unavailable' })
-      .mockResolvedValueOnce({ success: true });
-
-    await act(async () => {
-      root.render(<Harness onSwitchSuccess={onSwitchSuccess} />);
-    });
-    await vi.waitFor(() => expect(
-      document.querySelector('[data-testid="branch-quick-switch-option-feature"]'),
-    ).not.toBeNull());
-
-    await act(async () => {
-      document.querySelector<HTMLButtonElement>(
-        '[data-testid="branch-quick-switch-option-feature"]',
-      )?.click();
-    });
-    await vi.waitFor(() => expect(
-      document.querySelector('[data-testid="branch-switch-conflict-dialog"]'),
-    ).not.toBeNull());
-    await act(async () => {
-      document.querySelector<HTMLButtonElement>(
-        '[data-testid="branch-switch-conflict-confirm"]',
-      )?.click();
-    });
-
-    const messageInput = document.querySelector<HTMLInputElement>('input[aria-label="Commit message"]');
-    await act(async () => {
-      if (messageInput) {
-        const valueSetter = Object.getOwnPropertyDescriptor(
-          HTMLInputElement.prototype,
-          'value',
-        )?.set;
-        valueSetter?.call(messageInput, 'Checkpoint before retry');
-        messageInput.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-    });
-    await act(async () => {
-      document.querySelector<HTMLButtonElement>(
-        '[data-testid="branch-switch-commit-confirm"]',
-      )?.click();
-    });
-
-    await vi.waitFor(() => expect(mocks.checkoutBranch).toHaveBeenCalledTimes(2));
-    expect(mocks.commit).toHaveBeenCalledTimes(1);
-    expect(document.querySelector('[data-testid="branch-switch-commit-dialog"]')).not.toBeNull();
-    expect(document.querySelector('[role="alert"]')?.textContent)
-      .toContain('remote temporarily unavailable');
-
-    await act(async () => {
-      document.querySelector<HTMLButtonElement>(
-        '[data-testid="branch-switch-commit-confirm"]',
-      )?.click();
-    });
-
-    await vi.waitFor(() => expect(mocks.checkoutBranch).toHaveBeenCalledTimes(3));
-    expect(mocks.commit).toHaveBeenCalledTimes(1);
-    expect(onSwitchSuccess).toHaveBeenCalledWith('feature');
+    expect(mocks.checkoutBranch).toHaveBeenCalledTimes(1);
+    expect(mocks.notificationError).toHaveBeenCalledExactlyOnceWith(
+      expectedMessage,
+      expect.objectContaining({ title: 'quickSwitch.errors.title' }),
+    );
+    expect(document.querySelector('[data-testid="branch-quick-switch-option-main"]')
+      ?.getAttribute('aria-selected')).toBe('true');
+    // The picker stays open; checkout failure adds no confirmation dialog.
+    expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
+    expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+    expect(mocks.addFiles).not.toHaveBeenCalled();
+    expect(mocks.commit).not.toHaveBeenCalled();
+    expect(mocks.getDiff).not.toHaveBeenCalled();
+    expect(mocks.emit).not.toHaveBeenCalled();
+    expect(mocks.notificationSuccess).not.toHaveBeenCalled();
+    expect(onSwitchSuccess).not.toHaveBeenCalled();
   });
 });

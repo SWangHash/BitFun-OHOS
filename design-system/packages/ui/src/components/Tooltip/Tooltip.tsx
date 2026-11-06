@@ -461,9 +461,11 @@ export function Tooltip({
     const element = externalTriggerRef?.current;
     if (!element) return;
     const onEnter = (event: MouseEvent) => {
+      if (suppressUntilLeaveRef.current) return;
       if (trigger === "hover" || trigger === "hover-focus") showTooltip(event);
     };
     const onLeave = (event: MouseEvent) => {
+      suppressUntilLeaveRef.current = false;
       // React can deliver the portal's mouse-enter before this native
       // mouse-leave; that transition keeps the tooltip open.
       if (keepsPointerInside(event)) return;
@@ -471,23 +473,40 @@ export function Tooltip({
       if (trigger === "hover" || trigger === "hover-focus") hideTooltip();
     };
     const onFocus = () => {
-      if (trigger === "focus" || trigger === "hover-focus") showTooltip();
+      if (!suppressUntilLeaveRef.current && (trigger === "focus" || trigger === "hover-focus")) showTooltip();
     };
     const onBlur = (event: FocusEvent) => {
       if (event.relatedTarget && element.contains(event.relatedTarget as Node)) return;
       if (!clickOpenRef.current && (trigger === "focus" || trigger === "hover-focus")) hideTooltip();
+    };
+    const onPointerDown = () => {
+      // Right-click (or any press) must dismiss the tooltip so it cannot sit
+      // over the context menu that the press opens (issue #465). The press
+      // also arms the no-re-show latch: a pressed trigger gains DOM focus,
+      // and without the latch the delegated focus/activation paths instantly
+      // re-show the tooltip (warm window makes it a visible flash) and the
+      // hover-focus retention guard then keeps it open until focus leaves.
+      // The React path arms the same latch on pointerdown.
+      if (showTimeoutRef.current) {
+        clearTimeout(showTimeoutRef.current);
+        showTimeoutRef.current = null;
+      }
+      if (visible) hideTooltip();
+      suppressUntilLeaveRef.current = true;
     };
     element.addEventListener("mouseenter", onEnter);
     element.addEventListener("mouseleave", onLeave);
     element.addEventListener("focusin", onFocus);
     element.addEventListener("focusout", onBlur);
     element.addEventListener("click", toggleFromClick);
+    element.addEventListener("mousedown", onPointerDown);
     return () => {
       element.removeEventListener("mouseenter", onEnter);
       element.removeEventListener("mouseleave", onLeave);
       element.removeEventListener("focusin", onFocus);
       element.removeEventListener("focusout", onBlur);
       element.removeEventListener("click", toggleFromClick);
+      element.removeEventListener("mousedown", onPointerDown);
     };
   }, [externalTriggerRef, hideTooltip, interactive, showTooltip, toggleFromClick, trigger]);
 
@@ -499,8 +518,14 @@ export function Tooltip({
       && element?.contains(element.ownerDocument.activeElement)));
     if (activated === activationRef.current) return;
     activationRef.current = activated;
-    if (activated) showTooltip();
-    else hideTooltip();
+    if (activated) {
+      // A press suppressed the tooltip until the pointer leaves; the focus
+      // containment that a press produces must not re-show it (issue #465).
+      if (suppressUntilLeaveRef.current) return;
+      showTooltip();
+    } else {
+      hideTooltip();
+    }
   }, [active, disabled, externalTriggerRef, hideTooltip, showTooltip, triggerRef]);
 
   useEffect(() => {
@@ -526,11 +551,16 @@ export function Tooltip({
   }, [childRef]);
 
   const handleMouseEnter = (event: ReactMouseEvent) => {
+    if (suppressUntilLeaveRef.current) {
+      (childProps.onMouseEnter as ((event: ReactMouseEvent) => void) | undefined)?.(event);
+      return;
+    }
     if (trigger === "hover" || trigger === "hover-focus") showTooltip(event);
     (childProps.onMouseEnter as ((event: ReactMouseEvent) => void) | undefined)?.(event);
   };
 
   const handleMouseLeave = (event: ReactMouseEvent) => {
+    suppressUntilLeaveRef.current = false;
     if (trigger === "hover" || (trigger === "hover-focus" && !event.currentTarget.contains(event.currentTarget.ownerDocument.activeElement))) {
       // Hiding is immediate: a tooltip that outlives the pointer sits over
       // whatever the user moved on to.
@@ -552,8 +582,25 @@ export function Tooltip({
     (childProps.onClick as ((event: ReactMouseEvent) => void) | undefined)?.(event);
   };
 
+  // Any pointer-down interaction dismisses the tooltip immediately — a
+  // right-click opens a context menu on the trigger, and a tooltip that
+  // outlives the press sits over that menu (issue #465). The dismissal stays
+  // effective until the pointer leaves the trigger: focus/enter must not
+  // re-show the tooltip right after the press (issue #465 main tab bar).
+  const suppressUntilLeaveRef = useRef(false);
+  const handlePointerDownDismiss = () => {
+    if (showTimeoutRef.current) {
+      clearTimeout(showTimeoutRef.current);
+      showTimeoutRef.current = null;
+    }
+    suppressUntilLeaveRef.current = true;
+    if (visible) {
+      hideTooltip();
+    }
+  };
+
   const handleFocus = (event: ReactFocusEvent) => {
-    if (trigger === "focus" || trigger === "hover-focus") showTooltip();
+    if (!suppressUntilLeaveRef.current && (trigger === "focus" || trigger === "hover-focus")) showTooltip();
     (childProps.onFocus as ((event: ReactFocusEvent) => void) | undefined)?.(event);
   };
 
@@ -589,6 +636,7 @@ export function Tooltip({
     onMouseEnter: handleMouseEnter,
     onMouseLeave: handleMouseLeave,
     onMouseMove: followCursor ? handleMouseMove : childProps.onMouseMove,
+    onMouseDown: handlePointerDownDismiss,
     onClick: handleClick,
     onFocus: handleFocus,
     onBlur: handleBlur,

@@ -181,7 +181,7 @@ function createErrorClassifier(t: (key: string, options?: any) => any) {
   };
 }
 
-const McpToolsConfig: React.FC = () => {
+const McpToolsConfig: React.FC<{ isActive?: boolean }> = ({ isActive = true }) => {
   const { t: tPage } = useTranslation('settings/mcp-tools');
   const { t: tMcp } = useTranslation('settings/mcp');
 
@@ -507,19 +507,18 @@ const McpToolsConfig: React.FC = () => {
   }, [desktopConfigAvailable, jsonDirty, serverEditor, loadJsonConfig, loadServers]);
 
   useEffect(() => {
-    if (!desktopConfigAvailable || mcpLoading) return;
+    if (!desktopConfigAvailable || !isActive || showJsonEditor || mcpLoading || servers.length === 0) return;
     const hasPendingAutoStart = servers.some((server) => {
       if (!server.enabled || !server.autoStart) return false;
       const status = server.status.trim().toLowerCase();
       return ['uninitialized', 'starting', 'reconnecting', 'failed', 'stopping'].includes(status);
     });
-    if (!hasPendingAutoStart) return;
-
+    // Observe background changes to existing cards without changing server lifecycle.
     const timer = window.setTimeout(() => {
       void loadServers();
-    }, 1000);
+    }, hasPendingAutoStart ? 1000 : 2000);
     return () => window.clearTimeout(timer);
-  }, [desktopConfigAvailable, loadServers, mcpLoading, servers]);
+  }, [desktopConfigAvailable, isActive, showJsonEditor, loadServers, mcpLoading, servers]);
 
   useEffect(() => {
     return () => {
@@ -643,16 +642,6 @@ const McpToolsConfig: React.FC = () => {
         title: errorInfo.title,
         duration: errorInfo.duration,
       });
-      // If the backend reports the config changed (StaleConfiguration), silently
-      // reload the JSON snapshot so the next Save attempt uses the fresh fingerprint.
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      if (
-        errorMessage.includes('reload before saving') ||
-        errorMessage.includes('changed before write') ||
-        errorMessage.includes('StaleConfiguration')
-      ) {
-        void loadJsonConfig();
-      }
       return false;
     } finally {
       mcpSavingRef.current = false;
@@ -830,10 +819,15 @@ const McpToolsConfig: React.FC = () => {
       return;
     }
 
-    // Always attempt a direct connection first: the backend surfaces a 401
-    // for servers that actually need OAuth, and the catch block below falls
-    // back to the OAuth flow. Pre-emptively intercepting here dead-locked
-    // services that don't need OAuth (issue #403).
+    // OAuth-enabled remote servers cannot complete an MCP handshake before the
+    // first authorization. Enter OAuth directly instead of surfacing the
+    // provider's expected 401 challenge as a server-start failure.
+    if (isRemoteServer(server) && server.oauthEnabled === true && server.authConfigured === false) {
+      if (serverLifecycleActionsRef.current.has(server.id)) return;
+      handleOpenAuthDialog(server, false);
+      void startRemoteOAuthFlow(server);
+      return;
+    }
 
     const serverId = server.id;
     let shouldStartOAuth = false;
@@ -910,8 +904,12 @@ const McpToolsConfig: React.FC = () => {
       return;
     }
 
-    // Same rationale as handleStartServer: connect first, fall back to
-    // OAuth on 401 (issue #403).
+    if (isRemoteServer(server) && server.oauthEnabled === true && server.authConfigured === false) {
+      if (serverLifecycleActionsRef.current.has(server.id)) return;
+      handleOpenAuthDialog(server, false);
+      void startRemoteOAuthFlow(server);
+      return;
+    }
 
     const serverId = server.id;
     let shouldStartOAuth = false;

@@ -3858,9 +3858,10 @@ impl ExecutionEngine {
                         all_bound,
                     );
                     info!(
-                    "QtMigration intake gate: app_migration request (turn={}, missing_or_referenced_fields={})",
+                    "QtMigration intake gate: app_migration request (turn={}, missing_or_referenced_fields={}, pending_fields={})",
                     dialog_turn_id,
-                    facts["missing_or_referenced"].as_bool().unwrap_or(false)
+                    facts["missing_or_referenced"].as_bool().unwrap_or(false),
+                    facts["pending_fields"].as_str().unwrap_or("")
                 );
                     context.context.insert(
                         bitfun_qt_migration::instructions::CTX_QT_MIGRATION_INSTRUCTION_FACTS

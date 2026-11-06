@@ -43,6 +43,7 @@ import type {
   SessionPermissionMode,
 } from '@/infrastructure/api/service-api/AgentAPI';
 import type { PendingLargePasteMap } from '../store/sessionComposerStore';
+import { resolveSessionDriverId } from '../session-drivers/resolve';
 
 const log = createLogger('FlowChat');
 
@@ -160,7 +161,7 @@ export function useMessageSender(props: UseMessageSenderProps): UseMessageSender
     });
 
     try {
-      const sendImmediately = options?.sendImmediately
+      const preferImmediate = options?.sendImmediately
         ?? (await getChatInputSendDuringTurn() === 'immediate');
       surfaceScope.assertCurrent('resolve composer send preference');
       const flowChatManager = FlowChatManager.getInstance();
@@ -245,6 +246,11 @@ export function useMessageSender(props: UseMessageSenderProps): UseMessageSender
       // whether to expose a path to analyze_image or attach pixels directly.
       surfaceScope.assertCurrent('submit conversation excerpts');
       const targetSession = flowChatManager.getFlowChatState().sessions.get(sessionId!);
+      const sendImmediately = preferImmediate
+        && !isAcpFlowSession(targetSession)
+        && !(targetSession && isBtwSessionDraft(targetSession))
+        && resolveSessionDriverId(sessionId!, targetSession) === 'local';
+      surfaceScope.assertCurrent('resolve composer send preference');
       if (targetSession && isBtwSessionDraft(targetSession)) {
         const parentSessionId = targetSession.parentSessionId;
         if (!parentSessionId) throw new Error('Side question is missing its parent session');
@@ -283,6 +289,7 @@ export function useMessageSender(props: UseMessageSenderProps): UseMessageSender
         undefined,
         {
           ...(imagePayload ?? {}),
+          sendImmediately,
           pendingQueueDraft: {
             value: options?.composerDraft?.value ?? displayMessage,
             contexts: [...contexts],
@@ -290,7 +297,6 @@ export function useMessageSender(props: UseMessageSenderProps): UseMessageSender
           },
           foregroundSubmission: true,
           onSessionForked: (_sourceSessionId, branchSessionId) => { sessionId = branchSessionId; },
-          sendImmediately: sendImmediately && !isAcpFlowSession(targetSession),
           ...(userMessageMetadata ? { userMessageMetadata } : {}),
           ...(options?.execution ? { execution: options.execution } : {}),
           onSessionConflictRetryStart: () => {

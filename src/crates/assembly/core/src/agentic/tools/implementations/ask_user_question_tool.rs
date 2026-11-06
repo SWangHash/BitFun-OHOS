@@ -281,6 +281,17 @@ Usage notes:
                         "type": "array",
                         "items": { "type": "string" }
                     }
+                },
+                "candidateSources": {
+                    "type": "object",
+                    "description": "Optional. Map of field_id -> { candidate path -> where that path came from }. Annotate every path passed in `candidates`: \"prompt\" (the user wrote the path in the request), \"workspace\" (read from the current workspace during this turn), \"ledger\" (read from the project's migration records, e.g. migration/ohos/environment.tsv or STATE.md), or \"official\" (the managed option the backend offers under the reserved value \"__official__\", which is not a path and needs no annotation). The backend never offers a `ledger` path as an option, because a previous run's records are a stale fact rather than a path this turn found.",
+                    "additionalProperties": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "string",
+                            "enum": ["prompt", "workspace", "ledger", "official"]
+                        }
+                    }
                 }
             },
             "additionalProperties": false,

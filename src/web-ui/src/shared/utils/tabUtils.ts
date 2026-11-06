@@ -22,6 +22,8 @@ export interface TabCreationOptions {
   replaceExisting?: boolean;
   /** Git explicitly selects its inline host; agent/project use the session-first default. */
   mode?: TabTargetMode;
+  focus?: boolean;
+  scope?: ContentResourceScope;
   /** Check the originating operation before committing a resource or inline view. */
   isCurrent?: () => boolean;
 }
@@ -69,7 +71,8 @@ export function createTab(options: TabCreationOptions): void {
   } = options;
 
   const content = { type: type as PanelContentType, title, data, metadata: { ...metadata, duplicateCheckKey: duplicateCheckKey ?? metadata.duplicateCheckKey } };
-  const openOptions = { resourceKey: duplicateCheckKey, replaceExisting, isCurrent: options.isCurrent };
+  const openOptions = { resourceKey: duplicateCheckKey, replaceExisting, isCurrent: options.isCurrent,
+    focus: options.focus, scope: options.scope };
   if (mode === 'git') openCanvasContent('git', content, openOptions);
   else openContentInBestTarget(content, openOptions);
 }

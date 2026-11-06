@@ -3,7 +3,7 @@ import { getActiveSurfaceScope, onSurfaceActivated } from '@/infrastructure/peer
 import { createLogger } from '@/shared/utils/logger';
 import { configManager } from '../services/ConfigManager';
 import {
-  getChatInputSendDuringTurn, normalizeChatInputSendDuringTurn,
+  normalizeChatInputSendDuringTurn,
   SEND_DURING_TURN_CONFIG_PATH, type ChatInputSendDuringTurn,
 } from '../services/ChatInputSendPreference';
 
@@ -12,25 +12,26 @@ const log = createLogger('ChatInputSendPreference');
 export function useChatInputSendPreference() {
   const scope = useSyncExternalStore(onSurfaceActivated, getActiveSurfaceScope, getActiveSurfaceScope);
   const [snapshot, setSnapshot] = useState<{
-    epoch: number; behavior: ChatInputSendDuringTurn | null; error: Error | null;
+    epoch: number; behavior: ChatInputSendDuringTurn | null; supported: boolean; error: Error | null;
   }>({
     epoch: scope.epoch,
     behavior: configManager.hasCachedConfig(SEND_DURING_TURN_CONFIG_PATH)
       ? normalizeChatInputSendDuringTurn(configManager.getCachedConfig(SEND_DURING_TURN_CONFIG_PATH)) : null,
+    supported: configManager.getCachedConfig(SEND_DURING_TURN_CONFIG_PATH) !== undefined,
     error: null,
   });
   const requestId = useRef(0);
   const reload = useCallback(async () => {
     const id = ++requestId.current;
     try {
-      const behavior = await getChatInputSendDuringTurn();
+      const value = await configManager.getOptionalConfig(SEND_DURING_TURN_CONFIG_PATH);
       if (scope.isCurrent() && id === requestId.current) {
-        setSnapshot({ epoch: scope.epoch, behavior, error: null });
+        setSnapshot({ epoch: scope.epoch, behavior: normalizeChatInputSendDuringTurn(value), supported: value !== undefined, error: null });
       }
     } catch (reason) {
       if (scope.isCurrent() && id === requestId.current) {
         log.warn('Failed to load chat input send preference', reason);
-        setSnapshot({ epoch: scope.epoch, behavior: null,
+        setSnapshot({ epoch: scope.epoch, behavior: null, supported: false,
           error: reason instanceof Error ? reason : new Error(String(reason)) });
       }
     }
@@ -43,6 +44,6 @@ export function useChatInputSendPreference() {
   }, [reload]);
 
   return snapshot.epoch === scope.epoch
-    ? { behavior: snapshot.behavior, error: snapshot.error, reload }
-    : { behavior: null, error: null, reload };
+    ? { behavior: snapshot.behavior, supported: snapshot.supported, error: snapshot.error, reload }
+    : { behavior: null, supported: false, error: null, reload };
 }

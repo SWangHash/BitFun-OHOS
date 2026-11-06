@@ -1,15 +1,22 @@
 use std::time::Duration;
 
-use agent_client_protocol::schema::{CancelNotification, NewSessionResponse, StopReason};
+use agent_client_protocol::schema::{
+    CancelNotification, ContentBlock, ImageContent, NewSessionResponse, StopReason,
+};
 use agent_client_protocol::{ActiveSession, Agent, ByteStreams, Client, Error, SessionMessage};
 use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, DuplexStream, ReadHalf, WriteHalf};
+use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
+use super::super::elicitation::{cancel_elicitations, handle_elicitation, AcpElicitationRequest};
+use super::super::stream::{AcpClientStreamEvent, AcpInteractiveEvent, AcpInteractiveSession};
 use super::super::transport::{handle_transport_closed, AcpTransport};
 use super::AcpPrompt;
+use bitfun_core::agentic::tools::user_input_manager::get_user_input_manager;
+use bitfun_events::ToolEventData;
 
 const DEADLINE: Duration = Duration::from_secs(2);
 
@@ -18,6 +25,8 @@ struct Harness {
     reader: BufReader<ReadHalf<DuplexStream>>,
     writer: WriteHalf<DuplexStream>,
     connection_task: JoinHandle<Result<(), Error>>,
+    bitfun_session_id: String,
+    question_events: mpsc::UnboundedReceiver<AcpInteractiveEvent>,
 }
 
 impl Harness {
@@ -30,12 +39,29 @@ impl Harness {
             client_reader.compat(),
         ));
         let (ready_tx, ready_rx) = oneshot::channel();
+        let bitfun_session_id = format!("acp-question-test-{}", uuid::Uuid::new_v4());
+        let (events, question_events) = mpsc::unbounded_channel();
+        let question_session = AcpInteractiveSession {
+            bitfun_session_id: bitfun_session_id.clone(),
+            events,
+        };
         let connection_task = tokio::spawn(async move {
             Client
                 .builder()
                 .on_receive_notification(
                     handle_transport_closed,
                     agent_client_protocol::on_receive_notification!(),
+                )
+                .on_receive_request(
+                    async move |request: AcpElicitationRequest, responder, cx| {
+                        let session = question_session.clone();
+                        cx.spawn(async move {
+                            responder
+                                .respond_with_result(handle_elicitation(request.0, session).await)
+                        })?;
+                        Ok(())
+                    },
+                    agent_client_protocol::on_receive_request!(),
                 )
                 .connect_with(transport, async move |cx| {
                     let active =
@@ -54,6 +80,8 @@ impl Harness {
             reader: BufReader::new(agent_reader),
             writer: agent_writer,
             connection_task,
+            bitfun_session_id,
+            question_events,
         }
     }
 
@@ -86,9 +114,114 @@ impl Drop for Harness {
 }
 
 #[tokio::test]
+async fn question_answers_and_cancellation_reach_the_agent_during_a_prompt() {
+    let mut harness = Harness::new().await;
+    let mut prompt = AcpPrompt::start(&harness.active, vec!["request".into()]);
+    let prompt_request = harness.request().await;
+    for (request_id, answer) in [
+        ("question-1", Some(json!({"choice": "sqlite"}))),
+        ("question-2", None),
+    ] {
+        harness.send(json!({
+            "jsonrpc": "2.0", "id": request_id, "method": "elicitation/create",
+            "params": {"sessionId": "test-session", "mode": "form", "message": "Database",
+                "requestedSchema": {"type": "object", "properties": {
+                    "choice": {"type": "string", "description": "Which database?", "oneOf": [
+                        {"const": "sqlite", "title": "SQLite"}, {"const": "postgres", "title": "PostgreSQL"}
+                    ]}
+                }, "required": ["choice"]}}
+        })).await;
+        let event = tokio::time::timeout(DEADLINE, harness.question_events.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        let AcpInteractiveEvent::Stream(AcpClientStreamEvent::ToolEvent(ToolEventData::Started {
+            identity,
+            params,
+            ..
+        })) = event
+        else {
+            panic!("question card should start")
+        };
+        assert_eq!(identity.tool_name, "AskUserQuestion");
+        assert_eq!(params["questions"][0]["field"], "choice");
+        let manager = get_user_input_manager();
+        let snapshot = manager.pending_question_snapshot(&harness.bitfun_session_id);
+        assert_eq!(snapshot.questions.len(), 1);
+        assert_eq!(snapshot.questions[0].tool_id, identity.tool_id);
+        if let Some(answer) = &answer {
+            manager
+                .send_answer(&identity.tool_id, answer.clone())
+                .unwrap();
+        } else {
+            cancel_elicitations(&harness.bitfun_session_id);
+        }
+        let reply = harness.request().await;
+        assert_eq!(reply["id"], request_id);
+        if let Some(answer) = answer {
+            assert_eq!(
+                reply["result"],
+                json!({"action": "accept", "content": answer})
+            );
+        } else {
+            assert_eq!(reply["result"], json!({"action": "cancel"}));
+        }
+        assert!(matches!(
+            tokio::time::timeout(DEADLINE, harness.question_events.recv())
+                .await
+                .unwrap()
+                .unwrap(),
+            AcpInteractiveEvent::Stream(AcpClientStreamEvent::ToolEvent(
+                ToolEventData::Completed { .. }
+            ))
+        ));
+        assert!(manager
+            .pending_question_snapshot(&harness.bitfun_session_id)
+            .questions
+            .is_empty());
+    }
+    harness.send(json!({"jsonrpc": "2.0", "id": prompt_request["id"], "result": {"stopReason": "end_turn"}})).await;
+    assert!(matches!(
+        harness.next(&mut prompt).await.unwrap(),
+        SessionMessage::StopReason(StopReason::EndTurn)
+    ));
+}
+
+#[tokio::test]
+async fn prompt_sends_images_as_content_blocks_alongside_text() {
+    let mut harness = Harness::new().await;
+    let mut prompt = AcpPrompt::start(
+        &harness.active,
+        vec![
+            "describe the screenshot".into(),
+            ContentBlock::Image(ImageContent::new("aW1hZ2U=", "image/png")),
+        ],
+    );
+    let request = harness.request().await;
+    assert_eq!(
+        request["params"]["prompt"],
+        json!([
+            { "type": "text", "text": "describe the screenshot" },
+            { "type": "image", "data": "aW1hZ2U=", "mimeType": "image/png" }
+        ])
+    );
+    harness
+        .send(json!({
+            "jsonrpc": "2.0",
+            "id": request["id"],
+            "result": { "stopReason": "end_turn" }
+        }))
+        .await;
+    assert!(matches!(
+        harness.next(&mut prompt).await.unwrap(),
+        SessionMessage::StopReason(StopReason::EndTurn)
+    ));
+}
+
+#[tokio::test]
 async fn prompt_error_is_reported_and_the_same_session_can_retry() {
     let mut harness = Harness::new().await;
-    let mut prompt = AcpPrompt::start(&harness.active, "offline request".into());
+    let mut prompt = AcpPrompt::start(&harness.active, vec!["offline request".into()]);
     let request = harness.request().await;
     assert_eq!(request["method"], "session/prompt");
     assert_eq!(request["params"]["sessionId"], "test-session");
@@ -109,7 +242,7 @@ async fn prompt_error_is_reported_and_the_same_session_can_retry() {
     assert_eq!(error.data.unwrap()["code"], "ENETUNREACH");
     assert!(!harness.connection_task.is_finished());
 
-    let mut retry = AcpPrompt::start(&harness.active, "retry after reconnect".into());
+    let mut retry = AcpPrompt::start(&harness.active, vec!["retry after reconnect".into()]);
     let request = harness.request().await;
     harness
         .send(json!({
@@ -127,7 +260,7 @@ async fn prompt_error_is_reported_and_the_same_session_can_retry() {
 #[tokio::test]
 async fn partial_output_is_preserved_before_a_prompt_error() {
     let mut harness = Harness::new().await;
-    let mut prompt = AcpPrompt::start(&harness.active, "request".into());
+    let mut prompt = AcpPrompt::start(&harness.active, vec!["request".into()]);
     let request = harness.request().await;
     harness
         .send(json!({
@@ -162,7 +295,7 @@ async fn partial_output_is_preserved_before_a_prompt_error() {
 #[tokio::test]
 async fn cancellation_still_returns_the_agent_stop_reason() {
     let mut harness = Harness::new().await;
-    let mut prompt = AcpPrompt::start(&harness.active, "request".into());
+    let mut prompt = AcpPrompt::start(&harness.active, vec!["request".into()]);
     let request = harness.request().await;
     harness
         .active
@@ -186,7 +319,7 @@ async fn cancellation_still_returns_the_agent_stop_reason() {
 #[tokio::test]
 async fn agent_output_eof_fails_a_pending_prompt_even_if_its_input_is_open() {
     let mut harness = Harness::new().await;
-    let mut prompt = AcpPrompt::start(&harness.active, "request".into());
+    let mut prompt = AcpPrompt::start(&harness.active, vec!["request".into()]);
     let _ = harness.request().await;
     harness.writer.shutdown().await.unwrap();
     assert!(harness.next(&mut prompt).await.is_err());
@@ -195,7 +328,7 @@ async fn agent_output_eof_fails_a_pending_prompt_even_if_its_input_is_open() {
 #[tokio::test]
 async fn stopping_the_connection_wakes_a_pending_prompt() {
     let mut harness = Harness::new().await;
-    let mut prompt = AcpPrompt::start(&harness.active, "request".into());
+    let mut prompt = AcpPrompt::start(&harness.active, vec!["request".into()]);
     let _ = harness.request().await;
     harness.connection_task.abort();
     assert!(harness.next(&mut prompt).await.is_err());
@@ -204,7 +337,7 @@ async fn stopping_the_connection_wakes_a_pending_prompt() {
 #[tokio::test]
 async fn a_final_response_is_preserved_when_the_agent_immediately_closes_output() {
     let mut harness = Harness::new().await;
-    let mut prompt = AcpPrompt::start(&harness.active, "request".into());
+    let mut prompt = AcpPrompt::start(&harness.active, vec!["request".into()]);
     let request = harness.request().await;
     harness
         .send(json!({
@@ -223,7 +356,7 @@ async fn a_final_response_is_preserved_when_the_agent_immediately_closes_output(
 #[tokio::test]
 async fn an_error_response_is_preserved_when_the_agent_immediately_closes_output() {
     let mut harness = Harness::new().await;
-    let mut prompt = AcpPrompt::start(&harness.active, "request".into());
+    let mut prompt = AcpPrompt::start(&harness.active, vec!["request".into()]);
     let request = harness.request().await;
     harness
         .send(json!({

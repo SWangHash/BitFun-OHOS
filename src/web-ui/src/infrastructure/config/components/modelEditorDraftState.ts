@@ -3,6 +3,7 @@ import type {
   ModelCategory,
   ReasoningConfig,
 } from '../types';
+import type { ModelEditorRequestSettings } from './modelEditorRequestSettings';
 import { stableJson } from './modelConnectionTestPlan';
 
 export interface ModelEditorDraftModel {
@@ -13,6 +14,8 @@ export interface ModelEditorDraftModel {
   contextWindow: number;
   maxTokens?: number;
   reasoning: ReasoningConfig;
+  userTags?: string[];
+  requestSettings?: ModelEditorRequestSettings;
 }
 
 /** Canonical editor state used to detect changes since the dialog was opened. */
@@ -29,6 +32,8 @@ export function modelEditorDraftSnapshot(
       contextWindow: model.contextWindow,
       maxTokens: model.maxTokens ?? null,
       reasoning: model.reasoning,
+      userTags: model.userTags ?? null,
+      requestSettings: model.requestSettings,
     }))
     .sort((left, right) => (
       `${left.configId ?? ''}\0${left.modelName}`

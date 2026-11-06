@@ -219,9 +219,15 @@ impl SharedProductControlExecutor {
     /// option and share this executor's serialization and revision sequence.
     /// Unknown internal paths remain writable for upgrade compatibility, but
     /// they are never discoverable through ProductControl.
-    pub async fn configure_legacy_path(&self, path: &str, value: Value) -> Result<Value, String> {
+    pub async fn configure_legacy_path(
+        &self,
+        path: &str,
+        value: Value,
+        expected_models: Option<Value>,
+    ) -> Result<Value, String> {
         let _mutation = self.mutation_lock.lock().await;
-        let applied = apply_legacy_config_mutation(&self.config_service, path, value).await?;
+        let applied =
+            apply_legacy_config_mutation(&self.config_service, path, value, expected_models).await?;
         let revision = if applied.changed {
             self.revision.fetch_add(1, Ordering::AcqRel) + 1
         } else {
@@ -456,8 +462,10 @@ pub async fn apply_legacy_config_mutation(
     config_service: &ConfigService,
     path: &str,
     value: Value,
+    expected_models: Option<Value>,
 ) -> Result<AppliedLegacyProductConfig, String> {
-    apply_legacy_config_mutation_with_model_snapshot(config_service, path, value, None).await
+    apply_legacy_config_mutation_with_model_snapshot(config_service, path, value, expected_models)
+        .await
 }
 
 // JavaScript's JSON round trip encodes 1.0 as 1. Accept that wire-equivalent
@@ -827,7 +835,7 @@ mod tests {
             .await
             .expect("typed configure");
         let legacy = executor
-            .configure_legacy_path("ai.enable_deferred_tool_loading", Value::Bool(true))
+            .configure_legacy_path("ai.enable_deferred_tool_loading", Value::Bool(true), None)
             .await
             .expect("legacy configure");
 
@@ -1083,7 +1091,7 @@ mod tests {
                     ),
                     ProductCapabilityOptionHandler::Provider { .. } => unreachable!(),
                 };
-                let applied = apply_legacy_config_mutation(&gui_service, &path, legacy_value)
+                let applied = apply_legacy_config_mutation(&gui_service, &path, legacy_value, None)
                     .await
                     .unwrap_or_else(|error| {
                         panic!(

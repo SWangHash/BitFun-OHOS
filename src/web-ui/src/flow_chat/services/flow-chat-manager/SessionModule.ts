@@ -523,7 +523,7 @@ export async function createChatSession(
       const sessionId = await driverForCreation(config).createSession(context, {
         draftId,
         surfaceScope,
-        config,
+        config: { ...config, projectWorkspaceId: projectId },
         agentType,
         sessionName,
         titleDescriptor,

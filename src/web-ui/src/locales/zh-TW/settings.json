@@ -7,6 +7,7 @@
     "categories": {
       "application": "應用程式與介面",
       "ai": "模型與智慧體",
+      "workspace": "會話與工作區",
       "development": "程式設計與開發",
       "tools": "工具與整合",
       "data": "資料與維護"
@@ -24,6 +25,14 @@
         "label": "寵物與助手",
         "description": "選擇寵物形象，設定助手即時語音通話與桌面小卡片"
       },
+      "voice": {
+        "label": "語音",
+        "description": "語音輸入、本機辨識模型與即時語音通話。"
+      },
+      "shortcuts": {
+        "label": "快捷鍵",
+        "description": "檢視、自訂與重設鍵盤快捷鍵。"
+      },
       "terminal": {
         "label": "終端",
         "description": "選擇新建終端機與本機工作區命令使用的 Shell"
@@ -35,6 +44,18 @@
       "models": {
         "label": "模型",
         "description": "連線模型服務，並選擇各類任務使用的模型"
+      },
+      "memory": {
+        "label": "記憶",
+        "description": "記憶生成、使用、提取與整理。"
+      },
+      "sessionWorkspace": {
+        "label": "會話與工作區",
+        "description": "預設執行框架、會話標題與目前工作區搜尋。"
+      },
+      "worktrees": {
+        "label": "Worktrees",
+        "description": "Git Worktree 隔離與平行會話預設值。"
       },
       "execution": {
         "label": "執行與協作",
@@ -88,15 +109,23 @@
         "label": "工作區與 Git",
         "description": "設定檔案搜尋、Git 提交署名與 Worktree，管理隔離工作目錄"
       },
+      "browserControl": {
+        "label": "瀏覽器控制",
+        "description": "選擇瀏覽器並管理連線。"
+      },
       "externalImport": {
         "label": "外部匯入",
         "description": "匯入並管理其他 AI 應用程式中的內容"
       }
     },
     "views": {
+      "common": "常用",
+      "advanced": "進階",
       "local": "本機",
       "ssh": "SSH",
-      "json": "進階 JSON"
+      "json": "進階 JSON",
+      "quick-actions": "快捷動作",
+      "hooks": "Hooks"
     },
     "sections": {
       "text-selection": "文字選取",
@@ -107,6 +136,7 @@
       "memory": "記憶",
       "workspace-search": "工作區搜尋",
       "worktrees": "Worktrees",
+      "voiceCall": "語音通話",
       "git": "Git 提交",
       "quick-actions": "快捷動作",
       "hooks": "事件 Hooks",

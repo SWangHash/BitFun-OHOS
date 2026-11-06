@@ -5,6 +5,7 @@ import { useI18n } from '@/infrastructure/i18n';
 import { ConfigPageRow, ConfigPageSection } from '@/infrastructure/config/components/common';
 import { useSidebarNavigation } from '@/app/navigation/useSidebarNavigation';
 import { sidebarPreferences } from '@/app/navigation/sidebarPreferences';
+import { useSettingsSectionAnchor } from '../shared/useSettingsSectionAnchor';
 
 export default function SidebarSettingsSection() {
   const { t } = useI18n('settings/appearance');
@@ -15,6 +16,7 @@ export default function SidebarSettingsSection() {
   const resetRef = useRef<HTMLButtonElement>(null);
   const capsuleRefs = useRef(new Map<string, HTMLButtonElement>());
   const nextFocus = useRef<string | null | undefined>(undefined);
+  const sectionAnchor = useSettingsSectionAnchor('sidebar-navigation');
   const readOnly = storageIssue === 'read' || storageIssue === 'version';
   const available = entries.filter(entry => !pinnedIds.includes(entry.id));
   useLayoutEffect(() => {
@@ -24,7 +26,7 @@ export default function SidebarSettingsSection() {
     nextFocus.current = undefined;
   }, [pinnedIds]);
 
-  return <ConfigPageSection id="sidebar-navigation" title={t('sidebar.title')}
+  return <ConfigPageSection id={sectionAnchor} title={t('sidebar.title')}
     extra={<Button ref={resetRef} size="sm" variant="quiet" onClick={reset}>{t('sidebar.reset')}</Button>}>
     {storageIssue && <p role="alert">{t(storageIssue === 'write' ? 'sidebar.saveFailed' : 'sidebar.readFailed')}</p>}
     <ul className="sidebar-settings__pinned" aria-label={t('sidebar.pinned')}>

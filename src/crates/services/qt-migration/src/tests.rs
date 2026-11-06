@@ -164,7 +164,7 @@ fn card_probe(
     managed_root: &Path,
     model: &HashMap<String, Vec<String>>,
 ) -> QtMigrationCandidateProbe {
-    probe_qt_migration_candidates(workspace, managed_root, model, &[], &[])
+    probe_qt_migration_candidates(workspace, managed_root, model, &[], &[], &HashMap::new())
 }
 
 /// Shared scan of a fixture tree (the probe above is a card-facing view of it).
@@ -389,7 +389,8 @@ fn a_workspace_root_that_is_the_project_is_offered_as_itself() {
     touch(&container, "inner.pro");
 
     assert_eq!(
-        probe_source_projects(&root, &[]),
+        probe_source_projects(&root, &[], &[]
+                ),
         vec![root.to_string_lossy().into_owned()]
     );
 }
@@ -414,7 +415,7 @@ fn a_toolchain_container_binds_one_kit_but_not_an_ambiguous_root() {
     let bin = create_qt5_ohos_kit(&mkdir(&single, "qt5"));
     assert_eq!(
         crate::scan::bindable_field_container("toolchain", single.to_string_lossy().as_ref()),
-        Some(bin)
+        Some(bin.clone())
     );
 
     let both = mkdir(&root, "installer-root");
@@ -424,6 +425,21 @@ fn a_toolchain_container_binds_one_kit_but_not_an_ambiguous_root() {
         crate::scan::bindable_field_container("toolchain", both.to_string_lossy().as_ref()),
         None
     );
+
+    // 桌面 kit 不是鸿蒙目标 kit：既不能凭它绑定，也不能算可用工具链。
+    // 用户给的是装着桌面 kit 的安装根，容器分支必须靠目标 kit 校验把它挡住。
+    let desktop_root = mkdir(&root, "installer-desktop");
+    let desktop_bin = create_qt6_host_kit(&mkdir(&desktop_root, "6.7.2"));
+    assert_eq!(
+        crate::scan::bindable_field_container("toolchain", desktop_root.to_string_lossy().as_ref()),
+        None
+    );
+    assert!(!crate::strategy::toolchain_value_is_measurable(
+        desktop_bin.to_string_lossy().as_ref()
+    ));
+    assert!(crate::strategy::toolchain_value_is_measurable(
+        bin.to_string_lossy().as_ref()
+    ));
 }
 #[test]
 fn nonexistent_output_path_is_filtered_out() {
@@ -475,6 +491,8 @@ fn the_workspace_root_survives_the_output_candidate_cap() {
     for name in ["output", "outputs"] {
         mkdir(&root, name);
     }
+    let app = mkdir(&root, "app");
+    touch(&app, "app.pro");
 
     let probe = card_probe(&root, &managed_root, &HashMap::new());
 
@@ -485,6 +503,23 @@ fn the_workspace_root_survives_the_output_candidate_cap() {
             root.to_string_lossy().into_owned(),
         ],
         "the probed container stays the default; the workspace root keeps the alternate slot"
+    );
+
+    // 工作区根同时被列为原始工程时，输出兜底不能跟着消失：迁移工程落在它的
+    // `<app-name>-ohos` 子目录里，根目录不是被覆盖的目标。
+    let named_root = candidate_map("source_project", vec![root.to_string_lossy().into_owned()]);
+    let named_probe = card_probe(&root, &managed_root, &named_root);
+    assert_eq!(
+        named_probe.candidates["source_project"],
+        vec![root.to_string_lossy().into_owned()]
+    );
+    assert_eq!(
+        named_probe.candidates["output_project"],
+        vec![
+            root.join("output").to_string_lossy().into_owned(),
+            root.to_string_lossy().into_owned(),
+        ],
+        "the workspace root stays the output fallback even when it is also the source project"
     );
 }
 
@@ -736,7 +771,8 @@ fn cmake_qt_project_is_a_source_candidate() {
     touch(&root, "main.cpp");
     let named = vec![root.to_string_lossy().into_owned()];
 
-    assert_eq!(probe_source_projects(&root, &named), named);
+    assert_eq!(probe_source_projects(&root, &named, &[]
+                ), named);
 }
 
 #[test]
@@ -749,14 +785,16 @@ fn cmake_without_qt_is_not_a_source_candidate() {
     .unwrap();
     let named = vec![root.to_string_lossy().into_owned()];
 
-    assert_eq!(probe_source_projects(&root, &named), Vec::<String>::new());
+    assert_eq!(probe_source_projects(&root, &named, &[]
+                ), Vec::<String>::new());
 }
 
 #[test]
 fn a_named_source_project_this_host_cannot_see_is_still_offered() {
     let (_t, root) = tree();
     let named = root.join("no-such-calculator");
-    let candidates = probe_source_projects(&root, &[named.to_string_lossy().into_owned()]);
+    let named_value = named.to_string_lossy().into_owned();
+    let candidates = probe_source_projects(&root, &[named_value.clone()], &[named_value.clone()]);
 
     assert_eq!(keys(&candidates), keys(&[named.to_string_lossy().into_owned()]));
 
@@ -766,12 +804,11 @@ fn a_named_source_project_this_host_cannot_see_is_still_offered() {
         "find_package(Qt6 COMPONENTS Widgets REQUIRED)",
         "QAnyStringView view;\n",
     );
+    let named_value = named.to_string_lossy().into_owned();
     let candidates = probe_source_projects(
         &root,
-        &[
-            named.to_string_lossy().into_owned(),
-            real.to_string_lossy().into_owned(),
-        ],
+        &[named_value.clone(), real.to_string_lossy().into_owned()],
+        &[named_value],
     );
     assert_eq!(
         keys(&candidates),
@@ -788,7 +825,8 @@ fn a_named_source_project_this_host_cannot_see_is_still_offered() {
         "cmake_minimum_required(VERSION 3.16)\nproject(plain C)\n",
     )
     .unwrap();
-    let named_plain = probe_source_projects(&root, &[plain.to_string_lossy().into_owned()]);
+    let named_plain = probe_source_projects(&root, &[plain.to_string_lossy().into_owned()], &[]
+                );
     assert!(
         named_plain
             .iter()
@@ -832,14 +870,16 @@ fn a_vendored_subproject_is_not_offered_next_to_the_project_that_owns_it() {
     }
 
     // vendored 子工程不采；根工程自己就是那个工程，所以工作区层也只给根。
-    let named = probe_source_projects(&root, &[root.to_string_lossy().into_owned()]);
+    let named = probe_source_projects(&root, &[root.to_string_lossy().into_owned()], &[]
+                );
     assert_eq!(named, vec![root.to_string_lossy().into_owned()]);
     assert!(
         named.iter().all(|path| !path.contains("ThirdParty")),
         "vendored 子工程不得成为候选: {named:?}"
     );
     assert_eq!(
-        probe_source_projects(&root, &[]),
+        probe_source_projects(&root, &[], &[]
+                ),
         vec![root.to_string_lossy().into_owned()],
         "工作区根就是工程时，工作区层给出的也是根"
     );
@@ -892,18 +932,21 @@ fn a_copied_qt_distribution_yields_no_source_project() {
 
     // 安装树里的副本不是用户的工程，扫到或点名都不进候选。
     assert_eq!(
-        probe_source_projects(&root, &[]),
+        probe_source_projects(&root, &[], &[]
+                ),
         vec![app.to_string_lossy().into_owned()],
         "工作区层只认顶层真工程，发行版副本不进候选"
     );
     assert_eq!(
-        probe_source_projects(&root, &[app.to_string_lossy().into_owned()]),
+        probe_source_projects(&root, &[app.to_string_lossy().into_owned()], &[]
+                ),
         vec![app.to_string_lossy().into_owned()],
         "点名的真工程仍然是候选"
     );
     // 工作区层也会扫出 `app`，所以断言"点名的示例集不在候选里"而非"候选为空"。
     for installed in [kit_examples, examples, fragment] {
-        let candidates = probe_source_projects(&root, &[installed.to_string_lossy().into_owned()]);
+        let candidates = probe_source_projects(&root, &[installed.to_string_lossy().into_owned()], &[]
+                );
         assert!(
             candidates
                 .iter()
@@ -912,6 +955,22 @@ fn a_copied_qt_distribution_yields_no_source_project() {
             installed.display()
         );
     }
+
+    // 构建脚本目录：`how_build/` 形状（只有 *.mk、打包 .cmake，和一个把源码
+    // 指向 `${PROJECT_SOURCE_DIR}/src`、自己却没有 src 的 CMakeLists.txt）。
+    let build_scripts = mkdir(&root, "how_build");
+    std::fs::write(
+        build_scripts.join("CMakeLists.txt"),
+        "find_package(Qt5 REQUIRED COMPONENTS Core)\nfile(GLOB UI_SRC ${PROJECT_SOURCE_DIR}/src/*.ui)\naux_source_directory(${PROJECT_SOURCE_DIR}/src SRC)\n",
+    )
+    .unwrap();
+    assert!(
+        probe_source_projects(&root, &[], &[]
+                )
+            .iter()
+            .all(|path| path_key(Path::new(path)) != path_key(&build_scripts)),
+        "构建脚本目录不进原始工程候选"
+    );
 }
 
 #[test]
@@ -1189,6 +1248,7 @@ fn a_kit_whose_tools_are_not_built_for_this_host_is_not_a_candidate() {
         &HashMap::new(),
         &[],
         &[],
+        &HashMap::new(),
     );
 
     assert_eq!(kit_tools_run_on_host(&foreign_root), Some(false));
@@ -1212,6 +1272,7 @@ fn a_kit_whose_tools_are_not_built_for_this_host_is_not_a_candidate() {
         &HashMap::new(),
         &[],
         &[],
+        &HashMap::new(),
     );
     assert_eq!(kit_tools_run_on_host(&native), Some(true));
     assert!(
@@ -1236,7 +1297,22 @@ fn a_launcher_script_does_not_hide_the_kits_real_binary() {
     let script_only = mkdir(&root, "script-only");
     let script_bin = mkdir(&script_only, "bin");
     std::fs::write(script_bin.join("qmake"), "#!/bin/sh\nexec real-qmake \"$@\"\n").unwrap();
-    assert_eq!(kit_tools_run_on_host(&script_only), None);
+    assert_eq!(kit_tools_run_on_host(&script_only), Some(false));
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let runnable = mkdir(&root, "runnable-wrapper");
+        let runnable_bin = mkdir(&runnable, "bin");
+        let script = runnable_bin.join("qmake");
+        std::fs::write(&script, "#!/bin/sh\necho 6.12.0\n").unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert_eq!(
+            kit_tools_run_on_host(&runnable),
+            Some(true),
+            "a wrapper script that runs is a usable kit"
+        );
+    }
 }
 
 #[test]
@@ -1266,7 +1342,7 @@ fn a_prompt_named_toolchain_is_the_default_over_the_installed_kit() {
         vec![named.to_string_lossy().into_owned()],
     );
 
-    let probe = probe_qt_migration_candidates(&workspace, &managed_root, &model, &[], &[]);
+    let probe = probe_qt_migration_candidates(&workspace, &managed_root, &model, &[], &[], &HashMap::new());
 
     assert_eq!(
         keys(&probe.candidates["toolchain"]),
@@ -1345,6 +1421,26 @@ fn bound_generations_are_compared_from_disk_facts() {
         }
     );
     assert_eq!(older.measured_generations(), Some((5, 6)));
+
+    // 仓库根（Qt 标记在下一层）同样要测出代际，不能因为根目录没有 .pro 就当成未知。
+    let repo_root = mkdir(&root, "repo-root");
+    std::fs::write(
+        repo_root.join("CMakeLists.txt"),
+        "cmake_minimum_required(VERSION 3.16)\nadd_subdirectory(src)\n",
+    )
+    .unwrap();
+    create_version_fixture(
+        &mkdir(&repo_root, "src"),
+        "find_package(Qt5 COMPONENTS Widgets REQUIRED)",
+        "#include <QWidget>\n",
+    );
+    assert_eq!(
+        compare_bound_generations(&repo_root, &qt6_bin.to_string_lossy(), Some(5)),
+        QtMigrationGenerationMismatch::ProjectOlder {
+            project: 5,
+            toolchain: 6
+        }
+    );
 
     // 官方工具链是固定一代（由调用方传入），代相同则不算不一致。
     assert_eq!(

@@ -17,8 +17,8 @@ vi.mock('../services/ConfigManager', () => ({ configManager: {
 } }));
 
 function Preference() {
-  const { enabled, error, reload } = useSelectionToolbarPreference();
-  return <button data-enabled={String(enabled)} data-error={String(!!error)} onClick={() => void reload()} />;
+  const { enabled, supported, error, reload } = useSelectionToolbarPreference();
+  return <button data-enabled={String(enabled)} data-supported={String(supported)} data-error={String(!!error)} onClick={() => void reload()} />;
 }
 
 describe('selection toolbar preference loading and device scope', () => {

@@ -19,6 +19,11 @@ async fn first_remote_path<'a>(paths: impl Iterator<Item = &'a str>) -> Option<S
 pub struct ClipboardFilesResponse {
     pub files: Vec<String>,
     pub is_cut: bool,
+    /// Per-candidate pasteboard read failures (OHOS bridge only; empty
+    /// elsewhere). A folder the engine cannot expand lands here so the
+    /// frontend can tell a silent miss from an empty clipboard.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub errors: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -312,7 +317,8 @@ mod gtk_clipboard {
 /// way to reach the system pasteboard from the Rust side on OHOS.
 #[cfg(target_env = "ohos")]
 mod ohos_clipboard {
-    pub(super) async fn get_clipboard_files() -> Result<Vec<String>, String> {
+    pub(super) async fn get_clipboard_files()
+    -> Result<bitfun_core::util::ClipboardReadEnvelope, String> {
         bitfun_core::util::get_clipboard_files().await
     }
 }
@@ -418,26 +424,39 @@ fn get_clipboard_files_internal(app: &tauri::AppHandle) -> Result<Vec<String>, S
     }
 }
 
-async fn get_clipboard_files_for_platform(app: &tauri::AppHandle) -> Result<Vec<String>, String> {
+async fn get_clipboard_files_for_platform(
+    app: &tauri::AppHandle,
+) -> Result<(Vec<String>, Vec<String>), String> {
     #[cfg(target_env = "ohos")]
     {
         let _ = app;
-        ohos_clipboard::get_clipboard_files().await
+        let envelope = ohos_clipboard::get_clipboard_files().await?;
+        Ok((envelope.paths, envelope.errors))
     }
 
     #[cfg(not(target_env = "ohos"))]
     {
-        get_clipboard_files_internal(app)
+        Ok((get_clipboard_files_internal(app)?, Vec::new()))
     }
 }
 
 #[tauri::command]
 pub async fn get_clipboard_files(app: tauri::AppHandle) -> Result<ClipboardFilesResponse, String> {
     match get_clipboard_files_for_platform(&app).await {
-        Ok(files) => Ok(ClipboardFilesResponse {
-            files,
-            is_cut: false,
-        }),
+        Ok((files, read_errors)) => {
+            if !read_errors.is_empty() {
+                log::warn!(
+                    "Clipboard read skipped {} candidate(s): {}",
+                    read_errors.len(),
+                    read_errors.join("; ")
+                );
+            }
+            Ok(ClipboardFilesResponse {
+                files,
+                is_cut: false,
+                errors: read_errors,
+            })
+        }
         Err(e) => {
             log::error!("Failed to read clipboard files: {}", e);
             Err(e)
@@ -1107,10 +1126,12 @@ mod tests {
         let value = serde_json::to_value(ClipboardFilesResponse {
             files: vec!["C:/example.txt".to_string()],
             is_cut: true,
+            errors: vec!["file://docs/dir: denied".to_string()],
         })
         .expect("serialize clipboard response");
 
         assert_eq!(value["isCut"], true);
+        assert_eq!(value["errors"], serde_json::json!(["file://docs/dir: denied"]));
         assert!(value.get("is_cut").is_none());
     }
 
@@ -1134,6 +1155,18 @@ mod tests {
     fn sniff_image_mime_rejects_non_image_payloads() {
         assert_eq!(sniff_image_mime(b"image/png but not really"), None);
         assert_eq!(sniff_image_mime(&[]), None);
+    }
+
+    #[test]
+    fn clipboard_files_response_omits_empty_errors() {
+        let value = serde_json::to_value(ClipboardFilesResponse {
+            files: vec!["C:/example.txt".to_string()],
+            is_cut: false,
+            errors: Vec::new(),
+        })
+        .expect("serialize clipboard response");
+
+        assert!(value.get("errors").is_none());
     }
 
     #[test]

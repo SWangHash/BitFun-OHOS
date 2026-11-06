@@ -17,6 +17,12 @@ const FILE_DROP_LOG_TAG: string = "BitFunFileDrop";
 const USER_APPDATA_PREFIX: string = "/storage/Users/currentUser/appdata";
 const FILE_DROP_MAX_RETRIES: number = 3;
 const FILE_DROP_RETRY_INTERVAL_MS: number = 1500;
+// Cross-app drags (WeChat, another app's sandbox) only carry a URI that is valid
+// inside the source app, so such files are staged under the ability cache dir
+// published by EntryAbility before the web-ui (and the Rust side) sees a path.
+const DROP_CACHE_SUBDIR: string = "bitfun-drops";
+const DROP_CACHE_DIR_STORAGE_KEY: string = "bitfunDropCacheDir";
+let dropStageSequence: number = 0;
 
 export interface WebviewStyle {
   x?: number | string;
@@ -69,6 +75,12 @@ interface OhosNativeDropPayload {
 interface CollectedDropResult {
   paths: string[];
   metadata: OhosFileMetadata[];
+  recordCount: number;
+}
+
+interface ResolvedDroppedFile {
+  path: string;
+  metadata: OhosFileMetadata;
 }
 
 enum NativeDragDataKind {
@@ -79,38 +91,51 @@ enum NativeDragDataKind {
 
 // ArkWeb does not deliver external (file manager) file drags as HTML5 drop
 // events, and Wry's OHOS adapter does not forward them through Tauri's native
-// drag-drop handler. The Web component therefore collects the dropped files
-// and forwards their filesystem paths to the web-ui through a global JS hook.
-function normalizeDroppedFileUri(uri: string): string {
-  hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `normalizeDroppedFileUri input uri=${uri}`);
-  if (!uri.startsWith("file://") && !uri.startsWith("docs://")) {
-    hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `normalizeDroppedFileUri passthrough no prefix: ${uri}`);
-    return uri;
-  }
+// drag-drop handler. The Web component therefore collects the dropped files and
+// forwards a readable local path per file to the web-ui through a global JS
+// hook. "Readable" is the hard part: a drag from a user document folder is a
+// real path, while a drag out of another app (WeChat, for example) is only a
+// URI inside that app's sandbox and has to be staged first.
+let ownBundleNameCache: string = "";
 
-  const path = new fileUri.FileUri(uri).path;
-  hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `normalizeDroppedFileUri FileUri.path=${path}`);
-  if (!path.startsWith(USER_APPDATA_PREFIX)) {
-    hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `normalizeDroppedFileUri returning non-appdata path: ${path}`);
-    return path;
+function getOwnBundleName(): string {
+  if (ownBundleNameCache.length > 0) {
+    return ownBundleNameCache;
   }
-
-  const storagePath = "/data/storage" + path.slice(USER_APPDATA_PREFIX.length);
   try {
-    const bundleName = bundleManager.getBundleInfoForSelfSync(
+    ownBundleNameCache = bundleManager.getBundleInfoForSelfSync(
       bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT,
     ).name;
-    hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `normalizeDroppedFileUri bundleName=${bundleName}`);
-    const result = bundleName.length > 0
-      ? storagePath.replace("/" + bundleName + "/", "/base/")
-      : storagePath;
-    hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `normalizeDroppedFileUri final path=${result}`);
-    return result;
   } catch (e) {
     const err = e as BusinessError;
-    hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `Unable to resolve bundle name: code=${err.code} msg=${err.message}`);
-    return storagePath;
+    hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG,
+      `getOwnBundleName failed: code=${err.code} msg=${err.message}`);
   }
+  return ownBundleNameCache;
+}
+
+/// Map the appdata view of THIS app's sandbox onto the sandbox path the Rust
+/// side reads: `/storage/Users/currentUser/appdata/el2/base/<bundle>/a/b` ->
+/// `/data/storage/el2/base/a/b`.
+///
+/// An appdata path that carries another bundle's name is deliberately not
+/// mapped: no string rewrite can make it valid inside our own sandbox, so the
+/// caller has to stage the drag URI instead.
+function ownSandboxPathFromAppData(nativePath: string): string {
+  if (!nativePath.startsWith(USER_APPDATA_PREFIX)) {
+    return "";
+  }
+  const bundleName: string = getOwnBundleName();
+  if (bundleName.length === 0) {
+    return "";
+  }
+  const relativePath: string = nativePath.slice(USER_APPDATA_PREFIX.length);
+  const bundleMarker: string = `/${bundleName}/`;
+  const markerIndex: number = relativePath.indexOf(bundleMarker);
+  if (markerIndex < 0) {
+    return "";
+  }
+  return "/data/storage" + relativePath.replace(bundleMarker, "/");
 }
 
 function classifyNativeDragData(dragEvent: DragEvent): NativeDragDataKind {
@@ -134,40 +159,167 @@ function classifyNativeDragData(dragEvent: DragEvent): NativeDragDataKind {
   }
 }
 
-function resolveFileMetadata(path: string): OhosFileMetadata {
+function toOhosFileMetadata(stat: fs.Stat): OhosFileMetadata {
+  const isDir: boolean = stat.isDirectory();
+  return {
+    size: stat.size,
+    isFile: !isDir,
+    isDir: isDir,
+  };
+}
+
+function statDroppedPath(path: string): fs.Stat | null {
+  if (path.length === 0) {
+    return null;
+  }
   try {
-    const stat = fs.statSync(path);
-    const isDir = stat.isDirectory();
-    const meta: OhosFileMetadata = {
-      size: stat.size,
-      isFile: !isDir,
-      isDir: isDir,
-    };
-    hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `resolveFileMetadata: path=${path} size=${meta.size} isFile=${meta.isFile} isDir=${meta.isDir}`);
-    return meta;
+    return fs.statSync(path);
   } catch (e) {
     const err = e as BusinessError;
-    hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `resolveFileMetadata: fs.stat failed path=${path}: code=${err.code} msg=${err.message}`);
-    return { size: 0, isFile: false, isDir: false };
+    hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG,
+      `statDroppedPath: fs.stat failed path=${path}: code=${err.code} msg=${err.message}`);
+    return null;
   }
+}
+
+function resolveDropCacheDir(): string {
+  const base: string | undefined = AppStorage.get<string>(DROP_CACHE_DIR_STORAGE_KEY);
+  if (!base || base.length === 0) {
+    hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG,
+      `resolveDropCacheDir: ${DROP_CACHE_DIR_STORAGE_KEY} is not published by the ability`);
+    return "";
+  }
+  const dir: string = base.replace(/\/+$/, "") + "/" + DROP_CACHE_SUBDIR;
+  try {
+    try {
+      fs.statSync(dir);
+    } catch (e) {
+      fs.mkdirSync(dir);
+    }
+    return dir;
+  } catch (e) {
+    const err = e as BusinessError;
+    hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG,
+      `resolveDropCacheDir: mkdir failed dir=${dir}: code=${err.code} msg=${err.message}`);
+    return "";
+  }
+}
+
+/// Stage one cross-app drag URI into the app cache and return the sandbox copy.
+///
+/// A file dragged out of another app arrives as `file://<source-bundle>/...`.
+/// `FileUri.path` turns that into an appdata path under the *source* bundle,
+/// which this sandbox can neither stat nor read, and remapping it onto our own
+/// sandbox produces a path that cannot exist (`/data/storage/el2/base/<other>`).
+/// `fs.openSync` on the URI consumes the drag grant, so the copy below is the
+/// only cross-app read that works - the same rule that already governs the
+/// pasteboard path (entry/.../CommonUtils.copy_pasteboard_entry).
+function stageDroppedUri(uri: string): ResolvedDroppedFile | null {
+  const cacheDir: string = resolveDropCacheDir();
+  if (cacheDir.length === 0) {
+    return null;
+  }
+
+  let name: string = "";
+  try {
+    name = new fileUri.FileUri(uri).name;
+  } catch (e) {
+    name = "";
+  }
+  if (name.length === 0) {
+    name = uri.substring(uri.lastIndexOf("/") + 1);
+  }
+  name = name.replace(/[\\/]/g, "_");
+  if (name.length === 0) {
+    name = "dropped-file";
+  }
+
+  dropStageSequence += 1;
+  // One directory per staged URI keeps the original file name intact: the
+  // web-ui derives the attachment label from the path's basename.
+  const destDir: string = `${cacheDir}/${Date.now()}-${dropStageSequence}`;
+  const destPath: string = `${destDir}/${name}`;
+  let source: fs.File | null = null;
+  try {
+    fs.mkdirSync(destDir);
+    source = fs.openSync(uri, fs.OpenMode.READ_ONLY);
+    fs.copyFileSync(source.fd, destPath);
+  } catch (e) {
+    const err = e as BusinessError;
+    hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG,
+      `stageDroppedUri: copy failed uri=${uri} dest=${destPath}: code=${err.code} msg=${err.message}`);
+    return null;
+  } finally {
+    if (source) {
+      try {
+        fs.closeSync(source);
+      } catch (e) {
+        // Closing a staged fd cannot fail in a way the caller can act on.
+      }
+    }
+  }
+
+  const stagedStat: fs.Stat | null = statDroppedPath(destPath);
+  if (!stagedStat) {
+    return null;
+  }
+  hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `stageDroppedUri: staged uri=${uri} -> path=${destPath}`);
+  return { path: destPath, metadata: toOhosFileMetadata(stagedStat) };
+}
+
+/// Resolve one dragged file URI into a readable local path plus its metadata.
+///
+/// Order matters: keep the zero-copy path whenever the URI already points at a
+/// real file (user documents, and this app's own sandbox), and only stage a
+/// cache copy for URIs that live in another app's sandbox.
+function resolveDroppedFile(uri: string): ResolvedDroppedFile | null {
+  let nativePath: string = "";
+  try {
+    nativePath = new fileUri.FileUri(uri).path;
+  } catch (e) {
+    const err = e as BusinessError;
+    hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG,
+      `resolveDroppedFile: FileUri failed uri=${uri}: code=${err.code} msg=${err.message}`);
+  }
+
+  const nativeStat: fs.Stat | null = statDroppedPath(nativePath);
+  if (nativeStat) {
+    hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG,
+      `resolveDroppedFile: using native path=${nativePath}`);
+    return { path: nativePath, metadata: toOhosFileMetadata(nativeStat) };
+  }
+
+  const remappedPath: string = ownSandboxPathFromAppData(nativePath);
+  if (remappedPath.length > 0) {
+    const remappedStat: fs.Stat | null = statDroppedPath(remappedPath);
+    if (remappedStat) {
+      hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG,
+        `resolveDroppedFile: using remapped path=${remappedPath}`);
+      return { path: remappedPath, metadata: toOhosFileMetadata(remappedStat) };
+    }
+  }
+
+  return stageDroppedUri(uri);
 }
 
 function tryCollectDroppedFilePaths(dragEvent: DragEvent): CollectedDropResult {
   const paths: string[] = [];
   const metadata: OhosFileMetadata[] = [];
   const seen: Set<string> = new Set<string>();
+  let recordCount: number = 0;
   try {
     const data = dragEvent.getData() as unifiedDataChannel.UnifiedData;
     if (!data) {
       hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, "tryCollect: getData returned null");
-      return { paths, metadata };
+      return { paths, metadata, recordCount };
     }
     const records: unifiedDataChannel.UnifiedRecord[] = data.getRecords();
     if (!records || records.length <= 0) {
       const count = records ? records.length : 0;
       hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `tryCollect: records null or empty, count=${count}`);
-      return { paths, metadata };
+      return { paths, metadata, recordCount };
     }
+    recordCount = records.length;
     hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `tryCollect: records count=${records.length}`);
     for (let i = 0; i < records.length; i++) {
       const types = records[i].getTypes();
@@ -177,18 +329,18 @@ function tryCollectDroppedFilePaths(dragEvent: DragEvent): CollectedDropResult {
         const fileUriUds =
           records[i].getEntry(uniformTypeDescriptor.UniformDataType.FILE_URI) as uniformDataStruct.FileUri;
         if (fileUriUds && fileUriUds.oriUri) {
-          try {
-            const path = normalizeDroppedFileUri(fileUriUds.oriUri);
-            if (path.length > 0 && !seen.has(path)) {
-              seen.add(path);
-              paths.push(path);
-              metadata.push(resolveFileMetadata(path));
-            } else {
-              hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `tryCollect: record[${i}] path empty or duplicate: ${path}`);
-            }
-          } catch (e) {
-            const err = e as BusinessError;
-            hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `tryCollect: normalize failed record[${i}]: code=${err.code} msg=${err.message}`);
+          const uri: string = fileUriUds.oriUri;
+          if (seen.has(uri)) {
+            hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `tryCollect: record[${i}] duplicate uri: ${uri}`);
+            continue;
+          }
+          seen.add(uri);
+          const resolved: ResolvedDroppedFile | null = resolveDroppedFile(uri);
+          if (resolved) {
+            paths.push(resolved.path);
+            metadata.push(resolved.metadata);
+          } else {
+            hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `tryCollect: record[${i}] unresolved uri: ${uri}`);
           }
         } else {
           hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `tryCollect: record[${i}] fileUriUds null or oriUri empty`);
@@ -199,7 +351,7 @@ function tryCollectDroppedFilePaths(dragEvent: DragEvent): CollectedDropResult {
     const err = e as BusinessError;
     hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `tryCollect: inspect failed: code=${err.code} msg=${err.message}`);
   }
-  return { paths, metadata };
+  return { paths, metadata, recordCount };
 }
 
 function collectDroppedFilePathsWithRetry(
@@ -215,6 +367,14 @@ function collectDroppedFilePathsWithRetry(
       hilog.info(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `Native file drop path[${i}]=${result.paths[i]}`);
     }
     dispatchNativeDragEvent(controller, "drop", result.paths, result.metadata);
+    return;
+  }
+  // Records were delivered but none resolved: staging needs the drag grant that
+  // is only valid during this drop, so a later attempt cannot succeed - fail the
+  // drop now instead of copying the same URI again.
+  if (result.recordCount > 0) {
+    hilog.warn(FILE_DROP_LOG_DOMAIN, FILE_DROP_LOG_TAG, `Native file drop unresolved: recordCount=${result.recordCount}, not retrying`);
+    dispatchNativeDragEvent(controller, "drop", [], []);
     return;
   }
   if (attempt >= FILE_DROP_MAX_RETRIES - 1) {

@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { projectSettingsCapabilityDestination } from '@/app/global-search/settingsCapabilityDestination';
 import { registerSettingsDraft, resetSettingsDraftRegistryForTests, getSettingsDraftSnapshot } from '@/infrastructure/config/settingsDraftRegistry';
 import { isLegacyEcosystemCompatibilityDestination, resolveSettingsDestination } from './settingsDestination';
 import { SETTINGS_CATEGORIES, SETTINGS_PAGE_MANIFESTS, getSettingsPageManifest, isSettingsPageId, preloadSettingsPage, isSettingsPageReady } from './settingsRegistry';
@@ -155,5 +157,31 @@ describe('settings page preparation', () => {
     expect(isSettingsPageReady(page.id)).toBe(false);
     await preloadSettingsPage(page.id);
     expect(isSettingsPageReady(page.id)).toBe(true);
+  });
+});
+
+describe('settings capability projection', () => {
+  it('keeps capability identifiers stable while relocating individual settings', () => {
+    expect(projectSettingsCapabilityDestination('setting.application.appearance', { kind: 'settings', pageId: 'application.appearance' }, 'language'))
+      .toEqual({ kind: 'settings', pageId: 'application.general' });
+    expect(projectSettingsCapabilityDestination('setting.workspace.session', { kind: 'settings', pageId: 'workspace.session' as never }, 'search-index'))
+      .toEqual({ kind: 'settings', pageId: 'development.workspace', sectionId: 'workspace-search' });
+  });
+});
+
+describe('settings navigation copy', () => {
+  it.each(['en-US', 'zh-CN', 'zh-TW'])('provides copy for every navigation label and search phrase in %s', locale => {
+    const resources = new Map<string, Record<string, unknown>>();
+    const lookup = (namespace: string, key: string) => {
+      if (!resources.has(namespace)) resources.set(namespace, JSON.parse(readFileSync(new URL(`../../../locales/${locale}/${namespace}.json`, import.meta.url), 'utf8')));
+      return key.split('.').reduce<unknown>((value, segment) => (value as Record<string, unknown> | undefined)?.[segment], resources.get(namespace));
+    };
+    for (const category of SETTINGS_CATEGORIES) expect(lookup('settings', category.labelKey), category.labelKey).toBeTypeOf('string');
+    for (const page of SETTINGS_PAGE_MANIFESTS) {
+      for (const key of [page.labelKey, page.descriptionKey]) if (key) expect(lookup('settings', key), key).toBeTypeOf('string');
+      for (const phrase of [...page.searchPhrases, ...(page.sections ?? []).flatMap(section => section.searchPhrases ?? [])]) {
+        expect(lookup(phrase.namespace, phrase.key), `${phrase.namespace}:${phrase.key}`).toBeTypeOf('string');
+      }
+    }
   });
 });

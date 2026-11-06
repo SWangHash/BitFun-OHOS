@@ -14,14 +14,14 @@ const log = createLogger('MessageSendingSettingsSection');
 
 export default function MessageSendingSettingsSection() {
   const { t } = useI18n('settings/application');
-  const { behavior, error, reload } = useChatInputSendPreference();
+  const { behavior, supported, error, reload } = useChatInputSendPreference();
   const [savingEpoch, setSavingEpoch] = useState<number | null>(null);
   const scope = getActiveSurfaceScope();
   const saving = savingEpoch === scope.epoch;
   const sectionAnchor = useSettingsSectionAnchor('message-sending', behavior !== null || !!error);
 
   const save = async (value: ChatInputSendDuringTurn) => {
-    if (saving || behavior === null || behavior === value) return;
+    if (saving || !supported || behavior === null || behavior === value) return;
     setSavingEpoch(scope.epoch);
     try {
       await configManager.setConfig(SEND_DURING_TURN_CONFIG_PATH, value);
@@ -36,15 +36,15 @@ export default function MessageSendingSettingsSection() {
   };
 
   return <div id={sectionAnchor}>
-    <ConfigPageSection title={t('messageSending.title')}>
+    <ConfigPageSection title={t('messageSending.title')} description={t('messageSending.description')}>
       {error ? <ConfigRetryState message={t('messageSending.loadFailed')}
         retryLabel={t('common.retry')} onRetry={() => void reload()} />
         : behavior === null ? <ConfigLoadingState label={t('messageSending.loading')} />
           : <ConfigPageRow label={t('messageSending.duringTurn')}
-            description={behavior === 'queue'
+            description={!supported ? t('messageSending.unsupported') : behavior === 'queue'
               ? t('messageSending.queueDescription')
               : t('messageSending.immediateDescription')} align="center">
-            <Select size="sm" value={behavior} disabled={saving}
+            <Select size="sm" value={behavior} disabled={saving || !supported}
               aria-label={t('messageSending.duringTurn')}
               options={[
                 { value: 'immediate', label: t('messageSending.immediate') },

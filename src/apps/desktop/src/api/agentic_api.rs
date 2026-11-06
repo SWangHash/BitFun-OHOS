@@ -2546,9 +2546,6 @@ pub async fn update_session_title(
 fn desktop_update_session_title_error(error: DesktopSessionApplicationError) -> String {
     match error {
         DesktopSessionApplicationError::Validation(message) => message,
-        DesktopSessionApplicationError::RestoreBeforeRename(message) => {
-            format!("Failed to restore session before renaming: {message}")
-        }
         DesktopSessionApplicationError::OutcomeUnknown(message) => {
             format!("outcome_unknown: {message}")
         }
@@ -3161,7 +3158,7 @@ fn is_blank_text(value: Option<&String>) -> bool {
     value.map(|s| s.trim().is_empty()).unwrap_or(true)
 }
 
-fn resolve_missing_image_payloads(
+pub(crate) fn resolve_missing_image_payloads(
     image_contexts: Vec<ImageContextData>,
 ) -> Result<Vec<ImageContextData>, String> {
     let mut resolved = Vec::with_capacity(image_contexts.len());

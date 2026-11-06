@@ -71,6 +71,7 @@
       "title": "字体大小",
       "hint": "应用于界面和对话内容；代码字号在编辑器设置中单独调整",
       "uiSizeLabel": "界面与对话",
+      "uiSizeHint": "选择舒适的字号档位，应用于导航、面板、设置与对话内容",
       "levels": {
         "compact": "紧凑",
         "small": "小",
@@ -214,6 +215,7 @@
       "refreshTooltip": "刷新可用终端列表",
       "autoDetect": "自动检测 (推荐)",
       "description": "用于新建终端，以及本地工作区中智能体执行的命令",
+      "cmdFallbackMessage": "智能体执行命令时实际使用 PowerShell。",
       "placeholder": "选择默认终端",
       "noShells": "未检测到可用的终端"
     },
@@ -294,6 +296,10 @@
       "label": "权限审批请求通知",
       "description": "窗口未处于前台时，提醒你有操作等待审批"
     },
+    "startupTips": {
+      "label": "启动时显示使用技巧",
+      "description": "每次启动时随机展示一条使用技巧卡片，帮助发现更多功能"
+    },
     "messages": {
       "loading": "加载中…",
       "loadFailed": "无法读取通知设置",
@@ -304,14 +310,15 @@
   "messageSending": {
     "title": "消息发送",
     "duringTurn": "对话执行期间发送消息",
-    "description": "原生会话默认立即向当前任务补充指令；选择排队则等待当前轮次结束。ACP 会话仍需等待当前轮次结束，远程派发会话保持向目标任务追加消息。",
-    "immediate": "立即发送（默认）",
-    "queue": "排队发送",
+    "description": "选择原生会话在回复期间发送消息的方式。ACP 会话继续排队，派发任务继续向目标任务追加消息。",
+    "immediate": "立即发送",
+    "queue": "排队发送（默认）",
     "immediateDescription": "原生会话中，新消息会立即补充到当前任务。",
     "queueDescription": "原生会话中，新消息会在本轮结束后自动发送。",
     "loading": "正在加载消息发送偏好…",
     "loadFailed": "加载消息发送偏好失败",
-    "saveFailed": "保存消息发送偏好失败"
+    "saveFailed": "保存消息发送偏好失败",
+    "unsupported": "当前设备版本不支持修改发送策略，将继续沿用现有排队行为。"
   },
   "textSelection": {
     "title": "文本选择",
@@ -319,6 +326,7 @@
     "autoShowToolbarDescription": "选中对话文本后，显示“添加批注”和“侧边提问”。关闭后仍可通过右键菜单操作。",
     "loading": "正在加载文本选择偏好…",
     "loadFailed": "加载文本选择偏好失败",
-    "saveFailed": "保存文本选择偏好失败"
+    "saveFailed": "保存文本选择偏好失败",
+    "unsupported": "当前设备版本不支持修改选区工具栏开关，将保留原有选区行为。"
   }
 }

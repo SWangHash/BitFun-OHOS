@@ -40,6 +40,44 @@ pub const QT_MIGRATION_ENABLED_CONTEXT_KEY: &str = "qt_migration_enabled";
 /// Session context key the turn gate stashes the prompt-resolved paths under.
 pub const QT_MIGRATION_RESOLVED_PATHS_CONTEXT_KEY: &str = "qt_migration_resolved_paths";
 
+fn candidate_provenance(raw_input: &Value, field: &str, path: &str) -> Option<String> {
+    raw_input
+        .get("candidateSources")
+        .and_then(|sources| sources.get(field))
+        .and_then(|sources| sources.get(path))
+        .and_then(Value::as_str)
+        .map(|source| source.trim().to_lowercase())
+}
+
+fn admit_declared(
+    candidates: HashMap<String, Vec<String>>,
+    raw_input: &Value,
+) -> HashMap<String, Vec<String>> {
+    candidates
+        .into_iter()
+        .filter_map(|(field, values)| {
+            let kept: Vec<String> = values
+                .into_iter()
+                .filter_map(|value| {
+                    let declared = candidate_provenance(raw_input, &field, &value);
+                    let origin = match declared.as_deref() {
+                        Some("prompt") | None => crate::candidates::Origin::Prompt,
+                        Some(_) => crate::candidates::Origin::Scan,
+                    };
+                    crate::candidates::admit(
+                        &field,
+                        None,
+                        &value,
+                        origin,
+                        declared.as_deref(),
+                    )
+                })
+                .collect();
+            (!kept.is_empty()).then_some((field, kept))
+        })
+        .collect()
+}
+
 /// Merge the turn gate's prompt-resolved paths ([`QT_MIGRATION_RESOLVED_PATHS_CONTEXT_KEY`])
 /// into the model-provided candidate map, so they reach the option list even when
 /// the model does not echo them.
@@ -341,7 +379,10 @@ impl QuestionTemplateContribution for QtMigrationQuestionCard {
         // Backend-owned candidate processing for Qt migration combines
         // model-provided paths with paths discovered from local resources.
         // The backend validates, deduplicates, sorts, and caps the final list.
-        let mut candidates = ctx.candidates.clone();
+        let prompt_paths = crate::candidates::prompt_paths(
+            ctx.context_vars.get(QT_MIGRATION_RESOLVED_PATHS_CONTEXT_KEY),
+        );
+        let mut candidates = admit_declared(ctx.candidates.clone(), ctx.raw_input);
 
         // Backend-owned seeding: prompt-resolved paths reach the option list
         // even when the model calls the template without echoing them in
@@ -382,6 +423,7 @@ impl QuestionTemplateContribution for QtMigrationQuestionCard {
                     &candidates,
                     &session_probe_dirs,
                     &[],
+                    &prompt_paths,
                 );
                 // The official toolchain installs one fixed Qt generation, so
                 // it can only be offered when a project the card lists is
@@ -454,6 +496,10 @@ impl QuestionTemplateContribution for QtMigrationQuestionCard {
                         &model_outputs,
                         &source_candidates,
                         &workspace_outputs,
+                        prompt_paths
+                            .get("output_project")
+                            .map(Vec::as_slice)
+                            .unwrap_or_default(),
                     );
                     candidates.insert("output_project".to_string(), output_candidates);
                 }
@@ -480,6 +526,7 @@ impl QuestionTemplateContribution for QtMigrationQuestionCard {
             .get("candidates")
             .and_then(|value| serde_json::from_value(value.clone()).ok())
             .unwrap_or_default();
+        let candidates = admit_declared(candidates, arguments);
         let resolved = resolve_question_template_full(template_id, &candidates)?;
         Some(Self::resolved_template(resolved))
     }
@@ -524,13 +571,6 @@ impl QuestionTemplateContribution for QtMigrationQuestionCard {
                         "qt_migration_output_is_artifact: field={field}; path={value}"
                     ));
                 }
-                if field == "output_project"
-                    && crate::detect::is_qt_source_project(std::path::Path::new(value))
-                {
-                    return Err(format!(
-                        "qt_migration_output_is_source_project: field={field}; path={value}"
-                    ));
-                }
                 if field == "toolchain"
                     && !crate::strategy::toolchain_value_is_measurable(value)
                     && crate::scan::bindable_field_container(field, value).is_none()
@@ -573,11 +613,11 @@ impl QuestionTemplateContribution for QtMigrationQuestionCard {
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
     use super::*;
     use bitfun_runtime_ports::TemplateDirEntry;
     use serde_json::json;
-    use std::path::Path;
-    use std::sync::Arc;
+        use std::sync::Arc;
 
     fn card() -> Arc<dyn QuestionTemplateContribution> {
         Arc::new(QtMigrationQuestionCard)
@@ -590,6 +630,7 @@ mod tests {
         candidates: HashMap<String, Vec<String>>,
         vars: HashMap<String, Value>,
         entries: Vec<TemplateDirEntry>,
+        workspace: Option<std::path::PathBuf>,
     }
 
     fn owned_context(
@@ -605,6 +646,7 @@ mod tests {
                 .map(|(key, value)| (key.to_string(), value))
                 .collect(),
             entries,
+            workspace: None,
         }
     }
 
@@ -614,7 +656,7 @@ mod tests {
             candidates: &owned.candidates,
             raw_input: &owned.raw,
             context_vars: &owned.vars,
-            workspace_root: None,
+            workspace_root: owned.workspace.as_deref(),
             workspace_is_remote: false,
             workspace_dir_entries: Some(&owned.entries),
             managed_resources_root: None,
@@ -675,6 +717,361 @@ mod tests {
         let source = &resolved.questions[0];
         assert_eq!(source.options.len(), 1);
         assert_eq!(source.options[0].description, "D:/work/myqt");
+    }
+
+    #[test]
+    fn a_ledger_sourced_candidate_is_dropped_and_other_sources_are_kept() {
+        let tmp = tempfile::tempdir().unwrap();
+        let project = tmp.path().join("app");
+        let ledger = project.join("migration").join("ohos");
+        std::fs::create_dir_all(&ledger).unwrap();
+        std::fs::write(
+            ledger.join("environment.tsv"),
+            "ENV-011\tlayout\tMigration output container and the project inside it\tcontainer=/Users/nobody/Qt; project=/Users/nobody/Qt/app-ohos\n",
+        )
+        .unwrap();
+        let fresh = project.join("out");
+        std::fs::create_dir_all(&fresh).unwrap();
+
+        let mut model = HashMap::new();
+        model.insert(
+            "source_project".to_string(),
+            vec![project.to_string_lossy().into_owned()],
+        );
+        model.insert(
+            "output_project".to_string(),
+            vec![
+                "/Users/nobody/Qt".to_string(),
+                fresh.to_string_lossy().into_owned(),
+            ],
+        );
+        model.insert(
+            "toolchain".to_string(),
+            vec!["/Users/nobody/Qt-old".to_string()],
+        );
+
+        let mut owned = owned_context(
+            model,
+            vec![(QT_MIGRATION_ENABLED_CONTEXT_KEY, Value::Bool(true))],
+            Vec::new(),
+        );
+        owned.raw = json!({
+            "templateId": QT_MIGRATION_PATHS_TEMPLATE_ID,
+            "candidateSources": {
+                "output_project": {
+                    "/Users/nobody/Qt": "ledger",
+                    fresh.to_string_lossy().into_owned(): "workspace"
+                },
+                "toolchain": { "/Users/nobody/Qt-old": "ledger" }
+            }
+        });
+
+        let resolved = card().render(&render_ctx(&owned)).expect("render succeeds");
+        let payload = resolved.payload.expect("payload present");
+        let questions = payload.as_array().unwrap();
+        let offered = |field: &str| -> Vec<String> {
+            questions
+                .iter()
+                .find(|question| question["field"] == field)
+                .and_then(|question| question["options"].as_array())
+                .map(|options| {
+                    options
+                        .iter()
+                        .filter_map(|option| option["path"].as_str())
+                        .map(str::to_string)
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        assert_eq!(
+            offered("output_project"),
+            vec![fresh.to_string_lossy().into_owned()]
+        );
+        assert!(
+            !offered("toolchain")
+                .iter()
+                .any(|path| path == "/Users/nobody/Qt-old")
+        );
+
+        // A replay rebuilds the card from the persisted tool-call arguments, so it
+        // must drop the same candidates the live render dropped.
+        let replayed = card()
+            .render_replay(&json!({
+                "templateId": QT_MIGRATION_PATHS_TEMPLATE_ID,
+                "candidates": {
+                    "source_project": [project.to_string_lossy().into_owned()],
+                    "output_project": ["/Users/nobody/Qt", fresh.to_string_lossy().into_owned()],
+                    "toolchain": ["/Users/nobody/Qt-old"]
+                },
+                "candidateSources": {
+                    "output_project": {
+                        "/Users/nobody/Qt": "ledger",
+                        fresh.to_string_lossy().into_owned(): "workspace"
+                    },
+                    "toolchain": { "/Users/nobody/Qt-old": "ledger" }
+                }
+            }))
+            .expect("replay succeeds");
+        let replayed_payload = replayed.payload.expect("replay payload present");
+        let replayed_offered = |field: &str| -> Vec<String> {
+            replayed_payload
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|question| question["field"] == field)
+                .and_then(|question| question["options"].as_array())
+                .map(|options| {
+                    options
+                        .iter()
+                        .filter_map(|option| option["path"].as_str())
+                        .map(str::to_string)
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        assert_eq!(
+            replayed_offered("output_project"),
+            vec![fresh.to_string_lossy().into_owned()]
+        );
+        assert!(
+            !replayed_offered("toolchain")
+                .iter()
+                .any(|path| path == "/Users/nobody/Qt-old")
+        );
+
+        // A build-script directory the model reports as a workspace candidate is
+        // dropped at render time too; a prompt-typed path stays visible.
+        let build_scripts = tmp.path().join("how_build");
+        std::fs::create_dir_all(&build_scripts).unwrap();
+        std::fs::write(
+            build_scripts.join("CMakeLists.txt"),
+            "find_package(Qt5 REQUIRED COMPONENTS Core)\naux_source_directory(${PROJECT_SOURCE_DIR}/src SRC)\n",
+        )
+        .unwrap();
+        let build_scripts = build_scripts.to_string_lossy().into_owned();
+
+        let mut shaped = HashMap::new();
+        shaped.insert("source_project".to_string(), vec![build_scripts.clone()]);
+        let mut shaped_owned = owned_context(
+            shaped,
+            vec![(QT_MIGRATION_ENABLED_CONTEXT_KEY, Value::Bool(true))],
+            Vec::new(),
+        );
+        shaped_owned.workspace = Some(tmp.path().to_path_buf());
+        shaped_owned.raw = json!({
+            "templateId": QT_MIGRATION_PATHS_TEMPLATE_ID,
+            "candidateSources": {
+                "source_project": { build_scripts.clone(): "workspace" }
+            }
+        });
+        let shaped_resolved = card()
+            .render(&render_ctx(&shaped_owned))
+            .expect("render succeeds");
+        let shaped_payload = shaped_resolved.payload.expect("payload present");
+        let shaped_offered: Vec<String> = shaped_payload
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|question| question["field"] == "source_project")
+            .and_then(|question| question["options"].as_array())
+            .map(|options| {
+                options
+                    .iter()
+                    .filter_map(|option| option["path"].as_str())
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
+        assert!(
+            !shaped_offered.contains(&build_scripts),
+            "a build-script directory is not a source candidate: {shaped_offered:?}"
+        );
+        // A scan-reported output container must sit inside the workspace; a path
+        // the prompt named may be outside it.
+        let parent = tmp.path().to_path_buf();
+        let typed_out = tmp.path().join("typed-out");
+        std::fs::create_dir_all(&typed_out).unwrap();
+        let parent_value = parent.to_string_lossy().into_owned();
+        let typed_out_value = typed_out.to_string_lossy().into_owned();
+        let mut outs = HashMap::new();
+        outs.insert(
+            "output_project".to_string(),
+            vec![parent_value.clone(), typed_out_value.clone()],
+        );
+        let mut out_owned = owned_context(
+            outs,
+            vec![(QT_MIGRATION_ENABLED_CONTEXT_KEY, Value::Bool(true))],
+            Vec::new(),
+        );
+        out_owned.workspace = Some(project.clone());
+        out_owned.vars.insert(
+            QT_MIGRATION_RESOLVED_PATHS_CONTEXT_KEY.to_string(),
+            json!({ "output_project": typed_out_value.clone() }),
+        );
+        out_owned.raw = json!({
+            "templateId": QT_MIGRATION_PATHS_TEMPLATE_ID,
+            "candidateSources": {
+                "output_project": { parent_value.clone(): "workspace", typed_out_value.clone(): "prompt" }
+            }
+        });
+        let out_resolved = card()
+            .render(&render_ctx(&out_owned))
+            .expect("render succeeds");
+        let out_payload = out_resolved.payload.expect("payload present");
+        let offered_output: Vec<String> = out_payload
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|question| question["field"] == "output_project")
+            .and_then(|question| question["options"].as_array())
+            .map(|options| {
+                options
+                    .iter()
+                    .filter_map(|option| option["path"].as_str())
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
+        assert!(
+            !offered_output.contains(&parent_value),
+            "a scan-reported output container outside the workspace is dropped: {offered_output:?}"
+        );
+        assert!(
+            offered_output.contains(&typed_out_value),
+            "a prompt-typed output path stays visible: {offered_output:?}"
+        );
+
+        // Relative candidates resolve against the workspace before judging.
+        let relative_real = tmp.path().join("relative-real");
+        std::fs::create_dir_all(&relative_real).unwrap();
+        std::fs::write(relative_real.join("real.pro"), "").unwrap();
+        let mut relative = HashMap::new();
+        relative.insert(
+            "source_project".to_string(),
+            vec!["how_build".to_string(), "relative-real".to_string()],
+        );
+        let mut relative_owned = owned_context(
+            relative,
+            vec![(QT_MIGRATION_ENABLED_CONTEXT_KEY, Value::Bool(true))],
+            Vec::new(),
+        );
+        relative_owned.workspace = Some(tmp.path().to_path_buf());
+        relative_owned.raw = json!({
+            "templateId": QT_MIGRATION_PATHS_TEMPLATE_ID,
+            "candidateSources": {
+                "source_project": { "how_build": "workspace", "relative-real": "prompt" }
+            }
+        });
+        let relative_resolved = card()
+            .render(&render_ctx(&relative_owned))
+            .expect("render succeeds");
+        let relative_payload = relative_resolved.payload.expect("payload present");
+        let relative_offered: Vec<String> = relative_payload
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|question| question["field"] == "source_project")
+            .and_then(|question| question["options"].as_array())
+            .map(|options| {
+                options
+                    .iter()
+                    .filter_map(|option| option["path"].as_str())
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
+        assert!(
+            !relative_offered
+                .iter()
+                .any(|path| path.ends_with("/how_build")),
+            "a relative build-script directory resolves against the workspace: {relative_offered:?}"
+        );
+        assert!(
+            relative_offered
+                .iter()
+                .any(|path| path.ends_with("/relative-real")),
+            "a relative prompt-typed path stays visible: {relative_offered:?}"
+        );
+    }
+
+    #[test]
+    fn a_workspace_sourced_path_is_kept_and_an_unannotated_path_is_kept_too() {
+        let mut model = HashMap::new();
+        model.insert(
+            "source_project".to_string(),
+            vec!["D:/work/app".to_string()],
+        );
+        model.insert(
+            "output_project".to_string(),
+            vec![
+                "/Users/nobody/Qt".to_string(),
+                "D:/work/app/out".to_string(),
+            ],
+        );
+
+        let mut owned = owned_context(
+            model,
+            vec![(QT_MIGRATION_ENABLED_CONTEXT_KEY, Value::Bool(true))],
+            Vec::new(),
+        );
+        owned.raw = json!({
+            "templateId": QT_MIGRATION_PATHS_TEMPLATE_ID,
+            "candidateSources": {
+                "output_project": { "/Users/nobody/Qt": "workspace" }
+            }
+        });
+
+        let resolved = card().render(&render_ctx(&owned)).expect("render succeeds");
+        let payload = resolved.payload.expect("payload present");
+        let output = payload
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|question| question["field"] == "output_project")
+            .expect("output question present");
+        let offered: Vec<&str> = output["options"]
+            .as_array()
+            .expect("options list")
+            .iter()
+            .filter_map(|option| option["path"].as_str())
+            .collect();
+        assert_eq!(offered, vec!["/Users/nobody/Qt", "D:/work/app/out"]);
+    }
+
+    #[test]
+    fn the_official_value_is_never_rendered_as_a_path_candidate() {
+        let mut model = HashMap::new();
+        model.insert(
+            "toolchain".to_string(),
+            vec![
+                "__official__".to_string(),
+                "/Users/nobody/kit/bin".to_string(),
+            ],
+        );
+        model.insert("template".to_string(), vec!["__official__".to_string()]);
+
+        let owned = owned_context(
+            model,
+            vec![(QT_MIGRATION_ENABLED_CONTEXT_KEY, Value::Bool(true))],
+            Vec::new(),
+        );
+        let resolved = card().render(&render_ctx(&owned)).expect("render succeeds");
+        let payload = resolved.payload.expect("payload present");
+        for question in payload.as_array().unwrap() {
+            let paths: Vec<&str> = question["options"]
+                .as_array()
+                .map(|options| {
+                    options
+                        .iter()
+                        .filter_map(|option| option["path"].as_str())
+                        .collect()
+                })
+                .unwrap_or_default();
+            assert!(
+                !paths.contains(&QT_MIGRATION_OFFICIAL_VALUE),
+                "the reserved official value is not a path: {question}"
+            );
+        }
     }
 
     #[test]

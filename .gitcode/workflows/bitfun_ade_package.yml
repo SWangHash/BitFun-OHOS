@@ -48,12 +48,12 @@ on:
       package_win:
         description: '打包 Windows（x86_64 交叉编译，开发者预览 zip，需 windows_package runner）'
         required: false
-        default: false
+        default: true
         type: boolean
       package_mac:
         description: '打包 macOS（aarch64 交叉编译，开发者预览 zip，需 macos_package runner）'
         required: false
-        default: false
+        default: true
         type: boolean
       branch:
         description: '打包分支（默认 main）'
@@ -61,8 +61,9 @@ on:
         default: 'main'
         type: string
       repo:
-        description: 'OHOS 打包的仓库地址（默认 OpenBitFun/bitfun_ade）'
+        description: '打包的仓库地址（OHOS 克隆与 Release 上传目标）'
         required: false
+        default: 'https://gitcode.com/OpenBitFun/bitfun_ade.git'
         type: string
       debug:
         description: 'debug profile（OHOS so 输出在 target/.../debug；win/mac 产物在 target/.../debug[/bundle]）'
@@ -84,22 +85,30 @@ on:
         required: false
         default: false
         type: boolean
+      replace_assets:
+        description: '重跑同 tag 时替换 Release 同名资产（先删后传；默认跳过同名文件）'
+        required: false
+        default: false
+        type: boolean
       upload_artifact:
         description: '附带上传 artifact（占命名空间 1G 配额且当前无删除接口，仅在需要时勾选）'
         required: false
         default: false
         type: boolean
       release_tag:
-        description: 'Release 标签（upload_to_release 为 true 时必填，如 v1.0.0）'
+        description: 'Release 标签（如 v2.0.2）'
         required: false
+        default: 'v2.0.2'
         type: string
       package_name:
-        description: '产物包名（文件名主干，如 bitfun-v1.0.0；不填用 release_tag，都不填保持默认产物名）'
+        description: '产物包名（文件名主干，如 bitfun-v2.0.2）'
         required: false
+        default: 'bitfun-v2.0.2'
         type: string
       release_title:
-        description: 'Release 标题（不填默认为 tag；重跑不填则保留原标题）'
+        description: 'Release 标题；重跑想保留原 Release 标题时清空此框'
         required: false
+        default: 'BitFun ADE v2.0.2'
         type: string
   schedule:
     # GitCode schedule uses Asia/Shanghai time. 00:10 instead of the exact
@@ -141,6 +150,7 @@ jobs:
       release_tag: ${{ steps.resolve.outputs.release_tag }}
       package_name: ${{ steps.resolve.outputs.package_name }}
       release_title: ${{ steps.resolve.outputs.release_title }}
+      replace_assets: ${{ steps.resolve.outputs.replace_assets }}
       windows_artifact_name: ${{ steps.resolve.outputs.windows_artifact_name }}
       macos_artifact_name: ${{ steps.resolve.outputs.macos_artifact_name }}
       ohos_artifact_name: ${{ steps.resolve.outputs.ohos_artifact_name }}
@@ -158,6 +168,7 @@ jobs:
           INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
           INPUT_PACKAGE_NAME: ${{ inputs.package_name }}
           INPUT_RELEASE_TITLE: ${{ inputs.release_title }}
+          INPUT_REPLACE_ASSETS: ${{ inputs.replace_assets }}
         run: |
           set -eu
           if [ -n "$MANUAL_BRANCH" ]; then
@@ -173,6 +184,7 @@ jobs:
             release_tag="$INPUT_RELEASE_TAG"
             package_name="$INPUT_PACKAGE_NAME"
             release_title="$INPUT_RELEASE_TITLE"
+            replace_assets="$INPUT_REPLACE_ASSETS"
             windows_artifact_name=bitfun-windows-package
             macos_artifact_name=bitfun-macos-package
             ohos_artifact_name=bitfun-ohos-package
@@ -187,6 +199,7 @@ jobs:
             build_app=false
             upload_to_release=false
             upload_artifact=true
+            replace_assets=false
             release_tag="bitfun-daily.$build_date"
             package_name="bitfun-daily.$build_date"
             release_title="BitFun Desktop daily $build_date"
@@ -207,6 +220,7 @@ jobs:
             printf 'release_tag=%s\n' "$release_tag"
             printf 'package_name=%s\n' "$package_name"
             printf 'release_title=%s\n' "$release_title"
+            printf 'replace_assets=%s\n' "$replace_assets"
             printf 'windows_artifact_name=%s\n' "$windows_artifact_name"
             printf 'macos_artifact_name=%s\n' "$macos_artifact_name"
             printf 'ohos_artifact_name=%s\n' "$ohos_artifact_name"
@@ -297,6 +311,7 @@ jobs:
           PKG_WORKDIR: ${{ steps.package_run.outputs.workdir }}
           PKG_SO_ONLY: ${{ needs.resolve-run-config.outputs.so_only }}
           RELEASE_TAG: ${{ needs.resolve-run-config.outputs.release_tag }}
+          UPLOAD_TO_RELEASE: ${{ needs.resolve-run-config.outputs.upload_to_release }}
           PKG_NAME: ${{ needs.resolve-run-config.outputs.package_name }}
         run: |
           set -eu
@@ -353,6 +368,15 @@ jobs:
           elif [ -e "$repo_path/src/apps/ohos/build/outputs/default/$APP_SIGNED" ]; then
             cp -v "$repo_path/src/apps/ohos/build/outputs/default/$APP_SIGNED" "$out/"
           fi
+          # Release 附带 OHOS 工程整体源码包（package.sh 在签名注入前暂存，
+          # 不含签名配置）。仅在发 Release 时收集，避免膨胀每日 artifact。
+          if [ "$UPLOAD_TO_RELEASE" = "true" ]; then
+            for source_archive in "$workdir"/ohos-source-output/*; do
+              if [ -e "$source_archive" ]; then
+                cp -v "$source_archive" "$out/"
+              fi
+            done
+          fi
           # 产物改名：优先用包名（package_name），未填回退 release_tag，
           # 都不填保持默认签名文件名。包名不允许斜杠与空白。
           asset_name="$PKG_NAME"
@@ -371,6 +395,12 @@ jobs:
             fi
             if [ -e "$out/$APP_SIGNED" ]; then
               mv -v "$out/$APP_SIGNED" "$out/$asset_name.app"
+            fi
+            if [ -e "$out/ohos-source.zip" ]; then
+              mv -v "$out/ohos-source.zip" "$out/$asset_name-ohos-source.zip"
+            fi
+            if [ -e "$out/ohos-source.tgz" ]; then
+              mv -v "$out/ohos-source.tgz" "$out/$asset_name-ohos-source.tgz"
             fi
           fi
           # so/dist 仅在 so-only 模式收集（该模式没有 HAP/.app，so/dist
@@ -435,6 +465,7 @@ jobs:
           RELEASE_TITLE: ${{ needs.resolve-run-config.outputs.release_title }}
           RELEASE_BRANCH: ${{ needs.resolve-run-config.outputs.branch }}
           RELEASE_REPO_INPUT: ${{ needs.resolve-run-config.outputs.repo }}
+          REPLACE_ASSETS: ${{ needs.resolve-run-config.outputs.replace_assets }}
           PACKAGED_COMMIT: ${{ steps.collect.outputs.commit }}
           UPLOAD_FLAG: ${{ needs.resolve-run-config.outputs.upload_to_release }}
         run: |
@@ -468,7 +499,9 @@ jobs:
           release_repo="${release_repo%.git}"
           release_repo="$(printf '%s' "$release_repo" | awk -F/ '{print $(NF-1)"/"$NF}')"
           echo "Release repository: $release_repo (target branch: $RELEASE_BRANCH)"
-          node scripts/ci/publish-gitcode-release.mjs "$RELEASE_TAG" "$release_repo" ohos-package-output "$RELEASE_BRANCH" "$PACKAGED_COMMIT" "$RELEASE_TITLE"
+          publish_replace=''
+          if [ "$REPLACE_ASSETS" = 'true' ]; then publish_replace='--replace'; fi
+          node scripts/ci/publish-gitcode-release.mjs "$RELEASE_TAG" "$release_repo" ohos-package-output "$RELEASE_BRANCH" "$PACKAGED_COMMIT" "$RELEASE_TITLE" "hap,app,zip,tgz" $publish_replace
           echo 'uploaded=true' >> "$ATOMGIT_OUTPUT"
 
   windows:
@@ -745,6 +778,7 @@ jobs:
           RELEASE_TITLE: ${{ needs.resolve-run-config.outputs.release_title }}
           RELEASE_BRANCH: ${{ needs.resolve-run-config.outputs.branch }}
           RELEASE_REPO_INPUT: ${{ needs.resolve-run-config.outputs.repo }}
+          REPLACE_ASSETS: ${{ needs.resolve-run-config.outputs.replace_assets }}
           PACKAGED_COMMIT: ${{ steps.prepare_source.outputs.commit }}
         run: |
           set -eu
@@ -765,7 +799,9 @@ jobs:
           release_repo="${release_repo%.git}"
           release_repo="$(printf '%s' "$release_repo" | awk -F/ '{print $(NF-1)"/"$NF}')"
           echo "Release repository: $release_repo (target branch: $RELEASE_BRANCH)"
-          node .package-tools/publish-gitcode-release.mjs "$RELEASE_TAG" "$release_repo" desktop-package-output "$RELEASE_BRANCH" "$PACKAGED_COMMIT" "$RELEASE_TITLE" "zip"
+          publish_replace=''
+          if [ "$REPLACE_ASSETS" = 'true' ]; then publish_replace='--replace'; fi
+          node .package-tools/publish-gitcode-release.mjs "$RELEASE_TAG" "$release_repo" desktop-package-output "$RELEASE_BRANCH" "$PACKAGED_COMMIT" "$RELEASE_TITLE" "zip" $publish_replace
 
       - name: Remove Windows package container
         if: ${{ always() }}
@@ -1118,6 +1154,7 @@ jobs:
           RELEASE_TITLE: ${{ needs.resolve-run-config.outputs.release_title }}
           RELEASE_BRANCH: ${{ needs.resolve-run-config.outputs.branch }}
           RELEASE_REPO_INPUT: ${{ needs.resolve-run-config.outputs.repo }}
+          REPLACE_ASSETS: ${{ needs.resolve-run-config.outputs.replace_assets }}
           PACKAGED_COMMIT: ${{ steps.prepare_source.outputs.commit }}
         run: |
           set -eu
@@ -1138,7 +1175,9 @@ jobs:
           release_repo="${release_repo%.git}"
           release_repo="$(printf '%s' "$release_repo" | awk -F/ '{print $(NF-1)"/"$NF}')"
           echo "Release repository: $release_repo (target branch: $RELEASE_BRANCH)"
-          node .package-tools/publish-gitcode-release.mjs "$RELEASE_TAG" "$release_repo" desktop-package-output "$RELEASE_BRANCH" "$PACKAGED_COMMIT" "$RELEASE_TITLE" "zip"
+          publish_replace=''
+          if [ "$REPLACE_ASSETS" = 'true' ]; then publish_replace='--replace'; fi
+          node .package-tools/publish-gitcode-release.mjs "$RELEASE_TAG" "$release_repo" desktop-package-output "$RELEASE_BRANCH" "$PACKAGED_COMMIT" "$RELEASE_TITLE" "zip" $publish_replace
 
       - name: Remove macOS cross container
         if: ${{ always() }}

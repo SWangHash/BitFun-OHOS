@@ -277,6 +277,27 @@ $chevron-box-slack: 5px;
     margin-top: 6px;
   }
 
+  &__load-more {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    margin-top: 4px;
+    padding: 4px 8px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--bitfun-color-content-secondary);
+    font: inherit;
+    font-size: var(--bitfun-type-meta-font-size);
+    cursor: pointer;
+
+    &:hover {
+      color: var(--bitfun-color-content-primary);
+      background: var(--bitfun-color-action-neutral-surface);
+    }
+  }
+
   &__group--actions &__group-items {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));

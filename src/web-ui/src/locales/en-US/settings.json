@@ -7,6 +7,7 @@
     "categories": {
       "application": "Application & Interface",
       "ai": "Models & Agents",
+      "workspace": "Sessions & Workspace",
       "development": "Programming & Development",
       "tools": "Tools & Integrations",
       "data": "Data & Maintenance"
@@ -24,6 +25,14 @@
         "label": "Pet & assistant",
         "description": "Choose your pet, configure real-time voice calls with the assistant, and manage desktop cards"
       },
+      "voice": {
+        "label": "Voice",
+        "description": "Voice input, local speech models, and realtime voice calls."
+      },
+      "shortcuts": {
+        "label": "Keyboard Shortcuts",
+        "description": "Browse, customize, and reset keyboard shortcuts."
+      },
       "terminal": {
         "label": "Terminal",
         "description": "Choose the shell for new terminals and commands in local workspaces"
@@ -35,6 +44,18 @@
       "models": {
         "label": "Models",
         "description": "Connect model providers and choose models for each type of task"
+      },
+      "memory": {
+        "label": "Memory",
+        "description": "Memory generation, use, extraction, and consolidation."
+      },
+      "sessionWorkspace": {
+        "label": "Session & Workspace",
+        "description": "Default Harness, session titles, and current workspace search."
+      },
+      "worktrees": {
+        "label": "Worktrees",
+        "description": "Git worktree isolation and parallel-session defaults."
       },
       "execution": {
         "label": "Execution & Collaboration",
@@ -88,15 +109,23 @@
         "label": "Workspace & Git",
         "description": "Configure file search, commit attribution, and worktrees, and manage isolated working directories"
       },
+      "browserControl": {
+        "label": "Browser control",
+        "description": "Choose a browser and manage its connection."
+      },
       "externalImport": {
         "label": "External import",
         "description": "Import and manage content from other AI applications"
       }
     },
     "views": {
+      "common": "Common",
+      "advanced": "Advanced",
       "local": "Local",
       "ssh": "SSH",
-      "json": "Advanced JSON"
+      "json": "Advanced JSON",
+      "quick-actions": "Quick Actions",
+      "hooks": "Hooks"
     },
     "sections": {
       "text-selection": "Text selection",
@@ -107,6 +136,7 @@
       "memory": "Memory",
       "workspace-search": "Workspace Search",
       "worktrees": "Worktrees",
+      "voiceCall": "Voice calls",
       "git": "Git Commits",
       "quick-actions": "Quick Actions",
       "hooks": "Event Hooks",

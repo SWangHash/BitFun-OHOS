@@ -2,11 +2,24 @@
 use agent_client_protocol::JsonRpcMessage;
 use bitfun_app_server_protocol::{
     agent::{RunResponse, SubmitDialogTurnMessage, SubmitDialogTurnRequest},
-    config::GetAgentProfileConfigMessage,
+    config::{GetAgentProfileConfigMessage, SetConfigMessage},
     permission::RespondPermissionMessage,
     session::{RestoreSessionMessage, SessionProcessingPhase, SessionRuntimeState},
 };
 use serde_json::json;
+
+#[test]
+fn config_writes_preserve_legacy_payloads_and_optional_model_snapshots() {
+    let legacy = json!({ "path": "ai.models", "value": [] });
+    let request: SetConfigMessage = serde_json::from_value(legacy.clone()).unwrap();
+    assert!(request.expected_models.is_none());
+    assert_eq!(serde_json::to_value(request).unwrap(), legacy);
+
+    let guarded = json!({ "path": "ai.models", "value": [], "expectedModels": [] });
+    let request: SetConfigMessage = serde_json::from_value(guarded.clone()).unwrap();
+    assert_eq!(request.expected_models, Some(json!([])));
+    assert_eq!(serde_json::to_value(request).unwrap(), guarded);
+}
 
 #[test]
 fn legacy_submit_dialog_contract_keeps_optional_policy() {

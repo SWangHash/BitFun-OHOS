@@ -1,3 +1,4 @@
+import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
 import { SettingsPage } from '../shared/SettingsPage';
 import KeyboardShortcutsSection from './KeyboardShortcutsSection';
 import VoiceSettingsSection from './VoiceSettingsSection';
@@ -7,10 +8,11 @@ import MessageSendingSettingsSection from './MessageSendingSettingsSection';
 export default function InputSettingsPage() {
   return (
     <SettingsPage pageId="application.input">
-      <VoiceSettingsSection />
+      {!isOpenHarmonyRuntime() && <VoiceSettingsSection />}
       <MessageSendingSettingsSection />
       <TextSelectionSettingsSection />
       <KeyboardShortcutsSection />
     </SettingsPage>
   );
 }
+

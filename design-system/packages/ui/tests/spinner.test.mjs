@@ -7,18 +7,17 @@ import ts from "typescript";
 import { LoadingState, Spinner } from "../dist/index.js";
 import { FlowChatRuntimeStatus } from "../dist/flow-chat.js";
 
-test("Spinner exposes the logo by default and retains the bar presentation", () => {
-  const logo = renderToStaticMarkup(createElement(Spinner, { size: "sm" }));
+test("Spinner exposes logo and bar presentations with the legacy matrix alias", () => {
+  const matrix = renderToStaticMarkup(createElement(Spinner, { size: "sm", variant: "matrix" }));
   const bars = renderToStaticMarkup(createElement(Spinner, {
     "aria-label": "Loading",
     variant: "bars",
   }));
 
-  assert.match(logo, /data-bitfun-component="spinner"/);
-  assert.match(logo, /data-variant="logo"/);
-  assert.match(logo, /data-size="sm"/);
-  assert.equal((logo.match(/<span/g) ?? []).length, 3);
-  assert.match(logo, /aria-hidden="true"/);
+  assert.match(renderToStaticMarkup(createElement(Spinner, { active: false })), /data-active="false"/);
+  assert.match(matrix, /data-bitfun-component="spinner"/);
+  assert.match(matrix, /data-variant="logo"/);
+  assert.equal((matrix.match(/aria-hidden="true"/g) ?? []).length, 2);
   assert.match(bars, /role="status"/);
   assert.match(bars, /aria-label="Loading"/);
   assert.equal((bars.match(/class=/g) ?? []).length, 4);
@@ -50,8 +49,8 @@ test("LoadingState composes Spinner with optional support copy", () => {
 
 test("Spinner styling uses public system, motion, and semantic tokens", async () => {
   const styles = await readFile(new URL("../dist/styles.css", import.meta.url), "utf8");
-  assert.match(styles, /--bitfun-layout-spinner-matrix-cell-md/);
-  assert.match(styles, /--bitfun-layout-spinner-matrix-gap-md/);
+  assert.match(styles, /mask-image:/);
+  assert.match(styles, /prefers-reduced-motion/);
   assert.match(styles, /--bitfun-motion-duration-loop/);
   assert.match(styles, /--bitfun-color-content-muted/);
   assert.doesNotMatch(styles, /bitfun-spinner-matrix-pulse/);

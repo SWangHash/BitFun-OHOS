@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { Alert, Button, Card, CardHeader, Icon, IconButton, OverflowText, StatusPill } from '@bitfun/ui';
+import { Alert, Button, Card, CardHeader, Icon, IconButton, StatusPill } from '@bitfun/ui';
 import { CircleUserRound } from 'lucide-react';
 import { devecoAccountAPI, type DevecoAccountSnapshot } from '@/infrastructure/api/service-api/DevecoAccountAPI';
 import { useI18n } from '@/infrastructure/i18n';
@@ -134,7 +134,6 @@ export default function DevecoAccount({ supported, refreshVersion, expanded, onT
         <span className="ecosystem-compatibility__import-item-icon"><Icon glyph={CircleUserRound} size="md" /></span>
         <span className="ecosystem-compatibility__import-item-copy"><strong>{t('capabilities.account')}</strong><small>{t('content.devecoAccount.description')}</small></span>
       </span>
-      <span role="cell"><OverflowText>{t('content.accounts.providers.deveco')}</OverflowText></span>
       <span role="cell" className="ecosystem-compatibility__content-summary-state">
         <StatusPill tone="neutral">{label}</StatusPill>
         <IconButton size="sm" variant="quiet" icon={<Icon name={expanded ? 'chevron-down' : 'chevron-right'} size="sm" />}
@@ -143,7 +142,7 @@ export default function DevecoAccount({ supported, refreshVersion, expanded, onT
           onClick={() => { if (!expanded) setRevision((value) => value + 1); onToggle(); }} />
       </span>
     </div>
-    <div role="row" hidden={!expanded}><div id={id} role="cell" aria-colspan={3} className="ecosystem-compatibility__content-expanded">
+    <div role="row" hidden={!expanded}><div id={id} role="cell" aria-colspan={2} className="ecosystem-compatibility__content-expanded">
       {expanded ? <Card appearance="subtle" padding="sm" className="ecosystem-compatibility__account-panel">
         <CardHeader title={t('content.accounts.providers.deveco')} description={t('content.devecoAccount.note')} />
         <div className="ecosystem-compatibility__account-actions">

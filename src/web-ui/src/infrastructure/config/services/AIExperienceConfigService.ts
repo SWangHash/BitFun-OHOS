@@ -2,7 +2,6 @@
 
 import { configManager } from './ConfigManager';
 import { DEFAULT_AGENT_COMPANION_PET } from './AgentCompanionPetService';
-import { configAPI } from '@/infrastructure/api/service-api/ConfigAPI';
 import { createLogger } from '@/shared/utils/logger';
 import { getActiveSurfaceScope, isSurfaceChangedError, onSurfaceActivated } from '@/infrastructure/peer-device/deviceSurface';
 import type { VoiceInputSettings } from '../types';
@@ -210,7 +209,7 @@ export class AIExperienceConfigService {
     this.ensureConfigWatcher();
     try {
       const settings = options?.forceRefresh
-        ? await configAPI.getConfig(CONFIG_PATH) as PersistedAIExperienceSettings
+        ? await configManager.getConfig<PersistedAIExperienceSettings>(CONFIG_PATH, { forceRefresh: true, requireLoaded: true })
         : await configManager.getConfig<PersistedAIExperienceSettings>(CONFIG_PATH);
       scope.assertCurrent('read AI experience settings');
       this.cachedSettings = normalizeSettings(settings);
@@ -228,6 +227,7 @@ export class AIExperienceConfigService {
    
   /** Save only the fields the caller edited, never a cached settings snapshot. */
   async saveSettings(settings: AIExperienceSettingsPatch): Promise<void> {
+    const scope = getActiveSurfaceScope();
     this.ensureConfigWatcher();
     try {
       for (const [key, value] of Object.entries(settings)) {
@@ -235,13 +235,16 @@ export class AIExperienceConfigService {
         if (key === 'voice_input' && value && typeof value === 'object') {
           for (const [voiceKey, voiceValue] of Object.entries(value)) {
             if (voiceValue !== undefined) {
+              scope.assertCurrent('save AI experience settings');
               await configManager.setConfig(`${CONFIG_PATH}.voice_input.${voiceKey}`, voiceValue);
             }
           }
         } else {
+          scope.assertCurrent('save AI experience settings');
           await configManager.setConfig(`${CONFIG_PATH}.${key}`, value);
         }
       }
+      scope.assertCurrent('refresh saved AI experience settings');
       await this.loadSettings();
       this.notifyListeners();
     } catch (error) {

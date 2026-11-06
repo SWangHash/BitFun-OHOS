@@ -26,7 +26,7 @@ import { useTranslation } from 'react-i18next';
 import './SettingsNav.scss';
 import {
   SETTINGS_CATEGORIES,
-  VISIBLE_SETTINGS_PAGE_MANIFESTS,
+  SETTINGS_PAGE_MANIFESTS,
   preloadSettingsPage,
   type SettingsPageManifest,
   type SettingsSearchPhrase,
@@ -67,7 +67,7 @@ function buildSettingsSearchIndex(t: SettingsT, i18n: I18nApi): SettingsSearchRo
     translateString(t, category.labelKey, category.id),
   ]));
 
-  return VISIBLE_SETTINGS_PAGE_MANIFESTS.flatMap((page) => {
+  return SETTINGS_PAGE_MANIFESTS.flatMap((page) => {
     const categoryLabel = categoryLabels.get(page.categoryId) ?? page.categoryId;
     const pageLabel = translateString(t, page.labelKey, page.id);
     const description = translateString(t, page.descriptionKey, '');
@@ -281,7 +281,6 @@ const SettingsNav: React.FC = () => {
             ref={searchInputRef}
             className="bitfun-settings-nav__search-field"
             size="sm"
-            data-testid="settings-search-input"
             value={draftQuery}
             onValueChange={setDraftQuery}
             onClear={draftQuery ? () => {

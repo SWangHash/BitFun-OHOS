@@ -469,7 +469,7 @@ class ConfigManagerImpl implements IConfigManager {
     throw error;
   }
 
-  async getConfig<T = any>(path?: string): Promise<T> {
+  async getConfig<T = any>(path?: string, options?: { requireLoaded?: boolean; forceRefresh?: boolean }): Promise<T> {
     const scope = getActiveSurfaceScope();
     try {
       const pendingMutations = this.waitForRelatedMutations([path]);
@@ -479,7 +479,7 @@ class ConfigManagerImpl implements IConfigManager {
 
       scope.assertCurrent('get configuration');
 
-      if (path && this.configCache.has(path)) {
+      if (!options?.forceRefresh && path && this.configCache.has(path)) {
         return this.configCache.get(path);
       }
 
@@ -501,7 +501,8 @@ class ConfigManagerImpl implements IConfigManager {
     } catch (error) {
       if (isSurfaceChangedError(error)) throw error;
       log.error('Failed to get config', { path, error });
-      // Return defaults to avoid breaking the UI.
+      if (options?.requireLoaded) throw error;
+      // Existing non-editor consumers retain their compatibility defaults.
       if (path === 'ai.models') {
         return [] as T;
       }
@@ -700,7 +701,13 @@ class ConfigManagerImpl implements IConfigManager {
         try {
           await configAPI.setConfig(path, next, { expectedModels });
         } catch (error) {
-          if (String(error).includes('SUBSCRIPTION_ACCOUNT_POOL_CONFLICT')) throw new ConfigConflictError();
+          const message = String(error);
+          // Pool revisions and model snapshots are both compared under the host
+          // configuration lock, so either rejection is a stale-editor conflict.
+          if (message.includes('SUBSCRIPTION_ACCOUNT_POOL_CONFLICT')
+            || message.includes('CONFIG_MODELS_CONFLICT')) {
+            throw new ConfigConflictError();
+          }
           throw error;
         }
         scope.assertCurrent('read committed configuration');

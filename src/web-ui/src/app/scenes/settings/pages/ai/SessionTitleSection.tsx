@@ -48,8 +48,8 @@ export const SessionTitleSection: React.FC = () => {
     try {
       const [loadedSettings, allModels, taskModelsData] = await Promise.all([
         aiExperienceConfigService.getSettingsAsync({ requireLoaded: true }),
-        configManager.getConfig<AIModelConfig[]>('ai.models') || [],
-        configManager.getConfig<Partial<TaskModelsConfig>>('ai.task_models'),
+        configManager.getConfig<AIModelConfig[]>('ai.models', { requireLoaded: true }) || [],
+        configManager.getConfig<Partial<TaskModelsConfig>>('ai.task_models', { requireLoaded: true }),
       ]);
       setSettings(loadedSettings);
       setModels(allModels ?? []);
@@ -127,7 +127,7 @@ export const SessionTitleSection: React.FC = () => {
 
   const handleModelChange = async (modelId: string) => {
     try {
-      const current = await configManager.getConfig<Partial<TaskModelsConfig>>('ai.task_models');
+      const current = await configManager.getConfig<Partial<TaskModelsConfig>>('ai.task_models', { requireLoaded: true });
       const selection: TaskModelSelection = modelId === 'inherit'
         ? { kind: 'inherit' }
         : { kind: 'fixed', model_id: modelId };

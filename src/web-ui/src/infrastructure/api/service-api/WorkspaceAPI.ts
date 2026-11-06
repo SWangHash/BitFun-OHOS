@@ -1546,7 +1546,7 @@ export class WorkspaceAPI {
   }
 
    
-  async getClipboardFiles(): Promise<{ files: string[]; isCut: boolean }> {
+  async getClipboardFiles(): Promise<{ files: string[]; isCut: boolean; errors?: string[] }> {
     try {
       return await api.invoke('get_clipboard_files');
     } catch (error) {

@@ -47,12 +47,40 @@ const REPLACEMENT_RULES: ReadonlyArray<{ key: MonacoChromeTextKey; english: stri
 ];
 
 export function localizeMonacoText(text: string, strings: MonacoChromeStrings): string {
+  // Apply every matching rule: compound labels like "Find / Replace" contain
+  // several chrome strings, and stopping at the first match produced
+  // half-localized text ("Find / 替换") that then defeated the reverse
+  // restore and the hover-remover matching (issue #432).
+  let result = text;
   for (const rule of REPLACEMENT_RULES) {
-    if (text.includes(rule.english)) {
-      return text.split(rule.english).join(strings[rule.key]);
+    if (result.includes(rule.english)) {
+      result = result.split(rule.english).join(strings[rule.key]);
     }
   }
-  return text;
+  return result;
+}
+
+/**
+ * Maps previously-localized chrome text back to its English source. Language
+ * switches re-run localization over DOM that already carries the previous
+ * language, so the restore pass must run before the new localization
+ * (issue #434: en→zh worked, zh→en left stale Chinese labels). Longest-first
+ * so compound labels win over their prefixes.
+ */
+function buildEnglishRestoreLookup(strings: MonacoChromeStrings): ReadonlyArray<{ localized: string; english: string }> {
+  return REPLACEMENT_RULES
+    .map(rule => ({ localized: strings[rule.key], english: rule.english }))
+    .sort((a, b) => b.localized.length - a.localized.length);
+}
+
+function restoreEnglishText(text: string, lookup: ReadonlyArray<{ localized: string; english: string }>): string {
+  let result = text;
+  for (const entry of lookup) {
+    if (entry.localized && result.includes(entry.localized)) {
+      result = result.split(entry.localized).join(entry.english);
+    }
+  }
+  return result;
 }
 
 function localizeMatchesCount(text: string, strings: MonacoChromeStrings): string | null {
@@ -85,8 +113,9 @@ const TOOLTIP_STYLE_ID = 'bitfun-editor-chrome-tooltip-style';
 /**
  * Chrome hint texts whose Monaco managed-hover widget must never become
  * visible: the localized labels plus the English NLS originals the buttons
- * were constructed with. Editor content hovers (diagnostics, markdown) carry
- * different text and stay untouched.
+ * were constructed with. Monaco appends keybinding hints to hover content,
+ * so the comparison is prefix-based rather than exact. Editor content hovers
+ * (diagnostics, markdown) carry different text and stay untouched.
  */
 function isChromeHintText(text: string, strings: MonacoChromeStrings): boolean {
   const normalized = text.trim();
@@ -108,8 +137,8 @@ function isChromeHintText(text: string, strings: MonacoChromeStrings): boolean {
     strings.expandRange,
     strings.collapseRange,
   ];
-  if (localized.includes(normalized)) return true;
-  return REPLACEMENT_RULES.some(rule => rule.english === normalized);
+  if (localized.some(label => label.length > 0 && normalized.startsWith(label))) return true;
+  return REPLACEMENT_RULES.some(rule => normalized.startsWith(rule.english));
 }
 
 /**
@@ -126,11 +155,18 @@ function isChromeHintText(text: string, strings: MonacoChromeStrings): boolean {
  * own show() un-hides the wrapper for the next delegate.
  */
 function attachChromeHintHoverRemover(strings: () => MonacoChromeStrings): () => void {
+  // Wrappers hidden by this watcher: ContextView.show() clears the wrapper's
+  // inline display for the next delegate, and the hover widget itself may be
+  // re-rendered as CHILD mutations inside the (now visible) wrapper — nodes
+  // that carry no `.monaco-hover` class and slip past the class guard. Any
+  // mutation inside a hidden wrapper therefore re-hides it.
+  const hiddenWrappers = new WeakSet<HTMLElement>();
   const hideChromeHover = (hover: Element): void => {
     if (!isChromeHintText(hover.textContent ?? '', strings())) return;
     const target = hover.closest<HTMLElement>('.context-view') ?? (hover instanceof HTMLElement ? hover : null);
     if (!target) return;
     target.style.display = 'none';
+    hiddenWrappers.add(target);
   };
 
   const sweepExisting = (): void => {
@@ -139,8 +175,17 @@ function attachChromeHintHoverRemover(strings: () => MonacoChromeStrings): () =>
 
   const observer = new MutationObserver(mutations => {
     for (const mutation of mutations) {
+      const mutatedInHiddenWrapper = mutation.target instanceof HTMLElement
+        && hiddenWrappers.has((mutation.target.closest<HTMLElement>('.context-view')) ?? mutation.target);
       for (const node of mutation.addedNodes) {
         if (!(node instanceof HTMLElement)) continue;
+        if (mutatedInHiddenWrapper) {
+          const wrapper = node.closest<HTMLElement>('.context-view') ?? node;
+          if (hiddenWrappers.has(wrapper)) {
+            wrapper.style.display = 'none';
+          }
+          continue;
+        }
         const isHoverNode = node.classList.contains('monaco-hover');
         if (!isHoverNode && !node.classList.contains('context-view')) continue;
         const hover = isHoverNode ? node : node.querySelector<HTMLElement>('.monaco-hover');
@@ -231,12 +276,26 @@ function attachChromeHoverLayer(container: HTMLElement): () => void {
     hide();
   };
 
+  // Monaco's managed hover ALSO shows when a chrome element receives FOCUS
+  // (clicking a button or tabbing into the find widget — capture-phase focus
+  // listener on the target, issue #432 verification). Blocking focus descent
+  // at the container removes that path the same way the mouseover path is
+  // blocked; keyboard operation of the buttons is unaffected.
+  const onFocus = (event: FocusEvent): void => {
+    const node = event.target instanceof Element ? event.target : null;
+    const target = node?.closest(HOVER_TARGET_SELECTOR) ?? null;
+    if (!target || !container.contains(target)) return;
+    event.stopPropagation();
+  };
+
   container.addEventListener('mouseover', onOver, true);
   container.addEventListener('mouseout', onOut, true);
+  container.addEventListener('focus', onFocus, true);
   container.addEventListener('scroll', hide, true);
   return () => {
     container.removeEventListener('mouseover', onOver, true);
     container.removeEventListener('mouseout', onOut, true);
+    container.removeEventListener('focus', onFocus, true);
     container.removeEventListener('scroll', hide, true);
     tooltip.remove();
   };
@@ -254,14 +313,19 @@ export interface MonacoChromeI18nHandle {
 
 export function attachMonacoChromeI18n(container: HTMLElement, initialStrings: MonacoChromeStrings): MonacoChromeI18nHandle {
   let currentStrings = initialStrings;
+  // The strings used for the last localization pass: language switches must
+  // first restore their output back to English before applying the new
+  // language, otherwise already-localized labels never re-localize (issue
+  // #434).
+  let previousStrings = initialStrings;
   const detachHoverLayer = attachChromeHoverLayer(container);
   const detachHintRemover = attachChromeHintHoverRemover(() => currentStrings);
 
-  const localizeAttributes = (element: HTMLElement): void => {
+  const localizeAttributes = (element: HTMLElement, restoreLookup: ReadonlyArray<{ localized: string; english: string }>): void => {
     for (const attribute of ATTRIBUTES_TO_LOCALIZE) {
       const value = element.getAttribute(attribute);
       if (!value) continue;
-      const localized = localizeMonacoText(value, currentStrings);
+      const localized = localizeMonacoText(restoreEnglishText(value, restoreLookup), currentStrings);
       if (localized !== value) {
         element.setAttribute(attribute, localized);
       }
@@ -278,23 +342,33 @@ export function attachMonacoChromeI18n(container: HTMLElement, initialStrings: M
   };
 
   const run = (): void => {
+    // One reverse lookup per pass: previously-localized text (attributes AND
+    // text nodes) is restored to English before the new language is applied.
+    const restoreLookup = buildEnglishRestoreLookup(previousStrings);
     // A diff container hosts two inner editors, so every find widget and
     // margin overlay under the container must be covered, not just the first.
     container.querySelectorAll<HTMLElement>('.find-widget').forEach(widget => {
       // Include the widget root: its own title/aria-label (e.g. "Find / Replace")
       // must not leave a persistent native bubble on ArkWeb (issue #432).
-      localizeAttributes(widget);
-      widget.querySelectorAll<HTMLElement>('[title], [aria-label], [placeholder]').forEach(localizeAttributes);
+      localizeAttributes(widget, restoreLookup);
+      widget.querySelectorAll<HTMLElement>('[title], [aria-label], [placeholder]').forEach(element => localizeAttributes(element, restoreLookup));
       const count = widget.querySelector<HTMLElement>('.matchesCount');
       if (count) {
-        const localized = localizeMatchesCount(count.textContent ?? '', currentStrings);
+        // The count text ("No results" / "N of M") is re-localized through the
+        // same restore pass, otherwise it never follows a language switch
+        // (issue #434: 无结果 ↔ No results).
+        const restored = restoreEnglishText(count.textContent ?? '', restoreLookup);
+        const localized = localizeMatchesCount(restored, currentStrings);
         if (localized !== null && localized !== count.textContent) {
           count.textContent = localized;
         }
       }
     });
     container.querySelectorAll<HTMLElement>('.margin-view-overlays').forEach(margin => {
-      margin.querySelectorAll<HTMLElement>('[title]').forEach(localizeAttributes);
+      // Glyphs carry their hint in aria-label after the first pass removed
+      // the native title, so re-localization must scan aria-labels too
+      // (issue #434: fold hints did not follow language switches).
+      margin.querySelectorAll<HTMLElement>('[title], [aria-label]').forEach(element => localizeAttributes(element, restoreLookup));
     });
   };
 
@@ -346,8 +420,11 @@ export function attachMonacoChromeI18n(container: HTMLElement, initialStrings: M
     },
     // Re-applies all localized strings with a new translation set (e.g. after
     // the user switches the UI language). Called from CodeEditor when the
-    // i18n `languageChanged` event fires.
+    // i18n `languageChanged` event fires. The previously applied strings are
+    // kept so the restore pass can map them back to English first (issue
+    // #434).
     update: (strings: MonacoChromeStrings) => {
+      previousStrings = currentStrings;
       currentStrings = strings;
       run();
     },

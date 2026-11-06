@@ -3,7 +3,8 @@ import type { PanelContent } from '@/app/components/panels/base/types';
 import { switchAgentCanvasScope, useAgentCanvasStore } from '@/app/components/panels/content-canvas/stores';
 import type { CanvasTab } from '@/app/components/panels/content-canvas/types';
 import { expandSessionAuxPane } from '@/app/scenes/session/sessionPanelLayout';
-import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
+import { getActiveSurfaceId, getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
+import type { ContentResourceScope } from '@/shared/types/contentResource';
 import { createLogger } from '@/shared/utils/logger';
 import { flowChatStore } from '../store/FlowChatStore';
 import type { Session } from '../types/flow-chat';
@@ -36,6 +37,8 @@ export interface BtwSessionPanelMetadata {
   parentSessionId: string;
   contentRole: 'btw-session';
   discardSessionOnClose: boolean;
+  /** Execution scope of the parent, kept so the pane keeps its device/workspace facts. */
+  resourceScope?: ContentResourceScope;
 }
 
 export interface EnsureBtwSessionAvailableParams {
@@ -80,6 +83,7 @@ export interface BtwSessionPanelWorkspace {
   workspaceId?: string;
   projectWorkspaceId?: string;
   workspacePath?: string;
+  remoteConnectionId?: string;
 }
 
 /** Workspace identity of the parent session, falling back to an explicit override. */
@@ -99,6 +103,7 @@ const resolveBtwSessionPanelWorkspace = (
     ...(workspaceId ? { workspaceId } : {}),
     ...(projectWorkspaceId && projectWorkspaceId !== workspaceId ? { projectWorkspaceId } : {}),
     workspacePath: override.workspacePath || parent?.workspacePath,
+    remoteConnectionId: parent?.remoteConnectionId || parent?.config?.remoteConnectionId,
   };
 };
 
@@ -129,6 +134,12 @@ export const buildBtwSessionPanelContent = (
       const session = flowChatStore.getState().sessions.get(childSessionId);
       return session?.sessionKind === 'btw' && session.isTransient === true;
     })(),
+    resourceScope: {
+      surfaceId: getActiveSurfaceId(),
+      ...(workspace.workspaceId ? { workspaceId: workspace.workspaceId } : {}),
+      ...(workspace.workspacePath ? { workspacePath: workspace.workspacePath } : {}),
+      ...(workspace.remoteConnectionId ? { remoteConnectionId: workspace.remoteConnectionId } : {}),
+    },
   } satisfies BtwSessionPanelMetadata,
 });
 

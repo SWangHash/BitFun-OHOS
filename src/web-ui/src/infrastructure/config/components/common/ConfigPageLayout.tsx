@@ -94,7 +94,7 @@ export interface ConfigPageSectionProps extends Omit<React.HTMLAttributes<HTMLEl
   bodySurface?: boolean;
   /** Controls whether nested design-system fields are opaque or reuse the section surface. */
   fieldSurface?: FieldGroupFieldSurface;
-  /** Legacy mouse-glow surface toggle (retained for OHOS ConfigPage consumers). */
+  /** Compatibility property used by existing settings consumers. */
   mouseGlowSurface?: boolean;
 }
 
@@ -108,6 +108,7 @@ export const ConfigPageSection: React.FC<ConfigPageSectionProps> = ({
   className = '',
   bodySurface = true,
   fieldSurface,
+  mouseGlowSurface: _mouseGlowSurface,
   ...props
 }) => {
   const hasBody = children !== null && children !== undefined && children !== false;

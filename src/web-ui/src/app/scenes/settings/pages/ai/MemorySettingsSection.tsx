@@ -113,7 +113,7 @@ const MemorySettingsSection: React.FC = () => {
     try {
       const [loadedConfig, loadedModels] = await Promise.all([
         configManager.getConfig<Partial<MemoriesConfigShape>>('memories'),
-        configManager.getConfig<AIModelConfig[]>('ai.models'),
+        configManager.getConfig<AIModelConfig[]>('ai.models', { requireLoaded: true }),
       ]);
       setConfig(normalizeMemoriesConfig(loadedConfig));
       setModels(Array.isArray(loadedModels) ? loadedModels : []);

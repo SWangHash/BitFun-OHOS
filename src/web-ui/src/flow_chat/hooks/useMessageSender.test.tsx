@@ -51,6 +51,9 @@ vi.mock('@/infrastructure/api/service-api/ModelPoolAPI', () => ({
   supportsBtwModelPools: () => !mocks.peerActive || mocks.initialBtwTargetSupported,
 }));
 vi.mock('../services/BtwThreadService', () => ({ sendMessageToBtwSession: mocks.sendBtw }));
+vi.mock('@/infrastructure/config/services/ChatInputSendPreference', () => ({
+  getChatInputSendDuringTurn: mocks.getSendPreference,
+}));
 vi.mock('@/infrastructure/peer-device/peerDeviceContextState', () => ({
   usePeerDeviceModeOptional: () => ({
     peerMode: { active: mocks.peerActive },
@@ -126,6 +129,7 @@ describe('useMessageSender', () => {
     root = createRoot(container);
     mocks.createChatSession.mockResolvedValue('created-session');
     mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.getSendPreference.mockReset().mockResolvedValue('queue');
     mocks.sessions.clear();
     mocks.peerActive = false;
     mocks.initialBtwModelSupported = false;

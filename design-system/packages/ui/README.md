@@ -108,6 +108,15 @@ Native hosts use its visible bounds to temporarily hide overlapping child views;
 the components do not call platform APIs. Custom product popovers should declare
 the same marker on the floating element, including while its exit animation runs.
 
+## Loading indicators
+
+`Spinner` defaults to the rotating logo; `matrix` remains a compatible alias.
+Use `bars` for the compact bar presentation and `active={false}` to stop playback.
+The logo pauses outside the viewport or while the document is hidden, and stays
+still for reduced motion and forced colors. Sizes retain the existing spinner
+layout tokens. An `aria-label` exposes a status announcement; without it the
+indicator is decorative.
+
 ## Voice calls
 
 `VoiceCallPanel` owns the complete compact call surface: navigation, particle
@@ -924,6 +933,8 @@ Pattern includes a scrolling toggle for keyboard and submenu verification.
 
 Compact tabs use `size="sm"` (30px, 14px icons, 4px icon gap); standard tabs retain 40px and 16px icons. Tabs share the outline-button surface contract and keep selection separate from pointer press. `SegmentedControl size="md"` uses a borderless 36px bar with 30px segments, 3px inset, 4px gaps and 12px segment padding. The default `sm` bar keeps its 28px outer height; separate pills retain their existing heights. Mobile controls own their touch geometry independently.
 
+`Dialog preset="panel"` uses the existing extra-large width with a fixed 640px height, clamped to the viewport and the host chrome inset. Its centered title and large-width content column support settings panels; `DialogHeaderLeading` keeps a back control at the leading edge. The default preset retains content-sized dialogs.
+
 Dialog titles use 24px bold type with their own 29px line box and normal tracking. `DialogHeader` and `DialogFooter` omit separators by default; pass `separator` for a deliberate divider. A direct `DialogBody` sibling of `DialogFooter appearance="floating"` owns the trailing scroll inset automatically. The floating footer provides the 68px centered action area and a masked blur/gradient using the current theme surface; reduced transparency and forced colors use an opaque fallback. Keep scrollable form content inside `DialogBody` instead of adding a second viewport with independent footer spacing.
 
 `ConfirmDialog secondaryActionPlacement="start"` presents an alternative action as a text button at the start of the footer, with cancel and confirm grouped at the end. The groups wrap when space is limited, keeping cancel and confirm together. The default `inline` placement retains the standard action order and outline secondary button.
@@ -1025,3 +1036,5 @@ Checkbox, Select, Combobox, MultiSelect, NumberInput, SearchField and Textarea
 consume those references through intervening wrappers. A control's explicit name
 or own label takes precedence; descriptions are combined. Give each child in a
 composite field its own name. Nested `Field` controls retain their own labels.
+
+`Capsule` composes a label or control with an independent optional action. Its action is revealed on hover or keyboard focus and remains available on touch; action placement can reserve space inside the content control. Split layout joins two independent controls with equal or content-sized widths. `IconButton` inherits glass presentation and circular geometry only inside the floating action slot.

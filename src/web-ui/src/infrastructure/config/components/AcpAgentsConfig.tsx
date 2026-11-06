@@ -1,3 +1,4 @@
+import { peerHostRefusalMessage } from '@/infrastructure/peer-device/peerHostRefusal';
 import { desktopDomainErrorMessage } from '@/shared/ai-errors/desktopDomainErrors';
 import { OverflowText,
   Alert,
@@ -20,7 +21,6 @@ import { OverflowText,
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import { isOpenHarmonyRuntime } from '@/infrastructure/runtime/environment';
-import { peerHostRefusalMessage } from '@/infrastructure/peer-device/peerHostRefusal';
 import { CircleAlert, EyeOff, FileJson, Save, Server, X } from 'lucide-react';
 import {
   ConfigPageContent,

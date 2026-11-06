@@ -33,6 +33,9 @@ const mockGetStateMachine = vi.fn(() => null);
 const mockResetForSurface = vi.fn();
 const mockUpdateSessionModel = vi.fn();
 const mockStartDialogTurn = vi.fn();
+const mockEnsureCoordinatorSession = vi.fn();
+const mockSteerDialogTurn = vi.fn();
+const mockInsertSteering = vi.fn();
 const mockGetConfigs = vi.fn();
 const mockDispatchSubmit = vi.fn();
 const mockDispatchAppend = vi.fn();
@@ -85,9 +88,13 @@ vi.mock('../../state-machine', () => ({
 vi.mock('@/infrastructure/api/service-api/AgentAPI', () => ({
   agentAPI: {
     startDialogTurn: (...args: unknown[]) => mockStartDialogTurn(...args),
+    ensureCoordinatorSession: (...args: unknown[]) => mockEnsureCoordinatorSession(...args),
+    steerDialogTurn: (...args: unknown[]) => mockSteerDialogTurn(...args),
     updateSessionModel: (...args: unknown[]) => mockUpdateSessionModel(...args),
   },
 }));
+
+vi.mock('./EventHandlerModule', () => ({ insertSteeringItemIfAbsent: (...args: unknown[]) => mockInsertSteering(...args) }));
 
 vi.mock('@/infrastructure/api/service-api/WorktreeAPI', () => ({
   worktreeAPI: {
@@ -182,6 +189,65 @@ describe('MessageModule Session mutation admission', () => {
       'history mutation',
     );
     expect(mockStartDialogTurn).not.toHaveBeenCalled();
+  });
+});
+
+describe('native composer sending policy', () => {
+  const session = { sessionId: 'sending-policy', mode: 'Standard', config: {}, dialogTurns: [] };
+  const context: any = { flowChatStore: { getState: () => ({ sessions: new Map([[session.sessionId, session]]) }) } };
+  const images = [{ id: 'image', image_path: '/workspace/image.png', mime_type: 'image/png' }];
+  const imageDisplayData = [{ id: 'image', name: 'image.png', imagePath: '/workspace/image.png' }];
+  const metadata = { permission_mode: 'default' };
+  beforeEach(() => {
+    vi.resetAllMocks();
+    activateSurface('local');
+    session.mode = 'Standard';
+    mockGetCurrentState.mockReturnValue('processing');
+    mockGetStateMachine.mockReturnValue({ getContext: () => ({ currentDialogTurnId: 'running-turn' }) } as never);
+    mockPendingList.mockReturnValue([]);
+    mockPendingEnqueue.mockReturnValue({ id: 'queued-message' });
+    mockSteerDialogTurn.mockResolvedValue({ success: true, steeringId: 'accepted-message' });
+  });
+  afterEach(() => activateSurface('local'));
+
+  it.each([false, true])('uses the chosen policy without losing text, attachments or metadata: immediate=%s', async sendImmediately => {
+    await sendMessage(context, 'expanded message', session.sessionId, 'Visible message', 'Standard', undefined, {
+      sendImmediately, imageContexts: images, imageDisplayData, userMessageMetadata: metadata,
+    });
+    if (sendImmediately) {
+      expect(mockSteerDialogTurn).toHaveBeenCalledWith({ sessionId: session.sessionId, dialogTurnId: 'running-turn',
+        content: 'expanded message', displayContent: 'Visible message', imageContexts: images, userMessageMetadata: metadata });
+      expect(mockInsertSteering).toHaveBeenCalledWith(expect.objectContaining({ steeringId: 'accepted-message', images: imageDisplayData, status: 'pending' }));
+      expect(mockPendingEnqueue).not.toHaveBeenCalled();
+    } else {
+      expect(mockSteerDialogTurn).not.toHaveBeenCalled();
+      expect(mockPendingEnqueue).toHaveBeenCalledWith(expect.objectContaining({ content: 'expanded message', imageContexts: images, userMessageMetadata: metadata }));
+    }
+  });
+
+  it('queues the original submission if the current turn stops accepting injection', async () => {
+    mockSteerDialogTurn.mockRejectedValue(new Error('Turn has finished'));
+    await sendMessage(context, 'next', session.sessionId, 'Next', 'Standard', undefined, { sendImmediately: true });
+    expect(mockPendingEnqueue).toHaveBeenCalledWith(expect.objectContaining({ content: 'next', displayMessage: 'Next' }));
+    expect(mockInsertSteering).not.toHaveBeenCalled();
+  });
+
+  it('keeps ACP submissions queued even when the native preference is immediate', async () => {
+    session.mode = 'acp:fixture';
+    await sendMessage(context, 'next', session.sessionId, undefined, undefined, undefined, { sendImmediately: true });
+    expect(mockSteerDialogTurn).not.toHaveBeenCalled();
+    expect(mockPendingEnqueue).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not project an accepted steering reply onto a newly activated device', async () => {
+    mockSteerDialogTurn.mockImplementation(async () => {
+      activateSurface('peer-device');
+      return { success: true, steeringId: 'accepted-message' };
+    });
+    await sendMessage(context, 'next', session.sessionId, undefined, undefined, undefined, { sendImmediately: true });
+    expect(mockSteerDialogTurn).toHaveBeenCalledTimes(1);
+    expect(mockInsertSteering).not.toHaveBeenCalled();
+    expect(mockPendingEnqueue).not.toHaveBeenCalled();
   });
 });
 
@@ -438,6 +504,53 @@ describe('MessageModule session writer conflict', () => {
     await vi.waitFor(() => {
       expect(mockEnsureBackendSession).toHaveBeenCalledTimes(3);
     });
+  });
+
+  it('sends consecutive messages after materializing a worktree through the real readiness and store paths', async () => {
+    const { ensureBackendSession } = await vi.importActual<typeof import('./SessionModule')>('./SessionModule');
+    const { flowChatStore } = await import('../../store/FlowChatStore');
+    const { workspaceManager } = await import('@/infrastructure/services/business/workspaceManager');
+    const project = { id: 'project', rootPath: '/repo', workspaceKind: 'normal' };
+    const catalog = vi.spyOn(workspaceManager, 'getState').mockReturnValue({
+      openedWorkspaces: new Map([[project.id, project]]), recentWorkspaces: [], currentWorkspace: project,
+    } as ReturnType<typeof workspaceManager.getState>);
+    const sessionId = 'worktree-consecutive-messages';
+    const { context, session } = conflictContext(sessionId);
+    const previousState = flowChatStore.getState();
+    flowChatStore.setState(state => ({ ...state, sessions: new Map([[sessionId, {
+      ...session, workspaceId: project.id, workspacePath: project.rootPath,
+      config: { ...session.config, worktreeIsolationRequested: true },
+    } as any]]) }));
+    context.flowChatStore = flowChatStore;
+    mockEnsureBackendSession.mockImplementation(ensureBackendSession);
+    mockEnsureCoordinatorSession.mockResolvedValue(undefined);
+    mockGetConfigs.mockResolvedValue({});
+    mockBindSession.mockResolvedValue({
+      workspaceId: 'hidden-worktree', workspacePath: '/worktrees/new',
+      projectWorkspaceId: project.id, projectWorkspacePath: project.rootPath,
+      executionTarget: { kind: 'managedWorktree', worktreeId: 'wt-1', rootPath: '/worktrees/new' },
+    });
+
+    try {
+      await sendMessage(context, 'first message', sessionId);
+      await sendMessage(context, 'second message', sessionId);
+      await sendMessage(context, 'third message', sessionId);
+
+      expect(mockBindSession).toHaveBeenCalledTimes(1);
+      expect(mockStartDialogTurn).toHaveBeenCalledTimes(3);
+      expect(mockEnsureCoordinatorSession.mock.calls.map(([request]) => request.workspaceId))
+        .toEqual(['project', 'hidden-worktree', 'hidden-worktree']);
+      for (const [request] of mockStartDialogTurn.mock.calls) {
+        expect(request).toMatchObject({
+          workspaceId: 'hidden-worktree', workspacePath: '/worktrees/new', projectWorkspacePath: '/repo',
+        });
+      }
+      expect(flowChatStore.getState().sessions.get(sessionId)?.projectWorkspaceId).toBe(project.id);
+      expect(mockNotificationError).not.toHaveBeenCalled();
+    } finally {
+      flowChatStore.setState(() => previousState);
+      catalog.mockRestore();
+    }
   });
 
   it('does not let an older retry failure replace a newer conflict', async () => {
@@ -793,7 +906,7 @@ describe('MessageModule cancellation', () => {
     expect(mockStartDialogTurn).not.toHaveBeenCalled();
   });
 
-  it('sends a queued message once when snapshot replay became idle behind the attachment fence', async () => {
+  it.each(['attachment', 'immediate-injection'])('sends a queued message once when %s finishes after the idle event', async cause => {
     mockGetCurrentState.mockReturnValue('idle');
     mockEnsureBackendSession.mockResolvedValue(undefined);
     mockStartDialogTurn.mockResolvedValue({ sessionId: 'resume-session', turnId: 'next-turn', status: 'started' });
@@ -825,14 +938,26 @@ describe('MessageModule cancellation', () => {
       activeTextItems: new Map(),
     };
     installPendingQueueDrainListener(context);
-    const onIdle = mockSubscribeGlobal.mock.calls.at(-1)![0];
-    const attachment = beginRuntimeSessionAttachment(LOCAL_SURFACE_ID, session.sessionId);
-    onIdle(session.sessionId, { currentState: 'idle' });
-    await Promise.resolve();
-    expect(mockStartDialogTurn).not.toHaveBeenCalled();
-    attachment.finish({ streamId: 'host', cursor: 5 });
-    // A held terminal delivery may report IDLE as well; coalesce the wakeups.
-    onIdle(session.sessionId, { currentState: 'idle' });
+    if (cause === 'attachment') {
+      const onIdle = mockSubscribeGlobal.mock.calls.at(-1)![0];
+      const attachment = beginRuntimeSessionAttachment(LOCAL_SURFACE_ID, session.sessionId);
+      onIdle(session.sessionId, { currentState: 'idle' });
+      await Promise.resolve();
+      expect(mockStartDialogTurn).not.toHaveBeenCalled();
+      attachment.finish({ streamId: 'host', cursor: 5 });
+      // A held terminal delivery may report IDLE as well; coalesce the wakeups.
+      onIdle(session.sessionId, { currentState: 'idle' });
+    } else {
+      mockGetCurrentState.mockReturnValue('processing');
+      mockGetStateMachine.mockReturnValue({ getContext: () => ({ currentDialogTurnId: 'ending-turn' }) } as never);
+      mockPendingList.mockReturnValue([]);
+      mockPendingEnqueue.mockImplementation(() => { mockPendingList.mockReturnValue([pending]); return pending; });
+      mockSteerDialogTurn.mockImplementation(async () => {
+        mockGetCurrentState.mockReturnValue('idle');
+        throw new Error('Turn has finished');
+      });
+      await sendMessage(context, 'next', session.sessionId, undefined, undefined, undefined, { sendImmediately: true });
+    }
     await vi.waitFor(() => expect(mockStartDialogTurn).toHaveBeenCalledTimes(1));
     expect(mockStartDialogTurn).toHaveBeenCalledWith(expect.objectContaining({ turnId: 'next-turn' }));
     expect(mockPendingRemove).toHaveBeenCalledWith(session.sessionId, pending.id);

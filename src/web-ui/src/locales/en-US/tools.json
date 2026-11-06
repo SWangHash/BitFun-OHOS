@@ -102,7 +102,8 @@
       "viewModeLabel": "Markdown and preview mode",
       "notice": {
         "sourcePreviewFallback": "This document contains syntax that is not safely editable in visual mode. Edit in source mode or switch to preview.",
-        "largeFileSourceOnly": "This file is too large for the rich renderer; source mode keeps the editor responsive."
+        "largeFileSourceOnly": "This file is too large for the rich renderer; source mode keeps the editor responsive.",
+        "linkTargetMissing": "Linked file was not found on disk."
       }
     },
     "planViewer": {

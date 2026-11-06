@@ -1,5 +1,5 @@
 import type { GitWorkspaceScope } from '@/infrastructure/api/service-api/GitAPI';
-/** Searchable branch picker with guarded checkout and commit-then-switch recovery. */
+/** Searchable branch picker with non-destructive checkout and failure notifications. */
 
 import React, {
   useCallback,
@@ -10,22 +10,14 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { createOverlayPortal, OverflowText,
-  Button,
+import {
+  createOverlayPortal,
   Icon,
   IconButton,
-  Input,
   Listbox,
   ListboxEmpty,
   ListboxOption,
   SearchField,
-  Dialog,
-  DialogBody,
-  DialogClose,
-  DialogFooter,
-  DialogHeader,
-  DialogHeading,
-  DialogTitle,
   useDismissibleLayer,
   usePresence,
 } from '@bitfun/ui';
@@ -40,23 +32,11 @@ import { useAnchoredPopoverPosition } from '@/shared/utils/useAnchoredPopoverPos
 import { gitEventService, gitService } from '@/tools/git/services';
 import { gitStateManager } from '@/tools/git/state/GitStateManager';
 import type { GitBranch } from '@/tools/git/types/repository';
-import {
-  fallbackChangedPaths,
-  mergeBranchSwitchFileStats,
-  parseCheckoutOverwriteFailure,
-  parseUnifiedDiffStats,
-  type BranchSwitchFileStats,
-} from './branchSwitchFailure';
+import { getBranchSwitchFailureMessage } from './branchSwitchFailure';
 import { useStableGitWorkspaceScope } from '../hooks/useStableGitWorkspaceScope';
 import './BranchQuickSwitch.scss';
 
 const log = createLogger('BranchQuickSwitch');
-
-interface BranchSwitchBlocker {
-  files: string[];
-  stats: Map<string, BranchSwitchFileStats>;
-  targetBranch: string;
-}
 
 export interface BranchQuickSwitchProps {
   id?: string;
@@ -92,18 +72,10 @@ export const BranchQuickSwitch: React.FC<BranchQuickSwitchProps> = ({
   // Current checkout and keyboard focus are separate: opening/searching must
   // not activate the first row's overflow tooltip while focus is in search.
   const [activeBranchName, setActiveBranchName] = useState<string | null>(null);
-  const [blocker, setBlocker] = useState<BranchSwitchBlocker | null>(null);
-  const [commitDialogOpen, setCommitDialogOpen] = useState(false);
-  const [commitMessage, setCommitMessage] = useState('');
-  const [commitError, setCommitError] = useState<string | null>(null);
-  const [commitCreated, setCommitCreated] = useState(false);
-  const [isCommitting, setIsCommitting] = useState(false);
   const [inputCompositionActive, setInputCompositionActive] = useState(false);
   const { present, state: phase } = usePresence(isOpen, 100);
 
   const inputRef = useRef<HTMLInputElement>(null);
-  const commitInputRef = useRef<HTMLInputElement>(null);
-  const conflictConfirmRef = useRef<HTMLButtonElement>(null);
   const layerRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -207,11 +179,6 @@ export const BranchQuickSwitch: React.FC<BranchQuickSwitchProps> = ({
 
   useEffect(() => {
     setActiveBranchName(null);
-    setBlocker(null);
-    setCommitDialogOpen(false);
-    setCommitMessage('');
-    setCommitError(null);
-    setCommitCreated(false);
   }, [repositoryPath]);
 
   useEffect(() => {
@@ -244,68 +211,16 @@ export const BranchQuickSwitch: React.FC<BranchQuickSwitchProps> = ({
       },
       timestamp: new Date(),
     });
-    setBlocker(null);
-    setCommitDialogOpen(false);
-    setCommitMessage('');
-    setCommitError(null);
-    setCommitCreated(false);
     onSwitchSuccess?.(branchName);
     closePicker();
   }, [closePicker, onSwitchSuccess, repositoryPath, t]);
 
-  const loadBlockerStats = useCallback(async (targetBranch: string, files: string[]) => {
-    if (files.length === 0) return;
-    try {
-      const [unstagedDiff, stagedDiff] = await Promise.all([
-        gitService.getDiff(repositoryPath, { files, staged: false }),
-        gitService.getDiff(repositoryPath, { files, staged: true }),
-      ]);
-      const stats = mergeBranchSwitchFileStats(
-        parseUnifiedDiffStats(unstagedDiff),
-        parseUnifiedDiffStats(stagedDiff),
-      );
-      setBlocker(current => current?.targetBranch === targetBranch
-        ? { ...current, stats }
-        : current);
-    } catch (error) {
-      // The checkout diagnostic remains authoritative even if a remote Git
-      // host cannot provide the optional diff decoration.
-      log.warn('Failed to load branch switch diff stats', {
-        repositoryPath,
-        targetBranch,
-        error,
-      });
-    }
-  }, [repositoryPath]);
-
   const showSwitchFailure = useCallback((targetBranch: string, error?: string) => {
-    const overwrite = parseCheckoutOverwriteFailure(error);
-    if (overwrite) {
-      const files = overwrite.files.length > 0
-        ? overwrite.files
-        : fallbackChangedPaths(gitStateManager.getState(repositoryPath));
-      setBlocker({ targetBranch, files, stats: new Map() });
-      setCommitDialogOpen(false);
-      setCommitMessage('');
-      setCommitError(null);
-      setCommitCreated(false);
-      closePicker();
-      void loadBlockerStats(targetBranch, files);
-      return;
-    }
-
-    const lowerError = error?.toLowerCase() ?? '';
-    let errorMessage = error
-      ? t('quickSwitch.errors.switchFailedWithMessage', { error })
-      : t('quickSwitch.errors.switchFailed');
-    if (lowerError.includes('resolve your current index first')) {
-      errorMessage = t('quickSwitch.errors.indexConflict');
-    }
-    notificationService.error(errorMessage, {
+    notificationService.error(getBranchSwitchFailureMessage(error, targetBranch, t), {
       title: t('quickSwitch.errors.title'),
       duration: 5000,
     });
-  }, [closePicker, loadBlockerStats, repositoryPath, t]);
+  }, [t]);
 
   const handleSwitchBranch = useCallback(async (branchName: string) => {
     if (
@@ -319,7 +234,7 @@ export const BranchQuickSwitch: React.FC<BranchQuickSwitchProps> = ({
     try {
       const result = await gitService.checkoutBranch(repositoryPath, branchName);
       if (result.success) {
-        completeSwitch(branchName);
+        completeSwitch(result.data?.branch ?? branchName);
       } else {
         showSwitchFailure(branchName, result.error);
       }
@@ -366,88 +281,6 @@ export const BranchQuickSwitch: React.FC<BranchQuickSwitchProps> = ({
       if (selected && !selected.current) void handleSwitchBranch(selected.name);
     }
   }, [activeIndex, closePicker, filteredBranches, handleSwitchBranch, inputCompositionActive]);
-
-  const closeRecoveryDialogs = useCallback(() => {
-    if (isCommitting) return;
-    setBlocker(null);
-    setCommitDialogOpen(false);
-    setCommitMessage('');
-    setCommitError(null);
-    setCommitCreated(false);
-  }, [isCommitting]);
-
-  const handleCommitAndSwitch = useCallback(async () => {
-    const targetBranch = blocker?.targetBranch;
-    const message = commitMessage.trim();
-    if (!targetBranch || isCommitting) return;
-    if (!commitCreated && !message) {
-      setCommitError(t('quickSwitch.conflict.commitMessageRequired'));
-      commitInputRef.current?.focus();
-      return;
-    }
-
-    setIsCommitting(true);
-    setCommitError(null);
-    try {
-      if (!commitCreated) {
-        const stageResult = await gitService.addFiles(repositoryPath, {
-          files: [],
-          all: true,
-        });
-        if (!stageResult.success) {
-          setCommitError(t('quickSwitch.conflict.stageFailed', {
-            error: stageResult.error ?? t('quickSwitch.errors.unexpected'),
-          }));
-          return;
-        }
-
-        const commitResult = await gitService.commit(repositoryPath, { message });
-        if (!commitResult.success) {
-          setCommitError(t('quickSwitch.conflict.commitFailed', {
-            error: commitResult.error ?? t('quickSwitch.errors.unexpected'),
-          }));
-          return;
-        }
-        setCommitCreated(true);
-      }
-
-      const checkoutResult = await gitService.checkoutBranch(repositoryPath, targetBranch);
-      if (!checkoutResult.success) {
-        setCommitError(t('quickSwitch.conflict.retryFailed', {
-          error: checkoutResult.error ?? t('quickSwitch.errors.switchFailed'),
-        }));
-        return;
-      }
-
-      completeSwitch(targetBranch);
-    } catch (error) {
-      log.error('Failed to commit and switch branch', {
-        repositoryPath,
-        targetBranch,
-        error,
-      });
-      setCommitError(t('quickSwitch.errors.unexpected'));
-    } finally {
-      setIsCommitting(false);
-      if (blocker) {
-        void gitStateManager.refresh(repositoryPath, {
-          layers: ['basic', 'status'],
-          force: true,
-          silent: true,
-          reason: 'operation',
-          source: 'branch_commit_and_switch',
-        });
-      }
-    }
-  }, [
-    blocker,
-    commitCreated,
-    commitMessage,
-    completeSwitch,
-    isCommitting,
-    repositoryPath,
-    t,
-  ]);
 
   const popover = present ? (
     <div
@@ -566,186 +399,29 @@ export const BranchQuickSwitch: React.FC<BranchQuickSwitchProps> = ({
     </div>
   ) : null;
 
-  return (
-    <>
-      {popover && createOverlayPortal(
-        <div
-          ref={layerRef}
-          className="branch-quick-switch__layer"
-          data-bitfun-native-webview-occlusion
-          data-bitfun-placement={popoverLayout?.placement ?? 'top'}
-          data-state={phase}
-          data-motion="presence"
-          aria-hidden={!isOpen || undefined}
-          {...(!isOpen ? { inert: '' } : {})}
-          style={{
-            top: popoverLayout?.bottom === undefined ? `${popoverLayout?.top ?? 0}px` : undefined,
-            bottom: popoverLayout?.bottom === undefined ? undefined : `${popoverLayout.bottom}px`,
-            left: `${popoverLayout?.left ?? 0}px`,
-            visibility: popoverLayout ? 'visible' : 'hidden',
-          }}
-        >
-          {popover}
-        </div>,
-        getAppearanceOverlayHost(),
-        null,
-        { open: isOpen, ownerRef: anchorRef },
-      )}
-
-      <Dialog
-        open={!!blocker && !commitDialogOpen}
-        onOpenChange={(nextOpen) => { if (!nextOpen) closeRecoveryDialogs(); }}
-        size="sm"
-        role="alertdialog"
-        closeOnEscape={!isCommitting}
-        closeOnPointerOutside={!isCommitting}
-        initialFocusRef={conflictConfirmRef}
-        className="branch-switch-conflict-dialog"
-        data-testid="branch-switch-conflict-dialog"
-      >
-        <DialogHeader>
-          <DialogHeading>
-            <DialogTitle>{t('quickSwitch.conflict.title')}</DialogTitle>
-          </DialogHeading>
-          <DialogClose />
-        </DialogHeader>
-        <DialogBody>
-        {blocker ? (
-          <div className="branch-switch-conflict-dialog__content">
-            <p>{t('quickSwitch.conflict.description')}</p>
-            {blocker.files.length > 0 ? (
-              <div
-                className="branch-switch-conflict-dialog__files"
-                data-testid="branch-switch-conflict-files"
-                role="list"
-              >
-                {blocker.files.map(file => {
-                  const stats = blocker.stats.get(file);
-                  return (
-                    <div className="branch-switch-conflict-dialog__file" key={file} role="listitem">
-                      <OverflowText className="branch-switch-conflict-dialog__file-path" title={file}>
-                        {file}
-                      </OverflowText>
-                      {stats ? (
-                        <span className="branch-switch-conflict-dialog__file-stats">
-                          <span className="branch-switch-conflict-dialog__additions">
-                            +{stats.additions}
-                          </span>
-                          <span className="branch-switch-conflict-dialog__deletions">
-                            −{stats.deletions}
-                          </span>
-                        </span>
-                      ) : null}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p>{t('quickSwitch.conflict.filesUnavailable')}</p>
-            )}
-            <p>{t('quickSwitch.conflict.instruction')}</p>
-          </div>
-        ) : null}
-              </DialogBody>
-        <DialogFooter>{(
-          <>
-            <Button variant="fill" disabled={isCommitting} onClick={closeRecoveryDialogs}>
-              {t('quickSwitch.conflict.cancel')}
-            </Button>
-            <Button
-              ref={conflictConfirmRef}
-              variant="primary"
-              disabled={isCommitting}
-              data-testid="branch-switch-conflict-confirm"
-              onClick={() => {
-                setCommitDialogOpen(true);
-                setCommitError(null);
-                setCommitCreated(false);
-              }}
-            >
-              {t('quickSwitch.conflict.commitAndSwitch')}
-            </Button>
-          </>
-        )}</DialogFooter>
-      </Dialog>
-
-      <Dialog
-        open={!!blocker && commitDialogOpen}
-        onOpenChange={(nextOpen) => { if (!nextOpen) closeRecoveryDialogs(); }}
-        size="md"
-        closeOnEscape={!isCommitting}
-        closeOnPointerOutside={!isCommitting}
-        initialFocusRef={commitInputRef}
-        className="branch-switch-commit-dialog"
-        data-testid="branch-switch-commit-dialog"
-      >
-        <DialogHeader>
-          <DialogHeading>
-            <DialogTitle>{t('quickSwitch.conflict.commitTitle', {
-          branch: blocker?.targetBranch ?? '',
-        })}</DialogTitle>
-          </DialogHeading>
-          <DialogClose />
-        </DialogHeader>
-        <DialogBody>
-        <div className="branch-switch-commit-dialog__content">
-          <p>
-            {t(
-              commitCreated
-                ? 'quickSwitch.conflict.retryDescription'
-                : 'quickSwitch.conflict.commitDescription',
-              { branch: blocker?.targetBranch ?? '' },
-            )}
-          </p>
-          <Input
-            className="branch-switch-commit-dialog__input"
-            ref={commitInputRef}
-            value={commitMessage}
-            placeholder={t('quickSwitch.conflict.commitMessagePlaceholder')}
-            aria-label={t('quickSwitch.conflict.commitMessageLabel')}
-            disabled={isCommitting || commitCreated}
-            invalid={!!commitError}
-            onChange={event => {
-              setCommitMessage(event.target.value);
-              if (commitError) setCommitError(null);
-            }}
-            onKeyDown={event => {
-              if (event.key === 'Enter' && !isCommitting) {
-                event.preventDefault();
-                void handleCommitAndSwitch();
-              }
-            }}
-          />
-          {commitError ? (
-            <p className="branch-switch-commit-dialog__error" role="alert">
-              {commitError}
-            </p>
-          ) : null}
-        </div>
-              </DialogBody>
-        <DialogFooter>{(
-          <>
-            <Button variant="fill" disabled={isCommitting} onClick={closeRecoveryDialogs}>
-              {t('quickSwitch.conflict.cancel')}
-            </Button>
-            <Button
-              variant="primary"
-              loading={isCommitting}
-              disabled={isCommitting || (!commitCreated && !commitMessage.trim())}
-              onClick={() => void handleCommitAndSwitch()}
-              data-testid="branch-switch-commit-confirm"
-            >
-              {t(
-                commitCreated
-                  ? 'quickSwitch.conflict.retrySwitchAction'
-                  : 'quickSwitch.conflict.commitAction',
-              )}
-            </Button>
-          </>
-        )}</DialogFooter>
-      </Dialog>
-    </>
-  );
+  return popover ? createOverlayPortal(
+    <div
+      ref={layerRef}
+      className="branch-quick-switch__layer"
+      data-bitfun-native-webview-occlusion
+      data-bitfun-placement={popoverLayout?.placement ?? 'top'}
+      data-state={phase}
+      data-motion="presence"
+      aria-hidden={!isOpen || undefined}
+      {...(!isOpen ? { inert: '' } : {})}
+      style={{
+        top: popoverLayout?.bottom === undefined ? `${popoverLayout?.top ?? 0}px` : undefined,
+        bottom: popoverLayout?.bottom === undefined ? undefined : `${popoverLayout.bottom}px`,
+        left: `${popoverLayout?.left ?? 0}px`,
+        visibility: popoverLayout ? 'visible' : 'hidden',
+      }}
+    >
+      {popover}
+    </div>,
+    getAppearanceOverlayHost(),
+    null,
+    { open: isOpen, ownerRef: anchorRef },
+  ) : null;
 };
 
 BranchQuickSwitch.displayName = 'BranchQuickSwitch';

@@ -30,6 +30,7 @@ pub fn project_agentic_frontend_event(event: AgenticEvent) -> Option<AgenticFron
             agent_type,
             workspace_path,
             project_workspace_path,
+            project_workspace_id,
             execution_target,
             workspace_id,
             remote_connection_id,
@@ -42,6 +43,7 @@ pub fn project_agentic_frontend_event(event: AgenticEvent) -> Option<AgenticFron
                 "agentType": agent_type,
                 "workspacePath": workspace_path,
                 "projectWorkspacePath": project_workspace_path,
+                "projectWorkspaceId": project_workspace_id,
                 "executionTarget": execution_target,
                 "workspaceId": workspace_id,
                 "remoteConnectionId": remote_connection_id,
@@ -588,6 +590,7 @@ mod tests {
             agent_type: "Standard".to_string(),
             workspace_path: Some("/worktrees/wt-1".to_string()),
             project_workspace_path: Some("/repo".to_string()),
+            project_workspace_id: Some("workspace-project".to_string()),
             execution_target: Some(SessionExecutionTarget {
                 kind: SessionExecutionTargetKind::ManagedWorktree,
                 worktree_id: Some("wt-1".to_string()),
@@ -607,6 +610,22 @@ mod tests {
         assert_eq!(projected.payload["projectWorkspacePath"], "/repo");
         assert_eq!(projected.payload["executionTarget"]["worktreeId"], "wt-1");
         assert_eq!(projected.payload["workspaceId"], "workspace-wt-1");
+        assert_eq!(projected.payload["projectWorkspaceId"], "workspace-project");
+    }
+
+    #[test]
+    fn session_created_without_project_id_round_trips() {
+        let legacy = json!({
+            "type": "SessionCreated", "session_id": "session-1",
+            "session_name": "Isolated task", "agent_type": "Standard",
+            "workspace_id": "workspace-wt-1", "workspace_path": "/worktrees/wt-1",
+            "project_workspace_path": "/repo"
+        });
+        let event: AgenticEvent = serde_json::from_value(legacy.clone()).expect("legacy event");
+        assert_eq!(serde_json::to_value(&event).expect("serialize"), legacy);
+        let projected = project_agentic_frontend_event(event).expect("projected");
+        assert_eq!(projected.payload["workspaceId"], "workspace-wt-1");
+        assert!(projected.payload["projectWorkspaceId"].is_null());
     }
 
     #[test]

@@ -26,6 +26,24 @@ describe('AppearanceCompiler', () => {
     expect(JSON.stringify(restored)).toBe(serialized);
   });
 
+  it('resolves saved settings page selectors to their current destinations without rewriting the package', () => {
+    const pkg: AppearancePackage = {
+      schema: 'bitfun.appearance', schemaVersion: APPEARANCE_SCHEMA_VERSION,
+      id: 'test.legacy-settings', name: 'Legacy Settings', version: '1.0.0', mode: 'dark',
+      scenes: { settings: { parts: { root: { facets: { page: {
+        'application.voice': { opacity: { kind: 'number', value: 0.9 } },
+        'ai.memory': { opacity: { kind: 'number', value: 0.8 } },
+        'tools.acp': { opacity: { kind: 'number', value: 0.7 } },
+      } } } } } },
+    };
+    const saved = JSON.stringify(pkg);
+    const result = new AppearanceCompiler(createDefaultAppearanceRegistry()).compile(pkg, 1);
+    for (const page of ['application.input', 'ai.session-memory', 'tools.external-agents']) {
+      expect(result.cssText).toContain(`[data-bitfun-page="${page}"]`);
+    }
+    expect(JSON.stringify(pkg)).toBe(saved);
+  });
+
   it('preserves structured validation diagnostics when compilation is rejected', () => {
     const pkg = {
       ...buildBuiltinAppearance(bitFunDarkPalette),

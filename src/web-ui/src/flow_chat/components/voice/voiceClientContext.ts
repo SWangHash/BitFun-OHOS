@@ -3,6 +3,7 @@ import { getSceneViewId } from '@/app/components/SceneBar/types';
 import { FlowChatManager } from '@/flow_chat/services/FlowChatManager';
 import { stateMachineManager } from '@/flow_chat/state-machine';
 import type { Session } from '@/flow_chat/types/flow-chat';
+import { sessionProjectWorkspaceId, sessionWorkspaceId } from '@/flow_chat/utils/sessionWorkspace';
 import { workspaceManager } from '@/infrastructure/services/business/workspaceManager';
 import { WorkspaceKind, isRemoteWorkspace, type WorkspaceInfo } from '@/shared/types';
 
@@ -69,8 +70,10 @@ export function workspaceForSession(
   session: Session,
   workspaces: WorkspaceInfo[],
 ): WorkspaceInfo | undefined {
-  const id = session.workspaceId ?? session.config.workspaceId;
-  return id ? workspaces.find(workspace => workspace.id === id) : undefined;
+  const id = sessionWorkspaceId(session);
+  const projectId = sessionProjectWorkspaceId(session);
+  return workspaces.find(workspace => workspace.id === id)
+    ?? workspaces.find(workspace => workspace.id === projectId);
 }
 
 /**

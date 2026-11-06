@@ -265,12 +265,20 @@ pub async fn open_dialog_file(options: &str) -> Result<String, String> {
 ///
 /// The ArkTS side (`CommonUtils.read_clipboard_files`) reads
 /// `@ohos.pasteboard`, extracts file URIs from each record, applies the same
-/// path normalization as `open_file_dialog`, and returns the same JSON
-/// envelope (`{ "paths": [...] }` / `{ "paths": [] }` / `{ "error": "..." }`)
-/// so we can reuse [`parse_paths_result`] to decode it into a `Vec<String>`.
-/// An empty `paths` array (clipboard has no files) maps to an empty `Vec`,
-/// which the frontend surfaces as "no files in clipboard".
-pub async fn get_clipboard_files() -> Result<Vec<String>, String> {
+/// path normalization as `open_file_dialog`, and returns a JSON envelope
+/// (`{ "paths": [...] }` / `{ "paths": [], "errors": [...] }` /
+/// `{ "error": "..." }`). An empty `paths` array (clipboard has no files)
+/// maps to an empty `Vec`, which the frontend surfaces as "no files in
+/// clipboard". Per-candidate read errors (grant-less or unreadable URIs, e.g.
+/// folders the engine cannot expand) are returned alongside so the caller can
+/// log them instead of the paste silently missing content.
+#[derive(Debug, Default)]
+pub struct ClipboardReadEnvelope {
+    pub paths: Vec<String>,
+    pub errors: Vec<String>,
+}
+
+pub async fn get_clipboard_files() -> Result<ClipboardReadEnvelope, String> {
     let function = {
         let lock = JS_THREADSAFE_FUNCTION.read();
         lock.get("get_clipboard_files").cloned()
@@ -283,7 +291,7 @@ pub async fn get_clipboard_files() -> Result<Vec<String>, String> {
     let res = function.call_async(Ok(String::new())).await;
     match res {
         Ok(promise) => match promise.await {
-            Ok(json) => parse_paths_result(&json),
+            Ok(json) => parse_clipboard_read_envelope(&json),
             Err(err) => Err(err.to_string()),
         },
         Err(err) => Err(err.to_string()),
@@ -378,11 +386,45 @@ fn parse_picker_result(json: &str) -> Result<String, String> {
 
 /// Decode the JSON envelope returned by `CommonUtils.read_clipboard_files`.
 ///
-/// Same envelope as the picker, but here the result is consumed as a
-/// `Vec<String>` directly — an empty array (no files on the clipboard) is a
-/// valid result, not cancellation.
-fn parse_paths_result(json: &str) -> Result<Vec<String>, String> {
-    parse_paths_envelope(json, "get_clipboard_files")
+/// Same `paths` handling as [`parse_paths_envelope`], plus the optional
+/// per-candidate `errors` array (empty when every URI was materialized).
+fn parse_clipboard_read_envelope(json: &str) -> Result<ClipboardReadEnvelope, String> {
+    let value: serde_json::Value = serde_json::from_str(json)
+        .map_err(|e| format!("get_clipboard_files: invalid json response: {e}: {json}"))?;
+
+    if let Some(error) = value.get("error").and_then(|v| v.as_str()) {
+        return Err(error.to_owned());
+    }
+
+    let Some(paths) = value.get("paths").and_then(|v| v.as_array()) else {
+        return Err(format!(
+            "get_clipboard_files: unexpected response, missing 'paths': {json}"
+        ));
+    };
+
+    let strings: Vec<String> = paths
+        .iter()
+        .filter_map(|v| v.as_str().map(|s| s.to_owned()))
+        .collect();
+
+    if strings.len() != paths.len() {
+        return Err(format!(
+            "get_clipboard_files: non-string element in paths: {json}"
+        ));
+    }
+
+    let errors = value
+        .get("errors")
+        .and_then(|v| v.as_array())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_owned()))
+                .collect::<Vec<String>>()
+        })
+        .unwrap_or_default();
+
+    Ok(ClipboardReadEnvelope { paths: strings, errors })
 }
 
 /// Invoke an ArkTS-registered speech bridge function by name.

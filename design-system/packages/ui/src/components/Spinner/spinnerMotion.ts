@@ -1,7 +1,7 @@
 const CYCLE_MS = 1800;
 const FRAME_COUNT = 120;
 
-// One shared clock couples the approved rotation, defocus and subtle scale pulse.
+// One shared clock couples rotation, defocus and subtle scale pulse.
 // Sixty degrees closes the sixfold silhouette while preserving the 30-degree
 // offset between its two contours throughout the loop.
 const keyframes: Keyframe[] = Array.from({ length: FRAME_COUNT + 1 }, (_, index) => {

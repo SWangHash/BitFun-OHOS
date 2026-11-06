@@ -415,3 +415,10 @@
     color: Highlight;
   }
 }
+
+.bitfun-config-page-section__description--inline {
+  margin: 0;
+  max-inline-size: none;
+  white-space: nowrap;
+  text-wrap: nowrap;
+}

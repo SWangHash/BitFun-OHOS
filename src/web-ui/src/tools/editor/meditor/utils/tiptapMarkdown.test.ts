@@ -7,7 +7,37 @@ import {
   markdownToEditableTiptapDoc,
   tiptapDocToMarkdown,
   tiptapDocToTopLevelMarkdownBlocks,
+  toExplicitRelativeHref,
 } from './tiptapMarkdown';
+
+describe('explicit relative href rendering form', () => {
+  it.each([
+    ['22/22.md', './22/22.md'],
+    ['deep/dir/file.md', './deep/dir/file.md'],
+  ])('prepends ./ to the bare relative href %s', (href, expected) => {
+    expect(toExplicitRelativeHref(href)).toBe(expected);
+  });
+
+  it.each([
+    './22/22.md',
+    '../22/22.md',
+    '/workspace/docs/file.md',
+    'C:/workspace/file.md',
+    '#fragment',
+    'https://example.com/a.md',
+    'mailto:a@b.c',
+    'bitfun-canvas://session/1/canvas/2',
+    '',
+  ])('keeps the already explicit href %s', (href) => {
+    expect(toExplicitRelativeHref(href)).toBe(href);
+  });
+
+  it('does not change the parsed document hrefs — only rendering normalizes', () => {
+    const doc = markdownToTiptapDoc('[x](22/22.md)');
+    const marks = JSON.stringify(doc).match(/"href":"[^"]*"/g) ?? [];
+    expect(marks).toContain('"href":"22/22.md"');
+  });
+});
 
 describe('tiptap markdown compatibility', () => {
   it.each([

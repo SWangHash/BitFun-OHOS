@@ -758,7 +758,7 @@ async fn rollback_legacy_config_transaction(
     commit: PresentationCommit,
 ) -> Result<(), String> {
     let rolled_back =
-        apply_legacy_config_mutation(&state.config_service, path, previous_value).await?;
+        apply_legacy_config_mutation(&state.config_service, path, previous_value, None).await?;
     apply_backend_config_effects(app, state, path, &rolled_back.effective_value).await?;
     apply_binding_backend_effects(app, state, &rolled_back.controlled_bindings).await?;
 

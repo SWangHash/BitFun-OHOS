@@ -139,12 +139,7 @@ async function prepareSessionForGoalTurn(session: Session): Promise<Session> {
       globalThis.crypto?.randomUUID?.() ?? `goal-worktree-${Date.now()}`,
       materialization,
     );
-    flowChatStore.updateSessionExecutionTarget(sessionId, {
-      workspacePath: result.workspacePath,
-      projectWorkspacePath: result.projectWorkspacePath,
-      workspaceId: result.workspaceId,
-      executionTarget: result.executionTarget,
-    });
+    flowChatStore.updateSessionExecutionTarget(sessionId, result);
   }
 
   flowChatStore.setSessionWorktreeIsolationRequested(sessionId, undefined);

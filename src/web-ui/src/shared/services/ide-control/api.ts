@@ -15,7 +15,6 @@ import {
 import { PanelContent, TabData } from '@/app/components/panels/base/types';
 import { type LineRange } from '@/shared/editor/LineRange';
 import {
-  isLegacyEcosystemCompatibilityDestination,
   resolveSettingsDestination,
 } from '@/app/scenes/settings/settingsDestination';
 import type { SettingsDestination } from '@/app/scenes/settings/settingsTypes';
@@ -241,13 +240,6 @@ export const quickActions = {
    
    
   openSettings: (destination?: SettingsDestination | string) => {
-    if (isLegacyEcosystemCompatibilityDestination(destination)) {
-      void import('@/app/scenes/ecosystem-compatibility/ecosystemCompatibilityStore')
-        .then(({ openEcosystemCompatibility }) => {
-          openEcosystemCompatibility({ ownerSurface: 'external-sources' });
-        });
-      return;
-    }
     import('@/app/scenes/settings/settingsStore').then(({ useSettingsStore }) => {
       if (destination) {
         useSettingsStore.getState().openDestination(

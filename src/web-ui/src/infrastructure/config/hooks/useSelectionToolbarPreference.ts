@@ -9,10 +9,11 @@ const log = createLogger('SelectionToolbarPreference');
 /** Null means no trusted preference has loaded for the current device yet. */
 export function useSelectionToolbarPreference() {
   const scope = useSyncExternalStore(onSurfaceActivated, getActiveSurfaceScope, getActiveSurfaceScope);
-  const [snapshot, setSnapshot] = useState<{ epoch: number; enabled: boolean | null; error: Error | null }>({
+  const [snapshot, setSnapshot] = useState<{ epoch: number; enabled: boolean | null; supported: boolean; error: Error | null }>({
     epoch: scope.epoch,
     enabled: configManager.hasCachedConfig(AUTO_SHOW_SELECTION_TOOLBAR_CONFIG_PATH)
       ? configManager.getCachedConfig<boolean>(AUTO_SHOW_SELECTION_TOOLBAR_CONFIG_PATH) !== false : null,
+    supported: configManager.getCachedConfig(AUTO_SHOW_SELECTION_TOOLBAR_CONFIG_PATH) !== undefined,
     error: null,
   });
   const requestId = useRef(0);
@@ -21,13 +22,13 @@ export function useSelectionToolbarPreference() {
     try {
       const value = await configManager.getOptionalConfig<boolean>(AUTO_SHOW_SELECTION_TOOLBAR_CONFIG_PATH);
       if (scope.isCurrent() && id === requestId.current) {
-        setSnapshot({ epoch: scope.epoch, enabled: value !== false, error: null });
+        setSnapshot({ epoch: scope.epoch, enabled: value !== false, supported: value !== undefined, error: null });
       }
     } catch (reason) {
       if (scope.isCurrent() && id === requestId.current) {
         log.warn('Failed to load selection toolbar preference', reason);
         setSnapshot({
-          epoch: scope.epoch, enabled: null,
+          epoch: scope.epoch, enabled: null, supported: false,
           error: reason instanceof Error ? reason : new Error(String(reason)),
         });
       }
@@ -41,6 +42,6 @@ export function useSelectionToolbarPreference() {
   }, [reload]);
 
   return snapshot.epoch === scope.epoch
-    ? { enabled: snapshot.enabled, error: snapshot.error, reload }
-    : { enabled: null, error: null, reload };
+    ? { enabled: snapshot.enabled, supported: snapshot.supported, error: snapshot.error, reload }
+    : { enabled: null, supported: false, error: null, reload };
 }

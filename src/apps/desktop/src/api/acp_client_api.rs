@@ -1,7 +1,10 @@
 //! ACP client API
 
+use crate::api::agentic_api::resolve_missing_image_payloads;
 use crate::api::app_state::AppState;
+use crate::api::path_target::read_text_file;
 use crate::startup_trace::DesktopStartupTrace;
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 #[cfg(target_env = "ohos")]
 use bitfun_acp::client::PROVISIONING_PROGRESS_EVENT;
 use bitfun_acp::client::{
@@ -10,6 +13,8 @@ use bitfun_acp::client::{
     CreateAcpFlowSessionRecordResponse, SetAcpSessionConfigOptionRequest,
     SetAcpSessionModelRequest, SubmitAcpPermissionResponseRequest,
 };
+use bitfun_acp::protocol::schema::{ContentBlock, ImageContent};
+use bitfun_core::agentic::image_analysis::{decode_data_url, ImageContextData};
 use bitfun_core::service::workspace::WorkspaceInfo;
 use bitfun_runtime_ports::SessionStorePort;
 use serde::{Deserialize, Serialize};
@@ -30,12 +35,11 @@ struct AcpWorkspaceScope {
 
 impl AcpWorkspaceScope {
     async fn from_workspace(workspace: WorkspaceInfo) -> Result<Self, String> {
-        let session_storage_path =
-            bitfun_core::agentic::session::CoreSessionStorePort::default()
-                .resolve_workspace_storage(&workspace.id)
-                .await
-                .map(|resolution| resolution.effective_storage_path)
-                .map_err(|error| error.to_string())?;
+        let session_storage_path = bitfun_core::agentic::session::CoreSessionStorePort::default()
+            .resolve_workspace_storage(&workspace.id)
+            .await
+            .map(|resolution| resolution.effective_storage_path)
+            .map_err(|error| error.to_string())?;
         let remote_ssh_host = workspace
             .metadata
             .get("sshHost")
@@ -166,6 +170,51 @@ pub struct StartAcpDialogTurnRequest {
     pub remote_ssh_host: Option<String>,
     #[serde(default)]
     pub timeout_seconds: Option<u64>,
+    #[serde(default)]
+    pub image_contexts: Option<Vec<ImageContextData>>,
+    #[serde(default)]
+    pub user_message_metadata: Option<serde_json::Value>,
+}
+
+#[cfg(test)]
+mod start_turn_request_tests {
+    use super::StartAcpDialogTurnRequest;
+    use serde_json::json;
+
+    #[test]
+    fn image_attachments_round_trip_and_legacy_text_requests_remain_valid() {
+        let legacy = json!({
+            "sessionId": "session-1",
+            "clientId": "codex",
+            "userInput": "describe",
+            "turnId": "turn-1"
+        });
+        let request: StartAcpDialogTurnRequest = serde_json::from_value(legacy.clone()).unwrap();
+        assert!(request.image_contexts.is_none());
+        assert!(request.user_message_metadata.is_none());
+        let round_trip: StartAcpDialogTurnRequest =
+            serde_json::from_value(serde_json::to_value(request).unwrap()).unwrap();
+        assert_eq!(round_trip.user_input, "describe");
+
+        let mut with_image = legacy;
+        with_image["imageContexts"] = json!([{
+            "id": "image-1",
+            "data_url": "data:image/png;base64,aW1hZ2U=",
+            "mime_type": "image/png"
+        }]);
+        with_image["userMessageMetadata"] = json!({"images": [{"id": "image-1"}]});
+        let request: StartAcpDialogTurnRequest =
+            serde_json::from_value(with_image.clone()).unwrap();
+        let serialized = serde_json::to_value(request).unwrap();
+        assert_eq!(
+            serialized["imageContexts"][0]["data_url"],
+            with_image["imageContexts"][0]["data_url"]
+        );
+        assert_eq!(
+            serialized["userMessageMetadata"],
+            with_image["userMessageMetadata"]
+        );
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -461,6 +510,30 @@ pub async fn start_acp_dialog_turn(
         request.remote_ssh_host.as_deref(),
     )
     .await?;
+    let mut prompt = vec![ContentBlock::from(request.user_input.clone())];
+    for image in resolve_missing_image_payloads(request.image_contexts.unwrap_or_default())? {
+        let (data, mime_type) = if let Some(data_url) = image.data_url {
+            let (bytes, mime_type) =
+                decode_data_url(&data_url).map_err(|error| error.to_string())?;
+            (BASE64.encode(bytes), mime_type.unwrap_or(image.mime_type))
+        } else {
+            let path = image.image_path.ok_or_else(|| {
+                format!("Image context {} is missing image_path/data_url", image.id)
+            })?;
+            let data = read_text_file(
+                &state,
+                &path,
+                Some("base64"),
+                scope
+                    .as_ref()
+                    .and_then(|scope| scope.remote_connection_id.as_deref()),
+                scope.as_ref().map(|scope| scope.workspace_id.as_str()),
+            )
+            .await?;
+            (data, image.mime_type)
+        };
+        prompt.push(ContentBlock::Image(ImageContent::new(data, mime_type)));
+    }
     let (workspace_path, remote_connection_id, session_storage_path) = match scope {
         Some(scope) => (
             Some(scope.workspace_path),
@@ -479,7 +552,7 @@ pub async fn start_acp_dialog_turn(
                 "turnIndex": null,
                 "userInput": user_input,
                 "originalUserInput": original_user_input,
-                "userMessageMetadata": null,
+                "userMessageMetadata": request.user_message_metadata,
                 "subagentParentInfo": null,
             }),
         )
@@ -490,7 +563,7 @@ pub async fn start_acp_dialog_turn(
         let result = service
             .prompt_agent_stream(
                 &request.client_id,
-                request.user_input,
+                prompt,
                 workspace_path,
                 remote_connection_id,
                 request.session_id.clone(),
@@ -529,9 +602,7 @@ pub async fn start_acp_dialog_turn(
                                     }),
                                 )
                                 .map_err(|e| {
-                                    bitfun_core::util::errors::BitFunError::service(
-                                        e.to_string(),
-                                    )
+                                    bitfun_core::util::errors::BitFunError::service(e.to_string())
                                 })?;
                         }
                         AcpClientStreamEvent::AgentText(text) => {
@@ -552,9 +623,7 @@ pub async fn start_acp_dialog_turn(
                                     }),
                                 )
                                 .map_err(|e| {
-                                    bitfun_core::util::errors::BitFunError::service(
-                                        e.to_string(),
-                                    )
+                                    bitfun_core::util::errors::BitFunError::service(e.to_string())
                                 })?;
                         }
                         AcpClientStreamEvent::AgentThought(text) => {
@@ -577,9 +646,7 @@ pub async fn start_acp_dialog_turn(
                                     }),
                                 )
                                 .map_err(|e| {
-                                    bitfun_core::util::errors::BitFunError::service(
-                                        e.to_string(),
-                                    )
+                                    bitfun_core::util::errors::BitFunError::service(e.to_string())
                                 })?;
                         }
                         AcpClientStreamEvent::ToolEvent(tool_event) => {
@@ -601,9 +668,7 @@ pub async fn start_acp_dialog_turn(
                                     }),
                                 )
                                 .map_err(|e| {
-                                    bitfun_core::util::errors::BitFunError::service(
-                                        e.to_string(),
-                                    )
+                                    bitfun_core::util::errors::BitFunError::service(e.to_string())
                                 })?;
                         }
                         AcpClientStreamEvent::ContextUsageUpdated(usage) => {
@@ -621,9 +686,7 @@ pub async fn start_acp_dialog_turn(
                                     }),
                                 )
                                 .map_err(|e| {
-                                    bitfun_core::util::errors::BitFunError::service(
-                                        e.to_string(),
-                                    )
+                                    bitfun_core::util::errors::BitFunError::service(e.to_string())
                                 })?;
                         }
                         AcpClientStreamEvent::AvailableCommandsUpdated(commands) => {
@@ -637,9 +700,7 @@ pub async fn start_acp_dialog_turn(
                                     }),
                                 )
                                 .map_err(|e| {
-                                    bitfun_core::util::errors::BitFunError::service(
-                                        e.to_string(),
-                                    )
+                                    bitfun_core::util::errors::BitFunError::service(e.to_string())
                                 })?;
                         }
                         AcpClientStreamEvent::PlanUpdated(entries) => {
@@ -654,9 +715,7 @@ pub async fn start_acp_dialog_turn(
                                     }),
                                 )
                                 .map_err(|e| {
-                                    bitfun_core::util::errors::BitFunError::service(
-                                        e.to_string(),
-                                    )
+                                    bitfun_core::util::errors::BitFunError::service(e.to_string())
                                 })?;
                         }
                         AcpClientStreamEvent::ConfigOptionsUpdated(_) => {
@@ -669,9 +728,7 @@ pub async fn start_acp_dialog_turn(
                                     }),
                                 )
                                 .map_err(|e| {
-                                    bitfun_core::util::errors::BitFunError::service(
-                                        e.to_string(),
-                                    )
+                                    bitfun_core::util::errors::BitFunError::service(e.to_string())
                                 })?;
                         }
                         AcpClientStreamEvent::Completed => {
@@ -695,9 +752,7 @@ pub async fn start_acp_dialog_turn(
                                     }),
                                 )
                                 .map_err(|e| {
-                                    bitfun_core::util::errors::BitFunError::service(
-                                        e.to_string(),
-                                    )
+                                    bitfun_core::util::errors::BitFunError::service(e.to_string())
                                 })?;
                         }
                         AcpClientStreamEvent::Cancelled => {
@@ -720,9 +775,7 @@ pub async fn start_acp_dialog_turn(
                                     }),
                                 )
                                 .map_err(|e| {
-                                    bitfun_core::util::errors::BitFunError::service(
-                                        e.to_string(),
-                                    )
+                                    bitfun_core::util::errors::BitFunError::service(e.to_string())
                                 })?;
                         }
                     }

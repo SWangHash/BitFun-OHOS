@@ -44,7 +44,8 @@
       "expand": "Expand",
       "solid": "Solid"
     },
-    "lineHeightDesc": "A multiple of the font size; for example, 14 px text at 1.5 gives a 21 px line height"
+    "lineHeightDesc": "A multiple of the font size; for example, 14 px text at 1.5 gives a 21 px line height",
+    "inheritGlobalFont": "Follow global code font"
   },
   "behavior": {
     "tabSize": "Tab Width",
@@ -65,6 +66,7 @@
       "interval": "Interval"
     },
     "smoothScrolling": "Smooth Scrolling",
+    "smoothScrollingDesc": "Enable smooth scrolling animation",
     "scrollBeyondLastLine": "Scroll Beyond Last Line",
     "scrollBeyondLastLineDesc": "Scroll past the end of file to center content",
     "tabSizeDesc": "Character columns per tab stop; also sets the indentation width when using spaces",
@@ -104,7 +106,9 @@
     "bracketPairColorization": "Bracket Pair Colorization",
     "bracketPairColorizationDesc": "Use different colors for nested bracket pairs",
     "formatOnSave": "Format on Save",
+    "formatOnSaveDesc": "Auto format code when saving",
     "formatOnPaste": "Format on Paste",
+    "formatOnPasteDesc": "Auto format when pasting code",
     "trimAutoWhitespace": "Trim automatically inserted whitespace",
     "trimAutoWhitespaceDesc": "Remove trailing whitespace left by automatic indentation and similar editor actions"
   },

@@ -66,6 +66,7 @@ interface QuestionData {
   /** Free-text answer field declared by a backend template. */
   inputPlaceholder?: string;
   multiSelect: boolean;
+  allowCustomInput?: boolean;
   options: QuestionOption[];
   question: string;
 }
@@ -108,6 +109,9 @@ function normalizeQuestionsFromParams(input: unknown): QuestionData[] {
     return [{
       header: typeof rawQuestion.header === 'string' ? rawQuestion.header : '',
       inputPlaceholder: rawPlaceholder || undefined,
+      allowCustomInput: typeof rawQuestion.allowCustomInput === 'boolean'
+        ? rawQuestion.allowCustomInput
+        : undefined,
       multiSelect: Boolean(rawQuestion.multiSelect),
       options,
       question: typeof rawQuestion.question === 'string'

@@ -5,9 +5,10 @@ import type { SettingsPageId } from './settingsTypes';
 // Read-only configuration owned by these destinations. Runtime probes and secrets
 // remain with their page owners; hovering must never start a service or a scan.
 const CONFIG_PATHS: Partial<Record<SettingsPageId, readonly string[]>> = {
-  'application.general': ['app.close_button_behavior', 'app.notifications.dialog_completion_notify', 'app.notifications.permission_request_notify'],
+  'application.general': ['app.close_button_behavior', 'app.notifications.dialog_completion_notify', 'app.notifications.permission_request_notify', 'app.notifications.enable_startup_tips'],
   'application.pet': ['app.ai_experience'],
-  'application.input': ['app.ai_experience', 'app.flow_chat.auto_show_selection_toolbar'],
+  'application.input': ['app.ai_experience', 'app.flow_chat.send_during_turn', 'app.flow_chat.auto_show_selection_toolbar'],
+  'ai.models': ['ai.models', 'ai.proxy', 'ai.stream_idle_timeout_secs', 'ai.stream_ttft_timeout_secs'],
   'ai.session-memory': ['app.flow_chat', 'app.ai_experience', 'ai.models', 'ai.task_models', 'memories'],
   'ai.execution': ['ai.models', 'ai.enable_deferred_tool_loading', 'ai.subagent_max_concurrency', 'ai.swarm_max_concurrency', 'ai.tool_execution_timeout_secs', 'ai.subagent_batch_execution_policy', 'ai.user_question_timeout_secs', 'ai.tool_presentation_mode'],
   'ai.permissions': ['tool_permissions', 'app.flow_chat.show_permission_mode_control'],
@@ -23,6 +24,7 @@ const OPTIONAL_PATHS = new Set([
   ...(CONFIG_PATHS['application.general'] ?? []),
   'app.flow_chat.auto_show_selection_toolbar',
   'app.flow_chat.show_permission_mode_control',
+  'app.flow_chat.send_during_turn',
   'ai.tool_presentation_mode',
   'ai.user_question_timeout_secs',
   'app.worktrees',

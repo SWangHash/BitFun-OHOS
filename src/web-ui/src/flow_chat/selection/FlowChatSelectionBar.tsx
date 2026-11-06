@@ -33,10 +33,10 @@ export function FlowChatSelectionBar({ rootRef, sessionId, parentSessionId, acti
   onSelectionIntent?: () => void;
 }) {
   const { t } = useI18n('flow-chat');
-  const peer = usePeerDeviceModeOptional();
   const { enabled: autoShowToolbar } = useSelectionToolbarPreference();
   const autoShowToolbarRef = useRef(autoShowToolbar);
   autoShowToolbarRef.current = autoShowToolbar;
+  const peer = usePeerDeviceModeOptional();
   const menuId = useId();
   const popupRef = useRef<HTMLDivElement>(null);
   const [selection, setSelection] = useState<CapturedFlowChatSelection | null>(null);

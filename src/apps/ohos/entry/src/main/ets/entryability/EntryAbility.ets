@@ -7,6 +7,8 @@ import {
   Context,
   Permissions,
   Want,
+  WantAgent,
+  wantAgent,
   wantConstant
 } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
@@ -20,7 +22,9 @@ import { calendarManager } from '@kit.CalendarKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { buffer } from '@kit.ArkTS';
 import { DesktopSystemService } from '../services/DesktopSystemService';
+import { LocalModelKeepAliveService } from '../services/LocalModelKeepAliveService';
 import { notificationManager } from '@kit.NotificationKit';
+import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
 import RustModule from 'libbitfun_desktop_lib.so';
 import { AppUpdater, UpdateCheckResult } from '../utils/AppUpdater';
 import { CommonUtils } from '../utils/CommonUtils';
@@ -52,6 +56,9 @@ const SAVE_FILE_TAG = 'BitFunSaveFile';
 // Log tag of the system light/dark mode bridge so the Ability-side report, the
 // native emit and the web-ui apply can be compared as one timeline.
 const THEME_MODE_TAG = 'BitFunThemeMode';
+// Log tag of the scheduled-job keep-alive bridge so ability lifecycle decisions,
+// task-cancel callbacks, and Rust-side cron ticks filter as one component.
+const SCHEDULED_JOB_TAG = 'BitFunScheduledJob';
 // Permission required by `save_file_to_downloads_ohos` to write into the user
 // Download directory. Declared in module.json5 but only granted on first
 // `requestPermissionsFromUser` — see `ensureDownloadDirPermission`.
@@ -140,6 +147,7 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
   public commonEventListener: CommonEventListener | undefined = undefined;
   public remoteUrl: string = "";
   private desktopSystem: DesktopSystemService = new DesktopSystemService();
+  private localModelKeepAlive: LocalModelKeepAliveService = new LocalModelKeepAliveService();
   private appUpdater: AppUpdater = new AppUpdater();
   private voiceInputService: VoiceInputService = new VoiceInputService();
   private systemColorMode: 'light' | 'dark' = 'dark';
@@ -150,10 +158,30 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
   // never reports its startup handoff. Any explicit chrome request from the
   // shell cancels it.
   private startupChromeWatchdog: number = -1;
+  // Scheduled jobs are triggered by an in-process timer, so the process must
+  // survive the background freeze. The keep-alive is held only while at least
+  // one enabled job exists; `continuousTaskCancel` fires when the user dismisses
+  // the required notification or the system stops the task.
+  private scheduledJobKeepAliveActive: boolean = false;
+  private scheduledJobCancelCallback = (info: backgroundTaskManager.ContinuousTaskCancelInfo): void => {
+    this.scheduledJobKeepAliveActive = false;
+    hilog.warn(
+      DOMAIN,
+      SCHEDULED_JOB_TAG,
+      'Continuous task cancelled: id=%{public}d reason=%{public}d',
+      info.id,
+      info.reason
+    );
+  };
 
   async onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Promise<void> {
     super.onCreate(want, launchParam);
     this.commonEventListener = new CommonEventListener();
+    // Hold the on-device model service resident from app start so local model
+    // APIs are usable without the system settings page or another model app.
+    if (this.context !== undefined) {
+      this.localModelKeepAlive.start(this.context);
+    }
     this.resolveSystemColorMode(this.context?.config?.colorMode);
     // Publish the launch-page mirror appearance for the ArkUI page (see
     // oh-rs-ability/.../DefaultXComponent), which renders it while the webview
@@ -168,16 +196,127 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
       'bitfunStartupSplashBackground',
       $r('app.color.start_window_background'),
     );
+    // Files dragged out of another app (WeChat and other sandboxes) only carry a
+    // URI that is valid inside the source app, so the vendored ArkWeb drop
+    // bridge stages those URIs into this cache dir before handing the web-ui a
+    // path it can actually read. Same rule as `read_clipboard_files` below.
+    const dropCacheDir: string | undefined = this.context?.cacheDir;
+    if (dropCacheDir) {
+      AppStorage.setOrCreate<string>('bitfunDropCacheDir', dropCacheDir);
+    }
     // Cold-start best-effort report of the current system color mode so the
     // web-ui "follow system" selection resolves correctly without waiting for
     // the first system change. web-ui dedups when it equals the resolved theme.
     this.notifySystemColorMode();
   }
 
+  onBackground(): void {
+    this.acquireScheduledJobKeepAlive();
+  }
+
+  onForeground(): void {
+    this.releaseScheduledJobKeepAlive();
+  }
+
+  /**
+   * Hold a `taskKeeping` continuous task so the Rust cron loop keeps running
+   * while the app is backgrounded or the screen is off. Requesting in
+   * `onBackground` (instead of at startup) keeps the required notification out
+   * of the foreground experience.
+   */
+  private acquireScheduledJobKeepAlive(): void {
+    if (this.scheduledJobKeepAliveActive) return;
+    let hasEnabledJobs: boolean = false;
+    try {
+      hasEnabledJobs = RustModule.hasEnabledScheduledJobs();
+    } catch (error) {
+      const businessError = error as BusinessError;
+      hilog.warn(
+        DOMAIN,
+        SCHEDULED_JOB_TAG,
+        'Failed to query enabled scheduled jobs: %{public}s',
+        businessError.message
+      );
+      return;
+    }
+    if (!hasEnabledJobs) return;
+
+    const context = this.context;
+    if (context === undefined) return;
+    const agentInfo: wantAgent.WantAgentInfo = {
+      wants: [{
+        bundleName: context.abilityInfo.bundleName,
+        abilityName: context.abilityInfo.name,
+      }],
+      actionType: wantAgent.OperationType.START_ABILITY,
+      requestCode: 0,
+      actionFlags: [wantAgent.WantAgentFlags.UPDATE_PRESENT_FLAG],
+    };
+    try {
+      backgroundTaskManager.on('continuousTaskCancel', this.scheduledJobCancelCallback);
+    } catch (error) {
+      const businessError = error as BusinessError;
+      hilog.warn(
+        DOMAIN,
+        SCHEDULED_JOB_TAG,
+        'Failed to register continuous task cancel listener: %{public}s',
+        businessError.message
+      );
+    }
+    wantAgent.getWantAgent(agentInfo).then((agent: WantAgent) => {
+      return backgroundTaskManager.startBackgroundRunning(
+        context,
+        backgroundTaskManager.BackgroundMode.TASK_KEEPING,
+        agent
+      );
+    }).then(() => {
+      this.scheduledJobKeepAliveActive = true;
+      hilog.info(DOMAIN, SCHEDULED_JOB_TAG, 'Continuous task started for scheduled jobs');
+    }).catch((error: BusinessError) => {
+      this.removeScheduledJobCancelListener();
+      hilog.warn(
+        DOMAIN,
+        SCHEDULED_JOB_TAG,
+        'Failed to start continuous task: code=%{public}d message=%{public}s',
+        error.code,
+        error.message
+      );
+    });
+  }
+
+  private releaseScheduledJobKeepAlive(): void {
+    this.removeScheduledJobCancelListener();
+    if (!this.scheduledJobKeepAliveActive) return;
+    this.scheduledJobKeepAliveActive = false;
+    const context = this.context;
+    if (context === undefined) return;
+    backgroundTaskManager.stopBackgroundRunning(context).then(() => {
+      hilog.info(DOMAIN, SCHEDULED_JOB_TAG, 'Continuous task stopped');
+    }).catch((error: BusinessError) => {
+      hilog.warn(
+        DOMAIN,
+        SCHEDULED_JOB_TAG,
+        'Failed to stop continuous task: code=%{public}d message=%{public}s',
+        error.code,
+        error.message
+      );
+    });
+  }
+
+  private removeScheduledJobCancelListener(): void {
+    try {
+      backgroundTaskManager.off('continuousTaskCancel', this.scheduledJobCancelCallback);
+    } catch (error) {
+      // Off() only fails when the listener was never registered; nothing to undo.
+    }
+  }
+
   onDestroy(): void {
     try { this.desktopSystem.dispose(); } catch (error) {
       hilog.error(DOMAIN, 'DesktopSystem', 'Failed to release idle sleep lock: %{public}s', String(error));
     }
+    this.releaseScheduledJobKeepAlive();
+    this.localModelKeepAlive.dispose();
     this.statusBarTray?.remove();
     RustModule.ohosMarkCleanShutdown();
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
@@ -584,7 +723,12 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
       return '';
     });
     RustModule.registerArktsFunction('handle_restore_window', async (err: Error, arg: string): Promise<string> => {
-      windowStage.getMainWindowSync().recover();
+      try {
+        await windowStage.getMainWindowSync().recover();
+      } catch (e) {
+        const be = e as BusinessError;
+        hilog.warn(DOMAIN, TAG, `recover failed: ${be.message}`);
+      }
       return '';
     });
     RustModule.registerArktsFunction('window_is_maximized', async (err: Error, arg: string): Promise<string> => {
@@ -798,7 +942,21 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
       return '';
     });
     RustModule.registerArktsFunction('window_start_dragging', async (err: Error, arg: string): Promise<string> => {
-      windowStage.getMainWindowSync().startMoving();
+      const mainWin = windowStage.getMainWindowSync();
+      try {
+        // ArkUI owns the whole gesture: called while the pointer is still down,
+        // startMoving() takes over the move loop and restores a maximized window
+        // itself. Restoring first would end that press, which is why the shell
+        // must not recover() before asking the host to start moving.
+        const state = mainWin.getWindowStatus();
+        if (state == window.WindowStatusType.MAXIMIZE || state == window.WindowStatusType.FULL_SCREEN) {
+          hilog.info(DOMAIN, TAG, 'startMoving on a maximized window; the host restores it');
+        }
+        await mainWin.startMoving();
+      } catch (e) {
+        const be = e as BusinessError;
+        hilog.warn(DOMAIN, TAG, `startMoving failed (code=${be.code}): ${be.message}`);
+      }
       return '';
     });
     RustModule.registerArktsFunction('set_always_on_top_ohos', async (err: Error, arg: string): Promise<string> => {

@@ -10,6 +10,17 @@ export const settingsAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   facets: [{
     id: 'page',
     attribute: 'data-bitfun-page',
+    valueAliases: {
+      'application.voice': 'application.input',
+      'application.shortcuts': 'application.input',
+      'application.terminal': 'development.terminal',
+      'application.editor': 'development.editor',
+      'ai.memory': 'ai.session-memory',
+      'workspace.session': 'ai.session-memory',
+      'workspace.worktrees': 'development.workspace',
+      'tools.execution': 'ai.execution',
+      'tools.acp': 'tools.external-agents',
+    },
     values: [
       'application.general',
       'application.appearance',
@@ -26,7 +37,13 @@ export const settingsAppearanceDescriptor: AppearanceSurfaceDescriptor = {
       'tools.desktop-control',
       'tools.mcp',
       'tools.external-agents',
+      'tools.external-import',
       'tools.automation',
+      // Keep persisted page selectors readable after navigation moves.
+      'application.voice',
+      'application.shortcuts',
+      'application.terminal',
+      'application.editor',
       'data.usage',
       'data.archived',
       'data.diagnostics',

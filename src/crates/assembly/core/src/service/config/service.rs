@@ -274,11 +274,47 @@ impl ConfigService {
     where
         T: serde::Serialize,
     {
+        self.set_config_if_changed_with_snapshot(path, value, None)
+            .await
+    }
+
+    /// Compare a caller's snapshot and persist under the same configuration lock.
+    /// Older callers omit the snapshot and retain ordinary write semantics.
+    pub async fn set_config_with_snapshot<T>(
+        &self,
+        path: &str,
+        value: T,
+        expected: Option<serde_json::Value>,
+    ) -> BitFunResult<()>
+    where
+        T: serde::Serialize,
+    {
+        self.set_config_if_changed_with_snapshot(path, value, expected)
+            .await
+            .map(|_| ())
+    }
+
+    async fn set_config_if_changed_with_snapshot<T>(
+        &self,
+        path: &str,
+        value: T,
+        expected: Option<serde_json::Value>,
+    ) -> BitFunResult<bool>
+    where
+        T: serde::Serialize,
+    {
         let (path, value) =
             translate_legacy_model_selection_write(path, serde_json::to_value(value)?)?;
         let path = path.as_str();
         {
             let mut manager = self.manager.write().await;
+            if let Some(expected) = expected {
+                if manager.get::<serde_json::Value>(path)? != expected {
+                    return Err(BitFunError::config(
+                        "CONFIG_MODELS_CONFLICT: configuration changed while being edited",
+                    ));
+                }
+            }
             let comparison_path = if path.starts_with("ai.agent_model_selections.") {
                 "ai.agent_model_selections"
             } else {
@@ -2553,6 +2589,28 @@ mod tests {
         )
         .expect("valid persisted config");
         assert_eq!(persisted.ai.default_models.fast, None);
+    }
+
+    #[tokio::test]
+    async fn model_snapshot_write_rejects_stale_values_without_replacing_saved_models() {
+        let (service, _dir) = test_service("model-snapshot-write").await;
+        let original: serde_json::Value = service.get_config(Some("ai.models")).await.unwrap();
+        let first = vec![model("first", true, ModelCategory::GeneralChat)];
+        service
+            .set_config_with_snapshot("ai.models", &first, Some(original.clone()))
+            .await
+            .unwrap();
+        let second = vec![model("second", true, ModelCategory::GeneralChat)];
+        let error = service
+            .set_config_with_snapshot("ai.models", &second, Some(original))
+            .await
+            .expect_err("a stale model snapshot must not overwrite a completed edit");
+        assert!(error.to_string().contains("CONFIG_MODELS_CONFLICT"));
+        let saved: Vec<AIModelConfig> = service.get_config(Some("ai.models")).await.unwrap();
+        assert_eq!(saved[0].id, "first");
+        service.set_config("ai.models", &second).await.unwrap();
+        let legacy_saved: Vec<AIModelConfig> = service.get_config(Some("ai.models")).await.unwrap();
+        assert_eq!(legacy_saved[0].id, "second");
     }
 
     #[tokio::test]

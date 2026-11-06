@@ -33,6 +33,9 @@ import { promptSuggestionKey, usePromptSuggestionStore } from '../../store/promp
 import { clearAgentCanvasForPeerSwitch, switchAgentCanvasScope, useAgentCanvasStore } from '@/app/components/panels/content-canvas/stores';
 import { activateSurface } from '@/infrastructure/peer-device/deviceSurface';
 import { markCurrentTurnItemsAsCancelled } from '../../utils/turnCancellation';
+import { workspaceManager } from '@/infrastructure/services/business/workspaceManager';
+import { sessionBelongsToWorkspaceNavRow } from '../../utils/sessionOrdering';
+import { projectDispatchAgentEvent } from '@/features/dispatch/DispatchJobObserver';
 
 const {
   buildBuiltInBrowserTabOptions,
@@ -142,6 +145,100 @@ describe('external BTW turn projection', () => {
     expect(FlowChatStore.getInstance().getState().sessions.get('external-btw')).toMatchObject({
       sessionKind: 'btw', parentSessionId: 'parent', isTransient: true, agentBackedTransient: true,
     });
+  });
+});
+
+describe('created session project ownership', () => {
+  let cleanup: (() => void) | undefined;
+
+  afterEach(() => {
+    cleanup?.();
+    cleanup = undefined;
+    resetFlowChatStore();
+    activateSurface('local');
+    resetFlowChatStore();
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    { surface: 'local', projectWorkspaceId: 'host-owner', connectionId: undefined, expectedOwner: 'host-owner' },
+    { surface: 'peer', projectWorkspaceId: 'host-owner', connectionId: undefined, expectedOwner: 'host-owner' },
+    { surface: 'local', projectWorkspaceId: undefined, connectionId: 'ssh-1', expectedOwner: 'ssh-project' },
+  ])('attributes an external session on $surface with owner $projectWorkspaceId and connection $connectionId', async ({
+    surface, projectWorkspaceId, connectionId, expectedOwner,
+  }) => {
+    activateSurface(surface);
+    resetFlowChatStore();
+    const workspaces = workspaceManager.getState();
+    vi.spyOn(workspaceManager, 'getState').mockReturnValue({
+      ...workspaces, openedWorkspaces: new Map([
+        ['local-project', { id: 'local-project', name: 'Local', rootPath: '/repo', workspaceKind: 'normal' }],
+        ['ssh-project', { id: 'ssh-project', name: 'Remote', rootPath: '/repo', workspaceKind: 'remote', connectionId: 'ssh-1' }],
+      ]) as typeof workspaces.openedWorkspaces,
+    });
+    const listeners = new Map<string, (event: any) => void>();
+    vi.spyOn(api, 'listen').mockImplementation((name, callback) => {
+      listeners.set(name, callback);
+      return () => { listeners.delete(name); };
+    });
+    vi.spyOn(api, 'waitForListenerRegistrations').mockResolvedValue();
+    agenticEventListener.stopListening();
+    cleanup = await initializeEventListeners(createFlowChatContext(), vi.fn());
+
+    const workspaceId = connectionId ? 'ssh-project' : 'hidden-execution';
+    const workspacePath = connectionId ? '/repo' : '/worktrees/a';
+    listeners.get('agentic://session-created')!({
+      sessionId: 'external-worktree', sessionName: 'External task', agentType: 'Standard',
+      workspaceId, workspacePath, projectWorkspacePath: '/repo',
+      projectWorkspaceId, remoteConnectionId: connectionId,
+      // A hidden execution directory is a worktree of the owning project.
+      executionTarget: connectionId ? undefined : { kind: 'existingWorktree', worktreeId: 'external-worktree' },
+    });
+
+    const session = FlowChatStore.getInstance().getState().sessions.get('external-worktree')!;
+    expect(session).toMatchObject({
+      workspaceId, workspacePath,
+      projectWorkspaceId: expectedOwner, config: { projectWorkspaceId: expectedOwner },
+    });
+    expect(sessionBelongsToWorkspaceNavRow(session, expectedOwner)).toBe(true);
+    expect(sessionBelongsToWorkspaceNavRow(session, 'local-project')).toBe(false);
+    if (surface === 'peer') {
+      activateSurface('local');
+      expect(FlowChatStore.getInstance().getState().sessions.has(session.sessionId)).toBe(false);
+      activateSurface(surface);
+    }
+  });
+
+  it('keeps the controller owner when replaying creation from a dispatched target', async () => {
+    const store = FlowChatStore.getInstance();
+    const observer: Session = {
+      sessionId: 'dispatch-observer', title: 'Remote task', workspaceId: 'source-project',
+      workspacePath: '/source', projectWorkspacePath: '/source',
+      dialogTurns: [], status: 'idle', createdAt: 1, error: null,
+      config: {
+        workspaceId: 'source-project', dispatchJobId: 'job-1',
+        dispatchTarget: { kind: 'ssh', connectionId: 'ssh-1', workspacePath: '/target', displayName: 'Target' },
+      },
+    };
+    store.setState(state => ({ ...state, sessions: new Map([[observer.sessionId, observer]]) }));
+    vi.spyOn(api, 'listen').mockReturnValue(() => {});
+    vi.spyOn(api, 'waitForListenerRegistrations').mockResolvedValue();
+    agenticEventListener.stopListening();
+    cleanup = await initializeEventListeners(createFlowChatContext(), vi.fn());
+    const event = projectDispatchAgentEvent({
+      type: 'agentEvent', timestamp: '2026-01-01T00:00:00Z',
+      event: { frontendEventName: 'agentic://session-created', frontendPayload: {
+        sessionId: observer.sessionId, sessionName: 'Remote task', agentType: 'Standard',
+        workspaceId: 'target-worktree', workspacePath: '/target/worktree',
+        projectWorkspaceId: 'target-project', projectWorkspacePath: '/target',
+      } },
+    })!;
+
+    expect(agenticEventListener.dispatchExternal(event.eventName, event.payload)).toBe(true);
+    expect(store.getState().sessions.get(observer.sessionId)).toBe(observer);
+    expect(sessionBelongsToWorkspaceNavRow(observer, 'source-project')).toBe(true);
+    expect(sessionBelongsToWorkspaceNavRow(store.getState().sessions.get(observer.sessionId)!, 'target-project'))
+      .toBe(false);
   });
 });
 

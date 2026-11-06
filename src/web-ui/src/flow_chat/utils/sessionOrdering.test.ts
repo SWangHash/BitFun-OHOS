@@ -125,6 +125,33 @@ describe('sessionOrdering', () => {
     expect(sessionBelongsToWorkspaceNavRow({ workspaceId: 'host-b-project' }, 'host-a-project')).toBe(false);
   });
 
+  it('remote SSH: same host but different remote root does not share nav row', () => {
+    const conn = 'ssh-user@myserver.example.com:22';
+    const host = 'myserver.example.com';
+    const rowPath = '/home/u/project-a';
+    const otherPath = '/home/u/project-b';
+
+    const sessionA = {
+      workspaceId: 'remote-project-a',
+      workspacePath: rowPath,
+      remoteConnectionId: conn,
+      remoteSshHost: host,
+    };
+    const sessionB = {
+      workspaceId: 'remote-project-b',
+      workspacePath: otherPath,
+      remoteConnectionId: conn,
+      remoteSshHost: host,
+    };
+
+    expect(
+      sessionBelongsToWorkspaceNavRow(sessionA, 'remote-project-a')
+    ).toBe(true);
+    expect(
+      sessionBelongsToWorkspaceNavRow(sessionB, 'remote-project-a')
+    ).toBe(false);
+  });
+
   it('keeps a session whose execution workspace is not a worktree in its own group', () => {
     const session = {
       workspaceId: 'worktree-cli',

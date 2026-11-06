@@ -68,7 +68,10 @@ export const FlowToolCard: React.FC<FlowToolCardProps> = React.memo(({
   const capsuleExpanded = expandedToolCapsules && onToolCapsuleExpandedChange
     ? expandedToolCapsules.has(capsuleKey) : localExpanded;
   const { cardRootRef, applyExpandedState } = useToolCardHeightContract({ toolId: toolItem.id, toolName: effectiveToolItem.toolName });
-  const config = getToolItemCardConfig(effectiveToolItem);
+  const baseConfig = getToolItemCardConfig(effectiveToolItem);
+  const config = effectiveToolItem.toolName === 'ACP Permission'
+    ? { ...baseConfig, displayName: t('toolCards.approval.ariaLabel') }
+    : baseConfig;
   const CardComponent = toolItem.importedSource && !importedToolCardName(toolItem)
     ? DefaultToolCard : getToolCardComponent(effectiveToolItem.toolName);
   const interruptionNote = getToolInterruptionNote(effectiveToolItem, t);

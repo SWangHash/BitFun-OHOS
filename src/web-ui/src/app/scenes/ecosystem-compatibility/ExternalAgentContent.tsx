@@ -661,6 +661,7 @@ export default function ExternalAgentContent({ scopeKey, actionsRef, onActionSta
   return (
     <>
     <section className="ecosystem-compatibility__section" data-external-agent-content={runtime.spec.ecosystemId}>
+      {!actionsRef && (
       <div className="ecosystem-compatibility__section-heading ecosystem-compatibility__section-heading--actions">
         <div><h2>{t('content.title', { name: runtime.spec.name })}</h2><p>{t('content.description')}</p></div>
         {localImportSupported && items.some((item) => ['mcp', 'hook'].includes(item.kind)) ? (
@@ -670,6 +671,7 @@ export default function ExternalAgentContent({ scopeKey, actionsRef, onActionSta
           </div>
         ) : null}
       </div>
+      )}
       {notice && !kind && !review && !undo && !batch && !batchUndo ? <Alert className="ecosystem-compatibility__notice ecosystem-compatibility__feedback" role="status" showIcon={false} message={notice} /> : null}
       {loading ? <LoadingState size="sm">{t('loading')}</LoadingState> : null}
       <FieldGroup appearance="subtle" fieldSurface="ambient" dividers={false} className="ecosystem-compatibility__content-overview" role="table" aria-label={t('content.title', { name: runtime.spec.name })}>

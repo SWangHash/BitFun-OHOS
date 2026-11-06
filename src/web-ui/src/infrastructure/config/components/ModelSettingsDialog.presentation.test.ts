@@ -12,6 +12,11 @@ const styles = readFileSync(
   'utf8',
 );
 
+const dialogStyles = readFileSync(
+  fileURLToPath(new URL('../../../../../../design-system/packages/ui/src/components/Dialog/Dialog.module.css', import.meta.url)),
+  'utf8',
+);
+
 describe('ModelSettingsPage dialog presentation', () => {
   it('uses the shared panel preset throughout model management workflows', () => {
     const owners = [
@@ -73,8 +78,8 @@ describe('ModelSettingsPage dialog presentation', () => {
     expect(editingForm).toContain('className="bitfun-model-settings__form-content"');
     expect(editorDialog).not.toContain('bitfun-model-settings__editor-dialog-footer');
     expect(editorDialog).not.toContain('bitfun-model-settings__editor-dialog-cancel');
-    expect(styles).toMatch(
-      /&__editor-dialog\s*{[\s\S]*?max-block-size:\s*min\(\s*640px,\s*calc\(100vh - 2 \* var\(--bitfun-overlay-dialog-viewport-gutter\) - var\(--bitfun-viewport-host-chrome-inset-block-start\)\)\s*\);/,
+    expect(dialogStyles).toMatch(
+      /\.surface\[data-preset="panel"\]\s*{[\s\S]*?block-size:\s*min\([\s\S]*?var\(--bitfun-overlay-dialog-panel-block-size\),[\s\S]*?var\(--bitfun-viewport-host-chrome-inset-block-start\)/,
     );
     expect(styles).not.toContain('&__editor-dialog-footer');
     expect(styles).not.toContain('&__editor-dialog-cancel');
@@ -99,7 +104,7 @@ describe('ModelSettingsPage dialog presentation', () => {
   });
 
   it('offers atomic provider deletion with provider-specific confirmation', () => {
-    expect(source).toContain("<Tooltip content={t('actions.deleteProvider')}>");
+    expect(source).toContain("aria-label={`${t('actions.deleteProvider')}: ${group.providerName}`}");
     expect(source).toContain('onClick={() => void requestProviderDelete(group)}');
     expect(source).toContain("kind: 'provider',");
     expect(source).toContain('removeProviderModelConfigs(current, request.groupKey)');

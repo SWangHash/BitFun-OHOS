@@ -71,6 +71,7 @@
       "title": "Font Size",
       "hint": "Applies to the interface and chat content; adjust code text size separately in Editor settings",
       "uiSizeLabel": "Interface and chat",
+      "uiSizeHint": "Choose a comfortable scale for navigation, panels, settings, and conversation content.",
       "levels": {
         "compact": "Compact",
         "small": "Small",
@@ -214,6 +215,7 @@
       "refreshTooltip": "Refresh available terminals",
       "autoDetect": "Auto Detect (Recommended)",
       "description": "Used for new terminals and agent commands in local workspaces",
+      "cmdFallbackMessage": "Agent commands actually use PowerShell.",
       "placeholder": "Select default terminal",
       "noShells": "No available terminals detected"
     },
@@ -294,6 +296,10 @@
       "label": "Permission request notification",
       "description": "Notify you when an action needs approval while the window is in the background"
     },
+    "startupTips": {
+      "label": "Show tips on startup",
+      "description": "Display a usage tip card each time the app starts to help you discover features"
+    },
     "messages": {
       "loading": "Loading…",
       "loadFailed": "Failed to read notification settings",
@@ -304,14 +310,15 @@
   "messageSending": {
     "title": "Message sending",
     "duringTurn": "Send messages while a conversation is running",
-    "description": "Native sessions send follow-up instructions to the current task immediately by default. Choose queue to wait for the current turn to finish. ACP sessions still wait for the current turn; dispatched sessions continue appending messages to the target task.",
-    "immediate": "Send immediately (default)",
-    "queue": "Queue messages",
+    "description": "Choose how native conversations handle messages sent during a running turn. ACP conversations continue to queue messages; dispatched tasks keep appending to the target task.",
+    "immediate": "Send immediately",
+    "queue": "Queue messages (default)",
     "immediateDescription": "Native sessions add new messages to the current task immediately.",
     "queueDescription": "Native sessions send queued messages after the current turn finishes.",
     "loading": "Loading message sending preferences…",
     "loadFailed": "Failed to load message sending preferences",
-    "saveFailed": "Failed to save message sending preferences"
+    "saveFailed": "Failed to save message sending preferences",
+    "unsupported": "This host does not support changing the sending policy. Messages keep using its existing queue behavior."
   },
   "textSelection": {
     "title": "Text selection",
@@ -319,6 +326,7 @@
     "autoShowToolbarDescription": "Show Add annotation and Ask in side chat after selecting conversation text. When disabled, these actions remain available in the right-click menu.",
     "loading": "Loading text selection preferences…",
     "loadFailed": "Failed to load text selection preferences",
-    "saveFailed": "Failed to save text selection preferences"
+    "saveFailed": "Failed to save text selection preferences",
+    "unsupported": "This host does not support changing automatic selection actions. The current selection behavior is retained."
   }
 }

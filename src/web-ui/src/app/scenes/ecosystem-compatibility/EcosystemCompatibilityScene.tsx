@@ -38,6 +38,7 @@ import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
 import { sshApi } from '@/features/ssh-remote/sshApi';
 import { createLogger } from '@/shared/utils/logger';
 import { WorkspaceKind } from '@/shared/types';
+import { SettingsPage } from '../settings/pages/shared/SettingsPage';
 import {
   buildEcosystemProductRuntimes,
   totalDiscoveredAssets,
@@ -741,4 +742,8 @@ const ExternalImportSection: React.FC = () => {
   );
 };
 
-export default ExternalImportSection;
+export default function EcosystemCompatibilityScene({ embedded = false }: { embedded?: boolean }) {
+  return embedded ? <ExternalImportSection /> : (
+    <SettingsPage pageId="tools.external-import"><ExternalImportSection /></SettingsPage>
+  );
+}

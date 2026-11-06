@@ -499,3 +499,14 @@
     background: var(--bitfun-color-field-background-hover);
   }
 }
+
+@layer bitfun.components {
+  /* Filled fields keep standard borders over the grouped-field background. */
+  .root[data-field-surface="filled"] .trigger {
+    background: var(--bitfun-color-field-group-background);
+  }
+
+  .root[data-field-surface="filled"] .trigger:hover:not(:disabled) {
+    background: var(--bitfun-color-field-background-hover);
+  }
+}

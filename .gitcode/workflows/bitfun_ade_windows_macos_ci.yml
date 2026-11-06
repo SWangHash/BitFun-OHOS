@@ -17,7 +17,7 @@ on:
       - open
       - update
       - reopen
-    branches: [main, release/2.0.0]
+    branches: [main]
 
 permissions:
   repository: read

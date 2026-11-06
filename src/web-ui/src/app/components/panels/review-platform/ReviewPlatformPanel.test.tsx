@@ -91,9 +91,9 @@ async function click(id: string) {
     : `[data-testid="${id}"]`;
   await act(async () => { host.querySelector<HTMLButtonElement>(selector)!.click(); });
 }
-async function mount() {
+async function mount(workspaceId?: string) {
   const path = `/gitee-panel-test-${++testNumber}`;
-  await act(async () => { root.render(<ReviewPlatformPanel workspaceId={workspaceIdFor(path)} workspacePath={path} />); });
+  await act(async () => { root.render(<ReviewPlatformPanel workspaceId={workspaceId ?? workspaceIdFor(path)} workspacePath={path} />); });
   return path;
 }
 
@@ -471,6 +471,23 @@ describe('Gitee panel state and asynchronous request ordering', () => {
       [expect.objectContaining({ pullRequestId: '10', section: 'reviews' })],
     ]));
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it.each(['project', 'worktree'])('enables Review for a worktree session from its %s workspace', async (workspaceId) => {
+    const session: Session = {
+      sessionId: 'worktree-parent', title: 'Worktree session', sessionKind: 'normal',
+      workspaceId: 'worktree', projectWorkspaceId: 'project',
+      config: {}, dialogTurns: [], status: 'idle', error: null,
+      createdAt: 1, lastActiveAt: 1,
+    };
+    mocks.state = { sessions: new Map([[session.sessionId, session]]), activeSessionId: session.sessionId };
+    mocks.detail.mockImplementation(({ pullRequestId, section }) => Promise.resolve(detail(Number(pullRequestId), section)));
+
+    await mount(workspaceId);
+
+    const review = [...host.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Review');
+    expect(review).toBeTruthy();
+    expect(review!.disabled).toBe(false);
   });
 
   it('searches beyond the loaded page and merges batches before paginating matching results', async () => {

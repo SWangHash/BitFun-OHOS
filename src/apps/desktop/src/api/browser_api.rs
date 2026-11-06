@@ -342,9 +342,8 @@ pub(crate) fn list_browser_targets(app: &tauri::AppHandle) -> Vec<BuiltInBrowser
     targets.into_iter().map(|(_, target)| target).collect()
 }
 
-/// Resolve the exact WebView that acknowledged one browser-open
-/// request. The request ID is presentation lifecycle metadata and is kept out
-/// of the public browser target DTO.
+/// Resolve the exact created WebView for a browser-open request, including a
+/// background session's hidden page. Visibility is not automation readiness.
 pub(crate) fn browser_target_for_open_request(
     app: &tauri::AppHandle,
     request_id: &str,
@@ -484,6 +483,7 @@ pub async fn browser_webview_create(
                 .initialization_script(include_str!(
                     "../../../../shared/browser/blankTargetIntercept.js"
                 ))
+                .focused(false)
                 .transparent(false)
                 .background_color(tauri::window::Color(0, 0, 0, 255));
 
@@ -1011,7 +1011,7 @@ mod tests {
     }
 
     #[test]
-    fn open_request_correlation_accepts_the_exact_background_target() {
+    fn open_request_correlation_resolves_the_exact_target_without_activating_it() {
         let mut registry = BrowserTargetRegistry::default();
         registry.records.insert(
             "embedded-browser-panel-view-old".to_string(),
@@ -1034,11 +1034,12 @@ mod tests {
             registry.label_for_open_request("old-request").as_deref(),
             Some("embedded-browser-panel-view-old")
         );
-        assert_eq!(registry.label_for_open_request("missing-request"), None);
-
         assert_eq!(
             registry.label_for_open_request("new-request").as_deref(),
             Some("embedded-browser-panel-view-new")
         );
+        assert_eq!(registry.label_for_open_request("missing-request"), None);
+        assert!(registry.records["embedded-browser-panel-view-old"].active);
+        assert!(!registry.records["embedded-browser-panel-view-new"].active);
     }
 }

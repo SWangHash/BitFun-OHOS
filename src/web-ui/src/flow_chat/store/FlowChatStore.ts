@@ -93,7 +93,7 @@ import { sessionOwningWorkspaceId } from '../utils/sessionOrdering';
 import { sessionProjectWorkspacePath } from '../utils/sessionWorkspace';
 import type { SessionTitleDescriptor } from '../utils/sessionTitle';
 import { deriveContextUsageFromTurns } from '../utils/tokenUsageDisplay';
-import { isAcpAgentType } from '../utils/acpSession';
+import { acpAgentTypeFromMetadata, isAcpAgentType } from '../utils/acpSession';
 import {
   deriveSessionTitleState,
   deriveSessionTitleStateFromMetadata,
@@ -4580,10 +4580,16 @@ export class FlowChatStore {
     });
   }
 
-  /**
-   * Add a session created externally (e.g., from mobile remote) without switching the active session.
-   * workspacePath is stored on the session so the sidebar can filter by current workspace.
-   */
+  /** Complete the immutable owner without changing a live execution binding. */
+  private withProjectWorkspaceId(session: Session, projectWorkspaceId?: string): Session {
+    const owner = session.projectWorkspaceId ?? session.config.projectWorkspaceId ?? projectWorkspaceId;
+    if (!owner || (session.projectWorkspaceId === owner && session.config.projectWorkspaceId === owner)) {
+      return session;
+    }
+    return { ...session, projectWorkspaceId: owner, config: { ...session.config, projectWorkspaceId: owner } };
+  }
+
+  /** Register an external session, or complete its owner, without changing selection. */
   public addExternalSession(
     sessionId: string,
     title: string,
@@ -4615,8 +4621,19 @@ export class FlowChatStore {
     });
 
     this.setState(prev => {
-      if (prev.sessions.has(sessionId)) {
-        return prev;
+      const existing = prev.sessions.get(sessionId);
+      if (existing) {
+        // SessionCreated can precede the create response carrying the owner and
+        // the resolved execution binding. Complete only facts the event could
+        // not supply: a live binding is never replaced.
+        const owned = this.withProjectWorkspaceId(existing, meta?.projectWorkspaceId);
+        const updated = owned.config.executionTarget || !meta?.executionTarget
+          ? owned
+          : { ...owned, config: { ...owned.config, executionTarget: meta.executionTarget } };
+        if (updated === existing) return prev;
+        const sessions = new Map(prev.sessions);
+        sessions.set(sessionId, updated);
+        return { ...prev, sessions };
       }
 
       const relationship = normalizeSessionRelationship(meta);
@@ -5058,6 +5075,8 @@ export class FlowChatStore {
       const session = prev.sessions.get(sessionId);
       if (!session) return prev;
 
+      // Older hosts omit the project ID. Preserve the owner before replacing
+      // the execution workspace, so the session remains visible and reopenable.
       const newSessions = new Map(prev.sessions);
       // A binding that moves this session into an isolated execution directory
       // must never leave it without an owning project: the worktree record it
@@ -7706,7 +7725,8 @@ export class FlowChatStore {
         if ((existingSession?.workspaceId || existingSession?.config.workspaceId)
           && !(existingSession?.sessionKind === 'subagent' && existingSession.continuationPolicy === undefined)
           && !existingSession?.externalHistory && !existingSession?.externalBranchOf
-          && !metadata.customMetadata?.externalHistoryMode && !metadata.customMetadata?.externalBranchOf) {
+          && !metadata.customMetadata?.externalHistoryMode && !metadata.customMetadata?.externalBranchOf
+          && existingSession?.projectWorkspaceId && existingSession.config.projectWorkspaceId) {
           return;
         }
         if (!includeArchived && metadata.status === 'archived') {
@@ -7764,12 +7784,14 @@ export class FlowChatStore {
             const externalBranchOf = metadata.customMetadata?.externalBranchOf;
             const followedFields = externalHistory ? { ...titleState, lastActiveAt: metadata.lastActiveAt } : {};
             if (existing.workspaceId || existing.config.workspaceId || !workspaceId) {
-              if (continuationPolicy === existing.continuationPolicy && importedSource === existing.importedSource
+              const owned = this.withProjectWorkspaceId(existing, projectWorkspaceId);
+              if (owned === existing
+                && continuationPolicy === existing.continuationPolicy && importedSource === existing.importedSource
                 && (!externalHistory || (existing.title === titleState.title && existing.lastActiveAt === metadata.lastActiveAt))
                 && JSON.stringify(externalHistory) === JSON.stringify(existing.externalHistory)
                 && JSON.stringify(externalBranchOf) === JSON.stringify(existing.externalBranchOf)) return prev;
               const sessions = new Map(prev.sessions);
-              sessions.set(metadata.sessionId, { ...existing, ...followedFields, continuationPolicy, importedSource, externalHistory, externalBranchOf });
+              sessions.set(metadata.sessionId, { ...owned, ...followedFields, continuationPolicy, importedSource, externalHistory, externalBranchOf });
               return { ...prev, sessions };
             }
             const sessions = new Map(prev.sessions);
@@ -7787,7 +7809,9 @@ export class FlowChatStore {
             return { ...prev, sessions };
           }
 
-          const restoredAgentType = resolveRestoredAgentType(metadata.agentType);
+          const restoredAgentType = resolveRestoredAgentType(
+            acpAgentTypeFromMetadata(metadata) ?? metadata.agentType,
+          );
           const restoredCurrentTokenUsage = isAcpAgentType(restoredAgentType)
             ? undefined
             : deriveRestoredCurrentTokenUsage(persistedCurrentContextUsage);
@@ -8189,7 +8213,7 @@ export class FlowChatStore {
           logPersistedDispatchMetadataOverlap(metadata, 'metadata-list');
           scope.assertCurrent('initializeFromDiskSession');
           const existingSession = this.state.sessions.get(metadata.sessionId);
-          if (existingSession) {
+          if (existingSession?.projectWorkspaceId && existingSession.config.projectWorkspaceId) {
             return;
           }
           // Skip archived sessions - they are managed in the settings page
@@ -8220,14 +8244,14 @@ export class FlowChatStore {
 
           const legacyRecords = legacySessionWorkspaceCandidates();
           const workspaceId = metadata.workspaceId ?? resolveLegacySessionWorkspace({
-          workspacePath: metadata.workspacePath || workspacePath,
-          projectWorkspacePath: metadata.projectWorkspacePath,
-          remoteConnectionId, remoteSshHost,
-        }, legacyRecords)?.id;
-        const projectWorkspaceId = metadata.projectWorkspaceId ?? resolveLegacySessionWorkspace({
-          workspacePath: metadata.projectWorkspacePath || workspacePath, remoteConnectionId, remoteSshHost,
-        }, legacyRecords)?.id;
-        const relationship = deriveSessionRelationshipFromMetadata(metadata);
+            workspacePath: metadata.workspacePath || workspacePath,
+            projectWorkspacePath: metadata.projectWorkspacePath,
+            remoteConnectionId, remoteSshHost,
+          }, legacyRecords)?.id;
+          const projectWorkspaceId = metadata.projectWorkspaceId ?? resolveLegacySessionWorkspace({
+            workspacePath: metadata.projectWorkspacePath || workspacePath, remoteConnectionId, remoteSshHost,
+          }, legacyRecords)?.id;
+          const relationship = deriveSessionRelationshipFromMetadata(metadata);
           const lastFinishedAt = deriveLastFinishedAtFromMetadata(metadata);
           const titleState = deriveSessionTitleStateFromMetadata(metadata);
           const hasDynamicDefaultTitle = titleState.titleSource === 'i18n';
@@ -8239,11 +8263,21 @@ export class FlowChatStore {
           const persistedCurrentContextUsage = persistedCurrentContextUsageValue(metadata);
 
           this.setState(prev => {
-            if (!scope.isCurrent() || prev.sessions.has(metadata.sessionId)) {
+            if (!scope.isCurrent()) {
               return prev;
             }
+            const existing = prev.sessions.get(metadata.sessionId);
+            if (existing) {
+              const updated = this.withProjectWorkspaceId(existing, projectWorkspaceId);
+              if (updated === existing) return prev;
+              const sessions = new Map(prev.sessions);
+              sessions.set(metadata.sessionId, updated);
+              return { ...prev, sessions };
+            }
 
-            const restoredAgentType = resolveRestoredAgentType(metadata.agentType);
+            const restoredAgentType = resolveRestoredAgentType(
+              acpAgentTypeFromMetadata(metadata) ?? metadata.agentType,
+            );
             const restoredCurrentTokenUsage = isAcpAgentType(restoredAgentType)
               ? undefined
               : deriveRestoredCurrentTokenUsage(persistedCurrentContextUsage);
@@ -8268,7 +8302,7 @@ export class FlowChatStore {
               config: {
                 agentType: restoredAgentType,
                 modelName: metadata.modelName,
-              workspaceId, projectWorkspaceId,
+                workspaceId, projectWorkspaceId,
                 workspacePath: metadata.workspacePath || workspacePath,
                 projectWorkspacePath: metadata.projectWorkspacePath || workspacePath,
                 executionTarget: metadata.executionTarget,

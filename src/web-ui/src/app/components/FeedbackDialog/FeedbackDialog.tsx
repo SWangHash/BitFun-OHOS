@@ -39,7 +39,10 @@ import {
 import { confirmDialog } from '@/infrastructure/confirm-dialog/confirmDialogService';
 import { FeedbackInboxView } from './FeedbackInboxView';
 import { PrivacyStatementLink } from './PrivacyStatementLink';
-import { useFeedbackInboxStore } from './feedbackInboxStore';
+import {
+  needsFeedbackInboxAttention,
+  useFeedbackInboxStore,
+} from './feedbackInboxStore';
 import { useRejectedInsertionCaret } from './useRejectedInsertionCaret';
 import './FeedbackDialog.scss';
 
@@ -69,6 +72,8 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
   const nativePasteTruncatedRef = useRef(false);
   const { armRejectedInsertionCaret, restoreRejectedInsertionCaret } = useRejectedInsertionCaret();
   const refreshInbox = useFeedbackInboxStore(state => state.refresh);
+  const inboxNeedsAttention = useFeedbackInboxStore(state =>
+    state.records.some(needsFeedbackInboxAttention));
   const [activeView, setActiveView] = useState<'create' | 'inbox'>('create');
   const [selectedFeedbackId, setSelectedFeedbackId] = useState<string | null>(null);
   const [inboxVisibleCount, setInboxVisibleCount] = useState(FEEDBACK_INBOX_PAGE_SIZE);
@@ -89,6 +94,7 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
   );
   const [replyState, setReplyState] = useState({ hasDraft: false, sending: false });
   const [replyResetVersion, setReplyResetVersion] = useState(0);
+  const [replyFocusVersion, setReplyFocusVersion] = useState(0);
   const [pendingReplyExit, setPendingReplyExit] = useState<PendingReplyExit | null>(null);
 
   const contentLength = feedbackContentLength(content);
@@ -425,6 +431,11 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
     }
   };
 
+  const continueEditingReply = () => {
+    setPendingReplyExit(null);
+    setReplyFocusVersion(current => current + 1);
+  };
+
   const openGitCode = () => {
     setGitCodeError(false);
     void systemAPI.openExternal(GITCODE_ISSUES_URL).catch(error => {
@@ -505,12 +516,18 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
                 type="button"
                 role="tab"
                 aria-selected={activeView === 'inbox'}
+                aria-label={inboxNeedsAttention
+                  ? `${t('feedback.views.inbox')}, ${t('feedback.inbox.entryAttention')}`
+                  : t('feedback.views.inbox')}
                 className={activeView === 'inbox' ? 'is-active' : ''}
                 disabled={submitting || replyState.sending}
                 onClick={() => changeView('inbox')}
               >
                 <List size={15} aria-hidden="true" />
                 {t('feedback.views.inbox')}
+                {inboxNeedsAttention ? (
+                  <span className="bitfun-feedback__view-attention" aria-hidden="true" />
+                ) : null}
               </button>
             </div>
             {activeView === 'create' ? (
@@ -644,6 +661,7 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
                 onVisibleCountChange={setInboxVisibleCount}
                 replySending={replyState.sending}
                 resetDraftVersion={replyResetVersion}
+                focusDraftVersion={replyFocusVersion}
                 onReplyStateChange={updateReplyState}
               />
             )}
@@ -664,7 +682,7 @@ export const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ isOpen, onClose 
       />
       <ConfirmDialog
         open={pendingReplyExit !== null}
-        onOpenChange={() => setPendingReplyExit(null)}
+        onOpenChange={continueEditingReply}
         onConfirm={discardReplyAndContinue}
         title={t('feedback.reply.discardTitle')}
         message={t('feedback.reply.discardMessage')}

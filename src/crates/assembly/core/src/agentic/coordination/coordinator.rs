@@ -106,6 +106,7 @@ use bitfun_agent_tools::{
 use bitfun_config_contracts::model_pool::AgentModelSelection;
 use bitfun_config_contracts::model_pool::AgentModelSelections;
 use bitfun_core_types::model_pool::ModelSelection;
+use bitfun_core_types::{SESSION_PROVIDER_ACP, SESSION_PROVIDER_METADATA_KEY};
 use bitfun_events::{ToolEventData, ToolEventIdentity};
 use bitfun_observability::domains::{
     record_session_config, start_session, CompletionFacts, SessionClass, SessionConfigFacts,
@@ -3210,6 +3211,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             agent_type: session.agent_type.clone(),
             workspace_path: Some(workspace_path),
             project_workspace_path: session.config.project_workspace_path.clone(),
+            project_workspace_id: session.config.project_workspace_id.clone(),
             execution_target: session.config.execution_target.clone(),
             workspace_id: session.config.workspace_id.clone(),
             remote_connection_id: session.config.remote_connection_id.clone(),
@@ -15437,6 +15439,56 @@ impl bitfun_runtime_ports::AgentSessionManagementPort for ConversationCoordinato
             .map_err(runtime_port_error_preserving_message)?;
 
         let session_manager = self.get_session_manager();
+        let metadata = session_manager
+            .load_session_metadata(&effective_storage_path, &request.session_id)
+            .await
+            .map_err(runtime_port_error_preserving_message)?;
+        if metadata.as_ref().is_some_and(|metadata| {
+            metadata.agent_type.starts_with("acp:")
+                || metadata
+                    .custom_metadata
+                    .as_ref()
+                    .and_then(|custom| custom.get(SESSION_PROVIDER_METADATA_KEY))
+                    .and_then(serde_json::Value::as_str)
+                    == Some(SESSION_PROVIDER_ACP)
+        }) {
+            let title = request.session_name.trim();
+            if title.is_empty() {
+                return Err(bitfun_runtime_ports::PortError::new(
+                    bitfun_runtime_ports::PortErrorKind::InvalidRequest,
+                    "Session title must not be empty",
+                ));
+            }
+            let _mutation = session_manager
+                .acquire_session_mutation(&request.session_id)
+                .await
+                .map_err(runtime_port_error_preserving_message)?;
+            session_manager
+                .validate_session_storage_path_binding(&request.session_id, &effective_storage_path)
+                .map_err(runtime_port_error_preserving_message)?;
+            let last_active_at = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as u64;
+            session_manager
+                .persistence_manager()
+                .update_session_title_metadata(
+                    &effective_storage_path,
+                    &request.session_id,
+                    title,
+                    last_active_at,
+                    true,
+                )
+                .await
+                .map_err(runtime_port_error_preserving_message)?;
+            self.emit_event(AgenticEvent::SessionTitleGenerated {
+                session_id: request.session_id,
+                title: title.to_string(),
+                method: "manual".to_string(),
+            })
+            .await;
+            return Ok(());
+        }
         if !session_manager
             .is_session_loaded_from_storage_path(&effective_storage_path, &request.session_id)
             .map_err(runtime_port_error_preserving_message)?
@@ -23411,6 +23463,78 @@ pub(crate) mod tests {
         assert_eq!(created.config.model_id.as_deref(), Some("explicit-model"));
 
         let _ = std::fs::remove_dir_all(workspace_path);
+    }
+
+    #[tokio::test]
+    async fn agent_session_management_port_renames_acp_without_native_restore() {
+        let (coordinator, session_manager) = test_coordinator();
+        let workspace = tempfile::tempdir().expect("workspace");
+        let workspace_record =
+            crate::service::workspace::legacy_compat::register_local_fixture_blocking(
+                workspace.path(),
+            );
+        let storage_path = coordinator
+            .session_storage_for_reference(Some(&workspace_record.id), "", None, None)
+            .await
+            .unwrap();
+        let session_id = uuid::Uuid::new_v4().to_string();
+        let session = crate::agentic::core::Session::new_with_id(
+            session_id.clone(),
+            "ACP session".to_string(),
+            "acp:codex".to_string(),
+            SessionConfig {
+                workspace_id: Some(workspace_record.id.clone()),
+                workspace_path: Some(workspace.path().to_string_lossy().to_string()),
+                ..Default::default()
+            },
+        );
+        let persistence = session_manager.persistence_manager();
+        persistence
+            .save_session(&storage_path, &session)
+            .await
+            .unwrap();
+        let binding = serde_json::json!({
+            "provider": "acp",
+            "acpClientId": "codex",
+            "acpRemoteSessionId": "saved-remote-session",
+            "extra": { "retained": true }
+        });
+        persistence
+            .update_session_metadata(&storage_path, &session_id, |metadata| {
+                metadata.custom_metadata = Some(binding.clone());
+            })
+            .await
+            .unwrap();
+
+        bitfun_runtime_ports::AgentSessionManagementPort::rename_session(
+            &coordinator,
+            bitfun_runtime_ports::AgentSessionRenameRequest {
+                workspace_id: Some(workspace_record.id),
+                workspace_path: String::new(),
+                session_id: session_id.clone(),
+                session_name: "  Renamed ACP  ".to_string(),
+                remote_connection_id: None,
+                remote_ssh_host: None,
+            },
+        )
+        .await
+        .expect("ACP rename should update only metadata");
+
+        let metadata = persistence
+            .load_session_metadata(&storage_path, &session_id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(metadata.session_name, "Renamed ACP");
+        assert_eq!(metadata.agent_type, "acp:codex");
+        assert_eq!(metadata.custom_metadata, Some(binding));
+        assert!(session_manager.get_session(&session_id).is_none());
+        let events = coordinator.event_queue.dequeue_batch(10).await;
+        assert!(events.iter().any(|envelope| matches!(
+            &envelope.event,
+            AgenticEvent::SessionTitleGenerated { session_id: id, title, method }
+                if id == &session_id && title == "Renamed ACP" && method == "manual"
+        )));
     }
 
     #[tokio::test]

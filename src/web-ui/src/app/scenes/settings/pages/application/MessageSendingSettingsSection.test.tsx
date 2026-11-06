@@ -38,7 +38,7 @@ describe('message sending settings persistence', () => {
   beforeEach(() => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
     activateSurface('local');
-    mocks.get.mockReset().mockResolvedValue(undefined);
+    mocks.get.mockReset().mockResolvedValue('immediate');
     mocks.set.mockReset().mockImplementation(async (_path: string, value: string) => {
       mocks.get.mockResolvedValue(value);
       mocks.listeners.forEach(listener => listener());
@@ -74,6 +74,15 @@ describe('message sending settings persistence', () => {
     expect(description()).toBe('messageSending.immediateDescription');
     expect(mocks.error).toHaveBeenCalledWith('messageSending.saveFailed');
     expect(select().disabled).toBe(false);
+  });
+
+  it('keeps an older host on its queue behavior and explains that the setting is unavailable', async () => {
+    mocks.get.mockResolvedValue(undefined);
+    await act(async () => root.render(<MessageSendingSettingsSection />));
+    expect(select().value).toBe('queue');
+    expect(select().disabled).toBe(true);
+    expect(description()).toBe('messageSending.unsupported');
+    expect(mocks.set).not.toHaveBeenCalled();
   });
 
   it('keeps the picker unavailable after a failed read and allows recovery', async () => {

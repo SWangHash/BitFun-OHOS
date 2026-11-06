@@ -199,6 +199,9 @@ async function prepareFromResolvedTarget(params: {
   commandText?: string;
   intent: 'review' | 'strict';
 }): Promise<PreparedReviewLaunch> {
+  if (params.targetEvidence.limitations.includes('review_target_timeout')) {
+    throw reviewTargetError('Request Timeout', 'error.timeout');
+  }
   if (params.targetEvidence.limitations.includes('target_path_outside_workspace')) {
     throw reviewTargetError(
       'Review files must be inside the current workspace.',

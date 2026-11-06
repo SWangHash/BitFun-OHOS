@@ -44,7 +44,8 @@
       "expand": "擴展",
       "solid": "常亮"
     },
-    "lineHeightDesc": "字體大小的倍數；例如 14 px 字體配合 1.5 倍行高，實際為 21 px"
+    "lineHeightDesc": "字體大小的倍數；例如 14 px 字體配合 1.5 倍行高，實際為 21 px",
+    "inheritGlobalFont": "繼承全域程式碼字型"
   },
   "behavior": {
     "tabSize": "Tab 寬度",
@@ -65,6 +66,7 @@
       "interval": "間隔顯示"
     },
     "smoothScrolling": "平滑滾動",
+    "smoothScrollingDesc": "啟用平滑滾動動畫",
     "scrollBeyondLastLine": "允許滾動超過最後一行",
     "scrollBeyondLastLineDesc": "可以將檔案末尾滾動到屏幕中央",
     "tabSizeDesc": "每個定位點佔用的字元欄數；使用空格縮排時，也決定每級縮排寬度",
@@ -104,7 +106,9 @@
     "bracketPairColorization": "括號對著色",
     "bracketPairColorizationDesc": "用不同顏色區分嵌套的括號對",
     "formatOnSave": "儲存時格式化",
+    "formatOnSaveDesc": "儲存檔案時自動格式化代碼",
     "formatOnPaste": "粘貼時格式化",
+    "formatOnPasteDesc": "粘貼代碼時自動格式化",
     "trimAutoWhitespace": "清理自動插入的空白",
     "trimAutoWhitespaceDesc": "移除自動縮排等操作留下的行尾空白"
   },

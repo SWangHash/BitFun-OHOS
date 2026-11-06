@@ -1015,6 +1015,18 @@ pub fn ohos_mark_clean_shutdown() {
     }
 }
 
+/// Whether any enabled scheduled job exists, for the OHOS host keep-alive.
+///
+/// Synchronous on purpose: the ability calls this from `onBackground` and must
+/// not wait on an async runtime round-trip.
+#[cfg(target_env = "ohos")]
+#[napi]
+pub fn has_enabled_scheduled_jobs() -> bool {
+    bitfun_core::service::cron::get_global_cron_service()
+        .map(|service| service.has_enabled_jobs())
+        .unwrap_or(false)
+}
+
 #[cfg(target_env = "ohos")]
 #[napi]
 pub fn get_app_config_bool(path: String) -> bool {

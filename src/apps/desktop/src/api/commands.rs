@@ -525,6 +525,12 @@ pub struct DeleteAgentCompanionPetPackageRequest {
     pub package_path: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoadAgentCompanionPetSpritesheetRequest {
+    pub spritesheet_path: String,
+}
+
 pub use bitfun_services_core::pet_packages::PetPackage as AgentCompanionPetPackageDto;
 
 #[derive(Debug, Deserialize)]
@@ -534,12 +540,6 @@ pub struct ListAgentCompanionPetsRequest {
     pub include_external: bool,
     #[serde(default)]
     pub builtin_import_version: Option<u32>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LoadAgentCompanionPetSpritesheetRequest {
-    pub spritesheet_path: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -3007,6 +3007,24 @@ mod pet_package_tests {
             serde_json::from_value(serde_json::json!({})).unwrap();
         assert!(!request.include_external);
         assert!(request.builtin_import_version.is_none());
+    }
+
+    #[test]
+    fn preview_reads_the_installed_controller_pet_package() {
+        let temp = tempfile::tempdir().unwrap();
+        let packages = temp.path().join("pets");
+        std::fs::create_dir(&packages).unwrap();
+        let image = packages.join("spritesheet.png");
+        std::fs::write(&image, [1, 2, 3]).unwrap();
+        assert_eq!(
+            read_agent_companion_pet_spritesheet(&packages, &image).unwrap(),
+            vec![1, 2, 3]
+        );
+        let outside = temp.path().join("outside.png");
+        std::fs::write(&outside, [4]).unwrap();
+        assert!(read_agent_companion_pet_spritesheet(&packages, &outside)
+            .unwrap_err()
+            .contains("outside"));
     }
 
     #[test]

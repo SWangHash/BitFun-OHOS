@@ -119,7 +119,6 @@ const SettingsScene: React.FC<SettingsSceneProps> = ({ isActive = true }) => {
         cancelText={t('changeGuard.keepEditing')}
         secondaryText={t('changeGuard.discardAndLeave')}
         confirmText={t('changeGuard.saveAndLeave')}
-        showConfirm={!pendingNavigation?.failed}
         pendingAction={pendingNavigation?.action === 'save'
           ? 'confirm'
           : pendingNavigation?.action === 'discard'

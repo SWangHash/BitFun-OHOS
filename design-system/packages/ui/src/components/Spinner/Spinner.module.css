@@ -51,7 +51,7 @@
 
   .artwork {
     background: currentColor;
-    mask: url("../../brand/assets/bitfun-loading-mark.svg") center / contain no-repeat;
+    mask: url("./spinnerLogo.svg") center / contain no-repeat;
   }
 
   .root[data-variant="bars"] {

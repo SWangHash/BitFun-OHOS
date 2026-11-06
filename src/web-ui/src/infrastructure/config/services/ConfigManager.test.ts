@@ -38,6 +38,7 @@ function createDeferred<T>() {
 describe('ConfigManager', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    activateSurface('local');
     configManager.clearCache();
     delete globalThis.__BITFUN_BOOTSTRAP_KEYBINDINGS__;
   });
@@ -201,6 +202,19 @@ describe('ConfigManager', () => {
     await expect(configManager.updateConfig<unknown[]>('ai.models', models => models.filter(Boolean)))
       .rejects.toThrow('Host disconnected');
     expect(configApiMocks.setConfig).not.toHaveBeenCalled();
+  });
+
+  it('reads the committed model revision and does not cache an unconfirmed write', async () => {
+    const draft = [{ id: 'one', enabled: true, metadata: { provider_instance_id: 'one' } }];
+    const normalized = [{ ...draft[0], enabled: false }];
+    configApiMocks.getConfig.mockReset().mockResolvedValueOnce([]).mockResolvedValueOnce(normalized);
+    configApiMocks.setConfig.mockReset().mockResolvedValue(undefined);
+    await expect(configManager.updateConfig('ai.models', () => draft)).resolves.toEqual(normalized);
+    expect(configManager.getCachedConfig('ai.models')).toEqual(normalized);
+
+    configApiMocks.getConfig.mockResolvedValueOnce(normalized).mockRejectedValueOnce(new Error('readback unavailable'));
+    await expect(configManager.updateConfig('ai.models', () => draft)).resolves.toEqual(draft);
+    expect(configManager.hasCachedConfig('ai.models')).toBe(false);
   });
 
   it('deduplicates concurrent reads for the same config path', async () => {

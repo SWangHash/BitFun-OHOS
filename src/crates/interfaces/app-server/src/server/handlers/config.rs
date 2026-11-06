@@ -1,4 +1,4 @@
-use crate::agent::{config_get_error, bitfun_error};
+use crate::agent::{bitfun_error, config_get_error};
 use crate::role::{AppClient, AppServer};
 use crate::schema::*;
 use crate::server::wire;
@@ -95,7 +95,11 @@ pub(in crate::server) fn builder() -> Builder<AppServer, impl HandleDispatchFrom
                 let result = async {
                     let service = bitfun_core::service::config::get_global_config_service().await?;
                     service
-                        .set_config::<serde_json::Value>(&request.path, request.value)
+                        .set_config_with_snapshot(
+                            &request.path,
+                            request.value,
+                            request.expected_models,
+                        )
                         .await
                 }
                 .await

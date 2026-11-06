@@ -170,7 +170,7 @@ pub async fn dispatch(
                 .ok_or_else(|| anyhow!("Missing value"))?;
             state
                 .config_service
-                .set_config(&key, value)
+                .set_config_with_snapshot(&key, value, request.get("expectedModels").cloned())
                 .await
                 .map_err(|e| anyhow!("{}", e))?;
             Ok(serde_json::json!("ok"))

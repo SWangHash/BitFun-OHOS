@@ -67,7 +67,7 @@ describe('OpenHarmony privacy policy management contract', () => {
     const styles = readSource('../NavPanel/NavPanel.scss');
 
     expect(footer).toContain('privacyStatus.hasUnreadUpdate');
-    expect(footer).toContain('hasUnreadFeedback || hasPrivacyUpdate');
+    expect(footer).toContain('hasFeedbackAttention || hasPrivacyUpdate');
     expect(footer).toContain('bitfun-nav-panel__footer-more-unread');
     expect(footer).toContain("t('privacy.aboutEntryUpdated')");
     expect(styles).toContain('.bitfun-nav-panel__footer-more-unread');

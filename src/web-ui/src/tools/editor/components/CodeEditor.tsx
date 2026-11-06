@@ -57,13 +57,14 @@ import { EditorStatusBar } from './EditorStatusBar';
 import largeFileExpansionLabels from './largeFileExpansionLabels.json';
 import {
   DEFAULT_EDITOR_CONFIG,
-  DEFAULT_EDITOR_FONT_FAMILY,
   resolveEditorFontFamily,
+  DEFAULT_EDITOR_FONT_FAMILY,
   DEFAULT_EDITOR_FONT_SIZE,
   DEFAULT_EDITOR_FONT_WEIGHT,
   DEFAULT_EDITOR_INLAY_FONT_SIZE,
   DEFAULT_EDITOR_LINE_HEIGHT,
 } from '../config/defaults';
+import { useEditorFontFamily } from '../hooks/useEditorFontFamily';
 
 const log = createLogger('CodeEditor');
 
@@ -323,6 +324,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     }
   });
   const isMemoryContent = initialContent !== undefined;
+  const resolvedFontFamily = useEditorFontFamily(editorConfig.font_family);
   const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 });
   const [selection, setSelection] = useState({ chars: 0, lines: 0 });
   const [statusBarPopover, setStatusBarPopover] = useState<null | 'position' | 'indent' | 'encoding' | 'language'>(null);
@@ -610,11 +612,11 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     const fs = editorConfig.font_size ?? DEFAULT_EDITOR_FONT_SIZE;
     editorRef.current.updateOptions({
       fontSize: fs,
-      fontFamily: resolveEditorFontFamily(editorConfig.font_family),
+      fontFamily: resolvedFontFamily,
       fontWeight: editorConfig.font_weight || DEFAULT_EDITOR_FONT_WEIGHT,
       lineHeight: editorConfig.line_height ? Math.round(fs * editorConfig.line_height) : 0,
     });
-  }, [monacoReady, editorConfig.font_size, editorConfig.font_family, editorConfig.font_weight, editorConfig.line_height]);
+  }, [monacoReady, editorConfig.font_size, resolvedFontFamily, editorConfig.font_weight, editorConfig.line_height]);
 
   useEffect(() => {
     const applyConfig = (config: Partial<EditorConfigType>) => {

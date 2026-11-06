@@ -21,6 +21,7 @@ const state = vi.hoisted(() => ({
   getPreference: vi.fn(),
   preferenceListeners: new Set<() => void>(),
   selectionIntent: vi.fn(),
+  autoShowToolbar: true,
 }));
 vi.mock('@/infrastructure/config/services/ConfigManager', () => ({ configManager: {
   hasCachedConfig: () => false,
@@ -35,6 +36,9 @@ vi.mock('@/infrastructure/runtime', () => ({ isTauriRuntime: () => true }));
 vi.mock('../store/FlowChatStore', () => ({ flowChatStore: { getState: () => ({ sessions: state.sessions }) } }));
 vi.mock('../session-drivers/resolve', () => ({ resolveSessionDriverId: () => 'local' }));
 vi.mock('@/infrastructure/i18n', () => ({ useI18n: () => ({ t: state.t }) }));
+vi.mock('@/infrastructure/config/hooks/useSelectionToolbarPreference', () => ({
+  useSelectionToolbarPreference: () => ({ enabled: state.autoShowToolbar }),
+}));
 
 function Transcript({ sessionId = 'main' }: { sessionId?: string }) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -52,6 +56,8 @@ describe('selection toolbar and floating annotation editor lifecycle', () => {
   let root: Root;
   const frames = new Map<number, FrameRequestCallback>();
   let frameId = 0;
+  const clientRectsDescriptor = Object.getOwnPropertyDescriptor(Range.prototype, 'getClientRects');
+  const boundingRectDescriptor = Object.getOwnPropertyDescriptor(Range.prototype, 'getBoundingClientRect');
   const requests: ExcerptActionRequest[] = [];
   const receive = (event: Event) => requests.push((event as CustomEvent<ExcerptActionRequest>).detail);
   const flushFrames = () => act(() => {
@@ -61,13 +67,16 @@ describe('selection toolbar and floating annotation editor lifecycle', () => {
   });
   const dialog = () => document.querySelector<HTMLDivElement>('[role="dialog"][data-state="open"]')!;
   const toolbar = () => document.querySelector<HTMLDivElement>('.conversation-excerpt__popover');
-  const originalRects = Object.getOwnPropertyDescriptor(Range.prototype, 'getClientRects');
   const resizeCallbacks = new Set<() => void>();
   let textTop = 200;
 
   beforeEach(async () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
     vi.useFakeTimers();
+    state.autoShowToolbar = true;
+    const rect = { left: 10, right: 200, top: 20, bottom: 38, width: 190, height: 18 };
+    Object.defineProperty(Range.prototype, 'getClientRects', { configurable: true, value: () => [rect] });
+    Object.defineProperty(Range.prototype, 'getBoundingClientRect', { configurable: true, value: () => rect });
     activateSurface('local');
     frames.clear();
     resizeCallbacks.clear();
@@ -81,6 +90,7 @@ describe('selection toolbar and floating annotation editor lifecycle', () => {
       return frameId;
     });
     vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id));
+    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
     container = document.createElement('div');
     document.body.append(container);
     root = createRoot(container);
@@ -97,8 +107,10 @@ describe('selection toolbar and floating annotation editor lifecycle', () => {
     vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
-    if (originalRects) Object.defineProperty(Range.prototype, 'getClientRects', originalRects);
-    else Reflect.deleteProperty(Range.prototype, 'getClientRects');
+    if (clientRectsDescriptor) Object.defineProperty(Range.prototype, 'getClientRects', clientRectsDescriptor);
+    else delete (Range.prototype as Partial<Range>).getClientRects;
+    if (boundingRectDescriptor) Object.defineProperty(Range.prototype, 'getBoundingClientRect', boundingRectDescriptor);
+    else delete (Range.prototype as Partial<Range>).getBoundingClientRect;
   });
 
   // Geometry is supplied only for lifecycle assertions; this is not visual acceptance.
@@ -251,7 +263,11 @@ describe('selection toolbar and floating annotation editor lifecycle', () => {
 
   async function setAutoShowToolbar(enabled: boolean) {
     state.getPreference.mockResolvedValue(enabled);
-    await act(async () => state.preferenceListeners.forEach(callback => callback()));
+    state.autoShowToolbar = enabled;
+    await act(async () => {
+      state.preferenceListeners.forEach(callback => callback());
+      root.render(<Transcript />);
+    });
   }
 
   it.each(['main', 'btw'])('hides automatic actions in %s while retaining selection, reading intent, and the ask shortcut', async (sessionId) => {
@@ -353,6 +369,25 @@ describe('selection toolbar and floating annotation editor lifecycle', () => {
     expect(dialog()).toBe(surface);
     expect(textarea.value).toBe('Keep this note');
     expect(requests).toEqual([]);
+  });
+
+  it('retains explicit right-click annotation and its draft when automatic actions are disabled', async () => {
+    selectForToolbar();
+    expect(toolbar()).not.toBeNull();
+    state.autoShowToolbar = false;
+    act(() => root.render(<Transcript />));
+    expect(document.querySelector('.conversation-excerpt__popover')).toBeNull();
+    expect(window.getSelection()?.toString()).toBe('Selected source text');
+    const surface = await openAnnotation();
+    const textarea = enterComment('Explicit annotation');
+    expect(dialog()).toBe(surface);
+    expect(textarea.value).toBe('Explicit annotation');
+    state.autoShowToolbar = true;
+    act(() => root.render(<Transcript />));
+    state.autoShowToolbar = false;
+    act(() => root.render(<Transcript />));
+    expect(dialog()).toBe(surface);
+    expect(textarea.value).toBe('Explicit annotation');
   });
 
   it('keeps the transcript interactive and returns focus when cancelled from the editor', async () => {

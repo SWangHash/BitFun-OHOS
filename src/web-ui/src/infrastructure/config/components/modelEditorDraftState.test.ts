@@ -48,5 +48,9 @@ describe('modelEditorDraftSnapshot', () => {
       .not.toBe(initial);
     expect(modelEditorDraftSnapshot(config(), [first, { ...second, contextWindow: 256_000 }]))
       .not.toBe(initial);
+    expect(modelEditorDraftSnapshot(config(), [first, { ...second, requestSettings: { custom_headers: { 'X-Model': 'second' } } }]))
+      .not.toBe(initial);
+    expect(modelEditorDraftSnapshot(config(), [first, { ...second, userTags: [] }]))
+      .not.toBe(initial);
   });
 });

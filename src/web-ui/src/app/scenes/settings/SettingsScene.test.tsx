@@ -153,7 +153,7 @@ describe('SettingsScene canonical page routing', () => {
     expect(useSettingsStore.getState().activePageId).toBe('application.appearance');
   });
 
-  it('hides the save action after a failed save while keeping the dialog open', async () => {
+  it('keeps save available after failure and completes navigation after retry', async () => {
     const save = vi.fn(async () => false);
     registerSettingsDraft({
       id: 'general-form',
@@ -183,20 +183,15 @@ describe('SettingsScene canonical page routing', () => {
 
     expect(save).toHaveBeenCalledOnce();
     expect(dialog()).not.toBeNull();
-    expect(buttons()).toHaveLength(2);
-
-    // The hidden save button owned the dialog's initial focus; the anchor
-    // must move to the remaining keep-editing action instead of falling
-    // back to document.body.
-    expect(dialog()?.contains(document.activeElement)).toBe(true);
-    expect(document.activeElement).toBe(buttons()[0]);
-
-    // The remaining actions stay usable: discard commits the navigation.
+    expect(buttons()).toHaveLength(3);
+    expect(useSettingsStore.getState().activePageId).toBe('application.general');
+    save.mockResolvedValueOnce(true);
     await act(async () => {
-      buttons()[1]?.click();
+      buttons()[2]?.click();
       await Promise.resolve();
       await Promise.resolve();
     });
+    expect(save).toHaveBeenCalledTimes(2);
     expect(useSettingsStore.getState().activePageId).toBe('application.appearance');
   });
   it('never mounts loading UI while switching between prepared pages', async () => {

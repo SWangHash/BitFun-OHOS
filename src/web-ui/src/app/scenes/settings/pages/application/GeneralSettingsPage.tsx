@@ -1,11 +1,11 @@
+import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
+import { OhosLaunchAtLoginSetting } from '@/infrastructure/config/components/OhosLaunchAtLoginSetting';
 import { useConfigSeed } from '@/infrastructure/config/hooks/useConfigSeed';
 import '@/app/scenes/settings/pages/shared/ApplicationSettings.scss';
 import type { CloseBehavior } from '@/infrastructure/api/service-api/SystemAPI';
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
 import { ConfigLoadingState, ConfigMessage, ConfigPageRow, ConfigPageSection, ConfigRetryState } from '@/infrastructure/config/components/common';
-import { OhosLaunchAtLoginSetting } from '@/infrastructure/config/components/OhosLaunchAtLoginSetting';
 import { configManager } from '@/infrastructure/config/services/ConfigManager';
-import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
 import { createLogger } from '@/shared/utils/logger';
 import { Button, Select, Switch } from '@bitfun/ui';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -15,8 +15,6 @@ import { LanguageSettingsSection } from './LanguageSettingsSection';
 const log = createLogger('GeneralSettingsPage');
 
 function LaunchAtLoginSetting() {
-  // HarmonyOS exposes startup management through system settings only, so the
-  // desktop toggle is replaced by a read-only status with a refresh action.
   return isOpenHarmonyRuntime() ? <OhosLaunchAtLoginSetting /> : <LaunchAtLoginSettingDesktop />;
 }
 
@@ -108,6 +106,7 @@ function LaunchAtLoginSettingDesktop() {
               void handleToggle(e.target.checked);
             }}
             disabled={saving}
+            data-testid="settings-launch-at-login-switch"
           />
         </div>
       </ConfigPageRow>
@@ -257,14 +256,12 @@ function PreventSleepSetting() {
       } catch (error) {
         setEnabled(previous);
         log.error('Failed to set prevent-sleep preference', { next, error });
-        // HarmonyOS reports capability gaps separately: an API-level gate and a
-        // device that does not support keep-awake at all.
         const detail = String(error);
         showMessage('error', detail.includes('OHOS_SLEEP_API_23_REQUIRED')
           ? t('preventSleep.messages.api23Required')
           : detail.includes('OHOS_SLEEP_UNSUPPORTED')
             ? t('preventSleep.messages.unsupported')
-            : t('preventSleep.messages.saveFailed'));
+            : `${t('preventSleep.messages.saveFailed')}: ${detail}`);
       } finally {
         setSaving(false);
       }
@@ -298,13 +295,14 @@ function PreventSleepSetting() {
         description={t('preventSleep.toggleDescription')}
         align="center"
       >
-        <div data-bitfun-component="application-settings" data-bitfun-part="preventSleep">
+          <div data-bitfun-component="application-settings" data-bitfun-part="preventSleep">
           <Switch
             checked={enabled}
             onChange={(event) => {
               void handleToggle(event.target.checked);
             }}
             disabled={saving}
+            data-testid="settings-prevent-sleep-switch"
           />
         </div>
       </ConfigPageRow>
@@ -420,9 +418,10 @@ function WindowBehaviorSetting() {
 
 function NotificationSettings() {
   const { t } = useTranslation('settings/application');
-  const seed = useConfigSeed(['app.notifications.dialog_completion_notify', 'app.notifications.permission_request_notify']);
-  const [dialogNotify, setDialogNotify] = useState(seed.get<boolean | null>('app.notifications.dialog_completion_notify', true) !== false);
-  const [permissionRequestNotify, setPermissionRequestNotify] = useState(seed.get<boolean | null>('app.notifications.permission_request_notify', true) !== false);
+  const seed = useConfigSeed(['app.notifications.dialog_completion_notify', 'app.notifications.permission_request_notify', 'app.notifications.enable_startup_tips']);
+  const [dialogNotify, setDialogNotify] = useState(seed.get<boolean>('app.notifications.dialog_completion_notify', true) !== false);
+  const [permissionRequestNotify, setPermissionRequestNotify] = useState(seed.get<boolean>('app.notifications.permission_request_notify', true) !== false);
+  const [startupTips, setStartupTips] = useState(seed.get<boolean>('app.notifications.enable_startup_tips', true) !== false);
   const [loading, setLoading] = useState(!seed.loaded);
   const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -432,12 +431,14 @@ function NotificationSettings() {
     setLoading(!seed.loaded);
     setLoadFailed(false);
     try {
-      const [notify, permissionNotify] = await Promise.all([
+      const [notify, permissionNotify, tips] = await Promise.all([
         configManager.getOptionalConfig<boolean>('app.notifications.dialog_completion_notify'),
         configManager.getOptionalConfig<boolean>('app.notifications.permission_request_notify'),
+        configManager.getOptionalConfig<boolean>('app.notifications.enable_startup_tips'),
       ]);
       setDialogNotify(notify !== false);
       setPermissionRequestNotify(permissionNotify !== false);
+      setStartupTips(tips !== false);
     } catch (error) {
       log.error('Failed to load notification preferences', error);
       setLoadFailed(true);
@@ -476,6 +477,19 @@ function NotificationSettings() {
     }
   };
 
+  const handleStartupTipsToggle = async (checked: boolean) => {
+    setSaving(true);
+    try {
+      await configManager.setConfig('app.notifications.enable_startup_tips', checked);
+      setStartupTips(checked);
+      setMessage({ type: 'success', text: t('notifications.messages.saveSuccess') });
+    } catch {
+      setMessage({ type: 'error', text: t('notifications.messages.saveFailed') });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) {
     return <ConfigLoadingState label={t('notifications.messages.loading')} />;
   }
@@ -503,6 +517,7 @@ function NotificationSettings() {
             checked={dialogNotify}
             onChange={(e) => { void handleDialogNotifyToggle(e.target.checked); }}
             disabled={saving}
+            data-testid="settings-notify-dialog-switch"
           />
         </div>
       </ConfigPageRow>
@@ -515,11 +530,25 @@ function NotificationSettings() {
           checked={permissionRequestNotify}
           onChange={(e) => { void handlePermissionRequestNotifyToggle(e.target.checked); }}
           disabled={saving}
+          data-testid="settings-notify-permission-switch"
+        />
+      </ConfigPageRow>
+      <ConfigPageRow
+        label={t('notifications.startupTips.label')}
+        description={t('notifications.startupTips.description')}
+        align="center"
+      >
+        <Switch
+          checked={startupTips}
+          onChange={(e) => { void handleStartupTipsToggle(e.target.checked); }}
+          disabled={saving}
+          data-testid="settings-startup-tips-switch"
         />
       </ConfigPageRow>
     </>
   );
 }
+
 const GeneralSettingsPage: React.FC = () => {
   const { t } = useTranslation('settings/application');
   const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;

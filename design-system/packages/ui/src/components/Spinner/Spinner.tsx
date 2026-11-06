@@ -1,5 +1,4 @@
 import { forwardRef, useEffect, useRef, type HTMLAttributes } from "react";
-import { startBrandPlayback } from "../../brand/brandPlayback";
 import { classNames } from "../../internal/classNames";
 import { createSpinnerAnimations } from "./spinnerMotion";
 import styles from "./Spinner.module.css";
@@ -28,7 +27,41 @@ export const Spinner = forwardRef<HTMLSpanElement, SpinnerProps>(function Spinne
   useEffect(() => {
     const glyph = glyphRef.current;
     if (!active || presentation !== "logo" || !glyph) return;
-    return startBrandPlayback(glyph, () => createSpinnerAnimations(glyph));
+    const document = glyph.ownerDocument;
+    const window = document.defaultView;
+    if (!window?.matchMedia || typeof glyph.animate !== "function") return;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const forcedColors = window.matchMedia("(forced-colors: active)");
+    let animations: Animation[] = [];
+    let visible = true;
+    const synchronize = () => {
+      if (reducedMotion.matches || forcedColors.matches) {
+        animations.forEach(animation => animation.cancel());
+        animations = [];
+      } else if (document.hidden || !visible) {
+        animations.forEach(animation => animation.pause());
+      } else if (animations.length === 0) {
+        animations = createSpinnerAnimations(glyph);
+      } else {
+        animations.forEach(animation => animation.play());
+      }
+    };
+    const observer = typeof IntersectionObserver === "undefined" ? undefined : new IntersectionObserver(([entry]) => {
+      visible = entry?.isIntersecting ?? false;
+      synchronize();
+    });
+    observer?.observe(glyph);
+    synchronize();
+    reducedMotion.addEventListener("change", synchronize);
+    forcedColors.addEventListener("change", synchronize);
+    document.addEventListener("visibilitychange", synchronize);
+    return () => {
+      animations.forEach(animation => animation.cancel());
+      observer?.disconnect();
+      reducedMotion.removeEventListener("change", synchronize);
+      forcedColors.removeEventListener("change", synchronize);
+      document.removeEventListener("visibilitychange", synchronize);
+    };
   }, [active, presentation]);
   return (
     <span

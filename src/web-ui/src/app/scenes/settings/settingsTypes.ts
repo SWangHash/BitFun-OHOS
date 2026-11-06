@@ -34,9 +34,9 @@ export type SettingsViewId =
 
 /** Anchors in a single settings page, not nested pages or tab panels. */
 export type SettingsSectionId =
-  | 'sidebar-navigation'
   | 'message-sending'
   | 'text-selection'
+  | 'sidebar-navigation'
   | 'pet'
   | 'desktop-cards'
   | 'voice-call'

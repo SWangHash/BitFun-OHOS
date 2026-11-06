@@ -13,7 +13,7 @@ import type {
 } from '@/shared/services/reviewTeamService';
 import type { ImagePayload } from '../utils/imagePayload';
 import { absoluteSessionTurnIndexForId } from '../utils/flowChatTurnOrdinal';
-import { requireSessionWorkspaceId, sessionWorkspaceId } from '../utils/sessionWorkspace';
+import { requireSessionWorkspaceId, sessionProjectWorkspaceId, sessionWorkspaceId } from '../utils/sessionWorkspace';
 import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 import { assertSessionConversationCanSubmit } from '../session-drivers/conversationCapability';
 import { trackBtwSessionSubmission } from './btwSessionSubmission';
@@ -187,11 +187,7 @@ export async function createBtwChildSession(params: {
       reviewTargetFilePaths: params.reviewTargetFilePaths,
       projectWorkspacePath:
         createdSession?.projectWorkspacePath || projectWorkspacePath,
-      // The child owns the parent's project, so navigation and persistence
-      // resolve both to the same group.
-      projectWorkspaceId:
-        parentSession?.projectWorkspaceId
-        || parentSession?.config.projectWorkspaceId,
+      projectWorkspaceId: parentSession ? sessionProjectWorkspaceId(parentSession) : undefined,
       executionTarget:
         createdSession?.executionTarget || inheritedExecutionTarget,
       workspaceId: createdSession?.workspaceId || workspaceId,
@@ -271,8 +267,7 @@ export function createBtwSessionPlaceholder(params: {
         parentSession.projectWorkspacePath
         || parentSession.config.projectWorkspacePath
         || workspacePath,
-      projectWorkspaceId:
-        parentSession.projectWorkspaceId || parentSession.config.projectWorkspaceId,
+      projectWorkspaceId: sessionProjectWorkspaceId(parentSession),
       executionTarget: parentSession.config.executionTarget,
       workspaceId,
     },

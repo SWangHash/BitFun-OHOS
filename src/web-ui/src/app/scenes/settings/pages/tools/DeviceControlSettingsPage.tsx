@@ -72,6 +72,8 @@ type BrowserControlBrowserOption = {
   installed: boolean;
 };
 
+type BrowserConnectionIssue = 'launch_failed' | 'control_unavailable' | 'connection_lost';
+
 function browserSetupUrlFallback(browser: string): string {
   const normalized = browser.toLowerCase();
   if (normalized.includes('edge')) return 'edge://inspect/#remote-debugging';
@@ -126,8 +128,6 @@ const DeviceControlSettingsPage: React.FC = () => {
 
   const [browserCdpAvailable, setBrowserCdpAvailable] = useState(false);
 
-  const [browserReady, setBrowserReady] = useState(false);
-
   const [browserAutoConnectOnStartup, setBrowserAutoConnectOnStartup] = useState(false);
 
   const [browserDefaultCdpSupported, setBrowserDefaultCdpSupported] = useState(false);
@@ -151,6 +151,12 @@ const DeviceControlSettingsPage: React.FC = () => {
   const [browserStatusLoading, setBrowserStatusLoading] = useState(false);
 
   const [browserStatusError, setBrowserStatusError] = useState(false);
+
+  const [browserConnectionIssue, setBrowserConnectionIssue] = useState<BrowserConnectionIssue | null>(null);
+
+  // Only the newest status read may publish; a disconnect or a second refresh
+  // can resolve before an older in-flight read.
+  const browserStatusRequest = useRef(0);
 
   const [platform, setPlatform] = useState<string>('');
 
@@ -186,6 +192,7 @@ const DeviceControlSettingsPage: React.FC = () => {
 
   const refreshBrowserControlStatus = useCallback(async () => {
     if (!IS_TAURI_DESKTOP) return;
+    const request = ++browserStatusRequest.current;
     setBrowserStatusLoading(true);
     setBrowserStatusError(false);
     try {
@@ -196,33 +203,40 @@ const DeviceControlSettingsPage: React.FC = () => {
           defaultCdpEnabled: boolean;
           setupUrl?: string;
           browserReady: boolean;
+          connectionIssue?: BrowserConnectionIssue;
           browserKind: string;
           browserVersion: string | null;
           port: number;
           pageCount: number;
+          selectedBrowser: string;
         }>('browser_control_get_status', { request: { port: 9222 } }),
         api.invoke<{ options: BrowserControlBrowserOption[] }>('browser_control_list_browsers'),
       ]);
+      if (request !== browserStatusRequest.current) return;
       setPeerBrowserControlUnsupported(false);
       setBrowserCdpAvailable(s.cdpAvailable);
       setBrowserDefaultCdpSupported(s.defaultCdpSupported);
       setBrowserDefaultCdpEnabled(s.defaultCdpEnabled);
       setBrowserSetupUrl(s.setupUrl ?? browserSetupUrlFallback(s.browserKind));
-      setBrowserReady(s.browserReady);
+      setBrowserConnectionIssue(s.connectionIssue ?? null);
       setBrowserKind(s.browserKind);
       setBrowserVersion(s.browserVersion);
       setBrowserPageCount(s.pageCount);
+      setPreferredBrowser(s.selectedBrowser);
       setBrowserOptions(browsers.options);
     } catch (error) {
+      if (request !== browserStatusRequest.current) return;
       if (isPeerUnsupportedBrowserControlError(error)) {
         setPeerBrowserControlUnsupported(true);
         setBrowserStatusError(false);
       } else {
+        // A failed read must not leave a previously connected status on screen.
+        setBrowserCdpAvailable(false);
         setBrowserStatusError(true);
         log.error('browser_control_get_status failed', error);
       }
     } finally {
-      setBrowserStatusLoading(false);
+      if (request === browserStatusRequest.current) setBrowserStatusLoading(false);
     }
   }, []);
 
@@ -471,21 +485,25 @@ const DeviceControlSettingsPage: React.FC = () => {
             : t('computerUse.platformNotes.generic')
       : null;
 
-  const browserStatusLabel = browserStatusLoading
+  const browserStatusLabel = browserCdpAvailable
+    ? t('browserControl.connected')
+    : t('browserControl.notConnected');
+
+  const browserIssueDescription = browserConnectionIssue === 'launch_failed'
+    ? t('browserControl.connectionIssues.launch_failed')
+    : browserConnectionIssue === 'control_unavailable'
+      ? t('browserControl.connectionIssues.control_unavailable')
+      : browserConnectionIssue === 'connection_lost'
+        ? t('browserControl.connectionIssues.connection_lost')
+        : null;
+
+  const browserStatusDescription = browserStatusLoading
     ? t('loading.text')
     : browserStatusError
-      ? t('browserControl.statusUnavailable')
+      ? t('browserControl.statusLoadFailed')
       : browserCdpAvailable
-        ? t('browserControl.connected')
-        : browserReady
-          ? t('browserControl.ready')
-          : t('browserControl.notConnected');
-
-  const browserStatusDescription = !browserStatusLoading && !browserStatusError
-    ? browserCdpAvailable
-      ? `${browserKind} · ${i18nService.formatNumber(browserPageCount)} ${t('browserControl.tabs')}`
-      : browserReady ? t('browserControl.readyNotConnected') : undefined
-    : undefined;
+        ? `${browserKind} · ${i18nService.formatNumber(browserPageCount)} ${t('browserControl.tabs')}`
+        : browserIssueDescription ?? t('browserControl.connectOnUse');
 
   const browserSelectOptions: ComboboxOption[] = browserOptions.map((option) => {
     const label = option.value === DEFAULT_BROWSER_CONTROL_BROWSER

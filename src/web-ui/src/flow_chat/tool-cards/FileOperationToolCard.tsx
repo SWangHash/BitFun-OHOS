@@ -36,7 +36,7 @@ import { extractFilePathFromJsonBuffer, splitFilePathAndContent } from '@/shared
 import { i18nService } from '@/infrastructure/i18n';
 import { WritePlanDisplay } from './WritePlanDisplay';
 import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
-import { hasSessionFileProvider, openFileThroughSession } from '../session-drivers/sessionFileNavigation';
+import { hasSessionFileProvider, openFileThroughSession, sessionWorkspaceId } from '../session-drivers/sessionFileNavigation';
 import { FileEditGroupContext } from '../grouping/FileEditGroupContext';
 import { EMPTY_FILE_DIFF_STATS, fileOperationPreview } from './fileOperationDiffStats';
 import { useFileOperationDiffStats } from './useFileOperationDiffStats';
@@ -410,11 +410,13 @@ const GenericFileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
     }
     if (!currentFilePath) return;
     const scope = getActiveSurfaceScope();
+    const workspaceId = sessionWorkspaceId(sessionId);
 
     if (!operationSnapshotAvailable || !sessionId || !openFilePath || hasNonFileUriScheme(openFilePath)) {
       fileTabManager.openFile({
         filePath: openFilePath,
         fileName,
+        workspaceId,
         mode: 'agent',
       });
       return;
@@ -440,7 +442,8 @@ const GenericFileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
             'agent',
             undefined,
             jumpToLine,
-            true
+            true,
+            { workspaceId },
           );
         }, 250);
         return;
@@ -449,6 +452,7 @@ const GenericFileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
       fileTabManager.openFile({
         filePath: openFilePath,
         fileName,
+        workspaceId,
         jumpToLine,
         mode: 'agent',
       });
@@ -465,7 +469,11 @@ const GenericFileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
             '',
             '',
             true,
-            'agent'
+            'agent',
+            undefined,
+            undefined,
+            undefined,
+            { workspaceId },
           );
         }, 250);
         return;
@@ -474,6 +482,7 @@ const GenericFileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
       fileTabManager.openFile({
         filePath: openFilePath,
         fileName,
+        workspaceId,
         mode: 'agent',
       });
     }
@@ -516,7 +525,7 @@ const GenericFileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
     }
     
     try {
-      fileTabManager.openFileAndJump(filePath, lineNumber, 1);
+      fileTabManager.openFileAndJump(filePath, lineNumber, 1, { workspaceId: sessionWorkspaceId(sessionId) });
     } catch (error) {
       log.error('Failed to jump to line', { filePath, lineNumber, error });
     }

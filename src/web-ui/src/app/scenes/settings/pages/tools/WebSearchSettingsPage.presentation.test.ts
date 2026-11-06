@@ -24,6 +24,7 @@ describe('WebSearch settings presentation', () => {
     expect(source).toContain('<ConfigMessage message={operationMessage} />');
     expect(source).not.toContain('<ConfigMessage message={draftMessage} />');
     expect(source).toContain('useSettingsDraft({');
+    expect(source).toContain("pageId: 'tools.web-search'");
     expect(source).toContain("id: 'web-search-settings'");
     expect(source).toContain('<ConfigRetryState');
     expect(source).not.toContain('icon={<Save />}');

@@ -284,6 +284,7 @@ export const SETTINGS_PAGE_MANIFESTS: readonly SettingsPageManifest[] = [
       phrase('settings/runtime', 'toolExecution.sectionTitle'),
       phrase('settings/runtime', 'deferredToolLoading.sectionTitle'),
       phrase('settings/runtime', 'toolPresentation.mode'),
+      phrase('settings/agentic-tools', 'subagentModels.default.label'),
       phrase('settings/review-capacity', 'capacity.title'),
       phrase('settings/models', 'toolArgumentJsonRepair.title'),
     ],

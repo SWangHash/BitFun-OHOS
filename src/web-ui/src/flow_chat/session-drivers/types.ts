@@ -44,13 +44,16 @@ export interface SendMessageOptions {
   /** Only an active composer submission may show the temporary user-message shell. */
   foregroundSubmission?: boolean;
   /**
+   * Native composer policy; never bypasses the driver's busy-session rules.
+   * Uses the existing send-now path to steer running work when supported.
+   */
+  sendImmediately?: boolean;
+  /**
    * When true, bypass the pending-queue check. Used by the queue drain path
    * to actually start a new dialog turn after the previous one finished.
    * Callers should not set this directly.
    */
   bypassPendingQueue?: boolean;
-  /** Use the existing send-now path to steer running work when supported. */
-  sendImmediately?: boolean;
   userMessageMetadata?: Record<string, unknown>;
   execution?: import('@/infrastructure/api/service-api/AgentAPI').AgentDialogTurnExecution;
   turnId?: string;
@@ -66,6 +69,9 @@ export interface SendMessageOptions {
 export interface SubmissionDraft {
   message: string;
   displayMessage?: string;
+  sendImmediately?: boolean;
+  imageDisplayData?: SendMessageOptions['imageDisplayData'];
+  userMessageMetadata?: Record<string, unknown>;
   /**
    * Composer image contexts for this submission. Steering carries them just
    * like a turn submission does, so a message with attachments does not have

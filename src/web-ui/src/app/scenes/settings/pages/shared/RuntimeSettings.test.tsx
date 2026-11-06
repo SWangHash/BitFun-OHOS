@@ -5,10 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import DeviceControlSettingsPage from '../tools/DeviceControlSettingsPage';
 import ExecutionSettingsPage from '../ai/ExecutionSettingsPage';
 import WorkspaceSearchSection from '../development/WorkspaceSearchSection';
+import PetSettingsSection from '../application/PetSettingsSection';
 
 const mocks = vi.hoisted(() => {
   Object.defineProperty(window, '__TAURI__', { configurable: true, value: {} });
   return {
+    readSettings: vi.fn(), listPets: vi.fn(), cachedSettings: null as Record<string, unknown> | null,
     invoke: vi.fn(), setConfig: vi.fn(), setEnabled: vi.fn(), getConfig: vi.fn(), error: vi.fn(),
     t: (key: string) => key,
     workspace: null as { workspaceKind: string } | null,
@@ -28,8 +30,8 @@ vi.mock('../../../../../infrastructure/config/services/ConfigManager', () => ({ 
   getConfig: mocks.getConfig, getOptionalConfig: async (path: string) => path === 'ai.agent_model_selections' ? { mode: { kind: 'model', model_ref: 'primary' }, subagents: { default: { kind: 'model', model_ref: 'fast' }, builtin: {}, fork: { kind: 'inherit' } } } : true, setConfig: mocks.setConfig,
 } }));
 vi.mock('../../../../../infrastructure/config/hooks/useComputerUseEnabled', () => ({ useComputerUseEnabled: () => ({ computerUseEnabled: false, setComputerUseEnabled: mocks.setEnabled }) }));
-vi.mock('../../../../../infrastructure/config/services/AIExperienceConfigService', () => ({ aiExperienceConfigService: { getCachedSettings: () => null, getSettingsAsync: async () => ({ enable_workspace_search: true }) } }));
-vi.mock('../../../../../infrastructure/config/services/AgentCompanionPetService', () => ({ DEFAULT_AGENT_COMPANION_PET: 'default' }));
+vi.mock('../../../../../infrastructure/config/services/AIExperienceConfigService', () => ({ aiExperienceConfigService: { getCachedSettings: () => mocks.cachedSettings, getSettingsAsync: mocks.readSettings, saveSettings: mocks.setConfig } }));
+vi.mock('../../../../../infrastructure/config/services/AgentCompanionPetService', () => ({ DEFAULT_AGENT_COMPANION_PET: { id: 'default', source: 'preset', packagePath: 'preset/default', displayName: 'Default' }, listAgentCompanionPets: mocks.listPets }));
 vi.mock('../../../../../infrastructure/config/services/PermissionConfigService', async (original) => ({
   ...await original<typeof import('../../../../../infrastructure/config/services/PermissionConfigService')>(),
   permissionConfigService: { getConfig: async () => ({}) },
@@ -49,7 +51,7 @@ vi.mock('@bitfun/ui', async (original) => ({
   ),
 }));
 
-const readyStatus = { cdpAvailable: false, defaultCdpSupported: true, defaultCdpEnabled: true, browserReady: true, browserKind: 'Chrome', browserVersion: '146', pageCount: 3, selectedBrowser: 'default' };
+const readyStatus = { cdpAvailable: false, defaultCdpSupported: true, defaultCdpEnabled: true, browserReady: true, connectionIssue: null as 'launch_failed' | 'control_unavailable' | 'connection_lost' | null, browserKind: 'Chrome', browserVersion: '146', pageCount: 3, selectedBrowser: 'default' };
 let status = { ...readyStatus };
 let container: HTMLDivElement;
 let root: Root;
@@ -57,6 +59,9 @@ const button = (label: string) => Array.from(container.querySelectorAll('button'
 const render = async () => { await act(async () => root.render(<DeviceControlSettingsPage />)); };
 
 beforeEach(() => {
+  mocks.readSettings.mockReset().mockResolvedValue({ enable_workspace_search: true });
+  mocks.cachedSettings = null;
+  mocks.listPets.mockReset().mockResolvedValue([]);
   mocks.workspace = null;
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   status = { ...readyStatus };
@@ -173,7 +178,7 @@ describe('Browser and desktop control settings', () => {
     expect(container.querySelector('option')?.textContent).toBe('browserControl.defaultBrowser');
     const connect = button('browserControl.connect');
     expect(connect.closest('[data-bitfun-part="row"]')?.textContent).toContain('browserControl.status');
-    expect(container.textContent).toContain('browserControl.readyNotConnected');
+    expect(container.textContent).toContain('browserControl.connectOnUse');
     expect(Array.from(container.querySelectorAll('button')).filter(el => el.textContent === 'browserControl.connect')).toHaveLength(1);
     await act(async () => connect.click());
     expect(mocks.invoke).toHaveBeenCalledWith('browser_control_enable_default_cdp', expect.anything(), expect.anything());
@@ -202,6 +207,22 @@ describe('Browser and desktop control settings', () => {
 
     expect(container.querySelector('select')?.value).toBe('builtin');
     expect(container.querySelector('option')?.textContent).toBe('BitFun Built-in ArkWeb');
+  });
+
+  it('keeps one-time guarded-CDP setup separate from ordinary connection', async () => {
+    status.defaultCdpEnabled = false;
+    await render();
+    await act(async () => button('browserControl.enableDefaultCdp').click());
+    expect(mocks.invoke).toHaveBeenCalledWith(
+      'browser_control_enable_default_cdp',
+      { request: { port: 9222 } },
+      { timeout: 190_000 },
+    );
+    expect(mocks.invoke).not.toHaveBeenCalledWith(
+      'browser_control_launch',
+      expect.anything(),
+      expect.anything(),
+    );
   });
 
   it('uses the existing launch path when the browser cannot reuse its current profile', async () => {
@@ -277,8 +298,24 @@ describe('Browser and desktop control settings', () => {
     await act(async () => button('browserControl.disconnect').click());
     expect(container.querySelector('select')?.disabled).toBe(false);
     expect(container.querySelector('select')?.value).toBe('builtin');
-    expect(container.textContent).toContain('browserControl.ready');
+    expect(container.textContent).toContain('browserControl.notConnected');
+    expect(container.textContent).toContain('browserControl.connectOnUse');
     expect(container.textContent).not.toContain('browserControl.connected');
+    await act(async () => {
+      const select = container.querySelector('select')!;
+      select.value = 'haitai';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(mocks.setConfig).toHaveBeenCalledWith('ai.browser_control_preferred_browser', 'haitai');
+    expect(mocks.invoke.mock.calls.filter(([command]) => command === 'browser_control_disconnect')).toHaveLength(2);
+  });
+
+  it('keeps the primary state binary and explains a failed connection separately', async () => {
+    status.connectionIssue = 'control_unavailable';
+    await render();
+    expect(container.textContent).toContain('browserControl.notConnected');
+    expect(container.textContent).toContain('browserControl.connectionIssues.control_unavailable');
+    expect(container.textContent).not.toContain('browserControl.ready');
   });
 
   it('does not let an older connected response overwrite the post-disconnect status', async () => {
@@ -311,10 +348,12 @@ describe('Browser and desktop control settings', () => {
     await render();
     mocks.invoke.mockRejectedValue(new Error('Host is offline'));
     await act(async () => button('browserControl.refreshStatus').click());
-    const connectionRow = button('browserControl.disconnect').closest('[data-bitfun-part="row"]');
-    expect(connectionRow?.textContent).toContain('browserControl.statusUnavailable');
+    const connectionRow = Array.from(container.querySelectorAll('[data-bitfun-part="row"]'))
+      .find(row => row.textContent?.includes('browserControl.notConnected'));
+    expect(connectionRow?.textContent).toContain('browserControl.statusLoadFailed');
+    expect(connectionRow?.textContent).toContain('browserControl.notConnected');
     expect(connectionRow?.textContent).not.toContain('browserControl.connected');
-    expect(button('browserControl.disconnect').disabled).toBe(true);
+    expect(button('browserControl.disconnect')).toBeUndefined();
     expect(button('browserControl.refreshStatus').disabled).toBe(false);
   });
 
@@ -333,5 +372,33 @@ describe('Flashgrep settings availability', () => {
     mocks.workspace = { workspaceKind };
     await act(async () => root.render(<WorkspaceSearchSection />));
     expect(container.textContent?.includes('features.workspaceSearch.enable')).toBe(workspaceKind === 'normal');
+  });
+});
+
+
+describe('pet settings loading and preview', () => {
+  it('locks editing after an initial read failure, then reuses the last successful collapsed preview on re-entry', async () => {
+    mocks.listPets.mockResolvedValue([{ id: 'blue-golden', source: 'preset', packagePath: 'preset/default', displayName: 'Default', previewSrc: '/fixture.png', spriteVersionNumber: 1 }]);
+    mocks.readSettings.mockRejectedValueOnce(new Error('Unavailable'));
+    await act(async () => root.render(<PetSettingsSection />));
+    expect(container.textContent).toContain('loading.failed');
+    expect(container.querySelector('input[type="checkbox"]')).toBeNull();
+    const settings = { enable_agent_companion: false, agent_companion_pet: { id: 'blue-golden', source: 'preset', packagePath: 'preset/default', displayName: 'Default' } };
+    mocks.readSettings.mockResolvedValue(settings);
+    await act(async () => button('loading.retry').click());
+    expect(container.querySelector('input[type="checkbox"]')).not.toBeNull();
+    const preview = () => container.querySelector<HTMLButtonElement>('[data-bitfun-part="petSummary"]')!;
+    expect(preview().getAttribute('aria-expanded')).toBe('false');
+    await act(async () => preview().click());
+    expect(preview().getAttribute('aria-expanded')).toBe('true');
+    await act(async () => root.render(<PetSettingsSection isActive={false} />));
+    expect(preview().getAttribute('aria-expanded')).toBe('false');
+    await act(async () => root.render(null));
+    mocks.cachedSettings = settings;
+    mocks.readSettings.mockRejectedValueOnce(new Error('Offline refresh'));
+    await act(async () => root.render(<PetSettingsSection />));
+    expect(preview().getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelector('[data-bitfun-part="loadingState"]')).toBeNull();
+    expect(container.querySelector('input[type="checkbox"]')).not.toBeNull();
   });
 });

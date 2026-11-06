@@ -1435,7 +1435,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   });
 
   const mainAgentModes = useMemo(
-    () => resolveChatInputMainAgentModes(modeState.available),
+    () => resolveChatInputMainAgentModes(modeState.available).filter(mode => !isOpenHarmonyRuntime() || mode.id !== 'ComputerUse'),
     [modeState.available]
   );
 

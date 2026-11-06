@@ -301,7 +301,7 @@ const AppContent: React.FC = () => {
     setHomeConversationStarting(true);
     useMobileStore.getState().setError(null);
     try {
-      const sessionId = await activeManager.createSession(
+      const created = await activeManager.createSession(
         agentType,
         undefined,
         workspacePath,
@@ -312,7 +312,7 @@ const AppContent: React.FC = () => {
         || activeManager.controlTargetEpoch !== targetEpoch
       ) return;
       handleSelectSession(
-        sessionId,
+        created.session_id,
         assistantMode ? t('sessions.remoteClawSession') : t('sessions.remoteCodeSession'),
         true,
         agentType,

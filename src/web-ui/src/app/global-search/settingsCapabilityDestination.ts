@@ -9,6 +9,18 @@ const CAPABILITY_DESTINATIONS: Readonly<Record<string, {
   items?: Readonly<Record<string, SettingsDestinationInput>>;
 }>> = migrations.capabilities;
 
+// Keep the input's narrowing: a settings-only call site must not widen back to
+// the full capability-destination union.
+export function projectSettingsCapabilityDestination(
+  capabilityId: string,
+  destination: Extract<InteractiveCapabilityDestination, { kind: 'settings' }>,
+  itemId?: string,
+): Extract<InteractiveCapabilityDestination, { kind: 'settings' }>;
+export function projectSettingsCapabilityDestination(
+  capabilityId: string,
+  destination: InteractiveCapabilityDestination,
+  itemId?: string,
+): InteractiveCapabilityDestination;
 export function projectSettingsCapabilityDestination(
   capabilityId: string,
   destination: InteractiveCapabilityDestination,

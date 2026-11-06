@@ -1,15 +1,17 @@
 import { useSceneStore } from '@/app/stores/sceneStore';
 import { useContentResourceStore, contentResourceIdentity, mergeContentOpenIntent } from '@/app/workbench/contentResourceStore';
-import { switchAgentCanvasScope, useAgentCanvasStore, useGitCanvasStore } from '@/app/components/panels/content-canvas/stores';
+import { openAgentCanvasTabForSessionInBackground, switchAgentCanvasScope, useAgentCanvasStore, useGitCanvasStore } from '@/app/components/panels/content-canvas/stores';
 import type { EditorGroupId } from '@/app/components/panels/content-canvas/types';
 import type { SessionSceneTarget } from '@/app/components/SceneBar/types';
 import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
 import type { Session } from '@/flow_chat/types/flow-chat';
+import { sessionExecutionWorkspacePath, sessionWorkspaceId } from '@/flow_chat/utils/sessionWorkspace';
 import { resolveLegacySessionWorkspace } from '@/infrastructure/api/service-api/legacyWorkspaceCompatibility';
 import { workspaceManager } from '@/infrastructure/services/business/workspaceManager';
 import { getActiveSurfaceId, getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 import type { PanelContent } from '@/app/components/panels/base/types';
 import type { ContentResourceScope, OpenContentOptions } from '@/shared/types/contentResource';
+import { closeAdoptedBrowserPage } from '@/app/scenes/browser/closeAdoptedBrowserPage';
 
 export function captureContentScope(data?: { workspaceId?: string; workspacePath?: string; remoteConnectionId?: string }): ContentResourceScope {
   const state = workspaceManager.getState();
@@ -21,6 +23,19 @@ export function captureContentScope(data?: { workspaceId?: string; workspacePath
       ? resolveLegacySessionWorkspace(data, records.filter((record, index) => records.findIndex(candidate => candidate.id === record.id) === index))
       : state.currentWorkspace;
   if ((data?.workspaceId || data?.workspacePath) && !workspace) {
+    // A session's registered execution workspace can be absent from the UI's
+    // opened/recent catalog after worktree binding. Resolve its explicit ID
+    // from the current surface's sessions, never from a matching path.
+    if (data.workspaceId) {
+      for (const session of flowChatStore.getState().sessions.values()) {
+        if (sessionWorkspaceId(session) !== data.workspaceId) continue;
+        return {
+          surfaceId: getActiveSurfaceId(), workspaceId: data.workspaceId,
+          workspacePath: sessionExecutionWorkspacePath(session),
+          remoteConnectionId: session.remoteConnectionId || session.config?.remoteConnectionId,
+        };
+      }
+    }
     throw new Error('Workspace identity is unavailable or ambiguous; select its workspace ID.');
   }
   return {
@@ -39,7 +54,7 @@ export function openWorkbenchContent(content: PanelContent, options: OpenContent
   return id;
 }
 
-export interface ContentOpenOptions extends Pick<OpenContentOptions, 'scope' | 'resourceKey' | 'replaceExisting'> {
+export interface ContentOpenOptions extends Pick<OpenContentOptions, 'scope' | 'resourceKey' | 'replaceExisting' | 'focus'> {
   isCurrent?: () => boolean;
   targetGroup?: EditorGroupId;
   splitView?: boolean;
@@ -61,7 +76,7 @@ export function openCanvasContent(mode: 'agent' | 'git', input: PanelContent, op
   const syncBrowserOwner = () => {
     const ownerSessionId = browserOwnerSessionId(content);
     if (mode === 'agent' && ownerSessionId) {
-      store.syncSessionOwnedBrowserTabs(ownerSessionId);
+      store.syncSessionOwnedBrowserTabs(ownerSessionId, { revealPending: true });
     }
   };
   const groups = [store.primaryGroup, store.secondaryGroup, store.tertiaryGroup];
@@ -72,8 +87,9 @@ export function openCanvasContent(mode: 'agent' | 'git', input: PanelContent, op
         ?? captureContentScope(tab.content.data)).key) === key);
     if (!existing) continue;
     const groupId = groupIds[index];
-    store.updateTabContent(existing.id, groupId,
-      mergeContentOpenIntent(existing.content, content, options.replaceExisting, existing.isDirty));
+    const nextContent = mergeContentOpenIntent(existing.content, content, options.replaceExisting, existing.isDirty);
+    if (existing.content.data?.webviewLabel !== nextContent.data?.webviewLabel) closeAdoptedBrowserPage(existing.content);
+    store.updateTabContent(existing.id, groupId, nextContent);
     store.switchToTab(existing.id, groupId);
     store.promoteTab(existing.id, groupId);
     syncBrowserOwner();
@@ -156,6 +172,30 @@ export function openContentInBestTarget(content: PanelContent, options: ContentO
   }
   const identity = contentResourceIdentity(ownedContent, scope, resourceKey);
   const mainView = Object.values(useContentResourceStore.getState().resources).find(resource => resource.key === identity.key);
+  if (mainView && options.replaceExisting && !mainView.isDirty
+    && mainView.content.data?.webviewLabel !== ownedContent.data?.webviewLabel) {
+    closeAdoptedBrowserPage(mainView.content, scope.surfaceId);
+  }
+  if (options.focus === false && requestedOwnerSessionId && !mainView) {
+    const session = flowChatStore.getState().sessions.get(requestedOwnerSessionId);
+    if (session && sessionMatchesContentScope(session, scope)) {
+      // Keep a prepared page in its owner session's snapshot: the presented
+      // session owns the visible canvas and must not be navigated or reselected.
+      openAgentCanvasTabForSessionInBackground(requestedOwnerSessionId, {
+        content: { ...ownedContent, metadata: { ...ownedContent.metadata,
+          resourceScope: scope, contentResourceKey: identity.key,
+          duplicateCheckKey: resourceKey ?? identity.key } },
+        checkDuplicate: true,
+        duplicateCheckKey: resourceKey ?? identity.key,
+        replaceExisting: options.replaceExisting,
+      });
+      return;
+    }
+  }
+  if (options.focus === false) {
+    openWorkbenchContent(ownedContent, { ...options, scope, resourceKey });
+    return;
+  }
   if (mainView || !target) {
     openWorkbenchContent(ownedContent, { ...options, scope, resourceKey });
     return;

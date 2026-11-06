@@ -517,8 +517,6 @@ export function AppearancePackageConfigSection() {
               disabled={busy}
               aria-label={t('package.builtinTheme')}
               data-testid="appearance-builtin-theme-select"
-              triggerTestId="appearance-builtin-theme-select-trigger"
-              panelTestId="appearance-builtin-theme-select-menu"
             />
           </span>
         </AppearancePackagePreview>
@@ -530,7 +528,7 @@ export function AppearancePackageConfigSection() {
             appearanceDescription={`${appearance.author || t('package.unknownAuthor')} · v${appearance.version}`}
             getPreviewAsset={getPreviewAsset}
             packageType="imported"
-            selected={appearance.id === displayedSelectionId}
+            selected={appearance.id === selectedAppearanceId}
             disabled={busy}
             onSelect={() => void handleAppearanceSelection(appearance.id)}
           />

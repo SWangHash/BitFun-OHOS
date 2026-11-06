@@ -57,6 +57,8 @@ vi.mock('@bitfun/ui', async () => {
   };
 });
 
+vi.mock('../settings/pages/shared/SettingsPage', () => ({ SettingsPage: ({ children }: React.PropsWithChildren) => <div>{children}</div> }));
+
 vi.mock('@/infrastructure/config/services/AgentCompanionPetService', () => ({
   listExternalAgentCompanionPets: async () => ({ candidates: [], diagnostics: [] }),
   AGENT_COMPANION_PETS_CHANGED: 'agent-companion-pets-changed',

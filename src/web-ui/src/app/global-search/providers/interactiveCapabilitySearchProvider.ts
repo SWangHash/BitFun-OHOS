@@ -1,3 +1,4 @@
+import { isOpenHarmonyRuntime } from '@/infrastructure/runtime/environment';
 import {
   INTERACTIVE_CAPABILITY_CATALOG,
   getInteractiveCapabilityCatalog,
@@ -44,7 +45,7 @@ export const interactiveCapabilitySearchProvider: GlobalSearchProvider = {
           return [];
         }
         const textScore = scoreTextMatch(request.query, [
-          capability.id,
+          isOpenHarmonyRuntime() && capability.id === 'feature.computer-use' ? '' : capability.id,
           capability.titleZh,
           capability.titleEn,
           ...capability.searchTerms,

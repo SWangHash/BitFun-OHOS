@@ -29,7 +29,7 @@ vi.mock('./settingsRegistry', () => {
       { id: 'application', labelKey: 'Application', pages: pages.slice(0, 3) },
       { id: 'ai', labelKey: 'AI', pages: pages.slice(3) },
     ],
-    getSettingsPageManifest: (id: string) => pages.find(page => page.id === id),
+    getSettingsPageManifest: (value: string) => pages.find(page => page.id === value) ?? pages[0],
     isSettingsPageId: (value: string) => pages.some((page) => page.id === value),
     preloadSettingsPage: vi.fn(async () => undefined),
   };
