@@ -1,5 +1,11 @@
 # macOS HTML drag ownership and warning cleanup
 
+> **Not currently applied.** The workspace `[patch.crates-io]` selects the
+> OpenHarmony `wry` fork for every platform so a plain OHOS build works without a
+> separate config file. This vendored copy is therefore dormant, and desktop
+> macOS builds do not receive the drag/mouse fixes below until the fork carries
+> them. See the patch comment in the root `Cargo.toml`.
+
 Source: crates.io `wry` 0.56.0, published from upstream revision
 `5c9b89920f3c6abf90b9c539fad2e352d24d179a` at
 <https://github.com/tauri-apps/wry>. The published source, examples, manifest,

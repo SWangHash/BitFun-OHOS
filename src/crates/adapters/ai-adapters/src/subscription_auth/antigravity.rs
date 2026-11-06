@@ -9,6 +9,7 @@
 use super::store::{self, StoredCredential};
 use super::{
     jwt, oauth_server, pkce, pkce::Pkce, ResolvedCredential, StartedLogin, SubscriptionHttpOptions,
+    TokenRefreshPolicy,
 };
 use anyhow::{anyhow, Context, Result};
 use serde::Deserialize;
@@ -356,8 +357,7 @@ pub(crate) async fn begin_login_for_account(
         method: super::SubscriptionLoginMethod::Browser,
         authorization_url,
         user_code: None,
-        instructions: "Complete authorization in your browser, then return to BitFun."
-            .to_string(),
+        instructions: "Complete authorization in your browser, then return to BitFun.".to_string(),
         runner: Box::pin(runner),
     })
 }
@@ -368,6 +368,7 @@ async fn ensure_fresh_for_account(
     slot: &str,
     rejected_access: Option<&str>,
     options: &SubscriptionHttpOptions,
+    refresh_policy: TokenRefreshPolicy,
 ) -> Result<(String, i64)> {
     let (slot, rejected_access, options) = (
         slot.to_owned(),
@@ -375,7 +376,7 @@ async fn ensure_fresh_for_account(
         options.clone(),
     );
     super::complete_credential_refresh(async move {
-        ensure_fresh_in_account(&slot, rejected_access.as_deref(), &options).await
+        ensure_fresh_in_account(&slot, rejected_access.as_deref(), &options, refresh_policy).await
     })
     .await
 }
@@ -384,6 +385,7 @@ async fn ensure_fresh_in_account(
     slot: &str,
     rejected_access: Option<&str>,
     options: &SubscriptionHttpOptions,
+    refresh_policy: TokenRefreshPolicy,
 ) -> Result<(String, i64)> {
     let _refresh_lease = store::acquire_provider_refresh_lease(slot).await?;
     let snapshot = store::load_entry_with_revision(slot).await?;
@@ -401,7 +403,9 @@ async fn ensure_fresh_in_account(
         return Err(anyhow!("Antigravity credential is not an OAuth login"));
     };
 
-    if rejected_access != Some(access.as_str()) && expires > now_ms() + REFRESH_LEEWAY_MS {
+    if rejected_access != Some(access.as_str())
+        && !refresh_policy.should_refresh(expires, now_ms(), REFRESH_LEEWAY_MS)
+    {
         return Ok((access, expires));
     }
 
@@ -466,7 +470,8 @@ pub(crate) async fn resolve_account(
     slot: &str,
     options: &SubscriptionHttpOptions,
 ) -> Result<ResolvedCredential> {
-    let (access, expires) = ensure_fresh_for_account(slot, None, options).await?;
+    let (access, expires) =
+        ensure_fresh_for_account(slot, None, options, TokenRefreshPolicy::WhenExpiring).await?;
     let ua_platform = platform_tokens();
     let version = antigravity_version(options).await;
     let mut headers = HashMap::new();
@@ -498,12 +503,25 @@ pub(crate) async fn resolve(options: &SubscriptionHttpOptions) -> Result<Resolve
     resolve_account(STORE_KEY, options).await
 }
 
+/// Explicitly refreshes the stored OAuth token, even when it is not near expiry.
+pub(crate) async fn refresh_account(options: &SubscriptionHttpOptions) -> Result<()> {
+    ensure_fresh_for_account(STORE_KEY, None, options, TokenRefreshPolicy::Force)
+        .await
+        .map(|_| ())
+}
+
 pub(crate) async fn recover_rejected_account(
     slot: &str,
     rejected_access: &str,
     options: &SubscriptionHttpOptions,
 ) -> Result<()> {
-    ensure_fresh_for_account(slot, Some(rejected_access), options).await?;
+    ensure_fresh_for_account(
+        slot,
+        Some(rejected_access),
+        options,
+        TokenRefreshPolicy::Force,
+    )
+    .await?;
     Ok(())
 }
 #[cfg(test)]

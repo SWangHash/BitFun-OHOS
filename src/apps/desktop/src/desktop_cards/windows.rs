@@ -141,6 +141,7 @@ pub(crate) fn desktop_pinned(card: &DesktopCardRecord) -> bool {
             == Some(true)
 }
 
+#[cfg(not(target_env = "ohos"))]
 pub(crate) async fn open_window(
     app: &tauri::AppHandle,
     card: &DesktopCardRecord,
@@ -202,6 +203,18 @@ pub(crate) async fn open_window(
         .map_err(|error| format!("Failed to show desktop card window: {error}"))
 }
 
+/// Desktop card windows are hosted by the desktop window manager, which the
+/// OpenHarmony host does not expose to the app.
+#[cfg(target_env = "ohos")]
+pub(crate) async fn open_window(
+    _app: &tauri::AppHandle,
+    _card: &DesktopCardRecord,
+    _position: Option<DesktopCardPosition>,
+) -> Result<(), String> {
+    Err("Desktop cards are not supported on HarmonyOS.".to_string())
+}
+
+#[cfg(not(target_env = "ohos"))]
 pub(crate) fn close_window(app: &tauri::AppHandle, card_id: &str) {
     if let Some(window) = app.get_webview_window(&window_label(card_id)) {
         if let Err(error) = window.destroy() {
@@ -214,6 +227,10 @@ pub(crate) fn close_window(app: &tauri::AppHandle, card_id: &str) {
     }
 }
 
+#[cfg(target_env = "ohos")]
+pub(crate) fn close_window(_app: &tauri::AppHandle, _card_id: &str) {}
+
+#[cfg(not(target_env = "ohos"))]
 pub(crate) fn apply_window_size(app: &tauri::AppHandle, card_id: &str, size: DesktopCardSize) {
     if let Some(window) = app.get_webview_window(&window_label(card_id)) {
         if let Err(error) = window.set_size(tauri::LogicalSize::new(size.width, size.height)) {
@@ -225,6 +242,9 @@ pub(crate) fn apply_window_size(app: &tauri::AppHandle, card_id: &str, size: Des
         }
     }
 }
+
+#[cfg(target_env = "ohos")]
+pub(crate) fn apply_window_size(_app: &tauri::AppHandle, _card_id: &str, _size: DesktopCardSize) {}
 
 /// Whether a desktop for pinned cards exists right now. Checked before
 /// recreating a pinned card's window so recovery retries do not churn
@@ -269,6 +289,7 @@ pub(crate) fn watch_shell_restarts(
         .map_err(|error| error.to_string())
 }
 
+#[cfg(not(target_env = "ohos"))]
 pub(crate) async fn apply_stacking(
     app: &tauri::AppHandle,
     card_id: &str,
@@ -306,6 +327,17 @@ pub(crate) async fn apply_stacking(
     Ok(())
 }
 
+#[cfg(target_env = "ohos")]
+pub(crate) async fn apply_stacking(
+    _app: &tauri::AppHandle,
+    _card_id: &str,
+    _always_on_top: bool,
+    _desktop_pinned: bool,
+) -> Result<(), String> {
+    Err("Desktop cards are not supported on HarmonyOS.".to_string())
+}
+
+#[cfg(not(target_env = "ohos"))]
 pub(crate) fn bring_to_front(app: &tauri::AppHandle, card_id: &str) {
     if let Some(window) = app.get_webview_window(&window_label(card_id)) {
         let _ = window.unminimize();
@@ -319,6 +351,9 @@ pub(crate) fn bring_to_front(app: &tauri::AppHandle, card_id: &str) {
         }
     }
 }
+
+#[cfg(target_env = "ohos")]
+pub(crate) fn bring_to_front(_app: &tauri::AppHandle, _card_id: &str) {}
 
 pub(crate) fn open_card_labels(app: &tauri::AppHandle) -> Vec<String> {
     app.webview_windows()

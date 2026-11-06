@@ -5,8 +5,8 @@ use serde_json::{json, Map, Value};
 
 use super::import::config_fingerprint;
 use super::{
-    config_to_cursor_format, parse_cursor_format, validate_mcp_json_config, MCPConfigService,
-    MCPImportError,
+    config_to_cursor_format, parse_cursor_format, validate_mcp_json_config, ConfigLocation,
+    MCPConfigService, MCPImportError,
 };
 use crate::mcp::server::MCPServerConfig;
 
@@ -43,7 +43,11 @@ impl MCPConfigService {
                 let single = json!({ "mcpServers": { id: entry } });
                 let parsed = validate_mcp_json_config(&single)
                     .ok()
-                    .and_then(|()| parse_cursor_format(&single).into_iter().next())
+                    .and_then(|()| {
+                        parse_cursor_format(&single, ConfigLocation::User)
+                            .into_iter()
+                            .next()
+                    })
                     .filter(|config| config.validate().is_ok());
                 MCPControlServerSummary {
                     server_id: id.clone(),
@@ -130,7 +134,7 @@ impl MCPConfigService {
                     "server configuration; check command/url and transport fields",
                 )
             })?;
-            let parsed = parse_cursor_format(&single)
+            let parsed = parse_cursor_format(&single, ConfigLocation::User)
                 .into_iter()
                 .next()
                 .ok_or(MCPImportError::InvalidRequest("server configuration"))?;

@@ -4,6 +4,12 @@
 //! and change handling.
 
 use super::types::*;
+#[cfg(feature = "ai-adapter-runtime")]
+use crate::infrastructure::ai::reasoning_catalog::{
+    load_models_dev_reasoning_catalog_without_refresh, project_model_reasoning_catalog,
+};
+#[cfg(feature = "ai-adapter-runtime")]
+use crate::infrastructure::ai::AIClient;
 use crate::util::errors::*;
 use async_trait::async_trait;
 #[cfg(any(feature = "ai-adapter-runtime", test))]

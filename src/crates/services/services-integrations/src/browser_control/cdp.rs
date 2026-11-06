@@ -97,8 +97,6 @@ pub struct CdpVersionInfo {
     pub browser: Option<String>,
     #[serde(rename = "Protocol-Version")]
     pub protocol_version: Option<String>,
-    #[serde(rename = "User-Agent")]
-    pub user_agent: Option<String>,
     #[serde(rename = "webSocketDebuggerUrl")]
     pub web_socket_debugger_url: Option<String>,
 }

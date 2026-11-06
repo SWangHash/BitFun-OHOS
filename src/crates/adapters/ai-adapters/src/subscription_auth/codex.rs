@@ -7,6 +7,7 @@
 use super::store::{self, StoredCredential};
 use super::{
     jwt, oauth_server, pkce::Pkce, ResolvedCredential, StartedLogin, SubscriptionHttpOptions,
+    TokenRefreshPolicy,
 };
 use anyhow::{anyhow, Context, Result};
 use serde::Deserialize;
@@ -349,8 +350,7 @@ async fn begin_browser_login(
         method: super::SubscriptionLoginMethod::Browser,
         authorization_url,
         user_code: None,
-        instructions: "Complete authorization in your browser, then return to BitFun."
-            .to_string(),
+        instructions: "Complete authorization in your browser, then return to BitFun.".to_string(),
         runner: Box::pin(runner),
     })
 }
@@ -439,8 +439,16 @@ pub(crate) async fn begin_login_for_account(
 async fn ensure_fresh(
     store_key: &str,
     options: &SubscriptionHttpOptions,
+    refresh_policy: TokenRefreshPolicy,
 ) -> Result<(String, Option<String>, i64, u64)> {
-    ensure_fresh_at(store_key, options, None, &format!("{ISSUER}/oauth/token")).await
+    ensure_fresh_at(
+        store_key,
+        options,
+        None,
+        &format!("{ISSUER}/oauth/token"),
+        refresh_policy,
+    )
+    .await
 }
 
 async fn ensure_fresh_at(
@@ -448,6 +456,7 @@ async fn ensure_fresh_at(
     options: &SubscriptionHttpOptions,
     rejected: Option<(&str, Option<&str>)>,
     refresh_endpoint: &str,
+    refresh_policy: TokenRefreshPolicy,
 ) -> Result<(String, Option<String>, i64, u64)> {
     let _refresh_lease = store::acquire_provider_refresh_lease(store_key).await?;
     let snapshot = store::load_entry_with_revision(store_key).await?;
@@ -477,7 +486,7 @@ async fn ensure_fresh_at(
         ));
     }
     let force_refresh = rejected.is_some_and(|(rejected_access, _)| rejected_access == access);
-    if !force_refresh && expires > now_ms() + REFRESH_LEEWAY_MS {
+    if !force_refresh && !refresh_policy.should_refresh(expires, now_ms(), REFRESH_LEEWAY_MS) {
         return Ok((access, account_id, expires, snapshot.revision));
     }
 
@@ -600,6 +609,7 @@ async fn recover_rejected_account_at(
             &options,
             Some((&rejected_access, upstream_account_id.as_deref())),
             &endpoint,
+            TokenRefreshPolicy::Force,
         )
         .await?;
         if identity.or_else(|| jwt::chatgpt_account_id(&access)) != upstream_account_id {
@@ -618,6 +628,13 @@ pub(crate) async fn resolve(options: &SubscriptionHttpOptions) -> Result<Resolve
     resolve_account(STORE_KEY, options).await
 }
 
+/// Explicitly refreshes the stored OAuth token, even when it is not near expiry.
+pub(crate) async fn refresh_account(options: &SubscriptionHttpOptions) -> Result<()> {
+    ensure_fresh(STORE_KEY, options, TokenRefreshPolicy::Force)
+        .await
+        .map(|_| ())
+}
+
 pub(super) async fn resolve_account(
     store_key: &str,
     options: &SubscriptionHttpOptions,
@@ -630,7 +647,8 @@ pub(super) async fn resolve_account_versioned(
     options: &SubscriptionHttpOptions,
 ) -> Result<(ResolvedCredential, u64)> {
     super::accounts::validate_account_id(super::SubscriptionProvider::Codex, store_key)?;
-    let (access, account_id, expires, revision) = ensure_fresh(store_key, options).await?;
+    let (access, account_id, expires, revision) =
+        ensure_fresh(store_key, options, TokenRefreshPolicy::WhenExpiring).await?;
     let account_id = account_id.or_else(|| jwt::chatgpt_account_id(&access));
     if store_key != STORE_KEY && account_id.as_deref().is_none_or(|id| id.trim().is_empty()) {
         return Err(anyhow!(

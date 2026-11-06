@@ -784,7 +784,9 @@ impl ControlHubTool {
                             url: page.url.clone(),
                             title: page.title.clone(),
                             active: arkweb_webview_is_active(&target.webview_label),
-                            conversation_id: page.conversation_id.clone(),
+                            // ArkWeb targets do not track conversation ownership;
+                            // the registry only knows native WebView labels.
+                            conversation_id: None,
                         },
                     )
                 })
@@ -4858,6 +4860,7 @@ Results: `{ok, domain, action, data? , error?: {code, message, hints}}`. Check o
                     let session = BrowserSession {
                         session_id: page.id,
                         port: connected.port,
+                        backend: BrowserSessionBackend::ExternalCdp,
                         headless: connected.headless,
                         client: Arc::new(client),
                         state: Arc::new(BrowserSessionState::new()),
@@ -5404,6 +5407,7 @@ Results: `{ok, domain, action, data? , error?: {code, message, hints}}`. Check o
                 let session = BrowserSession {
                     session_id: page.id.clone(),
                     port,
+                    backend: BrowserSessionBackend::ExternalCdp,
                     headless,
                     client: Arc::new(client),
                     state: Arc::new(BrowserSessionState::new()),
@@ -5755,6 +5759,7 @@ Results: `{ok, domain, action, data? , error?: {code, message, hints}}`. Check o
                 let session = BrowserSession {
                     session_id: page.id.clone(),
                     port,
+                    backend: BrowserSessionBackend::ExternalCdp,
                     headless,
                     client: Arc::new(client),
                     state: Arc::new(BrowserSessionState::new()),
@@ -5852,6 +5857,7 @@ Results: `{ok, domain, action, data? , error?: {code, message, hints}}`. Check o
                     let session = BrowserSession {
                         session_id: page.id.clone(),
                         port,
+                        backend: BrowserSessionBackend::ExternalCdp,
                         headless,
                         client: Arc::new(client),
                         state: Arc::new(BrowserSessionState::new()),

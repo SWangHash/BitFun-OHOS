@@ -158,7 +158,6 @@ impl BrowserNavigation {
         }
     }
 
-    #[cfg(any(not(target_os = "macos"), test))]
     fn page_load(&mut self, event: &str) {
         if event == "started" {
             self.started = true;
@@ -232,55 +231,20 @@ fn associate_browser_open_request(label: &str, open_request_id: Option<&str>) {
     }
 }
 
+/// Page-load events are the single navigation-outcome source on every platform,
+/// macOS included: the OpenHarmony Wry fork has no native `NavigationState`
+/// observer to install. A load that never reaches `finished` (for example a
+/// connection failure) therefore surfaces as `wait_for_browser_navigation`'s
+/// "still loading" timeout instead of a native error message.
 pub(crate) fn update_browser_target_page_load(label: &str, event: &str, url: &str) {
-    #[cfg(target_os = "macos")]
-    let _ = event; // WebKit's native navigation observer owns terminal outcomes.
     if let Some(record) = lock_browser_targets().records.get_mut(label) {
         record.url = url.to_string();
         // A navigation invalidates the cached document title. The async
         // automation host refreshes it from the page before target discovery
         // is returned to ControlHub.
         record.title = None;
-        #[cfg(not(target_os = "macos"))]
         if let Some(navigation) = &mut record.navigation {
             navigation.page_load(event);
-        }
-    }
-}
-
-#[cfg(target_os = "macos")]
-fn update_browser_target_navigation(label: &str, state: wry::NavigationState) {
-    use wry::NavigationState;
-    let mut registry = lock_browser_targets();
-    let Some(record) = registry.records.get_mut(label) else {
-        return;
-    };
-    let navigation = record.navigation.get_or_insert_with(BrowserNavigation::new);
-    match state {
-        NavigationState::Loading => {
-            navigation.started = false;
-            navigation.completed.send_replace(None);
-            record.title = None;
-        }
-        NavigationState::Finished => {
-            navigation.completed.send_replace(Some(Ok(())));
-        }
-        NavigationState::Cancelled => {
-            navigation.completed.send_replace(Some(Err(
-                "[NOT_AVAILABLE] Navigation was canceled".to_string()
-            )));
-            // Release existing waiters, then allow later reads of the document
-            // left on screen. A deliberate stop is not a retained page failure.
-            record.navigation = None;
-        }
-        NavigationState::Failed {
-            domain,
-            code,
-            message,
-        } => {
-            navigation.completed.send_replace(Some(Err(format!(
-                "[NOT_AVAILABLE] Navigation failed: {message} ({domain}, {code})"
-            ))));
         }
     }
 }
@@ -553,32 +517,6 @@ pub async fn browser_webview_create(
             request.open_request_id,
             request.conversation_id,
         );
-        #[cfg(target_os = "macos")]
-        {
-            let label = webview.label().to_string();
-            let app = app.clone();
-            webview
-                .with_webview(move |native| {
-                    // Tauri's native handle is the WryWebView created by this adapter.
-                    let native = unsafe { &*(native.inner() as *const wry::WryWebView) };
-                    native.set_navigation_state_handler(move |state| {
-                        use tauri::Emitter;
-                        let failure = match &state {
-                            wry::NavigationState::Failed { domain, code, message } => {
-                                Some(format!("Navigation failed: {message} ({domain}, {code})"))
-                            }
-                            _ => None,
-                        };
-                        update_browser_target_navigation(&label, state);
-                        if let Some(error) = failure {
-                            bitfun_core::agentic::tools::browser_control::builtin_browser::publish_builtin_browser_navigation_failed(&label, &error);
-                            let _ = app.emit_to("main", crate::BROWSER_WEBVIEW_PAGE_LOAD_EVENT,
-                                serde_json::json!({ "label": label, "event": "failed", "url": "", "error": error }));
-                        }
-                    });
-                })
-                .map_err(|error| format!("observe browser navigation failed: {error}"))?;
-        }
         Ok(())
     }
 
@@ -1019,54 +957,6 @@ mod tests {
         navigation.page_load("started"); // A redirect or a superseding navigation.
         navigation.page_load("finished");
         assert_eq!(*navigation.completed.borrow(), Some(Ok(())));
-    }
-
-    #[cfg(target_os = "macos")]
-    #[tokio::test]
-    async fn failed_navigation_releases_readers_and_a_manual_navigation_can_succeed() {
-        use wry::NavigationState;
-        let label = "embedded-browser-panel-view-navigation-failure-test";
-        register_browser_target(label, "https://example.com", None, None);
-        update_browser_target_navigation(label, NavigationState::Loading);
-        let reader = tokio::spawn(wait_for_browser_navigation(label));
-        tokio::task::yield_now().await;
-        update_browser_target_navigation(
-            label,
-            NavigationState::Failed {
-                domain: "NSURLErrorDomain".into(),
-                code: -1004,
-                message: "Could not connect".into(),
-            },
-        );
-        let error = tokio::time::timeout(std::time::Duration::from_secs(1), reader)
-            .await
-            .unwrap()
-            .unwrap()
-            .unwrap_err();
-        assert!(error.contains("Could not connect"));
-        assert!(wait_for_browser_navigation(label)
-            .await
-            .unwrap_err()
-            .contains("-1004"));
-        update_browser_target_navigation(label, NavigationState::Loading);
-        update_browser_target_navigation(label, NavigationState::Finished);
-        assert!(wait_for_browser_navigation(label).await.is_ok());
-
-        update_browser_target_navigation(label, NavigationState::Loading);
-        let reader = tokio::spawn(wait_for_browser_navigation(label));
-        tokio::task::yield_now().await;
-        update_browser_target_navigation(label, NavigationState::Cancelled);
-        assert!(
-            tokio::time::timeout(std::time::Duration::from_secs(1), reader)
-                .await
-                .unwrap()
-                .unwrap()
-                .unwrap_err()
-                .contains("canceled")
-        );
-        assert!(browser_navigation_failure(label).is_none());
-        assert!(wait_for_browser_navigation(label).await.is_ok());
-        unregister_browser_target(label);
     }
 
     #[tokio::test]

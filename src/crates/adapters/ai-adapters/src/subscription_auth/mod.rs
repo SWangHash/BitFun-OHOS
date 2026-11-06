@@ -33,9 +33,7 @@ pub use accounts::{
     SubscriptionAccountInstance,
 };
 pub use quota::{cached_account_quota, model_quota_observation, read_account_quota_with_options};
-pub use store::{
-    set_store_path_for_test, set_subscription_credential_vault, StoredCredential,
-};
+pub use store::{set_store_path_for_test, set_subscription_credential_vault, StoredCredential};
 
 /// Prepare provider-owned protocol/endpoint facts without reading credentials
 /// or performing IO. This does not authorize a client to send a request.
@@ -1319,7 +1317,7 @@ pub async fn refresh_account_with_options(
         SubscriptionProvider::Codex => codex::refresh_account(options).await?,
         SubscriptionProvider::Antigravity => antigravity::refresh_account(options).await?,
         SubscriptionProvider::Opencode => opencode::refresh_profile(options).await?,
-        SubscriptionProvider::Grok | SubscriptionProvider::Hermes => {
+        _ => {
             resolve_with_options(provider, options).await?;
         }
     }
@@ -2543,18 +2541,17 @@ mod tests {
         let loaded_path = parent.join("child-loaded");
         let resume_path = parent.join("child-resume");
         let outcome_path = parent.join("child-outcome");
-        let mut child = bitfun_services_core::process_manager::create_command(
-            std::env::current_exe().unwrap(),
-        )
-        .arg("--exact")
-        .arg("subscription_auth::tests::cross_process_stale_login_cas_child")
-        .arg("--nocapture")
-        .env(STALE_LOGIN_CHILD_METADATA_ENV, &path)
-        .env(STALE_LOGIN_CHILD_LOADED_ENV, &loaded_path)
-        .env(STALE_LOGIN_CHILD_RESUME_ENV, &resume_path)
-        .env(STALE_LOGIN_CHILD_OUTCOME_ENV, &outcome_path)
-        .spawn()
-        .expect("spawn stale-login child process");
+        let mut child =
+            bitfun_services_core::process_manager::create_command(std::env::current_exe().unwrap())
+                .arg("--exact")
+                .arg("subscription_auth::tests::cross_process_stale_login_cas_child")
+                .arg("--nocapture")
+                .env(STALE_LOGIN_CHILD_METADATA_ENV, &path)
+                .env(STALE_LOGIN_CHILD_LOADED_ENV, &loaded_path)
+                .env(STALE_LOGIN_CHILD_RESUME_ENV, &resume_path)
+                .env(STALE_LOGIN_CHILD_OUTCOME_ENV, &outcome_path)
+                .spawn()
+                .expect("spawn stale-login child process");
 
         tokio::time::timeout(Duration::from_secs(5), async {
             while !loaded_path.exists() {

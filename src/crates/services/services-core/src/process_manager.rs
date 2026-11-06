@@ -137,7 +137,7 @@ pub fn create_command<S: AsRef<std::ffi::OsStr>>(program: S) -> Command {
     #[cfg(any(target_os = "macos", target_env = "ohos"))]
     {
         let mut cmd = cmd;
-        apply_cached_platform_path(&mut cmd);
+        apply_cached_platform_path_std(&mut cmd);
         cmd
     }
 
@@ -150,8 +150,8 @@ pub fn create_command<S: AsRef<std::ffi::OsStr>>(program: S) -> Command {
 /// Windows adds `CREATE_NO_WINDOW`. macOS and Linux also apply the merged
 /// `PATH` described on [`apply_cached_platform_path`], because spawned tools
 /// (`npx`, `node`, `uvx`, hook scripts) must resolve the same way they do in a
-/// terminal. The synchronous [`create_command`] keeps the process `PATH`
-/// unchanged.
+/// terminal. The synchronous [`create_command`] applies the same `PATH` only on
+/// macOS and HarmonyOS, where GUI launches start without a login shell.
 pub fn create_tokio_command<S: AsRef<std::ffi::OsStr>>(program: S) -> TokioCommand {
     let cmd = TokioCommand::new(program.as_ref());
 
@@ -228,6 +228,19 @@ const fn inherited_job_process_group_creation_flags() -> u32 {
 /// the session `PATH` instead of a login shell's.
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 fn apply_cached_platform_path(cmd: &mut TokioCommand) {
+    if let Some(path) = cached_platform_path_env() {
+        cmd.env("PATH", path);
+    }
+}
+
+/// Applies the same cached merged `PATH` to a synchronous [`Command`].
+///
+/// HarmonyOS launches from the ArkTS host and macOS Finder launches both start
+/// without a login shell, so their synchronous child commands need the merged
+/// `PATH` as well. The asynchronous path reuses
+/// [`apply_cached_platform_path`] instead.
+#[cfg(any(target_os = "macos", target_env = "ohos"))]
+fn apply_cached_platform_path_std(cmd: &mut Command) {
     if let Some(path) = cached_platform_path_env() {
         cmd.env("PATH", path);
     }

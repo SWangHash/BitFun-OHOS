@@ -990,7 +990,6 @@ impl CdpClient {
                 .get("protocolVersion")
                 .and_then(Value::as_str)
                 .map(str::to_string),
-            user_agent: None,
             web_socket_debugger_url: None,
         })
     }

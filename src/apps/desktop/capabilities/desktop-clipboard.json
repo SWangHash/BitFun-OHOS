@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "desktop-clipboard",
+  "description": "Native clipboard permissions for desktop hosts. The clipboard plugin is not compiled into the OHOS runtime, and capability references must not name permissions it does not provide; OHOS reads the pasteboard through its ArkTS bridge instead.",
+  "windows": ["main", "agent-companion-pet", "desktop-card-*", "spotlight", "frontend-update-confirm"],
+  "permissions": [
+    "clipboard-manager:allow-read-text",
+    "clipboard-manager:allow-write-text"
+  ],
+  "platforms": ["macOS", "windows", "linux"]
+}

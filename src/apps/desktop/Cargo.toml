@@ -92,7 +92,9 @@ tempfile = { workspace = true }
 tokio = { workspace = true, features = ["test-util"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-# Observe the native navigation delegate retained by the existing Tauri runtime.
+# Read the native WebKit URL from the same WryWebView instance the runtime
+# created. WKWebView can have no committed URL, which Tauri's wrapper surfaces
+# as a generic error; the native read distinguishes "empty" from "unavailable".
 wry = { workspace = true }
 bitflags = { workspace = true }
 core-foundation = { workspace = true }

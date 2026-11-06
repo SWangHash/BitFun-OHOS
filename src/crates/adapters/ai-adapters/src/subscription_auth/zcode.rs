@@ -596,7 +596,7 @@ pub(crate) async fn list_models(
     )?)?;
     // Public config download carries no account or API-key headers.
     let cfg: Value = client
-        .client
+        .client()
         .get(url)
         .header("User-Agent", format!("ZCode/{VERSION}"))
         .send()

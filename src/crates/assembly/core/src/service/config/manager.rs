@@ -441,7 +441,7 @@ impl ConfigManager {
             .await
             .map_err(|e| BitFunError::config(format!("Failed to read config file: {}", e)))?;
 
-        let config_value: Value = match serde_json::from_str(&content) {
+        let mut config_value: Value = match serde_json::from_str(&content) {
             Ok(value) => value,
             Err(error) => {
                 warn!(

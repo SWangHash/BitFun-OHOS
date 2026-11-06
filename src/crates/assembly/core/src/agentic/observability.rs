@@ -64,6 +64,11 @@ pub(crate) fn tool_failure_from_error(error: &BitFunError) -> (CompletionFacts, 
         BitFunError::RecoverableContextOverflow(_) | BitFunError::AIClient(_) => {
             ToolFailureSource::Provider
         }
+        // Replay-bound history wraps the provider failure that blocked the
+        // retry; the failure source stays the underlying provider.
+        BitFunError::AccountReplayBound { .. } | BitFunError::ChannelReplayBound { .. } => {
+            ToolFailureSource::Provider
+        }
         BitFunError::Configuration(_)
         | BitFunError::Deserialization(_)
         | BitFunError::Serialization(_)
@@ -244,7 +249,9 @@ pub(crate) fn inference_classes(
     };
     let auth = auth.map(|value| match value {
         AuthConfig::ApiKey => InferenceAuthClass::ApiKey,
-        AuthConfig::Subscription { .. } => InferenceAuthClass::Subscription,
+        AuthConfig::Subscription { .. } | AuthConfig::SubscriptionPool { .. } => {
+            InferenceAuthClass::Subscription
+        }
     });
     (provider, model_class(category), protocol, auth)
 }

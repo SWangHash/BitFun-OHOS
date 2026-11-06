@@ -1759,12 +1759,16 @@ fn supervised_container_command(
     container: &ContainerWorkspaceConfig,
     command: &str,
 ) -> (String, String) {
+    supervised_workspace_command(&container.shell, command)
+}
+
+fn supervised_workspace_command(shell: &str, command: &str) -> (String, String) {
     let pid_file = format!(
         "/tmp/{}-exec-{}.pid",
         hidden_data_directory(),
         uuid::Uuid::new_v4()
     );
-    let wrapped = supervised_container_command_with_pid_file(container, command, &pid_file);
+    let wrapped = supervised_workspace_command_with_pid_file(shell, command, &pid_file);
     (wrapped, pid_file)
 }
 
@@ -1780,14 +1784,23 @@ fn supervised_container_command(
 /// The supervisor must also duplicate stdin before starting the asynchronous
 /// child. POSIX non-interactive shells attach `/dev/null` to an asynchronous
 /// list's fd 0, so `<&0` inside that list cannot preserve streamed input.
+#[cfg(test)]
 fn supervised_container_command_with_pid_file(
     container: &ContainerWorkspaceConfig,
     command: &str,
     pid_file: &str,
 ) -> String {
+    supervised_workspace_command_with_pid_file(&container.shell, command, pid_file)
+}
+
+fn supervised_workspace_command_with_pid_file(
+    shell: &str,
+    command: &str,
+    pid_file: &str,
+) -> String {
     let quoted_pid_file = crate::remote_ssh::shell::quote_arg(pid_file);
     let quoted_command = crate::remote_ssh::shell::quote_arg(command);
-    let quoted_shell = crate::remote_ssh::shell::quote_arg(&container.shell);
+    let quoted_shell = crate::remote_ssh::shell::quote_arg(shell);
     let sweep = stale_pid_file_sweep();
     format!(
         "{sweep}\
@@ -6177,8 +6190,7 @@ impl SSHConnectionManager {
                 );
             }
             let metadata = parse_workspace_stat_output(std::str::from_utf8(&stdout)?)?;
-            if !follow_symlinks
-                || metadata.kind != bitfun_runtime_ports::WorkspacePathKind::Symlink
+            if !follow_symlinks || metadata.kind != bitfun_runtime_ports::WorkspacePathKind::Symlink
             {
                 return Ok(Some(metadata));
             }
@@ -9582,10 +9594,7 @@ Host *
         tokio::time::sleep(Duration::from_millis(200)).await;
         assert!(
             !manager
-                .container_exists(
-                    connection_id,
-                    "/tmp/bitfun-remote-workspace/cancel-leaked"
-                )
+                .container_exists(connection_id, "/tmp/bitfun-remote-workspace/cancel-leaked")
                 .await
                 .unwrap(),
             "cancelled Docker command must not continue inside the container"
@@ -9648,10 +9657,7 @@ Host *
         assert!(entries.iter().any(|entry| entry.name == "renamed.bin"));
         assert_eq!(
             manager
-                .container_stat(
-                    connection_id,
-                    "/tmp/bitfun-remote-workspace/renamed.bin"
-                )
+                .container_stat(connection_id, "/tmp/bitfun-remote-workspace/renamed.bin")
                 .await
                 .unwrap()
                 .and_then(|entry| entry.size),
@@ -9666,10 +9672,7 @@ Host *
             .await
             .unwrap();
         assert!(!manager
-            .container_exists(
-                connection_id,
-                "/tmp/bitfun-remote-workspace/renamed.bin"
-            )
+            .container_exists(connection_id, "/tmp/bitfun-remote-workspace/renamed.bin")
             .await
             .unwrap());
 

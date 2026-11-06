@@ -376,9 +376,9 @@ fn convert_document_turns(
                         attempt_index: None,
                     });
                 }
-                bitfun_product_domains::session_import::ExternalSessionItem::Thinking {
-                    text,
-                } if include_thinking => {
+                bitfun_product_domains::session_import::ExternalSessionItem::Thinking { text }
+                    if include_thinking =>
+                {
                     round.thinking_items.push(ThinkingItemData {
                         id: format!("{turn_id}-thinking-{order}"),
                         content: text.clone(),
@@ -437,6 +437,7 @@ fn convert_document_turns(
                         attempt_index: None,
                         subagent_model_id: None,
                         subagent_model_display_name: None,
+                        question_request: None,
                         status: Some(
                             match success {
                                 Some(true) => "completed",
@@ -448,9 +449,7 @@ fn convert_document_turns(
                         interruption_reason: None,
                     });
                 }
-                bitfun_product_domains::session_import::ExternalSessionItem::Tool {
-                    ..
-                } => {}
+                bitfun_product_domains::session_import::ExternalSessionItem::Tool { .. } => {}
             }
             order += 1;
         }

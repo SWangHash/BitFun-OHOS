@@ -1,5 +1,11 @@
 # macOS traffic-light geometry after style restoration
 
+> **Not currently applied.** The workspace `[patch.crates-io]` selects the
+> OpenHarmony `tao` fork for every platform so a plain OHOS build works without a
+> separate config file. This vendored copy is therefore dormant, and desktop
+> macOS builds do not receive the traffic-light geometry fixes below until the
+> fork carries them. See the patch comment in the root `Cargo.toml`.
+
 Source: crates.io `tao` 0.36.0, from <https://github.com/tauri-apps/tao>.
 This copy retains the upstream Apache-2.0 license. The published Rust sources,
 examples, manifest, README and licenses are retained.

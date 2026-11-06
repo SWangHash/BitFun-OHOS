@@ -3151,6 +3151,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         );
         let defaults = Self::agent_model_defaults().await?;
         snapshot_normal_session_model(&mut config, &defaults)?;
+        let session_create_start = Instant::now();
         let session = if transient {
             self.session_manager
                 .create_transient_session_with_id_and_details(

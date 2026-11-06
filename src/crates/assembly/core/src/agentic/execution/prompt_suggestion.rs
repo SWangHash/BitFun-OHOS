@@ -21,12 +21,13 @@ use crate::agentic::WorkspaceBinding;
 use crate::infrastructure::ai::AIClient;
 use crate::service::config::{subscribe_config_updates, ConfigUpdateEvent};
 use crate::util::types::{Message as AIMessage, ToolDefinition};
-use log::{debug, info, warn};
 use bitfun_agent_runtime::prompt_suggestion::{
     prompt_suggestion_instruction, prompt_suggestion_text, PromptSuggestionRuntime,
 };
 use bitfun_ai_adapters::ModelExchangeTraceConfig;
 use bitfun_core_types::ModelRequestContext;
+use bitfun_observability::Telemetry;
+use log::{debug, info, warn};
 use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
@@ -46,6 +47,7 @@ pub(super) struct PromptSuggestionRequest {
     pub workspace: Option<WorkspaceBinding>,
     pub workspace_services: Option<WorkspaceServices>,
     pub attach_images: bool,
+    pub telemetry: Telemetry,
 }
 
 fn suggestion_request_context(context: &ModelRequestContext) -> ModelRequestContext {
@@ -115,6 +117,8 @@ async fn generate_prompt_suggestion(
                 trigger: None,
             },
             request.ai_client.as_ref(),
+            &request.telemetry,
+            None,
         )
         .await;
 
@@ -583,6 +587,7 @@ mod tests {
             workspace: None,
             workspace_services: None,
             attach_images: false,
+            telemetry: Telemetry::noop(),
         }
     }
 
@@ -759,6 +764,7 @@ mod tests {
             workspace: None,
             workspace_services: None,
             attach_images: false,
+            telemetry: Telemetry::noop(),
         };
         let suggestion_messages = build_prompt_suggestion_messages(&request)
             .await

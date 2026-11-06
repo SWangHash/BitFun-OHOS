@@ -19,7 +19,7 @@ use bitfun_services_core::secure_credentials::SecureCredentialVault;
 
 const STORE_VERSION: u8 = 2;
 const CLEANUP_JOURNAL_VERSION: u8 = 1;
-#[cfg(not(target_os = "macos"))]
+#[cfg(all(not(target_os = "macos"), not(target_env = "ohos")))]
 const KEYRING_SERVICE: &str = "bitfun.bitfun.subscription-auth.v1";
 const STORE_FILE_LOCK_TIMEOUT: Duration = Duration::from_secs(10);
 const PROVIDER_REFRESH_LOCK_TIMEOUT: Duration = Duration::from_secs(40);
@@ -529,7 +529,7 @@ fn failing_backup_cleanup() -> &'static Mutex<HashSet<PathBuf>> {
     PATHS.get_or_init(|| Mutex::new(HashSet::new()))
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(all(not(target_os = "macos"), not(target_env = "ohos")))]
 fn native_keyring_lock() -> &'static Mutex<()> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
     LOCK.get_or_init(|| Mutex::new(()))
@@ -1116,7 +1116,7 @@ async fn read_secure_file(path: &Path) -> Result<SecureStoreFile> {
     parse_secure_file(&bytes, path)
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(all(not(target_os = "macos"), not(target_env = "ohos")))]
 fn open_native_keyring_entry(entry_name: &str) -> std::result::Result<keyring_core::Entry, String> {
     if keyring_core::get_default_store().is_none() {
         #[cfg(target_os = "windows")]
@@ -1195,7 +1195,13 @@ async fn get_secret_bytes(entry_name: &str) -> Result<Option<Vec<u8>>> {
             .await
             .map_err(|error| vault_unavailable(error.to_string()));
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_env = "ohos")]
+    {
+        return Err(vault_unavailable(
+            "the HarmonyOS subscription credential vault was not injected at startup",
+        ));
+    }
+    #[cfg(all(not(target_os = "macos"), not(target_env = "ohos")))]
     {
         let entry_name = entry_name.to_string();
         tokio::task::spawn_blocking(move || {
@@ -1262,7 +1268,13 @@ async fn set_secret_bytes(entry_name: &str, secret: Vec<u8>) -> Result<()> {
             .await
             .map_err(|error| vault_unavailable(error.to_string()));
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_env = "ohos")]
+    {
+        return Err(vault_unavailable(
+            "the HarmonyOS subscription credential vault was not injected at startup",
+        ));
+    }
+    #[cfg(all(not(target_os = "macos"), not(target_env = "ohos")))]
     {
         let entry_name = entry_name.to_string();
         tokio::task::spawn_blocking(move || {
@@ -1319,7 +1331,13 @@ async fn delete_secret_entry(entry_name: &str) -> Result<()> {
             .await
             .map_err(|error| vault_unavailable(error.to_string()));
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_env = "ohos")]
+    {
+        return Err(vault_unavailable(
+            "the HarmonyOS subscription credential vault was not injected at startup",
+        ));
+    }
+    #[cfg(all(not(target_os = "macos"), not(target_env = "ohos")))]
     {
         let entry_name = entry_name.to_string();
         tokio::task::spawn_blocking(move || {

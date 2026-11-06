@@ -1677,6 +1677,7 @@ pub async fn _run() {
 
                 if let tauri::WindowEvent::CloseRequested { api: _api, .. } = event {
                     if window.label() == "main" {
+                        #[cfg(not(target_env = "ohos"))]
                         if window.app_handle().state::<miniapp_desktop::DesktopMiniApps>().instances.snapshot().instances.iter().any(|instance|
                             instance.primary_view.iter().chain(instance.pending_view.iter()).any(|view| view.kind == bitfun_product_domains::miniapp::instances::MiniAppViewKind::Window)) {
                             _api.prevent_close();

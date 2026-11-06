@@ -6614,6 +6614,7 @@ impl ExecutionEngine {
                     workspace: context.workspace.clone(),
                     workspace_services: context.workspace_services.clone(),
                     attach_images: primary_supports_image_understanding,
+                    telemetry: self.telemetry.clone(),
                 },
             );
         }

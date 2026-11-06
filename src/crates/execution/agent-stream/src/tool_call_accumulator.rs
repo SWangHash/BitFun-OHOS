@@ -367,7 +367,7 @@ impl PendingToolCall {
                         .with_preserve_comment_markers(true)
                         .with_decode_unquoted_escapes(true);
                     let repaired =
-                        bitfun_tool_call_jsonrepair::repair_tool_call_json(&raw_arguments)
+                        jsonrepair_rs::jsonrepair_with_options(&raw_arguments, repair_options)
                             .ok()
                             .and_then(|candidate| {
                                 Self::parse_arguments(&tool_name, &candidate).ok()

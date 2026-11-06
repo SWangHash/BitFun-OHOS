@@ -30,7 +30,7 @@ use log::warn;
 use reqwest::Client;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
-use std::{fmt, future::Future, pin::Pin, sync::Arc};
+use std::{fmt, future::Future, pin::Pin};
 use tokio::sync::mpsc;
 
 const SEND_MESSAGE_STREAM_ATTEMPTS: usize = bitfun_agent_stream::retry::MAX_MODEL_ATTEMPTS;

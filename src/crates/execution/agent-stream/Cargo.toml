@@ -15,12 +15,11 @@ async-trait = { workspace = true }
 bitfun-events = { path = "../../contracts/events" }
 bitfun-core-types = { path = "../../contracts/core-types" }
 futures = { workspace = true }
-# Tool-call JSON repair keeps the product fork: its `repair_tool_call_json`
-# profile does not treat `#`, `//` or `/* */` as comments, so Markdown content
-# with a missing opening quote is no longer silently dropped. See
-# ../tool-call-jsonrepair/README.md; revisit when upstream jsonrepair-rs can
-# express the same profile.
-bitfun-tool-call-jsonrepair = { path = "../tool-call-jsonrepair" }
+# Tool-argument repair uses the published crate with the
+# `preserve_comment_markers` / `decode_unquoted_escapes` profile enabled at the
+# call site, so Markdown content with a missing opening quote is not treated as
+# a comment.
+jsonrepair-rs = { workspace = true }
 log = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -237,41 +237,45 @@ oxc-parse = { package = "oxc", version = "0.138.0", default-features = false }
 sqlx = { version = "0.8", default-features = false }
 rusqlite = { version = "0.32", default-features = false }
 
-# Tauri (desktop only) -- dual stack.
+# Tauri (desktop platforms and OHOS).
 #
-# Windows/macOS use the upstream crates.io Tauri stack, pinned by the `[patch]`
-# block at the end of this file. OHOS builds select the OpenHarmony forks with
-# `.cargo/ohos.toml`, passed on the command line (`.cargo/ohos.toml` cannot be
-# merged into `.cargo/config.toml` because `[patch]` is workspace-global and
-# cannot be target-gated).
+# Cargo resolves one source per package for the whole graph and `[patch]`
+# cannot be target-gated, so the OpenHarmony fork is selected globally in the
+# `[patch.crates-io]` block at the end of this file. Every platform therefore
+# links the fork's Tauri 2.8.x stack instead of upstream 2.11; the committed
+# Cargo.lock pins the exact fork revisions. Keeping OHOS support without a
+# separate `.cargo/ohos.toml` requires this single stack.
 #
-# Version specs therefore stay at the lowest minor that both stacks satisfy:
-# crates.io resolves the newest compatible release for Windows/macOS, while the
-# OHOS forks (tauri 2.8.x, tauri-build 2.4.x) remain valid candidates. Plugin
-# requirements stay open for the same reason; Windows/macOS exact versions are
-# held by the committed Cargo.lock.
-tauri = { version = "2.8" }
-tauri-build = { version = "2.4" }
-wry = { version = "0.56.0", default-features = false }
-tauri-plugin-opener = "2"
+# Version specs stay at the lowest minor the fork satisfies: plugin releases
+# newer than the pinned ones require `tauri = "^2.10"` and cannot resolve.
+tauri = { git = "https://github.com/richerfu/tauri", branch = "feat/open-harmony", features = [] }
 tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-log = "2"
 tauri-plugin-autostart = "2"
-tauri-plugin-notification = "2"
+# The OpenHarmony fork is Tauri 2.8, so every plugin must keep a Tauri
+# requirement of `^2.8` or lower. 2.4.0 requires `^2.10` and cannot resolve
+# against the fork; 2.3.3 is the newest release that can.
+tauri-plugin-notification = "=2.3.3"
 tauri-plugin-updater = "2"
 tauri-plugin-single-instance = "2"
-# Upstream holds this below 2.4 because tauri 2.12 pulls webview2-com 0.39,
-# which breaks the webview2-com 0.38 COM types bitfun-webdriver is built
-# against. OHOS also needs an older release (the fork is tauri 2.8), so the
-# requirement stays open and Cargo.lock pins Windows/macOS.
-tauri-plugin-clipboard-manager = "2"
+tauri-build = { git = "https://github.com/richerfu/tauri", branch = "feat/open-harmony", features = [] }
 tauri-plugin-global-shortcut = "2.3"
 # ArkTS bridge crates, built only for `cfg(target_env = "ohos")` members.
 napi-ohos = { version = "1.1" }
 napi-derive-ohos = { version = "1.1" }
 notify-rust = { version = "4.18", default-features = false }
 keepawake = "0.6.0"
+# Desktop adapters read the native Wry window from the runtime handle. The
+# crates.io patch below substitutes this source with the OpenHarmony fork, so
+# every platform links the same wry instance the patched Tauri runtime uses.
+wry = { version = "0.55", default-features = false }
+# 2.3.3 requires `tauri = "^2.10"` and cannot resolve against the OpenHarmony
+# fork (Tauri 2.8). 2.3.2 is the newest release that still accepts `^2.8`.
+# This also keeps the webview2-com 0.38 COM types bitfun-webdriver builds
+# against.
+tauri-plugin-clipboard-manager = "=2.3.2"
 
 # Desktop support
 screenshots = "0.8"
@@ -351,20 +355,30 @@ rustls = { version = "0.23", default-features = false }
 [patch.crates-io]
 # Keep Socket.IO on the product-owned ring provider; see the patch note.
 eioc = { path = "third_party/eioc" }
-# Windows/macOS Tauri stack. OHOS overrides these through `.cargo/ohos.toml`.
+# OpenHarmony Tauri stack, selected for every platform.
 #
-# Restore macOS traffic-light geometry after the queued native style reset.
-# See third_party/tao/BITFUN-PATCH.md for the upstream source and removal condition.
-tao = { path = "third_party/tao" }
-# Keep macOS HTML drags in WebKit while preserving native file-drop paths.
-# See third_party/wry/BITFUN-PATCH.md for source and removal conditions.
-wry = { path = "third_party/wry" }
-# Tauri 2.11 loses keyboard focus for child webviews after Windows reactivates
-# an `unstable` multi-webview window. Use the upstream fix until released;
-# this revision also adopts tao 0.36, which includes the Windows input deadlock fix.
-tauri-runtime = { git = "https://github.com/tauri-apps/tauri.git", rev = "7cc68e74ff6981f5c50a52a67d56c5eb2d227188" }
-tauri-runtime-wry = { git = "https://github.com/tauri-apps/tauri.git", rev = "7cc68e74ff6981f5c50a52a67d56c5eb2d227188" }
-tauri-utils = { git = "https://github.com/tauri-apps/tauri.git", rev = "7cc68e74ff6981f5c50a52a67d56c5eb2d227188" }
+# Cargo resolves a single source per package for the whole graph and `[patch]`
+# cannot be target-gated, so the OpenHarmony forks below replace the upstream
+# crates for Windows/macOS as well. This is the only way to keep the OHOS
+# dependency selection inside this manifest instead of a separate config file.
+#
+# Consequences for desktop targets, tracked by the owning documents:
+# - Tauri is the fork's 2.8.x line, not upstream 2.11.
+# - The upstream `tauri-runtime`/`tauri-runtime-wry`/`tauri-utils` revision that
+#   fixed child-WebView keyboard focus after Windows reactivation and adopted
+#   tao 0.36 (Windows input deadlock) is replaced by the fork as well.
+# - `third_party/tao` (macOS traffic-light geometry) and `third_party/wry`
+#   (macOS native navigation outcomes, macOS/Linux drag-and-drop fixes) are no
+#   longer patched in; the fork sources replace them. See
+#   `third_party/tao/BITFUN-PATCH.md` and `third_party/wry/BITFUN-PATCH.md`.
+# - The Desktop browser adapter therefore observes navigation outcomes through
+#   Tauri page-load events on macOS instead of Wry's navigation delegate.
+wry = { git = "https://github.com/richerfu/wry" }
+tao = { git = "https://github.com/richerfu/tao", branch = "feat-ohos-webview" }
+tauri = { git = "https://github.com/richerfu/tauri", branch = "feat/open-harmony" }
+tauri-runtime = { git = "https://github.com/richerfu/tauri", branch = "feat/open-harmony" }
+tauri-macros = { git = "https://github.com/richerfu/tauri", branch = "feat/open-harmony" }
+tauri-runtime-wry = { git = "https://github.com/richerfu/tauri", branch = "feat/open-harmony" }
 
 [profile.dev]
 # Line tables only: keeps panic backtrace line numbers while shrinking PDB/DWARF
@@ -372,6 +386,12 @@ tauri-utils = { git = "https://github.com/tauri-apps/tauri.git", rev = "7cc68e74
 # Need full debug info for a debugger session? Override per-invocation with
 # CARGO_PROFILE_DEV_DEBUG=2.
 debug = "line-tables-only"
+
+# Build scripts and proc macros run once, on the host, and are never shipped.
+# They do not need debug info, and dropping it halves the size of each
+# build-script executable, which shortens every Windows link step.
+[profile.dev.build-override]
+debug = 0
 
 [profile.release]
 opt-level = 3

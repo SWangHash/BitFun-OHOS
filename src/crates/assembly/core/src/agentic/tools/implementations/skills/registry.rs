@@ -18,7 +18,8 @@ use crate::agentic::workspace::WorkspaceFileSystem;
 #[cfg(feature = "external-sources")]
 use crate::external_sources::{
     deveco_code_configured_skill_roots, deveco_code_project_skill_sources_enabled,
-    opencode_configured_skill_roots, pi_configured_skill_roots, LocalConfiguredSkillRootContribution,
+    opencode_configured_skill_roots, pi_configured_skill_roots,
+    LocalConfiguredSkillRootContribution,
 };
 use crate::infrastructure::get_path_manager_arc;
 use crate::util::errors::{BitFunError, BitFunResult};
@@ -1311,6 +1312,7 @@ impl SkillRegistry {
                     path,
                     source_id: "deveco-code".into(),
                     message,
+                    unsupported_field: None,
                 }
             }));
             let mut scan = Self::scan_configured_ecosystem_candidates_with_diagnostics(

@@ -181,7 +181,7 @@ impl Drop for OperationBudget {
 
 fn reserve_below(counter: &AtomicUsize, maximum: usize) -> bool {
     counter
-        .fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
+        .try_update(Ordering::AcqRel, Ordering::Acquire, |current| {
             (current < maximum).then_some(current + 1)
         })
         .is_ok()
