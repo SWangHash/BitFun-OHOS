@@ -4,5 +4,6 @@ export const workspaceProjectPermissionsDialogAppearanceDescriptor: AppearanceSu
   id: 'workspace-project-permissions-dialog',
   parts: [
     { id: 'root' }, { id: 'grant' }, { id: 'rule' }, { id: 'footer' }, { id: 'addForm' },
+    { id: 'empty' },
   ],
 };

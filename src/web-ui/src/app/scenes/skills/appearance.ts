@@ -28,7 +28,6 @@ export const skillsAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   facets: [
     { id: 'tab', attribute: 'data-bitfun-tab', values: ['installed', 'discover'] },
     { id: 'category', attribute: 'data-bitfun-category', values: ['all', 'builtin', 'user', 'project', 'groups', 'matrix'] },
-    { id: 'level', attribute: 'data-bitfun-level', values: ['user', 'project'] },
   ],
   states: [
     { id: 'hover', selector: { kind: 'self', suffix: ':hover' } },

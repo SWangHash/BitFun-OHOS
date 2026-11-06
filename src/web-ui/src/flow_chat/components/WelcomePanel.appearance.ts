@@ -18,8 +18,6 @@ export const welcomePanelAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'openWorkspaceAction', propertyProfile: 'control', visualRole: 'control' },
     { id: 'workspaceAction', propertyProfile: 'control', visualRole: 'control' },
     { id: 'workspaceMenu', propertyProfile: 'overlay', visualRole: 'popup' },
-    { id: 'workspaceItem', propertyProfile: 'control', visualRole: 'control' },
-    { id: 'summary', propertyProfile: 'container', visualRole: 'content' },
     { id: 'cowork', visualRole: 'content' },
   ],
   states: [

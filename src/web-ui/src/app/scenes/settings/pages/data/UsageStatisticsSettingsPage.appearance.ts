@@ -7,7 +7,6 @@ export const usageStatisticsConfigAppearanceDescriptor: AppearanceSurfaceDescrip
     { id: 'overview' },
     { id: 'summary' },
     { id: 'activityPanel' },
-    { id: 'details' },
     { id: 'distributions' },
     { id: 'details' },
     { id: 'trendPanel' },
