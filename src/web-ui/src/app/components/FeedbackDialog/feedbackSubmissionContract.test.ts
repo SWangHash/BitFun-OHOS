@@ -12,7 +12,7 @@ describe('OpenHarmony feedback submission contract', () => {
 
     expect(footer).toContain("systemInfo.platform === 'openharmony'");
     expect(footer).toContain('setShowFeedback(true)');
-    expect(footer).toContain("systemAPI.openExternal('https://gitcode.com/BitFun/bitfun_ade/issues')");
+    expect(footer).toContain("systemAPI.openExternal('https://gitcode.com/OpenBitFun/bitfun_ade/issues')");
   });
 
   it('shows unread attention only for conversations that can be opened and acknowledged', () => {
