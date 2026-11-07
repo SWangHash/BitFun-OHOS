@@ -459,9 +459,10 @@
         // OpenHarmony keeps the native start window visible until the webview
         // paints, so the static splash mirrors it exactly: the same black canvas
         // and light mark, with the mark pinned to the native start-window icon
-        // size and no idle animation. The overlay stays mounted and is faded out
-        // by hideStartupOverlay() as on desktop; the loading hint stays off
-        // because the OHOS host draws its own launch copy.
+        // size and no idle animation. The overlay stays mounted until the shell
+        // hands off and is then dropped in one frame (see the instant-exit class
+        // below); the loading hint stays off because the OHOS host draws its own
+        // launch copy.
         // The fingerprint mirrors isOpenHarmonyRuntime() in
         // src/infrastructure/runtime/environment.ts (this script cannot import).
         var isOhosHost = /(?:openharmony|harmonyos|ohos)/i.test(
@@ -470,6 +471,30 @@
         if (isOhosHost) {
           var ohosSplash = document.querySelector('.splash-screen');
           if (ohosSplash) ohosSplash.classList.add('splash-screen--ohos-brand');
+          // The document itself carries the launch canvas color for the whole
+          // startup. The React shell paints its own opaque surface, so this color
+          // is only ever visible in the gap between dropping the launch overlay and
+          // the shell's first paint — and that gap must be the launch black. With
+          // the theme surface color there (`--bitfun-color-surface-chrome`, which
+          // the first script seeds from the color scheme) the gap showed up as a
+          // white frame on a light theme and stayed invisible on a dark one.
+          // `important` keeps the appearance runtime and the early body paint below
+          // from replacing it. Windows that own a transparent page (desktop cards)
+          // keep the shared behavior.
+          if (!isDesktopCardWindow) {
+            document.documentElement.style.setProperty('background-color', '#000000', 'important');
+            if (document.body) {
+              document.body.style.setProperty('background-color', '#000000', 'important');
+            }
+          }
+          // The launch surface stays one constant icon on one constant background
+          // for the whole load, then leaves. It must never fade: the shell behind
+          // it is light, so an exit fade reads as the launch background turning
+          // white before the app is actually up. hideStartupOverlay() takes this
+          // class as "remove the layer in one frame".
+          if (startupOverlay) {
+            startupOverlay.classList.add('bitfun-startup-overlay--instant-exit');
+          }
           // Mirror the native start window draw rule: the icon is scaled by
           // min(winW/iconW, winH/iconH) and never scaled up, i.e. it covers
           // min(240, winW, winH) physical pixels. Convert to CSS px by the

@@ -82,6 +82,13 @@ const OHOS_DECOR_HEIGHT = 45;
 // launch surface. The app shell reveals it with the startup handoff; this timer
 // only covers a web view that never reports one.
 const STARTUP_WINDOW_CHROME_WATCHDOG_MS = 20000;
+// The ability window keeps the system default (white) background until the launch
+// page paints, which flashes white between the black system start window
+// (`startWindowBackground`) and the launch surface. The window is pinned to the
+// same launch constant, so every frame from the first mapped one is black and the
+// whole startup stays one icon on one background color. Must stay identical to
+// resources/{base,dark}/element/color.json `start_window_background`.
+const SPLASH_WINDOW_BACKGROUND: string = '#000000';
 
 interface SetAlwaysOnTopArg {
   isTopmost: boolean;
@@ -183,19 +190,15 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
       this.localModelKeepAlive.start(this.context);
     }
     this.resolveSystemColorMode(this.context?.config?.colorMode);
-    // Publish the launch-page mirror appearance for the ArkUI page (see
+    // Publish the launch-page mirror icon for the ArkUI page (see
     // oh-rs-ability/.../DefaultXComponent), which renders it while the webview
     // boots. The system start window is drawn by the AbilityMgr process, which
     // resolves its color mode from the system and ignores application-level
     // overrides, so the launch surface is pinned to a single constant color
     // (`start_window_background` is #000000 in both base/ and dark/, with one
-    // light mark); the mirror takes the same resources, so the system start
-    // window and the mirror can never diverge.
+    // light mark); the mirror uses the same constants, so the system start
+    // window, the launch page and the web overlay can never diverge.
     AppStorage.setOrCreate<ResourceStr>('bitfunStartupSplashIcon', $r('app.media.bitfun_start_window'));
-    AppStorage.setOrCreate<ResourceColor>(
-      'bitfunStartupSplashBackground',
-      $r('app.color.start_window_background'),
-    );
     // Files dragged out of another app (WeChat and other sandboxes) only carry a
     // URI that is valid inside the source app, so the vendored ArkWeb drop
     // bridge stages those URIs into this cache dir before handing the web-ui a
@@ -585,6 +588,16 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     // not to the launch surface, so it stays hidden until the shell reports that
     // the startup handoff finished (`set_decorations_ohos`).
     this.setNativeTitleButtonsVisible(false, 'startup');
+    // Re-assert the launch canvas on the window itself. Like the decor calls
+    // above, a background set before the launch page existed can be dropped, and
+    // a window frame that falls back to its default (white) background shows
+    // through wherever the launch page has not painted yet.
+    try {
+      mainWin.setWindowBackgroundColor(SPLASH_WINDOW_BACKGROUND);
+    } catch (e) {
+      const be = e as BusinessError;
+      hilog.warn(DOMAIN, 'BitFunStartup', `window background re-assert failed: ${be.message}`);
+    }
     try {
       const density = display.getDefaultDisplaySync().densityPixels;
       const scale = density > 0 ? density : 1;
@@ -623,6 +636,18 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     // launch-page handoff (see the deferred block).
     this.mainWindowStage = windowStage;
     this.setNativeTitleButtonsVisible(false, 'startup-sync');
+    // Paint the window frame itself black for the whole launch. The system start
+    // window owns the first frames; the moment it goes away the window's own
+    // background shows through until the launch page paints, and its default is
+    // white, which read as the launch background turning white mid-startup. This
+    // is the first synchronous step, before the launch-page load below, so the
+    // handoff frame cannot be white.
+    try {
+      windowStage.getMainWindowSync().setWindowBackgroundColor(SPLASH_WINDOW_BACKGROUND);
+    } catch (error) {
+      const businessError = error as BusinessError;
+      hilog.warn(DOMAIN, 'BitFunStartup', `window background setup failed: ${businessError.message}`);
+    }
     windowStage.setWindowRectAutoSave(true).catch((error: BusinessError) => {
       hilog.warn(DOMAIN, 'window', `setWindowRectAutoSave failed: ${error.message}`);
     });

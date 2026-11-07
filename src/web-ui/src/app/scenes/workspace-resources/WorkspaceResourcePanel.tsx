@@ -23,6 +23,13 @@ import { resolveResourceWorkspace, useNavSceneStore } from '../../stores/navScen
 import type { WorkspaceInfo } from '@/shared/types';
 import '../file-viewer/FileViewerNav.scss';
 
+/**
+ * The workspace resources navigation renders the file tree only. The terminals
+ * section below it, its split divider and the shell picker stay implemented but
+ * are not mounted; flip this flag to bring the section back.
+ */
+const SHOW_TERMINALS_SECTION: boolean = false;
+
 export default function WorkspaceResourcePanel() {
   const { activeWorkspace, openedWorkspaces } = useWorkspaceContext();
   const target = useNavSceneStore(state => state.resourceWorkspace);
@@ -61,7 +68,8 @@ function WorkspaceResourceContent({ resourceKey, workspace }: { resourceKey: str
   const filesId = useId();
   const terminalsId = useId();
   const split = useResourceSplit(container, layout.terminalFraction, fraction => updateLayout(resourceKey, { terminalFraction: fraction }));
-  const hasTerminalContent = terminals.entries.length > 0 || Boolean(terminals.error || actionError);
+  const hasTerminalContent = SHOW_TERMINALS_SECTION
+    && (terminals.entries.length > 0 || Boolean(terminals.error || actionError));
   const showSplit = !layout.filesCollapsed && !layout.terminalsCollapsed && hasTerminalContent;
   const isRemote = workspace?.workspaceKind === 'remote';
 
@@ -70,7 +78,7 @@ function WorkspaceResourceContent({ resourceKey, workspace }: { resourceKey: str
     return () => { mounted.current = false; };
   }, []);
   useEffect(() => {
-    if (isRemote) return;
+    if (isRemote || !SHOW_TERMINALS_SECTION) return;
     let cancelled = false;
     void getTerminalService().getAvailableShells().then(items => {
       if (!cancelled && scope.isCurrent()) setShells(items.filter(item => item.available));
@@ -146,45 +154,47 @@ function WorkspaceResourceContent({ resourceKey, workspace }: { resourceKey: str
                     viewMode={layout.fileView} onViewModeChange={fileView => updateLayout(resourceKey, { fileView })} />
                 </div>
               </section>
-              {showSplit && <div className="bitfun-file-viewer-nav__divider" role="separator" tabIndex={0}
-                data-bitfun-component="file-viewer-nav" data-bitfun-part="divider"
-                aria-label={t('nav.resources.resize')} aria-orientation="horizontal" aria-controls={terminalsId}
-                aria-valuemin={15} aria-valuemax={75} aria-valuenow={Math.round(split.fraction * 100)}
-                {...split.handlers} />}
-              <section className="bitfun-file-viewer-nav__section bitfun-file-viewer-nav__section--terminals" aria-label={t('nav.resources.terminals')}
-                style={{ flex: layout.terminalsCollapsed || !hasTerminalContent ? '0 0 auto' : showSplit ? `${split.fraction} 1 0` : '1 1 0' }}>
-                <div className="bitfun-file-viewer-nav__header" data-bitfun-component="file-viewer-nav" data-bitfun-part="header">
-                  <button type="button" data-overflow-trigger className="bitfun-file-viewer-nav__section-toggle" aria-expanded={!layout.terminalsCollapsed}
-                    aria-controls={terminalsId} onClick={() => updateLayout(resourceKey, { terminalsCollapsed: !layout.terminalsCollapsed })}>
-                    <Icon name={layout.terminalsCollapsed ? 'chevron-right' : 'chevron-down'} size="xs" />
-                    <OverflowText className="bitfun-file-viewer-nav__section-label">{t('nav.resources.terminals')}</OverflowText>
-                    {terminals.entries.length > 0 && <span className="bitfun-file-viewer-nav__count">{formatNumber(terminals.entries.length)}</span>}
-                  </button>
-                  <div className="bitfun-file-viewer-nav__actions" data-bitfun-component="file-viewer-nav" data-bitfun-part="actions">
-                    <Tooltip content={t('nav.shell.actions.refresh')}><IconButton size="xs" aria-label={t('nav.shell.actions.refresh')} icon={<RotateCw />}
-                      disabled={busy || terminals.loading} onClick={() => run(terminals.refresh)} /></Tooltip>
-                    <Tooltip content={t('nav.shell.actions.newTerminal')}><IconButton size="xs" aria-label={t('nav.shell.actions.newTerminal')} icon={<Icon name="plus" size="xs" />}
-                      disabled={busy} onClick={() => createTerminal()} /></Tooltip>
-                    {!isRemote && shells.length > 1 && <IconButton size="xs" aria-label={t('nav.resources.chooseShell')} aria-haspopup="menu"
-                      icon={<Icon name="chevron-down" size="xs" />} disabled={busy}
-                      onClick={event => showResourceMenu(event, shells.map(shell => ({
-                        id: shell.id, label: shell.version ? `${shell.name} ${shell.version}` : shell.name,
-                        onClick: () => createTerminal(shell.shellType, shell.id),
-                      })))} />}
+              {SHOW_TERMINALS_SECTION && <>
+                {showSplit && <div className="bitfun-file-viewer-nav__divider" role="separator" tabIndex={0}
+                  data-bitfun-component="file-viewer-nav" data-bitfun-part="divider"
+                  aria-label={t('nav.resources.resize')} aria-orientation="horizontal" aria-controls={terminalsId}
+                  aria-valuemin={15} aria-valuemax={75} aria-valuenow={Math.round(split.fraction * 100)}
+                  {...split.handlers} />}
+                <section className="bitfun-file-viewer-nav__section bitfun-file-viewer-nav__section--terminals" aria-label={t('nav.resources.terminals')}
+                  style={{ flex: layout.terminalsCollapsed || !hasTerminalContent ? '0 0 auto' : showSplit ? `${split.fraction} 1 0` : '1 1 0' }}>
+                  <div className="bitfun-file-viewer-nav__header" data-bitfun-component="file-viewer-nav" data-bitfun-part="header">
+                    <button type="button" data-overflow-trigger className="bitfun-file-viewer-nav__section-toggle" aria-expanded={!layout.terminalsCollapsed}
+                      aria-controls={terminalsId} onClick={() => updateLayout(resourceKey, { terminalsCollapsed: !layout.terminalsCollapsed })}>
+                      <Icon name={layout.terminalsCollapsed ? 'chevron-right' : 'chevron-down'} size="xs" />
+                      <OverflowText className="bitfun-file-viewer-nav__section-label">{t('nav.resources.terminals')}</OverflowText>
+                      {terminals.entries.length > 0 && <span className="bitfun-file-viewer-nav__count">{formatNumber(terminals.entries.length)}</span>}
+                    </button>
+                    <div className="bitfun-file-viewer-nav__actions" data-bitfun-component="file-viewer-nav" data-bitfun-part="actions">
+                      <Tooltip content={t('nav.shell.actions.refresh')}><IconButton size="xs" aria-label={t('nav.shell.actions.refresh')} icon={<RotateCw />}
+                        disabled={busy || terminals.loading} onClick={() => run(terminals.refresh)} /></Tooltip>
+                      <Tooltip content={t('nav.shell.actions.newTerminal')}><IconButton size="xs" aria-label={t('nav.shell.actions.newTerminal')} icon={<Icon name="plus" size="xs" />}
+                        disabled={busy} onClick={() => createTerminal()} /></Tooltip>
+                      {!isRemote && shells.length > 1 && <IconButton size="xs" aria-label={t('nav.resources.chooseShell')} aria-haspopup="menu"
+                        icon={<Icon name="chevron-down" size="xs" />} disabled={busy}
+                        onClick={event => showResourceMenu(event, shells.map(shell => ({
+                          id: shell.id, label: shell.version ? `${shell.name} ${shell.version}` : shell.name,
+                          onClick: () => createTerminal(shell.shellType, shell.id),
+                        })))} />}
+                    </div>
                   </div>
-                </div>
-                <div id={terminalsId} hidden={layout.terminalsCollapsed} className="bitfun-file-viewer-nav__section-body">
-                  {error && <div className="bitfun-file-viewer-nav__error" role="alert" title={error}
-                    data-bitfun-component="file-viewer-nav" data-bitfun-part="error">
-                    <span>{actionError ? t('nav.resources.actionFailed', { error: actionError }) : t('nav.resources.unavailable')}</span>
-                    <IconButton size="xs" aria-label={t('nav.shell.actions.refresh')} icon={<RotateCw />} disabled={busy}
-                      onClick={() => run(terminals.refresh)} />
-                  </div>}
-                  <WorkspaceTerminals terminals={terminals} busy={busy} selectedId={selectedTerminal} onSelect={setSelectedTerminal}
-                    run={run} onReveal={revealDirectory}
-                    canReveal={path => isTerminalPathInside(path, workspace.rootPath, isRemote)} />
-                </div>
-              </section>
+                  <div id={terminalsId} hidden={layout.terminalsCollapsed} className="bitfun-file-viewer-nav__section-body">
+                    {error && <div className="bitfun-file-viewer-nav__error" role="alert" title={error}
+                      data-bitfun-component="file-viewer-nav" data-bitfun-part="error">
+                      <span>{actionError ? t('nav.resources.actionFailed', { error: actionError }) : t('nav.resources.unavailable')}</span>
+                      <IconButton size="xs" aria-label={t('nav.shell.actions.refresh')} icon={<RotateCw />} disabled={busy}
+                        onClick={() => run(terminals.refresh)} />
+                    </div>}
+                    <WorkspaceTerminals terminals={terminals} busy={busy} selectedId={selectedTerminal} onSelect={setSelectedTerminal}
+                      run={run} onReveal={revealDirectory}
+                      canReveal={path => isTerminalPathInside(path, workspace.rootPath, isRemote)} />
+                  </div>
+                </section>
+              </>}
             </div>
           )}
         </NavigationPanelContent>

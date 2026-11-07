@@ -1714,6 +1714,27 @@ $_section-header-height: 22px;
   }
 }
 
+/*
+ * Positioning-only overrides for the theme submenu; the design-system Menu owns
+ * the surface look.
+ *
+ * The submenu portals into the same host as the footer menu that opened it, but
+ * the portalled layer is a viewport-sized box, so the anchor rectangle measured
+ * by the component only lands the submenu when this root is out of flow. Without
+ * `position: fixed` its inline `left`/`top` are ignored and it lays out at the
+ * static origin of that layer, i.e. the top-left corner of the window.
+ */
+.bitfun-nav-panel__appearance-submenu {
+  position: fixed;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  transform-origin: top left;
+
+  &[data-placement='left'] {
+    transform-origin: top right;
+  }
+}
+
 // ──────────────────────────────────────────────
 // Device overview — one compact model, local and connected states
 // ──────────────────────────────────────────────

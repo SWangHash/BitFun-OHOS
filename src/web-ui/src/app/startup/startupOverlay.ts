@@ -2,6 +2,11 @@ import { handOverHostWindowChromeToAppSurface } from './hostWindowChrome';
 
 const STARTUP_OVERLAY_ID = 'bitfun-startup-overlay';
 const EXIT_CLASS = 'bitfun-startup-overlay--exiting';
+// Set by index.html on HarmonyOS. The shell behind the constant black launch
+// canvas is light, so fading the layer out reads as the launch background turning
+// white while the app is still coming up. There the layer is removed in one frame
+// instead: one icon on one background color until the handoff, then gone.
+const INSTANT_EXIT_CLASS = 'bitfun-startup-overlay--instant-exit';
 const EXIT_FALLBACK_MS = 350;
 
 declare global {
@@ -75,6 +80,15 @@ export async function hideStartupOverlay(): Promise<void> {
   // first React render, so this usually resolves without waiting — see
   // hostWindowChrome.ts.
   await handOverHostWindowChromeToAppSurface();
+
+  if (overlay.classList.contains(INSTANT_EXIT_CLASS)) {
+    // HarmonyOS: keep the launch surface fully opaque for the whole load and drop
+    // it in a single frame. No exit animation, no blur/inert pass, no fade — the
+    // shell behind it is light, and any transition would show the launch
+    // background changing color before the app is visible.
+    overlay.remove();
+    return;
+  }
 
   overlay.classList.add(EXIT_CLASS);
   // Static startup window controls can still own focus when the React shell

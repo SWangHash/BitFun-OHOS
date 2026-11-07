@@ -22,6 +22,12 @@ The top navigation title shows the browse target's project name. Files and termi
 sit directly below it, without a duplicate project row or location badge. Use the
 main navigation's folder actions to browse another project.
 
+The panel currently mounts the files section only. The terminals section below it, its
+split divider and the shell picker remain implemented in `WorkspaceResourcePanel` and
+`WorkspaceTerminals`, gated by `SHOW_TERMINALS_SECTION`; the file tree takes the whole
+panel height while that switch is off. The terminal rules below still describe the code
+that owns terminals, and apply again once the section is rendered.
+
 `WorkspaceResourcePanel` passes the resolved workspace to `FilesPanel` and the shared
 Shell hooks. File reads, downloads, mutations, menus and terminal opens carry that
 origin, including its SSH connection. Main conversations and their canvas snapshots

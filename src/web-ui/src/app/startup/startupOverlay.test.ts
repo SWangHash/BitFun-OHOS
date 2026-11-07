@@ -51,6 +51,20 @@ describe('startupOverlay', () => {
     expect(isStartupOverlayPresent()).toBe(false);
   });
 
+  it('drops the launch layer in one frame when the host marks the instant exit', async () => {
+    vi.useFakeTimers();
+    document.body.innerHTML =
+      '<div id="bitfun-startup-overlay" class="bitfun-startup-overlay--instant-exit"></div>';
+
+    const hidden = hideStartupOverlay();
+    await vi.advanceTimersByTimeAsync(0);
+
+    // No exiting class and no animation wait: the layer is gone on the same
+    // handoff, so the launch background never changes color behind it.
+    expect(isStartupOverlayPresent()).toBe(false);
+    await hidden;
+  });
+
   it('releases startup-overlay focus before hiding the exiting overlay', async () => {
     vi.useFakeTimers();
     document.body.innerHTML = `
