@@ -5,7 +5,7 @@ import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
 import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
 import { createLogger } from '@/shared/utils/logger';
 import { scheduleAfterStartupSignal } from '@/shared/utils/startupTaskScheduling';
-import { canAutoCheckForAppUpdates, canCheckForAppUpdates } from './tauriEnv';
+import { canAutoCheckForAppUpdates, canShowAppUpdateEntry } from './tauriEnv';
 import { getSkippedVersion, getAppUpdateReminderAt, recordAppUpdatePresented, shouldShowDailyUpdatePrompt } from './appUpdateStorage';
 import { UpdateInstallProgressModal } from './UpdateInstallProgressModal';
 import { useUpdateInstallStore } from './updateInstallStore';
@@ -20,12 +20,15 @@ const log = createLogger('DailyAppUpdate');
 export function DailyAppUpdateGate(): ReactElement | null {
   const state = useUpdateInstallStore();
   const modalOpen = useHasModalOverlay();
+  // Windows and macOS update entries are temporarily disabled; only HarmonyOS
+  // keeps the AppGallery check. See `canShowAppUpdateEntry`.
+  const entryEnabled = canShowAppUpdateEntry();
   const ohos = isOpenHarmonyRuntime();
   const [started, setStarted] = useState(false);
   const startupCheckPending = useRef(true);
 
   useEffect(() => {
-    if (ohos || !canCheckForAppUpdates()) return;
+    if (ohos || !entryEnabled) return;
     const onStorage = (event: StorageEvent) => {
       if (event.key !== null && !event.key.startsWith('bitfun:update:')) return;
       const skippedVersion = getSkippedVersion();
@@ -41,7 +44,7 @@ export function DailyAppUpdateGate(): ReactElement | null {
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
-  }, [ohos]);
+  }, [entryEnabled, ohos]);
 
   // OHOS updates are handled by the system AppGallery flow: the check itself
   // shows the system update dialog when an update exists, and HAP installs
@@ -50,7 +53,7 @@ export function DailyAppUpdateGate(): ReactElement | null {
   // `get_pending_update` read must not surface as a startup "update failed"
   // dialog on OHOS.
   useEffect(() => {
-    if (!ohos || !canCheckForAppUpdates()) return;
+    if (!ohos || !entryEnabled) return;
     let cancelled = false;
     const cancelStartupSchedule = scheduleAfterStartupSignal(() => {
       void systemAPI.checkForUpdatesOhos().then((result) => {
@@ -69,7 +72,7 @@ export function DailyAppUpdateGate(): ReactElement | null {
       cancelled = true;
       cancelStartupSchedule();
     };
-  }, [ohos]);
+  }, [entryEnabled, ohos]);
 
   useEffect(() => {
     if (ohos || !canAutoCheckForAppUpdates()) return;
@@ -141,10 +144,10 @@ export function DailyAppUpdateGate(): ReactElement | null {
       window.removeEventListener('blur', onResume);
       document.removeEventListener('visibilitychange', onResume);
     };
-  }, [ohos, started, state.checkStatus, state.lastCheckedAt, state.lastCheckAttemptAt, state.consecutiveCheckFailures, state.status]);
+  }, [entryEnabled, ohos, started, state.checkStatus, state.lastCheckedAt, state.lastCheckAttemptAt, state.consecutiveCheckFailures, state.status]);
 
   useEffect(() => {
-    if (ohos || !canCheckForAppUpdates() || !state.initialized) return;
+    if (ohos || !entryEnabled || !state.initialized) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const present = () => {
       clearTimeout(timer);
@@ -169,9 +172,9 @@ export function DailyAppUpdateGate(): ReactElement | null {
       window.removeEventListener('focus', present);
       document.removeEventListener('visibilitychange', present);
     };
-  }, [modalOpen, ohos, state.initialized, state.status, state.version, state.availableUpdate, state.detailsOpen, state.promptOpen, state.reminderRevision]);
+  }, [entryEnabled, modalOpen, ohos, state.initialized, state.status, state.version, state.availableUpdate, state.detailsOpen, state.promptOpen, state.reminderRevision]);
 
-  if (ohos || !canCheckForAppUpdates()) return null;
+  if (ohos || !entryEnabled) return null;
 
   return (
     <>

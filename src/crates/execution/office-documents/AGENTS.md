@@ -19,12 +19,14 @@ shapes (Markdown/blocks for Word, the workbook cell DSL for Excel, the
 
 ## Contracts
 
-- Every package carries its editable model in `openbitfun/genoffice.json`
+- Every package carries its editable model in `bitfun/genoffice.json`
   (package relationship type
-  `http://schemas.openbitfun.com/genoffice/2026/relationships/source`), with a
-  fingerprint of the rendered parts. Reopening refuses packages without the
-  part (`not_generated`) and packages another program changed
-  (`externally_modified`) unless the caller opts to discard those changes.
+  `https://schemas.bitfun.com/genoffice/2026/relationships/source`), with a
+  fingerprint of the rendered parts. Packages written before the brand rename
+  used `openbitfun/genoffice.json` and the `openbitfun.genoffice` schema; they
+  stay readable and are rewritten under the current names. Reopening refuses
+  packages without the part (`not_generated`) and packages another program
+  changed (`externally_modified`) unless the caller opts to discard those changes.
 - The stored model is read by older and newer versions: model structs keep
   unknown fields (`extra`) and round-trip them; new fields need defaults. The
   envelope `version` gates incompatible changes. Operation input, in contrast,

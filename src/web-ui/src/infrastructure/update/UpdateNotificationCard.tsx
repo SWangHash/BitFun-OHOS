@@ -3,7 +3,7 @@ import { ActionItem, Button, Card, CardBody, CardFooter, CardHeader, Icon, IconB
 import { useEffect, useMemo, useRef, type MouseEvent } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import { getVersionInfo } from '@/shared/utils/version';
-import { canCheckForAppUpdates } from './tauriEnv';
+import { canShowAppUpdateEntry } from './tauriEnv';
 import { useUpdateInstallStore, type UpdateNotice } from './updateInstallStore';
 import { formatUpdateInstallError, isUpdateVersionChangedError } from './updateErrorMessage';
 import { getUpdateIntroduction } from './updateReleaseNotes';
@@ -161,6 +161,6 @@ function UpdateNoticeCard({ notice }: { notice: UpdateNotice }) {
 export function UpdateNotificationCard() {
   const notice = useUpdateInstallStore(state => state.notice);
   const detailsOpen = useUpdateInstallStore(state => state.detailsOpen);
-  if (!canCheckForAppUpdates() || !notice || detailsOpen) return null;
+  if (!canShowAppUpdateEntry() || !notice || detailsOpen) return null;
   return <OverlayLayer passive><UpdateNoticeCard notice={notice} /></OverlayLayer>;
 }

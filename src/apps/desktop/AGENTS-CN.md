@@ -57,6 +57,12 @@ OHOS 产品目标由本目录与 `src/apps/ohos` 维护，上游仓库不包含�
   `src/apps/ohos/.../BrowserWebviewService.ets`）、隐私启动装配
   （`lib.rs` 中的 `PrivacyServiceState::enabled`）以及应用更新
   （`api/ohos/update.rs`、`check_for_updates_ohos`、`DailyAppUpdateGate.tsx`）。
+- 应用内更新入口目前只在鸿蒙上开放。Windows 和 macOS 保留已实现的分阶段更新
+  逻辑，但不得暴露任何更新按钮、菜单项、角标、通知或自动检查：
+  `src/web-ui/src/infrastructure/update/tauriEnv.ts` 中的
+  `canShowAppUpdateEntry()` 是唯一门控，必须保持
+  `canCheckForAppUpdates() && isOpenHarmonyRuntime()`。没有明确的产品决定前，
+  不要恢复桌面端更新入口。
 - 内置浏览器在 OHOS 上有两条路径：展示走 `browser_webview_*` → ArkTS
   `BrowserWebviewService`；自动化走 `lib.rs` 中注册的 `ArkWebBrowserHost` /
   `HaitaiBrowserLaunchHost`。`arkweb_host.rs` 只有通过 `mod.rs` 的门控才会被编译，

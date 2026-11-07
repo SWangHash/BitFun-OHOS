@@ -77,7 +77,7 @@ apply the device-control encryption claim to all BitFun network traffic.
 This repository documents technical resource controls, but does not publish a
 Relay pricing schedule, monthly traffic allowance, or service-level agreement
 (SLA). Check current service announcements or ask the maintainers through the
-[repository](https://github.com/GCWing/OpenBitFun) before relying on specific
+[repository](https://github.com/SWangHash/BitFun-OHOS) before relying on specific
 commercial or availability terms. Open-source licensing does not establish
 hosted-service terms.
 

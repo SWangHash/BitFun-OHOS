@@ -63,7 +63,7 @@ Relay 仍会处理账号 ID、设备注册信息、公钥、在线状态与路�
 
 仓库记录了技术资源限制，但没有发布 Relay 价目表、月度流量额度或服务等级协议
 （SLA）。依赖具体费用或可用性条款前，请查阅当期服务公告，或通过
-[项目仓库](https://github.com/GCWing/OpenBitFun)向维护者核实。开源许可证不能
+[项目仓库](https://github.com/SWangHash/BitFun-OHOS)向维护者核实。开源许可证不能
 代替托管服务的运营条款。
 
 [资源限制表](README.md#public-service-resource-controls)列出了设备、连接、

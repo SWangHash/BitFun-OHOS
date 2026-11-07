@@ -41,6 +41,11 @@ workspace connections remain independent of Relay sign-in.
 ## Local rules
 
 - Do not call Tauri APIs directly from UI components; go through the adapter / infrastructure layer
+- In-app update entries are HarmonyOS-only for now. Windows and macOS must not
+  render an update button, menu item, badge, notification, or automatic check;
+  gate every surface through `canShowAppUpdateEntry()` in
+  `src/infrastructure/update/tauriEnv.ts` instead of adding a local platform
+  check.
 - Reuse `@bitfun/ui`, design tokens, theme, i18n, and Zustand stores before adding new frontend primitives
 - Floating UI uses `Portal` / `createOverlayPortal` from `@bitfun/ui`, never raw React portals or category z-index overrides. Declare `ownerRef` for sibling/coordinate child surfaces, pass `open` during retained exits, and use `useDismissibleLayer` or `subscribeOverlayInteraction` for shared event ownership. Notification stacks use neutral `OverlayRegion` layout with independently ranked cards.
 - Menu and Listbox own row spacing through `overlay.menu.rowGap`. Use `MenuList` for menu rows inside custom scroll/animation wrappers, rather than local item margins or private list-gap overrides. Check menu composition changes with `pnpm --dir src/web-ui run test:run src/shared/ui/MenuComposition.contract.test.ts`.

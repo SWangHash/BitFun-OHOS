@@ -16,6 +16,12 @@ vi.mock('@/infrastructure/api/service-api/SystemAPI', () => ({ systemAPI: {
   checkForUpdates: mocks.check, getLocalAppVersion: mocks.current, getPendingUpdate: mocks.pending,
 } }));
 vi.mock('./installUpdateWithProgress', () => ({ installUpdateWithProgress: mocks.download }));
+const updateGate = vi.hoisted(() => ({ visible: true }));
+vi.mock('./tauriEnv', () => ({
+  canCheckForAppUpdates: () => updateGate.visible,
+  canAutoCheckForAppUpdates: () => updateGate.visible && !import.meta.env.DEV,
+  canShowAppUpdateEntry: () => updateGate.visible,
+}));
 vi.mock('@/shared/notification-system/services/NotificationService', () => ({ notificationService: mocks.notifications }));
 vi.mock('@/shared/utils/logger', () => ({ createLogger: () => ({ error: vi.fn(), warn: vi.fn() }) }));
 vi.mock('@/infrastructure/i18n', () => ({ useI18n: () => ({
@@ -36,6 +42,7 @@ const release = (version = '2.0.0') => ({ updateAvailable: true, currentVersion:
 beforeEach(async () => {
   vi.stubEnv('DEV', true);
   vi.stubGlobal('__TAURI__', {});
+  updateGate.visible = true;
   mocks.check.mockReset().mockResolvedValue(release());
   mocks.current.mockReset().mockResolvedValue('1.0.0');
   mocks.pending.mockReset().mockResolvedValue(null);
@@ -245,8 +252,9 @@ it('delivers an available release through the existing card after the menu is cl
   expect(mocks.closeMenu).not.toHaveBeenCalled();
 });
 
-it('omits desktop update actions on unsupported surfaces', () => {
-  Reflect.deleteProperty(window, '__TAURI__');
+it('omits desktop update actions on unsupported surfaces', async () => {
+  updateGate.visible = false;
+  await act(async () => root.render(<Menu><UpdateMenuItems onCloseMenu={mocks.closeMenu} /></Menu>));
   act(() => useUpdateInstallStore.setState({ lastCheckedAt: Date.now() }));
   expect(container.querySelector('[data-testid="nav-check-updates"]')).toBeNull();
   expect(container.querySelector('[data-testid="app-update-indicator"]')).toBeNull();

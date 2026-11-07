@@ -865,7 +865,8 @@ export const acpClosedFeatureProfileRules = [
       // The bundled DeepSeek Harness profile: `dirs` locates $DSH_HOME,
       // `semver` compares the build's minimum dsh version against the installed
       // one, and `tar` packs the profile for a remote workspace, which receives
-      // it as one stream over its own transport. All three are client-only â€?      // the server surface never launches an agent.
+      // it as one stream over its own transport. All three are client-only â€”
+      // the server surface never launches an agent.
       'dep:dirs',
       'dep:semver',
       'dep:tar',

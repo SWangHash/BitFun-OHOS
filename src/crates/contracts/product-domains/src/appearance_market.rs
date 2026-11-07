@@ -405,13 +405,13 @@ mod tests {
         assert_eq!(decoded, draft);
     }
 
-    /// Rewrites a canonical minimum-version key to the legacy BitFun-era wire
+    /// Rewrites the canonical minimum-version key to the legacy BitFun-era wire
     /// name that the alias still accepts on read.
     fn rename_min_version_field(
         object: &mut serde_json::Map<String, serde_json::Value>,
-        canonical: &str,
+        legacy: &str,
     ) {
-        let value = object.remove(canonical).unwrap();
-        object.insert("minOpenBitFunVersion".to_string(), value);
+        let value = object.remove("minOpenBitFunVersion").unwrap();
+        object.insert(legacy.to_string(), value);
     }
 }

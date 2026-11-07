@@ -26,7 +26,7 @@ import {
 } from '@/infrastructure/account/accountErrorUtils';
 import { useNotification } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
-import { canCheckForAppUpdates } from '@/infrastructure/update/tauriEnv';
+import { canShowAppUpdateEntry } from '@/infrastructure/update/tauriEnv';
 import { useUpdateInstallStore } from '@/infrastructure/update/updateInstallStore';
 import {
   classifyRelayFailure,
@@ -141,7 +141,7 @@ interface FailureBannerProps {
  * offering an action that cannot run.
  */
 const failureBannerAction = (failure: PanelFailure): RelayFailureAction | null => (
-  failure.action === 'retry' || (failure.action === 'check-updates' && canCheckForAppUpdates())
+  failure.action === 'retry' || (failure.action === 'check-updates' && canShowAppUpdateEntry())
     ? failure.action
     : null
 );

@@ -2,7 +2,7 @@ import { createOverlayPortal, Icon, IconButton, Tooltip } from '@bitfun/ui';
 import { useLayoutEffect, useRef, useState } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
-import { canCheckForAppUpdates } from './tauriEnv';
+import { canShowAppUpdateEntry } from './tauriEnv';
 import { useUpdateInstallStore } from './updateInstallStore';
 import { getUpdateDownloadFraction, selectUpdateDownloadStatus } from './updateDownloadProgress';
 import { getUpdateDownloadOrigin, runUpdateDownloadHandoff } from './updateDownloadMotion';
@@ -12,7 +12,7 @@ import './UpdateDownloadIndicator.scss';
 export function UpdateDownloadIndicator() {
   const { t, formatNumber } = useI18n('common');
   const state = useUpdateInstallStore();
-  const status = canCheckForAppUpdates() ? selectUpdateDownloadStatus(state) : null;
+  const status = canShowAppUpdateEntry() ? selectUpdateDownloadStatus(state) : null;
   const buttonRef = useRef<HTMLButtonElement>(null);
   const vesselRef = useRef<HTMLSpanElement>(null);
   const [transferElement, setTransferElement] = useState<HTMLSpanElement | null>(null);

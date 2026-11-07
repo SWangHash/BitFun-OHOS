@@ -10,7 +10,10 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 pub const MARKET_API_VERSION: &str = "v1";
-pub const MARKET_PACKAGE_CONTENT_TYPE: &str = "application/vnd.openbitfun.miniapp+zip";
+/// Content type of a MiniApp submission archive. Earlier clients sent the
+/// pre-rename `application/vnd.openbitfun.miniapp+zip`; the upload endpoint does
+/// not branch on this header, so both spellings stay accepted.
+pub const MARKET_PACKAGE_CONTENT_TYPE: &str = "application/vnd.bitfun.miniapp+zip";
 pub const MARKET_MAX_PACKAGE_BYTES: u64 = 20 * 1024 * 1024;
 pub const MARKET_MAX_UNCOMPRESSED_BYTES: u64 = 64 * 1024 * 1024;
 pub const MARKET_MAX_SCREENSHOT_BYTES: u64 = 5 * 1024 * 1024;
@@ -420,13 +423,13 @@ mod tests {
         assert_eq!(decoded, draft);
     }
 
-    /// Rewrites a canonical minimum-version key to the legacy BitFun-era wire
+    /// Rewrites the canonical minimum-version key to the legacy BitFun-era wire
     /// name that the alias still accepts on read.
     fn rename_min_version_field(
         object: &mut serde_json::Map<String, serde_json::Value>,
-        canonical: &str,
+        legacy: &str,
     ) {
-        let value = object.remove(canonical).unwrap();
-        object.insert("minBitFunVersion".to_string(), value);
+        let value = object.remove("minOpenBitFunVersion").unwrap();
+        object.insert(legacy.to_string(), value);
     }
 }

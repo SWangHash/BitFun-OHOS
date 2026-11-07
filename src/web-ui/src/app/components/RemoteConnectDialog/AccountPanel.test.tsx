@@ -20,6 +20,12 @@ const mocks = vi.hoisted(() => ({
   t: (key: string) => key,
 }));
 const presenceListeners = vi.hoisted(() => [] as Array<(payload: { devices: Array<Record<string, unknown>> }) => void>);
+const updateEntry = vi.hoisted(() => ({ visible: false }));
+vi.mock('@/infrastructure/update/tauriEnv', () => ({
+  canCheckForAppUpdates: () => updateEntry.visible,
+  canAutoCheckForAppUpdates: () => false,
+  canShowAppUpdateEntry: () => updateEntry.visible,
+}));
 vi.mock('@/infrastructure/account-identity', () => ({
   useAccountIdentity: () => mocks.useAccountIdentity(),
   accountIdentityService: { signIn: mocks.signIn, logout: mocks.logout, reopenSignIn: mocks.reopenSignIn },
@@ -66,6 +72,7 @@ beforeEach(() => {
   mocks.identity = { resolved: true, status: 'signed-in', me: { user: { githubId: 42, login: 'alice' } } };
   mocks.useAccountIdentity.mockImplementation(() => mocks.identity);
   mocks.peerMode = { active: false };
+  updateEntry.visible = false;
   mocks.getDeviceInfo.mockResolvedValueOnce({ device_id: 'local', device_name: 'My computer' })
     .mockImplementation(() => new Promise(() => {}));
   // A second initialization is deliberately held so the regression fails
@@ -172,7 +179,7 @@ it('shows a connection failure while retaining the signed-in account', async () 
 });
 
 it('explains a retired Relay version and offers an update instead of the raw error', async () => {
-  vi.stubGlobal('__TAURI__', {});
+  updateEntry.visible = true;
   mocks.accountStatus.mockReset().mockRejectedValue(
     Object.assign(new Error('List devices failed: HTTP 410'), { status: 410 }),
   );

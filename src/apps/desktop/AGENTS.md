@@ -75,6 +75,12 @@ the OHOS side instead of dropping it:
   `mod.rs`, and `src/apps/ohos/.../BrowserWebviewService.ets`), privacy startup
   wiring (`lib.rs` `PrivacyServiceState::enabled`), and app updates
   (`api/ohos/update.rs`, `check_for_updates_ohos`, `DailyAppUpdateGate.tsx`).
+- In-app update entries are HarmonyOS-only for now. Windows and macOS keep the
+  staged updater implementation but must not expose any update button, menu
+  item, badge, notification, or automatic discovery: `canShowAppUpdateEntry()`
+  in `src/web-ui/src/infrastructure/update/tauriEnv.ts` is the single gate and
+  must stay `canCheckForAppUpdates() && isOpenHarmonyRuntime()`. Do not restore
+  a desktop entry without an explicit product decision.
 - The built-in browser has two OHOS paths: presentation through `browser_webview_*`
   to the ArkTS `BrowserWebviewService`, and automation through
   `ArkWebBrowserHost` / `HaitaiBrowserLaunchHost` registered in `lib.rs`.

@@ -13,6 +13,11 @@ vi.mock('@/infrastructure/api/service-api/SystemAPI', () => ({ systemAPI: {
   getAutoUpdateEnabled: async () => true, onAutoUpdateEnabledChange: () => () => {},
 } }));
 vi.mock('@/shared/utils/startupTaskScheduling', () => ({ scheduleAfterStartupSignal: (start: () => void) => { start(); return () => {}; } }));
+vi.mock('./tauriEnv', () => ({
+  canCheckForAppUpdates: () => true,
+  canAutoCheckForAppUpdates: () => true,
+  canShowAppUpdateEntry: () => true,
+}));
 vi.mock('./installUpdateWithProgress', () => ({ installUpdateWithProgress: vi.fn() }));
 vi.mock('./UpdateInstallProgressModal', () => ({ UpdateInstallProgressModal: () => null }));
 

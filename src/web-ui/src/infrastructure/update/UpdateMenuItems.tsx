@@ -3,7 +3,7 @@ import { Repeat } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import { notificationService } from '@/shared/notification-system/services/NotificationService';
-import { canCheckForAppUpdates } from './tauriEnv';
+import { canShowAppUpdateEntry } from './tauriEnv';
 import { UpdateIndicator } from './UpdateIndicator';
 import { selectHasUpdateAttention, useUpdateInstallStore } from './updateInstallStore';
 import { formatUpdateInstallError } from './updateErrorMessage';
@@ -14,7 +14,7 @@ export function UpdateMenuItems({ onCloseMenu }: { onCloseMenu: () => void }) {
   const state = useUpdateInstallStore();
   const { initialize } = state;
   const mounted = useRef(false);
-  const supported = canCheckForAppUpdates();
+  const supported = canShowAppUpdateEntry();
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => { if (supported) void initialize(); }, [supported, initialize]);
   if (!supported) return null;

@@ -13,10 +13,12 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/infrastructure/runtime', () => ({
   isOpenHarmonyRuntime: () => mocks.isOpenHarmony,
+  isTauriRuntime: () => true,
 }));
 
 vi.mock('@/infrastructure/update/tauriEnv', () => ({
   canCheckForAppUpdates: () => true,
+  canShowAppUpdateEntry: () => true,
   isTauriRuntime: () => true,
 }));
 

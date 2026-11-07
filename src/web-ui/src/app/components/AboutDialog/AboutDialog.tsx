@@ -29,7 +29,7 @@ import {
 import { createLogger } from '@/shared/utils/logger';
 import { systemAPI } from '@/infrastructure/api';
 import type { CheckForUpdatesResponse } from '@/infrastructure/api/service-api/SystemAPI';
-import { canCheckForAppUpdates, isTauriRuntime } from '@/infrastructure/update/tauriEnv';
+import { canShowAppUpdateEntry, isTauriRuntime } from '@/infrastructure/update/tauriEnv';
 import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
 import { UpdateAvailableDialog } from '@/infrastructure/update/UpdateAvailableDialog';
 import { useUpdateInstallStore } from '@/infrastructure/update/updateInstallStore';
@@ -82,7 +82,9 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
   const { version, license } = aboutInfo;
   const nativeRuntime = isTauriRuntime();
   const openHarmonyRuntime = isOpenHarmonyRuntime();
-  const updateChecksAvailable = canCheckForAppUpdates();
+  // Windows and macOS update entries are temporarily disabled; HarmonyOS keeps
+  // the AppGallery check button. See `canShowAppUpdateEntry`.
+  const updateChecksAvailable = canShowAppUpdateEntry();
   // The AppGallery product page resolves from the running build's bundle name
   // through AppGallery Kit, so the review entry point only exists on HarmonyOS.
   const appMarketAvailable = isOpenHarmonyRuntime();
@@ -123,7 +125,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
   useEffect(() => {
     if (!isOpen || !nativeRuntime) return;
     // OHOS has no staged in-app update flow; the AppGallery owns updates.
-    if (canCheckForAppUpdates() && !openHarmonyRuntime) {
+    if (canShowAppUpdateEntry() && !openHarmonyRuntime) {
       void useUpdateInstallStore.getState().initialize();
     }
     let active = true;
@@ -140,32 +142,37 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
   }, [isOpen, nativeRuntime, openHarmonyRuntime]);
 
   const handleCheckForUpdates = useCallback(async () => {
-    if (!canCheckForAppUpdates()) return;
+    if (!canShowAppUpdateEntry()) return;
 
     setManualCheckStatus('idle');
     setManualCheckErrorMessage(null);
     setManualCheckBusy(true);
     try {
-      if (openHarmonyRuntime) {
-        // OHOS: the AppGallery check shows the system update dialog when an
-        // update exists; the in-app install flow stays desktop-only.
-        const ohosRes = await systemAPI.checkForUpdatesOhos();
-        if (ohosRes.error) {
-          setManualCheckErrorMessage(String(ohosRes.error));
-          setManualCheckStatus('error');
-        } else if (!ohosRes.updateAvailable) {
-          setManualCheckStatus('latest');
-        }
-        // updateAvailable === true: native dialog already shown
-      } else {
-        const res = await systemAPI.checkForUpdates();
-        if (!res.updateAvailable) {
-          setManualCheckStatus('latest');
-        } else {
-          setManualData(res);
-          setManualOpen(true);
-        }
+      // Windows/macOS update entries are temporarily disabled. The staged
+      // desktop check stays implemented in `systemAPI.checkForUpdates` and the
+      // update store, but it is intentionally unreachable from the UI: restore
+      // this branch together with `canShowAppUpdateEntry()` in tauriEnv.ts.
+      //
+      // } else {
+      //   const res = await systemAPI.checkForUpdates();
+      //   if (!res.updateAvailable) {
+      //     setManualCheckStatus('latest');
+      //   } else {
+      //     setManualData(res);
+      //     setManualOpen(true);
+      //   }
+      // }
+      //
+      // OHOS: the AppGallery check shows the system update dialog when an
+      // update exists; the in-app install flow stays desktop-only.
+      const ohosRes = await systemAPI.checkForUpdatesOhos();
+      if (ohosRes.error) {
+        setManualCheckErrorMessage(String(ohosRes.error));
+        setManualCheckStatus('error');
+      } else if (!ohosRes.updateAvailable) {
+        setManualCheckStatus('latest');
       }
+      // updateAvailable === true: native dialog already shown
     } catch (error) {
       log.error('check_for_updates failed', error);
       const message = error instanceof Error ? error.message : String(error);
@@ -174,7 +181,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
     } finally {
       setManualCheckBusy(false);
     }
-  }, [openHarmonyRuntime, t]);
+  }, [t]);
 
   const handleAppMarketReview = useCallback(() => {
     systemAPI.openAppMarketPage().catch(error => {

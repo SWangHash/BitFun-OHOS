@@ -11,7 +11,7 @@ import { getUpdateDownloadFraction } from './updateDownloadProgress';
 import type { UpdateDownloadProgressPayload } from './installUpdateWithProgress';
 
 const mocks = vi.hoisted(() => ({ download: vi.fn() }));
-vi.mock('./tauriEnv', () => ({ canCheckForAppUpdates: () => true }));
+vi.mock('./tauriEnv', () => ({ canCheckForAppUpdates: () => true, canShowAppUpdateEntry: () => true }));
 vi.mock('@/infrastructure/api/service-api/SystemAPI', () => ({ systemAPI: {} }));
 vi.mock('./installUpdateWithProgress', () => ({ installUpdateWithProgress: mocks.download }));
 vi.mock('@/infrastructure/i18n', () => ({ useI18n: () => ({

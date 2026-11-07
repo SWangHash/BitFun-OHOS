@@ -36,6 +36,10 @@ Remote Connect 使用共享 BitFun 账号（GitHub 或邮箱验证码登录）�
 ## 本模块规则
 
 - 不要在 UI 组件里直接调用 Tauri API；应通过 adapter / infrastructure 层访问
+- 应用内更新入口目前只在鸿蒙上开放。Windows 和 macOS 不得渲染更新按钮、菜单项、
+  角标、通知或自动检查；所有入口统一通过
+  `src/infrastructure/update/tauriEnv.ts` 的 `canShowAppUpdateEntry()` 门控，
+  不要在各处另写平台判断。
 - 新增前端基础设施前，先复用 `@bitfun/ui`、设计令牌、theme、i18n 和 Zustand stores
 - 单行标签优先使用设计系统 `OverflowText`，避免自行添加省略号样式或裁剪字符串。纯文字默认渐隐截断并在悬停、聚焦时跑马灯展示；搜索高亮等纯文本富内容显式设置 `behavior="marquee"`，图标和操作按钮放在文字槽外。所属控件设置 `data-overflow-trigger`；标准组件已内置溢出处理。多行、触屏与可编辑内容保留适合自身的布局。
 - 主题与颜色 Token 改动遵循 `docs/architecture/theme-token-optimization.md`。审计失败应通过复用 Token、

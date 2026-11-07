@@ -1,7 +1,7 @@
 //! OPC package plumbing: zip IO, shared parts, and the embedded source model.
 //!
 //! Every package this crate writes carries its editable model in a private
-//! part (`openbitfun/genoffice.json`) reached through a package-level
+//! part (`bitfun/genoffice.json`) reached through a package-level
 //! relationship. Office applications ignore unknown relationships, so the file
 //! opens normally; this crate reads the part back to apply later edits.
 
@@ -14,11 +14,15 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::io::{Cursor, Read, Write};
 
-pub(crate) const SOURCE_PART: &str = "openbitfun/genoffice.json";
+pub(crate) const SOURCE_PART: &str = "bitfun/genoffice.json";
+/// Packages written before the brand rename still carry the legacy part and
+/// schema. Read them, then rewrite the model under the current names.
+pub(crate) const LEGACY_SOURCE_PART: &str = "openbitfun/genoffice.json";
 pub(crate) const SOURCE_REL_TYPE: &str =
-    "http://schemas.openbitfun.com/genoffice/2026/relationships/source";
-pub(crate) const SOURCE_CONTENT_TYPE: &str = "application/vnd.openbitfun.genoffice+json";
-pub(crate) const SOURCE_SCHEMA: &str = "openbitfun.genoffice";
+    "https://schemas.bitfun.com/genoffice/2026/relationships/source";
+pub(crate) const SOURCE_CONTENT_TYPE: &str = "application/vnd.bitfun.genoffice+json";
+pub(crate) const SOURCE_SCHEMA: &str = "bitfun.genoffice";
+pub(crate) const LEGACY_SOURCE_SCHEMA: &str = "openbitfun.genoffice";
 pub(crate) const SOURCE_VERSION: u32 = 1;
 
 const MAX_PACKAGE_ENTRIES: usize = 4096;
@@ -101,7 +105,7 @@ impl Parts {
 /// except the source part itself and document properties, which Office
 /// applications rewrite on every save.
 fn fingerprinted(name: &str) -> bool {
-    name != SOURCE_PART && !name.starts_with("docProps/")
+    name != SOURCE_PART && name != LEGACY_SOURCE_PART && !name.starts_with("docProps/")
 }
 
 pub(crate) fn fingerprint<'a>(entries: impl Iterator<Item = (&'a str, &'a [u8])>) -> String {
@@ -172,7 +176,12 @@ pub(crate) fn read_source(
     entries: &BTreeMap<String, Vec<u8>>,
     discard_external_changes: bool,
 ) -> OfficeResult<SourceEnvelope> {
-    let Some(source) = entries.get(SOURCE_PART) else {
+    // Older packages carry the pre-rename part. Reading it keeps user documents
+    // editable; the next write emits the current part and schema.
+    let Some(source) = entries
+        .get(SOURCE_PART)
+        .or_else(|| entries.get(LEGACY_SOURCE_PART))
+    else {
         return Err(OfficeError::new(
             OfficeErrorKind::NotGenerated,
             "this file was not created by GenOfficeFile (or another program re-saved it and dropped the editable source); read it with the Read tool and create a new file instead",
@@ -181,7 +190,7 @@ pub(crate) fn read_source(
     let envelope: SourceEnvelope = serde_json::from_slice(source).map_err(|err| {
         OfficeError::corrupt(format!("the embedded source is not valid JSON: {err}"))
     })?;
-    if envelope.schema != SOURCE_SCHEMA {
+    if envelope.schema != SOURCE_SCHEMA && envelope.schema != LEGACY_SOURCE_SCHEMA {
         return Err(OfficeError::corrupt(format!(
             "unexpected source schema `{}`",
             envelope.schema
@@ -414,6 +423,29 @@ mod tests {
         assert_eq!(a, b);
         let c = fingerprint([("word/document.xml", b"b".as_slice())].into_iter());
         assert_ne!(a, c);
+    }
+
+    #[test]
+    fn legacy_source_part_and_schema_remain_readable() {
+        let mut entries = BTreeMap::new();
+        entries.insert("word/document.xml".to_string(), b"body".to_vec());
+        entries.insert(
+            LEGACY_SOURCE_PART.to_string(),
+            serde_json::to_vec(&serde_json::json!({
+                "schema": LEGACY_SOURCE_SCHEMA,
+                "version": 1,
+                "format": "docx",
+                "revision": 3,
+                "fingerprint": fingerprint([("word/document.xml", b"body".as_slice())].into_iter()),
+                "document": {"blocks": []}
+            }))
+            .unwrap(),
+        );
+
+        let envelope = read_source(&entries, false).unwrap();
+
+        assert_eq!(envelope.schema, LEGACY_SOURCE_SCHEMA);
+        assert_eq!(envelope.revision, 3);
     }
 
     #[test]

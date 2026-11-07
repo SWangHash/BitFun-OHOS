@@ -4,18 +4,21 @@ use std::sync::{Arc, OnceLock};
 #[cfg(not(any(target_os = "macos", target_env = "ohos")))]
 use std::sync::{Mutex, OnceLock};
 
-// Legacy service names: credentials were saved before the BitFun rename, and
-// the system keyring has no cross-name migration.
+// Current and pre-rename service names. The system keyring has no cross-name
+// migration, so load reads the legacy name as a fallback, copies the entry
+// forward, and save mirrors it back so a downgrade keeps the sign-in.
 #[cfg(not(any(target_os = "macos", target_env = "ohos")))]
-const KEYRING_SERVICE: &str = "openbitfun.miniapp-market.v1";
+const KEYRING_SERVICE: &str = "bitfun.miniapp-market.v1";
+#[cfg(not(any(target_os = "macos", target_env = "ohos")))]
+const LEGACY_KEYRING_SERVICE: &str = "openbitfun.miniapp-market.v1";
 const CREDENTIAL_ENTRY: &str = "github-oauth";
 
 #[cfg(any(target_env = "ohos", test))]
-const OHOS_MARKET_ALIAS: &str = "openbitfun.market.credentials.v1";
-// 1.0.x HarmonyOS builds kept the same credentials under this alias. It is read
-// as a fallback so an in-place upgrade keeps the market sign-in.
+const OHOS_MARKET_ALIAS: &str = "bitfun.market.credentials.v1";
+// Builds after the brand rename stored the same credentials under this alias.
+// It is read as a fallback so an in-place upgrade keeps the market sign-in.
 #[cfg(any(target_env = "ohos", test))]
-const OHOS_LEGACY_MARKET_ALIAS: &str = "bitfun.market.credentials.v1";
+const OHOS_LEGACY_MARKET_ALIAS: &str = "openbitfun.market.credentials.v1";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -56,7 +59,7 @@ fn keyring_lock() -> &'static Mutex<()> {
 }
 
 #[cfg(not(any(target_os = "macos", target_env = "ohos")))]
-fn open_entry() -> Result<keyring_core::Entry, String> {
+fn open_entry(service: &str) -> Result<keyring_core::Entry, String> {
     if keyring_core::get_default_store().is_none() {
         #[cfg(target_os = "windows")]
         let store = windows_native_keyring_store::Store::new();
@@ -79,8 +82,17 @@ fn open_entry() -> Result<keyring_core::Entry, String> {
             store.map_err(|error| format!("initialize system credential store: {error}"))?;
         keyring_core::set_default_store(store);
     }
-    keyring_core::Entry::new(KEYRING_SERVICE, CREDENTIAL_ENTRY)
+    keyring_core::Entry::new(service, CREDENTIAL_ENTRY)
         .map_err(|error| format!("open market credential entry: {error}"))
+}
+
+#[cfg(not(any(target_os = "macos", target_env = "ohos")))]
+fn read_secret(entry: &keyring_core::Entry) -> Result<Option<Vec<u8>>, String> {
+    match entry.get_secret() {
+        Ok(secret) => Ok(Some(secret)),
+        Err(keyring_core::Error::NoEntry) => Ok(None),
+        Err(error) => Err(format!("read market credentials: {error}")),
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -170,11 +182,21 @@ pub async fn load_market_credentials() -> Result<Option<StoredMarketCredentials>
             let _guard = keyring_lock()
                 .lock()
                 .map_err(|_| "market credential lock poisoned".to_string())?;
-            let entry = open_entry()?;
-            let secret = match entry.get_secret() {
-                Ok(secret) => secret,
-                Err(keyring_core::Error::NoEntry) => return Ok(None),
-                Err(error) => return Err(format!("read market credentials: {error}")),
+            let current = open_entry(KEYRING_SERVICE)?;
+            let secret = match read_secret(&current)? {
+                Some(secret) => secret,
+                None => {
+                    let legacy = open_entry(LEGACY_KEYRING_SERVICE)?;
+                    let Some(secret) = read_secret(&legacy)? else {
+                        return Ok(None);
+                    };
+                    if let Err(error) = current.set_secret(&secret) {
+                        log::warn!(
+                            "Failed to carry legacy market credentials to the current keyring entry: {error}"
+                        );
+                    }
+                    secret
+                }
             };
             serde_json::from_slice(&secret)
                 .map(Some)
@@ -193,10 +215,15 @@ pub async fn save_market_credentials(credentials: &StoredMarketCredentials) -> R
         let vault = injected_ohos_vault().ok_or_else(|| {
             "market credential vault unavailable: OHOS vault not injected".to_string()
         })?;
-        return vault
+        vault
             .set_secret(OHOS_MARKET_ALIAS, &secret)
             .await
-            .map_err(|error| format!("write market credentials: {error}"));
+            .map_err(|error| format!("write market credentials: {error}"))?;
+        // Mirror the pre-rename alias so a downgrade keeps the sign-in.
+        if let Err(error) = vault.set_secret(OHOS_LEGACY_MARKET_ALIAS, &secret).await {
+            log::warn!("Failed to mirror market credentials to the legacy alias: {error}");
+        }
+        return Ok(());
     }
     #[cfg(target_os = "macos")]
     {
@@ -211,9 +238,25 @@ pub async fn save_market_credentials(credentials: &StoredMarketCredentials) -> R
             let _guard = keyring_lock()
                 .lock()
                 .map_err(|_| "market credential lock poisoned".to_string())?;
-            open_entry()?
+            let current = open_entry(KEYRING_SERVICE)?;
+            current
                 .set_secret(&secret)
-                .map_err(|error| format!("write market credentials: {error}"))
+                .map_err(|error| format!("write market credentials: {error}"))?;
+            // Keep the pre-rename entry in sync: an older build reads only that
+            // name, and a downgrade must not lose the sign-in.
+            match open_entry(LEGACY_KEYRING_SERVICE) {
+                Ok(legacy) => {
+                    if let Err(error) = legacy.set_secret(&secret) {
+                        log::warn!(
+                            "Failed to mirror market credentials to the legacy keyring entry: {error}"
+                        );
+                    }
+                }
+                Err(error) => log::warn!(
+                    "Failed to open the legacy market credential entry for mirroring: {error}"
+                ),
+            }
+            Ok(())
         })
         .await
         .map_err(|error| format!("join market credential write: {error}"))?
@@ -241,10 +284,17 @@ pub async fn clear_market_credentials() -> Result<(), String> {
             let _guard = keyring_lock()
                 .lock()
                 .map_err(|_| "market credential lock poisoned".to_string())?;
-            match open_entry()?.delete_credential() {
-                Ok(()) | Err(keyring_core::Error::NoEntry) => Ok(()),
-                Err(error) => Err(format!("delete market credentials: {error}")),
+            // Remove both names so an explicit sign-out cannot resurrect the
+            // pre-rename entry on the next read.
+            for service in [KEYRING_SERVICE, LEGACY_KEYRING_SERVICE] {
+                match open_entry(service)?.delete_credential() {
+                    Ok(()) | Err(keyring_core::Error::NoEntry) => {}
+                    Err(error) => {
+                        return Err(format!("delete market credentials: {error}"));
+                    }
+                }
             }
+            Ok(())
         })
         .await
         .map_err(|error| format!("join market credential delete: {error}"))?
@@ -347,7 +397,8 @@ mod tests {
 
     #[tokio::test]
     async fn legacy_alias_is_read_and_carried_to_the_current_alias() {
-        assert_eq!(OHOS_LEGACY_MARKET_ALIAS, "bitfun.market.credentials.v1");
+        assert_eq!(OHOS_MARKET_ALIAS, "bitfun.market.credentials.v1");
+        assert_eq!(OHOS_LEGACY_MARKET_ALIAS, "openbitfun.market.credentials.v1");
         let vault = MemoryVault::with(OHOS_LEGACY_MARKET_ALIAS, &credentials_json());
 
         let loaded = load_from_ohos_vault(&vault).await.unwrap().unwrap();
