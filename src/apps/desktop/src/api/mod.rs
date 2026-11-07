@@ -47,6 +47,9 @@ pub mod miniapp_agent_api;
 pub mod miniapp_api;
 pub mod miniapp_export_api;
 pub mod miniapp_market_api;
+// OHOS-only adapter modules. `src/api/ohos` is maintained on the OHOS product
+// branches and is absent upstream; keep this module and its directory when
+// merging upstream/main.
 #[cfg(target_env = "ohos")]
 pub mod ohos;
 pub mod pages_api;

@@ -770,6 +770,9 @@ pub async fn open_app_market_ohos() -> Result<(), String> {
     }
 }
 
+// OHOS updates are handled by AppGallery Kit, not by the in-app updater.
+// Keep this command registered on every target; the non-OHOS branch returns an
+// explicit unsupported error. OHOS-only code must survive upstream merges.
 #[tauri::command]
 pub async fn check_for_updates_ohos() -> Result<String, String> {
     #[cfg(target_env = "ohos")]

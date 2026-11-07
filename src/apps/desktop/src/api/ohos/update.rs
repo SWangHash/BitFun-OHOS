@@ -1,3 +1,8 @@
+//! OHOS AppGallery update check bridge.
+//!
+//! OHOS updates go through AppGallery Kit instead of the desktop updater.
+//! This module does not exist upstream; keep it when merging `upstream/main`.
+
 use bitfun_core::util::JS_THREADSAFE_FUNCTION;
 use log::info;
 

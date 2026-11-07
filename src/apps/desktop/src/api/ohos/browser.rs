@@ -1,3 +1,9 @@
+//! OHOS ArkWeb / Haitai browser-control host adapters.
+//!
+//! OHOS creates browser WebViews through the ArkTS `BrowserWebviewService`
+//! bridge instead of Tauri child WebViews. This module does not exist upstream;
+//! keep it when merging `upstream/main`.
+
 #[cfg(target_env = "ohos")]
 use async_trait::async_trait;
 use bitfun_core::util::JS_THREADSAFE_FUNCTION;

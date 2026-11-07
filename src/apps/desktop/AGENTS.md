@@ -58,6 +58,27 @@ product wiring and compatibility bridges in `src/crates/assembly/core`.
   persistence in the legacy `.window-state.json` format. Do not reinstall the
   window-state plugin alongside it: the plugin's exit cache can overwrite repairs.
 
+### OpenHarmony (OHOS) preservation
+
+The OHOS product target is maintained here and in `src/apps/ohos`; upstream does
+not carry it. When merging `upstream/main`, resolve conflicts in favor of keeping
+the OHOS side instead of dropping it:
+
+- `src/api/ohos/` and `src/apps/ohos/` are OHOS-only. Never delete or replace
+  them because an upstream merge does not contain them. `origin/release/2.0.x`
+  is the reference OHOS release line; restore anything a merge drops from it.
+- Shared files carry `#[cfg(target_env = "ohos")]` / `#[cfg(not(target_env = "ohos"))]`
+  branches. The highest-risk areas are browser (`api/browser_api.rs`,
+  `api/ohos/browser.rs`, `api/browser_control_api.rs`), privacy startup wiring
+  (`lib.rs` `PrivacyServiceState::enabled`), and app updates (`api/ohos/update.rs`,
+  `check_for_updates_ohos`, `DailyAppUpdateGate.tsx`).
+- The pinned Tauri fork classifies `target_env = "ohos"` as mobile, so
+  `#[cfg(desktop)]` window APIs are unavailable there. Keep the
+  `cfg(not(target_env = "ohos"))` gates and add an OHOS fallback; do not delete
+  the branch just to make a merge compile.
+- Re-run `cargo tauri ohos build --debug` (or the OHOS-target check) after a
+  merge that touches these files.
+
 ## Commands
 
 Use these for the desktop development loop. Verification commands are kept in

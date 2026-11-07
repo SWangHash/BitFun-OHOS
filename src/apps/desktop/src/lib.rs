@@ -739,6 +739,9 @@ pub async fn _run() {
         return;
     }
 
+    // OHOS has no desktop keyring/telemetry defaults: privacy state is enabled
+    // with an ArkTS-backed storage root. Keep this branch when merging
+    // upstream/main; it is OHOS product code, not an upstream feature.
     #[cfg(target_env = "ohos")]
     let privacy_service_state = {
         let locale =
@@ -2497,8 +2500,9 @@ pub async fn _run() {
             api::dispatch_api::dispatch_query,
             api::dispatch_api::dispatch_load_transcript,
             api::dispatch_api::dispatch_save_transcript,
-            // Relay self-deploy API
-            // ohos adater
+            // OHOS ArkTS host commands. The `*_ohos` implementations live in
+            // `src/api/ohos` plus the ArkTS app and do not exist upstream; keep
+            // these registrations when merging upstream/main.
             #[cfg(target_env = "ohos")]
             open_oh_file_dialog,
             #[cfg(target_env = "ohos")]
