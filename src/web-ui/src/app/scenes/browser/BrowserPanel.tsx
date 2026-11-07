@@ -19,8 +19,7 @@ import { BrowserPreview } from './BrowserPreview';
 import './BrowserPanel.scss';
 
 const log = createLogger('BrowserPanel');
-// bitfun.com is not provisioned yet; open the live openbitfun.com homepage.
-const DEFAULT_URL = 'https://openbitfun.com/';
+const DEFAULT_URL = 'https://www.bitfun.work';
 
 interface InspectorElementData {
   tagName: string;
