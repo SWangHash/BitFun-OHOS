@@ -25,6 +25,14 @@ browser, HarmonyOS, and market-email icons use this artwork on the black
 rounded-square background with transparent corners. It stays a separate source
 from the vector master, so regenerating either family cannot replace the other.
 
+`design-system/packages/ui/src/brand/assets/` holds committed copies for the
+opt-in brand package, which imports its artwork from inside the package. The
+generator writes the application icon sizes, the silver app mark, and
+`bitfun-mark-silhouette.svg` there, so `BitFunMark` (startup splash, welcome
+scene, update card) paints the same silhouette as the installed icon. That
+package's `bitfun-mark.svg` is a different artifact: the authored contour master
+the motion variants trace, and the generator never overwrites it.
+
 `exports/` contains the SVG, ICO, ICNS, and PNGs at 16, 24, 32, 48, 64, 96,
 128, 192, 256, 512, 1024, and 2048 px. Each PNG size includes a dark transparent
 mark, a light transparent mark, and the application icon. Fine-line mark exports
@@ -107,8 +115,9 @@ Browser entry points select explicit 16/32 px favicons. The system tray reuses
 the macOS template mark on macOS and the configured application icon elsewhere.
 
 Run `pnpm run generate-brand-assets` after changing either source master. The
-generator owns the shared desktop, web, installer, Android, iOS, and HarmonyOS
-projections. Native macOS exports have the separate owner described above.
+generator owns the shared desktop, web, installer, Android, iOS, HarmonyOS, and
+design-system projections. Native macOS exports have the separate owner
+described above.
 
 Verify generated dimensions, small-size rim contrast, favicon references,
 platform selection, and icon containers with
