@@ -278,10 +278,15 @@ jobs:
           target_cache="$cache_root/target/ade-macos"
           # Same sherpa-onnx seed dir as the Windows job; the archive name
           # differs per target so one shared dir serves both.
+          # $cache_root/macos-sdk persists the modern macOS SDK that replaces
+          # the image's own 11.3 SDK (which predates ScreenCaptureKit and
+          # cannot compile src/computer_use/macos_capture.m). The verify step
+          # below fails fast when it is not seeded yet.
           mkdir -p \
             "$cache_root/cargo/registry" \
             "$cache_root/cargo/git" \
             "$cache_root/sherpa-onnx" \
+            "$cache_root/macos-sdk" \
             "$target_cache"
           docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
           docker run --detach \
@@ -290,12 +295,13 @@ jobs:
             --volume "$cache_root/cargo/registry:$cargo_home/registry" \
             --volume "$cache_root/cargo/git:$cargo_home/git" \
             --volume "$cache_root/sherpa-onnx:/opt/sherpa-onnx-cache" \
+            --volume "$cache_root/macos-sdk/MacOSX26.1.sdk:/opt/MacOSX26.1.sdk" \
             --volume "$target_cache:/workspace/target" \
             --workdir /workspace \
             "$IMAGE" \
             sh -c 'while :; do sleep 3600; done'
 
-      - name: Verify sherpa-onnx seed archive
+      - name: Verify sherpa-onnx seed archive and macOS SDK
         if: ${{ steps.classify.outputs.run == 'true' }}
         run: |
           set -eu
@@ -308,6 +314,20 @@ jobs:
             exit 1
           fi
           echo "sherpa-onnx seed archive found: $seed/$archive"
+          # Same modern-SDK requirement as the macOS package job in
+          # bitfun_ade_package.yml: the image ships macOS SDK 11.3 (2021),
+          # which predates ScreenCaptureKit (macOS 12.3+) and cannot compile
+          # src/computer_use/macos_capture.m.
+          sdk='/opt/.gitcode-cache/macos-sdk/MacOSX26.1.sdk'
+          if [ ! -d "$sdk/System/Library/Frameworks" ]; then
+            echo "::error::$sdk is missing or incomplete." >&2
+            echo "Seed the modern SDK (one-time, per runner):" >&2
+            echo "  mkdir -p /opt/.gitcode-cache/macos-sdk && cd /opt/.gitcode-cache/macos-sdk" >&2
+            echo "  curl -L --fail --retry 3 -o MacOSX26.1.sdk.tar.xz https://github.com/joseluisq/macosx-sdks/releases/download/26.1/MacOSX26.1.sdk.tar.xz" >&2
+            echo "  tar -xJf MacOSX26.1.sdk.tar.xz" >&2
+            exit 1
+          fi
+          echo "macOS SDK found: $sdk"
 
       # Same warm-up rationale as the Windows job: bound stalled GitHub
       # fetches instead of hanging the cargo check step silently.
@@ -338,8 +358,12 @@ jobs:
           set -eu
           # SHERPA_ONNX_ARCHIVE_DIR: resolve sherpa-onnx libs from the seeded
           # archive instead of downloading from GitHub (times out here).
+          # SDKROOT: the image's own SDK is 11.3, which predates
+          # ScreenCaptureKit (macOS 12.3+) and cannot compile
+          # src/computer_use/macos_capture.m; compile against the modern SDK
+          # mounted from the runner cache, same as the macOS package job.
           docker exec --env CARGO_NET_GIT_FETCH_WITH_CLI=true --env SHERPA_ONNX_ARCHIVE_DIR=/opt/sherpa-onnx-cache --env GIT_CONFIG_GLOBAL=/tmp/gitconfig "$CONTAINER_NAME" bash -eu -c '
-            export SDKROOT=/opt/MacOSX.sdk
+            export SDKROOT=/opt/MacOSX26.1.sdk
             export PKG_CONFIG_SYSROOT_DIR="$SDKROOT"
             export CC_aarch64_apple_darwin="cargo-zigbuild zig cc -- -target aarch64-macos-none"
             export CXX_aarch64_apple_darwin="cargo-zigbuild zig c++ -- -target aarch64-macos-none"
