@@ -4,8 +4,8 @@
   "title": "BitFun Playbook",
   "origin": "https://playbook.bitfun.com",
   "source": "src/shared/interactive-capabilities/catalog.json",
-  "digest": "0617ead8833592fbb40380d0056d16957906c755980920aad24d2269fd302369",
-  "ownerDigest": "57d167be6eca3389a99862b33166a957ea2cb26093a32cdc526e6fdf37475fd7",
+  "digest": "ed240e30198882b43284d3a8f68c03ea8104a9ff19c4fc4d402b6e93edb55559",
+  "ownerDigest": "df08684c3e71e57407784e844d48ca1ea98eea6bc89dd86eceff4441561f4d3c",
   "searchAcceptance": [
     {
       "id": "native-office-generation",
@@ -17676,7 +17676,7 @@
       "inputSchema": {
         "type": "string",
         "enum": [
-          "openbitfun",
+          "bitfun",
           "openui"
         ]
       },
@@ -31290,7 +31290,7 @@
           "valueSchema": {
             "type": "string",
             "enum": [
-              "openbitfun",
+              "bitfun",
               "openui"
             ]
           }

@@ -87,27 +87,31 @@ export function parseRegisteredCommands(source) {
   const registrations = [];
   const invalid = [];
   // One registration per line; an attribute line gates the entry that follows it.
-  let conditional = false;
+  let gate = null;
   for (const rawLine of stripRustComments(match[1]).split('\n')) {
     const line = rawLine.trim();
     if (!line) continue;
     if (line.startsWith('#[')) {
-      conditional = true;
+      gate = line;
       continue;
     }
     if (!/^[A-Za-z0-9_:]+,?$/u.test(line)) {
       invalid.push(line);
-      conditional = false;
+      gate = null;
       continue;
     }
-    // A gated registration (`#[cfg(target_env = "ohos")]`) only exists in that
-    // platform build, so it is not part of the audited command surface: the
-    // Product Operation Registry, the capability catalog, and the Web UI
+    // An OHOS-only registration (`#[cfg(target_env = "ohos")]`) exists only in
+    // that platform build, so it is not part of the audited command surface:
+    // the Product Operation Registry, the capability catalog, and the Web UI
     // transport contract all describe the shared command set.
-    if (conditional) {
-      conditional = false;
-      continue;
-    }
+    //
+    // The opposite gate, `#[cfg(not(target_env = "ohos"))]`, is different: the
+    // command exists on every other product target, so it must stay audited.
+    // Its registry row is unconditional, and skipping the registration here
+    // would make this parser disagree with the compiled registry.
+    const ohosOnly = gate === '#[cfg(target_env = "ohos")]';
+    gate = null;
+    if (ohosOnly) continue;
     const rustPath = line.replace(/,$/u, '');
     registrations.push({ id: rustPath.split('::').at(-1), rustPath });
   }
