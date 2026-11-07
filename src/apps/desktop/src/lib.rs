@@ -2254,8 +2254,13 @@ pub async fn _run() {
             save_text_file_dialog,
             check_for_updates,
             install_update,
+            // The staged-update cache APIs are desktop-only; `api::update_api`
+            // is gated out on OHOS, so its commands must not be registered there.
+            #[cfg(not(target_env = "ohos"))]
             api::update_api::download_update,
+            #[cfg(not(target_env = "ohos"))]
             api::update_api::get_pending_update,
+            #[cfg(not(target_env = "ohos"))]
             api::update_api::install_pending_update,
             api::system_api::open_html_file_in_browser,
             restart_app,

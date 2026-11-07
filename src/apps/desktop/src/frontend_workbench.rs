@@ -14,7 +14,9 @@ use bitfun_core::agentic::tools::frontend_workbench_host::{
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use tauri::{Manager, Url, WebviewUrl, WebviewWindowBuilder};
+#[cfg(not(target_env = "ohos"))]
+use tauri::WebviewWindowBuilder;
+use tauri::{Manager, Url, WebviewUrl};
 use tokio::sync::Notify;
 use uuid::Uuid;
 
@@ -1183,12 +1185,18 @@ impl FrontendWorkbenchManager {
     }
 
     fn close_confirmation_window(&self) {
-        if let Some(window) = self
-            .app
-            .get()
-            .and_then(|app| app.get_webview_window(CONFIRM_WINDOW_LABEL))
+        // `WebviewWindow::close` comes from a `#[cfg(desktop)]` impl in the
+        // Tauri fork, and OHOS is treated as mobile, so there is no
+        // confirmation window to close on that target.
+        #[cfg(not(target_env = "ohos"))]
         {
-            let _ = window.close();
+            if let Some(window) = self
+                .app
+                .get()
+                .and_then(|app| app.get_webview_window(CONFIRM_WINDOW_LABEL))
+            {
+                let _ = window.close();
+            }
         }
     }
 
@@ -1328,6 +1336,7 @@ pub fn custom_frontend_url(path: &str) -> WebviewUrl {
     WebviewUrl::CustomProtocol(url)
 }
 
+#[cfg(not(target_env = "ohos"))]
 fn show_confirmation_window(
     app: &tauri::AppHandle,
     transaction_id: &str,
@@ -1366,6 +1375,19 @@ fn show_confirmation_window(
         });
     });
     Ok(())
+}
+
+/// OHOS packages the frontend through Tauri's built-in asset protocol, so the
+/// external frontend workbench never activates and its confirmation window is
+/// not part of the target. Report the limitation explicitly instead of silently
+/// succeeding.
+#[cfg(target_env = "ohos")]
+fn show_confirmation_window(
+    _app: &tauri::AppHandle,
+    _transaction_id: &str,
+    _manager: Arc<FrontendWorkbenchManager>,
+) -> Result<(), String> {
+    Err("Frontend update confirmation windows are not supported on OpenHarmony".to_string())
 }
 
 fn confirmation_window_url(transaction_id: &str) -> WebviewUrl {
