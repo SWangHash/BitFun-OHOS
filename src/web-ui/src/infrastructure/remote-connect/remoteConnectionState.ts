@@ -1,9 +1,8 @@
 import type { ConnectionResult, RemoteConnectionMethod, RemoteConnectStatus } from '../api/service-api/RemoteConnectAPI';
+import { isOfficialRelayEndpoint } from '../../../../shared/relay-transport/OfficialRelay';
 
 export type RemoteNetworkMethod = 'lan' | 'bitfun_server';
-// bitfun.com is not provisioned yet; keep classifying the live openbitfun.com
-// deployment as the official relay until the domain cutover.
-export const OFFICIAL_RELAY_URL = 'https://remote.openbitfun.com/v/1.0.1';
+export { OFFICIAL_RELAY_URL } from '../../../../shared/relay-transport/OfficialRelay';
 
 export function remoteNetworkMethod(method: RemoteConnectionMethod | null | undefined): RemoteNetworkMethod | null {
   if (typeof method === 'object' && method !== null && 'lan' in method) return 'lan';
@@ -42,8 +41,11 @@ export function selectRemoteNetworkConnection(
   requestedMethod?: RemoteNetworkMethod,
 ) {
   const legacyUrl = normalizeRelayUrl(status?.relay_url);
+  // Hosts that predate `active_method` only report the endpoint they dialed.
+  // Classify by the official origin and versioned path, never by one pinned
+  // version, so a Relay rollover cannot relabel the public route as LAN.
   const legacyMethod = remoteNetworkMethod(status?.active_method)
-    ?? (legacyUrl ? legacyUrl === OFFICIAL_RELAY_URL ? 'bitfun_server' : 'lan' : null);
+    ?? (legacyUrl ? isOfficialRelayEndpoint(legacyUrl) ? 'bitfun_server' : 'lan' : null);
   const method = requestedMethod ?? remoteNetworkMethod(invitation?.method)
     ?? status?.connections?.find(route => route.relay_connected)?.method ?? legacyMethod;
   const route = status?.connections?.find(route => route.method === method);

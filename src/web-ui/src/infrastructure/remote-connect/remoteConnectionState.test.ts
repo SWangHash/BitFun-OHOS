@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { ConnectionResult, RemoteConnectStatus, RemoteConnectionMethod } from '../api/service-api/RemoteConnectAPI';
 import { remoteNetworkMethod, selectRemoteNetworkConnection, invitationRelayUrl } from './remoteConnectionState';
+import { OFFICIAL_RELAY_URL } from '../../../../shared/relay-transport/OfficialRelay';
 
-const official = 'https://remote.openbitfun.com/v/1.0.1';
+const official = OFFICIAL_RELAY_URL;
 const lan = 'http://192.168.1.2:9700';
 const method = (url: string): RemoteConnectionMethod => url === official ? 'bitfun_server' : { lan: { ip: '192.168.1.2' } };
 const status = (url: string): RemoteConnectStatus => ({
@@ -45,6 +46,18 @@ describe('account device connection routes', () => {
   it('does not show an older host connection under the other route', () => {
     expect(selectRemoteNetworkConnection(status(official), null, 'lan').connected).toBe(false);
     expect(selectRemoteNetworkConnection(status(lan), null, 'bitfun_server').connected).toBe(false);
+  });
+  it('classifies legacy official versions as the public Relay, not LAN', () => {
+    // Hosts that predate `active_method` report only the endpoint they dialed.
+    // Any version on the official origin is still the public route.
+    for (const relayUrl of ['https://remote.openbitfun.com/v/1.0.1', 'https://remote.openbitfun.com/v/0.9.9']) {
+      const legacy: RemoteConnectStatus = { ...status(relayUrl), relay_url: relayUrl };
+      delete (legacy as Partial<RemoteConnectStatus>).active_method;
+      expect(selectRemoteNetworkConnection(legacy)).toMatchObject({ connected: true, method: 'bitfun_server', relayUrl });
+    }
+    const otherHost: RemoteConnectStatus = { ...status('https://relay.example.test/v/1.0.2'), relay_url: 'https://relay.example.test/v/1.0.2' };
+    delete (otherHost as Partial<RemoteConnectStatus>).active_method;
+    expect(selectRemoteNetworkConnection(otherHost).method).toBe('lan');
   });
   it('accepts only canonical typed methods', () => {
     expect(remoteNetworkMethod({ lan: { ip: '192.168.1.2' } })).toBe('lan');

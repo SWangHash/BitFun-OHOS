@@ -1,4 +1,4 @@
-export const OFFICIAL_RELAY_URL = 'https://remote.openbitfun.com/v/1.0.1';
+import { isOfficialRelayEndpoint } from '../../../shared/relay-transport/OfficialRelay';
 
 export function normalizeRelayUrl(value: string): string | null {
   try {
@@ -25,7 +25,10 @@ function isLocalAddress(hostname: string): boolean {
 export function pairingRelayUrl(value: string): string | null {
   const normalized = normalizeRelayUrl(value);
   if (!normalized) return null;
-  if (normalized === OFFICIAL_RELAY_URL) return normalized;
+  // Accept every version on the official origin. The invitation is opened by
+  // the mobile-web build that this deployment serves, so pinning one version
+  // here rejects invitations minted after a Relay rollover.
+  if (isOfficialRelayEndpoint(normalized)) return normalized;
   const url = new URL(normalized);
   return isLocalAddress(url.hostname) && url.pathname === '/' ? normalized : null;
 }

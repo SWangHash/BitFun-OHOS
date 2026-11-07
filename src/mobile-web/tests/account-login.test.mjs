@@ -17,7 +17,10 @@ async function loadSource(relativePath, imports = {}) {
   return { url: `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`, source };
 }
 
-const links = await loadSource('../src/services/pairingLink.ts');
+const officialRelay = await loadSource('../../shared/relay-transport/OfficialRelay.ts');
+const links = await loadSource('../src/services/pairingLink.ts', {
+  '../../../shared/relay-transport/OfficialRelay': officialRelay.url,
+});
 const relayEncoding = await loadSource('../src/services/relayMessageEncoding.ts');
 const encryptionImports = { './relayMessageEncoding': relayEncoding.url };
 const selection = await loadSource('../src/services/accountDeviceSelection.ts');
@@ -202,7 +205,7 @@ test('authorization follows the central GitHub OAuth URL and rejects lookalike d
 
 test('official and local invitations share strict device-only targeting', async () => {
   const { currentRelayUrl, pairingRelayUrl, accountDeviceIdFromHash } = await import(links.url);
-  for (const base of ['https://remote.openbitfun.com/v/1.0.1/', 'http://192.168.1.9:9700/']) {
+  for (const base of ['https://remote.openbitfun.com/v/1.0.1/', 'https://remote.openbitfun.com/v/1.0.2/', 'http://192.168.1.9:9700/']) {
     const url = new URL(`${base}#/pair?did=desktop-1`);
     assert.equal(currentRelayUrl(url), base.replace(/\/$/, ''));
     assert.equal(accountDeviceIdFromHash(url.hash), 'desktop-1');
